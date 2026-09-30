@@ -1,0 +1,10 @@
+[project]
+name = "relay-core"
+version = "0.0.0"
+requires-python = ">=3.13,<3.14"
+description = "Keys, wallets, jobs, account pools, API, admin, media (no browser, no provider imports)"
+dependencies = ["psycopg[binary,pool]>=3.2"]
+
+[build-system]
+requires = ["uv_build>=0.9,<0.10"]
+build-backend = "uv_build"

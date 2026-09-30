@@ -1,0 +1,88 @@
+# One box, one compose (contracts §3). Runs on the LAN box by IP and port; no reverse proxy (D16).
+# Services whose code is not built yet sit in the `pending` profile, so `docker compose up` starts only
+# what exists. Each phase moves its service out of that profile.
+name: relay
+
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "20m", max-file: "5"}
+
+x-app: &app
+  env_file: .env
+  logging: *logging
+  restart: unless-stopped
+  depends_on:
+    postgres: {condition: service_healthy}
+    minio: {condition: service_started}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-relay}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: relay
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-relay}"]
+      interval: 5s
+      retries: 20
+    logging: *logging
+    restart: unless-stopped
+
+  minio:
+    # The box runs its cached copy of this image, as dola_v4 does. Upstream no longer serves it (401 on
+    # 30/09), so a fresh box needs another source: contracts §17.
+    image: quay.io/minio/minio:latest
+    pull_policy: missing
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-relay}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in deploy/.env}
+    volumes: ["miniodata:/data"]
+    logging: *logging
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    profiles: [pending]
+    build: {context: .., dockerfile: deploy/Dockerfile, target: http}
+    command: ["relay", "migrate"]
+    restart: "no"
+
+  api:
+    <<: *app
+    profiles: [pending]
+    build: {context: .., dockerfile: deploy/Dockerfile, target: http}
+    command: ["relay", "serve"]
+    ports: ["${API_PORT:-8100}:8100"]
+
+  worker-dola:
+    <<: *app
+    profiles: [pending]
+    build: {context: .., dockerfile: deploy/Dockerfile, target: browser}
+    command: ["relay", "worker", "--provider", "dola"]
+    shm_size: 1g
+    mem_limit: ${DOLA_MEM_LIMIT:-12g}
+    volumes: ["profiles-dola:/profiles"]
+
+  worker-meta:
+    <<: *app
+    profiles: [pending]
+    build: {context: .., dockerfile: deploy/Dockerfile, target: browser}
+    command: ["relay", "worker", "--provider", "meta"]
+    shm_size: 1g
+    mem_limit: ${META_MEM_LIMIT:-6g}
+    volumes: ["profiles-meta:/profiles"]
+
+  worker-vibes:
+    <<: *app
+    profiles: [pending]
+    build: {context: .., dockerfile: deploy/Dockerfile, target: http}
+    command: ["relay", "worker", "--provider", "vibes"]
+
+volumes:
+  pgdata:
+  miniodata:
+  profiles-dola:
+  profiles-meta:

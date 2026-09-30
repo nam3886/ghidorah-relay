@@ -1,0 +1,47 @@
+[project]
+name = "relay-workspace"
+version = "0.0.0"
+requires-python = ">=3.13,<3.14"
+description = "Workspace root: one API for dola, vibes and meta (contracts: c2tool/plans/260930-2221-relay-platform)"
+dependencies = [
+    "relay-core",
+    "relay-browser",
+    "relay-dola",
+    "relay-vibes",
+    "relay-meta",
+    "relay-cli",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.8"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*", "apps/*"]
+
+[tool.uv.sources]
+relay-core = { workspace = true }
+relay-browser = { workspace = true }
+relay-dola = { workspace = true }
+relay-vibes = { workspace = true }
+relay-meta = { workspace = true }
+relay-cli = { workspace = true }
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+extend-exclude = ["fixtures"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["UP031"]   # %-formatting is the house style (dola_v4, vibes)
+
+[tool.ruff.lint.isort]
+known-first-party = ["relay_core", "relay_browser", "relay_dola", "relay_vibes", "relay_meta", "relay_cli"]
+known-local-folder = ["guards"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "packages", "apps"]
+addopts = "-q --strict-markers"

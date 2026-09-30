@@ -1,0 +1,30 @@
+# Throwaway services for scripts/check.sh only (contracts §14.2). Ports sit away from the defaults so
+# the check never touches a real Postgres or MinIO; `down -v` removes the data after every run.
+name: relay-check
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: relay
+      POSTGRES_PASSWORD: relay-check
+      POSTGRES_DB: postgres
+    ports: ["127.0.0.1:55432:5432"]
+    tmpfs: ["/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relay"]
+      interval: 1s
+      retries: 30
+  minio:
+    # MinIO stopped publishing free images (quay/docker hub 401 on 30/09); a pinned community build is fine
+    # for throwaway check data.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: relay
+      MINIO_ROOT_PASSWORD: relay-check
+    ports: ["127.0.0.1:59000:9000"]
+    tmpfs: ["/data"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      retries: 30

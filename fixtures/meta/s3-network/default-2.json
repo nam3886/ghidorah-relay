@@ -1,0 +1,609 @@
+{
+ "prompt": "Imagine a lighthouse on a cliff at sunset, oil painting",
+ "result": {
+  "run": "default-2",
+  "account": "meta-2",
+  "logged_in_at": 1.3,
+  "sent_at": 3.4,
+  "images_found_at": 34.3,
+  "images_found": 1,
+  "found_via": [
+   "dom"
+  ],
+  "net_hits_seen": 2,
+  "downloaded": [
+   [
+    1920,
+    1280,
+    611
+   ]
+  ],
+  "reply_opening": "Today Show thinking Here's your lighthouse — thick impasto brushstrokes, warm sunset breaking through the clouds, waves ",
+  "secs": 34.5,
+  "phases": [
+   [
+    0.1,
+    "opening"
+   ],
+   [
+    1.3,
+    "sending"
+   ],
+   [
+    3.4,
+    "generating"
+   ],
+   [
+    34.3,
+    "downloading"
+   ]
+  ],
+  "graphql_responses": 12,
+  "fbcdn_responses": 5,
+  "ws": {
+   "hosts": [
+    "gateway.meta.ai"
+   ],
+   "frames": 66,
+   "with_fbcdn_url": 5
+  },
+  "graphql_with_fbcdn_url": 0
+ },
+ "capture": {
+  "http": [
+   {
+    "t": 1.2,
+    "host": "static.xx.fbcdn.net",
+    "path": "/rsrc.php/yd/r/_tN6hYY4oeH.webp",
+    "type": "image",
+    "len": 0,
+    "body": ""
+   },
+   {
+    "t": 1.4,
+    "host": "static.xx.fbcdn.net",
+    "path": "/assets/",
+    "type": "image",
+    "len": 0,
+    "body": ""
+   },
+   {
+    "t": 1.4,
+    "host": "static.xx.fbcdn.net",
+    "path": "/assets/",
+    "type": "image",
+    "len": 0,
+    "body": ""
+   },
+   {
+    "t": 3.2,
+    "host": "www.meta.ai",
+    "path": "/api/graphql",
+    "type": "fetch",
+    "len": 76,
+    "body": "{\"data\":{\"checkSbsSurveyEligibility\":{\"sbsConfig\":null,\"isEligible\":false}}}"
+   },
+   {
+    "t": 3.6,
+    "host": "www.meta.ai",
+    "path": "/api/graphql",
+    "type": "fetch",
+    "len": 36,
+    "body": "{\"data\":{\"warmupConversation\":true}}"
+   },
+   {
+    "t": 3.7,
+    "host": "www.meta.ai",
+    "path": "/api/graphql",
+    "type": "fetch",
+    "len": 77,
+    "body": "{\"data\":{\"triggerHeisenbergCheck\":{\"triggered\":true,\"isCheckpointed\":false}}}"
+   },
+   {
+    "t": 4.2,
+    "host": "www.meta.ai",
+    "path": "/api/graphql",
+    "type": "fetch",
+    "len": 249,
+    "body": "{\"data\":{\"updateConversationMode\":{\"__typename\":\"ConversationModeUpdated\",\"conversationModePreference\":{\"lastSelectedMode\":\"think_fast\",\"id\":\"mode_pref:917c4b30-197a-4410-b3a7-93c7b8376bbd\",\"conversationId\":\"917c4b30-197a-4410-b3a7-93c7b8376bbd\"}}}}"
+   },
+   {
+    "t": 5.3,
+    "host": "www.meta.ai",
+    "path": "/api/graphql",
+    "type": "fetch",
+    "len": 39,
+    "body": "{\"data\":{\"conversations\":{\"edges\":[]}}}"
+   },
+   {
+    "t": 7.0,
+    "host": "www.meta.ai",
+    "path": "/api/graphql",
+    "type": "fetch",
+    "len": 39,
+    "body": "{\"data\":{\"conversations\":{\"edges\":[]}}}"
+   },
+   {
+    "t": 9.6,
+    "host": "www.meta.ai",
+    "path": "/api/graphql",
+    "type": "fetch",
+    "len": 39,
+    "body": "{\"data\":{\"conversations\":{\"edges\":[]}}}"
+   },
+   {
+    "t": 13.2,
+    "host": "www.meta.ai",
+    "path": "/api/graphql",
+    "type": "fetch",
+    "len": 39,
+    "body": "{\"data\":{\"conversations\":{\"edges\":[]}}}"
+   },
+   {
+    "t": 18.9,
+    "host": "www.meta.ai",
+    "path": "/api/graphql",
+    "type": "fetch",
+    "len": 39,
+    "body": "{\"data\":{\"conversations\":{\"edges\":[]}}}"
+   },
+   {
+    "t": 19.9,
+    "host": "scontent.xx.fbcdn.net",
+    "path": "/v/t58.90637-1/830927324_1436316685102759_6260754890690319189_n.webp",
+    "type": "image",
+    "len": 0,
+    "body": ""
+   },
+   {
+    "t": 27.4,
+    "host": "www.meta.ai",
+    "path": "/api/graphql",
+    "type": "fetch",
+    "len": 39,
+    "body": "{\"data\":{\"conversations\":{\"edges\":[]}}}"
+   },
+   {
+    "t": 28.4,
+    "host": "scontent.xx.fbcdn.net",
+    "path": "/v/t39.105495-1/829474257_1670576124648038_7567957291938524706_n.webp",
+    "type": "image",
+    "len": 0,
+    "body": ""
+   },
+   {
+    "t": 28.8,
+    "host": "www.meta.ai",
+    "path": "/api/graphql",
+    "type": "fetch",
+    "len": 85,
+    "body": "{\"data\":{\"mediaShareMenu\":{\"viewerActions\":[\"IMAGINE_USER_ACTION_ANIMATE\",\"SHARE\"]}}}"
+   },
+   {
+    "t": 33.9,
+    "host": "www.meta.ai",
+    "path": "/api/graphql",
+    "type": "fetch",
+    "len": 83,
+    "body": "{\"data\":{\"saveMessageLatency\":{\"__typename\":\"MessageLatencySaved\",\"success\":true}}}"
+   }
+  ],
+  "ws": [
+   {
+    "t": 3.1,
+    "host": "gateway.meta.ai",
+    "len": 1,
+    "text": "\n"
+   },
+   {
+    "t": 3.6,
+    "host": "gateway.meta.ai",
+    "len": 18,
+    "text": "\u000f\u0000\u0000\f\u0000\u0000{\"code\":200}"
+   },
+   {
+    "t": 3.8,
+    "host": "gateway.meta.ai",
+    "len": 8,
+    "text": "\f\u0000\u0000\u0002\u0000\u0000\u0000\u0000"
+   },
+   {
+    "t": 4.0,
+    "host": "gateway.meta.ai",
+    "len": 129,
+    "text": "\r\u0000\u0000{\u0000\u0000\u0000\u0000\n+\u0001(\b\u0001\u0012$0c98dc8b-b93b-4983-8bd0-318492cca517\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$0c98dc8b-b93b-4983-8bd0-318492cca517"
+   },
+   {
+    "t": 7.4,
+    "host": "gateway.meta.ai",
+    "len": 126,
+    "text": "\r\u0000\u0000x\u0000\u0000\u0001\u0000\n\u0012\u001a\u0010\n\u000emedia_subagent\u0010\u0001\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 16.8,
+    "host": "gateway.meta.ai",
+    "len": 784,
+    "text": "\r\u0000\u0000\n\u0003\u0000\u0002\u0000\n·\u0005*´\u0005\"±\u0005{\"seq\":0,\"type\":\"full\",\"response\":{\"response_id\":\"0c98dc8b-b93b-4983-8bd0-318492cca517\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing oil painting scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing oil painting scene\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing oil painting scene\"}]}]}]}]}}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 16.9,
+    "host": "gateway.meta.ai",
+    "len": 312,
+    "text": "\r\u0000\u00002\u0001\u0000\u0003\u0000\nß\u0001*Ü\u0001\"Ù\u0001{\"seq\":1,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\"I'm\"},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"I'm\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 16.9,
+    "host": "gateway.meta.ai",
+    "len": 328,
+    "text": "\r\u0000\u0000B\u0001\u0000\u0004\u0000\nï\u0001*ì\u0001\"é\u0001{\"seq\":2,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" building\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" building\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 16.9,
+    "host": "gateway.meta.ai",
+    "len": 314,
+    "text": "\r\u0000\u00004\u0001\u0000\u0005\u0000\ná\u0001*Þ\u0001\"Û\u0001{\"seq\":3,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 16.9,
+    "host": "gateway.meta.ai",
+    "len": 328,
+    "text": "\r\u0000\u0000B\u0001\u0000\u0006\u0000\nï\u0001*ì\u0001\"é\u0001{\"seq\":4,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" detailed\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" detailed\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 16.9,
+    "host": "gateway.meta.ai",
+    "len": 324,
+    "text": "\r\u0000\u0000>\u0001\u0000\u0007\u0000\në\u0001*è\u0001\"å\u0001{\"seq\":5,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" prompt\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" prompt\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 16.9,
+    "host": "gateway.meta.ai",
+    "len": 318,
+    "text": "\r\u0000\u00008\u0001\u0000\b\u0000\nå\u0001*â\u0001\"ß\u0001{\"seq\":6,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" for\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" for\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 16.9,
+    "host": "gateway.meta.ai",
+    "len": 314,
+    "text": "\r\u0000\u00004\u0001\u0000\t\u0000\ná\u0001*Þ\u0001\"Û\u0001{\"seq\":7,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 16.9,
+    "host": "gateway.meta.ai",
+    "len": 332,
+    "text": "\r\u0000\u0000F\u0001\u0000\n\u0000\nó\u0001*ð\u0001\"í\u0001{\"seq\":8,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" lighthouse\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" lighthouse\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 16.9,
+    "host": "gateway.meta.ai",
+    "len": 316,
+    "text": "\r\u0000\u00006\u0001\u0000\u000b\u0000\nã\u0001*à\u0001\"Ý\u0001{\"seq\":9,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" on\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" on\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.0,
+    "host": "gateway.meta.ai",
+    "len": 920,
+    "text": "\r\u0000\u0000\u0003\u0000\f\u0000\n¿\u0006*¼\u0006\"¹\u0006{\"seq\":10,\"type\":\"full\",\"response\":{\"response_id\":\"0c98dc8b-b93b-4983-8bd0-318492cca517\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing oil painting scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing oil painting scene\",\"subtitle_detail\":\"I'm building a detailed prompt for a lighthouse on a\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing oil painting scene\",\"body\":\"I'm building a detailed prompt for a lighthouse on a\"}]}]}]}]}}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.0,
+    "host": "gateway.meta.ai",
+    "len": 325,
+    "text": "\r\u0000\u0000?\u0001\u0000\r\u0000\nì\u0001*é\u0001\"æ\u0001{\"seq\":11,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" rugged\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" rugged\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.0,
+    "host": "gateway.meta.ai",
+    "len": 323,
+    "text": "\r\u0000\u0000=\u0001\u0000\u000e\u0000\nê\u0001*ç\u0001\"ä\u0001{\"seq\":12,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" cliff\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" cliff\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.0,
+    "host": "gateway.meta.ai",
+    "len": 317,
+    "text": "\r\u0000\u00007\u0001\u0000\u000f\u0000\nä\u0001*á\u0001\"Þ\u0001{\"seq\":13,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" at\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" at\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.0,
+    "host": "gateway.meta.ai",
+    "len": 325,
+    "text": "\r\u0000\u0000?\u0001\u0000\u0010\u0000\nì\u0001*é\u0001\"æ\u0001{\"seq\":14,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" sunset\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" sunset\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.0,
+    "host": "gateway.meta.ai",
+    "len": 313,
+    "text": "\r\u0000\u00003\u0001\u0000\u0011\u0000\nà\u0001*Ý\u0001\"Ú\u0001{\"seq\":15,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.1,
+    "host": "gateway.meta.ai",
+    "len": 333,
+    "text": "\r\u0000\u0000G\u0001\u0000\u0012\u0000\nô\u0001*ñ\u0001\"î\u0001{\"seq\":16,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" specifying\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" specifying\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.1,
+    "host": "gateway.meta.ai",
+    "len": 323,
+    "text": "\r\u0000\u0000=\u0001\u0000\u0013\u0000\nê\u0001*ç\u0001\"ä\u0001{\"seq\":17,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" stone\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" stone\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.1,
+    "host": "gateway.meta.ai",
+    "len": 323,
+    "text": "\r\u0000\u0000=\u0001\u0000\u0014\u0000\nê\u0001*ç\u0001\"ä\u0001{\"seq\":18,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" tower\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" tower\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.1,
+    "host": "gateway.meta.ai",
+    "len": 313,
+    "text": "\r\u0000\u00003\u0001\u0000\u0015\u0000\nà\u0001*Ý\u0001\"Ú\u0001{\"seq\":19,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.1,
+    "host": "gateway.meta.ai",
+    "len": 1024,
+    "text": "\r\u0000\u0000ú\u0003\u0000\u0016\u0000\n§\u0007*¤\u0007\"¡\u0007{\"seq\":20,\"type\":\"full\",\"response\":{\"response_id\":\"0c98dc8b-b93b-4983-8bd0-318492cca517\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing oil painting scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing oil painting scene\",\"subtitle_detail\":\"I'm building a detailed prompt for a lighthouse on a rugged cliff at sunset, specifying stone tower, red\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing oil painting scene\",\"body\":\"I'm building a detailed prompt for a lighthouse on a rugged cliff at sunset, specifying stone tower, red\"}]}]}]}]}}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.1,
+    "host": "gateway.meta.ai",
+    "len": 327,
+    "text": "\r\u0000\u0000A\u0001\u0000\u0017\u0000\nî\u0001*ë\u0001\"è\u0001{\"seq\":21,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" lantern\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" lantern\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.1,
+    "host": "gateway.meta.ai",
+    "len": 321,
+    "text": "\r\u0000\u0000;\u0001\u0000\u0018\u0000\nè\u0001*å\u0001\"â\u0001{\"seq\":22,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" roof\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" roof\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.1,
+    "host": "gateway.meta.ai",
+    "len": 313,
+    "text": "\r\u0000\u00003\u0001\u0000\u0019\u0000\nà\u0001*Ý\u0001\"Ú\u0001{\"seq\":23,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.1,
+    "host": "gateway.meta.ai",
+    "len": 329,
+    "text": "\r\u0000\u0000C\u0001\u0000\u001a\u0000\nð\u0001*í\u0001\"ê\u0001{\"seq\":24,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" crashing\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" crashing\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.2,
+    "host": "gateway.meta.ai",
+    "len": 323,
+    "text": "\r\u0000\u0000=\u0001\u0000\u001b\u0000\nê\u0001*ç\u0001\"ä\u0001{\"seq\":25,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" waves\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" waves\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.2,
+    "host": "gateway.meta.ai",
+    "len": 313,
+    "text": "\r\u0000\u00003\u0001\u0000\u001c\u0000\nà\u0001*Ý\u0001\"Ú\u0001{\"seq\":26,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.2,
+    "host": "gateway.meta.ai",
+    "len": 329,
+    "text": "\r\u0000\u0000C\u0001\u0000\u001d\u0000\nð\u0001*í\u0001\"ê\u0001{\"seq\":27,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" dramatic\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" dramatic\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.2,
+    "host": "gateway.meta.ai",
+    "len": 325,
+    "text": "\r\u0000\u0000?\u0001\u0000\u001e\u0000\nì\u0001*é\u0001\"æ\u0001{\"seq\":28,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" orange\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" orange\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.2,
+    "host": "gateway.meta.ai",
+    "len": 315,
+    "text": "\r\u0000\u00005\u0001\u0000\u001f\u0000\nâ\u0001*ß\u0001\"Ü\u0001{\"seq\":29,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\"-p\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"-p\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.2,
+    "host": "gateway.meta.ai",
+    "len": 1126,
+    "text": "\r\u0000\u0000`\u0004\u0000 \u0000\n\b*\b\"\b{\"seq\":30,\"type\":\"full\",\"response\":{\"response_id\":\"0c98dc8b-b93b-4983-8bd0-318492cca517\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing oil painting scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing oil painting scene\",\"subtitle_detail\":\"I'm building a detailed prompt for a lighthouse on a rugged cliff at sunset, specifying stone tower, red lantern roof, crashing waves, dramatic orange-pink\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing oil painting scene\",\"body\":\"I'm building a detailed prompt for a lighthouse on a rugged cliff at sunset, specifying stone tower, red lantern roof, crashing waves, dramatic orange-pink\"}]}]}]}]}}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.2,
+    "host": "gateway.meta.ai",
+    "len": 319,
+    "text": "\r\u0000\u00009\u0001\u0000!\u0000\næ\u0001*ã\u0001\"à\u0001{\"seq\":31,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" sky\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" sky\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.2,
+    "host": "gateway.meta.ai",
+    "len": 313,
+    "text": "\r\u0000\u00003\u0001\u0000\"\u0000\nà\u0001*Ý\u0001\"Ú\u0001{\"seq\":32,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.3,
+    "host": "gateway.meta.ai",
+    "len": 319,
+    "text": "\r\u0000\u00009\u0001\u0000#\u0000\næ\u0001*ã\u0001\"à\u0001{\"seq\":33,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" and\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" and\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.3,
+    "host": "gateway.meta.ai",
+    "len": 329,
+    "text": "\r\u0000\u0000C\u0001\u0000$\u0000\nð\u0001*í\u0001\"ê\u0001{\"seq\":34,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" textured\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" textured\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.3,
+    "host": "gateway.meta.ai",
+    "len": 319,
+    "text": "\r\u0000\u00009\u0001\u0000%\u0000\næ\u0001*ã\u0001\"à\u0001{\"seq\":35,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" oil\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" oil\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.3,
+    "host": "gateway.meta.ai",
+    "len": 323,
+    "text": "\r\u0000\u0000=\u0001\u0000&\u0000\nê\u0001*ç\u0001\"ä\u0001{\"seq\":36,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" brush\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" brush\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.3,
+    "host": "gateway.meta.ai",
+    "len": 319,
+    "text": "\r\u0000\u00009\u0001\u0000'\u0000\næ\u0001*ã\u0001\"à\u0001{\"seq\":37,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\"work\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"work\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.3,
+    "host": "gateway.meta.ai",
+    "len": 317,
+    "text": "\r\u0000\u00007\u0001\u0000(\u0000\nä\u0001*á\u0001\"Þ\u0001{\"seq\":38,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" in\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" in\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.3,
+    "host": "gateway.meta.ai",
+    "len": 315,
+    "text": "\r\u0000\u00005\u0001\u0000)\u0000\nâ\u0001*ß\u0001\"Ü\u0001{\"seq\":39,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.4,
+    "host": "gateway.meta.ai",
+    "len": 1202,
+    "text": "\r\u0000\u0000¬\u0004\u0000*\u0000\nÙ\b*Ö\b\"Ó\b{\"seq\":40,\"type\":\"full\",\"response\":{\"response_id\":\"0c98dc8b-b93b-4983-8bd0-318492cca517\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing oil painting scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing oil painting scene\",\"subtitle_detail\":\"I'm building a detailed prompt for a lighthouse on a rugged cliff at sunset, specifying stone tower, red lantern roof, crashing waves, dramatic orange-pink sky, and textured oil brushwork in a \"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing oil painting scene\",\"body\":\"I'm building a detailed prompt for a lighthouse on a rugged cliff at sunset, specifying stone tower, red lantern roof, crashing waves, dramatic orange-pink sky, and textured oil brushwork in a \"}]}]}]}]}}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.4,
+    "host": "gateway.meta.ai",
+    "len": 313,
+    "text": "\r\u0000\u00003\u0001\u0000+\u0000\nà\u0001*Ý\u0001\"Ú\u0001{\"seq\":41,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\"3\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"3\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.4,
+    "host": "gateway.meta.ai",
+    "len": 313,
+    "text": "\r\u0000\u00003\u0001\u0000,\u0000\nà\u0001*Ý\u0001\"Ú\u0001{\"seq\":42,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\":\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\":\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.4,
+    "host": "gateway.meta.ai",
+    "len": 313,
+    "text": "\r\u0000\u00003\u0001\u0000-\u0000\nà\u0001*Ý\u0001\"Ú\u0001{\"seq\":43,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\"2\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"2\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.4,
+    "host": "gateway.meta.ai",
+    "len": 331,
+    "text": "\r\u0000\u0000E\u0001\u0000.\u0000\nò\u0001*ï\u0001\"ì\u0001{\"seq\":44,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" landscape\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" landscape\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 17.4,
+    "host": "gateway.meta.ai",
+    "len": 313,
+    "text": "\r\u0000\u00003\u0001\u0000/\u0000\nà\u0001*Ý\u0001\"Ú\u0001{\"seq\":45,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\".\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\".\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 19.2,
+    "host": "gateway.meta.ai",
+    "len": 1748,
+    "text": "\r\u0000\u0000Î\u0006\u00000\u0000\nû\f*ø\f\"õ\f{\"seq\":46,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/artifacts\",\"value\":[{\"__typename\":\"GenAIImagePrimitive\",\"full_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/830927324_1436316685102759_6260754890690319189_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=107&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\"},\"preview_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/830927324_1436316685102759_6260754890690319189_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=107&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\"},\"source\":{\"source_display_name\":\"generated_image_f40f3c7c4c9aca3c.webp\",\"source_type\":\"IMAGE_GEN\"}}]},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/subtitle_artifacts\",\"value\":[{\"__typename\":\"GenAIImagePrimitive\",\"full_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/830927324_1436316685102759_6260754890690319189_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=107&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\"},\"preview_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/830927324_1436316685102759_6260754890690319189_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=107&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\"}}]}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fh\u0000"
+   },
+   {
+    "t": 27.4,
+    "host": "gateway.meta.ai",
+    "len": 363,
+    "text": "\r\u0000\u0000e\u0001\u00001\u0000\n\u0002*ý\u0001\n.reasoning-0c98dc8b-b93b-4983-8bd0-318492cca517\"Ê\u0001{\"seq\":48,\"type\":\"patch\",\"operations\":[{\"op\":\"replace\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/artifacts/0/source/source_display_name\",\"value\":\"gallery/image_20260930_215643.webp\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 27.5,
+    "host": "gateway.meta.ai",
+    "len": 639,
+    "text": "\r\u0000\u0000y\u0002\u00002\u0000\n\u0004\"\u0004 \u0001R\u0004{\"seq\":49,\"type\":\"patch\",\"operations\":[{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/is_in_progress\",\"value\":false},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/show_answer_now\",\"value\":false},{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/title\",\"value\":\"Show thinking\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/subtitle_artifacts\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/thought_text\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 27.7,
+    "host": "gateway.meta.ai",
+    "len": 1762,
+    "text": "\r\u0000\u0000Ü\u0006\u00003\u0000\n÷\f\"ô\fRñ\f{\"seq\":50,\"type\":\"full\",\"response\":{\"response_id\":\"0c98dc8b-b93b-4983-8bd0-318492cca517\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing oil painting scene\",\"body\":\"I'm building a detailed prompt for a lighthouse on a rugged cliff at sunset, specifying stone tower, red lantern roof, crashing waves, dramatic orange-pink sky, and textured oil brushwork in a 3:2 landscape.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/830927324_1436316685102759_6260754890690319189_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=107&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/830927324_1436316685102759_6260754890690319189_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=107&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20260930_215643.webp\"}}]}]}]}]}]}}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 27.9,
+    "host": "gateway.meta.ai",
+    "len": 1261,
+    "text": "\r\u0000\u0000ç\u0004\u00004\u0000\n\t\"ÿ\bRü\b{\"seq\":51,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/sections/1\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"full_image\":{\"height\":1280,\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/829474257_1670576124648038_7567957291938524706_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=102&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\",\"width\":1920},\"preview_image\":{\"height\":1280,\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/829474257_1670576124648038_7567957291938524706_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=102&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\",\"width\":1920},\"source\":{\"source_display_name\":\"gallery/image_20260930_215643.webp\",\"source_type\":\"IMAGE_GEN\"}}}}},{\"op\":\"add\",\"path\":\"/sections/2\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's\"}}}}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 27.9,
+    "host": "gateway.meta.ai",
+    "len": 242,
+    "text": "\r\u0000\u0000ì\u0000\u00005\u0000\n\u0001\"\u0001R\u0001{\"seq\":52,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\" your lighthouse\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 28.0,
+    "host": "gateway.meta.ai",
+    "len": 250,
+    "text": "\r\u0000\u0000ô\u0000\u00006\u0000\n\u0001\"\u0001R\u0001{\"seq\":53,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\" â thick impasto brush\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 28.0,
+    "host": "gateway.meta.ai",
+    "len": 246,
+    "text": "\r\u0000\u0000ð\u0000\u00007\u0000\n\u0001\"\u0001R\u0001{\"seq\":54,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\"strokes, warm sunset\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 28.1,
+    "host": "gateway.meta.ai",
+    "len": 232,
+    "text": "\r\u0000\u0000â\u0000\u00008\u0000\n~\"|Rz{\"seq\":55,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\" breaking\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 28.1,
+    "host": "gateway.meta.ai",
+    "len": 273,
+    "text": "\r\u0000\u0000\u000b\u0001\u00009\u0000\n¦\u0001\"£\u0001R \u0001{\"seq\":56,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\" through the clouds, waves crashing against the\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 28.2,
+    "host": "gateway.meta.ai",
+    "len": 247,
+    "text": "\r\u0000\u0000ñ\u0000\u0000:\u0000\n\u0001\"\u0001R\u0001{\"seq\":57,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\" cliff below. Want it\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 28.2,
+    "host": "gateway.meta.ai",
+    "len": 721,
+    "text": "\r\u0000\u0000Ë\u0002\u0000;\u0000\næ\u0004\"ã\u0004Rà\u0004{\"seq\":58,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/artifacts/0/full_image/media_id\",\"value\":\"1249879058218437\"},{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/artifacts/0/preview_image/media_id\",\"value\":\"1249879058218437\"},{\"op\":\"add\",\"path\":\"/sections/1/view_model/primitive/full_image/media_id\",\"value\":\"1249879058218437\"},{\"op\":\"add\",\"path\":\"/sections/1/view_model/primitive/preview_image/media_id\",\"value\":\"1249879058218437\"},{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\" more dramatic, cal\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 28.3,
+    "host": "gateway.meta.ai",
+    "len": 233,
+    "text": "\r\u0000\u0000ã\u0000\u0000<\u0000\n\"}R{{\"seq\":59,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\"mer, or in\"}]}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 28.3,
+    "host": "gateway.meta.ai",
+    "len": 3093,
+    "text": "\r\u0000\u0000\u000f\f\u0000=\u0000\nª\u0017\"§\u0017R¤\u0017{\"seq\":60,\"type\":\"full\",\"response\":{\"response_id\":\"0c98dc8b-b93b-4983-8bd0-318492cca517\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/829474257_1670576124648038_7567957291938524706_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=102&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\",\"mime_type\":\"image/webp\",\"media_id\":\"1249879058218437\",\"width\":1920,\"height\":1280},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/829474257_1670576124648038_7567957291938524706_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=102&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\",\"mime_type\":\"image/webp\",\"media_id\":\"1249879058218437\",\"width\":1920,\"height\":1280},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20260930_215643.webp\"}}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your lighthouse â thick impasto brushstrokes, warm sunset breaking through the clouds, waves crashing against the cliff below. Want it more dramatic, calmer, or in a different palette?\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing oil painting scene\",\"body\":\"I'm building a detailed prompt for a lighthouse on a rugged cliff at sunset, specifying stone tower, red lantern roof, crashing waves, dramatic orange-pink sky, and textured oil brushwork in a 3:2 landscape.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/830927324_1436316685102759_6260754890690319189_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=107&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\",\"mime_type\":\"image/webp\",\"media_id\":\"1249879058218437\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/830927324_1436316685102759_6260754890690319189_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=107&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\",\"mime_type\":\"image/webp\",\"media_id\":\"1249879058218437\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20260930_215643.webp\"}}]}]}]}]}]}}\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5fR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hh\u0000"
+   },
+   {
+    "t": 33.6,
+    "host": "gateway.meta.ai",
+    "len": 4712,
+    "text": "\r\u0000\u0000b\u0012\u0000>\u0000\n#\"#\u0012¯\u0002![a lighthouse on a cliff at sunset, oil painting](container:///mnt/data/gallery/image_20260930_215643.webp)\n\nHere's your lighthouse â thick impasto brushstrokes, warm sunset breaking through the clouds, waves crashing against the cliff below. Want it more dramatic, calmer, or in a different palette?(\u0001Rã {\"response_id\":\"0c98dc8b-b93b-4983-8bd0-318492cca517\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/829474257_1670576124648038_7567957291938524706_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=102&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\",\"mime_type\":\"image/webp\",\"media_id\":\"1249879058218437\",\"width\":1920,\"height\":1280},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/829474257_1670576124648038_7567957291938524706_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=102&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\",\"mime_type\":\"image/webp\",\"media_id\":\"1249879058218437\",\"width\":1920,\"height\":1280},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20260930_215643.webp\"},\"follow_up_pills\":[{\"prompt_text\":\"Add a sailing ship on horizon\",\"category\":\"ADD\"},{\"prompt_text\":\"Make sunset colors more vibrant\",\"category\":\"LIGHT\"},{\"prompt_text\":\"Add rocky foreground flowers\",\"category\":\"ADD\"},{\"prompt_text\":\"Create dramatic storm clouds\",\"category\":\"SCENE\"},{\"prompt_text\":\"Add birds flying near tower\",\"category\":\"ADD\"},{\"prompt_text\":\"Intensify lighthouse beam glow\",\"category\":\"LIGHT\"}]}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your lighthouse â thick impasto brushstrokes, warm sunset breaking through the clouds, waves crashing against the cliff below. Want it more dramatic, calmer, or in a different palette?\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"2afec0f3-93bf-518c-b0f2-d94cc2595b30\",\"prompt_text\":\"Make the sunset more dramatic with storm clouds\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"6d448042-a12c-54dc-8f2a-fa20ee432438\",\"prompt_text\":\"Add a small boat on the ocean below\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"17571057-07fd-5154-9925-5cb38fc6c4a6\",\"prompt_text\":\"Change the style to a calm pastel oil painting\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing oil painting scene\",\"body\":\"I'm building a detailed prompt for a lighthouse on a rugged cliff at sunset, specifying stone tower, red lantern roof, crashing waves, dramatic orange-pink sky, and textured oil brushwork in a 3:2 landscape.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/830927324_1436316685102759_6260754890690319189_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=107&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\",\"mime_type\":\"image/webp\",\"media_id\":\"1249879058218437\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/830927324_1436316685102759_6260754890690319189_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=107&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&sdl=x&ccb=xxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx&_nc_sid=xxxxxx\",\"mime_type\":\"image/webp\",\"media_id\":\"1249879058218437\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20260930_215643.webp\"}}]}]}]}]}]}\u0018\u0001\"$0c98dc8b-b93b-4983-8bd0-318492cca517*$3f4e1a92-08be-4e4a-93b6-3ef9c1e4cc5f2\u001d\u0012\u001be.00qObGk2UNQUqJ2umiG1eWOwDJ \n\u001eSunset lighthouse oil paintingR\u0006\n\u00011\u0012\u00012XÝüÊ»»­hb\u001be.00qObGk2UNQUqJ2umiG1eWOwDh\u0000"
+   }
+  ],
+  "phases": [
+   [
+    0.1,
+    "opening"
+   ],
+   [
+    1.3,
+    "sending"
+   ],
+   [
+    3.4,
+    "generating"
+   ],
+   [
+    34.3,
+    "downloading"
+   ]
+  ],
+  "logs": []
+ }
+}

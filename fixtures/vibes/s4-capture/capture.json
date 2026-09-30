@@ -1,0 +1,3310 @@
+[
+ {
+  "t": 0.0,
+  "step": "auth_me",
+  "method": "GET",
+  "path": "/api/auth/me",
+  "status": 200,
+  "body": {
+   "user": {
+    "id": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "username": "nlkphu_thka_hnqct_zp",
+    "accountStatus": "ACTIVE",
+    "roles": [],
+    "createdAt": "2026-07-10T08:41:20.000Z",
+    "updatedAt": "2026-07-10T08:41:20.000Z",
+    "abraUserId": "4057222186337588",
+    "sessionId": "4h987gw4-il33-0x72-1p9j-362l8x59j893",
+    "kadabraProfile": {
+     "id": "u5ag27w9-303q-5246-37j8-n02b503q4199",
+     "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+     "kadabraUserId": "4057222186337588",
+     "incognitoAccess": "NONE",
+     "kadabraProfileId": "7682426271025620",
+     "kadabraProfileUsername": "nlkphu_thka_hnqct_zp",
+     "kadabraProfilePictureURL": "https://scontent-sin2-2.xx.fbcdn.net/r/v59.32547-6/883482379_6578005411719418_3008785072324440754_n.lzt?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+     "createdAt": "2026-07-10T08:41:20.000Z",
+     "updatedAt": "2026-07-10T08:41:21.000Z",
+     "syncedAt": "2026-07-10T08:41:21.000Z",
+     "dataSyncedAt": "2026-07-10T08:41:20.000Z"
+    }
+   }
+  }
+ },
+ {
+  "t": 0.4,
+  "step": "quota_upsell",
+  "method": "GET",
+  "path": "/api/quota/upsell",
+  "status": 200,
+  "body": {
+   "upsell": null
+  }
+ },
+ {
+  "t": 1.0,
+  "step": "image_create_batch",
+  "method": "POST",
+  "path": "/api/generation-batches",
+  "request": {
+   "id": "b2836b5b-ace2-49e9-b879-732136cf60f0",
+   "type": "images",
+   "prompt": "a watercolor painting of a red bicycle leaning on a blue wall",
+   "timestamp": 1790783811936,
+   "isComplete": false,
+   "config": {
+    "imageModel": "midjen-base"
+   },
+   "content": [
+    {
+     "id": "b2836b5b-ace2-49e9-b879-732136cf60f0-content-0",
+     "type": "image",
+     "isLoading": true
+    }
+   ]
+  },
+  "status": 200,
+  "body": {
+   "batch": null,
+   "id": "b2836b5b-ace2-49e9-b879-732136cf60f0"
+  }
+ },
+ {
+  "t": 1.7,
+  "step": "image_generate",
+  "method": "POST",
+  "path": "/api/generate/images",
+  "request": {
+   "batchId": "b2836b5b-ace2-49e9-b879-732136cf60f0",
+   "inputs": [
+    {
+     "type": "variation",
+     "image_prompt": "a watercolor painting of a red bicycle leaning on a blue wall",
+     "original_prompt": "a watercolor painting of a red bicycle leaning on a blue wall",
+     "config": {}
+    }
+   ],
+   "config": {
+    "imageModel": "midjen-base"
+   },
+   "mg_request_id": "www-4bdc10a9-a7e8-4a26-836b-93a380ec85f2"
+  },
+  "status": 200,
+  "body": {
+   "success": true,
+   "data": [
+    {
+     "url": "https://scontent-sin2-1.xx.fbcdn.net/o1/v/t0/f2/m340/AQPKUacaYFv6PqBFUDRiwbHEa3XL1_Oi1u9k6D2vZIbh5qtM5OiiL0EBYrHhJn6F-37XHBjXtY7xzWxSIZzL63QmtQ4R3PeZs1-naKS2cT4CLruQfIWrQktPYQPPZsq-CFibwm4rCRhDouPKqAzPH6PqaLWVVA.jpeg?_nc_cat=100&_nc_sid=xxxxxx&_nc_ht=scontent-sin2-1.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+     "prompt": "a watercolor painting of a red bicycle leaning on a blue wall",
+     "originalPrompt": "a watercolor painting of a red bicycle leaning on a blue wall",
+     "srefValues": "",
+     "orefValues": "",
+     "config": {
+      "imageModel": "midjen-base"
+     },
+     "imageEntId": "1305325669334450",
+     "dimensions": {
+      "width": 720,
+      "height": 1280
+     }
+    }
+   ],
+   "updatedBatch": {
+    "id": "b2836b5b-ace2-49e9-b879-732136cf60f0",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "images",
+    "prompt": "a watercolor painting of a red bicycle leaning on a blue wall",
+    "timestamp": "2026-09-30T15:56:52.000Z",
+    "isComplete": true,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "imageModel": "midjen-base"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": "midjen-base",
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:56:52.000Z",
+    "generationEndTime": "2026-09-30T15:57:01.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:56:52.000Z",
+    "updatedAt": "2026-09-30T15:57:01.000Z",
+    "content": [
+     {
+      "id": "b2836b5b-ace2-49e9-b879-732136cf60f0-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "b2836b5b-ace2-49e9-b879-732136cf60f0",
+      "originProjectId": null,
+      "type": "images",
+      "isLoading": false,
+      "isFavorited": false,
+      "data": {
+       "requestId": "www-4bdc10a9-a7e8-4a26-836b-93a380ec85f2",
+       "imageEntId": "1305325669334450"
+      },
+      "imageUrl": "https://scontent-sin2-1.xx.fbcdn.net/o1/v/t0/f2/m340/AQPKUacaYFv6PqBFUDRiwbHEa3XL1_Oi1u9k6D2vZIbh5qtM5OiiL0EBYrHhJn6F-37XHBjXtY7xzWxSIZzL63QmtQ4R3PeZs1-naKS2cT4CLruQfIWrQktPYQPPZsq-CFibwm4rCRhDouPKqAzPH6PqaLWVVA.jpeg?_nc_cat=100&_nc_sid=xxxxxx&_nc_ht=scontent-sin2-1.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305325669334450",
+      "prompt": "a watercolor painting of a red bicycle leaning on a blue wall",
+      "imagePrompt": "a watercolor painting of a red bicycle leaning on a blue wall",
+      "videoPrompt": null,
+      "structuredOutput": {
+       "config": {
+        "imageModel": "midjen-base"
+       },
+       "metadata": {
+        "dimensions": {
+         "width": 720,
+         "height": 1280
+        },
+        "aspectRatio": "9:16"
+       }
+      },
+      "srefValues": "",
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:56:52.000Z",
+      "updatedAt": "2026-09-30T15:57:00.000Z"
+     }
+    ]
+   }
+  }
+ },
+ {
+  "t": 11.2,
+  "step": "image_get_batch",
+  "method": "GET",
+  "path": "/api/generation-batches/b2836b5b-ace2-49e9-b879-732136cf60f0",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "b2836b5b-ace2-49e9-b879-732136cf60f0",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "images",
+    "prompt": "a watercolor painting of a red bicycle leaning on a blue wall",
+    "timestamp": "2026-09-30T15:56:52.000Z",
+    "isComplete": true,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "imageModel": "midjen-base"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": "midjen-base",
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:56:52.000Z",
+    "generationEndTime": "2026-09-30T15:57:01.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:56:52.000Z",
+    "updatedAt": "2026-09-30T15:57:01.000Z",
+    "content": [
+     {
+      "id": "b2836b5b-ace2-49e9-b879-732136cf60f0-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "b2836b5b-ace2-49e9-b879-732136cf60f0",
+      "originProjectId": null,
+      "type": "images",
+      "isLoading": false,
+      "isFavorited": false,
+      "data": "{\"requestId\":\"www-4bdc10a9-a7e8-4a26-836b-93a380ec85f2\",\"imageEntId\":\"1305325669334450\"}",
+      "imageUrl": "https://scontent-sin2-1.xx.fbcdn.net/o1/v/t0/f2/m340/AQPKUacaYFv6PqBFUDRiwbHEa3XL1_Oi1u9k6D2vZIbh5qtM5OiiL0EBYrHhJn6F-37XHBjXtY7xzWxSIZzL63QmtQ4R3PeZs1-naKS2cT4CLruQfIWrQktPYQPPZsq-CFibwm4rCRhDouPKqAzPH6PqaLWVVA.jpeg?_nc_cat=100&_nc_sid=xxxxxx&_nc_ht=scontent-sin2-1.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305325669334450",
+      "prompt": "a watercolor painting of a red bicycle leaning on a blue wall",
+      "imagePrompt": "a watercolor painting of a red bicycle leaning on a blue wall",
+      "videoPrompt": null,
+      "structuredOutput": {
+       "config": {
+        "imageModel": "midjen-base"
+       },
+       "metadata": {
+        "dimensions": {
+         "width": 720,
+         "height": 1280
+        },
+        "aspectRatio": "9:16"
+       }
+      },
+      "srefValues": "",
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:56:52.000Z",
+      "updatedAt": "2026-09-30T15:57:00.000Z",
+      "thumbnailUrl": null,
+      "aspectRatio": 0.5625
+     }
+    ],
+    "needsPolling": false
+   }
+  }
+ },
+ {
+  "t": 12.4,
+  "step": "video_create_batch",
+  "method": "POST",
+  "path": "/api/generation-batches",
+  "request": {
+   "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+   "type": "videos",
+   "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+   "timestamp": 1790783823369,
+   "isComplete": false,
+   "config": {
+    "videoModel": "midjen-short",
+    "resolution": "480p"
+   },
+   "content": [
+    {
+     "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+     "type": "video",
+     "isLoading": true
+    }
+   ]
+  },
+  "status": 200,
+  "body": {
+   "batch": null,
+   "id": "2ea151d6-1863-46e8-891c-35432fa98eb6"
+  }
+ },
+ {
+  "t": 13.3,
+  "step": "video_get_batch_before_generate",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:03.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": null,
+      "imageUrl": null,
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": null,
+      "prompt": null,
+      "imagePrompt": null,
+      "videoPrompt": null,
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": true,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:04.000Z"
+     }
+    ],
+    "needsPolling": false
+   }
+  }
+ },
+ {
+  "t": 15.2,
+  "step": "video_generate",
+  "method": "POST",
+  "path": "/api/generate/videos",
+  "request": {
+   "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+   "inputs": [
+    {
+     "type": "prompt",
+     "value": "a paper lantern floating up into a starry night sky over a quiet lake",
+     "original_prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+     "config": {}
+    }
+   ],
+   "config": {
+    "videoModel": "midjen-short",
+    "resolution": "480p"
+   },
+   "mg_request_id": "www-edd7ba14-47ee-4f2b-be80-6097c90a9c2b"
+  },
+  "status": 200,
+  "body": {
+   "success": true,
+   "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+   "videoGenEntIds": [
+    "1305326322667718"
+   ],
+   "needsPolling": true,
+   "hasPartialErrors": false,
+   "items": [
+    {
+     "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0-1790783847486",
+     "imageUrl": "https://scontent-sin2-1.xx.fbcdn.net/o1/v/t0/f2/m340/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=102&_nc_sid=xxxxxx&_nc_ht=scontent-sin2-1.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+     "isLoading": true,
+     "error": null
+    }
+   ]
+  }
+ },
+ {
+  "t": 41.5,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 48.9,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 55.4,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 62.5,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 69.8,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 76.5,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 83.1,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 89.8,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 96.5,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 103.8,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 110.8,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 117.8,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 124.5,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 131.5,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 138.5,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 144.6,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 151.5,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 158.6,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 165.6,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 172.6,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 179.4,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 186.7,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 193.8,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 200.8,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 207.5,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 214.8,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 221.5,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": null,
+      "imageHandle": null,
+      "videoUrl": "https://scontent-sin2-1.xx.fbcdn.net/o1/v/t6/f2/m421/AQOcRf2awIXSZZ7C2bnpSQNPN9-Bzhby9mW01-Y6Jp5RvszznJUwxzqO7rNsjYoJXFJHHFXp5LQmqm8CVtt9SNjYj2ZDDzDUpRr-8m-xVnnaW1dlA40dPpOsqlgjlwmp.mp4?_nc_cat=100&_nc_sid=xxxxxx&_nc_ht=scontent-sin2-1.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z",
+      "thumbnailUrl": null,
+      "aspectRatio": null
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 228.8,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z",
+      "thumbnailUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "aspectRatio": 0.55769230769231
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 237.2,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z",
+      "thumbnailUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "aspectRatio": 0.55769230769231
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 244.2,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 250.4,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z",
+      "thumbnailUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "aspectRatio": 0.55769230769231
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 258.5,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z",
+      "thumbnailUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "aspectRatio": 0.55769230769231
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 265.9,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z",
+      "thumbnailUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "aspectRatio": 0.55769230769231
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 272.6,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 279.4,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 286.7,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 500,
+  "body": {
+   "error": "Failed to fetch generation batch"
+  }
+ },
+ {
+  "t": 293.7,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z",
+      "thumbnailUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "aspectRatio": 0.55769230769231
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 300.9,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z",
+      "thumbnailUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "aspectRatio": 0.55769230769231
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 307.4,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T15:57:03.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T15:57:26.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T15:57:27.000Z"
+     }
+    ],
+    "needsPolling": true
+   }
+  }
+ },
+ {
+  "t": 315.7,
+  "step": "video_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": true,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T16:02:10.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T16:02:10.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": false,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T16:02:09.000Z"
+     }
+    ],
+    "needsPolling": false
+   }
+  }
+ },
+ {
+  "t": 324.7,
+  "step": "video_poll_after_ready",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": true,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T16:02:10.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T16:02:10.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": false,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T16:02:09.000Z",
+      "thumbnailUrl": "https://scontent-sin2-2.xx.fbcdn.net/v/t15.5256-10/830988024_1147122324531169_6753914276604393730_n.jpg?_nc_cat=103&ccb=xxx&_nc_sid=xxxxxx&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&_nc_oc=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ht=scontent-sin2-2.xx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "aspectRatio": 0.55769230769231
+     }
+    ],
+    "needsPolling": false
+   }
+  }
+ },
+ {
+  "t": 327.0,
+  "step": "shell_create_batch",
+  "method": "POST",
+  "path": "/api/generation-batches",
+  "request": {
+   "id": "76f8dd37-f9dc-4035-a783-9e75a54501bb",
+   "type": "videos",
+   "prompt": "probe shell, never generated",
+   "timestamp": 1790784137884,
+   "isComplete": false,
+   "config": {
+    "videoModel": "midjen-short",
+    "resolution": "480p"
+   },
+   "content": [
+    {
+     "id": "76f8dd37-f9dc-4035-a783-9e75a54501bb-content-0",
+     "type": "video",
+     "isLoading": true
+    }
+   ]
+  },
+  "status": 200,
+  "body": {
+   "batch": null,
+   "id": "76f8dd37-f9dc-4035-a783-9e75a54501bb"
+  }
+ },
+ {
+  "t": 337.7,
+  "step": "shell_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/76f8dd37-f9dc-4035-a783-9e75a54501bb",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "76f8dd37-f9dc-4035-a783-9e75a54501bb",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "probe shell, never generated",
+    "timestamp": "2026-09-30T16:02:18.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T16:02:18.000Z",
+    "generationEndTime": "2026-09-30T16:02:18.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T16:02:18.000Z",
+    "updatedAt": "2026-09-30T16:02:18.000Z",
+    "content": [
+     {
+      "id": "76f8dd37-f9dc-4035-a783-9e75a54501bb-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "76f8dd37-f9dc-4035-a783-9e75a54501bb",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": null,
+      "imageUrl": null,
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": null,
+      "prompt": null,
+      "imagePrompt": null,
+      "videoPrompt": null,
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": true,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T16:02:18.000Z",
+      "updatedAt": "2026-09-30T16:02:18.000Z"
+     }
+    ],
+    "needsPolling": false
+   }
+  }
+ },
+ {
+  "t": 349.7,
+  "step": "shell_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/76f8dd37-f9dc-4035-a783-9e75a54501bb",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "76f8dd37-f9dc-4035-a783-9e75a54501bb",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "probe shell, never generated",
+    "timestamp": "2026-09-30T16:02:18.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T16:02:18.000Z",
+    "generationEndTime": "2026-09-30T16:02:18.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T16:02:18.000Z",
+    "updatedAt": "2026-09-30T16:02:18.000Z",
+    "content": [
+     {
+      "id": "76f8dd37-f9dc-4035-a783-9e75a54501bb-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "76f8dd37-f9dc-4035-a783-9e75a54501bb",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": null,
+      "imageUrl": null,
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": null,
+      "prompt": null,
+      "imagePrompt": null,
+      "videoPrompt": null,
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": true,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T16:02:18.000Z",
+      "updatedAt": "2026-09-30T16:02:18.000Z"
+     }
+    ],
+    "needsPolling": false
+   }
+  }
+ },
+ {
+  "t": 362.8,
+  "step": "shell_poll",
+  "method": "GET",
+  "path": "/api/generation-batches/76f8dd37-f9dc-4035-a783-9e75a54501bb",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "76f8dd37-f9dc-4035-a783-9e75a54501bb",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "probe shell, never generated",
+    "timestamp": "2026-09-30T16:02:18.000Z",
+    "isComplete": false,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T16:02:18.000Z",
+    "generationEndTime": "2026-09-30T16:02:18.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T16:02:18.000Z",
+    "updatedAt": "2026-09-30T16:02:18.000Z",
+    "content": [
+     {
+      "id": "76f8dd37-f9dc-4035-a783-9e75a54501bb-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "76f8dd37-f9dc-4035-a783-9e75a54501bb",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": true,
+      "isFavorited": false,
+      "data": null,
+      "imageUrl": null,
+      "imageHandle": null,
+      "videoUrl": null,
+      "videoHandle": null,
+      "mediaEntId": null,
+      "prompt": null,
+      "imagePrompt": null,
+      "videoPrompt": null,
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": true,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T16:02:18.000Z",
+      "updatedAt": "2026-09-30T16:02:18.000Z"
+     }
+    ],
+    "needsPolling": false
+   }
+  }
+ },
+ {
+  "t": 363.6,
+  "step": "video_get_batch_final",
+  "method": "GET",
+  "path": "/api/generation-batches/2ea151d6-1863-46e8-891c-35432fa98eb6",
+  "status": 200,
+  "body": {
+   "batch": {
+    "id": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+    "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+    "projectId": null,
+    "type": "videos",
+    "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+    "timestamp": "2026-09-30T15:57:03.000Z",
+    "isComplete": true,
+    "hasError": false,
+    "error": null,
+    "canRetry": true,
+    "config": {
+     "resolution": "480p",
+     "videoModel": "midjen-short"
+    },
+    "systemPrompt": null,
+    "promptModel": null,
+    "imageModel": null,
+    "videoModel": null,
+    "bulkGenId": null,
+    "generationStartTime": "2026-09-30T15:57:03.000Z",
+    "generationEndTime": "2026-09-30T16:02:10.000Z",
+    "creationContext": "legacy",
+    "createdAt": "2026-09-30T15:57:03.000Z",
+    "updatedAt": "2026-09-30T16:02:10.000Z",
+    "content": [
+     {
+      "id": "2ea151d6-1863-46e8-891c-35432fa98eb6-content-0",
+      "userId": "p87l4l36-v8e1-8530-08s7-q44a6j2i843n",
+      "batchId": "2ea151d6-1863-46e8-891c-35432fa98eb6",
+      "originProjectId": null,
+      "type": "videos",
+      "isLoading": false,
+      "isFavorited": false,
+      "data": "{\"videoGenEntId\":\"1305326322667718\",\"requestId\":\"www-p87l4l36-v8e1-8530-08s7-q44a6j2i843n-b1f7c58c-66ce-44ec-8092-fc3b74e3d7fe\",\"imageEntId\":\"1305326302667720\"}",
+      "imageUrl": "https://scontent-sin6-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPxCWaK4FJ3E4bY89LuPQkam5IukNsKkQaj7aDJvAjhogbziEP_WvxxhVUtLP7VvcbV2R2J-kK7g4Kn0fCgLJlA9AchBnupL9HyVWBhgVNa8aIYlsAPa8YCmP-dryJ41XSAbLuqcHo799pMs9EqATodl0rNCA.jpeg?_nc_cat=109&_nc_sid=xxxxxx&_nc_ht=scontent-sin6-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "imageHandle": null,
+      "videoUrl": "https://video-sin11-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNaoY6DFY9UpXfTBBv2Bnks81rCg4P6QfIHx1Qmoc7VvKQI0uWuL2QBEOfahGFtYfnhRO313nPRxyz0w-nEjjKlJCZbvE2q4wluonk.mp4?_nc_cat=108&_nc_sid=xxxxxx&_nc_ht=video-sin11-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+      "videoHandle": null,
+      "mediaEntId": "1305326322667718",
+      "prompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "imagePrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "videoPrompt": "a paper lantern floating up into a starry night sky over a quiet lake",
+      "structuredOutput": null,
+      "srefValues": null,
+      "sourceContentItemIds": null,
+      "hasUploadedAncestor": false,
+      "error": null,
+      "canRetry": false,
+      "orderIndex": 0,
+      "createdAt": "2026-09-30T15:57:04.000Z",
+      "updatedAt": "2026-09-30T16:02:09.000Z"
+     }
+    ],
+    "needsPolling": false
+   }
+  }
+ }
+]

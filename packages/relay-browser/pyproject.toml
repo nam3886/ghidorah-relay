@@ -1,0 +1,10 @@
+[project]
+name = "relay-browser"
+version = "0.0.0"
+requires-python = ">=3.13,<3.14"
+description = "Browser kit: the only package that may import patchright"
+dependencies = ["patchright>=1.50"]
+
+[build-system]
+requires = ["uv_build>=0.9,<0.10"]
+build-backend = "uv_build"
