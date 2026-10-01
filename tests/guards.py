@@ -122,6 +122,34 @@ def demo_violations(root: Path = REPO) -> list[str]:
     return bad
 
 
+SPAWN_CALLS = {"create_task", "ensure_future", "gather", "TaskGroup", "start_soon", "run_coroutine_threadsafe"}
+
+
+def tx_task_violations(root: Path = REPO) -> list[str]:
+    """No task is started inside an `async with tx(...)` block.
+
+    The transaction guard accepts a connection only while its block is open. A task started inside the block can
+    pass that check, outlive the block, and then write on a connection that is back in the pool, where each
+    statement commits alone. Awaiting the work inline keeps every statement inside the block."""
+    bad = []
+    for p in source_files(root):
+        if "tests" in p.relative_to(root).parts:      # a test may start a late task on purpose, to prove the refusal
+            continue
+        for block in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+            if not isinstance(block, ast.AsyncWith):
+                continue
+            opens_tx = any(isinstance(i.context_expr, ast.Call)
+                           and getattr(i.context_expr.func, "id", getattr(i.context_expr.func, "attr", "")) == "tx"
+                           for i in block.items)
+            if not opens_tx:
+                continue
+            for n in (x for stmt in block.body for x in ast.walk(stmt)):
+                name = getattr(n.func, "id", getattr(n.func, "attr", "")) if isinstance(n, ast.Call) else ""
+                if name in SPAWN_CALLS:
+                    bad.append("%s:%d %s( inside a tx() block" % (p.relative_to(root), n.lineno, name))
+    return bad
+
+
 def _is_provider_ref(n: ast.AST) -> bool:
     """`provider`, `job.provider`, `row["provider"]`, `getattr(job, "provider")`."""
     if isinstance(n, ast.Subscript):

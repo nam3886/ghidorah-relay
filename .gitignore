@@ -7,3 +7,4 @@ deploy/.env
 deploy/*.env
 ._*
 .DS_Store
+.mutate.lock

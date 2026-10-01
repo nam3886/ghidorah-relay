@@ -29,7 +29,7 @@ def plant(root: Path, rel: str, src: str) -> Path:
 
 @pytest.mark.parametrize("check", [guards.import_violations, guards.route_violations, guards.launch_violations,
                                    guards.identifier_violations, guards.demo_violations,
-                                   guards.core_provider_violations])
+                                   guards.core_provider_violations, guards.tx_task_violations])
 def test_repo_is_clean(check):
     assert check() == []
 
@@ -261,3 +261,36 @@ def test_browser_worker_loads_only_its_own_engine():
 ])
 def test_e2e_loads_its_provider_engine_and_e2e_module(provider, expected):
     assert loaded_after("e2e", "--provider", provider) == expected
+
+
+@mutation(G, "            if not opens_tx:\n                continue\n",
+          "            if True:\n                continue\n")
+@pytest.mark.parametrize("spawn", [
+    "asyncio.create_task(late(conn))",
+    "await asyncio.gather(a(conn), b(conn))",
+    "tg = asyncio.TaskGroup()",
+    "asyncio.ensure_future(late(conn))",
+])
+def test_tx_block_guard_catches_a_task_started_inside_it(tmp_path, spawn):
+    plant(tmp_path, CORE + "jobs.py",
+          "async def f(pool):\n    async with tx(pool) as conn:\n        %s\n" % spawn)
+    found = guards.tx_task_violations(tmp_path)
+    assert len(found) == 1 and "inside a tx() block" in found[0], found
+
+
+def test_tx_block_guard_allows_tasks_outside_the_block_and_inline_awaits_inside(tmp_path):
+    plant(tmp_path, CORE + "jobs.py", """\
+        async def f(pool, db):
+            asyncio.create_task(other())
+            async with db.tx(pool) as conn:
+                await charge(conn)
+            await asyncio.gather(a(), b())
+        """)
+    assert guards.tx_task_violations(tmp_path) == []
+
+
+@mutation(G, 'if "tests" in p.relative_to(root).parts:', "if False:")
+def test_tx_block_guard_leaves_test_files_alone(tmp_path):
+    plant(tmp_path, "packages/relay-core/tests/test_x.py",
+          "async def f(pool):\n    async with tx(pool) as conn:\n        asyncio.create_task(late(conn))\n")
+    assert guards.tx_task_violations(tmp_path) == []

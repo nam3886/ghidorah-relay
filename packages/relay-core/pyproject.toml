@@ -3,7 +3,13 @@ name = "relay-core"
 version = "0.0.0"
 requires-python = ">=3.13,<3.14"
 description = "Keys, wallets, jobs, account pools, API, admin, media (no browser, no provider imports)"
-dependencies = ["psycopg[binary,pool]>=3.2"]
+dependencies = [
+    "psycopg[binary,pool]>=3.2",
+    "minio>=7.2",
+    "pynacl>=1.5",
+    "httpx>=0.27",
+    "urllib3>=2",                # storage.py catches its errors directly
+]
 
 [build-system]
 requires = ["uv_build>=0.9,<0.10"]

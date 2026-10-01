@@ -103,6 +103,10 @@ pull fails (contracts §17).
 - `CREDENTIAL_SEAL_PUBLIC_KEY` is in `api.env` only. Any `*PRIVATE_KEY*` variable (`CREDENTIAL_SEAL_PRIVATE_KEY`
   today) may appear only for `worker-<provider>` services; `api` and `migrate` never see one (I20).
   `tests/test_deploy.py` enforces both.
+- `migrate.env` holds `DATABASE_URL` (the owner role), `BILLING_TZ` and the passwords `relay_api` and `relay_worker`
+  get (`RELAY_API_DB_PASSWORD`, `RELAY_WORKER_DB_PASSWORD`). `relay migrate` applies the SQL migrations, sets those
+  passwords, and pins `BILLING_TZ` on the first run (UTC when unset); a service whose `BILLING_TZ` differs from the
+  pin refuses to start. `MINIO_REGION` is read by every service that talks to MinIO (api and the workers).
 - Images are named `relay-<service>:${GIT_SHA}`, so a rollback is a retag.
 
 ## Graceful stop of the browser workers
@@ -124,10 +128,14 @@ image) and must be cut off in under 2 s, so the timing assertion cannot pass vac
 
 ## Gates
 
-- `scripts/check.sh`: the commit gate. Browser-less, on the Mac. Ends `CHECK: GREEN`.
+- `scripts/check.sh`: the commit gate. Browser-less, on the Mac. Ends `CHECK: GREEN`. Each run has its own compose
+  project (`relay-check-<epoch>-<pid>`) and ephemeral loopback ports, so parallel runs do not share services.
 - `scripts/check.sh --full`: adds `scripts/mutate.py` and the browser tier, which `scripts/check-in-container.sh`
   runs on the box (`RELAY_BOX`, default `phuongnam@192.168.18.227`). Per run, with a token `<epoch>.<pid>`: temp dir
   `/tmp/relay-check.<token>`, image `relay-check-browser:<token>` (label `relay.check=<token>`), compose project
   `relay-check-<token>`, container `relay-check-run-<token>` on that project's network (no host networking). It runs
   the Chrome tests in the image, then the three graceful-stop tests (stop, kill-then-start, negative control) from the Mac through `DOCKER_HOST=ssh://<box>`. It
   removes what carries its token on exit and never prunes or touches another project.
+- `scripts/mutate.py [ROOT] [--only PATTERN ...]`: mutates in a private copy of the tree, under an exclusive lock
+  (`.mutate.lock`; a second run exits 2). A marked test is first run unmutated: one that fails then is reported as
+  "baseline not green", not as a kill. DB tests need the check services, so run it through `check.sh --full`.

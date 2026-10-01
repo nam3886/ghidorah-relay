@@ -7,6 +7,7 @@ relay_browser only when X is a browser provider; `e2e --provider X` loads the sa
 
 import argparse
 import importlib
+import os
 import sys
 from types import ModuleType
 
@@ -28,6 +29,26 @@ def load_e2e(provider: str) -> ModuleType:
     return importlib.import_module(PROVIDERS[provider] + ".e2e")
 
 
+def migrate() -> int:
+    """Apply the SQL migrations with the owner role (`DATABASE_URL`); give the service roles their passwords."""
+    import psycopg
+
+    from relay_core.db import ROLES, run_migrations
+
+    dsn = os.environ.get("DATABASE_URL", "")
+    if not dsn:
+        print("relay migrate: DATABASE_URL is not set", file=sys.stderr)
+        return 1
+    passwords = {role: os.environ.get(role.upper() + "_DB_PASSWORD", "") for role in ROLES}
+    try:
+        applied = run_migrations(dsn, passwords=passwords, billing_tz=os.environ.get("BILLING_TZ") or None)
+    except (psycopg.Error, RuntimeError, ValueError) as e:
+        print("relay migrate: %s" % str(e).strip().splitlines()[0], file=sys.stderr)
+        return 1
+    print("relay migrate: applied %s" % (", ".join("%04d" % v for v in applied) or "nothing (up to date)"))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="relay")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -38,6 +59,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("admin", help="provisioning commands")
     args = ap.parse_args(argv)
 
+    if args.cmd == "migrate":
+        return migrate()
     if args.cmd == "serve":
         importlib.import_module("relay_core")
         load_specs()

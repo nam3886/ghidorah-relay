@@ -6,18 +6,33 @@ the source. For each one: `original` must occur exactly once in `file` (else "an
 "anchor ambiguous"), the replacement is applied, only the marked test runs, and it must FAIL. The file is
 restored in a `finally` block. Exit 1 if any mutation survives or any anchor is stale.
 
+All of that happens in a private copy of the tree, never in the working tree: a mutated file in the working
+tree turned other lanes' test runs red while a mutation was in flight (01/10). The copy's source dirs go
+first on PYTHONPATH, ahead of the editable installs that point at the working tree.
+
+A marked test must pass UNMUTATED before its mutation counts: a test that errors in setup (no database, a
+missing fixture) would otherwise turn every mutation "red" for the wrong reason (01/10). Each test's
+baseline runs once per run.
+
 Stale .pyc files make a mutation lie (the old code keeps running), so every run starts with `__pycache__`
 removed and PYTHONDONTWRITEBYTECODE=1; the cache is removed again after the restore.
 
-    mutate.py [ROOT]        ROOT defaults to the repo this script lives in
+Two runs in one tree corrupt each other (each restores the other's mutated snapshot, 01/10), so a run takes
+an exclusive lock on ROOT/.mutate.lock and a second run is refused (exit 2) instead of waiting.
+
+    mutate.py [ROOT] [--only PATTERN ...]   ROOT defaults to this repo; PATTERN selects markers whose test id
+                                            or file contains it (one lane mutating only its own files)
 """
 
+import argparse
 import ast
+import fcntl
 import os
 import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -68,6 +83,41 @@ def purge_bytecode(root: Path) -> None:
             shutil.rmtree(d, ignore_errors=True)
 
 
+_SKIP = shutil.ignore_patterns(".venv", ".git", "__pycache__", ".pytest_cache", ".ruff_cache", ".mutate.lock")
+
+
+def copy_tree(root: Path, into: Path) -> Path:
+    """A private copy of the tree to mutate in, without the venv and caches."""
+    dest = into / "tree"
+    shutil.copytree(root, dest, ignore=_SKIP, symlinks=True)
+    return dest
+
+
+def source_path(root: Path) -> str:
+    """The copy's package sources, so its (mutated) modules shadow the editable installs."""
+    dirs = [str(p) for base in ("packages", "apps") for p in sorted((root / base).glob("*/src"))]
+    return os.pathsep.join(dirs + [os.environ.get("PYTHONPATH", "")]).rstrip(os.pathsep)
+
+
+def _pytest(root: Path, node_id: str) -> subprocess.CompletedProcess:
+    cmd = [sys.executable, "-m", "pytest", node_id, "-x", "--tb=short", "-p", "no:cacheprovider"]
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": source_path(root)}
+    return subprocess.run(cmd, cwd=root, env=env, capture_output=True, text=True, timeout=TIMEOUT_S)
+
+
+def baseline(root: Path, node_id: str) -> str:
+    """'' when the test passes unmutated, else why it does not (then no mutation of it can count)."""
+    purge_bytecode(root)
+    try:
+        run = _pytest(root, node_id)
+    except subprocess.TimeoutExpired:
+        return "baseline timed out after %d s" % TIMEOUT_S
+    if run.returncode == 0:
+        return ""
+    reason = next((ln.strip() for ln in run.stdout.splitlines() if ln.startswith("E ")), "exit %d" % run.returncode)
+    return "baseline not green (unmutated test fails: %s)" % reason
+
+
 def mutate_once(root: Path, node_id: str, file: str, original: str, replacement: str) -> tuple[bool, str]:
     """(ok, message). ok means the mutation turned its test red."""
     target = root / file
@@ -83,9 +133,7 @@ def mutate_once(root: Path, node_id: str, file: str, original: str, replacement:
         target.write_bytes(text.replace(original, replacement, 1).encode("utf-8"))
         purge_bytecode(root)
         try:
-            cmd = [sys.executable, "-m", "pytest", node_id, "-x", "--tb=short", "-p", "no:cacheprovider"]
-            run = subprocess.run(cmd, cwd=root, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-                                 capture_output=True, text=True, timeout=TIMEOUT_S)
+            run = _pytest(root, node_id)
         except subprocess.TimeoutExpired:
             return False, "pytest timed out after %d s" % TIMEOUT_S
     finally:
@@ -97,15 +145,37 @@ def mutate_once(root: Path, node_id: str, file: str, original: str, replacement:
     return False, "mutation survived" if run.returncode == 0 else "pytest exit %d (not a test failure)" % run.returncode
 
 
-def run(root: Path = REPO) -> int:
-    marks = collect(root)
+def run(root: Path = REPO, only: tuple[str, ...] = ()) -> int:
+    fd = os.open(root / ".mutate.lock", os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("mutate: another run holds %s; concurrent runs corrupt files, try again when it ends"
+                  % (root / ".mutate.lock"), file=sys.stderr)
+            return 2
+        with tempfile.TemporaryDirectory(prefix="relay-mutate-") as tmp:
+            return _run_locked(copy_tree(root, Path(tmp)), only)
+    finally:
+        os.close(fd)                          # closing the descriptor releases the lock
+
+
+def _run_locked(root: Path, only: tuple[str, ...]) -> int:
+    marks = [m for m in collect(root) if not only or any(p in m[0] or p in m[1] for p in only)]
     if not marks:
-        print("mutate: no @mutation markers found", file=sys.stderr)
+        print("mutate: no @mutation markers found" + (" for %s" % ", ".join(only) if only else ""),
+              file=sys.stderr)
         return 1
     purge_bytecode(root)
     killed = 0
+    baselines: dict[str, str] = {}
     for node_id, file, original, replacement in marks:
-        ok, msg = mutate_once(root, node_id, file, original, replacement)
+        if node_id not in baselines:
+            baselines[node_id] = baseline(root, node_id)
+        if baselines[node_id]:
+            ok, msg = False, baselines[node_id]
+        else:
+            ok, msg = mutate_once(root, node_id, file, original, replacement)
         killed += ok
         print("%s %s [%s -> %s]\n      %s" % ("red     " if ok else "FAILED  ", node_id, file,
                                               replacement.strip().splitlines()[0][:50] or "(removed)", msg[:200]))
@@ -115,4 +185,8 @@ def run(root: Path = REPO) -> int:
 
 if __name__ == "__main__":
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))   # let the `finally` restore the file
-    sys.exit(run(Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else REPO))
+    ap = argparse.ArgumentParser(prog="mutate.py")
+    ap.add_argument("root", nargs="?", default=str(REPO))
+    ap.add_argument("--only", action="append", default=[], help="select markers by test id or file substring")
+    args = ap.parse_args()
+    sys.exit(run(Path(args.root).resolve(), tuple(args.only)))
