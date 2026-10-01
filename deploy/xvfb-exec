@@ -1,0 +1,51 @@
+#!/bin/sh
+# Entry point of the browser image: `tini -- xvfb-exec <worker command>`.
+# tini is PID 1 WITHOUT -g and signals only this script. The script keeps Xvfb in its own session (setsid), so
+# the stop signal never reaches it, forwards SIGTERM/SIGINT to the worker only, waits for the worker to finish
+# (that is what `stop_grace_period` is for) and stops Xvfb after it. The worker's exit status is the container's.
+# The worker never starts without a working display: the script exits non-zero with a message instead.
+set -eu
+
+n=99
+lock="/tmp/.X$n-lock"
+sock="/tmp/.X11-unix/X$n"
+
+# A killed container (SIGKILL, daemon restart, reboot) is restarted with the same writable /tmp, so its lock
+# and socket are still there and a new Xvfb would refuse to start. They are stale unless a live Xvfb owns them.
+if [ -e "$lock" ] || [ -e "$sock" ]; then
+  owner="$(tr -d ' \n' <"$lock" 2>/dev/null || true)"
+  if [ -n "$owner" ] && [ "$(cat "/proc/$owner/comm" 2>/dev/null || true)" = "Xvfb" ]; then
+    echo "xvfb-exec: display :$n is owned by a live Xvfb (pid $owner)" >&2
+    exit 1
+  fi
+  rm -f "$lock" "$sock"
+fi
+
+setsid Xvfb ":$n" -screen 0 1440x900x24 -nolisten tcp &
+xvfb=$!
+export DISPLAY=":$n"
+
+# Ready = Xvfb is alive AND the display socket accepts a connection (a file merely existing proves nothing).
+i=0
+until python3 -c 'import socket, sys; socket.socket(socket.AF_UNIX).connect(sys.argv[1])' "$sock" 2>/dev/null; do
+  i=$((i + 1))
+  if [ "$i" -gt 100 ] || ! kill -0 "$xvfb" 2>/dev/null; then
+    echo "xvfb-exec: Xvfb did not come up on display :$n" >&2
+    exit 1
+  fi
+  sleep 0.1
+done
+kill -0 "$xvfb" 2>/dev/null || { echo "xvfb-exec: Xvfb exited right after start" >&2; exit 1; }
+
+"$@" &
+worker=$!
+trap 'kill -TERM "$worker" 2>/dev/null || true' TERM INT
+# a trapped signal ends `wait` early (status 143): wait again until the worker itself has exited
+while :; do
+  status=0
+  wait "$worker" || status=$?
+  kill -0 "$worker" 2>/dev/null || break
+done
+kill "$xvfb" 2>/dev/null || true
+wait "$xvfb" 2>/dev/null || true
+exit "$status"

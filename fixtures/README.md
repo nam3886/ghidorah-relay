@@ -29,4 +29,9 @@ Made by `scripts/redact-fixtures.py` from raw spike captures. Values replaced, k
 
 ## Gaps
 
-- dola watermark-only: none of the 38 real done videos (30/09) lacked `main_url`. Tests build it from a done chain by deleting `main_url` from its `video_model`.
+What the captures do not hold (contracts §14.5); the phase named closes each gap.
+
+- dola watermark-only: none of the 38 real done videos (30/09) lacked `main_url`. Tests build it from a done chain by deleting `main_url` from its `video_model` (derived, not captured).
+- dola throttle SSE (`/chat/completion` `error_code`) and dola likeness refusal: not captured here. Phase 5 takes them from the v4 samples.
+- vibes derived operations (extend, v2v, image-edit) and vibes error bodies (401, 403, 429, QUOTA, a rejected generate): not captured here. Phase 10 captures them.
+- meta refusal, rate or limit text, text-only reply and logged-out page: not captured here. Phases 8 (meta spike) and 11 (provider) capture them.

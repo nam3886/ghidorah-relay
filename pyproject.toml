@@ -2,7 +2,7 @@
 name = "relay-workspace"
 version = "0.0.0"
 requires-python = ">=3.13,<3.14"
-description = "Workspace root: one API for dola, vibes and meta (contracts: c2tool/plans/260930-2221-relay-platform)"
+description = "Workspace root: one API for dola, vibes and meta (contracts: c2tool/plans/260930-1635-relay-platform)"
 dependencies = [
     "relay-core",
     "relay-browser",
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8.3", "ruff>=0.8"]
+dev = ["pytest>=8.3", "pyyaml>=6", "ruff>=0.8"]
 
 [tool.uv]
 package = false
@@ -45,3 +45,4 @@ known-local-folder = ["guards"]
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages", "apps"]
 addopts = "-q --strict-markers"
+markers = ["browser: needs Google Chrome; runs only in scripts/check-in-container.sh on the box (contracts §14, D33)"]

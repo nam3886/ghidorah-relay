@@ -3,7 +3,6 @@
 import os
 import shutil
 import subprocess
-import sys
 import urllib.request
 
 import psycopg
@@ -34,9 +33,3 @@ def test_ffmpeg_and_ffprobe():
         assert shutil.which(tool), tool + " is not installed"
         subprocess.run([tool, "-version"], check=True, capture_output=True)
 
-
-def test_google_chrome_for_patchright():
-    # dola_v4 runs patchright with channel="chrome" (Google Chrome), the proven setup; relay keeps it.
-    path = {"darwin": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-            "linux": "/opt/google/chrome/chrome"}[sys.platform]
-    assert os.path.exists(path), "Google Chrome is missing: run `uv run patchright install chrome`"

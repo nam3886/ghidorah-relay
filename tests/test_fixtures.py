@@ -28,3 +28,8 @@ def test_every_fixture_is_listed_in_the_readme():
 def test_fixtures_are_json():
     for p in FIXTURES.rglob("*.json"):
         json.loads(p.read_text(encoding="utf-8"))
+
+
+def test_readme_lists_every_gap_the_generator_writes():
+    readme = (FIXTURES / "README.md").read_text(encoding="utf-8")
+    assert redact.GAPS and [g for g in redact.GAPS if "- " + g not in readme] == []

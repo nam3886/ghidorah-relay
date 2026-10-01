@@ -1,28 +1,29 @@
-# Throwaway services for scripts/check.sh only (contracts §14.2). Ports sit away from the defaults so
-# the check never touches a real Postgres or MinIO; `down -v` removes the data after every run.
+# Throwaway services for scripts/check.sh and scripts/check-in-container.sh only (contracts §14.2). Ports sit
+# away from the defaults so the check never touches a real Postgres or MinIO; the container script sets both
+# variables to empty, which publishes an ephemeral loopback port (its test container uses the compose network).
+# `down -v` removes the data after every run.
 name: relay-check
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     environment:
       POSTGRES_USER: relay
       POSTGRES_PASSWORD: relay-check
       POSTGRES_DB: postgres
-    ports: ["127.0.0.1:55432:5432"]
+    ports: ["127.0.0.1:${CHECK_PG_PORT-55432}:5432"]
     tmpfs: ["/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U relay"]
       interval: 1s
       retries: 30
   minio:
-    # MinIO stopped publishing free images (quay/docker hub 401 on 30/09); a pinned community build is fine
-    # for throwaway check data.
-    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    # Same pin as compose.yml (D23): upstream stopped publishing images (quay/docker hub 401 on 30/09).
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     command: ["server", "/data"]
     environment:
       MINIO_ROOT_USER: relay
       MINIO_ROOT_PASSWORD: relay-check
-    ports: ["127.0.0.1:59000:9000"]
+    ports: ["127.0.0.1:${CHECK_MINIO_PORT-59000}:9000"]
     tmpfs: ["/data"]
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]

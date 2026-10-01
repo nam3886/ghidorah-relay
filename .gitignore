@@ -4,5 +4,6 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 deploy/.env
+deploy/*.env
 ._*
 .DS_Store

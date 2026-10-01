@@ -1,6 +1,13 @@
 # One box, one compose (contracts §3). Runs on the LAN box by IP and port; no reverse proxy (D16).
-# Services whose code is not built yet sit in the `pending` profile, so `docker compose up` starts only
-# what exists. Each phase moves its service out of that profile.
+# No service shares an env file: every service names its own `<service>.env`, copied from its
+# `<service>.env.example` (variable names only). `api` and `migrate` never see the private credential key
+# (I20); tests/test_deploy.py parses this file to keep it so.
+# `migrate` and `api` sit in the profile `app`, provider workers in `dola`, `vibes` and `meta`:
+# `docker compose --profile app --profile dola up -d` starts the api and the dola worker, and nothing in this
+# file changes when a provider is enabled. A bare `docker compose up` starts only Postgres and MinIO.
+# Every compose command needs GIT_SHA (and the two passwords) in the environment or in deploy/.env, because
+# compose interpolates the services of inactive profiles too: `export GIT_SHA=$(git rev-parse --short HEAD)`.
+# Images are named `relay-<service>:${GIT_SHA}` so a rollback is a retag, not a rebuild (contracts §3).
 name: relay
 
 x-logging: &logging
@@ -8,16 +15,15 @@ x-logging: &logging
   options: {max-size: "20m", max-file: "5"}
 
 x-app: &app
-  env_file: .env
   logging: *logging
   restart: unless-stopped
   depends_on:
     postgres: {condition: service_healthy}
-    minio: {condition: service_started}
+    minio: {condition: service_healthy}
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-relay}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
@@ -31,54 +37,70 @@ services:
     restart: unless-stopped
 
   minio:
-    # The box runs its cached copy of this image, as dola_v4 does. Upstream no longer serves it (401 on
-    # 30/09), so a fresh box needs another source: contracts §17.
-    image: quay.io/minio/minio:latest
+    # pgsty/minio pinned by digest (D23): upstream stopped publishing images (401 on 30/09). The image is also
+    # saved off the box; docs/operations.md lists the digest, the tarball and the exit (Garage).
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     pull_policy: missing
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-relay}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in deploy/.env}
     volumes: ["miniodata:/data"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      retries: 20
     logging: *logging
     restart: unless-stopped
 
   migrate:
     <<: *app
-    profiles: [pending]
+    profiles: [app]
+    image: relay-migrate:${GIT_SHA:?set GIT_SHA}
     build: {context: .., dockerfile: deploy/Dockerfile, target: http}
+    env_file: [migrate.env]
     command: ["relay", "migrate"]
     restart: "no"
 
   api:
     <<: *app
-    profiles: [pending]
+    profiles: [app]
+    image: relay-api:${GIT_SHA:?set GIT_SHA}
     build: {context: .., dockerfile: deploy/Dockerfile, target: http}
+    env_file: [api.env]
     command: ["relay", "serve"]
     ports: ["${API_PORT:-8100}:8100"]
 
   worker-dola:
     <<: *app
-    profiles: [pending]
+    profiles: [dola]
+    image: relay-worker-dola:${GIT_SHA:?set GIT_SHA}
     build: {context: .., dockerfile: deploy/Dockerfile, target: browser}
+    env_file: [worker-dola.env]
     command: ["relay", "worker", "--provider", "dola"]
     shm_size: 1g
     mem_limit: ${DOLA_MEM_LIMIT:-12g}
+    stop_grace_period: 780s   # the longest submit timeout (video 720 s) plus a minute to release leases
     volumes: ["profiles-dola:/profiles"]
 
   worker-meta:
     <<: *app
-    profiles: [pending]
+    profiles: [meta]
+    image: relay-worker-meta:${GIT_SHA:?set GIT_SHA}
     build: {context: .., dockerfile: deploy/Dockerfile, target: browser}
+    env_file: [worker-meta.env]
     command: ["relay", "worker", "--provider", "meta"]
     shm_size: 1g
     mem_limit: ${META_MEM_LIMIT:-6g}
+    stop_grace_period: 780s
     volumes: ["profiles-meta:/profiles"]
 
   worker-vibes:
     <<: *app
-    profiles: [pending]
+    profiles: [vibes]
+    image: relay-worker-vibes:${GIT_SHA:?set GIT_SHA}
     build: {context: .., dockerfile: deploy/Dockerfile, target: http}
+    env_file: [worker-vibes.env]
     command: ["relay", "worker", "--provider", "vibes"]
 
 volumes:
