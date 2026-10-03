@@ -108,7 +108,8 @@ def test_a_clean_planted_deploy_passes(tmp_path):
     assert guards.deploy_violations(tmp_path) == []
 
 
-@mutation(G, "if len(s) > 1]", "if len(s) > 99]")
+@mutation(G, "if len(s) > 1]", "if len(s) > 99]",
+           expect="any(\"shared.env is shared by api, worker-dola\" in v for v in found), found")
 def test_a_shared_env_file_is_caught(tmp_path):
     plant_deploy(tmp_path, **{"compose.yml": GOOD["compose.yml"].replace("[api.env]", "[shared.env]")
                               .replace("[worker-dola.env]", "[shared.env]"),
@@ -117,15 +118,18 @@ def test_a_shared_env_file_is_caught(tmp_path):
     assert any("shared.env is shared by api, worker-dola" in v for v in found), found
 
 
-@mutation(G, 'bad += ["service %s reads', 'bad += [] and ["service %s reads')
+@mutation(G, 'bad += ["service %s reads', 'bad += [] and ["service %s reads',
+           expect="any(\"service api reads api.env, which declares\" in v for v in found), found")
 def test_the_api_reading_an_env_file_with_the_private_key_is_caught(tmp_path):
     plant_deploy(tmp_path, **{"api.env.example": f"{PRIVATE}=\n"})
     found = guards.deploy_violations(tmp_path)
     assert any("service api reads api.env, which declares" in v for v in found), found
 
 
-@mutation(G, "for var in sorted(v for v in _service_env_names(svc) if is_private_key_var(v)):", "for var in []:")
-@mutation(G, 'return "PRIVATE_KEY" in name.upper()', "return name == PRIVATE_KEY_VAR")
+@mutation(G, "for var in sorted(v for v in _service_env_names(svc) if is_private_key_var(v)):", "for var in []:",
+           expect="any(\"service api sets\" in v for v in found), found")
+@mutation(G, 'return "PRIVATE_KEY" in name.upper()', "return name == PRIVATE_KEY_VAR",
+           expect="any(\"service api sets\" in v for v in found), found")
 @pytest.mark.parametrize("env", ["{%s: x}" % PRIVATE, "[%s=x]" % PRIVATE, "[%s]" % PRIVATE,
                                  "{%s_OLD: x}" % PRIVATE, "[seal_private_key=x]"])
 def test_the_private_key_in_the_environment_of_api_or_migrate_is_caught(tmp_path, env):
@@ -135,7 +139,8 @@ def test_the_private_key_in_the_environment_of_api_or_migrate_is_caught(tmp_path
     assert any("service api sets" in v for v in found), found
 
 
-@mutation(G, "if not (deploy / (f + \".example\")).exists():", "if False:")
+@mutation(G, "if not (deploy / (f + \".example\")).exists():", "if False:",
+           expect="any(\"migrate.env has no migrate.env.example\" in v for v in found), found")
 def test_an_env_file_without_a_template_is_caught(tmp_path):
     plant_deploy(tmp_path, **{"migrate.env.example": None})
     (tmp_path / "deploy" / "migrate.env.example").unlink(missing_ok=True)
@@ -143,7 +148,8 @@ def test_an_env_file_without_a_template_is_caught(tmp_path):
     assert any("migrate.env has no migrate.env.example" in v for v in found), found
 
 
-@mutation(G, 'not re.fullmatch(r"[A-Z][A-Z0-9_]*=", line)', "False")
+@mutation(G, 'not re.fullmatch(r"[A-Z][A-Z0-9_]*=", line)', "False",
+           expect="any(\"is not a bare variable name\" in v for v in found), found")
 @pytest.mark.parametrize("line", ["DATABASE_URL=postgresql://x", "database_url=", "NO_EQUALS"])
 def test_a_template_with_a_value_is_caught(tmp_path, line):
     plant_deploy(tmp_path, **{"migrate.env.example": line + "\n"})
@@ -151,15 +157,18 @@ def test_a_template_with_a_value_is_caught(tmp_path, line):
     assert any("is not a bare variable name" in v for v in found), found
 
 
-@mutation(G, 'and not ex.name.startswith("worker-")', "and False")
+@mutation(G, 'and not ex.name.startswith("worker-")', "and False",
+           expect="any(\"admin.env.example declares\" in v for v in found), found")
 def test_the_private_key_in_a_non_worker_template_is_caught(tmp_path):
     plant_deploy(tmp_path, **{"admin.env.example": f"{PRIVATE}=\n"})
     found = guards.deploy_violations(tmp_path)
     assert any("admin.env.example declares" in v for v in found), found
 
 
-@mutation(G, 'if image and "@sha256:" not in image and not image.startswith("relay-"):', "if False:")
-@mutation(G, 'if ref and ref.group(1) not in stages and "@sha256:" not in ref.group(1):', "if False:")
+@mutation(G, 'if image and "@sha256:" not in image and not image.startswith("relay-"):', "if False:",
+           expect="any(why in v for v in found), found")
+@mutation(G, 'if ref and ref.group(1) not in stages and "@sha256:" not in ref.group(1):', "if False:",
+           expect="any(why in v for v in found), found")
 @pytest.mark.parametrize("changes, why", [
     ({"compose.yml": GOOD["compose.yml"].replace("postgres:16@sha256:aa", "postgres:16")}, "postgres:16 is not pinned"),
     ({"compose.check.yml": "services:\n  minio: {image: 'pgsty/minio:RELEASE.x'}\n"}, "image pgsty/minio:RELEASE.x"),
@@ -172,7 +181,8 @@ def test_an_image_without_a_digest_is_caught(tmp_path, changes, why):
     assert any(why in v for v in found), found
 
 
-@mutation(G, 'return "PRIVATE_KEY" in name.upper()', "return name == PRIVATE_KEY_VAR")
+@mutation(G, 'return "PRIVATE_KEY" in name.upper()', "return name == PRIVATE_KEY_VAR",
+           expect="any(\"service api reads api.env, which declares %s_OLD\" % PRIVATE in v for v in found), found")
 def test_a_second_private_key_variable_in_an_api_template_is_caught(tmp_path):
     plant_deploy(tmp_path, **{"api.env.example": "CREDENTIAL_SEAL_PUBLIC_KEY=\n%s_OLD=\n" % PRIVATE})
     found = guards.deploy_violations(tmp_path)
@@ -180,7 +190,8 @@ def test_a_second_private_key_variable_in_an_api_template_is_caught(tmp_path):
     assert any("api.env.example declares %s_OLD" % PRIVATE in v for v in found), found
 
 
-@mutation(G, 'if name.startswith("worker-"):', 'if name not in ("api", "migrate"):')
+@mutation(G, 'if name.startswith("worker-"):', 'if name not in ("api", "migrate"):',
+           expect="any(\"service reporter reads worker-dola.env, which declares\" in v for v in found), found")
 def test_a_non_worker_service_reading_a_worker_env_file_is_caught(tmp_path):
     reporter = "          reporter: {image: 'relay-reporter:1', env_file: [worker-dola.env]}\n"
     compose = GOOD["compose.yml"].rstrip(" ") + reporter

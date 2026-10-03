@@ -1,0 +1,142 @@
+"""The protocol types and the registry (contracts section 5.1-5.3): validation at construction, and a catalog whose
+model ids and aliases are unique across providers."""
+
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+
+import pytest
+
+from relay_core import providers as pv
+from relay_core.testing.mutation import mutation
+
+SRC = "packages/relay-core/src/relay_core/providers.py"
+
+
+@dataclass
+class Stub:
+    name: str
+    models: list = field(default_factory=list)
+    settings_keys: tuple = ()
+    caps: pv.Caps = field(default_factory=lambda: caps())
+    bare: bool = False          # True: none of the settings the core reads
+
+    def catalog(self):
+        return self.models
+
+    def settings(self):
+        keys = set(self.settings_keys)
+        if not self.bare:
+            keys |= {self.name + "." + n for n in ("claims_enabled", "render_deadline_s", "browser_slots")}
+        return {k: object() for k in keys}
+
+
+def caps(**kw):
+    base = dict(execution="http", wallet_kinds=("video",), pools=(pv.PoolSpec("video", "UTC"),), account_slots=1,
+                max_attempts=3, suspect_threshold=3, strike_effect=pv.Dead("signed_out"))
+    return pv.Caps(**{**base, **kw})
+
+
+def model(mid, *aliases):
+    return pv.ModelSpec(mid, "video", ("t2v",), aliases=aliases)
+
+
+@mutation(SRC, "if name in seen:", "if False:", expect="DID NOT RAISE RegistryError")
+def test_a_model_id_used_by_two_providers_refuses():
+    reg = pv.ProviderRegistry()
+    reg.register(Stub("one", [model("m-1")]))
+    with pytest.raises(pv.RegistryError, match="m-1"):
+        reg.register(Stub("two", [model("m-1")]))
+    assert reg.names() == ["one"]                  # the refused spec was not stored
+
+
+def test_an_alias_clashing_with_another_providers_id_refuses():
+    reg = pv.ProviderRegistry()
+    reg.register(Stub("one", [model("m-1")]))
+    with pytest.raises(pv.RegistryError, match="m-1"):
+        reg.register(Stub("two", [model("m-2", "m-1")]))
+
+
+def test_a_duplicate_inside_one_provider_refuses():
+    with pytest.raises(pv.RegistryError):
+        pv.check_catalog([Stub("one", [model("m-1"), model("m-2", "m-1")])])
+
+
+def test_resolve_finds_the_owner_by_id_or_alias_and_none_otherwise():
+    reg = pv.ProviderRegistry()
+    reg.register(Stub("one", [model("m-1", "short")]))
+    reg.register(Stub("two", [model("m-2")]))
+    assert reg.resolve("short")[0].name == "one"
+    assert reg.resolve("m-2")[0].name == "two"
+    assert reg.resolve("nope") is None
+
+
+def test_a_provider_name_is_registered_once_and_must_be_well_formed():
+    reg = pv.ProviderRegistry()
+    reg.register(Stub("one"))
+    with pytest.raises(pv.RegistryError, match="already"):
+        reg.register(Stub("one"))
+    with pytest.raises(pv.RegistryError, match="lower case"):
+        reg.register(Stub("Bad-Name"))
+
+
+@mutation(SRC, "if not k.startswith(spec.name", "if False and not k.startswith(spec.name",
+           expect="DID NOT RAISE RegistryError")
+def test_settings_must_live_in_the_providers_namespace():
+    with pytest.raises(pv.RegistryError, match="namespace"):
+        pv.ProviderRegistry().register(Stub("one", settings_keys=("one.ok", "other.bad")))
+
+
+def test_a_pool_budget_setting_must_be_declared():
+    c = caps(pools=(pv.PoolSpec("video", "UTC", "one.budget"),))
+    with pytest.raises(pv.RegistryError, match="one.budget"):
+        pv.ProviderRegistry().register(Stub("one", caps=c))
+    pv.ProviderRegistry().register(Stub("one", caps=c, settings_keys=("one.budget",)))
+
+
+@pytest.mark.parametrize("kw", [
+    dict(execution="gpu"), dict(wallet_kinds=()), dict(account_slots=0), dict(max_attempts=0),
+    dict(suspect_threshold=0), dict(strike_effect="dead"),
+    dict(pools=(pv.PoolSpec("a", "UTC"), pv.PoolSpec("a", "UTC"))),
+    dict(proxy_rest_s=0), dict(check_interval_s=0),
+])
+def test_caps_refuse_nonsense(kw):
+    with pytest.raises(ValueError):
+        caps(**kw)
+
+
+def test_a_pool_with_an_unknown_timezone_refuses_at_construction():
+    with pytest.raises(Exception):  # noqa: B017  (ZoneInfoNotFoundError or ValueError, depending on the platform)
+        pv.PoolSpec("video", "Mars/Olympus")
+
+
+def test_results_validate_what_the_core_relies_on():
+    with pytest.raises(ValueError):
+        pv.Rest("video", datetime(2030, 1, 1), "naive time")
+    with pytest.raises(ValueError):
+        pv.Balance("video", 3, "guessed")
+    with pytest.raises(ValueError):
+        pv.Completed(outputs=())
+    with pytest.raises(ValueError):
+        pv.Fail("")
+    with pytest.raises(ValueError):
+        pv.Health("maybe")
+    pv.Cooldown("throttled", datetime(2030, 1, 1, tzinfo=UTC))
+    assert pv.SubmitResult(pv.Accepted("ref")).job.taken is True
+
+
+def test_the_spec_constants_default_to_the_contract_values():
+    c = caps()
+    assert (c.proxy_rest_s, c.check_interval_s) == (1800, 21600)
+
+
+@mutation(SRC, "    if missing:", "    if False:", expect="DID NOT RAISE RegistryError")
+def test_a_spec_must_declare_the_settings_the_core_reads():
+    bare = Stub("one", bare=True)
+    with pytest.raises(pv.RegistryError, match="one.claims_enabled.*one.render_deadline_s"):
+        pv.ProviderRegistry().register(bare)
+    # browser_slots is only needed by a browser provider
+    only_two = Stub("one", bare=True, settings_keys=("one.claims_enabled", "one.render_deadline_s"))
+    pv.ProviderRegistry().register(only_two)
+    with pytest.raises(pv.RegistryError, match="one.browser_slots"):
+        pv.ProviderRegistry().register(Stub("one", bare=True, caps=caps(execution="browser"),
+                                            settings_keys=("one.claims_enabled", "one.render_deadline_s")))

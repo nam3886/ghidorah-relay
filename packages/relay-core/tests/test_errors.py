@@ -31,12 +31,14 @@ def test_platform_registry_is_sound():
     assert not hasattr(Rule, "retryable")
 
 
-@mutation(SRC, "if r.terminal and r.counts_attempt:", "if False and r.counts_attempt:")
+@mutation(SRC, "if r.terminal and r.counts_attempt:", "if False and r.counts_attempt:",
+           expect="any(\"terminal and counts_attempt\" in v for v in broken(good(terminal=True, counts_attempt=True)))")
 def test_terminal_and_counts_attempt_refused():
     assert any("terminal and counts_attempt" in v for v in broken(good(terminal=True, counts_attempt=True)))
 
 
-@mutation(SRC, "elif r.refund != (r.terminal or r.counts_attempt):", "elif False:")
+@mutation(SRC, "elif r.refund != (r.terminal or r.counts_attempt):", "elif False:",
+           expect="any(\"exactly when it is refunded\" in v for v in broken(good(refund=False)))")
 def test_refund_equals_job_ends_failed():
     assert any("exactly when it is refunded" in v for v in broken(good(refund=False)))           # dies, not refunded
     assert any("exactly when it is refunded" in v
@@ -47,7 +49,8 @@ def test_no_job_means_nothing_to_refund():
     assert any("nothing to refund" in v for v in broken(good(job_scoped=False, refund=True)))
 
 
-@mutation(SRC, 'if r.code.startswith("pool.") and', 'if False and')
+@mutation(SRC, 'if r.code.startswith("pool.") and', 'if False and',
+           expect="any(\"pool.* is our fault\" in v for v in broken(rule)), flag")
 def test_pool_codes_never_end_or_refund_a_job():
     for flag in ("terminal", "counts_attempt"):
         rule = good("pool.thing", refund=True, terminal=flag == "terminal", counts_attempt=flag == "counts_attempt")
@@ -79,7 +82,8 @@ def test_fallback_must_exist_and_be_public():
                                                                 hidden_message="x")})
 
 
-@mutation(SRC, "return RULES.get(code) or RULES[INTERNAL]", "return RULES[code]")
+@mutation(SRC, "return RULES.get(code) or RULES[INTERNAL]", "return RULES[code]",
+           expect="KeyError: 'nobody.registered'")
 def test_unknown_code_resolves_to_internal():
     assert errors.rule("nobody.registered") is RULES[errors.INTERNAL]
     assert errors.http_status("nobody.registered") == 500
@@ -103,7 +107,7 @@ def test_envelope_is_openai_style_with_no_retryable_or_refunded():
 
 
 @mutation(SRC, "return (r.code, r.message) if r.public else (INTERNAL, r.hidden_message)",
-          "return (r.code, r.message)")
+          "return (r.code, r.message)", expect="'ours.secret_detail' == 'internal.unexpected'")
 def test_hidden_code_is_replaced_with_its_text(monkeypatch):
     monkeypatch.setattr(errors, "RULES", dict(RULES))
     errors.register(good("ours.secret_detail", public=False, hidden_message="the request could not be submitted",
@@ -169,19 +173,18 @@ def test_assignment_scan_sees_a_code_used_and_one_forgotten(tmp_path):
 # an entry that is assigned now (a stale entry), so the list can only be exactly the unassigned codes.
 PENDING = frozenset("""
 input.empty_prompt input.bad_duration input.bad_ratio input.bad_model input.bad_style input.image_unreadable
-input.prompt_ratio_conflict input.prompt_duration_conflict input.idempotency_conflict
+input.prompt_ratio_conflict input.prompt_duration_conflict
 input.too_many_images input.prompt_too_long input.template_not_found
-auth.model_forbidden auth.forbidden auth.too_many_attempts auth.permission_unknown quota.too_many_queued
+auth.model_forbidden auth.forbidden auth.too_many_attempts auth.permission_unknown
 pool.no_account pool.account_cannot_afford pool.account_out_of_points pool.account_logged_out
 pool.account_throttled pool.account_region_blocked pool.account_busy pool.proxy_failed
 account.dead_session account.wrong_conversation account.prompt_mismatch
-render.deadline render.download_failed render.file_unreadable render.watermarked_only
-queue.never_started job.not_submitted job.busy job.already_finished resource.not_found
+render.watermarked_only
 """.split())
 
 
 @mutation("packages/relay-core/tests/test_errors.py", "ast.walk(tree)\n                  if isinstance",
-          "ast.walk(tree)\n                  if False and isinstance")
+          "ast.walk(tree)\n                  if False and isinstance", expect="unassigned but not listed: [")
 def test_every_registered_code_is_assigned_or_pending():
     unassigned = set(RULES) - assigned_codes(REPO, set(RULES))
     assert unassigned == PENDING, (

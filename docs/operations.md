@@ -1,7 +1,7 @@
 # Operations
 
-Pinned inputs of the relay images. Contracts §3, §15, §17 (D23, v1.3 #23). Plan phase 7 extends this file with the
-deploy, backup and restore runbooks.
+Pinned inputs of the relay images, the worker and the restore runbook. Contracts §3, §7.7, §15, §17 (D23, v1.3 #23).
+Plan phase 7 extends this file with the deploy and backup runbooks and drills the restore.
 
 ## Image digests
 
@@ -130,12 +130,101 @@ image) and must be cut off in under 2 s, so the timing assertion cannot pass vac
 
 - `scripts/check.sh`: the commit gate. Browser-less, on the Mac. Ends `CHECK: GREEN`. Each run has its own compose
   project (`relay-check-<epoch>-<pid>`) and ephemeral loopback ports, so parallel runs do not share services.
-- `scripts/check.sh --full`: adds `scripts/mutate.py` and the browser tier, which `scripts/check-in-container.sh`
-  runs on the box (`RELAY_BOX`, default `phuongnam@192.168.18.227`). Per run, with a token `<epoch>.<pid>`: temp dir
+- `scripts/check.sh --full`: adds `scripts/mutate.py`, the 200-seed `scripts/soak.py` and the browser tier, which
+  `scripts/check-in-container.sh` runs on the box (`RELAY_BOX`, default `phuongnam@192.168.18.227`). Per run, with a token `<epoch>.<pid>`: temp dir
   `/tmp/relay-check.<token>`, image `relay-check-browser:<token>` (label `relay.check=<token>`), compose project
   `relay-check-<token>`, container `relay-check-run-<token>` on that project's network (no host networking). It runs
   the Chrome tests in the image, then the three graceful-stop tests (stop, kill-then-start, negative control) from the Mac through `DOCKER_HOST=ssh://<box>`. It
   removes what carries its token on exit and never prunes or touches another project.
+- `scripts/check.sh --full --local`: the same without the box. The browser tier is skipped and the output says
+  `browser tier: SKIPPED (--local ...)`. For phases that change no browser code or image.
+- `scripts/check.sh --soak [--seed N] [--verbose]`: only the soak, on its own database and bucket. `--soak --seed N
+  --verbose` replays one seed (a failing seed prints its number). It is not a gate and never prints `CHECK: GREEN`.
+- `CHECK: GREEN` means the whole gate ran. A run that left something out ends `CHECK: PARTIAL (...)` with the reason
+  (`scripts/check-verdict.sh`): `MUTATE_ONLY` set, `SOAK_SEEDS` under 200 (`0` skips the soak), or pytest arguments
+  that narrow the run (`mutate: PARTIAL` is also printed when `MUTATE_ONLY` is set). `SOAK_SEEDS` must be a whole
+  number. Only the last line `CHECK: GREEN` allows a commit.
 - `scripts/mutate.py [ROOT] [--only PATTERN ...]`: mutates in a private copy of the tree, under an exclusive lock
   (`.mutate.lock`; a second run exits 2). A marked test is first run unmutated: one that fails then is reported as
   "baseline not green", not as a kill. DB tests need the check services, so run it through `check.sh --full`.
+  Every `@mutation` carries `expect="..."`, a substring of the failure the mutation must cause (the test's own
+  assertion text, not a helper timeout); `tests/test_mutate.py` fails when a marker has none.
+
+## The worker (`relay worker --provider X`)
+
+One process per provider (`dola`, `vibes`, `meta`; the compose services `worker-<provider>`). It loads
+`relay_<p>.spec.SPEC` and `relay_<p>.engine.build_engine`, then runs these loops as tasks of one process:
+
+| Loop | Does |
+|---|---|
+| claims | takes the oldest queued job across pools (D43) and submits it |
+| poller | polls running jobs (only for providers with `has_poll`) |
+| fetcher | downloads finished output into MinIO |
+| reconciler | proves `unknown` jobs against the account (only for providers with `has_reconcile`) |
+| reaper | requeues or fails jobs whose lease expired; the daily ledger drift pass |
+| commands | runs queued worker commands, the account checks, the title sweep and the catalog refresh |
+
+Environment (read at boot; the full list is in the per-service env files):
+
+| Variable | Meaning |
+|---|---|
+| `DATABASE_URL`, `BILLING_TZ`, the credential private keys, MinIO settings | required; a missing or malformed value exits 2 before any connection |
+| `WORKER_ID` | default `worker-<provider>`. Names the heartbeat row, so it must be **unique per worker process** and contain **no `/`** (else exit 2). Two processes sharing an id share one row. Each boot appends its own `/<suffix>` to form the lease owner |
+| `WORKER_GRACE_S` | default 720. One deadline for the whole stop; keep it below the compose `stop_grace_period` (780 s) so Docker never kills first |
+
+Start: the worker refuses (exit 2) when `BILLING_TZ` differs from the value pinned by `relay migrate`.
+
+Exit codes: 0 clean stop; 1 after 5 consecutive unexpected errors in the claim loop, or a loop that died; 2 refused
+to start. A submit stopped by the core's own timeout does not count toward the 5 (D42). Docker restarts the
+container on 1.
+
+Graceful stop (SIGTERM or SIGINT; the entry script is under "Graceful stop of the browser workers"): no new claim,
+check or command starts; in-flight submits finish or are fenced inside `WORKER_GRACE_S`; the other loops finish the
+item they are on within what is left of the same deadline; leases are released, except that of a job still
+`submitting` (the reaper moves it); a command that was running is failed so the admin can run it again. A job
+requeued by a graceful stop is claimed again at once by another worker.
+
+### Drain mode
+
+Setting `<p>.claims_enabled` (default true). While false, that provider's worker claims no job, runs no account
+check and no command, and does no catalog maintenance. **Still running:** poller, fetcher, reconciler, reaper, the
+title sweep and webhooks, so open jobs finish, fail, refund and notify. Rollback of a provider go-live is drain mode
+(there is no fallback system, D36).
+
+**Not wired yet (phase 3):** `relay provider drain|resume X` and `relay jobs restore-mark --dump-time T` are store
+functions today (`relay_core.jobs.ops.drain`, `resume`, `restore_mark`); the `relay` command does not have them yet.
+Until phase 3, drain mode is the setting `<p>.claims_enabled` itself.
+
+## Restore runbook (contracts §7.7; drilled in phase 7, not yet on the box)
+
+Order matters: `restore_mark` writes whole tables and a running worker would claim jobs the dump knows nothing about.
+
+1. Restore the database from the dump and start the api. Set the global setting `media_orphan_sweep` to `false` first
+   (restoring MinIO from the nightly mirror happens later; a sweep now would delete files whose rows are not back).
+2. Start **no worker**.
+3. Run restore-mark with the dump time `T`. It refuses (`WorkersRunning`) while any worker heartbeat is fresher than
+   45 s. It locks the heartbeat table, so a worker that boots meanwhile has its claim loop wait, but its other loops
+   do not: still start none. It marks every non-terminal job created before `T` plus the longest submit timeout as
+   `unknown` (never `queued`; reconcile proves each one), except a `queued` job never claimed. A job that was claimed,
+   requeued and has no account fails with refund at its render deadline and is never re-sent (D41). Queued commands
+   fail, `left_n` is rebuilt from reported balances, every account is due for a check.
+4. Start the workers in drain mode (`<p>.claims_enabled` false), let the reconciler and the checks settle, then
+   `resume`.
+5. Reconcile MinIO and the rows, then set `media_orphan_sweep` back to `true`.
+
+## What an operator must know
+
+- **A job that keeps killing its worker fails (D46).** Each time the reaper requeues an unsent job whose worker died
+  it counts an attempt; at the provider's `max_attempts` the job fails with refund. The count covers every unsent job
+  the dead worker held, so an innocent job sharing every crash fails and is refunded with it.
+- **Upstream completed means the account keeps the charge (D47).** A failed job whose order upstream finished (for
+  example the fetch failed) keeps its account-pool charge, because the upstream account spent the credit. The client's
+  key is refunded as for every failed job.
+- **A dead proxy rests the account (D44).** A failed proxy probe rests the account on every pool for the provider's
+  proxy rest, 30 minutes (1 800 s) by default (`Caps.proxy_rest_s`); no browser opens through it.
+- **The account check interval is a provider constant** (`Caps.check_interval_s`, 21 600 s by default), not a setting.
+- **Admin account actions are worker commands** (wake, check, check all, proxy re-check, delete): the api queues
+  them, the provider's worker runs them, so they wait while the worker is drained or stopped. A command aborted by a
+  database deadlock or serialization failure is re-queued, a bounded number of times; other errors fail it.
+- **Browser shares stay reserved (D45):** reconcile up to 2 and check plus command 1, even when idle. More submit
+  slots mean a higher `<p>.browser_slots`, within the env ceiling.

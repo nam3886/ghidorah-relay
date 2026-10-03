@@ -77,7 +77,7 @@ async def refused(url: str, reason: str | None = None, site: Site | None = None,
 
 
 # ---- addresses ---------------------------------------------------------------------------------------------------
-@mutation(SRC, "ip = _unwrap(ip)", "ip = ip")
+@mutation(SRC, "ip = _unwrap(ip)", "ip = ip", expect="AssertionError: ::ffff:8.8.8.8")
 def test_addresses_that_carry_an_ipv4_address_are_judged_by_it():
     for a in ("::ffff:192.168.1.1", "::ffff:127.0.0.1", "::ffff:169.254.169.254", "::ffff:10.0.0.1",
               "64:ff9b::c0a8:101", "64:ff9b::7f00:1", "64:ff9b::a9fe:a9fe"):
@@ -113,7 +113,8 @@ async def test_names_that_resolve_to_private_addresses_are_refused():
     assert site.seen == []
 
 
-@mutation(SRC, "if not all(is_public_ip(a) for a in addresses):", "if not any(is_public_ip(a) for a in addresses):")
+@mutation(SRC, "if not all(is_public_ip(a) for a in addresses):", "if not any(is_public_ip(a) for a in addresses):",
+           expect="DID NOT RAISE UnsafeUrl")
 @sync
 async def test_one_private_answer_among_public_ones_refuses_the_url():
     site = Site()
@@ -140,7 +141,8 @@ async def test_unresolvable_and_empty_answers_are_refused():
 
 
 # ---- scheme and shape --------------------------------------------------------------------------------------------
-@mutation(SRC, 'if parts.scheme != "https":', 'if parts.scheme not in ("http", "https"):')
+@mutation(SRC, 'if parts.scheme != "https":', 'if parts.scheme not in ("http", "https"):',
+           expect="DID NOT RAISE UnsafeUrl")
 @sync
 async def test_http_is_refused_even_to_a_public_host():
     site = Site()
@@ -169,7 +171,7 @@ PIN = 'url = "https://%s:%d%s" % (ip, target.port,'
 PIN_BY_NAME = 'url = "https://%s:%d%s" % (target.host, target.port,'
 
 
-@mutation(SRC, PIN, PIN_BY_NAME)
+@mutation(SRC, PIN, PIN_BY_NAME, expect="'files.example.test' == '93.184.216.34'")
 @sync
 async def test_the_request_goes_to_the_checked_ip_with_the_original_name_for_tls():
     site = Site({"files.example.test": httpx.Response(200, content=b"png-bytes")})
@@ -193,7 +195,7 @@ async def test_ipv6_target_and_a_non_default_port():
 # ---- redirects ---------------------------------------------------------------------------------------------------
 @mutation(SRC, "target = await check_url(current, resolver)",
           "target = (await check_url(current, resolver) if hop == 0 else Target(current, urlsplit(current).hostname"
-          " or \"\", 443, urlsplit(current).hostname or \"\"))")
+          " or \"\", 443, urlsplit(current).hostname or \"\"))", expect="DID NOT RAISE UnsafeUrl")
 @sync
 async def test_a_redirect_into_a_private_address_is_refused_at_the_hop():
     for location in ("https://127.0.0.1/admin", "https://evil.test/x", "https://[::ffff:10.0.0.1]/"):
@@ -202,7 +204,7 @@ async def test_a_redirect_into_a_private_address_is_refused_at_the_hop():
         assert [r.url.host for r in site.seen] == [PUBLIC_A], location       # the private hop was never contacted
 
 
-@mutation(SRC, "if hop >= max_redirects:", "if hop > max_redirects + 99:")
+@mutation(SRC, "if hop >= max_redirects:", "if hop > max_redirects + 99:", expect="AssertionError: unreachable")
 @sync
 async def test_at_most_four_redirects_are_followed():
     four = Site({"files.example.test": [redirect("/1"), redirect("/2"), redirect("/3"), redirect("/4"),
@@ -303,7 +305,8 @@ def test_malformed_proxies_are_refused(bad):
 
 
 # ---- IPv6 outside global unicast, the total deadline, and the transaction guard -----------------------------------
-@mutation(SRC, "if isinstance(ip, ipaddress.IPv6Address) and ip not in _GLOBAL_V6:", "if False:")
+@mutation(SRC, "if isinstance(ip, ipaddress.IPv6Address) and ip not in _GLOBAL_V6:", "if False:",
+           expect="AssertionError: ::7f00:1")
 def test_ipv6_that_hides_an_ipv4_address_or_is_not_global_unicast_is_refused():
     for a in ("::7f00:1", "::a9fe:a9fe", "::c0a8:101", "::ffff:0:7f00:1", "fec0::1"):
         assert not net.is_public_ip(a), a
@@ -314,7 +317,8 @@ def test_ipv6_that_hides_an_ipv4_address_or_is_not_global_unicast_is_refused():
     assert site.seen == []
 
 
-@mutation(SRC, "async with asyncio.timeout(timeout_s):", "async with asyncio.timeout(None):")
+@mutation(SRC, "async with asyncio.timeout(timeout_s):", "async with asyncio.timeout(None):",
+           expect="relay_core.net.UnsafeUrl: redirects")
 def test_one_deadline_covers_every_redirect_hop():
     async def slow(request: httpx.Request) -> httpx.Response:
         await asyncio.sleep(0.15)                        # each hop is well inside the limit; the chain is not
@@ -329,7 +333,8 @@ def test_one_deadline_covers_every_redirect_hop():
     asyncio.run(main())
 
 
-@mutation(SRC, "assert_no_tx()\n    method = method.upper()", "method = method.upper()")
+@mutation(SRC, "assert_no_tx()\n    method = method.upper()", "method = method.upper()",
+           expect="with pytest.raises(RuntimeError, match=\"foreign I/O\"):")
 def test_a_request_inside_a_database_transaction_is_refused(db):
     async def main():
         pool = await open_pool(db.dsn)

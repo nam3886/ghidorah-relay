@@ -102,13 +102,14 @@ def test_a_provider_namespaced_key_reads_its_env_name_and_types_are_coerced(db):
 
 def test_the_cut_back_global_keys_are_registered_with_their_defaults():
     assert {k: s.default for k, s in REGISTRY.specs.items()} == {
-        "log_retention_days": 30, "media_orphan_age_h": 6, "unsent_deadline_s": 10_800, "session_ttl_s": 86_400,
+        "log_retention_days": 30, "media_orphan_age_h": 6, "media_orphan_sweep": True,
+        "unsent_deadline_s": 10_800, "session_ttl_s": 86_400,
         "max_unfinished_default": 20, "alert_disk_free_gb": 10, "alert_accounts_low": 3,
         "filename_pattern": "{prompt}_{duration}"}
 
 
 # ---- I19: validate before write -----------------------------------------------------------------------------------
-@mutation(S, VALIDATE_BEFORE_WRITE, SKIP_VALIDATION)
+@mutation(S, VALIDATE_BEFORE_WRITE, SKIP_VALIDATION, expect="with pytest.raises(SettingsError):")
 def test_a_value_that_fails_validation_is_refused_and_the_stored_value_stays(db):
     async def scenario(s, pool):
         await s.set("retention", 5)
@@ -122,7 +123,7 @@ def test_a_value_that_fails_validation_is_refused_and_the_stored_value_stays(db)
     run(db, scenario, registry=LOCAL, env={})
 
 
-@mutation(S, EXACT_TYPE, LOOSE_TYPE)
+@mutation(S, EXACT_TYPE, LOOSE_TYPE, expect="with pytest.raises(SettingsError, match=\"must be int\"):")
 def test_a_boolean_is_not_an_integer(db):
     async def scenario(s, pool):
         with pytest.raises(SettingsError, match="must be int"):
@@ -132,7 +133,7 @@ def test_a_boolean_is_not_an_integer(db):
     run(db, scenario, env={})
 
 
-@mutation(S, UNKNOWN_REFUSED, UNKNOWN_ACCEPTED)
+@mutation(S, UNKNOWN_REFUSED, UNKNOWN_ACCEPTED, expect="with pytest.raises(SettingsError, match=\"not a setting\"):")
 def test_a_key_outside_the_registry_is_refused_everywhere(db):
     async def scenario(s, pool):
         for call in (s.set("nope", 1), s.delete("nope")):
@@ -146,7 +147,7 @@ def test_a_key_outside_the_registry_is_refused_everywhere(db):
 
 
 # ---- the boot-only rule -------------------------------------------------------------------------------------------
-@mutation(S, SUFFIXES, NO_SUFFIXES)
+@mutation(S, SUFFIXES, NO_SUFFIXES, expect="is_boot_only('vibes.base_url')")
 def test_a_url_host_or_user_agent_key_can_neither_be_registered_nor_written(db):
     for key in ("vibes.base_url", "x.proxy_host", "p.user_agent", "PUBLIC_BASE_URL", "p.my_user_agent",
                 "p.api_base", "p.endpoint", "p.upstream_proxy", "p.origin", "p.hosts", "p.callback_uri"):
@@ -184,7 +185,7 @@ def test_a_duplicate_key_or_a_default_that_fails_its_own_check_cannot_be_registe
 
 
 # ---- the cache: NOTIFY invalidation and reload on reconnect -------------------------------------------------------
-@mutation(S, NOTIFY, NOTIFY_ELSEWHERE)
+@mutation(S, NOTIFY, NOTIFY_ELSEWHERE, expect="until(lambda: b.get(\"log_retention_days\") == 11)")
 def test_a_write_in_one_process_reaches_a_live_second_process_by_notify(db):
     async def main():
         pool = await open_pool(db.dsn)
@@ -204,7 +205,7 @@ def test_a_write_in_one_process_reaches_a_live_second_process_by_notify(db):
     asyncio.run(main())
 
 
-@mutation(S, RELOAD_AFTER_LISTEN, NO_RELOAD)
+@mutation(S, RELOAD_AFTER_LISTEN, NO_RELOAD, expect="until(lambda: s.get(\"log_retention_days\") == 7)")
 def test_a_listener_that_lost_its_connection_reloads_everything_when_it_is_back(db):
     def kill_listeners():
         with db.connect() as c:

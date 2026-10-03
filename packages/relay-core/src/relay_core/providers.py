@@ -1,0 +1,557 @@
+"""The provider protocol (contracts section 5.1-5.3), trimmed to what the first provider needs.
+
+Pure types: no I/O, no database, no browser. The API imports a provider's spec; only a worker imports its engine.
+Members the contracts mark as later additions (pinned jobs, credential push, poll-held leases, per-pool slots,
+bytes outputs, fail-and-refund, maintain, the cooldown strike effect) are deliberately absent.
+
+This module is also the one core module that may name providers (the registry); it names none itself.
+"""
+
+import re
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import StrEnum
+from typing import Any, Literal, Protocol
+from zoneinfo import ZoneInfo
+
+
+class Completion(StrEnum):
+    HOLD = "hold"        # the result is awaited inside the session
+    DETACH = "detach"    # the result is polled after the session
+
+
+class AfterSent(StrEnum):
+    RECONCILE = "reconcile"   # an ambiguous send is reconciled, never re-sent
+
+
+# ---- account effects ------------------------------------------------------------------------------------------
+@dataclass(frozen=True)
+class Rest:
+    """One pool of one account rests until `until`. Never shortens a longer rest."""
+    pool: str
+    until: datetime
+    reason: str
+
+    def __post_init__(self):
+        _aware(self.until)
+
+
+@dataclass(frozen=True)
+class Cooldown:
+    """The whole account cools down until `until`. Never shortens a longer cooldown (GREATEST, no rank)."""
+    reason: str
+    until: datetime
+
+    def __post_init__(self):
+        _aware(self.until)
+
+
+@dataclass(frozen=True)
+class Suspect:
+    reason: str
+
+
+@dataclass(frozen=True)
+class Dead:
+    reason: str
+
+
+@dataclass(frozen=True)
+class Revive:
+    reason: str
+
+
+BALANCE_SOURCES = ("reported", "counted", "reset")
+
+
+@dataclass(frozen=True)
+class Balance:
+    """The account's remaining capacity in a pool. A `reported` value always overrides a counted one."""
+    pool: str
+    left_n: int | None
+    source: str = "reported"
+
+    def __post_init__(self):
+        if self.source not in BALANCE_SOURCES:
+            raise ValueError("Balance.source must be one of %s" % (BALANCE_SOURCES,))
+
+
+@dataclass(frozen=True)
+class Success:
+    """An accepted submit, a good poll or an alive check: clears the strike counter."""
+
+
+@dataclass(frozen=True)
+class ProxyBad:
+    reason: str
+
+
+AccountEffect = Rest | Cooldown | Suspect | Dead | Revive | Balance | Success | ProxyBad
+StrikeEffect = Dead   # the strike threshold's terminal effect; the cooldown form arrives with the later providers
+
+
+def _aware(moment: datetime) -> None:
+    if moment.tzinfo is None:
+        raise ValueError("a time must carry a timezone")
+
+
+# ---- result types ---------------------------------------------------------------------------------------------
+@dataclass(frozen=True)
+class Warning:
+    code: str
+    text: str
+
+
+@dataclass(frozen=True)
+class Facts:
+    upstream_price: int | None = None
+    upstream_model: str | None = None
+
+
+@dataclass(frozen=True)
+class Output:
+    ref: str
+    mime: str
+    idx: int
+    upstream_id: str | None = None
+    meta: Mapping[str, Any] = field(default_factory=dict)   # never holds a secret
+
+
+def _code(code: str) -> None:
+    if not code:
+        raise ValueError("a result needs a code")
+
+
+@dataclass(frozen=True)
+class Accepted:
+    """Sent and accepted. `taken=False`: sent, but the order is not yet proven."""
+    ref: str
+    provider_state: Mapping[str, Any] = field(default_factory=dict)
+    facts: Facts = Facts()
+    taken: bool = True
+
+
+@dataclass(frozen=True)
+class Completed:
+    """Done inside the session; implies taken."""
+    outputs: tuple[Output, ...]
+    facts: Facts = Facts()
+
+    def __post_init__(self):
+        if not self.outputs:
+            raise ValueError("Completed needs at least one output")
+
+
+@dataclass(frozen=True)
+class NotTaken:
+    """Sent, and upstream certainly did not take it. A re-send is allowed (the job goes back to queued)."""
+    code: str
+    state_patch: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        _code(self.code)
+
+
+@dataclass(frozen=True)
+class Retry:
+    """Only before `mark_sent`; after it the core treats it as Ambiguous."""
+    code: str
+
+    def __post_init__(self):
+        _code(self.code)
+
+
+@dataclass(frozen=True)
+class Fail:
+    """A certain rejection: terminal."""
+    code: str
+    detail: str = ""
+    state_patch: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        _code(self.code)
+
+
+@dataclass(frozen=True)
+class Ambiguous:
+    """Sent, outcome unknown: the job becomes `unknown` and is reconciled, never re-sent."""
+    note: str = ""
+
+
+SubmitOutcome = Accepted | Completed | NotTaken | Retry | Fail | Ambiguous
+
+
+@dataclass(frozen=True)
+class SubmitResult:
+    job: SubmitOutcome
+    account: tuple[AccountEffect, ...] = ()
+    warnings: tuple[Warning, ...] = ()
+    title: str | None = None
+
+
+@dataclass(frozen=True)
+class Pending:
+    note: str = ""
+    next_in_s: int = 30
+    state_patch: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class Done:
+    outputs: tuple[Output, ...]
+    facts: Facts = Facts()
+
+
+@dataclass(frozen=True)
+class Failed:
+    code: str
+    detail: str = ""
+    taken: bool = True
+    state_patch: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        _code(self.code)
+
+
+PollOutcome = Pending | Done | Failed
+
+
+@dataclass(frozen=True)
+class PollResult:
+    outcome: PollOutcome
+    effects: tuple[AccountEffect, ...] = ()
+    warnings: tuple[Warning, ...] = ()
+    title: str | None = None
+
+
+@dataclass(frozen=True)
+class Found:
+    ref: str
+    provider_state: Mapping[str, Any] = field(default_factory=dict)
+    taken: bool = True
+
+
+@dataclass(frozen=True)
+class NotSent:
+    """Only with positive proof. `covers_send_window` is the provider's assertion that the listing it read covers
+    the whole send window (a capped or truncated listing never does); the core also applies the timing rule (I27)."""
+    covers_send_window: bool
+
+
+@dataclass(frozen=True)
+class StillUnknown:
+    pass
+
+
+Reconciled = Found | NotSent | StillUnknown
+
+HEALTH_STATES = ("alive", "signed_out", "unknown")
+
+
+@dataclass(frozen=True)
+class Health:
+    state: Literal["alive", "signed_out", "unknown"]
+    identity: str | None = None
+    display_name: str | None = None
+    screenshot: bytes | None = None
+    state_patch: Mapping[str, Any] = field(default_factory=dict)
+    effects: tuple[AccountEffect, ...] = ()
+
+    def __post_init__(self):
+        if self.state not in HEALTH_STATES:
+            raise ValueError("Health.state must be one of %s" % (HEALTH_STATES,))
+
+
+@dataclass(frozen=True)
+class ProxyVerdict:
+    ok: bool
+    reason: str = ""
+
+
+# ---- capabilities, catalog, plan ------------------------------------------------------------------------------
+@dataclass(frozen=True)
+class PoolSpec:
+    """One account pool: its day rule is a constant of the spec, its daily budget a live setting (or None)."""
+    name: str
+    tz: str
+    budget_setting: str | None = None
+
+    def __post_init__(self):
+        if not self.name:
+            raise ValueError("a pool needs a name")
+        ZoneInfo(self.tz)   # an unknown timezone refuses here, not at the first rollover
+
+
+@dataclass(frozen=True)
+class Caps:
+    execution: Literal["http", "browser"]
+    wallet_kinds: tuple[str, ...]
+    pools: tuple[PoolSpec, ...]
+    account_slots: int | None          # max simultaneous leases per account; None = unlimited
+    max_attempts: int
+    suspect_threshold: int             # strikes that trigger `strike_effect`
+    strike_effect: StrikeEffect
+    has_poll: bool = False
+    has_reconcile: bool = False
+    has_probe_proxy: bool = False
+    titles: bool = False
+    catalog_refresh_s: int | None = None
+    proxy_rest_s: int = 1800           # a failed proxy probe rests the account on every pool this long (D44)
+    check_interval_s: int = 21600      # the account check cadence (contracts 5.4.1); the retry stays an env value
+
+    def __post_init__(self):
+        if self.execution not in ("http", "browser"):
+            raise ValueError("execution must be http or browser")
+        if not self.wallet_kinds:
+            raise ValueError("a provider declares at least one wallet kind")
+        names = [p.name for p in self.pools]
+        if len(set(names)) != len(names):
+            raise ValueError("pool names must be unique")
+        if self.account_slots is not None and self.account_slots < 1:
+            raise ValueError("account_slots must be >= 1 or None")
+        if self.max_attempts < 1 or self.suspect_threshold < 1:
+            raise ValueError("max_attempts and suspect_threshold must be >= 1")
+        if self.proxy_rest_s < 1 or self.check_interval_s < 1:
+            raise ValueError("proxy_rest_s and check_interval_s must be >= 1")
+        if not isinstance(self.strike_effect, Dead):
+            raise ValueError("strike_effect must be Dead(reason)")
+
+    def pool(self, name: str) -> PoolSpec:
+        for p in self.pools:
+            if p.name == name:
+                return p
+        raise KeyError("no pool %r" % name)
+
+
+@dataclass(frozen=True)
+class ModelSpec:
+    id: str
+    media_type: str
+    operations: tuple[str, ...]
+    aliases: tuple[str, ...] = ()
+    limits: Mapping[str, Any] = field(default_factory=dict)
+    prices: Mapping[str, int] = field(default_factory=dict)
+
+    def names(self) -> tuple[str, ...]:
+        return (self.id, *self.aliases)
+
+
+@dataclass(frozen=True)
+class MediaIn:
+    sha256: str
+    mime: str
+    size: int
+
+
+@dataclass(frozen=True)
+class CreateRequest:
+    model: str
+    prompt: str
+    duration: int | None = None
+    ratio: str | None = None
+    n: int | None = None
+    images: tuple[MediaIn, ...] = ()
+    options: Mapping[str, Any] = field(default_factory=dict)
+    title: str | None = None
+    callback_url: str | None = None
+    door: Literal["native", "facade"] = "native"
+
+
+@dataclass(frozen=True)
+class Plan:
+    operation: str
+    media_type: str
+    model: str
+    params: Mapping[str, Any]
+    completion: Completion
+    after_sent: AfterSent
+    wallet_kind: str
+    price: int
+    pool: str | None
+    account_cost: int
+    submit_timeout_s: int
+    warnings: tuple[Warning, ...] = ()
+
+    def __post_init__(self):
+        if self.price < 0 or self.account_cost < 0 or self.submit_timeout_s < 1:
+            raise ValueError("price and account_cost must be >= 0 and submit_timeout_s >= 1")
+
+
+# ---- what the engine sees -------------------------------------------------------------------------------------
+@dataclass(frozen=True)
+class MediaRef:
+    idx: int
+    object_key: str
+    mime: str
+    size: int
+
+
+@dataclass(frozen=True)
+class Proxy:
+    host: str
+    port: int
+    auth: str | None = None   # a secret: never logged
+
+
+@dataclass(frozen=True)
+class ParsedCredential:
+    blob: bytes               # what gets sealed; the spec has already validated it
+    hint: str = ""            # a non-secret label suggestion
+
+
+@dataclass(frozen=True)
+class AccountView:
+    """Read-only: the decrypted credential and proxy of the account a run is using."""
+    id: str
+    label: str
+    credential: bytes
+    credential_gen: int
+    proxy: Proxy | None
+    provider_state: Mapping[str, Any]
+    capacity: Mapping[str, int | None]   # pool -> left_n (None = unknown)
+
+
+@dataclass(frozen=True)
+class JobView:
+    id: str
+    provider: str
+    operation: str
+    model: str
+    params: Mapping[str, Any]
+    prompt: str
+    marker: str
+    sent_text: str | None
+    render_since: datetime | None
+    sent_at: datetime | None
+    external_ref: str | None
+    provider_state: Mapping[str, Any]
+    inputs: Callable[[], Awaitable[list[MediaRef]]]   # loaded lazily
+
+
+class RunCtx(Protocol):
+    """The only way an engine touches the platform. Engines never write the database."""
+
+    account: AccountView
+    browser_token: object | None      # the budget token the core took for this purpose (browser providers)
+    settings: Any                     # read-only settings view
+    log: Any                          # structured log, redacted
+
+    async def fence(self) -> None:
+        """Raises LeaseLost unless the lease is live now. Call before each irreversible action after the first."""
+
+    async def mark_sent(self) -> None:
+        """fence() plus `sent_at = now`, in one transaction, immediately before the first irreversible action."""
+
+    async def report_ref(self, ref: str, state: Mapping[str, Any]) -> None:
+        """Fenced: persist `external_ref` and `provider_state` as soon as they are known. No secrets."""
+
+    async def event(self, text: str, stage: str, source: str) -> None: ...
+
+    async def evidence(self, name: str, data: bytes, mime: str) -> None: ...
+
+
+class ProviderSpec(Protocol):
+    """Pure; the API imports it."""
+
+    name: str
+    caps: Caps
+
+    def catalog(self) -> list[ModelSpec]: ...
+    def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan: ...
+    def codes(self) -> dict[str, Any]: ...
+    def settings(self) -> dict[str, Any]: ...
+    def parse_credential(self, raw: bytes) -> ParsedCredential: ...
+    def deadline_cause(self, upstream_text: str, provider_state: Mapping[str, Any]) -> str: ...
+    def extras(self, snapshots: Mapping[str, Mapping]) -> dict: ...
+
+
+class ProviderEngine(Protocol):
+    """Worker only. `poll`, `reconcile` and `probe_proxy` exist exactly when `Caps` says so."""
+
+    async def submit(self, ctx: RunCtx, job: JobView) -> SubmitResult: ...
+    def fetch(self, ctx: RunCtx, out: Output) -> AsyncIterator[bytes]: ...   # an async generator, not a coroutine
+    async def check_account(self, ctx: RunCtx) -> Health: ...
+    async def run_command(self, ctx: RunCtx, kind: str, args: dict) -> dict: ...
+    async def poll(self, ctx: RunCtx, job: JobView) -> PollResult: ...
+    async def reconcile(self, ctx: RunCtx, job: JobView) -> Reconciled: ...
+    async def probe_proxy(self, proxy: Proxy) -> ProxyVerdict: ...
+
+
+# ---- the explicit registry ------------------------------------------------------------------------------------
+_NAME = re.compile(r"[a-z][a-z0-9_]*")
+
+
+class RegistryError(ValueError):
+    """A spec that cannot be registered: a duplicate name, a duplicate model id or alias, a malformed spec."""
+
+
+def _problems(spec: ProviderSpec) -> list[str]:
+    bad = []
+    if not _NAME.fullmatch(spec.name):
+        bad.append("provider name %r must be lower case letters, digits and _" % spec.name)
+    keys = set(spec.settings())
+    stray = sorted(k for k in keys if not k.startswith(spec.name + "."))
+    if stray:
+        bad.append("%s: settings outside its namespace: %s" % (spec.name, ", ".join(stray)))
+    needed = ["claims_enabled", "render_deadline_s"] + (["browser_slots"] if spec.caps.execution == "browser" else [])
+    missing = [spec.name + "." + n for n in needed if spec.name + "." + n not in keys]
+    if missing:                      # the core reads these on every tick; a missing one breaks the loops at run time
+        bad.append("%s: settings the core reads are not declared: %s" % (spec.name, ", ".join(missing)))
+    for pool in spec.caps.pools:
+        if pool.budget_setting is not None and pool.budget_setting not in keys:
+            bad.append("%s: pool %s names the budget setting %s, which the spec does not declare"
+                       % (spec.name, pool.name, pool.budget_setting))
+    for m in spec.catalog():
+        if not m.operations:
+            bad.append("%s: model %s has no operations" % (spec.name, m.id))
+    return bad
+
+
+def check_catalog(specs: Iterable[ProviderSpec]) -> dict[str, tuple[str, ModelSpec]]:
+    """Model ids and aliases must be unique across every provider (and within one). Returns name -> (provider,
+    model); a duplicate raises, which is how a worker or the API refuses to start."""
+    seen: dict[str, tuple[str, ModelSpec]] = {}
+    clashes = []
+    for spec in specs:
+        for model in spec.catalog():
+            for name in model.names():
+                if name in seen:
+                    clashes.append("%r is used by %s and by %s" % (name, seen[name][0], spec.name))
+                else:
+                    seen[name] = (spec.name, model)
+    if clashes:
+        raise RegistryError("catalog names are not unique: " + "; ".join(clashes))
+    return seen
+
+
+class ProviderRegistry:
+    """The specs a process knows. Registration is explicit (the app lists its providers); nothing is discovered."""
+
+    def __init__(self) -> None:
+        self._specs: dict[str, ProviderSpec] = {}
+        self._models: dict[str, tuple[str, ModelSpec]] = {}
+
+    def register(self, spec: ProviderSpec) -> None:
+        if spec.name in self._specs:
+            raise RegistryError("provider %s is already registered" % spec.name)
+        bad = _problems(spec)
+        if bad:
+            raise RegistryError("; ".join(bad))
+        models = check_catalog([*self._specs.values(), spec])   # raises before anything is stored
+        self._specs[spec.name] = spec
+        self._models = models
+
+    def spec(self, name: str) -> ProviderSpec:
+        try:
+            return self._specs[name]
+        except KeyError:
+            raise RegistryError("no provider %s" % name) from None
+
+    def names(self) -> list[str]:
+        return sorted(self._specs)
+
+    def resolve(self, model: str) -> tuple[ProviderSpec, ModelSpec] | None:
+        """The provider and catalog entry that own a public model id or alias; None when nobody does."""
+        hit = self._models.get(model)
+        return None if hit is None else (self._specs[hit[0]], hit[1])

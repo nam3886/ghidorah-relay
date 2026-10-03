@@ -34,7 +34,7 @@ def test_a_consistent_ledger_passes(db):
     assert check(db) == []
 
 
-@mutation(CHECKER, "if used_total != ledger_total:", "if False:")
+@mutation(CHECKER, "if used_total != ledger_total:", "if False:", expect="len(found) == 1")
 def test_a_total_that_drifted_from_the_ledger_is_reported(db):
     key = db.key(("p1", "video", None, None))
     charge_once(db, key)
@@ -44,7 +44,7 @@ def test_a_total_that_drifted_from_the_ledger_is_reported(db):
     assert len(found) == 1 and "I25" in found[0] and "used_total" in found[0], found
 
 
-@mutation(CHECKER, "if used_day != ledger_day:", "if False:")
+@mutation(CHECKER, "if used_day != ledger_day:", "if False:", expect="len(found) == 1")
 def test_a_day_counter_that_drifted_from_the_ledger_is_reported(db):
     key = db.key(("p1", "video", None, None))
     charge_once(db, key)
@@ -54,7 +54,8 @@ def test_a_day_counter_that_drifted_from_the_ledger_is_reported(db):
     assert len(found) == 1 and "used_day" in found[0], found
 
 
-@mutation(CHECKER, "for refund_id, charge_id in conn.execute(_BAD_REFUNDS):", "for refund_id, charge_id in ():")
+@mutation(CHECKER, "for refund_id, charge_id in conn.execute(_BAD_REFUNDS):", "for refund_id, charge_id in ():",
+           expect="['I25 wallet")
 def test_a_refund_that_does_not_undo_its_charge_is_reported(db):
     key = db.key(("p1", "video", None, None))
     charge_id = charge_once(db, key, 7)

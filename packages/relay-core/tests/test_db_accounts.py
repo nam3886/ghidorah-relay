@@ -46,7 +46,8 @@ def by_product_rows(db, account_id):
 
 
 @mutation(SRC, '("it has a job", "SELECT EXISTS (SELECT 1 FROM jobs WHERE account_id = %s)"),',
-          '("it has a job", "SELECT false WHERE %s IS NULL"),')
+          '("it has a job", "SELECT false WHERE %s IS NULL"),',
+           expect="return await delete_unused_account(conn, account_id)")
 def test_an_account_with_a_job_is_refused(db):
     key = db.key(("p1", "video", None, None))
     account_id = account(db)
@@ -57,7 +58,8 @@ def test_an_account_with_a_job_is_refused(db):
 
 
 @mutation(SRC, '("it has an account charge", "SELECT EXISTS (SELECT 1 FROM account_charges WHERE account_id = %s)"),',
-          '("it has an account charge", "SELECT false WHERE %s IS NULL"),')
+          '("it has an account charge", "SELECT false WHERE %s IS NULL"),',
+           expect="return await delete_unused_account(conn, account_id)")
 def test_an_account_with_a_charge_is_refused(db):
     key = db.key(("p1", "video", None, None))
     account_id = account(db)
@@ -68,7 +70,7 @@ def test_an_account_with_a_charge_is_refused(db):
     assert counts(db, account_id)["account_charges"] == 1
 
 
-@mutation(SRC, "AND until > clock_timestamp())", "AND false)")
+@mutation(SRC, "AND until > clock_timestamp())", "AND false)", expect="DID NOT RAISE AccountInUse")
 def test_an_account_with_a_live_lease_is_refused(db):
     account_id = account(db)
     db.run("INSERT INTO leases (account_id, purpose, owner, until) VALUES (%s, 'check', 'w', now() + interval '1 min')",
@@ -78,8 +80,23 @@ def test_an_account_with_a_live_lease_is_refused(db):
     assert counts(db, account_id)["leases"] == 1
 
 
+@mutation(SRC, "(SELECT id FROM leases WHERE account_id = %s FOR UPDATE SKIP LOCKED)",
+          "(SELECT id FROM leases WHERE account_id = %s FOR UPDATE)",
+          expect="canceling statement due to lock timeout")
+def test_an_expired_lease_row_a_fenced_write_holds_is_skipped_never_waited_for_and_the_account_stays(db):
+    """That writer waits for the account row the delete holds: waiting for its lease row would be a cycle."""
+    account_id = account(db)
+    by_product_rows(db, account_id)                                   # includes one expired check lease
+    with psycopg.connect(db.dsn, options="-c search_path=relay") as holder:
+        holder.execute("SELECT 1 FROM leases WHERE account_id = %s FOR UPDATE", (account_id,))
+        with pytest.raises(AccountInUse, match="a lease is being written"):
+            delete_as(db.worker_dsn, account_id)
+    assert counts(db, account_id)["accounts"] == 1 and counts(db, account_id)["leases"] == 1
+
+
 @mutation(SRC, '"DELETE FROM account_shots WHERE account_id = %s RETURNING object_key"',
-          '"DELETE FROM account_shots WHERE account_id = %s AND false RETURNING object_key"')
+          '"DELETE FROM account_shots WHERE account_id = %s AND false RETURNING object_key"',
+           expect="violates foreign key constraint \"account_shots_account_id_fkey\"")
 def test_an_unused_account_is_deleted_with_its_by_products_and_the_shot_keys_come_back(db):
     account_id = account(db)
     by_product_rows(db, account_id)

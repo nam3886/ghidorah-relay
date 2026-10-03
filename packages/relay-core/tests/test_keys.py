@@ -79,7 +79,7 @@ def test_declared_pairs_are_required_to_make_a_key(db):
     run(db, scenario)
 
 
-@mutation(K, "    billing.require_tx(conn)\n", "    pass\n")
+@mutation(K, "    billing.require_tx(conn)\n", "    pass\n", expect="DID NOT RAISE NotInTransaction")
 def test_a_key_is_not_made_outside_a_transaction(db):
     async def scenario(pool):
         async with pool.connection() as conn:             # autocommit: each statement would commit alone
@@ -117,7 +117,7 @@ def test_models_must_name_something(db):
 
 
 # ---- lookup is fail-closed -----------------------------------------------------------------------------------------
-@mutation(K, "if not enabled:", "if False:")
+@mutation(K, "if not enabled:", "if False:", expect="DID NOT RAISE KeyDisabled")
 def test_an_unknown_or_malformed_key_gets_one_refusal_and_a_disabled_one_is_not_served(db):
     async def scenario(pool):
         k = await make(pool)
@@ -140,7 +140,7 @@ def test_an_unknown_or_malformed_key_gets_one_refusal_and_a_disabled_one_is_not_
     run(db, scenario)
 
 
-@mutation(K, "raise KeyDisabled()", "raise KeyRefused()")
+@mutation(K, "raise KeyDisabled()", "raise KeyRefused()", expect="relay_core.keys.KeyRefused")
 def test_the_holder_of_a_disabled_key_is_told_403_key_disabled(db):
     async def scenario(pool):
         k = await make(pool)
@@ -155,7 +155,8 @@ def test_the_holder_of_a_disabled_key_is_told_403_key_disabled(db):
 
 
 @mutation(K, "        if hmac.compare_digest(stored, wanted):",
-          "        if not enabled:\n            raise KeyDisabled()\n        if hmac.compare_digest(stored, wanted):")
+          "        if not enabled:\n            raise KeyDisabled()\n        if hmac.compare_digest(stored, wanted):",
+           expect="relay_core.billing.KeyDisabled")
 def test_a_disabled_key_is_revealed_only_after_the_whole_hash_matched(db):
     async def scenario(pool):
         k = await make(pool)
@@ -169,7 +170,7 @@ def test_a_disabled_key_is_revealed_only_after_the_whole_hash_matched(db):
     run(db, scenario)
 
 
-@mutation(K, "if hmac.compare_digest(stored, wanted):", "if True:")
+@mutation(K, "if hmac.compare_digest(stored, wanted):", "if True:", expect="DID NOT RAISE KeyRefused")
 def test_the_prefix_alone_never_opens_a_key(db):
     async def scenario(pool):
         k = await make(pool)
@@ -211,7 +212,8 @@ def test_max_unfinished_is_data_on_the_key_and_enable_disable_report_a_missing_k
 
 
 # ---- the allow-list ------------------------------------------------------------------------------------------------
-@mutation(K, "return canonical is not None and any(catalog.get(a) == canonical for a in allowed)", "return False")
+@mutation(K, "return canonical is not None and any(catalog.get(a) == canonical for a in allowed)", "return False",
+           expect="model_allowed(allow, \"m-2.5-30s\", CATALOG)")
 def test_allowing_a_model_allows_its_aliases_and_variants_and_nothing_else():
     allow = ["m-2.5"]
     assert model_allowed(allow, "m-2.5", CATALOG)
@@ -231,7 +233,8 @@ def test_star_allows_everything_and_an_empty_list_nothing():
 
 
 # ---- delete or disable (D31) ---------------------------------------------------------------------------------------
-@mutation(K, "except psycopg.errors.ForeignKeyViolation:", "except psycopg.errors.NotNullViolation:")
+@mutation(K, "except psycopg.errors.ForeignKeyViolation:", "except psycopg.errors.NotNullViolation:",
+           expect="violates foreign key constraint \"jobs_key_id_fkey\"")
 def test_only_a_key_without_history_is_deleted_the_rest_are_disabled(db):
     async def scenario(pool):
         clean = await make(pool, wallets={("p1", "video"): (5, None)})

@@ -48,7 +48,7 @@ def test_a_transaction_left_idle_past_the_limit_is_killed(db):
     assert "idle-in-transaction" in message or "terminating connection" in message, message
 
 
-@mutation(POOL, "async with conn.transaction():", "if True:")
+@mutation(POOL, "async with conn.transaction():", "if True:", expect="assert 'half' == ''")
 def test_a_failed_transaction_leaves_nothing_and_a_clean_one_commits(db):
     key = db.key(("p1", "video", None, None))
 

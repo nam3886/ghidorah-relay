@@ -1,18 +1,36 @@
 #!/usr/bin/env bash
 # The commit gate (contracts §14.8, D18, v1.3 #36): fast and browser-less, so it runs on the Mac.
 #   scripts/check.sh           ruff + every test except the `browser` tier, against real Postgres 16 and MinIO
-#   scripts/check.sh --full    the same, then scripts/mutate.py (every @mutation must turn its test red)
-#                              and the browser tier inside the box container (scripts/check-in-container.sh)
+#   scripts/check.sh --full    the same, then scripts/mutate.py (every @mutation must turn its test red),
+#                              scripts/soak.py (200 seeds; SOAK_SEEDS=n changes it, 0 skips it) and the browser tier
+#                              inside the box container (scripts/check-in-container.sh)
+#   scripts/check.sh --full --local   the same without the box: the browser tier is skipped and SAID to be
+#                              skipped. For phases that change no browser code and must not touch the box.
+#   MUTATE_ONLY="test_x test_y" scripts/check.sh --full --local   mutate only the markers of those tests/files
+#   scripts/check.sh --soak [soak.py args]   only the soak (its own database and bucket), e.g. `--soak --seed 13 --verbose`
+#                              to replay a failing seed; not a gate: it never prints CHECK: GREEN
 # Postgres and MinIO come from deploy/compose.check.yml and are removed afterwards.
+# A run is partial, says why and ends "CHECK: PARTIAL" when it covered less than the gate means: MUTATE_ONLY set,
+# SOAK_SEEDS under 200 (0 skips the soak), or any pytest argument (scripts/check-verdict.sh decides).
 # Commit only after the last line reads "CHECK: GREEN" (reading `tail` is not verification).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 full=0
+local_only=0
+soak_only=0
 args=()
+nargs=0
 for a in "$@"; do
-  if [ "$a" = "--full" ]; then full=1; else args+=("$a"); fi
+  case "$a" in
+    --full) full=1 ;;
+    --local) local_only=1 ;;
+    --soak) soak_only=1 ;;
+    *) args+=("$a"); nargs=$((nargs + 1)) ;;
+  esac
 done
+verdict=""
+if [ "$soak_only" != 1 ]; then verdict=$(scripts/check-verdict.sh "$full" "$nargs"); fi   # a bad SOAK_SEEDS stops here
 
 # Stale .pyc files make a mutation or a fresh edit run the old code; keep none.
 export PYTHONDONTWRITEBYTECODE=1
@@ -34,10 +52,37 @@ export RELAY_TEST_MINIO_ACCESS_KEY="relay"            # the throwaway MINIO_ROOT
 export RELAY_TEST_MINIO_SECRET_KEY="relay-check"
 
 uv sync --all-packages --frozen --quiet
+if [ "$soak_only" = 1 ]; then
+  uv run python scripts/soak.py ${args[@]+"${args[@]}"}
+  exit $?
+fi
 uv run ruff check .
+# Type gate for the provider contract (the `fetch` shape drifted once). Isolated and pinned: not a project dependency.
+uvx --from mypy==2.4.0 mypy packages/relay-core/src/relay_core/providers.py
 uv run pytest -m "not browser" ${args[@]+"${args[@]}"}
 if [ "$full" = 1 ]; then
-  uv run python scripts/mutate.py
-  scripts/check-in-container.sh
+  # MUTATE_ONLY="pat1 pat2" limits mutate.py to markers whose test id or file contains a pattern (parallel lanes).
+  only=()
+  for p in ${MUTATE_ONLY:-}; do only+=(--only "$p"); done
+  uv run python scripts/mutate.py ${only[@]+"${only[@]}"}
+  if [ -n "${MUTATE_ONLY:-}" ]; then
+    echo "mutate: PARTIAL (MUTATE_ONLY=$MUTATE_ONLY)"
+  fi
+  # The soak (contracts §14.2): a seeded random workload with chaos against the FakeProvider. A failing seed prints
+  # its number; replay it with `scripts/check.sh --soak --seed N --verbose`.
+  if [ "${SOAK_SEEDS:-200}" != 0 ]; then
+    uv run python scripts/soak.py --seeds "${SOAK_SEEDS:-200}"
+  else
+    echo "soak: SKIPPED (SOAK_SEEDS=0)"
+  fi
+  if [ "$local_only" = 1 ]; then
+    echo "browser tier: SKIPPED (--local: nothing ran on the box)"
+  else
+    scripts/check-in-container.sh
+  fi
 fi
-echo "CHECK: GREEN"
+if [ -n "$verdict" ]; then
+  echo "CHECK: PARTIAL (not a commit gate: $(printf '%s' "$verdict" | tr '\n' ';'))"
+else
+  echo "CHECK: GREEN"
+fi

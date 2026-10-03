@@ -27,7 +27,7 @@ def test_round_trip_and_the_blob_hides_the_plaintext():
 
 
 @mutation(SRC, "return _MAGIC + bytes([len(key_id)]) + key_id + SealedBox(PublicKey(raw)).encrypt(plaintext)",
-          "return _MAGIC + bytes([len(key_id)]) + key_id + plaintext")
+          "return _MAGIC + bytes([len(key_id)]) + key_id + plaintext", expect="SECRET not in blob")
 def test_sealing_encrypts():
     keys = generate_keypair()
     blob = seal(keys.public, SECRET)
@@ -68,7 +68,8 @@ def test_env_helpers():
     assert crypto.private_keys_from_env({crypto.PRIVATE_KEY_VAR: "a, b,,c"}) == ["a", "b", "c"]
 
 
-@mutation(SRC, "if key_id_of(bytes(private.public_key)) == wanted:", "if True:")
+@mutation(SRC, "if key_id_of(bytes(private.public_key)) == wanted:", "if True:",
+           expect="the sealed credential is corrupt")
 def test_rotation_picks_the_key_that_sealed_the_blob():
     old, new = generate_keypair(), generate_keypair()
     assert old.key_id != new.key_id

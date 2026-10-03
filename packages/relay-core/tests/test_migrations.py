@@ -130,7 +130,8 @@ def test_the_migrate_command_applies_sets_role_passwords_and_is_idempotent(monke
         assert capsys.readouterr().err.startswith("relay migrate: ")
 
 
-@mutation("packages/relay-core/src/relay_core/db/migrate.py", "row = _pin_row(conn)", "row = None")
+@mutation("packages/relay-core/src/relay_core/db/migrate.py", "row = _pin_row(conn)", "row = None",
+           expect="violates unique constraint \"billing_pin_pkey\"")
 def test_a_timezone_mismatch_is_refused_before_any_pending_migration_is_applied(tmp_path, monkeypatch):
     from relay_core.billing import BillingTzMismatch
 

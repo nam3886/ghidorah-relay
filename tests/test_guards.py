@@ -34,10 +34,14 @@ def test_repo_is_clean(check):
     assert check() == []
 
 
-@mutation(G, 'if me == "relay_core" and (top in PROVIDER_MODULES or top == "relay_browser"):', "if False:")
-@mutation(G, "if me in PROVIDER_MODULES and top in PROVIDER_MODULES and top != me:", "if False:")
-@mutation(G, 'if top in BROWSER_ONLY and me != "relay_browser":', "if False:")
-@mutation(G, "if is_pure(root, path) and (top in BROWSER_ONLY", "if False and (top in BROWSER_ONLY")
+@mutation(G, 'if me == "relay_core" and (top in PROVIDER_MODULES or top == "relay_browser"):', "if False:",
+           expect="found and why in found[0], found")
+@mutation(G, "if me in PROVIDER_MODULES and top in PROVIDER_MODULES and top != me:", "if False:",
+           expect="found and why in found[0], found")
+@mutation(G, 'if top in BROWSER_ONLY and me != "relay_browser":', "if False:",
+           expect="found and why in found[0], found")
+@mutation(G, "if is_pure(root, path) and (top in BROWSER_ONLY", "if False and (top in BROWSER_ONLY",
+           expect="found and why in found[0], found")
 @pytest.mark.parametrize("rel, src, why", [
     ("packages/relay-core/src/relay_core/x.py", "import relay_dola\n", "relay_core imports no provider"),
     ("packages/relay-core/src/relay_core/x.py", "from relay_browser import net\n", "relay_core imports no provider"),
@@ -52,7 +56,8 @@ def test_import_rule_catches(tmp_path, rel, src, why):
     assert found and why in found[0], found
 
 
-@mutation(G, 'inner[0] != "engine" and inner != ("e2e.py",)', 'inner == ("spec.py",)')
+@mutation(G, 'inner[0] != "engine" and inner != ("e2e.py",)', 'inner == ("spec.py",)',
+           expect="any(\"a pure provider module\" in v for v in found), found")
 @pytest.mark.parametrize("rel, src", [
     ("catalog.py", "from relay_dola.engine.run import go\n"),             # not spec.py, still pure
     ("classify.py", "from . import engine\n"),                             # relative import of the engine
@@ -67,7 +72,8 @@ def test_every_pure_provider_module_is_checked(tmp_path, rel, src):
     assert any("a pure provider module" in v for v in found), found
 
 
-@mutation(G, 'inner[0] != "engine" and inner != ("e2e.py",)', "True")
+@mutation(G, 'inner[0] != "engine" and inner != ("e2e.py",)', "True",
+           expect="imports relay_browser (a pure provider module")
 def test_engine_and_e2e_may_import_the_browser(tmp_path):
     for rel in ("engine/run.py", "engine/__init__.py", "e2e.py"):
         plant(tmp_path, "packages/provider-dola/src/relay_dola/" + rel,
@@ -75,15 +81,16 @@ def test_engine_and_e2e_may_import_the_browser(tmp_path):
     assert guards.import_violations(tmp_path) == []
 
 
-@mutation(G, "if attr in ROUTE_CALLS]", "if attr in ()]")
+@mutation(G, "if attr in ROUTE_CALLS]", "if attr in ()]", expect="relay_browser/net.py:2 .route(")
 def test_route_guard_catches(tmp_path):
     plant(tmp_path, "packages/relay-browser/src/relay_browser/net.py",
           "async def f(page):\n    await page.route('**/*', lambda r: r.continue_())\n")
     assert guards.route_violations(tmp_path) == ["packages/relay-browser/src/relay_browser/net.py:2 .route("]
 
 
-@mutation(G, "if p.relative_to(root).as_posix() == SESSION_FILE:", "if True:")
-@mutation(G, "if attr in LAUNCH_CALLS]", "if attr in ()]")
+@mutation(G, "if p.relative_to(root).as_posix() == SESSION_FILE:", "if True:",
+           expect="engine/submit.py:2 .launch_persistent_context(")
+@mutation(G, "if attr in LAUNCH_CALLS]", "if attr in ()]", expect="engine/submit.py:2 .launch_persistent_context(")
 def test_launch_guard_catches_outside_session_only(tmp_path):
     src = "async def f(pw):\n    return await pw.chromium.launch_persistent_context('p')\n"
     plant(tmp_path, "packages/provider-dola/src/relay_dola/engine/submit.py", src)
@@ -92,14 +99,15 @@ def test_launch_guard_catches_outside_session_only(tmp_path):
         "packages/provider-dola/src/relay_dola/engine/submit.py:2 .launch_persistent_context("]
 
 
-@mutation(G, 'if not re.search(r"\\b(chromium|firefox|webkit|patchright|playwright)\\b", src):', "if False:")
+@mutation(G, 'if not re.search(r"\\b(chromium|firefox|webkit|patchright|playwright)\\b", src):', "if False:",
+           expect="relay_core/db.py:2 .connect(")
 def test_launch_guard_ignores_database_connect(tmp_path):
     plant(tmp_path, "packages/relay-core/src/relay_core/db.py", "def f(pool):\n    return pool.connect()\n")
     assert guards.launch_violations(tmp_path) == []
 
 
-@mutation(G, 'n.name == "_demo"', 'n.name == "_demo_"')
-@mutation(G, '"")) == "_demo"', '"")) == "_demo_"')
+@mutation(G, 'n.name == "_demo"', 'n.name == "_demo_"', expect="guards.demo_violations(tmp_path)")
+@mutation(G, '"")) == "_demo"', '"")) == "_demo_"', expect="guards.demo_violations(tmp_path)")
 @pytest.mark.parametrize("src", [
     "def _demo():\n    assert True\n",
     "async def _demo():\n    pass\n",
@@ -116,9 +124,12 @@ def test_demo_guard_ignores_similar_names(tmp_path):
     assert guards.demo_violations(tmp_path) == []
 
 
-@mutation(G, "if literal and any(map(_is_provider_ref, operands)):", "if False:")
-@mutation(G, 'return _is_str(n.slice) and n.slice.value in PROVIDER_VARS', "return False")
-@mutation(G, "and n.args[1].value in PROVIDER_VARS)", "and False)")
+@mutation(G, "if literal and any(map(_is_provider_ref, operands)):", "if False:",
+           expect="found and \"compares a provider name\" in found[0], found")
+@mutation(G, 'return _is_str(n.slice) and n.slice.value in PROVIDER_VARS', "return False",
+           expect="found and \"compares a provider name\" in found[0], found")
+@mutation(G, "and n.args[1].value in PROVIDER_VARS)", "and False)",
+           expect="found and \"compares a provider name\" in found[0], found")
 @pytest.mark.parametrize("src", [
     "def f(provider):\n    return provider == 'fake'\n",
     "def f(job):\n    return 'x' != job.provider\n",
@@ -136,7 +147,8 @@ def test_core_guard_catches_provider_comparison(tmp_path, src):
     assert found and "compares a provider name" in found[0], found
 
 
-@mutation(G, "elif isinstance(n, ast.Match) and _is_provider_ref(n.subject):", "elif False:")
+@mutation(G, "elif isinstance(n, ast.Match) and _is_provider_ref(n.subject):", "elif False:",
+           expect="found and \"matches a provider name\" in found[0], found")
 def test_core_guard_catches_match_on_provider(tmp_path):
     plant(tmp_path, CORE + "jobs.py",
           "def f(provider):\n    match provider:\n        case 'fake':\n            return 1\n")
@@ -144,8 +156,10 @@ def test_core_guard_catches_match_on_provider(tmp_path):
     assert found and "matches a provider name" in found[0], found
 
 
-@mutation(G, "elif _is_str(n) and id(n) not in docstrings and (", "elif False and id(n) not in docstrings and (")
-@mutation(G, "n.value.startswith(CODE_PREFIXES) or any(", "any(")
+@mutation(G, "elif _is_str(n) and id(n) not in docstrings and (", "elif False and id(n) not in docstrings and (",
+           expect="any(\"names a provider\" in v for v in found), found")
+@mutation(G, "n.value.startswith(CODE_PREFIXES) or any(", "any(",
+           expect="any(\"names a provider\" in v for v in found), found")
 @pytest.mark.parametrize("src", [
     "def f(spec):\n    return spec.name == 'dola'\n",
     "def f(p):\n    return {'dola': 1, 'vibes': 2}[p]\n",
@@ -164,7 +178,7 @@ def test_core_guard_catches_a_provider_name_or_code_anywhere(tmp_path, src):
     assert any("names a provider" in v for v in found), found
 
 
-@mutation(G, "and id(n) not in docstrings and (", "and True and (")
+@mutation(G, "and id(n) not in docstrings and (", "and True and (", expect="names a provider: 'dola.x'")
 def test_core_guard_allows_provider_names_in_docstrings(tmp_path):
     plant(tmp_path, CORE + "jobs.py",
           '"""Jobs of dola, vibes and meta."""\n\n\nclass A:\n    """dola.x"""\n\n    def f(self):\n'
@@ -172,7 +186,8 @@ def test_core_guard_allows_provider_names_in_docstrings(tmp_path):
     assert guards.core_provider_violations(tmp_path) == []
 
 
-@mutation(G, 'LITERAL_TOKENS = (PROVIDER_NAMES - {"meta"})', "LITERAL_TOKENS = (PROVIDER_NAMES)")
+@mutation(G, 'LITERAL_TOKENS = (PROVIDER_NAMES - {"meta"})', "LITERAL_TOKENS = (PROVIDER_NAMES)",
+           expect="names a provider: 'meta'")
 def test_core_guard_allows_the_output_meta_field_name(tmp_path):
     plant(tmp_path, CORE + "fetcher.py",
           "def rows(o, row, cur):\n"
@@ -181,7 +196,7 @@ def test_core_guard_allows_the_output_meta_field_name(tmp_path):
     assert guards.core_provider_violations(tmp_path) == []
 
 
-@mutation(G, 'or rel.as_posix() == REGISTRY_FILE', "or False")
+@mutation(G, 'or rel.as_posix() == REGISTRY_FILE', "or False", expect="names a provider: 'relay_dola'")
 def test_core_guard_exempts_only_the_registry(tmp_path):
     src = "PROVIDERS = ['relay_dola', 'dola', 'dola.x']\n\ndef f(provider):\n    return provider == 'dola'\n"
     plant(tmp_path, guards.REGISTRY_FILE, src)
@@ -191,7 +206,8 @@ def test_core_guard_exempts_only_the_registry(tmp_path):
     assert found and all("other.py" in v for v in found), found
 
 
-@mutation(G, 'owner(root, p) != "relay_core"', 'owner(root, p) == ""')
+@mutation(G, 'owner(root, p) != "relay_core"', 'owner(root, p) == ""',
+           expect="relay_dola/spec.py:2 compares a provider name with a string literal")
 def test_core_guard_leaves_providers_and_unrelated_code_alone(tmp_path):
     plant(tmp_path, "packages/provider-dola/src/relay_dola/spec.py",
           "def f(provider):\n    return provider == 'dola'\n")
@@ -201,8 +217,9 @@ def test_core_guard_leaves_providers_and_unrelated_code_alone(tmp_path):
     assert guards.core_provider_violations(tmp_path) == []
 
 
-@mutation(G, "if name and (not name.isascii() or VIET_WORD.match(name)):", "if False:")
-@mutation(G, "VIET_MARKS & set(c.value.lower())", "False")
+@mutation(G, "if name and (not name.isascii() or VIET_WORD.match(name)):", "if False:",
+           expect="guards.identifier_violations(tmp_path)")
+@mutation(G, "VIET_MARKS & set(c.value.lower())", "False", expect="guards.identifier_violations(tmp_path)")
 @pytest.mark.parametrize("src", [
     "def hoan(x):\n    return x\n",
     "số_dư = 1\n",
@@ -234,27 +251,32 @@ def loaded_after(*argv: str) -> str:
     return run_py("from relay_cli import main; main.main(%r); " % list(argv) + LOADED)
 
 
-@mutation(M, 'importlib.import_module(pkg + ".spec")', 'importlib.import_module(pkg + ".engine")')
-@mutation(M, 'importlib.import_module("relay_core")', 'importlib.import_module("relay_browser")')
+@mutation(M, 'importlib.import_module(pkg + ".spec")', 'importlib.import_module(pkg + ".engine")',
+           expect="ibes.engine']\" == '[]'")
+@mutation(M, 'importlib.import_module("relay_core")', 'importlib.import_module("relay_browser")',
+           expect="\"['relay_browser']\" == '[]'")
 def test_serve_loads_no_engine_and_no_browser():
     assert loaded_after("serve") == "[]"
 
 
 @mutation(M, "def load_engine(provider: str) -> ModuleType:\n",
-          'def load_engine(provider: str) -> ModuleType:\n    importlib.import_module("relay_browser")\n')
+          'def load_engine(provider: str) -> ModuleType:\n    importlib.import_module("relay_browser")\n',
+           expect="loaded_after(\"worker\", \"--provider\", \"vibes\") == \"['relay_vibes.engine']\"")
 def test_http_worker_loads_no_browser():
     assert loaded_after("worker", "--provider", "vibes") == "['relay_vibes.engine']"
 
 
 @mutation(M, 'return importlib.import_module(PROVIDERS[provider] + ".engine")',
-          'return importlib.import_module(PROVIDERS[provider] + ".spec")')
+          'return importlib.import_module(PROVIDERS[provider] + ".spec")', expect="'[]' == \"['relay_brow")
 def test_browser_worker_loads_only_its_own_engine():
     assert loaded_after("worker", "--provider", "dola") == "['relay_browser', 'relay_dola.engine']"
 
 
-@mutation(M, "        load_e2e(args.provider)", "        load_engine(args.provider)")
+@mutation(M, "        load_e2e(args.provider)", "        load_engine(args.provider)",
+           expect="loaded_after(\"e2e\", \"--provider\", provider) == expected")
 @mutation(M, 'return importlib.import_module(PROVIDERS[provider] + ".e2e")',
-          'return importlib.import_module(PROVIDERS[provider] + ".spec")')
+          'return importlib.import_module(PROVIDERS[provider] + ".spec")',
+           expect="loaded_after(\"e2e\", \"--provider\", provider) == expected")
 @pytest.mark.parametrize("provider, expected", [
     ("dola", "['relay_browser', 'relay_dola.e2e', 'relay_dola.engine']"),
     ("vibes", "['relay_vibes.e2e', 'relay_vibes.engine']"),
@@ -264,7 +286,8 @@ def test_e2e_loads_its_provider_engine_and_e2e_module(provider, expected):
 
 
 @mutation(G, "            if not opens_tx:\n                continue\n",
-          "            if True:\n                continue\n")
+          "            if True:\n                continue\n",
+           expect="len(found) == 1 and \"inside a tx() block\" in found[0], found")
 @pytest.mark.parametrize("spawn", [
     "asyncio.create_task(late(conn))",
     "await asyncio.gather(a(conn), b(conn))",
@@ -289,7 +312,8 @@ def test_tx_block_guard_allows_tasks_outside_the_block_and_inline_awaits_inside(
     assert guards.tx_task_violations(tmp_path) == []
 
 
-@mutation(G, 'if "tests" in p.relative_to(root).parts:', "if False:")
+@mutation(G, 'if "tests" in p.relative_to(root).parts:', "if False:",
+           expect="guards.tx_task_violations(tmp_path) == []")
 def test_tx_block_guard_leaves_test_files_alone(tmp_path):
     plant(tmp_path, "packages/relay-core/tests/test_x.py",
           "async def f(pool):\n    async with tx(pool) as conn:\n        asyncio.create_task(late(conn))\n")

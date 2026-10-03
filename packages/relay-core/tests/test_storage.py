@@ -97,7 +97,7 @@ def test_key_parts_are_validated():
 
 
 # ---- client setup --------------------------------------------------------------------------------------------------
-@mutation(SRC, "CONNECT_TIMEOUT_S = 3", "CONNECT_TIMEOUT_S = 300")
+@mutation(SRC, "CONNECT_TIMEOUT_S = 3", "CONNECT_TIMEOUT_S = 300", expect="assert 300 == 3")
 def test_http_client_has_the_contract_timeouts_and_one_retry():
     pool = storage.http_client()
     assert pool.connection_pool_kw["timeout"].connect_timeout == 3
@@ -105,7 +105,7 @@ def test_http_client_has_the_contract_timeouts_and_one_retry():
     assert pool.connection_pool_kw["retries"].total == 1
 
 
-@mutation(SRC, "urllib3.Retry(total=1)", "urllib3.Retry(total=5)")
+@mutation(SRC, "urllib3.Retry(total=1)", "urllib3.Retry(total=5)", expect="assert 5 == 1")
 def test_one_retry_only():
     assert storage.http_client().connection_pool_kw["retries"].total == 1
 
@@ -122,7 +122,8 @@ def test_endpoint_forms_and_env(monkeypatch):
         ObjectStore.from_env({"MINIO_ENDPOINT": endpoint, "MINIO_ACCESS_KEY": access})
 
 
-@mutation(SRC, "return await asyncio.to_thread(fn, *args, **kwargs)", "return fn(*args, **kwargs)")
+@mutation(SRC, "return await asyncio.to_thread(fn, *args, **kwargs)", "return fn(*args, **kwargs)",
+           expect="seen and seen[0] is not threading.main_thread()")
 def test_blocking_calls_leave_the_event_loop_thread(store):
     seen = []
 
@@ -145,7 +146,7 @@ async def test_an_unreachable_store_is_a_storage_error_without_the_address():
 
 
 # ---- bucket --------------------------------------------------------------------------------------------------------
-@mutation(SRC, "if exc.code not in _BUCKET_EXISTS:", "if True:")
+@mutation(SRC, "if exc.code not in _BUCKET_EXISTS:", "if True:", expect="object store error: BucketAlreadyOwnedByYou")
 @sync
 async def test_bucket_creation_is_idempotent_and_survives_a_race(store):
     await store.ensure_bucket()
@@ -163,7 +164,8 @@ async def test_bucket_creation_is_idempotent_and_survives_a_race(store):
     await store_over(Racy(store._client), store).ensure_bucket()
 
 
-@mutation(SRC, "if exc.code not in _BUCKET_EXISTS:", "if False:")
+@mutation(SRC, "if exc.code not in _BUCKET_EXISTS:", "if False:",
+           expect="with pytest.raises(StorageError, match=\"AccessDenied\"):")
 @sync
 async def test_other_bucket_errors_are_not_swallowed(store):
     class Denied(Proxy):
@@ -206,7 +208,8 @@ async def test_only_layout_keys_are_written(store):
         await store.put_bytes("../output/0.mp4", b"x", "video/mp4")
 
 
-@mutation(SRC, "if info is None or info.size != size:", "if False:")
+@mutation(SRC, "if info is None or info.size != size:", "if False:",
+           expect="with pytest.raises(StorageError, match=\"truncated\"):")
 @sync
 async def test_truncated_upload_is_refused_and_removed(store):
     class Truncating(Proxy):
@@ -220,7 +223,7 @@ async def test_truncated_upload_is_refused_and_removed(store):
     assert await store.stat("1/output/0.mp4") is None             # the short object is not left behind to be served
 
 
-@mutation(SRC, "if size <= 0:", "if size < 0:")
+@mutation(SRC, "if size <= 0:", "if size < 0:", expect="with pytest.raises(StorageError, match=\"empty\"):")
 @sync
 async def test_empty_file_is_refused(store, tmp_path):
     with pytest.raises(StorageError, match="empty"):
@@ -233,7 +236,8 @@ async def test_empty_file_is_refused(store, tmp_path):
 
 
 @mutation(SRC, "self._client.get_object, self.bucket, key, offset=offset, length=length)",
-          "self._client.get_object, self.bucket, key)")
+          "self._client.get_object, self.bucket, key)",
+           expect="await store.read(\"1/output/0.mp4\", 10, 20) == VIDEO[10:30]")
 @sync
 async def test_range_reads(store):
     await store.put_bytes("1/output/0.mp4", VIDEO, "video/mp4")
@@ -246,7 +250,7 @@ async def test_range_reads(store):
         await store.read("1/output/0.mp4", -1)
 
 
-@mutation(SRC, 'list_prefix(job_id + "/")', "list_prefix(job_id)")
+@mutation(SRC, 'list_prefix(job_id + "/")', "list_prefix(job_id)", expect="assert 3 == 2")
 @sync
 async def test_list_and_remove_by_job_prefix(store):
     for key in ("1/output/0.mp4", "1/input/0.png", "10/output/0.mp4"):
@@ -296,7 +300,7 @@ def test_share_tokens_are_128_bit_random_and_expiry_follows_the_role():
         storage.share_expiry("debug", NOW)
 
 
-@mutation(SRC, "(expires is not None and now >= expires)", "False")
+@mutation(SRC, "(expires is not None and now >= expires)", "False", expect="with pytest.raises(ShareRefused) as info:")
 @sync
 async def test_an_input_link_stops_working_at_its_expiry():
     table = Table()
@@ -309,7 +313,8 @@ async def test_an_input_link_stops_working_at_its_expiry():
         assert info.value.reason == "expired"
 
 
-@mutation(SRC, '(record.role == "input" and expires is None)', "False")
+@mutation(SRC, '(record.role == "input" and expires is None)', "False",
+           expect="with pytest.raises(ShareRefused, match=\"expired\"):")
 @sync
 async def test_an_input_row_without_an_expiry_fails_closed():
     table = Table()
@@ -327,7 +332,7 @@ async def test_an_output_link_does_not_expire():
     assert record.key == "1/output/0.mp4"
 
 
-@mutation(SRC, "return await table.clear_job(job_id)", "return 0")
+@mutation(SRC, "return await table.clear_job(job_id)", "return 0", expect="assert 0 == 2")
 @sync
 async def test_revoked_links_are_refused():
     table = Table()
@@ -341,7 +346,8 @@ async def test_revoked_links_are_refused():
     assert (await storage.resolve_share(table, other, now=NOW)).key == "2/output/0.mp4"
 
 
-@mutation(SRC, "if record.role not in SHARED_ROLES:", "if False:")
+@mutation(SRC, "if record.role not in SHARED_ROLES:", "if False:",
+           expect="with pytest.raises(ShareRefused, match=\"not_shareable\"):")
 @sync
 async def test_debug_media_is_never_served_by_link():
     table = Table()
@@ -351,7 +357,8 @@ async def test_debug_media_is_never_served_by_link():
         await storage.resolve_share(table, token, now=NOW)
 
 
-@mutation(SRC, "if not 16 <= len(token) <= 64 or not set(token) <= _SAFE_ID:", "if False:")
+@mutation(SRC, "if not 16 <= len(token) <= 64 or not set(token) <= _SAFE_ID:", "if False:",
+           expect="Actual message: 'unknown_or_revoked'")
 @sync
 async def test_malformed_tokens_never_reach_the_table():
     table = Table()
@@ -389,7 +396,7 @@ async def keys(store: ObjectStore) -> list[str]:
     return sorted(o.key for o in await store.list_prefix(""))
 
 
-@mutation(SRC, "now - o.last_modified >= min_age", "True")
+@mutation(SRC, "now - o.last_modified >= min_age", "True", expect="young == [] and len(await keys(store)) == 5")
 @sync
 async def test_orphan_sweep_needs_age(store):
     await seed(store)
@@ -398,7 +405,8 @@ async def test_orphan_sweep_needs_age(store):
     assert young == [] and len(await keys(store)) == 5
 
 
-@mutation(SRC, "gone = [o.key for o, p in old if p.job_id not in owned]", "gone = [o.key for o, p in old]")
+@mutation(SRC, "gone = [o.key for o, p in old if p.job_id not in owned]", "gone = [o.key for o, p in old]",
+           expect="sorted(gone) == [\"jobB/debug/0.html\", \"jobB/output/0.mp4\", \"jobC/input/0.png\"]")
 @sync
 async def test_orphan_sweep_needs_no_owner(store):
     await seed(store)
@@ -409,7 +417,8 @@ async def test_orphan_sweep_needs_no_owner(store):
     assert owners.asked == [{"jobA", "jobB", "jobC"}]
 
 
-@mutation(SRC, "if not enabled:", "if False:")
+@mutation(SRC, "if not enabled:", "if False:",
+           expect="await storage.sweep_orphans(store, owners, min_age=HOUR, now=datetime.now(UTC) + 9 * HOUR,")
 @sync
 async def test_orphan_sweep_can_be_switched_off(store):
     await seed(store)
@@ -428,8 +437,10 @@ async def test_orphan_sweep_removes_nothing_when_the_owner_lookup_fails(store):
     assert len(await keys(store)) == 5
 
 
-@mutation(SRC, "p.role in roles and now - o.last_modified >= retention", "now - o.last_modified >= retention")
-@mutation(SRC, "now - o.last_modified >= retention", "True")
+@mutation(SRC, "p.role in roles and now - o.last_modified >= retention", "now - o.last_modified >= retention",
+           expect="gone == [\"jobB/debug/0.html\"]")
+@mutation(SRC, "now - o.last_modified >= retention", "True",
+           expect="await storage.sweep_retention(store, retention=timedelta(days=30), now=start + timedelta(")
 @sync
 async def test_retention_sweep_removes_only_old_debug_media(store):
     await seed(store)
@@ -440,7 +451,8 @@ async def test_retention_sweep_removes_only_old_debug_media(store):
     assert len(await keys(store)) == 4                                    # outputs and inputs are kept indefinitely
 
 
-@mutation(SRC, "assert_no_tx()\n        try:", "try:")
+@mutation(SRC, "assert_no_tx()\n        try:", "try:",
+           expect="with pytest.raises(RuntimeError, match=\"foreign I/O\"):")
 def test_object_store_calls_inside_a_database_transaction_are_refused(store, db):
     async def main():
         pool = await open_pool(db.dsn)
@@ -503,7 +515,7 @@ def spied(store):
 BIG = os.urandom(3 * 1024 * 1024 + 123)
 
 
-@mutation(SRC, "resp.stream(chunk_size)", "resp.stream(10**9)")
+@mutation(SRC, "resp.stream(chunk_size)", "resp.stream(10**9)", expect="assert (1 >= (3145851 // (64 * 1024)))")
 @sync
 async def test_a_large_object_streams_in_bounded_chunks(store):
     await store.put_bytes("1/output/0.mp4", BIG, "video/mp4")
@@ -529,7 +541,8 @@ async def test_a_range_streams_only_that_range(store):
         [p async for p in store.stream("1/output/0.mp4", chunk_size=0)]
 
 
-@mutation(SRC, "asyncio.to_thread(self._release, resp)", "asyncio.to_thread(lambda r: None, resp)")
+@mutation(SRC, "asyncio.to_thread(self._release, resp)", "asyncio.to_thread(lambda r: None, resp)",
+           expect="log[\"released\"] and log[\"closed\"] and len(log[\"sizes\"]) < 10")
 @sync
 async def test_the_connection_is_released_when_the_reader_stops_early(store):
     await store.put_bytes("1/output/0.mp4", BIG, "video/mp4")

@@ -31,7 +31,7 @@ def test_the_first_migrate_pins_the_timezone_and_defaults_to_utc():
             c.execute("INSERT INTO relay.billing_pin (tz, only_row) VALUES ('UTC', false)")
 
 
-@mutation(M, "check_pin(row[0], billing_tz)", "pass")
+@mutation(M, "check_pin(row[0], billing_tz)", "pass", expect="DID NOT RAISE BillingTzMismatch")
 def test_a_later_migrate_with_another_timezone_is_refused_and_changes_nothing():
     with disposable_database() as dsn:
         run_migrations(dsn, billing_tz="Asia/Ho_Chi_Minh")
@@ -54,7 +54,7 @@ def test_the_migrate_command_reports_the_refusal(monkeypatch, capsys):
         assert "pinned to Asia/Tokyo" in capsys.readouterr().err
 
 
-@mutation(B, "if env_tz and env_tz != pinned:", "if False:")
+@mutation(B, "if env_tz and env_tz != pinned:", "if False:", expect="DID NOT RAISE BillingTzMismatch")
 def test_a_process_whose_environment_disagrees_with_the_pin_refuses_to_start():
     async def start(dsn, env_tz):
         async with await psycopg.AsyncConnection.connect(dsn, options="-c search_path=relay") as conn:
@@ -70,7 +70,8 @@ def test_a_process_whose_environment_disagrees_with_the_pin_refuses_to_start():
         billing.check_pin(None, "")
 
 
-@mutation(B, '_PIN = "SELECT tz FROM billing_pin"', '_PIN = "SELECT NULL::text"')
+@mutation(B, '_PIN = "SELECT tz FROM billing_pin"', '_PIN = "SELECT NULL::text"',
+           expect="no billing timezone is pinned: run `relay migrate`")
 def test_a_charge_takes_its_billing_day_from_the_pinned_timezone(db):
     # whichever of UTC+14 and UTC-12 has another calendar date than UTC right now
     now = datetime.now(UTC)

@@ -120,6 +120,7 @@ def _filename_pattern(v: str) -> None:
 REGISTRY = Registry(
     Spec("log_retention_days", int, 30, "Days request logs are kept.", _at_least(1)),
     Spec("media_orphan_age_h", int, 6, "Hours before an uploaded file nobody owns is swept.", _at_least(1)),
+    Spec("media_orphan_sweep", bool, True, "Sweep uploaded files nobody owns. Off while a restore is checked."),
     Spec("unsent_deadline_s", int, 10_800, "Seconds a job may wait unsent before it fails.", _at_least(60)),
     Spec("session_ttl_s", int, 86_400, "Admin session lifetime in seconds.", _at_least(60)),
     Spec("max_unfinished_default", int, 20, "Unfinished jobs a key may hold when it has no limit of its own.",

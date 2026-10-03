@@ -101,7 +101,7 @@ def test_a_disabled_key_cannot_be_charged(db):
 mutation(B, "AND k.id = w.key_id AND k.enabled", "AND k.id = w.key_id")(test_a_disabled_key_cannot_be_charged)
 
 
-@mutation(B, "(w.day_limit > 0 AND ", "(")
+@mutation(B, "(w.day_limit > 0 AND ", "(", expect="DID NOT RAISE QuotaExceeded")
 def test_a_day_limit_of_zero_blocks_even_a_zero_point_charge(db):
     key = db.key(("p1", "video", 0, None))
     job = db.job(key)
@@ -114,7 +114,7 @@ def test_a_day_limit_of_zero_blocks_even_a_zero_point_charge(db):
     run(db, scenario)
 
 
-@mutation(B, "(w.total_limit > 0 AND ", "(")
+@mutation(B, "(w.total_limit > 0 AND ", "(", expect="DID NOT RAISE QuotaExceeded")
 def test_a_total_limit_of_zero_blocks_even_a_zero_point_charge(db):
     key = db.key(("p1", "video", None, 0))
     job = db.job(key)
@@ -150,7 +150,8 @@ def test_a_missing_wallet_is_an_internal_error_not_a_quota_answer(db):
 
 
 # ---- wallets of new providers (I29) ----------------------------------------------------------------------------------
-@mutation(B, "SELECT id, %s, %s, 0 FROM api_keys", "SELECT id, %s, %s, NULL FROM api_keys")
+@mutation(B, "SELECT id, %s, %s, 0 FROM api_keys", "SELECT id, %s, %s, NULL FROM api_keys",
+           expect="DID NOT RAISE QuotaExceeded")
 def test_a_provider_added_after_the_key_is_closed_on_it_until_the_admin_opens_it(db):
     key = db.key(("p1", "video", None, None))
     job = db.job(key, provider="p2")
@@ -189,11 +190,12 @@ def test_a_new_keys_wallets_carry_the_limits_chosen_for_it(db):
 
 
 # ---- refunds -------------------------------------------------------------------------------------------------------
-@mutation(B, "if inserted is None:", "if False:")
+@mutation(B, "if inserted is None:", "if False:", expect="assert 8 == 1")
 @mutation(B, "ON CONFLICT (refund_of) DO NOTHING RETURNING id",
-          "ON CONFLICT (refund_of) DO UPDATE SET refund_of = EXCLUDED.refund_of RETURNING id")
+          "ON CONFLICT (refund_of) DO UPDATE SET refund_of = EXCLUDED.refund_of RETURNING id", expect="assert 8 == 1")
 @mutation(KEYS_SQL, "CREATE UNIQUE INDEX ledger_one_refund ON ledger (refund_of);",
-          "CREATE INDEX ledger_one_refund ON ledger (refund_of);")
+          "CREATE INDEX ledger_one_refund ON ledger (refund_of);",
+           expect="no unique or exclusion constraint matching the ON CONFLICT specification")
 def test_eight_concurrent_refunders_give_one_refund_row_and_one_decrement(db):
     key = db.key(("p1", "video", None, None))
     victim, other = db.job(key), db.job(key)
@@ -218,7 +220,7 @@ def test_eight_concurrent_refunders_give_one_refund_row_and_one_decrement(db):
     assert db.wallet(key) == (70, 70)
 
 
-@mutation(B, "same_day = charged_day == today", "same_day = True")
+@mutation(B, "same_day = charged_day == today", "same_day = True", expect="assert (5, 5) == (15, 5)")
 def test_a_refund_of_a_charge_from_before_the_reset_touches_only_the_total(db):
     key = db.key(("p1", "video", None, None))
     old, new = db.job(key), db.job(key)
@@ -237,8 +239,10 @@ def test_a_refund_of_a_charge_from_before_the_reset_touches_only_the_total(db):
     run(db, scenario)
 
 
-@mutation(B, "used_total = GREATEST(used_total - %(a)s, 0), ", "used_total = used_total - %(a)s, ")
-@mutation(B, "if clamped:", "if False:")
+@mutation(B, "used_total = GREATEST(used_total - %(a)s, 0), ", "used_total = used_total - %(a)s, ",
+           expect="violates check constraint \"key_wallets_used_total_check\"")
+@mutation(B, "if clamped:", "if False:",
+           expect="[r.getMessage() for r in caplog.records if \"ALERT billing clamp\" in r.getMessage()]")
 def test_a_refund_never_takes_a_counter_below_zero_and_raises_the_alert(db, caplog):
     key = db.key(("p1", "video", None, None))
     job = db.job(key)
@@ -272,7 +276,8 @@ def test_a_refund_that_clamps_nothing_raises_no_alert(db, caplog):
 
 
 @mutation(KEYS_SQL, "CREATE INDEX ledger_job ON ledger (job_id);",
-          "CREATE UNIQUE INDEX ledger_job ON ledger (job_id) WHERE entry = 'refund';")
+          "CREATE UNIQUE INDEX ledger_job ON ledger (job_id) WHERE entry = 'refund';",
+           expect="violates unique constraint \"ledger_job\"")
 def test_a_charge_made_again_after_a_refund_can_itself_be_refunded(db):
     key = db.key(("p1", "video", None, None))
     job = db.job(key)
@@ -319,8 +324,9 @@ def tz_with_midnight_in(seconds: float) -> str:
     return "UTC%s%02d:%02d:%02d" % (sign, mag // 3600, mag % 3600 // 60, mag % 60)
 
 
-@mutation(B, "(clock_timestamp() AT TIME ZONE %(tz)s)::date", "(now() AT TIME ZONE %(tz)s)::date")
-@mutation(B, "THEN 0 ELSE w.used_day END", "THEN w.used_day ELSE w.used_day END")
+@mutation(B, "(clock_timestamp() AT TIME ZONE %(tz)s)::date", "(now() AT TIME ZONE %(tz)s)::date",
+           expect="after.billing_day == before.billing_day + timedelta(days=1)")
+@mutation(B, "THEN 0 ELSE w.used_day END", "THEN w.used_day ELSE w.used_day END", expect="assert (7, 7) == (3, 7)")
 def test_a_transaction_that_crosses_midnight_charges_the_new_day_and_resets_the_day_counter(db):
     key = db.key(("p1", "video", None, None))
     first_job, second_job = db.job(key), db.job(key)
@@ -366,7 +372,8 @@ def test_a_charge_and_its_job_commit_together(db):
     assert ledger_rows(db, key) == [("charge", 5)]
 
 
-@mutation("packages/relay-core/src/relay_core/db/pool.py", "async with conn.transaction():", "if True:")
+@mutation("packages/relay-core/src/relay_core/db/pool.py", "async with conn.transaction():", "if True:",
+           expect="violates foreign key constraint \"ledger_job_fk\"")
 def test_a_failure_between_the_charge_and_the_job_insert_leaves_no_charge_and_no_ledger_row(db):
     key = db.key(("p1", "video", None, None))
 
@@ -436,7 +443,8 @@ def test_a_failpoint_named_in_the_environment_fires(monkeypatch):
 
 
 # ---- review fixes ----------------------------------------------------------------------------------------------------
-@mutation(B, "same_day = charged_day == today and anchor == charged_day", "same_day = charged_day == today")
+@mutation(B, "same_day = charged_day == today and anchor == charged_day", "same_day = charged_day == today",
+           expect="clamped=True) == Refund(refund")
 def test_a_refund_that_waits_across_midnight_does_not_touch_the_new_days_counter(db):
     key = db.key(("p1", "video", None, None))
     old, new = db.job(key), db.job(key)
@@ -464,7 +472,7 @@ def test_a_refund_that_waits_across_midnight_does_not_touch_the_new_days_counter
     assert db.wallet(key) == (5, 5)                      # the new day keeps its 5; only the total took the refund
 
 
-@mutation(B, "_require_tx(conn)\n    if points < 0:", "if points < 0:")
+@mutation(B, "_require_tx(conn)\n    if points < 0:", "if points < 0:", expect="DID NOT RAISE NotInTransaction")
 def test_charge_outside_a_transaction_is_refused_and_changes_nothing(db):
     key = db.key(("p1", "video", None, None))
     job = db.job(key)
@@ -480,7 +488,7 @@ def test_charge_outside_a_transaction_is_refused_and_changes_nothing(db):
 
 
 @mutation(B, '_require_tx(conn)\n    await failpoints.hit("billing.refund.start")',
-          'await failpoints.hit("billing.refund.start")')
+          'await failpoints.hit("billing.refund.start")', expect="DID NOT RAISE NotInTransaction")
 def test_refund_outside_a_transaction_is_refused_and_changes_nothing(db):
     key = db.key(("p1", "video", None, None))
     job = db.job(key)
@@ -496,7 +504,7 @@ def test_refund_outside_a_transaction_is_refused_and_changes_nothing(db):
     assert ledger_rows(db, key) == [("charge", 5)]
 
 
-@mutation(B, "FOR NO KEY UPDATE", "FOR UPDATE")
+@mutation(B, "FOR NO KEY UPDATE", "FOR UPDATE", expect="deadlock detected")
 def test_two_refunds_of_different_charges_on_one_wallet_do_not_deadlock(db):
     key = db.key(("p1", "video", None, None))
     jobs = [db.job(key), db.job(key)]
@@ -520,7 +528,7 @@ def test_two_refunds_of_different_charges_on_one_wallet_do_not_deadlock(db):
 
 @mutation(B, "{_DAY_BASE} + %(points)s <= w.day_limit",
           "(SELECT x.used_day FROM key_wallets x WHERE x.key_id = w.key_id AND x.provider = w.provider "
-          "AND x.kind = w.kind) + %(points)s <= w.day_limit")
+          "AND x.kind = w.kind) + %(points)s <= w.day_limit", expect="assert 8 == 5")
 def test_concurrent_charges_never_pass_the_day_limit(db):
     key = db.key(("p1", "video", 10, None))
     jobs = [db.job(key) for _ in range(8)]
@@ -543,7 +551,8 @@ def test_concurrent_charges_never_pass_the_day_limit(db):
     assert db.wallet(key) == (10, 10)
 
 
-@mutation(B, "ON CONFLICT (refund_of) DO NOTHING RETURNING id", "ON CONFLICT DO NOTHING RETURNING id")
+@mutation(B, "ON CONFLICT (refund_of) DO NOTHING RETURNING id", "ON CONFLICT DO NOTHING RETURNING id",
+           expect="DID NOT RAISE UniqueViolation")
 def test_a_unique_violation_other_than_the_refund_of_one_is_an_error_not_an_already_refunded_answer(db):
     key = db.key(("p1", "video", None, None))
     job = db.job(key)
@@ -612,7 +621,8 @@ def test_a_failure_right_after_the_ledger_insert_leaves_no_charge_and_no_ledger_
     assert ledger_rows(db, key) == []
 
 
-@mutation(B, "return check_pin(row[0] if row else None, None)", "return (row[0] if row else None) or DEFAULT_TZ")
+@mutation(B, "return check_pin(row[0] if row else None, None)", "return (row[0] if row else None) or DEFAULT_TZ",
+           expect="DID NOT RAISE BillingTzMismatch")
 def test_billing_refuses_when_no_timezone_is_pinned_instead_of_assuming_utc(db):
     key = db.key(("p1", "video", None, None))
     job = db.job(key)
@@ -627,7 +637,8 @@ def test_billing_refuses_when_no_timezone_is_pinned_instead_of_assuming_utc(db):
     assert ledger_rows(db, key) == []
 
 
-@mutation(PO, "    if conn not in _open:\n", "    if conn.autocommit and conn not in _open:\n")
+@mutation(PO, "    if conn not in _open:\n", "    if conn.autocommit and conn not in _open:\n",
+           expect="DID NOT RAISE NotInTransaction")
 @pytest.mark.parametrize("shape", ["autocommit pipeline with a command in flight", "explicit block outside tx",
                                    "connection without autocommit"])
 def test_a_charge_on_any_connection_outside_tx_is_refused_and_changes_nothing(db, shape):
@@ -658,7 +669,7 @@ def test_a_charge_on_any_connection_outside_tx_is_refused_and_changes_nothing(db
     assert ledger_rows(db, key) == []
 
 
-@mutation(PO, "    _open.discard(conn)\n", "    pass\n")
+@mutation(PO, "    _open.discard(conn)\n", "    pass\n", expect="DID NOT RAISE NotInTransaction")
 def test_a_connection_is_refused_once_its_tx_block_has_ended_even_in_a_task_started_inside_it(db):
     # a task created inside the block keeps a copy of its context; the connection goes back to the pool at the
     # end of the block and must not be accepted afterwards

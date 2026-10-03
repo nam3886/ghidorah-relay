@@ -64,9 +64,10 @@ def test_every_table_has_a_decision_and_the_grants_match_the_matrix(db):
     assert {t: tuple(sorted(p)) for t, p in worker.items()} == {t: tuple(sorted(p)) for t, p in WORKER.items()}
 
 
-@mutation(GRANTS, "GRANT UPDATE (label, proxy_host,", "GRANT UPDATE (credential_enc, label, proxy_host,")
+@mutation(GRANTS, "GRANT UPDATE (label, proxy_host,", "GRANT UPDATE (credential_enc, label, proxy_host,",
+           expect="assert {'credential_")
 @mutation("packages/relay-core/src/relay_core/db/migrations/0008_account_restrict.sql",
-          "cooldown_reason, check_due_at)", "cooldown_reason)")
+          "cooldown_reason, check_due_at)", "cooldown_reason)", expect="assert {'check_due_a")
 def test_the_api_cannot_update_a_credential_or_worker_owned_account_columns(db):
     with db.connect() as c:
         cols = {r[0] for r in c.execute("SELECT column_name FROM information_schema.columns "
@@ -128,7 +129,8 @@ def test_every_statement_the_api_makes_runs_under_relay_api(db):
     assert as_role(db, "relay_api", statements) == []
 
 
-@mutation(GRANTS, "GRANT SELECT ON account_capacity,", "GRANT SELECT, INSERT, UPDATE ON account_capacity,")
+@mutation(GRANTS, "GRANT SELECT ON account_capacity,", "GRANT SELECT, INSERT, UPDATE ON account_capacity,",
+           expect="INSERT INTO account_charges (account_id, job_id, pool, amount, account_day)")
 def test_the_api_is_refused_what_belongs_to_the_worker(db):
     key = db.key(("p1", "video", None, None))
     account = uuid.uuid4()
@@ -229,7 +231,8 @@ DELETE_ACCOUNT = "DELETE FROM accounts WHERE id = %s"
           "ALTER TABLE leases ADD CONSTRAINT leases_account_id_fkey\n    FOREIGN KEY (account_id) "
           "REFERENCES accounts(id) ON DELETE RESTRICT;",
           "ALTER TABLE leases ADD CONSTRAINT leases_account_id_fkey\n    FOREIGN KEY (account_id) "
-          "REFERENCES accounts(id) ON DELETE CASCADE;")
+          "REFERENCES accounts(id) ON DELETE CASCADE;",
+           expect="refused == [(DELETE_ACCOUNT, \"ForeignKeyViolation\")], table")
 def test_a_plain_delete_of_a_used_account_is_refused_by_the_database_and_removes_nothing(db):
     # Referential actions run as the table owner: with CASCADE or SET NULL a plain DELETE would reach worker and
     # money rows that the roles' grants forbid them to touch.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prove the tests are real guards: break the code on purpose and demand that the marked test turns red.
 
-Every `@mutation(file, original, replacement)` beside a test (relay_core.testing.mutation) is collected from
+Every @mutation(file, original, replacement[, expect=...]) beside a test (relay_core.testing.mutation) is read from
 the source. For each one: `original` must occur exactly once in `file` (else "anchor not found" or
 "anchor ambiguous"), the replacement is applied, only the marked test runs, and it must FAIL. The file is
 restored in a `finally` block. Exit 1 if any mutation survives or any anchor is stale.
@@ -39,7 +39,7 @@ REPO = Path(__file__).resolve().parents[1]
 TIMEOUT_S = 300
 
 
-def _literals(call: ast.Call, names: dict[str, str]) -> tuple[str, str, str]:
+def _literals(call: ast.Call, names: dict[str, str], where: str = "") -> tuple[str, str, str, str | None]:
     """The three arguments: string literals, or module-level `NAME = "..."` constants of the same file."""
     def value(a: ast.expr) -> str | None:
         if isinstance(a, ast.Constant) and isinstance(a.value, str):
@@ -47,17 +47,20 @@ def _literals(call: ast.Call, names: dict[str, str]) -> tuple[str, str, str]:
         return names.get(a.id) if isinstance(a, ast.Name) else None
 
     got = [value(a) for a in call.args]
-    if len(got) != 3 or call.keywords or None in got:
-        raise SystemExit("line %d: @mutation takes three strings (literals or module-level constants)" % call.lineno)
-    return tuple(got)
+    expect = [value(k.value) for k in call.keywords if k.arg == "expect"]
+    if len(got) != 3 or None in got or len(call.keywords) != len(expect) or None in expect:
+        raise SystemExit("%s:%d: @mutation takes three strings (literals or module-level NAME = \"...\" constants; an "
+                         "empty string is fine, an expression is not) and an optional expect= string"
+                         % (where, call.lineno))
+    return (*got, expect[0] if expect else None)
 
 
 def _is_marker(dec: ast.expr) -> bool:
     return isinstance(dec, ast.Call) and getattr(dec.func, "id", getattr(dec.func, "attr", "")) == "mutation"
 
 
-def collect(root: Path) -> list[tuple[str, str, str, str]]:
-    """(test node id, file, original, replacement) for every marker, in a stable order."""
+def collect(root: Path) -> list[tuple[str, str, str, str, str | None]]:
+    """(test node id, file, original, replacement, expect) for every marker, in a stable order."""
     found = []
     for base in ("tests", "packages", "apps"):
         for path in sorted((root / base).rglob("test_*.py")):
@@ -73,8 +76,13 @@ def collect(root: Path) -> list[tuple[str, str, str, str]]:
             for cls in (n for n in tree.body if isinstance(n, ast.ClassDef)):
                 tests += [("%s::%s::%s" % (rel, cls.name, n.name), n) for n in cls.body if isinstance(n, funcs)]
             for node_id, fn in tests:
-                found += [(node_id, *_literals(d, names)) for d in fn.decorator_list if _is_marker(d)]
+                found += [(node_id, *_literals(d, names, rel)) for d in fn.decorator_list if _is_marker(d)]
     return found
+
+
+def unmarked(root: Path = REPO) -> list[str]:
+    """Test ids of the markers without expect=: such a marker counts a red for ANY failure, even a helper timeout."""
+    return [m[0] for m in collect(root) if m[4] is None]
 
 
 def purge_bytecode(root: Path) -> None:
@@ -100,7 +108,7 @@ def source_path(root: Path) -> str:
 
 
 def _pytest(root: Path, node_id: str) -> subprocess.CompletedProcess:
-    cmd = [sys.executable, "-m", "pytest", node_id, "-x", "--tb=short", "-p", "no:cacheprovider"]
+    cmd = [sys.executable, "-m", "pytest", node_id, "-x", "--tb=short", "-rfE", "-p", "no:cacheprovider"]
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": source_path(root)}
     return subprocess.run(cmd, cwd=root, env=env, capture_output=True, text=True, timeout=TIMEOUT_S)
 
@@ -118,7 +126,8 @@ def baseline(root: Path, node_id: str) -> str:
     return "baseline not green (unmutated test fails: %s)" % reason
 
 
-def mutate_once(root: Path, node_id: str, file: str, original: str, replacement: str) -> tuple[bool, str]:
+def mutate_once(root: Path, node_id: str, file: str, original: str, replacement: str,
+                expect: str | None = None) -> tuple[bool, str]:
     """(ok, message). ok means the mutation turned its test red."""
     target = root / file
     if not target.is_file():
@@ -140,8 +149,14 @@ def mutate_once(root: Path, node_id: str, file: str, original: str, replacement:
         target.write_bytes(raw)
         purge_bytecode(root)
     if run.returncode == 1:
-        reason = next((ln.strip() for ln in run.stdout.splitlines() if ln.startswith("E ")), "failed")
-        return True, reason
+        # Red means the marked test itself failed (a FAILED/ERROR line naming it; a collection error names only the
+        # file) and, with expect=, that its output says what the mutation should have made it say.
+        lines = run.stdout.splitlines()
+        if not any(ln.startswith(("FAILED ", "ERROR ")) and node_id in ln for ln in lines):
+            return False, "pytest exit 1 but the marked test did not fail (collection or other error)"
+        if expect is not None and expect not in run.stdout:
+            return False, "red, but not as expected: %r missing from the failure output" % expect
+        return True, next((ln.strip() for ln in lines if ln.startswith("E ")), "failed")
     return False, "mutation survived" if run.returncode == 0 else "pytest exit %d (not a test failure)" % run.returncode
 
 
@@ -169,16 +184,16 @@ def _run_locked(root: Path, only: tuple[str, ...]) -> int:
     purge_bytecode(root)
     killed = 0
     baselines: dict[str, str] = {}
-    for node_id, file, original, replacement in marks:
+    for node_id, file, original, replacement, expect in marks:
         if node_id not in baselines:
             baselines[node_id] = baseline(root, node_id)
         if baselines[node_id]:
             ok, msg = False, baselines[node_id]
         else:
-            ok, msg = mutate_once(root, node_id, file, original, replacement)
+            ok, msg = mutate_once(root, node_id, file, original, replacement, expect)
         killed += ok
-        print("%s %s [%s -> %s]\n      %s" % ("red     " if ok else "FAILED  ", node_id, file,
-                                              replacement.strip().splitlines()[0][:50] or "(removed)", msg[:200]))
+        shown = (replacement.strip().splitlines() or [""])[0][:50] or "(removed)"
+        print("%s %s [%s -> %s]\n      %s" % ("red     " if ok else "FAILED  ", node_id, file, shown, msg[:200]))
     print("mutate: %d/%d killed, %d failed" % (killed, len(marks), len(marks) - killed))
     return 0 if killed == len(marks) else 1
 

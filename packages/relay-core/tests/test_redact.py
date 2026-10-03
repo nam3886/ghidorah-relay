@@ -24,46 +24,47 @@ def gone(text: str, *secrets: str) -> str:
     return out
 
 
-@mutation(SRC, r'(?i)((?<![\w-])set-cookie', r'(?i)(?!)((?<![\w-])set-cookie')
+@mutation(SRC, r'(?i)((?<![\w-])set-cookie', r'(?i)(?!)((?<![\w-])set-cookie', expect="'SECRETVAL1' survived in")
 def test_set_cookie_header():
     gone("upstream said Set-Cookie: foo=SECRETVAL1; Path=/; HttpOnly", "SECRETVAL1")
     gone('{"Set-Cookie": "foo=SECRETVAL1; Path=/", "status": 200}', "SECRETVAL1")
 
 
-@mutation(SRC, r'(?i)((?<![\w-])cookie', r'(?i)(?!)((?<![\w-])cookie')
+@mutation(SRC, r'(?i)((?<![\w-])cookie', r'(?i)(?!)((?<![\w-])cookie', expect="'SECRETVAL2' survived in")
 def test_cookie_header():
     gone("sent Cookie: foo=SECRETVAL2; bar=SECRETVAL3", "SECRETVAL2", "SECRETVAL3")
     out = gone('headers {"Cookie": "a=SECRETVAL4", "Accept": "*/*"}', "SECRETVAL4")
     assert '"Accept": "*/*"' in out                    # a quoted value ends at its quote, not the line
 
 
-@mutation(SRC, r'(?i)(\bauthorization', r'(?i)(?!)(\bauthorization')
+@mutation(SRC, r'(?i)(\bauthorization', r'(?i)(?!)(\bauthorization', expect="'c2VjcmV0cGFzcw' survived in")
 def test_authorization_header():
     gone("Authorization: Basic c2VjcmV0cGFzcw==", "c2VjcmV0cGFzcw")
     out = gone('{"Authorization": "Digestish SECRETAUTH5", "x": 1}', "SECRETAUTH5")
     assert '"x": 1' in out
 
 
-@mutation(SRC, r'(?i)\bbearer', r'(?i)(?!)\bbearer')
+@mutation(SRC, r'(?i)\bbearer', r'(?i)(?!)\bbearer', expect="'SECRETBEARER9' survived in")
 def test_bearer_token_without_a_header_label():
     gone("got 401 for Bearer SECRETBEARER9 on retry", "SECRETBEARER9")
 
 
-@mutation(SRC, r'(?i)\b([a-z][a-z0-9+.-]{0,31}://)', r'(?i)(?!)\b([a-z][a-z0-9+.-]{0,31}://)')
+@mutation(SRC, r'(?i)\b([a-z][a-z0-9+.-]{0,31}://)', r'(?i)(?!)\b([a-z][a-z0-9+.-]{0,31}://)',
+           expect="'bob' survived in 'connect socks5")
 def test_scheme_user_pass_at_host():
     out = gone("connect socks5://bob:hunter2@10.1.2.3:1080 failed", "bob", "hunter2")
     assert "socks5://" in out and "10.1.2.3:1080" in out         # the endpoint stays debuggable
     gone("GET https://SECRETUSER6@files.example.com/a", "SECRETUSER6")
 
 
-@mutation(SRC, r'(?i)(?<![\w.:])(" + _HOST', r'(?i)(?!)(?<![\w.:])(" + _HOST')
+@mutation(SRC, r'(?i)(?<![\w.:])(" + _HOST', r'(?i)(?!)(?<![\w.:])(" + _HOST', expect="'h51jttwsx1ie' survived in")
 def test_ip_port_user_pass():
     out = gone("proxy 103.104.122.48:3129:h51jttwsx1ie:qry1d70u318ff1k failed", "h51jttwsx1ie", "qry1d70u318ff1k")
     assert "103.104.122.48:3129" in out
     gone("via px1.example.net:8000:alice:p:a:ss", "alice", "p:a:ss")
 
 
-@mutation(SRC, r'(?i)(?<![\w.:/%@-])', r'(?i)(?!)(?<![\w.:/%@-])')
+@mutation(SRC, r'(?i)(?<![\w.:/%@-])', r'(?i)(?!)(?<![\w.:/%@-])', expect="'user:pass' survived in")
 def test_user_pass_at_host_port():
     out = gone("using user:pass@host.example.com:8080 now", "user:pass")
     assert "host.example.com:8080" in out
@@ -76,7 +77,7 @@ def test_user_pass_pattern_leaves_ordinary_text_alone():
         assert redact_text(text) == text, text
 
 
-@mutation(SRC, r'(?i)([?&;]', r'(?i)(?!)([?&;]')
+@mutation(SRC, r'(?i)([?&;]', r'(?i)(?!)([?&;]', expect="'abc123def' survived in")
 def test_signed_query_values():
     out = gone("https://cdn.example.com/v.mp4?oh=abc123def&oe=69D7B3C0&x-signature=Zm9vYmFy&w=720",
                "abc123def", "69D7B3C0", "Zm9vYmFy")
@@ -84,19 +85,19 @@ def test_signed_query_values():
     gone("<a href='/v?x=1&amp;oh=SECRETSIG8'>", "SECRETSIG8")
 
 
-@mutation(SRC, r'(?<=/m/)', r'(?!)(?<=/m/)')
+@mutation(SRC, r'(?<=/m/)', r'(?!)(?<=/m/)', expect="'AbCdEfGhIjKlMnOpQrStUv' survived in")
 def test_share_token_in_path():
     out = gone("GET /m/AbCdEfGhIjKlMnOpQrStUv HTTP/1.1", "AbCdEfGhIjKlMnOpQrStUv")
     assert "/m/" in out
     assert redact_text("GET /m/short") == "GET /m/short"
 
 
-@mutation(SRC, r'\brk-', r'(?!)\brk-')
+@mutation(SRC, r'\brk-', r'(?!)\brk-', expect="'AbCdEfGhIjKlMnOpQrStUvWx' survived in")
 def test_api_key():
     gone("key rk-AbCdEfGhIjKlMnOpQrStUvWx used", "AbCdEfGhIjKlMnOpQrStUvWx")
 
 
-@mutation(SRC, r'(?i)((?:token', r'(?i)(?!)((?:token')
+@mutation(SRC, r'(?i)((?:token', r'(?i)(?!)((?:token', expect="'SECRETTOK10' survived in")
 def test_secret_labels():
     gone('{"access_token": "SECRETTOK10", "n": 1}', "SECRETTOK10")
     gone("password=hunter2&user=bob", "hunter2")
@@ -105,14 +106,15 @@ def test_secret_labels():
     assert redact_text("total_tokens=7 token_count: 3") == "total_tokens=7 token_count: 3"
 
 
-@mutation(SRC, r'(?i)\b(sessionid(?:_ss)?', r'(?i)(?!)\b(sessionid(?:_ss)?')
+@mutation(SRC, r'(?i)\b(sessionid(?:_ss)?', r'(?i)(?!)\b(sessionid(?:_ss)?', expect="'a2e3SECRET13' survived in")
 def test_known_cookie_pairs():
     out = gone("jar had sid_guard=a2e3SECRET13; other=x", "a2e3SECRET13")
     assert "sid_guard=" in out and "other=x" in out
     gone("x-amz-meta-sessionid=SECRET14", "SECRET14")
 
 
-@mutation(SRC, r're.compile(r"\b[A-Za-z0-9+/_-]{40,}', r're.compile(r"(?!)\b[A-Za-z0-9+/_-]{40,}')
+@mutation(SRC, r're.compile(r"\b[A-Za-z0-9+/_-]{40,}', r're.compile(r"(?!)\b[A-Za-z0-9+/_-]{40,}',
+           expect="'Zk9wQ3RyZXRTZWNyZXRPZkFib3V0Rm9ydHlDaGFyc09yTW9yZQ' survived in")
 def test_long_token_catch_all():
     secret = "Zk9wQ3RyZXRTZWNyZXRPZkFib3V0Rm9ydHlDaGFyc09yTW9yZQ"
     gone("opaque value %s here" % secret, secret)
@@ -121,7 +123,7 @@ def test_long_token_catch_all():
 
 
 # ---- structural, field-name and provider layers ---------------------------------------------------------------------
-@mutation(SRC, 'if (cookie and k == "value")', 'if (False and k == "value")')
+@mutation(SRC, 'if (cookie and k == "value")', 'if (False and k == "value")', expect="assert 'SECRETVAL15' not in")
 def test_cookie_editor_array_without_any_sensitive_key():
     jar = [{"domain": ".example.com", "name": "sessionid", "value": "SECRETVAL15", "path": "/", "httpOnly": True},
            {"domain": ".example.com", "name": "theme", "value": "SECRETVAL16", "path": "/"},
@@ -133,7 +135,7 @@ def test_cookie_editor_array_without_any_sensitive_key():
     assert redact({"name": "Alice", "value": "fine"}) == {"name": "Alice", "value": "fine"}
 
 
-@mutation(SRC, "or any(needle in low for needle in _SENSITIVE_NAMES)", "or False")
+@mutation(SRC, "or any(needle in low for needle in _SENSITIVE_NAMES)", "or False", expect="other=x' == '[redacted]'")
 def test_field_names_v4_samples():
     secret_cookie = "sid_guard=6bf70a8161121010e391a11e6cc47c42abcdef0123456789; other=x"
     d = redact({"cookie": secret_cookie, "x-amz-meta-sessionid": "SECRET", "prompt": "sóng biển",
@@ -145,7 +147,7 @@ def test_field_names_v4_samples():
     assert d["nested"]["raw_proxy"] == REDACTED and d["api_key"] == REDACTED
 
 
-@mutation(SRC, "if low in _SAFE_NAMES:", "if False:")
+@mutation(SRC, "if low in _SAFE_NAMES:", "if False:", expect="assert ('[redacted]' == 1024)")
 def test_openai_token_counts_are_not_secrets():
     safe = redact({"max_tokens": 1024, "total_tokens": 7, "prompt_tokens": 3, "completion_tokens": 4,
                    "access_token": "abc", "api_key": "k"})
@@ -182,7 +184,8 @@ def test_redaction_is_idempotent_and_leaves_normal_text():
     assert redact_text(plain) == plain
 
 
-@mutation(SRC, "for pattern, replacement in _provider_patterns.values():", "for pattern, replacement in ():")
+@mutation(SRC, "for pattern, replacement in _provider_patterns.values():", "for pattern, replacement in ():",
+           expect="assert 'SECRET21' not in")
 def test_provider_pattern_and_cookie_name_hooks(monkeypatch):
     monkeypatch.setattr(redact_module, "_provider_patterns", {})
     monkeypatch.setattr(redact_module, "_COOKIE_NAMES", set(redact_module._COOKIE_NAMES))
@@ -211,7 +214,8 @@ def test_every_shape_in_one_place(planted):
 SESSION = "0123456789abcdef0123456789abcdef"          # 32 hex: under the long-token catch-all
 
 
-@mutation(SRC, r'''r"([\"']?\s*[:=]\s*[\"']?)''', r'''r"(\s*=\s*)''')
+@mutation(SRC, r'''r"([\"']?\s*[:=]\s*[\"']?)''', r'''r"(\s*=\s*)''',
+           expect="'0123456789abcdef0123456789abcdef' survived in '{\"sessionid\"")
 def test_known_cookies_as_json_and_colon_text():
     out = gone('{"sessionid": "%s", "n": 1}' % SESSION, SESSION)
     assert '"n": 1' in out and out.count('"') == 6          # the quotes around the value stay balanced
@@ -219,7 +223,8 @@ def test_known_cookies_as_json_and_colon_text():
     gone("sid_guard='%s'" % SESSION, SESSION)
 
 
-@mutation(SRC, "out = _COOKIE_OBJECT.sub(_redact_cookie_object, out)", "out = out")
+@mutation(SRC, "out = _COOKIE_OBJECT.sub(_redact_cookie_object, out)", "out = out",
+           expect="'0123456789abcdef0123456789abcdef' survived in '[{\"name\"")
 def test_cookie_editor_array_written_as_text():
     text = ('[{"name":"sessionid","value":"%s","domain":".example.com"},'
             '{"name":"theme","value":"SECRET25","domain":".example.com","path":"/"},'
@@ -229,7 +234,7 @@ def test_cookie_editor_array_written_as_text():
     gone("{'value': 'SECRET26', 'name': 'ttwid'}", "SECRET26")                        # a dict repr, value first
 
 
-@mutation(SRC, r"(?::\d{2,5})?\b)", r"(?::\d{2,5})\b)")
+@mutation(SRC, r"(?::\d{2,5})?\b)", r"(?::\d{2,5})\b)", expect="'bob' survived in 'bad proxy")
 def test_user_pass_at_host_without_a_port():
     out = gone("bad proxy bob:hunter2@proxy.example.com refused", "bob", "hunter2")
     assert "proxy.example.com" in out
@@ -237,20 +242,20 @@ def test_user_pass_at_host_without_a_port():
     assert redact_text("write to mailto:bob@example.com") == "write to mailto:bob@example.com"
 
 
-@mutation(SRC, r'|\[[0-9a-f:]+\])"', r')"')
+@mutation(SRC, r'|\[[0-9a-f:]+\])"', r')"', expect="'alice' survived in")
 def test_bracketed_ipv6_proxy_in_the_four_part_form():
     out = gone("proxy [2001:db8::1]:1080:alice:SECRET27 failed", "alice", "SECRET27")
     assert "[2001:db8::1]:1080" in out
 
 
-@mutation(SRC, "|(?:secret|access|private|signing|auth)[_-]?key)", ")")
+@mutation(SRC, "|(?:secret|access|private|signing|auth)[_-]?key)", ")", expect="'SECRET28' survived in")
 def test_secret_and_access_key_labels():
     gone("secret_key=SECRET28 and access_key: SECRET29", "SECRET28", "SECRET29")
     assert redact_text("key_id=k1 idempotency_key=abc") == "key_id=k1 idempotency_key=abc"
 
 
 # ---- field names ending in "key", the size cap and linear time --------------------------------------------------
-@mutation(SRC, 'low.endswith("key")', 'low.endswith(("_key", "-key"))')
+@mutation(SRC, 'low.endswith("key")', 'low.endswith(("_key", "-key"))', expect="At index 0 diff: 'S1' != '[redacted]'")
 def test_field_names_ending_in_key_are_secrets_unless_known_ids():
     d = redact({"accesskey": "S1", "sessionkey": "S2", "signing_key": "S3", "x-api-key": "S4", "key": "S5",
                 "id_key": "ok1", "idempotency_key": "ok2", "object_key": "1/output/0.mp4", "key_id": "ok3",
@@ -260,7 +265,8 @@ def test_field_names_ending_in_key_are_secrets_unless_known_ids():
         "ok1", "ok2", "1/output/0.mp4", "ok3", "ok4"]
 
 
-@mutation(SRC, "return \"[omitted len=%d]\" % len(value)", "return value")
+@mutation(SRC, "return \"[omitted len=%d]\" % len(value)", "return value",
+           expect="'[redacted]' == '[omitted len=5000]'")
 def test_log_values_are_trimmed_before_redaction():
     exact = "z " * 1000
     out = redact_log({"body": "x" * 5000, "n": 1, "items": ["y" * 2001, "short Cookie: a=SECRET30"], "t": (exact,)})
@@ -287,8 +293,8 @@ def adversarial(n: int) -> dict[str, str]:
     }
 
 
-@mutation(SRC, r'(?i)((?:token', r'(?i)([\w-]*(?:token')
-@mutation(SRC, "[^\\s:@/]{1,128}:[^\\s/]{1,256}@", "[^\\s:@/]+:[^\\s/]+@")
+@mutation(SRC, r'(?i)((?:token', r'(?i)([\w-]*(?:token', expect="AssertionError: base64url")
+@mutation(SRC, "[^\\s:@/]{1,128}:[^\\s/]{1,256}@", "[^\\s:@/]+:[^\\s/]+@", expect="AssertionError: minified json")
 def test_redaction_time_grows_linearly_not_quadratically():
     """Quadratic patterns took 20 s on 20k characters. The bounds are generous (a loaded machine stays far under
     them); what they separate is seconds from minutes. The small size goes first so a regression fails fast."""
