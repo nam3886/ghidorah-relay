@@ -66,6 +66,8 @@ class NewJob:
     idem_body_hash: str | None = None
     inputs: tuple[InputMedia, ...] = ()
     job_id: uuid.UUID = field(default_factory=uuid.uuid4)
+    request: Mapping[str, Any] | None = None     # what the client sent (7.1); a regenerated job keeps its source's
+    request_hash: str | None = None
 
     def __post_init__(self):
         if (self.idem_key is None) != (self.idem_body_hash is None):
@@ -81,7 +83,8 @@ class Created:
 
 
 def body_hash(request: Mapping[str, Any]) -> str:
-    """sha256 of the canonical JSON of a request whose images are already replaced by the sha256 of their bytes."""
+    """sha256 of the canonical JSON of a request whose images are already replaced by the sha256 of each reference
+    as the client sent it."""
     text = json.dumps(request, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
     return hashlib.sha256(text.encode()).hexdigest()
 
@@ -152,9 +155,9 @@ async def _check_cap(conn, new: NewJob, limit: int) -> None:
 _INSERT = (
     "INSERT INTO jobs (id, provider, key_id, idem_key, idem_body_hash, operation, media_type, model, params, prompt, "
     "title, marker, status, completion, after_sent, submit_timeout_s, wallet_kind, price, pool, account_cost, "
-    "callback_url, warnings) VALUES (%(id)s, %(provider)s, %(key)s, %(idem)s, %(hash)s, %(op)s, %(media)s, %(model)s, "
-    "%(params)s, %(prompt)s, %(title)s, %(marker)s, 'queued', %(completion)s, %(after_sent)s, %(timeout)s, %(kind)s, "
-    "%(price)s, %(pool)s, %(cost)s, %(callback)s, %(warnings)s)")
+    "callback_url, warnings, request, request_hash) VALUES (%(id)s, %(provider)s, %(key)s, %(idem)s, %(hash)s, %(op)s, "
+    "%(media)s, %(model)s, %(params)s, %(prompt)s, %(title)s, %(marker)s, 'queued', %(completion)s, %(after_sent)s, "
+    "%(timeout)s, %(kind)s, %(price)s, %(pool)s, %(cost)s, %(callback)s, %(warnings)s, %(request)s, %(rhash)s)")
 
 
 async def _insert(conn, new: NewJob) -> None:
@@ -165,7 +168,8 @@ async def _insert(conn, new: NewJob) -> None:
         "params": Jsonb(dict(p.params)), "prompt": new.prompt, "title": new.title, "marker": marker_for(new.job_id),
         "completion": str(p.completion), "after_sent": str(p.after_sent), "timeout": p.submit_timeout_s,
         "kind": p.wallet_kind, "price": p.price, "pool": p.pool, "cost": p.account_cost,
-        "callback": new.callback_url,
+        "callback": new.callback_url, "rhash": new.request_hash,
+        "request": None if new.request is None else Jsonb(dict(new.request)),
         "warnings": Jsonb([{"code": w.code, "text": redact_log(w.text)} for w in p.warnings])})
     for m in new.inputs:
         await conn.execute(

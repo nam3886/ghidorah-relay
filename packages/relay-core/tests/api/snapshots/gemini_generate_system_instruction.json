@@ -1,0 +1,27 @@
+{
+  "auth": "x-goog-api-key",
+  "body": {
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "a cat"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "generationConfig": {},
+    "systemInstruction": {
+      "parts": [
+        {
+          "text": "be brief"
+        }
+      ],
+      "role": "user"
+    }
+  },
+  "method": "POST",
+  "path": "/v1beta/models/fake-video:generateContent",
+  "query": ""
+}

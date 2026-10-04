@@ -5,14 +5,17 @@ the claim loop's error limit is the process's exit code."""
 import asyncio
 import os
 import signal
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from accountkit import minio_settings, object_store
+from accountkit import minio_settings, new_command, object_store
 from enginekit import until, within
 from jobkit import POOLS, SPEC, account, create, key
 from lifecyclekit import MediaEngine, load_account
 
+from relay_core import failpoints
 from relay_core.db import open_pool, tx
+from relay_core.jobs import ops
 from relay_core.jobs import worker as worker_module
 from relay_core.jobs.worker import Worker, serve
 from relay_core.providers import Accepted, Ambiguous, Found, SubmitResult
@@ -390,3 +393,115 @@ def test_serve_runs_a_worker_from_the_environment_until_sigterm(db):
 
     assert asyncio.run(scenario()) == 0
     assert db.one("SELECT count(*) FROM worker_heartbeats")[0] == 0 and worker_module.DEFAULT_GRACE_S > 2
+
+
+REGISTER_FIRST = "            registered = await self._register_when_free()\n"
+
+
+@mutation(W, REGISTER_FIRST, "            registered = True\n", expect="the command loop of a booting worker ran")
+def test_a_worker_that_boots_during_the_restore_mark_runs_no_loop_until_the_mark_has_committed(db, objects):
+    """The first heartbeat write is made before any loop starts, so it waits for the mark's table lock as a whole:
+    a queued command is neither run nor skipped by the mark while the mark is paused."""
+    cid = new_command(db, "wake", account_id=account(db, checked=False))
+    dump = datetime.now(UTC) + timedelta(hours=1)
+
+    async def scenario(owner, wp):
+        checked, go_on = asyncio.Event(), asyncio.Event()
+
+        async def pause():
+            checked.set()
+            await go_on.wait()
+
+        failpoints.arm("ops.restore.checked", pause)
+        worker = make_worker(wp, FakeEngine(), objects)
+        running = None
+        try:
+            marking = asyncio.create_task(ops.restore_mark(owner, dump))
+            await asyncio.wait_for(checked.wait(), 5)
+            running = asyncio.create_task(worker.run())
+            await asyncio.sleep(1.0)                     # 50 ticks of the command loop
+            async with tx(owner) as conn:
+                status = (await (await conn.execute("SELECT status FROM commands WHERE id = %s", (cid,))).fetchone())[0]
+            go_on.set()
+            await marking
+            return status
+        finally:
+            failpoints.disarm("ops.restore.checked")
+            go_on.set()
+            worker.stop()
+            if running is not None:
+                await asyncio.wait_for(running, 20)
+
+    status = run_as_worker(db, scenario)
+    assert status == "queued", "the command loop of a booting worker ran during the mark"
+
+
+def hold_heartbeat_table(owner_dsn: str, held: "asyncio.Event", release: "asyncio.Event"):
+    """What the restore mark does to the heartbeat table: SHARE mode in an open transaction until released."""
+    import psycopg
+
+    async def hold() -> None:
+        async with await psycopg.AsyncConnection.connect(owner_dsn, autocommit=False) as conn:
+            await conn.execute("LOCK TABLE worker_heartbeats IN SHARE MODE")
+            held.set()
+            await release.wait()
+            await conn.commit()
+
+    return hold()
+
+
+@mutation(W, "            except LockNotAvailable:\n", "            except KeyError:\n",
+          expect="the worker exited instead of waiting for the restore mark")
+def test_a_worker_waits_for_a_restore_mark_longer_than_the_lock_timeout_and_then_starts_normally(db, objects):
+    cid = new_command(db, "wake", account_id=account(db, checked=False))
+
+    async def scenario(owner, wp):
+        held, release = asyncio.Event(), asyncio.Event()
+        holder = asyncio.create_task(hold_heartbeat_table(db.dsn, held, release))
+        worker = make_worker(wp, FakeEngine(), objects)
+        running = None
+        try:
+            await asyncio.wait_for(held.wait(), 5)
+            running = asyncio.create_task(worker.run())
+            await asyncio.sleep(4.5)                                  # past the 3 s lock_timeout of the session
+            if running.done():
+                return "the worker exited instead of waiting for the restore mark: %r" % (
+                    running.exception() or running.result())
+            release.set()
+            await holder
+            await until(lambda: db.one("SELECT count(*) FROM worker_heartbeats")[0] == 1, timeout_s=15)
+            await until(lambda: db.one("SELECT status FROM commands WHERE id = %s", cid)[0] != "queued",
+                        timeout_s=15)
+            return "ok"
+        finally:
+            release.set()
+            worker.stop()
+            if running is not None:
+                await asyncio.wait_for(asyncio.gather(running, return_exceptions=True), 20)
+            await asyncio.gather(holder, return_exceptions=True)
+
+    assert run_as_worker(db, scenario) == "ok"
+
+
+@mutation(W, "        while not self.stopping:\n            try:\n                await self.claims._register()",
+          "        while True:\n            try:\n                await self.claims._register()",
+          expect="a stop signal did not end the wait")
+def test_a_stop_signal_ends_a_worker_that_is_waiting_for_the_restore_mark(db, objects):
+    async def scenario(owner, wp):
+        held, release = asyncio.Event(), asyncio.Event()
+        holder = asyncio.create_task(hold_heartbeat_table(db.dsn, held, release))
+        worker = make_worker(wp, FakeEngine(), objects)
+        try:
+            await asyncio.wait_for(held.wait(), 5)
+            running = asyncio.create_task(worker.run())
+            await asyncio.sleep(0.3)
+            worker.stop()
+            try:
+                return await asyncio.wait_for(running, 4)
+            except TimeoutError:
+                return "a stop signal did not end the wait"
+        finally:
+            release.set()
+            await asyncio.gather(holder, return_exceptions=True)
+
+    assert run_as_worker(db, scenario) == 0

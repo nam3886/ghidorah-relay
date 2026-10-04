@@ -309,3 +309,76 @@ def test_planted_secrets_are_still_found_inside_long_text():
     planted = "%s Cookie: a=SECRET31 %s token=SECRET32 %s bob:hunter2@10.0.0.1:80"
     out = redact_text(planted % (padding, padding, padding))
     assert "SECRET31" not in out and "SECRET32" not in out and "hunter2" not in out
+
+
+# ---- names ending in "key" (R6) ---------------------------------------------------------------------------------
+# Decision: no name is added to the safe list. A name ends in "key" and stays redacted unless it is a name relay
+# itself writes (the safe list above). `public_key`, `storage_key` and `cache_key` are not written by any relay
+# writer, and a client or provider field with such a name holds either a harmless value (losing it costs a log line)
+# or a secret that must not be stored (a mistaken `storage_key` is an access key): redacting is the safe side.
+# What must stay readable is what relay writes: the settings keys and the fields of the request bodies the doors
+# accept (what a request log stores).
+@mutation(SRC, '"id_key", "idempotency_key",', '"id_key", "api_key", "private_key", "secret_key", "access_key", '
+                                               '"idempotency_key",', expect="a real secret named *_key stays redacted")
+def test_a_real_secret_named_key_stays_redacted_and_the_unknown_key_names_stay_redacted_too():
+    secrets = ("api_key", "private_key", "secret_key", "access_key", "signing_key", "x-api-key", "apiKey", "API_KEY")
+    out = redact({name: "S-%s" % name for name in secrets})
+    assert [v for v in out.values() if v != REDACTED] == [], "a real secret named *_key stays redacted"
+    unknown = redact({"public_key": "p", "storage_key": "s", "cache_key": "c"})
+    assert set(unknown.values()) == {REDACTED}, "names relay never writes stay redacted (fail closed)"
+
+
+def test_every_field_name_relay_writes_stays_readable():
+    from relay_core.api.routes_gemini import GenerateBody
+    from relay_core.api.routes_native import ImageBody, VideoBody
+    from relay_core.api.routes_openai import ChatBody
+    from relay_core.settings import REGISTRY
+
+    names = set(REGISTRY.specs) | {"key_id", "job_id", "idempotency_key", "object_key", "media_key"}
+    for model in (VideoBody, ImageBody, ChatBody, GenerateBody):
+        for name, field in model.model_fields.items():
+            names |= {name, field.validation_alias if isinstance(field.validation_alias, str) else name}
+    shown = redact({n: "v" for n in names})
+    assert [n for n, v in shown.items() if v == REDACTED] == [], "relay's own field names stay readable"
+
+
+@mutation(SRC, "return {trim_log_value(k, limit): trim_log_value(v, limit)", "return {k: trim_log_value(v, limit)",
+          expect="a long key is cut too")
+def test_a_long_dict_key_is_cut_like_a_long_value():
+    out = redact_log({"lorem ipsum " * 300 + "PLANTED31": {"x " * 1500 + "PLANTED32": 1}, "short": 2})
+    assert "PLANTED31" not in str(out) and "PLANTED32" not in str(out), "a long key is cut too"
+    assert out["short"] == 2
+
+
+@mutation(SRC, "        record.msg, record.args = redact_log(message), None\n", "        pass\n",
+          expect="a secret in a log line")
+@mutation(SRC, "record.exc_text = redact_text(logging.Formatter().formatException(record.exc_info))",
+          "record.exc_text = logging.Formatter().formatException(record.exc_info)", expect="a secret in a traceback")
+def test_every_line_and_traceback_a_process_logs_goes_through_the_redactor():
+    """A crash or an upstream answer written to the process log must not carry a cookie or a token (review B5)."""
+    import io
+    import logging
+
+    from relay_core.redact import install_log_redaction
+
+    stream = io.StringIO()
+    logger = logging.getLogger("relay.test.redaction")
+    handler = logging.StreamHandler(stream)
+    logger.addHandler(handler)
+    logger.propagate = False
+    try:
+        install_log_redaction("relay.test.redaction")
+        install_log_redaction("relay.test.redaction")                  # twice: still one filter
+        assert len(handler.filters) == 1
+        logger.warning("upstream said %s", "Set-Cookie: sessionid=PLANTEDcookie0123456789; Path=/")
+        try:
+            raise RuntimeError("got 401 for Authorization: Bearer PLANTEDbearer0123456789")
+        except RuntimeError:
+            logger.exception("the request crashed")
+    finally:
+        logger.removeHandler(handler)
+    out = stream.getvalue()
+    assert "PLANTEDcookie0123456789" not in out, "a secret in a log line: %s" % out
+    assert "PLANTEDbearer0123456789" not in out, "a secret in a traceback: %s" % out
+    assert "Traceback" in out and "the request crashed" in out and "RuntimeError" in out, out
+

@@ -9,7 +9,9 @@ One `LeaseKeeper` serves the checks and the commands. The claim loop and the rec
 holds (a task registers its lease with `holding()` for as long as it needs it), so a lease nobody holds expires
 within its TTL.
 
-Start: BILLING_TZ is checked against the pin; a different value refuses to start (exit 2). So does a WORKER_ID that
+Start: BILLING_TZ is checked against the pin; a different value refuses to start (exit 2). The heartbeat row is the
+first write, before any loop starts: a restore mark holds the heartbeat table, so a booting worker waits for it as a
+whole (N17). So does a WORKER_ID that
 contains "/": the reaper derives the worker id from a lease owner by removing the final "/<suffix>".
 `WORKER_ID` (default `worker-<provider>`) names this process's heartbeat row, so it must be unique per worker
 process: two processes sharing one id share one row (each boot resets `started_at`, and one clean exit deletes
@@ -36,6 +38,7 @@ import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
+from psycopg.errors import LockNotAvailable
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
@@ -59,6 +62,7 @@ log = logging.getLogger(__name__)
 
 EXIT_OK, EXIT_FAILED, EXIT_REFUSED = 0, 1, 2
 DRIFT_CHECK_S = 300.0
+REGISTER_RETRY_S = 1.0         # between tries of the first heartbeat write while a restore mark holds its table
 DEFAULT_GRACE_S = 720.0        # below the container's stop grace period (compose: 780 s) so Docker never kills first
 
 LoadAccount = Callable[[Any], Awaitable[AccountView]]
@@ -127,6 +131,20 @@ class Worker:
         signals = (signal.SIGTERM, signal.SIGINT) if install_signals else ()
         for sig in signals:
             loop.add_signal_handler(sig, self.stop)
+        def drop_signals() -> None:
+            for sig in signals:
+                loop.remove_signal_handler(sig)
+
+        try:
+            # The heartbeat row is the first write of the process, before any loop starts: a restore mark holds the
+            # heartbeat table (SHARE), so a worker that boots during it waits here, whole, not only its claim loop.
+            registered = await self._register_when_free()
+        except BaseException:
+            drop_signals()
+            raise
+        if not registered:           # stopped while the mark still held the table: nothing was started
+            drop_signals()
+            return self.exit_code
         keeper_stop = asyncio.Event()
         keeper = asyncio.create_task(self.keeper.run(keeper_stop), name="lease-keeper")
         tasks = self._start()
@@ -146,6 +164,20 @@ class Worker:
             for sig in signals:
                 loop.remove_signal_handler(sig)
         return self.exit_code
+
+    async def _register_when_free(self) -> bool:
+        """The first heartbeat write, retried until it succeeds: a restore mark holds the heartbeat table longer than
+        the session's `lock_timeout`, and the worker waits for it (N17) instead of exiting. False when `stop()` came
+        first."""
+        while not self.stopping:
+            try:
+                await self.claims._register()
+                return True
+            except LockNotAvailable:
+                log.warning("waiting: a restore mark holds the heartbeat table")
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(self._stop.wait(), REGISTER_RETRY_S)
+        return False
 
     def _start(self) -> dict[str, asyncio.Task]:
         runs: dict[str, Callable[[], Awaitable]] = {

@@ -87,7 +87,7 @@ async def lookup(conn: psycopg.AsyncConnection, raw: str) -> ApiKey:
     for key_id, stored, enabled, label, models, max_unfinished in rows:
         if hmac.compare_digest(stored, wanted):        # the hash decides, never the prefix
             if not enabled:
-                raise KeyDisabled()
+                raise KeyDisabled(key_id=key_id)
             return ApiKey(key_id, label, tuple(models), max_unfinished)
     raise KeyRefused()
 

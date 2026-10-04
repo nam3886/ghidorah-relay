@@ -1,6 +1,7 @@
 # Operations
 
-Pinned inputs of the relay images, the worker and the restore runbook. Contracts §3, §7.7, §15, §17 (D23, v1.3 #23).
+Pinned inputs of the relay images, the api and the worker, the `relay` commands and the restore runbook. Contracts §3,
+§7.7, §8, §13, §15, §16, §17 (D23, v1.3 #23).
 Plan phase 7 extends this file with the deploy and backup runbooks and drills the restore.
 
 ## Image digests
@@ -150,6 +151,119 @@ image) and must be cut off in under 2 s, so the timing assertion cannot pass vac
   Every `@mutation` carries `expect="..."`, a substring of the failure the mutation must cause (the test's own
   assertion text, not a helper timeout); `tests/test_mutate.py` fails when a marker has none.
 
+## The api (`relay serve`)
+
+One process: the public API, the admin API and `/healthz` on one plain port, plus the webhook sender, housekeeping
+(at start, then every 15 min) and the daily ledger check. It runs as `relay_api` and never loads an engine.
+
+Environment (names only; the template is `deploy/api.env.example`):
+
+| Variable | Meaning |
+|---|---|
+| `DATABASE_URL` | required; the `relay_api` role |
+| `CREDENTIAL_SEAL_PUBLIC_KEY` | required; account import and proxy edits seal with it. Missing or malformed refuses |
+| `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION` | required object-store settings; the bucket must already exist (the deploy creates it) |
+| `PORT` | default 8100 (the compose file publishes it as `API_PORT`, default 8100) |
+| `BILLING_TZ` | must equal the value pinned by `relay migrate` (first run pins it, UTC when unset); a different value refuses. Never stored in the settings table |
+| `PUBLIC_BASE_URL` | base of the media URLs in job answers; unset = built from the request |
+| `TRUSTED_PROXIES` | `X-Forwarded-*` is honoured only when this is set; there is no reverse proxy in the compose file |
+
+**Refuses to start (exit 2, one line, before it connects unless noted):**
+
+- any variable with `PRIVATE_KEY` in its name is set and not empty (for example `CREDENTIAL_SEAL_PRIVATE_KEY`): the
+  api must never be able to open a sealed credential. The message names the variable, never its value;
+- `DATABASE_URL` is missing;
+- `MINIO_SECRET_KEY` is empty or an example value (for example `minioadmin`): set the real secret;
+- the public key is missing or malformed, or the object-store settings are missing or malformed;
+- two providers declare the same model id or alias;
+- after it connects: `BILLING_TZ` differs from the pin.
+
+Then it gives every (provider, kind) wallet that the built providers declare a closed wallet on the keys that exist,
+and serves. A key therefore runs nothing until `--wallet` (below) or the admin Keys page opens a wallet.
+
+**Shutdown (SIGTERM or SIGINT), in order:** stop serving, with at most 25 s for open requests (a held facade request
+can last 30 min; after 25 s it is cut and its job runs on); stop the runners (each gets 5 s to finish its step, then
+is cancelled); close the database pool. The 25 s grace is under the api container's 30 s `stop_grace_period`, so the
+last two steps still finish before Docker kills the container.
+
+## The `relay` commands
+
+Each command that touches the database reads `DATABASE_URL` (the role it names). Exit codes: 0 done, 1 failed,
+2 refused (a configuration or an argument that must change first). A database or store failure prints one line, with
+no trace and no secret.
+
+| Command | Does |
+|---|---|
+| `relay migrate` | applies the SQL migrations as the owner (the only DDL path), sets the service role passwords, pins `BILLING_TZ` |
+| `relay serve` | the api (above) |
+| `relay worker --provider X` | the worker (below) |
+| `relay admin create-user USERNAME` | makes an admin user |
+| `relay keygen` | prints a new credential key pair |
+| `relay key create`, `relay key disable ID` | API keys |
+| `relay provider drain\|resume X` | drain mode (above) |
+| `relay jobs restore-mark --dump-time T` | the restore runbook |
+| `relay e2e --provider X` | live end-to-end run of one provider |
+
+**`relay admin create-user USERNAME`.** The password is read twice without echo on a terminal, or as one line from a
+pipe; it is never an argument. A password under 10 or over 256 characters, or an example value (`changeme`, `password`, `admin`, `minioadmin` and the placeholders of the docs and env
+examples), is refused with exit 2, and so
+is a user that already exists. Run it for the first admin after `relay migrate`:
+`printf '%s\n' "$PW" | docker compose ... run --rm api relay admin create-user alice`.
+
+**`relay keygen`.** Prints the key id, `CREDENTIAL_SEAL_PUBLIC_KEY=...` (for `api.env` and the admin's import tool)
+and `CREDENTIAL_SEAL_PRIVATE_KEY=...` (the worker env files only). It is printed once and stored nowhere: keep a copy
+of the private key off the box. Rotation is a new key pair; credentials are re-encrypted lazily.
+
+**`relay key create`.** `[--label L] [--models M ...] [--max-unfinished N] [--wallet provider:kind=N|unlimited]...`.
+Prints `created key <id>` and then the raw `rk-...` key, **once** (only its hash is stored). No `--models` = every
+model. `--wallet` repeats; `N` is the day limit, `unlimited` is explicit. A wallet that no built provider declares
+exits 2 and lists the declared ones. **A pair you do not name stays closed**, so a key made without `--wallet` can run
+nothing (its requests are refused by the quota check; codes in `error-codes.md`).
+`relay key disable ID` disables a key (a key is disabled, never deleted here); a disabled key answers 403
+`auth.key_disabled`, and its requests are still logged under it.
+
+**`relay e2e --provider X`.** Runs the provider's live end-to-end module. Until a provider ships one it exits 2
+("has no e2e run yet"); no provider has it before the live phase (plan phase 5).
+
+## The admin API (`/admin`)
+
+On the same port as the public API; there is no distinct admin key. Authentication is user + password, then a session
+token sent as the `X-Admin-Session` header (no cookie).
+
+- `POST /admin/login` returns the token. **Throttle:** 10 failures in 5 minutes per IP, kept in Postgres, so it
+  survives an api restart. An unknown user and a wrong password answer alike (same 401 `auth.invalid_login`, same
+  cost). A missing, unknown or expired session answers 401 `auth.invalid_session`.
+- The session lives `session_ttl_s` (default 86 400 s); expired sessions are purged by the api sweep.
+  `POST /admin/logout` ends one; **a password change (`POST /admin/password`) revokes every session**, the caller's too.
+  An example password is refused here as at `create-user`.
+- **Body caps** (checked before any route runs): a request under `/admin/` with no `X-Admin-Session` (login excepted)
+  is refused 401 and its body is never read; a body over the cap is 413 `input.invalid`. Caps: 1 MiB, except
+  `POST /admin/accounts/import` (200 items of at most 200 000 characters each, about 40 MB). Unknown fields in a body
+  are 400. Password hashing runs at most 2 at a time.
+- Routes: accounts (list, import, edit, screenshot), keys, jobs (list with a cursor, detail, rename, debug, recheck,
+  regenerate, media proxies), settings (read, write, reset; `BILLING_TZ`, `PUBLIC_BASE_URL` and `TRUSTED_PROXIES` are
+  listed read-only because they are boot-time env), alerts (list, acknowledge), `GET /admin/models`. Times are epoch
+  milliseconds (`*_ms`).
+- **Account actions are commands.** Delete, wake, check, proxy re-check, Check all, catalog refresh, job recover and
+  fetch-title answer 202 `{command_id}`; the provider's worker runs them (see "What an operator must know").
+  `GET /admin/commands/{id}` shows status and result. Editing the proxy or enabling an account that holds a live
+  lease answers 409 `pool.account_busy`; a new proxy also queues a proxy re-check, and enabling a disabled account
+  queues a wake.
+- Credentials are never exported, and the account list has no secret column.
+
+## Logs
+
+- **Process log.** Every line the api and the workers write, uvicorn's included, passes the redactor (cookies,
+  `Authorization`, tokens, signed CDN query values, `user:pass@host`, secret labels; any string over 2 000 characters
+  becomes `[omitted len=N]`). A traceback is redacted too, without being cut. The access log keeps the path and drops
+  the query string, so a client that sends `?key=rk-...` leaves no key in it (the API refuses that form anyway).
+- **Request log** (admin "request log", table `request_logs`, kept `log_retention_days`, default 30). One row per
+  request that carried a **known** API key, a disabled key included (its 403 is logged under it). Also logged under
+  the key: a path or method no route serves (404, 405). **Not logged:** a successful read (GET, HEAD or OPTIONS
+  answered 2xx), so a polling client does not flood it; every write and every failure is. A request with no key or
+  an unknown key leaves no row. The body and the error answer are redacted; credential routes keep no body. A client
+  that hangs up is status 499. A logging failure never fails the request.
+
 ## The worker (`relay worker --provider X`)
 
 One process per provider (`dola`, `vibes`, `meta`; the compose services `worker-<provider>`). It loads
@@ -191,9 +305,14 @@ check and no command, and does no catalog maintenance. **Still running:** poller
 title sweep and webhooks, so open jobs finish, fail, refund and notify. Rollback of a provider go-live is drain mode
 (there is no fallback system, D36).
 
-**Not wired yet (phase 3):** `relay provider drain|resume X` and `relay jobs restore-mark --dump-time T` are store
-functions today (`relay_core.jobs.ops.drain`, `resume`, `restore_mark`); the `relay` command does not have them yet.
-Until phase 3, drain mode is the setting `<p>.claims_enabled` itself.
+```bash
+relay provider drain dola     # prints "draining dola"; "(no change)" when it already was
+relay provider resume dola    # prints "resumed dola"
+```
+
+Both set `<p>.claims_enabled` through the settings store (so they take the same path as the admin Settings page) and
+run as `relay_api`. An unknown provider exits 2 and lists the built ones. Drain mode is not an exit code of the worker:
+the worker keeps running and picks the setting up live.
 
 ## Restore runbook (contracts §7.7; drilled in phase 7, not yet on the box)
 
@@ -202,14 +321,19 @@ Order matters: `restore_mark` writes whole tables and a running worker would cla
 1. Restore the database from the dump and start the api. Set the global setting `media_orphan_sweep` to `false` first
    (restoring MinIO from the nightly mirror happens later; a sweep now would delete files whose rows are not back).
 2. Start **no worker**.
-3. Run restore-mark with the dump time `T`. It refuses (`WorkersRunning`) while any worker heartbeat is fresher than
-   45 s. It locks the heartbeat table, so a worker that boots meanwhile has its claim loop wait, but its other loops
-   do not: still start none. It marks every non-terminal job created before `T` plus the longest submit timeout as
+3. Run `relay jobs restore-mark --dump-time T` (ISO 8601 with an offset, for example `2026-10-03T02:00:00+07:00`; no
+   offset exits 2). It runs as `relay_worker` (or the owner) with a 600 s statement timeout and a 30 s lock timeout.
+   It refuses (`WorkersRunning`, exit 1) while any worker heartbeat is fresher than 45 s. It locks the heartbeat table
+   and then the leases, jobs, commands, accounts and capacity rows. A worker that boots meanwhile **waits**: it writes
+   its first heartbeat before any loop starts and retries that write every 1 s, logging that a restore mark holds the
+   heartbeat table, until the mark has committed (a stop signal ends the wait). It does not exit, so Docker's restart
+   loop is not involved; still start none until the mark is done. It marks every non-terminal job created before `T` plus the longest submit timeout as
    `unknown` (never `queued`; reconcile proves each one), except a `queued` job never claimed. A job that was claimed,
    requeued and has no account fails with refund at its render deadline and is never re-sent (D41). Queued commands
-   fail, `left_n` is rebuilt from reported balances, every account is due for a check.
-4. Start the workers in drain mode (`<p>.claims_enabled` false), let the reconciler and the checks settle, then
-   `resume`.
+   fail, `left_n` is rebuilt from reported balances, every account is due for a check. It prints
+   `marked N job(s) unknown`.
+4. Start the workers in drain mode (`<p>.claims_enabled` false; set it with `relay provider drain X` before they
+   boot), let the reconciler and the checks settle, then `relay provider resume X`.
 5. Reconcile MinIO and the rows, then set `media_orphan_sweep` back to `true`.
 
 ## What an operator must know

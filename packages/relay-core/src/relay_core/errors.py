@@ -115,6 +115,10 @@ RULES: dict[str, Rule] = {r.code: r for r in (
     _r("auth.key_disabled", 403, "permission_error", message="the API key is disabled", **_pre),
     _r("auth.model_forbidden", 403, "permission_error", message="the API key may not use this model", **_pre),
     _r("auth.forbidden", 403, "permission_error", message="the request is not allowed", **_pre),
+    # The admin door (D26): a wrong login, and a request without a live admin session.
+    _r("auth.invalid_login", 401, "authentication_error", message="the username or password is wrong", **_pre),
+    _r("auth.invalid_session", 401, "authentication_error", message="the admin session is missing or has expired",
+       **_pre),
     _r("auth.too_many_attempts", 429, "rate_limit_error", message="too many failed attempts; try again later", **_pre),
     # Fail closed: when the key's permissions cannot be read the request is refused.
     _r("auth.permission_unknown", 503, _API, message="the key's permissions could not be checked; try again", **_pre),

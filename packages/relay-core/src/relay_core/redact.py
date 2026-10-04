@@ -12,6 +12,7 @@ cookie missed there is a leaked session). A provider adds its own with `register
 OpenAI token counts (`total_tokens`, ...) contain "token" but are not secrets.
 """
 
+import logging
 import re
 from typing import Any
 
@@ -129,12 +130,37 @@ def trim_log_value(value: Any, limit: int = LOG_VALUE_LIMIT) -> Any:
     recursively. For logs and events: it keeps them readable and bounds what `redact` has to scan, and a secret
     inside a dropped string is dropped with it."""
     if isinstance(value, dict):
-        return {k: trim_log_value(v, limit) for k, v in value.items()}
+        return {trim_log_value(k, limit): trim_log_value(v, limit) for k, v in value.items()}  # a key is text too
     if isinstance(value, (list, tuple)):
         return [trim_log_value(v, limit) for v in value]
     if isinstance(value, str) and len(value) > limit:
         return "[omitted len=%d]" % len(value)
     return value
+
+
+class LogRedactor(logging.Filter):
+    """On a log handler: the message goes through `redact_log` and a traceback through `redact_text` (never cut,
+    so it stays whole). Installed on every handler of the api and worker processes (`install_log_redaction`)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            message = record.getMessage()
+        except Exception:                      # a broken format string: leave the record to the handler
+            return True
+        record.msg, record.args = redact_log(message), None
+        if record.exc_info and not record.exc_text:
+            record.exc_text = redact_text(logging.Formatter().formatException(record.exc_info))
+        if record.stack_info:
+            record.stack_info = redact_text(record.stack_info)
+        return True
+
+
+def install_log_redaction(*logger_names: str) -> None:
+    """Put a `LogRedactor` on every handler of the root logger and of the named loggers, once."""
+    for name in (None, *logger_names):
+        for handler in logging.getLogger(name).handlers:
+            if not any(isinstance(f, LogRedactor) for f in handler.filters):
+                handler.addFilter(LogRedactor())
 
 
 def redact_log(value: Any) -> Any:

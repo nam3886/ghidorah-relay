@@ -150,6 +150,72 @@ def tx_task_violations(root: Path = REPO) -> list[str]:
     return bad
 
 
+# ---- the HTTP layer (contracts §8, §11, D19): relay error types only, and an event loop that never blocks ---------
+HTTP_DIRS = ("packages/relay-core/src/relay_core/api/", "packages/relay-core/src/relay_core/admin/")
+HTTP_ERROR_NAMES = {"HTTPException", "StarletteHTTPException"}
+BLOCKING_CALLS = {"time.sleep", "psycopg.connect", "urllib.request.urlopen", "urlopen", "open"}
+BLOCKING_MODULES = {"requests"}            # any call on the sync `requests` module
+FILE_METHODS = {"read_text", "read_bytes", "write_text", "write_bytes"}
+
+
+def _http_files(root: Path) -> list[Path]:
+    return [p for p in source_files(root) if p.relative_to(root).as_posix().startswith(HTTP_DIRS)]
+
+
+def http_exception_violations(root: Path = REPO) -> list[str]:
+    """No bare `HTTPException` is raised in `relay_core/api` or `relay_core/admin`: a route raises `ApiError(code)`,
+    so the status, `type` and text come from the code's rule and the answer has the one envelope shape (D19). The
+    handler module may import the class to register against it; only a `raise` is refused."""
+    bad = []
+    for p in _http_files(root):
+        for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+            if not isinstance(n, ast.Raise) or n.exc is None:
+                continue
+            target = n.exc.func if isinstance(n.exc, ast.Call) else n.exc
+            name = getattr(target, "id", getattr(target, "attr", ""))
+            if name in HTTP_ERROR_NAMES:
+                bad.append("%s:%d raises %s (raise ApiError(code) instead)" % (p.relative_to(root), n.lineno, name))
+    return bad
+
+
+def _own_calls(fn: ast.AsyncFunctionDef):
+    """The calls an `async def` makes itself: not those of a nested function or lambda, which run elsewhere (a
+    function handed to `asyncio.to_thread` is the usual case)."""
+    todo = list(fn.body)
+    while todo:
+        n = todo.pop()
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            continue
+        if isinstance(n, ast.Call):
+            yield n
+        todo.extend(ast.iter_child_nodes(n))
+
+
+def _dotted(n: ast.AST) -> str:
+    if isinstance(n, ast.Attribute):
+        return _dotted(n.value) + "." + n.attr
+    return n.id if isinstance(n, ast.Name) else ""
+
+
+def blocking_call_violations(root: Path = REPO) -> list[str]:
+    """No blocking call inside an `async def` of `relay_core/api` or `relay_core/admin`: `time.sleep`, any call on
+    the sync `requests` module, `urlopen`, a sync `psycopg.connect`, `open(...)` and `Path.read_text/read_bytes/
+    write_text/write_bytes`. Each stalls the one event loop every request shares; run it with `asyncio.to_thread`
+    (passing the function, not calling it). A deliberately simple name check, not a data-flow analysis: a blocking
+    call reached through another helper is not seen."""
+    bad = []
+    for p in _http_files(root):
+        for fn in (n for n in ast.walk(ast.parse(p.read_text(encoding="utf-8")))
+                   if isinstance(n, ast.AsyncFunctionDef)):
+            for call in _own_calls(fn):
+                name = _dotted(call.func)
+                if (name in BLOCKING_CALLS or name.split(".")[0] in BLOCKING_MODULES
+                        or ("." in name and name.rpartition(".")[2] in FILE_METHODS)):
+                    bad.append("%s:%d %s() blocks the event loop inside async def %s"
+                               % (p.relative_to(root), call.lineno, name, fn.name))
+    return bad
+
+
 def _is_provider_ref(n: ast.AST) -> bool:
     """`provider`, `job.provider`, `row["provider"]`, `getattr(job, "provider")`."""
     if isinstance(n, ast.Subscript):

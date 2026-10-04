@@ -1,0 +1,18 @@
+{
+  "auth": "x-goog-api-key",
+  "body": {
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "a cat"
+          }
+        ],
+        "role": "user"
+      }
+    ]
+  },
+  "method": "POST",
+  "path": "/v1beta/models/fake-video:streamGenerateContent",
+  "query": "alt=sse"
+}

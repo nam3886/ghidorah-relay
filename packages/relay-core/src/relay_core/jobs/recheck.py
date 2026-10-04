@@ -56,7 +56,7 @@ async def _recharge(conn: AsyncConnection, job_id, key_id, provider: str, kind: 
         return 0
     try:
         await billing.charge(conn, key_id, provider, kind, price, job_id)
-    except billing.BillingError as e:
+    except (billing.QuotaExceeded, billing.KeyDisabled) as e:     # a missing wallet is a bug: it propagates (§4.1)
         log.warning("job %s revived without a new charge: %s", job_id, e)
         return 0
     return price
@@ -193,7 +193,7 @@ async def recover_in_tx(conn: AsyncConnection, job_id, outputs: Sequence[StoredO
 # ---- Regenerate --------------------------------------------------------------------------------------------------
 CopyInputs = Callable[[Any, list[InputMedia]], Awaitable[tuple[InputMedia, ...]]]
 
-_SOURCE = "SELECT provider, key_id, prompt, title FROM jobs WHERE id = %s"
+_SOURCE = "SELECT provider, key_id, prompt, title, request FROM jobs WHERE id = %s"
 
 
 async def regenerate_job(db: AsyncConnectionPool, job_id, settings: Settings, *, plan: Plan,
@@ -210,8 +210,8 @@ async def regenerate_job(db: AsyncConnectionPool, job_id, settings: Settings, *,
         old = [InputMedia(*r) for r in await (await conn.execute(
             "SELECT idx, object_key, mime, size, width, height FROM job_media WHERE job_id = %s AND role = 'input' "
             "ORDER BY idx", (job_id,))).fetchall()]
-    provider, key_id, prompt, title = row
-    new = NewJob(provider, key_id, plan, prompt, title)
+    provider, key_id, prompt, title, request = row
+    new = NewJob(provider, key_id, plan, prompt, title, request=request)   # kept, so the new job can be regenerated
     if old:
         if copy_inputs is None:
             raise ValueError("the job has input media: copy_inputs is required")

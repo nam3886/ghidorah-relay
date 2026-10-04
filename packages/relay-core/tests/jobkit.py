@@ -54,9 +54,11 @@ def account(db, *, left=None, pool_name="video", state="available", checked=True
 def new_job(key_id, prompt="a prompt", *, model=PROVIDER + "-video", idem=None, body=None, inputs=(), **options):
     """A NewJob planned by the fake spec; `options` steer the plan (account_cost, completion, price, ...)."""
     plan = SPEC.plan(CreateRequest(model=model, prompt=prompt, options=options), SETTINGS, {})
+    sent = {"endpoint": "video", "model": model, "prompt": prompt, "duration": None, "ratio": None, "n": None,
+            "options": {}, "title": None, "callback_url": None, "images": [{"input": m.idx} for m in inputs]}
     return store.NewJob(PROVIDER, key_id, plan, prompt, idem_key=idem,
                         idem_body_hash=None if idem is None else store.body_hash(body or {"prompt": prompt}),
-                        inputs=tuple(inputs))
+                        inputs=tuple(inputs), request=sent)
 
 
 async def create(p, key_id, prompt="a prompt", *, settings=SETTINGS, **kw) -> store.Created:

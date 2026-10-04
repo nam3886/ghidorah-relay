@@ -19,6 +19,8 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 |---|---|---|---|---|---|---|---|
 | `auth.forbidden` | 403 | permission_error | yes | no | no | no | the request is not allowed |
 | `auth.invalid_key` | 401 | authentication_error | yes | no | no | no | the API key is not valid |
+| `auth.invalid_login` | 401 | authentication_error | yes | no | no | no | the username or password is wrong |
+| `auth.invalid_session` | 401 | authentication_error | yes | no | no | no | the admin session is missing or has expired |
 | `auth.key_disabled` | 403 | permission_error | yes | no | no | no | the API key is disabled |
 | `auth.model_forbidden` | 403 | permission_error | yes | no | no | no | the API key may not use this model |
 | `auth.permission_unknown` | 503 | api_error | yes | no | no | no | the key's permissions could not be checked; try again |

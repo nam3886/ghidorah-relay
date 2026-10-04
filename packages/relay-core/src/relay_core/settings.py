@@ -146,6 +146,10 @@ class Settings:
         self._task: asyncio.Task | None = None
         self._ready = asyncio.Event()
 
+    def specs(self) -> dict[str, Spec]:
+        """Every setting this process knows (key -> its spec), for a listing."""
+        return dict(self._registry.specs)
+
     def get(self, key: str) -> Any:
         spec = self._registry.spec(key)
         if key in self._stored:

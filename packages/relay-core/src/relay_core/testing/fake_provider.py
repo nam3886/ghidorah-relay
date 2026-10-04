@@ -23,6 +23,7 @@ from relay_core.providers import (
     Dead,
     Done,
     Health,
+    InputError,
     JobView,
     ModelSpec,
     Output,
@@ -56,9 +57,12 @@ class FakeSpec:
                 ModelSpec(self.name + "-image", "image", ("generate",), prices={"default": 1})]
 
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
-        """Options steer the plan: `account_cost`, `completion` (hold|detach), `submit_timeout_s`, `price`."""
+        """Options steer the plan: `account_cost`, `completion` (hold|detach), `submit_timeout_s`, `price`;
+        `refuse` (a platform code, with `param`) makes it refuse the request as a real spec does."""
         video = req.model.endswith("-video")
         o = req.options
+        if o.get("refuse"):
+            raise InputError(o["refuse"], o.get("param"))
         return Plan(
             operation="generate", media_type="video" if video else "image", model=req.model,
             params={"mime": "video/mp4" if video else "image/png", "completion": o.get("completion", "detach")},

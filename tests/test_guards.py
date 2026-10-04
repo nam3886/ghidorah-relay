@@ -29,7 +29,8 @@ def plant(root: Path, rel: str, src: str) -> Path:
 
 @pytest.mark.parametrize("check", [guards.import_violations, guards.route_violations, guards.launch_violations,
                                    guards.identifier_violations, guards.demo_violations,
-                                   guards.core_provider_violations, guards.tx_task_violations])
+                                   guards.core_provider_violations, guards.tx_task_violations,
+                                   guards.http_exception_violations, guards.blocking_call_violations])
 def test_repo_is_clean(check):
     assert check() == []
 
@@ -318,3 +319,70 @@ def test_tx_block_guard_leaves_test_files_alone(tmp_path):
     plant(tmp_path, "packages/relay-core/tests/test_x.py",
           "async def f(pool):\n    async with tx(pool) as conn:\n        asyncio.create_task(late(conn))\n")
     assert guards.tx_task_violations(tmp_path) == []
+
+
+API = "packages/relay-core/src/relay_core/api/"
+ADMIN = "packages/relay-core/src/relay_core/admin/"
+
+
+@mutation(G, "if name in HTTP_ERROR_NAMES:", "if False:", expect="a bare HTTPException must be reported")
+@mutation(G, "if not isinstance(n, ast.Raise) or n.exc is None:", "if True:",
+          expect="a bare HTTPException must be reported")
+@pytest.mark.parametrize("rel, raised", [
+    (API + "routes_x.py", "raise HTTPException(status_code=404, detail='x')"),
+    (ADMIN + "routes_x.py", "raise HTTPException(404)"),
+    (API + "routes_x.py", "raise fastapi.HTTPException(404)"),
+    (API + "routes_x.py", "raise StarletteHTTPException(404)"),
+])
+def test_a_bare_http_exception_is_refused_in_the_http_layer(tmp_path, rel, raised):
+    plant(tmp_path, rel, "def f():\n    %s\n" % raised)
+    found = guards.http_exception_violations(tmp_path)
+    assert len(found) == 1 and "raises" in found[0], "a bare HTTPException must be reported: %s" % found
+
+
+@mutation(G, "startswith(HTTP_DIRS)", "startswith(('nowhere/',))", expect="the http exception guard scanned nothing")
+@mutation(G, "startswith(HTTP_DIRS)", "startswith('')", expect="the http exception guard scanned nothing")
+def test_the_http_exception_guard_allows_api_error_and_other_directories(tmp_path):
+    plant(tmp_path, API + "routes_x.py", "from fastapi import HTTPException\n\ndef f():\n    raise ApiError('x.y')\n")
+    plant(tmp_path, API + "routes_y.py", "def f():\n    raise HTTPException(500)\n")
+    plant(tmp_path, CORE + "other.py", "def f():\n    raise HTTPException(500)\n")
+    found = guards.http_exception_violations(tmp_path)
+    assert len(found) == 1 and "routes_y.py" in found[0], "the http exception guard scanned nothing: %s" % found
+
+
+@mutation(G, 'if (name in BLOCKING_CALLS or name.split(".")[0] in BLOCKING_MODULES',
+          "if (False or name.split('.')[0] in BLOCKING_MODULES", expect="blocks the event loop inside async def")
+@mutation(G, 'or ("." in name and name.rpartition(".")[2] in FILE_METHODS)):', "or False):",
+          expect="blocks the event loop inside async def")
+@pytest.mark.parametrize("call", [
+    "time.sleep(1)",
+    "requests.get('https://x')",
+    "urllib.request.urlopen('https://x')",
+    "psycopg.connect('dsn')",
+    "open('f').read()",
+    "Path('f').read_text()",
+    "self.path.write_bytes(b'')",
+])
+def test_a_blocking_call_in_an_async_handler_is_caught(tmp_path, call):
+    plant(tmp_path, API + "routes_x.py", "async def handler():\n    x = %s\n" % call)
+    found = guards.blocking_call_violations(tmp_path)
+    assert len(found) == 1 and "blocks the event loop inside async def handler" in found[0], found
+
+
+@mutation(G, "        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):\n            continue\n",
+          "        if False:\n            continue\n", expect="a call that runs elsewhere was flagged")
+def test_the_blocking_guard_allows_to_thread_sync_helpers_and_awaited_connect(tmp_path):
+    plant(tmp_path, ADMIN + "routes_x.py", """\
+        async def handler(path):
+            def read():
+                return open(path).read()
+            a = await asyncio.to_thread(read)
+            b = await asyncio.to_thread(path.read_text)
+            c = await asyncio.to_thread(lambda: open(path))
+            d = await psycopg.AsyncConnection.connect("dsn")
+            await asyncio.sleep(1)
+        def sync_ok():
+            time.sleep(1)
+        """)
+    found = guards.blocking_call_violations(tmp_path)
+    assert found == [], "a call that runs elsewhere was flagged: %s" % found

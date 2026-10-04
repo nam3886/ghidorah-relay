@@ -45,9 +45,9 @@ async def restore_mark(db: AsyncConnectionPool, dump_time: datetime) -> int:
     account is due for a check. Returns how many jobs were marked.
 
     It writes whole tables, so it refuses (`WorkersRunning`) while any worker's heartbeat is fresh: the runbook runs
-    it before the workers start. The heartbeat table is locked first (SHARE), so a booting worker's claim loop
-    waits at its first heartbeat write; its other loops do not, so the runbook starts NO worker until this has
-    returned. Rows are then locked in the global order: leases, jobs, commands, accounts, capacity rows."""
+    it before the workers start. The heartbeat table is locked first (SHARE), and a booting worker writes its first
+    heartbeat before it starts any loop, so the whole worker waits until this has returned. Rows are then locked in
+    the global order: leases, jobs, commands, accounts, capacity rows."""
     if dump_time.tzinfo is None:
         raise ValueError("the dump time needs a timezone")
     async with tx(db) as conn:

@@ -33,8 +33,8 @@ MARKER_COPIED = (
     "    async with tx(db) as conn:\n"
     "        await conn.execute(\"UPDATE jobs SET marker = (SELECT marker FROM jobs WHERE id = %s) WHERE id = %s\",\n"
     "                           (job_id, created.job_id))\n")
-PLAN_USED = "    new = NewJob(provider, key_id, plan, prompt, title)\n"
-PLAN_FREE = "    new = NewJob(provider, key_id, replace(plan, price=0), prompt, title)\n"
+PLAN_USED = "    new = NewJob(provider, key_id, plan, prompt, title, request=request)"
+PLAN_FREE = "    new = NewJob(provider, key_id, replace(plan, price=0), prompt, title, request=request)"
 SWEEP = "AND share_expires_at <= clock_timestamp()"
 SWEEP_ALL = "AND share_expires_at IS NOT NULL"
 
@@ -353,3 +353,23 @@ def test_input_links_stop_at_expiry_and_at_revoke_and_only_the_ones_meant(db):
     assert served == "a/input/0.png" and expired == "expired" and swept == 1 and gone == "unknown_or_revoked"
     assert still == "b/input/0.png", "a link that has not expired survives the sweep"
     assert revoked == 1 and revoked_gone == "unknown_or_revoked" and other == "c/input/0.png"
+
+
+@mutation(RC, "except (billing.QuotaExceeded, billing.KeyDisabled) as e:", "except billing.BillingError as e:",
+          expect="a missing wallet row is an internal error")
+def test_recheck_with_a_missing_wallet_row_fails_loudly_and_revives_nothing(db):
+    k, _ = key(db), account(db)
+
+    async def scenario(p):
+        job_id = await failed_job(p, k)
+        db.run("UPDATE jobs SET wallet_kind = 'audio' WHERE id = %s", job_id)      # the key has no such wallet
+        try:
+            await store.recheck_job(p, job_id)
+        except billing.WalletMissing:
+            return job_id, True
+        return job_id, False
+
+    job_id, raised = run(db, scenario)
+    assert raised, "a missing wallet row is an internal error: Re-check must not swallow it"
+    assert status(db, job_id) == "failed", "the job is not revived"
+    assert ledger(db, job_id) == (1, 1)

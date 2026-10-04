@@ -344,6 +344,15 @@ class MediaIn:
     size: int
 
 
+class InputError(ValueError):
+    """What `ProviderSpec.plan()` raises to refuse a request: a registered platform `code` and, optionally, the
+    request field (`param`) it is about. The API answers with that code; any other exception is a crash."""
+
+    def __init__(self, code: str, param: str | None = None):
+        super().__init__(code)
+        self.code, self.param = code, param
+
+
 @dataclass(frozen=True)
 class CreateRequest:
     model: str

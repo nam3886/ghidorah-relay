@@ -1,0 +1,26 @@
+{
+  "auth": "authorization",
+  "body": {
+    "messages": [
+      {
+        "content": [
+          {
+            "text": "a cat",
+            "type": "text"
+          },
+          {
+            "image_url": {
+              "url": "data:image/png;base64,iVBORw0KGgoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+            },
+            "type": "image_url"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "model": "fake-video"
+  },
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "query": ""
+}

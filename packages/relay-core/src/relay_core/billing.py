@@ -51,6 +51,10 @@ class BillingError(Exception):
 class KeyDisabled(BillingError):
     code = "auth.key_disabled"
 
+    def __init__(self, *args, key_id=None):
+        super().__init__(*args)
+        self.key_id = key_id      # set by keys.lookup once the hash matched, so the refusal is logged under that key
+
 
 class QuotaExceeded(BillingError):
     code = "quota.key_exceeded"

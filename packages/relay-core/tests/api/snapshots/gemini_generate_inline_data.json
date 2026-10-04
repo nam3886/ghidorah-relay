@@ -1,0 +1,24 @@
+{
+  "auth": "x-goog-api-key",
+  "body": {
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "a cat"
+          },
+          {
+            "inlineData": {
+              "data": "iVBORw0KGgr7_777_777_777_777_74B",
+              "mime_type": "image/png"
+            }
+          }
+        ],
+        "role": "user"
+      }
+    ]
+  },
+  "method": "POST",
+  "path": "/v1beta/models/fake-video:generateContent",
+  "query": ""
+}

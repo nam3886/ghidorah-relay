@@ -108,6 +108,15 @@ def test_the_cut_back_global_keys_are_registered_with_their_defaults():
         "filename_pattern": "{prompt}_{duration}"}
 
 
+@mutation(S, "return dict(self._registry.specs)", "return {}", expect="the listing must hold every setting")
+def test_the_public_listing_holds_every_setting_of_this_process_and_is_a_copy():
+    settings = Settings(None, "", registry=Registry(*REGISTRY.specs.values(), Spec("p.x", int, 1, "d")), env={})
+    listing = settings.specs()
+    assert set(listing) == {*REGISTRY.specs, "p.x"}, "the listing must hold every setting"
+    listing.clear()
+    assert "p.x" in settings.specs(), "a caller must not edit the registry through the listing"
+
+
 # ---- I19: validate before write -----------------------------------------------------------------------------------
 @mutation(S, VALIDATE_BEFORE_WRITE, SKIP_VALIDATION, expect="with pytest.raises(SettingsError):")
 def test_a_value_that_fails_validation_is_refused_and_the_stored_value_stays(db):

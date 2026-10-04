@@ -140,7 +140,7 @@ def test_an_unknown_or_malformed_key_gets_one_refusal_and_a_disabled_one_is_not_
     run(db, scenario)
 
 
-@mutation(K, "raise KeyDisabled()", "raise KeyRefused()", expect="relay_core.keys.KeyRefused")
+@mutation(K, "raise KeyDisabled(key_id=key_id)", "raise KeyRefused()", expect="relay_core.keys.KeyRefused")
 def test_the_holder_of_a_disabled_key_is_told_403_key_disabled(db):
     async def scenario(pool):
         k = await make(pool)

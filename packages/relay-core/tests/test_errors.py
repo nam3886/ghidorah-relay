@@ -172,12 +172,10 @@ def test_assignment_scan_sees_a_code_used_and_one_forgotten(tmp_path):
 # ways: an unassigned code missing from this list (a code nobody uses, or a provider code from its own phase on), and
 # an entry that is assigned now (a stale entry), so the list can only be exactly the unassigned codes.
 PENDING = frozenset("""
-input.empty_prompt input.bad_duration input.bad_ratio input.bad_model input.bad_style input.image_unreadable
 input.prompt_ratio_conflict input.prompt_duration_conflict
-input.too_many_images input.prompt_too_long input.template_not_found
-auth.model_forbidden auth.forbidden auth.too_many_attempts auth.permission_unknown
+input.template_not_found
 pool.no_account pool.account_cannot_afford pool.account_out_of_points pool.account_logged_out
-pool.account_throttled pool.account_region_blocked pool.account_busy pool.proxy_failed
+pool.account_throttled pool.account_region_blocked pool.proxy_failed
 account.dead_session account.wrong_conversation account.prompt_mismatch
 render.watermarked_only
 """.split())

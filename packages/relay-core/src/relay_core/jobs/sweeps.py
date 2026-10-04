@@ -1,7 +1,7 @@
 """Sweeps for the api process (contracts 9, 15; invariant I25): retention, orphans, expired sessions and input
-links, and the daily ledger check. Plain functions; the api's housekeeping tick (a later phase) calls `run_housekeeping`
-and the ledger check once a day. Every delete loops in bounded batches, each in its own short transaction, and every
-object-store call happens outside a transaction.
+links, and the daily ledger check. Plain functions; the api's runners (`api/runners.py`) call `run_housekeeping`
+every 15 minutes and the ledger check once a day. Every delete loops in bounded batches, each in its own short
+transaction, and every object-store call happens outside a transaction.
 """
 
 import logging

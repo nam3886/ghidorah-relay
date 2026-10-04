@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8.3", "pyyaml>=6", "ruff>=0.8"]
+dev = ["pytest>=8.3", "pyyaml>=6", "ruff>=0.8", "openai>=1.50", "google-genai>=1.0"]
 
 [tool.uv]
 package = false
@@ -46,3 +46,6 @@ known-local-folder = ["guards"]
 testpaths = ["tests", "packages", "apps"]
 addopts = "-q --strict-markers"
 markers = ["browser: needs Google Chrome; runs only in scripts/check-in-container.sh on the box (contracts §14, D33)"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query"]   # the FastAPI parameter idiom

@@ -1,0 +1,15 @@
+{
+  "auth": "authorization",
+  "body": {
+    "messages": [
+      {
+        "content": "a cat",
+        "role": "user"
+      }
+    ],
+    "model": "fake-video"
+  },
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "query": ""
+}

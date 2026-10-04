@@ -76,6 +76,7 @@ class ClaimLoop:
         self._tick_errors = 0           # consecutive unexpected errors of the claim tick
         self._job_errors = 0            # consecutive unexpected errors of submits
         self.exit_code = 0
+        self._registered = False        # the worker process registers before any loop starts; the claim loop only once
         self.lag_max_s = 0.0            # worst loop lag since the last heartbeat row
 
     # ---- stop and loud failure ---------------------------------------------------------------------------------
@@ -277,7 +278,9 @@ class ClaimLoop:
 
     async def _register(self) -> None:
         """A heartbeat row left by an earlier run means that run ended abnormally: the browser budget ramps up
-        again instead of starting at full load (contracts 3, restart back-off)."""
+        again instead of starting at full load (contracts 3, restart back-off). Once per run."""
+        if self._registered:
+            return
         async with tx(self.db) as conn:
             left_behind = await (await conn.execute("SELECT 1 FROM worker_heartbeats WHERE worker_id = %s",
                                                     (self.worker_id,))).fetchone()
@@ -288,6 +291,7 @@ class ClaimLoop:
             log.warning("worker %s restarted after an abnormal exit: the browser budget ramps up", self.worker_id)
             self.budget.start_ramp()
         await self.beat()
+        self._registered = True
 
     # ---- run and shutdown --------------------------------------------------------------------------------------
     async def run(self, *, install_signals: bool = False) -> int:
