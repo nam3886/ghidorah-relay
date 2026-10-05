@@ -4,8 +4,9 @@
 #   scripts/check.sh --full    the same, then scripts/mutate.py (every @mutation must turn its test red),
 #                              scripts/soak.py (200 seeds; SOAK_SEEDS=n changes it, 0 skips it) and the browser tier
 #                              inside the box container (scripts/check-in-container.sh)
-#   scripts/check.sh --full --local   the same without the box: the browser tier is skipped and SAID to be
-#                              skipped. For phases that change no browser code and must not touch the box.
+#   scripts/check.sh --full --local   the same without the box (D59): the browser tier runs on this Mac with the
+#                              installed Google Chrome (D60); the pinned Linux Chrome, Xvfb and the container entry
+#                              are proven only by the box run.
 #   MUTATE_ONLY="test_x test_y" scripts/check.sh --full --local   mutate only the markers of those tests/files
 #   scripts/check.sh --soak [soak.py args]   only the soak (its own database and bucket), e.g. `--soak --seed 13 --verbose`
 #                              to replay a failing seed; not a gate: it never prints CHECK: GREEN
@@ -76,7 +77,20 @@ if [ "$full" = 1 ]; then
     echo "soak: SKIPPED (SOAK_SEEDS=0)"
   fi
   if [ "$local_only" = 1 ]; then
-    echo "browser tier: SKIPPED (--local: nothing ran on the box)"
+    # D60: the browser suites on the Mac (patchright + the installed Google Chrome). Exit 5 = none selected: a note
+    # for a narrowed run (it is PARTIAL anyway), a failure for the whole gate, which must never end GREEN without one.
+    rc=0
+    uv run pytest -m "browser and not box" ${args[@]+"${args[@]}"} || rc=$?
+    if [ "$rc" = 5 ] && [ "$nargs" = 0 ]; then
+      echo "browser tier: FAILED, no browser test was selected in a run with no pytest arguments (a mark or a collect-ignore changed?)" >&2
+      exit 1
+    elif [ "$rc" = 5 ]; then
+      echo "browser tier: no browser test selected"
+    elif [ "$rc" != 0 ]; then
+      exit "$rc"
+    else
+      echo "browser tier: GREEN on this Mac (D60); box image tests (-m box) not run: they need the box"
+    fi
   else
     scripts/check-in-container.sh
   fi

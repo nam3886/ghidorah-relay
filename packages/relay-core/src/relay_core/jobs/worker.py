@@ -35,7 +35,7 @@ import logging
 import os
 import signal
 import uuid
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, MutableMapping
 from typing import Any
 
 from psycopg.errors import LockNotAvailable
@@ -275,6 +275,11 @@ async def serve(spec: ProviderSpec, build_engine: Callable[[ProviderSpec, Settin
         return EXIT_REFUSED
     try:
         keys = crypto.private_keys_from_env(env)
+        # The keys live in this process's memory from here on (the list is all a rotation needs). Nothing that runs
+        # later, an engine, a browser or any child process, can read them from the environment.
+        for source in (os.environ, env):
+            if isinstance(source, MutableMapping):
+                source.pop(crypto.PRIVATE_KEY_VAR, None)
         store = ObjectStore.from_env(env)
         browser = spec.caps.execution == "browser"
         ceiling = ceiling_from_env(spec.name, env) if browser else None

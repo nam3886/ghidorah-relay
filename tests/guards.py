@@ -75,6 +75,8 @@ def import_violations(root: Path = REPO) -> list[str]:
             where = "%s:%d imports %s" % (rel, line, mod)
             if me == "relay_core" and (top in PROVIDER_MODULES or top == "relay_browser"):
                 bad.append(where + " (relay_core imports no provider and no relay_browser)")
+            if me == "relay_browser" and top == "relay_core":
+                bad.append(where + " (relay_browser imports no relay_core: the caller passes the redactor)")
             if me in PROVIDER_MODULES and top in PROVIDER_MODULES and top != me:
                 bad.append(where + " (providers never import each other)")
             if top in BROWSER_ONLY and me != "relay_browser":

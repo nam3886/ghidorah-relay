@@ -24,7 +24,7 @@ import uuid
 
 import pytest
 
-pytestmark = pytest.mark.browser
+pytestmark = [pytest.mark.browser, pytest.mark.box]   # the box image itself: never on the Mac (D60)
 
 GRACE_S = 6
 

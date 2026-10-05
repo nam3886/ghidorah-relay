@@ -37,6 +37,8 @@ def test_repo_is_clean(check):
 
 @mutation(G, 'if me == "relay_core" and (top in PROVIDER_MODULES or top == "relay_browser"):', "if False:",
            expect="found and why in found[0], found")
+@mutation(G, 'if me == "relay_browser" and top == "relay_core":', "if False:",
+           expect="found and why in found[0], found")
 @mutation(G, "if me in PROVIDER_MODULES and top in PROVIDER_MODULES and top != me:", "if False:",
            expect="found and why in found[0], found")
 @mutation(G, 'if top in BROWSER_ONLY and me != "relay_browser":', "if False:",
@@ -46,6 +48,9 @@ def test_repo_is_clean(check):
 @pytest.mark.parametrize("rel, src, why", [
     ("packages/relay-core/src/relay_core/x.py", "import relay_dola\n", "relay_core imports no provider"),
     ("packages/relay-core/src/relay_core/x.py", "from relay_browser import net\n", "relay_core imports no provider"),
+    ("packages/relay-browser/src/relay_browser/x.py", "from relay_core.redact import redact_text\n",
+     "relay_browser imports no relay_core"),
+    ("packages/relay-browser/src/relay_browser/x.py", "import relay_core\n", "relay_browser imports no relay_core"),
     ("packages/provider-vibes/src/relay_vibes/x.py", "from relay_meta.spec import SPEC\n", "never import each other"),
     ("packages/provider-vibes/src/relay_vibes/engine/x.py", "import patchright\n", "patchright only inside"),
     ("packages/provider-dola/src/relay_dola/spec.py", "from relay_dola.engine import run\n", "a pure provider module"),
@@ -243,9 +248,11 @@ def run_py(code: str) -> str:
     return subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip()
 
 
-LOADED = ("import sys; print(sorted(m for m in sys.modules if m.split('.')[0] in "
+# The browser packages count by their top-level name: relay_browser.session or a patchright submodule is the same fact.
+LOADED = ("import sys; print(sorted({m if m.endswith(('.engine', '.e2e')) else m.split('.')[0] "
+          "for m in sys.modules if m.split('.')[0] in "
           "('relay_browser', 'patchright', 'relay_dola', 'relay_vibes', 'relay_meta') and "
-          "(m.endswith('.engine') or m.endswith('.e2e') or m.split('.')[0] in ('relay_browser', 'patchright'))))")
+          "(m.endswith('.engine') or m.endswith('.e2e') or m.split('.')[0] in ('relay_browser', 'patchright'))}))")
 
 
 def loaded_after(*argv: str) -> str:

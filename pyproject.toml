@@ -45,7 +45,10 @@ known-local-folder = ["guards"]
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages", "apps"]
 addopts = "-q --strict-markers"
-markers = ["browser: needs Google Chrome; runs only in scripts/check-in-container.sh on the box (contracts §14, D33)"]
+markers = [
+    "browser: needs Google Chrome; runs in the --full gate: on the Mac with --local (D60), else in scripts/check-in-container.sh on the box (D33)",
+    "box: proves the box image (Linux Chrome .deb, Xvfb, entry script); runs only in scripts/check-in-container.sh",
+]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query"]   # the FastAPI parameter idiom

@@ -13,7 +13,7 @@ from enginekit import until, within
 from jobkit import POOLS, SPEC, account, create, key
 from lifecyclekit import MediaEngine, load_account
 
-from relay_core import failpoints
+from relay_core import crypto, failpoints
 from relay_core.db import open_pool, tx
 from relay_core.jobs import ops
 from relay_core.jobs import worker as worker_module
@@ -327,6 +327,31 @@ def test_serve_refuses_a_missing_dsn_and_a_missing_private_key_before_connecting
     assert asyncio.run(serve(spec, lambda s, st: FakeEngine(), {})) == 2
     no_keys = {k: v for k, v in env_for(db).items() if k != "CREDENTIAL_SEAL_PRIVATE_KEY"}
     assert asyncio.run(serve(spec, lambda s, st: FakeEngine(), no_keys)) == 2
+
+
+@mutation(W, "                source.pop(crypto.PRIVATE_KEY_VAR, None)", "                pass",
+          expect="the private key is still in the environment")
+@mutation(W, "        for source in (os.environ, env):", "        for source in (env,):",
+          expect="the private key is still in the environment")
+def test_serve_takes_the_private_keys_out_of_the_environment_once_it_has_read_them(db, monkeypatch):
+    db.pin("UTC")
+    keys = "FAKE-key-one,FAKE-key-two"
+    monkeypatch.setenv(crypto.PRIVATE_KEY_VAR, keys)
+    env = env_for(db, BILLING_TZ="UTC", **{crypto.PRIVATE_KEY_VAR: keys})
+    seen = {}
+
+    class Stop(Exception):
+        pass
+
+    def build_engine(spec, settings):               # runs after the keys were read, before any engine or browser
+        seen["process"] = os.environ.get(crypto.PRIVATE_KEY_VAR)
+        seen["passed"] = env.get(crypto.PRIVATE_KEY_VAR)
+        raise Stop
+
+    with pytest.raises(Stop):
+        asyncio.run(serve(FakeSpec(), build_engine, env, install_signals=False))
+    assert seen == {"process": None, "passed": None}, "the private key is still in the environment: %r" % seen
+    assert crypto.private_keys_from_env({crypto.PRIVATE_KEY_VAR: keys}) == keys.split(","), "premise: a comma list"
 
 
 REGISTER_CHECK = "        ProviderRegistry().register(spec)"

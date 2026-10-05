@@ -127,6 +127,51 @@ exits non-zero with a message: the worker never starts without a display.
 start, and a negative control that runs the old entrypoint (`tini -g -- xvfb-run`, which is why `xauth` stays in the
 image) and must be cut off in under 2 s, so the timing assertion cannot pass vacuously.
 
+## The browser kit (`relay-browser`)
+
+Used by browser workers only (dola, meta). Everything is read from the environment of the worker process.
+
+| Variable | Meaning |
+|---|---|
+| `RELAY_CHROME_PATH` | Chrome binary; wins over the provider's `executable_path` and over the default `channel="chrome"` (the installed Google Chrome) |
+| `RELAY_BROWSER_HEADLESS` | `1` = headless; unset = headful (on the box under Xvfb). Only the Mac test tier sets it. A provider's own `headless` setting wins |
+| `RELAY_PROFILE_ROOT` | Directory holding the profiles. Unset = `<system temp>/relay-profiles` (lost on restart). The compose workers mount a volume at `/profiles`; the `worker-*.env.example` files do not set this variable yet, so set `RELAY_PROFILE_ROOT=/profiles` in `deploy/worker-<provider>.env` or the cache is not kept (see below) |
+
+- **One profile per account and credential generation**: `<root>/<account id>-g<credential_gen>`, plus a
+  `<name>.lock` file. A replaced credential gets a new profile and never inherits page state. Account ids must match
+  `[A-Za-z0-9_-]{1,64}`.
+- **Kept between runs**: the HTTP cache (`Default/Cache`, capped per site, 150 MB), `Default/Code Cache` and
+  `Default/Local Storage`. They spare the account's proxy a download of the site's scripts on every send.
+- **Removed at open and again at close**: everything else (cookies, session storage, IndexedDB, login data, the
+  `Singleton*` links, the open marker). The site's declared token keys are stripped from Local Storage at close,
+  with the site's scripts stopped first; if the strip fails, is cancelled or Chrome had to be killed, Local Storage
+  is dropped whole, and so it is at the next open after a crash (the `.relay-open` marker is still there).
+  Cost: one more download of the site's UI strings, never a leaked token.
+- **Sweep**: every claim deletes profiles nobody opened for more than 3 days (credential replaced, account
+  deleted), skipping the current one and any whose lock another run holds. A sweep failure is only logged.
+- **Network**: Chrome's own background traffic (component updates, account and time checks, push check-in, safe
+  browsing; D61) is answered 502 at the local forwarder, so it never reaches an account proxy. Without a proxy
+  there is no forwarder, so nothing is refused. `www.google.com` stays open by default (reCAPTCHA needs it).
+  Images and fonts are off by launch flags unless the run attaches or reads images.
+- **Environment**: Chrome gets an allow-list of variables (`PATH HOME USER LOGNAME LANG LANGUAGE TZ DISPLAY
+  XAUTHORITY LC_* XDG_* FONTCONFIG_*`, plus its own `TMPDIR`), never the worker's environment. The worker also
+  removes `CREDENTIAL_SEAL_PRIVATE_KEY` from its own environment once it has read the key (D62), so nothing started
+  later can read it; `env` inside a running worker no longer shows it, by design.
+- **Troubleshooting**
+  - Every run on an account gets a throwaway profile (`tmp-*` in the root, slower): another run holds
+    `<name>.lock`, or a stale process does. The lock is a `flock`, released when its owner exits, so a crashed
+    worker never leaves it stuck; find the holder (`lsof <root>/<name>.lock`) before touching anything. Throwaway
+    profiles are deleted at close; one left by a crash is removed by the sweep.
+  - Temp dirs: each session makes `relay-chrome-*` in the system temp and removes it at close, also on failure;
+    leftovers after a SIGKILL of the worker are safe to delete when no worker runs. On macOS Chrome ignores
+    `TMPDIR` (measured), so Chrome's own scratch files land elsewhere there; the Linux behaviour is proven in the
+    box container (phase 7).
+  - A Chrome that will not close: the kit waits 30 s, then SIGKILLs the process named by the profile's
+    `SingletonLock`, and the forwarder, profile reset, lock and temp dir are still cleaned up. A killed close is
+    logged `browser did not close ... killing it` and drops Local Storage whole.
+  - `BrowserLaunchError`: Chrome failed to start twice (the profile is wiped and the launch retried once). Check
+    `RELAY_CHROME_PATH` and the display (`xvfb-exec` refuses to start the worker without one).
+
 ## Gates
 
 - `scripts/check.sh`: the commit gate. Browser-less, on the Mac. Ends `CHECK: GREEN`. Each run has its own compose
@@ -137,8 +182,11 @@ image) and must be cut off in under 2 s, so the timing assertion cannot pass vac
   `relay-check-<token>`, container `relay-check-run-<token>` on that project's network (no host networking). It runs
   the Chrome tests in the image, then the three graceful-stop tests (stop, kill-then-start, negative control) from the Mac through `DOCKER_HOST=ssh://<box>`. It
   removes what carries its token on exit and never prunes or touches another project.
-- `scripts/check.sh --full --local`: the same without the box. The browser tier is skipped and the output says
-  `browser tier: SKIPPED (--local ...)`. For phases that change no browser code or image.
+- `scripts/check.sh --full --local`: the same without the box (D59). The browser tier runs on the Mac:
+  `pytest -m "browser and not box"` with patchright driving the installed Google Chrome (D60). An unnarrowed run
+  that selects no browser test fails (`browser tier: FAILED`); a green one prints `browser tier: GREEN on this Mac`.
+  Tests marked `box` prove the image itself (pinned Linux Chrome, Xvfb, the entry script, Chrome's sandbox) and run
+  only in the box container (`scripts/check.sh --full`, phase 7); a local run never covers them.
 - `scripts/check.sh --soak [--seed N] [--verbose]`: only the soak, on its own database and bucket. `--soak --seed N
   --verbose` replays one seed (a failing seed prints its number). It is not a gate and never prints `CHECK: GREEN`.
 - `CHECK: GREEN` means the whole gate ran. A run that left something out ends `CHECK: PARTIAL (...)` with the reason

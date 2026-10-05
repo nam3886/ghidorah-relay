@@ -229,17 +229,38 @@ def test_the_verdict_names_what_a_run_left_out():
     assert verdict(0, 0, MUTATE_ONLY="test_x", SOAK_SEEDS="0") == (0, [])
 
 
-def run_check(tmp_path, *args, **env):
-    """scripts/check.sh with docker, uv and uvx replaced by no-ops: only its last line is under test."""
+def run_check_raw(tmp_path, *args, no_browser_tests=False, **env):
+    """scripts/check.sh with docker, uv and uvx replaced by no-ops (uv exits 5, "nothing selected", for the browser
+    tier when `no_browser_tests`): only its last line and its exit code are under test."""
     stubs = tmp_path / "bin"
     stubs.mkdir(parents=True)
+    script = '#!/bin/sh\ncase "$*" in *" port "*) echo 0.0.0.0:5555;; esac\n'
+    if no_browser_tests:
+        script += 'case "$*" in *"browser and not box"*) exit 5;; esac\n'
     for name in ("docker", "uv", "uvx"):
-        (stubs / name).write_text('#!/bin/sh\ncase "$*" in *" port "*) echo 0.0.0.0:5555;; esac\n', encoding="utf-8")
+        (stubs / name).write_text(script, encoding="utf-8")
         (stubs / name).chmod(0o755)
-    run = subprocess.run(["bash", str(REPO / CHECK), *args], capture_output=True, text=True,
-                         env={"PATH": "%s:%s" % (stubs, os.environ["PATH"]), **env})
+    return subprocess.run(["bash", str(REPO / CHECK), *args], capture_output=True, text=True,
+                          env={"PATH": "%s:%s" % (stubs, os.environ["PATH"]), **env})
+
+
+def run_check(tmp_path, *args, **env):
+    run = run_check_raw(tmp_path, *args, **env)
     assert run.returncode == 0, run.stderr
     return run.stdout.splitlines()[-1]
+
+
+@mutation(CHECK, 'if [ "$rc" = 5 ] && [ "$nargs" = 0 ]; then', 'if false; then',
+          expect="a whole gate ended GREEN with no browser test")
+@mutation(CHECK, 'elif [ "$rc" = 5 ]; then', 'elif false; then', expect="a narrowed run must only note")
+def test_a_whole_gate_with_no_browser_test_selected_fails_and_a_narrowed_run_only_notes_it(tmp_path):
+    whole = run_check_raw(tmp_path / "a", "--full", "--local", no_browser_tests=True)
+    assert whole.returncode != 0 and "CHECK: GREEN" not in whole.stdout, \
+        "a whole gate ended GREEN with no browser test: %r" % whole.stdout[-200:]
+    assert "no browser test was selected" in whole.stderr
+    narrow = run_check_raw(tmp_path / "b", "--full", "--local", "some_test.py", no_browser_tests=True)
+    assert narrow.returncode == 0, "a narrowed run must only note that no browser test was selected: %r" % narrow.stderr
+    assert "browser tier: no browser test selected" in narrow.stdout and narrow.stdout.splitlines()[-1] == NARROW
 
 
 @mutation(CHECK, 'if [ -n "$verdict" ]; then', "if false; then",
