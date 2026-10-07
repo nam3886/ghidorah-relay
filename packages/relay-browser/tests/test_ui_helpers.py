@@ -158,9 +158,14 @@ function send() {
 t.addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
   e.preventDefault();
-  if (mode !== 'button' && mode !== 'stuck') send();
+  document.body.dataset.enters = (+document.body.dataset.enters || 0) + 1;
+  if (mode === 'slow') setTimeout(send, 4000);       // a slow connection: the input empties 4 s after Enter
+  else if (mode !== 'button' && mode !== 'stuck') send();
 });
-document.getElementById('b').addEventListener('click', () => { if (mode !== 'stuck') send(); });
+// the click count lives in the DOM: evaluate() runs in an isolated world, a window variable is invisible to it
+document.getElementById('b').addEventListener('click', () => {
+  document.body.dataset.clicks = (+document.body.dataset.clicks || 0) + 1;
+  if (mode !== 'stuck') send(); });
 if (mode === 'untrusted') {      // an app that ignores programmatic input events (a controlled input)
   t.addEventListener('input', e => { if (!e.isTrusted) t.value = ''; });
 }
@@ -169,9 +174,9 @@ SENT = "[...document.querySelectorAll('#log li')].map(l => l.textContent)"
 KEYS = "A prompt that is long enough to be sure of it: a paper lantern floating over a lake"
 
 
-async def sent_through(page, server, mode, prompt):
+async def sent_through(page, server, mode, prompt, **kw):
     await page.goto(server.url("/?mode=" + mode))
-    await type_and_send(page, prompt)
+    await type_and_send(page, prompt, **kw)
     return await page.evaluate(SENT)
 
 
@@ -247,20 +252,28 @@ async def test_a_leftover_draft_is_replaced_not_appended_to_when_the_keys_are_ty
     assert sent == [KEYS], "the leftover draft was not replaced: %r" % sent
 
 
+COUNTS = "[+document.body.dataset.enters || 0, +document.body.dataset.clicks || 0]"
+RAISE_STILL_FULL = '        raise UiError("prompt still in the input")'
+CLICK_INSTEAD = """        await page.evaluate("document.getElementById('b').click()")"""
+
+
 @pytest.mark.browser
-@mutation(U, "        await page.evaluate(_CLICK_SEND_JS)", "        pass", expect="Send button fallback")
+@mutation(U, RAISE_STILL_FULL, CLICK_INSTEAD, expect="Send was clicked")
 @sync
-async def test_when_enter_does_not_send_the_send_button_does_and_a_prompt_that_stays_is_an_error(tmp_path, token):
+async def test_the_send_button_is_never_clicked_a_prompt_that_stays_is_one_enter_and_an_error(tmp_path, token):
     async with SiteServer() as server:
         server.add("GET", "/", COMPOSER)
         async with open_session(site_for(tmp_path), Account(), purpose="submit", token=token, redact=redact) as s:
-            try:
-                got = await sent_through(s.page, server, "button", KEYS)
-            except UiError:
-                got = "UiError"
-            assert got == [KEYS], "the Send button fallback did not send: %r" % got
-            with pytest.raises(UiError, match="still in the input"):
-                await sent_through(s.page, server, "stuck", KEYS)
+            for mode in ("button", "stuck"):          # the page ignores Enter; a Send click WOULD send it
+                try:
+                    await sent_through(s.page, server, mode, KEYS, clear_wait_s=1.0)
+                    failure = None
+                except UiError as err:
+                    failure = str(err)
+                counts = await s.page.evaluate(COUNTS)
+                assert counts == [1, 0], "Send was clicked or Enter pressed again (%s): %r" % (mode, counts)
+                assert await s.page.evaluate(SENT) == [], "Send was clicked: the page sent the prompt (%s)" % mode
+                assert failure and "still in the input" in failure, "Send was clicked or wrong error: %r" % failure
 
 
 @pytest.mark.browser
@@ -286,3 +299,47 @@ async def test_injected_cookies_replace_the_old_ones_in_a_real_context(tmp_path,
             assert await inject_cookies(s.ctx, jar, IDENTITY, server.url()) == ["sessionid", "uid_tt"]
             seen = {c["name"]: c["value"] for c in await s.ctx.cookies(server.url())}
     assert seen == {"sessionid": "SESS-NEW", "uid_tt": "UID-NEW"}, "an old cookie survived the injection: %r" % seen
+
+
+@pytest.mark.browser
+@mutation(U, "CLEAR_WAIT_S = 10.0 ", "CLEAR_WAIT_S = 0.0 ", expect="not exactly one message")
+@sync
+async def test_a_slow_connection_that_empties_the_input_late_gets_one_message(tmp_path, token):
+    async with SiteServer() as server:
+        server.add("GET", "/", COMPOSER)
+        async with open_session(site_for(tmp_path), Account(), purpose="submit", token=token, redact=redact) as s:
+            try:
+                got = await sent_through(s.page, server, "slow", KEYS)
+            except UiError as err:
+                got = "UiError: %s" % err
+            counts = await s.page.evaluate(COUNTS)
+    assert got == [KEYS] and counts == [1, 0], "not exactly one message from one Enter: %r %r" % (got, counts)
+
+
+@pytest.mark.browser
+@mutation(U, '    if before_enter is not None:\n        await before_enter()\n    await page.keyboard.press("Enter")\n',
+          '    await page.keyboard.press("Enter")\n    if before_enter is not None:\n        await before_enter()\n',
+          expect="after the typing and before Enter")
+@mutation(U, "        await before_enter()\n", "        pass\n", expect="before_enter did not run")
+@sync
+async def test_before_enter_runs_after_the_typing_right_before_the_one_enter_and_can_stop_it(tmp_path, token):
+    seen = []
+    async with SiteServer() as server:
+        server.add("GET", "/", COMPOSER)
+        async with open_session(site_for(tmp_path), Account(), purpose="submit", token=token, redact=redact) as s:
+            await s.page.goto(server.url("/?mode=enter"))
+
+            async def hook():
+                seen.append((await s.page.evaluate("document.getElementById('t').value"),
+                             await s.page.evaluate(COUNTS)))
+
+            async def refuse():
+                raise RuntimeError("lease lost")
+
+            await type_and_send(s.page, KEYS, before_enter=hook)
+            assert seen == [(KEYS, [0, 0])], "before_enter did not run after the typing and before Enter: %r" % seen
+            assert await s.page.evaluate(SENT) == [KEYS]
+            with pytest.raises(RuntimeError, match="lease lost"):
+                await type_and_send(s.page, "second", before_enter=refuse)
+            assert await s.page.evaluate(COUNTS) == [1, 0] and await s.page.evaluate(SENT) == [KEYS], (
+                "an Enter was pressed although before_enter refused")

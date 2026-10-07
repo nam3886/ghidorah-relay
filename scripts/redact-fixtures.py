@@ -201,12 +201,22 @@ LAYOUT = [
      "every vibes response: auth, t2i, t2v write-ahead + resume polls, a never-generated shell; 30/09"),
 ]
 
+# Fixtures made by hand (not from a raw capture); listed in fixtures/README.md after the captured ones.
+HAND_MADE = [
+    ("dola/listing-capped-30.json",
+     "synthetic: a full 30-item conversation listing with one unknown conversation that does not carry the job's text "
+     "(phase 5, the capped-listing crash window)"),
+    ("dola/action_bar_conf.json",
+     "the dola action-bar config response (`get_item_conf`) the 30 s patch reads, from the v4 samples; phase 5"),
+]
+
 # Every fixture gap of contracts §14.5 and the plan phase that captures it; written into fixtures/README.md.
 GAPS = [
     "dola watermark-only: none of the 38 real done videos (30/09) lacked `main_url`. Tests build it from a done "
     "chain by deleting `main_url` from its `video_model` (derived, not captured).",
     "dola throttle SSE (`/chat/completion` `error_code`) and dola likeness refusal: not captured here. Phase 5 "
-    "takes them from the v4 samples.",
+    "reconstructs the SSE bodies in `dola/sse/*.txt` from the v4 event names and error codes (not live captures); "
+    "a live 710022004 body replaces them when one is measured.",
     "vibes derived operations (extend, v2v, image-edit) and vibes error bodies (401, 403, 429, QUOTA, a "
     "rejected generate): not captured here. Phase 10 captures them.",
     "meta refusal, rate or limit text, text-only reply and logged-out page: not captured here. Phases 8 (meta "
@@ -227,6 +237,7 @@ def redact_tree(src: str, dst: str) -> None:
         with open(os.path.join(dst, rel), "w", encoding="utf-8") as fh:
             json.dump(r.value(obj), fh, ensure_ascii=False, indent=1)
         readme.append("- `%s` — %s." % (rel, note))
+    readme += ["- `%s` — %s." % h for h in HAND_MADE]
     readme += ["", "## Gaps", "",
                "What the captures do not hold (contracts §14.5); the phase named closes each gap.", ""]
     readme += ["- " + g for g in GAPS]

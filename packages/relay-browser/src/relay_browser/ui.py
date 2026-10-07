@@ -19,7 +19,7 @@ class SessionError(RuntimeError):
 
 
 class UiError(RuntimeError):
-    """A UI action did not take (the prompt would not go in, or stayed in the input after Send)."""
+    """A UI action did not take (the prompt would not go in, or stayed in the input after Enter)."""
 
 
 def cookies_for_playwright(jar) -> list[dict]:
@@ -79,7 +79,7 @@ async def inject_cookies(ctx, jar, identity_names, read_url: str) -> list[str]:
     return sorted(want)
 
 
-# The composer's JS. Generic: a textarea or a contenteditable, and the lowest big button as Send.
+# The composer's JS. Generic: a textarea or a contenteditable.
 _COMPOSER_TEXT_JS = """()=>{
   const t = document.querySelector('textarea');
   const c = document.querySelector('[contenteditable="true"]');
@@ -112,15 +112,7 @@ _FAST_SET_JS = """(text)=>{
   return -1;
 }"""
 
-_CLICK_SEND_JS = """()=>{
-  const bs = [...document.querySelectorAll('button')].filter(b=>{
-    const r = b.getBoundingClientRect();
-    return r.width > 0 && r.height > 0 && r.top > innerHeight*0.5;
-  });
-  const b = bs[bs.length-1];
-  if (b) { b.click(); return true; }
-  return false;
-}"""
+CLEAR_WAIT_S = 10.0     # how long the input may take to empty after Enter: the one wait, for the kit and every engine
 
 
 def select_all_key(platform: str = sys.platform) -> str:
@@ -128,13 +120,30 @@ def select_all_key(platform: str = sys.platform) -> str:
     return "Meta+A" if platform == "darwin" else "Control+A"
 
 
-async def type_and_send(page, prompt: str, attempts: int = 5) -> None:
-    """Type the prompt and send it. The input must be empty afterwards: text still there means NOT sent.
+async def _cleared(page, seconds: float) -> bool:
+    """True when the input is empty, polled every 250 ms for up to `seconds`: a send that goes through a slow proxy
+    empties the input late, and an input that is still full a moment after Enter is not yet proof of 'not sent'."""
+    waited = 0.0
+    while True:
+        if not await page.evaluate(_COMPOSER_TEXT_JS):
+            return True
+        if waited >= seconds:
+            return False
+        await page.wait_for_timeout(250)
+        waited += 0.25
+
+
+async def type_and_send(page, prompt: str, attempts: int = 5, *, before_enter=None,
+                        clear_wait_s: float = CLEAR_WAIT_S) -> None:
+    """Type the prompt and send it with ONE Enter. The input must be empty afterwards: text still there means the
+    send is unproven, and nothing else is pressed (never the Send button: a second send is a second paid order).
 
     The site sends on every Enter and the keyboard types a newline as Enter, so a multi-line prompt would become
     several messages (several conversations): it is flattened to one line first. Fast path: set the whole prompt at
     once; if the page did not take it, type it key by key (select all first, so a leftover draft is replaced,
-    not appended to). Enter sends; if the text stays, the Send button is the fallback; if it still stays, raise."""
+    not appended to). `before_enter` (an async callable: the caller's mark-as-sent or lease fence) runs after the
+    typing and immediately before the Enter keypress; if it raises, nothing is sent. The input is then given
+    `clear_wait_s` to empty (a slow connection empties it late); if it does not, raise `UiError`."""
     prompt = " ".join((prompt or "").split())
     typed = False
     if await page.evaluate(_FOCUS_COMPOSER_JS):
@@ -160,10 +169,8 @@ async def type_and_send(page, prompt: str, attempts: int = 5) -> None:
             await page.wait_for_timeout(600)
     if not typed:
         raise UiError("could not type the prompt into the input")
+    if before_enter is not None:
+        await before_enter()
     await page.keyboard.press("Enter")
-    await page.wait_for_timeout(1500)
-    if await page.evaluate(_COMPOSER_TEXT_JS):
-        await page.evaluate(_CLICK_SEND_JS)
-        await page.wait_for_timeout(2000)
-    if await page.evaluate(_COMPOSER_TEXT_JS):
-        raise UiError("prompt still in the input: send failed")
+    if not await _cleared(page, clear_wait_s):
+        raise UiError("prompt still in the input")

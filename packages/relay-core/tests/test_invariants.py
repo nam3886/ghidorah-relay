@@ -578,7 +578,7 @@ MATRIX = {
             "test_checks.py::test_an_account_error_over_2000_characters_is_stored_as_omitted_len"),
     "I25": ("test_checker.py::test_a_total_that_drifted_from_the_ledger_is_reported",
             "test_sweeps.py::test_ledger_check_finds_a_planted_total_drift"),
-    "I26": ("test_errors.py::test_every_registered_code_is_assigned_or_pending",
+    "I26": ("test_errors.py::test_every_registered_code_is_assigned",
             "test_errors.py::test_refund_equals_job_ends_failed"),
     "I27": ("test_lifecycle.py::test_not_sent_is_refused_before_the_send_window_has_passed",
             "test_lifecycle.py::test_not_sent_is_refused_when_the_listing_does_not_cover_the_send_window"),

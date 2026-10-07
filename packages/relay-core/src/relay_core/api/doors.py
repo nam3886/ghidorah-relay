@@ -53,7 +53,7 @@ NET_OPTIONS: dict[str, Any] = {"max_bytes": MAX_IMAGE_BYTES, "timeout_s": 20.0}
 _DATA_URI = re.compile(r"data:[^,;]*(?:;[^,;]*)*;base64,(.*)", re.DOTALL)
 # The request field a plan() refusal is about when the provider names none, by the reason part of its code.
 _PARAM_OF = {"bad_duration": "duration", "bad_ratio": "ratio", "bad_model": "model", "bad_style": "style",
-             "empty_prompt": "prompt", "prompt_too_long": "prompt", "template_not_found": "template"}
+             "empty_prompt": "prompt", "prompt_too_long": "prompt"}
 _PUBLIC_STATUS = {"queued": ("queued", None), "submitting": ("running", "submitting"),
                   "waiting": ("running", "waiting"), "fetching": ("running", "fetching"),
                   "unknown": ("running", "unknown"), "done": ("done", None), "failed": ("failed", None)}

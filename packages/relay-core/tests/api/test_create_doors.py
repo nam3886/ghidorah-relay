@@ -485,6 +485,9 @@ def test_a_plan_refusal_is_its_own_400_and_an_engine_crash_never_leaks_its_text(
     run_app(db, scenario)
 
 
+@mutation(NATIVE, "    style: str | None = None\n",
+          "    style: str | None = None\n    template: StrictInt | None = None\n",
+          expect="the door took a template field")
 def test_the_fields_of_each_door_reach_plan_as_one_request(db, monkeypatch):
     async def scenario(env):
         await quick_holds(monkeypatch)
@@ -501,10 +504,15 @@ def test_the_fields_of_each_door_reach_plan_as_one_request(db, monkeypatch):
             "strict-video", "a cat", 5, "16:9", 2, "My cat", "native")
         assert dict(got.options) == {"seed": 3} and len(got.images) == 1 and got.images[0].mime == "image/png"
         assert got.images[0].size == len(PNG) and len(got.images[0].sha256) == 64
-        r = await env.client.post(IMAGE_PATH, json={"model": "strict-image", "prompt": "a", "style": "noir",
-                                                    "template": 3, "template_category": 1}, headers=key.headers)
+        r = await env.client.post(IMAGE_PATH, json={"model": "strict-image", "prompt": "a", "style": "noir"},
+                                  headers=key.headers)
         assert r.status_code == 200, r.text
-        assert dict(strict.seen[-1].options) == {"style": "noir", "template": 3, "template_category": 1}
+        assert dict(strict.seen[-1].options) == {"style": "noir"}
+        for field in ("template", "template_category"):
+            r = await env.client.post(IMAGE_PATH, json={"model": "strict-image", "prompt": "a", field: 3},
+                                      headers=key.headers)
+            assert r.status_code == 400 and error_of(r) == (400, "input.invalid", field), (
+                "the door took a template field: %s" % r.text)
         r = await env.client.post(CHAT_PATH, json=chat(model="strict-video-9s"), headers=key.headers)
         assert r.status_code == 200, r.text
         assert strict.seen[-1].door == "facade", "a facade request tells plan() it came by a facade"

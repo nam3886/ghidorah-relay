@@ -1,0 +1,7 @@
+: the stream that ends in a region block for this endpoint (710022003).
+event: SSE_HEARTBEAT
+data: {}
+
+event: STREAM_ERROR
+data: {"error_code": 710022003, "error_msg": "country restricted"}
+

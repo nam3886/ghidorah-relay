@@ -26,6 +26,28 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `auth.permission_unknown` | 503 | api_error | yes | no | no | no | the key's permissions could not be checked; try again |
 | `auth.too_many_attempts` | 429 | rate_limit_error | yes | no | no | no | too many failed attempts; try again later |
 
+## `dola.*`
+
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
+|---|---|---|---|---|---|---|---|
+| `dola.bad_response` | 502 | api_error | no | yes | yes | yes | dola answered with something that is not readable |
+| `dola.content_refused` | 422 | invalid_request_error | yes | yes | no | yes | dola refused to make this (copyright, safety or content rules); the charge is returned |
+| `dola.http_error` | 502 | api_error | no | yes | yes | yes | dola answered with an HTTP error |
+| `dola.likeness_refused` | 422 | invalid_request_error | yes | yes | no | yes | dola refused: with a photo of a person it only makes videos of the account owner |
+| `dola.needs_confirm` | 422 | invalid_request_error | yes | yes | no | yes | dola asked a question instead of taking the order, and never delivered |
+| `dola.no_image` | 422 | invalid_request_error | yes | yes | no | yes | dola made no image for this order |
+| `dola.no_video` | 422 | invalid_request_error | yes | yes | no | yes | dola made no video for this order |
+| `dola.temporary_error` | 502 | api_error | no | yes | yes | yes | dola reported a temporary error when it took the order |
+| `dola.ui_attach_failed` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the reference images could not be attached on dola's page |
+| `dola.ui_duration_patch_failed` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the duration could not be set on dola's page |
+| `dola.ui_mode_not_ready` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) dola's creation mode did not become ready |
+| `dola.ui_model_select_failed` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the model could not be selected on dola's page |
+| `dola.ui_no_conversation` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) dola's page showed no conversation after sending |
+| `dola.ui_ratio_select_failed` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the aspect ratio could not be selected on dola's page |
+| `dola.ui_send_failed` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the order could not be sent on dola's page |
+| `dola.ui_style_select_failed` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the style could not be selected on dola's page |
+| `dola.unknown_status` | 502 | api_error | no | yes | yes | yes | dola answered with a status that is not understood |
+
 ## `input.*`
 
 | Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
@@ -41,7 +63,6 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `input.prompt_duration_conflict` | 400 | invalid_request_error | yes | no | no | no | the prompt asks for a different duration than the request |
 | `input.prompt_ratio_conflict` | 400 | invalid_request_error | yes | no | no | no | the prompt asks for a different aspect ratio than the request |
 | `input.prompt_too_long` | 400 | invalid_request_error | yes | no | no | no | the prompt is too long |
-| `input.template_not_found` | 400 | invalid_request_error | yes | no | no | no | the template does not exist |
 | `input.too_many_images` | 400 | invalid_request_error | yes | no | no | no | too many input images |
 
 ## `internal.*`
@@ -68,7 +89,6 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `pool.account_out_of_points` | 503 | api_error | no | no | no | yes | the account is out of points |
 | `pool.account_region_blocked` | 503 | api_error | no | no | no | yes | the account's region is blocked upstream |
 | `pool.account_throttled` | 503 | api_error | no | no | no | yes | the account is rate limited upstream |
-| `pool.no_account` | 503 | api_error | no | no | no | yes | no account is available right now |
 | `pool.proxy_failed` | 503 | api_error | no | no | no | yes | the account's proxy failed |
 
 ## `queue.*`

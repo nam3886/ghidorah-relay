@@ -45,8 +45,6 @@ class VideoBody(_Common):
 
 class ImageBody(_Common):
     style: str | None = None
-    template: StrictInt | None = None
-    template_category: StrictInt | None = None
 
 
 def _refs(body: _Common) -> tuple[ImageRef, ...]:
@@ -79,9 +77,8 @@ async def create_video(request: Request, key: ApiKey = Depends(require_key), gat
 async def create_image(request: Request, key: ApiKey = Depends(require_key), gate: Gate = Depends(get_gate),
                        idempotency_key: str | None = Header(default=None)):
     b = validated(ImageBody, await read_json(request))
-    # The provider-neutral request has no style or template field: they ride in `options`, named as sent.
-    extra = {k: v for k, v in (("style", b.style), ("template", b.template),
-                               ("template_category", b.template_category)) if v is not None}
+    # The provider-neutral request has no style field: it rides in `options`, named as sent.
+    extra = {"style": b.style} if b.style is not None else {}
     return await _create(request, gate, key, DoorRequest(
         "image", "native", b.model, b.prompt, ratio=b.ratio, n=b.n, images=_refs(b),
         options={**(b.options or {}), **extra}, title=b.title, callback_url=b.callback_url,

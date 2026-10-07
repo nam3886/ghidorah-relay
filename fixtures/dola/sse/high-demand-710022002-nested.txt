@@ -1,0 +1,4 @@
+: the same stream with the code one JSON string deep (the shape phase 4 replayed): quotes are backslash-escaped.
+event: STREAM_ERROR
+data: {"event_type": 2005, "event_data": "{\"error_code\": 710022002, \"error_msg\": \"high demand\"}"}
+

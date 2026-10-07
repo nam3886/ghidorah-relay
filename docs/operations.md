@@ -189,6 +189,11 @@ Used by browser workers only (dola, meta). Everything is read from the environme
   only in the box container (`scripts/check.sh --full`, phase 7); a local run never covers them.
 - `scripts/check.sh --soak [--seed N] [--verbose]`: only the soak, on its own database and bucket. `--soak --seed N
   --verbose` replays one seed (a failing seed prints its number). It is not a gate and never prints `CHECK: GREEN`.
+- **Traps seen on the Mac.** Docker's VM clock drifts under load, and MinIO then answers `RequestTimeTooSkewed`: replay
+  the failed seeds (`./scripts/check.sh --soak --seed N`). A sleeping Mac stalls a gate: keep it awake (for example
+  `caffeinate -i ./scripts/check.sh ...`). A nearly full disk slows everything. A gate stopped with Ctrl-C can leave a
+  `relay-check-*` compose project; list with `docker compose ls` and remove it with
+  `docker compose -p <name> -f deploy/compose.check.yml down -v`.
 - `CHECK: GREEN` means the whole gate ran. A run that left something out ends `CHECK: PARTIAL (...)` with the reason
   (`scripts/check-verdict.sh`): `MUTATE_ONLY` set, `SOAK_SEEDS` under 200 (`0` skips the soak), or pytest arguments
   that narrow the run (`mutate: PARTIAL` is also printed when `MUTATE_ONLY` is set). `SOAK_SEEDS` must be a whole
@@ -270,8 +275,8 @@ nothing (its requests are refused by the quota check; codes in `error-codes.md`)
 `relay key disable ID` disables a key (a key is disabled, never deleted here); a disabled key answers 403
 `auth.key_disabled`, and its requests are still logged under it.
 
-**`relay e2e --provider X`.** Runs the provider's live end-to-end module. Until a provider ships one it exits 2
-("has no e2e run yet"); no provider has it before the live phase (plan phase 5).
+**`relay e2e --provider X`.** Runs the provider's live end-to-end module; a provider without one exits 2 ("has no
+e2e run yet"). Only dola has one (see "The dola provider"); it spends credits and refuses without `RELAY_E2E_SPEND=yes`.
 
 ## The admin API (`/admin`)
 
@@ -361,6 +366,117 @@ relay provider resume dola    # prints "resumed dola"
 Both set `<p>.claims_enabled` through the settings store (so they take the same path as the admin Settings page) and
 run as `relay_api`. An unknown provider exits 2 and lists the built ones. Drain mode is not an exit code of the worker:
 the worker keeps running and picks the setting up live.
+
+## The dola provider (`relay worker --provider dola`)
+
+Drives dola.com in Chrome, one browser session per claimed job. Sources: `packages/provider-dola/src/relay_dola/`.
+
+### What the worker needs locally
+
+- **Env file** `deploy/worker-dola.env` (gitignored), copied from `deploy/worker-dola.env.example`. Keys, names only:
+  `DATABASE_URL`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION`,
+  `CREDENTIAL_SEAL_PRIVATE_KEY`, `BILLING_TZ`, `DOLA_BROWSER_SLOTS_MAX`. The last one is required: the ceiling for the
+  live setting `dola.browser_slots`, sized to the machine's memory. The dola spec accepts 1 to 30 for the setting.
+- **Chrome** installed on the Mac (the kit launches the installed Google Chrome; see "The browser kit"). Set
+  `RELAY_PROFILE_ROOT` too, or the profile cache is not kept.
+- **Accounts and proxies live outside the repo**, in `~/relay-secrets/` (the Mac, mode 0600 files). They are imported
+  through the admin accounts import, which seals each credential with the public key. Never print, paste or commit
+  their contents, and never copy them into `deploy/` or `tests/`.
+
+### Live settings
+
+Registered by `spec.py`; read and written on the admin Settings page, live.
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `dola.claims_enabled` | drain mode off; false = no new job is claimed (see "Drain mode") | true |
+| `dola.render_deadline_s` | seconds to wait for dola to render one submission before giving up (at least 60) | 9000 |
+| `dola.video_prompt_hint` | one-line sentence added after the prompt of a VIDEO job (never images); empty = off; a job keeps the sentence it was created with | "Generate it now as a single video in one go ..." (see `DEFAULT_VIDEO_HINT`) |
+| `dola.prices` | points charged per generation, keyed `<model>@<N>s` for video and `<model>` for image; a missing tier is charged the fallback (video 3, image 1) with a warning | table in `catalog.DEFAULT_PRICES` |
+| `dola.video_budget` | video points per account per day (dola's own reported number wins) | 4 |
+| `dola.image_budget` | image jobs per account per day (measured about 40; dola never reports it) | 40 |
+| `dola.master_quality` | deliver the H.264 master (720p, no watermark) instead of the light HEVC rendition; falls back to the rendition when the master cannot be fetched | true |
+| `dola.alert_duration_mismatch_rate` | drift alert: share of the last 24 h jobs delivered with the wrong length (0 to 1) | 0.2 |
+| `dola.alert_watermark_only_rate` | drift alert: share of the last 24 h jobs that failed as watermark-only (0 to 1) | 0.2 |
+| `dola.alert_content_refused_rate` | drift alert: share of the last 24 h submits refused for content (0 to 1) | 0.5 |
+| `dola.browser_slots` | browser sessions at once, capped by `DOLA_BROWSER_SLOTS_MAX`; lowering retires idle slots | 8 |
+
+There is no setting for image templates or for extra reply phrases. Image templates are not creation parameters: a
+request with `options.template` or `options.template_category` is refused 400 (no charge); a UI reads the template
+list (prompt and preview) from `GET /v1/providers/dola/options` and sends the prompt as `prompt`. The words relay
+recognises in dola's replies live in code (`classify.py`); new wording is a code change after a real capture, never an
+admin setting. `dola.video_prompt_hint` is still a setting until the prompt-frame work replaces it.
+
+### How an order is judged
+
+dola often creates a conversation even when it refuses, so a conversation proves nothing. The engine reads the
+conversation's own messages (dola's API, through the page), never the page text, and judges each finished reply.
+
+**Reply verdicts** (`classify.SubmitOutcome` plus "unclear"):
+
+| dola said | Verdict | Effect |
+|---|---|---|
+| a known acceptance sentence ("be ready in", "is being created", ...) | accepted | order taken; balance read from that reply |
+| a question or a stated length other than asked | needs confirmation | re-send in the same conversation, at most 2 times |
+| copyright, safety, likeness or "cannot generate" | content refused | job fails; likeness has its own code |
+| not enough credit, daily limit | out of credit | the pool rests until the UTC day boundary; a positive balance below the price is "cannot afford", the job moves |
+| "something went wrong", "try again later" | temporary error | not taken; the job is tried again |
+| anything else, or two readings that contradict | unclear | see rules below |
+
+**Send-step results** (what the engine hands the core):
+
+| Result | When |
+|---|---|
+| accepted, taken | dola accepted; the job waits for the poll |
+| accepted, not proven | unclear or still gated after the re-sends; the conversation is kept and the poll decides |
+| completed | image whose pictures are already there |
+| not taken | out of credit, temporary error, throttle; the job goes elsewhere or later |
+| fail | content refused |
+| retry | a failure before the send (nothing was sent) |
+| ambiguous | a failure after the send, or no conversation appeared; reconcile reads the account's own conversation list |
+
+Rules an operator must know:
+
+- **One Enter per send.** The Send button is never clicked. An input still holding the prompt after the clear wait
+  is ambiguous, and reconcile decides.
+- **Re-send only on a finished question.** A re-send happens only when dola's own API read, taken right before it, shows
+  a finished reply that is itself a confirmation question, and the order was not already accepted. A re-send is a new
+  paid order, so a stale, partial or failed read never earns one; each re-send repeats the full composer set-up.
+- **Unclassifiable or contradictory is unclear.** A reply that is none of the above, or one that holds both a refusal
+  and an acceptance, is not taken, is not re-sent, moves no job and rests no account; the poll decides (a video is
+  delivered, or quiet ends in a refund). A bare "0 credits left" is unclear plus a zero balance and a rest.
+- **No conversation after the send** means the job is ambiguous. Page text never decides there (the sidebar holds
+  titles of other chats); only dola's own throttle or region signal does.
+- **The customer's own words never decide.** A reply that reads differently once the quoted prompt is removed is unclear.
+
+### Account check, catalog refresh, recover
+
+Worker commands (queued from the admin pages, run by the dola worker; see "The admin API"):
+
+- Account check: opens the account in Chrome, reads login state, identity and which composer the account has. It spends
+  no credit and sends nothing. A doubt is `unknown`, never a dead account; a signed-out account needs positive proof.
+- Catalog refresh: reads the image template and style lists over HTTP (no browser).
+- Recover: takes the clean videos of one conversation. Another job's video is never attached: a conversation that is not
+  the job's own must carry the job's text.
+
+### Live run
+
+`RELAY_E2E_SPEND=yes DATABASE_URL=... relay e2e --provider dola` makes a temporary key, creates one 5-second
+`seedance-2.5` video through the API (`RELAY_E2E_URL`, default `http://127.0.0.1:8100`), waits up to 30 min, checks the
+length with ffprobe, and disables the key. It spends dola credits: run it only with the user's go-ahead at that moment.
+
+### Not proven locally
+
+The local gates use recorded and fake dola behaviour. These wait for the live run from the Mac, then for the box:
+
+- whether dola's conversation listing returns `has_more`;
+- how long the input takes to clear after Enter;
+- where dola cuts long text;
+- half-written replies in full chain reads;
+- a finished reply without the finish flag;
+- the real wording of "is being created";
+- the health of the supplied account jars;
+- `relay e2e`.
 
 ## Restore runbook (contracts §7.7; drilled in phase 7, not yet on the box)
 

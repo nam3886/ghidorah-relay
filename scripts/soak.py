@@ -263,7 +263,7 @@ def script_world(rng: random.Random, engine: SoakEngine, jobs: list[tuple]) -> N
             "default": [],
             "completed": [sent(SubmitResult(Completed(engine.outputs(view, n))))],
             "not_taken": [sent(SubmitResult(NotTaken("pool.account_throttled"))), None],
-            "retry": [unsent(SubmitResult(Retry("pool.no_account"))), None],
+            "retry": [unsent(SubmitResult(Retry("pool.account_logged_out"))), None],
             "ambiguous": [sent(SubmitResult(Ambiguous("no answer")))],
             "dies_sent": [sent(ConnectionError("the socket died after the send"))],
             "boom_unsent": [unsent(RuntimeError("the browser crashed before the send")), None],

@@ -253,9 +253,8 @@ def test_only_a_key_without_history_is_deleted_the_rest_are_disabled(db):
         assert results == {"clean": "deleted", "job": "disabled", "ledger": "disabled", "ghost": "missing"}
         assert db.one("SELECT count(*) FROM api_keys WHERE id = %s", clean.id) == (0,)
         assert db.one("SELECT count(*) FROM key_wallets WHERE key_id = %s", clean.id) == (0,)   # went with the key
-        assert db.all("SELECT id, enabled FROM api_keys WHERE id IN (%s, %s) ORDER BY enabled",
-                      with_job.id, ledger_only.id) == sorted(
-            [(with_job.id, False), (ledger_only.id, False)], key=lambda r: r[1])
+        assert sorted(db.all("SELECT id, enabled FROM api_keys WHERE id IN (%s, %s)", with_job.id, ledger_only.id),
+                      key=lambda r: r[0]) == sorted([(with_job.id, False), (ledger_only.id, False)], key=lambda r: r[0])
         assert db.one("SELECT count(*) FROM jobs WHERE key_id = %s", with_job.id) == (1,)
         with pytest.raises(KeyDisabled):
             await look(pool, with_job.raw)

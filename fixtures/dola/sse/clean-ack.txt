@@ -1,0 +1,7 @@
+: a stream with no error: the acknowledgement of a taken send. It carries no error at all.
+event: SSE_HEARTBEAT
+data: {}
+
+event: SSE_ACK
+data: {"conversation_id": "38400000000000001", "section_id": "1", "question_id": "2"}
+

@@ -58,7 +58,8 @@ def test_the_hand_parsed_bodies_of_every_door_are_declared(db):
             assert body.get("additionalProperties") is False, "unknown fields are refused (D27)"
         fields = {n: set(schema["components"]["schemas"][n]["properties"]) for n in ("VideoBody", "ImageBody")}
         assert {"model", "prompt", "duration", "ratio", "n", "images", "callback_url"} <= fields["VideoBody"]
-        assert {"style", "template"} <= fields["ImageBody"] and "duration" not in fields["ImageBody"]
+        assert "style" in fields["ImageBody"] and "duration" not in fields["ImageBody"]
+        assert not {"template", "template_category"} & fields["ImageBody"], "the door advertises a template field"
         assert set(schema["components"]["schemas"]["ChatBody"]["properties"]) == {"model", "messages", "stream"}
         assert set(schema["components"]["schemas"]["GenerateBody"]["properties"]) == {
             "contents", "systemInstruction", "generationConfig"}, "the Gemini names are the wire names"

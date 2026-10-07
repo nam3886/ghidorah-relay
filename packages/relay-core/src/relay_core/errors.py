@@ -109,7 +109,6 @@ RULES: dict[str, Rule] = {r.code: r for r in (
        message="this idempotency key was already used with a different request", **_pre),
     _r("input.too_many_images", 400, _BAD, message="too many input images", **_pre),
     _r("input.prompt_too_long", 400, _BAD, message="the prompt is too long", **_pre),
-    _r("input.template_not_found", 400, _BAD, message="the template does not exist", **_pre),
 
     _r("auth.invalid_key", 401, "authentication_error", message="the API key is not valid", **_pre),
     _r("auth.key_disabled", 403, "permission_error", message="the API key is disabled", **_pre),
@@ -127,7 +126,6 @@ RULES: dict[str, Rule] = {r.code: r for r in (
     _r("quota.too_many_queued", 429, "rate_limit_error", message="too many unfinished jobs for this API key", **_pre),
 
     # Our side: the job goes back to the queue, no attempt used, no refund.
-    _r("pool.no_account", 503, _API, message="no account is available right now"),
     _r("pool.account_cannot_afford", 503, _API, message="no account has enough points for this job"),
     _r("pool.account_out_of_points", 503, _API, message="the account is out of points"),
     _r("pool.account_logged_out", 503, _API, message="the account is logged out"),
@@ -221,5 +219,12 @@ def write_docs(path: Path = DOCS_PATH) -> None:
 
 
 if __name__ == "__main__":
-    write_docs()
+    # Run as a script this module is `__main__`, a second copy: a provider registers its codes on the importable
+    # `relay_core.errors`, so the docs must be rendered from that one.
+    import importlib
+
+    registry = importlib.import_module("relay_core.errors")
+    for spec in sorted((DOCS_PATH.parents[1] / "packages").glob("provider-*/src/relay_*/spec.py")):
+        importlib.import_module("%s.spec" % spec.parent.name)
+    registry.write_docs()
     print("wrote %s" % DOCS_PATH, file=sys.stderr)
