@@ -298,7 +298,7 @@ def test_the_reaper_does_not_fight_a_fenced_write_that_is_still_running(db):
 
     async def scenario(p):
         created = await create(p, k, "x")
-        got = await claim(p, ttl_s=0.6)
+        got = await claim(p, ttl_s=3.0)
         engine = FakeEngine()
         engine.script_submit("*", sent(SubmitResult(Fail("input.bad_model", "no such model"))))
         view = await store.job_view(p, got.job_id)
@@ -313,7 +313,7 @@ def test_the_reaper_does_not_fight_a_fenced_write_that_is_still_running(db):
         failpoints.arm("job.fail.refund", stall)
         applying = asyncio.create_task(store.apply_submit(p, got, result, caps=CAPS, pools=POOLS))
         await asyncio.wait_for(inside.wait(), 5)
-        await asyncio.sleep(0.7)                       # the lease is now past its time, its row held by the fence
+        await asyncio.sleep(3.2)                       # the lease is now past its time, its row held by the fence
         during = await reaper(p).tick()
         release.set()
         outcome = await applying

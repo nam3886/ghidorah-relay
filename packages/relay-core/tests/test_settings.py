@@ -49,7 +49,7 @@ def run(db, scenario, **settings_args):
     return asyncio.run(main())
 
 
-async def until(check, timeout=8.0):
+async def until(check, timeout=15.0):
     deadline = asyncio.get_running_loop().time() + timeout
     while not check():
         if asyncio.get_running_loop().time() > deadline:

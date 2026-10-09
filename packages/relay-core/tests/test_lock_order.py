@@ -83,7 +83,7 @@ async def _lock_waiters(p) -> int:
         )).fetchone())[0]
 
 
-async def _release_when_someone_waits(p, go: asyncio.Event, limit_s: float = 0.6) -> None:
+async def _release_when_someone_waits(p, go: asyncio.Event, limit_s: float = 2.0) -> None:
     """Let the paused session go once another session waits for a lock, or after `limit_s`: in the right order the
     other session may finish without ever waiting."""
     t = time.monotonic()

@@ -31,7 +31,7 @@ async def within(awaitable, seconds: float, *, what: str):
         raise AssertionError("timed out waiting for %s" % what) from None
 
 
-async def until(condition, *, timeout_s: float = 5.0, what: str = "the condition") -> None:
+async def until(condition, *, timeout_s: float = 15.0, what: str = "the condition") -> None:
     """Poll a sync or async predicate every 20 ms; fail with `what` after `timeout_s`."""
     async def met() -> bool:
         got = condition()

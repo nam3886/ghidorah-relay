@@ -202,7 +202,58 @@ Used by browser workers only (dola, meta). Everything is read from the environme
   (`.mutate.lock`; a second run exits 2). A marked test is first run unmutated: one that fails then is reported as
   "baseline not green", not as a kill. DB tests need the check services, so run it through `check.sh --full`.
   Every `@mutation` carries `expect="..."`, a substring of the failure the mutation must cause (the test's own
-  assertion text, not a helper timeout); `tests/test_mutate.py` fails when a marker has none.
+  assertion text, not a helper timeout); `tests/test_mutate.py` fails when a marker has none. A baseline that fails
+  or times out is run once more: green the second time it counts and is printed `FLAKY` (`check.sh` repeats those
+  lines before its verdict); red twice is `FAILED`. A mutant run is never repeated.
+
+## Running checks on the box (`scripts/box.sh`)
+
+Since D81 code and git stay on the Mac, and every run (tests, gates, mutation, soak, the browser tier, sweeps) happens
+on the box (`RELAY_BOX`, default `phuongnam@192.168.18.227`; Docker, uv and rsync there). The Mac runs no Docker for
+relay. The gate commands above are the commands to run there.
+
+```bash
+scripts/box.sh -- uv run ruff check .                      # sync, print the fingerprint, run, exit with its status
+scripts/box.sh -- MUTATE_ONLY=test_x SOAK_SEEDS=0 ./scripts/check.sh --full
+scripts/box.sh --detach gate-1 -- ./scripts/check.sh --full   # returns at once; survives a sleeping Mac
+scripts/box.sh --wait gate-1                                  # follow the log, exit with the run's status
+scripts/box.sh --log gate-1 | tail                            # the log so far
+scripts/box.sh --status gate-1                                # running | exit N
+scripts/box.sh --tree dev1 -- uv run ruff check .             # in the folder ~/relay-runs/dev1 instead of ~/relay-runs/relay
+scripts/box.sh --status                                       # the folders and the run that holds each
+scripts/box.sh --clear dev1                                   # stop the run that holds folder dev1 and free it
+```
+
+- **What is synced.** The git top-level of the current directory (so it works from `relay/` and from
+  `relay-admin-ui/`) goes to `~/relay-runs/<folder>/` (the tree's directory name, or `--tree NAME`) with `rsync --delete`, so a file changed or deleted on the
+  Mac changes or disappears there. Left out: `.git`, `.venv`, `__pycache__`, `.pytest_cache`, `.ruff_cache`,
+  `.mypy_cache`, `.mutate.lock`, `deploy/.env`, `deploy/*.env`, `._*`, `.DS_Store`. The box keeps its own `.venv` per
+  folder. A tree that holds a real env file (`.env`, `*.env`; `*.example` is fine) is refused before anything is sent.
+  Nothing outside the tree is read, `~/relay-secrets` included.
+- **Fingerprint.** After the sync both sides hash the same file list (path, sha256, executable bit; links by target)
+  and the run is refused (exit 3) when they differ. The printed `fingerprint=` names the tree a result belongs to.
+  `scripts/box.sh --fingerprint` prints the local one without ssh.
+- **Environment.** A run gets the box's own environment plus what the command line sets
+  (`scripts/box.sh -- VAR=1 cmd`). Nothing of the Mac's shell is sent: ssh and rsync start with a clean environment (HOME, PATH and the agent socket),
+  so no `SendEnv` line of any ssh config has anything to send; `MUTATE_CMD` is refused. Inside the run `RELAY_ON_BOX=1`, so `scripts/check-in-container.sh` uses the local Docker.
+- **Detached runs.** `--detach NAME` writes `~/relay-runs/logs/NAME.{sh,log,pid,exit}`; the exit file appears when the
+  command ends (`--wait` exits with it; 98 if the process died without one). Cutting ssh does not stop the run.
+- **One folder per run owner.** A run holds its folder (an `flock` on `~/relay-runs/busy/<folder>.lock`, the run's name
+  and process group in `<folder>.info`) from just before the fingerprint is re-checked on the box until it ends,
+  detached or not. A sync into a held folder is refused (exit 76) with the name of the run; the receiving rsync itself runs
+  under the same lock. The lock goes with the processes that hold it, so a run that ends or is killed frees the folder
+  by itself; if a child of a killed run is left holding it, `scripts/box.sh --clear <folder>` finds every process with
+  the lock open and stops their process groups (TERM, then KILL), each only after its pid and start time are read
+  again just before the signal: a pid that was reused meanwhile is skipped. A detached run counts as running only
+  while its pid has the start time stored beside it (`logs/NAME.pid` holds `PID STARTTIME`). `--status` with no name lists the folders as
+  `free` or `busy, run=... since=...`. Use your own folder: the tester `--tree tester`, each developer its own name;
+  never sync into a folder another session is using. `logs` and `busy` are not folder names. The folder name (`--tree`,
+  or the directory name of the tree) is letters, digits, dash and underscore; any other directory name needs `--tree NAME`.
+- **One whole-tree gate.** `check.sh --full` with no `MUTATE_ONLY` and no test path takes `~/relay-runs/gate.lock`; a
+  second one is refused at once (exit 75). Narrowed runs are not locked.
+- **Do not.** The box also runs containers of other projects (`portfolio`, `billiards`): never stop, inspect or prune
+  them, and never run `docker system prune` or `docker image prune` there. Relay's scripts only touch what carries
+  their own token or label.
 
 ## The api (`relay serve`)
 

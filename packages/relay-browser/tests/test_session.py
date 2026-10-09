@@ -372,15 +372,20 @@ def test_headless_is_the_sites_choice_then_the_environments_then_headful(monkeyp
 @mutation(S, '        env["TMPDIR"] = tmpdir', "        pass", expect="Chrome keeps its temp files")
 @mutation(S, "if k in CHROME_ENV_NAMES or k.startswith(CHROME_ENV_PREFIXES)}", "if True}",
           expect="Chrome would be handed")
+@mutation(S, "k.startswith(CHROME_ENV_PREFIXES)", "any(p in k for p in CHROME_ENV_PREFIXES)",
+          expect="a name outside the allow-list is handed on")
 @mutation(S, 'CHROME_ENV_PREFIXES = ("LC_", "XDG_", "FONTCONFIG_")', "CHROME_ENV_PREFIXES = ()",
           expect="locale and display settings are lost")
 def test_chrome_gets_its_own_temp_directory_and_only_an_allow_list_of_the_environment(monkeypatch):
     site = SiteProfile(name="t", host="t.test")
     planted = {"CREDENTIAL_SEAL_PRIVATE_KEY": "FAKE-private-key-for-the-test", "DATABASE_URL": "postgresql://u:p@db/x",
                "MINIO_SECRET_KEY": "fake", "RELAY_TEST_KEEP": "yes"}
-    for name, value in {**planted, "PATH": "/usr/bin", "HOME": "/home/w", "TMPDIR": "/shared", "LC_ALL": "C.UTF-8",
-                        "DISPLAY": ":99", "XDG_RUNTIME_DIR": "/run/u", "TZ": "UTC"}.items():
-        monkeypatch.setenv(name, value)
+    # the whole environment is set here: whatever the caller's shell exports cannot change the outcome
+    monkeypatch.setattr(os, "environ", {**planted, "PATH": "/usr/bin", "HOME": "/home/w", "TMPDIR": "/shared",
+                                        "LC_ALL": "C.UTF-8", "LC_CTYPE": "en_US.UTF-8", "DISPLAY": ":99",
+                                        "XDG_RUNTIME_DIR": "/run/u", "TZ": "UTC", "LCX_NOT_LOCALE": "no",
+                                        "XDGX_NOT_XDG": "no", "FONTCONFIG_PATH": "/etc/fonts", "EDITOR": "vi",
+                                        "RELAY_XDG_TOKEN": "fake"})
     env = sess.launch_kwargs(site, None, tmpdir="/scratch/x")["env"]
     assert env.get("TMPDIR") == "/scratch/x", "Chrome keeps its temp files in the shared temp directory"
     leaked = sorted(set(planted) & set(env))
@@ -388,7 +393,12 @@ def test_chrome_gets_its_own_temp_directory_and_only_an_allow_list_of_the_enviro
     assert {k: env.get(k) for k in ("PATH", "HOME", "LC_ALL", "DISPLAY", "XDG_RUNTIME_DIR", "TZ")} == {
         "PATH": "/usr/bin", "HOME": "/home/w", "LC_ALL": "C.UTF-8", "DISPLAY": ":99", "XDG_RUNTIME_DIR": "/run/u",
         "TZ": "UTC"}, "the locale and display settings are lost"
-    assert set(env) <= {*sess.CHROME_ENV_NAMES, "TMPDIR", "LC_ALL", "XDG_RUNTIME_DIR"}
+    assert {k: env.get(k) for k in ("LC_CTYPE", "FONTCONFIG_PATH")} == {
+        "LC_CTYPE": "en_US.UTF-8", "FONTCONFIG_PATH": "/etc/fonts"}, "a name with an allowed prefix is not handed on"
+    assert not {"LCX_NOT_LOCALE", "XDGX_NOT_XDG", "EDITOR", "RELAY_XDG_TOKEN"} & set(env), \
+        "a name outside the allow-list is handed on"
+    assert set(env) == {"PATH", "HOME", "TMPDIR", "LC_ALL", "LC_CTYPE", "DISPLAY", "XDG_RUNTIME_DIR", "TZ",
+                        "FONTCONFIG_PATH"}
     # without a session directory the shared TMPDIR is not handed on either
     assert "TMPDIR" not in sess.launch_kwargs(site, None)["env"]
 

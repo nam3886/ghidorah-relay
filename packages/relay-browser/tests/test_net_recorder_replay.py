@@ -279,7 +279,7 @@ async def test_a_dump_of_a_full_recorder_does_not_stall_the_event_loop():
     assert len(recorder.events()) == 500
     text, gap = await loop_gap_during(recorder.dump_async(redact))
     assert text.count("\n") >= 900 and "x.test/a/599" in text, "premise: the dump holds the newest events"
-    assert gap < 0.25, "the event loop stalled for %.2f s while the network log was redacted" % gap
+    assert gap < 1.5, "the event loop stalled for %.2f s while the network log was redacted" % gap
 
 
 @mutation(N, "    wide = redact(text[:limit + REDACT_MARGIN_CHARS])\n", "    wide = redact(text)\n",

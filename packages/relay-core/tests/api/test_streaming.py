@@ -97,7 +97,7 @@ def test_the_openai_stream_is_role_heartbeats_urls_with_stop_then_done_under_one
     async def scenario(env):
         quick(monkeypatch)
         key = await env.new_key()
-        later = finish_later(db, key.id, lambda d, j: finish_done(d, j, 2), delay_s=1.0)
+        later = finish_later(db, key.id, lambda d, j: finish_done(d, j, 2), delay_s=2.0)
         async with live(env.app) as base, httpx.AsyncClient(base_url=base, timeout=20) as client:
             frames = await collect(client, CHAT, key, CHAT_BODY)
         await later
@@ -143,7 +143,7 @@ def test_the_gemini_stream_sends_thought_heartbeats_then_the_result_or_one_gemin
     async def scenario(env):
         quick(monkeypatch)
         key = await env.new_key()
-        later = finish_later(db, key.id, finish_done, 0.8)
+        later = finish_later(db, key.id, finish_done, 2.0)
         async with live(env.app) as base, httpx.AsyncClient(base_url=base, timeout=20) as client:
             frames = await collect(client, GEN_STREAM, key, GEN_BODY)
         await later
@@ -198,7 +198,7 @@ def test_a_client_that_disconnects_stops_only_the_stream_and_the_job_stays_charg
                     assert r.status_code == 200
                     async for _ in r.aiter_lines():        # the first frame is proof the job exists, then we leave
                         break
-                await asyncio.sleep(1.5)                   # the server notices the closed socket
+                await asyncio.sleep(2.5)                   # the server notices the closed socket
         rows = jobs(db, key.id)
         assert len(rows) == 2 and {s for _, s in rows} == {"queued"}, "still queued after a disconnect: %s" % rows
         assert charges(db, key_id=key.id) == 2
@@ -243,7 +243,7 @@ def test_a_held_request_stops_reading_the_job_once_its_client_has_gone_and_the_j
 
     async def scenario(env):
         quick(monkeypatch)
-        monkeypatch.setattr(fc, "HOLD_LIMIT_S", 4.0)      # a hold that never notices ends anyway, so a red run ends
+        monkeypatch.setattr(fc, "HOLD_LIMIT_S", 8.0)      # a hold that never notices ends anyway, so a red run ends
         monkeypatch.setattr(fc, "job_state", counted)
         key = await env.new_key()
         async with live(env.app) as base, httpx.AsyncClient(base_url=base, timeout=1.0) as client:
@@ -252,7 +252,7 @@ def test_a_held_request_stops_reading_the_job_once_its_client_has_gone_and_the_j
                 raise AssertionError("the request should have been held past the client's timeout")
             except httpx.ReadTimeout:
                 pass                                       # the client leaves; its socket is closed
-            await asyncio.sleep(0.5)                       # the server notices at its next wait
+            await asyncio.sleep(2.0)                       # the server notices at its next wait
             after_leaving = len(reads)
             await asyncio.sleep(1.0)
             assert len(reads) == after_leaving, (

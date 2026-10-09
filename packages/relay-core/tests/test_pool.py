@@ -232,7 +232,7 @@ def test_a_charge_then_a_rest_of_another_pool_beside_a_check_does_not_deadlock(d
                                    (a,))
 
         tasks = [asyncio.create_task(submit_result()), asyncio.create_task(check())]
-        await asyncio.sleep(0.3)                              # the check now waits on the account row
+        await asyncio.sleep(1.0)                              # the check now waits on the account row
         go_on.set()
         return await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -254,7 +254,7 @@ def test_two_transactions_that_apply_effects_on_two_pools_with_no_rows_yet_do_no
             async with tx(p) as conn:
                 for name in order:
                     await pool.apply_effects(conn, a, [Rest(name, FUTURE, "out")], CAPS, {c.name: c for c in both})
-                    await asyncio.sleep(0.4)             # the other transaction has now done its first effect
+                    await asyncio.sleep(1.0)             # the other transaction has now done its first effect
 
         return await asyncio.gather(apply(("image", "video")), apply(("video", "image")), return_exceptions=True)
 
@@ -312,7 +312,7 @@ def test_eight_concurrent_refunds_of_one_charge_restore_it_once(db):
     a, job = account(db), a_job(db)
 
     async def pause() -> None:
-        await asyncio.sleep(0.3)           # every caller lists the charge before any of them commits
+        await asyncio.sleep(1.0)           # every caller lists the charge before any of them commits
 
     async def scenario(p):
         await charge(p, a, job, 3)

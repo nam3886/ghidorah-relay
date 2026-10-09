@@ -148,14 +148,14 @@ def test_a_command_result_applied_late_still_finds_its_lease_because_the_keeper_
     original = commands._finish_leased
 
     async def late(*args, **kw):                           # the apply starts well after the lease's TTL
-        await asyncio.sleep(0.9)
+        await asyncio.sleep(2.0)
         return await original(*args, **kw)
     monkeypatch.setattr(commands, "_finish_leased", late)
 
     async def scenario(p):
         engine = KitEngine()
         engine.results["refresh_catalog"] = SNAPSHOTS
-        env = make_env(p, engine, ttl_s=0.5)
+        env = make_env(p, engine, ttl_s=1.5)
         async with beating(env):
             return await run_one(env)
 

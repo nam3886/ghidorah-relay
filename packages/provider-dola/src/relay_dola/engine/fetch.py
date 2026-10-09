@@ -12,6 +12,7 @@ video id) and the cell is found in it. That read also gives fresh links when the
 """
 
 import base64
+import contextlib
 import hashlib
 import json
 import logging
@@ -19,13 +20,21 @@ import re
 from collections.abc import AsyncIterator
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
+from relay_core.net import UnsafeUrl, host_allowed, stream_download, system_resolver, url_host
+from relay_dola import credential
 from relay_dola.engine import resolver
 from relay_dola.engine.http import DolaHttp
 from relay_dola.engine.resolver import fetch_chain
 
 log = logging.getLogger("relay.dola.fetch")
 
-CHUNK = 1 << 20     # ponytail: the whole body is downloaded then cut into chunks; stream it if memory ever matters
+# Media links are signed CDN links: https on *-flow-image-sign.ibyteimg.com for images, plain http for video and only
+# on the video CDN hosts the recorded chains show (v16-dola.dola.com, v19-dola.dola.com); every other link must be
+# https. 256 MiB is about 4x the largest master measured (58.6 MB).
+MEDIA_HOSTS = ("dola.com", "ibyteimg.com")
+MEDIA_HTTP_HOSTS = ("v16-dola.dola.com", "v19-dola.dola.com")
+MEDIA_MAX_BYTES = 256 * 2**20
+MEDIA_DEADLINE_S = 300      # both routes, a master of ~60 MB over a slow proxy
 
 # The AES key material for qAAB tokens (cracked and verified 260916: 1280x720 H.264 12.2 Mbit/s, the file the vendor's
 # own page downloads). MUST be all 64 bytes: a 16-byte cut decodes to garbage.
@@ -42,13 +51,8 @@ MASTER_HOST_SUFFIXES = ("dola.com", "byteintlapi.com")
 
 
 def trusted_master_host(url: str) -> bool:
-    """Is `url` an https link on one of the hosts allowed to receive the account's cookie."""
-    try:
-        parts = urlparse(url)
-        host = (parts.hostname or "").lower()
-    except ValueError:
-        return False
-    return parts.scheme == "https" and any(host == h or host.endswith("." + h) for h in MASTER_HOST_SUFFIXES)
+    """Is `url` an https link on the default port (443) of one of the hosts allowed to receive the account's cookie."""
+    return host_allowed(url, MASTER_HOST_SUFFIXES, default_port_only=True)
 
 
 def walk_field(node, field: str) -> list[str]:
@@ -101,12 +105,19 @@ async def master_hq_url(http: DolaHttp, creation: dict) -> str | None:
     master is a bonus, any failure keeps the old route."""
     try:
         fallback = next((u for u in walk_field(creation, "fallback_api") if u.startswith("http")), None)
-        if not fallback or not trusted_master_host(fallback):
+        if not fallback:
+            return None
+        if not trusted_master_host(fallback):
+            log.warning("fallback link outside the cookie hosts (host or port), keeping the rendition: %s",
+                        url_host(fallback))
             return None
         u = urlparse(fallback)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         q.update({"codec_type": "8", "logo_type": "unwatermarked", "channel": "no"})
-        resp = (await http.get_with_cookie(urlunparse(u._replace(query=urlencode(q))))).json()
+        answer = await http.get_with_cookie(urlunparse(u._replace(query=urlencode(q))))
+        if 300 <= answer.status_code < 400:     # a redirect is never followed (the cookie): no master
+            return None
+        resp = answer.json()
         vd = (resp.get("video_info") or {}).get("data") or resp.get("data") or resp
         video_list = vd.get("video_list") or {}
         entries = list(video_list.values()) if isinstance(video_list, dict) else video_list
@@ -139,19 +150,30 @@ async def _master_for(http: DolaHttp, out) -> str | None:
     return None
 
 
-def chunks(data: bytes, size: int = CHUNK):
-    for i in range(0, len(data), size):
-        yield data[i:i + size]
-
-
-async def fetch(ctx, out, settings, *, http: DolaHttp | None = None) -> AsyncIterator[bytes]:
-    """The bytes of `out`, direct then through the account proxy. Raises when neither route gives bytes."""
+async def fetch(ctx, out, settings, *, http: DolaHttp | None = None, media_transport=None,
+                media_resolver=system_resolver) -> AsyncIterator[bytes]:
+    """The bytes of `out`, streamed: direct then through the account proxy (`net.stream_download`). Raises when neither
+    route gives bytes. `media_transport` and `media_resolver` are the test seams of the media download. A master link
+    that the download refuses (a host outside the media list, a non-default port, a redirect off the list, a
+    malformed link) is not used: the rendition is downloaded instead, unless a byte of the master was already handed
+    over."""
     http = http or DolaHttp.for_account(ctx.account)
-    url = out.ref
+    urls = [out.ref]
     if str(out.mime).startswith("video/") and settings.get("dola.master_quality"):
         hq = await _master_for(http, out)
         if hq:
-            url = hq
-    data = await http.download(url)
-    for part in chunks(data):
-        yield part
+            urls.insert(0, hq)
+    handed = False
+    for i, url in enumerate(urls):
+        try:
+            async with contextlib.aclosing(stream_download(
+                    url, hosts=MEDIA_HOSTS, http_hosts=MEDIA_HTTP_HOSTS, proxy=credential.proxy_url(ctx.account.proxy),
+                    max_bytes=MEDIA_MAX_BYTES, deadline_s=MEDIA_DEADLINE_S, resolver=media_resolver,
+                    transport=media_transport)) as parts:
+                async for part in parts:
+                    handed = True
+                    yield part
+            return
+        except UnsafeUrl:       # already logged with its reason and host; a refused master keeps the rendition
+            if handed or i == len(urls) - 1:
+                raise

@@ -221,14 +221,14 @@ def test_a_restarted_worker_does_not_keep_a_dead_processs_lease_alive(db):
     acct = account(db)
 
     async def scenario(pool):
-        dead = await lease(pool, acct, owner="w1", hard_s=60, ttl_s=0.4)
-        keeper = leases.LeaseKeeper(pool, "w1", ttl_s=0.4, heartbeat_s=0.1)
+        dead = await lease(pool, acct, owner="w1", hard_s=60, ttl_s=1.5)
+        keeper = leases.LeaseKeeper(pool, "w1", ttl_s=1.5, heartbeat_s=0.2)       # a beat may be 1.3 s late
         stop = asyncio.Event()
         beating = asyncio.create_task(keeper.run(stop))
-        mine = await lease(pool, acct, owner="w1", hard_s=60, ttl_s=0.4)
+        mine = await lease(pool, acct, owner="w1", hard_s=60, ttl_s=1.5)
         try:
             async with keeper.holding(mine):
-                await asyncio.sleep(0.9)                     # past the TTL, several beats
+                await asyncio.sleep(2.0)                     # past the TTL, several beats
                 await leases.fence_once(pool, mine)          # the held lease is alive
         finally:
             stop.set()
@@ -426,12 +426,12 @@ def test_a_healthy_holder_keeps_its_lease_past_the_ttl_and_an_outside_cancel_sta
     acct = account(db)
 
     async def scenario(pool):
-        keeper = leases.LeaseKeeper(pool, "w1", ttl_s=0.3, heartbeat_s=0.1)
+        keeper = leases.LeaseKeeper(pool, "w1", ttl_s=1.5, heartbeat_s=0.2)     # a beat may be 1.3 s late
         stop = asyncio.Event()
         beating = asyncio.create_task(keeper.run(stop))
-        lease_id = await lease(pool, acct, owner="w1", hard_s=60, ttl_s=0.3)
+        lease_id = await lease(pool, acct, owner="w1", hard_s=60, ttl_s=1.5)
         async with keeper.holding(lease_id):
-            await asyncio.sleep(0.8)                 # well past the ttl: only the heartbeat keeps it alive
+            await asyncio.sleep(2.0)                 # well past the ttl: only the heartbeat keeps it alive
             await leases.fence_once(pool, lease_id)
 
         async def waiting():

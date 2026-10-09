@@ -12,7 +12,9 @@ first on PYTHONPATH, ahead of the editable installs that point at the working tr
 
 A marked test must pass UNMUTATED before its mutation counts: a test that errors in setup (no database, a
 missing fixture) would otherwise turn every mutation "red" for the wrong reason (01/10). Each test's
-baseline runs once per run.
+baseline runs once per run when it is green. A baseline that fails or times out is run once more, alone: green the
+second time counts and the test is printed as FLAKY (a timing-sensitive test on a loaded machine); red twice is
+FAILED with both failure lines. A mutant run is never retried: a surviving mutation is FAILED.
 
 Stale .pyc files make a mutation lie (the old code keeps running), so every run starts with `__pycache__`
 removed and PYTHONDONTWRITEBYTECODE=1; the cache is removed again after the restore.
@@ -126,6 +128,18 @@ def baseline(root: Path, node_id: str) -> str:
     return "baseline not green (unmutated test fails: %s)" % reason
 
 
+def baseline_checked(root: Path, node_id: str) -> tuple[str, str]:
+    """(failure, flaky). `failure` is '' when the test passes unmutated, on the first run or the second; `flaky` is
+    the first run's reason when the second run was needed and green, else ''. Only a failed first run is repeated."""
+    first = baseline(root, node_id)
+    if not first:
+        return "", ""
+    second = baseline(root, node_id)
+    if not second:
+        return "", first
+    return "%s; second run: %s" % (first, second), ""
+
+
 def mutate_once(root: Path, node_id: str, file: str, original: str, replacement: str,
                 expect: str | None = None) -> tuple[bool, str]:
     """(ok, message). ok means the mutation turned its test red."""
@@ -182,19 +196,22 @@ def _run_locked(root: Path, only: tuple[str, ...]) -> int:
               file=sys.stderr)
         return 1
     purge_bytecode(root)
-    killed = 0
+    killed, flaky = 0, 0
     baselines: dict[str, str] = {}
     for node_id, file, original, replacement, expect in marks:
+        shown = (replacement.strip().splitlines() or [""])[0][:50] or "(removed)"
         if node_id not in baselines:
-            baselines[node_id] = baseline(root, node_id)
+            baselines[node_id], first_failure = baseline_checked(root, node_id)
+            if first_failure:
+                flaky += 1
+                print("FLAKY    %s [%s -> %s]\n      %s" % (node_id, file, shown, first_failure[:200]))
         if baselines[node_id]:
             ok, msg = False, baselines[node_id]
         else:
             ok, msg = mutate_once(root, node_id, file, original, replacement, expect)
         killed += ok
-        shown = (replacement.strip().splitlines() or [""])[0][:50] or "(removed)"
-        print("%s %s [%s -> %s]\n      %s" % ("red     " if ok else "FAILED  ", node_id, file, shown, msg[:200]))
-    print("mutate: %d/%d killed, %d failed" % (killed, len(marks), len(marks) - killed))
+        print("%s %s [%s -> %s]\n      %s" % ("red     " if ok else "FAILED  ", node_id, file, shown, msg[:400]))
+    print("mutate: %d/%d killed, %d failed, %d flaky baseline(s)" % (killed, len(marks), len(marks) - killed, flaky))
     return 0 if killed == len(marks) else 1
 
 

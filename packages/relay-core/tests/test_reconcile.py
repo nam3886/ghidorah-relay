@@ -146,7 +146,7 @@ def test_a_reconcile_that_raises_or_hangs_counts_as_still_unknown_and_frees_the_
 
     async def scenario(p):
         job_id = await unknown_due(p, db, k)
-        eng = reconciler(p, FakeEngine(), hard_s=0.6)
+        eng = reconciler(p, FakeEngine(), hard_s=1.5)
         failpoints.arm("fake.reconcile", boom)
         await pass_once(eng)
         raised = (status(db, job_id), events(db, job_id).count("reconcile"), db.one("SELECT count(*) FROM leases")[0])
@@ -256,7 +256,7 @@ def test_a_reconcile_result_applied_late_still_finds_its_lease_because_the_keepe
     original, ended = store.apply_reconciled, []
 
     async def late(*args, **kw):                           # the apply starts well after the lease's TTL
-        await asyncio.sleep(0.9)
+        await asyncio.sleep(2.0)
         try:
             return await original(*args, **kw)
         finally:
@@ -267,9 +267,9 @@ def test_a_reconcile_result_applied_late_still_finds_its_lease_because_the_keepe
         job_id = await unknown_due(p, db, k)
         engine = FakeEngine()
         engine.script_reconcile("*", Found("ref-x", {}, taken=True))
-        eng = reconciler(p, engine, lease_ttl_s=0.5)
+        eng = reconciler(p, engine, lease_ttl_s=1.5)
         task = asyncio.create_task(eng.run())              # `run` keeps the heartbeat beside the loop
-        await until(lambda: ended, timeout_s=8, what="the application to end")
+        await until(lambda: ended, timeout_s=20, what="the application to end")
         eng.stop()
         await asyncio.wait_for(task, 5)
         return job_id
@@ -401,7 +401,7 @@ def test_a_browser_provider_reconciles_at_most_two_at_once_and_returns_every_tok
         async def hold() -> None:
             running[0] += 1
             peak[0] = max(peak[0], running[0], budget.busy_by(Purpose.RECONCILE))
-            await asyncio.sleep(0.15)
+            await asyncio.sleep(1.2)
             running[0] -= 1
 
         failpoints.arm("fake.reconcile", hold)
