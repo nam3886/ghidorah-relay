@@ -141,8 +141,9 @@ async def test_unresolvable_and_empty_answers_are_refused():
 
 
 # ---- scheme and shape --------------------------------------------------------------------------------------------
-@mutation(SRC, 'if parts.scheme != "https":', 'if parts.scheme not in ("http", "https"):',
-           expect="DID NOT RAISE UnsafeUrl")
+# `http_ok` is the media helper's own switch: without it (client-chosen URLs: input images, webhooks) http is refused.
+@mutation(SRC, 'if parts.scheme != "https" and not (http_ok and parts.scheme == "http"):',
+          'if parts.scheme != "https" and not (parts.scheme == "http"):', expect="DID NOT RAISE UnsafeUrl")
 @sync
 async def test_http_is_refused_even_to_a_public_host():
     site = Site()
@@ -165,10 +166,10 @@ async def test_malformed_urls_and_credentials_are_refused():
 
 
 # ---- connecting to the checked IP ---------------------------------------------------------------------------------
-PIN = 'url = "https://%s:%d%s" % (ip, target.port,'
+PIN = 'url = "%s://%s:%d%s" % (parts.scheme, ip, target.port, path)'
 
 
-PIN_BY_NAME = 'url = "https://%s:%d%s" % (target.host, target.port,'
+PIN_BY_NAME = 'url = "%s://%s:%d%s" % (parts.scheme, target.host, target.port, path)'
 
 
 @mutation(SRC, PIN, PIN_BY_NAME, expect="'files.example.test' == '93.184.216.34'")

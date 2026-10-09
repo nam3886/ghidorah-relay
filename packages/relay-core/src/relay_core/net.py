@@ -14,15 +14,25 @@ Proxy strings: `ip:port`, `ip:port:user:pass`, `user:pass@ip:port`, `scheme://us
 """
 
 import asyncio
+import contextlib
+import functools
 import ipaddress
+import logging
+import re
 import socket
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from urllib.parse import quote, unquote, urljoin, urlsplit
 
 import httpx
 
 from relay_core.db.pool import assert_no_tx
+
+log = logging.getLogger("relay.net")
+# httpx logs `HTTP Request: GET <full URL>` at INFO for every request: the pinned address, the path and the query of a
+# signed link. Every process that fetches through this module (api, worker, CLI) imports it, so the cut is made here
+# and does not depend on a log filter's patterns.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 MAX_REDIRECTS = 4
 _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
@@ -88,16 +98,17 @@ class Target:
     ip: str
 
 
-async def check_url(url: str, resolver: Resolver = system_resolver) -> Target:
-    """Refuse the URL unless it is https and every address its host resolves to is public."""
+async def check_url(url: str, resolver: Resolver = system_resolver, *, http_ok: bool = False) -> Target:
+    """Refuse the URL unless it is https (http too with `http_ok`, which only changes the scheme and the default port;
+    the caller decides which hosts may use it) and every address its host resolves to is public."""
     if any(c.isspace() or ord(c) < 32 for c in url):
         raise UnsafeUrl("malformed")
     try:
         parts = urlsplit(url)
-        port = parts.port or 443
+        port = parts.port or (80 if parts.scheme == "http" else 443)
     except ValueError:
         raise UnsafeUrl("malformed") from None
-    if parts.scheme != "https":
+    if parts.scheme != "https" and not (http_ok and parts.scheme == "http"):
         raise UnsafeUrl("scheme")
     host = parts.hostname
     if not host:
@@ -131,9 +142,10 @@ def _pinned(target: Target) -> tuple[str, dict[str, str], dict]:
     """(URL with the IP in place of the name, the Host header, request extensions carrying the TLS server name)."""
     parts = urlsplit(target.url)
     ip = "[%s]" % target.ip if ":" in target.ip else target.ip
-    url = "https://%s:%d%s" % (ip, target.port, (parts.path or "/") + ("?" + parts.query if parts.query else ""))
+    path = (parts.path or "/") + ("?" + parts.query if parts.query else "")
+    url = "%s://%s:%d%s" % (parts.scheme, ip, target.port, path)
     name = "[%s]" % target.host if ":" in target.host else target.host
-    host_header = name if target.port == 443 else "%s:%d" % (name, target.port)
+    host_header = name if target.port == (80 if parts.scheme == "http" else 443) else "%s:%d" % (name, target.port)
     return url, {"Host": host_header}, {"sni_hostname": target.host}
 
 
@@ -190,6 +202,209 @@ async def safe_get(url: str, **kw) -> SafeResponse:
 async def safe_post(url: str, content: bytes, **kw) -> SafeResponse:
     """Never follows a redirect."""
     return await request("POST", url, content=content, max_redirects=0, **kw)
+
+
+# ---- media download (contracts 5.1 "Media download") ---------------------------------------------------------------
+CLOSE_TIMEOUT_S = 5.0      # closing a response or client is best effort and never hangs the helper
+_HOST_NAME = re.compile(r"[a-z0-9-]+(\.[a-z0-9-]+)*")      # letters, digits, "-" and "." only: no backslash, "%", IDN
+_FINAL_REASONS = ("timeout", "too_large")                  # a failure the proxy route cannot cure
+# a refusal that only costs the direct route: the proxy resolves in its own network (a filtering resolver on this
+# network answers 0.0.0.0 or a LAN address for a listed host). No direct connection is made either way.
+_UNUSABLE = {"unresolvable": "dns", "private_address": "private"}
+
+
+def _on(host: str, hosts: tuple[str, ...]) -> bool:
+    return any(host == h or host.endswith("." + h) for h in hosts)
+
+
+def _default_port(parts) -> bool:
+    return parts.port in (None, 80 if parts.scheme == "http" else 443)
+
+
+def host_allowed(url: str, hosts: tuple[str, ...], *, https_only: bool = True,
+                 http_hosts: tuple[str, ...] = (), default_port_only: bool = False) -> bool:
+    """Is `url` an https link on one of `hosts` (the name itself or a subdomain), with no user:pass and a plain
+    host name. Plain http only for a host in `http_hosts` (or for any host with `https_only=False`); a port other
+    than 80/443 only without `default_port_only`.
+    `https://www.dola.com@evil.example` is a link to evil.example; a host with a backslash or "%" is no link at all."""
+    if any(c.isspace() or ord(c) < 32 for c in url):
+        return False
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        _ = parts.port                  # raises on a malformed port
+    except ValueError:
+        return False
+    if not _HOST_NAME.fullmatch(host):
+        return False
+    if parts.scheme != "https" and not (parts.scheme == "http" and (not https_only or _on(host, http_hosts))):
+        return False
+    if parts.username is not None or parts.password is not None:
+        return False
+    if default_port_only and not _default_port(parts):
+        return False
+    return _on(host, hosts)
+
+
+def url_host(url: str) -> str:
+    """The host name only: the rest of a media link is signed."""
+    try:
+        return urlsplit(url).hostname or "?"
+    except ValueError:
+        return "?"
+
+
+def _refuse(url: str, reason: str):
+    log.warning("media link refused (%s): %s", reason, url_host(url))
+    raise UnsafeUrl(reason)
+
+
+async def _wait(deadline: float, fn, *args, **kw):
+    """`await fn(*args)` inside the download's one absolute deadline. A bound on this one wait only, never on a yield:
+    a timeout that spanned a yield would cancel the caller's own wait."""
+    if asyncio.get_running_loop().time() >= deadline:
+        raise FetchFailed("timeout")
+    try:
+        async with asyncio.timeout_at(deadline) as bound:
+            return await fn(*args, **kw)
+    except TimeoutError:
+        raise FetchFailed("timeout" if bound.expired() else "transfer") from None
+
+
+class _CloseBudget:
+    """Best-effort closing with ONE time budget for the whole download (CLOSE_TIMEOUT_S, shared by every response and
+    client it closes, redirect hops included): a peer that never finishes closing cannot hang the helper."""
+
+    def __init__(self):
+        self.left = CLOSE_TIMEOUT_S
+
+    async def close(self, *closers) -> None:
+        loop = asyncio.get_running_loop()
+        for close in closers:
+            start = loop.time()
+            try:
+                async with asyncio.timeout(max(self.left, 0)):
+                    await close()
+            except Exception as e:      # noqa: BLE001 - a failed close must not hide the download's own outcome
+                log.debug("media close: %s", type(e).__name__)
+            self.left -= loop.time() - start
+
+
+async def _one_route(url, allowed, route, deadline, max_bytes, chunk_size, transport, resolver,
+                     closing) -> AsyncIterator[bytes]:
+    """The download over one route. One chunk is held back so that a body that turns out empty or truncated fails
+    before anything was handed over (and the proxy route can still be tried). The direct route (`route` None)
+    resolves and checks every hop itself and connects to the checked address; the proxy route resolves nothing
+    (the proxy does), so there the host list is the only guard. Both routes use default ports only."""
+    client = httpx.AsyncClient(transport=transport(route) if transport else None, proxy=None if transport else route,
+                               timeout=httpx.Timeout(30.0, connect=10.0), follow_redirects=False, trust_env=False)
+    resp = None
+    try:
+        current = url
+        for hop in range(MAX_REDIRECTS + 1):
+            if not allowed(current):
+                _refuse(current, "host")
+            if not _default_port(urlsplit(current)):
+                _refuse(current, "port")
+            request_url, headers, extensions = current, {}, {}
+            if route is None:
+                try:
+                    target = await _wait(deadline, check_url, current, resolver, http_ok=True)
+                except UnsafeUrl as e:
+                    if e.reason in _UNUSABLE:
+                        raise FetchFailed(_UNUSABLE[e.reason]) from None
+                    _refuse(current, e.reason)
+                request_url, headers, extensions = _pinned(target)
+            try:
+                request = client.build_request("GET", request_url, extensions=extensions,
+                                               headers={"Accept-Encoding": "identity", **headers})
+            except (httpx.InvalidURL, ValueError):
+                _refuse(current, "malformed")
+            try:
+                resp = await _wait(deadline, client.send, request, stream=True)
+            except UnicodeError:        # httpx builds a redirect's next request even unfollowed: broken punycode label
+                _refuse(current, "malformed")
+            location = resp.headers.get("location")
+            if resp.status_code in _REDIRECT_STATUSES and location:
+                if hop >= MAX_REDIRECTS:
+                    _refuse(current, "redirects")
+                try:
+                    current = urljoin(current, location)
+                except ValueError:
+                    _refuse(current, "malformed")
+                await closing.close(resp.aclose)
+                continue
+            break
+        if resp.status_code // 100 != 2:
+            raise FetchFailed("status")
+        if resp.headers.get("content-encoding", "identity").strip().lower() not in ("", "identity"):
+            raise FetchFailed("encoding")       # a compressed body would break the memory bound
+        expected = resp.headers.get("content-length", "")
+        if not expected.isdigit() and "chunked" not in resp.headers.get("transfer-encoding", "").lower():
+            raise FetchFailed("no_length")      # its end could not be told from a cut connection
+        it = resp.aiter_raw(chunk_size)
+        total, pending = 0, None
+        while (part := await _wait(deadline, anext, it, None)) is not None:
+            if pending is not None:
+                total += len(pending)
+                if total > max_bytes:
+                    raise FetchFailed("too_large")
+                yield pending
+            pending = part
+        if expected.isdigit() and resp.num_bytes_downloaded < int(expected):
+            raise FetchFailed("truncated")
+        if pending is None:
+            raise FetchFailed("empty")
+        if total + len(pending) > max_bytes:
+            raise FetchFailed("too_large")
+        yield pending
+    except httpx.HTTPError:
+        raise FetchFailed("transfer") from None
+    finally:
+        await closing.close(*([resp.aclose] if resp is not None else []), client.aclose)
+
+
+async def stream_download(url: str, *, hosts: tuple[str, ...], proxy: str | None, max_bytes: int, deadline_s: float,
+                          https_only: bool = True, http_hosts: tuple[str, ...] = (), chunk_size: int = 1 << 20,
+                          resolver: Resolver = system_resolver,
+                          transport: Callable[[str | None], httpx.AsyncBaseTransport] | None = None
+                          ) -> AsyncIterator[bytes]:
+    """`chunk_size` chunks of a media file on one of `hosts`, with no cookie and no `Authorization`, uncompressed
+    (`Accept-Encoding: identity`; a response that is compressed anyway is refused). https only, except for the hosts in
+    `http_hosts` (or all of them with `https_only=False`, tests). The direct route first: every hop is resolved with
+    `resolver` and the connection goes to the checked address; a name that does not resolve, or any answer that is
+    not public, makes the direct route fail (FetchFailed "dns"/"private", nothing is connected). Only default ports
+    (80, 443) are used, on both routes. The `proxy` route only when the direct one failed before the first chunk was
+    handed over (a failure after that raises, the caller retries the whole output); it cannot pin an address, so only
+    the host list guards it. All the closes of one download share one CLOSE_TIMEOUT_S budget. More than `max_bytes` ->
+    FetchFailed("too_large"), final; a body shorter than its Content-Length -> "truncated";
+    a 2xx with neither Content-Length nor chunked framing -> "no_length"; past `deadline_s` (one deadline
+    over both routes, every redirect and the body) -> "timeout", never CancelledError. A refused link (host, scheme,
+    port, malformed, also on a redirect hop) -> UnsafeUrl, which never goes to the proxy route. `transport`
+    (tests) builds the transport of each route from its proxy URL. Close it early with `contextlib.aclosing`: the
+    upstream stream is closed at once. The final failure is logged with its reason and host name only."""
+    assert_no_tx()
+    deadline = asyncio.get_running_loop().time() + deadline_s
+    allowed = functools.partial(host_allowed, hosts=hosts, https_only=https_only, http_hosts=http_hosts)
+    routes = [None] if proxy is None else [None, proxy]
+    closing, handed = _CloseBudget(), False
+    for i, route in enumerate(routes):
+        try:
+            async with contextlib.aclosing(_one_route(url, allowed, route, deadline, max_bytes, chunk_size, transport,
+                                                      resolver, closing)) as parts:
+                async for part in parts:
+                    handed = True
+                    yield part
+            return
+        except FetchFailed as e:
+            if handed or e.reason in _FINAL_REASONS or i == len(routes) - 1:
+                log.warning("media download failed (%s): %s", e.reason, url_host(url))
+                raise
+            if e.reason in _UNUSABLE.values():     # the proxy resolves the name itself: worth a look at the host
+                log.warning("media host unusable on the direct route (%s), trying the proxy: %s", e.reason,
+                            url_host(url))
+            else:
+                log.info("media download failed on the direct route (%s); trying the proxy", e.reason)
 
 
 # ---- proxy strings ----------------------------------------------------------------------------------------------

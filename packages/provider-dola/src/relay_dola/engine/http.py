@@ -4,7 +4,8 @@ dola checks the TLS fingerprint, so the transport is curl_cffi `impersonate="chr
 here runs through `asyncio.to_thread`. The transport is a seam: tests pass an in-process fake, nothing here opens a
 socket on import (curl_cffi is imported on first real use).
 
-Every poll, reconcile read, title lookup and fetch goes through `DolaHttp`; it never spends credits.
+Every poll, reconcile read, title lookup and master lookup goes through `DolaHttp`; it never spends credits.
+The media bytes do not: `relay_core.net.stream_download` fetches those (plain httpx, no cookie).
 """
 
 import asyncio
@@ -15,7 +16,6 @@ from typing import Any, Protocol
 from relay_dola import credential
 
 BASE = "https://www.dola.com"
-MEDIA_TIMEOUT_S = 300   # a master of ~60 MB over a slow proxy
 API_TIMEOUT_S = 30
 
 
@@ -27,13 +27,16 @@ class Response(Protocol):
 
 
 class Transport(Protocol):
-    """The two calls the engine makes. `proxies` is curl_cffi's `{"http": url, "https": url}` or None."""
+    """The two calls the engine makes. `proxies` is curl_cffi's `{"http": url, "https": url}` or None. Both carry
+    the account's cookie, so NEITHER follows a redirect: a 3xx comes back as the answer (callers treat any non-2xx
+    as a failed read)."""
 
     def post(self, url: str, *, params: Mapping[str, str], headers: Mapping[str, str], json: Any, timeout: float,
              proxies: Mapping[str, str] | None) -> Response: ...
 
     def get(self, url: str, *, headers: Mapping[str, str] | None, timeout: float,
-            proxies: Mapping[str, str] | None) -> Response: ...
+            proxies: Mapping[str, str] | None) -> Response:
+        ...
 
 
 class CurlTransport:
@@ -42,11 +45,12 @@ class CurlTransport:
     def post(self, url, *, params, headers, json, timeout, proxies):
         from curl_cffi import requests as cffi
         return cffi.post(url, params=params, headers=headers, json=json, impersonate="chrome", timeout=timeout,
-                         proxies=proxies)
+                         proxies=proxies, allow_redirects=False)
 
     def get(self, url, *, headers, timeout, proxies):
         from curl_cffi import requests as cffi
-        return cffi.get(url, headers=headers, impersonate="chrome", timeout=timeout, proxies=proxies)
+        return cffi.get(url, headers=headers, impersonate="chrome", timeout=timeout, proxies=proxies,
+                        allow_redirects=False)
 
 
 def query_params() -> dict[str, str]:
@@ -80,39 +84,15 @@ class DolaHttp:
         return cls(credential.cookie_header(cookies), proxies_for(account.proxy), transport)
 
     async def post_chain(self, path: str, payload: Mapping[str, Any], referer: str, timeout: float = API_TIMEOUT_S):
-        """POST a JSON command to dola's `im` or `samantha` API with the account's cookies and proxy."""
+        """POST a JSON command to dola's `im` or `samantha` API with the account's cookies and proxy. A redirect is
+        returned (status 3xx), not followed: every caller reads a non-200 as a failed read."""
         headers = {"accept": "*/*", "agw-js-conv": "str", "content-type": "application/json; encoding=utf-8",
                    "origin": BASE, "referer": referer, "cookie": self._cookie}
         return await asyncio.to_thread(self._transport.post, BASE + path, params=query_params(), headers=headers,
                                        json=payload, timeout=timeout, proxies=self.proxies)
 
     async def get_with_cookie(self, url: str, timeout: float = 60):
-        """A GET that carries the account's cookie (the `fallback_api` route), through the account proxy."""
+        """A GET that carries the account's cookie (the `fallback_api` route), through the account proxy. A redirect
+        is returned, not followed: the cookie must not travel to wherever the answer points."""
         return await asyncio.to_thread(self._transport.get, url, headers={"cookie": self._cookie}, timeout=timeout,
                                        proxies=self.proxies)
-
-    async def download(self, url: str) -> bytes:
-        """Media links are signed CDN links with no cookie: direct first, the account proxy only when direct fails
-        (v4 measured a flaky proxy giving 7 MB in 300 s against 1.5 s direct). Raises `DownloadError`."""
-        try:
-            return await self._download_once(url, None)
-        except DownloadError:
-            if self.proxies is None:
-                raise
-            return await self._download_once(url, self.proxies)
-
-    async def _download_once(self, url: str, proxies: Mapping[str, str] | None) -> bytes:
-        try:
-            resp = await asyncio.to_thread(self._transport.get, url, headers=None, timeout=MEDIA_TIMEOUT_S,
-                                           proxies=proxies)
-        except Exception as exc:   # noqa: BLE001 - any transport failure is a failed download attempt
-            raise DownloadError("media download failed: %s" % str(exc)[:120]) from exc
-        if resp.status_code // 100 != 2:
-            raise DownloadError("media download returned HTTP %d" % resp.status_code)
-        if not resp.content:
-            raise DownloadError("media download returned an empty body")
-        return resp.content
-
-
-class DownloadError(RuntimeError):
-    """A media download that did not give bytes; the core fetcher retries (`render.download_failed`)."""
