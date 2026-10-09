@@ -10,11 +10,10 @@ from dataclasses import dataclass
 
 import psycopg
 import pytest
+from pgtemplate import migrated_database
 from psycopg.conninfo import make_conninfo
 
-from relay_core.db import run_migrations
 from relay_core.testing.checker import violations
-from relay_core.testing.pg import disposable_database
 
 # Failpoints are inert unless the variable exists (relay_core.failpoints); the tests arm them in process.
 os.environ.setdefault("RELAY_FAILPOINTS", "")
@@ -245,8 +244,7 @@ class Db:
 
 @pytest.fixture(scope="session")
 def _migrated():
-    with disposable_database() as dsn:
-        run_migrations(dsn, passwords={"relay_api": API_PASSWORD, "relay_worker": WORKER_PASSWORD})
+    with migrated_database({"relay_api": API_PASSWORD, "relay_worker": WORKER_PASSWORD}, "tests") as dsn:
         yield Db(dsn,
                  make_conninfo(dsn, user="relay_api", password=API_PASSWORD),
                  make_conninfo(dsn, user="relay_worker", password=WORKER_PASSWORD))

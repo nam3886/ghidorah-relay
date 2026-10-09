@@ -151,3 +151,94 @@ def test_a_notsent_licenses_a_second_send_only_when_it_moves_an_unknown_job_to_q
 
     # refused (still unknown): 0; the job was already queued: 0; unknown to queued: 1
     assert asyncio.run(go()) == (0, 0, 1)
+
+
+# ---- --jobs N: the seeds in N processes; a failing seed is still printed with its number and its replay command -----
+CHILD = '''
+import sys
+seeds = [int(n) for n in sys.argv[sys.argv.index("--seed-list") + 1].split(",")]
+if seeds[0] == 1000:
+    sys.exit(2)                                                      # a process that dies without a word
+if seeds[0] == 2000:
+    sys.exit(0)                                                      # a process that runs none of its seeds and says ok
+if seeds[0] == 3000:
+    print("seed %-4d ok     0.1s  done=1" % seeds[0], flush=True)    # a seed that is reported twice
+bad = False
+for seed in seeds:
+    print("seed %-4d %-4s   0.1s  done=1" % (seed, "FAIL" if seed % 7 == 3 else "ok"), flush=True)
+    if seed % 7 == 3:
+        bad = True
+        print("   SOAK FAILED seed %d (replay: scripts/soak.py --seed %d)" % (seed, seed))
+        print("   - a lease was left behind")
+print("soak: %d seed(s), %d failed, 1s" % (len(seeds), int(bad)))
+sys.exit(1 if bad else 0)
+'''
+
+
+def split_run(tmp_path, monkeypatch, capsys, seeds, jobs):
+    child = tmp_path / "child.py"
+    child.write_text(CHILD, encoding="utf-8")
+    monkeypatch.setattr(soak, "__file__", str(child))
+    monkeypatch.setenv("RELAY_TEST_PG_TEMPLATE", "x")
+    code = soak.run_split(seeds, jobs, False)
+    return code, capsys.readouterr().out
+
+
+@mutation(SOAK, "slices = [seeds[i::jobs] for i in range(min(jobs, len(seeds)))]",
+          "slices = [seeds[:3]] * min(jobs, len(seeds))", expect="a seed ran twice or not at all")
+@mutation(SOAK, "failed.append(int(found.group(1)))", "pass", expect="a failing seed was not reported")
+@mutation(SOAK, "return 1 if bad else 0", "return 0", expect="a failing seed did not fail the run")
+def test_a_split_soak_runs_every_seed_once_and_reports_the_failing_one_with_its_replay_command(
+        tmp_path, monkeypatch, capsys):
+    code, out = split_run(tmp_path, monkeypatch, capsys, list(range(12)), 4)
+    lines = out.splitlines()
+    for seed in range(12):
+        assert len([ln for ln in lines if ln.startswith("seed %-4d " % seed)]) == 1, \
+            "a seed ran twice or not at all: %d\n%s" % (seed, out)
+    assert "   SOAK FAILED seed 3 (replay: scripts/soak.py --seed 3)" in lines and \
+        "   SOAK FAILED seed 10 (replay: scripts/soak.py --seed 10)" in lines, "the replay line is missing\n" + out
+    assert lines[-1].startswith("soak: 12 seed(s), 2 failed (3, 10), ") and out.count("soak: ") == 1, \
+        "a failing seed was not reported\n" + out
+    assert code == 1, "a failing seed did not fail the run"
+
+
+@mutation(SOAK, "if proc.wait() != 0 and not any(s in failed for s in mine):",
+          "if False and not any(s in failed for s in mine):", expect="a process that died went unnoticed")
+def test_a_split_soak_whose_process_dies_without_a_failing_seed_fails_and_says_which_process(
+        tmp_path, monkeypatch, capsys):
+    code, out = split_run(tmp_path, monkeypatch, capsys, [1000, 1, 2], 3)
+    assert code == 1 and "SOAK FAILED process 0 (seeds [1000]) exited with status 2" in out, \
+        "a process that died went unnoticed\n" + out
+    assert "soak: 3 seed(s), 1 failed, " in out, out
+
+
+def test_a_split_soak_with_no_failure_is_green(tmp_path, monkeypatch, capsys):
+    code, out = split_run(tmp_path, monkeypatch, capsys, [0, 1, 2, 4], 2)
+    assert code == 0 and out.splitlines()[-1].startswith("soak: 4 seed(s), 0 failed, "), out
+
+
+@mutation(SOAK, "missing = [s for s in seeds if ran[s] == 0 and s not in skipped]", "missing = []",
+          expect="a seed that never ran went unnoticed")
+def test_a_split_soak_fails_when_a_process_exits_zero_without_running_its_seed(tmp_path, monkeypatch, capsys):
+    code, out = split_run(tmp_path, monkeypatch, capsys, [2000, 1, 2], 3)
+    assert code == 1 and "SOAK FAILED seeds [2000] never ran" in out, "a seed that never ran went unnoticed\n" + out
+    assert "soak: 3 seed(s), 1 failed, " in out, out
+
+
+@mutation(SOAK, "twice = [s for s in seeds if ran[s] > 1]", "twice = []",
+          expect="a seed that ran twice went unnoticed")
+def test_a_split_soak_fails_when_a_seed_is_reported_twice(tmp_path, monkeypatch, capsys):
+    code, out = split_run(tmp_path, monkeypatch, capsys, [3000, 1, 2], 3)
+    assert code == 1 and "SOAK FAILED seeds [3000] ran more than once" in out, \
+        "a seed that ran twice went unnoticed\n" + out
+
+
+@mutation(SOAK, "            future.result()\n", "            pass\n", expect="an exception in a worker was lost")
+def test_a_split_soak_fails_when_a_process_cannot_be_started(tmp_path, monkeypatch, capsys):
+    def refuse(*args, **kwargs):
+        raise OSError("no more processes")
+
+    monkeypatch.setattr(soak.subprocess, "Popen", refuse)
+    code, out = split_run(tmp_path, monkeypatch, capsys, [0, 1, 2, 3], 2)
+    assert code == 1 and "could not be run or read: OSError('no more processes')" in out, \
+        "an exception in a worker was lost\n" + out

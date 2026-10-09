@@ -6,4 +6,4 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 log=$1
 shift
-${MUTATE_CMD:-uv run python scripts/mutate.py} "$@" | tee "$log"
+${MUTATE_CMD:-uv run python scripts/mutate.py} ${MUTATE_JOBS:+--jobs "$MUTATE_JOBS"} "$@" | tee "$log"

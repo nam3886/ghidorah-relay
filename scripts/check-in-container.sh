@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # The browser tier of `scripts/check.sh --full` (contracts §14, D33). On the box it builds the `browser` image,
 # then runs two things:
-#   1. `pytest -m browser tests/browser/test_chrome.py` INSIDE the image under xvfb (tini + xvfb-exec), on the
-#      compose network of throwaway Postgres + MinIO from deploy/compose.check.yml;
+#   1. EVERY browser test, `pytest -m browser`, INSIDE the image under xvfb (tini + xvfb-exec), on the compose network
+#      of throwaway Postgres + MinIO from deploy/compose.check.yml: what the Mac tier runs (`browser and not box`)
+#      plus the tests only the box can run (`browser and box`; test_graceful_stop.py is run from here, 2.). The
+#      counts are printed and the tier fails unless exactly that many tests passed (a skip or a miss is a failure);
 #   2. tests/browser/test_graceful_stop.py from here, through DOCKER_HOST=ssh://<box>: it starts a stand-in worker
 #      in the image, stops it and checks the worker got the grace period with its display alive.
 #
@@ -22,7 +24,7 @@ BOX="${RELAY_BOX:-phuongnam@192.168.18.227}"
 TOKEN="$(date +%s)-$$"
 DIR="/tmp/relay-check.$TOKEN"
 PROJECT="relay-check-$TOKEN"
-IMAGE="relay-check-browser:$TOKEN"
+IMAGE="relay-browser-image:$TOKEN"          # what scripts/browser-image.sh builds for TOKEN
 RUNNER="relay-check-run-$TOKEN"
 LABEL="relay.check=$TOKEN"
 
@@ -35,38 +37,40 @@ cleanup() {
        ids=\$(docker ps -aq --filter label=$LABEL); [ -z \"\$ids\" ] || docker rm -f \$ids >/dev/null 2>&1
        cd $DIR 2>/dev/null && docker compose -p $PROJECT -f deploy/compose.check.yml down -v >/dev/null 2>&1
        imgs=\$(docker images -q --filter label=$LABEL); [ -z \"\$imgs\" ] || docker rmi -f \$imgs >/dev/null 2>&1
+       (cd $DIR 2>/dev/null && scripts/browser-image.sh remove $TOKEN >/dev/null 2>&1)
        docker rmi relay-check-browser:local >/dev/null 2>&1
        rm -rf $DIR; true" || true
 }
 trap cleanup EXIT
 
 SYNC_EXCLUDES=(--exclude=.git --exclude=.venv --exclude=__pycache__ --exclude=.pytest_cache --exclude=.ruff_cache
-  --exclude='deploy/*.env' --exclude='._*' --exclude=.DS_Store --exclude=fixtures)
+  --exclude='deploy/*.env' --exclude='._*' --exclude=.DS_Store)
 if on_box; then
   mkdir -p "$DIR" && rsync -a "${SYNC_EXCLUDES[@]}" ./ "$DIR/"
 else
   rsync -a --rsync-path="mkdir -p $DIR && rsync" "${SYNC_EXCLUDES[@]}" ./ "$BOX:$DIR/"
 fi
 
-box "DIR=$DIR PROJECT=$PROJECT IMAGE=$IMAGE RUNNER=$RUNNER LABEL=$LABEL bash -s" <<'REMOTE'
+box "DIR=$DIR PROJECT=$PROJECT IMAGE=$IMAGE RUNNER=$RUNNER LABEL=$LABEL TOKEN=$TOKEN bash -s" <<'REMOTE'
 set -euo pipefail
 cd "$DIR"
 export CHECK_PG_PORT= CHECK_MINIO_PORT=   # empty = publish an ephemeral loopback port; the tests use the network
 
-docker build --label "$LABEL" -f deploy/Dockerfile --target browser -t "$IMAGE" . >build.log 2>&1 \
-  || { tail -40 build.log; exit 1; }
+# The browser image plus the dev dependencies (scripts/browser-image.sh, shared with the mutation stage); it carries
+# the label relay.browser-image=$TOKEN and is removed by `browser-image.sh remove`.
+[ "$(scripts/browser-image.sh build "$TOKEN" 2>build.log)" = "$IMAGE" ] || { tail -40 build.log; exit 1; }
 docker compose -p "$PROJECT" -f deploy/compose.check.yml up -d --wait --quiet-pull
 
 # The image's entrypoint is `tini -- xvfb-exec`, so the command below runs on the virtual screen.
-# Test code is mounted read-only; dev dependencies (pytest) are installed into the container's venv.
+# The whole tree is mounted read-only (tests, fixtures, scripts); its sources go first on PYTHONPATH. Each test gets a
+# short tmp_path (scripts/short_tmp_plugin.py: Chrome's socket path must stay under 108 bytes).
 docker run --rm --name "$RUNNER" --label "$LABEL" --network "${PROJECT}_default" --shm-size=1g \
   -e PYTHONDONTWRITEBYTECODE=1 \
   -e RELAY_TEST_PG_DSN="postgresql://relay:relay-check@postgres:5432/postgres" \
   -e RELAY_TEST_MINIO="http://minio:9000" \
-  -v "$DIR/tests:/app/tests:ro" \
-  "$IMAGE" sh -c 'uv sync --frozen --all-packages --quiet \
-    && echo "Chrome: $(/opt/google/chrome/chrome --version)" \
-    && pytest -m browser -p no:cacheprovider tests/browser/test_chrome.py'
+  -e PYTHONPATH="$(cd "$DIR" && printf '/work/%s:' packages/*/src apps/*/src)/work/scripts" \
+  -v "$DIR:/work:ro" -w /work \
+  "$IMAGE" bash -euo pipefail -c 'echo "Chrome: $(/opt/google/chrome/chrome --version)"; exec scripts/browser-tier.sh'
 REMOTE
 
 uv sync --all-packages --frozen --quiet

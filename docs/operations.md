@@ -178,10 +178,15 @@ Used by browser workers only (dola, meta). Everything is read from the environme
   project (`relay-check-<epoch>-<pid>`) and ephemeral loopback ports, so parallel runs do not share services.
 - `scripts/check.sh --full`: adds `scripts/mutate.py`, the 200-seed `scripts/soak.py` and the browser tier, which
   `scripts/check-in-container.sh` runs on the box (`RELAY_BOX`, default `phuongnam@192.168.18.227`). Per run, with a token `<epoch>.<pid>`: temp dir
-  `/tmp/relay-check.<token>`, image `relay-check-browser:<token>` (label `relay.check=<token>`), compose project
+  `/tmp/relay-check.<token>`, image `relay-browser-image:<token>` (the `browser` target plus the dev dependencies,
+  built by `scripts/browser-image.sh`, label `relay.browser-image=<token>`), compose project
   `relay-check-<token>`, container `relay-check-run-<token>` on that project's network (no host networking). It runs
-  the Chrome tests in the image, then the three graceful-stop tests (stop, kill-then-start, negative control) from the Mac through `DOCKER_HOST=ssh://<box>`. It
-  removes what carries its token on exit and never prunes or touches another project.
+  EVERY browser test in the image, the tree mounted read-only: `pytest -m browser`, i.e. what the Mac tier selects
+  (`browser and not box`, 42 tests) plus the tests only the box can run (`browser and box`, 3), with a line per test;
+  it prints both counts and fails unless exactly that many passed (a skip is a failure) and pytest itself exited 0
+  (`scripts/browser-tier.sh`, run in the image under `pipefail`; a collection that fails or does not add up fails the tier). Then the three graceful-stop
+  tests (stop, kill-then-start, negative control), which drive the docker CLI, run from the Mac through
+  `DOCKER_HOST=ssh://<box>`. It removes what carries its token on exit and never prunes or touches another project.
 - `scripts/check.sh --full --local`: the same without the box (D59). The browser tier runs on the Mac:
   `pytest -m "browser and not box"` with patchright driving the installed Google Chrome (D60). An unnarrowed run
   that selects no browser test fails (`browser tier: FAILED`); a green one prints `browser tier: GREEN on this Mac`.
@@ -249,8 +254,21 @@ scripts/box.sh --clear dev1                                   # stop the run tha
   `free` or `busy, run=... since=...`. Use your own folder: the tester `--tree tester`, each developer its own name;
   never sync into a folder another session is using. `logs` and `busy` are not folder names. The folder name (`--tree`,
   or the directory name of the tree) is letters, digits, dash and underscore; any other directory name needs `--tree NAME`.
+- **A fast gate.** On the box (`RELAY_ON_BOX=1`) `check.sh` runs its slow stages in parallel unless told otherwise:
+  `MUTATE_JOBS=24` private copies of the tree in the mutation stage (`scripts/mutate.py --jobs`: one test per unit of
+  work, heaviest first; a baseline that fails is repeated alone after the queue is empty; output and exit status as
+  in the serial run), `SOAK_JOBS=16` processes in the soak (seed `i` in process `i % 16`, each with its own database and
+  bucket; the stage is green only when every requested seed was seen to run exactly once; a failing seed prints `SOAK FAILED seed N (replay: scripts/soak.py --seed N)`), `PYTEST_JOBS=8` xdist workers in the main suite
+  (`--dist loadfile`, one database per worker; 16 workers made `test_engine.py` fail once in three runs, 8 did not in
+  three). A value on the command line wins; `scripts/box.sh -- MUTATE_JOBS=1 SOAK_JOBS=1 PYTEST_JOBS= ./scripts/check.sh --full`
+  is the serial gate. All test sessions of a run cut their database from one migrated template
+  (`RELAY_TEST_PG_TEMPLATE`, `packages/relay-core/tests/pgtemplate.py`; the template name holds a hash of the `db`
+  package, so a mutated migration gets its own). The check Postgres runs with `max_connections=500` and durability off.
+  The browser tests of the mutation stage (`@pytest.mark.browser` and every test of `relay-browser`) run in the browser
+  image (`MUTATE_BROWSER_IMAGE`, `scripts/browser-image.sh`) on a queue of their own (`MUTATE_BROWSER_JOBS`, 3).
 - **One whole-tree gate.** `check.sh --full` with no `MUTATE_ONLY` and no test path takes `~/relay-runs/gate.lock`; a
-  second one is refused at once (exit 75). Narrowed runs are not locked.
+  second one is refused at once (exit 75), whatever folder it runs in. The command may be wrapped (`bash -c '... ./scripts/check.sh --full 2>&1 | ts'`):
+  `box.sh` reads each argument as shell words and ignores what follows the first operator after `check.sh`. Narrowed runs are not locked.
 - **Do not.** The box also runs containers of other projects (`portfolio`, `billiards`): never stop, inspect or prune
   them, and never run `docker system prune` or `docker image prune` there. Relay's scripts only touch what carries
   their own token or label.

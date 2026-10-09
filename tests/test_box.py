@@ -235,7 +235,8 @@ def test_the_fingerprint_changes_with_a_content_a_new_file_a_deletion_and_the_ex
 GATE = ("--", "./scripts/check.sh", "--full")
 
 
-@mutation(BOX, '[ "$word" = --full ] && is_gate=1', '[ "$word" = --full ] && is_gate=0',
+@mutation(BOX, 'if [ "$seen" = 1 ] && [ "$others" = 0 ] && [ "$full" = 1 ]; then is_gate=1; fi',
+          'if [ "$seen" = 1 ] && [ "$others" = 0 ] && [ "$full" = 1 ]; then is_gate=0; fi',
           expect="a whole-tree gate did not take the lock")
 @mutation(BOX, "MUTATE_ONLY=*) others=1 ;;", "MUTATE_ONLY=*) ;;", expect="a narrowed run took the gate lock")
 @mutation(BOX, '*) [ "$seen" = 1 ] && others=1 ;;', "*) ;;", expect="a narrowed run took the gate lock")
@@ -251,6 +252,37 @@ def test_only_a_whole_tree_gate_takes_the_lock(tmp_path):
         assert box.run(*narrowed).returncode == 0
         assert "gate.lock" not in box.calls() and "flock -n 9" not in (box.dir / "ran.sh").read_text(), \
             "a narrowed run took the gate lock: %r" % (narrowed,)
+
+
+WRAPPED_GATE = ("--", "bash", "-c",
+                "set -o pipefail; ./scripts/check.sh --full 2>&1 | while IFS= read -r l; do echo \"$l\"; done")
+
+
+@mutation(BOX, "arg=${arg//;/ ; }; arg=${arg//|/ | }; arg=${arg//&/ & }; arg=${arg//>/ > }; arg=${arg//</ < }",
+          "arg=$arg", expect="a wrapped whole-tree gate did not take the lock")
+@mutation(BOX, "arg=${arg//2>&1/ | }; ", "", expect="a wrapped whole-tree gate did not take the lock")
+def test_a_gate_wrapped_in_a_shell_takes_the_lock_like_a_plain_one_and_a_wrapped_narrowed_run_does_not(tmp_path):
+    for n, wrapped in enumerate((WRAPPED_GATE, ("--", "env", "MUTATE_JOBS=1", "./scripts/check.sh", "--full"),
+                                 ("--", "sh", "-c", "export A=1\n./scripts/check.sh --full; echo done"))):
+        box = Box(tmp_path / ("w%d" % n))
+        assert box.run(*wrapped).returncode == 0
+        assert "gate.lock true" in box.calls() and "flock -n 9" in (box.dir / "ran.sh").read_text(), \
+            "a wrapped whole-tree gate did not take the lock: %r" % (wrapped,)
+    for n, narrowed in enumerate((("--", "bash", "-c", "MUTATE_ONLY=test_x ./scripts/check.sh --full"),
+                                  ("--", "bash", "-c", "./scripts/check.sh --full tests/test_y.py | cat"),
+                                  ("--", "bash", "-c", "./scripts/check.sh --soak | cat"))):
+        box = Box(tmp_path / ("x%d" % n))
+        assert box.run(*narrowed).returncode == 0
+        assert "gate.lock" not in box.calls() and "flock -n 9" not in (box.dir / "ran.sh").read_text(), \
+            "a wrapped narrowed run took the gate lock: %r" % (narrowed,)
+
+
+@mutation(BOX, "';' | '|' | '&' | '>' | '<') [ \"$seen\" = 1 ] && stopped=1 ;;", "';' | '|' | '&' | '>' | '<') ;;",
+          expect="the words after the gate's pipe counted as test paths")
+def test_the_words_after_the_pipe_of_a_wrapped_gate_are_not_test_paths(tmp_path):
+    box = Box(tmp_path / "pipe")
+    assert box.run("--", "bash", "-c", "./scripts/check.sh --full | tee out.log").returncode == 0
+    assert "flock -n 9" in (box.dir / "ran.sh").read_text(), "the words after the gate's pipe counted as test paths"
 
 
 @mutation(BOX, 'wait for it" 75', 'wait for it" 0', expect="a second gate was not refused")
