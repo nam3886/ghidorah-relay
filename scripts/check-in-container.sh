@@ -12,6 +12,9 @@
 # failure and on Ctrl-C, so concurrent runs cannot touch each other and nothing of dola2api_v4 is touched. The
 # test container joins the compose network (no --network host); no published ports are used (ephemeral
 # loopback ones, unused). No prune of any kind: images are removed by label, containers by label or name.
+#
+# Where it runs: from the Mac it reaches the box over ssh (RELAY_BOX). On the box itself (scripts/box.sh sets
+# RELAY_ON_BOX=1) it uses the local Docker and a local copy, with no ssh to itself.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -23,7 +26,8 @@ IMAGE="relay-check-browser:$TOKEN"
 RUNNER="relay-check-run-$TOKEN"
 LABEL="relay.check=$TOKEN"
 
-box() { ssh -o BatchMode=yes "$BOX" "$@"; }
+on_box() { [ "${RELAY_ON_BOX:-}" = 1 ]; }
+box() { if on_box; then bash -c "$*"; else ssh -o BatchMode=yes "$BOX" "$@"; fi; }
 
 cleanup() {
   # `relay-check-browser:local` is the tag older versions of this script left behind (one-off cleanup).
@@ -36,10 +40,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-rsync -a --rsync-path="mkdir -p $DIR && rsync" \
-  --exclude=.git --exclude=.venv --exclude=__pycache__ --exclude=.pytest_cache --exclude=.ruff_cache \
-  --exclude='deploy/*.env' --exclude='._*' --exclude=.DS_Store --exclude=fixtures \
-  ./ "$BOX:$DIR/"
+SYNC_EXCLUDES=(--exclude=.git --exclude=.venv --exclude=__pycache__ --exclude=.pytest_cache --exclude=.ruff_cache
+  --exclude='deploy/*.env' --exclude='._*' --exclude=.DS_Store --exclude=fixtures)
+if on_box; then
+  mkdir -p "$DIR" && rsync -a "${SYNC_EXCLUDES[@]}" ./ "$DIR/"
+else
+  rsync -a --rsync-path="mkdir -p $DIR && rsync" "${SYNC_EXCLUDES[@]}" ./ "$BOX:$DIR/"
+fi
 
 box "DIR=$DIR PROJECT=$PROJECT IMAGE=$IMAGE RUNNER=$RUNNER LABEL=$LABEL bash -s" <<'REMOTE'
 set -euo pipefail
@@ -63,6 +70,7 @@ docker run --rm --name "$RUNNER" --label "$LABEL" --network "${PROJECT}_default"
 REMOTE
 
 uv sync --all-packages --frozen --quiet
-DOCKER_HOST="ssh://$BOX" RELAY_STOP_TEST_IMAGE="$IMAGE" RELAY_CHECK_TOKEN="$TOKEN" PYTHONDONTWRITEBYTECODE=1 \
+if on_box; then unset DOCKER_HOST; else export DOCKER_HOST="ssh://$BOX"; fi
+RELAY_STOP_TEST_IMAGE="$IMAGE" RELAY_CHECK_TOKEN="$TOKEN" PYTHONDONTWRITEBYTECODE=1 \
   uv run pytest -m browser -p no:cacheprovider tests/browser/test_graceful_stop.py
 echo "browser tier: GREEN"
