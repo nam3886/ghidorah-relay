@@ -240,7 +240,8 @@ def test_the_wake_command_beside_a_claim_holding_the_account_row_does_not_deadlo
             async with claim.transaction():                    # the claim's order: account, then capacity
                 await claim.execute("SELECT 1 FROM accounts WHERE id = %s FOR NO KEY UPDATE", (a,))
                 waking = asyncio.create_task(run_one(make_env(p, KitEngine())))
-                await asyncio.sleep(0.5)                       # the wake command is now waiting on a lock
+                await asyncio.sleep(0.5)       # the wake command is now waiting on a lock; under Postgres's 1 s
+                                               # deadlock_timeout, so it, not the claim, is the deadlock victim
                 await claim.execute("SELECT 1 FROM account_capacity WHERE account_id = %s FOR UPDATE", (a,))
             await waking
 
@@ -268,7 +269,7 @@ def test_the_delete_command_beside_a_claim_holding_the_account_row_does_not_dead
             async with claim.transaction():                    # the claim's order: account, then capacity
                 await claim.execute("SELECT 1 FROM accounts WHERE id = %s FOR NO KEY UPDATE", (a,))
                 deleting = asyncio.create_task(run_one(make_env(p, KitEngine())))
-                await asyncio.sleep(0.5)                       # the delete command is now waiting on a lock
+                await asyncio.sleep(1.5)                       # the delete command is now waiting on a lock
                 await claim.execute("SELECT 1 FROM account_capacity WHERE account_id = %s FOR UPDATE", (a,))
             await deleting
 

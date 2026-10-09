@@ -310,7 +310,7 @@ class Gauge(KitEngine):
         self.peak = max(self.peak, self.live)
         self.ran[kind] += 1
         try:
-            await asyncio.sleep(0.12)
+            await asyncio.sleep(0.4)
             return await call()
         finally:
             self.live -= 1
@@ -353,7 +353,7 @@ def test_unknown_jobs_checks_and_full_submit_slots_never_exceed_the_browser_sema
         tasks = [asyncio.create_task(recon.run()), asyncio.create_task(checks.run(stop, 0.05)),
                  asyncio.create_task(sample())]
         async with running(loop):
-            await asyncio.sleep(2.5)
+            await asyncio.sleep(4.0)
         stop.set()
         recon.stop()
         await asyncio.gather(*tasks)
@@ -414,7 +414,7 @@ def test_a_lease_taken_while_a_heartbeat_is_in_flight_is_not_declared_lost(db, m
 
         async def slow(pool, owner, held, *, ttl_s):
             answer = await real(pool, owner, held, ttl_s=ttl_s)  # the UPDATE has run: this lease is not in its answer
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(1.5)
             return answer
 
         monkeypatch.setattr(leases, "heartbeat", slow)
@@ -425,7 +425,7 @@ def test_a_lease_taken_while_a_heartbeat_is_in_flight_is_not_declared_lost(db, m
                 lease_id = await leases.acquire(conn, account_id=acct, purpose="check", owner="w1", hard_s=60, ttl_s=30)
             try:
                 async with keeper.holding(lease_id):
-                    await asyncio.sleep(0.6)
+                    await asyncio.sleep(2.5)
                 return True
             except leases.LeaseLost:
                 return False

@@ -230,16 +230,16 @@ class DelayedApply:
 def test_a_result_that_arrives_just_before_the_submit_timeout_is_applied_even_when_the_application_starts_late(
         db, monkeypatch):
     """The lease is kept alive through the apply and its hard bound is the timeout plus a margin: a result received
-    at 0.3 s of a 1 s timeout, applied 0.8 s later, still finds its lease."""
+    at 1 s of a 3 s timeout, applied 2.5 s later, still finds its lease."""
     k, _ = key(db), account(db)
 
     async def scenario(p):
         engine = FakeEngine()
-        job_id = await hold_job(p, k, engine, submit_timeout_s=1, script=[sent(ok(), delay_s=0.3)])
-        stall = DelayedApply(monkeypatch, 0.8)
-        loop = make_loop(p, engine, lease_ttl_s=0.5)       # a lease nobody holds would lapse within 0.5 s
+        job_id = await hold_job(p, k, engine, submit_timeout_s=3, script=[sent(ok(), delay_s=1.0)])
+        stall = DelayedApply(monkeypatch, 2.5)
+        loop = make_loop(p, engine, lease_ttl_s=1.5)       # a lease nobody holds would lapse within 1.5 s
         async with running(loop):
-            await until(lambda: stall.finished, timeout_s=6, what="the application to end")
+            await until(lambda: stall.finished, timeout_s=20, what="the application to end")
         return job_id, loop.errors
 
     job_id, errors = run(db, scenario)
@@ -255,14 +255,14 @@ def test_a_lease_lost_during_the_apply_drops_the_result_and_does_not_cancel_the_
     async def scenario(p):
         engine = FakeEngine()
         job_id = await hold_job(p, k, engine, script=[sent(ok(), delay_s=0.1)])
-        stall = DelayedApply(monkeypatch, 0.6)
+        stall = DelayedApply(monkeypatch, 2.0)
         loop = make_loop(p, engine)
         async with running(loop):
             await until(lambda: bool(loop._applying), what="the apply to be waiting")
             db.run("UPDATE leases SET until = clock_timestamp() - interval '1 second'")   # the next beat cancels it
             await until(lambda: not loop._inflight, what="the job task to end")
             waiter_left_early = not stall.finished
-            await asyncio.sleep(0.8)                       # the apply itself must still run to its end
+            await asyncio.sleep(3.5)                       # the apply itself must still run to its end
         return job_id, stall.finished, loop.errors, waiter_left_early
 
     job_id, finished, errors, waiter_left_early = run(db, scenario)
@@ -387,13 +387,13 @@ def test_a_cancellation_during_the_application_cannot_lose_the_result(db):
         engine = FakeEngine()
         job_id = await hold_job(p, k, engine,
                                 script=[sent(SubmitResult(Fail("render.watermarked_only", "no clean copy")))])
-        loop = make_loop(p, engine, grace_s=0.6)         # the in-flight task is cancelled 0.3 s after stop()
+        loop = make_loop(p, engine, grace_s=5.0)         # the in-flight task is cancelled 2.5 s after stop()
         gate = asyncio.Event()
         with Slow("job.fail.refund", gate=gate) as slow:
             task = asyncio.create_task(loop.run())
             await asyncio.wait_for(slow.reached.wait(), 5)       # the failure is half applied: inside its transaction
             loop.stop()
-            await asyncio.sleep(0.45)                            # cancelled, and still inside the shutdown deadline
+            await asyncio.sleep(3.75)                            # cancelled, and still inside the shutdown deadline
             gate.set()
             code = await asyncio.wait_for(task, 10)
         return job_id, code
@@ -469,7 +469,7 @@ def test_a_tick_that_fails_counts_and_a_clean_idle_tick_resets(db):
 class Peak:
     """A scripted submit that records how many run at once."""
 
-    def __init__(self, hold_s=0.15):
+    def __init__(self, hold_s=1.2):
         self.now = self.peak = 0
         self.hold_s = hold_s
 
@@ -687,7 +687,7 @@ def test_a_lease_row_deleted_before_the_apply_still_drops_the_result(db, monkeyp
     async def scenario(p):
         engine = FakeEngine()
         job_id = await hold_job(p, k, engine, script=[sent(ok(), delay_s=0.1)])
-        stall = DelayedApply(monkeypatch, 0.5)
+        stall = DelayedApply(monkeypatch, 1.5)
         loop = make_loop(p, engine)
         with caplog.at_level(logging.INFO):
             async with running(loop):

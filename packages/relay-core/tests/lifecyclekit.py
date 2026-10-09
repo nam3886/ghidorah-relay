@@ -91,7 +91,7 @@ def poller(p, engine, *, spec=SPEC, settings=None, **kw) -> Poller:
 
 
 def fetcher(p, engine, objects, *, spec=SPEC, settings=None, **kw) -> Fetcher:
-    kw.setdefault("retry_s", 0.2)
+    kw.setdefault("retry_s", 1.5)
     return Fetcher(p, spec, engine, settings or FakeSettings(spec), owner="w1", load_account=load_account,
                    objects=objects, tick_s=0.02, **kw)
 

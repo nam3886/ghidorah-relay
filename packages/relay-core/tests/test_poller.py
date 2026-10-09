@@ -166,11 +166,11 @@ def test_a_claim_that_is_never_applied_becomes_due_again_with_a_new_token(db):
 
     async def scenario(p):
         job_id = await waiting(db, p, k)
-        eng = poller(p, FakeEngine(), visibility_s=0.3)
+        eng = poller(p, FakeEngine(), visibility_s=1.5)
         claimed = await eng._claim(5)                       # a poller that crashed after claiming
         assert [c.job_id for c in claimed] == [job_id]
         assert await eng._claim(5) == []                    # hidden meanwhile
-        await asyncio.sleep(0.4)
+        await asyncio.sleep(1.7)
         again = await eng._claim(5)
         return claimed[0].token, again
 

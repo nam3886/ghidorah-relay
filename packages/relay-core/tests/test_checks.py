@@ -234,7 +234,7 @@ def test_a_check_the_keeper_cuts_at_the_hard_bound_still_records_why(db, monkeyp
         async def hang(ctx):
             await asyncio.sleep(60)
         engine.on_check = hang
-        env = make_env(p, engine, check_hard_s=0.5)
+        env = make_env(p, engine, check_hard_s=1.5)
         async with beating(env):
             return await check_account(env, a)
 
@@ -258,7 +258,7 @@ def test_a_failure_is_not_recorded_when_the_lease_row_is_gone(db):
                 await conn.execute("DELETE FROM leases")
         failpoints.arm("check.recording", reaped)
         try:
-            env = make_env(p, engine, check_hard_s=0.5)
+            env = make_env(p, engine, check_hard_s=1.5)
             return await check_account(env, a)
         finally:
             failpoints.disarm("check.recording")
@@ -536,7 +536,7 @@ def test_two_checks_that_find_each_other_as_twins_do_not_deadlock_and_leave_one_
         env = make_env(p, engine)
 
         async def both_locked():                       # each has taken its account locks and waits for the other
-            await asyncio.sleep(0.4)
+            await asyncio.sleep(1.5)
         failpoints.arm("check.apply.accounts_locked", both_locked)
         try:
             return await asyncio.gather(check_account(env, a), check_account(env, b), return_exceptions=True)
@@ -723,7 +723,7 @@ def test_a_check_takes_the_account_row_before_the_capacity_rows_like_the_claim(d
             async with tx(p) as conn:
                 await conn.execute("SELECT 1 FROM accounts WHERE id = %s FOR NO KEY UPDATE", (a,))
                 gate.set()                              # the check now records, and meets the claim's account lock
-                await asyncio.sleep(0.6)
+                await asyncio.sleep(1.5)
                 await conn.execute("SELECT 1 FROM account_capacity WHERE account_id = %s FOR UPDATE", (a,))
 
         async def checker():

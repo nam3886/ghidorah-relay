@@ -52,11 +52,14 @@ def run_as_worker(db, scenario):
 
 def nudge(pool, job_id):
     """A predicate for `until`: makes the job's next poll or fetch due, true once it is done. It runs on the loop (a
-    blocking write from the test thread would wait for a row lock the loop itself holds)."""
+    blocking write from the test thread would wait for a row lock the loop itself holds). A job that a loop has
+    claimed (it holds a `poll_token`) is left alone: re-arming it every 20 ms hands the next claim a new token, and a
+    fetch that takes longer than that (about 100 ms with the probe and the object store) is dropped every time."""
     async def check() -> bool:
         async with tx(pool) as conn:
             await conn.execute("UPDATE jobs SET next_poll_at = clock_timestamp() - interval '1 second' "
-                               "WHERE id = %s AND status IN ('waiting', 'fetching', 'unknown')", (job_id,))
+                               "WHERE id = %s AND status IN ('waiting', 'fetching', 'unknown') "
+                               "AND poll_token IS NULL", (job_id,))
             row = await (await conn.execute("SELECT status FROM jobs WHERE id = %s", (job_id,))).fetchone()
         return row[0] == "done"
     return check
@@ -192,9 +195,9 @@ def test_a_graceful_stop_fails_the_command_that_was_running_under_a_released_lea
 @mutation(W, "return None if deadline is None else max(0.0, deadline - loop.time())", "return self.grace_s",
           expect="the stop took")
 def test_the_whole_stop_has_one_deadline_not_one_grace_per_stage(db, objects):
-    """A command and the reaper both ignore the stop: with a grace of 1 s the stop ends near 1 s, not 2 s."""
+    """A command and the reaper both ignore the stop: with a grace of 3 s the stop ends near 3 s, not 6 s."""
     async def scenario(owner, wp):
-        worker = make_worker(wp, FakeEngine(), objects, grace_s=1.0)
+        worker = make_worker(wp, FakeEngine(), objects, grace_s=3.0)
 
         async def deaf(*_):
             await asyncio.sleep(30)
@@ -208,7 +211,7 @@ def test_the_whole_stop_has_one_deadline_not_one_grace_per_stage(db, objects):
         return code, asyncio.get_running_loop().time() - started
 
     _, took = run_as_worker(db, scenario)
-    assert 0.9 < took < 1.7, "the stop took %.2f s for a 1 s grace" % took
+    assert 2.9 < took < 5.0, "the stop took %.2f s for a 3 s grace" % took
 
 
 @mutation(W, 'self._wait(tasks["claims"], remaining())', 'self._wait(tasks["claims"], None)',

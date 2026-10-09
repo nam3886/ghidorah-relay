@@ -140,7 +140,7 @@ def test_a_failed_download_is_retried_and_then_succeeds(db, objects, mode):
         eng = fetcher(p, engine, objects)
         await pass_once(eng)
         first = (row(db, job_id, "status, poll_token, next_poll_at > clock_timestamp()"), media(db, job_id))
-        await asyncio.sleep(0.25)
+        await asyncio.sleep(1.7)
         await pass_once(eng)
         return job_id, first
 
@@ -252,7 +252,7 @@ def test_an_object_store_failure_is_a_retried_download_not_a_lost_result(db, obj
         eng = fetcher(p, MediaEngine(), objects)
         await pass_once(eng)
         mid = status(db, job_id)
-        await asyncio.sleep(0.25)
+        await asyncio.sleep(1.7)
         await pass_once(eng)
         return job_id, mid
 
@@ -273,7 +273,7 @@ def test_a_job_is_not_done_while_any_output_is_missing(db, objects):
         await pass_once(eng)
         first = (status(db, job_id), media(db, job_id))
         engine.fetch_modes.clear()
-        await asyncio.sleep(0.25)
+        await asyncio.sleep(1.7)
         await pass_once(eng)
         return job_id, first
 

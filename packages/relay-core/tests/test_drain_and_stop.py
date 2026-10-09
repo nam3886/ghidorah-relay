@@ -79,9 +79,23 @@ def test_a_drained_provider_claims_nothing_while_its_open_jobs_still_finish_and_
         first = await create(p, k, "first", completion="hold")
         engine.script_submit(first.job_id, sent(gate))
         loop = make_loop(p, engine, settings=settings)
+        claims = {"started": 0, "ended": 0}
+        real_claim = loop._claim
+
+        async def counted():
+            claims["started"] += 1
+            try:
+                return await real_claim()
+            finally:
+                claims["ended"] += 1
+        loop._claim = counted
         async with running(loop):
             await asyncio.wait_for(gate.started.wait(), 5)
             settings.set("fake.claims_enabled", False)             # drain while the first job is mid-submit
+            # A claim that began before the drain was seen may still take one job (contracts 7.7, I9): wait until
+            # that claim and the next one, which starts after the drain, have both ended before creating the job.
+            seen = claims["started"]
+            await until(lambda: claims["ended"] >= seen + 1, what="the loop to see the drain")
             second = await create(p, k, "second", completion="hold")
             await asyncio.sleep(0.3)                               # many ticks
             while_drained = job_status(db, second.job_id)

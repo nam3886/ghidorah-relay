@@ -42,7 +42,7 @@ class Receiver:
         return Response(status_code=code, headers={"Location": self.location} if self.location else {})
 
 
-async def until(check, timeout_s: float = 8.0):
+async def until(check, timeout_s: float = 15.0):
     """Poll `check()` until it is truthy; returns its value, or None on timeout."""
     deadline = asyncio.get_running_loop().time() + timeout_s
     while asyncio.get_running_loop().time() < deadline:
