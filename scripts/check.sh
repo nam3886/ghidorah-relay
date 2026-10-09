@@ -31,6 +31,7 @@ for a in "$@"; do
   esac
 done
 verdict=""
+mutlog=/dev/null
 if [ "$soak_only" != 1 ]; then verdict=$(scripts/check-verdict.sh "$full" "$nargs"); fi   # a bad SOAK_SEEDS stops here
 
 # Stale .pyc files make a mutation or a fresh edit run the old code; keep none.
@@ -40,7 +41,7 @@ export PYTHONDONTWRITEBYTECODE=1
 # `relay-check` on fixed ports, and the first to finish tore down the other's Postgres (01/10).
 project="relay-check-$(date +%s)-$$"
 compose=(docker compose -p "$project" -f deploy/compose.check.yml)
-trap '"${compose[@]}" down -v >/dev/null 2>&1 || true' EXIT
+trap '"${compose[@]}" down -v >/dev/null 2>&1 || true; [ "$mutlog" = /dev/null ] || rm -f "$mutlog"' EXIT
 if ! out=$(CHECK_PG_PORT="" CHECK_MINIO_PORT="" "${compose[@]}" up -d --wait --quiet-pull 2>&1); then
   echo "$out"; exit 1
 fi
@@ -65,7 +66,9 @@ if [ "$full" = 1 ]; then
   # MUTATE_ONLY="pat1 pat2" limits mutate.py to markers whose test id or file contains a pattern (parallel lanes).
   only=()
   for p in ${MUTATE_ONLY:-}; do only+=(--only "$p"); done
-  uv run python scripts/mutate.py ${only[@]+"${only[@]}"}
+  mutlog=$(mktemp)
+  # MUTATE_CMD is the test hook of check-mutate.sh: one inherited from the caller must not replace mutate.py here
+  env -u MUTATE_CMD scripts/check-mutate.sh "$mutlog" ${only[@]+"${only[@]}"}
   if [ -n "${MUTATE_ONLY:-}" ]; then
     echo "mutate: PARTIAL (MUTATE_ONLY=$MUTATE_ONLY)"
   fi
@@ -94,6 +97,9 @@ if [ "$full" = 1 ]; then
   else
     scripts/check-in-container.sh
   fi
+fi
+if [ "$full" = 1 ]; then      # the last screen of a gate shows the baselines that needed a second run
+  scripts/check-flaky.sh "$mutlog"
 fi
 if [ -n "$verdict" ]; then
   echo "CHECK: PARTIAL (not a commit gate: $(printf '%s' "$verdict" | tr '\n' ';'))"
