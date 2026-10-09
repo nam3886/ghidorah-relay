@@ -12,6 +12,9 @@ services:
       POSTGRES_DB: postgres
     ports: ["127.0.0.1:${CHECK_PG_PORT-55432}:5432"]
     tmpfs: ["/var/lib/postgresql/data"]
+    # A throwaway cluster: many test sessions at once need many connections, and nothing here has to survive a crash.
+    command: ["postgres", "-c", "max_connections=500", "-c", "fsync=off", "-c", "synchronous_commit=off",
+              "-c", "full_page_writes=off"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U relay"]
       interval: 1s

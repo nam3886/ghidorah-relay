@@ -22,6 +22,11 @@ the interleaving of the asyncio tasks against the database is not fixed, so a re
 
     scripts/check.sh --soak [--seeds 200] [--start 0] [--seed N] [--verbose]     the DSNs and MinIO come from check.sh
     scripts/check.sh --full                                                      runs 200 seeds after the mutations
+
+--jobs N runs the seeds in N processes at once (seed i in process i % N), each with its own database (cut from a
+migrated template: RELAY_TEST_PG_TEMPLATE) and its own bucket, so seeds do not see each other. A failing seed is
+printed with its number and the replay command exactly as in a serial run; the seed lines come in the order the
+processes finish them.
 """
 
 import argparse
@@ -31,12 +36,16 @@ import dataclasses
 import logging
 import os
 import random
+import re
+import subprocess
 import sys
+import threading
 import time
 import types
 import unittest.mock
 import uuid
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import httpx
@@ -53,10 +62,11 @@ import jobkit  # noqa: E402
 from enginekit import load_account as claim_account  # noqa: E402
 from lifecyclekit import MediaEngine  # noqa: E402
 from lifecyclekit import load_account as read_account  # noqa: E402
+from pgtemplate import migrated_database  # noqa: E402
 
 from relay_core import failpoints  # noqa: E402
 from relay_core.budget import BrowserBudget  # noqa: E402
-from relay_core.db import open_pool, run_migrations  # noqa: E402
+from relay_core.db import open_pool  # noqa: E402
 from relay_core.jobs import apply as job_apply  # noqa: E402
 from relay_core.jobs import store  # noqa: E402
 from relay_core.jobs.checks import Env  # noqa: E402
@@ -88,7 +98,6 @@ from relay_core.providers import (  # noqa: E402
 from relay_core.storage import ObjectStore  # noqa: E402
 from relay_core.testing.checker import violations  # noqa: E402
 from relay_core.testing.fake_provider import FakeEngine, FakeSettings, FakeSpec, sent, unsent  # noqa: E402
-from relay_core.testing.pg import disposable_database  # noqa: E402
 
 PROVIDER = "fake"
 API_PASSWORD = "api-soak-password"
@@ -627,11 +636,64 @@ def _reset(owner_dsn: str) -> None:
         c.execute("INSERT INTO billing_pin (tz) VALUES ('UTC')")
 
 
+def run_split(seeds: list[int], jobs: int, verbose: bool) -> int:
+    """The seeds in `jobs` child processes of this script; their lines are shown as they come. The stage is green only
+    when every requested seed was seen to run exactly once and no seed, process or reader failed: what the parent was
+    asked to run is not evidence that it ran."""
+    os.environ.setdefault("RELAY_TEST_PG_TEMPLATE", "relay_tpl_%d_%d" % (time.time(), os.getpid()))
+    slices = [seeds[i::jobs] for i in range(min(jobs, len(seeds)))]
+    began, failed, broken = time.monotonic(), [], set()
+    ran = Counter()                                   # seed -> how many result lines the parent saw
+    lock = threading.Lock()
+
+    def drive(index: int, mine: list[int]) -> None:
+        cmd = [sys.executable, __file__, "--seed-list", ",".join(map(str, mine))] + (["--verbose"] if verbose else [])
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        for text in proc.stdout:
+            if text.startswith("soak: "):                     # the child's own summary; the parent prints one
+                continue
+            with lock:
+                print(text, end="", flush=True)
+                found = re.match(r"\s+SOAK FAILED seed (\d+) ", text)
+                if found:
+                    failed.append(int(found.group(1)))
+                result = re.match(r"seed (\d+)\s+(ok|FAIL)\s", text)
+                if result:
+                    ran[int(result.group(1))] += 1
+        if proc.wait() != 0 and not any(s in failed for s in mine):
+            with lock:
+                broken.add(index)
+                print("   SOAK FAILED process %d (seeds %s) exited with status %d" % (index, mine, proc.returncode))
+
+    with ThreadPoolExecutor(max_workers=len(slices)) as pool:
+        futures = [pool.submit(drive, i, mine) for i, mine in enumerate(slices)]
+    for index, future in enumerate(futures):              # an exception in a worker reaches the parent here
+        try:
+            future.result()
+        except Exception as e:
+            broken.add(index)
+            print("   SOAK FAILED process %d (seeds %s) could not be run or read: %r" % (index, slices[index], e))
+    skipped = {s for i in broken for s in slices[i]}      # a process already reported does not report its seeds again
+    missing = [s for s in seeds if ran[s] == 0 and s not in skipped]
+    twice = [s for s in seeds if ran[s] > 1]
+    unasked = sorted(s for s in ran if s not in seeds)
+    for text, which in (("never ran", missing), ("ran more than once", twice), ("ran but was not asked for", unasked)):
+        if which:
+            print("   SOAK FAILED seeds %s %s" % (which, text))
+    failed.sort()
+    bad = len(failed) + len(broken) + len(missing) + len(twice) + len(unasked)
+    names = " (%s)" % ", ".join(map(str, failed)) if failed else ""
+    print("soak: %d seed(s), %d failed%s, %.0fs" % (len(seeds), bad, names, time.monotonic() - began))
+    return 1 if bad else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="soak.py", description=__doc__.split("\n")[0])
     ap.add_argument("--seeds", type=int, default=200, help="how many seeds to run (default 200)")
     ap.add_argument("--start", type=int, default=0, help="the first seed (default 0)")
     ap.add_argument("--seed", type=int, help="run this one seed alone (a replay)")
+    ap.add_argument("--jobs", type=int, default=1, help="processes running seeds at once (default 1)")
+    ap.add_argument("--seed-list", help=argparse.SUPPRESS)       # the seeds of one child process of --jobs
     ap.add_argument("--verbose", action="store_true", help="show the errors the loops log (chaos makes plenty)")
     args = ap.parse_args(argv)
     if args.verbose:
@@ -639,17 +701,20 @@ def main(argv: list[str] | None = None) -> int:
         for name in LOGGERS:
             logging.getLogger(name).propagate = True
     seeds = [args.seed] if args.seed is not None else list(range(args.start, args.start + args.seeds))
+    if args.seed_list:
+        seeds = [int(n) for n in args.seed_list.split(",")]
     endpoint = os.environ.get("RELAY_TEST_MINIO", "")
     if not endpoint:
         print("RELAY_TEST_MINIO is not set: run the soak through scripts/check.sh --full", file=sys.stderr)
         return 2
+    if args.jobs > 1 and not args.seed_list and len(seeds) > 1:
+        return run_split(seeds, args.jobs, args.verbose)
     store_ = ObjectStore(endpoint, os.environ["RELAY_TEST_MINIO_ACCESS_KEY"], os.environ["RELAY_TEST_MINIO_SECRET_KEY"],
                          bucket="relay-soak-" + uuid.uuid4().hex[:10])
     asyncio.run(store_.ensure_bucket())
     failed, began = [], time.monotonic()
     try:
-        with disposable_database() as dsn:
-            run_migrations(dsn, passwords={"relay_api": API_PASSWORD, "relay_worker": WORKER_PASSWORD})
+        with migrated_database({"relay_api": API_PASSWORD, "relay_worker": WORKER_PASSWORD}, "soak") as dsn:
             dsns = Dsns(dsn, make_conninfo(dsn, user="relay_api", password=API_PASSWORD),
                         make_conninfo(dsn, user="relay_worker", password=WORKER_PASSWORD))
             for seed in seeds:

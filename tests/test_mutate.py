@@ -3,6 +3,7 @@
 import fcntl
 import importlib.util
 import os
+import shutil
 import subprocess
 import textwrap
 from pathlib import Path
@@ -82,7 +83,7 @@ def test_a_broken_mutation_still_restores_the_file_for_the_next_one(tmp_path, ca
     assert (tmp_path / "tests" / "m.py").read_text(encoding="utf-8") == MODULE
 
 
-@mutation(S, "return _run_locked(copy_tree(root, Path(tmp)), only)", "return _run_locked(root, only)",
+@mutation(S, "return _run_locked(copy_tree(root, Path(tmp)), only, jobs)", "return _run_locked(root, only, jobs)",
            expect="assert 'def f():\\n    return 2\\n' == 'def f():\\n    return 1\\n'")
 def test_the_working_tree_is_never_mutated_even_mid_run(tmp_path):
     # the planted test records what the WORKING tree's m.py holds while its mutation is in flight
@@ -441,3 +442,252 @@ def test_a_mutate_cmd_inherited_by_check_sh_does_not_replace_the_mutation_stage(
                          env={"PATH": "%s:%s" % (bin_dir, os.environ["PATH"]), "MUTATE_CMD": str(green)})
     assert "REAL-COMMAND-RAN" in run.stdout and "CALLER-COMMAND-RAN" not in run.stdout and run.returncode == 1, \
         "an inherited MUTATE_CMD reached the mutation stage: %d %r" % (run.returncode, run.stdout)
+
+
+# ---- --jobs N: the same result as the serial run, from private copies working at once ------------------------------
+MODULE3 = "def f():\n    return 1\n\n\ndef g():\n    return 2\n\n\ndef h():\n    return 3\n"
+
+
+def planted_trio(root: Path, extra_test: str = "") -> Path:
+    """tests a (one marker), b (two), c (one), in that file order; `extra_test` is more test source."""
+    (root / "tests").mkdir()
+    (root / "tests" / "m.py").write_text(MODULE3, encoding="utf-8")
+    (root / "tests" / "test_m.py").write_text(textwrap.dedent("""\
+        import os
+        import time
+        from relay_core.testing.mutation import mutation
+        import m
+
+
+        def note(text):
+            with open(os.environ.get("NOTES", os.devnull), "a") as f:
+                f.write(text + "\\n")
+
+
+        @mutation("tests/m.py", "return 1", "return 0")
+        def test_a():
+            time.sleep(0.2)
+            note("end a")
+            assert m.f() == 1
+
+
+        @mutation("tests/m.py", "return 2", "return 0")
+        @mutation("tests/m.py", "def g", "def gg")
+        def test_b():
+            time.sleep(0.2)
+            note("end b")
+            assert m.g() == 2
+
+
+        @mutation("tests/m.py", "return 3", "return 0")
+        def test_c():
+            time.sleep(0.2)
+            note("end c")
+            assert m.h() == 3
+        """) + textwrap.dedent(extra_test), encoding="utf-8")
+    return root
+
+
+def output_of(capsys, root: Path, jobs: int) -> tuple[int, str]:
+    code = mutate.run(root, jobs=jobs)
+    return code, capsys.readouterr().out
+
+
+@mutation(S, "for node_id, file, _original, replacement, _expect in marks:",
+          "for node_id, file, _original, replacement, _expect in sorted(marks, key=lambda m: m[0], reverse=True):",
+          expect="the parallel output is not in marker order")
+def test_a_parallel_run_prints_what_the_serial_run_prints_in_the_same_order(tmp_path, capsys):
+    planted_trio(tmp_path)
+    serial = output_of(capsys, tmp_path, 1)
+    parallel = output_of(capsys, tmp_path, 3)
+    assert serial[0] == 0 and "4/4 killed, 0 failed, 0 flaky baseline(s)" in serial[1], serial
+    assert parallel == serial, "the parallel output is not in marker order: " + parallel[1]
+
+
+@mutation(S, "key=lambda kv: -len(kv[1])", "key=lambda kv: len(kv[1])", expect="the lightest test was first")
+def test_tests_are_scheduled_heaviest_first_and_ties_keep_the_marker_order(tmp_path):
+    planted_trio(tmp_path)
+    ids = [node_id.split("::")[1] for node_id, _ in mutate._units(mutate.collect(tmp_path))]
+    assert ids == ["test_b", "test_a", "test_c"], "the lightest test was first: %s" % ids
+
+
+FLAKY_TEST = """
+
+def test_x():
+    # fails in its first run, passes in every later one, and notes when it runs
+    path = os.environ["NOTES"] + ".x"
+    first = not os.path.exists(path)
+    open(path, "a").write("x")
+    if not first:
+        note("run x")
+    assert not first
+    assert m.f() == 1
+"""
+
+
+@mutation(S, "                first = baseline(copy, node_id)\n",
+          "                first = baseline_checked(copy, node_id)[0]\n",
+          expect="the failed baseline was repeated inside the queue")
+@mutation(S, "            if second:\n", "            if not second:\n",
+          expect="a recovered baseline was counted as failed")
+def test_a_failed_baseline_is_repeated_alone_after_the_queue_is_empty_and_a_green_second_run_is_flaky(
+        tmp_path, capsys, monkeypatch):
+    planted_trio(tmp_path, FLAKY_TEST.replace("def test_x", '@mutation("tests/m.py", "def f", "def ff")\ndef test_x'))
+    notes = tmp_path / "notes.txt"
+    monkeypatch.setenv("NOTES", str(notes))
+    code, out = output_of(capsys, tmp_path, 4)
+    lines = notes.read_text().splitlines()
+    # the three other tests had all finished before the repeat of the failed baseline began
+    last_end = max(i for i, ln in enumerate(lines) if ln.startswith("end "))
+    assert lines.index("run x") > last_end, "the failed baseline was repeated inside the queue: %s" % lines
+    assert code == 0 and "5/5 killed, 0 failed, 1 flaky baseline(s)" in out, \
+        "a recovered baseline was counted as failed: " + out
+    assert "FLAKY    tests/test_m.py::test_x" in out, out
+
+
+@mutation(S, "                if first:\n                    with lock:",
+          "                if False:\n                    with lock:",
+          expect="a baseline that fails twice was not reported FAILED")
+def test_a_baseline_that_fails_twice_is_failed_in_a_parallel_run_too_and_prints_both_failure_lines(tmp_path, capsys):
+    planted_trio(tmp_path, '''
+
+@mutation("tests/m.py", "def f", "def ff")
+def test_y():
+    assert False, "always"
+''')
+    code, out = output_of(capsys, tmp_path, 4)
+    assert code == 1 and "4/5 killed, 1 failed, 0 flaky baseline(s)" in out, \
+        "a baseline that fails twice was not reported FAILED: " + out
+    assert "baseline not green" in out and "second run: baseline not green" in out, out
+
+
+# ---- browser tests run in the browser image, with a queue of their own ---------------------------------------------
+FAKE_DOCKER = """#!{python}
+import os, subprocess, sys
+args = sys.argv[1:]
+open(os.environ["DOCKER_LOG"], "a").write(" ".join(args) + "\\n")
+if args[:1] != ["run"]:
+    sys.exit(0)
+mount = next(a for a in args if a.endswith(":/work:ro")).split(":")[0]
+env = dict(os.environ, PYTHONPATH=next(a for a in args if a.startswith("PYTHONPATH=")).split("=", 1)[1]
+           .replace("/work", mount))
+rest = args[args.index("pytest") + 1:]
+env["SHORT_TMP_DIR"] = os.environ["SHORT_TMP_DIR"]
+sys.exit(subprocess.run([sys.executable, "-m", "pytest", *rest], cwd=mount, env=env).returncode)
+"""
+
+BROWSER_TEST = """
+
+@mutation("tests/m.py", "def g", "def gg")
+@pytest.mark.browser
+def test_chrome():
+    assert m.g() == 2
+"""
+
+
+def with_fake_docker(tmp_path: Path, monkeypatch) -> Path:
+    import sys
+    bins = tmp_path / "bin"
+    bins.mkdir()
+    (bins / "docker").write_text(FAKE_DOCKER.format(python=sys.executable), encoding="utf-8")
+    (bins / "docker").chmod(0o755)
+    log = tmp_path / "docker.log"
+    monkeypatch.setenv("DOCKER_LOG", str(log))
+    monkeypatch.setenv("SHORT_TMP_DIR", str(tmp_path))
+    monkeypatch.setenv("PATH", "%s:%s" % (bins, os.environ["PATH"]))
+    monkeypatch.setenv("MUTATE_BROWSER_IMAGE", "relay-mutate-browser:test")
+    return log
+
+
+@mutation(S, 'any(isinstance(d, ast.Attribute) and d.attr == "browser" for d in fn.decorator_list)',
+          'any(isinstance(d, ast.Attribute) and d.attr == "box" for d in fn.decorator_list)',
+          expect="the browser test was not recognised")
+def test_the_tests_marked_browser_are_found_by_their_mark(tmp_path):
+    planted_trio(tmp_path, BROWSER_TEST.replace("@pytest.mark.browser", "@pytest.mark.browser")
+                 .replace("\n\n@mutation", "\n\nimport pytest\n\n\n@mutation", 1))
+    plain = tmp_path / "packages" / "relay-browser" / "tests"
+    plain.mkdir(parents=True)
+    (plain / "test_plain.py").write_text("def test_p():\n    pass\n", encoding="utf-8")
+    assert mutate.browser_tests(tmp_path) == {"tests/test_m.py::test_chrome",
+                                              "packages/relay-browser/tests/test_plain.py::test_p"}, \
+        "the browser test was not recognised"
+
+
+@mutation(S, "if IMAGE and node_id in BROWSER:", "if False:", expect="a browser test ran outside the image")
+@mutation(S, '"-p", "short_tmp_plugin", *cmd[3:]]', '*cmd[3:]]', expect="the browser container got no short tmp_path")
+def test_a_browser_test_runs_in_the_image_and_no_other_test_does_and_the_result_is_unchanged(
+        tmp_path, capsys, monkeypatch):
+    planted_trio(tmp_path, BROWSER_TEST).joinpath("tests", "conftest.py").write_text("", encoding="utf-8")
+    test_file = tmp_path / "tests" / "test_m.py"
+    test_file.write_text("import pytest\n" + test_file.read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "scripts").mkdir()
+    shutil.copy(REPO / "scripts" / "short_tmp_plugin.py", tmp_path / "scripts")
+    plain = output_of(capsys, tmp_path, 2)                # no image: everything runs here
+    log = with_fake_docker(tmp_path, monkeypatch)
+    for jobs in (1, 3):
+        log.write_text("")
+        assert output_of(capsys, tmp_path, jobs) == plain, "the result changed with the image (jobs=%d)" % jobs
+        runs = [ln for ln in log.read_text().splitlines() if ln.startswith("run ")]
+        assert len(runs) == 2 and all("tests/test_m.py::test_chrome" in ln for ln in runs), \
+            "a browser test ran outside the image or a plain test ran in it: %s" % runs
+        assert all("--shm-size=1g" in ln and ":/work:ro" in ln and "relay-mutate-browser:test" in ln for ln in runs)
+        assert all("pytest -p short_tmp_plugin " in ln for ln in runs), \
+            "the browser container got no short tmp_path: %s" % runs
+
+
+# ---- the knobs of the fast gate: MUTATE_JOBS, SOAK_JOBS, PYTEST_JOBS (all default to the serial run) ---------------
+MUTATE_SH = "scripts/check-mutate.sh"
+
+
+@mutation(MUTATE_SH, '${MUTATE_JOBS:+--jobs "$MUTATE_JOBS"}', "", expect="MUTATE_JOBS did not reach mutate.py")
+@mutation(MUTATE_SH, '${MUTATE_JOBS:+--jobs "$MUTATE_JOBS"}', "--jobs 1",
+          expect="the mutation stage is not serial by default")
+def test_the_mutation_stage_runs_mutate_py_with_jobs_only_when_mutate_jobs_is_set(tmp_path):
+    def args(**env):
+        base = {k: v for k, v in os.environ.items() if k != "MUTATE_JOBS"}      # a gate on the box sets it
+        run = subprocess.run(["bash", str(REPO / MUTATE_SH), str(tmp_path / "log"), "--only", "x"], capture_output=True,
+                             text=True, env={**base, "MUTATE_CMD": "echo", **env})
+        return run.stdout.strip()
+    assert args() == "--only x", "the mutation stage is not serial by default"
+    assert args(MUTATE_JOBS="5") == "--jobs 5 --only x", "MUTATE_JOBS did not reach mutate.py"
+
+
+@mutation(CHECK, "  MUTATE_JOBS=${MUTATE_JOBS-24}\n", "  MUTATE_JOBS=${MUTATE_JOBS:-1}\n",
+          expect="the box default of MUTATE_JOBS is not parallel")
+@mutation(CHECK, "  SOAK_JOBS=${SOAK_JOBS-16}\n", "  SOAK_JOBS=${SOAK_JOBS:-1}\n",
+          expect="the box default of SOAK_JOBS is not parallel")
+@mutation(CHECK, "  PYTEST_JOBS=${PYTEST_JOBS-8}\n", "  PYTEST_JOBS=${PYTEST_JOBS:-8}\n",
+          expect="an empty PYTEST_JOBS no longer turns xdist off")
+@mutation(CHECK, "  PYTEST_JOBS=${PYTEST_JOBS-8}\n", "  PYTEST_JOBS=${PYTEST_JOBS-1}\n",
+          expect="the box default of PYTEST_JOBS is not parallel")
+def test_on_the_box_the_slow_stages_default_to_parallel_and_an_explicit_value_wins():
+    # the part of check.sh that sets the defaults, run in a shell with RELAY_ON_BOX=1 (and without it)
+    text = (REPO / CHECK).read_text(encoding="utf-8")
+    start = text.index('if [ "${RELAY_ON_BOX:-}" = 1 ]; then')
+    block = text[start:text.index("export MUTATE_JOBS SOAK_JOBS PYTEST_JOBS")]
+
+    def settled(env: dict) -> str:
+        script = block + 'echo "[$MUTATE_JOBS][$SOAK_JOBS][$PYTEST_JOBS]"'
+        run = subprocess.run(["bash", "-c", script], capture_output=True, text=True,
+                             env={"PATH": os.environ["PATH"], **env})
+        return run.stdout.strip()
+
+    box = settled({"RELAY_ON_BOX": "1"})
+    assert box.startswith("[24]"), "the box default of MUTATE_JOBS is not parallel: " + box
+    assert box.startswith("[24][16]"), "the box default of SOAK_JOBS is not parallel: " + box
+    assert box == "[24][16][8]", "the box default of PYTEST_JOBS is not parallel: " + box
+    assert settled({}) == "[][][]"
+    serial = settled({"RELAY_ON_BOX": "1", "MUTATE_JOBS": "1", "SOAK_JOBS": "1", "PYTEST_JOBS": ""})
+    assert serial == "[1][1][]", "an empty PYTEST_JOBS no longer turns xdist off: " + serial
+    assert settled({"RELAY_ON_BOX": "1", "SOAK_JOBS": "3"}) == "[24][3][8]", \
+        "the box default of SOAK_JOBS is not parallel"
+
+
+@mutation(CHECK, '${SOAK_JOBS:+--jobs "$SOAK_JOBS"}', "", expect="SOAK_JOBS did not reach soak.py")
+@mutation(CHECK, '${PYTEST_JOBS:+-n "$PYTEST_JOBS" --dist loadfile}', "", expect="PYTEST_JOBS did not reach pytest")
+@mutation(CHECK, '--dist loadfile}', "--dist load}", expect="a test file was split over workers")
+def test_check_sh_passes_soak_jobs_and_pytest_jobs_on_and_keeps_each_test_file_on_one_worker():
+    text = (REPO / CHECK).read_text(encoding="utf-8")
+    assert '${SOAK_JOBS:+--jobs "$SOAK_JOBS"}' in text, "SOAK_JOBS did not reach soak.py"
+    assert '${PYTEST_JOBS:+-n "$PYTEST_JOBS" --dist' in text, "PYTEST_JOBS did not reach pytest"
+    assert '--dist loadfile}' in text, "a test file was split over workers"

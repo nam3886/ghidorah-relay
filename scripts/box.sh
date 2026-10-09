@@ -245,21 +245,29 @@ real_env=$(find "$root" \( -name .git -o -name .venv -o -name node_modules \) -p
   \( -name .env -o -name '*.env' \) -print | sed "s#^$root/##")
 [ -z "$real_env" ] || die "refusing to sync: the tree holds a real env file (only *.example may be in it): $(echo "$real_env" | tr '\n' ' ')"
 
-# a whole-tree gate takes the lock: check.sh --full with no MUTATE_ONLY and no test path
+# a whole-tree gate takes the lock: check.sh --full with no MUTATE_ONLY and no test path. The command may be wrapped
+# (`bash -c 'set -o pipefail; ./scripts/check.sh --full 2>&1 | ts'`): every argument is read as shell words, with the
+# shell's operators as words of their own, and what follows the first operator after check.sh does not count.
 is_gate=0
 if [ "$mode" = run ] || [ "$mode" = detach ]; then
-  seen=0; others=0
-  for word in "$@"; do
-    case "$word" in
-      MUTATE_ONLY=*) others=1 ;;
-      */check.sh | check.sh) seen=1 ;;
-      --full | --local) ;;
-      *) [ "$seen" = 1 ] && others=1 ;;
-    esac
+  seen=0; others=0; stopped=0; full=0
+  set -f
+  for arg in "$@"; do
+    arg=${arg//2>&1/ | }; arg=${arg//;/ ; }; arg=${arg//|/ | }; arg=${arg//&/ & }; arg=${arg//>/ > }; arg=${arg//</ < }
+    for word in $arg; do
+      [ "$stopped" = 1 ] && continue
+      case "$word" in
+        ';' | '|' | '&' | '>' | '<') [ "$seen" = 1 ] && stopped=1 ;;
+        MUTATE_ONLY=*) others=1 ;;
+        */check.sh | check.sh) seen=1 ;;
+        --full) [ "$seen" = 1 ] && full=1 ;;
+        --local) ;;
+        *) [ "$seen" = 1 ] && others=1 ;;
+      esac
+    done
   done
-  if [ "$seen" = 1 ] && [ "$others" = 0 ]; then
-    for word in "$@"; do [ "$word" = --full ] && is_gate=1; done
-  fi
+  set +f
+  if [ "$seen" = 1 ] && [ "$others" = 0 ] && [ "$full" = 1 ]; then is_gate=1; fi
 fi
 
 if [ "$mode" = detach ]; then
