@@ -15,6 +15,7 @@ from relay_core.providers import (
     ParsedCredential,
     Plan,
     PoolSpec,
+    RateAlert,
     Warning,
 )
 from relay_core.settings import Spec
@@ -140,6 +141,11 @@ class DolaSpec:
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
         strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=True, titles=True,
         catalog_refresh_s=CATALOG_REFRESH_S, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)
+    rate_alerts = (
+        RateAlert("dola.alert_duration_mismatch_rate", codes.WARN_DURATION_DRIFT, "warning"),
+        RateAlert("dola.alert_watermark_only_rate", codes.RENDER_WATERMARKED_ONLY, "error_code"),
+        RateAlert("dola.alert_content_refused_rate", (codes.CONTENT_REFUSED, codes.LIKENESS_REFUSED), "error_code"),
+    )
 
     def catalog(self) -> list[ModelSpec]:
         return C.catalog()

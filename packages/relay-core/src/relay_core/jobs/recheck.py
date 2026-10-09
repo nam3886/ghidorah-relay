@@ -22,7 +22,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from relay_core import billing, storage
 from relay_core.db import tx
-from relay_core.jobs.create import Created, InputMedia, NewJob, Settings, create_job
+from relay_core.jobs.create import Created, InputMedia, NewJob, Settings, body_hash, create_job
 from relay_core.jobs.events import add_event
 from relay_core.providers import Plan
 
@@ -119,6 +119,9 @@ async def recheck_bulk(db: AsyncConnectionPool, job_ids: Iterable) -> BulkRechec
             skipped[str(job_id)] = e.code
         except Skipped as e:
             skipped[str(job_id)] = str(e)
+        except Exception:
+            log.exception("bulk re-check of job %s failed", job_id)
+            skipped[str(job_id)] = "internal"
     return BulkRecheck(tuple(done), skipped)
 
 
@@ -197,12 +200,15 @@ _SOURCE = "SELECT provider, key_id, prompt, title, request FROM jobs WHERE id = 
 
 
 async def regenerate_job(db: AsyncConnectionPool, job_id, settings: Settings, *, plan: Plan,
-                         copy_inputs: CopyInputs | None = None) -> Created:
+                         copy_inputs: CopyInputs | None = None, idem_key: str | None = None) -> Created:
     """A NEW job with the old job's prompt, title and key and a NEW marker (derived from its own id), charged to the
     key through the ordinary creation gate (cap, wallet). The `plan` is the caller's: it ran `spec.plan()` and the
     key's allow-list for today's price, catalog and timeout; nothing of the old job's plan is reused. Input objects
     are copied for it by `copy_inputs(new_job_id, old_inputs)`, which runs before the creation transaction (it does
-    object-store I/O). The old job is untouched but for an event that points at the new one."""
+    object-store I/O). The old job is untouched but for an event that points at the new one.
+
+    With `idem_key` the creation is idempotent per key (the key's jobs.idem_key): the same key and source job again
+    returns the job made the first time, `replayed`, and writes no second event."""
     async with tx(db) as conn:
         row = await (await conn.execute(_SOURCE, (job_id,))).fetchone()
         if row is None:
@@ -212,11 +218,17 @@ async def regenerate_job(db: AsyncConnectionPool, job_id, settings: Settings, *,
             "ORDER BY idx", (job_id,))).fetchall()]
     provider, key_id, prompt, title, request = row
     new = NewJob(provider, key_id, plan, prompt, title, request=request)   # kept, so the new job can be regenerated
+    if idem_key is not None:
+        new = replace(new, idem_key=idem_key, idem_body_hash=body_hash({"regenerate": str(job_id)}))
     if old:
         if copy_inputs is None:
             raise ValueError("the job has input media: copy_inputs is required")
         new = replace(new, inputs=await copy_inputs(new.job_id, old))
     created = await create_job(db, new, settings)
-    async with tx(db) as conn:
-        await add_event(conn, job_id, "system", "regenerated", "regenerated as job %s" % created.job_id)
+    if not created.replayed:
+        try:
+            async with tx(db) as conn:
+                await add_event(conn, job_id, "system", "regenerated", "regenerated as job %s" % created.job_id)
+        except Exception:      # the new job is committed and charged: its id must reach the caller
+            log.exception("the regenerated event of job %s was not written (new job %s)", job_id, created.job_id)
     return created

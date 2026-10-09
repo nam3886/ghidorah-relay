@@ -11,6 +11,7 @@ from relay_core.errors import Rule
 
 CONTENT_REFUSED = "dola.content_refused"
 LIKENESS_REFUSED = "dola.likeness_refused"
+RENDER_WATERMARKED_ONLY = "render.watermarked_only"      # a core code: the poll saw only watermarked links
 NEEDS_CONFIRM = "dola.needs_confirm"
 NO_VIDEO = "dola.no_video"
 NO_IMAGE = "dola.no_image"

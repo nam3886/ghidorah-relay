@@ -25,7 +25,9 @@ from relay_core.api.routes_media import serve_job_media
 from relay_core.db import tx
 from relay_core.errors import http_status
 from relay_core.jobs import store as jobs
+from relay_core.jobs import webhooks
 from relay_core.jobs.create import InputMedia
+from relay_core.jobs.shares import PgShareTable
 from relay_core.providers import CreateRequest, MediaIn, Plan, ProviderRegistry
 from relay_core.settings import Settings
 from relay_core.storage import ObjectStore
@@ -36,11 +38,17 @@ router = APIRouter()
 TITLE_LIMIT = 200
 RECHECKABLE = ("failed", "waiting", "unknown")
 TERMINAL = ("done", "failed")
+MAX_BULK = 100
 DEBUG_READ_MAX = 8 * 1024 * 1024
 _RASTER = ("image/png", "image/jpeg", "image/webp", "image/gif")
 _LIST = (
     "SELECT j.id, j.provider, j.key_id, k.label, j.operation, j.media_type, j.model, j.title, j.status, "
-    "j.error_code, j.price, j.account_id, a.label, j.external_ref, j.created_at, j.finished_at "
+    "j.error_code, j.price, j.account_id, a.label, j.external_ref, j.created_at, j.finished_at, "
+    "(SELECT count(*) FROM job_media m WHERE m.job_id = j.id AND m.role = 'output'), "
+    "(SELECT count(*) FROM job_media m WHERE m.job_id = j.id AND m.role = 'input'), "
+    "(SELECT COALESCE(sum(CASE entry WHEN 'charge' THEN amount ELSE -amount END), 0) FROM ledger l "
+    " WHERE l.job_id = j.id AND l.entry IN ('charge', 'refund')), "
+    "EXISTS (SELECT 1 FROM jsonb_array_elements(j.warnings) w WHERE w->>'code' ~ '\\.model_substituted$') "
     "FROM jobs j LEFT JOIN api_keys k ON k.id = j.key_id LEFT JOIN accounts a ON a.id = j.account_id "
     "WHERE (%(status)s::text IS NULL OR j.status = %(status)s) AND (%(provider)s::text IS NULL OR "
     "j.provider = %(provider)s) AND (%(key)s::uuid IS NULL OR j.key_id = %(key)s) "
@@ -110,7 +118,8 @@ async def list_jobs(status: str | None = None, provider: str | None = None, key_
                                                  "cid": cid, "limit": limit + 1})).fetchall()
     page = rows[:limit]
     more = len(rows) > limit
-    return {"items": [_summary(r) for r in page],
+    return {"items": [{**_summary(r[:16]), "outputs": r[16], "inputs": r[17], "net_charged": r[18],
+                       "model_substituted": r[19]} for r in page],
             "next_cursor": _cursor_text(page[-1][14], page[-1][0]) if more else None}
 
 
@@ -299,11 +308,33 @@ async def fresh_plan(gate: Gate, job_id) -> Plan:
     return (await plan_job(gate, allowed, request))[1]
 
 
-@router.post("/jobs/{job_id}/regenerate")
-async def regenerate(job_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_pool),
-                     registry: ProviderRegistry = Depends(get_registry),
-                     settings: Settings = Depends(get_settings), store: ObjectStore = Depends(get_store)) -> dict:
-    """A new job for the same key through the creation gate (cap, wallet, charge), at today's price."""
+# One random key per confirmed Regenerate action, made by the page and kept until the server has answered. The new
+# job's idempotency key is built from it and the source job. The unit separator is not printable, and the customer
+# routes refuse an Idempotency-Key that is not (doors._check_text), so no customer key can equal or collide with it.
+OPERATION_KEY = r"^[A-Za-z0-9_-]{16,64}$"
+
+
+def _regenerate_key(operation_key: str, job_id: uuid.UUID) -> str:
+    return "regenerate\x1f%s\x1f%s" % (operation_key, job_id)
+
+
+async def _made_before(pool: AsyncConnectionPool, job_id: uuid.UUID, idem_key: str) -> dict | None:
+    """The job this action already made from `job_id`, found before the plan, the allow-list or any copy."""
+    async with tx(pool) as conn:
+        row = await (await conn.execute(
+            "SELECT n.id, n.status FROM jobs s JOIN jobs n ON n.key_id = s.key_id AND n.idem_key = %s "
+            "WHERE s.id = %s", (idem_key, job_id))).fetchone()
+    return None if row is None else {"id": str(row[0]), "status": row[1], "queue_position": None, "replayed": True}
+
+
+async def _regenerate(job_id: uuid.UUID, operation_key: str, pool: AsyncConnectionPool, registry: ProviderRegistry,
+                      settings: Settings, store: ObjectStore) -> dict:
+    """A new job for the same key through the creation gate (cap, wallet, charge), at today's price. The same
+    `operation_key` for the same source job again returns that job: nothing is charged, copied or written."""
+    idem_key = _regenerate_key(operation_key, job_id)
+    earlier = await _made_before(pool, job_id, idem_key)
+    if earlier is not None:
+        return earlier
     plan = await fresh_plan(Gate(pool, settings, store, registry), job_id)
 
     async def copy_inputs(new_job_id, old: list[InputMedia]) -> tuple[InputMedia, ...]:
@@ -319,7 +350,8 @@ async def regenerate(job_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_
         return tuple(copies)
 
     try:
-        created = await jobs.regenerate_job(pool, job_id, settings, plan=plan, copy_inputs=copy_inputs)
+        created = await jobs.regenerate_job(pool, job_id, settings, plan=plan, copy_inputs=copy_inputs,
+                                            idem_key=idem_key)
     except jobs.JobRefused as e:
         raise ApiError(e.code) from None
     except jobs.CreateRefused as e:
@@ -328,4 +360,75 @@ async def regenerate(job_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_
         raise
     except billing.BillingError as e:
         raise ApiError(e.code) from None
-    return {"id": str(created.job_id), "status": created.status, "queue_position": created.queue_position}
+    return {"id": str(created.job_id), "status": created.status, "queue_position": created.queue_position,
+            "replayed": created.replayed}
+
+
+class RegenerateBody(Strict):
+    operation_key: str = Field(pattern=OPERATION_KEY)
+
+
+@router.post("/jobs/{job_id}/regenerate")
+async def regenerate(job_id: uuid.UUID, body: RegenerateBody | None = None,
+                     pool: AsyncConnectionPool = Depends(get_pool), registry: ProviderRegistry = Depends(get_registry),
+                     settings: Settings = Depends(get_settings), store: ObjectStore = Depends(get_store)) -> dict:
+    if body is None:
+        raise ApiError("input.invalid", "operation_key")
+    return await _regenerate(job_id, body.operation_key, pool, registry, settings, store)
+
+
+# ---- bulk actions, webhook resend, link revoke -------------------------------------------------------------------
+class BulkBody(Strict):
+    job_ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_BULK)
+
+
+@router.post("/jobs/bulk-recheck")
+async def bulk_recheck(body: BulkBody, pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
+    """Re-check many jobs, each in its own transaction. A job its provider flagged `no_recheck`, and any job that
+    cannot be re-checked, is left alone and listed under `skipped` with the reason."""
+    result = await jobs.recheck_bulk(pool, dict.fromkeys(body.job_ids))
+    return {"rechecked": list(result.rechecked), "skipped": result.skipped}
+
+
+class BulkRegenerateBody(BulkBody):
+    operation_key: str = Field(pattern=OPERATION_KEY)
+
+
+@router.post("/jobs/bulk-regenerate")
+async def bulk_regenerate(body: BulkRegenerateBody, pool: AsyncConnectionPool = Depends(get_pool),
+                          registry: ProviderRegistry = Depends(get_registry),
+                          settings: Settings = Depends(get_settings), store: ObjectStore = Depends(get_store)) -> dict:
+    """Regenerate each job as a new job, one after the other (each is charged today's price). The answer always says
+    what happened to each job: `created` (with `replayed` true for a job an earlier request of the same action made)
+    and `failed`, by error code, or `internal` for an unexpected error (logged). The same `operation_key` again
+    finishes the failed jobs and returns the same ids for the rest."""
+    created, failed = [], {}
+    for job_id in dict.fromkeys(body.job_ids):
+        try:
+            made = await _regenerate(job_id, body.operation_key, pool, registry, settings, store)
+        except ApiError as e:
+            failed[str(job_id)] = e.code
+        except Exception:
+            log.exception("bulk regenerate of job %s failed", job_id)
+            failed[str(job_id)] = "internal"
+        else:
+            created.append({"from": str(job_id), "id": made["id"], "status": made["status"],
+                            "replayed": made["replayed"]})
+    return {"created": created, "failed": failed}
+
+
+@router.post("/jobs/{job_id}/resend-webhook")
+async def resend_webhook(job_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
+    """Deliver a failed webhook again from attempt 0 (same event id). 404 `webhook` when there is none to resend."""
+    if not await webhooks.resend_failed(pool, job_id):
+        raise ApiError("resource.not_found", "webhook")
+    return {"id": str(job_id), "resent": True}
+
+
+@router.post("/jobs/{job_id}/revoke-links")
+async def revoke_links(job_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
+    """Make every share link of the job unknown. The files and the job stay."""
+    async with tx(pool) as conn:
+        if await (await conn.execute("SELECT 1 FROM jobs WHERE id = %s", (job_id,))).fetchone() is None:
+            raise ApiError("resource.not_found")
+    return {"id": str(job_id), "revoked": await PgShareTable(pool).clear_job(str(job_id))}

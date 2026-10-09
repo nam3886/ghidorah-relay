@@ -13,6 +13,11 @@ from relay_core.storage import media_key
 from relay_core.testing.fake_provider import FakeEngine
 from relay_core.testing.mutation import mutation
 
+
+def op() -> dict:
+    """The body of one Regenerate action: a fresh operation key, so each call is its own action."""
+    return {"json": {"operation_key": uuid.uuid4().hex}}
+
 ROUTES = "packages/relay-core/src/relay_core/admin/routes_jobs.py"
 NEWEST_FIRST = "ORDER BY j.created_at DESC, j.id DESC LIMIT %(limit)s"
 OLDEST_FIRST = "ORDER BY j.created_at ASC, j.id DESC LIMIT %(limit)s"
@@ -313,7 +318,7 @@ def test_regenerate_plans_from_the_request_the_client_sent_never_from_the_plans_
             "options": {"account_cost": 2}, "title": "t"})
         assert made.status_code == 200, made.text
         again = await env.client.post("/admin/jobs/%s/regenerate" % made.json()["id"],
-                                      headers=await env.admin_headers())
+                                      headers=await env.admin_headers(), **op())
         assert again.status_code == 200, again.text
         return made.json()["id"], again.json()["id"]
 
@@ -335,7 +340,7 @@ def test_a_job_with_no_stored_request_cannot_be_regenerated(db):
     db.run("UPDATE jobs SET request = NULL WHERE id = %s", old)
 
     async def scenario(env):
-        return await env.client.post("/admin/jobs/%s/regenerate" % old, headers=await env.admin_headers())
+        return await env.client.post("/admin/jobs/%s/regenerate" % old, headers=await env.admin_headers(), **op())
 
     r = run_app(db, scenario)
     got = (r.status_code, code_of(r), r.json()["error"]["param"])
@@ -352,7 +357,7 @@ def test_regenerate_makes_a_new_job_at_todays_price_keeping_the_prompt_title_and
 
     async def scenario(env):
         h = await env.admin_headers()
-        return await env.client.post("/admin/jobs/%s/regenerate" % old, headers=h)
+        return await env.client.post("/admin/jobs/%s/regenerate" % old, headers=h, **op())
 
     r = run_app(db, scenario)
     assert r.status_code == 200 and r.json()["status"] == "queued" and r.json()["queue_position"] == 1
@@ -374,7 +379,7 @@ def test_regenerate_goes_through_the_gate_the_allow_list_the_key_the_wallet_and_
 
     async def scenario(env):
         h = await env.admin_headers()
-        again = lambda: env.client.post("/admin/jobs/%s/regenerate" % old, headers=h)  # noqa: E731
+        again = lambda: env.client.post("/admin/jobs/%s/regenerate" % old, headers=h, **op())  # noqa: E731
         out = {}
         db.run("UPDATE api_keys SET models = '{fake-image}' WHERE id = %s", k)
         out["forbidden"] = await again()
@@ -408,7 +413,7 @@ def test_regenerate_answers_a_plan_refusal_with_the_codes_of_a_client_request(db
            "WHERE id = %s", old)
 
     async def scenario(env):
-        return await env.client.post("/admin/jobs/%s/regenerate" % old, headers=await env.admin_headers())
+        return await env.client.post("/admin/jobs/%s/regenerate" % old, headers=await env.admin_headers(), **op())
 
     r = run_app(db, scenario)
     got = (r.status_code, code_of(r), r.json()["error"]["param"])
@@ -426,9 +431,9 @@ def test_regenerate_copies_the_input_objects_for_the_new_job_and_a_lost_input_cr
     async def scenario(env):
         h = await env.admin_headers()
         await env.store.put_bytes("src/input/0.png", b"\x89PNG-input", "image/png")
-        ok = await env.client.post("/admin/jobs/%s/regenerate" % old, headers=h)
+        ok = await env.client.post("/admin/jobs/%s/regenerate" % old, headers=h, **op())
         before = db.one("SELECT count(*) FROM jobs")[0]
-        gone = await env.client.post("/admin/jobs/%s/regenerate" % lost, headers=h)
+        gone = await env.client.post("/admin/jobs/%s/regenerate" % lost, headers=h, **op())
         copied = await env.store.read(media_key(ok.json()["id"], "input", 0, "image/png"))
         for key_ in ("src/input/0.png", media_key(ok.json()["id"], "input", 0, "image/png")):
             await env.store.remove(key_)
@@ -446,7 +451,7 @@ def test_regenerate_copies_the_input_objects_for_the_new_job_and_a_lost_input_cr
 def test_regenerate_of_a_missing_job_is_404(db):
     async def scenario(env):
         h = await env.admin_headers()
-        return await env.client.post("/admin/jobs/%s/regenerate" % uuid.uuid4(), headers=h)
+        return await env.client.post("/admin/jobs/%s/regenerate" % uuid.uuid4(), headers=h, **op())
 
     r = run_app(db, scenario)
     assert (r.status_code, code_of(r)) == (404, "resource.not_found")

@@ -7,6 +7,7 @@ bytes outputs, fail-and-refund, maintain, the cooldown strike effect) are delibe
 This module is also the one core module that may name providers (the registry); it names none itself.
 """
 
+import importlib
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
@@ -460,11 +461,23 @@ class RunCtx(Protocol):
     async def evidence(self, name: str, data: bytes, mime: str) -> None: ...
 
 
+@dataclass(frozen=True)
+class RateAlert:
+    """A drift alert a provider declares: `setting` (one of its own, a rate from 0 to 1) is the share of the last 24 h
+    jobs, at least five of them, that ended with the error code `code` (`source` "error_code") or carry the warning
+    code `code` (`source` "warning"); a tuple counts a job that matches any of its codes. The admin stats compute it
+    from columns; the core guesses nothing."""
+    setting: str
+    code: str | tuple[str, ...]
+    source: Literal["error_code", "warning"]
+
+
 class ProviderSpec(Protocol):
     """Pure; the API imports it."""
 
     name: str
     caps: Caps
+    rate_alerts: tuple[RateAlert, ...] = ()      # a spec without the attribute declares none (read with getattr)
 
     def catalog(self) -> list[ModelSpec]: ...
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan: ...
@@ -514,6 +527,22 @@ def _problems(spec: ProviderSpec) -> list[str]:
     for m in spec.catalog():
         if not m.operations:
             bad.append("%s: model %s has no operations" % (spec.name, m.id))
+    for alert in getattr(spec, "rate_alerts", ()):
+        # imported by name: the mypy gate follows imports, and the registry check needs only the code table
+        table = importlib.import_module("relay_core.errors").RULES
+        codes = (alert.code,) if isinstance(alert.code, str) else alert.code
+        if alert.setting not in keys:
+            bad.append("%s: rate alert names the setting %s, which the spec does not declare"
+                       % (spec.name, alert.setting))
+        for code in codes:
+            if alert.source == "error_code" and code not in table and code not in spec.codes():
+                bad.append("%s: rate alert %s watches the error code %s, which is not registered"
+                           % (spec.name, alert.setting, code))
+            if alert.source == "warning" and not code.startswith(spec.name + "."):
+                bad.append("%s: rate alert %s watches the warning %s, outside the provider's namespace"
+                           % (spec.name, alert.setting, code))
+        if alert.source not in ("error_code", "warning"):
+            bad.append("%s: rate alert %s has the unknown source %r" % (spec.name, alert.setting, alert.source))
     return bad
 
 

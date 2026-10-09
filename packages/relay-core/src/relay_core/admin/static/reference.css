@@ -1,0 +1,5 @@
+html, body { margin: 0; padding: 0; height: 100%; background: #0f1117; }
+#fallback { color: #e1e1e6; font: 14px/1.6 ui-sans-serif, system-ui, sans-serif; max-width: 640px; margin: 15vh auto; padding: 24px; background: #1a1b26; border: 1px solid #2a2b3a; border-radius: 10px; }
+#fallback[hidden] { display: none; }
+#fallback a { color: #7c8aff; }
+#fallback h2 { margin-top: 0; }

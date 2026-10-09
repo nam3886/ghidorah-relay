@@ -43,13 +43,13 @@ _LIST = (
     "a.proxy_port, a.proxy_auth_enc IS NOT NULL, a.proxy_ok, a.proxy_checked_at, a.strikes, a.cooldown_until, "
     "a.cooldown_reason, a.last_error, a.last_used_at, a.last_checked_at, a.check_due_at, a.credential_gen, "
     "a.created_at, (SELECT count(*) FROM leases l WHERE l.account_id = a.id AND l.until > clock_timestamp()) > 0, "
-    "EXISTS (SELECT 1 FROM account_shots s WHERE s.account_id = a.id) "
+    "EXISTS (SELECT 1 FROM account_shots s WHERE s.account_id = a.id), a.provider_state->>'composer' "
     "FROM accounts a WHERE (%(p)s::text IS NULL OR a.provider = %(p)s) "
     "ORDER BY a.created_at DESC, a.id LIMIT %(limit)s OFFSET %(offset)s")
 _COLUMNS = ("id", "provider", "label", "identity", "display_name", "state", "state_reason", "proxy_host", "proxy_port",
             "has_proxy_auth", "proxy_ok", "proxy_checked_at", "strikes", "cooldown_until", "cooldown_reason",
             "last_error", "last_used_at", "last_checked_at", "check_due_at", "credential_gen", "created_at", "in_use",
-            "has_screenshot")
+            "has_screenshot", "composer")
 _TIMES = ("proxy_checked_at", "cooldown_until", "last_used_at", "last_checked_at", "check_due_at", "created_at")
 
 
@@ -133,15 +133,26 @@ async def list_accounts(provider: str | None = None, limit: int = 100, offset: i
             "SELECT account_id, pool, left_n, source, day_anchor, rest_until, rest_reason FROM account_capacity "
             "WHERE account_id = ANY(%s) ORDER BY pool", (ids,))).fetchall()
         now = (await (await conn.execute("SELECT clock_timestamp()")).fetchone())[0]   # the clock the claim uses
+        made = await (await conn.execute(
+            "SELECT account_id, media_type, count(*) FROM jobs WHERE account_id = ANY(%s) AND status = 'done' "
+            "GROUP BY account_id, media_type", (ids,))).fetchall()
+        spent = {(a, p, d): n for a, p, d, n in await (await conn.execute(
+            "SELECT account_id, pool, account_day, sum(amount) FROM account_charges WHERE account_id = ANY(%s) "
+            "AND refunded_at IS NULL GROUP BY account_id, pool, account_day", (ids,))).fetchall()}
     configs = {name: pool_configs(registry.spec(name).caps, settings.get) for name in registry.names()}
     provider_of = {r[0]: r[1] for r in rows}
     pools: dict[Any, list[dict]] = {}
     for account_id, pool_name, left_n, source, anchor, rest_until, rest_reason in capacity:
         cfg = configs.get(provider_of[account_id], {}).get(pool_name)
         stale = cfg is not None and anchor != now.astimezone(ZoneInfo(cfg.tz)).date()
+        # drift: a counted value that disagrees with the budget minus the day's unrefunded charges (the pool's own
+        # 5-minute pass corrects it; until then the page marks it)
+        counted = cfg is not None and cfg.budget is not None and not stale and source in ("counted", "reset") \
+            and left_n is not None
+        drift = left_n != cfg.budget - spent.get((account_id, pool_name, anchor), 0) if counted else None
         pools.setdefault(account_id, []).append({
             "pool": pool_name, "left_n": left_n, "left_today": cfg.budget if stale and cfg else left_n,
-            "source": source,
+            "budget": None if cfg is None else cfg.budget, "drift": drift, "source": source,
             "day_anchor": None if anchor is None else str(anchor), "rest_until_ms": ms(rest_until),
             "rest_reason": rest_reason})
     items = []
@@ -151,7 +162,11 @@ async def list_accounts(provider: str | None = None, limit: int = 100, offset: i
             item[name.removesuffix("_at") + "_ms"] = ms(item.pop(name))
         item["id"] = str(item["id"])
         item["capacity"] = pools.get(row[0], [])
+        item["made"] = {"video": 0, "image": 0}
         items.append(item)
+    by_id = {item["id"]: item for item in items}
+    for account_id, media_type, count in made:
+        by_id[str(account_id)]["made"][media_type] = count
     return {"items": items, "total": total}
 
 

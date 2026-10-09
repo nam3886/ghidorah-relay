@@ -304,6 +304,28 @@ token sent as the `X-Admin-Session` header (no cookie).
   queues a wake.
 - Credentials are never exported, and the account list has no secret column.
 
+## The admin pages
+
+`/login`, `/manage` (the dashboard), `/test` (a model test page that keeps the API key in memory only) and `/reference`
+(the API reference) are static files in `relay_core/admin/static/`, served on the api's port with the admin CSP
+(`default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'`): no inline script, handler or
+style, nothing loaded from another host. The files are read once when the api starts.
+
+`/reference` alone adds `style-src 'self' 'unsafe-inline'` to that header, because the renderer writes its styles into
+the page at run time; its `script-src` stays `'self'`, and its own files under `/ui/` keep the exact header. A test
+fails when any other page or `/ui/` file carries the looser one.
+
+- **Look and feel:** `static/vendor/admin.css` is built once with the Tailwind CLI (3.4.17) from
+  `admin/tailwind/{tailwind.config.js,input.css}`; the regenerate command is the comment at the top of `input.css`.
+  Nothing uses node at runtime. Run it after changing a class in any page or script; a test fails if a class the pages
+  use is missing from the stylesheet, and another pins the file's hash (it prints the new value).
+- **The API reference** is Scalar 1.25.122, vendored as `static/vendor/scalar.min.js` (licence beside it), pinned by SRI
+  in `reference.html`; a test pins its hash and source URL.
+- **The admin token** lives in `sessionStorage` and goes out as `X-Admin-Session`. Media in a job's detail comes only
+  from the same-origin `/m/` share links; the admin content routes are for downloads.
+- **Tests:** `tests/admin_ui/test_html_guards.py` runs in the commit gate; `tests/admin_ui/test_smoke.py` drives every
+  tab in Chrome (`browser` tier: `scripts/check.sh --full --local` on the Mac).
+
 ## Logs
 
 - **Process log.** Every line the api and the workers write, uvicorn's included, passes the redactor (cookies,

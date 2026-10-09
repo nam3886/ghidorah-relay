@@ -33,6 +33,7 @@ from relay_core.providers import (
     PoolSpec,
     Proxy,
     ProxyVerdict,
+    RateAlert,
     Reconciled,
     StillUnknown,
     SubmitResult,
@@ -51,6 +52,8 @@ class FakeSpec:
             pools=(PoolSpec("video", "UTC", name + ".video_budget"), PoolSpec("image", "UTC")),
             account_slots=account_slots, max_attempts=max_attempts, suspect_threshold=3,
             strike_effect=Dead("error_threshold"), has_poll=True, has_reconcile=has_reconcile)
+        self.rate_alerts = (RateAlert(name + ".alert_drift_rate", name + ".drift_demo", "warning"),
+                            RateAlert(name + ".alert_deadline_rate", "render.deadline", "error_code"))
 
     def catalog(self) -> list[ModelSpec]:
         return [ModelSpec(self.name + "-video", "video", ("generate",), prices={"default": 10}),
@@ -79,6 +82,8 @@ class FakeSpec:
         return {n + ".claims_enabled": Spec(n + ".claims_enabled", bool, True, "Drain mode off."),
                 n + ".video_budget": Spec(n + ".video_budget", int, 4, "Daily video jobs per account."),
                 n + ".render_deadline_s": Spec(n + ".render_deadline_s", int, 9000, "Render deadline."),
+                n + ".alert_drift_rate": Spec(n + ".alert_drift_rate", float, 0.5, "Drift alert (warning)."),
+                n + ".alert_deadline_rate": Spec(n + ".alert_deadline_rate", float, 0.5, "Drift alert (deadline)."),
                 n + ".browser_slots": Spec(n + ".browser_slots", int, 4, "Browser sessions at once (browser only).")}
 
     def parse_credential(self, raw: bytes) -> ParsedCredential:
