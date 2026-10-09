@@ -128,7 +128,13 @@ class JobLoop:
     async def idle(self) -> None:
         """Wait for every started task and every shielded write."""
         while self._inflight or self._applying:
-            await asyncio.gather(*self._inflight, *self._applying, return_exceptions=True)
+            inflight, applying = list(self._inflight), list(self._applying)
+            await asyncio.gather(*inflight, *applying, return_exceptions=True)
+            # The sets are emptied by done-callbacks, which run only when the loop gets control, and `gather` of tasks
+            # that are all finished returns without giving it: a drain that started in the pass in which a task ended
+            # would spin forever. So the entries just waited for are removed here.
+            self._inflight.difference_update(inflight)
+            self._applying.difference_update(applying)
 
     async def _shielded(self, work: Coroutine) -> Any:
         """Run `work` to its end even when the caller is cancelled (a result that arrived is applied or dropped by

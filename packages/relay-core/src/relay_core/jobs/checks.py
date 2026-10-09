@@ -477,7 +477,11 @@ class Checks:
     async def wait(self) -> None:
         """Until every started check has ended."""
         while self._tasks:
-            await asyncio.gather(*list(self._tasks.values()), return_exceptions=True)
+            waited = list(self._tasks.items())
+            await asyncio.gather(*(t for _, t in waited), return_exceptions=True)
+            for account_id, task in waited:      # a task cancelled before its first step never ran its own `finally`
+                if self._tasks.get(account_id) is task:
+                    del self._tasks[account_id]
 
     async def run(self, stop: asyncio.Event, tick_s: float = 5.0) -> None:
         while not stop.is_set():

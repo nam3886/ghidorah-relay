@@ -481,7 +481,9 @@ class CommandLoop:
 
     async def wait(self) -> None:
         while self._tasks:
-            await asyncio.gather(*list(self._tasks), return_exceptions=True)
+            waited = list(self._tasks)
+            await asyncio.gather(*waited, return_exceptions=True)
+            self._tasks.difference_update(waited)       # not left to the done-callbacks: see JobLoop.idle
         if self._sweep is not None:
             await asyncio.gather(self._sweep, return_exceptions=True)
         await self.checks.wait()
