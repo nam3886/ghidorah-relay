@@ -59,9 +59,19 @@ def live(db):
             ready.set()
             await task
 
-    thread = threading.Thread(target=lambda: asyncio.run(main()), daemon=True)
+    def run():
+        try:
+            asyncio.run(main())
+        except BaseException as exc:      # a start-up failure must reach the test now, not after the wait below
+            box["error"] = exc
+            ready.set()
+            raise
+
+    thread = threading.Thread(target=run, daemon=True)
     thread.start()
     assert ready.wait(60), "the live server did not start"
+    if "error" in box:
+        raise RuntimeError("the live server died while starting: %r" % (box["error"],)) from box["error"]
     try:
         yield box["live"]
     finally:

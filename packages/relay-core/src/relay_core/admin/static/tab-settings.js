@@ -67,13 +67,13 @@ function parseSettingValue(text) {
 ACTIONS.saveSetting = async (el) => {
     const input = document.querySelector('[data-setting-input="' + CSS.escape(el.dataset.key) + '"]');
     await api('/settings/' + encodeURIComponent(el.dataset.key), { method: 'PUT', body: { value: parseSettingValue(input.value) } });
-    toast('Saved', 'success');
     await loadSettings();
+    toast('Saved', 'success');
 };
 ACTIONS.resetSetting = async (el) => {
     await api('/settings/' + encodeURIComponent(el.dataset.key), { method: 'DELETE' });
-    toast('Reset', 'success');
     await loadSettings();
+    toast('Reset', 'success');
 };
 ACTIONS.changePassword = async () => {
     await api('/password', { method: 'POST', body: { old_password: document.getElementById('oldPassword').value, new_password: document.getElementById('newPassword').value } });

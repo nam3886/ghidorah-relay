@@ -503,12 +503,12 @@ def test_regenerate_retries_with_the_same_key_after_a_lost_answer_and_a_reload_a
 
 
 @mutation(JOBS_JS, "'bulk:' + ids.slice().sort().join(',')", "'bulk:' + Math.random()", expect="the same key")
-@mutation(JOBS_JS, "err.status < 500", "err.status < 600", expect="the same key")
+@mutation(JOBS_JS, "err.status < 500", "err.status < 600", expect="it will not charge twice")
 def test_a_bulk_regenerate_sends_the_same_key_after_a_lost_answer_and_after_a_500_and_a_new_one_after_an_answer(
         page, live, db):
     k = new_key(db)
     new_account(db, label="a", checked=True)
-    planted(db, lambda p: failed_job(p, k, "one"))
+    source = planted(db, lambda p: failed_job(p, k, "one"))
     keys = []
     page.on("request", lambda r: r.url.endswith("/bulk-regenerate") and keys.append(r.post_data_json["operation_key"]))
     page.on("dialog", lambda d: d.accept())
@@ -544,6 +544,8 @@ def test_a_bulk_regenerate_sends_the_same_key_after_a_lost_answer_and_after_a_50
         page.problems.clear()                 # a cut or a 500 is the browser's own console error
     assert sent(2) == sent(1) and sent(3) == sent(1), "the same key after a lost answer and after a 500"
     expect(page.get_by_text("Made 1, already made 0, failed 0")).to_be_visible()
+    expect(page.locator("#jobsTable tbody tr")).to_have_count(2)      # the reloaded table: the source and its new job
+    page.locator("#jobsTable tbody tr", has_text=str(source)[:8]).locator("[data-job-select]").check()
     page.get_by_role("button", name="Regenerate selected").click()
     assert sent(4) != sent(1), "the next action after an answer gets a new key"
 

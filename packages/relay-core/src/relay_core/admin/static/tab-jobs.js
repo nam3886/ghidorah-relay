@@ -75,8 +75,8 @@ ACTIONS.bulkRecheck = async () => {
     if (!ids.length) { toast('Tick at least one job', 'error'); return; }
     const out = await api('/jobs/bulk-recheck', { method: 'POST', body: { job_ids: ids } });
     const skipped = Object.keys(out.skipped).length;
-    toast('Re-checked ' + out.rechecked.length + (skipped ? ', left ' + skipped + ' alone' : ''), skipped ? 'info' : 'success');
     await loadJobs();
+    toast('Re-checked ' + out.rechecked.length + (skipped ? ', left ' + skipped + ' alone' : ''), skipped ? 'info' : 'success');
 };
 // ---- Regenerate: one random key per confirmed action -------------------------------------------------------------
 // The key is kept (sessionStorage, so a reload keeps it) until the server answers with any HTTP status. A network
@@ -127,8 +127,8 @@ ACTIONS.bulkRegenerate = async () => {
     const out = await regenerateCall('bulk:' + ids.slice().sort().join(','), '/jobs/bulk-regenerate', { job_ids: ids });
     const failed = Object.keys(out.failed).length;
     const replayed = out.created.filter((c) => c.replayed).length;
-    toast('Made ' + (out.created.length - replayed) + ', already made ' + replayed + ', failed ' + failed, failed ? 'info' : 'success');
     await loadJobs();
+    toast('Made ' + (out.created.length - replayed) + ', already made ' + replayed + ', failed ' + failed, failed ? 'info' : 'success');
 };
 ACTIONS.jobsStatus = (el) => { jobsView.status = el.value; jobsView.cursors = [null]; jobsView.page = 0; return loadJobs(); };
 
@@ -217,13 +217,13 @@ ACTIONS.copyPrompt = async () => {
 };
 ACTIONS.renameJob = async (el) => {
     await api('/jobs/' + el.dataset.id, { method: 'PATCH', body: { title: document.getElementById('jobTitle').value } });
-    toast('Renamed', 'success');
     await loadJobs();
+    toast('Renamed', 'success');
 };
 ACTIONS.jobRecheck = async (el) => {
     const out = await api('/jobs/' + el.dataset.id + '/recheck', { method: 'POST' });
-    toast(out.recharged ? 'Re-checked: charged again' : 'Re-checked', 'success');
     await showJob(el.dataset.id);
+    toast(out.recharged ? 'Re-checked: charged again' : 'Re-checked', 'success');
     await loadJobs();
 };
 ACTIONS.jobRecover = async (el) => {
@@ -242,8 +242,8 @@ ACTIONS.jobFetchTitle = async (el) => {
 ACTIONS.jobRegenerate = async (el) => {
     if (!confirm('Regenerate makes a NEW job for the same key at today’s price, and charges it. Continue?')) return;
     const out = await regenerateCall('job:' + el.dataset.id, '/jobs/' + el.dataset.id + '/regenerate', {});
-    toast((out.replayed ? 'Already made: job ' : 'New job ') + out.id.slice(0, 8) + ' (' + out.status + ')', 'success');
     await loadJobs();
+    toast((out.replayed ? 'Already made: job ' : 'New job ') + out.id.slice(0, 8) + ' (' + out.status + ')', 'success');
 };
 ACTIONS.downloadMedia = async (el) => {
     const response = await api('/jobs/' + el.dataset.job + '/content/' + el.dataset.idx, { raw: true });
@@ -267,12 +267,12 @@ ACTIONS.openDebug = async (el) => {
 };
 ACTIONS.jobResendWebhook = async (el) => {
     await api('/jobs/' + el.dataset.id + '/resend-webhook', { method: 'POST' });
-    toast('Webhook queued again', 'success');
     await showJob(el.dataset.id);
+    toast('Webhook queued again', 'success');
 };
 ACTIONS.jobRevokeLinks = async (el) => {
     if (!confirm('Every share link of this job stops working. Continue?')) return;
     const out = await api('/jobs/' + el.dataset.id + '/revoke-links', { method: 'POST' });
-    toast('Revoked ' + out.revoked + ' link(s)', 'success');
     await showJob(el.dataset.id);
+    toast('Revoked ' + out.revoked + ' link(s)', 'success');
 };

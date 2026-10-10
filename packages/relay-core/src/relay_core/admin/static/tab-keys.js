@@ -70,8 +70,8 @@ ACTIONS.deleteKey = async (el) => {
     const k = keyById(el.dataset.id);
     if (!confirm('Delete key "' + (k ? k.label || k.prefix : '') + '"? A key that has jobs is only disabled.')) return;
     const out = await api('/keys/' + el.dataset.id, { method: 'DELETE' });
-    toast(out.result === 'deleted' ? 'Key deleted' : 'Key has jobs: disabled instead', 'info');
     await loadKeys();
+    toast(out.result === 'deleted' ? 'Key deleted' : 'Key has jobs: disabled instead', 'info');
 };
 
 // ---- create / edit form -------------------------------------------------------------------------------------
