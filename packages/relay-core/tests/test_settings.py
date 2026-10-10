@@ -214,7 +214,7 @@ def test_a_write_in_one_process_reaches_a_live_second_process_by_notify(db):
     asyncio.run(main())
 
 
-@mutation(S, RELOAD_AFTER_LISTEN, NO_RELOAD, expect="until(lambda: s.get(\"log_retention_days\") == 7)")
+@mutation(S, RELOAD_AFTER_LISTEN, NO_RELOAD, expect="until(lambda: s.get(\"log_retention_days\") == 6, timeout=20)")
 def test_a_listener_that_lost_its_connection_reloads_everything_when_it_is_back(db):
     def kill_listeners():
         with db.connect() as c:
@@ -227,12 +227,23 @@ def test_a_listener_that_lost_its_connection_reloads_everything_when_it_is_back(
         s, other = Settings(pool, db.dsn, env={}, reconnect_s=1.0), Settings(pool, db.dsn, env={})
         await s.start()
         try:
+            reloads = []
+            reload = s.reload
+
+            async def counted():
+                await reload()
+                reloads.append(1)
+
+            s.reload = counted
             await s.set("log_retention_days", 5)
+            # the set reloads once itself and the listener once more for its NOTIFY: let that second read end before
+            # the write below, or on a loaded machine it lands after it and shows the 6 without any reload on return
+            await until(lambda: len(reloads) >= 2)
             assert kill_listeners() == 1
             # written while the listener is away, with no NOTIFY at all: only a full reload can see it
             with db.connect() as c:
                 c.execute("UPDATE settings_kv SET value = '6' WHERE key = 'log_retention_days'")
-            await until(lambda: s.get("log_retention_days") == 6, timeout=10)
+            await until(lambda: s.get("log_retention_days") == 6, timeout=20)
             # and it listens again afterwards
             await other.set("log_retention_days", 7)
             await until(lambda: s.get("log_retention_days") == 7)
