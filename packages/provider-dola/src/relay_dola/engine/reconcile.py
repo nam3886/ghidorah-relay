@@ -11,8 +11,8 @@ already have taken and charged the first one. So `NotSent` needs POSITIVE proof,
    (the marker is in it) is the job's.
    Matching is v4's: the conversation must carry the whole sent text (folded with `norm_for_match`: invisible characters
    and typographic quotes do not matter) in the user's words or anywhere in the thread. A conversation that carries the
-   job's marker or the first 80 characters of the text but not the whole text may still be the job's with the text
-   altered: it is "cannot tell", never "not ours".
+   job's bare marker or the first 80 characters of its prompt (the customer's words, not the sent text) but not the
+   whole text may still be the job's with the text altered: it is "cannot tell", never "not ours".
    When several conversations match (an earlier attempt of the same job left one), the one with the newest message wins,
    and one whose newest message is older than `sent_at` by the clock margin is not this attempt's at all.
 3. `NotSent(covers_send_window=True)` only when the listing provably covers the send window AND every conversation in it
@@ -107,7 +107,7 @@ class Reading:
     newest: float = 0.0         # newest message time (seconds); 0 when none is dated
 
 
-def read_conversation(body: dict, sent_text: str, sent_at: float | None, new_composer: bool) -> Reading:
+def read_conversation(body: dict, job, sent_at: float | None, new_composer: bool) -> Reading:
     """Judge one conversation read. Positive proof only: no message at all (an empty shell) is not ours; messages we
     cannot extract any text from may be a conversation still loading, and one that carries the job's marker or prompt
     prefix without the whole text may be the job's with the text altered: both are "cannot tell", never "not ours".
@@ -118,13 +118,15 @@ def read_conversation(body: dict, sent_text: str, sent_at: float | None, new_com
     if not (summary.user + summary.assistant).strip():
         return Reading(None)
     older = bool(summary.newest and sent_at is not None and summary.newest < sent_at - PREDATE_MARGIN_S)
-    mine = resolver.carries_text(summary.user, sent_text) or resolver.carries_text(summary.assistant, sent_text)
+    sent_text, prompt = job.sent_text, job.prompt
+    mine = resolver.carries_text(summary.user, sent_text, prompt) or resolver.carries_text(
+        summary.assistant, sent_text, prompt)
     if mine and not older:
         videos, _ = resolver.extract_videos(body)
         proven = bool(videos) or bool(resolver.extract_image_urls(body)) \
             or classify.order_taken(summary.assistant, new_composer)
         return Reading(True, taken=proven, newest=summary.newest)
-    if not mine and resolver.may_be_job(body, sent_text):
+    if not mine and resolver.may_be_job(body, job.marker, prompt):
         return Reading(None)
     return Reading(False, older=older, newest=summary.newest)
 
@@ -153,7 +155,7 @@ async def reconcile(ctx, job, settings, *, http: DolaHttp | None = None, lister:
     if job.external_ref:
         body = await _read(http, job.external_ref)
         if body is not None:
-            mine = read_conversation(body, sent_text, sent_at, new_composer)
+            mine = read_conversation(body, job, sent_at, new_composer)
             summary = resolver.conversation_summary(body)
             if mine.found and summary.assistant.strip():
                 return Found(str(job.external_ref), {}, mine.taken)
@@ -177,7 +179,7 @@ async def reconcile(ctx, job, settings, *, http: DolaHttp | None = None, lister:
         if body is None:
             unreadable = True
             continue
-        got = read_conversation(body, sent_text, sent_at, new_composer)
+        got = read_conversation(body, job, sent_at, new_composer)
         if got.found:
             if best is None or got.newest > best[0]:
                 best = (got.newest, cid, got.taken)

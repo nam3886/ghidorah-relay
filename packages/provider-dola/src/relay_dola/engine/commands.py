@@ -5,7 +5,8 @@
 - `refresh_catalog`: args `{}`, result `{"snapshots": {"templates": ..., "styles": ...}}`. HTTP only.
 - `list_conversations`: args `{}`, result `{"conversations": [id, ...]}` (the 30 most recent). Needs the browser (a
   probe inside a tab) and so the core's browser token.
-- `recover`: args `{"conversation_id" or "external_ref", ["marker" | "prompt"], ["sent_text"]}`, result
+- `recover`: args `{"conversation_id" or "external_ref", ["marker" | "prompt"], ["sent_text"]}` (a
+  `sent_text` check also needs the `prompt`: without it every such Recover is refused), result
   `{"outputs": [Output, ...]}`. HTTP only.
 
 A failure raises; the core records it as the command's failure and keeps the old snapshot / the job unchanged.
@@ -51,7 +52,8 @@ async def recover(http: DolaHttp, args: dict, now: float) -> dict:
     own = conversation == str(args.get("external_ref") or "")
     if not own and not expect:
         raise CommandRefused("recover of another conversation needs the job's marker or text to check it")
-    outputs = await recovery.recover_outputs(http, conversation, expect=expect, sent_text=sent_text, now=now)
+    outputs = await recovery.recover_outputs(http, conversation, expect=expect, sent_text=sent_text, now=now,
+                                             prompt=str(args.get("prompt") or ""))
     return {"outputs": list(outputs)}
 
 

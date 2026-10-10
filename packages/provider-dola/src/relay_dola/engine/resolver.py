@@ -266,32 +266,32 @@ def prompt_matches(expect: str, text: str) -> bool:
     return True if not exp else exp[:PROMPT_PREFIX] in norm_for_match(text)
 
 
-def carries_text(text: str, sent_text: str) -> bool:
-    """Does the text carry the FULL text we sent. Both sides are folded (NFKC, invisible characters dropped, quotes
-    straightened, whitespace collapsed): dola stores the prompt with such changes."""
-    sent = norm_for_match(sent_text)
-    marker = norm_for_match(sent_marker(sent_text))
-    words = sent[: -len(marker)] if marker and sent.endswith(marker) else sent      # what the customer wrote
-    return bool(words.strip()) and sent in norm_for_match(text)
+def carries_text(text: str, sent_text: str, prompt: str) -> bool:
+    """Does the text carry the FULL text we sent, and did the customer write something. Both sides are folded (NFKC,
+    invisible characters dropped, quotes straightened, whitespace collapsed): dola stores the prompt with such changes.
+    The second condition looks at the job's own `prompt`, not at the sent text: a frame may put the tracking code first,
+    in the middle or last and may start with fixed words, so the sent text alone cannot tell the customer's words from
+    the frame's. A job whose prompt folds to nothing matches nothing (its sent text would be frame words and a code that
+    another job's conversation can share)."""
+    folded = norm_for_match(sent_text)
+    return bool(folded and norm_for_match(prompt)) and folded in norm_for_match(text)
 
 
-_MARKER_TAIL = re.compile(r"\[\d{3,6}\]\s*$")
+def may_be_job(body: dict, marker: str, prompt: str) -> bool:
+    """Could the conversation be the job's with its text altered: it carries the job's bare tracking code (the digits
+    `JobView.marker` stores, with or without the brackets the frame puts around them) or the first 80 folded characters
+    of the job's prompt, in the user's words or anywhere in the thread. Weaker than `carries_text` (it is true whenever
+    that is), so it is "cannot tell", never "not ours". Nothing of the frame is used: its fixed words are the same for
+    every job of the model and would match them all.
 
-
-def sent_marker(sent_text: str) -> str:
-    """The ` [NNNN]` the core appends to every sent text; "" when there is none."""
-    m = _MARKER_TAIL.search(sent_text or "")
-    return m.group(0).strip() if m else ""
-
-
-def may_be_job(body: dict, sent_text: str) -> bool:
-    """Does the conversation carry the job's marker or the first 80 characters of what was sent (v4
-    `conversation_has_prompt`), in the user's words or anywhere in the thread. Weaker than `carries_text`: the
-    conversation may be the job's with the text altered, so it is "cannot tell", never "not ours"."""
+    The 80-character window is also tried without its first and last character: where the prompt meets the frame's
+    words, those two can fold differently inside the sent text (a combining mark or a Hangul jamo composes with the
+    letter before it, a final sigma changes with the letter after it) than when the prompt is folded alone."""
     hay = norm_for_match(user_text(body) + " " + conversation_text(body))
-    marker = norm_for_match(sent_marker(sent_text))
-    sent = norm_for_match(sent_text)
-    return bool((marker and marker in hay) or (sent and sent[:PROMPT_PREFIX] in hay))
+    code, words = norm_for_match(marker), norm_for_match(prompt)
+    window = words[:PROMPT_PREFIX]
+    inner = window[1:-1] if len(window) >= 10 else ""
+    return bool((code and code in hay) or (window and window in hay) or (inner and inner in hay))
 
 
 def adopted_wrong_conversation(body: dict, expect: str | None) -> bool:

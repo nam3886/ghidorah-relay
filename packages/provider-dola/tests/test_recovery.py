@@ -10,7 +10,7 @@ import base64
 import json
 
 import pytest
-from kit_b import CONV, FakeTransport, chain_with, http_for, reply, user
+from kit_b import CONV, FakeTransport, chain_with, http_for, reply, sent_of, user
 
 from relay_core.providers import Output
 from relay_core.testing.mutation import mutation
@@ -19,7 +19,8 @@ from relay_dola.engine.recovery import RecoveryError, recover_outputs
 
 RECOVERY = "packages/provider-dola/src/relay_dola/engine/recovery.py"
 NOW = 1_790_000_000.0
-SENT_TEXT = "a red kite over rice fields [4100]"
+PROMPT = "a red kite over rice fields"
+SENT_TEXT = sent_of(PROMPT, "4100")
 
 
 def run(coro):
@@ -43,9 +44,9 @@ def conv(*cells, text="Generated video: " + SENT_TEXT, answer="Your video is rea
     return chain_with(msgs)
 
 
-def recovered(body, *, expect=SENT_TEXT[-6:], sent_text=None):
+def recovered(body, *, expect=SENT_TEXT[-6:], sent_text=None, prompt=PROMPT):
     http = http_for(FakeTransport({CONV: body}))
-    return run(recover_outputs(http, CONV, expect=expect, sent_text=sent_text, now=NOW))
+    return run(recover_outputs(http, CONV, expect=expect, sent_text=sent_text, now=NOW, prompt=prompt))
 
 
 def test_recover_returns_every_clean_video_in_order_with_their_ids():
@@ -71,7 +72,10 @@ def test_a_watermarked_video_is_not_recovered():
         recovered(conv(cell("https://x/2.mp4", "b", watermark_only=True)))
 
 
-@mutation(RECOVERY, "    if sent_text and not resolver.carries_text(resolver.user_text(body), sent_text):",
+CARRIES = "    if sent_text and not resolver.carries_text(resolver.user_text(body), sent_text, prompt or \"\"):"
+
+
+@mutation(RECOVERY, CARRIES,
           "    if False:", expect="recovery attached another job's video")
 def test_recover_checks_the_conversation_carries_the_jobs_text():
     """It could otherwise attach another job's paid video (the guard v4 passed down as expect_prompt)."""
@@ -86,6 +90,8 @@ def test_recover_checks_the_conversation_carries_the_jobs_text():
         pytest.fail("recovery attached another job's video")
     mine = conv(cell("https://x/1.mp4", "a"))
     assert [o.upstream_id for o in recovered(mine, sent_text=SENT_TEXT)] == ["a"]
+    with pytest.raises(RecoveryError, match="not this job's"):     # no customer words: the sent text proves nothing
+        recovered(mine, sent_text=SENT_TEXT, prompt="\u200b ")
 
 
 def test_the_strict_check_refuses_an_unreadable_conversation_but_the_marker_guard_waits():
@@ -144,5 +150,5 @@ def test_the_command_recovers_the_jobs_own_conversation_and_checks_a_given_marke
     assert [o.upstream_id for o in again["outputs"]] == ["a"]
     with pytest.raises(RecoveryError):
         run(recover(http, {"conversation_id": CONV, "marker": "[9999]"}, NOW))
-    full = run(recover(http, {"conversation_id": CONV, "sent_text": SENT_TEXT}, NOW))
+    full = run(recover(http, {"conversation_id": CONV, "sent_text": SENT_TEXT, "prompt": PROMPT}, NOW))
     assert len(full["outputs"]) == 1

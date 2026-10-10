@@ -18,8 +18,10 @@ from kit_c import (
     GATE,
     GOOD_PROBE,
     LIKENESS,
+    MARKER,
     NOT_ENOUGH,
     NOW,
+    PROMPT,
     SENT,
     SOMETHING_WRONG,
     Scene,
@@ -35,6 +37,7 @@ from kit_c import (
 )
 
 from relay_browser.session import BrowserLaunchError
+from relay_core import frames
 from relay_core.errors import rule
 from relay_core.providers import (
     Accepted,
@@ -92,6 +95,19 @@ async def test_a_taken_order_is_accepted_with_what_dola_stated():
     assert res.account == (Success(), Balance("video", 2, "reported"))
     assert res.warnings == () and scene.ctx.refs == [(CONV, {})], "the conversation was not reported as the job's ref"
     assert scene.driver.sent == [SENT], "the engine must type the core's sent_text and nothing else"
+
+
+@sync
+async def test_an_order_sent_with_a_frame_that_moves_the_tracking_code_is_still_one_send_and_taken():
+    """The receipt is judged on the text the frame produced, wherever the frame puts the code and whatever fixed words
+    it starts with."""
+    for frame in ("{{tracking_code}} {{client_prompt}}", "Fixed words first. {{tracking_code}} {{client_prompt}}",
+                  "Generate it as one video: {{client_prompt}} {{tracking_code}} Keep it cinematic."):
+        scene = Scene(job=make_job(frame=frame), replies={1: [ACCEPTED]})
+        res = await scene.run()
+        assert res.job == Accepted(CONV, facts=res.job.facts, taken=True), "frame %r: %r" % (frame, res.job)
+        assert scene.driver.sent == [frames.render(frame, PROMPT, MARKER)], "the engine typed another text"
+        assert scene.log.count("send") == 1, "frame %r sent more than once: %r" % (frame, kinds(scene.log))
 
 
 SEND_CALL = "            await driver.send(page, spec.sent_text, before_enter=self._mark_sent)\n"
@@ -847,7 +863,8 @@ async def test_the_composer_is_rebuilt_after_a_reload_for_both_modes_and_gives_u
         monkeypatch.setattr(composer, "dismiss_consent", nothing)
         page = ReloadPage()
         spec = make_job(mode).params
-        built = await PageDriver().build(page, OrderSpec(mode, spec["model"], spec.get("duration"), "16:9", None, SENT))
+        order = OrderSpec(mode, spec["model"], spec.get("duration"), "16:9", None, SENT, PROMPT)
+        built = await PageDriver().build(page, order)
         assert page.reloads == 2, "%s: no reload-and-retry when the chip row was not rendered" % mode
         assert all(kw.get("timeout") == 60000 for kw in page.kw), "the reload must wait as long as goto (60 s)"
         assert built.steps[0].startswith("%s mode: chip" % mode)
@@ -858,7 +875,7 @@ async def test_the_composer_is_rebuilt_after_a_reload_for_both_modes_and_gives_u
         return await flaky_enter(never)
     monkeypatch.setattr(composer, "enter_video_mode", always)
     with pytest.raises(composer.ComposerError):
-        await PageDriver().build(ReloadPage(), OrderSpec("video", "seedance_v2.5", 30, "16:9", None, SENT))
+        await PageDriver().build(ReloadPage(), OrderSpec("video", "seedance_v2.5", 30, "16:9", None, SENT, PROMPT))
 
 
 @sync
@@ -879,7 +896,7 @@ async def test_the_resend_composer_enters_video_mode_only_when_the_chip_row_is_g
     monkeypatch.setattr(composer, "enter_video_mode", enter)
     monkeypatch.setattr(composer, "select_video_model", model)
     monkeypatch.setattr(composer, "select_video_ratio_duration", dur)
-    spec = OrderSpec("video", "seedance_v2.5", 30, "16:9", None, SENT)
+    spec = OrderSpec("video", "seedance_v2.5", 30, "16:9", None, SENT, PROMPT)
     for chip_row, expected in ((True, ["model", "duration"]), (False, ["enter", "model", "duration"])):
         async def wait_rect(page, pattern, timeout_s=25, js=None, chip_row=chip_row):
             return {"x": 0, "y": 0, "text": "Model 2.5"} if chip_row else None
@@ -1028,7 +1045,8 @@ async def test_refusal_wording_in_the_page_text_with_a_conversation_leaves_the_p
 # ---- the URL's conversation is adopted only when it carries our text ---
 URL_ADOPT = ("            if (cand.isdigit() and cand not in baseline\n"
              "                    and body_carries(await self.driver.read_chain(self.page, cand), "
-             "self.spec.sent_text)):\n")
+             "self.spec.sent_text,\n"
+             "                                     self.spec.prompt)):\n")
 
 
 @mutation(SUB, URL_ADOPT, "            if cand.isdigit() and cand not in baseline:\n", expect="carries our text")
@@ -1107,7 +1125,7 @@ async def test_with_no_conversation_page_wording_never_decides_the_order():
     pages = ("Not Enough Credits", DAILY_LIMIT, SOMETHING_WRONG, COPYRIGHT, NOT_ENOUGH, echo,
              "\n".join([BUBBLE % "a lantern", DAILY_LIMIT]))
     for page in pages:
-        job = make_job(sent_text=prompt + " [7100]") if page == echo else make_job()
+        job = make_job(prompt=prompt) if page == echo else make_job()
         scene = Scene(job=job, polls=False, page_text=page)
         res = await scene.run()
         assert isinstance(res.job, Ambiguous) and res.account == (), (
