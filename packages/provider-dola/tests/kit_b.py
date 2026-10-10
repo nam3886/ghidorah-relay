@@ -9,6 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from relay_core import frames
 from relay_core.providers import AccountView, JobView, Proxy
 
 ROOT = Path(__file__).resolve().parents[3]          # the relay/ workspace
@@ -96,15 +97,22 @@ async def _no_inputs():
     return []
 
 
+def sent_of(prompt: str, marker: str, frame: str = frames.CORE_FRAME) -> str:
+    """What the core stores as `sent_text`: the real renderer, a frame (default: the core's `{{client_prompt}}
+    {{tracking_code}}`), the customer's words and the job's tracking code (`marker`, four digits, no brackets)."""
+    return frames.render(frame, prompt, marker)
+
+
 def job(*, kind: str = "video", ref: str | None = CONV, prompt: str = "a red kite", marker: str = "4100",
         sent_text: str | None = None, since: dt.datetime | None = None, sent_at: dt.datetime | None = None,
-        state: dict | None = None, duration: int | None = 30, id: str = "job-1") -> JobView:
+        state: dict | None = None, duration: int | None = 30, id: str = "job-1",
+        frame: str = frames.CORE_FRAME) -> JobView:
     params: dict[str, Any] = {"kind": kind}
     if kind == "video":
         params["duration"] = duration
     return JobView(id=id, provider="dola", operation="text_to_video" if kind == "video" else "text_to_image",
                    model="seedance_v2.5", params=params, prompt=prompt, marker=marker,
-                   sent_text=sent_text if sent_text is not None else "%s [%s]" % (prompt, marker),
+                   sent_text=sent_text if sent_text is not None else sent_of(prompt, marker, frame),
                    render_since=since, sent_at=sent_at, external_ref=ref, provider_state=state or {},
                    inputs=_no_inputs)
 

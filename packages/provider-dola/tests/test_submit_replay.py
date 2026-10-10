@@ -179,19 +179,21 @@ async def test_the_replies_come_in_the_order_the_page_received_them(name):
     assert any(seen), "the capture holds no reply at all: the test would prove nothing"
 
 
-@mutation(SUB, "    return any(resolver.carries_text(t, sent_text) for t in texts)",
+@mutation(SUB, "    return any(resolver.carries_text(t, sent_text, prompt) for t in texts)",
           "    return any(sent_text[:20] in t for t in texts)", expect="whole sent text")
 @sync
 async def test_a_read_that_carries_only_the_start_of_the_sent_text_is_not_the_receipt():
-    sent = "a paper lantern rising over a quiet lake, slow camera tilt, no people [7100]"
-    scene = Scene(job=make_job(sent_text=sent))
+    prompt = "a paper lantern rising over a quiet lake, slow camera tilt, no people"
+    scene = Scene(job=make_job(prompt=prompt))
+    sent = scene.job.sent_text
     other = chain_body([("user", sent[:40])], "555")        # the first 40 characters of ours, and then something else
     await scene.session.feeder.chain(other, "555")
     run = raw_run(scene)
     assert await run._receipt(set(GOOD_PROBE["ids"])) is None, (
         "a read with only the start of the sent text, whole sent text"
     )
-    assert not body_carries(other, sent) and body_carries(chain_body([("user", sent + ", 16:9")], "555"), sent)
+    assert not body_carries(other, sent, prompt)
+    assert body_carries(chain_body([("user", sent + ", 16:9")], "555"), sent, prompt)
 
 
 # ---- the whole submit on the captures --------------------------------------------------------------------------------

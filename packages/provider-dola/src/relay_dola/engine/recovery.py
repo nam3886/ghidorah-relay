@@ -18,17 +18,18 @@ class RecoveryError(RuntimeError):
 
 
 async def recover_outputs(http: DolaHttp, conversation_id: str, *, expect: str | None, sent_text: str | None,
-                          now: float) -> tuple[Output, ...]:
+                          now: float, prompt: str | None = None) -> tuple[Output, ...]:
     """The clean videos of `conversation_id`, in message order.
 
     `expect` (the job's marker, else its prompt) is the guard v4 used: judged once the user's words are readable.
-    `sent_text`, when given, is stricter: the user's words must carry the whole text that was sent, and an unreadable
-    conversation is refused (Recover moves money, so it needs positive proof)."""
+    `sent_text`, when given, is stricter: the user's words must carry the whole text that was sent (and `prompt`, the
+    customer's words, must not be blank), and an unreadable conversation is refused (Recover moves money, so it needs
+    positive proof)."""
     try:
         body = await resolver.fetch_chain(http, conversation_id, expect)
     except resolver.ChainError as exc:
         raise RecoveryError("%s (%s)" % (exc, exc.code)) from exc
-    if sent_text and not resolver.carries_text(resolver.user_text(body), sent_text):
+    if sent_text and not resolver.carries_text(resolver.user_text(body), sent_text, prompt or ""):
         raise RecoveryError("the conversation does not carry the job's text: it is not this job's")
     try:
         read = resolver.read_video(body, since=None, now=now)

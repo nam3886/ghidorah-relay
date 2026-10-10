@@ -387,13 +387,13 @@ def reply_text(reply: str | None) -> str:
     return " ".join((reply or "").split())[:REPLY_CHARS]
 
 
-def body_carries(body, sent_text: str) -> bool:
+def body_carries(body, sent_text: str, prompt: str) -> bool:
     """Does this conversation read hold the job's WHOLE sent text, in the user's words or anywhere in the thread (an i2v
     prompt travels as a text block, not as the plain user text). Whitespace is folded, as the composer flattens it."""
     if not isinstance(body, dict):
         return False
     texts = (resolver.user_text(body), resolver.conversation_text(body))
-    return any(resolver.carries_text(t, sent_text) for t in texts)
+    return any(resolver.carries_text(t, sent_text, prompt) for t in texts)
 
 
 def body_of(event) -> dict | None:
@@ -436,6 +436,7 @@ class OrderSpec:
     ratio: str | None
     style: str | None
     sent_text: str
+    prompt: str
 
     @property
     def needs_patch(self) -> bool:
@@ -453,9 +454,9 @@ def order_spec(job) -> OrderSpec:
         raise ValueError("the job has no sent_text: the core composes it")
     if kind == "video":
         return OrderSpec("video", params["model"], int(params["duration"]), params.get("ratio") or DEFAULT_RATIO,
-                         None, job.sent_text)
+                         None, job.sent_text, job.prompt)
     return OrderSpec("image", params["model"], None, params.get("ratio") or None, params.get("style") or None,
-                     job.sent_text)
+                     job.sent_text, job.prompt)
 
 
 # ---- the page driver (the seam a test replaces) ------------------------------------------------------------------
@@ -903,7 +904,8 @@ class _Run:
         spec = self.spec
         for attempt in range(REPLY_TRIES):
             ev = await self.session.recorder.wait_for(
-                lambda e: e.path == SINGLE_PATH and e.status == 200 and body_carries(body_of(e), spec.sent_text),
+                lambda e: e.path == SINGLE_PATH and e.status == 200
+                and body_carries(body_of(e), spec.sent_text, spec.prompt),
                 self.deps.poll_s, since=self.since)
             if ev is not None:
                 conversation = conversation_id_of(ev.req)
@@ -930,11 +932,13 @@ class _Run:
         if "/chat/" in url:
             cand = url.split("/chat/")[-1].split("?")[0].split("#")[0].strip("/")
             if (cand.isdigit() and cand not in baseline
-                    and body_carries(await self.driver.read_chain(self.page, cand), self.spec.sent_text)):
+                    and body_carries(await self.driver.read_chain(self.page, cand), self.spec.sent_text,
+                                     self.spec.prompt)):
                 return cand
         fresh = [i for i in (await self.driver.probe(self.page)).get("ids") or [] if i not in baseline]
         for conversation in sorted(fresh, key=lambda x: -int(x) if x.isdigit() else 0)[:10]:
-            if body_carries(await self.driver.read_chain(self.page, conversation), self.spec.sent_text):
+            if body_carries(await self.driver.read_chain(self.page, conversation), self.spec.sent_text,
+                            self.spec.prompt):
                 return conversation
         return None
 

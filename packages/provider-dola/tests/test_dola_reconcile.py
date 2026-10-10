@@ -22,6 +22,7 @@ from kit_b import (
     reply,
     s1_capture,
     s1_reads,
+    sent_of,
     user,
     user_block,
 )
@@ -39,7 +40,9 @@ RESOLVER = "packages/provider-dola/src/relay_dola/engine/resolver.py"
 
 SENT = 1_790_700_000.0
 SENT_AT = dt.datetime.fromtimestamp(SENT, dt.UTC)
-TEXT = "a cat riding a bicycle at dawn [7788]"
+PROMPT = "a cat riding a bicycle at dawn"
+MARKER = "7788"
+TEXT = sent_of(PROMPT, MARKER)          # the real renderer, the core frame: the words, then ` [7788]`
 ACCEPT = ("The video will be generated using the **Dreamina Seedance 2.5 model**. It will use 2 credits and be ready "
           "in 35 minutes. I'll send it to you when it's done.")
 UNCLEAR = "Hmm, let me think about that."
@@ -78,13 +81,16 @@ def lister_of(ids, *, cells=None, has_more=False):
     return lister
 
 
-def go(conversations, ids=None, *, ref=None, text=TEXT, sent_at=SENT_AT, acc=None, lister=None, state=None,
-       cells=None, has_more=False):
-    """Reconcile a job whose own conversation is `ref` (or none) against a fake dola holding `conversations`."""
+def go(conversations, ids=None, *, ref=None, prompt=PROMPT, marker=MARKER, frame=None, text=None, sent_at=SENT_AT,
+       acc=None, lister=None, state=None, cells=None, has_more=False):
+    """Reconcile a job whose own conversation is `ref` (or none) against a fake dola holding `conversations`. The job is
+    in the production form: its `sent_text` is the real renderer's output for `prompt`, `marker` and `frame` (default:
+    the core frame); `text` replaces it with another text (an empty one, for instance)."""
     transport = FakeTransport(dict(conversations))
     ctx = Ctx(acc or account(state=state))
     lister = lister or lister_of(list(conversations) if ids is None else ids, cells=cells, has_more=has_more)
-    j = job(ref=ref, sent_text=text, sent_at=sent_at)
+    j = job(ref=ref, prompt=prompt, marker=marker, sent_text=text, sent_at=sent_at,
+            **({} if frame is None else {"frame": frame}))
     result = run(reconcile(ctx, j, ctx.settings, http=http_for(transport, ctx.account), lister=lister))
     return result, transport, lister
 
@@ -128,23 +134,22 @@ def test_a_video_or_an_image_in_the_conversation_proves_the_order_whatever_the_w
 
 
 # ---- matching the full sent text (WORKER10, WORKER13, WORKER14) -------------------------------------------------
-@mutation(RESOLVER, "    return bool(words.strip()) and sent in norm_for_match(text)",
-          "    return bool(words.strip()) and sent[:12] in norm_for_match(text)",
+@mutation(RESOLVER, "    return bool(folded and norm_for_match(prompt)) and folded in norm_for_match(text)",
+          "    return bool(folded and norm_for_match(prompt)) and folded[:12] in norm_for_match(text)",
           expect="took another job's conversation")
 def test_two_jobs_with_the_same_prompt_each_find_their_own_conversation():
-    first = "same prompt for both jobs [1111]"
-    second = "same prompt for both jobs [2222]"
-    both = {"c1": mine(first), "c2": mine(second)}
-    a = go(both, text=first)[0]
-    b = go(both, text=second)[0]
+    words = "same prompt for both jobs"
+    both = {"c1": mine(sent_of(words, "1111")), "c2": mine(sent_of(words, "2222"))}
+    a = go(both, prompt=words, marker="1111")[0]
+    b = go(both, prompt=words, marker="2222")[0]
     assert a == Found("c1", {}, True) and b == Found("c2", {}, True), "took another job's conversation: %r %r" % (a, b)
 
 
 def test_a_marker_collision_is_no_worse_than_prompt_matching():
     """WORKER14: two jobs sharing marker AND prompt cannot be told apart, exactly as when matching on the prompt."""
-    same = {"c1": mine("same prompt [3333]")}
-    assert go(same, text="same prompt [3333]")[0] == Found("c1", {}, True)
-    assert go(same, text="same prompt [4444]")[0] != Found("c1", {}, True), "a different marker matched"
+    same = {"c1": mine(sent_of("same prompt", "3333"))}
+    assert go(same, prompt="same prompt", marker="3333")[0] == Found("c1", {}, True)
+    assert go(same, prompt="same prompt", marker="4444")[0] != Found("c1", {}, True), "a different marker matched"
 
 
 def test_a_foreign_conversation_must_prove_it_belongs_to_the_job():
@@ -184,7 +189,8 @@ def test_an_unreachable_listing_leaves_the_job_alone():
 def test_a_missing_account_is_not_guessed_about():
     ctx = Ctx(account())
     ctx.account = None
-    result = run(reconcile(ctx, job(sent_text=TEXT, sent_at=SENT_AT), ctx.settings, http=http_for(FakeTransport()),
+    mine_job = job(prompt=PROMPT, marker=MARKER, sent_at=SENT_AT)
+    result = run(reconcile(ctx, mine_job, ctx.settings, http=http_for(FakeTransport()),
                            lister=lister_of(["1"])))
     assert result == StillUnknown()
 
@@ -225,7 +231,7 @@ def test_the_v4_listing_bug_is_not_ported():
     data, sent_at = capped_fixture()
     assert len(data["listing"]["ids"]) == CONV_LIST_LIMIT == 30
     assert data["unknown_non_matching"] in data["conversations"]
-    result, transport, _ = go(data["conversations"], ids=data["listing"]["ids"], text=data["job"]["sent_text"],
+    result, transport, _ = go(data["conversations"], ids=data["listing"]["ids"],
                               sent_at=sent_at)
     assert result == StillUnknown(), "a capped listing was taken as proof of NotSent: %r" % (result,)
     assert len(transport.chain_reads()) == 30, "every candidate must still be read before giving up"
@@ -251,7 +257,7 @@ def test_a_capped_listing_that_reaches_back_past_the_send_proves_not_sent():
     convs = json.loads(json.dumps(data["conversations"]))
     oldest = data["listing"]["ids"][0]
     convs[oldest] = other(0, at=SENT - 86_400)             # last activity a day before the send
-    result, _, _ = go(convs, ids=data["listing"]["ids"], text=data["job"]["sent_text"], sent_at=sent_at)
+    result, _, _ = go(convs, ids=data["listing"]["ids"], sent_at=sent_at)
     assert result == NotSent(covers_send_window=True), "a listing that reaches back past the send was refused: %r" % (
         result,)
 
@@ -264,23 +270,23 @@ def test_only_a_conversation_clearly_older_than_the_send_counts_as_reaching_back
     first = data["listing"]["ids"][0]
     # older than the send, but only by half the clock margin: dola's clock could be that far off, so it proves nothing
     convs[first] = other(0, at=SENT - rc.PREDATE_MARGIN_S / 2)
-    close = go(convs, ids=data["listing"]["ids"], text=data["job"]["sent_text"], sent_at=sent_at)[0]
+    close = go(convs, ids=data["listing"]["ids"], sent_at=sent_at)[0]
     assert close == StillUnknown(), "a conversation barely older than the send was trusted: %r" % (close,)
     convs[first] = other(0, at=SENT - rc.PREDATE_MARGIN_S * 2)
-    far = go(convs, ids=data["listing"]["ids"], text=data["job"]["sent_text"], sent_at=sent_at)[0]
+    far = go(convs, ids=data["listing"]["ids"], sent_at=sent_at)[0]
     assert far == NotSent(True), "a conversation older than the send did not count: %r" % (far,)
     # an undated conversation and a job with no sent_at prove nothing about the window
     convs[first] = chain_with([reply("hi", 0), user("old", 0)])
-    assert go(convs, ids=data["listing"]["ids"], text=data["job"]["sent_text"], sent_at=sent_at)[0] == StillUnknown()
+    assert go(convs, ids=data["listing"]["ids"], sent_at=sent_at)[0] == StillUnknown()
     convs[first] = other(0, at=SENT - 86_400)
-    assert go(convs, ids=data["listing"]["ids"], text=data["job"]["sent_text"], sent_at=None)[0] == StillUnknown()
+    assert go(convs, ids=data["listing"]["ids"], sent_at=None)[0] == StillUnknown()
 
 
 def test_a_capped_listing_that_holds_the_text_is_found_whatever_its_size():
     data, sent_at = capped_fixture()
     convs = dict(data["conversations"])
     convs[data["listing"]["ids"][3]] = mine(data["job"]["sent_text"])
-    result, _, _ = go(convs, ids=data["listing"]["ids"], text=data["job"]["sent_text"], sent_at=sent_at)
+    result, _, _ = go(convs, ids=data["listing"]["ids"], sent_at=sent_at)
     assert result == Found(data["listing"]["ids"][3], {}, True)
 
 
@@ -293,13 +299,14 @@ def test_one_dead_session_while_reading_ends_the_round_unknown():
 def test_the_i2v_conversation_in_its_real_block_list_shape_is_found():
     """S1 capture: an i2v order is stored with the prompt as a block-list user message; reading only the dict shape
     called the job's own conversation 'not ours' and a job that was taken got sent again."""
-    marker = s1_capture("i2v")["marker"]
+    marker = s1_capture("i2v")["marker"]                        # `[7103]`: the capture was made with the bracketed form
     first = next(b for _, anchor, b in s1_reads("i2v") if anchor == 6)
     stored = resolver_user_text(first)
     sent = stored.split("Generated video: ", 1)[1]
-    sent = sent[:sent.index(marker) + len(marker)]          # the composer adds ", 16:9, 30s" after the marker
+    prompt = sent[:sent.index(marker)].strip()            # the composer adds ", 16:9, 30s" after the marker
     newest = rc.resolver.last_message_time(first)
-    result, _, _ = go({"38417993818525713": first}, text=sent, sent_at=dt.datetime.fromtimestamp(newest - 20, dt.UTC))
+    result, _, _ = go({"38417993818525713": first}, prompt=prompt, marker=marker.strip("[]"),
+                      sent_at=dt.datetime.fromtimestamp(newest - 20, dt.UTC))
     assert result == Found("38417993818525713", {}, False), "the job's own i2v conversation was denied: %r" % (result,)
 
 
@@ -312,42 +319,47 @@ def test_a_block_list_user_message_in_a_made_up_chain_is_found_and_matched_like_
     assert go({"1": conv})[0] == Found("1", {}, True)
 
 
-@mutation(RESOLVER, "    return bool(words.strip()) and sent in norm_for_match(text)",
-          "    return bool(words.strip()) and _flat(sent_text) in _flat(text)",
+@mutation(RESOLVER, "    return bool(folded and norm_for_match(prompt)) and folded in norm_for_match(text)",
+          "    return bool(folded and norm_for_match(prompt)) and _flat(sent_text) in _flat(text)",
           expect="dola altered the text and the job was declared not sent")
 def test_a_dropped_invisible_character_or_a_straightened_quote_still_finds_the_conversation():
-    zwsp = "a cat\u200b riding a bicycle at dawn [7788]"
-    plain = "a cat riding a bicycle at dawn [7788]"
-    straight, curly = "a cat's bicycle at dawn [7788]", "a cat\u2019s bicycle at dawn [7788]"
+    zwsp = "a cat\u200b riding a bicycle at dawn"
+    plain = "a cat riding a bicycle at dawn"
+    straight, curly = "a cat's bicycle at dawn", "a cat\u2019s bicycle at dawn"
     for sent, stored in ((zwsp, plain), (plain, zwsp), (curly, straight), (straight, curly)):
-        result, _, _ = go({"9": mine(stored)}, text=sent)
+        result, _, _ = go({"9": mine(sent_of(stored, MARKER))}, prompt=sent)
         assert result == Found("9", {}, True), "dola altered the text and the job was declared not sent: %r" % (
             result,)
 
 
-@mutation(RESOLVER, "    return bool(words.strip()) and sent in norm_for_match(text)",
-          "    return bool(sent) and sent in norm_for_match(text)", expect="a bare marker matched another order")
-def test_a_sent_text_that_is_only_the_marker_matches_nothing():
-    """The prompt folded to nothing, so the sent text is the bare marker: it would match any conversation that
-    carries the same four digits, whoever's it is."""
-    zwsp = "\u200b\u200b"
-    theirs = "Generated video: someone else's order [7788]"
-    assert not resolver.carries_text(theirs, zwsp + " [7788]"), "a bare marker matched another order"
-    assert resolver.carries_text(theirs, "someone else's order [7788]"), "premise: a real prompt still matches"
+@mutation(RESOLVER, "    return bool(folded and norm_for_match(prompt)) and folded in norm_for_match(text)",
+          "    return bool(folded) and folded in norm_for_match(text)",
+          expect="the frame's words and a shared code matched another order")
+def test_a_job_whose_prompt_shows_nothing_matches_nothing_whatever_its_frame_says():
+    """The prompt folded to nothing, so the sent text is only the frame's words and the tracking code: another job's
+    conversation made with the same frame and the same four digits carries all of it (about 1 pair in 7,000)."""
+    frame = "Fixed preamble of this model. {{client_prompt}} {{tracking_code}}"
+    blank = "\u200b\u200b"
+    sent = sent_of(blank, MARKER, frame)
+    theirs = "Generated video: " + sent_of("someone else's order", MARKER, frame)
+    assert not resolver.carries_text("Generated video: " + sent, sent, blank), \
+        "the frame's words and a shared code matched another order"
+    assert not resolver.carries_text(theirs, sent, blank), "the frame's words and a shared code matched another order"
+    real = sent_of("someone else's order", MARKER, frame)
+    assert resolver.carries_text(theirs, real, "someone else's order"), "premise: a real prompt still matches"
 
 
-@mutation(RECONCILE, "    if not mine and resolver.may_be_job(body, sent_text):",
+@mutation(RECONCILE, "    if not mine and resolver.may_be_job(body, job.marker, prompt):",
           "    if False:", expect="carries the job's marker was called not ours")
 def test_a_conversation_with_the_jobs_marker_but_other_words_is_cannot_tell_never_not_sent():
     altered = "a cat riding a bicycle at the break of day [7788]"        # dola rewrote it; the marker survived
-    result, _, _ = go({"9": mine(altered)}, text=TEXT)
+    result, _, _ = go({"9": mine(altered)})
     assert result == StillUnknown(), "a conversation that carries the job's marker was called not ours: %r" % (result,)
     # only the first 80 characters survive (the tail was cut): the prefix alone is enough to doubt
-    long = "x" * 90 + " the end [7788]"
-    result, _, _ = go({"9": mine("x" * 90 + " the")}, text=long)
+    result, _, _ = go({"9": mine("x" * 90 + " the")}, prompt="x" * 90 + " the end")
     assert result == StillUnknown()
     # a conversation that shares neither marker nor prefix stays "not ours"
-    assert go({"9": mine("something else entirely [1111]")}, text=TEXT)[0] == NotSent(True)
+    assert go({"9": mine("something else entirely [1111]")})[0] == NotSent(True)
 
 
 def test_the_unrelated_conversation_next_to_a_match_does_not_hide_it():
@@ -482,7 +494,7 @@ def test_a_listing_that_cannot_be_read_leaves_the_job_unknown_through_the_real_l
     install_browser(monkeypatch, FakePage(RuntimeError("boom")), seen)
     ctx = Ctx(token=object())
     transport = FakeTransport()
-    result = run(reconcile(ctx, job(ref=None, sent_text=TEXT, sent_at=SENT_AT), ctx.settings,
+    result = run(reconcile(ctx, job(ref=None, prompt=PROMPT, marker=MARKER, sent_at=SENT_AT), ctx.settings,
                            http=http_for(transport, ctx.account)))
     assert result == StillUnknown() and not transport.posts
 

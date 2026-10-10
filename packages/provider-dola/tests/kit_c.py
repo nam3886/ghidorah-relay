@@ -16,6 +16,7 @@ from pathlib import Path
 
 from relay_browser.evidence import Evidence
 from relay_browser.net import NetRecorder
+from relay_core import frames
 from relay_core.leases import LeaseLost
 from relay_core.providers import AccountView, JobView, MediaRef
 from relay_dola.engine.site import CAPTURE_PATHS
@@ -24,7 +25,9 @@ from relay_dola.engine.submit import Built, Deps, PageDriver
 FIXTURES = Path(__file__).resolve().parents[3] / "fixtures" / "dola"
 NOW = datetime(2026, 10, 5, 10, 0, tzinfo=UTC)
 CONV = "38400000000000001"
-SENT = "a paper lantern rising over a quiet lake [7100]"
+PROMPT = "a paper lantern rising over a quiet lake"
+MARKER = "7100"
+SENT = frames.render(frames.CORE_FRAME, PROMPT, MARKER)         # the core frame: the words, then ` [7100]`
 
 # dola's own sentences, copied from measured conversations (v4 samples, redacted of ids)
 ACCEPTED = ("The video will be generated using the **Dreamina Seedance 2.5 model**. It will use 2 credits and be ready "
@@ -113,7 +116,12 @@ def lease_lost() -> LeaseLost:
 
 
 def make_job(kind: str = "video", *, duration: int = 30, ratio: str | None = "16:9", style: str | None = None,
-             sent_text: str | None = SENT, images: tuple = (), model: str | None = None) -> JobView:
+             sent_text: str | None = SENT, images: tuple = (), model: str | None = None, prompt: str = PROMPT,
+             marker: str = MARKER, frame: str | None = None) -> JobView:
+    """A job in the production form: `prompt`, `marker` and `sent_text` agree. `frame` renders the sent text from that
+    frame (the real renderer); `sent_text` overrides it for a test that needs another text."""
+    if frame is not None:
+        sent_text = frames.render(frame, prompt, marker)
     params = {"kind": kind, "model": model or ("seedance_v2.5" if kind == "video" else "seedream-4.5")}
     if kind == "video":
         params.update(duration=duration, ratio=ratio)
@@ -123,7 +131,7 @@ def make_job(kind: str = "video", *, duration: int = 30, ratio: str | None = "16
     async def inputs():
         return list(images)
     return JobView("job-1", "dola", "text_to_video" if kind == "video" else "text_to_image", params["model"], params,
-                   "a paper lantern rising over a quiet lake", "7100", sent_text, None, None, None, {}, inputs)
+                   prompt, marker, sent_text, None, None, None, {}, inputs)
 
 
 def media_ref(idx: int = 0, mime: str = "image/png") -> MediaRef:

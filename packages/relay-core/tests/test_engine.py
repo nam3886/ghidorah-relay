@@ -180,7 +180,7 @@ def test_a_timeout_error_the_engine_raises_itself_counts_like_any_other_unexpect
     async def scenario(p):
         engine = FakeEngine()
         await hold_job(p, k, engine, script=[unsent(TimeoutError("connect timed out"))])
-        loop = make_loop(p, engine)
+        loop = make_loop(p, engine, max_inflight=1)         # one submit at a time: no sixth error can overlap the fifth
         async with running(loop) as task:
             await until(lambda: loop.exit_code == 1, what="the worker to stop after its error limit")
         return task.result(), loop.errors
@@ -411,7 +411,7 @@ def test_five_consecutive_unexpected_errors_stop_the_worker_with_a_failure_and_l
     async def scenario(p):
         engine = FakeEngine()
         await hold_job(p, k, engine, script=[unsent(RuntimeError("broken engine"))])     # the last entry repeats
-        loop = make_loop(p, engine)
+        loop = make_loop(p, engine, max_inflight=1)         # one submit at a time: no sixth error can overlap the fifth
         return await within(loop.run(), 10, what="the worker to exit 1 after five errors"), loop.errors
 
     code, errors = run(db, scenario)
