@@ -15,6 +15,8 @@ from enum import StrEnum
 from typing import Any, Literal, Protocol
 from zoneinfo import ZoneInfo
 
+from relay_core import frames
+
 
 class Completion(StrEnum):
     HOLD = "hold"        # the result is awaited inside the session
@@ -368,6 +370,24 @@ class CreateRequest:
 
 
 @dataclass(frozen=True)
+class FrameUse:
+    """The frame a job is sent with (contracts 5.1): the stored version's id (None for the core frame, which has no
+    row) and its text."""
+    id: int | None
+    text: str
+
+
+@dataclass(frozen=True)
+class FrameRules:
+    """What a provider declares about its prompt frames. `defaults` is the shipped default text per media kind and must
+    cover every kind of the catalog and pass the grammar; `warnings(kind, text)` is pure and returns the texts an
+    admin save shows (never a refusal); `max_sent_chars` is the longest rendered text the provider accepts."""
+    defaults: Mapping[str, str]
+    warnings: Callable[[str, str], tuple[str, ...]]
+    max_sent_chars: int
+
+
+@dataclass(frozen=True)
 class Plan:
     operation: str
     media_type: str
@@ -381,6 +401,7 @@ class Plan:
     account_cost: int
     submit_timeout_s: int
     warnings: tuple[Warning, ...] = ()
+    frame: FrameUse | None = None     # set by the core in the plan step (api.doors); a provider's value is replaced
 
     def __post_init__(self):
         if self.price < 0 or self.account_cost < 0 or self.submit_timeout_s < 1:
@@ -474,6 +495,8 @@ class ProviderSpec(Protocol):
     def deadline_cause(self, upstream_text: str, provider_state: Mapping[str, Any]) -> str: ...
     def extras(self, snapshots: Mapping[str, Mapping]) -> dict: ...
 
+    frames: FrameRules | None = None      # None = no frames: the core frame applies
+
 
 class ProviderEngine(Protocol):
     """Worker only. `poll`, `reconcile` and `probe_proxy` exist exactly when `Caps` says so."""
@@ -514,6 +537,30 @@ def _problems(spec: ProviderSpec) -> list[str]:
     for m in spec.catalog():
         if not m.operations:
             bad.append("%s: model %s has no operations" % (spec.name, m.id))
+    bad += _frame_problems(spec)
+    return bad
+
+
+def _frame_problems(spec: ProviderSpec) -> list[str]:
+    """A provider with frames must ship a default that passes the grammar for every kind of its catalog, or neither the
+    api nor the worker starts (contracts 5.1)."""
+    rules = getattr(spec, "frames", None)
+    if rules is None:
+        return []
+    bad = []
+    kinds = {m.media_type for m in spec.catalog()}
+    for kind in sorted(kinds - set(rules.defaults)):
+        bad.append("%s: no default frame for the %s models" % (spec.name, kind))
+    for kind, text in rules.defaults.items():
+        if kind not in frames.KINDS:
+            bad.append("%s: a default frame for the unknown kind %r" % (spec.name, kind))
+            continue
+        try:
+            frames.check_frame(text)
+        except frames.FrameError as e:
+            bad.append("%s: the shipped %s frame fails the grammar: %s" % (spec.name, kind, e))
+    if not isinstance(rules.max_sent_chars, int) or rules.max_sent_chars < 1:
+        bad.append("%s: max_sent_chars must be a positive whole number" % spec.name)
     return bad
 
 

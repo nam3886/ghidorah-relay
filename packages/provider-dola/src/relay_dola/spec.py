@@ -10,6 +10,7 @@ from relay_core.providers import (
     Completion,
     CreateRequest,
     Dead,
+    FrameRules,
     InputError,
     ModelSpec,
     ParsedCredential,
@@ -27,10 +28,10 @@ from relay_dola.constants import (
     BROWSER_SLOTS_MIN,
     CATALOG_REFRESH_S,
     CHECK_INTERVAL_S,
+    FRAME_MAX_SENT_CHARS,
     IMAGE_ACCOUNT_COST,
     MAX_ATTEMPTS,
     MAX_REFERENCE_IMAGES,
-    PROMPT_HINT_MAX,
     PROVIDER,
     PROXY_REST_S,
     STRIKE_DEAD_REASON,
@@ -50,6 +51,24 @@ DEFAULT_VIDEO_HINT = (
     "Generate it now as a single video in one go — do not ask questions, do not offer options, "
     "and do not split it into segments. Always reply to me in English; keep any dialogue and "
     "on-screen text in the video exactly as written in the prompt.")
+
+
+# The shipped default frames (contracts 5.4.1): byte for byte the text relay sent before frames existed, the customer's
+# words, then (video only) the sentence above, then the tracking code. A default is never updated by code after it is
+# seeded; the admin resets it to this text when a fix of it should reach a running database.
+DEFAULT_VIDEO_FRAME = "{{client_prompt}} " + DEFAULT_VIDEO_HINT + " {{tracking_code}}"
+DEFAULT_IMAGE_FRAME = "{{client_prompt}} {{tracking_code}}"
+SINGLE_VIDEO_WARNING = ("This frame no longer asks for a single video: dola may ask questions, offer options or split "
+                        "the order. Keep the words \"single video\" in it.")
+
+
+def _frame_warnings(kind: str, text: str) -> tuple[str, ...]:
+    """A video frame whose text lacks \"single video\" (case ignored) gets one warning; it is never a refusal."""
+    return (SINGLE_VIDEO_WARNING,) if kind == "video" and "single video" not in text.casefold() else ()
+
+
+FRAMES = FrameRules(defaults={"video": DEFAULT_VIDEO_FRAME, "image": DEFAULT_IMAGE_FRAME}, warnings=_frame_warnings,
+                    max_sent_chars=FRAME_MAX_SENT_CHARS)
 
 
 def _refuse(code: str, detail: str = "", param: str | None = None) -> InputError:
@@ -78,13 +97,6 @@ def _slots(v: int) -> None:
         raise ValueError("must be between %d and %d" % (BROWSER_SLOTS_MIN, BROWSER_SLOTS_MAX))
 
 
-def _hint(v: str) -> None:
-    if "\n" in v or "\r" in v:
-        raise ValueError("must be one line: dola sends a message at each Enter, so a line break would split the order")
-    if len(v) > PROMPT_HINT_MAX:
-        raise ValueError("must be at most %d characters (got %d)" % (PROMPT_HINT_MAX, len(v)))
-
-
 def _prices(v: dict) -> None:
     """The price table is the way customers are charged: name the exact fault."""
     for tier, price in v.items():
@@ -106,10 +118,6 @@ _SETTINGS = dict((
     _setting("render_deadline_s", int, 9000,
              "Seconds to wait for dola to render one submission before giving up on it (the new UI promises up to 2 "
              "hours).", _at_least(60)),
-    _setting("video_prompt_hint", str, DEFAULT_VIDEO_HINT,
-             "Sentence added after the customer's prompt when a VIDEO job is sent (images are left alone). Stops dola "
-             "asking questions, splitting a 30 s order in two or drawing a storyboard. Empty = off. A job keeps the "
-             "sentence it was created with.", _hint),
     _setting("prices", dict, dict(C.DEFAULT_PRICES),
              "Points charged per generation, keyed '<model>@<N>s' for video and '<model>' for image. A tier missing "
              "here is charged the fallback (video 3, image 1) with a warning.", _prices),
@@ -134,6 +142,7 @@ _SETTINGS = dict((
 
 class DolaSpec:
     name = PROVIDER
+    frames = FRAMES
     caps = Caps(
         execution="browser", wallet_kinds=("video", "image"),
         pools=(PoolSpec("video", "UTC", "dola.video_budget"), PoolSpec("image", "UTC", "dola.image_budget")),
@@ -201,9 +210,6 @@ class DolaSpec:
         price, warnings = self._price(settings, gen.model, "video", duration)
         warnings += [Warning(codes.WARN_DURATION_CAPPED, w) for w in C.video_warnings(gen.model, duration)]
         params: dict[str, Any] = {"kind": "video", "model": gen.model, "duration": duration, "ratio": ratio}
-        hint = " ".join(str(settings.get("dola.video_prompt_hint") or "").split())[:PROMPT_HINT_MAX]
-        if hint:
-            params["prompt_hint"] = hint        # captured now: a job keeps the sentence it was created with
         return Plan(
             operation="image_to_video" if req.images else "text_to_video", media_type="video",
             model=C.public_name("video", gen.model, duration, ratio), params=params, completion=Completion.DETACH,

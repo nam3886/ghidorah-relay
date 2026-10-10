@@ -681,7 +681,8 @@ def test_the_newest_reply_alone_over_the_cap_is_cut_and_older_paragraphs_never_d
     assert resolver.recent_conversation_text(body, 24) == "newest reply"
 
 
-@mutation("packages/provider-dola/src/relay_dola/constants.py", "EVENT_TEXT_MAX = 2000", "EVENT_TEXT_MAX = 2001",
+@mutation("packages/provider-dola/src/relay_dola/constants.py", "EVENT_TEXT_MAX = LOG_VALUE_LIMIT",
+          "EVENT_TEXT_MAX = LOG_VALUE_LIMIT + 1",
           expect="the event text cap is above the core's")
 def test_the_event_text_cap_never_exceeds_what_the_core_stores():
     """The pure constant mirrors `relay_core.redact`'s limit (the core turns a longer string into a bare marker)."""

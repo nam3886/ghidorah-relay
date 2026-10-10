@@ -5,7 +5,6 @@ import logging
 import pytest
 from kit_a import IMG, TEMPLATES, plan, refused, request, settings
 
-from relay_core.jobs.create import sent_text_of
 from relay_core.providers import AfterSent, Completion, CreateRequest, InputError, MediaIn
 from relay_core.testing.mutation import mutation
 from relay_dola import catalog as C
@@ -225,28 +224,12 @@ def test_more_than_ten_reference_images_is_refused():
     assert e.code == "input.too_many_images"
 
 
-# ---- the hint and the marker (WORKER16) ------------------------------------------------------------------------------
-@mutation(SPEC_FILE, ".split())[:PROMPT_HINT_MAX]", ".split())", expect="<= 500")
-def test_the_video_hint_is_captured_into_the_params_one_line_and_at_most_500():
-    p = plan()
-    hint = settings().get("dola.video_prompt_hint")
-    assert p.params["prompt_hint"] == hint
-    cfg = settings(dola__video_prompt_hint="first line\n\n  second   line " + "x" * 600)    # bypasses the validator
-    captured = plan(cfg=cfg).params["prompt_hint"]
-    assert len(captured) <= 500 and "\n" not in captured and captured.startswith("first line second line")
-    assert "prompt_hint" not in plan(cfg=settings(dola__video_prompt_hint="")).params, "an empty hint is off"
-    assert "prompt_hint" not in plan("seedream-4.5").params, "the hint is for video only"
-
-
-def test_the_hint_and_the_marker_are_added_at_send_time_only_the_marker_last():
-    p = plan(prompt="a calm  sea\nat dusk")
-    sent = sent_text_of("a calm  sea\nat dusk", p.params, "4321")
-    assert sent == "a calm sea at dusk " + p.params["prompt_hint"] + " [4321]"
-    assert sent.endswith(" [4321]") and sent.count("[4321]") == 1
-    # a plan holds neither the marker nor the composed text
-    assert "4321" not in str(p.params) and "a calm" not in str(p.params)
-    # an image has no hint, so only the marker follows the prompt
-    assert sent_text_of("a cat", plan("seedream-4.5").params, "4321") == "a cat [4321]"
+# ---- the sentence and the marker are the frame's, not the plan's (WORKER16) ------------------------------------
+def test_a_plan_holds_neither_the_hint_nor_the_marker_nor_the_composed_text():
+    for model in ("seedance-2.5", "seedream-4.5"):
+        p = plan(model, "a calm  sea\nat dusk")
+        assert "prompt_hint" not in p.params, "the video sentence is part of the shipped frame now"
+        assert "4321" not in str(p.params) and "a calm" not in str(p.params)
 
 
 # ---- prompt conflicts (R103) -----------------------------------------------------------------------------------------
@@ -317,7 +300,6 @@ def test_the_style_rides_in_options_on_the_native_door():
 def test_an_image_is_judged_for_conflicts_with_the_customers_words_only():
     e = refused("seedream-4.5", "a 9:16 phone wallpaper of a lake", ratio="1:1")
     assert e.code == "input.prompt_ratio_conflict"
-    assert "prompt_hint" not in plan("seedream-4.5", "a lake").params
 
 
 # ---- a stored request replans the same way (D56) ---------------------------------------------------------------------

@@ -46,6 +46,10 @@ ADMIN = {
     "POST /admin/providers/{provider}/check-all", "POST /admin/providers/{provider}/refresh-catalog",
     "GET /admin/settings", "PUT /admin/settings/{key}", "DELETE /admin/settings/{key}",
     "GET /admin/models",
+    "GET /admin/frames", "GET /admin/frames/{provider}/{kind}/{target}", "PUT /admin/frames/{provider}/{kind}/{target}",
+    "POST /admin/frames/{provider}/{kind}/{target}/rollback", "POST /admin/frames/{provider}/{kind}/reset",
+    "PUT /admin/frames/{provider}/{kind}/{model}/lock", "POST /admin/frames/{provider}/{kind}/apply-all",
+    "POST /admin/frames/preview",
 }
 KEYLESS = {"GET /healthz", "GET /m/{token}", "GET /openapi.json"}
 OPEN_ADMIN = {"POST /admin/login"}            # answers before there is a session

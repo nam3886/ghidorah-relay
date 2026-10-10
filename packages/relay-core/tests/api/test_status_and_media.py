@@ -28,9 +28,8 @@ async def plant(env, db, *, role="output", idx=0, data=DATA, mime="video/mp4", e
                 job_id=None, prompt="a prompt", params="{}", kind="video") -> tuple[uuid.UUID, str, str]:
     """A job (or one more output of `job_id`), its stored object and a `job_media` row. Returns (job, token, key)."""
     if job_id is None:
-        job_id = db.job(db.key(), kind=kind)
-        db.run("UPDATE jobs SET prompt = %s, model = 'fake-video', params = %s::jsonb WHERE id = %s",
-               prompt, params, job_id)
+        job_id = db.job(db.key(), kind=kind, prompt=prompt)      # the prompt is frozen at insert
+        db.run("UPDATE jobs SET model = 'fake-video', params = %s::jsonb WHERE id = %s", params, job_id)
     key = storage.media_key(str(job_id), role, idx, mime)
     await env.store.put_bytes(key, data, mime)
     tok = storage.new_share_token() if token else None

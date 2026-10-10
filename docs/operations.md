@@ -460,7 +460,6 @@ Registered by `spec.py`; read and written on the admin Settings page, live.
 |---|---|---|
 | `dola.claims_enabled` | drain mode off; false = no new job is claimed (see "Drain mode") | true |
 | `dola.render_deadline_s` | seconds to wait for dola to render one submission before giving up (at least 60) | 9000 |
-| `dola.video_prompt_hint` | one-line sentence added after the prompt of a VIDEO job (never images); empty = off; a job keeps the sentence it was created with | "Generate it now as a single video in one go ..." (see `DEFAULT_VIDEO_HINT`) |
 | `dola.prices` | points charged per generation, keyed `<model>@<N>s` for video and `<model>` for image; a missing tier is charged the fallback (video 3, image 1) with a warning | table in `catalog.DEFAULT_PRICES` |
 | `dola.video_budget` | video points per account per day (dola's own reported number wins) | 4 |
 | `dola.image_budget` | image jobs per account per day (measured about 40; dola never reports it) | 40 |
@@ -474,7 +473,23 @@ There is no setting for image templates or for extra reply phrases. Image templa
 request with `options.template` or `options.template_category` is refused 400 (no charge); a UI reads the template
 list (prompt and preview) from `GET /v1/providers/dola/options` and sends the prompt as `prompt`. The words relay
 recognises in dola's replies live in code (`classify.py`); new wording is a code change after a real capture, never an
-admin setting. `dola.video_prompt_hint` is still a setting until the prompt-frame work replaces it.
+admin setting.
+
+**Prompt frames.** The text sent to dola is not a setting: it is one admin-written frame per model (or per kind: the
+default), stored in `prompt_frames` with a version history and rendered once per job at creation into `jobs.sent_text`
+(contracts 4.7, 5.1). A frame has two placeholders, `{{client_prompt}}` (the customer's words) and `{{tracking_code}}`
+(relay's `[marker]`), each exactly once, on one line of at most 1,000 characters. `relay serve` seeds the shipped
+defaults (the old video sentence after the prompt; nothing for images), logs a WARNING at every start when a stored
+default differs from the shipped one, and never rewrites it: the admin resets it (`POST /admin/frames/dola/<kind>/reset`).
+**Length limit.** The limit on a prompt applies to the whole text relay sends to a provider, not to the customer's words
+alone: the rendered frame (the prompt plus the frame's own text and the `[marker]`) must stay within the provider's
+`max_sent_chars`, else the request is refused 400 `input.prompt_too_long` before any charge. dola's is 50,000 characters
+(provisional), and the door never accepts a prompt over 50,000 characters either. With the shipped frames the longest prompt
+is 49,753 characters for a video (the video sentence takes 246 characters with the marker) and 49,993 for an image; a
+longer frame written in the admin lowers it further. The admin preview answers the same refusal.
+
+A video frame that lacks "single video" is saved with a warning. `dola.video_prompt_hint` is gone; a stale row of it in
+`settings_kv` is ignored with an error log.
 
 ### How an order is judged
 

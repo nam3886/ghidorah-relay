@@ -13,7 +13,7 @@ CONSTANTS_FILE = "packages/provider-dola/src/relay_dola/constants.py"
 SPEC_FILE = "packages/provider-dola/src/relay_dola/spec.py"
 
 LIVE_KEYS = {
-    "dola.claims_enabled", "dola.render_deadline_s", "dola.video_prompt_hint", "dola.prices",
+    "dola.claims_enabled", "dola.render_deadline_s", "dola.prices",
     "dola.video_budget",
     "dola.image_budget", "dola.master_quality", "dola.alert_duration_mismatch_rate", "dola.alert_watermark_only_rate",
     "dola.alert_content_refused_rate", "dola.browser_slots"}
@@ -39,9 +39,6 @@ def test_the_defaults_are_the_contract_values_and_pass_their_own_validators():
     assert d["dola.master_quality"] is True and d["dola.claims_enabled"] is True
     assert (d["dola.alert_duration_mismatch_rate"], d["dola.alert_watermark_only_rate"],
             d["dola.alert_content_refused_rate"]) == (0.2, 0.2, 0.5)
-    assert "reply to me in english" in d["dola.video_prompt_hint"].lower(), (
-        "the default hint no longer asks dola to answer in English: replies in other languages are unreadable to the "
-        "classifier and a length notice is never answered")
     # a fresh registry validates every default and refuses a boot-only name or a duplicate
     Registry(*SPEC.settings().values())
     for s in SPEC.settings().values():
@@ -51,11 +48,10 @@ def test_the_defaults_are_the_contract_values_and_pass_their_own_validators():
     registry.register(SPEC)
 
 
-def test_a_default_hint_is_one_line_and_within_the_cap():
-    hint = spec_of("dola.video_prompt_hint").default
-    assert "\n" not in hint and 0 < len(hint) <= 500
-    assert "ownership" not in hint.lower() and "consent" not in hint.lower(), (
-        "the default hint must assert no ownership, identity or consent")
+def test_the_video_prompt_hint_setting_is_gone_its_sentence_lives_in_the_video_frame():
+    assert "dola.video_prompt_hint" not in SPEC.settings()
+    with pytest.raises(SettingsError):
+        Registry().spec("dola.video_prompt_hint")
 
 
 # ---- CFG07: prices ---------------------------------------------------------------------------------------------------
@@ -125,23 +121,6 @@ def test_browser_slot_values_stay_inside_the_measured_range():
 
 # ---- the other validators --------------------------------------------------------------------------------------------
 
-
-
-@mutation(SPEC_FILE, "if len(v) > PROMPT_HINT_MAX:", "if len(v) > PROMPT_HINT_MAX + 100:", expect="DID NOT RAISE")
-def test_the_video_hint_is_at_most_500_characters():
-    s = spec_of("dola.video_prompt_hint")
-    assert s.validate("x" * 500) == "x" * 500 and s.validate("") == "", "empty turns the hint off"
-    with pytest.raises(SettingsError, match="at most 500"):
-        s.validate("x" * 501)
-
-
-@mutation(SPEC_FILE, 'if "\\n" in v or "\\r" in v:', "if False:", expect="DID NOT RAISE")
-def test_the_video_hint_is_one_line():
-    # dola sends a message at each Enter: a line break would send the prompt and the hint as two messages
-    s = spec_of("dola.video_prompt_hint")
-    for bad in ("two\nlines", "two\r\nlines", "\nleading"):
-        with pytest.raises(SettingsError, match="one line"):
-            s.validate(bad)
 
 
 @mutation(SPEC_FILE, "if not 0.0 <= v <= 1.0:", "if False:", expect="DID NOT RAISE")

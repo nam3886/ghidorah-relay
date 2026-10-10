@@ -47,8 +47,8 @@ class StrictFake(FakeSpec):
     """A fake provider whose plan() refuses on request (`options.refuse`), crashes (`options.boom`), accepts model
     variants (`strict-video-5s`) and records what it was asked."""
 
-    def __init__(self, name: str = "strict"):
-        super().__init__(name)
+    def __init__(self, name: str = "strict", frames=None):
+        super().__init__(name, frames=frames)
         self.seen: list = []
         self.broken = False
 

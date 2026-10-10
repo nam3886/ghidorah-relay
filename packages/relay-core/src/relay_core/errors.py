@@ -109,6 +109,8 @@ RULES: dict[str, Rule] = {r.code: r for r in (
        message="this idempotency key was already used with a different request", **_pre),
     _r("input.too_many_images", 400, _BAD, message="too many input images", **_pre),
     _r("input.prompt_too_long", 400, _BAD, message="the prompt is too long", **_pre),
+    _r("input.frame_placeholder", 400, _BAD,
+       message="a prompt frame has a missing, repeated or unknown placeholder", **_pre),
 
     _r("auth.invalid_key", 401, "authentication_error", message="the API key is not valid", **_pre),
     _r("auth.key_disabled", 403, "permission_error", message="the API key is disabled", **_pre),
@@ -151,6 +153,10 @@ RULES: dict[str, Rule] = {r.code: r for r in (
     _r("job.busy", 409, _BAD, message="the job is being checked right now", **_pre),
     _r("job.already_finished", 409, _BAD, message="the job already finished", **_pre),
     _r("resource.not_found", 404, "not_found_error", message="the resource does not exist", **_pre),
+    # A provider with frames and no usable frame for the model: ours to fix, the client sees the generic error (§5.1).
+    Rule("internal.frame_unusable", 500, _API, refund=False, terminal=True, counts_attempt=False, public=False,
+         job_scoped=False, message="the prompt frame for this model is missing or unusable",
+         hidden_message="an internal error occurred"),
     # The net, not a destination: an unclassified failure is treated as transient, then given up on and refunded.
     _r(INTERNAL, 500, _API, message="an internal error occurred", refund=True, counts=True),
 )}

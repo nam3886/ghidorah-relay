@@ -156,9 +156,9 @@ async def serve_api(specs: list[Any], env: Mapping[str, str], *,
     with it), when the database or object store settings are missing, or when the object-store secret is empty or an
     example value; after it connects, when BILLING_TZ differs
     from the pin. Then every (provider, kind) pair the registered specs declare gets a closed wallet on the keys that
-    exist (I29), the app is built, and `http` serves until a stop signal. Shutdown order: stop serving, stop the
-    runners, then close the pool."""
-    from relay_core import billing, crypto
+    exist (I29), each shipped default prompt frame without a row is seeded (§4.7), the app is built, and `http` serves
+    until a stop signal. Shutdown order: stop serving, stop the runners, then close the pool."""
+    from relay_core import billing, crypto, frames
     from relay_core.api import runners
     from relay_core.api.app import create_app
     from relay_core.db import open_pool, tx
@@ -199,6 +199,8 @@ async def serve_api(specs: list[Any], env: Mapping[str, str], *,
         async with tx(pool) as conn:
             for spec in specs:
                 await billing.ensure_wallets(conn, spec.name, spec.caps.wallet_kinds)
+                if getattr(spec, "frames", None) is not None:       # version 1 of each shipped default (§4.7)
+                    await frames.seed(conn, spec.name, spec.frames.defaults)
         app = create_app(pool=pool, settings=settings, store=store, registry=registry)
         running = runners.start_runners(pool, settings, store)
         await (http or run_uvicorn)(app, port)
