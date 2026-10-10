@@ -282,9 +282,9 @@ def test_logs_filter_search_detail_and_clear(page, live, db):
           expect="Locator expected to have text")
 def test_jobs_detail_copy_prompt_rename_bulk_recheck_and_the_pager(page, live, db):
     k = new_key(db)
-    jobs = [done_job(db, k, ref="j%d" % i, status="failed") for i in range(3)]
+    jobs = [done_job(db, k, ref="j%d" % i, status="failed", prompt="a cat on a roof" if i == 0 else "a prompt")
+            for i in range(3)]
     db.run("UPDATE jobs SET error_code = 'render.deadline'")
-    db.run("UPDATE jobs SET prompt = 'a cat on a roof' WHERE id = %s", jobs[0])
     sign_in(page, live)
     open_tab(page, "jobs")
     expect(page.locator("#jobsTable tbody tr")).to_have_count(3)
@@ -346,9 +346,9 @@ def test_server_text_is_escaped_everywhere_and_a_foreign_or_script_media_url_nev
     k = new_key(db)
     acct = new_account(db, label=hostile, checked=True)
     db.run("UPDATE accounts SET display_name = %s, last_error = %s WHERE id = %s", hostile, hostile, acct)
-    job = done_job(db, k, acct, status="failed")
-    db.run("UPDATE jobs SET title = %s, prompt = %s, error_code = 'render.deadline', error = %s WHERE id = %s",
-           hostile, hostile, hostile, job)
+    job = done_job(db, k, acct, status="failed", prompt=hostile)
+    db.run("UPDATE jobs SET title = %s, error_code = 'render.deadline', error = %s WHERE id = %s",
+           hostile, hostile, job)
     db.run("INSERT INTO job_events (job_id, source, stage, text) VALUES (%s, 'engine', %s, %s)", job, hostile, hostile)
     db.run("UPDATE api_keys SET label = %s WHERE id = %s", hostile, k)
     db.run("INSERT INTO request_logs (key_id, provider, route, status_code, job_id, duration_ms, body_redacted) VALUES "

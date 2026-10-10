@@ -12,10 +12,12 @@ from relay_core import failpoints
 from relay_core.billing import QuotaExceeded
 from relay_core.jobs import store
 from relay_core.jobs.create import marker_for
+from relay_core.providers import FrameUse
 from relay_core.testing.fake_provider import FakeSettings
 from relay_core.testing.mutation import mutation
 
 C = "packages/relay-core/src/relay_core/jobs/create.py"
+S = "packages/relay-core/src/relay_core/jobs/store.py"
 # The lookup that runs before the cap, replaced by one that runs after it.
 LOOKUP_FIRST = ("hit = await _replay(conn, new)\n        if hit is None:\n"
                 "            await failpoints.hit(\"job.create.lookup_missed\")\n"
@@ -315,26 +317,53 @@ def test_the_queue_position_counts_only_the_jobs_of_the_same_pool(db):
     assert image.queue_position == 1, "behind two video jobs, but first of its own pool"
 
 
-@mutation(C, 'parts = [" ".join(prompt.split())]', "parts = [prompt]",
-          expect="assert hinted.sent_text == \"a cat on a mat no questions [%s]\" % hinted.marker")
-@mutation(C, "if isinstance(hint, str) and hint.strip():", "if False:",
-          expect="assert hinted.sent_text == \"a cat on a mat no questions [%s]\" % hinted.marker")
-@mutation(C, 'return " ".join(parts) + " [%s]" % marker', 'return " ".join(parts)',
-          expect="assert hinted.sent_text == \"a cat on a mat no questions [%s]\" % hinted.marker")
-def test_the_job_view_carries_the_text_that_is_sent_upstream(db):
+@mutation(C, '"sent": sent_text, "frame": frame_id,', '"sent": None, "frame": frame_id,',
+          expect="the text was not stored at insert")
+@mutation(C, '"sent": sent_text, "frame": frame_id,', '"sent": sent_text, "frame": None,',
+          expect="the frame version was not stored at insert")
+@mutation(S, "return JobView(str(row[0]), *row[1:], inputs)",
+          'return __import__("dataclasses").replace(JobView(str(row[0]), *row[1:], inputs), '
+          'sent_text=row[5] + " [" + row[6] + "]")', expect="the job view recomposed the text")
+def test_the_job_view_carries_the_text_stored_at_insert_byte_for_byte(db):
+    k = key(db)
+    framed = db.one("INSERT INTO prompt_frames (provider, kind, model, text, created_by) "
+                    "VALUES (%s, 'video', NULL, 'Fixed words. {{tracking_code}} {{client_prompt}}', 'test') "
+                    "RETURNING id", PROVIDER)[0]
+
+    async def scenario(p):
+        own = FrameUse(framed, "Fixed words. {{tracking_code}} {{client_prompt}}")
+        made = await store.create_job(p, new_job(k, "a  cat\non\ta mat", frame=own), SETTINGS)
+        plain = await store.create_job(p, new_job(k, "plain"), SETTINGS)
+        db.run("INSERT INTO prompt_frames (provider, kind, model, text, created_by) VALUES (%s, 'video', NULL, "
+               "'Another frame. {{client_prompt}} {{tracking_code}}', 'test')", PROVIDER)      # saved after creation
+        return [await store.job_view(p, j.job_id) for j in (made, plain)]
+
+    framed_view, plain = run(db, scenario)
+    assert framed_view.sent_text == "Fixed words. [%s] a cat on a mat" % framed_view.marker, \
+        "the text was not stored at insert, or the job view recomposed the text: %r" % framed_view.sent_text
+    assert plain.sent_text == "plain [%s]" % plain.marker
+    assert re.fullmatch(r"[3-9]\d{3}", plain.marker), "the marker is four digits, 3000 to 9999"
+    assert db.one("SELECT frame_id FROM jobs WHERE id = %s", framed_view.id)[0] == framed, \
+        "the frame version was not stored at insert"
+    assert db.one("SELECT frame_id FROM jobs WHERE id = %s", plain.id)[0] is None
+
+
+@mutation(C, "    if frame is None:\n        raise FrameUnusable(",
+          "    if frame is None:\n        return new.prompt, None\n    if False:\n        raise FrameUnusable(",
+          expect="a plan without a frame was accepted")
+def test_a_plan_without_a_frame_is_refused_inside_the_transaction_so_the_charge_rolls_back(db):
     k = key(db)
 
     async def scenario(p):
-        plan = new_job(k, "x").plan
-        plan = dataclasses.replace(plan, params={**plan.params, "prompt_hint": "  no\nquestions "})
-        made = await store.create_job(p, store.NewJob(PROVIDER, k, plan, "a  cat\non\ta mat"), SETTINGS)
-        plain = await store.create_job(p, new_job(k, "plain"), SETTINGS)
-        return [await store.job_view(p, j.job_id) for j in (made, plain)]
+        bare = dataclasses.replace(new_job(k, "x"), plan=dataclasses.replace(new_job(k, "x").plan, frame=None))
+        with pytest.raises(store.FrameUnusable):
+            await store.create_job(p, bare, SETTINGS)
+            pytest.fail("a plan without a frame was accepted")
 
-    hinted, plain = run(db, scenario)
-    assert hinted.sent_text == "a cat on a mat no questions [%s]" % hinted.marker
-    assert plain.sent_text == "plain [%s]" % plain.marker
-    assert re.fullmatch(r"[3-9]\d{3}", plain.marker), "the marker is four digits, 3000 to 9999"
+    run(db, scenario)
+    assert db.one("SELECT count(*) FROM jobs")[0] == 0 and db.one("SELECT count(*) FROM ledger")[0] == 0, \
+        "a plan without a frame was accepted"
+    assert db.wallet(k, PROVIDER) == (0, 0)
 
 
 # What dola_v4 `queue.py` computes for the same strings: 3000 + int(sha1(id)[:8], 16) % 7000.

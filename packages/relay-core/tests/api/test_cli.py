@@ -4,6 +4,7 @@ shutdown order, `admin create-user`, `keygen`, `key create|disable`, `provider d
 
 import asyncio
 import io
+import logging
 import re
 import sys
 from types import SimpleNamespace
@@ -17,7 +18,7 @@ from relay_core import crypto, keys
 from relay_core.admin import users
 from relay_core.api import runners
 from relay_core.db import open_pool, tx
-from relay_core.testing.fake_provider import FakeSpec
+from relay_core.testing.fake_provider import FAKE_FRAMES, FakeSpec
 from relay_core.testing.mutation import mutation
 
 M = "apps/relay/src/relay_cli/main.py"
@@ -144,6 +145,34 @@ def test_serve_backfills_closed_wallets_for_a_newly_declared_pair_and_leaves_the
     assert rows == [("fake", "image", 0, None), ("fake", "video", 5, None),
                     ("other", "image", 0, None), ("other", "video", 0, None)], (
         "a newly declared pair must be closed on the existing key, and an existing wallet untouched")
+
+
+@mutation(M, '                    await frames.seed(conn, spec.name, spec.frames.defaults)', "                    pass",
+          expect="serve did not seed the shipped default frames")
+@mutation(M, '                if getattr(spec, "frames", None) is not None:', "                if True:",
+          expect="seeded a provider that declares no frames")
+def test_serve_seeds_the_shipped_default_frames_once_and_warns_at_every_start_when_one_differs(
+        db, monkeypatch, http, caplog):
+    monkeypatch.setattr(cli, "load_specs", lambda: {
+        "fake": SimpleNamespace(SPEC=FakeSpec("fake", frames=FAKE_FRAMES)),
+        "plain": SimpleNamespace(SPEC=FakeSpec("plain"))})
+    serve_env(monkeypatch, db)
+    try:
+        assert cli.main(["serve"]) == 0 and cli.main(["serve"]) == 0, \
+            "serve did not seed the shipped default frames, or seeded a provider that declares no frames"
+    except AttributeError as e:
+        pytest.fail("serve seeded a provider that declares no frames: %r" % e)
+    rows = db.all("SELECT provider, kind, model, text, created_by, created_by_id FROM prompt_frames ORDER BY kind")
+    assert rows == [("fake", "image", None, FAKE_FRAMES.defaults["image"], "system", None),
+                    ("fake", "video", None, FAKE_FRAMES.defaults["video"], "system", None)], \
+        "serve did not seed the shipped default frames, or seeded them twice, or seeded a provider with no frames"
+    db.run("INSERT INTO prompt_frames (provider, kind, model, text, created_by) VALUES ('fake', 'video', NULL, "
+           "'Edited. {{client_prompt}} {{tracking_code}}', 'admin')")
+    with caplog.at_level(logging.WARNING, logger="relay_core.frames"):
+        assert cli.main(["serve"]) == 0 and cli.main(["serve"]) == 0
+    warned = [r for r in caplog.records if "differs from the shipped one" in r.getMessage()]
+    assert len(warned) == 2 and "video" in warned[0].getMessage(), "the warning comes at every start"
+    assert db.one("SELECT count(*) FROM prompt_frames")[0] == 3, "a stored default is never rewritten by a start"
 
 
 @mutation(M, "        if running is not None:\n            await running.stop()\n        await settings.stop()\n"

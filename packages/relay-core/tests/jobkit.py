@@ -1,12 +1,14 @@
 """Shared helpers for the job store tests: a fake provider, accounts, jobs, and a driver for one submit."""
 
 import asyncio
+import dataclasses
 import uuid
 
 from relay_core import pool
 from relay_core.db import open_pool
+from relay_core.frames import CORE_FRAME
 from relay_core.jobs import store
-from relay_core.providers import CreateRequest
+from relay_core.providers import CreateRequest, FrameUse
 from relay_core.testing.fake_provider import FakeCtx, FakeEngine, FakeSettings, FakeSpec
 
 SPEC = FakeSpec()
@@ -51,9 +53,12 @@ def account(db, *, left=None, pool_name="video", state="available", checked=True
     return account_id
 
 
-def new_job(key_id, prompt="a prompt", *, model=PROVIDER + "-video", idem=None, body=None, inputs=(), **options):
-    """A NewJob planned by the fake spec; `options` steer the plan (account_cost, completion, price, ...)."""
-    plan = SPEC.plan(CreateRequest(model=model, prompt=prompt, options=options), SETTINGS, {})
+def new_job(key_id, prompt="a prompt", *, model=PROVIDER + "-video", idem=None, body=None, inputs=(), frame=None,
+            **options):
+    """A NewJob planned by the fake spec; `options` steer the plan (account_cost, completion, price, ...). The plan
+    carries the core frame, as the plan step gives a provider without frames; `frame` passes another."""
+    plan = dataclasses.replace(SPEC.plan(CreateRequest(model=model, prompt=prompt, options=options), SETTINGS, {}),
+                               frame=frame or FrameUse(None, CORE_FRAME))
     sent = {"endpoint": "video", "model": model, "prompt": prompt, "duration": None, "ratio": None, "n": None,
             "options": {}, "title": None, "callback_url": None, "images": [{"input": m.idx} for m in inputs]}
     return store.NewJob(PROVIDER, key_id, plan, prompt, idem_key=idem,

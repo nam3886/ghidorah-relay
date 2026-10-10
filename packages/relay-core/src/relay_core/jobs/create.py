@@ -17,7 +17,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core import billing, failpoints
+from relay_core import billing, failpoints, frames
 from relay_core.db import tx
 from relay_core.jobs.events import add_event
 from relay_core.providers import Plan
@@ -41,6 +41,11 @@ class IdempotencyConflict(CreateRefused):
 
 class TooManyQueued(CreateRefused):
     code = "quota.too_many_queued"
+
+
+class FrameUnusable(CreateRefused):
+    """The plan has no frame, or one that fails the grammar: nothing falls back to the core frame (contracts 5.1)."""
+    code = "internal.frame_unusable"
 
 
 @dataclass(frozen=True)
@@ -97,17 +102,6 @@ def marker_for(job_id: uuid.UUID) -> str:
     return str(3000 + int(hashlib.sha1(str(job_id).encode()).hexdigest()[:8], 16) % 7000)
 
 
-def sent_text_of(prompt: str, params: Mapping[str, Any], marker: str) -> str:
-    """The text a job sends upstream, which the engine matches in the traffic it records (contracts 5.1, 5.4.1): the
-    prompt as one line, then the hint the plan captured in `params["prompt_hint"]` (when it did), then the job's
-    marker as ` [marker]`. The core owns this composition; what goes into `prompt_hint` is the plan's decision."""
-    parts = [" ".join(prompt.split())]
-    hint = params.get("prompt_hint")
-    if isinstance(hint, str) and hint.strip():
-        parts.append(" ".join(hint.split()))
-    return " ".join(parts) + " [%s]" % marker
-
-
 async def _position(conn, provider: str, job_id) -> int:
     """1-based place among the queued jobs of the same provider AND pool (contracts 8)."""
     return (await (await conn.execute(
@@ -155,21 +149,36 @@ async def _check_cap(conn, new: NewJob, limit: int) -> None:
 _INSERT = (
     "INSERT INTO jobs (id, provider, key_id, idem_key, idem_body_hash, operation, media_type, model, params, prompt, "
     "title, marker, status, completion, after_sent, submit_timeout_s, wallet_kind, price, pool, account_cost, "
-    "callback_url, warnings, request, request_hash) VALUES (%(id)s, %(provider)s, %(key)s, %(idem)s, %(hash)s, %(op)s, "
-    "%(media)s, %(model)s, %(params)s, %(prompt)s, %(title)s, %(marker)s, 'queued', %(completion)s, %(after_sent)s, "
-    "%(timeout)s, %(kind)s, %(price)s, %(pool)s, %(cost)s, %(callback)s, %(warnings)s, %(request)s, %(rhash)s)")
+    "callback_url, warnings, request, request_hash, sent_text, frame_id) VALUES (%(id)s, %(provider)s, %(key)s, "
+    "%(idem)s, %(hash)s, %(op)s, %(media)s, %(model)s, %(params)s, %(prompt)s, %(title)s, %(marker)s, 'queued', "
+    "%(completion)s, %(after_sent)s, %(timeout)s, %(kind)s, %(price)s, %(pool)s, %(cost)s, %(callback)s, "
+    "%(warnings)s, %(request)s, %(rhash)s, %(sent)s, %(frame)s)")
+
+
+def rendered(new: NewJob, marker: str) -> tuple[str, int | None]:
+    """(the text this job sends, the frame version's id), rendered once with the job's own marker. A plan without a
+    frame, or a frame that fails the grammar, refuses inside the creation transaction, so the charge rolls back."""
+    frame = new.plan.frame
+    if frame is None:
+        raise FrameUnusable("the plan of a %s job carries no frame" % new.provider)
+    try:
+        return frames.render(frame.text, new.prompt, marker), frame.id
+    except frames.FrameError as e:
+        raise FrameUnusable("the frame of a %s job fails the grammar: %s" % (new.provider, e)) from e
 
 
 async def _insert(conn, new: NewJob) -> None:
     p = new.plan
+    marker = marker_for(new.job_id)
+    sent_text, frame_id = rendered(new, marker)
     await conn.execute(_INSERT, {
         "id": new.job_id, "provider": new.provider, "key": new.key_id, "idem": new.idem_key,
         "hash": new.idem_body_hash, "op": p.operation, "media": p.media_type, "model": p.model,
-        "params": Jsonb(dict(p.params)), "prompt": new.prompt, "title": new.title, "marker": marker_for(new.job_id),
+        "params": Jsonb(dict(p.params)), "prompt": new.prompt, "title": new.title, "marker": marker,
         "completion": str(p.completion), "after_sent": str(p.after_sent), "timeout": p.submit_timeout_s,
         "kind": p.wallet_kind, "price": p.price, "pool": p.pool, "cost": p.account_cost,
         "callback": new.callback_url, "rhash": new.request_hash,
-        "request": None if new.request is None else Jsonb(dict(new.request)),
+        "request": None if new.request is None else Jsonb(dict(new.request)), "sent": sent_text, "frame": frame_id,
         "warnings": Jsonb([{"code": w.code, "text": redact_log(w.text)} for w in p.warnings])})
     for m in new.inputs:
         await conn.execute(

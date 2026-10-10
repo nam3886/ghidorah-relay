@@ -7,6 +7,7 @@ from apikit import run_app
 from jobkit import account, key, run
 from test_admin_jobs import failed_job
 from test_create_doors import VIDEO_PATH, video
+from test_frame_plan import framed, put, seed, stored
 
 from relay_core.admin import routes_jobs
 from relay_core.jobs import recheck, store
@@ -310,3 +311,48 @@ def test_bulk_recheck_lists_an_unexpected_failure_of_one_job_and_goes_on(db, mon
     assert r.status_code == 200, "every per-job failure is listed, never a 500: %s" % r.text
     assert r.json()["skipped"].get(str(sources[1])) == "internal"
     assert str(sources[1]) not in r.json()["rechecked"]
+
+
+def test_a_regenerate_with_frames_sends_todays_frame_once_and_a_replay_changes_nothing(db):
+    seed(db)
+    k = key(db)
+    account(db)
+    old = run(db, lambda p: failed_job(p, k, "a cat"))
+    put(db, "video", "fake-video", "Today. {{client_prompt}} {{tracking_code}}")
+    operation = op_key()
+
+    async def scenario(env):
+        first = await post(env, "/jobs/%s/regenerate" % old, {"operation_key": operation})
+        # the frame changes between the two sends: a replay must not render or charge again
+        put(db, "video", "fake-video", "Later. {{client_prompt}} {{tracking_code}}")
+        again = await post(env, "/jobs/%s/regenerate" % old, {"operation_key": operation})
+        return first, again
+
+    first, again = run_app(db, scenario, spec=framed())
+    assert first.status_code == again.status_code == 200, (first.text, again.text)
+    new = first.json()["id"]
+    assert again.json()["id"] == new and again.json()["replayed"] is True
+    text, marker, frame_id = stored(db, new)
+    assert text == "Today. a cat [%s]" % marker and frame_id is not None, "the new job carries today's frame"
+    assert stored(db, new) == (text, marker, frame_id), "a replay rewrites nothing"
+    assert charges(db, [new]) == 1 and events(db, old) == 1
+
+
+@mutation(ROUTES, 'prompt=checked_prompt(sent["prompt"])', 'prompt=sent["prompt"]', expect="a blank prompt")
+def test_a_stored_prompt_the_door_would_refuse_is_refused_with_its_own_code_before_any_charge(db):
+    seed(db)
+    k = key(db)
+    account(db)
+    old = run(db, lambda p: failed_job(p, k, "a cat"))
+    db.run("UPDATE jobs SET request = jsonb_set(request, '{prompt}', to_jsonb(%s::text)) WHERE id = %s", "   ", old)
+
+    async def scenario(env):
+        single = await post(env, "/jobs/%s/regenerate" % old, {"operation_key": op_key()})
+        bulk = await post(env, "/jobs/bulk-regenerate", {"job_ids": [str(old)], "operation_key": op_key()})
+        return single, bulk
+
+    single, bulk = run_app(db, scenario, spec=framed())
+    assert single.status_code == 400 and single.json()["error"]["code"] == "input.empty_prompt", (
+        "a blank prompt reached the creation: %s" % single.text)
+    assert bulk.json()["failed"] == {str(old): "input.empty_prompt"}, bulk.text
+    assert db.one("SELECT count(*) FROM jobs")[0] == 1

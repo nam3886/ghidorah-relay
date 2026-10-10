@@ -175,9 +175,9 @@ JOB_COLUMNS = ("id, provider, key_id, operation, media_type, model, prompt, mark
                "submit_timeout_s, wallet_kind, price")
 
 
-def job_args(job_id, key_id, *, provider="p1", kind="video", price=0) -> tuple:
+def job_args(job_id, key_id, *, provider="p1", kind="video", price=0, prompt="a prompt") -> tuple:
     """Parameters for `INSERT INTO jobs (JOB_COLUMNS)`: the smallest valid job row."""
-    return (job_id, provider, key_id, "generate", kind, "m", "a prompt", "marker-" + str(job_id)[:8], "queued",
+    return (job_id, provider, key_id, "generate", kind, "m", prompt, "marker-" + str(job_id)[:8], "queued",
             "detach", "reconcile", 60, kind, price)
 
 

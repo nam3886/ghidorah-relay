@@ -19,6 +19,7 @@ class Stub:
     settings_keys: tuple = ()
     caps: pv.Caps = field(default_factory=lambda: caps())
     bare: bool = False          # True: none of the settings the core reads
+    frames: pv.FrameRules | None = None
 
     def catalog(self):
         return self.models
@@ -140,3 +141,35 @@ def test_a_spec_must_declare_the_settings_the_core_reads():
     with pytest.raises(pv.RegistryError, match="one.browser_slots"):
         pv.ProviderRegistry().register(Stub("one", bare=True, caps=caps(execution="browser"),
                                             settings_keys=("one.claims_enabled", "one.render_deadline_s")))
+
+
+# ---- prompt frames in the registry check (contracts 5.1) -------------------------------------------------------
+CORE_FRAME = "{{client_prompt}} {{tracking_code}}"
+
+
+def rules(**kw):
+    base = dict(defaults={"video": CORE_FRAME}, warnings=lambda kind, text: (), max_sent_chars=100)
+    return pv.FrameRules(**{**base, **kw})
+
+
+@mutation(SRC, "for kind in sorted(kinds - set(rules.defaults)):", "for kind in []:",
+          expect="a missing default was accepted")
+@mutation(SRC, "            frames.check_frame(text)\n", "            pass\n",
+          expect="a default that fails the grammar was accepted")
+@mutation(SRC, "        if kind not in frames.KINDS:", "        if False:",
+          expect="a default for an unknown kind was accepted")
+@mutation(SRC, "rules.max_sent_chars < 1", "rules.max_sent_chars < 0", expect="a zero length cap was accepted")
+def test_a_spec_with_frames_must_ship_a_valid_default_for_every_kind_of_its_catalog():
+    reg = pv.ProviderRegistry()
+    reg.register(Stub("framed", [model("f-1")], frames=rules()))
+    reg.register(Stub("plain", [model("g-1")]))                     # no frames: the core frame applies
+    bad = {
+        "a missing default was accepted": rules(defaults={}),
+        "a default that fails the grammar was accepted": rules(defaults={"video": "no placeholders"}),
+        "a default for an unknown kind was accepted": rules(defaults={"video": CORE_FRAME, "audio": CORE_FRAME}),
+        "a zero length cap was accepted": rules(max_sent_chars=0),
+    }
+    for why, broken in bad.items():
+        with pytest.raises(pv.RegistryError):
+            pv.ProviderRegistry().register(Stub("x", [model("x-1")], frames=broken))
+            pytest.fail(why)

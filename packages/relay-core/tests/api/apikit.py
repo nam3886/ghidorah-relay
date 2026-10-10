@@ -9,7 +9,7 @@
 
 `serving` makes the shared bucket on first use, uses a cheap argon2 meanwhile, and builds the app as `relay serve`
 will: a pool as the `relay_api` role (so every statement is checked against the api's grants), the settings, the
-object store, a registry holding the FakeProvider. Pass
+object store, a registry holding the FakeProvider (`spec=` passes another, e.g. one with frames). Pass
 `routers=[...]` / `admin_routers=[...]` to add routes of the test's own. The client's peer address is
 `PEER_IP`. The invariant checker of the parent conftest still runs after every test that takes `db`.
 """
@@ -105,13 +105,13 @@ class Env:
 @contextlib.asynccontextmanager
 async def serving(db, *, routers=(), admin_routers=(), peer_ip: str = PEER_IP, trusted_proxies: str = "",
                   public_base_url: str | None = None, env: dict[str, str] | None = None,
-                  raise_app_exceptions: bool = False) -> AsyncIterator[Env]:
+                  raise_app_exceptions: bool = False, spec: FakeSpec | None = None) -> AsyncIterator[Env]:
     store = await shared_store()
     pool = await open_pool(db.api_dsn, max_size=8, name="relay-api-test")
     saved = users._hasher, users._dummy
     users._hasher, users._dummy = FAST_HASHER, None       # the tests prove the flow, not the cost parameters
     try:
-        spec = FakeSpec()
+        spec = spec or FakeSpec()
         # as `relay serve` builds it: the core settings plus every registered provider's own
         settings = Settings(pool, db.api_dsn, registry=Registry(*REGISTRY.specs.values(), *spec.settings().values()),
                             env=env or {})

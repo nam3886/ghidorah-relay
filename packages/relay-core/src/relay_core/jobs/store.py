@@ -22,13 +22,13 @@ from relay_core.jobs.claim import Claim, ReconcileClaim, Visible, claim_one, cla
 from relay_core.jobs.create import (
     Created,
     CreateRefused,
+    FrameUnusable,
     IdempotencyConflict,
     InputMedia,
     NewJob,
     TooManyQueued,
     body_hash,
     create_job,
-    sent_text_of,
 )
 from relay_core.jobs.events import add_event
 from relay_core.jobs.fail import fail_in_tx, fail_job
@@ -58,8 +58,9 @@ from relay_core.leases import LeaseLost
 from relay_core.providers import JobView, MediaRef
 
 __all__ = [
-    "BulkRecheck", "Claim", "CreateRefused", "Created", "IdempotencyConflict", "InputMedia", "JobRefused", "LeaseLost",
-    "NewJob", "PgShareTable", "ReconcileClaim", "Recovered", "Skipped", "StoredOutput", "TooManyQueued", "Visible",
+    "BulkRecheck", "Claim", "CreateRefused", "Created", "FrameUnusable", "IdempotencyConflict", "InputMedia",
+    "JobRefused", "LeaseLost", "NewJob", "PgShareTable", "ReconcileClaim", "Recovered", "Skipped", "StoredOutput",
+    "TooManyQueued", "Visible",
     "add_event", "apply_fetch_failed", "apply_fetched", "apply_interrupted", "apply_poll", "apply_reconciled",
     "apply_submit", "body_hash", "claim_one", "claim_reconcile", "claim_visible", "create_job", "deliver_due", "drain",
     "expire_admin_sessions", "expire_input_links", "fail_in_tx", "fail_job", "job_view", "ledger_check", "mark_sent",
@@ -67,8 +68,8 @@ __all__ = [
     "restore_mark", "resume", "run_housekeeping", "sweep_orphans", "sweep_retention",
 ]
 
-_VIEW = ("SELECT id, provider, operation, model, params, prompt, marker, render_since, sent_at, external_ref, "
-         "provider_state FROM jobs WHERE id = %s")
+_VIEW = ("SELECT id, provider, operation, model, params, prompt, marker, sent_text, render_since, sent_at, "
+         "external_ref, provider_state FROM jobs WHERE id = %s")
 
 
 async def job_view(db: AsyncConnectionPool, job_id) -> JobView:
@@ -85,5 +86,4 @@ async def job_view(db: AsyncConnectionPool, job_id) -> JobView:
                 (job_id,))).fetchall()
         return [MediaRef(*r) for r in rows]
 
-    return JobView(str(row[0]), row[1], row[2], row[3], row[4], row[5], row[6], sent_text_of(row[5], row[4], row[6]),
-                   row[7], row[8], row[9], row[10], inputs)
+    return JobView(str(row[0]), *row[1:], inputs)

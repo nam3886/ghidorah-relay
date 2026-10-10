@@ -186,9 +186,9 @@ def put_shot(db, store: ObjectStore, account_id, data: bytes = b"\x89PNG-shot") 
 
 
 def done_job(db, key_id, account_id=None, *, ref: str = "r", upstream_id: str | None = None,
-             status: str = "done") -> uuid.UUID:
+             status: str = "done", prompt: str = "a prompt") -> uuid.UUID:
     """A terminal job of the fake provider; a `done` one owns one output (invariant I11)."""
-    job = db.job(key_id, provider=PROVIDER)
+    job = db.job(key_id, provider=PROVIDER, prompt=prompt)
     db.run("UPDATE jobs SET account_id = %s, external_ref = %s, status = %s, sent_at = now() - interval '5 min', "
            "finished_at = now() WHERE id = %s", account_id, ref, status, job)
     if status == "done":

@@ -8,10 +8,10 @@ spellings. `public_name()` is the inverse of `resolve()`.
 """
 
 import re
-import unicodedata
 from dataclasses import dataclass
 from typing import Any
 
+from relay_core import frames
 from relay_core.providers import ModelSpec
 from relay_dola.constants import FALLBACK_IMAGE_PRICE, FALLBACK_VIDEO_PRICE
 
@@ -106,14 +106,10 @@ class GenSpec:
 
 
 def is_blank_prompt(text: str) -> bool:
-    """Does the prompt show nothing: only white space and characters that draw nothing (format characters, the
-    combining grapheme joiner, Hangul fillers, variation selectors, tag characters; NFKC first, as the page folds)?
-    Pure twin of the browser kit's fold: a prompt like that is sent as the bare marker, which any conversation of the
-    account could be taken for."""
-    return all(
-        ch.isspace() or unicodedata.category(ch) == "Cf" or ord(ch) in (0x034F, 0x115F, 0x1160)
-        or 0xFE00 <= ord(ch) <= 0xFE0F or 0xE0100 <= ord(ch) <= 0xE01EF or 0xE0000 <= ord(ch) <= 0xE007F
-        for ch in unicodedata.normalize("NFKC", text or ""))
+    """Does the prompt show nothing: only white space and characters that draw nothing (the core's one rule, NFKC
+    first, as the page folds)? A prompt like that is sent as the bare marker, which any conversation of the account
+    could be taken for."""
+    return frames.shows_nothing(text)
 
 
 def _match_base(name: str, table: dict) -> str | None:

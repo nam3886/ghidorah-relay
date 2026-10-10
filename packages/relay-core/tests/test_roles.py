@@ -22,7 +22,7 @@ API = {
     "account_capacity": (S,), "account_charges": (S,), "leases": (S,), "worker_heartbeats": (S,),
     "account_shots": (S,), "provider_snapshots": (S,), "commands": (S, INS), "settings_kv": ALL, "request_logs": ALL,
     "admin_users": ALL, "admin_sessions": ALL, "admin_login_attempts": ALL, "schema_migrations": (),
-    "billing_pin": (S,), "billing_alerts": (S, INS),
+    "billing_pin": (S,), "billing_alerts": (S, INS), "prompt_frames": (S, INS), "prompt_frame_locks": (S, INS),
 }
 WORKER = {
     "api_keys": (S,), "key_wallets": (S, U), "ledger": (S, INS), "jobs": (S, INS, U),
@@ -30,7 +30,7 @@ WORKER = {
     "leases": ALL, "worker_heartbeats": ALL,
     "account_shots": ALL, "provider_snapshots": ALL, "commands": ALL, "settings_kv": ALL, "request_logs": ALL,
     "admin_users": (), "admin_sessions": (), "admin_login_attempts": (), "schema_migrations": (), "billing_pin": (S,),
-    "billing_alerts": (S, INS),
+    "billing_alerts": (S, INS), "prompt_frames": (), "prompt_frame_locks": (),
 }
 API_ACCOUNT_COLUMNS = {"label", "proxy_host", "proxy_port", "proxy_auth_enc", "state", "state_reason", "updated_at"}
 SECRET_COLUMNS = ("credential_enc", "credential_gen", "identity", "display_name", "provider_state", "last_error",

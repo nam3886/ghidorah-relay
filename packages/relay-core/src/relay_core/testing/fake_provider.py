@@ -22,6 +22,7 @@ from relay_core.providers import (
     CreateRequest,
     Dead,
     Done,
+    FrameRules,
     Health,
     InputError,
     JobView,
@@ -40,13 +41,22 @@ from relay_core.providers import (
 )
 from relay_core.settings import REGISTRY, Spec
 
+# Opt-in frames for a FakeSpec: the marker first, behind a fixed preamble, the way a real admin frame can be written.
+FAKE_FRAMES = FrameRules(
+    defaults={"video": "Fixed preamble for videos. {{tracking_code}} {{client_prompt}}",
+              "image": "Fixed preamble for images. {{tracking_code}} {{client_prompt}}"},
+    warnings=lambda kind, text: () if "single" in text.lower() else ("asks for no single result",),
+    max_sent_chars=2000)
+
 
 class FakeSpec:
-    """The fake provider's spec. `name` is a parameter so a test can run two of them."""
+    """The fake provider's spec. `name` is a parameter so a test can run two of them. `frames` is None (the core frame
+    applies) unless a test passes rules, for instance `FAKE_FRAMES`."""
 
     def __init__(self, name: str = "fake", *, execution: str = "http", account_slots: int | None = 1,
-                 max_attempts: int = 3, has_reconcile: bool = True):
+                 max_attempts: int = 3, has_reconcile: bool = True, frames: FrameRules | None = None):
         self.name = name
+        self.frames = frames
         self.caps = Caps(
             execution=execution, wallet_kinds=("video", "image"),
             pools=(PoolSpec("video", "UTC", name + ".video_budget"), PoolSpec("image", "UTC")),
@@ -166,6 +176,7 @@ class FakeEngine:
         self._poll: dict[str, deque[PollResult]] = defaultdict(deque)
         self._reconcile: dict[str, deque[Reconciled]] = defaultdict(deque)
         self.calls: list[tuple[str, str]] = []
+        self.texts: list[tuple[str, str, str | None]] = []     # (method, job id, the sent_text it was given)
         self.health = Health(state="alive")
 
     def script_submit(self, key, *steps: Step) -> None:
@@ -191,6 +202,7 @@ class FakeEngine:
 
     async def submit(self, ctx, job: JobView) -> SubmitResult:
         self.calls.append(("submit", str(job.id)))
+        self.texts.append(("submit", str(job.id), getattr(job, "sent_text", None)))
         await failpoints.hit("fake.submit.start")
         step = self._next(self._submit, job)
         if step is None:
@@ -209,11 +221,13 @@ class FakeEngine:
 
     async def poll(self, ctx, job: JobView) -> PollResult:
         self.calls.append(("poll", str(job.id)))
+        self.texts.append(("poll", str(job.id), getattr(job, "sent_text", None)))
         await failpoints.hit("fake.poll")
         return self._next(self._poll, job) or PollResult(Done(self.outputs(job)))
 
     async def reconcile(self, ctx, job: JobView) -> Reconciled:
         self.calls.append(("reconcile", str(job.id)))
+        self.texts.append(("reconcile", str(job.id), getattr(job, "sent_text", None)))
         await failpoints.hit("fake.reconcile")
         return self._next(self._reconcile, job) or StillUnknown()
 

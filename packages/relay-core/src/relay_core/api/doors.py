@@ -2,7 +2,7 @@
 
     request (native, OpenAI or Gemini)
       -> `DoorRequest`
-      -> `plan_job`: resolve the model, the key's allow-list, the provider's snapshots, `spec.plan()`
+      -> `plan_job`: resolve the model, the key's allow-list, the provider's snapshots, `spec.plan()`, the prompt frame
       -> input checks and media uploads (all foreign I/O, before any transaction)
       -> `store.create_job`: idempotency, cap, charge, job row, input rows, `queued` event (one transaction)
 
@@ -22,18 +22,36 @@ import logging
 import re
 import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 from fastapi import Request
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from relay_core import billing, errors, keys, net
+from relay_core import billing, errors, frames, keys, net
 from relay_core.api.errors_http import ApiError, field_param, validation_code
-from relay_core.jobs.create import IdempotencyConflict, InputMedia, NewJob, TooManyQueued, body_hash, create_job
+from relay_core.jobs.create import (
+    FrameUnusable,
+    IdempotencyConflict,
+    InputMedia,
+    NewJob,
+    TooManyQueued,
+    body_hash,
+    create_job,
+    marker_for,
+)
 from relay_core.keys import ApiKey
-from relay_core.providers import CreateRequest, InputError, MediaIn, ModelSpec, Plan, ProviderRegistry, ProviderSpec
+from relay_core.providers import (
+    CreateRequest,
+    FrameUse,
+    InputError,
+    MediaIn,
+    ModelSpec,
+    Plan,
+    ProviderRegistry,
+    ProviderSpec,
+)
 from relay_core.settings import Settings
 from relay_core.storage import ObjectStore, media_key
 
@@ -213,12 +231,9 @@ def _refusal(exc: Exception) -> ApiError | None:
     return None
 
 
-async def plan_job(gate: Gate, allowed_models: Sequence[str], creq: CreateRequest) -> tuple[ProviderSpec, Plan]:
-    """Model -> provider, the key's allow-list, the provider's snapshots, `spec.plan()`. Raises ApiError with the
-    refusal's own code; touches nothing."""
-    spec, model = resolve_model(gate.registry, creq.model)
-    _check_allowed(gate.registry, allowed_models, creq.model, model)
-    snapshots = await snapshots_of(gate.pool, spec.name)
+def _plan(gate: Gate, spec: ProviderSpec, creq: CreateRequest, snapshots: Mapping[str, dict]
+          ) -> tuple[ProviderSpec, Plan]:
+    """`spec.plan()` with a refusal turned into the ApiError of its own code."""
     try:
         return spec, spec.plan(creq, gate.settings, snapshots)
     except Exception as e:
@@ -226,6 +241,60 @@ async def plan_job(gate: Gate, allowed_models: Sequence[str], creq: CreateReques
         if refusal is None:
             raise
         raise refusal from None
+
+
+SAMPLE_JOB_ID = uuid.UUID(int=0)      # the job id whose marker renders the length check and the admin preview
+
+
+def frame_unusable(spec: ProviderSpec, model: ModelSpec) -> ApiError:
+    """500 `internal.frame_unusable`, logged at ERROR with what is missing: a provider with frames and no usable frame
+    for the model is ours to fix, and nothing falls back to the core frame (contracts 5.1)."""
+    log.error("no usable prompt frame: provider=%s kind=%s model=%s", spec.name, model.media_type, model.id)
+    return ApiError("internal.frame_unusable")
+
+
+async def frame_of(pool: AsyncConnectionPool, spec: ProviderSpec, model: ModelSpec) -> frames.Effective | None:
+    """The model's effective stored frame (one read); None for a provider without frames or without a usable row."""
+    if getattr(spec, "frames", None) is None:
+        return None
+    async with pool.connection() as conn:
+        return await frames.effective(conn, spec.name, model.media_type, model.id)
+
+
+def plan_request(gate: Gate, spec: ProviderSpec, model: ModelSpec, creq: CreateRequest,
+                 snapshots: Mapping[str, dict], frame: FrameUse | None) -> tuple[ProviderSpec, Plan, str]:
+    """The one path from a request to the text it will send: `spec.plan()`, then the frame attached, checked against
+    the grammar again and against the provider's length cap with the sample marker (every marker has four digits, so
+    the length is exact). `frame` is the stored frame, or the admin's draft for a preview. Returns the plan with its
+    frame and the rendered text. A provider without frames gets the core frame; one with frames and no usable `frame`
+    is 500 `internal.frame_unusable`."""
+    spec, plan = _plan(gate, spec, creq, snapshots)
+    rules = getattr(spec, "frames", None)
+    if rules is None:
+        use = FrameUse(None, frames.CORE_FRAME)
+    else:
+        try:
+            use = None if frame is None else FrameUse(frame.id, frames.check_frame(frame.text))
+        except frames.FrameError:
+            use = None
+        if use is None:
+            raise frame_unusable(spec, model)
+    text = frames.render(use.text, creq.prompt, marker_for(SAMPLE_JOB_ID))
+    if rules is not None and len(text) > rules.max_sent_chars:
+        raise ApiError("input.prompt_too_long", "prompt")
+    return spec, replace(plan, frame=use), text
+
+
+async def plan_job(gate: Gate, allowed_models: Sequence[str], creq: CreateRequest) -> tuple[ProviderSpec, Plan]:
+    """Model -> provider, the key's allow-list, the provider's snapshots, `spec.plan()`, the prompt frame. Raises
+    ApiError with the refusal's own code; touches nothing."""
+    spec, model = resolve_model(gate.registry, creq.model)
+    _check_allowed(gate.registry, allowed_models, creq.model, model)
+    snapshots = await snapshots_of(gate.pool, spec.name)
+    stored = await frame_of(gate.pool, spec, model)
+    use = None if stored is None else FrameUse(stored.version.id, stored.version.text)
+    spec, plan, _ = plan_request(gate, spec, model, creq, snapshots, use)
+    return spec, plan
 
 
 # ---- inputs -------------------------------------------------------------------------------------------------------
@@ -287,12 +356,21 @@ async def check_callback(url: str) -> None:
         raise ApiError("input.invalid", "callback_url") from None
 
 
-def _check_text(req: DoorRequest) -> str:
-    prompt = req.prompt.strip()
+def checked_prompt(text: str) -> str:
+    """The customer's words as a creation takes them: trimmed, not blank, not over MAX_PROMPT, no lone surrogate. The
+    doors and the admin preview both call it, so a preview renders what a job would send."""
+    prompt = text.strip()
     if not prompt:
         raise ApiError("input.empty_prompt", "prompt")
     if len(prompt) > MAX_PROMPT:
         raise ApiError("input.prompt_too_long", "prompt")
+    if frames.has_surrogate(prompt):
+        raise ApiError("input.invalid", "prompt")
+    return prompt
+
+
+def _check_text(req: DoorRequest) -> str:
+    prompt = checked_prompt(req.prompt)
     if req.title is not None and (len(req.title) > MAX_TITLE or any(c in req.title for c in "\r\n")):
         raise ApiError("input.invalid", "title")
     if req.idem_key is not None and (not req.idem_key or len(req.idem_key) > MAX_IDEM_KEY
@@ -357,6 +435,9 @@ async def create_job_for(gate: Gate, key: ApiKey, req: DoorRequest) -> Made:
         created = await create_job(gate.pool, new, gate.settings)
     except (IdempotencyConflict, TooManyQueued, billing.BillingError) as refused:
         raise ApiError(refused.code) from None
+    except FrameUnusable as unusable:
+        log.error("the frame of a %s job failed at insert: %s", spec.name, unusable)
+        raise ApiError(unusable.code) from None
     warnings = [{"code": w.code, "text": w.text} for w in plan.warnings]
     if created.replayed and req.idem_key is not None:     # a race: another request won between lookup and insert
         replay = await _replay_of(gate.pool, key.id, req.idem_key, idem_hash)

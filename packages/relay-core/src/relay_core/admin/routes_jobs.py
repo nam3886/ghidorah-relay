@@ -19,7 +19,7 @@ from pydantic import Field
 from relay_core import billing, storage
 from relay_core.admin.routes_common import MAX_PAGE, Strict, enqueue, ms
 from relay_core.api.deps import get_pool, get_registry, get_settings, get_store
-from relay_core.api.doors import Gate, plan_job
+from relay_core.api.doors import Gate, checked_prompt, plan_job
 from relay_core.api.errors_http import ApiError
 from relay_core.api.routes_media import serve_job_media
 from relay_core.db import tx
@@ -287,7 +287,8 @@ async def fresh_plan(gate: Gate, job_id) -> Plan:
     the one the client sent (`jobs.request`), never the old plan's `params` (those are the provider's own, and may
     hold internal keys). A stored input has no hash, so its object key stands in as its identity. The callback is
     not carried over: the old job's webhook was the client's, and the new job is made without it. A job with no
-    stored request (made before it was kept) cannot be regenerated: `input.invalid`."""
+    stored request (made before it was kept) cannot be regenerated: `input.invalid`. The stored prompt goes through
+    `doors.checked_prompt` like a customer's: one the door would now refuse is refused with its own `input.*` code."""
     async with tx(gate.pool) as conn:
         job = await (await conn.execute(
             "SELECT j.request, k.models FROM jobs j JOIN api_keys k ON k.id = j.key_id WHERE j.id = %s",
@@ -301,8 +302,9 @@ async def fresh_plan(gate: Gate, job_id) -> Plan:
             (job_id,))).fetchall()
     sent, allowed = job
     request = CreateRequest(
-        model=sent["model"], prompt=sent["prompt"], duration=sent.get("duration"), ratio=sent.get("ratio"),
-        n=sent.get("n"), images=tuple(MediaIn(hashlib.sha256(k.encode()).hexdigest(), m, s) for k, m, s in inputs),
+        model=sent["model"], prompt=checked_prompt(sent["prompt"]), duration=sent.get("duration"),
+        ratio=sent.get("ratio"), n=sent.get("n"),
+        images=tuple(MediaIn(hashlib.sha256(k.encode()).hexdigest(), m, s) for k, m, s in inputs),
         options=sent.get("options") or {}, title=sent.get("title"),
         door="facade" if sent.get("endpoint") in ("openai", "gemini") else "native")
     return (await plan_job(gate, allowed, request))[1]

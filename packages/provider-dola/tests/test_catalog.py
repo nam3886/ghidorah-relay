@@ -9,6 +9,7 @@ from relay_dola import catalog as C
 from relay_dola.spec import SPEC
 
 CATALOG_FILE = "packages/provider-dola/src/relay_dola/catalog.py"
+FRAMES_FILE = "packages/relay-core/src/relay_core/frames.py"
 
 
 def spec(kind, model, duration=None, ratio=None, style=None):
@@ -161,8 +162,8 @@ def test_a_preview_link_the_core_redacted_is_not_served_as_a_broken_link():
     assert out["ratios"][0]["image"] == "https://example.invalid/live.jpg", "a live link must survive"
 
 
-@mutation(CATALOG_FILE, "or ord(ch) in (0x034F, 0x115F, 0x1160)", "or False",
-          expect="the pure fold left an invisible")
+@mutation(FRAMES_FILE, 'return cp in _ALWAYS or unicodedata.category(ch) == "Cf" or any(',
+          'return unicodedata.category(ch) == "Cf" or any(', expect="the pure fold left an invisible")
 def test_the_pure_blank_check_agrees_with_the_browser_kits_fold_on_every_code_point():
     """`is_blank_prompt` is a pure twin of `norm_for_match` (the catalog cannot import the kit): a character the kit
     drops must count as blank here, and a visible one must not."""

@@ -57,6 +57,7 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `input.bad_ratio` | 400 | invalid_request_error | yes | no | no | no | the aspect ratio is not supported by this model |
 | `input.bad_style` | 400 | invalid_request_error | yes | no | no | no | the style is not supported |
 | `input.empty_prompt` | 400 | invalid_request_error | yes | no | no | no | the prompt is empty |
+| `input.frame_placeholder` | 400 | invalid_request_error | yes | no | no | no | a prompt frame has a missing, repeated or unknown placeholder |
 | `input.idempotency_conflict` | 409 | invalid_request_error | yes | no | no | no | this idempotency key was already used with a different request |
 | `input.image_unreadable` | 400 | invalid_request_error | yes | no | no | no | an input image could not be read |
 | `input.invalid` | 400 | invalid_request_error | yes | no | no | no | the request is not valid |
@@ -69,6 +70,7 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 
 | Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
 |---|---|---|---|---|---|---|---|
+| `internal.frame_unusable` | 500 | api_error | yes | no | no | no | (shown as `internal.unexpected`: an internal error occurred) the prompt frame for this model is missing or unusable |
 | `internal.unexpected` | 500 | api_error | no | yes | yes | yes | an internal error occurred |
 
 ## `job.*`

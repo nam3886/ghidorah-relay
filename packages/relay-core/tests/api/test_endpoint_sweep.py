@@ -49,6 +49,10 @@ ADMIN = {
     "GET /admin/logs", "GET /admin/logs/{log_id}", "DELETE /admin/logs",
     "POST /admin/jobs/bulk-recheck", "POST /admin/jobs/bulk-regenerate", "POST /admin/jobs/{job_id}/resend-webhook",
     "POST /admin/jobs/{job_id}/revoke-links", "GET /admin/prices",
+    "GET /admin/frames", "GET /admin/frames/{provider}/{kind}/{target}", "PUT /admin/frames/{provider}/{kind}/{target}",
+    "POST /admin/frames/{provider}/{kind}/{target}/rollback", "POST /admin/frames/{provider}/{kind}/reset",
+    "PUT /admin/frames/{provider}/{kind}/{model}/lock", "POST /admin/frames/{provider}/{kind}/apply-all",
+    "POST /admin/frames/preview",
 }
 KEYLESS = {"GET /healthz", "GET /m/{token}", "GET /openapi.json"}
 OPEN_ADMIN = {"POST /admin/login"}            # answers before there is a session

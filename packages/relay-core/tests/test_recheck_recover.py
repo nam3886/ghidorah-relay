@@ -246,7 +246,9 @@ async def copy_inputs(new_id, old):
                  for m in old)
 
 
-@mutation(RC, MARKER, MARKER_COPIED, expect="a marker from its own id")
+# The mutation rewrites the regenerated job's marker with the old one after the insert; since 0014 the database refuses
+# that, so it is killed by the frozen-column trigger. The test still asserts the marker is the job's own.
+@mutation(RC, MARKER, MARKER_COPIED, expect="never change after the insert")
 def test_regenerate_makes_a_new_job_with_a_new_marker_charged_to_the_same_key_with_its_own_input_copies(db):
     k, _ = key(db), account(db)
 
