@@ -28,6 +28,7 @@ pytest_configure = _core.pytest_configure      # registers the `fabricated_rows`
 from apikit import ADMIN_PASSWORD, ADMIN_USER, serving  # noqa: E402  (needs the path set above)
 
 from relay_core.admin import users  # noqa: E402
+from relay_core.testing.fake_provider import FAKE_FRAMES, FakeSpec  # noqa: E402
 
 
 class Live:
@@ -43,12 +44,19 @@ class Live:
 
 
 @pytest.fixture
-def live(db):
+def framed():
+    """Asking for this fixture makes `live` serve a provider that has prompt frames."""
+    return True
+
+
+@pytest.fixture
+def live(db, request):
+    spec = FakeSpec(frames=FAKE_FRAMES) if "framed" in request.fixturenames else None
     ready = threading.Event()
     box: dict = {}
 
     async def main():
-        async with serving(db, raise_app_exceptions=False) as env:
+        async with serving(db, raise_app_exceptions=False, spec=spec) as env:
             await users.create_user(env.pool, ADMIN_USER, ADMIN_PASSWORD)
             server = uvicorn.Server(uvicorn.Config(env.app, host="127.0.0.1", port=0, log_level="warning"))
             task = asyncio.create_task(server.serve())

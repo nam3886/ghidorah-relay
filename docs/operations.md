@@ -388,6 +388,16 @@ fails when any other page or `/ui/` file carries the looser one.
   `admin/tailwind/{tailwind.config.js,input.css}`; the regenerate command is the comment at the top of `input.css`.
   Nothing uses node at runtime. Run it after changing a class in any page or script; a test fails if a class the pages
   use is missing from the stylesheet, and another pins the file's hash (it prints the new value).
+- **Prompt frames:** the "Prompt frames" tab edits the text a provider sends around the customer's prompt, on the
+  routes of `admin/routes_frames.py` (no route of its own). Pick a provider; each kind shows its default (who and when,
+  a badge when it differs from the shipped one, and "Reset to the shipped default") and a table of models with the
+  source (own or default), the effective version and the keep-own switch (who and when). Edit opens the editor: one
+  line, at most 1,000 characters, `{{client_prompt}}` and `{{tracking_code}}` once each; a refusal shows its `param`,
+  warnings are shown but never block the save, Preview renders the draft with a sample prompt and its length without
+  sending anything, History rolls back to any version, and a model with its own frame can follow the default again.
+  "Apply to all models of this kind" (on a default) lists what was applied, kept (locked) and unchanged. A save applies
+  only to jobs created after it. A job's detail, section Technical, shows the frame version the job used and the exact
+  text sent (`GET /admin/jobs/{id}` adds `frame_id` and `sent_text`). Frame texts and sent texts render as text.
 - **The API reference** is Scalar 1.25.122, vendored as `static/vendor/scalar.min.js` (licence beside it), pinned by SRI
   in `reference.html`; a test pins its hash and source URL.
 - **The admin token** lives in `sessionStorage` and goes out as `X-Admin-Session`. Media in a job's detail comes only

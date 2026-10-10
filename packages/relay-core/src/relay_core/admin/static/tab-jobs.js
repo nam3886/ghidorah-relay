@@ -169,6 +169,7 @@ function technicalHtml(job) {
         ['Account cost', job.account_cost], ['Upstream price', job.upstream_price], ['Upstream model', job.upstream_model],
         ['Completion', job.completion], ['Sent', fmtTime(job.sent_ms)], ['Updated', fmtTime(job.updated_ms)],
         ['Callback', job.callback.status ? job.callback.status + ' (' + job.callback.attempts + ' attempts)' : '-'],
+        ['Prompt frame version', job.frame_id],
         ['Params', JSON.stringify(job.params)],
     ];
     return '<dl class="grid grid-cols-[160px_1fr] gap-x-3 gap-y-1 text-xs">' + rows.map((r) => '<dt class="text-muted-foreground">' + esc(r[0]) + '</dt><dd class="break-all">' + esc(r[1] === null || r[1] === undefined ? '-' : r[1]) + '</dd>').join('') + '</dl>';
@@ -206,7 +207,10 @@ async function showJob(id) {
         section('References', mediaHtml(job, 'input')) +
         section('Debug files', debug) +
         section('Timeline', timelineHtml(job)) +
-        section('Technical', technicalHtml(job)) + '</div>', true);
+        section('Technical', technicalHtml(job) +
+            '<p class="mt-2 text-xs text-muted-foreground">Text sent upstream (the prompt in its frame, with this job\'s marker)</p>' +
+            '<pre class="max-h-40 overflow-auto rounded border border-border bg-muted p-2 text-xs whitespace-pre-wrap" id="jobSentText"></pre>') + '</div>', true);
+    document.getElementById('jobSentText').textContent = job.sent_text === null ? '-' : job.sent_text;     // text: a planted tag stays text
     document.getElementById('jobPrompt').textContent = job.prompt;     // the customer's words only: no frame, no marker
 }
 

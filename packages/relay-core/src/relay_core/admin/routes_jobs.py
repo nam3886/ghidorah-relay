@@ -59,7 +59,7 @@ _DETAIL = (
     "j.error_code, j.price, j.account_id, a.label, j.external_ref, j.created_at, j.finished_at, j.prompt, j.marker, "
     "j.params, j.completion, j.wallet_kind, j.pool, j.account_cost, j.attempts, j.claims, j.sent_at, j.render_since, "
     "j.upstream_price, j.upstream_model, j.error, j.warnings, j.callback_status, j.callback_attempts, "
-    "j.callback_last, j.updated_at, j.provider_state "
+    "j.callback_last, j.updated_at, j.provider_state, j.frame_id, j.sent_text "
     "FROM jobs j LEFT JOIN api_keys k ON k.id = j.key_id LEFT JOIN accounts a ON a.id = j.account_id WHERE j.id = %s")
 _SUMMARY = ("id", "provider", "key_id", "key_label", "operation", "media_type", "model", "title", "status",
             "error_code", "price", "account_id", "account_label", "external_ref", "created_at", "finished_at")
@@ -139,7 +139,7 @@ async def job_detail(job_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_
     item = _summary(row[:16])
     (prompt, marker, params, completion, wallet_kind, pool_name, account_cost, attempts, claims, sent_at, render_since,
      upstream_price, upstream_model, error, warnings, callback_status, callback_attempts, callback_last, updated_at,
-     state) = row[16:]
+     state, frame_id, sent_text) = row[16:]
     item.update({
         "prompt": prompt, "marker": marker, "params": params, "completion": completion, "wallet_kind": wallet_kind,
         "pool": pool_name, "account_cost": account_cost, "attempts": attempts, "claims": claims,
@@ -147,6 +147,7 @@ async def job_detail(job_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_
         "upstream_price": upstream_price, "upstream_model": upstream_model, "error": error, "warnings": warnings,
         "callback": {"status": callback_status, "attempts": callback_attempts, "last": callback_last},
         "net_charged": net, "no_recheck": state.get("no_recheck") is True,
+        "frame_id": frame_id, "sent_text": sent_text,
         "events": [{"id": e[0], "at_ms": ms(e[1]), "source": e[2], "stage": e[3], "text": e[4]} for e in events],
         # only same-origin `/m/` links are ever handed to the page; a revoked or expired token has none
         "media": [{"role": m[0], "idx": m[1], "mime": m[2], "size": m[3], "width": m[4], "height": m[5],

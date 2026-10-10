@@ -9,9 +9,13 @@ from jobkit import POOLS, PROVIDER, account, claim, create, key, run, submit
 
 from relay_core.jobs import store
 from relay_core.jobs.create import marker_for
+from relay_core.providers import FrameUse
 from relay_core.storage import media_key
 from relay_core.testing.fake_provider import FakeEngine
 from relay_core.testing.mutation import mutation
+
+DETAIL_COLUMNS = "j.callback_last, j.updated_at, j.provider_state, j.frame_id, j.sent_text "
+NO_FRAME_COLUMNS = "j.callback_last, j.updated_at, j.provider_state, NULL, NULL "
 
 
 def op() -> dict:
@@ -107,6 +111,26 @@ def test_the_list_is_newest_first_filters_by_status_and_pages_without_a_gap_or_a
 
 
 # ---- detail -----------------------------------------------------------------------------------------------------
+@mutation(ROUTES, DETAIL_COLUMNS, NO_FRAME_COLUMNS, expect="the frame version")
+def test_the_detail_shows_the_frame_version_and_the_exact_text_sent_and_nulls_for_a_job_made_before_frames(db):
+    k = key(db)
+    account(db)
+    frame_id = db.one("INSERT INTO prompt_frames (provider, kind, model, text, created_by) VALUES "
+                      "('fake', 'video', NULL, 'Own. {{client_prompt}} {{tracking_code}}', 'test') RETURNING id")[0]
+    own = FrameUse(frame_id, "Own. {{client_prompt}} {{tracking_code}}")
+    framed = run(db, lambda p: failed_job(p, k, "a cat", frame=own))
+    plain = run(db, lambda p: failed_job(p, k, "a dog"))
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        return [(await env.client.get("/admin/jobs/%s" % j, headers=h)).json() for j in (framed, plain)]
+
+    with_frame, without = run_app(db, scenario)
+    assert with_frame["frame_id"] == frame_id, "the frame version the job used"
+    assert with_frame["sent_text"] == "Own. a cat [%s]" % with_frame["marker"], "the exact text that was sent"
+    assert without["frame_id"] is None and without["sent_text"].startswith("a dog"), "the core frame has no row"
+
+
 def test_the_detail_shows_the_account_label_the_charged_price_a_clean_prompt_events_media_and_epoch_ms(db):
     k = key(db)
     acct = account(db)

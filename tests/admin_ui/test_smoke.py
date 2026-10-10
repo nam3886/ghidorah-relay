@@ -5,6 +5,7 @@ violation in the console fails the test."""
 
 import base64
 import json
+import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
@@ -14,8 +15,11 @@ from jobkit import key as new_key
 from jobkit import run
 from patchright.sync_api import expect, sync_playwright
 from test_admin_jobs import failed_job
+from test_frame_plan import put
 
 from relay_core import crypto, storage
+from relay_core.providers import FrameUse
+from relay_core.testing.fake_provider import FAKE_FRAMES
 from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
@@ -617,3 +621,403 @@ def test_every_listing_pages_forward_and_back_without_a_repeat(page, live, db, t
     expect(rows).to_have_count(50)
     assert rows.evaluate_all("els => els.map(e => e.innerText)") == first_page, "the first page comes back as it was"
     assert page.get_by_role("button", name="Prev").is_disabled()
+
+
+# ---- prompt frames ---------------------------------------------------------------------------------------------------
+FRAMES_JS = "packages/relay-core/src/relay_core/admin/static/tab-frames.js"
+VIDEO = '#panel-frames [data-frame-kind="video"]'
+HOSTILE = '<img src=x onerror="window.__pwned=1"> {{tracking_code}} {{client_prompt}}'
+
+
+def frame_texts(db, model):
+    """The stored texts of a video target, oldest first (model None = the kind's default)."""
+    return [r[0] for r in db.all("SELECT text FROM prompt_frames WHERE provider = 'fake' AND kind = 'video' AND "
+                                 "model IS NOT DISTINCT FROM %s::text ORDER BY id", model)]
+
+
+@mutation(FRAMES_JS, ", text: draft }", " }", expect="Draft single.")
+@mutation(FRAMES_JS, "showWarnings(saved.warnings);", "showWarnings([]);", expect="frameWarnings")
+@mutation(FRAMES_JS, "err.param ? err.message + ' (' + err.param + ')' : err.message;", "err.message;",
+          expect="frameRefusal")
+@mutation(FRAMES_JS, "(answer.kept.join(', ') || '-')", "'-'", expect="Kept (locked): fake-video")
+@mutation(FRAMES_JS, "(answer.unchanged.join(', ') || '-')", "'-'", expect="Unchanged: fake-video")
+@mutation(FRAMES_JS, "{ locked: locked }", "{ locked: true }", expect="unlocked by")
+@mutation(FRAMES_JS, "body: { text: null }", "body: { text: '' }", expect='to_have_text("default")')
+@mutation(FRAMES_JS, "'/reset', { method", "'/resex', { method", expect="to_have_count(0)")
+@mutation(FRAMES_JS, "el.classList.toggle('hidden', !(warnings && warnings.length));",
+          "el.classList.toggle('hidden', true);", expect="frameWarnings")
+@mutation(FRAMES_JS, "    el.classList.remove('hidden');\n}\nfunction clearRefusal", "}\nfunction clearRefusal",
+          expect="frameRefusal")
+@mutation(FRAMES_JS, "    el.classList.remove('hidden');\n    el.textContent = 'Applied: '",
+          "    el.textContent = 'Applied: '", expect="frameApplied")
+@mutation(FRAMES_JS, "    pre.classList.remove('hidden');\n    pre.textContent = answer.text;",
+          "    pre.textContent = answer.text;", expect="framePreviewText")
+@mutation(FRAMES_JS, "    document.getElementById('framePreviewText').classList.add('hidden');\n", "",
+          expect="expect(shown).to_be_hidden()")
+@mutation(FRAMES_JS, "(keep && keep.key === targetKey(view)) ? keep.draft : loaded", "loaded",
+          expect="expect(text).to_have_value(mine)")
+@mutation(FRAMES_JS, "save.disabled = framesView.busy || framesView.loading > 0 || text.value === framesView.loaded;",
+          "save.disabled = framesView.busy || framesView.loading > 0;", expect="expect(save).to_be_disabled()")
+@mutation(FRAMES_JS, "esc(v.text === null ? '(follows the default)' : v.text)",
+          "(v.text === null ? '(follows the default)' : v.text)", expect="planted markup became an element")
+@mutation(JOBS_JS, "textContent = job.sent_text === null ? '-' : job.sent_text;",
+          "innerHTML = job.sent_text === null ? '-' : job.sent_text;", expect="planted markup became an element")
+def test_the_frames_tab_saves_refuses_previews_rolls_back_follows_resets_locks_applies_and_keeps_markup_as_text(
+        page, live, db, framed):
+    DEFAULT = FAKE_FRAMES.defaults["video"]
+    put(db, "video", None, DEFAULT)
+    put(db, "image", None, FAKE_FRAMES.defaults["image"])
+    k = new_key(db)
+    new_account(db, label="a", checked=True)
+    sign_in(page, live)
+    open_tab(page, "frames")
+    video = page.locator(VIDEO)
+    row = video.locator("tbody tr", has_text="fake-video")
+    source = row.locator('td[data-col="source"]')
+    text = page.locator("#frameText")
+    expect(source).to_have_text("default")
+    row.get_by_role("button", name="Edit").click()
+    expect(text).to_have_value(DEFAULT)
+    page.evaluate("window.__canary = 1", isolated_context=False)
+    assert page.evaluate("window.__canary", isolated_context=False) == 1, "the main world is readable here"
+    save = page.get_by_role("button", name="Save", exact=True)
+    expect(page.locator("#frameFollowing")).to_be_visible()          # saving gives this model its own frame
+    expect(save).to_be_disabled()
+    assert save.is_disabled(), "an untouched draft cannot be saved"
+
+    # a save with a warning: saved, and the warning shown
+    first = "Own words. {{tracking_code}} {{client_prompt}}"
+    text.fill(first)
+    expect(save).to_be_enabled()
+    save.click()
+    expect(page.locator("#frameWarnings")).to_be_visible()
+    expect(page.locator("#frameWarnings")).to_contain_text("asks for no single result")
+    expect(source).to_have_text("own")
+    assert frame_texts(db, "fake-video") == [first]
+
+    # a refused save shows its param and stores nothing
+    text.fill("no placeholders at all")
+    page.get_by_role("button", name="Save", exact=True).click()
+    expect(page.locator("#frameRefusal")).to_be_visible()
+    expect(page.locator("#frameRefusal")).to_have_text(re.compile(r"\(\{\{(client_prompt|tracking_code)\}\}\)$"))
+    assert frame_texts(db, "fake-video") == [first]
+    page.problems.clear()                               # the 400 of a refused save is a console line
+
+    # the preview renders the draft, with its length, and stores nothing
+    draft = "Draft single. {{tracking_code}} {{client_prompt}}"
+    text.fill(draft)
+    page.get_by_role("button", name="Preview", exact=True).click()
+    shown = page.locator("#framePreviewText")
+    expect(shown).to_be_visible()
+    expect(shown).to_contain_text("Draft single.")
+    expect(shown).to_contain_text("a cat on a sofa")
+    expect(page.locator("#framePreviewMeta")).to_contain_text("%d characters" % len(shown.text_content()))
+    assert frame_texts(db, "fake-video") == [first]
+    # a refused preview (a blank sample prompt) shows its refusal and clears the old render
+    page.fill("#framePreviewPrompt", "")
+    page.get_by_role("button", name="Preview", exact=True).click()
+    expect(page.locator("#frameRefusal")).to_be_visible()
+    expect(page.locator("#frameRefusal")).to_contain_text("(prompt)")
+    expect(shown).to_be_hidden()
+    assert not shown.is_visible(), "a refused preview clears the old render"
+    page.problems.clear()
+    page.fill("#framePreviewPrompt", "a cat on a sofa")
+
+    # a second version, then a rollback to the first
+    second = "Second single. {{tracking_code}} {{client_prompt}}"
+    text.fill(second)
+    page.get_by_role("button", name="Save", exact=True).click()
+    history = page.locator("#frameHistory li")
+    expect(history).to_have_count(2)
+    expect(page.locator("#frameWarnings")).to_be_hidden()
+    history.filter(has_text="Own words.").get_by_role("button", name="Roll back to this").click()
+    expect(history).to_have_count(3)
+    expect(text).to_have_value(first)
+    assert frame_texts(db, "fake-video") == [first, second, first]
+    assert db.one("SELECT restored_from FROM prompt_frames WHERE model = 'fake-video' ORDER BY id DESC LIMIT 1")[0]
+
+    # follow the default again
+    page.get_by_role("button", name="Follow the default").click()
+    expect(source).to_have_text("default")
+    assert frame_texts(db, "fake-video")[-1] is None
+
+    # the default differs from the shipped one: the badge, then the reset
+    video.get_by_role("button", name="Edit the default").click()
+    expect(page.locator("#frameEditor h3")).to_have_text("video / default")
+    text.fill("Changed single. {{tracking_code}} {{client_prompt}}")
+    page.get_by_role("button", name="Preview", exact=True).click()      # a preview from the default's editor
+    expect(shown).to_contain_text("Changed single.")
+    page.get_by_role("button", name="Save", exact=True).click()
+    expect(video.get_by_text("differs from the shipped default")).to_be_visible()
+    video.get_by_role("button", name="Reset to the shipped default").click()
+    expect(video.get_by_text("differs from the shipped default")).to_have_count(0)
+    assert frame_texts(db, None)[-1] == DEFAULT
+
+    # a lock keeps a model's own text when a default is applied to all; unlocked, it takes it
+    row.get_by_role("button", name="Edit").click()
+    expect(page.locator("#frameEditor h3")).to_have_text("video / fake-video")
+    mine = "Mine single. {{tracking_code}} {{client_prompt}}"
+    text.fill(mine)
+    row.get_by_label("keep own").check()                # a lock toggle does not touch the unsaved draft
+    expect(row).to_contain_text("locked by")
+    expect(text).to_have_value(mine)
+    assert text.input_value() == mine, "a lock toggle keeps the draft"
+    page.get_by_role("button", name="Save", exact=True).click()
+    expect(source).to_have_text("own")
+    video.get_by_role("button", name="Edit the default").click()
+    everywhere = "All single. {{tracking_code}} {{client_prompt}}"
+    text.fill(everywhere)
+    page.get_by_role("button", name="Apply to all models of this kind").click()
+    applied = page.locator("#frameApplied")
+    expect(applied).to_be_visible()
+    expect(applied).to_contain_text("Applied: -. Kept (locked): fake-video.")
+    assert frame_texts(db, "fake-video")[-1] == mine
+    row.get_by_label("keep own").uncheck()
+    expect(row).to_contain_text("unlocked by")
+    text.fill(everywhere)
+    page.get_by_role("button", name="Apply to all models of this kind").click()
+    expect(applied).to_contain_text("Applied: fake-video.")
+    assert frame_texts(db, "fake-video")[-1] == everywhere
+    text.fill(everywhere)                               # the same text again: the model already has it
+    page.get_by_role("button", name="Apply to all models of this kind").click()
+    expect(applied).to_contain_text("Applied: -. Kept (locked): -. Unchanged: fake-video.")
+
+    # markup in a frame is text: in the history and in the job's detail
+    row.get_by_role("button", name="Edit").click()
+    expect(page.locator("#frameEditor h3")).to_have_text("video / fake-video")
+    text.fill(HOSTILE)
+    page.get_by_role("button", name="Save", exact=True).click()
+    expect(page.locator("#frameHistory li").first).to_be_visible()
+    page.wait_for_timeout(300)                           # a script in the markup would have run by now
+    assert page.evaluate("window.__pwned", isolated_context=False) is None, "markup ran as a script"
+    assert page.locator("#panel-frames img").count() == 0, "planted markup became an element"
+    expect(page.locator("#frameHistory li").first).to_contain_text("<img src=x")
+    frame_id = db.one("SELECT id FROM prompt_frames WHERE model = 'fake-video' ORDER BY id DESC LIMIT 1")[0]
+    job = planted(db, lambda p: failed_job(p, k, "a cat", frame=FrameUse(frame_id, HOSTILE)))
+    open_tab(page, "jobs")
+    page.get_by_role("button", name="Details").click()
+    technical = page.locator("#jobBox")
+    expect(technical).to_contain_text("Prompt frame version")
+    expect(technical.locator("dt", has_text="Prompt frame version").locator("xpath=following-sibling::dd[1]")
+           ).to_have_text(str(frame_id))
+    expect(page.locator("#jobSentText")).to_be_visible()
+    page.wait_for_timeout(300)
+    assert page.evaluate("window.__pwned", isolated_context=False) is None, "markup ran as a script"
+    assert page.locator("#jobBox img").count() == 0, "planted markup became an element"
+    expect(page.locator("#jobSentText")).to_contain_text("<img src=x onerror")
+    assert db.one("SELECT sent_text FROM jobs WHERE id = %s", job)[0].startswith("<img src=x")
+
+
+# ---- prompt frames: an answer belongs to the editor that asked ------------------------------------------------------
+def hold(page, pattern, method):
+    """Keep the first request of `method` to `pattern` in Chrome's network layer until the test releases it."""
+    held = []
+
+    def handler(route):
+        if route.request.method == method and not held:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route(pattern, handler)
+    return held
+
+
+def wait_held(page, held):
+    for _ in range(250):
+        if held:
+            return
+        page.wait_for_timeout(20)
+    raise AssertionError("the request was not sent")
+
+
+def settled(page):
+    """Wait until the tab has no load in flight (a dropped answer shows nothing, so the page itself says when it has
+    dealt with it), then a beat for what a settled load draws or toasts."""
+    for _ in range(250):
+        if page.evaluate("framesView.loading", isolated_context=False) == 0:
+            break
+        page.wait_for_timeout(20)
+    page.wait_for_timeout(150)
+
+
+def release(page, held):
+    """Let the held request go and wait for the page to deal with the answer (or drop it)."""
+    held[0].continue_()
+    settled(page)
+    page.wait_for_timeout(250)                         # a preview is not a load: give its answer a beat as well
+
+
+def framed_page(page, live, db):
+    """A signed-in frames tab: video default, one own frame for fake-video, an image default."""
+    put(db, "video", None, FAKE_FRAMES.defaults["video"])
+    put(db, "image", None, FAKE_FRAMES.defaults["image"])
+    put(db, "video", "fake-video", "Own of A single. {{tracking_code}} {{client_prompt}}")
+    sign_in(page, live)
+    open_tab(page, "frames")
+    return page.locator(VIDEO), page.locator("#frameText"), page.locator("#frameEditor h3")
+
+
+@mutation(FRAMES_JS, "        if (g !== framesView.gen) return null;\n        draw(answer);", "        draw(answer);",
+          expect='to_have_text("video / default")')
+def test_a_late_answer_for_an_editor_that_is_no_longer_open_is_dropped_and_save_writes_the_editor_shown(
+        page, live, db, framed):
+    video, text, heading = framed_page(page, live, db)
+    held = hold(page, "**/admin/frames/fake/video/fake-video", "GET")
+    video.locator("tbody tr", has_text="fake-video").get_by_role("button", name="Edit").click()
+    wait_held(page, held)
+    video.get_by_role("button", name="Edit the default").click()
+    expect(heading).to_have_text("video / default")
+    expect(text).to_have_value(FAKE_FRAMES.defaults["video"])
+    release(page, held)
+    expect(heading).to_have_text("video / default")
+    expect(text).to_have_value(FAKE_FRAMES.defaults["video"])
+    typed = "Written for the default single. {{tracking_code}} {{client_prompt}}"
+    text.fill(typed)
+    page.get_by_role("button", name="Save", exact=True).click()
+    expect(page.get_by_text("Saved: applies to jobs created from now on")).to_be_visible()
+    assert frame_texts(db, None)[-1] == typed, "the save went to the editor that was shown"
+    assert frame_texts(db, "fake-video") == ["Own of A single. {{tracking_code}} {{client_prompt}}"]
+
+
+@mutation(FRAMES_JS, "if (text) text.readOnly = writing || loading;", "if (text) text.readOnly = loading;",
+          expect='to_have_js_property("readOnly", True)')
+@mutation(FRAMES_JS, "el.disabled = writing || (loading && !opens);", "el.disabled = loading && !opens;",
+          expect="to_be_disabled()")
+def test_while_a_save_is_in_flight_the_draft_cannot_be_typed_over_and_nothing_else_can_be_clicked(
+        page, live, db, framed):
+    video, text, heading = framed_page(page, live, db)
+    held = hold(page, "**/admin/frames/fake/video/default", "PUT")
+    video.get_by_role("button", name="Edit the default").click()
+    expect(heading).to_have_text("video / default")
+    typed = "Typed before the save single. {{tracking_code}} {{client_prompt}}"
+    text.fill(typed)
+    page.get_by_role("button", name="Save", exact=True).click()
+    wait_held(page, held)
+    expect(text).to_have_js_property("readOnly", True)
+    expect(video.locator("tbody tr", has_text="fake-video").get_by_role("button", name="Edit")).to_be_disabled()
+    expect(video.get_by_role("button", name="Edit the default")).to_be_disabled()
+    held[0].continue_()
+    expect(page.get_by_text("Saved: applies to jobs created from now on")).to_be_visible()
+    expect(text).to_have_js_property("readOnly", False)
+    expect(text).to_have_value(typed)
+    assert frame_texts(db, None)[-1] == typed
+    # a lock toggle cannot be repeated while its request runs
+    held = hold(page, "**/admin/frames/fake/video/fake-video/lock", "PUT")
+    box = video.locator("tbody tr", has_text="fake-video").get_by_label("keep own")
+    box.check()
+    wait_held(page, held)
+    expect(box).to_be_disabled()
+    held[0].continue_()
+    expect(box).to_be_enabled()
+    expect(box).to_be_checked()
+
+
+@mutation(FRAMES_JS, "if (!answer || !stillAsked()) return;", "if (!answer) return;",
+          expect='expect(page.locator("#framePreviewText")).to_be_hidden()')
+@mutation(FRAMES_JS, "if (g === framesView.gen && (!stillAsked || stillAsked())) showRefusal(err);",
+          "showRefusal(err);", expect='expect(page.locator("#frameRefusal")).to_be_hidden()')
+def test_a_preview_answer_or_refusal_for_another_editor_or_draft_is_not_shown_in_this_one(page, live, db, framed):
+    video, text, heading = framed_page(page, live, db)
+    row = video.locator("tbody tr", has_text="fake-video")
+    preview = page.get_by_role("button", name="Preview", exact=True)
+    # a good preview of the default's draft, held while the operator opens A
+    held = hold(page, "**/admin/frames/preview", "POST")
+    video.get_by_role("button", name="Edit the default").click()
+    expect(heading).to_have_text("video / default")
+    text.fill("Draft of the default single. {{tracking_code}} {{client_prompt}}")
+    preview.click()
+    wait_held(page, held)
+    row.get_by_role("button", name="Edit").click()
+    expect(heading).to_have_text("video / fake-video")
+    release(page, held)
+    expect(page.locator("#framePreviewText")).to_be_hidden()
+    expect(page.locator("#framePreviewMeta")).to_have_text("")
+    # a refused preview of A's bad draft, held while the operator opens the default
+    page.unroute("**/admin/frames/preview")
+    held = hold(page, "**/admin/frames/preview", "POST")
+    text.fill("no placeholders at all")
+    preview.click()
+    wait_held(page, held)
+    video.get_by_role("button", name="Edit the default").click()
+    expect(heading).to_have_text("video / default")
+    release(page, held)
+    expect(page.locator("#frameRefusal")).to_be_hidden()
+    page.problems.clear()                               # the 400 of a refused preview is a console line
+    # the same draft still gets its own answer
+    text.fill("Draft again single. {{tracking_code}} {{client_prompt}}")
+    preview.click()
+    expect(page.locator("#framePreviewText")).to_contain_text("Draft again single.")
+
+
+@mutation(FRAMES_JS, "el.disabled = writing || (loading && !opens);", "el.disabled = writing;",
+          expect='name="Apply to all models of this kind")).to_be_disabled()')
+@mutation(FRAMES_JS, "save.disabled = framesView.busy || framesView.loading > 0 || text.value === framesView.loaded;",
+          "save.disabled = framesView.busy || text.value === framesView.loaded;",
+          expect="expect(save).to_be_disabled()")
+def test_while_another_editor_loads_the_old_one_cannot_save_reset_or_apply_to_all(page, live, db, framed):
+    put(db, "video", None, "Changed single. {{tracking_code}} {{client_prompt}}")     # differs from the shipped default
+    put(db, "image", None, FAKE_FRAMES.defaults["image"])
+    put(db, "video", "fake-video", "Own of A single. {{tracking_code}} {{client_prompt}}")
+    sign_in(page, live)
+    open_tab(page, "frames")
+    video, text, heading = page.locator(VIDEO), page.locator("#frameText"), page.locator("#frameEditor h3")
+    video.get_by_role("button", name="Edit the default").click()
+    expect(heading).to_have_text("video / default")
+    text.fill("Edited default single. {{tracking_code}} {{client_prompt}}")
+    save = page.get_by_role("button", name="Save", exact=True)
+    expect(save).to_be_enabled()
+    held = hold(page, "**/admin/frames/fake/video/fake-video", "GET")
+    video.locator("tbody tr", has_text="fake-video").get_by_role("button", name="Edit").click()
+    wait_held(page, held)
+    expect(save).to_be_disabled()
+    expect(page.get_by_role("button", name="Apply to all models of this kind")).to_be_disabled()
+    expect(video.get_by_role("button", name="Reset to the shipped default")).to_be_disabled()
+    expect(video.locator("tbody tr", has_text="fake-video").get_by_label("keep own")).to_be_disabled()
+    expect(text).to_have_js_property("readOnly", True)
+    expect(video.get_by_role("button", name="Edit the default")).to_be_enabled()      # how a view is replaced
+    held[0].continue_()
+    expect(heading).to_have_text("video / fake-video")
+    expect(video.get_by_role("button", name="Reset to the shipped default")).to_be_enabled()
+    expect(text).to_have_js_property("readOnly", False)
+
+
+@mutation(FRAMES_JS, "finally { framesView.busy = false; applyBusy(); }", "finally { applyBusy(); }",
+          expect='to_have_js_property("readOnly", False)')
+def test_a_save_that_fails_with_a_server_error_shows_it_and_gives_the_controls_back(page, live, db, framed):
+    video, text, heading = framed_page(page, live, db)
+    held = hold(page, "**/admin/frames/fake/video/default", "PUT")
+    video.get_by_role("button", name="Edit the default").click()
+    expect(heading).to_have_text("video / default")
+    typed = "Typed before the failure single. {{tracking_code}} {{client_prompt}}"
+    text.fill(typed)
+    page.get_by_role("button", name="Save", exact=True).click()
+    wait_held(page, held)
+    expect(text).to_have_js_property("readOnly", True)
+    held[0].fulfill(status=500, content_type="application/json", body=json.dumps(
+        {"error": {"code": "internal.unexpected", "message": "an internal error occurred", "param": None}}))
+    expect(page.get_by_text("an internal error occurred")).to_be_visible()
+    expect(text).to_have_js_property("readOnly", False)
+    expect(text).to_have_value(typed)                    # the draft is still there
+    expect(page.get_by_role("button", name="Save", exact=True)).to_be_enabled()
+    expect(video.get_by_role("button", name="Edit the default")).to_be_enabled()
+    page.problems.clear()                               # a 500 is a console line
+    assert frame_texts(db, None)[-1] == FAKE_FRAMES.defaults["video"], "nothing was saved"
+
+
+@mutation(FRAMES_JS, "catch (err) { if (g !== framesView.gen) return null; throw err; }", "catch (err) { throw err; }",
+          expect="a stale failure showed a toast")
+def test_a_failed_answer_for_an_editor_that_is_no_longer_open_shows_nothing(page, live, db, framed):
+    video, text, heading = framed_page(page, live, db)
+    held = hold(page, "**/admin/frames/fake/video/fake-video", "GET")
+    video.locator("tbody tr", has_text="fake-video").get_by_role("button", name="Edit").click()
+    wait_held(page, held)
+    video.get_by_role("button", name="Edit the default").click()
+    expect(heading).to_have_text("video / default")
+    held[0].fulfill(status=500, content_type="application/json", body=json.dumps(
+        {"error": {"code": "internal.unexpected", "message": "an internal error occurred", "param": None}}))
+    settled(page)
+    # not expect(...).to_have_count(0): that waits for the toast to fade, and passes
+    assert page.get_by_text("an internal error occurred").count() == 0, "a stale failure showed a toast"
+    expect(heading).to_have_text("video / default")
+    page.problems.clear()                               # a 500 is a console line
