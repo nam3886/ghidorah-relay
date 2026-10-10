@@ -64,10 +64,9 @@ docker compose -p "$PROJECT" -f deploy/compose.check.yml up -d --wait --quiet-pu
 # The image's entrypoint is `tini -- xvfb-exec`, so the command below runs on the virtual screen.
 # The whole tree is mounted read-only (tests, fixtures, scripts); its sources go first on PYTHONPATH. Each test gets a
 # short tmp_path (scripts/short_tmp_plugin.py: Chrome's socket path must stay under 108 bytes).
+envargs=(); while IFS= read -r line; do envargs+=(-e "$line"); done < <(scripts/browser-image.sh env)
 docker run --rm --name "$RUNNER" --label "$LABEL" --network "${PROJECT}_default" --shm-size=1g \
-  -e PYTHONDONTWRITEBYTECODE=1 \
-  -e RELAY_TEST_PG_DSN="postgresql://relay:relay-check@postgres:5432/postgres" \
-  -e RELAY_TEST_MINIO="http://minio:9000" \
+  -e PYTHONDONTWRITEBYTECODE=1 "${envargs[@]}" \
   -e PYTHONPATH="$(cd "$DIR" && printf '/work/%s:' packages/*/src apps/*/src)/work/scripts" \
   -v "$DIR:/work:ro" -w /work \
   "$IMAGE" bash -euo pipefail -c 'echo "Chrome: $(/opt/google/chrome/chrome --version)"; exec scripts/browser-tier.sh'

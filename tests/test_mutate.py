@@ -599,18 +599,34 @@ def with_fake_docker(tmp_path: Path, monkeypatch) -> Path:
     return log
 
 
-@mutation(S, 'any(isinstance(d, ast.Attribute) and d.attr == "browser" for d in fn.decorator_list)',
-          'any(isinstance(d, ast.Attribute) and d.attr == "box" for d in fn.decorator_list)',
-          expect="the browser test was not recognised")
-def test_the_tests_marked_browser_are_found_by_their_mark(tmp_path):
-    planted_trio(tmp_path, BROWSER_TEST.replace("@pytest.mark.browser", "@pytest.mark.browser")
-                 .replace("\n\n@mutation", "\n\nimport pytest\n\n\n@mutation", 1))
+MODULE_MARKED = """
+import pytest
+from relay_core.testing.mutation import mutation
+import m
+
+pytestmark = pytest.mark.browser
+
+
+@mutation("tests/m.py", "def g", "def gg")
+def test_by_module():
+    assert m.g() == 2
+"""
+
+LIST_MARKED = MODULE_MARKED.replace("pytestmark = pytest.mark.browser", "pytestmark = [pytest.mark.browser]") \
+    .replace("test_by_module", "test_by_list")
+
+
+@mutation(S, '"-m", "browser",', '"-m", "nonexistent",', expect="a browser test was not recognised")
+def test_a_test_is_a_browser_test_whatever_level_carries_the_mark_and_relay_browser_always_is(tmp_path):
+    planted_trio(tmp_path, BROWSER_TEST.replace("\n\n@mutation", "\n\nimport pytest\n\n\n@mutation", 1))
+    (tmp_path / "tests" / "test_module.py").write_text(MODULE_MARKED, encoding="utf-8")
+    (tmp_path / "tests" / "test_list.py").write_text(LIST_MARKED, encoding="utf-8")
     plain = tmp_path / "packages" / "relay-browser" / "tests"
     plain.mkdir(parents=True)
     (plain / "test_plain.py").write_text("def test_p():\n    pass\n", encoding="utf-8")
-    assert mutate.browser_tests(tmp_path) == {"tests/test_m.py::test_chrome",
-                                              "packages/relay-browser/tests/test_plain.py::test_p"}, \
-        "the browser test was not recognised"
+    assert mutate.browser_tests(tmp_path) == {
+        "tests/test_m.py::test_chrome", "tests/test_module.py::test_by_module", "tests/test_list.py::test_by_list",
+        "packages/relay-browser/tests/test_plain.py::test_p"}, "a browser test was not recognised"
 
 
 @mutation(S, "if IMAGE and node_id in BROWSER:", "if False:", expect="a browser test ran outside the image")
@@ -633,6 +649,80 @@ def test_a_browser_test_runs_in_the_image_and_no_other_test_does_and_the_result_
         assert all("--shm-size=1g" in ln and ":/work:ro" in ln and "relay-mutate-browser:test" in ln for ln in runs)
         assert all("pytest -p short_tmp_plugin " in ln for ln in runs), \
             "the browser container got no short tmp_path: %s" % runs
+
+
+HELPER = "scripts/browser-image.sh"
+
+
+def queue_runs(tmp_path: Path, monkeypatch, **env) -> list[str]:
+    planted_trio(tmp_path, BROWSER_TEST).joinpath("tests", "conftest.py").write_text("", encoding="utf-8")
+    test_file = tmp_path / "tests" / "test_m.py"
+    test_file.write_text("import pytest\n" + test_file.read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "scripts").mkdir()
+    shutil.copy(REPO / "scripts" / "short_tmp_plugin.py", tmp_path / "scripts")
+    log = with_fake_docker(tmp_path, monkeypatch)
+    for name in ("MUTATE_BROWSER_NETWORK", "RELAY_TEST_PG_TEMPLATE"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    mutate.container_env.cache_clear()
+    mutate.run(tmp_path, jobs=1)
+    return [ln for ln in log.read_text().splitlines() if ln.startswith("run ")]
+
+
+@mutation(S, 'args = ["--network", network]', "args = []", expect="the queue container is not on the compose network")
+@mutation(HELPER, 'echo "RELAY_TEST_PG_DSN=postgresql://relay:relay-check@postgres:5432/postgres"', "",
+          expect="the queue container has no database DSN")
+@mutation(HELPER, 'echo "RELAY_TEST_MINIO=http://minio:9000"', "", expect="the queue container has no MinIO endpoint")
+@mutation(HELPER, 'echo "RELAY_TEST_MINIO_ACCESS_KEY=relay"', "", expect="the queue container has no MinIO access key")
+@mutation(HELPER, 'echo "RELAY_TEST_MINIO_SECRET_KEY=relay-check"', "",
+          expect="the queue container has no MinIO secret key")
+@mutation(S, 'args += ["-e", "RELAY_TEST_PG_TEMPLATE=" + os.environ["RELAY_TEST_PG_TEMPLATE"]]', "pass",
+          expect="the queue container does not cut its database from the run's template")
+def test_a_queue_container_gets_the_compose_network_the_database_the_object_store_and_the_template(
+        tmp_path, monkeypatch):
+    runs = queue_runs(tmp_path, monkeypatch, MUTATE_BROWSER_NETWORK="relay-check-1_default",
+                      RELAY_TEST_PG_TEMPLATE="relay_tpl_1_2")
+    assert len(runs) == 2, runs
+    for ln in runs:
+        assert "--network relay-check-1_default" in ln, "the queue container is not on the compose network"
+        assert "-e RELAY_TEST_PG_DSN=postgresql://relay:relay-check@postgres:5432/postgres" in ln, \
+            "the queue container has no database DSN"
+        assert "-e RELAY_TEST_MINIO=http://minio:9000" in ln, "the queue container has no MinIO endpoint"
+        assert "-e RELAY_TEST_MINIO_ACCESS_KEY=relay " in ln, "the queue container has no MinIO access key"
+        assert "-e RELAY_TEST_MINIO_SECRET_KEY=relay-check " in ln, "the queue container has no MinIO secret key"
+        assert "-e RELAY_TEST_PG_TEMPLATE=relay_tpl_1_2" in ln, \
+            "the queue container does not cut its database from the run's template"
+
+
+def test_without_a_compose_network_the_queue_container_is_as_before_and_gets_no_database(tmp_path, monkeypatch):
+    runs = queue_runs(tmp_path, monkeypatch)
+    assert len(runs) == 2 and all("--network" not in ln and "RELAY_TEST_PG_DSN" not in ln for ln in runs), runs
+
+
+@mutation("packages/relay-core/tests/pgtemplate.py", "admin, name = admin_dsn(), PREFIX + uuid.uuid4().hex[:12]",
+          'admin, name = admin_dsn(), PREFIX + "shared"', expect="two sessions of one run would share a database")
+def test_two_queue_runs_get_two_databases_because_each_cuts_its_own_from_the_template():
+    """The queue passes the template prefix, never a database name: pgtemplate gives each session a new uuid name."""
+    source = (REPO / "packages/relay-core/tests/pgtemplate.py").read_text(encoding="utf-8")
+    assert "PREFIX + uuid.uuid4().hex[:12]" in source, "two sessions of one run would share a database"
+    dsn = [ln for ln in mutate.container_env() if ln.startswith("RELAY_TEST_PG_DSN=")][0]
+    assert dsn.endswith("/postgres"), "the queue's DSN names the admin database, not one test database: " + dsn
+
+
+IN_CONTAINER = "scripts/check-in-container.sh"
+
+
+@mutation(IN_CONTAINER, '"${envargs[@]}"', "", expect="the tier container does not get the database and MinIO settings")
+@mutation(IN_CONTAINER, "done < <(scripts/browser-image.sh env)", "done < <(echo)",
+          expect="the tier container does not get the database and MinIO settings")
+def test_the_tier_container_takes_its_database_and_minio_settings_from_the_shared_helper():
+    source = (REPO / IN_CONTAINER).read_text(encoding="utf-8")
+    assert '"${envargs[@]}"' in source and "done < <(scripts/browser-image.sh env)" in source, \
+        "the tier container does not get the database and MinIO settings"
+    names = {ln.split("=", 1)[0] for ln in mutate.container_env()}
+    assert {"RELAY_TEST_PG_DSN", "RELAY_TEST_MINIO", "RELAY_TEST_MINIO_ACCESS_KEY",
+            "RELAY_TEST_MINIO_SECRET_KEY"} <= names, "the helper lacks a variable the tier needs"
 
 
 # ---- the knobs of the fast gate: MUTATE_JOBS, SOAK_JOBS, PYTEST_JOBS (all default to the serial run) ---------------

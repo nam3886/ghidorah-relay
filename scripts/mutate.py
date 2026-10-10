@@ -40,6 +40,7 @@ an exclusive lock on ROOT/.mutate.lock and a second run is refused (exit 2) inst
 import argparse
 import ast
 import fcntl
+import functools
 import itertools
 import os
 import queue
@@ -109,13 +110,50 @@ def collect(root: Path) -> list[tuple[str, str, str, str, str | None]]:
             for d in fn.decorator_list if _is_marker(d)]
 
 
+def collected_browser(root: Path) -> set[str]:
+    """Node ids (without parameters) of the tests `pytest -m browser` selects in `root`, whatever level carries the
+    mark: function, class, module or a `pytestmark` list. pytest itself decides, so this stage and the browser tier
+    cannot disagree about what a browser test is."""
+    cmd = [sys.executable, "-m", "pytest", "--collect-only", "-q", "-o", "addopts=", "-m", "browser",
+           "-p", "no:cacheprovider"]
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": source_path(root)}
+    run = subprocess.run(cmd, cwd=root, env=env, capture_output=True, text=True, check=False)
+    if run.returncode not in (0, 5):       # 5: nothing selected
+        raise SystemExit("mutate: the collection of the browser tests failed (exit %d):\n%s%s"
+                         % (run.returncode, run.stdout[-2000:], run.stderr[-2000:]))
+    return {ln.split("[")[0] for ln in run.stdout.splitlines() if "::" in ln and not ln.startswith((" ", "="))}
+
+
 def browser_tests(root: Path) -> set[str]:
-    """Node ids of the tests that need Chrome, which the box has only in its image: the ones marked
-    `@pytest.mark.browser`, and every test of relay-browser, because a mutant of it that is not caught on the way
-    starts a real Chrome even in a test that is not marked (test_no_redactor_means_nothing_starts)."""
-    return {node_id for rel, _names, node_id, fn in _test_functions(root)
-            if rel.startswith(BROWSER_TESTS)
-            or any(isinstance(d, ast.Attribute) and d.attr == "browser" for d in fn.decorator_list)}
+    """Node ids of the tests that need Chrome, which the box has only in its image: the ones pytest selects with
+    `-m browser`, and every test of relay-browser, because a mutant of it that is not caught on the way starts a real
+    Chrome even in a test that is not marked (test_no_redactor_means_nothing_starts)."""
+    return collected_browser(root) | {node_id for rel, _names, node_id, _fn in _test_functions(root)
+                                      if rel.startswith(BROWSER_TESTS)}
+
+
+@functools.lru_cache(maxsize=1)
+def container_env() -> tuple[str, ...]:
+    """NAME=value lines a test needs inside the image to reach the run's Postgres and MinIO (browser-image.sh env)."""
+    out = subprocess.run([str(Path(__file__).with_name("browser-image.sh")), "env"], capture_output=True, text=True,
+                         check=True).stdout
+    return tuple(ln for ln in out.splitlines() if ln)
+
+
+def container_args() -> list[str]:
+    """`docker run` arguments that give a queue container what a database test needs: the run's compose network
+    (MUTATE_BROWSER_NETWORK, from check.sh), the in-network database and object store settings, and the template
+    prefix the host workers use. Each session in the container then cuts its own uniquely named database from the
+    template (packages/relay-core/tests/pgtemplate.py), so no two marker runs share one."""
+    network = os.environ.get("MUTATE_BROWSER_NETWORK", "")
+    if not network:
+        return []
+    args = ["--network", network]
+    for ln in container_env():
+        args += ["-e", ln]
+    if os.environ.get("RELAY_TEST_PG_TEMPLATE"):
+        args += ["-e", "RELAY_TEST_PG_TEMPLATE=" + os.environ["RELAY_TEST_PG_TEMPLATE"]]
+    return args
 
 
 def unmarked(root: Path = REPO) -> list[str]:
@@ -151,13 +189,14 @@ def _pytest(root: Path, node_id: str) -> subprocess.CompletedProcess:
     name = ""
     if IMAGE and node_id in BROWSER:
         # Chrome lives in the image (tini + xvfb-exec as its entrypoint): the copy is mounted read-only and its
-        # sources go first on PYTHONPATH, ahead of the image's own install of the packages. These tests use no database.
+        # sources go first on PYTHONPATH, ahead of the image's own install of the packages. A test that needs the
+        # database and the object store reaches them on the run's compose network (container_args).
         name = "relay-mutate-%d-%d" % (os.getpid(), next(_names))
         srcs = ["/work/" + str(p.relative_to(root)) for b in ("packages", "apps")
                 for p in sorted(root.glob(b + "/*/src"))] + ["/work/scripts"]
         cmd = ["docker", "run", "--rm", "--name", name, "--label", "relay.mutate.run=%d" % os.getpid(),
                "--shm-size=1g", "-v", "%s:/work:ro" % root, "-w", "/work", "-e", "PYTHONDONTWRITEBYTECODE=1",
-               "-e", "PYTHONPATH=" + os.pathsep.join(srcs), IMAGE, "pytest",
+               *container_args(), "-e", "PYTHONPATH=" + os.pathsep.join(srcs), IMAGE, "pytest",
                "-p", "short_tmp_plugin", *cmd[3:]]    # Chrome's socket path must stay under 108 bytes
         CONTAINERS.add(name)
     # Own session: a timeout or SIGTERM stops pytest and everything it started, not only pytest.

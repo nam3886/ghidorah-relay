@@ -88,6 +88,7 @@ if [ "$full" = 1 ]; then
   if [ "$local_only" != 1 ] && [ "${RELAY_ON_BOX:-}" = 1 ]; then
     MUTATE_BROWSER_IMAGE=$(scripts/browser-image.sh build "$image_token")
     export MUTATE_BROWSER_IMAGE
+    export MUTATE_BROWSER_NETWORK="${project}_default"   # the browser containers of the queue join this run's compose network
   fi
   # MUTATE_CMD is the test hook of check-mutate.sh: one inherited from the caller must not replace mutate.py here
   env -u MUTATE_CMD scripts/check-mutate.sh "$mutlog" ${only[@]+"${only[@]}"}
