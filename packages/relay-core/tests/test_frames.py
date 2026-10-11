@@ -239,7 +239,7 @@ def database_at_0013(tmp_path, monkeypatch, *, ended: bool | None):
 
 def test_0014_applies_on_a_database_at_0013_whose_jobs_have_all_ended(tmp_path, monkeypatch):
     with database_at_0013(tmp_path, monkeypatch, ended=True) as (dsn, (_, job_id)):
-        assert run_migrations(dsn) == [14]
+        assert run_migrations(dsn)[0] == 14, "0014 is the first migration applied after 0013"
         with psycopg.connect(dsn, autocommit=True, options="-c search_path=relay") as c:
             assert c.execute("SELECT sent_text, frame_id, prompt FROM jobs WHERE id = %s", (job_id,)).fetchone() == (
                 None, None, "a prompt"), "a job made before 0014 keeps NULL sent_text and frame_id"

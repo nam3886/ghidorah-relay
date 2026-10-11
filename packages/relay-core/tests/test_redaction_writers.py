@@ -10,6 +10,7 @@ import httpx
 from accountkit import KitEngine, beating, command, make_env, new_account, new_command, run_as
 from hookkit import Receiver, hook, hook_job, resolver
 from jobkit import CAPS, POOLS, account, claim, create, key, run
+from test_alerts import Reporting, applied, expired, queued
 
 from relay_core.db import tx
 from relay_core.jobs import store
@@ -34,6 +35,9 @@ CHECKS = "packages/relay-core/src/relay_core/jobs/checks.py"
 WEBHOOKS = "packages/relay-core/src/relay_core/jobs/webhooks.py"
 COMMANDS = "packages/relay-core/src/relay_core/jobs/commands.py"
 APPLY = "packages/relay-core/src/relay_core/jobs/apply.py"
+ALERTS = "packages/relay-core/src/relay_core/alerts.py"
+UNCLEAR_REDACTED = "    stored = redact_text(cleaned)[:REPLY_LIMIT]\n"
+UNCLEAR_RAW = "    stored = cleaned[:REPLY_LIMIT]\n"
 
 EVENT_REDACTED = 'redact_log(text or "")'
 EVENT_RAW = '(text or "")'
@@ -192,3 +196,20 @@ def test_a_long_upstream_model_fact_is_redacted_before_it_is_stored(db):
 
     run(db, scenario)
     assert where_it_is(db, secret) == []
+
+
+@mutation(ALERTS, UNCLEAR_REDACTED, UNCLEAR_RAW, expect="an unclear reply writer stored a planted secret")
+def test_both_unclear_reply_writers_store_the_text_redacted(db):
+    """The submit result and the render-deadline failure each store a reply carrying a planted secret; the secret is
+    in no column of any table afterwards."""
+    secret = "rk-" + "a1B2" * 8
+    reply = "Sorry, try again. Authorization: Bearer %s" % secret
+    applied(db, queued(db), [Accepted("ref-1", taken=False, unclear=reply)])
+    expired(db, Reporting(reply), prompt="deadline")
+    rows = db.all("SELECT text FROM unclear_replies")
+    assert len(rows) == 2, "premise: both writers stored a row"
+    with db.connect() as c:
+        tables = [r[0] for r in c.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'relay'")]
+        for table in tables:
+            dump = [r[0] for r in c.execute("SELECT t::text FROM %s t" % table)]
+            assert not any(secret in line for line in dump), "an unclear reply writer stored a planted secret: " + table

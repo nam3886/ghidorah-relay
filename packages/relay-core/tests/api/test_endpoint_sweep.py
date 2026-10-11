@@ -34,6 +34,8 @@ ADMIN = {
     "DELETE /admin/accounts/{account_id}", "POST /admin/accounts/{account_id}/check",
     "POST /admin/accounts/{account_id}/proxy-recheck", "GET /admin/accounts/{account_id}/screenshot",
     "POST /admin/accounts/{account_id}/wake", "GET /admin/alerts", "POST /admin/alerts/{alert_id}/acknowledge",
+    "GET /admin/alerts/groups", "GET /admin/alerts/groups/{kind}/{group}",
+    "POST /admin/alerts/groups/{kind}/{group}/acknowledge",
     "GET /admin/commands/{command_id}", "GET /admin/jobs", "GET /admin/jobs/{job_id}", "PATCH /admin/jobs/{job_id}",
     "GET /admin/jobs/{job_id}/debug/{idx}", "GET /admin/jobs/{job_id}/content",
     "GET /admin/jobs/{job_id}/content/{idx}", "GET /admin/jobs/{job_id}/outputs",

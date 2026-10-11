@@ -37,7 +37,7 @@ from typing import Any
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core import leases, pool
+from relay_core import alerts, failpoints, leases, pool
 from relay_core.db import tx
 from relay_core.errors import RULES
 from relay_core.jobs.apply import UNKNOWN_FIRST_S
@@ -88,7 +88,7 @@ UPDATE jobs SET status = CASE WHEN sent_at IS NULL THEN 'queued' ELSE 'unknown' 
 """
 
 _LATE = """
-SELECT status, provider_state, render_since FROM jobs
+SELECT status, provider_state, render_since, prompt, sent_text FROM jobs
  WHERE id = %%s AND provider = %%s AND status = ANY(%%s)
    AND %s + make_interval(secs => %%s) <= clock_timestamp() FOR UPDATE
 """
@@ -189,26 +189,47 @@ class Reaper:
             return cur.rowcount
 
     # ---- deadlines ---------------------------------------------------------------------------------------------
-    async def _fail_late(self, expr: str, statuses: tuple[str, ...], seconds: float, why) -> int:
+    async def _fail_late(self, expr: str, statuses: tuple[str, ...], seconds: float, why, *,
+                         report: bool = False) -> int:
         async with tx(self.db) as conn:
             ids = [r[0] for r in await (await conn.execute(
                 _LATE_IDS % expr, (self.spec.name, list(statuses), seconds))).fetchall()]
         failed = 0
         for job_id in ids:
             try:
-                failed += await self._fail_one(expr, statuses, seconds, why, job_id)
+                failed += await self._fail_one(expr, statuses, seconds, why, job_id, report)
             except Exception:
                 log.exception("reaper: job %s could not be failed", job_id)
         return failed
 
-    async def _fail_one(self, expr: str, statuses: tuple[str, ...], seconds: float, why, job_id) -> bool:
+    async def _fail_one(self, expr: str, statuses: tuple[str, ...], seconds: float, why, job_id,
+                        report: bool = False) -> bool:
         async with tx(self.db) as conn:
             row = await (await conn.execute(_LATE % expr, (job_id, self.spec.name, list(statuses), seconds))).fetchone()
             if row is None:
                 return False            # the condition no longer holds: a Re-check, a result or a claim got there
-            status, state, render_since = row
-            code, detail = why(await self._last_text(conn, job_id, render_since), state)
-            return await fail_in_tx(conn, job_id, (status,), code, detail, self._pools())
+            status, state, render_since, prompt, sent_text = row
+            text = await self._last_text(conn, job_id, render_since)
+            code, detail = why(text, state)
+            failed = await fail_in_tx(conn, job_id, (status,), code, detail, self._pools())
+            if failed and report:
+                # After the failure and the refund, so nothing about the report can hold them back: the hook and the
+                # builder are guarded, the insert has its savepoint.
+                built = self._unclear(job_id, text, state, alerts.JobTexts(prompt, sent_text))
+                if built is not None:
+                    await alerts.store(conn, job_id, built)
+                    await failpoints.hit("reaper.unclear_reported")
+            return failed
+
+    def _unclear(self, job_id, text: str, state, texts: alerts.JobTexts) -> alerts.Report | None:
+        """The provider's report of a deadline it cannot explain, as a row, or None. The job's texts are those of the
+        row the reaper locked, for the builder to take the customer's own words out."""
+        try:
+            said = self.spec.unclear_at_deadline(text, state)
+        except Exception as exc:     # noqa: BLE001
+            log.error("%s: unclear_at_deadline failed for job %s: %s", self.spec.name, job_id, type(exc).__name__)
+            return None
+        return alerts.prepare(job_id, self.spec.name, said, texts)
 
     @staticmethod
     async def _last_text(conn, job_id, since) -> str:
@@ -229,7 +250,8 @@ class Reaper:
 
     async def _render_deadline(self) -> int:
         return await self._fail_late(RENDER_FROM, ("waiting", "unknown"),
-                                     self.settings.get(self.spec.name + ".render_deadline_s"), self._cause)
+                                     self.settings.get(self.spec.name + ".render_deadline_s"), self._cause,
+                                     report=True)
 
     # ---- visibility --------------------------------------------------------------------------------------------
     async def _visibility(self) -> int:
