@@ -287,6 +287,8 @@ async def run_row(new_composer: bool, name: str, mode: str, user_kind: str | Non
 
 def result_kind(res):
     job, account = res.job, res.account
+    if not (isinstance(job, Accepted) and job.taken) and account[:1] == (Success(),):
+        account = account[1:]          # the logged-in read that came first clears the strike count; not what is judged
     if isinstance(job, NotTaken):
         if job.code == "pool.account_out_of_points" and account == (Rest("video", MIDNIGHT, "out of credit"),):
             return POINTS

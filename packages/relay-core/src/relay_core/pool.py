@@ -254,8 +254,9 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
     """Apply a result's account effects in the caller's transaction, with the job transition they belong to.
 
     - `Rest` and `Cooldown` never shorten a longer one (GREATEST); there is no rank.
-    - `Suspect` adds a strike; at `caps.suspect_threshold` the account dies with the strike effect's reason.
-      `Success` clears the counter.
+    - `Suspect` adds a strike (not when it comes within its `min_gap_s` of the last counted one); at
+      `caps.suspect_threshold` the account dies with the strike effect's reason. `Success` clears the counter and the
+      time of the last counted strike.
     - `Dead` and `Revive` never change a `disabled` account: a person's decision wins over a check.
     - `Balance` writes the capacity; a reported value above 0 ends that pool's rest.
     The account row is locked first, whatever the effects touch."""
@@ -284,19 +285,28 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
             await _account(conn, account_id,
                            "cooldown_reason = CASE WHEN %(u)s > COALESCE(cooldown_until, '-infinity') THEN %(r)s "
                            "ELSE cooldown_reason END, cooldown_until = GREATEST(cooldown_until, %(u)s), "
-                           "last_error = %(r)s", u=e.until, r=_reason(e.reason))
+                           "check_due_at = CASE WHEN %(rc)s AND state <> 'dead' THEN %(u)s ELSE check_due_at END, "
+                           "last_error = %(r)s", u=e.until, r=_reason(e.reason), rc=e.recheck)
         elif isinstance(e, Suspect):
+            # The account row is locked (above), so reading whether the strike counts and writing it are one step.
+            counted = (await (await conn.execute(
+                "SELECT (strike_at IS NULL OR %(g)s <= 0 "
+                "OR strike_at <= clock_timestamp() - make_interval(secs => %(g)s)) FROM accounts WHERE id = %(a)s",
+                {"g": e.min_gap_s, "a": account_id})).fetchone() or (False,))[0]
             strikes = (await (await conn.execute(
-                "UPDATE accounts SET strikes = strikes + 1, last_error = %s, updated_at = clock_timestamp() "
-                "WHERE id = %s RETURNING strikes", (_reason(e.reason), account_id))).fetchone())[0]
-            if strikes >= caps.suspect_threshold:
+                "UPDATE accounts SET strikes = strikes + %(n)s, "
+                "strike_at = CASE WHEN %(c)s THEN clock_timestamp() ELSE strike_at END, "
+                "last_error = %(r)s, updated_at = clock_timestamp() WHERE id = %(a)s RETURNING strikes",
+                {"n": 1 if counted else 0, "c": counted, "r": _reason(e.reason), "a": account_id})).fetchone())[0]
+            # Only a strike that counted can reach the threshold: a doubt inside its gap never kills.
+            if counted and strikes >= caps.suspect_threshold:
                 await _die(conn, account_id, caps.strike_effect.reason)
         elif isinstance(e, Dead):
             await _die(conn, account_id, e.reason)
         elif isinstance(e, Revive):
             await _account(conn, account_id, "state = 'available', state_reason = NULL", where="AND state = 'dead'")
         elif isinstance(e, Success):
-            await _account(conn, account_id, "strikes = 0, last_error = NULL")
+            await _account(conn, account_id, "strikes = 0, strike_at = NULL, last_error = NULL")
         elif isinstance(e, ProxyBad):
             await _account(conn, account_id, "proxy_ok = false, proxy_checked_at = clock_timestamp(), "
                            "last_error = %(r)s", r=_reason(e.reason))
@@ -323,11 +333,14 @@ async def _die(conn: AsyncConnection, account_id, reason: str) -> None:
 
 
 async def wake_account(conn: AsyncConnection, account_id) -> bool:
-    """The admin wake: clear the account cooldown and every pool rest. False when there is no such account."""
+    """The admin wake: clear the account cooldown, every pool rest and the strike count with the time of its last
+    strike (a woken account starts fresh, so an enabled one does not die on its next doubt). False when there is no
+    such account."""
     require_tx(conn)
     if not await lock_account(conn, account_id):
         return False
     await failpoints.hit("pool.wake.account_locked")
     await conn.execute("UPDATE account_capacity SET rest_until = NULL, rest_reason = NULL WHERE account_id = %s",
                        (account_id,))
-    return await _account(conn, account_id, "cooldown_until = NULL, cooldown_reason = NULL") == 1
+    return await _account(conn, account_id,
+                          "cooldown_until = NULL, cooldown_reason = NULL, strikes = 0, strike_at = NULL") == 1

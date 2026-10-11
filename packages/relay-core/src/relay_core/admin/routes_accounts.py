@@ -2,9 +2,9 @@
 
 The api holds the PUBLIC key only: an import seals each credential and each proxy password and nothing here can open
 one. The api also cannot delete an account or write a worker-owned column (`check_due_at`, `cooldown_*`, `strikes`,
-`proxy_ok`, `proxy_checked_at`): delete, wake, check, check all and proxy re-check each insert ONE command row and
-answer with its id; the provider's worker runs it and the page polls `GET /commands/{id}`. A proxy edit also queues
-the proxy re-check, since the api cannot refresh `proxy_ok` itself.
+`strike_at`, `proxy_ok`, `proxy_checked_at`): delete, wake, check, check all and proxy re-check each insert ONE command
+row and answer with its id; the provider's worker runs it and the page polls `GET /commands/{id}`. A proxy edit also
+queues the proxy re-check, since the api cannot refresh `proxy_ok` itself.
 
 An import never learns an account's identity (only the first check does), so a credential for a known identity is
 inserted like any other; the worker's first check merges it into the existing row (D21).

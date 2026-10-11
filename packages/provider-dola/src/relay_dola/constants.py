@@ -15,6 +15,9 @@ PENDING_GRACE_S = 20 * 60       # a conversation with several videos: wait this 
 QUIET_GRACE_S = 2700            # dola silent this long with no order and nothing pending: nothing is coming
 THROTTLE_COOLDOWN_S = 1800      # throttle (710022002/4) and region/proxy failures: the account rests this long
 PROXY_REST_S = 1800             # a failed proxy probe rests every pool (D44; v4 PROXY_DOWN_COOLDOWN_S)
+BROWSER_FAULT_FREE_RETRIES = 3   # browser-fault retries of one job that use no attempt; the next ones count one (so
+#                                  max_attempts ends a job that keeps meeting the fault)
+BROWSER_FAULT_COOLDOWN_S = 60   # the account rests this long after the browser lost its cookies (not a guest read)
 CHECK_INTERVAL_S = 6 * 3600     # account check cadence (v4 CHECK_EVERY_S)
 CATALOG_REFRESH_S = 3600        # the worker refreshes the templates and styles snapshots this often
 SUBMIT_TIMEOUT_VIDEO_S = 720    # hard bound on one video submit; re-measured on the box in phase 7
@@ -23,6 +26,9 @@ SUBMIT_TIMEOUT_IMAGE_S = 300    # hard bound on one image submit (the session wa
 # ---- attempts and strikes ---------------------------------------------------------------------------------------
 MAX_ATTEMPTS = 3                # counted attempts before a job fails (v4 job attempts)
 SUSPECT_THRESHOLD = 3           # strikes before the account is dead (v4 DEAD_AFTER_FAILURES)
+LOGIN_DOUBT_REST_S = 600        # a login doubt rests the account this long, then it is checked again (D91)
+LOGIN_DOUBT_GAP_S = 540         # a doubt less than this long after the last counted strike adds none; shorter than
+#                                 the rest, so a slow close or a clock skew cannot put the next read inside the gap
 STRIKE_DEAD_REASON = "signed_out"
 
 # ---- money ----------------------------------------------------------------------------------------------------

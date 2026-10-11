@@ -7,116 +7,118 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 
 ## `account.*`
 
-| Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
-|---|---|---|---|---|---|---|---|
-| `account.dead_session` | 502 | api_error | yes | yes | no | yes | the account session died before the result arrived |
-| `account.prompt_mismatch` | 502 | api_error | yes | yes | no | yes | the upstream order does not match this job |
-| `account.wrong_conversation` | 502 | api_error | yes | yes | no | yes | the upstream conversation does not match this job |
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `account.dead_session` | 502 | api_error | yes | yes | no | 0 | yes | the account session died before the result arrived |
+| `account.prompt_mismatch` | 502 | api_error | yes | yes | no | 0 | yes | the upstream order does not match this job |
+| `account.wrong_conversation` | 502 | api_error | yes | yes | no | 0 | yes | the upstream conversation does not match this job |
 
 ## `auth.*`
 
-| Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
-|---|---|---|---|---|---|---|---|
-| `auth.forbidden` | 403 | permission_error | yes | no | no | no | the request is not allowed |
-| `auth.invalid_key` | 401 | authentication_error | yes | no | no | no | the API key is not valid |
-| `auth.invalid_login` | 401 | authentication_error | yes | no | no | no | the username or password is wrong |
-| `auth.invalid_session` | 401 | authentication_error | yes | no | no | no | the admin session is missing or has expired |
-| `auth.key_disabled` | 403 | permission_error | yes | no | no | no | the API key is disabled |
-| `auth.model_forbidden` | 403 | permission_error | yes | no | no | no | the API key may not use this model |
-| `auth.permission_unknown` | 503 | api_error | yes | no | no | no | the key's permissions could not be checked; try again |
-| `auth.too_many_attempts` | 429 | rate_limit_error | yes | no | no | no | too many failed attempts; try again later |
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `auth.forbidden` | 403 | permission_error | yes | no | no | 0 | no | the request is not allowed |
+| `auth.invalid_key` | 401 | authentication_error | yes | no | no | 0 | no | the API key is not valid |
+| `auth.invalid_login` | 401 | authentication_error | yes | no | no | 0 | no | the username or password is wrong |
+| `auth.invalid_session` | 401 | authentication_error | yes | no | no | 0 | no | the admin session is missing or has expired |
+| `auth.key_disabled` | 403 | permission_error | yes | no | no | 0 | no | the API key is disabled |
+| `auth.model_forbidden` | 403 | permission_error | yes | no | no | 0 | no | the API key may not use this model |
+| `auth.permission_unknown` | 503 | api_error | yes | no | no | 0 | no | the key's permissions could not be checked; try again |
+| `auth.too_many_attempts` | 429 | rate_limit_error | yes | no | no | 0 | no | too many failed attempts; try again later |
 
 ## `dola.*`
 
-| Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
-|---|---|---|---|---|---|---|---|
-| `dola.bad_response` | 502 | api_error | no | yes | yes | yes | dola answered with something that is not readable |
-| `dola.content_refused` | 422 | invalid_request_error | yes | yes | no | yes | dola refused to make this (copyright, safety or content rules); the charge is returned |
-| `dola.http_error` | 502 | api_error | no | yes | yes | yes | dola answered with an HTTP error |
-| `dola.likeness_refused` | 422 | invalid_request_error | yes | yes | no | yes | dola refused: with a photo of a person it only makes videos of the account owner |
-| `dola.needs_confirm` | 422 | invalid_request_error | yes | yes | no | yes | dola asked a question instead of taking the order, and never delivered |
-| `dola.no_image` | 422 | invalid_request_error | yes | yes | no | yes | dola made no image for this order |
-| `dola.no_video` | 422 | invalid_request_error | yes | yes | no | yes | dola made no video for this order |
-| `dola.temporary_error` | 502 | api_error | no | yes | yes | yes | dola reported a temporary error when it took the order |
-| `dola.ui_attach_failed` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the reference images could not be attached on dola's page |
-| `dola.ui_duration_patch_failed` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the duration could not be set on dola's page |
-| `dola.ui_mode_not_ready` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) dola's creation mode did not become ready |
-| `dola.ui_model_select_failed` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the model could not be selected on dola's page |
-| `dola.ui_no_conversation` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) dola's page showed no conversation after sending |
-| `dola.ui_ratio_select_failed` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the aspect ratio could not be selected on dola's page |
-| `dola.ui_send_failed` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the order could not be sent on dola's page |
-| `dola.ui_style_select_failed` | 500 | api_error | no | yes | yes | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the style could not be selected on dola's page |
-| `dola.unknown_status` | 502 | api_error | no | yes | yes | yes | dola answered with a status that is not understood |
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `dola.bad_response` | 502 | api_error | no | yes | yes | 0 | yes | dola answered with something that is not readable |
+| `dola.browser_cookies_lost` | 500 | api_error | no | no | no | 3 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the browser lost the account's cookies; the run is tried again |
+| `dola.content_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola refused to make this (copyright, safety or content rules); the charge is returned |
+| `dola.http_error` | 502 | api_error | no | yes | yes | 0 | yes | dola answered with an HTTP error |
+| `dola.likeness_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola refused: with a photo of a person it only makes videos of the account owner |
+| `dola.needs_confirm` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola asked a question instead of taking the order, and never delivered |
+| `dola.no_image` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola made no image for this order |
+| `dola.no_video` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola made no video for this order |
+| `dola.page_reloaded` | 500 | api_error | no | no | no | 3 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) dola's page reloaded while the order was being composed; the run is tried again |
+| `dola.temporary_error` | 502 | api_error | no | yes | yes | 0 | yes | dola reported a temporary error when it took the order |
+| `dola.ui_attach_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the reference images could not be attached on dola's page |
+| `dola.ui_duration_patch_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the duration could not be set on dola's page |
+| `dola.ui_mode_not_ready` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) dola's creation mode did not become ready |
+| `dola.ui_model_select_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the model could not be selected on dola's page |
+| `dola.ui_no_conversation` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) dola's page showed no conversation after sending |
+| `dola.ui_ratio_select_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the aspect ratio could not be selected on dola's page |
+| `dola.ui_send_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the order could not be sent on dola's page |
+| `dola.ui_style_select_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the style could not be selected on dola's page |
+| `dola.unknown_status` | 502 | api_error | no | yes | yes | 0 | yes | dola answered with a status that is not understood |
 
 ## `input.*`
 
-| Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
-|---|---|---|---|---|---|---|---|
-| `input.bad_duration` | 400 | invalid_request_error | yes | no | no | no | the duration is not supported by this model |
-| `input.bad_model` | 400 | invalid_request_error | yes | no | no | no | the model does not exist or is not available |
-| `input.bad_ratio` | 400 | invalid_request_error | yes | no | no | no | the aspect ratio is not supported by this model |
-| `input.bad_style` | 400 | invalid_request_error | yes | no | no | no | the style is not supported |
-| `input.empty_prompt` | 400 | invalid_request_error | yes | no | no | no | the prompt is empty |
-| `input.frame_placeholder` | 400 | invalid_request_error | yes | no | no | no | a prompt frame has a missing, repeated or unknown placeholder |
-| `input.idempotency_conflict` | 409 | invalid_request_error | yes | no | no | no | this idempotency key was already used with a different request |
-| `input.image_unreadable` | 400 | invalid_request_error | yes | no | no | no | an input image could not be read |
-| `input.invalid` | 400 | invalid_request_error | yes | no | no | no | the request is not valid |
-| `input.prompt_duration_conflict` | 400 | invalid_request_error | yes | no | no | no | the prompt asks for a different duration than the request |
-| `input.prompt_ratio_conflict` | 400 | invalid_request_error | yes | no | no | no | the prompt asks for a different aspect ratio than the request |
-| `input.prompt_too_long` | 400 | invalid_request_error | yes | no | no | no | the prompt is too long |
-| `input.too_many_images` | 400 | invalid_request_error | yes | no | no | no | too many input images |
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `input.bad_duration` | 400 | invalid_request_error | yes | no | no | 0 | no | the duration is not supported by this model |
+| `input.bad_model` | 400 | invalid_request_error | yes | no | no | 0 | no | the model does not exist or is not available |
+| `input.bad_ratio` | 400 | invalid_request_error | yes | no | no | 0 | no | the aspect ratio is not supported by this model |
+| `input.bad_style` | 400 | invalid_request_error | yes | no | no | 0 | no | the style is not supported |
+| `input.empty_prompt` | 400 | invalid_request_error | yes | no | no | 0 | no | the prompt is empty |
+| `input.frame_placeholder` | 400 | invalid_request_error | yes | no | no | 0 | no | a prompt frame has a missing, repeated or unknown placeholder |
+| `input.idempotency_conflict` | 409 | invalid_request_error | yes | no | no | 0 | no | this idempotency key was already used with a different request |
+| `input.image_unreadable` | 400 | invalid_request_error | yes | no | no | 0 | no | an input image could not be read |
+| `input.invalid` | 400 | invalid_request_error | yes | no | no | 0 | no | the request is not valid |
+| `input.prompt_duration_conflict` | 400 | invalid_request_error | yes | no | no | 0 | no | the prompt asks for a different duration than the request |
+| `input.prompt_ratio_conflict` | 400 | invalid_request_error | yes | no | no | 0 | no | the prompt asks for a different aspect ratio than the request |
+| `input.prompt_too_long` | 400 | invalid_request_error | yes | no | no | 0 | no | the prompt is too long |
+| `input.too_many_images` | 400 | invalid_request_error | yes | no | no | 0 | no | too many input images |
 
 ## `internal.*`
 
-| Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
-|---|---|---|---|---|---|---|---|
-| `internal.frame_unusable` | 500 | api_error | yes | no | no | no | (shown as `internal.unexpected`: an internal error occurred) the prompt frame for this model is missing or unusable |
-| `internal.unexpected` | 500 | api_error | no | yes | yes | yes | an internal error occurred |
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `internal.frame_unusable` | 500 | api_error | yes | no | no | 0 | no | (shown as `internal.unexpected`: an internal error occurred) the prompt frame for this model is missing or unusable |
+| `internal.unexpected` | 500 | api_error | no | yes | yes | 0 | yes | an internal error occurred |
 
 ## `job.*`
 
-| Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
-|---|---|---|---|---|---|---|---|
-| `job.already_finished` | 409 | invalid_request_error | yes | no | no | no | the job already finished |
-| `job.busy` | 409 | invalid_request_error | yes | no | no | no | the job is being checked right now |
-| `job.not_submitted` | 409 | invalid_request_error | yes | no | no | no | the job was never sent upstream, so there is nothing to re-check |
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `job.already_finished` | 409 | invalid_request_error | yes | no | no | 0 | no | the job already finished |
+| `job.busy` | 409 | invalid_request_error | yes | no | no | 0 | no | the job is being checked right now |
+| `job.not_submitted` | 409 | invalid_request_error | yes | no | no | 0 | no | the job was never sent upstream, so there is nothing to re-check |
 
 ## `pool.*`
 
-| Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
-|---|---|---|---|---|---|---|---|
-| `pool.account_busy` | 409 | invalid_request_error | no | no | no | no | the account is busy with another job |
-| `pool.account_cannot_afford` | 503 | api_error | no | no | no | yes | no account has enough points for this job |
-| `pool.account_logged_out` | 503 | api_error | no | no | no | yes | the account is logged out |
-| `pool.account_out_of_points` | 503 | api_error | no | no | no | yes | the account is out of points |
-| `pool.account_region_blocked` | 503 | api_error | no | no | no | yes | the account's region is blocked upstream |
-| `pool.account_throttled` | 503 | api_error | no | no | no | yes | the account is rate limited upstream |
-| `pool.proxy_failed` | 503 | api_error | no | no | no | yes | the account's proxy failed |
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `pool.account_busy` | 409 | invalid_request_error | no | no | no | 0 | no | the account is busy with another job |
+| `pool.account_cannot_afford` | 503 | api_error | no | no | no | 0 | yes | no account has enough points for this job |
+| `pool.account_logged_out` | 503 | api_error | no | no | no | 0 | yes | the account is logged out |
+| `pool.account_out_of_points` | 503 | api_error | no | no | no | 0 | yes | the account is out of points |
+| `pool.account_region_blocked` | 503 | api_error | no | no | no | 0 | yes | the account's region is blocked upstream |
+| `pool.account_throttled` | 503 | api_error | no | no | no | 0 | yes | the account is rate limited upstream |
+| `pool.proxy_failed` | 503 | api_error | no | no | no | 0 | yes | the account's proxy failed |
 
 ## `queue.*`
 
-| Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
-|---|---|---|---|---|---|---|---|
-| `queue.never_started` | 503 | api_error | yes | yes | no | yes | the job never started |
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `queue.never_started` | 503 | api_error | yes | yes | no | 0 | yes | the job never started |
 
 ## `quota.*`
 
-| Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
-|---|---|---|---|---|---|---|---|
-| `quota.key_exceeded` | 429 | rate_limit_error | yes | no | no | no | the API key's limit is reached |
-| `quota.too_many_queued` | 429 | rate_limit_error | yes | no | no | no | too many unfinished jobs for this API key |
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `quota.key_exceeded` | 429 | rate_limit_error | yes | no | no | 0 | no | the API key's limit is reached |
+| `quota.too_many_queued` | 429 | rate_limit_error | yes | no | no | 0 | no | too many unfinished jobs for this API key |
 
 ## `render.*`
 
-| Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
-|---|---|---|---|---|---|---|---|
-| `render.deadline` | 504 | api_error | yes | yes | no | yes | the result did not arrive before the deadline |
-| `render.download_failed` | 502 | api_error | no | yes | yes | yes | the result could not be downloaded |
-| `render.file_unreadable` | 502 | api_error | yes | yes | no | yes | the result file is unreadable |
-| `render.watermarked_only` | 502 | api_error | yes | yes | no | yes | only a watermarked result was delivered |
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `render.deadline` | 504 | api_error | yes | yes | no | 0 | yes | the result did not arrive before the deadline |
+| `render.download_failed` | 502 | api_error | no | yes | yes | 0 | yes | the result could not be downloaded |
+| `render.file_unreadable` | 502 | api_error | yes | yes | no | 0 | yes | the result file is unreadable |
+| `render.watermarked_only` | 502 | api_error | yes | yes | no | 0 | yes | only a watermarked result was delivered |
 
 ## `resource.*`
 
-| Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |
-|---|---|---|---|---|---|---|---|
-| `resource.not_found` | 404 | not_found_error | yes | no | no | no | the resource does not exist |
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `resource.not_found` | 404 | not_found_error | yes | no | no | 0 | no | the resource does not exist |

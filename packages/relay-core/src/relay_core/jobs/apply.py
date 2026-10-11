@@ -130,10 +130,11 @@ class _Job:
     taken_at: datetime | None
     external_ref: str | None
     provider_state: Mapping[str, Any]
+    fault_retries: int
 
 
 _COLS = ("id, status, sent_at, attempts, account_id, pool, account_cost, submit_timeout_s, poll_token, taken_at, "
-         "external_ref, provider_state")
+         "external_ref, provider_state, fault_retries")
 
 
 async def _lock_job(conn: AsyncConnection, job_id) -> _Job:
@@ -190,14 +191,19 @@ async def _requeue(conn: AsyncConnection, job: _Job, code: str, note: str, caps:
     for REQUEUE_PAUSE_S so it does not hit a failing upstream on the next tick, with the previous attempt's reference
     dropped (and named in the event). The attempt counts when the code's rule says so; at `caps.max_attempts` the
     job fails with that code."""
-    counts = rule(code).counts_attempt
+    r = rule(code)
+    counts, faults = r.counts_attempt, job.fault_retries
+    if r.free_retries:
+        # a failure that is not the order's fault: free until the job has had `free_retries` of them, then it counts
+        faults += 1
+        counts = counts or faults > r.free_retries
     attempts = job.attempts + (1 if counts else 0)
     if counts and attempts >= caps.max_attempts:
-        await _set(conn, job.id, expect, attempts=attempts)
+        await _set(conn, job.id, expect, attempts=attempts, fault_retries=faults)
         await fail_in_tx(conn, job.id, (expect,), code, note, pools)
         return "failed"
-    await _set(conn, job.id, expect, status="queued", sent_at=None, attempts=attempts, account_id=None,
-               next_poll_at=_in(REQUEUE_PAUSE_S), **_reset(patch or {}))
+    await _set(conn, job.id, expect, status="queued", sent_at=None, attempts=attempts, fault_retries=faults,
+               account_id=None, next_poll_at=_in(REQUEUE_PAUSE_S), **_reset(patch or {}))
     await add_event(conn, job.id, "system", "requeued", "requeued: %s%s%s" % (
         code, " (%s)" % note if note else "", _dropped(job)))
     return "queued"

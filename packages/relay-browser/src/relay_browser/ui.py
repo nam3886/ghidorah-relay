@@ -45,10 +45,12 @@ def cookies_for_playwright(jar) -> list[dict]:
 
 
 async def keep_single_tab(ctx, host: str):
-    """Open a new tab, then close the other tabs of the same site (`host` in their URL). Returns the new tab."""
+    """Open a new tab, then close the other tabs of the same site (`host` in their URL) and every `about:blank` tab (the
+    one a fresh Chrome starts with). The new tab opens first, so the browser never has no tab, and it is never closed.
+    Returns the new tab."""
     page = await ctx.new_page()
     for other in list(ctx.pages):
-        if other is not page and host in other.url:
+        if other is not page and (host in other.url or other.url == "about:blank"):
             try:
                 await other.close()
             except Exception:      # noqa: BLE001 - a tab already gone is the goal
@@ -112,7 +114,8 @@ _FAST_SET_JS = """(text)=>{
   return -1;
 }"""
 
-CLEAR_WAIT_S = 10.0     # how long the input may take to empty after Enter: the one wait, for the kit and every engine
+CLEAR_WAIT_S = 30.0     # how long the input may take to empty after Enter: the one wait, for the kit and every engine
+#                         (measured through a proxy: 1.4, 3.9, 4.1, 11.1 and 13.5 s for sends that all went through)
 
 
 def select_all_key(platform: str = sys.platform) -> str:

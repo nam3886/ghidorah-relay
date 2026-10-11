@@ -8,7 +8,7 @@ import uuid
 import pytest
 from jobkit import CAPS, POOLS, account, claim, create, events, key, run, status, submit
 
-from relay_core import failpoints, leases
+from relay_core import errors, failpoints, leases
 from relay_core.db import tx
 from relay_core.jobs import apply, store
 from relay_core.providers import (
@@ -900,3 +900,54 @@ def test_a_secret_in_the_upstream_model_fact_is_not_stored(db):
 
     got = run(db, scenario)
     assert LEAK not in cols(db, got.job_id, "upstream_model")[0]
+
+
+# ---- a failure that is not the order's fault: free retries per job, kept in the job's own column -----------------
+FAULT = "test.browser_fault"
+FAULT_RULE = errors.Rule(FAULT, 500, "api_error", False, False, False, False, True, "a fault", "hidden", 2)
+FAULT_COUNTS = "        counts = counts or faults > r.free_retries\n"
+FAULT_BUMP = "        faults += 1\n"
+FAULT_STORED = "attempts=attempts, fault_retries=faults,\n"
+
+
+@pytest.fixture
+def fault_code(monkeypatch):
+    monkeypatch.setitem(errors.RULES, FAULT, FAULT_RULE)
+    return FAULT
+
+
+async def one_failure(p, k, code, first):
+    got = await start(p, k) if first else await claim(p)
+    return await submit(p, got, engine_with(unsent(SubmitResult(Retry(code)))))
+
+
+@mutation(A, FAULT_COUNTS, "        counts = counts\n", expect="the fault requeue after the free ones used no attempt")
+@mutation(A, FAULT_BUMP, "        pass\n", expect="the fault requeue after the free ones used no attempt")
+@mutation(A, FAULT_STORED, "attempts=attempts,\n", expect="the fault requeue after the free ones used no attempt")
+def test_the_first_free_retries_of_a_job_use_no_attempt_the_next_ones_count_and_the_cap_ends_it(db, fault_code):
+    k, _ = key(db), account(db)
+
+    async def scenario(p):
+        got = []
+        for i in range(5):
+            got.append(await one_failure(p, k, fault_code, i == 0))
+        return got
+
+    assert run(db, scenario) == ["queued", "queued", "queued", "queued", "failed"], \
+        "the fault requeue after the free ones used no attempt"
+    job = db.one("SELECT id FROM jobs")[0]
+    assert cols(db, job, "status, attempts, fault_retries, error_code") == ("failed", 3, 5, FAULT), \
+        "the fault requeue after the free ones used no attempt"
+
+
+def test_an_unrelated_requeue_between_faults_does_not_reset_the_count_or_touch_other_state(db, fault_code):
+    k, _ = key(db), account(db)
+
+    async def scenario(p):
+        order = [fault_code, "pool.account_logged_out", fault_code, "pool.account_logged_out", fault_code]
+        return [await one_failure(p, k, code, i == 0) for i, code in enumerate(order)]
+
+    assert run(db, scenario) == ["queued"] * 5
+    job = db.one("SELECT id FROM jobs")[0]
+    assert cols(db, job, "attempts, fault_retries, provider_state") == (1, 3, {}), \
+        "an unrelated requeue reset the fault count, or it was kept in the provider state"

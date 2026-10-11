@@ -42,9 +42,11 @@ class Rest:
 
 @dataclass(frozen=True)
 class Cooldown:
-    """The whole account cools down until `until`. Never shortens a longer cooldown (GREATEST, no rank)."""
+    """The whole account cools down until `until`. Never shortens a longer cooldown (GREATEST, no rank).
+    `recheck` also makes the next account check due at `until`, instead of at the normal interval."""
     reason: str
     until: datetime
+    recheck: bool = False
 
     def __post_init__(self):
         _aware(self.until)
@@ -52,7 +54,15 @@ class Cooldown:
 
 @dataclass(frozen=True)
 class Suspect:
+    """A doubt about the account: a strike, and the strike threshold ends in the provider's `strike_effect`.
+    `min_gap_s` spaces strikes: a doubt that comes less than that many seconds after the last counted strike counts
+    once (it adds no strike). 0 counts every one."""
     reason: str
+    min_gap_s: int = 0
+
+    def __post_init__(self):
+        if self.min_gap_s < 0:
+            raise ValueError("Suspect.min_gap_s must be >= 0")
 
 
 @dataclass(frozen=True)

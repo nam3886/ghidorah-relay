@@ -435,7 +435,7 @@ async def test_the_marker_hook_runs_after_the_typing_and_right_before_enter():
     assert page.entered == ["a lantern over a lake"] and page.text == "", "the prompt was not typed before Enter"
 
 
-@mutation(UI, "CLEAR_WAIT_S = 10.0 ", "CLEAR_WAIT_S = 0.0 ", expect="while the input was still clearing")
+@mutation(UI, "CLEAR_WAIT_S = 30.0 ", "CLEAR_WAIT_S = 0.0 ", expect="while the input was still clearing")
 @sync
 async def test_a_slow_clearing_input_is_waited_for_with_the_kits_one_wait():
     log = []
@@ -448,6 +448,19 @@ async def test_a_slow_clearing_input_is_waited_for_with_the_kits_one_wait():
     assert failed is None and log == ["before_enter", "Enter"], (
         "the send was given up while the input was still clearing: %r %r" % (failed, log)
     )
+
+
+@mutation(UI, "CLEAR_WAIT_S = 30.0 ", "CLEAR_WAIT_S = 10.0 ", expect="a send that took 20 s to clear was given up")
+@sync
+async def test_an_input_that_clears_after_twenty_seconds_is_still_a_send_that_worked():
+    log = []
+    page = SendPage(log, clear_after=80)         # 80 waits of 250 ms = 20 s: measured sends took up to 13.5 s
+    try:
+        await composer.send_prompt(page, "x", before_enter=hook(log))
+        failed = None
+    except ComposerError as exc:
+        failed = exc
+    assert failed is None, "a send that took 20 s to clear was given up: %r" % (failed,)
 
 
 @sync

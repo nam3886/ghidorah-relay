@@ -24,7 +24,7 @@ U = "packages/relay-browser/src/relay_browser/ui.py"
 IDENTITY = ("sessionid", "uid_tt")
 TAB_RULE = """    page = await ctx.new_page()
     for other in list(ctx.pages):
-        if other is not page and host in other.url:
+        if other is not page and (host in other.url or other.url == "about:blank"):
             try:
                 await other.close()
             except Exception:      # noqa: BLE001 - a tab already gone is the goal
@@ -113,9 +113,10 @@ async def test_a_stale_session_or_a_jar_without_identity_cookies_stops_the_run()
 # ---- one tab (SESS03) ------------------------------------------------------------------------------------------------
 class Tab:
     def __init__(self, url, log):
-        self.url, self._log = url, log
+        self.url, self._log, self.closed = url, log, False
 
     async def close(self):
+        self.closed = True
         self._log.append("close:" + self.url)
 
 
@@ -133,7 +134,8 @@ class TabCtx:
 
 
 @mutation(U, TAB_RULE, CLOSE_THEN_OPEN, expect="before any close")
-@mutation(U, "if other is not page and host in other.url:", "if other is not page:", expect="other site's tab")
+@mutation(U, 'if other is not page and (host in other.url or other.url == "about:blank"):', "if other is not page:",
+          expect="other site's tab")
 @sync
 async def test_a_new_tab_opens_before_the_old_ones_close_and_other_sites_are_left_alone():
     ctx = TabCtx()
@@ -142,6 +144,23 @@ async def test_a_new_tab_opens_before_the_old_ones_close_and_other_sites_are_lef
     assert sorted(ctx.log[1:]) == ["close:https://www.site.test/chat", "close:https://www.site.test/x"], \
         "the other site's tab was closed, or an old tab of the site was kept: %r" % ctx.log
     assert page.url == "about:blank"
+
+
+@mutation(U, 'if other is not page and (host in other.url or other.url == "about:blank"):',
+          "if other is not page and host in other.url:", expect="the leftover about:blank tab was kept")
+@mutation(U, 'if other is not page and (host in other.url or other.url == "about:blank"):',
+          'if host in other.url or other.url == "about:blank":', expect="the new tab was closed")
+@sync
+async def test_the_leftover_blank_tab_is_closed_and_the_new_tab_never_is():
+    ctx = TabCtx()
+    first = Tab("about:blank", ctx.log)               # the tab a fresh Chrome starts with
+    ctx.pages.insert(0, first)
+    page = await keep_single_tab(ctx, "site.test")
+    assert ctx.log[0] == "open", "the new tab must open before any close"
+    assert not page.closed, "the new tab was closed"
+    assert first.closed, "the leftover about:blank tab was kept: %r" % ctx.log
+    assert "close:https://other.example/" not in ctx.log, "another site's tab was closed"
+    assert page is not first and page.url == "about:blank"
 
 
 # ---- type and send in a real Chrome (E12) ----------------------------------------------------------------------------
@@ -302,7 +321,7 @@ async def test_injected_cookies_replace_the_old_ones_in_a_real_context(tmp_path,
 
 
 @pytest.mark.browser
-@mutation(U, "CLEAR_WAIT_S = 10.0 ", "CLEAR_WAIT_S = 0.0 ", expect="not exactly one message")
+@mutation(U, "CLEAR_WAIT_S = 30.0 ", "CLEAR_WAIT_S = 0.0 ", expect="not exactly one message")
 @sync
 async def test_a_slow_connection_that_empties_the_input_late_gets_one_message(tmp_path, token):
     async with SiteServer() as server:

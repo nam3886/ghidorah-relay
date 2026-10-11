@@ -13,13 +13,13 @@ import asyncio
 import logging
 from datetime import timedelta
 
-from relay_core.providers import Cooldown, Dead, Health, Proxy, ProxyBad, ProxyVerdict, Suspect
+from relay_core.providers import Cooldown, Health, Proxy, ProxyBad, ProxyVerdict
 from relay_core.redact import redact_text
 from relay_dola import constants
 from relay_dola.engine.http import CurlTransport, Transport, proxies_for
 from relay_dola.engine.site import DOLA_SITE, REGION_BLOCK_MARK
 from relay_dola.engine.submit import Deps, network_failure
-from relay_dola.engine.verify import login_state
+from relay_dola.engine.verify import cookies_lost_effects, login_doubt_effects, login_state, lost_identity_cookies
 
 log = logging.getLogger("relay_dola.check")
 
@@ -39,29 +39,35 @@ def identity_of(passport) -> tuple[str | None, str]:
 
 
 async def check_account(ctx, settings, *, deps: Deps | None = None) -> Health:
-    """The state of one account. `signed_out` only on positive proof (passport says guest AND no conversation): a
-    doubt is
-    `unknown` (and a strike when dola showed a login dialog), never a dead account."""
+    """The state of one account. A login doubt (a guest read, a login dialog, no conversation and no name) never kills
+    an account by itself: the result is `unknown` with one spaced strike and a rest (D91). A failed read and cookies
+    lost or unreadable in the browser are no strike. Never a dead account from one read."""
     deps = deps or Deps()
     driver = deps.driver
     try:
         async with deps.open_session(DOLA_SITE, ctx.account, purpose="check", token=ctx.browser_token,
                                      redact=redact_text) as session:
             page = session.page
-            await driver.inject(session, ctx.account)
+            injected = await driver.inject(session, ctx.account)
             await driver.open_chat(page)
             if REGION_BLOCK_MARK in await driver.page_url(page):
                 return _proxy_trouble("dola moved the page to its region page", deps)
             state = login_state(await driver.probe(page))
             shot = await driver.screenshot(page)
-            if state.signed_out:
-                return Health("signed_out", screenshot=shot, effects=(Dead("signed_out"),))
             if not state.logged_in:
-                # A dialog, or no conversation and no readable name: a doubt, not a verdict. A failed read (cells < 0)
-                # is not even a strike: the call did not answer.
-                doubt = state.cells >= 0 or state.modal_visible
-                strike = (Suspect("not logged in: %s" % state.reason),) if doubt else ()
-                return Health("unknown", screenshot=shot, effects=strike)
+                present = await driver.identity_cookie_names(session)
+                if present is None:
+                    # The browser could not be asked: a browser fault, like a failed read. No strike.
+                    return Health("unknown", screenshot=shot, effects=(_browser_fault("cookies not readable", deps),))
+                if lost := lost_identity_cookies(present, injected):
+                    # The browser lost the cookies it was given: a browser fault, not a guest verdict and not a strike.
+                    log.warning("cookies lost in the browser during a check: %s", ", ".join(lost))
+                    return Health("unknown", screenshot=shot, effects=cookies_lost_effects(deps.now()))
+                if state.signed_out or state.cells >= 0 or state.modal_visible:
+                    # A guest read or a dialog: a doubt, never a verdict. The third spaced one ends in `signed_out`
+                    # through the strike threshold. A failed read (cells < 0) is no strike: the call did not answer.
+                    return Health("unknown", screenshot=shot, effects=login_doubt_effects(deps.now(), state.reason))
+                return Health("unknown", screenshot=shot, effects=())
             identity, name = identity_of(await driver.passport(page))
             patch = {}
             if (kind := await driver.composer_kind(page)) is not None:
@@ -72,6 +78,11 @@ async def check_account(ctx, settings, *, deps: Deps | None = None) -> Health:
         if network_failure(str(exc)):
             return _proxy_trouble(str(exc)[:100], deps)
         raise
+
+
+def _browser_fault(why: str, deps: Deps) -> Cooldown:
+    """A short rest for a browser fault that is not the account's: no strike."""
+    return Cooldown(why, deps.now() + timedelta(seconds=constants.BROWSER_FAULT_COOLDOWN_S))
 
 
 def _proxy_trouble(why: str, deps: Deps) -> Health:

@@ -40,7 +40,8 @@ DOLA_CODES = {
     "dola.temporary_error", "dola.unknown_status", "dola.http_error", "dola.bad_response",
     "dola.ui_mode_not_ready", "dola.ui_model_select_failed", "dola.ui_ratio_select_failed",
     "dola.ui_duration_patch_failed", "dola.ui_attach_failed", "dola.ui_style_select_failed", "dola.ui_send_failed",
-    "dola.ui_no_conversation"}
+    "dola.ui_no_conversation", "dola.browser_cookies_lost",
+    "dola.page_reloaded"}
 
 
 def test_every_dola_code_of_the_contract_is_registered_and_the_registry_is_sound():

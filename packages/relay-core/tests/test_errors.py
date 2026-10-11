@@ -291,3 +291,19 @@ def test_the_documented_regenerate_command_renders_the_provider_sections_and_the
     assert done.returncode == 0, done.stderr[-500:]
     assert "## `dola.*`" in done.stdout, "the documented regenerate command left out the provider codes"
     assert done.stdout == errors.DOCS_PATH.read_text(encoding="utf-8"), "the command's output is not the committed docs"
+
+
+FREE_RULE_CHECK = ("    if r.free_retries < 0 or (r.free_retries and (r.terminal or r.counts_attempt or "
+                   "not r.job_scoped)):\n")
+ERRORS = "packages/relay-core/src/relay_core/errors.py"
+
+
+@mutation(ERRORS, FREE_RULE_CHECK, "    if False:\n", expect="a free-retry rule that makes no sense was accepted")
+def test_free_retries_belong_to_a_requeued_job_scoped_code_that_uses_no_attempt_by_itself():
+    ok = good(refund=False, terminal=False, free_retries=3)
+    assert broken(ok) == [], broken(ok)
+    for bad in (dict(refund=True, terminal=True, free_retries=1), dict(refund=True, terminal=False,
+                counts_attempt=True, free_retries=1), dict(refund=False, terminal=False, job_scoped=False,
+                free_retries=1), dict(refund=False, terminal=False, free_retries=-1)):
+        rule = good(**{"refund": False, "terminal": False, **bad})
+        assert broken(rule), "a free-retry rule that makes no sense was accepted: %r" % (bad,)

@@ -30,7 +30,10 @@ class Rule:
     """`terminal`: the job dies now. `refund`: the key charge is returned when the job ends `failed`.
     `counts_attempt`: the failure uses one of the job's attempts. `job_scoped=False`: the error happens before a
     job exists (or is about an operation, not the job), so there is nothing to refund. `public=False`: the client
-    sees `internal.unexpected` with `hidden_message`, because the detail is ours to fix and not theirs to act on."""
+    sees `internal.unexpected` with `hidden_message`, because the detail is ours to fix and not theirs to act on.
+    `free_retries`: a requeue for this code uses no attempt until the job has been requeued for codes of this kind
+    that many times (`jobs.fault_retries`, never reset); the requeue after that uses one, so `max_attempts` ends a job
+    that keeps meeting the fault."""
 
     code: str
     http_status: int
@@ -42,6 +45,7 @@ class Rule:
     job_scoped: bool
     message: str
     hidden_message: str = ""
+    free_retries: int = 0
 
 
 def _problems(key: str, r: Rule) -> list[str]:
@@ -61,6 +65,8 @@ def _problems(key: str, r: Rule) -> list[str]:
         bad.append("no message")
     if r.public == bool(r.hidden_message):
         bad.append("hidden_message is required exactly when public is False")
+    if r.free_retries < 0 or (r.free_retries and (r.terminal or r.counts_attempt or not r.job_scoped)):
+        bad.append("free_retries is for a requeued, job-scoped code that uses no attempt by itself")
     if r.terminal and r.counts_attempt:
         bad.append("terminal and counts_attempt: a job that dies now has no attempt left to count")
     if not r.job_scoped:
@@ -211,12 +217,12 @@ def render_docs(rules: Mapping[str, Rule] | None = None) -> str:
         if code.split(".")[0] != domain:
             domain = code.split(".")[0]
             out += ["", "## `%s.*`" % domain, "",
-                    "| Code | HTTP | Type | Terminal | Refund | Counts attempt | Job | Message |",
-                    "|---|---|---|---|---|---|---|---|"]
+                    "| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |",
+                    "|---|---|---|---|---|---|---|---|---|"]
         text = r.message if r.public else "(shown as `%s`: %s) %s" % (INTERNAL, r.hidden_message, r.message)
-        out.append("| `%s` | %d | %s | %s | %s | %s | %s | %s |" % (
-            code, r.http_status, r.error_type, *("yes" if v else "no" for v in (
-                r.terminal, r.refund, r.counts_attempt, r.job_scoped)), text))
+        flags = ["yes" if v else "no" for v in (r.terminal, r.refund, r.counts_attempt)]
+        out.append("| `%s` | %d | %s | %s | %s | %s | %d | %s | %s |" % (
+            code, r.http_status, r.error_type, *flags, r.free_retries, "yes" if r.job_scoped else "no", text))
     return "\n".join(out) + "\n"
 
 

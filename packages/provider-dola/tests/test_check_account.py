@@ -118,21 +118,39 @@ async def test_a_new_account_with_no_conversation_but_a_name_is_alive():
     assert health.state == "alive" and health.identity == "9"
 
 
-@mutation(CK, "            if state.signed_out:", "            if False:", expect="positive proof")
+VER = "packages/provider-dola/src/relay_dola/engine/verify.py"
+GAP = 540
+REST = 600
+DOUBT = '    return (Suspect("not logged in: %s" % reason, min_gap_s=LOGIN_DOUBT_GAP_S),'
+DOUBT_UNSPACED = '    return (Suspect("not logged in: %s" % reason, min_gap_s=0),'
+
+
+@mutation(CK, "                if state.signed_out or state.cells >= 0 or state.modal_visible:",
+          "                if False:", expect="a guest read is a doubt")
+@mutation(VER, DOUBT, DOUBT_UNSPACED, expect="the login doubt strike is not spaced")
+@mutation(VER, "now + timedelta(seconds=LOGIN_DOUBT_REST_S), recheck=True))",
+          "now + timedelta(seconds=LOGIN_DOUBT_REST_S)))", expect="the login doubt rest did not ask for a recheck")
 @sync
-async def test_a_dead_cookie_is_signed_out_only_on_positive_proof():
+async def test_a_guest_read_is_a_doubt_with_one_spaced_strike_and_a_rest_never_a_verdict():
     guest = {"message": "error", "user_id": "", "name": "account_info_error"}
     health, log, _ = await check(probe=GUEST, passport=guest)
-    assert health.state == "signed_out", "positive proof (guest passport and no conversation) must say signed out"
-    assert health.effects == (Dead("signed_out"),) and health.identity is None and health.screenshot == b"png-bytes"
+    assert health.state == "unknown", "a guest read is a doubt, not a verdict: %s" % health.state
+    assert [type(e) for e in health.effects] == [Suspect, Cooldown], "a guest read is a doubt: %r" % (health.effects,)
+    strike, rest = health.effects
+    assert strike.min_gap_s == GAP, "the login doubt strike is not spaced"
+    assert rest.until == NOW + timedelta(seconds=REST)
+    assert rest.recheck, "the login doubt rest did not ask for a recheck"
+    assert not any(isinstance(e, Dead) for e in health.effects)
+    assert health.identity is None and health.screenshot == b"png-bytes"
 
 
 @sync
-async def test_a_doubt_is_unknown_with_a_strike_for_a_dialog_and_none_for_a_failed_read():
+async def test_a_dialog_is_the_same_doubt_and_a_failed_read_is_no_strike_and_no_rest():
     dialog = (await check(probe={**GOOD_PROBE, "modal": True}))[0]
-    assert dialog.state == "unknown" and [type(e) for e in dialog.effects] == [Suspect], (
-        "a dialog is a strike, not death"
+    assert dialog.state == "unknown" and [type(e) for e in dialog.effects] == [Suspect, Cooldown], (
+        "a dialog is a spaced strike with the same rest, not death"
     )
+    assert dialog.effects[0].min_gap_s == GAP and dialog.effects[1].recheck
     failed = (await check(probe={"cells": -1, "ids": [], "name": "", "modal": False, "passport": None}))[0]
     assert failed.state == "unknown" and failed.effects == (), "a read that did not answer is not even a strike"
 
