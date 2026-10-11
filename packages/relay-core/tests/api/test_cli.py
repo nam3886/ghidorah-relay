@@ -7,6 +7,7 @@ import io
 import logging
 import re
 import sys
+import uuid
 from types import SimpleNamespace
 
 import httpx
@@ -130,6 +131,59 @@ def test_serve_refuses_an_example_object_store_secret(db, monkeypatch, capsys, h
     code = cli.main(["serve"])
     assert code == 2 and "MINIO_SECRET_KEY" in err(capsys), "serve started with an example object-store secret"
     assert not http.calls and "minioadmin" not in err(capsys)
+
+
+@mutation(M, "        await store.ensure_bucket()", "        pass", expect="serve started without making the bucket")
+def test_serve_makes_the_bucket_on_a_fresh_object_store(db, monkeypatch, http):
+    from relay_core.storage import ObjectStore
+
+    specs(monkeypatch, "fake")
+    serve_env(monkeypatch, db)
+    bucket = "relay-test-" + uuid.uuid4().hex[:12]
+    monkeypatch.setattr(ObjectStore, "from_env", classmethod(lambda cls, env: cls(
+        env["MINIO_ENDPOINT"], env["MINIO_ACCESS_KEY"], env["MINIO_SECRET_KEY"], bucket)))
+    client = ObjectStore(*minio_settings(), bucket=bucket)._client
+    assert not client.bucket_exists(bucket)
+    try:
+        assert cli.main(["serve"]) == 0 and http.calls
+        assert client.bucket_exists(bucket), "serve started without making the bucket"
+    finally:
+        if client.bucket_exists(bucket):
+            client.remove_bucket(bucket)
+
+
+BUCKET_THEN_POOL = '''    try:
+        await store.ensure_bucket()              # a fresh object store has no bucket: the first media write would fail
+    except StorageError as e:
+        raise CliError("object store is not usable at start: %s" % e) from None
+
+    pool = await open_pool(dsn, max_size=API_POOL_MAX, name="relay-api")
+'''
+POOL_THEN_BUCKET = '''    pool = await open_pool(dsn, max_size=API_POOL_MAX, name="relay-api")
+    try:
+        await store.ensure_bucket()              # a fresh object store has no bucket: the first media write would fail
+    except StorageError as e:
+        raise CliError("object store is not usable at start: %s" % e) from None
+'''
+
+
+@mutation(M, BUCKET_THEN_POOL, POOL_THEN_BUCKET, expect="the pool was opened before the bucket check")
+def test_serve_refuses_to_serve_when_the_object_store_is_unreachable(db, monkeypatch, capsys, http):
+    import relay_core.db
+
+    opened: list[str] = []
+    real_open_pool = relay_core.db.open_pool
+
+    async def spy(*args, **kwargs):
+        opened.append(kwargs.get("name", ""))
+        return await real_open_pool(*args, **kwargs)
+
+    monkeypatch.setattr(relay_core.db, "open_pool", spy)
+    specs(monkeypatch, "fake")
+    serve_env(monkeypatch, db, MINIO_ENDPOINT="127.0.0.1:1")
+    assert cli.main(["serve"]) == 1
+    assert "object store is not usable at start" in err(capsys) and not http.calls
+    assert not opened, "the pool was opened before the bucket check: %s" % opened
 
 
 # ---- serve: start and stop ----------------------------------------------------------------------------------------
@@ -415,8 +469,8 @@ def test_serve_opens_the_api_pool_at_15_with_a_bounded_queue(db, monkeypatch, ht
     assert 0 < waiting <= 4 * size, "the queue of waiting requests is bounded: %d" % waiting
 
 
-@mutation(M, '    install_log_redaction("uvicorn", "uvicorn.access")\n', "    pass\n",
-          expect="a secret reached the server log")
+@mutation(M, '    install_log_redaction("uvicorn")                    # not uvicorn.access: see AccessPathOnly\n',
+          "    pass\n", expect="a secret reached the server log")
 def test_the_serve_config_redacts_what_uvicorn_writes_to_the_process_log(capsys):
     """uvicorn's own handlers (built by its Config) get the redactor too: its error line for a crashed request
     carries the exception text."""
@@ -482,3 +536,175 @@ def test_the_access_log_of_the_serve_config_never_holds_a_query_string(monkeypat
     assert len(lines) == 1 and "/ping" in lines[0] and "200" in lines[0], lines
     assert raw not in lines[0] and "key=" not in lines[0] and "?" not in lines[0], (
         "the raw key reached the access log: %s" % lines[0].replace(raw, "<key>"))
+
+
+
+@mutation(M, '    install_log_redaction("uvicorn")                    # not uvicorn.access: see AccessPathOnly\n',
+          '    install_log_redaction("uvicorn", "uvicorn.access")\n', expect="the access line failed to format")
+def test_one_request_writes_one_well_formed_access_line_and_no_logging_error(capsys):
+    """uvicorn formats its access line from the record args, so the handler must keep them: through its own
+    handler (not a stand-in) a request leaves exactly one line, redacted, and no "Logging error" on stderr."""
+    import socket
+
+    import uvicorn
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    @app.get("/m/{token}")
+    async def shared(token: str) -> dict:
+        return {"ok": True}
+
+    token = "Zq9" * 8
+
+    async def scenario() -> int:
+        config = cli.uvicorn_config(app, 0)
+        config.lifespan = "off"
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        server = uvicorn.Server(config)
+        task = asyncio.create_task(server.serve(sockets=[sock]))
+        while not server.started:
+            await asyncio.sleep(0.01)
+        try:
+            async with httpx.AsyncClient() as client:
+                url = "http://127.0.0.1:%d/m/%s?key=x" % (sock.getsockname()[1], token)
+                return (await client.get(url)).status_code
+        finally:
+            server.should_exit = True
+            await task
+
+    assert asyncio.run(scenario()) == 200
+    out, errors = capsys.readouterr()
+    lines = [line for line in out.splitlines() if "GET" in line]
+    assert "Logging error" not in errors and "Logging error" not in out, "the access line failed to format: " + errors
+    assert len(lines) == 1 and lines[0].endswith("200 OK"), lines
+    assert token not in lines[0] and "key=" not in lines[0], lines[0]
+
+
+@mutation(M, "        if isinstance(args, tuple):\n", "        if isinstance(args, tuple) and len(args) == 5:\n",
+          expect="a key reached the access record")
+def test_an_access_record_of_another_shape_is_redacted_too():
+    """A record that is not uvicorn's 5-tuple (and that its formatter may then refuse) still reaches the handler's
+    error dump: its text arguments are redacted whatever the length."""
+    raw = "rk-" + "A1b2C3d4" * 5 + "xyz"
+    record = logging.LogRecord("uvicorn.access", logging.INFO, "f", 1, "%s %s %d", ("peer", "key=" + raw, 7), None)
+    assert cli.AccessPathOnly().filter(record)
+    assert raw not in str(record.args), "a key reached the access record: %s" % str(record.args).replace(raw, "<key>")
+    assert record.args[0] == "peer" and record.args[2] == 7
+
+
+@mutation(M, "        elif isinstance(args, Mapping):", "        elif False:",
+          expect="a key reached the mapping record")
+def test_an_access_record_with_mapping_args_or_a_secret_in_its_format_is_redacted_too():
+    """logging keeps a lone dict argument as a mapping (`%(path)s`); the format string itself is redacted as well."""
+    raw = "rk-" + "A1b2C3d4" * 5 + "xyz"
+    args = ({"path": "/x?key=" + raw, "n": 3},)
+    record = logging.LogRecord("uvicorn.access", logging.INFO, "f", 1, "%(path)s", args, None)
+    assert isinstance(record.args, dict) and cli.AccessPathOnly().filter(record)
+    shown = record.getMessage()
+    assert raw not in shown, "a key reached the mapping record: %s" % shown.replace(raw, "<key>")
+    assert record.args["n"] == 3
+
+
+def access_record(raw: str, msg: str = "m", **extra) -> logging.LogRecord:
+    record = logging.LogRecord("uvicorn.access", logging.INFO, "f", 1, msg, None, None)
+    record.__dict__.update(extra)
+    assert cli.AccessPathOnly().filter(record)
+    return record
+
+
+RAW_KEY_TEXT = "rk-" + "A1b2C3d4" * 5 + "xyz"
+
+
+@mutation(M, "        if isinstance(record.msg, str):\n", "        if False:\n",
+          expect="a key reached the format string")
+def test_a_secret_in_the_format_string_of_an_access_record_is_redacted():
+    record = access_record(RAW_KEY_TEXT, "key=" + RAW_KEY_TEXT)
+    assert RAW_KEY_TEXT not in record.getMessage(), "a key reached the format string"
+
+
+@mutation(M, "        if record.exc_info and not record.exc_text:", "        if False:",
+          expect="a key reached the traceback")
+def test_a_secret_in_the_traceback_of_an_access_record_is_redacted():
+    try:
+        raise ValueError("Cookie: sessionid=PLANTEDcookie9876543210 key=" + RAW_KEY_TEXT)
+    except ValueError:
+        import sys
+
+        record = access_record(RAW_KEY_TEXT, exc_info=sys.exc_info())
+    shown = logging.Formatter().format(record)
+    assert "ValueError" in shown and RAW_KEY_TEXT not in shown and "PLANTEDcookie" not in shown, (
+        "a key reached the traceback: %s" % shown.replace(RAW_KEY_TEXT, "<key>"))
+
+
+@mutation(M, "        if record.stack_info:", "        if False:", expect="a key reached the stack text")
+def test_a_secret_in_the_stack_text_of_an_access_record_is_redacted():
+    record = access_record(RAW_KEY_TEXT, stack_info="Stack: key=" + RAW_KEY_TEXT)
+    assert RAW_KEY_TEXT not in logging.Formatter().format(record), "a key reached the stack text"
+
+
+# ---- worker: the bucket ------------------------------------------------------------------------------------------
+@pytest.fixture
+def fake_worker(monkeypatch):
+    """A provider package `relayfake` with a SPEC and a build_engine, and the worker loop replaced by a spy."""
+    import relay_core.jobs.worker as worker_module
+    from relay_core.storage import ObjectStore
+
+    spec = FakeSpec("fake")
+    monkeypatch.setitem(sys.modules, "relayfake.spec", SimpleNamespace(SPEC=spec))
+    monkeypatch.setitem(sys.modules, "relayfake.engine", SimpleNamespace(build_engine=lambda *_: None))
+    monkeypatch.setattr(cli, "PROVIDERS", {"fake": "relayfake"})
+    bucket = "relay-test-" + uuid.uuid4().hex[:12]
+    endpoint, access, secret = minio_settings()
+    for name, value in {"MINIO_ENDPOINT": endpoint, "MINIO_ACCESS_KEY": access, "MINIO_SECRET_KEY": secret}.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(ObjectStore, "from_env", classmethod(lambda cls, env: cls(
+        env["MINIO_ENDPOINT"], env["MINIO_ACCESS_KEY"], env["MINIO_SECRET_KEY"], bucket)))
+    client = ObjectStore(endpoint, access, secret, bucket=bucket)._client
+    ran: list[bool] = []
+
+    async def serve(*_args, **_kwargs) -> int:
+        ran.append(client.bucket_exists(bucket))
+        return 0
+
+    monkeypatch.setattr(worker_module, "serve", serve)
+    yield SimpleNamespace(ran=ran, client=client, bucket=bucket)
+    if client.bucket_exists(bucket):
+        client.remove_bucket(bucket)
+
+
+@mutation(M, "        await ObjectStore.from_env(os.environ).ensure_bucket()", "        pass",
+          expect="the worker started without making the bucket")
+def test_worker_makes_the_bucket_before_it_runs(fake_worker):
+    assert cli.worker("fake") == 0
+    assert fake_worker.ran == [True], "the worker started without making the bucket"
+
+
+def test_worker_does_not_run_when_the_object_store_is_unreachable(fake_worker, monkeypatch, capsys):
+    monkeypatch.setenv("MINIO_ENDPOINT", "127.0.0.1:1")
+    assert cli.worker("fake") == 1
+    assert "object store is not usable at start" in err(capsys) and fake_worker.ran == []
+
+
+@mutation(M, "    if isinstance(value, (dict, list, tuple)):\n", "    if False:\n",
+          expect="a key reached the nested argument")
+def test_a_dict_nested_in_the_args_of_an_access_record_is_redacted_and_the_tuple_stays_a_tuple():
+    nested = ({"path": "/x?key=" + RAW_KEY_TEXT, "n": 3}, ("a", RAW_KEY_TEXT), [RAW_KEY_TEXT])
+    record = logging.LogRecord("uvicorn.access", logging.INFO, "f", 1, "%s %s %s", nested, None)
+    assert cli.AccessPathOnly().filter(record)
+    shown = record.getMessage()
+    assert RAW_KEY_TEXT not in shown, "a key reached the nested argument: %s" % shown.replace(RAW_KEY_TEXT, "<key>")
+    assert isinstance(record.args[1], tuple) and isinstance(record.args[0], dict), (
+        "a key reached the nested argument unredacted or the argument lost its type: %r" % (record.args,))
+
+
+@mutation(M, "    return redact_text(str(value))\n", "    return value\n",
+          expect="a key reached the exception argument")
+def test_an_exception_argument_of_an_access_record_is_redacted():
+    args = (ValueError("key=" + RAW_KEY_TEXT), 7)
+    record = logging.LogRecord("uvicorn.access", logging.INFO, "f", 1, "%s %s", args, None)
+    assert cli.AccessPathOnly().filter(record)
+    shown = record.getMessage()
+    assert RAW_KEY_TEXT not in shown, "a key reached the exception argument: %s" % shown.replace(RAW_KEY_TEXT, "<key>")
+    assert record.args[1] == 7

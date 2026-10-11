@@ -22,7 +22,7 @@ from datetime import datetime
 from types import ModuleType
 from typing import Any
 
-from relay_core.redact import install_log_redaction
+from relay_core.redact import install_log_redaction, redact, redact_text
 
 # The provider registry is an explicit list; entry-point discovery is not used (contracts §2).
 PROVIDERS = {"dola": "relay_dola", "vibes": "relay_vibes", "meta": "relay_meta"}
@@ -78,6 +78,16 @@ def worker(provider: str) -> int:
     if spec is None or build is None:
         print("relay worker: provider %s has no SPEC and build_engine yet" % provider, file=sys.stderr)
         return REFUSED
+    from relay_core.storage import ObjectStore, StorageError
+
+    async def make_bucket() -> None:
+        await ObjectStore.from_env(os.environ).ensure_bucket()      # a fresh store has none: the first screenshot fails
+
+    try:
+        asyncio.run(make_bucket())
+    except StorageError as e:
+        print("relay worker: object store is not usable at start: %s" % e, file=sys.stderr)
+        return EXIT_REFUSED if "is not set" in str(e) else EXIT_FAILED
     return asyncio.run(serve_worker(spec, build, os.environ))
 
 
@@ -113,22 +123,49 @@ def settings_registry(specs: list[Any]):
     return Registry(*REGISTRY.specs.values(), *(s for spec in specs for s in spec.settings().values()))
 
 
+def redact_arg(value: Any) -> Any:
+    """One log argument, redacted and still fit for `%s`/`%d`: numbers and None as they are, text and containers
+    through the redactor (a tuple stays a tuple), any other object (an exception) as the redacted text of `str()`."""
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return redact_text(value)
+    if isinstance(value, (dict, list, tuple)):
+        out = redact(value)
+        return tuple(out) if isinstance(value, tuple) else out
+    return redact_text(str(value))
+
+
 class AccessPathOnly(logging.Filter):
     """uvicorn's access line carries the request path with its query string, and a client that sends `?key=rk-...`
     (the API refuses it, but the line is written first) would leave its raw key in the process log. This keeps the
-    path and drops the query: uvicorn's access args are (client, method, path-with-query, http version, status)."""
+    path, drops the query and redacts every text argument. uvicorn's access args are (client, method,
+    path-with-query, http version, status) and its formatter unpacks them, so the access handler must not get
+    `LogRedactor` (that folds the args into the message and leaves none: every line then fails with "Logging error")."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         args = record.args
-        if isinstance(args, tuple) and len(args) == 5 and isinstance(args[2], str):
-            record.args = (*args[:2], args[2].split("?", 1)[0], *args[3:])
+        if isinstance(args, tuple):
+            if len(args) == 5 and isinstance(args[2], str):
+                args = (*args[:2], args[2].split("?", 1)[0], *args[3:])
+            record.args = tuple(redact_arg(a) for a in args)
+        elif isinstance(args, Mapping):             # `msg % {"name": ...}`: logging keeps a lone dict argument
+            record.args = {k: redact_arg(v) for k, v in args.items()}
+        if isinstance(record.msg, str):
+            record.msg = redact_text(record.msg)
+        if record.exc_info and not record.exc_text:             # as LogRedactor: the traceback, whole and redacted
+            record.exc_text = redact_text(logging.Formatter().formatException(record.exc_info))
+        elif record.exc_text:
+            record.exc_text = redact_text(record.exc_text)
+        if record.stack_info:
+            record.stack_info = redact_text(record.stack_info)
         return True
 
 
 def uvicorn_config(app, port: int):
     """The api server. A stop signal waits at most SHUTDOWN_GRACE_S for open requests (a held facade request can
     last 30 min); then they are cut, their jobs run on, and serve goes on to stop the runners and close the pool.
-    The access log loses the query string (`AccessPathOnly`)."""
+    The access log loses the query string and is redacted per argument (`AccessPathOnly`)."""
     import uvicorn
 
     config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="info", server_header=False,
@@ -137,7 +174,7 @@ def uvicorn_config(app, port: int):
     access = logging.getLogger("uvicorn.access")        # uvicorn set its logging up in Config(): install after it
     if not any(isinstance(f, AccessPathOnly) for f in access.filters):
         access.addFilter(AccessPathOnly())
-    install_log_redaction("uvicorn", "uvicorn.access")
+    install_log_redaction("uvicorn")                    # not uvicorn.access: see AccessPathOnly
     return config
 
 
@@ -154,10 +191,10 @@ async def serve_api(specs: list[Any], env: Mapping[str, str], *,
     Refuses (exit 2) before it connects when a private key is set (the api cannot open a sealed credential and must
     never be able to), when the credential PUBLIC key is missing or malformed (account import and proxy edits seal
     with it), when the database or object store settings are missing, or when the object-store secret is empty or an
-    example value; after it connects, when BILLING_TZ differs
-    from the pin. Then every (provider, kind) pair the registered specs declare gets a closed wallet on the keys that
-    exist (I29), each shipped default prompt frame without a row is seeded (§4.7), the app is built, and `http` serves
-    until a stop signal. Shutdown order: stop serving, stop the runners, then close the pool."""
+    example value; when the bucket cannot be made (exit 1, before the pool opens); after it connects, when
+    BILLING_TZ differs from the pin. Then every (provider, kind) pair the registered specs declare gets a closed
+    wallet on the keys that exist (I29), each shipped default prompt frame without a row is seeded (§4.7), the app is
+    built, and `http` serves until a stop signal. Shutdown order: stop serving, stop the runners, then the pool."""
     from relay_core import billing, crypto, frames
     from relay_core.api import runners
     from relay_core.api.app import create_app
@@ -185,6 +222,11 @@ async def serve_api(specs: list[Any], env: Mapping[str, str], *,
             registry.register(spec)
     except (crypto.CryptoError, StorageError, ValueError) as e:
         raise CliError(str(e), EXIT_REFUSED) from None
+
+    try:
+        await store.ensure_bucket()              # a fresh object store has no bucket: the first media write would fail
+    except StorageError as e:
+        raise CliError("object store is not usable at start: %s" % e) from None
 
     pool = await open_pool(dsn, max_size=API_POOL_MAX, name="relay-api")
     settings = Settings(pool, dsn, registry=settings_registry(specs), env=env)
