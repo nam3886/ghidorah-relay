@@ -14,7 +14,7 @@ TABLES = {
     "api_keys", "key_wallets", "ledger", "jobs", "job_events", "job_media", "accounts", "account_capacity",
     "account_charges", "leases", "account_shots", "admin_login_attempts", "commands", "settings_kv", "admin_users",
     "admin_sessions", "request_logs", "worker_heartbeats", "provider_snapshots", "schema_migrations",
-    "billing_pin", "billing_alerts", "prompt_frames", "prompt_frame_locks",
+    "billing_pin", "billing_alerts", "prompt_frames", "prompt_frame_locks", "unclear_replies",
 }
 # contracts §4.5 and the unique indexes the money and lease rules stand on
 INDEXES = {

@@ -133,6 +133,13 @@ class Accepted:
     provider_state: Mapping[str, Any] = field(default_factory=dict)
     facts: Facts = Facts()
     taken: bool = True
+    unclear: str | None = field(default=None, repr=False)
+    """The upstream's own reply the provider could not classify (admin alerts, contracts 5.3): never page text, `""`
+    when no reply text could be read, None when there is nothing to report. Only for an order not yet proven taken."""
+
+    def __post_init__(self):
+        if self.unclear is not None and (not isinstance(self.unclear, str) or self.taken):
+            raise ValueError("Accepted.unclear is a str, and only on an order that is not proven taken")
 
 
 @dataclass(frozen=True)
@@ -506,6 +513,7 @@ class ProviderSpec(Protocol):
     def settings(self) -> dict[str, Any]: ...
     def parse_credential(self, raw: bytes) -> ParsedCredential: ...
     def deadline_cause(self, upstream_text: str, provider_state: Mapping[str, Any]) -> str: ...
+    def unclear_at_deadline(self, upstream_text: str, provider_state: Mapping[str, Any]) -> str | None: ...
     def extras(self, snapshots: Mapping[str, Mapping]) -> dict: ...
 
     frames: FrameRules | None = None      # None = no frames: the core frame applies

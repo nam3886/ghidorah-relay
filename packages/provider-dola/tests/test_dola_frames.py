@@ -92,3 +92,18 @@ def test_the_cores_invisible_character_rule_equals_the_kits_over_every_code_poin
     # the grammar folds with NFKC first: a Hangul filler is refused, a visible letter is not
     assert frames.has_invisible("a\u3164b") and frames.has_invisible("a\ufe0fb") and not frames.has_invisible("ab")
     assert unicodedata.normalize("NFKC", "\u3164") == "\u1160"
+
+
+ALERTS_FILE = "packages/relay-core/src/relay_core/alerts.py"
+PRIMES = '"\\u2032": "\'", "\\u2033": \'"\', "\\u00b4": "\'", "\\u0060": "\'",'
+NO_PRIMES = ""
+
+
+@mutation(ALERTS_FILE, PRIMES, NO_PRIMES, expect="the core's typographic map differs from the kit's")
+def test_the_cores_typographic_map_equals_the_kits_over_every_code_point():
+    """The kit may not import the core (nor the core the kit): two copies of one map, pinned equal here."""
+    from relay_browser.text import _TYPOGRAPHIC
+    from relay_core import alerts
+    wrong = [hex(cp) for cp in range(0x110000) if not 0xD800 <= cp <= 0xDFFF
+             and chr(cp).translate(alerts.TYPOGRAPHIC) != chr(cp).translate(_TYPOGRAPHIC)]
+    assert not wrong, "the core's typographic map differs from the kit's: %s" % wrong[:10]

@@ -22,7 +22,7 @@ from relay_core.providers import (
 from relay_core.settings import Spec
 from relay_dola import catalog as C
 from relay_dola import errors as codes
-from relay_dola.classify import no_result_cause
+from relay_dola.classify import no_result_cause, order_accepted
 from relay_dola.conflicts import find_conflict
 from relay_dola.constants import (
     BROWSER_SLOTS_MAX,
@@ -182,6 +182,18 @@ class DolaSpec:
             return cause[0]
         # the poll saw only watermarked links all along: that is the cause, not a generic timeout
         return "render.watermarked_only" if provider_state.get("watermarked_only") else "render.deadline"
+
+    def unclear_at_deadline(self, upstream_text: str, provider_state: Mapping[str, Any]) -> str | None:
+        """What to report when a job (video or image) reaches its render deadline and dola's last words explain
+        nothing: its newest paragraph. None when `deadline_cause` has a reason of its own (a dead session, watermarked
+        links only, a refusal, a likeness refusal or a question), when the last words hold an acceptance (a real
+        render timeout) or when there is no text. The newest paragraph is split here the way the engine splits it
+        (`resolver.newest_reply`): the spec imports no engine module."""
+        if not upstream_text.strip() or self.deadline_cause(upstream_text, provider_state) != "render.deadline":
+            return None
+        if order_accepted(upstream_text):
+            return None
+        return upstream_text.split("\n\n", 1)[0].strip() or None
 
     # ---- plan -----------------------------------------------------------------------------------------------------
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:

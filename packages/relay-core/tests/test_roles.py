@@ -12,6 +12,7 @@ from relay_core.db import open_pool, tx
 from relay_core.testing.mutation import mutation
 
 GRANTS = "packages/relay-core/src/relay_core/db/migrations/0006_grants.sql"
+UNCLEAR = "packages/relay-core/src/relay_core/db/migrations/0015_unclear_replies.sql"
 S, INS, U, D = "SELECT", "INSERT", "UPDATE", "DELETE"
 ALL = (S, INS, U, D)
 
@@ -23,6 +24,7 @@ API = {
     "account_shots": (S,), "provider_snapshots": (S,), "commands": (S, INS), "settings_kv": ALL, "request_logs": ALL,
     "admin_users": ALL, "admin_sessions": ALL, "admin_login_attempts": ALL, "schema_migrations": (),
     "billing_pin": (S,), "billing_alerts": (S, INS), "prompt_frames": (S, INS), "prompt_frame_locks": (S, INS),
+    "unclear_replies": (S,),                       # UPDATE of the two acknowledge columns is column-level, below
 }
 WORKER = {
     "api_keys": (S,), "key_wallets": (S, U), "ledger": (S, INS), "jobs": (S, INS, U),
@@ -31,6 +33,7 @@ WORKER = {
     "account_shots": ALL, "provider_snapshots": ALL, "commands": ALL, "settings_kv": ALL, "request_logs": ALL,
     "admin_users": (), "admin_sessions": (), "admin_login_attempts": (), "schema_migrations": (), "billing_pin": (S,),
     "billing_alerts": (S, INS), "prompt_frames": (), "prompt_frame_locks": (),
+    "unclear_replies": (INS,),                     # append only: the writers insert with ON CONFLICT DO NOTHING
 }
 API_ACCOUNT_COLUMNS = {"label", "proxy_host", "proxy_port", "proxy_auth_enc", "state", "state_reason", "updated_at"}
 SECRET_COLUMNS = ("credential_enc", "credential_gen", "identity", "display_name", "provider_state", "last_error",
@@ -57,6 +60,15 @@ def as_role(db, role, statements):
     return failed
 
 
+@mutation(UNCLEAR, "GRANT SELECT ON unclear_replies TO relay_api;",
+          "GRANT SELECT, DELETE ON unclear_replies TO relay_api;",
+          expect="'unclear_replies': ('DELETE', 'SELECT')")
+@mutation(UNCLEAR, "GRANT INSERT ON unclear_replies TO relay_worker;",
+          "GRANT SELECT, INSERT ON unclear_replies TO relay_worker;",
+          expect="'unclear_replies': ('INSERT', 'SELECT')")
+@mutation(UNCLEAR, "GRANT INSERT ON unclear_replies TO relay_worker;",
+          "GRANT INSERT, UPDATE ON unclear_replies TO relay_worker;",
+          expect="'unclear_replies': ('INSERT', 'UPDATE')")
 def test_every_table_has_a_decision_and_the_grants_match_the_matrix(db):
     api, worker = privileges(db, "relay_api"), privileges(db, "relay_worker")
     assert set(api) == set(API) == set(WORKER), "a table has no entry in the matrix: %s" % (set(api) ^ set(API))
@@ -76,6 +88,21 @@ def test_the_api_cannot_update_a_credential_or_worker_owned_account_columns(db):
             "SELECT has_column_privilege('relay_api', 'relay.accounts', %s, 'UPDATE')", (col,)).fetchone()[0]}
     assert got == API_ACCOUNT_COLUMNS
     assert not set(SECRET_COLUMNS) & got
+
+
+@mutation(UNCLEAR, "GRANT UPDATE (acknowledged_at, acknowledged_by) ON unclear_replies",
+          "GRANT UPDATE (text, acknowledged_at, acknowledged_by) ON unclear_replies",
+          expect="api column privileges on unclear_replies")
+def test_the_api_updates_only_the_two_acknowledge_columns_of_an_unclear_reply_and_has_no_use_of_its_sequence(db):
+    with db.connect() as c:
+        cols = {r[0] for r in c.execute("SELECT column_name FROM information_schema.columns "
+                                        "WHERE table_schema = 'relay' AND table_name = 'unclear_replies'")}
+        got = {col for col in cols if c.execute(
+            "SELECT has_column_privilege('relay_api', 'relay.unclear_replies', %s, 'UPDATE')", (col,)).fetchone()[0]}
+        usage = {role: c.execute("SELECT has_sequence_privilege(%s, 'relay.unclear_replies_id_seq', 'USAGE')",
+                                 (role,)).fetchone()[0] for role in ("relay_api", "relay_worker")}
+    assert got == {"acknowledged_at", "acknowledged_by"}, "api column privileges on unclear_replies: %s" % sorted(got)
+    assert usage == {"relay_api": False, "relay_worker": True}
 
 
 def test_every_statement_the_api_makes_runs_under_relay_api(db):

@@ -381,10 +381,12 @@ def judge(thread: Thread | None, sends_made: int, new_composer: bool, want_durat
 
 
 def reply_text(reply: str | None) -> str:
-    """The dola reply with its whitespace folded, the FIRST `constants.EVENT_TEXT_MAX` (2000) characters: the newest
+    """The dola reply with the white space inside each paragraph folded and the blank lines between replies kept (the
+    deadline report reads the newest paragraph), the FIRST `constants.EVENT_TEXT_MAX` (2000) characters: the newest
     message comes first, so cutting the tail keeps this send's answer, and the core stores a longer event as a bare
     omitted marker."""
-    return " ".join((reply or "").split())[:REPLY_CHARS]
+    paragraphs = (" ".join(p.split()) for p in (reply or "").split("\n\n"))
+    return "\n\n".join(p for p in paragraphs if p)[:REPLY_CHARS]
 
 
 def body_carries(body, sent_text: str, prompt: str) -> bool:
@@ -1131,7 +1133,9 @@ class _Run:
         effects = self._balance(verdict)
         if verdict.credits_left == 0:
             effects.append(self._rest("out of credit: dola reports 0 credits left"))
-        return _outcome(Accepted(conversation, taken=False), *effects)
+        # The admin hears the reply relay could not classify: dola's own reply to the last send, as the engine read it
+        # (`reply` is API text only, never the page's). The core takes the customer's echoed words out of it.
+        return _outcome(Accepted(conversation, taken=False, unclear=reply), *effects)
 
     async def _refused(self, verdict, reply: str) -> SubmitResult:
         """dola said something decisive that is not "taken"."""

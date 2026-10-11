@@ -20,6 +20,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from relay_core.admin import (
     pages,
     routes_accounts,
+    routes_alert_groups,
     routes_alerts,
     routes_frames,
     routes_jobs,
@@ -39,8 +40,8 @@ from relay_core.settings import Settings
 from relay_core.storage import ObjectStore
 
 PUBLIC_ROUTES = (routes_native, routes_media, routes_catalog, routes_openai, routes_gemini)
-ADMIN_ROUTES = (routes_accounts, routes_keys, routes_jobs, routes_settings, routes_alerts, routes_frames,
-                routes_stats, routes_logs, routes_prices)
+ADMIN_ROUTES = (routes_accounts, routes_keys, routes_jobs, routes_settings, routes_alerts, routes_alert_groups,
+                routes_frames, routes_stats, routes_logs, routes_prices)
 SCHEMA_URL = "/openapi.json"     # the public-only schema; there is no /docs or /redoc (the API page is /reference)
 PUBLIC_PREFIXES = ("/v1", "/v1beta", "/models", "/m/")     # CORS paths (§8); never /admin
 

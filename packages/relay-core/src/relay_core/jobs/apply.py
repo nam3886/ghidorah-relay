@@ -21,7 +21,7 @@ from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core import failpoints, leases, pool, storage
+from relay_core import alerts, failpoints, leases, pool, storage
 from relay_core.db import lock_account, tx
 from relay_core.errors import rule
 from relay_core.jobs.events import add_event
@@ -289,6 +289,13 @@ async def apply_submit(db: AsyncConnectionPool, claim, result: SubmitResult, *, 
         job = await _fenced_job(conn, claim)
         await _lock_effect_account(conn, job, result.account)
         status = await _submit_outcome(conn, job, result.job, caps, pools)
+        if isinstance(result.job, Accepted) and result.job.unclear is not None:
+            # The job row is locked: its frozen texts are read on this transaction, in a savepoint. A report that cannot
+            # be read or built is dropped; one that cannot be stored rolls back its own savepoint.
+            report = await alerts.report_for(conn, job.id, claim.provider, result.job.unclear)
+            if report is not None:
+                await alerts.store(conn, job.id, report)
+                await failpoints.hit("apply.unclear_reported")
         await _effects(conn, job, result.account, caps, pools)
         await _decorate(conn, job.id, result)
         await leases.release(conn, claim.lease_id)

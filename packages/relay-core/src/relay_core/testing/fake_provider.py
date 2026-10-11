@@ -51,12 +51,15 @@ FAKE_FRAMES = FrameRules(
 
 class FakeSpec:
     """The fake provider's spec. `name` is a parameter so a test can run two of them. `frames` is None (the core frame
-    applies) unless a test passes rules, for instance `FAKE_FRAMES`."""
+    applies) unless a test passes rules, for instance `FAKE_FRAMES`. `unclear` is the text `unclear_at_deadline` reports
+    (None: the fake explains nothing)."""
 
     def __init__(self, name: str = "fake", *, execution: str = "http", account_slots: int | None = 1,
-                 max_attempts: int = 3, has_reconcile: bool = True, frames: FrameRules | None = None):
+                 max_attempts: int = 3, has_reconcile: bool = True, frames: FrameRules | None = None,
+                 unclear: str | None = None):
         self.name = name
         self.frames = frames
+        self.unclear = unclear
         self.caps = Caps(
             execution=execution, wallet_kinds=("video", "image"),
             pools=(PoolSpec("video", "UTC", name + ".video_budget"), PoolSpec("image", "UTC")),
@@ -101,6 +104,9 @@ class FakeSpec:
 
     def deadline_cause(self, upstream_text: str, provider_state: Mapping[str, Any]) -> str:
         return "render.deadline"
+
+    def unclear_at_deadline(self, upstream_text: str, provider_state: Mapping[str, Any]) -> str | None:
+        return self.unclear
 
     def extras(self, snapshots: Mapping[str, Mapping]) -> dict:
         return {}

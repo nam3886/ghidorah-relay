@@ -317,8 +317,8 @@ async def test_something_went_wrong_is_a_temporary_error_that_counts_an_attempt_
 async def test_an_unclear_reply_with_a_conversation_keeps_it_for_the_poll():
     scene = Scene(replies={1: ["Let me think about that."]})
     res = await scene.run()
-    assert res.job == Accepted(CONV, taken=False) and Success() not in res.account, \
-        "an unclear reply must not be proven taken (and must not be thrown away)"
+    assert res.job == Accepted(CONV, taken=False, unclear="Let me think about that.") \
+        and Success() not in res.account, "an unclear reply must not be proven taken (and must not be thrown away)"
     assert scene.session.evidence.tags == ["unclear-reply"]
     assert any("UNCLEAR what dola replied" in text for text, _, _ in scene.ctx.events)
 
@@ -923,6 +923,14 @@ def test_the_stored_reply_keeps_the_newest_part_and_cuts_the_oldest_within_the_e
     assert len(out) == constants.EVENT_TEXT_MAX == 2000
 
 
+@mutation(SUB, "    return \"\\n\\n\".join(p for p in paragraphs if p)[:REPLY_CHARS]",
+          "    return \" \".join(p for p in paragraphs if p)[:REPLY_CHARS]", expect="the replies ran together")
+def test_the_stored_reply_keeps_the_blank_lines_between_replies_and_folds_white_space_inside_each():
+    from relay_dola.engine.submit import reply_text
+    out = reply_text("Newest   reply\nhere.\n\nOlder  reply.\n\n\n\nOldest.")
+    assert out == "Newest reply here.\n\nOlder reply.\n\nOldest.", "the replies ran together: %r" % (out,)
+
+
 @sync
 async def test_the_upstream_event_of_a_long_reply_survives_the_core_log_cap():
     from relay_core.redact import redact_log
@@ -1037,8 +1045,8 @@ async def test_refusal_wording_in_the_page_text_with_a_conversation_leaves_the_p
     for page_text in ("Not Enough Credits", DAILY_LIMIT, COPYRIGHT, SOMETHING_WRONG, ACCEPTED, zero_widget):
         scene = Scene(replies={}, page_text=page_text)       # the conversation exists, dola's API text stays empty
         res = await scene.run()
-        assert res.job == Accepted(CONV, taken=False), "page text %r gave the order up: the poll decides (%r)" % (
-            page_text, res.job)
+        assert res.job == Accepted(CONV, taken=False, unclear=""), \
+            "page text %r gave the order up or was reported as dola's reply: %r" % (page_text, res.job)
         assert res.account == (), "page wording marked taken, rested or priced the account: %r" % (res.account,)
 
 
