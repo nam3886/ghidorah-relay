@@ -178,7 +178,8 @@ async def due_accounts(db: AsyncConnectionPool, provider: str, limit: int) -> li
 
 @dataclass(frozen=True)
 class CheckResult:
-    outcome: str          # checked | unknown | proxy_bad | failed | merged | busy | no_token | skipped | lease_lost
+    outcome: str          # checked | unknown | signed_out | proxy_bad | failed | merged | busy | no_token | skipped
+    #                       | lease_lost
     detail: str = ""
     account_id: Any = None   # the surviving account after a merge
 
@@ -302,7 +303,7 @@ async def _apply_report(env: Env, account_id, lease_id: int, report: _Report, co
     for key in dropped:                                # shots a merge removed after the object-first pass
         if env.store is not None:
             await env.store.remove(key)
-    if health is not None and health.screenshot and result.outcome in ("checked", "merged"):
+    if health is not None and health.screenshot and result.outcome in ("checked", "merged", "signed_out"):
         await _store_shot(env, result.account_id or account_id, health.screenshot)
     return result
 
@@ -385,9 +386,14 @@ async def _apply(env: Env, account_id, lease_id: int, report: _Report, command_i
             dropped = await _merge(conn, account_id, twin, lease_id, health, command_id)
             return CheckResult("merged", account_id=twin), dropped
         await pool.ensure_rows(conn, account_id, env.pools())
+        was = (await (await conn.execute("SELECT state FROM accounts WHERE id = %s", (account_id,))).fetchone())[0]
         await _record(conn, env, account_id, health, report.proxy)
+        now = (await (await conn.execute("SELECT state FROM accounts WHERE id = %s", (account_id,))).fetchone())[0]
         await leases.release(conn, lease_id)
-        return CheckResult("checked" if health.state != "unknown" else "unknown"), []
+        if health.state == "unknown":
+            # a check that read nothing for certain but whose strike ended the account tells the admin so
+            return CheckResult("signed_out" if now == "dead" and was != "dead" else "unknown"), []
+        return CheckResult("checked"), []
 
 
 async def _fail(conn: AsyncConnection, env: Env, account_id, error: str | None) -> None:
@@ -406,17 +412,23 @@ async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, p
         base = [Dead("signed out")]
     await pool.apply_effects(conn, account_id, [*base, *health.effects], env.caps, env.pools())
     read = health.state != "unknown"
+    # A cooldown that asks for a recheck means the provider read the page and doubted it: the next check is at the
+    # cooldown's end, not at the retry time. A dead account keeps the normal interval instead, so a dead jar is not
+    # opened every few minutes.
+    recheck = [e.until for e in health.effects if isinstance(e, Cooldown) and e.recheck]
     await conn.execute(
         "UPDATE accounts SET identity = COALESCE(%(i)s, identity), display_name = COALESCE(%(d)s, display_name), "
         "provider_state = provider_state || %(p)s::jsonb, "
         "last_checked_at = CASE WHEN %(read)s THEN clock_timestamp() ELSE last_checked_at END, "
-        "check_due_at = clock_timestamp() + make_interval(secs => %(due)s), "
+        "check_due_at = CASE WHEN state <> 'dead' AND %(ru)s::timestamptz IS NOT NULL THEN %(ru)s::timestamptz "
+        "ELSE clock_timestamp() + make_interval(secs => %(due)s) END, "
         "proxy_ok = CASE WHEN %(px)s THEN true ELSE proxy_ok END, "
         "proxy_checked_at = CASE WHEN %(px)s THEN clock_timestamp() ELSE proxy_checked_at END, "
         "updated_at = clock_timestamp() WHERE id = %(a)s",
         {"i": health.identity, "d": health.display_name, "p": Jsonb(redact(dict(health.state_patch))),
-         "read": read, "due": env.check_interval_s() if read else env.retry_s, "px": proxy is not None and proxy.ok,
-         "a": account_id})
+         "read": read, "due": env.check_interval_s() if read or recheck else env.retry_s,
+         "px": proxy is not None and proxy.ok,
+         "ru": max(recheck) if recheck else None, "a": account_id})
 
 
 async def _merge(conn: AsyncConnection, new_id, old_id, lease_id: int, health: Health, command_id) -> list[str]:
@@ -433,7 +445,8 @@ async def _merge(conn: AsyncConnection, new_id, old_id, lease_id: int, health: H
     await conn.execute(
         "UPDATE accounts SET credential_enc = %(c)s, credential_gen = credential_gen + 1, "
         "state_reason = CASE WHEN state = 'disabled' THEN state_reason END, "
-        "state = CASE WHEN state = 'disabled' THEN state ELSE 'available' END, strikes = 0, last_error = NULL, "
+        "state = CASE WHEN state = 'disabled' THEN state ELSE 'available' END, strikes = 0, strike_at = NULL, "
+        "last_error = NULL, "
         "display_name = COALESCE(%(d)s, display_name), provider_state = provider_state || %(p)s::jsonb, "
         "check_due_at = clock_timestamp(), updated_at = clock_timestamp() WHERE id = %(a)s",
         {"c": credential, "d": health.display_name, "p": Jsonb(redact(dict(health.state_patch))), "a": old_id})

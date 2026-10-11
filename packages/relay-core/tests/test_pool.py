@@ -127,8 +127,12 @@ def test_a_row_held_by_another_claim_is_skipped(db):
     run(db, scenario)
 
 
-@mutation(P, 'return await _account(conn, account_id, "cooldown_until = NULL, cooldown_reason = NULL") == 1',
-          "return True",
+WAKE_RETURN = ('return await _account(conn, account_id,\n'
+               '                          "cooldown_until = NULL, cooldown_reason = NULL, '
+               'strikes = 0, strike_at = NULL") == 1')
+
+
+@mutation(P, WAKE_RETURN, "return True",
           expect="assert db.one(\"SELECT cooldown_until FROM accounts WHERE id = %s\", a) == (None,)")
 def test_wake_reports_whether_the_account_exists_and_clears_cooldown_and_rests(db):
     a = account(db)
@@ -484,7 +488,7 @@ def state(db, a):
     return db.one("SELECT state, state_reason, strikes FROM accounts WHERE id = %s", a)
 
 
-@mutation(P, "            if strikes >= caps.suspect_threshold:\n", "            if False:\n",
+@mutation(P, "            if counted and strikes >= caps.suspect_threshold:\n", "            if False:\n",
           expect="assert state(db, a) == (\"dead\", \"signed_out\", 3)")
 def test_the_threshold_strike_kills_the_account_with_the_strike_effects_reason(db):
     a = account(db)
@@ -498,7 +502,7 @@ def test_the_threshold_strike_kills_the_account_with_the_strike_effects_reason(d
     assert state(db, a) == ("dead", "signed_out", 3)
 
 
-@mutation(P, '"strikes = 0, last_error = NULL"', '"last_error = NULL"',
+@mutation(P, '"strikes = 0, strike_at = NULL, last_error = NULL"', '"last_error = NULL"',
           expect="assert state(db, a) == (\"available\", None, 1)")
 def test_success_clears_the_strike_counter(db):
     a = account(db)

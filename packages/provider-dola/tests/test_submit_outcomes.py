@@ -28,6 +28,7 @@ from kit_c import (
     SendPage,
     account,
     chain_body,
+    effects_of,
     fail_own_reads,
     lease_lost,
     make_job,
@@ -45,14 +46,12 @@ from relay_core.providers import (
     Balance,
     Completed,
     Cooldown,
-    Dead,
     Fail,
     NotTaken,
     ProxyBad,
     Rest,
     Retry,
     Success,
-    Suspect,
 )
 from relay_core.testing.mutation import mutation
 from relay_dola import constants, errors
@@ -220,7 +219,8 @@ async def test_another_model_named_is_a_warning_and_the_model_is_recorded():
 async def test_the_daily_limit_rests_the_jobs_pool_until_the_next_reset():
     res = await Scene(replies={1: [DAILY_LIMIT]}).run()
     assert res.job == NotTaken("pool.account_out_of_points")
-    assert res.account == (Rest("video", MIDNIGHT, "out of credit"),), "no balance was reported: none may be invented"
+    assert effects_of(res) == (Rest("video", MIDNIGHT, "out of credit"),), \
+        "no balance was reported: none may be invented"
 
 
 @mutation(SUB, "        if verdict.credits_left == 0:\n            effects.append(self._rest(",
@@ -231,9 +231,9 @@ async def test_zero_credits_left_with_nothing_else_recognised_is_unclear_and_res
     scene = Scene(replies={1: ["You have 0 video credits left today."]})
     res = await scene.run()
     assert isinstance(res.job, Accepted) and res.job.taken is False, "an unknown reply is unclear: the poll decides"
-    assert res.account == (Balance("video", 0, "reported"),
+    assert effects_of(res) == (Balance("video", 0, "reported"),
                            Rest("video", MIDNIGHT, "out of credit: dola reports 0 credits left")), (
-        "an account at 0 must be rested in every reading: %r" % (res.account,))
+        "an account at 0 must be rested in every reading: %r" % (effects_of(res),))
     assert scene.log.count("send") == 1, "no re-send, no move to another account"
 
 
@@ -241,7 +241,8 @@ async def test_zero_credits_left_with_nothing_else_recognised_is_unclear_and_res
 async def test_not_enough_for_this_order_with_a_positive_balance_is_not_out_of_credit():
     res = await Scene(replies={1: [NOT_ENOUGH]}).run()
     assert res.job == NotTaken("pool.account_cannot_afford")
-    assert res.account == (Balance("video", 1, "reported"),), "a positive balance must not rest the pool until midnight"
+    assert effects_of(res) == (Balance("video", 1, "reported"),), \
+        "a positive balance must not rest the pool until midnight"
 
 
 @mutation(SUB, '        return Rest(self.spec.kind, next_pool_reset(self.deps.now()), reason)',
@@ -252,10 +253,10 @@ async def test_the_pool_that_rests_is_the_jobs_kind_not_dolas_wording():
     scene = Scene(job=make_job("image"), replies={1: [DAILY_LIMIT]})
     res = await scene.run()
     assert res.job == NotTaken("pool.account_out_of_points")
-    assert res.account == (Rest("image", MIDNIGHT, "out of credit"),), "the job's own pool (image) must rest"
+    assert effects_of(res) == (Rest("image", MIDNIGHT, "out of credit"),), "the job's own pool (image) must rest"
     # a video balance dola reports in an image refusal is not an image balance
     scene = Scene(job=make_job("image"), replies={1: [DAILY_LIMIT + " You still have 3 video credits left today."]})
-    assert (await scene.run()).account == (Rest("image", MIDNIGHT, "out of credit"),)
+    assert effects_of(await scene.run()) == (Rest("image", MIDNIGHT, "out of credit"),)
 
 
 @mutation(SUB, "            if attempt >= 2:\n                # The page text is NOT consulted here",
@@ -291,7 +292,7 @@ BUBBLE = "Generated video: %s " + "[7100]"
 async def test_a_copyright_refusal_is_terminal_not_charged_and_keeps_the_account_good():
     res = await Scene(replies={1: [COPYRIGHT]}).run()
     assert isinstance(res.job, Fail) and res.job.code == errors.CONTENT_REFUSED
-    assert Success() not in res.account, "a refusal is not an accepted order"
+    assert Success() not in effects_of(res), "a refusal is not an accepted order"
     assert rule(errors.CONTENT_REFUSED).terminal and rule(errors.CONTENT_REFUSED).refund and \
         not rule(errors.CONTENT_REFUSED).counts_attempt, "a refusal must end the job, refunded, with no retry"
 
@@ -318,7 +319,7 @@ async def test_an_unclear_reply_with_a_conversation_keeps_it_for_the_poll():
     scene = Scene(replies={1: ["Let me think about that."]})
     res = await scene.run()
     assert res.job == Accepted(CONV, taken=False, unclear="Let me think about that.") \
-        and Success() not in res.account, "an unclear reply must not be proven taken (and must not be thrown away)"
+        and Success() not in effects_of(res), "an unclear reply must not be proven taken (and must not be thrown away)"
     assert scene.session.evidence.tags == ["unclear-reply"]
     assert any("UNCLEAR what dola replied" in text for text, _, _ in scene.ctx.events)
 
@@ -334,21 +335,38 @@ def test_pool_codes_do_not_count_an_attempt_and_composer_codes_do():
 
 
 # ---- login, region, throttle -----------------------------------------------------------------------------------------
+@mutation(SUB, "        if state.signed_out or state.cells >= 0 or state.modal_visible:\n"
+               "            effects = login_doubt_effects(self.deps.now(), state.reason)",
+          "        if False:\n            effects = login_doubt_effects(self.deps.now(), state.reason)",
+          expect="a login doubt is a spaced strike with a rest")
 @sync
-async def test_a_cookie_that_belongs_to_no_one_kills_the_account_at_once_and_nothing_is_sent():
+async def test_a_cookie_that_belongs_to_no_one_is_a_spaced_strike_and_a_rest_and_nothing_is_sent():
     scene = Scene(probe=GUEST, replies={1: [ACCEPTED]})
     res = await scene.run()
-    assert res.job == Retry("pool.account_logged_out") and res.account == (Dead("signed_out"),)
+    assert res.job == Retry("pool.account_logged_out"), res.job
+    assert types(res) == ["Suspect", "Cooldown"], "a login doubt is a spaced strike with a rest: %r" % (types(res),)
+    strike, rest = res.account
+    assert strike.min_gap_s == 540 and rest.recheck and rest.until == NOW + timedelta(seconds=600)
     assert "mark_sent" not in scene.log and "send" not in scene.log
 
 
+LOGIN_BRANCH = ("        else:\n"
+                "            until = self.deps.now() + timedelta(seconds=constants.BROWSER_FAULT_COOLDOWN_S)\n"
+                "            effects = (Cooldown(\"login read failed\", until),)")
+
+
+@mutation(SUB, LOGIN_BRANCH, "        else:\n            effects = login_doubt_effects(self.deps.now(), state.reason)",
+          expect="a failed read must not be a strike")
 @sync
-async def test_an_ambiguous_login_failure_is_a_strike_not_a_death():
+async def test_a_dialog_is_the_same_doubt_and_a_failed_read_is_a_short_rest_without_a_strike():
+    res = await Scene(probe={**GOOD_PROBE, "modal": True}).run()
+    assert res.job == Retry("pool.account_logged_out")
+    assert types(res) == ["Suspect", "Cooldown"] and res.account[0].min_gap_s == 540 and res.account[1].recheck, \
+        "a dialog must be a spaced strike with the same rest, never Dead"
     failed_read = {"cells": -1, "ids": [], "name": "", "modal": False, "passport": None}
-    for probe in ({**GOOD_PROBE, "modal": True}, failed_read):
-        res = await Scene(probe=probe).run()
-        assert res.job == Retry("pool.account_logged_out")
-        assert types(res) == ["Suspect"] and isinstance(res.account[0], Suspect), "a doubt must be a strike, never Dead"
+    res = await Scene(probe=failed_read).run()
+    assert res.job == Retry("pool.account_logged_out")
+    assert types(res) == ["Cooldown"] and not res.account[0].recheck, "a failed read must not be a strike"
 
 
 @mutation(SUB, '                        ProxyBad("region blocked: %s" % why), Cooldown("region blocked", until))',
@@ -387,7 +405,7 @@ async def test_a_throttle_code_in_the_stream_cools_the_account_down_for_30_minut
     scene = Scene(polls=False, on_send=await sse_on_send(name))
     res = await scene.run()
     assert res.job == NotTaken("pool.account_throttled")
-    assert res.account == (Cooldown("dola throttled (%d)" % code, COOLDOWN),), "cooldown must be 1800 s"
+    assert effects_of(res) == (Cooldown("dola throttled (%d)" % code, COOLDOWN),), "cooldown must be 1800 s"
     assert rule("pool.account_throttled").counts_attempt is False
 
 
@@ -396,7 +414,7 @@ async def test_the_region_code_in_the_stream_marks_the_proxy():
     scene = Scene(polls=False, on_send=await sse_on_send("region-710022003.txt"))
     res = await scene.run()
     assert res.job == NotTaken("pool.account_region_blocked")
-    assert [type(e) for e in res.account] == [ProxyBad, Cooldown] and res.account[1].until == COOLDOWN
+    assert [type(e) for e in effects_of(res)] == [ProxyBad, Cooldown] and effects_of(res)[1].until == COOLDOWN
 
 
 @sync
@@ -419,7 +437,8 @@ async def test_a_network_error_marks_the_proxy_and_a_ui_error_never_does():
     assert "mark_sent" not in scene.log
     ui = Scene(build_error=RuntimeError("chip row did not appear after clicking Create Videos"))
     res = await ui.run()
-    assert res.job == Retry(errors.UI_MODE_NOT_READY) and res.account == (), "UI errors are never blamed on the proxy"
+    assert res.job == Retry(errors.UI_MODE_NOT_READY) and res.account == (Success(),), \
+        "UI errors are never blamed on the proxy (and the logged-in read clears the strike count)"
 
 
 @sync
@@ -427,7 +446,7 @@ async def test_a_composer_error_is_a_retry_with_its_step_code_and_leaves_a_scree
     err = composer.ComposerError("model selection did not take", errors.UI_MODEL_SELECT_FAILED)
     scene = Scene(build_error=err)
     res = await scene.run()
-    assert res.job == Retry(errors.UI_MODEL_SELECT_FAILED) and res.account == ()
+    assert res.job == Retry(errors.UI_MODEL_SELECT_FAILED) and res.account == (Success(),)
     assert scene.session.evidence.tags == ["video-composer"]
     assert [n for n, _, _ in scene.ctx.evidence_items] == ["ui-error-video-composer.png"]
     assert "mark_sent" not in scene.log
@@ -520,7 +539,7 @@ async def test_nothing_after_mark_sent_ever_comes_back_as_a_retry():
 async def test_a_network_failure_after_the_send_is_unknown_and_still_marks_the_proxy():
     res = await Scene(send_error=NET_ERROR).run()
     assert isinstance(res.job, Ambiguous)
-    assert [type(e) for e in res.account] == [ProxyBad, Cooldown]
+    assert [type(e) for e in effects_of(res)] == [ProxyBad, Cooldown]
 
 
 @mutation(SUB, "    except _CoreVerdict as verdict:\n        raise verdict.cause from None",
@@ -1047,7 +1066,7 @@ async def test_refusal_wording_in_the_page_text_with_a_conversation_leaves_the_p
         res = await scene.run()
         assert res.job == Accepted(CONV, taken=False, unclear=""), \
             "page text %r gave the order up or was reported as dola's reply: %r" % (page_text, res.job)
-        assert res.account == (), "page wording marked taken, rested or priced the account: %r" % (res.account,)
+        assert effects_of(res) == (), "page wording marked taken, rested or priced the account: %r" % (res.account,)
 
 
 # ---- the URL's conversation is adopted only when it carries our text ---
@@ -1136,6 +1155,6 @@ async def test_with_no_conversation_page_wording_never_decides_the_order():
         job = make_job(prompt=prompt) if page == echo else make_job()
         scene = Scene(job=job, polls=False, page_text=page)
         res = await scene.run()
-        assert isinstance(res.job, Ambiguous) and res.account == (), (
+        assert isinstance(res.job, Ambiguous) and effects_of(res) == (), (
             "page text decided an order with no conversation (%r): %r %r" % (page[:30], res.job, res.account))
         assert scene.log.count("send") == 1

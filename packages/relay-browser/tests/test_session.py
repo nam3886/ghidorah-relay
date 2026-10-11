@@ -767,3 +767,18 @@ async def test_a_close_that_had_to_be_killed_never_counts_as_clean_and_no_token_
             kept = await s.page.evaluate("localStorage.getItem('auth_token')")
     assert kept is None, "a killed close counted as clean: the token was read back %r" % kept
 
+
+
+@pytest.mark.browser
+@mutation(S, "                await log_browser_version(ctx, session.page)\n", "",
+          expect="the browser version was not logged exactly once per launch")
+@sync
+async def test_one_open_session_logs_the_running_browser_version_exactly_once(tmp_path, token, caplog):
+    import logging
+    with caplog.at_level(logging.INFO, logger="relay_browser.session"):
+        async with open_session(site_for(tmp_path), Account(), purpose="submit", token=token, redact=redact):
+            pass
+    lines = [r.getMessage() for r in caplog.records if r.name == "relay_browser.session"
+             and r.getMessage().startswith("browser ")]
+    assert len(lines) == 1 and "/" in lines[0], \
+        "the browser version was not logged exactly once per launch: %r" % (lines,)

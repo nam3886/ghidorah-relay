@@ -13,6 +13,7 @@ from relay_core.testing.mutation import mutation
 
 GRANTS = "packages/relay-core/src/relay_core/db/migrations/0006_grants.sql"
 UNCLEAR = "packages/relay-core/src/relay_core/db/migrations/0015_unclear_replies.sql"
+STRIKE_AT = "packages/relay-core/src/relay_core/db/migrations/0016_account_strike_at.sql"
 S, INS, U, D = "SELECT", "INSERT", "UPDATE", "DELETE"
 ALL = (S, INS, U, D)
 
@@ -37,7 +38,8 @@ WORKER = {
 }
 API_ACCOUNT_COLUMNS = {"label", "proxy_host", "proxy_port", "proxy_auth_enc", "state", "state_reason", "updated_at"}
 SECRET_COLUMNS = ("credential_enc", "credential_gen", "identity", "display_name", "provider_state", "last_error",
-                  "proxy_ok", "proxy_checked_at", "strikes", "cooldown_until", "cooldown_reason", "check_due_at")
+                  "proxy_ok", "proxy_checked_at", "strikes", "strike_at", "cooldown_until", "cooldown_reason",
+                  "check_due_at")
 
 
 def privileges(db, role):
@@ -166,6 +168,7 @@ def test_the_api_is_refused_what_belongs_to_the_worker(db):
         ("UPDATE accounts SET credential_enc = '\\x02' WHERE id = %s", (account,)),
         ("UPDATE accounts SET credential_gen = credential_gen + 1 WHERE id = %s", (account,)),
         ("UPDATE accounts SET strikes = 0 WHERE id = %s", (account,)),
+        ("UPDATE accounts SET strike_at = now() WHERE id = %s", (account,)),
         ("UPDATE accounts SET cooldown_until = NULL WHERE id = %s", (account,)),
         ("UPDATE accounts SET check_due_at = now() WHERE id = %s", (account,)),
         ("UPDATE accounts SET proxy_ok = true WHERE id = %s", (account,)),
@@ -281,3 +284,33 @@ def test_the_api_cannot_delete_an_account_not_even_an_unused_one(db):
     refused = as_role(db, "relay_api", [(DELETE_ACCOUNT, (account,))])
     assert refused == [(DELETE_ACCOUNT, "InsufficientPrivilege")]
     assert db.one("SELECT count(*) FROM accounts")[0] == 1
+
+
+@mutation(STRIKE_AT, "ALTER TABLE accounts ADD COLUMN strike_at timestamptz NULL;",
+          "ALTER TABLE accounts ADD COLUMN strike_at timestamptz NULL;\n"
+          "GRANT UPDATE (strike_at) ON accounts TO relay_api;", expect="the api wrote strike_at")
+def test_the_time_of_the_last_strike_is_a_nullable_column_only_the_worker_writes(db):
+    account = uuid.uuid4()
+    db.one("INSERT INTO accounts (id, provider, credential_enc) VALUES (%s, 'p1', '\\x01') RETURNING 1", account)
+    assert db.one("SELECT strike_at FROM accounts WHERE id = %s", account)[0] is None, "a new account has a strike time"
+    with db.connect() as c:
+        nullable, default = c.execute(
+            "SELECT is_nullable, column_default FROM information_schema.columns WHERE table_schema = 'relay' "
+            "AND table_name = 'accounts' AND column_name = 'strike_at'").fetchone()
+    assert (nullable, default) == ("YES", None), "an expand migration adds a nullable column with no default"
+    update = [("UPDATE accounts SET strike_at = now() WHERE id = %s", (account,))]
+    assert as_role(db, "relay_api", update), "the api wrote strike_at"
+    assert as_role(db, "relay_worker", update) == [], "the worker could not write strike_at"
+
+
+@mutation(STRIKE_AT, "ALTER TABLE jobs ADD COLUMN fault_retries int NOT NULL DEFAULT 0;",
+          "ALTER TABLE jobs ADD COLUMN fault_retries int;", expect="fault_retries must be NOT NULL with a default of 0")
+def test_a_jobs_fault_retry_count_is_not_null_defaults_to_zero_and_both_roles_update_it(db):
+    with db.connect() as c:
+        nullable, default = c.execute(
+            "SELECT is_nullable, column_default FROM information_schema.columns WHERE table_schema = 'relay' "
+            "AND table_name = 'jobs' AND column_name = 'fault_retries'").fetchone()
+        grants = {role: c.execute("SELECT has_column_privilege(%s, 'relay.jobs', 'fault_retries', 'UPDATE')",
+                                  (role,)).fetchone()[0] for role in ("relay_api", "relay_worker")}
+    assert (nullable, default) == ("NO", "0"), "fault_retries must be NOT NULL with a default of 0"
+    assert grants == {"relay_api": True, "relay_worker": True}, "the table-level UPDATE grant on jobs covers it"

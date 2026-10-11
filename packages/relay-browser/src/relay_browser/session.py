@@ -57,6 +57,7 @@ KEEP_IN_DEFAULT = ("Cache", "Code Cache", "Local Storage")
 OPEN_MARK = ".relay-open"
 _ID_OK = re.compile(r"[A-Za-z0-9_-]{1,64}")      # used with fullmatch: `$` would let a trailing newline in
 STRIP_TIMEOUT_S = 5.0
+VERSION_TIMEOUT_S = 5.0
 CLOSE_TIMEOUT_S = 30.0       # a Chrome that does not close in this time is killed
 
 
@@ -79,6 +80,46 @@ CHROME_BACKGROUND_HOSTS = ("accounts.google.com", "update.googleapis.com", "andr
 # suggestions and network prediction otherwise open connections to the default search provider (www.google.com) at once.
 SEED_PREFERENCES = {"safebrowsing": {"enabled": False, "enhanced": False}, "search": {"suggest_enabled": False},
                     "net": {"network_prediction_options": 2}}
+
+
+# The Chrome the box runs: `CHROME_VERSION` in deploy/Dockerfile without its package revision (a test keeps them equal).
+# A Mac run sets RELAY_CHROME_PATH to the same version: Chrome 155.0.8059.40 restarts its network service during a dola
+# load, and the restart empties the cookie store, so the page reads as a guest.
+PINNED_CHROME_VERSION = "154.0.8037.92"
+_VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)\.(\d+)")
+
+
+def chrome_version_warning(running: str, pinned: str = PINNED_CHROME_VERSION) -> str | None:
+    """The text of a log warning when the running Chrome is not the pinned one, else None. Only the major version and
+    the build number count: a patch level apart is the same build. A string that holds no version is a warning too."""
+    got, want = _VERSION.search(running or ""), _VERSION.search(pinned)
+    if want is None:
+        raise ValueError("the pinned version %r holds no version" % pinned)
+    if got is None:
+        return "the browser version could not be read (%r); the pinned Chrome is %s" % ((running or "")[:60], pinned)
+    if got.group(1) != want.group(1) or got.group(3) != want.group(3):
+        return "the browser is Chrome %s but the pinned Chrome is %s (major or build differs)" % (got.group(0), pinned)
+    return None
+
+
+async def log_browser_version(ctx, page) -> None:
+    """Log the running browser's version once per launch, and warn when it is not the pinned build. Never raises: a
+    browser that cannot answer is no reason to fail the run. The CDP session is detached whatever happened."""
+    cdp = None
+    try:
+        cdp = await asyncio.wait_for(ctx.new_cdp_session(page), VERSION_TIMEOUT_S)
+        product = str((await asyncio.wait_for(cdp.send("Browser.getVersion"), VERSION_TIMEOUT_S)).get("product", ""))
+    except Exception as exc:      # noqa: BLE001 - the version is information, not a precondition
+        log.warning("could not read the browser version: %s", str(exc)[:80])
+        return
+    finally:
+        if cdp is not None:
+            with contextlib.suppress(Exception):
+                await cdp.detach()
+    log.info("browser %s", product)
+    warning = chrome_version_warning(product)
+    if warning:
+        log.warning(warning)
 
 
 @dataclass(frozen=True)
@@ -464,10 +505,6 @@ class BrowserSession:
         """The site's single tab: new tab first, old ones after (see ui.py), recorder attached, telemetry blocked and
         patches installed BEFORE the caller's `goto`, since the config the patch needs arrives while the page loads."""
         page = await keep_single_tab(self.ctx, self.site.host)
-        for other in list(self.ctx.pages):
-            if other is not page and other.url == "about:blank":      # the tab a fresh Chrome starts with
-                with contextlib.suppress(Exception):
-                    await other.close()
         self.recorder.attach(page)
         await self._prepare(page)
         self.page = page
@@ -576,6 +613,7 @@ async def open_session(site: SiteProfile, account, *, purpose, token, images: bo
             session = BrowserSession(site, ctx, recorder, EvidenceWriter(redact, recorder), patcher, claim)
             try:
                 await session.open_page()
+                await log_browser_version(ctx, session.page)
                 yield session
             finally:
                 await session._shutdown()

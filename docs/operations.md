@@ -35,6 +35,16 @@ The `browser` image installs Chrome from a versioned `.deb` checked by sha256 (`
 `scripts/check-in-container.sh` prints the installed version on every run. Upgrading Chrome = new version and
 sha256 in the Dockerfile and here, then `scripts/check.sh --full`.
 
+The same version (without the `-1` package revision) is the constant `PINNED_CHROME_VERSION` in
+`relay_browser/session.py`; a test keeps the two equal, so an upgrade edits both. Every browser launch logs the running
+Chrome once (`browser Chrome/154.0.8037.92`) and logs a warning that names both versions when the major version or the
+build number differs from the pin. It never refuses to run.
+
+**On the Mac, run the pinned build, not the installed Google Chrome.** The installed Chrome updates itself, and
+Chrome 155.0.8059.40 restarts its network service a few seconds into a dola load; the restart empties the cookie store
+and the page reads as a guest. Use Chrome for Testing 154.0.8037.92 and point `RELAY_CHROME_PATH` at it (the steps are
+at the top of `reports/live-run-mac.md`).
+
 The Chrome layer sits before the code in the Dockerfile (stages `xvfb` and `chrome`), so a code change does not
 rebuild or re-download it. Google's pool serves only the current stable: when this version is superseded, put the
 archived `.deb` in `deploy/vendor/` (gitignored) and build as usual. A file named
@@ -284,7 +294,7 @@ Environment (names only; the template is `deploy/api.env.example`):
 |---|---|
 | `DATABASE_URL` | required; the `relay_api` role |
 | `CREDENTIAL_SEAL_PUBLIC_KEY` | required; account import and proxy edits seal with it. Missing or malformed refuses |
-| `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION` | required object-store settings; the bucket must already exist (the deploy creates it) |
+| `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION` | required object-store settings; the bucket is created at start, by `relay serve` and by `relay worker` alike (a fresh object store has none) |
 | `PORT` | default 8100 (the compose file publishes it as `API_PORT`, default 8100) |
 | `BILLING_TZ` | must equal the value pinned by `relay migrate` (first run pins it, UTC when unset); a different value refuses. Never stored in the settings table |
 | `PUBLIC_BASE_URL` | base of the media URLs in job answers; unset = built from the request |
@@ -418,8 +428,9 @@ fails when any other page or `/ui/` file carries the looser one.
 
 - **Process log.** Every line the api and the workers write, uvicorn's included, passes the redactor (cookies,
   `Authorization`, tokens, signed CDN query values, `user:pass@host`, secret labels; any string over 2 000 characters
-  becomes `[omitted len=N]`). A traceback is redacted too, without being cut. The access log keeps the path and drops
-  the query string, so a client that sends `?key=rk-...` leaves no key in it (the API refuses that form anyway).
+  becomes `[omitted len=N]`). A traceback is redacted too, without being cut. The uvicorn access line is the exception
+  to the trim: each of its arguments is redacted on its own and the line is not cut; it keeps the path and drops the
+  query string, so a client that sends `?key=rk-...` leaves no key in it (the API refuses that form anyway).
 - **Request log** (admin "request log", table `request_logs`, kept `log_retention_days`, default 30). One row per
   request that carried a **known** API key, a disabled key included (its 403 is logged under it). Also logged under
   the key: a path or method no route serves (404, 405). **Not logged:** a successful read (GET, HEAD or OPTIONS
@@ -487,8 +498,8 @@ Drives dola.com in Chrome, one browser session per claimed job. Sources: `packag
   `DATABASE_URL`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION`,
   `CREDENTIAL_SEAL_PRIVATE_KEY`, `BILLING_TZ`, `DOLA_BROWSER_SLOTS_MAX`. The last one is required: the ceiling for the
   live setting `dola.browser_slots`, sized to the machine's memory. The dola spec accepts 1 to 30 for the setting.
-- **Chrome** installed on the Mac (the kit launches the installed Google Chrome; see "The browser kit"). Set
-  `RELAY_PROFILE_ROOT` too, or the profile cache is not kept.
+- **Chrome** on the Mac: the pinned Chrome for Testing 154.0.8037.92 through `RELAY_CHROME_PATH` (see "Google Chrome"),
+  not the installed Google Chrome. Set `RELAY_PROFILE_ROOT` too, or the profile cache is not kept.
 - **Accounts and proxies live outside the repo**, in `~/relay-secrets/` (the Mac, mode 0600 files). They are imported
   through the admin accounts import, which seals each credential with the public key. Never print, paste or commit
   their contents, and never copy them into `deploy/` or `tests/`.
@@ -579,10 +590,44 @@ Rules an operator must know:
 Worker commands (queued from the admin pages, run by the dola worker; see "The admin API"):
 
 - Account check: opens the account in Chrome, reads login state, identity and which composer the account has. It spends
-  no credit and sends nothing. A doubt is `unknown`, never a dead account; a signed-out account needs positive proof.
+  no credit and sends nothing. A read never kills an account by itself:
+  - **Cookies lost in the browser.** When the page reads as a guest and an identity cookie that `inject_cookies`
+    verified in this browser (`sessionid`, `uid_tt`; a jar with `sessionid` alone only has that one to lose) is no
+    longer there, the browser lost it. That is a browser fault, never a strike: the result is `unknown` with the same
+    600 s rest and recheck as a login doubt. A send is put back in the queue with `dola.browser_cookies_lost`, uses no
+    attempt for the first three browser-fault requeues of one job (the rule's `free_retries`, counted in the job's own
+    `fault_retries` column, which nothing resets); the next ones use an attempt under the same code, so `max_attempts`
+    ends a job that keeps meeting the fault, and sends nothing. A browser that cannot be asked for its cookies (the read fails or takes over 5 s) is a
+    fault too: no strike, a 60 s rest.
+  - **Every login doubt is a spaced strike and a rest.** A guest read, a login dialog, and "no conversation and no
+    name" each add one strike and rest the account 600 s, with its next check due when the rest ends. A doubt less
+    than 540 s after the last counted strike adds no strike (`accounts.strike_at`, written by the worker only; the gap
+    is shorter than the rest so a slow close or a clock skew cannot put the next read inside it). Only a strike that
+    counted can reach the threshold. The third counted strike marks the account `signed_out`
+    (strike threshold 3); the check that does it reports `signed_out` to the admin, a repeat check of an account that
+    is already dead reports `unknown`. A really signed-out account is therefore out of the pool for 20 to 30 minutes
+    before it is marked. A failed read (no answer) is no strike; in a send it rests the account 60 s.
+  - **What clears the count and its time**: an alive check, a credential merge, a wake (which also clears the
+    cooldown and the pool rests, so a disabled account that is enabled again starts fresh), an order that was taken,
+    and any send that read the account logged in, whatever it ended as (a refusal, a limit, an unknown order, a retry).
+  - A dead account is checked at the normal interval, not every rest, and is revived only by a check that reads it
+    logged in. Wake does not revive; a manual check that reads a doubt adds a spaced strike and a rest (it does not
+    stand still), and one that cannot read anything (`unknown`, no doubt) changes nothing.
 - Catalog refresh: reads the image template and style lists over HTTP (no browser).
 - Recover: takes the clean videos of one conversation. Another job's video is never attached: a conversation that is not
   the job's own must carry the job's text.
+
+### Page timing
+
+- After `goto` the run waits for a quiet page before it composes: at least 4 s, then until no main-frame navigation for
+  3 s, never longer than 15 s (some accounts' pages reload themselves a few seconds after loading, measured on Chrome
+  154). A navigation that still hits the run before the send (a reload after the settle wait) is absorbed once inside
+  the same open: the run settles again and composes once more, nothing having been sent. A second one is
+  `dola.page_reloaded`: the run goes back to the queue, uses no attempt (for the first three browser-fault retries of a
+  job, as above), nothing is sent, and the account rests 60 s. A
+  navigation after the Enter is never retried: the order is unknown, as before.
+- After the one Enter the input may take up to 30 s to empty (`CLEAR_WAIT_S`); measured through a proxy: 1.4 to 13.5 s
+  for sends that all went through. Text still in the input after that is an unproven send, never a second Enter.
 
 ### Live run
 

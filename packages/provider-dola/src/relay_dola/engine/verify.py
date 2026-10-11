@@ -8,7 +8,12 @@ The same probe lists the conversations of an account: reconcile needs that list,
 learn whether a send reached dola.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+
+from relay_core.providers import Cooldown, Suspect
+from relay_dola.constants import LOGIN_DOUBT_GAP_S, LOGIN_DOUBT_REST_S
 
 # How many conversations the probe reads. PUBLIC because reconcile must know it: a list of exactly this length was cut,
 # so "my conversation is not in it" is no proof the send never happened (a busy account pushes the newest out of it).
@@ -114,3 +119,27 @@ def login_state(probe: dict) -> LoginState:
     session, name = read_passport(probe.get("passport"))
     return LoginState(cells=int(probe.get("cells", -1)), account_name=name or str(probe.get("name") or ""),
                       modal_visible=bool(probe.get("modal")), session=session)
+
+
+def lost_identity_cookies(present: Iterable[str] | None, injected: Iterable[str]) -> list[str]:
+    """The identity cookies that were injected into this browser and are gone now (sorted), or [] when they are all
+    there or the browser could not be asked (`None`). Only the names `inject_cookies` verified count: a jar that never
+    held an identity cookie cannot have lost it. A guest read made while one is missing is the browser's fault."""
+    if present is None:
+        return []
+    have = set(present)
+    return sorted(name for name in injected if name not in have)
+
+
+def login_doubt_effects(now: datetime, reason: str) -> tuple[Suspect, Cooldown]:
+    """What a login doubt does to an account (a guest read, a login dialog, no conversation and no name): one spaced
+    strike, and a rest after which the account is checked again. Only the third counted strike, from separate opens at
+    least `LOGIN_DOUBT_GAP_S` apart with no logged-in read between them, ends in `signed_out` (the strike threshold)."""
+    return (Suspect("not logged in: %s" % reason, min_gap_s=LOGIN_DOUBT_GAP_S),
+            Cooldown("login doubt, to be checked again", now + timedelta(seconds=LOGIN_DOUBT_REST_S), recheck=True))
+
+
+def cookies_lost_effects(now: datetime) -> tuple[Cooldown]:
+    """The browser lost the cookies it was given: no strike, but the same rest and recheck as a login doubt, so an
+    account whose session is really gone is not claimed again every minute."""
+    return (Cooldown("cookies lost in the browser", now + timedelta(seconds=LOGIN_DOUBT_REST_S), recheck=True),)

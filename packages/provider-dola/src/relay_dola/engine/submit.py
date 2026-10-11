@@ -40,7 +40,6 @@ from relay_core.providers import (
     Balance,
     Completed,
     Cooldown,
-    Dead,
     Facts,
     Fail,
     NotTaken,
@@ -49,7 +48,6 @@ from relay_core.providers import (
     Retry,
     SubmitResult,
     Success,
-    Suspect,
     Warning,
 )
 from relay_core.redact import redact_text
@@ -66,7 +64,14 @@ from relay_dola.engine.site import (
     REGION_BLOCK_MARK,
     duration_response_patch,
 )
-from relay_dola.engine.verify import LOGIN_PROBE_JS, LoginState, login_state
+from relay_dola.engine.verify import (
+    LOGIN_PROBE_JS,
+    LoginState,
+    cookies_lost_effects,
+    login_doubt_effects,
+    login_state,
+    lost_identity_cookies,
+)
 
 log = logging.getLogger("relay_dola.submit")
 SINGLE_PATH = "/im/chain/single"
@@ -92,10 +97,21 @@ POOL_REGION_BLOCKED = "pool.account_region_blocked"
 POOL_OUT_OF_POINTS = "pool.account_out_of_points"
 POOL_CANNOT_AFFORD = "pool.account_cannot_afford"
 POOL_PROXY_FAILED = "pool.proxy_failed"
+# What Playwright says when the page navigated under a running script.
+PAGE_NAVIGATED = "execution context was destroyed"
 # What marks a failure as a network one (the browser could not reach dola), not a UI one. A UI error says nothing about
 # the proxy and is never blamed on it.
 NETWORK_MARKS = ("err_timed_out", "err_connection", "err_proxy", "err_tunnel", "err_name_not_resolved",
                  "err_address_unreachable", "net::err")
+
+# After `goto` the page may navigate again by itself (a reload shortly after /ttwid/check/ on some accounts). The run
+# waits for a quiet page before it composes: at least SETTLE_MIN_S, then until no main-frame navigation for
+# SETTLE_QUIET_S, and never longer than SETTLE_CAP_S.
+SETTLE_MIN_S = 4.0
+SETTLE_QUIET_S = 3.0
+SETTLE_CAP_S = 15.0
+SETTLE_STEP_MS = 250
+COOKIES_TIMEOUT_S = 5.0      # a browser that does not answer a cookie read in this time is treated as unreadable
 
 POLL_S = 2.5                 # between reads of the conversation while dola answers
 REPLY_TRIES = 24             # about 60 s: with several profiles running dola answers much slower than a lone test
@@ -470,17 +486,70 @@ class Built:
     new_composer: bool | None
 
 
+class NavWatch:
+    """Counts document loads of the main frame (a reload, a navigation) since it was made. A same-document move (the
+    page changing its URL itself) is not one."""
+
+    def __init__(self, page) -> None:
+        self._page, self._loads = page, 0
+        page.on("domcontentloaded", self._on_load)
+
+    def _on_load(self, *_args) -> None:
+        self._loads += 1
+
+    def moved(self) -> bool:
+        return self._loads > 0
+
+    def stop(self) -> None:
+        self._page.remove_listener("domcontentloaded", self._on_load)
+
+
 class PageDriver:
     """The real page actions. A test subclasses it and answers from a script, so no Chrome is needed."""
 
-    async def inject(self, session, account) -> None:
+    def watch_navigation(self, page) -> NavWatch:
+        return NavWatch(page)
+
+    async def inject(self, session, account) -> list[str]:
         """Put the account's cookies into the context and read the identity cookies back (a half-done injection would
-        send as one account and charge another)."""
-        await inject_cookies(session.ctx, jar_from_blob(account.credential), IDENTITY_COOKIE_NAMES, BASE)
+        send as one account and charge another). Returns the identity names that were verified in this browser."""
+        return await inject_cookies(session.ctx, jar_from_blob(account.credential), IDENTITY_COOKIE_NAMES, BASE)
+
+    async def identity_cookie_names(self, session) -> set[str] | None:
+        """The names of the identity cookies the browser holds now; None when it could not be asked."""
+        try:
+            cookies = await asyncio.wait_for(session.ctx.cookies(BASE), COOKIES_TIMEOUT_S)
+            return {c["name"] for c in cookies} & set(IDENTITY_COOKIE_NAMES)
+        except Exception:      # noqa: BLE001 - no answer (or none in time) is no conclusion
+            return None
 
     async def open_chat(self, page) -> None:
-        await page.goto(CHAT_URL, wait_until="domcontentloaded", timeout=60000)
-        await page.wait_for_timeout(4000)
+        await self.settle(page, goto=True)
+
+    async def settle(self, page, *, goto: bool = False) -> None:
+        """Wait for a quiet page (see SETTLE_*): after `goto` on the first load, or alone after a page reloaded under
+        the run."""
+        moved: list[bool] = []
+
+        def on_navigated(frame) -> None:
+            if frame == page.main_frame:
+                moved.append(True)
+
+        page.on("framenavigated", on_navigated)
+        try:
+            if goto:
+                await page.goto(CHAT_URL, wait_until="domcontentloaded", timeout=60000)
+            moved.clear()
+            elapsed = quiet = 0.0
+            while elapsed < SETTLE_CAP_S and (elapsed < SETTLE_MIN_S or quiet < SETTLE_QUIET_S):
+                await page.wait_for_timeout(SETTLE_STEP_MS)
+                elapsed += SETTLE_STEP_MS / 1000
+                quiet += SETTLE_STEP_MS / 1000
+                if moved:
+                    moved.clear()
+                    quiet = 0.0
+        finally:
+            page.remove_listener("framenavigated", on_navigated)
 
     async def probe(self, page) -> dict:
         return await page.evaluate(LOGIN_PROBE_JS)
@@ -549,7 +618,7 @@ class PageDriver:
                 await page.reload(wait_until="domcontentloaded", timeout=60000)
                 await page.wait_for_timeout(4000)
 
-    async def attach(self, page, images) -> str:
+    async def attach(self, page, images, *, raise_navigation: bool = True) -> str:
         """Attach N reference images (`[(bytes, mime)]`). Returns "" when exactly N were attached and COMMITTED, else
         the reason. dola takes several images (verified 260917). The files are chosen in ONE `set_input_files`
         (the trusted
@@ -583,6 +652,8 @@ class PageDriver:
             # the client's, charged, and the difference reached no data and no API.
             return "only %d/%d thumbnails appeared, %d/%d uploads committed" % (got, n, len(commits), n)
         except Exception as exc:      # noqa: BLE001 - a failed attach is a reason, not a crash
+            if raise_navigation and PAGE_NAVIGATED in str(exc).lower():
+                raise          # the page moved under the run: the in-open recompose handles it, not an attach reason
             return "attach error: %s" % str(exc)[:120]
         finally:
             await asyncio.to_thread(_remove_files, paths)
@@ -690,6 +761,9 @@ class _Run:
         self.driver = deps.driver
         self.spec = order_spec(job)
         self.started = deps.clock()
+        self.watch: NavWatch | None = None     # sees the page load again between the compose and the send
+        self.logged_in = False            # True once the login read said logged in: the strike count is then cleared
+        self.injected: list[str] = []     # the identity cookie names `inject` verified in this browser
         self.sent = False                 # True from the moment `mark_sent` returned: the order may be at dola
         self.steps: list[str] = []
         self.conversation: str | None = None
@@ -794,8 +868,8 @@ class _Run:
         return [(await self.deps.read_media(ref), ref.mime) for ref in refs]
 
     async def _order(self, images) -> SubmitResult:
-        spec, ctx, driver, page = self.spec, self.ctx, self.driver, self.page
-        await driver.inject(self.session, ctx.account)
+        ctx, driver, page = self.ctx, self.driver, self.page
+        self.injected = list(await driver.inject(self.session, ctx.account))
         await driver.open_chat(page)
 
         # dola sends an account whose proxy is in the wrong region to a region-restricted URL (the app never loads
@@ -803,15 +877,52 @@ class _Run:
         if REGION_BLOCK_MARK in await driver.page_url(page):
             return self._region_blocked("the proxy IP is the wrong region for this account")
 
+        try:
+            return await self._compose(images)
+        except Exception as exc:      # noqa: BLE001 - only a navigation before the send is absorbed; the rest goes on
+            if self.sent or PAGE_NAVIGATED not in str(exc).lower():
+                raise
+            # The page navigated under the run before anything was sent (a reload that landed after the settle wait):
+            # load the chat page afresh (a settle alone would keep the images already attached) and compose once more
+            # in this same open. A second navigation is not caught here and ends as `dola.page_reloaded`; nothing is
+            # sent twice because nothing was sent.
+            await self._say("the page reloaded while composing: waiting for it, then composing again", "submit",
+                            "engine")
+            await driver.open_chat(page)
+            if REGION_BLOCK_MARK in await driver.page_url(page):
+                return self._region_blocked("the page moved to dola's region page while composing")
+            return await self._compose(images)
+
+    async def _compose(self, images) -> SubmitResult:
+        """The order from the login read to the end. Before `mark_sent` it can be run a second time in the same open.
+        A document load of the page from the end of the build until the send is a navigation under the run (see
+        `_mark_sent`)."""
+        self.watch, self.logged_in = None, False
+        try:
+            return await self._compose_steps(images)
+        finally:
+            if self.watch is not None:
+                self.watch.stop()
+
+    async def _compose_steps(self, images) -> SubmitResult:
+        spec, ctx, driver, page = self.spec, self.ctx, self.driver, self.page
         probe = await driver.probe(page)
         state = login_state(probe)
         self.steps.append("login: %s" % state.reason)
         if not state.logged_in:
+            present = await driver.identity_cookie_names(self.session)
+            if present is None:
+                return self._cookies_fault("cookies not readable")
+            lost = lost_identity_cookies(present, self.injected)
+            if lost:
+                return self._cookies_lost(lost)
             return self._not_logged_in(state)
+        self.logged_in = True
         baseline = set(probe.get("ids") or [])
 
         try:
             built = await driver.build(page, spec)
+            self.watch = driver.watch_navigation(page)     # not before: the build reloads the page itself when it must
         except composer.ComposerError as exc:
             await self._ui_error_evidence("%s-composer" % spec.kind)
             if spec.needs_patch and self.session.patched == 0:
@@ -858,6 +969,10 @@ class _Run:
 
     async def _mark_sent(self) -> None:
         """Called by the driver immediately before Enter: from here dola MAY have the order."""
+        if self.watch is not None and self.watch.moved():
+            # The page loaded again while the prompt was typed (a reload that threw nothing): the composer the run built
+            # is gone, and nothing was sent. Treated like any navigation before the send.
+            raise RuntimeError("Execution context was destroyed: the page loaded again before the send")
         await self._flush_steps()          # before mark_sent: nothing may come between mark_sent and the keypress
         await self._core(self.ctx.mark_sent)
         self.sent = True
@@ -891,11 +1006,30 @@ class _Run:
         return _outcome(NotTaken(POOL_REGION_BLOCKED),
                         ProxyBad("region blocked: %s" % why), Cooldown("region blocked", until))
 
+    def _cookies_lost(self, lost: list[str]) -> SubmitResult:
+        # The cookies were injected and read back, and now they are gone: the browser lost them (a browser fault). The
+        # page reads as a guest, but dola said nothing about the account: no strike, no verdict. The run goes back to
+        # the queue without using an attempt, and the account rests like after a login doubt.
+        self.steps.append("cookies lost in the browser: %s" % ", ".join(lost))
+        return _outcome(Retry(errors.BROWSER_COOKIES_LOST),
+                        *cookies_lost_effects(self.deps.now()))
+
+    def _cookies_fault(self, why: str) -> SubmitResult:
+        # The browser could not be asked for its cookies: a browser fault like a failed read, no strike, a short rest.
+        self.steps.append(why)
+        until = self.deps.now() + timedelta(seconds=constants.BROWSER_FAULT_COOLDOWN_S)
+        return _outcome(Retry(errors.BROWSER_COOKIES_LOST), Cooldown(why, until))
+
     def _not_logged_in(self, state: LoginState) -> SubmitResult:
-        # A cookie that was just injected and read back, and dola still says it belongs to nobody: the session is dead
-        # on dola's side and retrying is useless (dead at once). Any other reading is a doubt (a strike).
-        effect = Dead("signed_out") if state.signed_out else Suspect("not logged in: %s" % state.reason)
-        return _outcome(Retry(POOL_LOGGED_OUT), effect)
+        # A cookie that was just injected and read back, and dola says it belongs to nobody (a guest read), or shows a
+        # dialog, or shows no conversation and no name: every one is a doubt and never a verdict (D91): one spaced
+        # strike and a rest. A failed read is no strike, but the account rests briefly so the run does not spin on it.
+        if state.signed_out or state.cells >= 0 or state.modal_visible:
+            effects = login_doubt_effects(self.deps.now(), state.reason)
+        else:
+            until = self.deps.now() + timedelta(seconds=constants.BROWSER_FAULT_COOLDOWN_S)
+            effects = (Cooldown("login read failed", until),)
+        return _outcome(Retry(POOL_LOGGED_OUT), *effects)
 
     # ---- the receipt ----
     async def _receipt(self, baseline: set[str]) -> str | None:
@@ -1040,7 +1174,7 @@ class _Run:
                 built = await self.driver.rebuild(self.page, spec)
                 self.steps += built.steps
                 if images:
-                    reason = await self.driver.attach(self.page, images)
+                    reason = await self.driver.attach(self.page, images, raise_navigation=False)
                     if reason:
                         raise composer.ComposerError("could not re-attach the reference images: %s" % reason,
                                                      errors.UI_ATTACH_FAILED)
@@ -1205,6 +1339,14 @@ class _Run:
         until = self.deps.now() + timedelta(seconds=constants.THROTTLE_COOLDOWN_S)
         return [ProxyBad("browser could not reach dola: %s" % why[:100]), Cooldown("proxy failed", until)]
 
+    def with_login_read(self, outcome: SubmitResult) -> SubmitResult:
+        """A run that read the account logged in clears the strike count and the time of its last strike, whatever it
+        ends as (a refusal, a throttle, an unknown order, a retry), as a check does: a doubt followed by a logged-in
+        read is not a streak. An outcome that already carries a `Success` is left alone."""
+        if not self.logged_in or any(isinstance(e, Success) for e in outcome.account):
+            return outcome
+        return replace(outcome, account=(Success(), *outcome.account))
+
     async def failed(self, exc: BaseException) -> SubmitResult:
         """The run raised. Before `mark_sent`: an ordinary retry (a network error is the proxy's, a UI error never is).
         After it: unknown."""
@@ -1215,6 +1357,10 @@ class _Run:
         await self._say(cause, "submit_error", "engine")
         if network_failure(str(exc)):
             return _outcome(Retry(POOL_PROXY_FAILED), *self._proxy_effects(cause))
+        if PAGE_NAVIGATED in str(exc).lower():
+            until = self.deps.now() + timedelta(seconds=constants.BROWSER_FAULT_COOLDOWN_S)
+            return _outcome(Retry(errors.PAGE_RELOADED),
+                            Cooldown("page reloaded while composing", until))
         code = getattr(exc, "code", None)
         ui = isinstance(code, str) and code.startswith("dola.ui_")
         return _outcome(Retry(code if ui else errors.UI_MODE_NOT_READY))
@@ -1226,7 +1372,7 @@ async def submit(ctx, job, settings, *, deps: Deps | None = None) -> SubmitResul
     run = _Run(ctx, job, settings, deps or Deps())
     outcome = None
     try:
-        outcome = await run.run()
+        outcome = run.with_login_read(await run.run())
     except _CoreVerdict as verdict:
         raise verdict.cause from None
     except (BrowserLaunchError, BrowserRefused) as exc:
@@ -1236,5 +1382,5 @@ async def submit(ctx, job, settings, *, deps: Deps | None = None) -> SubmitResul
         raise
     except Exception as exc:      # noqa: BLE001 - mapped below; cancellation is not an Exception and passes
         log.warning("submit failed (sent=%s): %s", run.sent, str(exc)[:200])
-        return await run.failed(exc)
+        return run.with_login_read(await run.failed(exc))
     return outcome

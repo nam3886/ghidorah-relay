@@ -8,6 +8,7 @@ Warning codes are not rules: a warning never ends a job, it rides on a result as
 
 from relay_core import errors as core_errors
 from relay_core.errors import Rule
+from relay_dola.constants import BROWSER_FAULT_FREE_RETRIES
 
 CONTENT_REFUSED = "dola.content_refused"
 LIKENESS_REFUSED = "dola.likeness_refused"
@@ -29,6 +30,8 @@ UI_DURATION_PATCH_FAILED = "dola.ui_duration_patch_failed"
 UI_ATTACH_FAILED = "dola.ui_attach_failed"
 UI_STYLE_SELECT_FAILED = "dola.ui_style_select_failed"
 UI_SEND_FAILED = "dola.ui_send_failed"
+PAGE_RELOADED = "dola.page_reloaded"   # the page navigated while the order was being composed: nothing was sent
+BROWSER_COOKIES_LOST = "dola.browser_cookies_lost"   # the browser lost the account's identity cookies: a browser fault
 UI_NO_CONVERSATION = "dola.ui_no_conversation"   # names the cause in the detail of an Ambiguous send; ends no job alone
 
 # Warnings (not rules).
@@ -51,6 +54,14 @@ def _transient(code: str, message: str) -> Rule:
     return Rule(code, 502, "api_error", True, False, True, True, True, message)
 
 
+def _ui_retry(code: str, message: str) -> Rule:
+    """The page changed under the browser before anything was sent: the run goes back to the queue and no attempt is
+    used (the page, not the order, was at fault), for the job's first BROWSER_FAULT_FREE_RETRIES of them; after that
+    each uses one, so `max_attempts` ends a job that keeps meeting the fault."""
+    return Rule(code, 500, "api_error", False, False, False, False, True, message, _HIDDEN,
+                BROWSER_FAULT_FREE_RETRIES)
+
+
 def _ui(code: str, message: str) -> Rule:
     """Our browser could not drive dola's page: ours to fix, so the client sees a generic error."""
     return Rule(code, 500, "api_error", True, False, True, False, True, message, _HIDDEN)
@@ -67,6 +78,8 @@ CODES: dict[str, Rule] = {r.code: r for r in (
     _transient(HTTP_ERROR, "dola answered with an HTTP error"),
     _transient(BAD_RESPONSE, "dola answered with something that is not readable"),
     _ui(UI_MODE_NOT_READY, "dola's creation mode did not become ready"),
+    _ui_retry(PAGE_RELOADED, "dola's page reloaded while the order was being composed; the run is tried again"),
+    _ui_retry(BROWSER_COOKIES_LOST, "the browser lost the account's cookies; the run is tried again"),
     _ui(UI_MODEL_SELECT_FAILED, "the model could not be selected on dola's page"),
     _ui(UI_RATIO_SELECT_FAILED, "the aspect ratio could not be selected on dola's page"),
     _ui(UI_DURATION_PATCH_FAILED, "the duration could not be set on dola's page"),
