@@ -3,7 +3,7 @@
 `x-stainless-retry-count` and no Idempotency-Key is answered with the job of the first send. Also the order of the
 idempotency lookup (before any download), and the facts the replay and the status of a job must keep."""
 
-import asyncio
+import time
 
 import httpx
 import psycopg
@@ -78,15 +78,17 @@ def test_the_non_stream_hold_stays_below_the_sdk_timeout_and_a_stream_keeps_1800
 @mutation(FC, "limit=min(HOLD_LIMIT_S, NON_STREAM_HOLD_S)", "limit=HOLD_LIMIT_S", expect="within the non-stream hold")
 def test_a_non_stream_request_ends_at_its_own_hold_with_the_poll_hint_while_the_job_runs_on(db, monkeypatch):
     monkeypatch.setattr(fc, "POLL_S", 0.05)
-    monkeypatch.setattr(fc, "NON_STREAM_HOLD_S", 0.4)          # HOLD_LIMIT_S stays 1800
+    monkeypatch.setattr(fc, "NON_STREAM_HOLD_S", 0.4)
+    # A shorter stream limit makes the wrong hold end on its own after 3 s: cancelling the request instead can be
+    # swallowed by Starlette's is_disconnected (a cancelled anyio scope) and leave the handler holding.
+    monkeypatch.setattr(fc, "HOLD_LIMIT_S", 3.0)
 
     async def scenario(env):
         for name, path, body_of, _, finish_of in FACADES:
             key = await env.new_key()
-            try:
-                r = await asyncio.wait_for(env.client.post(path, json=body_of(), headers=key.headers), 10)
-            except TimeoutError:
-                raise AssertionError("%s: not answered within the non-stream hold" % name) from None
+            began = time.monotonic()
+            r = await env.client.post(path, json=body_of(), headers=key.headers)
+            assert time.monotonic() - began < 2.0, "%s: not answered within the non-stream hold" % name
             assert r.status_code == 200 and finish_of(r.json()) in ("length", "MAX_TOKENS"), (name, r.text)
             [(job_id, status)] = jobs(db, key.id)
             assert status == "queued" and charges(db, key_id=key.id) == 1, "the job runs on, charged"
