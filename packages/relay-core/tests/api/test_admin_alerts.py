@@ -105,3 +105,25 @@ def test_the_api_may_update_the_acknowledge_columns_of_an_alert_and_nothing_else
 
     run_app(db, scenario)
     assert db.one("SELECT amount, alert FROM billing_alerts WHERE id = %s", clamp) == (5, "clamp")
+
+
+ALERTS_PY = "packages/relay-core/src/relay_core/alerts.py"
+ITEM_KEYS = ["id", "alert", "key_id", "provider", "kind", "ledger_id", "amount", "used_day", "used_total", "detail",
+             "acknowledged_by", "at_ms", "acknowledged_ms"]
+
+
+@mutation(ALERTS_PY, 'item["at_ms"] = _ms(item.pop("at"))', 'item["at_ms"] = _ms(item["at"])',
+          expect="the thirteen keys of an alert, in this order")
+def test_an_alert_has_exactly_the_thirteen_keys_the_dashboard_has_always_read(db):
+    plant(db)
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        first = await env.client.get("/admin/alerts", headers=h)
+        item = first.json()["items"][0]
+        acked = await env.client.post("/admin/alerts/%d/acknowledge" % item["id"], headers=h)
+        return first, acked
+
+    first, acked = run_app(db, scenario)
+    for item in first.json()["items"] + [acked.json()]:
+        assert list(item) == ITEM_KEYS, "the thirteen keys of an alert, in this order"

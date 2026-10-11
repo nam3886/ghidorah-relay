@@ -7,23 +7,15 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Request
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core.admin.routes_common import MAX_PAGE, ms
+from relay_core import alerts
+from relay_core.admin.routes_common import MAX_PAGE
 from relay_core.api.deps import get_pool
 from relay_core.api.errors_http import ApiError
 from relay_core.db import tx
 
 router = APIRouter()
 
-_COLUMNS = ("id", "at", "alert", "key_id", "provider", "kind", "ledger_id", "amount", "used_day", "used_total",
-            "detail", "acknowledged_at", "acknowledged_by")
-_SELECT = "SELECT " + ", ".join(_COLUMNS) + " FROM billing_alerts"
-
-
-def _view(row: tuple) -> dict:
-    item = dict(zip(_COLUMNS, row, strict=True))
-    item["at_ms"], item["acknowledged_ms"] = ms(item.pop("at")), ms(item.pop("acknowledged_at"))
-    item["key_id"] = str(item["key_id"])
-    return item
+_SELECT = "SELECT " + ", ".join(alerts.BILLING_COLUMNS) + " FROM billing_alerts"
 
 
 @router.get("/alerts")
@@ -36,7 +28,7 @@ async def list_alerts(status: Literal["open", "acknowledged", "all"] = "open", l
     async with tx(pool) as conn:
         rows = await (await conn.execute(_SELECT + where + " ORDER BY at DESC, id DESC LIMIT %s",
                                          (limit,))).fetchall()
-    return {"items": [_view(r) for r in rows]}
+    return {"items": [alerts.billing_item(r) for r in rows]}
 
 
 @router.post("/alerts/{alert_id}/acknowledge")
@@ -47,8 +39,9 @@ async def acknowledge_alert(alert_id: int, request: Request, pool: AsyncConnecti
     async with tx(pool) as conn:
         row = await (await conn.execute(
             "UPDATE billing_alerts SET acknowledged_at = COALESCE(acknowledged_at, clock_timestamp()), "
-            "acknowledged_by = COALESCE(acknowledged_by, %s) WHERE id = %s RETURNING " + ", ".join(_COLUMNS),
+            "acknowledged_by = COALESCE(acknowledged_by, %s) WHERE id = %s RETURNING "
+            + ", ".join(alerts.BILLING_COLUMNS),
             (request.state.admin_user.username, alert_id))).fetchone()
     if row is None:
         raise ApiError("resource.not_found")
-    return _view(row)
+    return alerts.billing_item(row)

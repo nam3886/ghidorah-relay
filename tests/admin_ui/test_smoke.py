@@ -14,6 +14,8 @@ from accountkit import done_job, new_account
 from jobkit import key as new_key
 from jobkit import run
 from patchright.sync_api import expect, sync_playwright
+from test_admin_alert_groups import group_of, plant_unclear, stamp
+from test_admin_alerts import plant
 from test_admin_jobs import failed_job
 from test_frame_plan import put
 
@@ -138,7 +140,7 @@ def test_every_tab_renders_its_columns_in_the_header_order(page, live, db):
         page.locator("#settingsTable tbody tr").first.locator("td").evaluate_all("els => els.map(e => e.dataset.col)")
 
 
-@mutation(STATS, "banner.classList.toggle('hidden', s.alerts.length === 0);",
+@mutation(STATS, "banner.classList.toggle('hidden', s.alerts.length === 0 && open === 0);",
           "banner.classList.toggle('hidden', true);", expect="Locator expected")
 def test_the_stat_cards_and_the_attention_banner_follow_the_data(page, live, db):
     k = new_key(db)
@@ -1021,3 +1023,420 @@ def test_a_failed_answer_for_an_editor_that_is_no_longer_open_shows_nothing(page
     assert page.get_by_text("an internal error occurred").count() == 0, "a stale failure showed a toast"
     expect(heading).to_have_text("video / default")
     page.problems.clear()                               # a 500 is a console line
+
+
+# ---- alerts hub ----------------------------------------------------------------------------------------------------
+ALERTS_JS = "packages/relay-core/src/relay_core/admin/static/tab-alerts.js"
+HOSTILE_REPLY = 'Which style? <img src=x onerror="window.__pwned=1">'
+PLAIN_REPLY = "Plain wording of one key"
+SERVER_ERROR = {"error": {"code": "internal.unexpected", "message": "an internal error occurred", "param": None}}
+ONE_CUSTOMER = "the one-customer mark is for a wording seen under one key only"
+NOT_A_WORDING = "the API read failure is not a wording seen by one customer"
+
+
+def group_row(page, text):
+    return page.locator("#alertsTable tbody tr", has_text=text)
+
+
+def alert_rows(db, group):
+    return [r[0] for r in db.all("SELECT id FROM unclear_replies WHERE group_id = %s ORDER BY id", group)]
+
+
+def alerts_planted(db):
+    """A clamp and a drift (one wallet), a hostile wording under two keys (a delivered, a refunded and a still open
+    job), a plain wording under one key, the empty wording, an acknowledged wording, and one account (a live
+    condition)."""
+    plant(db)
+    k1, k2 = new_key(db), new_key(db)
+    plant_unclear(db, k1, HOSTILE_REPLY, status="done")
+    plant_unclear(db, k2, HOSTILE_REPLY, status="failed", error_code="render.deadline")
+    plant_unclear(db, k2, HOSTILE_REPLY)
+    plant_unclear(db, k1, PLAIN_REPLY)
+    plant_unclear(db, k1, "")
+    stamp(db, "unclear_replies", plant_unclear(db, k1, "Seen and acknowledged wording"))
+    new_account(db, label="only", checked=True)
+    return k1, k2
+
+
+def alerts_page(page, live, db):
+    keys = alerts_planted(db)
+    sign_in(page, live)
+    open_tab(page, "alerts")
+    expect(page.locator("#alertsTable tbody tr")).to_have_count(5)
+    return keys
+
+
+@mutation(ALERTS_JS, "through_id: g.newest_id", "through_id: 9007199254740991",
+          expect="Acknowledged 3 row(s)")
+@mutation(ALERTS_JS, "esc(groupTitle(g))", "groupTitle(g)", expect="planted markup became an element in the list")
+@mutation(ALERTS_JS, "esc(i.text === '' ? '(no text)' : i.text)", "(i.text === '' ? '(no text)' : i.text)",
+          expect="planted markup became an element in the detail")
+@mutation(ALERTS_JS, "g.kind === 'unclear_reply' && g.keys === 1", "g.keys === 1", expect=ONE_CUSTOMER)
+@mutation(ALERTS_JS, " && !isEmptyWording(g)\n", "\n", expect=NOT_A_WORDING)
+@mutation(ALERTS_JS, "g.kind === 'unclear_reply' && g.title === EMPTY_WORDING_TITLE", "false",
+          expect="API read failure")
+@mutation(ALERTS_JS, "(at.kind ? '&kind=' + encodeURIComponent(at.kind) : '')", "''",
+          expect="to_have_count(1, timeout=3000)")
+@mutation(ALERTS_JS, "'?status=' + encodeURIComponent(at.status)", "'?status=open'",
+          expect='expect(group_row(page, "seen and acknowledged"))')
+@mutation(ALERTS_JS, "live: stats.alerts", "live: []", expect='expect(page.locator("#alertsLiveList"))')
+@mutation(ALERTS_JS, "    await refreshStats();", "    void 0;", expect='to_contain_text("4 open alert group(s)")')
+def test_the_alerts_tab_lists_every_kind_with_a_live_condition_filters_shows_details_and_acknowledges_what_it_showed(
+        page, live, db):
+    k1, _k2 = alerts_page(page, live, db)
+    hostile, plain = group_of(HOSTILE_REPLY), group_of(PLAIN_REPLY)
+    assert headers(page, "alerts") == cells(page, "alerts")
+    expect(page.locator("#alertsTable")).to_contain_text("clamp: fake")
+    expect(page.locator("#alertsTable")).to_contain_text("drift: fake")
+    expect(page.locator("#alertsLiveList")).to_contain_text("accounts_low")
+    assert page.locator("#alertsLive button").count() == 0, "a live condition has nothing to acknowledge"
+    expect(page.locator("#alertsOpenGroups")).to_contain_text("5 open alert group(s)")
+    expect(page.locator("#alertsMore")).to_be_hidden()
+    page.wait_for_timeout(300)                           # a script in the planted markup would have run by now
+    assert page.evaluate("window.__pwned", isolated_context=False) is None, "markup ran as a script"
+    assert page.locator("#panel-alerts img").count() == 0, "planted markup became an element in the list"
+    hostile_row, plain_row = group_row(page, "which style?"), group_row(page, "plain wording")
+    expect(hostile_row).to_contain_text("<img src=x")
+    expect(hostile_row.locator('td[data-col="keys"]')).to_have_text("2")
+    expect(plain_row.locator('td[data-col="keys"]')).to_have_text("1")
+    expect(plain_row).to_contain_text("one customer only: may be the customer's own words")
+    for other in (hostile_row, group_row(page, "clamp: fake"), group_row(page, "drift: fake")):
+        assert "one customer only" not in other.inner_text(), ONE_CUSTOMER
+    assert page.locator("#panel-alerts input, #panel-alerts textarea").count() == 0, "there is no phrase field"
+    expect(page.locator("#panel-alerts")).to_contain_text("new wording is a code change")
+
+    # the filters
+    page.select_option("#alertsStatus", "acknowledged")
+    expect(group_row(page, "seen and acknowledged")).to_be_visible()
+    expect(page.locator("#alertsTable tbody tr")).to_have_count(1)
+    page.select_option("#alertsStatus", "all")
+    expect(page.locator("#alertsTable tbody tr")).to_have_count(6)
+    page.select_option("#alertsKind", "drift")
+    expect(page.locator("#alertsTable tbody tr")).to_have_count(1, timeout=3000)
+    page.select_option("#alertsKind", "")
+    page.select_option("#alertsStatus", "open")
+    expect(page.locator("#alertsTable tbody tr")).to_have_count(5)
+
+    # the detail of the hostile wording: outcomes, failure codes, a job link, its texts as text
+    posted = []
+    page.on("request", lambda r: posted.append(r) if r.method == "POST" and "/acknowledge" in r.url else None)
+    hostile_row.get_by_role("button", name="Details").click()
+    detail = page.locator("#alertsDetail")
+    expect(page.locator("#alertDetailTitle")).to_contain_text("<img src=x")
+    expect(page.locator("#alertOutcomes")).to_contain_text(
+        "delivered 1, refunded 1, still open 1 (refused with: render.deadline x1)")
+    expect(detail.locator("tbody tr")).to_have_count(3)
+    page.wait_for_timeout(300)                           # the raw reply is in the detail now: a script would have run
+    assert page.evaluate("window.__pwned", isolated_context=False) is None, "markup ran as a script"
+    assert page.locator("#alertsDetail img").count() == 0, "planted markup became an element in the detail"
+    detail.locator("tbody tr", has_text="render.deadline").get_by_role("button").click()
+    expect(page.locator("#jobBox")).to_contain_text("render.deadline")
+    page.locator("#modalRoot").get_by_role("button", name="Close").click()
+
+    # acknowledge from the detail sends the newest row it showed; a row that arrives later keeps the group open
+    seen = max(alert_rows(db, hostile))
+    late = plant_unclear(db, k1, HOSTILE_REPLY)
+    detail.get_by_role("button", name="Acknowledge").click()
+    expect(page.get_by_text("Acknowledged 3 row(s)")).to_be_visible()
+    assert posted[0].post_data_json == {"through_id": seen}, "acknowledge sends the newest row the page showed"
+    assert db.one("SELECT acknowledged_at FROM unclear_replies WHERE id = %s", late)[0] is None, \
+        "a row that arrived after the page loaded must leave the group open"
+    expect(hostile_row.locator('td[data-col="open"]')).to_have_text("1")
+    expect(detail.locator("tbody tr")).to_have_count(4)
+
+    # the empty wording is an API read failure; a billing group shows its rows; an acknowledge from the list
+    assert "one customer only" not in group_row(page, "API read failure").inner_text(), NOT_A_WORDING
+    group_row(page, "API read failure").get_by_role("button", name="Details").click()
+    expect(page.locator("#alertReadFailure")).to_be_visible()
+    assert "one customer only" not in detail.inner_text(), NOT_A_WORDING
+    expect(page.locator("#alertDetailTitle")).to_contain_text("API read failure")
+    group_row(page, "clamp: fake").get_by_role("button", name="Details").click()
+    expect(detail.locator("tbody tr")).to_have_count(1)
+    expect(detail.locator("tbody tr")).to_contain_text("clamp")
+    detail.get_by_role("button", name="Close").click()
+    expect(detail).to_be_empty()
+    plain_row.get_by_role("button", name="Acknowledge").click()
+    expect(page.locator("#alertsTable tbody tr")).to_have_count(4)
+    assert posted[1].post_data_json == {"through_id": max(alert_rows(db, plain))}
+    expect(page.locator("#alertsOpenGroups")).to_contain_text("4 open alert group(s)")
+
+
+@mutation(STATS, "(open ? '<li id=\"alertsOpenGroups\">'", "(false ? '<li id=\"alertsOpenGroups\">'",
+          expect='expect(page.locator("#alertsOpenGroups"))')
+def test_the_banner_counts_open_alert_groups_and_a_click_opens_the_alerts_tab(page, live, db):
+    for n in range(3):
+        new_account(db, label="a%d" % n, checked=True)                  # no live condition: only groups can show it
+    sign_in(page, live)
+    expect(page.locator("#alertsBanner")).to_be_hidden()
+    plant(db)                                                           # a clamp and a drift
+    page.reload()
+    expect(page.locator("#alertsOpenGroups")).to_contain_text("2 open alert group(s)")
+    page.get_by_role("button", name="Open the Alerts tab").click()
+    expect(page.locator("#panel-alerts")).to_be_visible()
+    expect(page.locator("#alertsTable tbody tr")).to_have_count(2)
+
+
+@mutation(ALERTS_JS, "        if (g !== alertsView.gen) return null;\n        draw(answer);", "        draw(answer);",
+          expect='expect(page.locator("#alertsDetail h3"))')
+def test_a_late_detail_for_a_group_that_is_no_longer_asked_for_is_dropped(page, live, db):
+    alerts_page(page, live, db)
+    held = hold(page, "**/admin/alerts/groups/unclear_reply/%s*" % group_of(HOSTILE_REPLY), "GET")
+    group_row(page, "which style?").get_by_role("button", name="Details").click()
+    wait_held(page, held)
+    group_row(page, "plain wording").get_by_role("button", name="Details").click()
+    expect(page.locator("#alertDetailTitle")).to_contain_text("plain wording")
+    held[0].continue_()
+    alerts_idle(page)
+    expect(page.locator("#alertsDetail h3")).to_contain_text("plain wording")
+    assert page.locator("#alertsDetail tbody tr").count() == 1, "the late detail was drawn"
+
+
+@mutation(ALERTS_JS, "catch (err) { if (g !== alertsView.gen) return null; throw err; }", "catch (err) { throw err; }",
+          expect="a stale failure showed a toast")
+def test_a_failed_answer_for_a_group_that_is_no_longer_asked_for_shows_nothing(page, live, db):
+    alerts_page(page, live, db)
+    held = hold_nth(page, GROUPS_GET, 1, early=False)           # the list of the first load fails after the second drew
+    group_row(page, "which style?").get_by_role("button", name="Details").click()
+    wait_held(page, held)
+    group_row(page, "plain wording").get_by_role("button", name="Details").click()
+    expect(page.locator("#alertDetailTitle")).to_contain_text("plain wording")
+    let_go(held, failing=True)
+    alerts_idle(page)
+    assert page.get_by_text("an internal error occurred").count() == 0, "a stale failure showed a toast"
+    page.problems.clear()                               # a 500 is a console line
+
+
+@mutation(ALERTS_JS, "el.disabled = writing || (loading && !opens);", "el.disabled = writing;",
+          expect="expect(each).to_be_disabled()")
+def test_while_a_group_loads_nothing_can_be_acknowledged_and_only_views_can_be_asked_for(page, live, db):
+    alerts_page(page, live, db)
+    held = hold(page, "**/admin/alerts/groups/unclear_reply/%s*" % group_of(HOSTILE_REPLY), "GET")
+    group_row(page, "which style?").get_by_role("button", name="Details").click()
+    wait_held(page, held)
+    for each in page.locator("#alertsTable").get_by_role("button", name="Acknowledge").all():
+        expect(each).to_be_disabled()
+    expect(group_row(page, "plain wording").get_by_role("button", name="Details")).to_be_enabled()
+    expect(page.locator("#alertsStatus")).to_be_enabled()
+    held[0].continue_()
+    expect(page.locator("#alertDetailTitle")).to_contain_text("<img src=x")
+    expect(group_row(page, "plain wording").get_by_role("button", name="Acknowledge")).to_be_enabled()
+
+
+@mutation(ALERTS_JS, "const writing = alertsView.busy,", "const writing = false,",
+          expect='expect(page.locator("#alertsStatus")).to_be_disabled()')
+@mutation(ALERTS_JS, "finally { alertsView.busy = false; applyAlertsBusy(); }", "finally { applyAlertsBusy(); }",
+          expect="Locator expected to be enabled")
+def test_while_an_acknowledge_is_in_flight_nothing_else_can_be_clicked_and_a_failure_gives_the_controls_back(
+        page, live, db):
+    alerts_page(page, live, db)
+    held = hold(page, "**/admin/alerts/groups/**/acknowledge", "POST")
+    plain = group_row(page, "plain wording")
+    plain.get_by_role("button", name="Acknowledge").click()
+    wait_held(page, held)
+    expect(page.locator("#alertsStatus")).to_be_disabled()
+    expect(plain.get_by_role("button", name="Details")).to_be_disabled()
+    expect(group_row(page, "which style?").get_by_role("button", name="Acknowledge")).to_be_disabled()
+    held[0].fulfill(status=500, content_type="application/json", body=json.dumps(SERVER_ERROR))
+    expect(page.get_by_text("an internal error occurred")).to_be_visible()
+    expect(plain.get_by_role("button", name="Acknowledge")).to_be_enabled()
+    expect(page.locator("#alertsStatus")).to_be_enabled()
+    page.problems.clear()                               # a 500 is a console line
+    assert db.one("SELECT count(*) FROM unclear_replies WHERE acknowledged_at IS NOT NULL")[0] == 1, "nothing stamped"
+
+
+# ---- alerts hub: only the newest load, and the newest banner refresh, draws -----------------------------------------
+GROUPS_GET = re.compile(r".*/admin/alerts/groups\?status=open&limit=200")
+
+
+def hold_nth(page, pattern, nth, early):
+    """Keep the `nth` GET of `pattern`. `early`: it is sent at once and only its answer is kept, so the answer shows the
+    data of now (a slow server). Returns the list that holds (route, answer) once the request is caught."""
+    held, seen = [], []
+
+    def handler(route):
+        if route.request.method == "GET":
+            seen.append(1)
+            if len(seen) == nth and not held:
+                held.append((route, route.fetch() if early else None))
+                return
+        route.continue_()
+
+    page.route(pattern, handler)
+    return held
+
+
+def let_go(held, failing=False):
+    route, answer = held[0]
+    if failing:
+        route.fulfill(status=500, content_type="application/json", body=json.dumps(SERVER_ERROR))
+    elif answer is not None:
+        route.fulfill(response=answer)
+    else:
+        route.continue_()
+
+
+def alerts_idle(page):
+    for _ in range(250):
+        if page.evaluate("alertsView.loading", isolated_context=False) == 0:
+            break
+        page.wait_for_timeout(20)
+    page.wait_for_timeout(250)
+
+
+def older_load_after_an_acknowledge(page, live, db, failing):
+    """An acknowledge is in flight; the operator leaves the tab and comes back (a load starts and its answer is slow);
+    the acknowledge finishes and reloads; then the slow older answer arrives."""
+    alerts_page(page, live, db)
+    posted = hold(page, "**/admin/alerts/groups/**/acknowledge", "POST")
+    plain = group_row(page, "plain wording")
+    plain.get_by_role("button", name="Acknowledge").click()
+    wait_held(page, posted)
+    open_tab(page, "accounts")
+    page.wait_for_timeout(300)
+    late = hold_nth(page, GROUPS_GET, 2, early=not failing)       # the banner asks first, then the tab's own load
+    open_tab(page, "alerts")
+    wait_held(page, late)
+    posted[0].continue_()
+    expect(page.get_by_text("Acknowledged 1 row(s)")).to_be_visible()
+    expect(plain).to_have_count(0)
+    let_go(late, failing)
+    alerts_idle(page)
+    return plain
+
+
+@mutation(ALERTS_JS, "const g = ++alertsView.gen;", "const g = alertsView.gen;",
+          expect="the older load redrew the acknowledged group as open")
+def test_an_older_load_answering_after_an_acknowledge_does_not_draw_the_group_as_open_again(page, live, db):
+    plain = older_load_after_an_acknowledge(page, live, db, failing=False)
+    assert plain.count() == 0, "the older load redrew the acknowledged group as open"
+
+
+@mutation(ALERTS_JS, "const g = ++alertsView.gen;", "const g = alertsView.gen;",
+          expect="a stale load failure showed a toast")
+def test_an_older_load_failing_after_an_acknowledge_shows_nothing(page, live, db):
+    older_load_after_an_acknowledge(page, live, db, failing=True)
+    assert page.get_by_text("an internal error occurred").count() == 0, "a stale load failure showed a toast"
+    page.problems.clear()                               # a 500 is a console line
+
+
+@mutation(STATS, "    }\n    if (mine !== statsAsked) return;\n    const open", "    }\n    const open",
+          expect="the older banner refresh brought back the old count")
+def test_a_slow_older_banner_refresh_does_not_bring_back_the_count_from_before_an_acknowledge(page, live, db):
+    alerts_page(page, live, db)
+    expect(page.locator("#alertsOpenGroups")).to_contain_text("5 open alert group(s)")
+    older = hold_nth(page, GROUPS_GET, 1, early=True)             # asked now, answered after the acknowledge
+    page.evaluate("() => { refreshStats(); }", isolated_context=False)
+    wait_held(page, older)
+    group_row(page, "plain wording").get_by_role("button", name="Acknowledge").click()
+    expect(page.locator("#alertsOpenGroups")).to_contain_text("4 open alert group(s)")
+    let_go(older)
+    page.wait_for_timeout(500)
+    assert "4 open alert group(s)" in page.locator("#alertsOpenGroups").inner_text(), \
+        "the older banner refresh brought back the old count"
+
+
+@mutation(STATS, "    } catch (err) {\n        if (mine !== statsAsked) return;\n        throw err;",
+          "    } catch (err) {\n        throw err;", expect="a stale banner failure showed a toast")
+def test_a_slow_older_banner_refresh_that_fails_shows_nothing(page, live, db):
+    alerts_page(page, live, db)
+    older = hold_nth(page, GROUPS_GET, 1, early=False)
+    page.evaluate("() => { runBusy(null, refreshStats); }", isolated_context=False)   # as a tab switch does
+    wait_held(page, older)
+    group_row(page, "plain wording").get_by_role("button", name="Acknowledge").click()
+    expect(page.locator("#alertsOpenGroups")).to_contain_text("4 open alert group(s)")
+    let_go(older, failing=True)
+    page.wait_for_timeout(500)
+    assert page.get_by_text("an internal error occurred").count() == 0, "a stale banner failure showed a toast"
+    page.problems.clear()                               # a 500 is a console line
+
+
+# ---- alerts hub: closing, a failed detail, a failed reload, full pages ----------------------------------------------
+@mutation(ALERTS_JS, "    document.getElementById('alertsDetail').innerHTML = '';\n    await loadAlerts();\n};",
+          "    document.getElementById('alertsDetail').innerHTML = '';\n};", expect="Close left the detail open")
+def test_closing_a_detail_while_a_filter_loads_leaves_a_table_that_matches_the_filter(page, live, db):
+    alerts_page(page, live, db)
+    group_row(page, "which style?").get_by_role("button", name="Details").click()
+    expect(page.locator("#alertDetailTitle")).to_contain_text("<img src=x")
+    held = hold_nth(page, re.compile(r".*/admin/alerts/groups\?status=open&kind=drift&limit=200"), 1, early=False)
+    page.select_option("#alertsKind", "drift")
+    wait_held(page, held)
+    page.locator("#alertsDetail").get_by_role("button", name="Close").click()
+    let_go(held)
+    alerts_idle(page)
+    assert page.locator("#alertsDetail").inner_text() == "", "Close left the detail open"
+    expect(page.locator("#alertsTable tbody tr")).to_have_count(1)
+    assert page.locator("#alertsKind").input_value() == "drift"
+
+
+@mutation(ALERTS_JS, "        alertsView.asked = Object.assign({}, alertsView.asked, { open: null });\n        toast(",
+          "        toast(", expect="the failed detail was asked for again")
+def test_a_detail_that_cannot_be_read_is_closed_and_the_list_is_drawn(page, live, db):
+    alerts_page(page, live, db)
+
+    def refuse(route):
+        if route.request.method == "GET":
+            route.fulfill(status=500, content_type="application/json", body=json.dumps(SERVER_ERROR))
+        else:
+            route.continue_()
+
+    asked = []
+    page.on("request", lambda r: asked.append(r.url) if "/admin/alerts/groups/unclear_reply/" in r.url else None)
+    page.route(re.compile(r".*/admin/alerts/groups/unclear_reply/.*"), refuse)
+    group_row(page, "plain wording").get_by_role("button", name="Details").click()
+    expect(page.get_by_text("an internal error occurred")).to_be_visible()
+    alerts_idle(page)
+    assert page.locator("#alertsDetail").inner_text() == ""
+    expect(page.locator("#alertsTable tbody tr")).to_have_count(5)
+    page.select_option("#alertsKind", "drift")             # the failed detail is not asked for again
+    alerts_idle(page)
+    assert page.locator("#alertsTable tbody tr").count() == 1
+    assert len(asked) == 1, "the failed detail was asked for again"
+    page.problems.clear()                               # a 500 is a console line
+
+
+@mutation(ALERTS_JS, "try { await loadAlerts(); } catch (err) { failure = err; }", "await loadAlerts();",
+          expect="but the list could not be reloaded")
+def test_an_acknowledge_that_is_stored_says_so_when_the_list_cannot_be_reloaded(page, live, db):
+    alerts_page(page, live, db)
+    held = hold_nth(page, GROUPS_GET, 1, early=False)
+    group_row(page, "plain wording").get_by_role("button", name="Acknowledge").click()
+    wait_held(page, held)
+    let_go(held, failing=True)
+    expect(page.get_by_text("Acknowledged 1 row(s), but the list could not be reloaded")).to_be_visible()
+    assert db.one("SELECT count(*) FROM unclear_replies WHERE acknowledged_at IS NOT NULL")[0] == 2
+    alerts_idle(page)
+    expect(page.get_by_role("button", name="Acknowledge").first).to_be_enabled()
+    page.problems.clear()                               # a 500 is a console line
+
+
+@mutation(ALERTS_JS, "(d.items.length >= ROW_LIMIT ?", "(false ?", expect="says that older rows exist")
+@mutation(ALERTS_JS, "classList.toggle('hidden', view.groups.length < GROUP_LIMIT)", "classList.toggle('hidden', true)",
+          expect="says that older groups exist")
+def test_a_full_page_of_groups_or_rows_says_that_older_ones_are_not_listed(page, live, db):
+    k1, _k2 = alerts_planted(db)
+    for _ in range(100):
+        plant_unclear(db, k1, "A wording with a hundred rows")
+
+    def full_page(route):
+        if route.request.method != "GET":
+            route.continue_()
+            return
+        items = route.fetch().json()["items"]
+        route.fulfill(status=200, content_type="application/json",
+                      body=json.dumps({"items": items + [items[0]] * (200 - len(items))}))
+
+    page.route(GROUPS_GET, full_page)
+    sign_in(page, live)
+    open_tab(page, "alerts")
+    expect(page.locator("#alertsTable tbody tr")).to_have_count(200)
+    assert page.locator("#alertsMore").is_visible(), "says that older groups exist"
+    expect(page.locator("#alertsMore")).to_contain_text("Showing the newest 200 groups")
+    expect(page.locator("#alertsOpenGroups")).to_contain_text("200+ open alert group(s)")
+    group_row(page, "a wording with a hundred rows").first.get_by_role("button", name="Details").click()
+    expect(page.locator("#alertDetailTitle")).to_contain_text("a wording with a hundred rows")
+    expect(page.locator("#alertsDetail tbody tr")).to_have_count(100)
+    assert page.locator("#alertDetailMore").is_visible(), "says that older rows exist"
+    expect(page.locator("#alertDetailMore")).to_contain_text("Showing the newest 100 rows")
+    group_row(page, "which style?").first.get_by_role("button", name="Details").click()
+    expect(page.locator("#alertsDetail tbody tr")).to_have_count(3)
+    assert page.locator("#alertDetailMore").count() == 0
