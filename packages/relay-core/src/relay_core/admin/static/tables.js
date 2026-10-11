@@ -48,9 +48,10 @@ function switchHtml(checked, act, id, disabled) {
     return '<label class="inline-flex items-center cursor-pointer"><input type="checkbox" class="sr-only peer" data-change="' + act + '" data-id="' + esc(id) + '"' + (checked ? ' checked' : '') + (disabled ? ' disabled' : '') + '><div class="relative w-9 h-5 bg-gray-200 rounded-full peer peer-checked:bg-primary peer-disabled:opacity-50 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div></label>';
 }
 
-function button(act, label, attrs, cls) {
+function button(act, label, attrs, cls, title) {
     const data = Object.entries(attrs || {}).map(([k, v]) => ' data-' + k + '="' + esc(v) + '"').join('');
-    return '<button data-act="' + act + '"' + data + ' class="' + (cls || BTN_SMALL) + '">' + esc(label) + '</button>';
+    return '<button data-act="' + act + '"' + data + (title ? ' title="' + esc(title) + '"' : '') +
+        ' class="' + (cls || BTN_SMALL) + '">' + esc(label) + '</button>';
 }
 
 // ---- pager --------------------------------------------------------------------------------------------------

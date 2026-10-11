@@ -189,7 +189,7 @@ def test_accounts_import_edit_check_wake_delete_and_the_switch_hidden_while_in_u
     expect(page.get_by_text("Check: queued")).to_be_visible()
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'check' AND account_id = %s", free)[0] == 1
     free_row.get_by_role("button", name="Wake").click()
-    expect(page.get_by_text("Clear cooldown: queued")).to_be_visible()
+    expect(page.get_by_text("Wake: clear cooldown and strikes: queued")).to_be_visible()
 
     free_row.get_by_role("button", name="Edit").click()
     page.fill("#editLabel", "renamed")
@@ -201,6 +201,32 @@ def test_accounts_import_edit_check_wake_delete_and_the_switch_hidden_while_in_u
     rows.filter(has_text="renamed").get_by_role("button", name="Delete").click()
     expect(page.get_by_text("Delete: queued")).to_be_visible()
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'delete_account'")[0] == 1
+
+
+@mutation(ACCOUNTS_JS, "const WAKE_LABEL = 'Wake: clear cooldown and strikes';", "const WAKE_LABEL = 'Clear cooldown';",
+          expect="Locator expected")
+def test_wake_says_it_clears_the_cooldown_and_the_strikes(page, live, db):
+    new_account(db, label="asleep one", checked=True)
+    sign_in(page, live)
+    open_tab(page, "accounts")
+    wake = page.get_by_role("button", name="Wake")
+    expect(wake).to_have_attribute("title", re.compile("strike"))
+    wake.click()
+    expect(page.get_by_text("Wake: clear cooldown and strikes: queued")).to_be_visible()
+
+
+@mutation(ACCOUNTS_JS, "(a.state_reason ? ' (' + a.state_reason + ')' : '')", "''", expect="Locator expected")
+def test_a_check_shows_what_it_found_and_a_dead_account_shows_its_reason(page, live, db):
+    gone = new_account(db, label="gone one", checked=True)
+    db.run("UPDATE accounts SET state = 'dead', state_reason = 'signed out' WHERE id = %s", gone)
+    sign_in(page, live)
+    open_tab(page, "accounts")
+    row = page.locator("#panel-accounts tbody tr").filter(has_text="gone one")
+    row.get_by_role("button", name="Check", exact=True).click()
+    expect(page.get_by_text("Check: queued")).to_be_visible()
+    db.run("UPDATE commands SET status = 'done', result = %s::jsonb, finished_at = clock_timestamp() "
+           "WHERE kind = 'check' AND account_id = %s", json.dumps({"outcome": "checked"}), gone)
+    expect(page.get_by_text("Check: checked - account dead (signed out)")).to_be_visible(timeout=10000)
 
 
 def test_keys_create_shows_the_raw_key_once_toggle_and_delete(page, live, db):

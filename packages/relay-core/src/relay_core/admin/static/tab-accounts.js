@@ -5,6 +5,9 @@
 // worker holds it.
 
 const ACCOUNTS_PAGE = 50;
+// A wake clears the cooldown and the strike count (a third strike is what kills an account).
+const WAKE_LABEL = 'Wake: clear cooldown and strikes';
+const WAKE_HELP = 'Clear the cooldown and the strike count of this account';
 const STATE_TONE = { available: 'green', dead: 'red', disabled: 'gray' };
 
 function accountStatus(a) {
@@ -58,7 +61,7 @@ const ACCOUNT_COLUMNS = [
         (a.in_use ? '' : switchHtml(a.state !== 'disabled', 'toggleAccount', a.id, false)) +
         button('checkAccount', 'Check', { id: a.id }) +
         (a.has_screenshot ? button('showShot', 'Shot', { id: a.id }) : '') +
-        button('wakeAccount', 'Wake', { id: a.id }) +
+        button('wakeAccount', 'Wake', { id: a.id }, null, WAKE_HELP) +
         button('editAccount', 'Edit', { id: a.id }) +
         button('deleteAccount', 'Delete', { id: a.id }, BTN_SMALL + ' text-destructive') + '</div>' },
 ];
@@ -98,8 +101,15 @@ function accountById(id) { return accountsView.items.find((a) => a.id === id); }
 async function queue(promise, label) {
     const out = await promise;
     toast(label + ': queued', 'info');
-    await pollCommand(out.command_id, label);
+    const command = await pollCommand(out.command_id, label);
     await loadAccounts();
+    return command;
+}
+
+// What a check found, from the command's outcome and the account row it just changed: a dead account shows its reason.
+function checkSummary(command, a) {
+    const outcome = command.result && command.result.outcome ? command.result.outcome : 'done';
+    return 'Check: ' + outcome + ' - account ' + a.state + (a.state_reason ? ' (' + a.state_reason + ')' : '');
 }
 
 ACTIONS.refreshAccounts = () => loadAccounts();
@@ -113,8 +123,12 @@ ACTIONS.toggleAutoRefresh = (el) => {
         }, AUTO_REFRESH_MS);
     }
 };
-ACTIONS.checkAccount = (el) => queue(api('/accounts/' + el.dataset.id + '/check', { method: 'POST' }), 'Check');
-ACTIONS.wakeAccount = (el) => queue(api('/accounts/' + el.dataset.id + '/wake', { method: 'POST' }), 'Clear cooldown');
+ACTIONS.checkAccount = async (el) => {
+    const command = await queue(api('/accounts/' + el.dataset.id + '/check', { method: 'POST' }), 'Check');
+    const a = accountById(el.dataset.id);
+    if (command && command.status === 'done' && a) toast(checkSummary(command, a), a.state === 'dead' ? 'error' : 'info');
+};
+ACTIONS.wakeAccount = (el) => queue(api('/accounts/' + el.dataset.id + '/wake', { method: 'POST' }), WAKE_LABEL);
 ACTIONS.deleteAccount = async (el) => {
     const a = accountById(el.dataset.id);
     if (!confirm('Delete account "' + (a ? a.label : '') + '"? A used account cannot be deleted: disable it instead.')) return;

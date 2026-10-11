@@ -220,3 +220,17 @@ def test_a_job_row_opens_its_detail_and_shows_counts_a_refunded_tag_and_a_model_
     assert "data-act=\"openJob\"" in jobs and "model differs" in jobs and "'refunded'" in jobs
     assert "key: 'results'" in jobs and "key: 'references'" in jobs
     assert "e.stage === 'recovered' ? 'green'" in jobs
+
+
+ACCOUNTS_FILE = "packages/relay-core/src/relay_core/admin/static/tab-accounts.js"
+
+
+@mutation(ACCOUNTS_FILE, "const WAKE_LABEL = 'Wake: clear cooldown and strikes';",
+          "const WAKE_LABEL = 'Clear cooldown';", expect="the wake label names only the cooldown")
+def test_the_wake_label_and_help_name_both_the_cooldown_and_the_strikes():
+    text = (STATIC / "tab-accounts.js").read_text()
+    label = re.search(r"const WAKE_LABEL = '([^']*)'", text).group(1)
+    help_text = re.search(r"const WAKE_HELP = '([^']*)'", text).group(1)
+    assert "cooldown" in label and "strike" in label, "the wake label names only the cooldown: %r" % label
+    assert "cooldown" in help_text and "strike" in help_text, "the wake help names only the cooldown: %r" % help_text
+    assert "WAKE_HELP" in text.split("button('wakeAccount'", 1)[1].split("\n", 1)[0], "the Wake button has no help text"
