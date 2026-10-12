@@ -533,12 +533,14 @@ default), stored in `prompt_frames` with a version history and rendered once per
 (relay's `[marker]`), each exactly once, on one line of at most 1,000 characters. `relay serve` seeds the shipped
 defaults (the old video sentence after the prompt; nothing for images), logs a WARNING at every start when a stored
 default differs from the shipped one, and never rewrites it: the admin resets it (`POST /admin/frames/dola/<kind>/reset`).
-**Length limit.** The limit on a prompt applies to the whole text relay sends to a provider, not to the customer's words
-alone: the rendered frame (the prompt plus the frame's own text and the `[marker]`) must stay within the provider's
-`max_sent_chars`, else the request is refused 400 `input.prompt_too_long` before any charge. dola's is 50,000 characters
-(provisional), and the door never accepts a prompt over 50,000 characters either. With the shipped frames the longest prompt
-is 49,753 characters for a video (the video sentence takes 246 characters with the marker) and 49,993 for an image; a
-longer frame written in the admin lowers it further. The admin preview answers the same refusal.
+**Length limit.** Each provider declares its own `max_prompt_chars`, and the door refuses a longer prompt 400
+`input.prompt_too_long` before any charge. The limit on the text sent applies to the whole text relay sends to the
+provider, not to the customer's words alone: the rendered frame (the prompt plus the frame's own text and the
+`[marker]`) must stay within the provider's `max_sent_chars`, else the same refusal. dola's are both 200,000 characters
+(its measured edge on 12/10: 250,000 kept intact, 265,625 silently dropped; the cap leaves room below it). With the
+shipped frames the longest prompt is 199,753 characters for a video (the video sentence takes 246 characters with the
+marker) and 199,993 for an image; a longer frame written in the admin lowers it further. The admin preview answers
+the same refusal. Clients read the cap as `limits.max_prompt_chars` of every model in `GET /v1/models`.
 
 A video frame that lacks "single video" is saved with a warning. `dola.video_prompt_hint` is gone; a stale row of it in
 `settings_kv` is ignored with an error log.

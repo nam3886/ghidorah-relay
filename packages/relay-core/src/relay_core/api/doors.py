@@ -57,7 +57,6 @@ from relay_core.storage import ObjectStore, media_key
 
 log = logging.getLogger("relay.api")
 
-MAX_PROMPT = 50_000
 MAX_IMAGES = 10
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_TITLE = 200
@@ -356,21 +355,30 @@ async def check_callback(url: str) -> None:
         raise ApiError("input.invalid", "callback_url") from None
 
 
-def checked_prompt(text: str) -> str:
-    """The customer's words as a creation takes them: trimmed, not blank, not over MAX_PROMPT, no lone surrogate. The
-    doors and the admin preview both call it, so a preview renders what a job would send."""
+def prompt_cap(registry: ProviderRegistry, requested: str) -> int:
+    """The prompt cap of the model's provider. An unknown model gets the largest cap of any provider: `plan_job`, which
+    runs later, still answers it `input.bad_model`, and a prompt no provider takes is refused first."""
+    try:
+        return resolve_model(registry, requested)[0].max_prompt_chars
+    except ApiError:
+        return max((registry.spec(n).max_prompt_chars for n in registry.names()), default=0)
+
+
+def checked_prompt(text: str, max_chars: int) -> str:
+    """The customer's words as a creation takes them: trimmed, not blank, not over the provider's `max_chars`, no lone
+    surrogate. The doors and the admin preview both call it, so a preview renders what a job would send."""
     prompt = text.strip()
     if not prompt:
         raise ApiError("input.empty_prompt", "prompt")
-    if len(prompt) > MAX_PROMPT:
+    if len(prompt) > max_chars:
         raise ApiError("input.prompt_too_long", "prompt")
     if frames.has_surrogate(prompt):
         raise ApiError("input.invalid", "prompt")
     return prompt
 
 
-def _check_text(req: DoorRequest) -> str:
-    prompt = checked_prompt(req.prompt)
+def _check_text(registry: ProviderRegistry, req: DoorRequest) -> str:
+    prompt = checked_prompt(req.prompt, prompt_cap(registry, req.model))
     if req.title is not None and (len(req.title) > MAX_TITLE or any(c in req.title for c in "\r\n")):
         raise ApiError("input.invalid", "title")
     if req.idem_key is not None and (not req.idem_key or len(req.idem_key) > MAX_IDEM_KEY
@@ -392,7 +400,7 @@ async def create_job_for(gate: Gate, key: ApiKey, req: DoorRequest) -> Made:
     The request hash and both lookups (the idempotency key's, and a facade retry's) come before anything foreign is
     touched: an image URL that no longer downloads, or a callback host that is gone, cannot turn a replay into an
     error. Images are hashed as the client sent them (the reference text), not as downloaded."""
-    prompt = _check_text(req)
+    prompt = _check_text(gate.registry, req)
     request_hash = body_hash({
         "endpoint": req.endpoint, "model": req.model, "prompt": prompt, "duration": req.duration,
         "ratio": req.ratio, "n": req.n, "options": dict(req.options), "title": req.title,

@@ -121,7 +121,9 @@ def test_a_rendered_text_over_the_providers_cap_is_400_prompt_too_long_before_an
         over = await make(env, api_key, "x" * (room + 1))
         return api_key, fits, over
 
-    api_key, fits, over = run_app(db, scenario, spec=framed())
+    # the prompt cap is out of the way (as large as the rendered cap): this test is about the rendered text
+    spec = framed(max_prompt_chars=FAKE_FRAMES.max_sent_chars)
+    api_key, fits, over = run_app(db, scenario, spec=spec)
     assert fits.status_code == 200, "the exact cap is allowed: %s" % fits.text
     assert error_of(over) == (400, "input.prompt_too_long", "prompt"), "the length cap was not applied: %s" % over.text
     assert len(jobs(db, api_key.id)) == 1 and charges(db, key_id=api_key.id) == 1, "the refused request was charged"

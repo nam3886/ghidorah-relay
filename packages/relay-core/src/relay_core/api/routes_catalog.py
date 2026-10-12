@@ -37,7 +37,8 @@ def _allowed(registry: ProviderRegistry, key: ApiKey) -> list[tuple[ProviderSpec
 def model_entry(spec: ProviderSpec, m: ModelSpec) -> dict:
     """A catalog entry (contracts 8); the admin's model list uses it too."""
     return {"id": m.id, "object": "model", "owned_by": spec.name, "kind": m.media_type,
-            "operations": list(m.operations), "aliases": list(m.aliases), "limits": dict(m.limits),
+            "operations": list(m.operations), "aliases": list(m.aliases),
+            "limits": {**m.limits, "max_prompt_chars": spec.max_prompt_chars},
             "prices": dict(m.prices), "is_alias": False}
 
 

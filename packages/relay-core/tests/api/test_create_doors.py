@@ -22,6 +22,8 @@ from doorkit import (
 from relay_core import errors
 from relay_core.api import doors
 from relay_core.api import facade_common as fc
+from relay_core.providers import ProviderRegistry
+from relay_core.testing.fake_provider import FAKE_MAX_PROMPT_CHARS, FakeSpec
 from relay_core.testing.mutation import mutation
 
 DOORS = "packages/relay-core/src/relay_core/api/doors.py"
@@ -348,7 +350,7 @@ def test_an_https_callback_and_an_https_image_url_are_accepted_and_stored(db, mo
 
 # ---- input checks happen before the charge (R15) ------------------------------------------------------------------
 @mutation(DOORS, "    if not prompt:", "    if False:", expect="empty_prompt")
-@mutation(DOORS, "    if len(prompt) > MAX_PROMPT:", "    if False:", expect="prompt_too_long")
+@mutation(DOORS, "    if len(prompt) > max_chars:", "    if False:", expect="prompt_too_long")
 def test_a_blank_or_too_long_prompt_is_400_with_no_job_and_no_charge(db):
     async def scenario(env):
         key = await env.new_key()
@@ -356,11 +358,11 @@ def test_a_blank_or_too_long_prompt_is_400_with_no_job_and_no_charge(db):
                             (GEMINI_PATH, lambda t: gemini(t))):
             r = await env.client.post(path, json=build("  \n "), headers=key.headers)
             assert error_of(r)[:2] == (400, "input.empty_prompt"), (path, r.text)
-            r = await env.client.post(path, json=build("x" * 50_001), headers=key.headers)
+            r = await env.client.post(path, json=build("x" * (FAKE_MAX_PROMPT_CHARS + 1)), headers=key.headers)
             assert error_of(r)[:2] == (400, "input.prompt_too_long"), (path, r.text)
         r = await env.client.post(CHAT_PATH, json={"model": VIDEO, "messages": []}, headers=key.headers)
         assert error_of(r) == (400, "input.empty_prompt", "messages"), r.text
-        r = await env.client.post(VIDEO_PATH, json=video(prompt="x" * 50_000), headers=key.headers)
+        r = await env.client.post(VIDEO_PATH, json=video(prompt="x" * FAKE_MAX_PROMPT_CHARS), headers=key.headers)
         assert r.status_code == 200, "a prompt at the cap is accepted"
         assert len(jobs(db, key.id)) == 1 and charges(db, key_id=key.id) == 1
 
@@ -410,6 +412,32 @@ def test_an_image_that_is_not_a_jpeg_png_or_webp_or_not_base64_is_400_image_unre
                                                              + base64.b64encode(good).decode()), headers=key.headers)
             assert r.status_code == 200, "the bytes decide the type, not the declared one: %s" % r.text
         assert len(jobs(db, key.id)) == 3
+
+    run_app(db, scenario)
+
+
+@mutation(DOORS, "        return resolve_model(registry, requested)[0].max_prompt_chars",
+          "        return max(registry.spec(n).max_prompt_chars for n in registry.names())",
+          expect="the model's own cap")
+def test_the_cap_is_the_one_of_the_models_provider_and_an_unknown_model_gets_the_largest(db):
+    small, large = FakeSpec("small", max_prompt_chars=10), FakeSpec("large", max_prompt_chars=30)
+    registry = ProviderRegistry()
+    registry.register(small)
+    registry.register(large)
+    assert doors.prompt_cap(registry, "small-video") == 10, "the model's own cap: small-video is small's"
+    assert doors.prompt_cap(registry, "large-image") == 30, "the model's own cap: large-image is large's"
+    assert doors.prompt_cap(registry, "large-video-5s") == 30, "the model's own cap: a variant is its base model's"
+    assert doors.prompt_cap(registry, "nope") == 30, "an unknown model gets the largest cap"
+
+    async def scenario(env):
+        key = await env.new_key()
+        r = await env.client.post(VIDEO_PATH, json=video(model="nope", prompt="x" * (FAKE_MAX_PROMPT_CHARS + 1)),
+                                  headers=key.headers)
+        assert error_of(r)[:2] == (400, "input.prompt_too_long"), "unknown model, over every cap: " + r.text
+        r = await env.client.post(VIDEO_PATH, json=video(model="nope", prompt="x" * FAKE_MAX_PROMPT_CHARS),
+                                  headers=key.headers)
+        assert error_of(r) == (400, "input.bad_model", "model"), "unknown model, a prompt within the cap: " + r.text
+        assert not jobs(db, key.id)
 
     run_app(db, scenario)
 

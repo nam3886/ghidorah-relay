@@ -338,7 +338,8 @@ def test_a_regenerate_with_frames_sends_todays_frame_once_and_a_replay_changes_n
     assert charges(db, [new]) == 1 and events(db, old) == 1
 
 
-@mutation(ROUTES, 'prompt=checked_prompt(sent["prompt"])', 'prompt=sent["prompt"]', expect="a blank prompt")
+@mutation(ROUTES, '    prompt = checked_prompt(sent["prompt"], prompt_cap(gate.registry, sent["model"]))',
+          '    prompt = sent["prompt"]', expect="a blank prompt")
 def test_a_stored_prompt_the_door_would_refuse_is_refused_with_its_own_code_before_any_charge(db):
     seed(db)
     k = key(db)

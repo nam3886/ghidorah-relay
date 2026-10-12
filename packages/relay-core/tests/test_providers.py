@@ -20,6 +20,7 @@ class Stub:
     caps: pv.Caps = field(default_factory=lambda: caps())
     bare: bool = False          # True: none of the settings the core reads
     frames: pv.FrameRules | None = None
+    max_prompt_chars: int = 1000
 
     def catalog(self):
         return self.models
@@ -173,3 +174,23 @@ def test_a_spec_with_frames_must_ship_a_valid_default_for_every_kind_of_its_cata
         with pytest.raises(pv.RegistryError):
             pv.ProviderRegistry().register(Stub("x", [model("x-1")], frames=broken))
             pytest.fail(why)
+
+
+@mutation(SRC, "    if not isinstance(cap, int) or isinstance(cap, bool) or cap < 1:", "    if False:",
+          expect="a prompt cap that is not a positive whole number was accepted")
+def test_a_spec_must_declare_a_positive_whole_prompt_cap():
+    pv.ProviderRegistry().register(Stub("fine", [model("f-1")]))
+    for cap in (0, -5, 2.5, True, None, "50000"):
+        with pytest.raises(pv.RegistryError):
+            pv.ProviderRegistry().register(Stub("x", [model("x-1")], max_prompt_chars=cap))
+            pytest.fail("a prompt cap that is not a positive whole number was accepted: %r" % (cap,))
+    with pytest.raises(pv.RegistryError):
+        pv.ProviderRegistry().register(NoCap("y", [model("y-1")]))
+        pytest.fail("a spec with no prompt cap was accepted")
+
+
+class NoCap(Stub):
+    def __getattribute__(self, attr):
+        if attr == "max_prompt_chars":
+            raise AttributeError(attr)
+        return super().__getattribute__(attr)

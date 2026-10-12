@@ -12,6 +12,8 @@ import pytest
 from kit_a import plan
 
 from relay_core import frames
+from relay_core.api.doors import checked_prompt
+from relay_core.api.errors_http import ApiError
 from relay_core.jobs.create import marker_for
 from relay_core.testing.mutation import mutation
 from relay_dola.spec import SPEC
@@ -60,7 +62,35 @@ def test_the_shipped_defaults_pass_the_grammar_cover_the_catalog_and_assert_noth
         "the default video frame no longer asks dola to answer in English: replies in other languages are unreadable "
         "to the classifier and a length notice is never answered")
     assert SPEC.frames.defaults["image"] == "{{client_prompt}} {{tracking_code}}"
-    assert SPEC.frames.max_sent_chars == 50_000
+    assert SPEC.frames.max_sent_chars == 200_000 and SPEC.max_prompt_chars == 200_000
+
+
+@mutation(SPEC_FILE, "    max_prompt_chars = PROMPT_MAX_CHARS", "    max_prompt_chars = 50_000",
+          expect="dola's prompt cap")
+@mutation("packages/provider-dola/src/relay_dola/constants.py", "FRAME_MAX_SENT_CHARS = 200_000 ",
+          "FRAME_MAX_SENT_CHARS = 50_000 ", expect="the longest prompt the shipped")
+def test_the_longest_prompt_dola_takes_with_the_shipped_frames_is_pinned():
+    """A prompt of the cap passes the door; the rendered text (prompt + frame + marker) must fit `max_sent_chars`, so
+    the longest prompt is the cap less what the frame adds. The two numbers are literals on purpose."""
+    assert SPEC.max_prompt_chars == 200_000, "dola's prompt cap is the measured edge, 200,000"
+    marker = marker_for(JOB_VIDEO)
+    longest = {}
+    for kind, text in SPEC.frames.defaults.items():
+        n = SPEC.frames.max_sent_chars - (len(frames.render(text, "x", marker)) - 1)     # what the frame adds is fixed
+        assert len(frames.render(text, "x" * n, marker)) == SPEC.frames.max_sent_chars
+        assert len(frames.render(text, "x" * (n + 1), marker)) == SPEC.frames.max_sent_chars + 1
+        longest[kind] = n
+    assert longest == {"video": 199_753, "image": 199_993}, "the longest prompt the shipped frames allow: %r" % longest
+
+
+@mutation("packages/provider-dola/src/relay_dola/constants.py", "PROMPT_MAX_CHARS = 200_000 ",
+          "PROMPT_MAX_CHARS = 200_001 ", expect="dola refuses a prompt over its cap")
+def test_the_door_takes_a_dola_prompt_of_200000_characters_and_refuses_one_more():
+    assert checked_prompt("x" * 200_000, SPEC.max_prompt_chars) == "x" * 200_000
+    with pytest.raises(ApiError) as refused:
+        checked_prompt("x" * 200_001, SPEC.max_prompt_chars)
+        pytest.fail("dola refuses a prompt over its cap: 200,001 characters went through")
+    assert refused.value.code == "input.prompt_too_long"
 
 
 @mutation(SPEC_FILE, '    return (SINGLE_VIDEO_WARNING,) if kind == "video" and "single video" not in text.casefold()',

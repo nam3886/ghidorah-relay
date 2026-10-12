@@ -515,6 +515,7 @@ class ProviderSpec(Protocol):
 
     name: str
     caps: Caps
+    max_prompt_chars: int                        # the longest prompt a customer may send, in characters
     rate_alerts: tuple[RateAlert, ...] = ()      # a spec without the attribute declares none (read with getattr)
 
     def catalog(self) -> list[ModelSpec]: ...
@@ -553,6 +554,9 @@ def _problems(spec: ProviderSpec) -> list[str]:
     bad = []
     if not _NAME.fullmatch(spec.name):
         bad.append("provider name %r must be lower case letters, digits and _" % spec.name)
+    cap = getattr(spec, "max_prompt_chars", None)
+    if not isinstance(cap, int) or isinstance(cap, bool) or cap < 1:
+        bad.append("%s: max_prompt_chars must be a positive whole number" % spec.name)
     keys = set(spec.settings())
     stray = sorted(k for k in keys if not k.startswith(spec.name + "."))
     if stray:

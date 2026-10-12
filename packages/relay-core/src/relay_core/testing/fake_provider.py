@@ -48,6 +48,8 @@ FAKE_FRAMES = FrameRules(
     warnings=lambda kind, text: () if "single" in text.lower() else ("asks for no single result",),
     max_sent_chars=2000)
 
+FAKE_MAX_PROMPT_CHARS = 1000      # small, so a test can reach it; below FAKE_FRAMES.max_sent_chars
+
 
 class FakeSpec:
     """The fake provider's spec. `name` is a parameter so a test can run two of them. `frames` is None (the core frame
@@ -56,9 +58,11 @@ class FakeSpec:
 
     def __init__(self, name: str = "fake", *, execution: str = "http", account_slots: int | None = 1,
                  max_attempts: int = 3, has_reconcile: bool = True, frames: FrameRules | None = None,
-                 unclear: str | None = None):
+                 unclear: str | None = None,
+                 max_prompt_chars: int = FAKE_MAX_PROMPT_CHARS):
         self.name = name
         self.frames = frames
+        self.max_prompt_chars = max_prompt_chars
         self.unclear = unclear
         self.caps = Caps(
             execution=execution, wallet_kinds=("video", "image"),

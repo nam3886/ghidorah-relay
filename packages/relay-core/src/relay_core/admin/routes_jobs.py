@@ -19,7 +19,7 @@ from pydantic import Field
 from relay_core import billing, storage
 from relay_core.admin.routes_common import MAX_PAGE, Strict, enqueue, ms
 from relay_core.api.deps import get_pool, get_registry, get_settings, get_store
-from relay_core.api.doors import Gate, checked_prompt, plan_job
+from relay_core.api.doors import Gate, checked_prompt, plan_job, prompt_cap
 from relay_core.api.errors_http import ApiError
 from relay_core.api.routes_media import serve_job_media
 from relay_core.db import tx
@@ -302,8 +302,9 @@ async def fresh_plan(gate: Gate, job_id) -> Plan:
             "SELECT object_key, mime, size FROM job_media WHERE job_id = %s AND role = 'input' ORDER BY idx",
             (job_id,))).fetchall()
     sent, allowed = job
+    prompt = checked_prompt(sent["prompt"], prompt_cap(gate.registry, sent["model"]))
     request = CreateRequest(
-        model=sent["model"], prompt=checked_prompt(sent["prompt"]), duration=sent.get("duration"),
+        model=sent["model"], prompt=prompt, duration=sent.get("duration"),
         ratio=sent.get("ratio"), n=sent.get("n"),
         images=tuple(MediaIn(hashlib.sha256(k.encode()).hexdigest(), m, s) for k, m, s in inputs),
         options=sent.get("options") or {}, title=sent.get("title"),

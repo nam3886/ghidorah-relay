@@ -38,7 +38,8 @@ IMAGE_ACCOUNT_COST = 1          # dola counts the image ceiling per JOB, whateve
 
 # ---- requests -------------------------------------------------------------------------------------------------
 MAX_REFERENCE_IMAGES = 10       # the composer takes 10 and silently drops the rest (spike 17/09)
-FRAME_MAX_SENT_CHARS = 50_000   # longest rendered text dola is sent; provisional until dola's cut length is measured
+PROMPT_MAX_CHARS = 200_000      # longest prompt a customer may send; edge measured 12/10: 250,000 kept, 265,625 dropped
+FRAME_MAX_SENT_CHARS = 200_000  # longest rendered text dola is sent (same measured edge)
 BROWSER_SLOTS_MIN, BROWSER_SLOTS_MAX = 1, 30       # 30 sessions at once peaked ~25 of 32 cores (measured 25/09)
 
 # ---- events ---------------------------------------------------------------------------------------------------

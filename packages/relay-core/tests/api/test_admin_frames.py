@@ -11,7 +11,7 @@ from relay_core import failpoints, frames
 from relay_core.api import doors
 from relay_core.jobs.create import marker_for
 from relay_core.providers import ModelSpec
-from relay_core.testing.fake_provider import FAKE_FRAMES, FakeSpec
+from relay_core.testing.fake_provider import FAKE_FRAMES, FAKE_MAX_PROMPT_CHARS, FakeSpec
 from relay_core.testing.mutation import mutation
 
 ROUTES = "packages/relay-core/src/relay_core/admin/routes_frames.py"
@@ -398,7 +398,7 @@ def test_every_frame_route_needs_the_admin_session(db):
 
 
 # ---- the preview takes the prompt the way a creation does ------------------------------------------------------------
-@mutation(ROUTES, "    prompt = checked_prompt(body.prompt)", "    prompt = body.prompt",
+@mutation(ROUTES, "    prompt = checked_prompt(body.prompt, spec.max_prompt_chars)", "    prompt = body.prompt",
           expect="the preview does not apply the creation's prompt rules")
 def test_the_preview_trims_refuses_a_blank_or_over_long_prompt_and_a_lone_surrogate_like_a_creation(db):
     seed(db)
@@ -411,13 +411,14 @@ def test_the_preview_trims_refuses_a_blank_or_over_long_prompt_and_a_lone_surrog
         preview = await go(env, "POST", "/frames/preview", json={"model": A, "prompt": raw})
         job = await env.client.post("/v1/video/generations", headers=api_key.headers, json={"model": A, "prompt": raw})
         blank = await go(env, "POST", "/frames/preview", json={"model": A, "prompt": " \n\t "})
-        long = await go(env, "POST", "/frames/preview", json={"model": A, "prompt": "x" * (doors.MAX_PROMPT + 1)})
+        long = await go(env, "POST", "/frames/preview", json={"model": A, "prompt": "x" * (FAKE_MAX_PROMPT_CHARS + 1)})
+        at_cap = await go(env, "POST", "/frames/preview", json={"model": A, "prompt": "x" * FAKE_MAX_PROMPT_CHARS})
         lone = await env.client.post(
             "/admin/frames/preview", headers={**await env.admin_headers(), "Content-Type": "application/json"},
             content=('{"model": "%s", "prompt": "a\\ud800b"}' % A).encode())
-        return preview, job.json()["id"], blank, long, lone
+        return preview, job.json()["id"], blank, long, at_cap, lone
 
-    preview, job, blank, long, lone = run_app(db, scenario, spec=spec())
+    preview, job, blank, long, at_cap, lone = run_app(db, scenario, spec=spec())
     sent_text, marker = db.one("SELECT sent_text, marker FROM jobs WHERE id = %s", job)
     zero = marker_for(doors.SAMPLE_JOB_ID)
     assert preview.json()["text"] == "Video of: a cat on a sofa, one single video. [%s]" % zero, \
@@ -428,6 +429,7 @@ def test_the_preview_trims_refuses_a_blank_or_over_long_prompt_and_a_lone_surrog
         "the preview does not apply the creation's prompt rules"
     assert error_of(long) == (400, "input.prompt_too_long", "prompt"), \
         "the preview does not apply the creation's prompt rules"
+    assert at_cap.status_code == 200, "the preview does not apply the creation's prompt rules: a prompt at the cap"
     assert error_of(lone) == (400, "input.invalid", "prompt"), "the preview does not apply the creation's prompt rules"
 
 

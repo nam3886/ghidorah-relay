@@ -8,7 +8,7 @@ from apikit import NewApiKey, run_app
 from relay_core import keys
 from relay_core.db import tx
 from relay_core.providers import ModelSpec
-from relay_core.testing.fake_provider import FakeSpec
+from relay_core.testing.fake_provider import FAKE_MAX_PROMPT_CHARS, FakeSpec
 from relay_core.testing.mutation import mutation
 
 CATALOG = "packages/relay-core/src/relay_core/api/routes_catalog.py"
@@ -51,6 +51,8 @@ def test_every_catalog_route_needs_a_key(db):
     assert run_app(db, scenario) == ["auth.invalid_key"] * len(ROUTES)
 
 
+@mutation(CATALOG, '"limits": {**m.limits, "max_prompt_chars": spec.max_prompt_chars},', '"limits": dict(m.limits),',
+          expect="limits.max_prompt_chars")
 def test_models_list_the_catalog_with_prices_and_limits(db):
     async def scenario(env):
         env.registry.register(AliasSpec("other"))
@@ -63,7 +65,8 @@ def test_models_list_the_catalog_with_prices_and_limits(db):
     assert list(by_id) == ["fake-video", "fake-image", "other-video"]
     assert by_id["other-video"] == {"id": "other-video", "object": "model", "owned_by": "other", "kind": "video",
                                     "operations": ["generate"], "aliases": ["other-fast"],
-                                    "limits": {"durations": [5, 10]}, "prices": {"default": 7}, "is_alias": False}
+                                    "limits": {"durations": [5, 10], "max_prompt_chars": FAKE_MAX_PROMPT_CHARS},
+                                    "prices": {"default": 7}, "is_alias": False}, "limits.max_prompt_chars"
     assert by_id["fake-image"]["prices"] == {"default": 1} and by_id["fake-image"]["kind"] == "image"
 
 

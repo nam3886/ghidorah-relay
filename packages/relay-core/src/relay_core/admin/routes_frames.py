@@ -245,7 +245,7 @@ async def preview(body: PreviewBody, request: Request) -> dict:
     gate = Gate.of(request)
     spec, model = resolve_model(gate.registry, body.model)
     rules = _rules(spec)
-    prompt = checked_prompt(body.prompt)
+    prompt = checked_prompt(body.prompt, spec.max_prompt_chars)
     snapshots = await snapshots_of(gate.pool, spec.name)
     if body.text is not None:
         use, source = FrameUse(None, _checked(body.text)), "draft"

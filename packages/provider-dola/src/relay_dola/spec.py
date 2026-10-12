@@ -33,6 +33,7 @@ from relay_dola.constants import (
     IMAGE_ACCOUNT_COST,
     MAX_ATTEMPTS,
     MAX_REFERENCE_IMAGES,
+    PROMPT_MAX_CHARS,
     PROVIDER,
     PROXY_REST_S,
     STRIKE_DEAD_REASON,
@@ -144,6 +145,7 @@ _SETTINGS = dict((
 class DolaSpec:
     name = PROVIDER
     frames = FRAMES
+    max_prompt_chars = PROMPT_MAX_CHARS
     caps = Caps(
         execution="browser", wallet_kinds=("video", "image"),
         pools=(PoolSpec("video", "UTC", "dola.video_budget"), PoolSpec("image", "UTC", "dola.image_budget")),
