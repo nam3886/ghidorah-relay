@@ -163,19 +163,36 @@ class Settings:
     async def set(self, key: str, value: Any, *, by: str | None = None) -> Any:
         spec = self._registry.spec(key)
         value = spec.validate(value)  # before anything is written
+        await self._write(key, value, by)
+        return value
+
+    async def set_changed(self, key: str, value: Any, *, by: str | None = None) -> bool:
+        """`set`, but says whether the STORED row was absent or different before the write (not whether the effective
+        value moved: the env or the default may already give the same one)."""
+        return await self._write(key, self._registry.spec(key).validate(value), by)
+
+    async def _write(self, key: str, value: Any, by: str | None) -> bool:
         async with tx(self._pool) as conn:
+            # the lock makes the read and the write one step even for a row that does not exist yet
+            await conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", ("settings_kv:" + key,))
+            # Postgres compares the jsonb (Python would call a stored 1 equal to true)
+            row = await (await conn.execute("SELECT value IS DISTINCT FROM %s::jsonb FROM settings_kv WHERE key = %s",
+                                            (json.dumps(value), key))).fetchone()
+            changed = row is None or row[0]
             await conn.execute(
                 "INSERT INTO settings_kv (key, value, updated_by) VALUES (%s, %s::jsonb, %s) "
                 "ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = clock_timestamp(), "
                 "updated_by = excluded.updated_by", (key, json.dumps(value), by))
             await conn.execute(NOTIFY_SQL, (key,))
         await self.reload()
-        return value
+        return changed
 
     async def delete(self, key: str) -> bool:
         """Drop the stored value: the env value or the default applies again. True when a value was stored."""
         self._registry.spec(key)
         async with tx(self._pool) as conn:
+            # the same lock as a write: a delete never lands between a write's read and its upsert
+            await conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", ("settings_kv:" + key,))
             cur = await conn.execute("DELETE FROM settings_kv WHERE key = %s", (key,))
             await conn.execute(NOTIFY_SQL, (key,))
         await self.reload()

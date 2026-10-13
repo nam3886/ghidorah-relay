@@ -48,12 +48,63 @@ def test_drain_stops_claims_and_resume_restores_them(db):
         k = key(db)
         account(db)
         await create(p, k, "one")
-        assert await ops.drain(settings, "fake") is False and settings.get("fake.claims_enabled") is False
+        assert await ops.drain(settings, "fake") is True and settings.get("fake.claims_enabled") is False
         assert await claim(p, settings=settings) is None
         assert await ops.resume(settings, "fake") is True
         return await claim(p, settings=settings)
 
     assert run(db, scenario) is not None
+
+
+SETTINGS = "packages/relay-core/src/relay_core/settings.py"
+SAME_AS_STORED = "changed = row is None or row[0]"
+ALWAYS_CHANGED = "changed = True"
+ONLY_ABSENT = "changed = row is None"
+RETURNS_VALUE = "return await settings.set_changed(provider + \".claims_enabled\", False, by=by)"
+RETURNS_WRITTEN = "return await settings.set(provider + \".claims_enabled\", False, by=by)"
+
+
+@mutation(SETTINGS, SAME_AS_STORED, ALWAYS_CHANGED, expect="a repeated drain said it changed something")
+@mutation(SETTINGS, SAME_AS_STORED, ONLY_ABSENT, expect="a drain after a resume did not say it changed something")
+@mutation(SRC, RETURNS_VALUE, RETURNS_WRITTEN, expect="a first drain did not say it changed something")
+def test_drain_and_resume_say_whether_the_stored_value_changed(db):
+    async def scenario(p):
+        settings = real_settings(p, db)
+        first = await ops.drain(settings, "fake")                     # no stored row yet
+        again = await ops.drain(settings, "fake")
+        back = await ops.resume(settings, "fake")
+        drained = await ops.drain(settings, "fake")
+        await ops.resume(settings, "fake")
+        return first, again, back, drained, await ops.resume(settings, "fake")
+
+    first, again, back, drained, resumed_twice = run(db, scenario)
+    assert first is True, "a first drain did not say it changed something"
+    assert again is False, "a repeated drain said it changed something"
+    assert back is True and drained is True, "a drain after a resume did not say it changed something"
+    assert resumed_twice is False
+
+
+COMPARE = "SELECT value IS DISTINCT FROM %s::jsonb FROM settings_kv"
+COMPARE_INVERTED = "SELECT value IS NOT DISTINCT FROM %s::jsonb FROM settings_kv"
+
+
+@mutation(SETTINGS, COMPARE, COMPARE_INVERTED, expect="a stored 1 rewritten to true was not a change")
+def test_a_stored_json_one_rewritten_as_true_is_a_change(db):
+    async def scenario(p):
+        settings = real_settings(p, db)
+        db.run("INSERT INTO settings_kv (key, value) VALUES ('fake.claims_enabled', '1'::jsonb)")
+        first = await settings.set_changed("fake.claims_enabled", True)       # 1 is not true to Postgres
+        return first, await settings.set_changed("fake.claims_enabled", True)
+
+    assert run(db, scenario) == (True, False), "a stored 1 rewritten to true was not a change"
+
+
+def test_a_resume_with_no_stored_row_changes_the_store_although_the_default_is_the_same(db):
+    async def scenario(p):
+        settings = real_settings(p, db)
+        return await ops.resume(settings, "fake"), await ops.resume(settings, "fake")
+
+    assert run(db, scenario) == (True, False)       # the default (True) already holds, but the runbook wants it stored
 
 
 # ---- restore mark --------------------------------------------------------------------------------------------------

@@ -31,12 +31,13 @@ class WorkersRunning(RuntimeError):
 
 
 async def drain(settings: Settings, provider: str, *, by: str = "cli") -> bool:
-    """Drain mode: the provider claims no new work, open jobs still finish, fail, refund and notify."""
-    return await settings.set(provider + ".claims_enabled", False, by=by)
+    """Drain mode: the provider claims no new work, open jobs still finish, fail, refund and notify. True when the
+    stored setting was absent or different (the second run says False)."""
+    return await settings.set_changed(provider + ".claims_enabled", False, by=by)
 
 
 async def resume(settings: Settings, provider: str, *, by: str = "cli") -> bool:
-    return await settings.set(provider + ".claims_enabled", True, by=by)
+    return await settings.set_changed(provider + ".claims_enabled", True, by=by)
 
 
 async def restore_mark(db: AsyncConnectionPool, dump_time: datetime) -> int:

@@ -404,6 +404,25 @@ def test_provider_drain_and_resume_flip_the_claims_setting_and_unknown_providers
     assert cli.main(["provider", "drain", "dola"]) == 2 and "no provider" in err(capsys)
 
 
+MODE_SAYS = 'changed = await (ops.drain if drain else ops.resume)(settings, provider)'
+MODE_IGNORES = 'changed = True; await (ops.drain if drain else ops.resume)(settings, provider)'
+
+
+@mutation(M, MODE_SAYS, MODE_IGNORES, expect="a repeated drain did not say (no change)")
+def test_provider_drain_and_resume_say_no_change_the_second_time(db, monkeypatch, capsys):
+    monkeypatch.setenv("DATABASE_URL", db.api_dsn)
+    specs(monkeypatch, "fake")
+
+    def say(*argv: str) -> str:
+        assert cli.main(["provider", *argv, "fake"]) == 0
+        return capsys.readouterr().out.strip()
+
+    assert say("drain") == "draining fake"
+    assert say("drain") == "draining fake (no change)", "a repeated drain did not say (no change)"
+    assert say("resume") == "resumed fake", "a resume after a drain said (no change)"
+    assert say("resume") == "resumed fake (no change)"
+
+
 # ---- jobs restore-mark ---------------------------------------------------------------------------------------------
 def a_sent_job(db) -> str:
     job = db.job(db.key())
