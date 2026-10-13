@@ -537,7 +537,7 @@ Registered by `spec.py`; read and written on the admin Settings page, live.
 | Setting | Meaning | Default |
 |---|---|---|
 | `dola.claims_enabled` | drain mode off; false = no new job is claimed (see "Drain mode") | true |
-| `dola.render_deadline_s` | seconds to wait for dola to render one submission before giving up (at least 60) | 9000 |
+| `dola.render_deadline_s` | seconds to wait for dola to render one submission before giving up (at least 60), then one final read, see "What an operator must know" | 9000 |
 | `dola.prices` | points charged per generation, keyed `<model>@<N>s` for video and `<model>` for image; a missing tier is charged the fallback (video 3, image 1) with a warning | table in `catalog.DEFAULT_PRICES` |
 | `dola.video_budget` | video points per account per day (dola's own reported number wins) | 4 |
 | `dola.image_budget` | image jobs per account per day (measured about 40; dola never reports it) | 40 |
@@ -832,7 +832,8 @@ Order matters: `restore_mark` writes whole tables and a running worker would cla
    loop is not involved; still start none until the mark is done. It marks every non-terminal job created before `T` plus the longest submit timeout as
    `unknown` (never `queued`; reconcile proves each one), except a `queued` job never claimed. A job that was claimed,
    requeued and has no account fails with refund at its render deadline and is never re-sent (D41). Queued commands
-   fail, `left_n` is rebuilt from reported balances, every account is due for a check. It prints
+   fail, `left_n` is rebuilt from reported balances, every account is due for a check. It also clears each job's late
+   stamp and last answered read, so a job that was late at dump time is read again before it can fail. It prints
    `marked N job(s) unknown`.
 4. Start the workers in drain mode (`<p>.claims_enabled` false; set it with `relay provider drain X` before they
    boot), let the reconciler and the checks settle, then `relay provider resume X`.
@@ -854,3 +855,18 @@ Order matters: `restore_mark` writes whole tables and a running worker would cla
   database deadlock or serialization failure is re-queued, a bounded number of times; other errors fail it.
 - **Browser shares stay reserved (D45):** reconcile up to 2 and check plus command 1, even when idle. More submit
   slots mean a higher `<p>.browser_slots`, within the env ceiling.
+- **A late render is read once more before it fails.**
+  - A job past `<provider>.render_deadline_s` fails only after one read that started after the deadline and that the
+    provider answered: a poll that said "not ready", or a reconcile that found nothing. A read that failed does not
+    count (for dola: a chain error, a signed-out account, a failed listing), and no job is failed while a read of it is
+    running.
+  - At the latest it fails 1 hour after a running worker first saw it late (the backstop, a constant in the core). After
+    a long outage that hour starts at the restart, not at the deadline. So expect a job that cannot be read (a
+    signed-out account) to fail up to 1 hour after its deadline, not at it. The cause code and the unclear-reply
+    report are the same as before.
+  - A video the final read finds is delivered normally (one charge, no refund) and keeps its download retries for 30
+    minutes. An order that a reconcile finds after the deadline is held until its video or the backstop: a later "still
+    rendering" poll does not end it.
+  - An order proven "not sent" after the deadline is never sent again: the job fails with a refund.
+  - For the first 5 minutes after a worker starts its job loops, the backstop and the download window fail nothing, so
+    the reads that are due at start run first.
