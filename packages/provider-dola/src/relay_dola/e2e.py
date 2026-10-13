@@ -21,7 +21,7 @@ from relay_core.db import open_pool, tx
 MODEL = "seedance-2.5"
 SECONDS = 5
 TOLERANCE_S = 2          # the same tolerance the poll uses for "duration drift"
-WAIT_S = 1800
+WAIT_S = 4200            # 70 min: a 5 s render took 28-54 min on 12/10
 
 
 def measured_length_ok(measured: float, wanted: int, tolerance: float = TOLERANCE_S) -> bool:

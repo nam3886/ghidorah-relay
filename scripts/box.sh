@@ -26,15 +26,29 @@
 # the Mac (ssh sends no variable) and MUTATE_CMD is refused. Logs: ~/relay-runs/logs/NAME.{log,exit,sh,pid}.
 # A whole-tree gate (check.sh --full with no MUTATE_ONLY and no test path) takes ~/relay-runs/gate.lock; a second one
 # is refused (exit 75). Other containers on the box are not ours: nothing here lists, stops or prunes them.
+# CPU budget: only while relay's production stack runs on the box (a container of compose project `relay` is up;
+# RELAY_GATE_CAP=on|off overrides, default auto; if docker or ssh fails during the check the run is capped, and says
+# so). Then every run executes under `taskset -c $RELAY_GATE_CPUS nice -n 10 env` (default 0-11: 12 of the 32 cores), the
+# gate's own containers (the browser-tier runner, the mutation queue containers, the check Postgres and MinIO) are
+# pinned to the same cores (RELAY_GATE_CPUSET, CHECK_CPUSET) so the whole gate shares one 12-core set, and check.sh
+# takes smaller job counts (RELAY_GATE_CAPPED=1). Before the deploy a run is uncapped, as it always was. The
+# `box:` line shows capped=0|1.
+# Live window: while ~/relay-deploy/live-window exists on the box, no run starts (exit 77), before the sync and again
+# just before the command. The operator of a live window creates the file when it starts and deletes it when it ends.
 # Exit codes: the command's own; 2 usage or refused tree; 3 fingerprint differs; 75 gate lock held; 76 folder held by
-# another run; 98 a detached run died without an exit status.
+# another run; 77 a live window is open; 98 a detached run died without an exit status.
 set -euo pipefail
 
 BOX="${RELAY_BOX:-phuongnam@192.168.18.227}"
 RUNS="relay-runs"                      # relative to the box user's home
+LIVE_MARKER="relay-deploy/live-window" # relative to the box user's home; present while a live window is open
+GATE_CPUS="${RELAY_GATE_CPUS:-0-11}"   # the host cores a run may use (a taskset list)
+GATE_CAP="${RELAY_GATE_CAP:-auto}"
 EXCLUDES=(.git .venv __pycache__ .pytest_cache .ruff_cache .mypy_cache .mutate.lock deploy/.env 'deploy/*.env' '._*' .DS_Store)
 
 die() { echo "box.sh: $1" >&2; exit "${2:-2}"; }
+[[ "$GATE_CPUS" =~ ^[0-9]+([-,][0-9]+)*$ ]] || die "RELAY_GATE_CPUS is a taskset list such as 0-11 or 0,2,4: '$GATE_CPUS'"
+[[ "$GATE_CAP" =~ ^(auto|on|off)$ ]] || die "RELAY_GATE_CAP is auto, on or off: '$GATE_CAP'"
 # ssh sends the variables that match a SendEnv line (the system ssh_config has "SendEnv LANG LC_*", a user's
 # ~/.ssh/config may have more, and an -o option on the command line is read before those files and cannot undo them),
 # and it can only send variables that exist. So ssh and rsync start with a clean environment: HOME (keys,
@@ -270,6 +284,25 @@ if [ "$mode" = run ] || [ "$mode" = detach ]; then
   if [ "$seen" = 1 ] && [ "$others" = 0 ] && [ "$full" = 1 ]; then is_gate=1; fi
 fi
 
+if [ "$mode" = run ] || [ "$mode" = detach ]; then
+  if ! ssh_box "test ! -e $LIVE_MARKER"; then
+    die "a live window is open on the box (~/$LIVE_MARKER exists): no run starts until its operator removes it" 77
+  fi
+fi
+capped=0
+if [ "$mode" = run ] || [ "$mode" = detach ]; then
+  case "$GATE_CAP" in
+    on) capped=1 ;;
+    auto)                      # 10 = a container of project `relay` is up, 11 = none; anything else is an error: fail closed
+      found=0
+      ssh_box 'ids=$(docker ps -q --filter label=com.docker.compose.project=relay) || exit 2; [ -n "$ids" ] && exit 10; exit 11' || found=$?
+      case "$found" in
+        10) capped=1 ;;
+        11) ;;
+        *) capped=1; echo "box: could not tell whether the production stack runs (status $found): running capped" >&2 ;;
+      esac ;;
+  esac
+fi
 if [ "$mode" = detach ]; then
   if remote "$BODY_RUNNING" "$name"; then
     die "a run named '$name' is still running on the box"
@@ -293,7 +326,7 @@ clean rsync -a --delete -e "ssh ${SSH_OPTS[*]}" \
 mac=$(python3 -c "$FP_PY" "$root")
 there=$(printf '%s' "$FP_PY" | ssh_box "python3 - $RUNS/$tree")
 [ "$mac" = "$there" ] || die "the fingerprint differs after the sync (Mac $mac, box $there): nothing was run" 3
-echo "box: $BOX tree=$tree fingerprint=${mac:0:16} files=${mac##* }" >&2
+echo "box: $BOX tree=$tree fingerprint=${mac:0:16} files=${mac##* } capped=$capped" >&2
 [ "$mode" != sync ] || exit 0
 
 # ---- the script that runs on the box --------------------------------------------------------------------------------
@@ -309,13 +342,21 @@ body() {
   echo 'FPEOF'
   echo ')'
   echo '[ "$now" = "'"$mac"'" ] || { echo "box.sh: the folder changed between the sync and the start (box: $now)" >&2; exit 3; }'
+  echo '[ ! -e "$HOME/'"$LIVE_MARKER"'" ] || { echo "box.sh: a live window is open on the box (~/'"$LIVE_MARKER"' exists): nothing was run" >&2; exit 77; }'
   echo 'export PATH="$HOME/.local/bin:$PATH" RELAY_ON_BOX=1'
+  if [ "$capped" = 1 ]; then
+    echo 'export RELAY_GATE_CAPPED=1 RELAY_GATE_CPUSET='"$GATE_CPUS"' CHECK_CPUSET='"$GATE_CPUS"
+  fi
   echo 'unset MUTATE_CMD'
   if [ "$is_gate" = 1 ]; then
     echo 'exec 9>"$HOME/'"$RUNS"'/gate.lock"'
     echo 'flock -n 9 || { echo "box.sh: a whole-tree gate is already running on the box" >&2; exit 75; }'
   fi
-  echo "$quoted"
+  if [ "$capped" = 1 ]; then
+    echo "taskset -c $GATE_CPUS nice -n 10 env $quoted"   # env: a leading NAME=value stays an assignment
+  else
+    echo "$quoted"
+  fi
 }
 
 if [ "$mode" = run ]; then

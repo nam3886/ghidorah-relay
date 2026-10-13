@@ -56,6 +56,62 @@ def test_images_are_named_per_commit_and_browser_workers_get_a_stop_grace():
     assert "healthcheck" in COMPOSE["minio"]
 
 
+COMPOSE_FILE = "deploy/compose.yml"
+LIMIT_DEFAULTS = {"worker-dola": (8, "12g", 2048), "postgres": (4, "4g", 512), "minio": (2, "2g", 512),
+                  "api": (2, "2g", 512), "migrate": (1, "1g", 256)}
+NOT_STARTED = {"worker-meta": (4, "6g", 1024), "worker-vibes": (1, "1g", 256)}      # their profiles are off for now
+
+
+def _default(value) -> str:
+    """The default of a `${NAME:-default}` limit: the limits are env-driven with a conservative fallback."""
+    m = re.fullmatch(r"\$\{([A-Z_]+):-([^}]+)\}", str(value))
+    assert m, "%r is not an env-driven limit with a default" % (value,)
+    return m.group(2)
+
+
+@mutation(COMPOSE_FILE, "    pids_limit: ${MIGRATE_PIDS_LIMIT:-256}\n", "",
+          expect="a limit was missing")
+@mutation(COMPOSE_FILE, "cpus: ${API_CPUS:-2}", "cpus: 2",
+          expect="not an env-driven limit")
+def test_every_service_has_cpu_memory_and_pid_limits_from_the_environment():
+    for name, svc in COMPOSE.items():
+        for key in ("cpus", "mem_limit", "pids_limit"):
+            assert key in svc, "a limit was missing: %s has no %s" % (name, key)
+            _default(svc[key])
+    for name, (cpus, mem, pids) in {**LIMIT_DEFAULTS, **NOT_STARTED}.items():
+        got = (float(_default(COMPOSE[name]["cpus"])), _default(COMPOSE[name]["mem_limit"]),
+               int(_default(COMPOSE[name]["pids_limit"])))
+        assert got == (cpus, mem, pids), (name, got)
+
+
+def test_the_starting_limits_of_the_running_services_hold_relay_to_at_most_half_of_the_box():
+    """32 cores and 62 GB: `migrate` is a one-shot that ends before the workers start, so it is not counted."""
+    running = [n for n in LIMIT_DEFAULTS if n != "migrate"]
+    cpus = sum(float(_default(COMPOSE[n]["cpus"])) for n in running)
+    gb = sum(int(_default(COMPOSE[n]["mem_limit"]).rstrip("g")) for n in running)
+    assert cpus <= 16 and gb <= 31, (cpus, gb)
+
+
+@mutation(COMPOSE_FILE, "stop_grace_period: 30s", "stop_grace_period: 10s", expect="the api stop grace")
+def test_the_api_gets_a_stop_grace_for_requests_in_flight():
+    assert int(COMPOSE["api"]["stop_grace_period"].rstrip("s")) >= 30, "the api stop grace"
+
+
+@mutation(COMPOSE_FILE, "RELAY_PROFILE_ROOT: /profiles", "RELAY_PROFILE_ROOT: /tmp", expect="profile root")
+@mutation(COMPOSE_FILE, "${DOLA_BROWSER_SLOTS_MAX:-4}", "${DOLA_BROWSER_SLOTS_MAX:-9}", expect="starts at 4")
+def test_the_dola_worker_keeps_warm_profiles_on_its_volume_and_starts_at_four_slots():
+    env = COMPOSE["worker-dola"]["environment"]
+    assert env["RELAY_PROFILE_ROOT"] == "/profiles", "profile root"
+    assert "profiles-dola:/profiles" in COMPOSE["worker-dola"]["volumes"]
+    assert env["DOLA_BROWSER_SLOTS_MAX"] == "${DOLA_BROWSER_SLOTS_MAX:-4}", "starts at 4"
+
+
+def test_the_templates_list_port_and_the_profile_root_by_name():
+    assert "PORT" in guards._declared_names(DEPLOY / "api.env.example")
+    names = guards._declared_names(DEPLOY / "worker-dola.env.example")
+    assert {"RELAY_PROFILE_ROOT", "DOLA_BROWSER_SLOTS_MAX"} <= names
+
+
 def test_dockerfile_configuration_for_stop_and_chrome():
     """Configuration only. That a stop reaches the worker alone is proven by tests/browser/test_graceful_stop.py."""
     text = (DEPLOY / "Dockerfile").read_text(encoding="utf-8")
@@ -198,3 +254,25 @@ def test_a_non_worker_service_reading_a_worker_env_file_is_caught(tmp_path):
     plant_deploy(tmp_path, **{"compose.yml": compose})
     found = guards.deploy_violations(tmp_path)
     assert any("service reporter reads worker-dola.env, which declares" in v for v in found), found
+
+
+CHECK_COMPOSE = (DEPLOY / "compose.check.yml")
+IN_CONTAINER = "scripts/check-in-container.sh"
+
+
+@mutation("deploy/compose.check.yml", "    tmpfs: [\"/var/lib/postgresql/data\"]\n    cpuset: ${CHECK_CPUSET:-}",
+          '    tmpfs: ["/var/lib/postgresql/data"]\n    cpus: 32', expect="the check stack is pinned on any host")
+def test_the_check_stack_is_pinned_to_cores_only_when_asked_and_has_no_cpu_count_that_a_small_host_refuses():
+    text = CHECK_COMPOSE.read_text(encoding="utf-8")
+    services = yaml.safe_load(text)["services"]
+    for name in ("postgres", "minio"):
+        assert services[name]["cpuset"] == "${CHECK_CPUSET:-}", "the check stack is pinned on any host: " + name
+        assert "cpus" not in services[name], "a CPU count makes the stack refuse small hosts: " + name
+
+
+@mutation(IN_CONTAINER, '${RELAY_GATE_CPUSET:+--cpuset-cpus "$RELAY_GATE_CPUSET"}', "",
+          expect="the browser-tier runner is not pinned")
+def test_the_browser_tier_runner_is_pinned_to_the_gate_cores_when_the_cap_applies():
+    text = (guards.REPO / IN_CONTAINER).read_text(encoding="utf-8")
+    assert '${RELAY_GATE_CPUSET:+--cpuset-cpus "$RELAY_GATE_CPUSET"}' in text, "the browser-tier runner is not pinned"
+    assert "--cpus " not in text

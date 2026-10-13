@@ -145,12 +145,21 @@ def test_release_deletes_one_lease_by_id_and_says_when_it_was_already_gone(db):
 
 @mutation(L, "    if not await lock_account(conn, account_id, skip_locked=skip_locked):\n        return None\n",
           "    pass\n",
-          expect="the live-lease limit of 1 was passed by 6 callers")
+          expect="the live-lease limit of 1 was passed by")
 def test_concurrent_acquirers_cannot_both_pass_the_live_count(db):
     acct = account(db)
 
+    meeting = asyncio.Barrier(6)
+
     async def slow() -> None:
-        await asyncio.sleep(0.2)          # widen the gap between the count and the insert
+        # hold every caller between the count and the insert until all 6 are there: with no lock they meet at once;
+        # with the lock the first one times out alone and goes on (the barrier breaks, so the rest pass through)
+        try:
+            await asyncio.wait_for(meeting.wait(), 1)
+        except TimeoutError:
+            await meeting.abort()         # nobody else is coming: break it so the callers that follow do not wait again
+        except asyncio.BrokenBarrierError:
+            pass
 
     async def scenario(pool):
         failpoints.arm("lease.acquire.counted", slow)
