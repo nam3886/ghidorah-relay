@@ -678,8 +678,8 @@ The local gates use recorded and fake dola behaviour. These wait for the live ru
 
 ## The box runbook (D95)
 
-Relay runs on the LAN box, in its own compose project `relay`, next to projects that are not ours (`portfolio`,
-`billiards`, c2tool-be). Every production action is the owner's or follows his go-ahead. Nothing here stops, execs
+Relay runs on the LAN box, in its own compose project `relay`, next to projects that are not ours (`portfolio` and
+`billiards`; c2tool-be no longer exists on the box). Every production action is the owner's or follows his go-ahead. Nothing here stops, execs
 into, inspects beyond metadata, or prunes anything foreign; relay removes only what it names, and never runs a prune.
 
 ### Where things live
@@ -701,13 +701,25 @@ into, inspects beyond metadata, or prunes anything foreign; relay removes only w
 1. Start `postgres` and `minio` (`docker compose -p relay up -d`), run `migrate` to completion
    (`--profile app run --rm migrate`: roles, every migration, the `BILLING_TZ` pin), then start `api`
    (`--profile app up -d api`).
-2. **Store the drain:** `relay provider drain dola`. Run it a second time: it must print "(no change)". The admin
-   settings read must show `dola.claims_enabled` false. A fresh database would claim by default and a redeployed one
+2. **Store the drain:** `relay provider drain dola`. Run it a second time: it must print "(no change)". (That
+   holds from the fix of the drain message on: until it is deployed the first run prints "(no change)" too, because the
+   command reads the stored value as "unchanged".) The admin settings read must show `dola.claims_enabled` false with
+   source `db`: that read is the check until the fix is deployed. A fresh database would claim by default and a redeployed one
    may hold "on", so no deploy relies on the default.
 3. Start the worker alone, as its own command: `--profile dola up -d worker-dola`. Never `--profile app --profile dola
    up` in one command: the worker would start before step 2.
-4. The worker log must show that it is drained (no claim, no check) and Chrome 154.0.8037.92 without a drift warning.
+4. The drained state and Chrome are checked by the settings read above, by the worker's heartbeat row
+   (`worker_heartbeats`, a fresh `at`, 0 consecutive errors, 0 slots busy) and by `chrome --version` in the image
+   (`docker exec relay-worker-dola-1 /opt/google/chrome/chrome --version`: 154.0.8037.92), not by the log: the worker logs
+   nothing at the default level while it is idle. The worker has no HTTP port; its health is that heartbeat row.
    Then `relay provider resume dola` when the accounts are imported (drain also stops account checks).
+
+A one-off `docker run` of a deployed image (keygen, admin create-user, a smoke test) inherits the compose labels
+`com.docker.compose.project=relay` and `...service=<service>` from the image, so `docker compose -p relay ps/stop/down` and
+the gate's cap detection would take it for production. Give it the two labels `com.docker.compose.project=relay-oneoff`
+and `com.docker.compose.service=oneoff`, or prefer `docker compose -p relay run --rm <service> ...`, which marks it as a
+one-off container of the project. Never run a drill under `-p relay` or from `~/relay-deploy`; a scratch stack has its own
+`-p relay-drill-<name>` and its own directory.
 
 Rollback: `docker compose -p relay stop` (volumes kept). A relay volume is removed only by name and only on the owner's word.
 
@@ -722,12 +734,19 @@ go-live log, and only inside the abort threshold.
 | Service | CPUs | Memory | PIDs |
 |---|---|---|---|
 | `worker-dola` | 8 | 12 GB | 2048 |
-| `postgres` | 4 | 4 GB | 512 |
-| `minio` | 2 | 2 GB | 512 |
-| `api` | 2 | 2 GB | 512 |
+| `postgres` | 4 (deployed: 2) | 4 GB | 512 |
+| `minio` | 2 (deployed: 1.5) | 2 GB | 512 |
+| `api` | 2 (deployed: 1.5) | 2 GB | 512 |
 | `migrate` (one-shot) | 1 | 1 GB | 256 |
 | `worker-meta` (not started) | 4 | 6 GB | 1024 |
 | `worker-vibes` (not started) | 1 | 1 GB | 256 |
+
+**Deployed values (13/10, `deploy/.env` on the box):** `DOLA_CPUS` 8, `POSTGRES_CPUS` 2, `MINIO_CPUS` 1.5, `API_CPUS` 1.5, memory
+and PID limits as in the table. Why: relay's running limits plus the 12-core gate cap plus twice the foreign peak
+(about 0) must stay within 80% of the 32 cores, 25.6. The defaults sum to 16 + 12 = 28. The dola worker is the only
+service with real CPU load (Chrome on four slots), so it keeps 8; Postgres, MinIO and the api serve about 18 videos a
+day and one uvicorn process, so they were lowered: 8 + 2 + 1.5 + 1.5 = 13, and 13 + 12 = 25 fits. The load test can move
+any of them through a deploy recorded in the go-live log.
 
 `worker-dola` also gets `RELAY_PROFILE_ROOT=/profiles` and `DOLA_BROWSER_SLOTS_MAX` (4 unless `deploy/.env` says
 otherwise) from `compose.yml` itself, so a cold profile directory or a missing slot count cannot come from a forgotten line in
@@ -745,6 +764,28 @@ graceful stop of `worker-dola`, then report. Nothing foreign is touched. A breac
 The baseline (ids, mounts, restart counts, state and health, networks, CPU and memory from `docker stats --no-stream`;
 never env, logs or files of a foreign container) is recorded by the box survey and compared at the end of each
 deploy step and at every read of the watches.
+
+### The first deploy (13/10) and the recorded foreign baseline
+
+Deployed: `fde6ad4`, compose project `relay`, images `relay-api:fde6ad4`, `relay-migrate:fde6ad4`,
+`relay-worker-dola:fde6ad4`, migrations 0001 to 0018, **api on port 8100** of the box (`http://192.168.18.227:8100`),
+the dola worker drained. Ports in use by others: 8010 (`portfolio`) and 8090 (`billiards`).
+
+Foreign baseline, read with `docker inspect --format` restricted to ids, image ids, mounts, networks, restart counts,
+state and health, plus `docker stats --no-stream` (never env, config, logs or exec); recorded 13/10 04:26 UTC and
+unchanged at the end of the first deploy and of the drills:
+
+| | `portfolio` | `billiards` |
+|---|---|---|
+| container id | `76753cd8ea30...` | `07966b703e98...` |
+| image id | `af956eefe46c...` | `720d8c0d6117...` |
+| mounts / networks | none / `bridge` | none / `bridge` |
+| restarts / state | 0 / running, no health check | 0 / running, no health check |
+| CPU / memory (idle) | 0.00% / 31 MiB | 0.00% / 25 MiB |
+
+Host at the baseline: 32 cores, 62.9 GiB (60.5 GiB available), swap 8 GiB unused, `/` and the Docker data root on one
+filesystem (166 GB free of 195 GB, inodes 2% used), load average 0.00 / 0.66 / 4.4, containerd image store. The full
+record, with the times and the drills, is in the go-live log (`plans/260930-1635-relay-platform/reports/07-go-live-log.md`).
 
 ### Live windows
 

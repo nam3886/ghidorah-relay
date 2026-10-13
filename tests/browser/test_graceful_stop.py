@@ -55,6 +55,13 @@ print("display_alive_during_grace=%%s" %% alive, flush=True)
 sys.exit(0)
 """ % GRACE_S
 
+# The image was built by `docker compose build`, so it carries the labels com.docker.compose.project=relay and
+# com.docker.compose.service=<service>, and a plain `docker run` of it inherits them: the stand-in would then look
+# like a production container to `docker compose -p relay ps/stop/down`, to box.sh's cap detection and to every
+# project filter. These two labels override the inherited ones.
+STANDIN_LABELS = ["--label", "com.docker.compose.project=relay-standin",
+                  "--label", "com.docker.compose.service=standin"]
+
 OLD_ENTRYPOINT = ["--entrypoint", "tini"]
 OLD_COMMAND = ["-g", "--", "xvfb-run", "-a", "--server-args=-screen 0 1440x900x24"]
 
@@ -80,7 +87,8 @@ def start():
         names.append(name)
         prefix = OLD_ENTRYPOINT if old_entrypoint else []
         suffix = OLD_COMMAND if old_entrypoint else []
-        docker("run", "-d", "--name", name, "--label", label, *prefix, image(), *suffix, "python", "-c", STAND_IN)
+        docker("run", "-d", "--name", name, "--label", label, *STANDIN_LABELS, *prefix, image(), *suffix,
+               "python", "-c", STAND_IN)
         return name
 
     yield run
@@ -132,3 +140,12 @@ def test_the_old_entrypoint_is_cut_off_at_once(start):
     took = stop(name)
     assert took < 2.0, "the control entrypoint kept the container for %.1f s; the stop test cannot tell" % took
     assert "display_alive_during_grace=True" not in docker("logs", name)
+
+
+def test_a_running_stand_in_is_never_seen_as_a_production_container(start):
+    name = start()
+    labels = docker("inspect", "-f", "{{json .Config.Labels}}", name)
+    assert '"com.docker.compose.project":"relay-standin"' in labels, labels
+    assert '"com.docker.compose.project":"relay"' not in labels, labels
+    seen = docker("ps", "-a", "--filter", "label=com.docker.compose.project=relay", "--format", "{{.Names}}")
+    assert name not in seen.split(), "the stand-in is listed as project relay:\n" + seen

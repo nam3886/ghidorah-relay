@@ -80,3 +80,25 @@ def test_fewer_passed_lines_than_selected_tests_fail_the_tier(tmp_path):
 def test_a_tier_that_selects_no_test_fails(tmp_path):
     run = tier(tmp_path, FAKE_MAC=0, FAKE_ONLY=0, FAKE_EVERY=0, FAKE_PASSED=0)
     assert run.returncode != 0, "an empty selection counted as green: " + run.stdout + run.stderr
+
+
+STOP_TEST = "tests/browser/test_graceful_stop.py"
+
+
+@mutation(STOP_TEST, 'STANDIN_LABELS = ["--label", "com.docker.compose.project=relay-standin"',
+          'STANDIN_LABELS = ["--label", "com.docker.compose.project=relay"',
+          expect="the stand-in carries the production project label")
+@mutation(STOP_TEST, "--label\", label, *STANDIN_LABELS, *prefix", "--label\", label, *prefix",
+          expect="the stand-in is started without the label override")
+def test_the_stand_in_worker_is_started_with_labels_that_hide_it_from_the_production_project():
+    """The stop test runs a docker-compose-built image directly; the image's labels say project=relay."""
+    import ast
+    import re
+
+    text = (REPO / STOP_TEST).read_text(encoding="utf-8")
+    labels = next(ast.literal_eval(n.value) for n in ast.walk(ast.parse(text))
+                  if isinstance(n, ast.Assign) and any(getattr(t, "id", "") == "STANDIN_LABELS" for t in n.targets))
+    projects = [v.split("=", 1)[1] for v in labels if v.startswith("com.docker.compose.project=")]
+    assert projects and "relay" not in projects, "the stand-in carries the production project label: %r" % projects
+    assert re.search(r'docker\("run", "-d", "--name", name, "--label", label, \*STANDIN_LABELS, \*prefix', text), \
+        "the stand-in is started without the label override"
