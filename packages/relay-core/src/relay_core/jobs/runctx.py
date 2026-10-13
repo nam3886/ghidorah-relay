@@ -22,7 +22,7 @@ from relay_core.providers import AccountView, Proxy
 log = logging.getLogger(__name__)
 
 EngineSource = ("upstream", "engine")
-EvidenceSink = Callable[[str, bytes, str], Awaitable[None]]
+EvidenceSink = Callable[[str, str, bytes, str], Awaitable[None]]        # (job id, name, data, mime)
 
 
 class Stopping(Exception):
@@ -62,7 +62,7 @@ class LeaseCtx:
         if self._evidence is None:
             self.log.warning("evidence %r dropped: no evidence sink is wired", name)
             return
-        await self._evidence(name, data, mime)
+        await self._evidence(str(self._claim.job_id), name, data, mime)
 
 
 async def load_account_view(db: AsyncConnectionPool, account_id, private_keys: Iterable[str]) -> AccountView:

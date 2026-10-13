@@ -64,14 +64,25 @@ class ParsedKey:
     idx: int
 
 
-def media_key(job_id: str, role: str, idx: int, mime: str) -> str:
+_SAFE_NAME = frozenset("abcdefghijklmnopqrstuvwxyz0123456789_-")
+NAME_MAX = 60
+
+
+def safe_name(name: str) -> str:
+    """A file name of a debug object, reduced to `[a-z0-9_-]` and cut: what is left of the evidence name."""
+    return "".join(c if c in _SAFE_NAME else "_" for c in (name or "").rsplit(".", 1)[0].lower())[:NAME_MAX]
+
+
+def media_key(job_id: str, role: str, idx: int, mime: str, name: str = "") -> str:
+    """`<job_id>/<role>/<idx>.<ext>`; a debug object may carry its reduced name: `<idx>-<name>.<ext>`."""
     if not job_id or not set(job_id) <= _SAFE_ID:
         raise ValueError("a job id is letters, digits, '_' and '-'")
     if role not in ROLES:
         raise ValueError("unknown media role %r" % role)
     if idx < 0:
         raise ValueError("a media index is not negative")
-    return "%s/%s/%d.%s" % (job_id, role, idx, _EXT.get((mime or "").split(";")[0].strip().lower(), "bin"))
+    label = "-" + safe_name(name) if role == "debug" and safe_name(name) else ""
+    return "%s/%s/%d%s.%s" % (job_id, role, idx, label, _EXT.get((mime or "").split(";")[0].strip().lower(), "bin"))
 
 
 def parse_key(key: str) -> ParsedKey | None:
@@ -80,9 +91,12 @@ def parse_key(key: str) -> ParsedKey | None:
     if len(parts) != 3 or not parts[0] or not set(parts[0]) <= _SAFE_ID or parts[1] not in ROLES:
         return None
     stem, dot, ext = parts[2].partition(".")
-    if not dot or not ext or not stem.isascii() or not stem.isdigit():
+    number, dash, label = stem.partition("-")
+    if not dot or not ext or not number.isascii() or not number.isdigit():
         return None
-    return ParsedKey(parts[0], parts[1], int(stem))
+    if dash and (parts[1] != "debug" or not label or not set(label) <= _SAFE_NAME):
+        return None
+    return ParsedKey(parts[0], parts[1], int(number))
 
 
 @dataclass(frozen=True)

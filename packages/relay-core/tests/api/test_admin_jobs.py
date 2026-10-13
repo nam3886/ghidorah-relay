@@ -9,8 +9,9 @@ from jobkit import POOLS, PROVIDER, account, claim, create, key, run, submit
 
 from relay_core.jobs import store
 from relay_core.jobs.create import marker_for
+from relay_core.jobs.evidence import job_sink
 from relay_core.providers import FrameUse
-from relay_core.storage import media_key
+from relay_core.storage import StorageError, media_key
 from relay_core.testing.fake_provider import FakeEngine
 from relay_core.testing.mutation import mutation
 
@@ -480,3 +481,50 @@ def test_regenerate_of_a_missing_job_is_404(db):
     r = run_app(db, scenario)
     assert (r.status_code, code_of(r)) == (404, "resource.not_found")
     assert db.one("SELECT count(*) FROM jobs")[0] == 0
+
+
+def test_a_debug_file_the_sink_stored_is_never_an_output_a_download_or_a_shared_media_of_the_job(db):
+    k = key(db)
+    account(db)
+    job = run(db, lambda p: failed_job(p, k))
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        await job_sink(env.pool, env.store)(str(job), "ui-error-x-1.png", b"\x89PNG" + b"\x00" * 32, "image/png")
+        detail = await env.client.get("/admin/jobs/%s" % job, headers=h)
+        content = await env.client.get("/admin/jobs/%s/content" % job, headers=h)
+        return detail.json(), content.status_code
+
+    detail, content_status = run_app(db, scenario)
+    assert detail["media"] == [] and len(detail["debug_files"]) == 1, "a debug file is not an output of the job"
+    assert detail["debug_files"][0]["url"] == "/admin/jobs/%s/debug/0" % job
+    assert content_status == 404, "a debug file was delivered as the content of the job"
+    assert db.one("SELECT count(*) FROM job_media WHERE job_id = %s AND role <> 'debug'", job)[0] == 0
+    assert db.one("SELECT count(*) FROM job_media WHERE share_token IS NOT NULL")[0] == 0
+
+
+@mutation(ROUTES, "except storage.StorageError as e:", "except storage.ObjectNotFound as e:",
+          expect="a store that is down became a server error")
+def test_a_debug_file_the_store_cannot_read_is_not_available_never_a_server_error(db):
+    k = key(db)
+    account(db)
+    job = run(db, lambda p: failed_job(p, k))
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        await job_sink(env.pool, env.store)(str(job), "ui-error-x-1.png", b"\x89PNG" + b"\x00" * 32, "image/png")
+
+        async def down(*args, **kw):
+            raise StorageError("the store is down")
+
+        kept = env.store.read
+        env.store.read = down               # the store is shared by the whole test process: put it back
+        try:
+            r = await env.client.get("/admin/jobs/%s/debug/0" % job, headers=h)
+        except StorageError:
+            return None
+        finally:
+            env.store.read = kept
+        return r.status_code, code_of(r)
+
+    assert run_app(db, scenario) == (404, "resource.not_found"), "a store that is down became a server error"

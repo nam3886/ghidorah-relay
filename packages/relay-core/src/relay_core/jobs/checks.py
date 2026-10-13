@@ -27,7 +27,6 @@ from psycopg_pool import AsyncConnectionPool
 from relay_core import failpoints, leases, pool
 from relay_core.budget import BrowserBudget, Purpose, Token
 from relay_core.db import AccountInUse, delete_unused_account, tx
-from relay_core.jobs.runctx import EvidenceSink
 from relay_core.providers import (
     AccountView,
     Caps,
@@ -68,7 +67,6 @@ class Env:
     load_account: Callable[[Any], Coroutine[Any, Any, AccountView]]
     store: ObjectStore | None = None
     budget: BrowserBudget | None = None
-    evidence_sink: EvidenceSink | None = None
     check_hard_s: float = leases.CHECK_HARD_S
     check_every_s: float | None = None   # a test or soak override; the provider's `Caps.check_interval_s` otherwise
     retry_s: float = RETRY_S
@@ -126,10 +124,7 @@ class AccountCtx:
         self.log.info("%s %s: %s", source, stage, redact_log(text))
 
     async def evidence(self, name: str, data: bytes, mime: str) -> None:
-        if self._env.evidence_sink is None:
-            self.log.warning("evidence %r dropped: no evidence sink is wired", name)
-            return
-        await self._env.evidence_sink(name, data, mime)
+        self.log.info("evidence %r not kept: an account run has no job to attach evidence to", name)
 
 
 async def shielded(work: Coroutine) -> Any:

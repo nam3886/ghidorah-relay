@@ -71,7 +71,7 @@ class ReadCtx:
         if self._evidence is None:
             self.log.warning("evidence %r dropped: no evidence sink is wired", name)
             return
-        await self._evidence(name, data, mime)
+        await self._evidence(str(self._job_id), name, data, mime)
 
 
 class JobLoop:

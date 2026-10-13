@@ -173,7 +173,9 @@ async def debug_file(job_id: uuid.UUID, idx: int, pool: AsyncConnectionPool = De
     key, mime, size = row
     try:
         data = await store.read(key, 0, min(size, DEBUG_READ_MAX))
-    except storage.ObjectNotFound:
+    except storage.StorageError as e:       # a file that never landed, or a store that is down: not a 500
+        if not isinstance(e, storage.ObjectNotFound):
+            log.warning("debug file %s/%d not readable: %s", job_id, idx, type(e).__name__)
         raise ApiError("resource.not_found") from None
     kind = mime.split(";")[0].strip().lower()
     return Response(data, media_type=kind if kind in _RASTER else "text/plain; charset=utf-8",

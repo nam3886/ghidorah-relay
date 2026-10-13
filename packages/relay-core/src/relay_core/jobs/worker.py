@@ -50,6 +50,7 @@ from relay_core.jobs.apply import STARTUP_GRACE_S, StartupGrace
 from relay_core.jobs.checks import Checks, Env
 from relay_core.jobs.commands import CommandLoop
 from relay_core.jobs.engine import ClaimLoop
+from relay_core.jobs.evidence import job_sink
 from relay_core.jobs.fetcher import Fetcher
 from relay_core.jobs.poller import Poller
 from relay_core.jobs.reaper import Reaper
@@ -104,8 +105,7 @@ class Worker:
         self.reaper = Reaper(db, spec, settings, interval_s=reaper_interval_s, drift_s=drift_check_s,
                              owner_gone_s=3 * beat_s, grace=grace)
         env = Env(db=db, spec=spec, engine=engine, settings=settings, owner=owner, keeper=self.keeper,
-                  load_account=load_account, store=store, budget=budget, evidence_sink=evidence_sink,
-                  ttl_s=lease_ttl_s)
+                  load_account=load_account, store=store, budget=budget, ttl_s=lease_ttl_s)
         self.commands = CommandLoop(env, housekeeping_s=housekeeping_s, checks=Checks(env))
         self._stop = asyncio.Event()
         self._stop_commands = asyncio.Event()
@@ -307,7 +307,8 @@ async def serve(spec: ProviderSpec, build_engine: Callable[[ProviderSpec, Settin
 
         worker = Worker(db, spec, build_engine(spec, settings), settings, worker_id=worker_id,
                         owner=boot_owner(worker_id), load_account=load_account, store=store,
-                        budget=budget, browser_ceiling=ceiling, grace_s=grace_s, billing_tz=env.get("BILLING_TZ"))
+                        budget=budget, browser_ceiling=ceiling, evidence_sink=job_sink(db, store),
+                        grace_s=grace_s, billing_tz=env.get("BILLING_TZ"))
         return await worker.run(install_signals=install_signals)
     finally:
         await settings.stop()
