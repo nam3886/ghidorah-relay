@@ -23,6 +23,7 @@ from psycopg_pool import AsyncConnectionPool
 from relay_core import leases, pool
 from relay_core.budget import Token
 from relay_core.db import lock_account, tx
+from relay_core.jobs.apply import RECONCILE_CLAIM_STOP_S, RENDER_BACKSTOP_S, StartupGrace
 from relay_core.jobs.create import Settings
 from relay_core.providers import Caps
 from relay_core.txguard import require_tx
@@ -186,6 +187,7 @@ class Visible:
     job_id: Any
     token: Any
     account_id: Any
+    claimed_at: datetime       # the database's clock at the claim: before the read starts (see `apply_poll`)
 
 
 _VISIBLE = """
@@ -195,7 +197,7 @@ UPDATE jobs SET poll_token = gen_random_uuid(), updated_at = clock_timestamp(),
                  AND next_poll_at <= clock_timestamp()
                ORDER BY next_poll_at, id LIMIT %(n)s FOR UPDATE SKIP LOCKED)
    AND status = %(status)s AND next_poll_at <= clock_timestamp()
-RETURNING id, poll_token, account_id
+RETURNING id, poll_token, account_id, clock_timestamp()
 """
 
 
@@ -218,7 +220,12 @@ SELECT j.id, j.account_id FROM jobs j
  WHERE j.provider = %(provider)s AND j.status = 'unknown' AND j.after_sent = 'reconcile'
    AND j.account_id IS NOT NULL
    AND (j.next_poll_at IS NULL OR j.next_poll_at <= clock_timestamp())
-   AND COALESCE(j.render_since, j.sent_at) + make_interval(secs => %(deadline)s) > clock_timestamp()
+   AND (COALESCE(j.render_since, j.sent_at) + make_interval(secs => %(deadline)s) > clock_timestamp()
+        OR ((j.late_seen_at IS NULL OR %(grace)s
+             OR j.late_seen_at + make_interval(secs => %(backstop)s) > clock_timestamp()
+             OR j.late_seen_at <= COALESCE(j.render_since, j.sent_at) + make_interval(secs => %(deadline)s))
+            AND (j.answered_at IS NULL
+                 OR j.answered_at <= COALESCE(j.render_since, j.sent_at) + make_interval(secs => %(deadline)s))))
  ORDER BY j.next_poll_at NULLS FIRST, j.id LIMIT %(n)s FOR UPDATE OF j SKIP LOCKED
 """
 
@@ -238,14 +245,18 @@ class ReconcileClaim:
 
 async def claim_reconcile(db: AsyncConnectionPool, *, provider: str, caps: Caps, deadline_s: float, owner: str,
                           hard_s: float = leases.RECONCILE_HARD_S, ttl_s: float = leases.LEASE_TTL_S,
-                          token: Token | None = None) -> ReconcileClaim | None:
-    """Claim the next due `unknown` job (not past its render deadline, which the reaper owns) under a `reconcile`
-    lease with a hard bound. `next_poll_at` moves past the bound so no second reconciler takes it; applying the
-    result sets the real next time. Works on any account state (reads only). The caller took `token` from the
-    reconcile share for a browser provider; it is released by the caller when the result is None."""
+                          token: Token | None = None, grace: StartupGrace | None = None) -> ReconcileClaim | None:
+    """Claim the next due `unknown` job under a `reconcile` lease with a hard bound. A job past its render deadline is
+    still claimed until a read that started after the deadline has been answered (the final read the reaper waits for),
+    and never in the last `RECONCILE_CLAIM_STOP_S` before the backstop (which counts from the reaper's `late_seen_at`;
+    the startup `grace` lifts it). `next_poll_at` moves past the bound
+    so no second reconciler takes it; applying the result sets the real next time. Works on any account state (reads
+    only). The caller took `token` from the reconcile share for a browser provider; it is released by the caller when
+    the result is None."""
     async with tx(db) as conn:
         due = await (await conn.execute(_RECONCILE_DUE, {"provider": provider, "deadline": deadline_s,
-                                                         "n": 8})).fetchall()
+                                                         "backstop": RENDER_BACKSTOP_S - RECONCILE_CLAIM_STOP_S,
+                                                         "grace": bool(grace), "n": 8})).fetchall()
         for job_id, account_id in due:
             lease_id = await leases.acquire(conn, account_id=account_id, purpose="reconcile", owner=owner,
                                             hard_s=hard_s, ttl_s=ttl_s, job_id=job_id,

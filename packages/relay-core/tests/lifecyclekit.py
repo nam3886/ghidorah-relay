@@ -102,10 +102,11 @@ def reconciler(p, engine, *, spec=SPEC, settings=None, **kw) -> Reconciler:
                       tick_s=0.02, **kw)
 
 
-def reaper(p, *, spec=SPEC, settings=None, owner_gone_s: float = 0.0) -> Reaper:
+def reaper(p, *, spec=SPEC, settings=None, owner_gone_s: float = 0.0, grace=None) -> Reaper:
     """`owner_gone_s=0`: a lease that expired seconds ago belongs to a dead owner even when its worker's heartbeat row
     is fresh (the tests' lease TTLs are seconds; a real worker's row is older than the bound by the time it matters)."""
-    return Reaper(p, spec, settings or FakeSettings(spec), interval_s=0.05, owner_gone_s=owner_gone_s)
+    return Reaper(p, spec, settings or FakeSettings(spec), interval_s=0.05, owner_gone_s=owner_gone_s,
+                  grace=grace)
 
 
 async def pass_once(loop) -> None:
@@ -157,10 +158,34 @@ def due(db, job_id) -> None:
     db.run("UPDATE jobs SET next_poll_at = clock_timestamp() - interval '1 second' WHERE id = %s", job_id)
 
 
-def age(db, job_id, column: str, seconds: float) -> None:
-    """Move a timestamp column of the job into the past (a deadline test without waiting for it)."""
+def age(db, job_id, column: str, seconds: float, *, answered: bool = True) -> None:
+    """Move a timestamp column of the job into the past (a deadline test without waiting for it). Aging the render
+    clock (`render_since`, `sent_at`) also records an answered read just now, so the job is past its deadline AND has
+    had its final read; `answered=False` leaves the final read still to come."""
     assert column in ("created_at", "render_since", "sent_at")
     db.run("UPDATE jobs SET %s = clock_timestamp() - make_interval(secs => %%s) WHERE id = %%s" % column,
+           seconds, job_id)
+    if answered and column != "created_at":
+        db.run("UPDATE jobs SET answered_at = clock_timestamp() WHERE id = %s", job_id)
+
+
+def late_seen(db, job_id, seconds: float) -> None:
+    """A running worker's reaper first saw the job late `seconds` ago (it stamps `jobs.late_seen_at`)."""
+    db.run("UPDATE jobs SET late_seen_at = clock_timestamp() - make_interval(secs => %s) WHERE id = %s",
+           seconds, job_id)
+
+
+def answered_ago(db, job_id, seconds: float) -> None:
+    """The job's newest answered read started `seconds` ago: a live job is read every 30 s before its deadline, so
+    this is the shape of every real late job (a read from BEFORE the deadline is not the final read)."""
+    db.run("UPDATE jobs SET answered_at = clock_timestamp() - make_interval(secs => %s) WHERE id = %s",
+           seconds, job_id)
+
+
+def age_found(db, job_id, seconds: float) -> None:
+    """Move the moment the video was found (the job's `completed` events) into the past, with `age`: a video found
+    before the deadline, not by a final read after it."""
+    db.run("UPDATE job_events SET at = at - make_interval(secs => %s) WHERE job_id = %s AND stage = 'completed'",
            seconds, job_id)
 
 

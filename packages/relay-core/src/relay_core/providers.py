@@ -212,9 +212,12 @@ class SubmitResult:
 
 @dataclass(frozen=True)
 class Pending:
+    """Not ready yet. `answered` False: the read itself failed (no usable answer), so the job is polled again but the
+    render deadline may not treat this as the read that says "not ready"."""
     note: str = ""
     next_in_s: int = 30
     state_patch: Mapping[str, Any] = field(default_factory=dict)
+    answered: bool = True
 
 
 @dataclass(frozen=True)
@@ -261,7 +264,9 @@ class NotSent:
 
 @dataclass(frozen=True)
 class StillUnknown:
-    pass
+    """The read did not settle it. `answered` True: the read worked and found nothing (or nothing provable); False (the
+    default): it failed or gave no proof, so the render deadline may not treat it as the final read."""
+    answered: bool = False
 
 
 Reconciled = Found | NotSent | StillUnknown

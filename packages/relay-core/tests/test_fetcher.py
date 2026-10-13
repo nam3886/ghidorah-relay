@@ -11,8 +11,10 @@ from lifecyclekit import (
     MediaEngine,
     accepted,
     age,
+    age_found,
     due,
     fetcher,
+    late_seen,
     pass_once,
     poller,
     reaper,
@@ -159,7 +161,9 @@ def test_a_download_that_keeps_failing_fails_the_job_at_the_render_deadline_and_
 
     async def scenario(p):
         job_id = await hold_fetching(p, db, k)
-        age(db, job_id, "render_since", 10_000)                      # past the 9000 s render deadline
+        age(db, job_id, "render_since", 20_000)                      # long past the 9000 s render deadline
+        age_found(db, job_id, 20_000)                                # the video was found before it
+        late_seen(db, job_id, 1_900)                                 # a running worker saw it late a while ago
         engine = MediaEngine()
         engine.mode("error")
         eng = fetcher(p, engine, objects)
@@ -197,7 +201,9 @@ def test_an_order_upstream_completed_keeps_its_account_charge_after_a_recheck_an
         outs = FakeEngine().outputs(await store.job_view(p, job_id), 1)
         assert await store.apply_poll(p, job_id, vis.token, PollResult(Done(outs)), caps=CAPS, pools=POOLS) \
             == "fetching"
-        age(db, job_id, "render_since", 10_000)
+        age(db, job_id, "render_since", 20_000)
+        age_found(db, job_id, 20_000)
+        late_seen(db, job_id, 1_900)
         vis = await claim_visible(p, job_id, "fetching", 900)
         assert await store.apply_fetch_failed(p, job_id, vis.token, code="render.download_failed", detail="502",
                                               retry_in_s=1, deadline_s=9000, pools=POOLS) == "failed"

@@ -168,4 +168,5 @@ class Fetcher(JobLoop):
         log.warning("fetch of job %s failed: %s %s", c.job_id, e.code, redact_log(e.detail))
         await self._shielded(apply_fetch_failed(
             self.db, c.job_id, c.token, code=e.code, detail=e.detail, retry_in_s=self.retry_s,
-            deadline_s=self.settings.get(self.spec.name + ".render_deadline_s"), pools=self._pools()))
+            deadline_s=self.settings.get(self.spec.name + ".render_deadline_s"), pools=self._pools(),
+            in_grace=bool(self.grace)))

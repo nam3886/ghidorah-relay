@@ -192,4 +192,4 @@ async def reconcile(ctx, job, settings, *, http: DolaHttp | None = None, lister:
     if unreadable:
         return StillUnknown()       # one conversation we could not read may be the job's
     covers = listing.complete or predates
-    return NotSent(covers_send_window=True) if covers else StillUnknown()
+    return NotSent(covers_send_window=True) if covers else StillUnknown(answered=True)   # every conversation was read

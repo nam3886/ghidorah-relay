@@ -484,6 +484,7 @@ async def reconcile(p, got, result, *, read_ago_s=0, **kw):
     async with tx(p) as conn:
         started = (await (await conn.execute("SELECT clock_timestamp() - make_interval(secs => %s)",
                                              (read_ago_s,))).fetchone())[0]
+    kw.setdefault("render_deadline_s", 9000)
     return await store.apply_reconciled(p, got.job_id, result, read_started_at=started, caps=CAPS, pools=POOLS, **kw)
 
 

@@ -12,6 +12,7 @@ lease in the same transaction.
 """
 
 import logging
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -58,6 +59,27 @@ UNKNOWN_MAX_S = 1800
 NOT_SENT_MARGIN_S = 60       # I27: the proving read starts later than sent_at + submit_timeout_s + this
 REQUEUE_PAUSE_S = 30         # a job requeued after Retry or NotTaken is not claimed again for this long
 NOTE_LIMIT = 200
+RENDER_BACKSTOP_S = 3600     # a late job whose reads never answer still ends this long after its render deadline
+FETCH_WINDOW_S = 1800        # a video found at or after the deadline keeps its fetch retries this long
+FINAL_RECONCILE_RETRY_S = 300  # a reconcile of a job past its deadline that did not answer is tried again this soon
+RECONCILE_CLAIM_STOP_S = 60  # no final reconcile is claimed in the last minute before the backstop (no race with it)
+STARTUP_GRACE_S = 300        # after a worker starts, the backstop and the fetch window fail nothing: reads come first
+
+
+class StartupGrace:
+    """True for `seconds` after it was made (the worker process starting). A restarted stack reads its late jobs
+    before the backstop or the fetch window may fail them, whatever downtime counted since the reaper stamped them."""
+
+    def __init__(self, seconds: float = STARTUP_GRACE_S):
+        self.seconds = seconds
+        self.restart()
+
+    def restart(self) -> None:
+        """The loops start now: the worker's own start-up (billing check, restore-mark wait) does not use it up."""
+        self._until = time.monotonic() + self.seconds
+
+    def __bool__(self) -> bool:
+        return time.monotonic() < self._until
 
 
 @dataclass(frozen=True)
@@ -329,10 +351,13 @@ async def apply_interrupted(db: AsyncConnectionPool, claim, *, caps: Caps, pools
 
 # ---- polling (a job that was accepted and waits) ---------------------------------------------------------------
 async def apply_poll(db: AsyncConnectionPool, job_id, poll_token, result: PollResult, *, caps: Caps,
-                     pools: Mapping[str, pool.PoolConfig]) -> str | None:
+                     pools: Mapping[str, pool.PoolConfig], read_started_at: datetime | None = None) -> str | None:
     """Apply a poll result only while `poll_token` is still the job's token (I23: two pollers, or a Re-check that
     took a fresh token, cannot both apply). Returns the new status, or None when the result was dropped.
-    A `Done` charges the account when the order was not proven taken before."""
+    A `Done` charges the account when the order was not proven taken before. `read_started_at` (the database's clock
+    when the poll was claimed) is what an answered "not ready" is recorded at, so a read that started before the
+    render deadline and was applied after it is not the final read; None (a direct call) records the moment of the
+    write."""
     async with tx(db) as conn:
         job = await _lock_job(conn, job_id)
         if job.status != "waiting" or job.poll_token is None or job.poll_token != poll_token:
@@ -346,8 +371,13 @@ async def apply_poll(db: AsyncConnectionPool, job_id, poll_token, result: PollRe
                 if note and note != job.provider_state.get("pending_note"):    # a line only when the reason changes
                     await add_event(conn, job_id, "system", "pending", note)
                     patch["pending_note"] = note
+                # The final read (reaper), except for a job whose order was found after its deadline: only a video or
+                # the backstop ends that one (`found_late_at` newer than the render clock, which a Re-check restarts).
+                answered = dict(answered_at=_Raw(
+                    "CASE WHEN found_late_at > COALESCE(render_since, sent_at) THEN answered_at "
+                    "ELSE COALESCE(%s, clock_timestamp()) END", (read_started_at,))) if out.answered else {}
                 await _set(conn, job_id, "waiting", poll_token=None, next_poll_at=_in(out.next_in_s),
-                           provider_state=_merge(patch))
+                           provider_state=_merge(patch), **answered)
                 status = "waiting"
             case Done():
                 await _charge_taken(conn, job, pools)
@@ -373,23 +403,32 @@ async def apply_poll(db: AsyncConnectionPool, job_id, poll_token, result: PollRe
 
 
 # ---- reconciling an unknown job --------------------------------------------------------------------------------
-async def _still_unknown(conn: AsyncConnection, job_id, text: str) -> None:
-    """The reconcile interval grows 60 s, 120 s, ... up to 30 min; the count is the reconcile events so far."""
+async def _still_unknown(conn: AsyncConnection, job_id, text: str, *, answered_at: datetime | None = None,
+                         late: bool = False) -> None:
+    """The reconcile interval grows 60 s, 120 s, ... up to 30 min; the count is the reconcile events so far. A job past
+    its render deadline is tried again after FINAL_RECONCILE_RETRY_S instead, so several final reads fit in the hour
+    before the backstop. `answered_at`: the read worked (it just proved nothing); it is recorded at the moment the read
+    STARTED, as the job's newest answered read."""
     tried = (await (await conn.execute("SELECT count(*) FROM job_events WHERE job_id = %s AND stage = 'reconcile'",
                                        (job_id,))).fetchone())[0]
-    await _set(conn, job_id, "unknown", next_poll_at=_in(min(UNKNOWN_MAX_S, UNKNOWN_FIRST_S * 2 ** tried)))
+    wait = FINAL_RECONCILE_RETRY_S if late else min(UNKNOWN_MAX_S, UNKNOWN_FIRST_S * 2 ** tried)
+    await _set(conn, job_id, "unknown", next_poll_at=_in(wait),
+               **(dict(answered_at=answered_at) if answered_at else {}))
     await add_event(conn, job_id, "system", "reconcile", text)
 
 
 async def apply_reconciled(db: AsyncConnectionPool, job_id, result: Reconciled, *, read_started_at: datetime,
                            caps: Caps, pools: Mapping[str, pool.PoolConfig], lease_id: int | None = None,
-                           release_lease: bool = False) -> str:
+                           release_lease: bool = False, render_deadline_s: float) -> str:
     """Apply what a reconcile read found for an `unknown` job; returns the job's status afterwards.
 
     `NotSent` requeues the job only when BOTH hold (I27): the proving read started later than
     `sent_at + submit_timeout_s + 60 s`, and the result's own `covers_send_window` proof (the provider's assertion
     that the read covers the send window; a capped or truncated listing never does). Otherwise it is StillUnknown.
-    A `Found` moves the job to `waiting`; the account is charged only when the order is proven taken.
+    A `Found` moves the job to `waiting`; the account is charged only when the order is proven taken. A `NotSent`
+    that is proven only after the render deadline (`render_deadline_s`, required) does not requeue: a late re-send is
+    never made, the read is recorded as the final one (at the moment it started) and the reaper fails the job with its
+    refund.
     `lease_id` (the reconcile lease) is fenced in the same transaction when given, and deleted in it too when
     `release_lease` is set."""
     async with tx(db) as conn:
@@ -402,24 +441,28 @@ async def apply_reconciled(db: AsyncConnectionPool, job_id, result: Reconciled, 
                 raise LeaseLost(lease_id)
         elif lease_id is not None:
             await leases.fence(conn, lease_id)
-        status = await _reconciled(conn, job_id, result, read_started_at, pools)
+        status = await _reconciled(conn, job_id, result, read_started_at, pools, render_deadline_s)
         if release_lease and lease_id is not None:
             await leases.release(conn, lease_id)
         return status
 
 
 async def _reconciled(conn: AsyncConnection, job_id, result: Reconciled, read_started_at: datetime,
-                      pools: Mapping[str, pool.PoolConfig]) -> str:
+                      pools: Mapping[str, pool.PoolConfig], render_deadline_s: float) -> str:
     job = await _lock_job(conn, job_id)
     if job.status != "unknown":
         return job.status
+    late = await _past_deadline(conn, job_id, render_deadline_s)
     match result:
         case Found():
             if result.taken:
                 await _charge_taken(conn, job, pools)
             cols = dict(status="waiting", external_ref=result.ref, accepted_at=_Raw(
                 "COALESCE(accepted_at, clock_timestamp())"), next_poll_at=_in(FIRST_POLL_S),
-                provider_state=_merge(result.provider_state))
+                provider_state=_merge(result.provider_state), answered_at=None)   # a poll after the deadline is next
+            cols["late_seen_at"] = None         # the reaper's next pass stamps it again: the found order gets its hour
+            if late:
+                cols["found_late_at"] = _NOW    # from now on a "still rendering" poll never counts as the final read
             if result.taken:
                 cols["taken_at"] = _Raw("COALESCE(taken_at, clock_timestamp())")
             await _set(conn, job_id, "unknown", **cols)
@@ -429,6 +472,10 @@ async def _reconciled(conn: AsyncConnection, job_id, result: Reconciled, read_st
             proven_late = job.sent_at is not None and read_started_at > job.sent_at + timedelta(
                 seconds=job.submit_timeout_s + NOT_SENT_MARGIN_S)
             proven_covered = result.covers_send_window
+            if proven_late and proven_covered and late:
+                await _still_unknown(conn, job_id, "proven not sent, but past the render deadline: not sent again",
+                                     answered_at=read_started_at, late=True)
+                return "unknown"
             if proven_late and proven_covered:
                 await _set(conn, job_id, "unknown", status="queued", sent_at=None, attempts=job.attempts + 1,
                            account_id=None, next_poll_at=None, **_reset({}))
@@ -436,12 +483,21 @@ async def _reconciled(conn: AsyncConnection, job_id, result: Reconciled, read_st
                                 "proven not sent: sent_at cleared, re-queued" + _dropped(job))
                 return "queued"
             await _still_unknown(conn, job_id, "not-sent claim refused: %s" % (
-                "read too early for the send window" if not proven_late else "listing does not cover the send"))
+                "read too early for the send window" if not proven_late else "listing does not cover the send"),
+                answered_at=read_started_at, late=late)       # the read worked; it proves nothing yet
             return "unknown"
         case StillUnknown():
-            await _still_unknown(conn, job_id, "still unknown")
+            await _still_unknown(conn, job_id, "still unknown", late=late,
+                                 answered_at=read_started_at if result.answered else None)
             return "unknown"
     raise TypeError("unknown reconcile result %r" % (result,))
+
+
+async def _past_deadline(conn: AsyncConnection, job_id, deadline_s: float) -> bool:
+    """Whether the job's render deadline has passed."""
+    return (await (await conn.execute(
+        "SELECT COALESCE(render_since, sent_at) + make_interval(secs => %s) <= clock_timestamp() FROM jobs "
+        "WHERE id = %s", (deadline_s, job_id))).fetchone())[0]
 
 
 # ---- fetching (a job whose outputs are ready upstream) -----------------------------------------------------------
@@ -482,8 +538,8 @@ async def apply_fetched(db: AsyncConnectionPool, job_id, poll_token, media: Sequ
 
 
 async def apply_fetch_failed(db: AsyncConnectionPool, job_id, poll_token, *, code: str, detail: str,
-                             retry_in_s: float, deadline_s: float,
-                             pools: Mapping[str, pool.PoolConfig]) -> str | None:
+                             retry_in_s: float, deadline_s: float, pools: Mapping[str, pool.PoolConfig],
+                             in_grace: bool = False) -> str | None:
     """A fetch that did not work. A terminal code (an unreadable file) or a render deadline already passed fails
     the job with its refund in this transaction; anything else keeps it `fetching` and tries again in
     `retry_in_s`. None: the token was not the job's, nothing changed."""
@@ -491,9 +547,18 @@ async def apply_fetch_failed(db: AsyncConnectionPool, job_id, poll_token, *, cod
         job = await _lock_job(conn, job_id)
         if _not_the_fetcher(job, poll_token):
             return None
-        late = (await (await conn.execute(
-            "SELECT COALESCE(render_since, sent_at, created_at) + make_interval(secs => %s) <= clock_timestamp() "
-            "FROM jobs WHERE id = %s", (deadline_s, job_id))).fetchone())[0]
+        due_at, found_at, seen_at, now = await (await conn.execute(
+            "SELECT COALESCE(render_since, sent_at, created_at) + make_interval(secs => %s), "
+            "(SELECT max(at) FROM job_events WHERE job_id = %s AND source = 'system' AND stage = 'completed'), "
+            "late_seen_at, clock_timestamp() FROM jobs WHERE id = %s", (deadline_s, job_id, job_id))).fetchone()
+        # Past the deadline the download keeps its normal retries for FETCH_WINDOW_S: from the moment the video was
+        # found when that was at or after the deadline (the final read found it), else from the moment a running worker
+        # first saw the job late (an outage that began while the video was being fetched). Before that stamp exists the
+        # reaper has not looked yet: the download is tried again.
+        anchor = found_at if found_at is not None and found_at >= due_at else (
+            seen_at if seen_at is not None and seen_at >= due_at else None)
+        late = (due_at <= now and anchor is not None and anchor + timedelta(seconds=FETCH_WINDOW_S) <= now
+                and not in_grace)
         if rule(code).terminal or late:
             await fail_in_tx(conn, job_id, ("fetching",), code, detail, pools)
             return "failed"

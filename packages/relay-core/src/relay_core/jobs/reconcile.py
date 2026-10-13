@@ -2,14 +2,16 @@
 
 A job whose send outcome is unknown is never re-sent. With `after_sent=reconcile` this loop reads the upstream
 account to find out, at a growing interval (60 s doubling to 30 min, kept in `next_poll_at` by the store), until the
-render deadline, when the reaper fails it.
+render deadline, when the reaper fails it, once a read made after the deadline has answered (this loop still
+makes that final read).
 
 Each reconcile runs under a `reconcile` lease on the account (hard bound 300 s, kept alive by a `LeaseKeeper`; a
 lease that cannot be extended cancels the read) and, for a browser provider, a token from the reconcile share of the
 semaphore (at most 2 at once). `engine.reconcile` runs with no connection held. The result is applied through
 `store.apply_reconciled`, fenced by the lease id in the same transaction, which also deletes the lease: a reconcile
 that lost its lease writes nothing. A read that fails or runs out of time counts as `StillUnknown`: the job keeps
-waiting and is never moved by a failure. A job already past its render deadline is left to the reaper.
+waiting and is never moved by a failure. A job past its render deadline is still reconciled until a read after
+it has answered.
 """
 
 import asyncio
@@ -51,7 +53,7 @@ class Reconciler(JobLoop):
             try:
                 claim = await claim_reconcile(self.db, provider=self.spec.name, caps=self.caps,
                                               deadline_s=deadline_s, owner=self.owner, hard_s=self.hard_s,
-                                              ttl_s=self.lease_ttl_s, token=token)
+                                              ttl_s=self.lease_ttl_s, token=token, grace=self.grace)
             except BaseException as e:
                 if token is not None:
                     token.release()
@@ -92,7 +94,8 @@ class Reconciler(JobLoop):
                 settle()
                 status = await self._shielded(store.apply_reconciled(
                     self.db, claim.job_id, result, read_started_at=claim.read_started_at, caps=self.caps,
-                    pools=self._pools(), lease_id=claim.lease_id, release_lease=True))
+                    pools=self._pools(), lease_id=claim.lease_id, release_lease=True,
+                    render_deadline_s=self.settings.get(self.spec.name + ".render_deadline_s")))
             log.info("job %s reconciled: now %s", claim.job_id, status)
         except LeaseLost:
             log.warning("reconcile of job %s: lease %s lost, result dropped", claim.job_id, claim.lease_id)

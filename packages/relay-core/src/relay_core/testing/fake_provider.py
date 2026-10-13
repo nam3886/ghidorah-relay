@@ -239,7 +239,7 @@ class FakeEngine:
         self.calls.append(("reconcile", str(job.id)))
         self.texts.append(("reconcile", str(job.id), getattr(job, "sent_text", None)))
         await failpoints.hit("fake.reconcile")
-        return self._next(self._reconcile, job) or StillUnknown()
+        return self._next(self._reconcile, job) or StillUnknown(answered=True)    # the read worked, it found nothing
 
     async def fetch(self, ctx, out: Output):
         yield b"fake-bytes:" + out.ref.encode()

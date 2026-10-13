@@ -26,6 +26,9 @@ APPLY = "packages/relay-core/src/relay_core/jobs/apply.py"
 REAPER = "packages/relay-core/src/relay_core/jobs/reaper.py"
 PROVIDERS = "packages/relay-core/src/relay_core/providers.py"
 MIGRATION = "packages/relay-core/src/relay_core/db/migrations/0015_unclear_replies.sql"
+# past the render deadline, with the final read made (the reaper waits for one)
+PAST_DEADLINE = ("UPDATE jobs SET render_since = clock_timestamp() - interval '9100 seconds', "
+                 "answered_at = clock_timestamp() WHERE id = %s")
 
 STORE_CALL = ("            if report is not None:\n                await alerts.store(conn, job.id, report)\n"
               '                await failpoints.hit("apply.unclear_reported")')
@@ -246,7 +249,7 @@ def test_the_same_reply_at_submit_and_at_the_deadline_makes_one_row_even_with_th
     (job_id,) = queued(db, 1, prompt="a red kite")
     prompt = db.one("SELECT prompt FROM jobs WHERE id = %s", job_id)[0]
     applied(db, [job_id], [Accepted("ref-1", taken=False, unclear="Hmm, not sure.\n" + prompt)])
-    db.run("UPDATE jobs SET render_since = clock_timestamp() - interval '9100 seconds' WHERE id = %s", job_id)
+    db.run(PAST_DEADLINE, job_id)
 
     async def reap(p):
         await reaper(p, spec=Reporting("Hmm, not sure.\n" + prompt.upper())).tick()
@@ -261,7 +264,7 @@ def test_the_deadline_builder_gets_the_texts_of_the_row_the_reaper_locked(db):
     (job_id,) = queued(db, 1, prompt="a red kite")
     prompt = db.one("SELECT prompt FROM jobs WHERE id = %s", job_id)[0]
     applied(db, [job_id], [Accepted("ref-1", taken=False, unclear="Hmm, not sure.")])
-    db.run("UPDATE jobs SET render_since = clock_timestamp() - interval '9100 seconds' WHERE id = %s", job_id)
+    db.run(PAST_DEADLINE, job_id)
 
     async def reap(p):
         await reaper(p, spec=Reporting("Hmm, not sure.\n" + prompt)).tick()
@@ -643,7 +646,7 @@ def test_a_deadline_with_no_text_to_report_adds_no_row(db):
 
 def test_the_same_words_already_reported_at_submit_add_no_row_and_other_words_add_one(db):
     (job_id,) = reported(db, [Accepted("ref-1", taken=False, unclear="Hmm [1].")])
-    db.run("UPDATE jobs SET render_since = clock_timestamp() - interval '9100 seconds' WHERE id = %s", job_id)
+    db.run(PAST_DEADLINE, job_id)
 
     async def tick(p, spec):
         await reaper(p, spec=spec).tick()
@@ -651,7 +654,7 @@ def test_the_same_words_already_reported_at_submit_add_no_row_and_other_words_ad
     run(db, lambda p: tick(p, Reporting("Hmm [22].")))
     assert row(db, job_id, "status")[0] == "failed" and len(reports(db)) == 1, "the same words make one row"
     (second,) = reported(db, [Accepted("ref-2", taken=False, unclear="First.")])
-    db.run("UPDATE jobs SET render_since = clock_timestamp() - interval '9100 seconds' WHERE id = %s", second)
+    db.run(PAST_DEADLINE, second)
     run(db, lambda p: tick(p, Reporting("Different words")))
     assert [r[4] for r in reports(db)] == ["hmm [#].", "first.", "different words"]
 

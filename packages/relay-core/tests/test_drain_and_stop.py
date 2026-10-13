@@ -26,8 +26,9 @@ DRAIN_GATES = ("drained = not self.settings.get(self._drain_key)\n"
 NO_DRAIN_GATES = ("return await store.claim_one(self.db, provider=self.spec.name, caps=self.caps, settings=type("
                   "\"Open\", (), {\"get\": lambda _s, k: True if k.endswith(\".claims_enabled\") "
                   "else self.settings.get(k)})(),")
-REAPER_RUNS = "    async def _render_deadline(self) -> int:\n        return await self._fail_late("
-REAPER_SKIPS_DRAINED = ("    async def _render_deadline(self) -> int:\n"
+REAPER_RUNS = ("            await conn.execute(_STAMP_LATE, (self.spec.name, seconds, seconds))\n"
+               "        return await self._fail_late(")
+REAPER_SKIPS_DRAINED = ("            await conn.execute(_STAMP_LATE, (self.spec.name, seconds, seconds))\n"
                         "        if not self.settings.get(self.spec.name + \".claims_enabled\"):\n"
                         "            return 0\n"
                         "        return await self._fail_late(")

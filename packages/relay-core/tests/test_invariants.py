@@ -466,7 +466,8 @@ def test_a_terminal_job_changes_only_through_recheck_and_recover(db, final):
         gone = ("queued", "submitting", "waiting", "unknown", "fetching")
         writers = {
             "apply_poll": lambda: store.apply_poll(p, job_id, uuid.uuid4(), PollResult(Pending("x", 5)), **kw),
-            "apply_reconciled": lambda: store.apply_reconciled(p, job_id, found, read_started_at=late, **kw),
+            "apply_reconciled": lambda: store.apply_reconciled(
+                p, job_id, found, read_started_at=late, render_deadline_s=9000, **kw),
             "apply_fetched": lambda: store.apply_fetched(p, job_id, uuid.uuid4(), stored),
             "apply_fetch_failed": lambda: store.apply_fetch_failed(
                 p, job_id, uuid.uuid4(), code="render.download_failed", detail="x", retry_in_s=1, deadline_s=1,

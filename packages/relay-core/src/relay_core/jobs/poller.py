@@ -22,6 +22,7 @@ from relay_core import pool
 from relay_core.budget import BrowserBudget, Purpose, Token
 from relay_core.db import tx
 from relay_core.jobs import store
+from relay_core.jobs.apply import StartupGrace
 from relay_core.jobs.claim import Visible, claim_visible
 from relay_core.jobs.events import add_event
 from relay_core.jobs.runctx import EngineSource, EvidenceSink
@@ -78,10 +79,10 @@ class JobLoop:
 
     def __init__(self, db: AsyncConnectionPool, spec: ProviderSpec, engine: ProviderEngine, settings: Any, *,
                  owner: str, load_account: LoadAccount, evidence_sink: EvidenceSink | None = None,
-                 tick_s: float = TICK_S, max_inflight: int = MAX_INFLIGHT):
+                 tick_s: float = TICK_S, max_inflight: int = MAX_INFLIGHT, grace: StartupGrace | None = None):
         self.db, self.spec, self.caps, self.engine, self.settings = db, spec, spec.caps, engine, settings
         self.owner, self.load_account, self.evidence_sink = owner, load_account, evidence_sink
-        self.tick_s, self.max_inflight = tick_s, max_inflight
+        self.tick_s, self.max_inflight, self.grace = tick_s, max_inflight, grace
         self._stop = asyncio.Event()
         self._inflight: set[asyncio.Task] = set()
         self._applying: set[asyncio.Future] = set()
@@ -203,8 +204,8 @@ class Poller(JobLoop):
         return None
 
     async def _work(self, c: Visible) -> None:
-        result = await self._poll(c) or PollResult(Pending("the poll did not answer", self.error_retry_s, {}))
+        result = await self._poll(c) or PollResult(Pending("the poll did not answer", self.error_retry_s, {}, False))
         status = await self._shielded(store.apply_poll(self.db, c.job_id, c.token, result, caps=self.caps,
-                                                       pools=self._pools()))
+                                                       pools=self._pools(), read_started_at=c.claimed_at))
         if status is None:
             log.info("poll result of job %s dropped: its token is no longer current", c.job_id)

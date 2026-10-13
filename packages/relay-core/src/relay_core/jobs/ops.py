@@ -19,6 +19,7 @@ _OPEN = """
 _OPEN_IDS = "SELECT id FROM jobs" + _OPEN + " ORDER BY id"
 _MARK = """
 UPDATE jobs SET status = 'unknown', sent_at = COALESCE(sent_at, %(t)s), poll_token = NULL,
+       late_seen_at = NULL, answered_at = NULL,
        next_poll_at = clock_timestamp(), updated_at = clock_timestamp()
 """ + _OPEN + " AND id = ANY(%(ids)s) RETURNING id"
 _LIVE_WORKERS = ("SELECT worker_id FROM worker_heartbeats "

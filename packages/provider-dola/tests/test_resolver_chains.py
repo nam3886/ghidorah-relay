@@ -362,6 +362,31 @@ def test_a_dead_session_waits_for_fresh_cookies():
     assert dict(out.state_patch) == {"signed_out": True} and out.note == SIGNED_OUT_NOTE
 
 
+@mutation(POLL, "        return _pending(SIGNED_OUT_NOTE, {\"signed_out\": True}, answered=False)",
+          "        return _pending(SIGNED_OUT_NOTE, {\"signed_out\": True}, answered=True)",
+          expect="a signed-out read was taken for an answer")
+@mutation(POLL, "        return _pending(str(exc), answered=False) ",
+          "        return _pending(str(exc), answered=True) ", expect="a chain error was taken for an answer")
+def test_only_a_read_that_worked_is_an_answered_pending():
+    """After the render deadline the core waits for one read that answered. A chain error and a dead session are not
+    one; a good read that finds the video still rendering is."""
+    dead = poll_chain({"status_code": resolver.NOT_LOGGED_IN})
+    for what, got in (("a chain error", poll_chain(503)), ("a signed-out read", dead)):
+        assert got[0].outcome.answered is False, "%s was taken for an answer" % what
+    waiting = chain_with([reply("It will use 2 credits and be ready in 15 minutes.", NOW - 5), mine()])
+    assert poll_chain(waiting)[0].outcome.answered is True, "a read that worked was not taken for an answer"
+
+
+@mutation(POLL, '        return _pending("no conversation to read yet", answered=False)',
+          '        return _pending("no conversation to read yet", answered=True)',
+          expect="no conversation was taken for an answer")
+def test_a_job_with_no_conversation_to_read_is_not_an_answered_read():
+    ctx = Ctx(account())
+    result = run(poll(ctx, job(ref=None), ctx.settings, http=http_for(FakeTransport({}), ctx.account),
+                      clock=lambda: NOW))
+    assert result.outcome.answered is False, "no conversation was taken for an answer"
+
+
 def test_the_wrong_conversation_code_is_terminal():
     out = poll_chain({"status_code": resolver.DATA_NOT_FOUND})[0].outcome
     assert isinstance(out, Failed) and out.code == "account.wrong_conversation" and out.taken is False

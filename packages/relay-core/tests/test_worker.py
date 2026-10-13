@@ -286,6 +286,23 @@ def test_a_billing_timezone_that_differs_from_the_pin_refuses_to_start(db, objec
     assert db.one("SELECT count(*) FROM worker_heartbeats")[0] == 0
 
 
+@mutation(W, "self.grace.restart()", "pass", expect="the startup grace was used up before the loops started")
+def test_the_startup_grace_counts_from_the_loops_starting_not_from_the_worker_being_made(db, objects):
+    async def scenario(owner, wp):
+        worker = make_worker(wp, FakeEngine(), objects, startup_grace_s=1.0)
+        await asyncio.sleep(1.3)                                      # a billing check or restore-mark wait took long
+        used_up = not worker.grace
+        tasks = worker._start()
+        inside = bool(worker.grace)                                   # the first reaper pass is still inside the grace
+        for t in tasks.values():
+            t.cancel()
+        await asyncio.gather(*tasks.values(), return_exceptions=True)
+        return used_up, inside
+
+    used_up, inside = run_as_worker(db, scenario)
+    assert used_up and inside, "the startup grace was used up before the loops started"
+
+
 @mutation(W, "self.exit_code = max(self.exit_code, self.claims.exit_code)", "pass",
           expect="assert run_as_worker(db, scenario) == 1")
 def test_the_claim_loops_error_limit_stops_the_whole_worker_with_exit_code_1(db, objects):

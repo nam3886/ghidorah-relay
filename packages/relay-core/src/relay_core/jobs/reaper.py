@@ -18,7 +18,11 @@ worker) never both act:
 - a `queued` job past `unsent_deadline_s` from its creation fails `queue.never_started`.
 - a `waiting` or `unknown` job past `<provider>.render_deadline_s`, counted from `render_since` (from the send
   when it has none), so a Re-check that restarts the clock saves it (D15, I17), fails with the spec's
-  `deadline_cause` code.
+  `deadline_cause` code, but only once a final read can no longer save it: a read that started after the deadline and
+  that the engine answered (`jobs.answered_at`), or `RENDER_BACKSTOP_S` after a running worker first saw the job late
+  (`jobs.late_seen_at`, stamped by this pass; not within `STARTUP_GRACE_S` of the worker starting, so the reads of a
+  restarted stack come first), and never while a read of it is in flight. A job no read will ever reach
+  (no poll or no reconcile for it) fails at the deadline as before.
 - a `waiting` or `fetching` job nobody can see (`next_poll_at` NULL) is made visible again.
 - every `drift_s` (300 s) the pool counters of the provider's accounts are compared with their charges and corrected
   (`pool.check_drift`, contracts 7.2).
@@ -40,7 +44,7 @@ from psycopg_pool import AsyncConnectionPool
 from relay_core import alerts, failpoints, leases, pool
 from relay_core.db import tx
 from relay_core.errors import RULES
-from relay_core.jobs.apply import UNKNOWN_FIRST_S
+from relay_core.jobs.apply import RENDER_BACKSTOP_S, UNKNOWN_FIRST_S, StartupGrace
 from relay_core.jobs.events import add_event
 from relay_core.jobs.fail import fail_in_tx
 from relay_core.providers import ProviderSpec
@@ -90,21 +94,50 @@ UPDATE jobs SET status = CASE WHEN sent_at IS NULL THEN 'queued' ELSE 'unknown' 
 _LATE = """
 SELECT status, provider_state, render_since, prompt, sent_text FROM jobs
  WHERE id = %%s AND provider = %%s AND status = ANY(%%s)
-   AND %s + make_interval(secs => %%s) <= clock_timestamp() FOR UPDATE
+   AND %s + make_interval(secs => %%s) <= clock_timestamp() %s FOR UPDATE
 """
 _LATE_IDS = """
 SELECT id FROM jobs WHERE provider = %%s AND status = ANY(%%s)
-   AND %s + make_interval(secs => %%s) <= clock_timestamp() ORDER BY id
+   AND %s + make_interval(secs => %%s) <= clock_timestamp() %s ORDER BY id
 """
+# The render deadline waits for a final read where one will happen: a poll for a `waiting` job, a reconcile for an
+# `unknown` job that is reconciled at all (the claim's own conditions, `claim._RECONCILE_DUE`). It lets the job go
+# when a read that STARTED after the deadline was answered, or one hour after a running worker first saw the job late
+# (`late_seen_at`, not the deadline: a worker that was down for hours still reads the job first), and never while a
+# read of the job is in flight (a claimed poll, a live reconcile lease): its result may be the video.
+# Params: the deadline, whether the backstop applies (not in the startup grace), the deadline, the backstop.
+_FINAL_READ = """AND (answered_at > {render} + make_interval(secs => %s)
+       OR (%s AND late_seen_at > {render} + make_interval(secs => %s)
+           AND late_seen_at + make_interval(secs => %s) <= clock_timestamp())
+       OR NOT (status = 'waiting' AND {poll} OR status = 'unknown' AND {reconcile} AND after_sent = 'reconcile'
+               AND account_id IS NOT NULL))
+   AND NOT (status = 'waiting' AND poll_token IS NOT NULL AND next_poll_at > clock_timestamp()
+            OR status = 'unknown' AND EXISTS (SELECT 1 FROM leases l WHERE l.job_id = jobs.id
+                                               AND l.purpose = 'reconcile' AND l.until > clock_timestamp()))
+""".format(render=RENDER_FROM, poll="{poll}", reconcile="{reconcile}")
+# The first pass that sees a sent job past its deadline stamps `late_seen_at` (again after a Re-check moved the
+# deadline past it) and makes the job's next read due now, unless a read of it is in flight.
+_STAMP_LATE = """
+UPDATE jobs SET late_seen_at = clock_timestamp(),
+       next_poll_at = CASE WHEN status = 'waiting' AND poll_token IS NULL
+                                OR status = 'unknown' AND NOT EXISTS (SELECT 1 FROM leases l WHERE l.job_id = jobs.id
+                                       AND l.purpose = 'reconcile' AND l.until > clock_timestamp())
+                           THEN LEAST(COALESCE(next_poll_at, clock_timestamp()), clock_timestamp())
+                           ELSE next_poll_at END
+ WHERE provider = %%s AND status IN ('waiting', 'unknown', 'fetching') AND sent_at IS NOT NULL
+   AND %(r)s + make_interval(secs => %%s) <= clock_timestamp()
+   AND (late_seen_at IS NULL OR late_seen_at <= %(r)s + make_interval(secs => %%s))
+""" % {"r": RENDER_FROM}
 _LAST_TEXT = ("SELECT text FROM job_events WHERE job_id = %s AND source = 'upstream' AND at >= %s "
               "ORDER BY id DESC LIMIT 1")
 
 
 class Reaper:
     def __init__(self, db: AsyncConnectionPool, spec: ProviderSpec, settings: Any, *, interval_s: float = INTERVAL_S,
-                 drift_s: float = DRIFT_S, owner_gone_s: float = OWNER_GONE_S):
+                 drift_s: float = DRIFT_S, owner_gone_s: float = OWNER_GONE_S, grace: StartupGrace | None = None):
         self.db, self.spec, self.settings, self.interval_s = db, spec, settings, interval_s
         self.drift_s, self.owner_gone_s = drift_s, owner_gone_s
+        self.grace = grace or StartupGrace(0)    # no grace unless the worker passes its own
         self._drift_at: float | None = None      # monotonic time of the last drift pass
         self._stop = asyncio.Event()
 
@@ -190,22 +223,29 @@ class Reaper:
 
     # ---- deadlines ---------------------------------------------------------------------------------------------
     async def _fail_late(self, expr: str, statuses: tuple[str, ...], seconds: float, why, *,
-                         report: bool = False) -> int:
+                         report: bool = False, final_read: bool = False) -> int:
+        hold = ""
+        extra: tuple = ()
+        if final_read:
+            hold = _FINAL_READ.format(poll=str(self.spec.caps.has_poll).lower(),
+                                      reconcile=str(self.spec.caps.has_reconcile).lower())
+            extra = (seconds, not self.grace, seconds, RENDER_BACKSTOP_S)
         async with tx(self.db) as conn:
             ids = [r[0] for r in await (await conn.execute(
-                _LATE_IDS % expr, (self.spec.name, list(statuses), seconds))).fetchall()]
+                _LATE_IDS % (expr, hold), (self.spec.name, list(statuses), seconds, *extra))).fetchall()]
         failed = 0
         for job_id in ids:
             try:
-                failed += await self._fail_one(expr, statuses, seconds, why, job_id, report)
+                failed += await self._fail_one(expr, statuses, seconds, why, job_id, report, hold, extra)
             except Exception:
                 log.exception("reaper: job %s could not be failed", job_id)
         return failed
 
     async def _fail_one(self, expr: str, statuses: tuple[str, ...], seconds: float, why, job_id,
-                        report: bool = False) -> bool:
+                        report: bool = False, hold: str = "", extra: tuple = ()) -> bool:
         async with tx(self.db) as conn:
-            row = await (await conn.execute(_LATE % expr, (job_id, self.spec.name, list(statuses), seconds))).fetchone()
+            row = await (await conn.execute(_LATE % (expr, hold), (job_id, self.spec.name, list(statuses), seconds,
+                                                                   *extra))).fetchone()
             if row is None:
                 return False            # the condition no longer holds: a Re-check, a result or a claim got there
             status, state, render_since, prompt, sent_text = row
@@ -249,9 +289,11 @@ class Reaper:
         return code, "no result before the render deadline"
 
     async def _render_deadline(self) -> int:
-        return await self._fail_late(RENDER_FROM, ("waiting", "unknown"),
-                                     self.settings.get(self.spec.name + ".render_deadline_s"), self._cause,
-                                     report=True)
+        seconds = self.settings.get(self.spec.name + ".render_deadline_s")
+        async with tx(self.db) as conn:
+            await conn.execute(_STAMP_LATE, (self.spec.name, seconds, seconds))
+        return await self._fail_late(RENDER_FROM, ("waiting", "unknown"), seconds, self._cause,
+                                     report=True, final_read=True)
 
     # ---- visibility --------------------------------------------------------------------------------------------
     async def _visibility(self) -> int:

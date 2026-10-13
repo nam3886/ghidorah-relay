@@ -432,6 +432,7 @@ def test_the_render_clock_starts_at_render_since_not_at_creation(db):
     async def scenario(p):
         job_id = await to_waiting(p, k)
         age(db, job_id, "created_at", 20_000)                # created long ago, sent and Re-checked just now
+        db.run("UPDATE jobs SET answered_at = clock_timestamp() WHERE id = %s", job_id)   # a read the clock ignores
         await reaper(p).tick()
         return job_id
 

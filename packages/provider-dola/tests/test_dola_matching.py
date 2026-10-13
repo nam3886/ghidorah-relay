@@ -117,7 +117,7 @@ def test_only_the_customers_words_or_only_the_bare_marker_is_cannot_tell(frame):
 @everywhere
 def test_a_capped_listing_holding_other_jobs_is_cannot_tell_but_one_holding_ours_is_found(frame):
     result = go(flat(frame=frame), frame=frame, has_more=True)[0]
-    assert result == StillUnknown(), "a capped listing proves nothing: %r" % (result,)
+    assert result == StillUnknown(answered=True), "a capped listing proves nothing: %r" % (result,)
     text = sent_of(PROMPT, MARKER, frame)
     assert go({"7": mine(text), **flat(frame=frame)}, frame=frame, has_more=True)[0] == Found("7", {}, True)
 

@@ -176,6 +176,25 @@ def test_a_readable_list_below_the_cap_with_nothing_carrying_the_text_proves_not
     assert sorted(transport.chain_reads()) == sorted(str(i) for i in range(5)), "every candidate must be read"
 
 
+@mutation("packages/relay-core/src/relay_core/providers.py", "    answered: bool = False\n",
+          "    answered: bool = True\n", expect="a read that failed was taken for an answer")
+@mutation(RECONCILE, "    return NotSent(covers_send_window=True) if covers else StillUnknown(answered=True)",
+          "    return NotSent(covers_send_window=True) if covers else StillUnknown()",
+          expect="a listing that was read in full was not taken for an answer")
+def test_only_a_listing_that_was_read_in_full_is_an_answered_still_unknown():
+    """After the render deadline the core waits for one reconcile that answered: a failed listing, an empty one or an
+    unreadable conversation are not one; every conversation read with no proof either way is."""
+    async def down(ctx, *a):
+        raise ListingError("no browser")
+    failed = {"a failed listing": go({"1": other()}, lister=down)[0], "an empty listing": go({}, ids=[])[0],
+              "an unreadable conversation": go({"1": other()}, text="")[0]}
+    for what, result in failed.items():
+        assert result == StillUnknown() and result.answered is False, \
+            "a read that failed was taken for an answer: " + what
+    capped = go({str(i): other(i) for i in range(5)}, has_more=True)[0]
+    assert capped.answered is True, "a listing that was read in full was not taken for an answer"
+
+
 def test_an_empty_list_is_unreadable_not_proof():
     assert go({}, ids=[])[0] == StillUnknown(), "an empty list was taken as 'nothing was sent'"
 
@@ -233,7 +252,7 @@ def test_the_v4_listing_bug_is_not_ported():
     assert data["unknown_non_matching"] in data["conversations"]
     result, transport, _ = go(data["conversations"], ids=data["listing"]["ids"],
                               sent_at=sent_at)
-    assert result == StillUnknown(), "a capped listing was taken as proof of NotSent: %r" % (result,)
+    assert result == StillUnknown(answered=True), "a capped listing was taken as proof of NotSent: %r" % (result,)
     assert len(transport.chain_reads()) == 30, "every candidate must still be read before giving up"
 
 
@@ -271,15 +290,15 @@ def test_only_a_conversation_clearly_older_than_the_send_counts_as_reaching_back
     # older than the send, but only by half the clock margin: dola's clock could be that far off, so it proves nothing
     convs[first] = other(0, at=SENT - rc.PREDATE_MARGIN_S / 2)
     close = go(convs, ids=data["listing"]["ids"], sent_at=sent_at)[0]
-    assert close == StillUnknown(), "a conversation barely older than the send was trusted: %r" % (close,)
+    assert close == StillUnknown(answered=True), "a conversation barely older than the send was trusted: %r" % (close,)
     convs[first] = other(0, at=SENT - rc.PREDATE_MARGIN_S * 2)
     far = go(convs, ids=data["listing"]["ids"], sent_at=sent_at)[0]
     assert far == NotSent(True), "a conversation older than the send did not count: %r" % (far,)
     # an undated conversation and a job with no sent_at prove nothing about the window
     convs[first] = chain_with([reply("hi", 0), user("old", 0)])
-    assert go(convs, ids=data["listing"]["ids"], sent_at=sent_at)[0] == StillUnknown()
+    assert go(convs, ids=data["listing"]["ids"], sent_at=sent_at)[0] == StillUnknown(answered=True)
     convs[first] = other(0, at=SENT - 86_400)
-    assert go(convs, ids=data["listing"]["ids"], sent_at=None)[0] == StillUnknown()
+    assert go(convs, ids=data["listing"]["ids"], sent_at=None)[0] == StillUnknown(answered=True)
 
 
 def test_a_capped_listing_that_holds_the_text_is_found_whatever_its_size():
@@ -396,7 +415,8 @@ def test_a_short_listing_proves_nothing_when_dola_says_there_is_more_or_says_not
     convs = {str(i): other(i) for i in range(5)}
     assert go(convs, has_more=False)[0] == NotSent(True)
     for more in (True, None):
-        assert go(convs, has_more=more)[0] == StillUnknown(), "dola says there is more (%r): no proof" % (more,)
+        assert go(convs, has_more=more)[0] == StillUnknown(answered=True), \
+            "dola says there is more (%r): no proof" % (more,)
 
 
 @mutation(RECONCILE, "listing.cells != len(ids)", "False",

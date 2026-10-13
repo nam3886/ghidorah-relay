@@ -44,15 +44,17 @@ def _since(job) -> float | None:
     return moment.timestamp() if moment else None
 
 
-def _pending(note: str = "", patch: dict | None = None, effects=()) -> PollResult:
-    return PollResult(Pending(note, constants.POLL_INTERVAL_S, patch or {}), effects=tuple(effects))
+def _pending(note: str = "", patch: dict | None = None, effects=(), *, answered: bool = True) -> PollResult:
+    """`answered` False: the read itself did not work (a chain error, a dead session): the core must not take it for the
+    read that says "not ready" when the render deadline is past."""
+    return PollResult(Pending(note, constants.POLL_INTERVAL_S, patch or {}, answered), effects=tuple(effects))
 
 
 def _chain_failure(exc: ChainError, healed: dict) -> PollResult:
     if exc.code == resolver.ACCOUNT_DEAD_SESSION:
-        return _pending(SIGNED_OUT_NOTE, {"signed_out": True})
+        return _pending(SIGNED_OUT_NOTE, {"signed_out": True}, answered=False)
     if exc.transient:
-        return _pending(str(exc))                               # HTTP error, not JSON, unknown code: read again
+        return _pending(str(exc), answered=False)               # HTTP error, not JSON, unknown code: read again
     # Not this job's conversation (wrong id / wrong text): the order is not proven ours, so nothing is "taken".
     taken = exc.code not in (resolver.ACCOUNT_WRONG_CONVERSATION, resolver.ACCOUNT_PROMPT_MISMATCH)
     return PollResult(Failed(exc.code, str(exc), taken, {**healed, **exc.state_patch}))
@@ -103,7 +105,7 @@ async def poll(ctx, job, settings, *, http: DolaHttp | None = None,
     """One read. `http` and `clock` are seams for tests; the engine passes neither."""
     conversation = job.external_ref
     if not conversation:
-        return _pending("no conversation to read yet")
+        return _pending("no conversation to read yet", answered=False)
     http = http or DolaHttp.for_account(ctx.account)
     # a good read clears `signed_out`; the same patch rides on every outcome that follows a good read
     healed = {"signed_out": False} if job.provider_state.get("signed_out") else {}

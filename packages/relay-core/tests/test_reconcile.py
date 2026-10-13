@@ -26,8 +26,8 @@ from relay_core.testing.fake_provider import FakeEngine, FakeSettings, FakeSpec
 from relay_core.testing.mutation import mutation
 
 RC = "packages/relay-core/src/relay_core/jobs/reconcile.py"
-FENCED = "lease_id=claim.lease_id, release_lease=True))"
-UNFENCED = "lease_id=None, release_lease=False))"
+FENCED = "lease_id=claim.lease_id, release_lease=True,"
+UNFENCED = "lease_id=None, release_lease=False,"
 MODES = ("hold", "detach")
 
 
@@ -159,23 +159,6 @@ def test_a_reconcile_that_raises_or_hangs_counts_as_still_unknown_and_frees_the_
 
     raised, hung = run(db, scenario)
     assert raised == ("unknown", 1, 0) and hung == ("unknown", 2, 0)
-
-
-def test_a_job_past_its_render_deadline_is_not_read_and_the_reaper_fails_it_with_the_refund(db):
-    k, _ = key(db), account(db, left=100)
-
-    async def scenario(p):
-        job_id = await unknown_due(p, db, k)
-        age(db, job_id, "sent_at", 9_100)
-        engine = FakeEngine()
-        await pass_once(reconciler(p, engine))
-        await reaper(p).tick()
-        return job_id, engine.calls
-
-    job_id, calls = run(db, scenario)
-    assert [c for c in calls if c[0] == "reconcile"] == []
-    assert row(db, job_id, "status, error_code") == ("failed", "render.deadline")
-    assert db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND entry = 'refund'", job_id) == (1,)
 
 
 def test_the_deadline_is_read_live_a_longer_one_keeps_the_job_in_reconciliation(db):

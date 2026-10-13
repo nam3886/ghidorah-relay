@@ -46,6 +46,7 @@ from relay_core import crypto, leases
 from relay_core.billing import BillingTzMismatch, verify_billing_tz
 from relay_core.budget import BrowserBudget, ceiling_from_env, effective_slots
 from relay_core.db import open_pool, tx
+from relay_core.jobs.apply import STARTUP_GRACE_S, StartupGrace
 from relay_core.jobs.checks import Checks, Env
 from relay_core.jobs.commands import CommandLoop
 from relay_core.jobs.engine import ClaimLoop
@@ -81,10 +82,13 @@ class Worker:
                  grace_s: float | None = DEFAULT_GRACE_S, billing_tz: str | None = None, max_errors: int = 5,
                  tick_s: float = 1.0, lease_ttl_s: float = leases.LEASE_TTL_S,
                  lease_beat_s: float = leases.HEARTBEAT_S, beat_s: float = 15.0, reaper_interval_s: float = 30.0,
-                 housekeeping_s: float = 60.0, drift_check_s: float = DRIFT_CHECK_S, worker_id: str | None = None):
+                 housekeeping_s: float = 60.0, drift_check_s: float = DRIFT_CHECK_S, worker_id: str | None = None,
+                 startup_grace_s: float = STARTUP_GRACE_S):
         self.db, self.spec, self.owner, self.grace_s, self.billing_tz = db, spec, owner, grace_s, billing_tz
         self.tick_s, self._housekeeping_s = tick_s, housekeeping_s
-        caps, common = spec.caps, dict(owner=owner, load_account=load_account, evidence_sink=evidence_sink)
+        self.grace = grace = StartupGrace(startup_grace_s)
+        caps = spec.caps
+        common = dict(owner=owner, load_account=load_account, evidence_sink=evidence_sink, grace=grace)
         self.keeper = leases.LeaseKeeper(db, owner, ttl_s=lease_ttl_s, heartbeat_s=lease_beat_s)
         self.claims = ClaimLoop(
             db, spec, engine, settings, owner=owner, load_account=lambda claim: load_account(claim.account_id),
@@ -98,7 +102,7 @@ class Worker:
                                      lease_ttl_s=lease_ttl_s, lease_beat_s=lease_beat_s, **common) \
             if caps.has_reconcile else None
         self.reaper = Reaper(db, spec, settings, interval_s=reaper_interval_s, drift_s=drift_check_s,
-                             owner_gone_s=3 * beat_s)
+                             owner_gone_s=3 * beat_s, grace=grace)
         env = Env(db=db, spec=spec, engine=engine, settings=settings, owner=owner, keeper=self.keeper,
                   load_account=load_account, store=store, budget=budget, evidence_sink=evidence_sink,
                   ttl_s=lease_ttl_s)
@@ -180,6 +184,7 @@ class Worker:
         return False
 
     def _start(self) -> dict[str, asyncio.Task]:
+        self.grace.restart()          # counted from the loops starting, not from the object being made
         runs: dict[str, Callable[[], Awaitable]] = {
             "claims": self.claims.run, "fetcher": self.fetcher.run, "reaper": self.reaper.run,
             "commands": lambda: self.commands.run(self._stop_commands, self.tick_s)}

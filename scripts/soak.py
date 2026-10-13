@@ -218,7 +218,7 @@ class SoakEngine(MediaEngine):
         async def go():
             self.calls.append(("reconcile", str(job.id)))
             await failpoints.hit("fake.reconcile")
-            plan = self.reconciles.get(str(job.id), [StillUnknown()])
+            plan = self.reconciles.get(str(job.id), [StillUnknown(answered=True)])
             result = plan.pop(0) if len(plan) > 1 else plan[0]
             return result
 
@@ -295,8 +295,8 @@ def script_world(rng: random.Random, engine: SoakEngine, jobs: list[tuple]) -> N
             engine.polls[str(job_id)] = [rng.randint(0, 2), lambda job, t=taken: PollResult(
                 Failed("account.dead_session", "the session died", taken=t))]
         ending = rng.choice((Found(ref, taken=True), Found(ref, taken=False), NotSent(True), NotSent(False),
-                             StillUnknown()))
-        engine.reconciles[str(job_id)] = [StillUnknown()] * rng.randint(0, 2) + [ending]
+                             StillUnknown(answered=True)))
+        engine.reconciles[str(job_id)] = [StillUnknown(answered=True)] * rng.randint(0, 2) + [ending]
 
 
 async def _raise() -> None:
