@@ -749,7 +749,7 @@ day and one uvicorn process, so they were lowered: 8 + 2 + 1.5 + 1.5 = 13, and 1
 any of them through a deploy recorded in the go-live log.
 
 `worker-dola` also gets `RELAY_PROFILE_ROOT=/profiles` and `DOLA_BROWSER_SLOTS_MAX` (4 unless `deploy/.env` says
-otherwise) from `compose.yml` itself, so a cold profile directory or a missing slot count cannot come from a forgotten line in
+otherwise; the box's `deploy/.env` says 8, see "Slot values and the load test") from `compose.yml` itself, so a cold profile directory or a missing slot count cannot come from a forgotten line in
 the env file; `api` stops with a 30 s grace and `worker-dola` with 780 s.
 
 **Box-wide abort threshold.** At the first breach the step in progress stops: run `relay provider drain dola`, then a
@@ -787,6 +787,24 @@ Host at the baseline: 32 cores, 62.9 GiB (60.5 GiB available), swap 8 GiB unused
 filesystem (166 GB free of 195 GB, inodes 2% used), load average 0.00 / 0.66 / 4.4, containerd image store. The full
 record, with the times and the drills, is in the go-live log (`plans/260930-1635-relay-platform/reports/07-go-live-log.md`).
 
+### Slot values and the load test (14/10)
+
+Deployed on the box: `dola.browser_slots` **6** (stored setting) and `DOLA_BROWSER_SLOTS_MAX` **8** (a line in
+`~/relay-deploy/deploy/.env`; the compose default stays 4). Why 8: the reserved shares leave one submit at any size up
+to 4 (see "Browser shares stay reserved"), so the ceiling of 4 allowed no concurrent submit. The load test ran image jobs
+and Check all rounds on nine jars at 1, 2, 4, 5, 6 and 8 slots: 47 jobs, 0 failures, 0 cookie-loss, reload, guest or
+submit-timeout lines, worker memory peak 3.9 GiB (limit 12 GiB), loop lag max 432 ms, host load5 peak 5.5, MemAvailable
+never under 57 GB, swap 0. Eight slots stayed clean; 6 is the last clean step minus one for headroom.
+
+Recreate only the worker after an env change (from `~/relay-deploy`; never `--profile app`, which would touch the api):
+
+```bash
+docker compose -p relay -f deploy/compose.yml --profile dola up -d --no-build --pull never worker-dola
+```
+
+The graceful stop (780 s) drains what is in flight; check that no job is `submitting` first. Without `-f` compose finds no
+file in `~/relay-deploy` and changes nothing.
+
 ### Live windows
 
 A live window is any period with a planned live check, a deadline drill, the load test, the client switch and its first
@@ -794,6 +812,14 @@ hour, or a later live measurement. No gate and no heavy `box.sh` run happens in 
 `scripts/box.sh --status` (no busy folder, `gate.lock` free; otherwise wait or `--clear`), then creates
 `~/relay-deploy/live-window`, and deletes it last. `box.sh` refuses to start while it exists (exit 77); a run that was
 already going is not stopped by it.
+
+**Deadline drills.** Stop the worker first, then lower `dola.render_deadline_s`, and keep it down well past the lowered
+deadline and the lease expiry (the first drills ran 75 minutes). For the "sent, then killed" drill, kill the worker
+(`docker kill -s KILL`) about **5 to 8 s after the job's "sent" event**: `sent_at` is stamped immediately before Enter,
+so a kill 0.8 s later probably landed before the order existed: the final reconcile found nothing, and nothing showed that the order was placed (not proven). Start the worker
+still drained and with the lowered deadline, so the final read or reconcile runs under it. Cleanup always runs, in this
+order: delete (or set back) the stored deadline, read it back and compare it with the value recorded before, and only then
+`relay provider resume dola`. Jobs cannot be pinned to a jar: run a drill alone, with no other job open.
 
 ### The secret tools
 
@@ -894,8 +920,9 @@ Order matters: `restore_mark` writes whole tables and a running worker would cla
 - **Admin account actions are worker commands** (wake, check, check all, proxy re-check, delete): the api queues
   them, the provider's worker runs them, so they wait while the worker is drained or stopped. A command aborted by a
   database deadlock or serialization failure is re-queued, a bounded number of times; other errors fail it.
-- **Browser shares stay reserved (D45):** reconcile up to 2 and check plus command 1, even when idle. More submit
-  slots mean a higher `<p>.browser_slots`, within the env ceiling.
+- **Browser shares stay reserved (D45):** reconcile up to 2 and check plus command 1, even when idle, so the submit
+  share is `slots - 3` and never below 1. Up to 4 slots therefore give exactly one submit at a time; concurrent
+  submits start at 5 slots. More submit slots mean a higher `<p>.browser_slots`, within the env ceiling.
 - **A late render is read once more before it fails.**
   - A job past `<provider>.render_deadline_s` fails only after one read that started after the deadline and that the
     provider answered: a poll that said "not ready", or a reconcile that found nothing. A read that failed does not
