@@ -40,7 +40,7 @@ def image_mime(url: str) -> str:
 
 
 def _since(job) -> float | None:
-    moment: datetime | None = job.render_since
+    moment: datetime | None = job.render_since or job.sent_at       # a reconciled order may have only its send time
     return moment.timestamp() if moment else None
 
 

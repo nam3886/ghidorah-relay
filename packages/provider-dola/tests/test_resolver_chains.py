@@ -467,6 +467,21 @@ def test_a_copyright_block_with_no_mark_is_not_judged_here():
     assert isinstance(out, Pending)
 
 
+@mutation(POLL, "job.render_since or job.sent_at", "job.render_since",
+          expect="a reconciled order missed the copyright block")
+def test_a_reconciled_order_with_only_a_send_time_fails_at_once_on_the_copyright_block_read_with_the_acceptance():
+    """Job ce7bc6e8: found by reconcile (no render_since), every read held the block above the older acceptance."""
+    sent = dt.datetime.fromtimestamp(NOW - 3000, dt.UTC)
+    body = chain_with([reply(COPYRIGHT, NOW - 30, 3), reply(ACCEPT, NOW - 2900, 2), mine()])
+    ctx = Ctx(account())
+    j = job(since=None, sent_at=sent, prompt="a plain grey wall, static shot", marker="4100")
+    out = run(poll(ctx, j, ctx.settings, http=http_for(FakeTransport({CONV: body}), ctx.account),
+                   clock=lambda: NOW)).outcome
+    assert isinstance(out, Failed) and out.code == errors.CONTENT_REFUSED and out.taken, \
+        "a reconciled order missed the copyright block: %r" % (out,)
+    assert dict(out.state_patch) == {"no_recheck": True}
+
+
 def test_a_copyright_block_while_a_cell_still_renders_waits_for_it():
     body = chain_with([reply(COPYRIGHT, NOW - 30), video_msg(1, NOW - 100, cell(status=1)), mine()])
     assert isinstance(poll_chain(body, since=NOW - 600)[0].outcome, Pending)

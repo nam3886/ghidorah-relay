@@ -286,7 +286,9 @@ class Reaper:
         if code not in RULES:
             log.error("%s: deadline_cause returned the unregistered code %r", self.spec.name, code)
             code = DEADLINE_CODE
-        return code, "no result before the render deadline"
+        if code == DEADLINE_CODE:
+            return code, "no result before the render deadline"
+        return code, "ended at the render deadline; cause: " + code
 
     async def _render_deadline(self) -> int:
         seconds = self.settings.get(self.spec.name + ".render_deadline_s")

@@ -41,6 +41,8 @@ class CauseSpec(FakeSpec):
     """A provider whose deadline code depends on the last upstream text it saw."""
 
     def deadline_cause(self, upstream_text, provider_state):
+        if provider_state.get("signed_out"):
+            return "account.dead_session"
         if "watermark" in upstream_text:
             return "render.watermarked_only"
         return "unregistered.code" if "bogus" in upstream_text else "render.deadline"
@@ -386,6 +388,7 @@ def test_a_waiting_job_past_the_render_deadline_fails_with_the_providers_cause_a
     assert refunds(db, job_id) == 1
 
 
+@mutation(R, '        if code == DEADLINE_CODE:', '        if True:', expect="cause: render.watermarked_only")
 def test_the_deadline_cause_reads_the_newest_text_of_this_render_and_an_unregistered_code_falls_back(db):
     k, _ = key(db), account(db, left=100)
     spec = CauseSpec()
@@ -393,15 +396,22 @@ def test_the_deadline_cause_reads_the_newest_text_of_this_render_and_an_unregist
     async def scenario(p):
         a = await to_waiting(p, k, prompt="a")
         b = await to_waiting(p, k, prompt="b")
-        for job_id, text in ((a, "output is watermark only"), (b, "bogus")):
+        c = await to_waiting(p, k, prompt="c")
+        db.run("UPDATE jobs SET provider_state = '{\"signed_out\": true}' WHERE id = %s", c)
+        for job_id, text in ((a, "output is watermark only"), (b, "bogus"), (c, "anything")):
             age(db, job_id, "render_since", 9_100)
             db.run("INSERT INTO job_events (job_id, source, stage, text) VALUES (%s, 'upstream', 'poll', %s)",
                    job_id, text)
         await reaper(p, spec=spec).tick()
-        return a, b
+        return a, b, c
 
-    a, b = run(db, scenario)
+    a, b, c = run(db, scenario)
     assert row(db, a, "error_code") == ("render.watermarked_only",) and row(db, b, "error_code") == ("render.deadline",)
+    # a failure that has a cause names it, whether it came from the upstream's words or from the job's state
+    assert row(db, c, "error_code") == ("account.dead_session",)
+    assert row(db, a, "error")[0].endswith("cause: render.watermarked_only")
+    assert row(db, c, "error")[0].endswith("cause: account.dead_session")
+    assert "cause" not in row(db, b, "error")[0], "a plain timeout names no cause"
 
 
 def test_the_render_deadline_is_read_live_and_an_unknown_job_counts_from_its_send(db):

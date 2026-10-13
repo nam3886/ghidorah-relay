@@ -955,6 +955,21 @@ def test_after_a_late_found_still_rendering_polls_do_not_end_the_job_and_the_vid
     assert ended == "fetching" and refunds(db, job_id) == 0 and charges(db, job_id) == (1, 0)
 
 
+FOUND_RENDER_SINCE = 'cols["render_since"] = _Raw("COALESCE(render_since, sent_at)")'
+
+
+@mutation(APPLY, FOUND_RENDER_SINCE, FOUND_NOT_LATE, expect="a found order has no render_since")
+def test_a_found_order_is_judged_from_its_send_time_like_an_accepted_one(db):
+    k, _ = key(db), account(db, left=100)
+
+    async def scenario(p):
+        view = await store.job_view(p, await late_found_job(p, db, k))
+        return view.render_since, view.sent_at
+
+    since, sent = run(db, scenario)
+    assert sent is not None and since == sent, "a found order has no render_since: its polls judge from nothing"
+
+
 @mutation(APPLY, FOUND_LATE, FOUND_NOT_LATE, expect=STILL_RENDERING)
 def test_after_a_late_found_a_job_that_keeps_rendering_fails_at_the_restarted_backstop_with_one_refund(db):
     k, _ = key(db), account(db, left=100)

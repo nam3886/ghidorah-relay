@@ -461,6 +461,7 @@ async def _reconciled(conn: AsyncConnection, job_id, result: Reconciled, read_st
                 "COALESCE(accepted_at, clock_timestamp())"), next_poll_at=_in(FIRST_POLL_S),
                 provider_state=_merge(result.provider_state), answered_at=None)   # a poll after the deadline is next
             cols["late_seen_at"] = None         # the reaper's next pass stamps it again: the found order gets its hour
+            cols["render_since"] = _Raw("COALESCE(render_since, sent_at)")   # as after an accepted send
             if late:
                 cols["found_late_at"] = _NOW    # from now on a "still rendering" poll never counts as the final read
             if result.taken:
