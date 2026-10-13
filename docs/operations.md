@@ -714,6 +714,13 @@ into, inspects beyond metadata, or prunes anything foreign; relay removes only w
    nothing at the default level while it is idle. The worker has no HTTP port; its health is that heartbeat row.
    Then `relay provider resume dola` when the accounts are imported (drain also stops account checks).
 
+A one-off `docker run` of a deployed image (keygen, admin create-user, a smoke test) inherits the compose labels
+`com.docker.compose.project=relay` and `...service=<service>` from the image, so `docker compose -p relay ps/stop/down` and
+the gate's cap detection would take it for production. Give it the two labels `com.docker.compose.project=relay-oneoff`
+and `com.docker.compose.service=oneoff`, or prefer `docker compose -p relay run --rm <service> ...`, which marks it as a
+one-off container of the project. Never run a drill under `-p relay` or from `~/relay-deploy`; a scratch stack has its own
+`-p relay-drill-<name>` and its own directory.
+
 Rollback: `docker compose -p relay stop` (volumes kept). A relay volume is removed only by name and only on the owner's word.
 
 ### Limits and abort thresholds
