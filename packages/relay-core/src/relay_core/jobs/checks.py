@@ -479,7 +479,9 @@ class Checks:
     async def _one(self, account_id) -> None:
         try:
             result = await check_account(self.env, account_id)
-            log.info("check of %s: %s", account_id, result.outcome)
+            # the reason too: `accounts.last_error` keeps it only until the next good check clears it
+            log.info("check of %s: %s%s", account_id, result.outcome,
+                     ": " + redact_log(result.detail) if result.detail else "")
         except asyncio.CancelledError:
             raise
         except Exception as e:

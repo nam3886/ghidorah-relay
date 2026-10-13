@@ -328,6 +328,33 @@ def test_an_account_error_over_2000_characters_is_stored_as_omitted_len(db):
     assert secret not in stored
 
 
+@mutation(CHECKS, 'redact_log(result.detail) if result.detail else ""', '"" if result.detail else ""',
+          expect="the failure reason was not in the log line")
+def test_the_log_line_of_a_failed_check_names_its_reason_and_a_good_one_has_none(db, caplog):
+    bad, good = new_account(db, checked=True), new_account(db, checked=True)
+
+    async def scenario(p):
+        engine = KitEngine()
+
+        async def boom(ctx):
+            if str(ctx.account.id) == str(bad):
+                raise RuntimeError("upstream refused the session")
+        engine.on_check = boom
+        sched = Checks(make_env(p, engine), max_tasks=2)
+        with caplog.at_level("INFO", logger=checks.log.name):
+            for account_id in (bad, good):
+                db.run("UPDATE accounts SET check_due_at = clock_timestamp() - interval '1 minute' WHERE id = %s",
+                       account_id)
+            await sched.tick()
+            await sched.wait()
+
+    worker(db, scenario)
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("check of ")]
+    assert any(str(bad) in m and "failed" in m and "upstream refused the session" in m for m in lines), \
+        "the failure reason was not in the log line: %r" % lines
+    assert any(m == "check of %s: checked" % good for m in lines), lines
+
+
 # ---- the browser token --------------------------------------------------------------------------------------------
 def test_a_browser_check_holds_a_check_token_and_waits_when_the_check_and_command_share_is_taken(db):
     a = new_account(db, checked=True)
