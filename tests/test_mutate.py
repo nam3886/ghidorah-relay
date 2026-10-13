@@ -742,6 +742,8 @@ def test_the_mutation_stage_runs_mutate_py_with_jobs_only_when_mutate_jobs_is_se
     assert args(MUTATE_JOBS="5") == "--jobs 5 --only x", "MUTATE_JOBS did not reach mutate.py"
 
 
+@mutation(CHECK, "    MUTATE_JOBS=${MUTATE_JOBS-12}\n", "    MUTATE_JOBS=${MUTATE_JOBS-24}\n",
+          expect="the capped gate does not use fewer jobs")
 @mutation(CHECK, "  MUTATE_JOBS=${MUTATE_JOBS-24}\n", "  MUTATE_JOBS=${MUTATE_JOBS:-1}\n",
           expect="the box default of MUTATE_JOBS is not parallel")
 @mutation(CHECK, "  SOAK_JOBS=${SOAK_JOBS-16}\n", "  SOAK_JOBS=${SOAK_JOBS:-1}\n",
@@ -771,6 +773,9 @@ def test_on_the_box_the_slow_stages_default_to_parallel_and_an_explicit_value_wi
     assert serial == "[1][1][]", "an empty PYTEST_JOBS no longer turns xdist off: " + serial
     assert settled({"RELAY_ON_BOX": "1", "SOAK_JOBS": "3"}) == "[24][3][8]", \
         "the box default of SOAK_JOBS is not parallel"
+    capped = settled({"RELAY_ON_BOX": "1", "RELAY_GATE_CAPPED": "1"})
+    assert capped == "[12][8][4]", "the capped gate does not use fewer jobs: " + capped
+    assert settled({"RELAY_ON_BOX": "1", "RELAY_GATE_CAPPED": "1", "MUTATE_JOBS": "5"}) == "[5][8][4]"
 
 
 @mutation(CHECK, '${SOAK_JOBS:+--jobs "$SOAK_JOBS"}', "", expect="SOAK_JOBS did not reach soak.py")
@@ -781,3 +786,14 @@ def test_check_sh_passes_soak_jobs_and_pytest_jobs_on_and_keeps_each_test_file_o
     assert '${SOAK_JOBS:+--jobs "$SOAK_JOBS"}' in text, "SOAK_JOBS did not reach soak.py"
     assert '${PYTEST_JOBS:+-n "$PYTEST_JOBS" --dist' in text, "PYTEST_JOBS did not reach pytest"
     assert '--dist loadfile}' in text, "a test file was split over workers"
+
+
+@mutation("scripts/mutate.py", 'args += ["--cpuset-cpus", os.environ["RELAY_GATE_CPUSET"]]', "pass",
+          expect="the queue container is not pinned to the gate cores")
+def test_a_queue_container_is_pinned_to_the_gate_cores_only_while_the_cap_applies(monkeypatch):
+    monkeypatch.setenv("MUTATE_BROWSER_NETWORK", "relay-check-1_default")
+    monkeypatch.delenv("RELAY_GATE_CPUSET", raising=False)
+    assert "--cpuset-cpus" not in mutate.container_args()
+    monkeypatch.setenv("RELAY_GATE_CPUSET", "0-11")
+    args = mutate.container_args()
+    assert args[args.index("--cpuset-cpus") + 1] == "0-11", "the queue container is not pinned to the gate cores"

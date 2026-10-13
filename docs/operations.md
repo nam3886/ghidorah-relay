@@ -1,8 +1,9 @@
 # Operations
 
-Pinned inputs of the relay images, the api and the worker, the `relay` commands and the restore runbook. Contracts §3,
-§7.7, §8, §13, §15, §16, §17 (D23, v1.3 #23).
-Plan phase 7 extends this file with the deploy and backup runbooks and drills the restore.
+Pinned inputs of the relay images, the api and the worker, the `relay` commands, the box runbook (D95) and the restore
+runbook. Contracts §3, §7.7, §8, §13, §15, §16, §17 (D23, v1.3 #23, D95, D96).
+Since D95 relay runs on the box and the Mac is for coding only: the Mac wording below that describes runs, accounts or
+Chrome on the Mac is history until phase 7 step 9 cleans it up.
 
 ## Image digests
 
@@ -279,6 +280,30 @@ scripts/box.sh --clear dev1                                   # stop the run tha
 - **One whole-tree gate.** `check.sh --full` with no `MUTATE_ONLY` and no test path takes `~/relay-runs/gate.lock`; a
   second one is refused at once (exit 75), whatever folder it runs in. The command may be wrapped (`bash -c '... ./scripts/check.sh --full 2>&1 | ts'`):
   `box.sh` reads each argument as shell words and ignores what follows the first operator after `check.sh`. Narrowed runs are not locked.
+- **CPU budget (only while the production stack runs).** `box.sh` asks the box, before each run or detach, whether a
+  container of the compose project `relay` (the production project; exact label match, so the `relay-check-*` stacks never
+  count) is up (`RELAY_GATE_CAP=on|off` overrides, default `auto`). The question has two answers, exit 10 (up) and exit 11
+  (none); anything else (docker or ssh failing, a non-POSIX login shell on the box, an unexpected answer) caps the run and
+  says so on stderr: it fails closed. Until the deploy a run is uncapped, as it always was. While the stack
+  runs, every run executes as `taskset -c $RELAY_GATE_CPUS nice -n 10 env <command>`: cores 0-11 (12 of the box's 32) at
+  low priority, so the live stack and the other projects keep the rest. `taskset` does not reach the gate's own
+  containers, so they are pinned to the same cores (`--cpuset-cpus` from `RELAY_GATE_CPUSET` for the browser-tier runner,
+  `scripts/check-in-container.sh`, and for each mutation queue container, `scripts/mutate.py`; `CHECK_CPUSET` for the check
+  Postgres and MinIO in `deploy/compose.check.yml`, empty = any core). The whole gate therefore shares one 12-core set
+  instead of adding per-container quotas that sum to about 30. Short bursts stay outside it: the BuildKit work that
+  builds the browser image (twice per whole-tree gate), `docker-proxy` for the check Postgres port, and the stand-ins
+  of the graceful-stop test. The cap is decided once, at the start of a run. `check.sh` then takes smaller job defaults
+  (`RELAY_GATE_CAPPED=1`: `MUTATE_JOBS` 12, `SOAK_JOBS` 8, `PYTEST_JOBS` 4 instead of 24, 16, 8); a value you set wins.
+  The `box:` line of every run shows `capped=0|1`; a stray `RELAY_GATE_CAP=off` in a shell uncaps silently otherwise.
+  The cost and the peak load of a capped gate are in the 1c report.
+- **Live window.** While the file `~/relay-deploy/live-window` exists on the box, `box.sh` starts no run (exit 77), once
+  before the sync and again just before the command. Reading (`--status`, `--log`, `--wait`, `--sync-only`) still works. The
+  operator of a live window (a planned live check, a deadline drill, the load test, the client switch and its first
+  hour, a later live measurement) creates the file when the window starts and deletes it when it ends, and writes
+  both times in the go-live log. Before creating the file the operator runs `scripts/box.sh --status`: no folder may be
+  busy and `gate.lock` must be free; otherwise wait for the run to end, or `--clear` it. The file only stops new runs: a
+  gate that started five minutes earlier would run into the window. Outside a window a gate may run on the production
+  box, under the budget above.
 - **Do not.** The box also runs containers of other projects (`portfolio`, `billiards`): never stop, inspect or prune
   them, and never run `docker system prune` or `docker image prune` there. Relay's scripts only touch what carries
   their own token or label.
@@ -295,7 +320,7 @@ Environment (names only; the template is `deploy/api.env.example`):
 | `DATABASE_URL` | required; the `relay_api` role |
 | `CREDENTIAL_SEAL_PUBLIC_KEY` | required; account import and proxy edits seal with it. Missing or malformed refuses |
 | `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION` | required object-store settings; the bucket is created at start, by `relay serve` and by `relay worker` alike (a fresh object store has none) |
-| `PORT` | default 8100 (the compose file publishes it as `API_PORT`, default 8100) |
+| `PORT` | keep 8100 (the container mapping is fixed; the compose file publishes it as `API_PORT`, default 8100) |
 | `BILLING_TZ` | must equal the value pinned by `relay migrate` (first run pins it, UTC when unset); a different value refuses. Never stored in the settings table |
 | `PUBLIC_BASE_URL` | base of the media URLs in job answers; unset = built from the request |
 | `TRUSTED_PROXIES` | `X-Forwarded-*` is honoured only when this is set; there is no reverse proxy in the compose file |
@@ -496,12 +521,13 @@ Drives dola.com in Chrome, one browser session per claimed job. Sources: `packag
 
 - **Env file** `deploy/worker-dola.env` (gitignored), copied from `deploy/worker-dola.env.example`. Keys, names only:
   `DATABASE_URL`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION`,
-  `CREDENTIAL_SEAL_PRIVATE_KEY`, `BILLING_TZ`, `DOLA_BROWSER_SLOTS_MAX`. The last one is required: the ceiling for the
-  live setting `dola.browser_slots`, sized to the machine's memory. The dola spec accepts 1 to 30 for the setting.
-- **Chrome** on the Mac: the pinned Chrome for Testing 154.0.8037.92 through `RELAY_CHROME_PATH` (see "Google Chrome"),
+  `CREDENTIAL_SEAL_PRIVATE_KEY`, `BILLING_TZ`, `DOLA_BROWSER_SLOTS_MAX`, `RELAY_PROFILE_ROOT`. `DOLA_BROWSER_SLOTS_MAX` is
+  required: the ceiling for the live setting `dola.browser_slots`, sized to the machine's memory (the dola spec accepts 1 to
+  30 for the setting). In the compose stack `compose.yml` sets `RELAY_PROFILE_ROOT=/profiles` and the slot ceiling (4) itself.
+- **Chrome** on the Mac (history, D95: relay runs on the box now, whose image holds the same pinned build): the pinned Chrome for Testing 154.0.8037.92 through `RELAY_CHROME_PATH` (see "Google Chrome"),
   not the installed Google Chrome. Set `RELAY_PROFILE_ROOT` too, or the profile cache is not kept.
-- **Accounts and proxies live outside the repo**, in `~/relay-secrets/` (the Mac, mode 0600 files). They are imported
-  through the admin accounts import, which seals each credential with the public key. Never print, paste or commit
+- **Accounts and proxies live outside the repo**, in `~/relay-secrets/` (the Mac, mode 0600 files; copied to the box once at intake, see "The secret tools"). They are imported
+  through the admin accounts import (`scripts/import-accounts.py` on the box), which seals each credential with the public key. Never print, paste or commit
   their contents, and never copy them into `deploy/` or `tests/`.
 
 ### Live settings
@@ -634,12 +660,12 @@ Worker commands (queued from the admin pages, run by the dola worker; see "The a
 ### Live run
 
 `RELAY_E2E_SPEND=yes DATABASE_URL=... relay e2e --provider dola` makes a temporary key, creates one 5-second
-`seedance-2.5` video through the API (`RELAY_E2E_URL`, default `http://127.0.0.1:8100`), waits up to 30 min, checks the
+`seedance-2.5` video through the API (`RELAY_E2E_URL`, default `http://127.0.0.1:8100`), waits up to 70 min (a 5 s render took 28 to 54 min on 12/10), checks the
 length with ffprobe, and disables the key. It spends dola credits: run it only with the user's go-ahead at that moment.
 
 ### Not proven locally
 
-The local gates use recorded and fake dola behaviour. These wait for the live run from the Mac, then for the box:
+The local gates use recorded and fake dola behaviour. These wait for the live run on the box (D95):
 
 - whether dola's conversation listing returns `has_more`;
 - how long the input takes to clear after Enter;
@@ -650,7 +676,147 @@ The local gates use recorded and fake dola behaviour. These wait for the live ru
 - the health of the supplied account jars;
 - `relay e2e`.
 
-## Restore runbook (contracts §7.7; drilled in phase 7, not yet on the box)
+## The box runbook (D95)
+
+Relay runs on the LAN box, in its own compose project `relay`, next to projects that are not ours (`portfolio`,
+`billiards`, c2tool-be). Every production action is the owner's or follows his go-ahead. Nothing here stops, execs
+into, inspects beyond metadata, or prunes anything foreign; relay removes only what it names, and never runs a prune.
+
+### Where things live
+
+| What | Where |
+|---|---|
+| Deployed tree | `~/relay-deploy/`: the committed tree (`git archive <sha>`, fingerprinted as `box.sh` does), outside `~/relay-runs` |
+| Env files | `~/relay-deploy/deploy/<service>.env`, mode 0600, never committed; the templates list names only |
+| Images | built on the box, `relay-<service>:<sha>` (a rollback is a retag) |
+| Test and gate runs | `~/relay-runs/<folder>/` through `scripts/box.sh` (see above), under its CPU budget |
+| Live-window marker | `~/relay-deploy/live-window` |
+| Profiles of the dola worker | the named volume `profiles-dola`, mounted at `/profiles` (`RELAY_PROFILE_ROOT`) |
+
+### Ordered deploy, with a stored drain
+
+0. **Before the first `docker compose -p relay up`** run `scripts/box.sh --status`: no folder may be busy and `gate.lock`
+   must be free. A gate that started earlier decided "uncapped" at its start and would run next to production; wait for
+   it or `--clear` it. (Same check as before a live window.)
+1. Start `postgres` and `minio` (`docker compose -p relay up -d`), run `migrate` to completion
+   (`--profile app run --rm migrate`: roles, every migration, the `BILLING_TZ` pin), then start `api`
+   (`--profile app up -d api`).
+2. **Store the drain:** `relay provider drain dola`. Run it a second time: it must print "(no change)". The admin
+   settings read must show `dola.claims_enabled` false. A fresh database would claim by default and a redeployed one
+   may hold "on", so no deploy relies on the default.
+3. Start the worker alone, as its own command: `--profile dola up -d worker-dola`. Never `--profile app --profile dola
+   up` in one command: the worker would start before step 2.
+4. The worker log must show that it is drained (no claim, no check) and Chrome 154.0.8037.92 without a drift warning.
+   Then `relay provider resume dola` when the accounts are imported (drain also stops account checks).
+
+Rollback: `docker compose -p relay stop` (volumes kept). A relay volume is removed only by name and only on the owner's word.
+
+### Limits and abort thresholds
+
+Every service starts under CPU, memory and PID limits from `deploy/compose.yml`; the variables are read from
+`deploy/.env` (`<SERVICE>_CPUS`, `<SERVICE>_MEM_LIMIT`, `<SERVICE>_PIDS_LIMIT`; `DOLA_MEM_LIMIT` is the dola worker's).
+The defaults hold relay to at most half of the box (32 cores, 62 GB); `tests/test_deploy.py` pins that each service has
+all three. They may be lowered by the box survey and changed after the load test only through a deploy recorded in the
+go-live log, and only inside the abort threshold.
+
+| Service | CPUs | Memory | PIDs |
+|---|---|---|---|
+| `worker-dola` | 8 | 12 GB | 2048 |
+| `postgres` | 4 | 4 GB | 512 |
+| `minio` | 2 | 2 GB | 512 |
+| `api` | 2 | 2 GB | 512 |
+| `migrate` (one-shot) | 1 | 1 GB | 256 |
+| `worker-meta` (not started) | 4 | 6 GB | 1024 |
+| `worker-vibes` (not started) | 1 | 1 GB | 256 |
+
+`worker-dola` also gets `RELAY_PROFILE_ROOT=/profiles` and `DOLA_BROWSER_SLOTS_MAX` (4 unless `deploy/.env` says
+otherwise) from `compose.yml` itself, so a cold profile directory or a missing slot count cannot come from a forgotten line in
+the env file; `api` stops with a 30 s grace and `worker-dola` with 780 s.
+
+**Box-wide abort threshold.** At the first breach the step in progress stops: run `relay provider drain dola`, then a
+graceful stop of `worker-dola`, then report. Nothing foreign is touched. A breach is any one of:
+- a foreign container's id, mounts or networks differ from the recorded baseline, its restart count rose, or its state
+  or health is worse;
+- free disk on `/` or on the Docker data root under 15% or 50 GB;
+- free inodes under 10%;
+- `MemAvailable` under 8 GB, or swap use growing for 5 minutes;
+- the 5-minute load average above 24 (of 32 cores) for 5 minutes.
+
+The baseline (ids, mounts, restart counts, state and health, networks, CPU and memory from `docker stats --no-stream`;
+never env, logs or files of a foreign container) is recorded by the box survey and compared at the end of each
+deploy step and at every read of the watches.
+
+### Live windows
+
+A live window is any period with a planned live check, a deadline drill, the load test, the client switch and its first
+hour, or a later live measurement. No gate and no heavy `box.sh` run happens in one: the operator first checks
+`scripts/box.sh --status` (no busy folder, `gate.lock` free; otherwise wait or `--clear`), then creates
+`~/relay-deploy/live-window`, and deletes it last. `box.sh` refuses to start while it exists (exit 77); a run that was
+already going is not stopped by it.
+
+### The secret tools
+
+Both read real files only on the box at intake and are tested here with generated values only. Plain secret files sit
+on the box only between the copy and their deletion, in a directory outside every repo, `~/relay-runs`, the deploy
+directory and any build context (directory 0700, files 0600).
+
+- **`scripts/import-accounts.py`** posts the jars once to the api on loopback:
+  `python3 scripts/import-accounts.py --cookies COOKIES.jsonl --proxies PROXIES.txt --label-prefix n11 --username NAME`.
+  Line n of the two files is one account (`host:port:user:password` or `user:password@host:port`). It asks for the admin
+  password on the terminal without echo, keeps the session token in memory, refuses a non-loopback `--base`, a file with
+  group or other access and files of different lengths, and prints counts and the server's known rejection reasons only
+  (anything else prints as `other`). The connection ignores `http_proxy` and refuses redirects, and the run needs a
+  terminal (`ssh -t`). Every account gets a label (`--label-prefix`, default `imp-` and the start time). It prints the
+  account count before and after. **If the answer to the import is lost** (no answer, a cut or garbled answer, a 5xx),
+  it reads the accounts again and decides by the labels it posted, created since the request started (not by the
+  provider's count, which other operators change): "NOT applied" (exit 2, running it again is safe), "WAS applied" (exit 4,
+  do not run it again) or "outcome unknown" (exit 3: the accounts could not be read; list them by the label prefix before
+  anything else). Labels are not unique, a second run of an applied import duplicates every account, so before posting the
+  script stops (exit 2, nothing sent) if any label it would post already exists. **The import runs alone**: the outcome
+  check reads the newest 200 accounts, so no other bulk import may run at the same time.
+  `--dry-run` parses and counts without a network call. Exit 0 all imported, 1 some rejected, 2 refused or failed,
+  3 outcome unknown, 4 answer lost but applied.
+- **`scripts/secret-scan.py`** counts planted secret values per target and prints counts only; no option takes a value.
+  - At intake, while the files exist, make the keyed-hash list: `secret-scan.py hashes --secrets COOKIES.jsonl PROXIES.txt
+    --key KEY --out HASHES` (key and list 0600, outside every repo; both deleted in the close step).
+  - Scan: `secret-scan.py scan --secrets COOKIES.jsonl PROXIES.txt --path ~/relay-deploy --path ~/.bash_history`, and
+    streams with a label: `docker logs relay-api-1 2>&1 | secret-scan.py scan --secrets ... --stdin api-logs`,
+    `docker inspect <relay containers> | ... --stdin inspect`, `ps -eo args | ... --stdin process-args`.
+  - After the files are deleted use `--hashes HASHES --key KEY` in place of `--secrets`.
+  - A value under 8 characters is not scanned (the count skipped is printed). Every count must be 0; the exit status is 1
+    when any value was found, 2 when nothing was found but something could not be read.
+  - Secret files are read as strict UTF-8: a file that is not valid UTF-8 stops the run ("secret input unreadable", exit 2).
+  - Each target prints `values`, `occurrences`, `unreadable` and `bytes`. An unreadable file or directory, or a link (to a
+    file or to a directory), inside a scanned directory or named as the target itself, that is not followed, is counted as `unreadable` and is never clean; `bytes=0` on a stream means the stream was empty (a
+    wrong container name), not that it is clean. Every `unreadable` must be 0 too.
+  - A value is a cookie `value`, and for a proxy line (`host:port:user:password` or `user:password@host:port`, with or
+    without a scheme) the whole line, the user, the password and the base64 of `user:password` (never the host); the user, the password and the base64 pair are also stored URL-decoded
+    (an `@`-form line is decoded by the server, so `p%40ss` is stored as `p@ss`).
+  - `--hashes` costs about 5 s per MB of data per 100 distinct value lengths: a container's 100 MB of logs takes minutes.
+    A value that holds a separator (space, comma, semicolon, quote, bracket) is also stored as its pieces of 8 characters
+    or more (`hashes` prints how many values this applies to); pieces shorter than 8 cannot be found in that mode.
+
+### Chrome sandbox (tried 12/10, kept off)
+
+`relay_browser/session.py` still launches Chrome with `--no-sandbox`. Tried on the box in the `browser` image, as a
+non-root user (10001) without `--no-sandbox`:
+- under Docker's default seccomp profile it fails: `Failed to move to new namespace ... Operation not permitted`, the
+  zygote exits, Chrome aborts (the host allows user namespaces: `max_user_namespaces` 257238);
+- as root it refuses: "Running as root without --no-sandbox is not supported";
+- with `--security-opt seccomp=unconfined` it works.
+
+Running the workers with seccomp off trades a Chrome sandbox for the loss of the container's syscall filter, which is
+the wrong direction. A narrower profile (Docker's default plus user-namespace creation) would work but is a new
+security surface, so it is the owner's choice and has not been adopted. The risk stays as before: a taken-over renderer
+runs as root inside the worker container (third-party pages are rendered), and the private key stays out of its reach only
+because Chrome receives a name list of the environment (`chrome_env`, `CHROME_ENV_NAMES`), not the worker's whole
+environment. The owner decided on 13/10 (D97): the sandbox stays off for the go-live. Chrome is bumped about monthly, and
+at once when an exploit is published, and every bump first passes the D92 cookie-loss check; the sandbox is revisited
+after the live run is stable.
+
+## Restore runbook (contracts §7.7)
+
+**Not in use while there is no backup (D96 (3)).** Kept for the day an off-box backup exists; nothing below has been drilled on the box.
 
 Order matters: `restore_mark` writes whole tables and a running worker would claim jobs the dump knows nothing about.
 

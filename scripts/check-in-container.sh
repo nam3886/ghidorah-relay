@@ -65,7 +65,7 @@ docker compose -p "$PROJECT" -f deploy/compose.check.yml up -d --wait --quiet-pu
 # The whole tree is mounted read-only (tests, fixtures, scripts); its sources go first on PYTHONPATH. Each test gets a
 # short tmp_path (scripts/short_tmp_plugin.py: Chrome's socket path must stay under 108 bytes).
 envargs=(); while IFS= read -r line; do envargs+=(-e "$line"); done < <(scripts/browser-image.sh env)
-docker run --rm --name "$RUNNER" --label "$LABEL" --network "${PROJECT}_default" --shm-size=1g \
+docker run --rm --name "$RUNNER" --label "$LABEL" --network "${PROJECT}_default" --shm-size=1g ${RELAY_GATE_CPUSET:+--cpuset-cpus "$RELAY_GATE_CPUSET"} \
   -e PYTHONDONTWRITEBYTECODE=1 "${envargs[@]}" \
   -e PYTHONPATH="$(cd "$DIR" && printf '/work/%s:' packages/*/src apps/*/src)/work/scripts" \
   -v "$DIR:/work:ro" -w /work \

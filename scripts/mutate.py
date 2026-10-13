@@ -149,6 +149,8 @@ def container_args() -> list[str]:
     if not network:
         return []
     args = ["--network", network]
+    if os.environ.get("RELAY_GATE_CPUSET"):       # while production runs: stay on the gate's own cores
+        args += ["--cpuset-cpus", os.environ["RELAY_GATE_CPUSET"]]
     for ln in container_env():
         args += ["-e", ln]
     if os.environ.get("RELAY_TEST_PG_TEMPLATE"):

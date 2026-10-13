@@ -25,6 +25,8 @@ case "$*" in
   *"python3 -"*)
     code=$(cat)
     if [ -n "${STUB_FP:-}" ]; then echo "$STUB_FP"; else python3 -c "$code" "$STUB_TREE"; fi ;;
+  *"test ! -e relay-deploy/live-window"*) exit "${STUB_LIVE:-0}" ;;   # 1 = the marker file exists
+  *"compose.project=relay)"*) exit "${STUB_PROD:-11}" ;;     # 10 = production is up, 11 = none, else an error
   *"gate.lock true"*) exit "${STUB_GATE_BUSY:-0}" ;;
   *"busy/"*".lock true"*) exit "${STUB_FOLDER_BUSY:-0}" ;;       # is the folder free? (0 = free)
   *"cat relay-runs/busy/"*".info"*) echo "${STUB_INFO:-}" ;;
@@ -306,6 +308,84 @@ def test_the_script_run_on_the_box_enters_the_tree_clears_mutate_cmd_and_runs_th
     assert ran.rstrip().endswith("exit $?") and "RELAY_ON_BOX=1" in ran
 
 
+@mutation(BOX, 'echo "taskset -c $GATE_CPUS nice -n 10 env $quoted"', 'echo "$quoted"',
+          expect="the run is not under the CPU budget")
+@mutation(BOX, "export RELAY_GATE_CAPPED=1 RELAY_GATE_CPUSET=", "export RELAY_GATE_CAPPED=0 RELAY_X=",
+          expect="the capped run does not carry the cap")
+def test_while_the_production_stack_runs_every_run_is_under_the_cpu_budget_and_the_gate_containers_get_theirs(tmp_path):
+    box = Box(tmp_path)
+    assert box.run("--", "echo", "hi", STUB_PROD="10").returncode == 0
+    ran = (box.dir / "ran.sh").read_text()
+    assert "taskset -c 0-11 nice -n 10 env echo hi" in ran, "the run is not under the CPU budget: " + ran
+    assert "RELAY_GATE_CAPPED=1 RELAY_GATE_CPUSET=0-11 CHECK_CPUSET=0-11" in ran, \
+        "the capped run does not carry the cap: " + ran
+    other = Box(tmp_path / "other")
+    done = other.run("--", "MUTATE_ONLY=x", "true", STUB_PROD="10", RELAY_GATE_CPUS="2,4-5")
+    assert done.returncode == 0, done.stderr
+    ran = (other.dir / "ran.sh").read_text()
+    assert "taskset -c 2,4-5 nice -n 10 env MUTATE_ONLY=x true" in ran and "CHECK_CPUSET=2,4-5" in ran, ran
+    assert "capped=1" in done.stderr, done.stderr
+
+
+@mutation(BOX, "        11) ;;\n", "        11) capped=1 ;;\n", expect="a run before the deploy was capped")
+def test_before_the_deploy_a_run_is_uncapped_and_the_override_decides_either_way(tmp_path):
+    box = Box(tmp_path)
+    assert box.run("--", "echo", "hi").returncode == 0               # no production container: STUB_PROD=11
+    ran = (box.dir / "ran.sh").read_text()
+    assert "taskset" not in ran and "RELAY_GATE_CAPPED" not in ran and "CHECK_CPUSET" not in ran, \
+        "a run before the deploy was capped: " + ran
+    assert "capped=0" in box.run("--sync-only").stderr
+    assert "echo hi" in [ln.strip() for ln in ran.splitlines()], ran       # the command runs as it was given
+    on = Box(tmp_path / "on")
+    assert on.run("--", "true", RELAY_GATE_CAP="on").returncode == 0
+    assert "taskset -c 0-11" in (on.dir / "ran.sh").read_text()
+    off = Box(tmp_path / "off")
+    assert off.run("--", "true", STUB_PROD="10", RELAY_GATE_CAP="off").returncode == 0
+    assert "taskset" not in (off.dir / "ran.sh").read_text()
+    assert Box(tmp_path / "bad").run("--", "true", RELAY_GATE_CAP="maybe").returncode == 2
+
+
+@mutation(BOX, "        *) capped=1; echo", "        *) echo", expect="a run was uncapped after a failed check")
+@mutation(BOX, "label=com.docker.compose.project=relay)", "label=com.docker.compose.project=relay-deploy)",
+          expect="the production project was not asked for exactly")
+def test_the_cap_asks_for_the_production_project_exactly_and_fails_closed_when_it_cannot_tell(tmp_path):
+    box = Box(tmp_path)
+    assert box.run("--", "true").returncode == 0
+    assert "compose.project=relay) || exit 2" in box.calls(), "the production project was not asked for exactly"
+    for status in ("1", "2", "255", "0"):
+        other = Box(tmp_path / ("s" + status))
+        done = other.run("--", "true", STUB_PROD=status)
+        ran = (other.dir / "ran.sh").read_text()
+        assert done.returncode == 0 and "taskset -c 0-11" in ran and "could not tell" in done.stderr, \
+            "a run was uncapped after a failed check: " + status
+    off = Box(tmp_path / "off")
+    assert off.run("--", "true", STUB_PROD="2", RELAY_GATE_CAP="off").returncode == 0
+    assert "taskset" not in (off.dir / "ran.sh").read_text()
+
+
+@mutation(BOX, "[[ \"$GATE_CPUS\" =~ ^[0-9]+([-,][0-9]+)*$ ]] ||", "true ||", expect="a bad CPU list was accepted")
+def test_a_bad_cpu_budget_is_refused_before_anything_is_sent(tmp_path):
+    box = Box(tmp_path)
+    for bad in ("0-11; id", "", "a", "0-"):
+        run = box.run("--", "true", RELAY_GATE_CPUS=bad or "x")
+        assert run.returncode == 2 and box.calls() == "", "a bad CPU list was accepted: %r" % bad
+
+
+@mutation(BOX, 'die "a live window is open on the box', 'echo "a live window is open on the box',
+          expect="a run started in a live window")
+def test_no_run_starts_while_the_live_window_marker_exists_and_reading_is_still_allowed(tmp_path):
+    box = Box(tmp_path)
+    for args in (("--", "true"), ("--detach", "x", "--", "true")):
+        run = box.run(*args, STUB_LIVE="1")
+        assert run.returncode == 77 and "live window" in run.stderr and not (box.dir / "ran.sh").exists() \
+            and "RSYNC" not in box.calls(), "a run started in a live window: %r" % (args,)
+    for args in (("--status",), ("--log", "x"), ("--sync-only",)):
+        assert box.run(*args, STUB_LIVE="1").returncode == 0, args
+    assert box.run("--", "true").returncode == 0
+    ran = (box.dir / "ran.sh").read_text()
+    assert '[ ! -e "$HOME/relay-deploy/live-window" ]' in ran and "exit 77" in ran
+
+
 @mutation(BOX, 'rm -f "$n.exit" "$n.log"\nnohup setsid', 'rm -f "$n.exit" "$n.log" &&\nnohup setsid',
           expect="the start command chains nohup")
 @mutation(BOX, 'echo "$p $(starttime "$p")" > "$n.pid"', 'echo "$p" > "$n.pid"',
@@ -334,7 +414,7 @@ def test_log_status_and_wait_read_only_the_logs_and_need_no_tree(tmp_path):
 
 def test_the_documented_exit_codes_and_the_header_agree_with_the_script():
     text = (REPO / BOX).read_text(encoding="utf-8")
-    for code in ("2 usage", "3 fingerprint", "75 gate lock", "98 a detached run"):
+    for code in ("2 usage", "3 fingerprint", "75 gate lock", "77 a live window", "98 a detached run"):
         assert code in text.split("set -euo pipefail")[0], code
     assert textwrap.dedent("""\
         set -euo pipefail""") in text and " 3 )" not in text

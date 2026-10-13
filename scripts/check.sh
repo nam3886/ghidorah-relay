@@ -42,9 +42,15 @@ export PYTHONDONTWRITEBYTECODE=1
 # main suite. A variable that is set wins; `MUTATE_JOBS=1 SOAK_JOBS=1 PYTEST_JOBS=` is the serial gate. Elsewhere the
 # stages stay serial unless the variable is set.
 if [ "${RELAY_ON_BOX:-}" = 1 ]; then
-  MUTATE_JOBS=${MUTATE_JOBS-24}
-  SOAK_JOBS=${SOAK_JOBS-16}
-  PYTEST_JOBS=${PYTEST_JOBS-8}
+  if [ "${RELAY_GATE_CAPPED:-}" = 1 ]; then      # box.sh: the production stack runs, the gate has 12 cores (D95)
+    MUTATE_JOBS=${MUTATE_JOBS-12}
+    SOAK_JOBS=${SOAK_JOBS-8}
+    PYTEST_JOBS=${PYTEST_JOBS-4}
+  else
+    MUTATE_JOBS=${MUTATE_JOBS-24}
+    SOAK_JOBS=${SOAK_JOBS-16}
+    PYTEST_JOBS=${PYTEST_JOBS-8}
+  fi
 fi
 export MUTATE_JOBS SOAK_JOBS PYTEST_JOBS
 

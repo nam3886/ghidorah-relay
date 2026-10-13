@@ -8,6 +8,9 @@
 # Every compose command needs GIT_SHA (and the two passwords) in the environment or in deploy/.env, because
 # compose interpolates the services of inactive profiles too: `export GIT_SHA=$(git rev-parse --short HEAD)`.
 # Images are named `relay-<service>:${GIT_SHA}` so a rollback is a retag, not a rebuild (contracts §3).
+# Every service runs under CPU, memory and PID limits from its first start (the *_CPUS, *_MEM_LIMIT and *_PIDS_LIMIT
+# variables, in deploy/.env): the defaults hold relay to at most half of the 32-core, 62 GB box. They change only
+# through a recorded deploy (docs/operations.md, "Limits and abort thresholds").
 name: relay
 
 x-logging: &logging
@@ -35,6 +38,9 @@ services:
       retries: 20
     logging: *logging
     restart: unless-stopped
+    cpus: ${POSTGRES_CPUS:-4}
+    mem_limit: ${POSTGRES_MEM_LIMIT:-4g}
+    pids_limit: ${POSTGRES_PIDS_LIMIT:-512}
 
   minio:
     # pgsty/minio pinned by digest (D23): upstream stopped publishing images (401 on 30/09). The image is also
@@ -52,6 +58,9 @@ services:
       retries: 20
     logging: *logging
     restart: unless-stopped
+    cpus: ${MINIO_CPUS:-2}
+    mem_limit: ${MINIO_MEM_LIMIT:-2g}
+    pids_limit: ${MINIO_PIDS_LIMIT:-512}
 
   migrate:
     <<: *app
@@ -61,6 +70,9 @@ services:
     env_file: [migrate.env]
     command: ["relay", "migrate"]
     restart: "no"
+    cpus: ${MIGRATE_CPUS:-1}
+    mem_limit: ${MIGRATE_MEM_LIMIT:-1g}
+    pids_limit: ${MIGRATE_PIDS_LIMIT:-256}
 
   api:
     <<: *app
@@ -70,6 +82,10 @@ services:
     env_file: [api.env]
     command: ["relay", "serve"]
     ports: ["${API_PORT:-8100}:8100"]
+    stop_grace_period: 30s    # in-flight requests finish; the kill comes after
+    cpus: ${API_CPUS:-2}
+    mem_limit: ${API_MEM_LIMIT:-2g}
+    pids_limit: ${API_PIDS_LIMIT:-512}
 
   worker-dola:
     <<: *app
@@ -78,10 +94,18 @@ services:
     build: {context: .., dockerfile: deploy/Dockerfile, target: browser}
     env_file: [worker-dola.env]
     command: ["relay", "worker", "--provider", "dola"]
+    # Set here and not in worker-dola.env, so the template keeps only names and these two cannot be left out: the
+    # profiles volume is mounted at /profiles (cold profiles caused the composer re-queues and ~13 MB a load), and
+    # four browser slots is the starting count (DOLA_BROWSER_SLOTS_MAX in deploy/.env changes it).
+    environment:
+      RELAY_PROFILE_ROOT: /profiles
+      DOLA_BROWSER_SLOTS_MAX: ${DOLA_BROWSER_SLOTS_MAX:-4}
     shm_size: 1g
-    mem_limit: ${DOLA_MEM_LIMIT:-12g}
     stop_grace_period: 780s   # the longest submit timeout (video 720 s) plus a minute to release leases
     volumes: ["profiles-dola:/profiles"]
+    cpus: ${DOLA_CPUS:-8}
+    mem_limit: ${DOLA_MEM_LIMIT:-12g}
+    pids_limit: ${DOLA_PIDS_LIMIT:-2048}
 
   worker-meta:
     <<: *app
@@ -91,9 +115,11 @@ services:
     env_file: [worker-meta.env]
     command: ["relay", "worker", "--provider", "meta"]
     shm_size: 1g
-    mem_limit: ${META_MEM_LIMIT:-6g}
     stop_grace_period: 780s
     volumes: ["profiles-meta:/profiles"]
+    cpus: ${META_CPUS:-4}
+    mem_limit: ${META_MEM_LIMIT:-6g}
+    pids_limit: ${META_PIDS_LIMIT:-1024}
 
   worker-vibes:
     <<: *app
@@ -102,6 +128,9 @@ services:
     build: {context: .., dockerfile: deploy/Dockerfile, target: http}
     env_file: [worker-vibes.env]
     command: ["relay", "worker", "--provider", "vibes"]
+    cpus: ${VIBES_CPUS:-1}
+    mem_limit: ${VIBES_MEM_LIMIT:-1g}
+    pids_limit: ${VIBES_PIDS_LIMIT:-256}
 
 volumes:
   pgdata:
