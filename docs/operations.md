@@ -199,6 +199,18 @@ Used by browser workers only (dola, meta). Everything is read from the environme
   (`scripts/browser-tier.sh`, run in the image under `pipefail`; a collection that fails or does not add up fails the tier). Then the three graceful-stop
   tests (stop, kill-then-start, negative control), which drive the docker CLI, run from the Mac through
   `DOCKER_HOST=ssh://<box>`. It removes what carries its token on exit and never prunes or touches another project.
+- **Only some browser tests, in the same image** (a developer or tester working on one area; not a gate):
+
+  ```bash
+  scripts/box.sh --tree <folder> -- scripts/check-in-container.sh tests/admin_ui/test_e2e_jobs.py
+  scripts/box.sh --tree <folder> -- scripts/check-in-container.sh "tests/admin_ui/test_e2e_shell.py::test_an_unknown_hash_lands_on_jobs"
+  ```
+
+  The arguments are test paths or node ids (several allowed); flags are refused (exit 2). The run has the same image,
+  token, isolation and teardown as the whole tier, but it skips the exact-count rule and the graceful-stop tests, runs
+  only what was named, and ends `browser tier: PARTIAL (narrowed)`. It still fails when nothing is selected (or a path
+  does not exist) and when a selected test does not pass. A narrowed run takes the shared `gate.lock` like any other
+  run. `scripts/check.sh --full` calls the script with no arguments, so the whole tier is unchanged.
 - `scripts/check.sh --full --local`: the same without the box (D59). The browser tier runs on the Mac:
   `pytest -m "browser and not box"` with patchright driving the installed Google Chrome (D60). An unnarrowed run
   that selects no browser test fails (`browser tier: FAILED`); a green one prints `browser tier: GREEN on this Mac`.

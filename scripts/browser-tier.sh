@@ -18,6 +18,20 @@ count() {
   awk -F": " '/^[^ ]+: [0-9]+$/ {n += $2} END {print n + 0}' <<< "$out"
 }
 
+# Narrowed run: `browser-tier.sh PATH_OR_NODE_ID...` runs only those browser tests. The exact-count rule of the whole
+# tier does not apply (it is not a gate); what stays: something must be selected and every selected test must pass.
+if [ $# -gt 0 ]; then
+  selected=$(count -m browser "$@") || exit 1
+  [ "$selected" -gt 0 ] || { echo "browser tier: FAILED, no browser test selected by: $*" >&2; exit 1; }
+  echo "browser tier: PARTIAL (narrowed): $selected test(s) selected by: $*"
+  $PYTEST -m browser "$@" $skip -p short_tmp_plugin -p no:cacheprovider -vv | tee "$LOG"
+  passed=$(grep -c " PASSED" "$LOG" || true)
+  [ "$passed" = "$selected" ] \
+    || { echo "browser tier: FAILED, $passed passed of $selected selected (a skip or a failure)" >&2; exit 1; }
+  echo "browser tier in the image: $passed passed (PARTIAL: narrowed)"
+  exit 0
+fi
+
 mac=$(count -m "browser and not box") || exit 1
 only=$(count -m "browser and box") || exit 1
 every=$(count -m browser) || exit 1

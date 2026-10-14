@@ -17,8 +17,19 @@
 #
 # Where it runs: from the Mac it reaches the box over ssh (RELAY_BOX). On the box itself (scripts/box.sh sets
 # RELAY_ON_BOX=1) it uses the local Docker and a local copy, with no ssh to itself.
+#
+# Narrowed run: `scripts/check-in-container.sh PATH_OR_NODE_ID...` (on the box: `scripts/box.sh --tree NAME --
+# scripts/check-in-container.sh tests/admin_ui/test_e2e_jobs.py`) runs only those browser tests, in the same image, with
+# the same token, isolation and teardown. It skips the exact-count rule and the graceful-stop test, prints
+# `browser tier: PARTIAL (narrowed)` and still fails when no test is selected or one does not pass. Flags are refused.
+# Without arguments nothing changes: the whole tier, which scripts/check.sh --full runs.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+for arg in "$@"; do
+  case "$arg" in -*) echo "check-in-container.sh: only test paths or node ids are accepted, not '$arg'" >&2; exit 2 ;; esac
+done
+narrowed=$#
+tier_args=$(printf '%q ' "$@")
 
 BOX="${RELAY_BOX:-phuongnam@192.168.18.227}"
 TOKEN="$(date +%s)-$$"
@@ -51,9 +62,10 @@ else
   rsync -a --rsync-path="mkdir -p $DIR && rsync" "${SYNC_EXCLUDES[@]}" ./ "$BOX:$DIR/"
 fi
 
-box "DIR=$DIR PROJECT=$PROJECT IMAGE=$IMAGE RUNNER=$RUNNER LABEL=$LABEL TOKEN=$TOKEN bash -s" <<'REMOTE'
+box "DIR=$DIR PROJECT=$PROJECT IMAGE=$IMAGE RUNNER=$RUNNER LABEL=$LABEL TOKEN=$TOKEN TIER_ARGS=$(printf %q "$tier_args") bash -s" <<'REMOTE'
 set -euo pipefail
 cd "$DIR"
+eval "set -- $TIER_ARGS"          # the narrowing arguments (test paths or node ids), if any
 export CHECK_PG_PORT= CHECK_MINIO_PORT=   # empty = publish an ephemeral loopback port; the tests use the network
 
 # The browser image plus the dev dependencies (scripts/browser-image.sh, shared with the mutation stage); it carries
@@ -69,9 +81,13 @@ docker run --rm --name "$RUNNER" --label "$LABEL" --network "${PROJECT}_default"
   -e PYTHONDONTWRITEBYTECODE=1 "${envargs[@]}" \
   -e PYTHONPATH="$(cd "$DIR" && printf '/work/%s:' packages/*/src apps/*/src)/work/scripts" \
   -v "$DIR:/work:ro" -w /work \
-  "$IMAGE" bash -euo pipefail -c 'echo "Chrome: $(/opt/google/chrome/chrome --version)"; exec scripts/browser-tier.sh'
+  "$IMAGE" bash -euo pipefail -c 'echo "Chrome: $(/opt/google/chrome/chrome --version)"; exec scripts/browser-tier.sh "$@"' bash "$@"
 REMOTE
 
+if [ "$narrowed" -gt 0 ]; then
+  echo "browser tier: PARTIAL (narrowed)"     # not a gate: the exact counts and the graceful-stop test are skipped
+  exit 0
+fi
 uv sync --all-packages --frozen --quiet
 if on_box; then unset DOCKER_HOST; else export DOCKER_HOST="ssh://$BOX"; fi
 RELAY_STOP_TEST_IMAGE="$IMAGE" RELAY_CHECK_TOKEN="$TOKEN" PYTHONDONTWRITEBYTECODE=1 \

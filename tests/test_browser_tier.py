@@ -30,12 +30,12 @@ sys.exit(int(env.get("FAKE_RC", "0")))
 """
 
 
-def tier(tmp_path: Path, **env) -> subprocess.CompletedProcess:
+def tier(tmp_path: Path, *args: str, **env) -> subprocess.CompletedProcess:
     fake = tmp_path / "pytest"
     fake.write_text(FAKE.format(python=sys.executable), encoding="utf-8")
     fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
     base = {"FAKE_MAC": "3", "FAKE_ONLY": "2", "FAKE_EVERY": "5", "FAKE_PASSED": "5"}
-    return subprocess.run(["bash", str(REPO / TIER)], capture_output=True, text=True, cwd=tmp_path,
+    return subprocess.run(["bash", str(REPO / TIER), *args], capture_output=True, text=True, cwd=tmp_path,
                           env={"PATH": os.environ["PATH"], "PYTEST": str(fake), "TIER_LOG": str(tmp_path / "tier.log"),
                                **base, **{k: str(v) for k, v in env.items()}})
 
@@ -80,6 +80,50 @@ def test_fewer_passed_lines_than_selected_tests_fail_the_tier(tmp_path):
 def test_a_tier_that_selects_no_test_fails(tmp_path):
     run = tier(tmp_path, FAKE_MAC=0, FAKE_ONLY=0, FAKE_EVERY=0, FAKE_PASSED=0)
     assert run.returncode != 0, "an empty selection counted as green: " + run.stdout + run.stderr
+
+
+NARROW_ENV = {"FAKE_MAC": 3, "FAKE_ONLY": 2, "FAKE_EVERY": 2, "FAKE_PASSED": 2}   # the parts do NOT add up to the whole
+
+
+@mutation(TIER, "if [ $# -gt 0 ]; then", "if false; then", expect="a narrowed run was held to the exact counts")
+def test_a_narrowed_run_skips_the_exact_count_rule_says_partial_and_runs_only_what_it_was_given(tmp_path):
+    run = tier(tmp_path, "tests/admin_ui/test_e2e_jobs.py", **NARROW_ENV)
+    assert run.returncode == 0, "a narrowed run was held to the exact counts: " + run.stdout + run.stderr
+    assert "browser tier: PARTIAL (narrowed): 2 test(s) selected by: tests/admin_ui/test_e2e_jobs.py" in run.stdout
+    assert "2 passed (PARTIAL: narrowed)" in run.stdout
+    # the negative control: with the same numbers and no argument the whole tier refuses
+    whole = tier(tmp_path, **NARROW_ENV)
+    assert whole.returncode != 0 and "-m browser selects 2" in whole.stderr and "PARTIAL" not in whole.stdout, \
+        whole.stdout + whole.stderr
+
+
+@mutation(TIER, '[ "$selected" -gt 0 ] || ', "true || ", expect="a narrowed run that selects nothing was green")
+@mutation(TIER, '    || { echo "browser tier: FAILED, $passed passed of $selected selected', '    || true # {',
+          expect="a narrowed run with a failed test was green")
+def test_a_narrowed_run_that_selects_nothing_or_whose_tests_do_not_all_pass_fails(tmp_path):
+    none = tier(tmp_path, "tests/admin_ui/test_e2e_none.py", **{**NARROW_ENV, "FAKE_EVERY": 0, "FAKE_PASSED": 0})
+    assert none.returncode != 0 and "no browser test selected" in none.stderr, \
+        "a narrowed run that selects nothing was green: " + none.stdout + none.stderr
+    short = tier(tmp_path, "tests/admin_ui/test_e2e_jobs.py", **{**NARROW_ENV, "FAKE_PASSED": 1})
+    assert short.returncode != 0 and "1 passed of 2 selected" in short.stderr, \
+        "a narrowed run with a failed test was green: " + short.stdout + short.stderr
+    bad = tier(tmp_path, "tests/admin_ui/test_e2e_jobs.py", **{**NARROW_ENV, "FAKE_COLLECT_RC_EVERY": 4})
+    assert bad.returncode != 0 and "the collection of" in bad.stderr, bad.stdout + bad.stderr
+
+
+IN_CONTAINER = "scripts/check-in-container.sh"
+
+
+@mutation(IN_CONTAINER, 'case "$arg" in -*)', 'case "$arg" in -X*)', expect="a pytest flag was accepted")
+def test_the_container_runner_accepts_test_paths_and_node_ids_only_and_passes_them_to_the_tier():
+    refused = subprocess.run(["bash", str(REPO / IN_CONTAINER), "tests/a.py", "-m", "not browser"],
+                             capture_output=True, text=True, timeout=60)
+    assert refused.returncode == 2 and "only test paths or node ids" in refused.stderr, \
+        "a pytest flag was accepted: %r" % refused.stderr
+    text = (REPO / IN_CONTAINER).read_text(encoding="utf-8")
+    assert 'exec scripts/browser-tier.sh "$@"\' bash "$@"' in text and 'eval "set -- $TIER_ARGS"' in text
+    assert 'echo "browser tier: PARTIAL (narrowed)"' in text
+    assert text.index("PARTIAL (narrowed)") < text.index("uv sync"), "the graceful-stop test is not skipped"
 
 
 STOP_TEST = "tests/browser/test_graceful_stop.py"
