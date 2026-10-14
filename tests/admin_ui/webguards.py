@@ -31,15 +31,11 @@ def key_of(text: str) -> str:
 # Findings that are allowed, each with the reason. (check name, the exact matched text) -> why it is not a problem.
 # An entry that matches nothing in the dist is itself a failure, so the list cannot outlive what it excuses.
 _XML_NAMESPACE = "an XML namespace name (an identifier of the vocabulary), never requested by a browser"
-_DOC_LINK = "text inside an Element Plus development warning string that names its documentation page; never fetched"
 ALLOWED: dict[tuple[str, str], str] = {
     ("remote URL", "http://www.w3.org/2000/svg"): _XML_NAMESPACE + " (createElementNS, xmlns in an inline SVG image)",
     ("remote URL", "http://www.w3.org/1999/xlink"): _XML_NAMESPACE + " (Vue's xlink attribute namespace)",
     ("remote URL", "http://www.w3.org/1998/Math/MathML"): _XML_NAMESPACE + " (Vue's MathML element namespace)",
     ("remote URL", "https://vuejs.org/error-reference/#runtime-${r}"): "Vue's production error message template; text",
-    ("remote URL", "https://element-plus.org/en-US/component/button.html#button-attributes"): _DOC_LINK,
-    ("remote URL", "https://element-plus.org/en-US/component/dialog.html#slots"): _DOC_LINK,
-    ("remote URL", "https://element-plus.org/en-US/component/link.html#underline"): _DOC_LINK,
     # key = sha256 prefix of the whole url("data:...") text, so only this exact image is excused, not data: URLs
     ("data: URL", "sha256:c8faacbdb989b684"): (
         "the tick mask of a selected option in an Element Plus multiple select (`-webkit-mask` and `mask` of "
@@ -51,15 +47,39 @@ ALLOWED: dict[tuple[str, str], str] = {
 }
 
 
+# Element Plus names the documentation page of a deprecated prop in its warning data (`ref:` of a deprecation notice).
+# Allowed only as a whole quoted string `https://element-plus.org/en-US/component/<name>.html[#anchor]`: any other path
+# or host, or a URL that is not a complete string, still fails.
+DOC_URL = re.compile(r"https://element-plus\.org/en-US/component/[a-z0-9-]+\.html(?:#[A-Za-z0-9_-]+)?")
+DOC_URL_REASON = (
+    "the documentation page that an Element Plus deprecation notice names (`ref:` of its warning data, for a prop of "
+    "checkbox, button, dialog, link ...); the notice only prints it in development, and the page never requests it")
+QUOTES = "\"'`"
+
+
+def _hits(files: dict[str, str]):
+    """(file, check, matched text, character before, character after) for every finding, allowed or not."""
+    for name, text in sorted(files.items()):
+        for check, pattern in CHECKS.items():
+            for match in pattern.finditer(text):
+                before = text[match.start() - 1] if match.start() else ""
+                after = text[match.end()] if match.end() < len(text) else ""
+                yield name, check, match.group(0), before, after
+
+
 def findings(files: dict[str, str]) -> list[tuple[str, str, str]]:
     """(file, check, matched text) for every finding in `files` (name -> text), allowed or not."""
-    return [(name, check, match.group(0)) for name, text in sorted(files.items())
-            for check, pattern in CHECKS.items() for match in pattern.finditer(text)]
+    return [(n, c, m) for n, c, m, _, _ in _hits(files)]
+
+
+def is_doc_link(check: str, matched: str, before: str, after: str) -> bool:
+    return check == "remote URL" and bool(DOC_URL.fullmatch(matched)) and before in QUOTES and after in QUOTES
 
 
 def scan(files: dict[str, str]) -> list[tuple[str, str, str]]:
-    """The findings that are not in ALLOWED."""
-    return [f for f in findings(files) if (f[1], key_of(f[2])) not in ALLOWED]
+    """The findings that are not in ALLOWED and are not an Element Plus documentation link inside a string."""
+    return [(n, c, m) for n, c, m, b, a in _hits(files)
+            if (c, key_of(m)) not in ALLOWED and not is_doc_link(c, m, b, a)]
 
 
 def dist_files() -> dict[str, str]:

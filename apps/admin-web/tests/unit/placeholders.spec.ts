@@ -1,35 +1,34 @@
 import { describe, expect, it } from "vitest";
 
-// Every view and the job detail start as a placeholder carrying this marker; the round that owns a file removes it.
-const MARKER = "relay-admin-placeholder";
-const files = import.meta.glob("/src/**/*.vue", { query: "?raw", import: "default", eager: true }) as Record<
+// A view that is not written yet carries this marker. Every view and the job detail are real now, so the marker must
+// not appear anywhere in src/: this guard always runs (no release switch), in `web.sh check` and in every gate.
+export const MARKER = "relay-admin-placeholder";
+
+const files = import.meta.glob("/src/**/*.{vue,ts}", { query: "?raw", import: "default", eager: true }) as Record<
   string,
   string
 >;
-const withMarker = Object.entries(files)
-  .filter(([, source]) => source.includes(MARKER))
-  .map(([path]) => path.replace("/src/", ""))
-  .sort();
 
-const PLACEHOLDERS = [
-  "components/jobs/JobDetailDialog.vue",
-  "views/AccountsView.vue",
-  "views/AlertsView.vue",
-  "views/FramesView.vue",
-  "views/JobsView.vue",
-  "views/KeysView.vue",
-  "views/LogsView.vue",
-  "views/SettingsView.vue",
-  "views/TestView.vue",
-];
+export function filesWithMarker(sources: Record<string, string>): string[] {
+  return Object.entries(sources)
+    .filter(([, source]) => source.includes(MARKER))
+    .map(([path]) => path.replace("/src/", ""))
+    .sort();
+}
 
 describe("placeholder marker", () => {
-  it("appears only in the files that are meant to be filled in later", () => {
-    expect(withMarker.filter((path) => !PLACEHOLDERS.includes(path))).toEqual([]);
+  it("is in no file of src/", () => {
+    expect(Object.keys(files).length).toBeGreaterThan(20);
+    expect(filesWithMarker(files)).toEqual([]);
   });
 
-  // The release gate sets RELAY_ADMIN_RELEASE=1: no placeholder may be left when the old admin is replaced.
-  it.skipIf(process.env.RELAY_ADMIN_RELEASE !== "1")("no placeholder is left in a release", () => {
-    expect(withMarker).toEqual([]);
+  // The control for the check above: the detector does see a marker, in a .vue and in a .ts file.
+  it("is found when a file carries it", () => {
+    const planted = {
+      "/src/views/A.vue": `<template><p>${MARKER}</p></template>`,
+      "/src/lib/b.ts": `// ${MARKER}`,
+      "/src/lib/clean.ts": "export const x = 1;",
+    };
+    expect(filesWithMarker(planted)).toEqual(["lib/b.ts", "views/A.vue"]);
   });
 });

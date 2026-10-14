@@ -30,6 +30,9 @@ def test_every_allow_list_entry_is_used_and_has_a_reason():
     for entry, reason in ALLOWED.items():
         assert reason.strip(), "an allow-list entry without a reason: %r" % (entry,)
         assert entry in present, "an allow-list entry that matches nothing in the dist: %r" % (entry,)
+    assert webguards.DOC_URL_REASON.strip()
+    assert any(webguards.DOC_URL.fullmatch(t) for _, c, t in findings(dist_files()) if c == "remote URL"), \
+        "the Element Plus documentation-link rule matches nothing in the dist: remove it"
 
 
 @mutation(LIB, 'REMOTE_URL = re.compile(r"""(?:https?:)?//', 'REMOTE_URL = re.compile(r"""(?:https:)?//XX',
@@ -42,7 +45,14 @@ def test_every_allow_list_entry_is_used_and_has_a_reason():
           expect="source-map comment not found")
 @mutation(LIB, 'STYLE_ATTRIBUTE = re.compile(r"""\\sstyle', 'STYLE_ATTRIBUTE = re.compile(r"""\\sstyleX',
           expect="style attribute not found")
-@mutation(LIB, "if (f[1], key_of(f[2])) not in ALLOWED]", "if True]", expect="was reported")
+@mutation(LIB, "if (c, key_of(m)) not in ALLOWED and not is_doc_link(c, m, b, a)]", "if not is_doc_link(c, m, b, a)]",
+          expect="was reported")
+@mutation(LIB, 'component/[a-z0-9-]+\\.html', 'component/.+\\.html',
+          expect="a link that is not a documentation page was excused")
+@mutation(LIB, "and before in QUOTES and after in QUOTES", "and before in QUOTES",
+          expect="a longer URL was excused")
+@mutation(LIB, 'https://element-plus\\.org/en-US', 'https://[a-z.-]+/en-US',
+          expect="a link that is not a documentation page was excused")
 @mutation(LIB, '|["\'`]data:[a-z]+/"""', '"""', expect="data: URL not found")
 @mutation(LIB, 'DATA_URL = re.compile(r"""url\\(\\s*["\']?data:[^)]*\\)|', 'DATA_URL = re.compile(r"""',
           expect="the tick mask is not found as a data: URL")
@@ -77,6 +87,16 @@ def test_the_scanner_finds_each_forbidden_thing_in_planted_files_and_skips_what_
     assert scan({"svg.js": 'document.createElementNS("http://www.w3.org/2000/svg", "svg")'}) == [], \
         "an allowed finding was reported"
     assert scan({"svg.js": 'fetch("http://www.w3.org/other")'}) != []
+    # Element Plus documentation links inside a string are excused; nothing else on that host or any other host is
+    doc = "https://element-plus.org/en-US/component/checkbox.html"
+    assert scan({"a.js": "ref:`%s`" % doc, "b.js": 'x="%s#slots"' % doc}) == [], "a documentation link was reported"
+    for bad in ("https://element-plus.org/x.js", "https://element-plus.org/en-US/component/checkbox.js",
+                "https://evil.example.com/en-US/component/checkbox.html",
+                "https://element-plus.org/en-US/component/../x.html"):
+        assert scan({"c.js": "u=`%s`" % bad}) != [], "a link that is not a documentation page was excused: " + bad
+    assert scan({"d.js": "fetch(%s)" % doc}) != [], "a link outside a string was excused"
+    assert scan({"e.js": 'u="%s/more"' % doc}) != [], "a longer URL was excused"
+    assert scan({"f.js": 'u="%s and more"' % doc}) != [], "a longer URL was excused"
 
 
 def test_the_entry_page_has_a_title_a_language_a_viewport_and_only_references_files_of_the_dist():
