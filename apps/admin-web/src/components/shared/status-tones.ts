@@ -23,11 +23,14 @@ function entryOf(status: string): Entry | undefined {
   return STATUS_TONES[status.trim().toLowerCase()];
 }
 
-export function toneOf(status: string | number): Tone {
+// A missing status (a row not loaded yet, a null from the server) is neutral and shown as "-": never a throw.
+export function toneOf(status: string | number | null | undefined): Tone {
+  if (status === null || status === undefined) return "neutral";
   if (typeof status === "number") return httpTone(status);
   return entryOf(status)?.tone ?? "neutral";
 }
 
-export function labelOf(status: string | number): string {
+export function labelOf(status: string | number | null | undefined): string {
+  if (status === null || status === undefined) return "-";
   return typeof status === "number" ? String(status) : (entryOf(status)?.label ?? status);
 }

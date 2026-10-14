@@ -23,6 +23,8 @@ const props = withDefaults(
     rowTone?: (row: T) => Tone | undefined;
     maxHeight?: string;
     skeletonRows?: number;
+    // minimum width of the Actions column: Element Plus gives it about 110 px, which clips two or three buttons
+    actionsWidth?: number | string;
   }>(),
   {
     loading: false,
@@ -33,6 +35,7 @@ const props = withDefaults(
     rowTone: undefined,
     maxHeight: "calc(100vh - 16rem)",
     skeletonRows: 6,
+    actionsWidth: 200,
   },
 );
 const emit = defineEmits<{ retry: []; "row-click": [row: T] }>();
@@ -50,6 +53,9 @@ const state = computed(() =>
           ? "ready"
           : "empty",
 );
+
+// Element Plus probes each column's slot once with an empty row and index -1; a real row has index 0 or more.
+const isData = (index: number): boolean => index >= 0;
 
 function rowClass({ row }: { row: T }): string {
   const tone = props.rowTone?.(row);
@@ -96,13 +102,25 @@ function onRowClick(row: T, _column: unknown, event: Event) {
         :align="c.align ?? 'left'"
         :class-name="c.align === 'right' ? 'is-numeric' : undefined"
       >
+        <!-- Element Plus calls this slot once with an empty row and $index -1 to read the column's children: that
+             probe is not data, so the user's slot never sees it. -->
         <template #default="{ row, $index }">
-          <slot :name="`cell-${c.key}`" :row="row as T" :index="$index">{{ cellText(row as T, c.key) }}</slot>
+          <template v-if="isData($index)">
+            <slot :name="`cell-${c.key}`" :row="row as T" :index="$index">{{ cellText(row as T, c.key) }}</slot>
+          </template>
         </template>
       </el-table-column>
-      <el-table-column v-if="$slots.actions" label="Actions" align="right" class-name="data-table__actions">
-        <template #default="{ row }">
-          <slot name="actions" :row="row as T" />
+      <el-table-column
+        v-if="$slots.actions"
+        label="Actions"
+        align="right"
+        class-name="data-table__actions"
+        :min-width="props.actionsWidth"
+      >
+        <template #default="{ row, $index }">
+          <template v-if="isData($index)">
+            <slot name="actions" :row="row as T" />
+          </template>
         </template>
       </el-table-column>
       <template #empty>

@@ -21,6 +21,70 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("copyText abort and scrub", () => {
+  it("when aborted while the clipboard API is pending, a rejection does not start the fallback", async () => {
+    let reject: (e: unknown) => void = () => {};
+    setSecure(
+      true,
+      () =>
+        new Promise<void>((_, r) => {
+          reject = r;
+        }),
+    );
+    const abort = new AbortController();
+    const pending = copyText("dismissed-secret", undefined, abort.signal);
+    abort.abort();
+    reject(new DOMException("denied", "NotAllowedError"));
+    expect(await pending).toBe("aborted");
+    expect(exec).not.toHaveBeenCalled();
+    expect(document.querySelector("textarea")).toBeNull();
+  });
+
+  it("an already aborted signal does nothing at all", async () => {
+    const writeText = vi.fn(async () => undefined);
+    setSecure(true, writeText);
+    const abort = new AbortController();
+    abort.abort();
+    expect(await copyText("x", undefined, abort.signal)).toBe("aborted");
+    expect(writeText).not.toHaveBeenCalled();
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it("scrubs the fallback textarea: empty value, detached, no selection left", async () => {
+    setSecure(false);
+    // something is selected on the page when the copy ends (a real browser selects the textarea's own text)
+    const holder = document.createElement("div");
+    holder.textContent = "secret-text";
+    document.body.appendChild(holder);
+    window.getSelection()?.selectAllChildren(holder);
+    expect(window.getSelection()?.toString()).toBe("secret-text");
+    let area: HTMLTextAreaElement | null = null;
+    exec.mockImplementation(() => {
+      area = document.querySelector("textarea");
+      return true;
+    });
+    await copyText("secret-text");
+    const kept = area as unknown as HTMLTextAreaElement;
+    expect(kept).not.toBeNull();
+    expect(kept.isConnected).toBe(false);
+    expect(kept.value).toBe("");
+    expect(window.getSelection()?.toString()).toBe("");
+  });
+
+  it("scrubs the textarea even when execCommand throws", async () => {
+    setSecure(false);
+    let area: HTMLTextAreaElement | null = null;
+    exec.mockImplementation(() => {
+      area = document.querySelector("textarea");
+      throw new Error("not allowed");
+    });
+    await copyText("secret-text");
+    const kept = area as unknown as HTMLTextAreaElement;
+    expect(kept.isConnected).toBe(false);
+    expect(kept.value).toBe("");
+  });
+});
+
 describe("copyText", () => {
   it("uses the clipboard API on a secure context and nothing else", async () => {
     const writeText = vi.fn(async () => undefined);

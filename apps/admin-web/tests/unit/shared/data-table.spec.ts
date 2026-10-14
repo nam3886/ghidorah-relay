@@ -109,6 +109,37 @@ describe("DataTable states", () => {
 });
 
 describe("DataTable cells, actions and rows", () => {
+  it("never renders the user's slots for Element Plus's empty probe row", async () => {
+    const seen: unknown[] = [];
+    const w = mount(DataTable, {
+      props: { columns, rows },
+      slots: {
+        "cell-name": (scope: { row: { id?: string } }) => {
+          seen.push(scope.row);
+          return `n-${scope.row.id}`;
+        },
+        actions: (scope: { row: { id?: string } }) => {
+          seen.push(scope.row);
+          return `a-${scope.row.id}`;
+        },
+      },
+      attachTo: document.body,
+    });
+    mounted.push(w);
+    await flushPromises();
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((row) => (row as { id?: string }).id !== undefined)).toBe(true);
+  });
+
+  it("gives the Actions column room for its buttons, and a caller can change it", async () => {
+    const actionsSlot = '<template #actions="{ row }"><button class="act">{{ row.id }}</button></template>';
+    const w = await table({}, { actions: actionsSlot });
+    const col = w.find("col[name^='el-table_'][width='200']");
+    expect(col.exists()).toBe(true);
+    const wide = await table({ actionsWidth: 320 }, { actions: actionsSlot });
+    expect(wide.find("col[width='320']").exists()).toBe(true);
+  });
+
   const actions = '<template #actions="{ row }"><button class="act">{{ row.id }}</button></template>';
 
   it("a cell slot replaces the cell and the actions slot adds a column per row", async () => {

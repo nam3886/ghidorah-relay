@@ -4,7 +4,7 @@ import { labelOf, toneOf, type Tone } from "./status-tones";
 
 // `status` is looked up in the tone registry (a number is an HTTP code); `label` replaces the shown word and `tone`
 // replaces the lookup, for the rare chip whose word is not the status.
-const props = defineProps<{ status: string | number; label?: string; tone?: Tone }>();
+const props = defineProps<{ status: string | number | null | undefined; label?: string; tone?: Tone }>();
 const resolved = computed<Tone>(() => props.tone ?? toneOf(props.status));
 const text = computed(() => props.label ?? labelOf(props.status));
 </script>

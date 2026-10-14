@@ -52,6 +52,13 @@ describe("the tones", () => {
     expect(toneOf("something-new")).toBe("neutral");
   });
 
+  it("tolerates a missing status: neutral and a dash, never a throw", () => {
+    expect(toneOf(undefined)).toBe("neutral");
+    expect(toneOf(null)).toBe("neutral");
+    expect(labelOf(undefined)).toBe("-");
+    expect(labelOf(null)).toBe("-");
+  });
+
   it("maps an HTTP code by its class, on the exact boundaries", () => {
     expect(httpTone(200)).toBe("ok");
     expect(httpTone(399)).toBe("ok");

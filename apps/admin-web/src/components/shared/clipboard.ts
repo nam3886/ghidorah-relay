@@ -20,6 +20,9 @@ function execCopy(text: string): boolean {
   } catch {
     return false;
   } finally {
+    // the text may be a secret: leave nothing of it in a detached element or in the selection
+    area.value = "";
+    window.getSelection()?.removeAllRanges();
     area.remove();
     previous?.focus?.();
   }
@@ -43,15 +46,23 @@ function selectText(el: HTMLElement | null | undefined): boolean {
 }
 
 // `selectFrom` is the element the text sits in, for the last resort. The caller toasts on 'select' and 'failed'.
-export async function copyText(text: string, selectFrom?: () => HTMLElement | null | undefined): Promise<CopyOutcome> {
+// `signal` is aborted when the caller goes away (the button unmounts, a secret is dismissed): then nothing more is
+// done with the text and the result is "aborted", which the caller must not toast or emit.
+export async function copyText(
+  text: string,
+  selectFrom?: () => HTMLElement | null | undefined,
+  signal?: AbortSignal,
+): Promise<CopyOutcome | "aborted"> {
+  if (signal?.aborted) return "aborted";
   if (window.isSecureContext && navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);
-      return "clipboard";
+      return signal?.aborted ? "aborted" : "clipboard";
     } catch {
       // permission refused or the document lost focus: the textarea path may still work
     }
   }
+  if (signal?.aborted) return "aborted";
   if (execCopy(text)) return "exec";
   return selectText(selectFrom?.()) ? "select" : "failed";
 }

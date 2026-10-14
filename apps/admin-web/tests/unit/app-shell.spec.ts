@@ -18,6 +18,25 @@ vi.mock("@/api/shell", () => ({
   getOpenAlertGroups: vi.fn(),
 }));
 
+// The shell is tested against tiny named stand-ins for the routed views and the job dialog, so this spec does not
+// depend on what a view draws or fetches. The name matters: KeepAlive picks the Test tab by its component name.
+async function stubView(name: string, title: string) {
+  const { defineComponent, h } = await import("vue");
+  return { default: defineComponent({ name, render: () => h("section", [h("h2", title)]) }) };
+}
+vi.mock("@/views/JobsView.vue", () => stubView("JobsView", "Jobs"));
+vi.mock("@/views/AccountsView.vue", () => stubView("AccountsView", "Accounts"));
+vi.mock("@/views/KeysView.vue", () => stubView("KeysView", "API keys"));
+vi.mock("@/views/LogsView.vue", () => stubView("LogsView", "Request logs"));
+vi.mock("@/views/AlertsView.vue", () => stubView("AlertsView", "Alerts"));
+vi.mock("@/views/FramesView.vue", () => stubView("FramesView", "Prompt frames"));
+vi.mock("@/views/SettingsView.vue", () => stubView("SettingsView", "Settings"));
+vi.mock("@/views/TestView.vue", () => stubView("TestView", "Test"));
+vi.mock("@/components/jobs/JobDetailDialog.vue", async () => {
+  const { defineComponent, h } = await import("vue");
+  return { default: defineComponent({ name: "JobDetailDialog", render: () => h("div") }) };
+});
+
 const stats = (over: Partial<Stats> = {}): Stats => ({
   jobs: { queued: 2, in_progress: 3, done: 40, failed: 1, pre_job_failures_24h: 0 },
   made: { videos: 11, images: 29 },

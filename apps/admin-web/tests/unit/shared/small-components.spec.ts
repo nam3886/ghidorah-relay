@@ -161,6 +161,31 @@ describe("CopyButton", () => {
     document.body.replaceChildren();
   });
 
+  it("a copy still pending when the button unmounts leaves no textarea, no toast and no event", async () => {
+    let reject: (e: unknown) => void = () => {};
+    const exec = vi.fn(() => true);
+    Object.defineProperty(document, "execCommand", { value: exec, configurable: true, writable: true });
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: () =>
+          new Promise<void>((_, r) => {
+            reject = r;
+          }),
+      },
+      configurable: true,
+    });
+    const w = mount(CopyButton, { props: { text: "dismissed-secret" }, attachTo: document.body });
+    await w.find("button").trigger("click");
+    w.unmount();
+    reject(new DOMException("denied", "NotAllowedError"));
+    await flushPromises();
+    expect(exec).not.toHaveBeenCalled();
+    expect(document.querySelector("textarea")).toBeNull();
+    expect(w.emitted("copied")).toBeUndefined();
+    expect(document.body.textContent).not.toContain("Could not copy");
+    expect(document.body.textContent).not.toContain("Press Ctrl+C");
+  });
+
   it("copies the text, says Copied for two seconds, then goes back to its label", async () => {
     const w = mount(CopyButton, { props: { text: "abc" } });
     await w.find("button").trigger("click");

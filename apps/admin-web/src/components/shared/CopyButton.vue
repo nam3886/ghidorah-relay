@@ -18,11 +18,17 @@ const emit = defineEmits<{ copied: [outcome: CopyOutcome] }>();
 const copied = ref(false);
 let timer: ReturnType<typeof setTimeout> | undefined;
 
-onBeforeUnmount(() => clearTimeout(timer));
+// aborted on unmount: a copy still pending then must not touch the clipboard fallback, toast or emit
+const abort = new AbortController();
+onBeforeUnmount(() => {
+  abort.abort();
+  clearTimeout(timer);
+});
 
 async function copy() {
   const value = typeof props.text === "function" ? props.text() : props.text;
-  const outcome = await copyText(value, props.selectFrom);
+  const outcome = await copyText(value, props.selectFrom, abort.signal);
+  if (outcome === "aborted") return;
   if (outcome === "select") notify.info("Press Ctrl+C to copy the selected text");
   else if (outcome === "failed") notify.error("Could not copy: select the text and copy it by hand");
   else {
