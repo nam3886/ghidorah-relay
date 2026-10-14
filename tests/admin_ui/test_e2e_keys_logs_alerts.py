@@ -1,0 +1,418 @@
+"""The API keys, Request logs and Alerts tabs of the Vue admin in Chrome against the real app (browser tier): the
+one-time key (shown once, copied over plain http, gone from the page and every store), the logs date window, and the
+alert groups with their detail, acknowledge and generation guard. Every test runs under the CSP watch of
+`conftest.CspWatch`."""
+
+import json
+import re
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+import pytest
+from accountkit import done_job, new_account
+from jobkit import key as new_key
+from patchright.sync_api import expect
+from test_admin_alert_groups import group_of, plant_unclear, stamp
+from test_admin_alerts import plant
+
+pytestmark = pytest.mark.browser
+
+HOSTILE_REPLY = 'Which style? <img src=x onerror="window.__pwned=1">'
+PLAIN_REPLY = "Plain wording of one key"
+
+
+def open_tab(page, label):
+    page.get_by_role("tab", name=label, exact=True).click()
+    expect(page.get_by_role("heading", name=label)).to_be_visible()
+
+
+def rows(page):
+    return page.locator(".el-table__body tbody tr")
+
+
+def pick(page, select_label, option):
+    # the whole select is the click target: its placeholder text sits over the readonly input
+    page.locator(".el-select").filter(has=page.get_by_role("combobox", name=select_label, exact=True)).click()
+    # every select keeps its own popper in the page: the open one is the visible one
+    page.wait_for_timeout(400)                       # the popper slides in and, a moment later, is where it stays
+    page.locator("li.el-select-dropdown__item:visible").get_by_text(option, exact=True).click()
+    expect(page.get_by_role("combobox", name=select_label, exact=True)).to_have_attribute("aria-expanded", "false")
+
+
+# ---- API keys ------------------------------------------------------------------------------------------------------
+
+def key_places(page, raw):
+    """Every place of the page the raw key could be found in, except the callout's own field."""
+    found = []
+    if raw in page.content():
+        found.append("dom")
+    stores = page.evaluate("JSON.stringify([Object.entries(sessionStorage), Object.entries(localStorage)])")
+    if raw in stores:
+        found.append("storage")
+    if raw in page.url:
+        found.append("url")
+    if raw in page.evaluate("[...document.querySelectorAll('input, textarea')].map(e => e.value).join('|')"):
+        found.append("field")
+    if raw in page.evaluate("JSON.stringify(history.state)"):
+        found.append("history")
+    databases = page.evaluate("indexedDB.databases().then(list => JSON.stringify(list))")
+    if raw in databases:
+        found.append("indexeddb")
+    if raw in " ".join(page.locator(".el-message").all_inner_texts()):
+        found.append("toast")
+    return found
+
+
+def create_key(page, label="customer one"):
+    page.get_by_role("button", name="New key").click()
+    box = page.get_by_role("dialog")
+    box.get_by_label("Label", exact=True).fill(label)
+    pick(page, "fake video mode", "limit")
+    box.get_by_label("fake video per day").fill("5")
+    pick(page, "fake image mode", "unlimited")
+    box.get_by_role("button", name="Create").click()
+    # the dialog has the same name; the field is the textbox
+    callout = page.get_by_role("textbox", name="New API key")
+    expect(callout).to_be_visible()
+    return callout.input_value()
+
+
+def test_create_shows_the_raw_key_once_copies_it_over_plain_http_and_it_is_gone_after_dismiss_and_reload(
+        app, app_session, db):
+    page = app_session
+    open_tab(page, "API keys")
+    # the owner opens the admin over plain http on the LAN, which is not a secure context: the page takes its fallback
+    page.evaluate("Object.defineProperty(window, 'isSecureContext', { value: false })", isolated_context=False)
+    raw = create_key(page)
+    assert raw.startswith("rk-") and db.one("SELECT count(*) FROM api_keys")[0] == 1
+    # the callout's own field (its value, and once in the page markup) is the only place: no storage, no address
+    assert key_places(page, raw) == ["dom", "field"]
+    assert page.content().count(raw) == 1
+    expect(page.get_by_text("Copy this key now, it is not shown again.")).to_be_visible()
+    copy = page.get_by_test_id("new-key").get_by_role("button", name="Copy")
+    copy.click()
+    expect(page.get_by_test_id("new-key").get_by_role("button", name="Copied")).to_be_visible()
+    assert page.evaluate("navigator.clipboard.readText()") == raw, "the clipboard holds the key"
+    assert raw not in json.dumps(db.all("SELECT key_hash, key_prefix FROM api_keys")), "only the hash is stored"
+    row = rows(page).first
+    expect(row).to_contain_text("customer one")
+    expect(row).to_contain_text("fake video: day 0/5")
+    expect(row).to_contain_text("fake image: unlimited")
+    page.get_by_test_id("new-key").get_by_role("button", name="Dismiss").click()
+    expect(page.get_by_test_id("new-key")).to_have_count(0)
+    assert key_places(page, raw) == [], "gone after Dismiss"
+    page.reload()
+    expect(page.get_by_role("heading", name="API keys")).to_be_visible()
+    assert key_places(page, raw) == [], "gone after a reload"
+
+
+def test_a_real_401_while_the_callout_is_visible_clears_the_key(app, app_session, db):
+    page = app_session
+    open_tab(page, "API keys")
+    raw = create_key(page)
+    assert page.evaluate("indexedDB.databases().then(list => list.length)") == 0
+    db.run("DELETE FROM admin_sessions")                         # the session is gone on the server
+    page.get_by_role("button", name="Refresh", exact=True).click()   # the next admin call answers 401
+    expect(page).to_have_url(re.compile(r"#/login$"))
+    expect(page.get_by_test_id("new-key")).to_have_count(0)
+    assert key_places(page, raw) == [], "gone after a 401"
+    page.problems.clear()                                       # the 401 is a console line
+
+
+def test_a_failed_create_shows_fixed_text_and_never_what_the_server_said(app, app_session, db):
+    page = app_session
+    open_tab(page, "API keys")
+    fake = "rk-FAKE-SECRET-NOT-A-REAL-KEY"
+    body = {"error": {"code": "input.invalid", "message": "bad " + fake, "param": "label " + fake}}
+    page.route("**/admin/keys", lambda r: r.fulfill(status=422, content_type="application/json",
+                                                     body=json.dumps(body)) if r.request.method == "POST"
+               else r.continue_())
+    page.get_by_role("button", name="New key").click()
+    box = page.get_by_role("dialog")
+    box.get_by_role("button", name="Create").click()
+    expect(box).to_contain_text("Some of the values are not accepted. Check the highlighted field.")
+    assert key_places(page, fake) == []
+    assert fake not in page.locator("body").inner_text()
+    assert db.one("SELECT count(*) FROM api_keys")[0] == 0
+    page.problems.clear()                                       # the 422 is a console line
+
+
+def test_the_raw_key_is_gone_when_the_tab_is_left_and_when_the_operator_signs_out(app, app_session, db):
+    page = app_session
+    open_tab(page, "API keys")
+    raw = create_key(page)
+    page.get_by_role("tab", name="Jobs", exact=True).click()
+    open_tab(page, "API keys")
+    expect(page.get_by_test_id("new-key")).to_have_count(0)
+    assert key_places(page, raw) == []
+    raw = create_key(page, "second")
+    page.get_by_role("button", name="Sign out").click()
+    expect(page).to_have_url(re.compile(r"#/login$"))
+    assert key_places(page, raw) == [], "gone on sign-out"
+    app.sign_in(page)
+    open_tab(page, "API keys")
+    expect(page.get_by_test_id("new-key")).to_have_count(0)
+
+
+def test_edit_disable_and_delete_with_and_without_jobs(app, app_session, db):
+    page = app_session
+    plain = new_key(db)
+    used = new_key(db)
+    db.run("UPDATE api_keys SET label = 'plain', key_prefix = 'rk-plain' WHERE id = %s", plain)
+    db.run("UPDATE api_keys SET label = 'used', key_prefix = 'rk-used' WHERE id = %s", used)
+    done_job(db, used)
+    open_tab(page, "API keys")
+    sent = []
+    page.on("request", lambda r: sent.append(r.post_data_json) if r.method == "PATCH" else None)
+    row = rows(page).filter(has_text="rk-plain")
+    row.get_by_role("button", name="Edit").click()
+    box = page.get_by_role("dialog")
+    box.get_by_label("Label", exact=True).fill("plain renamed")
+    box.get_by_role("button", name="Save").click()
+    expect(rows(page).filter(has_text="plain renamed")).to_have_count(1)
+    assert sent[0]["label"] == "plain renamed" and sent[0]["models"] == ["*"]
+    assert db.one("SELECT label FROM api_keys WHERE id = %s", plain)[0] == "plain renamed"
+    switch = rows(page).filter(has_text="plain renamed").get_by_role("switch")
+    switch.evaluate("el => el.click()")                  # Element Plus hides the checkbox behind the track
+    expect(switch).not_to_be_checked()
+    assert db.one("SELECT enabled FROM api_keys WHERE id = %s", plain)[0] is False
+    # delete: a key with no job goes, a key with jobs is only disabled
+    rows(page).filter(has_text="plain renamed").get_by_role("button", name="Delete").click()
+    expect(page.locator(".el-message-box")).to_contain_text(
+        'Delete key "plain renamed"? A key that has jobs is only disabled.')
+    page.locator(".el-message-box").get_by_role("button", name="Delete").click()
+    expect(page.get_by_text("Key deleted")).to_be_visible()
+    assert db.one("SELECT count(*) FROM api_keys WHERE id = %s", plain)[0] == 0
+    rows(page).filter(has_text="rk-used").get_by_role("button", name="Delete").click()
+    page.locator(".el-message-box").get_by_role("button", name="Delete").click()
+    expect(page.get_by_text("Key has jobs: disabled instead")).to_be_visible()
+    assert db.one("SELECT enabled FROM api_keys WHERE id = %s", used)[0] is False
+
+
+def test_a_key_label_with_markup_is_shown_as_text(app, app_session, db):
+    page = app_session
+    k = new_key(db)
+    db.run("UPDATE api_keys SET label = %s WHERE id = %s", app.planted, k)
+    open_tab(page, "API keys")
+    expect(rows(page).first).to_contain_text("<b>planted</b>")
+    page.wait_for_timeout(300)
+    app.assert_planted_as_text(page)
+
+
+# ---- Request logs --------------------------------------------------------------------------------------------------
+
+def log(db, key, route, status=200, *, at_ms=None, job=None, error=None, request=None):
+    db.run("INSERT INTO request_logs (key_id, provider, route, status_code, job_id, duration_ms, error_code, "
+           "body_redacted, at) VALUES (%s, 'fake', %s, %s, %s, 7, %s, %s, "
+           "CASE WHEN %s::float8 IS NULL THEN clock_timestamp() ELSE to_timestamp(%s::float8 / 1000.0) END)",
+           key, route, status, job, error, json.dumps(request or {}), at_ms, at_ms)
+
+
+def test_the_filters_search_detail_refresh_and_clear(app, app_session, db):
+    page = app_session
+    k = new_key(db)
+    job = done_job(db, k)
+    db.run("UPDATE jobs SET title = %s WHERE id = %s", "Quiet 100% Lake", job)
+    log(db, k, "POST /v1/video/generations", 200, job=job, request={"prompt": "a cat"})
+    log(db, k, "POST /v1/video/generations", 422, error="input.invalid")
+    open_tab(page, "Request logs")
+    expect(rows(page)).to_have_count(2)
+    pick(page, "Status", "Failed before a job")
+    expect(rows(page)).to_have_count(1)
+    expect(rows(page).first).to_contain_text("input.invalid")
+    log(db, k, "POST /v1/video/generations", 429, error="rate.limited")
+    page.get_by_role("button", name="Refresh").click()
+    expect(rows(page)).to_have_count(2)
+    pick(page, "Status", "All")
+    expect(rows(page)).to_have_count(3)
+    page.get_by_label("Search", exact=True).fill("100%")
+    page.get_by_label("Search", exact=True).press("Enter")
+    expect(rows(page)).to_have_count(1)
+    rows(page).first.get_by_role("button", name="Details").click()
+    box = page.get_by_role("dialog")
+    expect(box).to_contain_text("a cat")
+    box.get_by_role("button", name="Close", exact=True).click()
+    # the filters are kept across a visit to another tab
+    page.get_by_role("tab", name="Jobs", exact=True).click()
+    open_tab(page, "Request logs")
+    expect(page.get_by_label("Search", exact=True)).to_have_value("100%")
+    expect(rows(page)).to_have_count(1)
+    page.get_by_label("Search", exact=True).fill("")
+    page.get_by_label("Search", exact=True).press("Enter")
+    expect(rows(page)).to_have_count(3)
+    page.get_by_role("button", name="Clear logs").click()
+    expect(page.locator(".el-message-box")).to_contain_text(
+        "Clear every request log row? Jobs, the ledger and alerts are kept.")
+    page.locator(".el-message-box").get_by_role("button", name="Clear logs").click()
+    expect(page.get_by_text("Cleared 3 rows")).to_be_visible()
+    expect(page.get_by_text("No log rows")).to_be_visible()
+    assert db.one("SELECT count(*) FROM request_logs")[0] == 0 and db.one("SELECT count(*) FROM jobs")[0] == 1
+
+
+def test_the_date_window_is_the_viewers_midnights_and_ends_at_the_start_of_the_day_after_to(app, app_session, db):
+    page = app_session
+    zone = ZoneInfo(page.evaluate("Intl.DateTimeFormat().resolvedOptions().timeZone"))
+    k = new_key(db)
+    day = datetime(2026, 10, 15, tzinfo=zone)
+    after = datetime(2026, 10, 16, tzinfo=zone)
+
+    def ms(moment):
+        return int(moment.timestamp() * 1000)
+
+    log(db, k, "POST /before", at_ms=ms(day) - 1000)
+    log(db, k, "POST /start-of-day", at_ms=ms(day))
+    log(db, k, "POST /last-moment", at_ms=ms(after) - 1)
+    log(db, k, "POST /next-day", at_ms=ms(after))
+    open_tab(page, "Request logs")
+    expect(rows(page)).to_have_count(4)
+    page.get_by_label("From", exact=True).fill("2026-10-15")
+    expect(rows(page)).to_have_count(3)
+    page.get_by_label("To", exact=True).fill("2026-10-15")
+    expect(rows(page)).to_have_count(2)
+    expect(rows(page).filter(has_text="/start-of-day")).to_have_count(1)
+    expect(rows(page).filter(has_text="/last-moment")).to_have_count(1)
+    assert timedelta(hours=1) <= after - day <= timedelta(hours=25)
+
+
+def test_log_text_with_markup_is_shown_as_text(app, app_session, db):
+    page = app_session
+    k = new_key(db)
+    log(db, k, "POST /v1/x", 422, error="input.invalid", request={"prompt": app.planted})
+    open_tab(page, "Request logs")
+    rows(page).first.get_by_role("button", name="Details").click()
+    expect(page.get_by_role("dialog")).to_contain_text("<b>planted</b>")
+    page.wait_for_timeout(300)
+    app.assert_planted_as_text(page)
+
+
+# ---- Alerts --------------------------------------------------------------------------------------------------------
+
+def assert_hostile_wording_is_text(page):
+    """The wording is shown lower-cased (the hub normalises it), as text: it made no element and ran no handler."""
+    assert page.evaluate("window.__pwned", isolated_context=False) is None, "the planted handler ran"
+    assert page.locator("img[src='x']").count() == 0, "the planted markup became an element"
+    assert "<img src=x" in page.locator("body").inner_text(), "the planted text is not shown"
+
+
+def alert_rows(db, group):
+    return [r[0] for r in db.all("SELECT id FROM unclear_replies WHERE group_id = %s ORDER BY id", group)]
+
+
+def alerts_planted(db):
+    """A clamp and a drift, a hostile wording under two keys (a delivered, a refunded and a still open job), a plain
+    wording under one key, the empty wording, an acknowledged wording, and one account (a live condition)."""
+    plant(db)
+    k1, k2 = new_key(db), new_key(db)
+    plant_unclear(db, k1, HOSTILE_REPLY, status="done")
+    plant_unclear(db, k2, HOSTILE_REPLY, status="failed", error_code="render.deadline")
+    plant_unclear(db, k2, HOSTILE_REPLY)
+    plant_unclear(db, k1, PLAIN_REPLY)
+    plant_unclear(db, k1, "")
+    stamp(db, "unclear_replies", plant_unclear(db, k1, "Seen and acknowledged wording"))
+    new_account(db, label="only", checked=True)
+    return k1, k2
+
+
+def group_row(page, text):
+    return rows(page).filter(has_text=text)
+
+
+def alerts_page(page, db):
+    keys = alerts_planted(db)
+    open_tab(page, "Alerts")
+    expect(rows(page)).to_have_count(5)
+    return keys
+
+
+def test_the_lists_the_live_condition_the_filters_and_the_one_customer_mark(app, app_session, db):
+    page = app_session
+    alerts_planted(db)
+    open_tab(page, "Alerts")
+    expect(rows(page)).to_have_count(5)
+    expect(page.get_by_test_id("alerts-live")).to_contain_text("accounts_low")
+    assert page.get_by_test_id("alerts-live").get_by_role("button").count() == 0, "nothing to acknowledge there"
+    expect(page.get_by_test_id("alerts-more")).to_have_count(0)
+    page.wait_for_timeout(300)                           # a script in the planted markup would have run by now
+    hostile, plain = group_row(page, "which style?"), group_row(page, "plain wording")
+    expect(hostile).to_contain_text("<img src=x")
+    expect(plain).to_contain_text("one customer only: may be the customer's own words")
+    for other in (hostile, group_row(page, "clamp"), group_row(page, "drift"), group_row(page, "API read failure")):
+        assert "one customer only" not in other.inner_text()
+    assert_hostile_wording_is_text(page)
+    # the selects are read-only inputs; a field one could type a phrase into would not be
+    assert page.locator("input:not([readonly]), textarea").count() == 0, "there is no phrase field"
+    expect(page.get_by_text("new wording is a code change")).to_be_visible()
+    pick(page, "Status", "acknowledged")
+    expect(rows(page)).to_have_count(1)
+    expect(group_row(page, "seen and acknowledged")).to_be_visible()
+    pick(page, "Status", "all")
+    expect(rows(page)).to_have_count(6)
+    pick(page, "Kind", "drift")
+    expect(rows(page)).to_have_count(1)
+    pick(page, "Kind", "All kinds")
+    pick(page, "Status", "open")
+    expect(rows(page)).to_have_count(5)
+
+
+def test_the_detail_shows_outcomes_and_opens_a_job_and_acknowledge_sends_what_it_showed(app, app_session, db):
+    page = app_session
+    k1, _k2 = alerts_page(page, db)
+    hostile, plain = group_of(HOSTILE_REPLY), group_of(PLAIN_REPLY)
+    posted = []
+    page.on("request", lambda r: posted.append(r) if r.method == "POST" and "/acknowledge" in r.url else None)
+    group_row(page, "which style?").get_by_role("button", name="Details").click()
+    detail = page.get_by_test_id("alert-detail")
+    expect(page.get_by_test_id("alert-detail-title")).to_contain_text("<img src=x")
+    expect(page.get_by_test_id("alert-outcomes")).to_contain_text(
+        "delivered 1, refunded 1, still open 1 (refused with: render.deadline x1)")
+    expect(detail.locator(".el-table__body tbody tr")).to_have_count(3)
+    assert_hostile_wording_is_text(page)
+    detail.locator(".el-table__body tbody tr", has_text="render.deadline").get_by_role("button").click()
+    expect(page.get_by_role("dialog")).to_be_visible()
+    page.get_by_role("dialog").get_by_role("button", name="Close").first.click()
+    # acknowledge from the detail sends the newest row it showed; a row that arrives later keeps the group open
+    seen = max(alert_rows(db, hostile))
+    late = plant_unclear(db, k1, HOSTILE_REPLY)
+    detail.get_by_role("button", name="Acknowledge").click()
+    expect(page.get_by_text("Acknowledged 3 row(s)")).to_be_visible()
+    assert posted[0].post_data_json == {"through_id": seen}
+    assert db.one("SELECT acknowledged_at FROM unclear_replies WHERE id = %s", late)[0] is None, \
+        "a row that arrived after the page loaded must leave the group open"
+    expect(detail.locator(".el-table__body tbody tr")).to_have_count(4)
+    # the empty wording is an API read failure; a billing group lists its rows; an acknowledge from the list
+    group_row(page, "API read failure").get_by_role("button", name="Details").click()
+    expect(page.get_by_test_id("alert-read-failure")).to_be_visible()
+    group_row(page, "clamp").get_by_role("button", name="Details").click()
+    expect(detail.locator(".el-table__body tbody tr")).to_have_count(1)
+    detail.get_by_role("button", name="Close").click()
+    expect(detail).to_have_count(0)
+    group_row(page, "plain wording").get_by_role("button", name="Acknowledge").click()
+    expect(rows(page)).to_have_count(4)
+    assert posted[1].post_data_json == {"through_id": max(alert_rows(db, plain))}
+    expect(page.get_by_text("4 open alert group(s)")).to_be_visible()
+
+
+def test_a_slow_answer_for_an_older_view_does_not_replace_the_newer_one(app, app_session, db):
+    page = app_session
+    alerts_page(page, db)
+    held = []
+
+    def hold(route):
+        if "status=open" in route.request.url and not held:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/admin/alerts/groups?*", hold)
+    page.get_by_role("button", name="Refresh").click()               # the older view: held in the network layer
+    for _ in range(100):
+        if held:
+            break
+        page.wait_for_timeout(20)
+    assert held, "the refresh was not sent"
+    pick(page, "Status", "acknowledged")                              # the newer view
+    expect(rows(page)).to_have_count(1)
+    held[0].continue_()                                               # the older answer (5 open groups) arrives now
+    page.wait_for_timeout(500)
+    expect(rows(page)).to_have_count(1)
+    expect(group_row(page, "seen and acknowledged")).to_be_visible()
