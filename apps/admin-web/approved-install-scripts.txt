@@ -1,0 +1,3 @@
+# Packages whose install script may exist in the lockfile. ignore-scripts=true means none of them runs.
+# fsevents is a macOS-only optional dependency of a file watcher; it is never installed on Linux.
+fsevents

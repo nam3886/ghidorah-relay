@@ -24,8 +24,10 @@
 # sync both sides compute one fingerprint (sorted file list with sha256 and the executable bit) and a run is refused
 # when they differ. The environment of a run is the box's own plus what the command line sets: nothing is passed from
 # the Mac (ssh sends no variable) and MUTATE_CMD is refused. Logs: ~/relay-runs/logs/NAME.{log,exit,sh,pid}.
-# A whole-tree gate (check.sh --full with no MUTATE_ONLY and no test path) takes ~/relay-runs/gate.lock; a second one
-# is refused (exit 75). Other containers on the box are not ours: nothing here lists, stops or prunes them.
+# ~/relay-runs/gate.lock is a reader/writer lock held for the whole run (it dies with the run's processes): every run
+# takes it shared, a whole-tree gate (check.sh --full with no MUTATE_ONLY and no test path) takes it exclusive. A gate
+# is refused (exit 75) while any other run holds it, and any other run is refused (exit 75) while a gate holds it; runs
+# in different folders share it freely. Other containers on the box are not ours: nothing here lists, stops or prunes them.
 # CPU budget: only while relay's production stack runs on the box (a container of compose project `relay` is up;
 # RELAY_GATE_CAP=on|off overrides, default auto; if docker or ssh fails during the check the run is capped, and says
 # so). Then every run executes under `taskset -c $RELAY_GATE_CPUS nice -n 10 env` (default 0-11: 12 of the 32 cores), the
@@ -35,7 +37,7 @@
 # `box:` line shows capped=0|1.
 # Live window: while ~/relay-deploy/live-window exists on the box, no run starts (exit 77), before the sync and again
 # just before the command. The operator of a live window creates the file when it starts and deletes it when it ends.
-# Exit codes: the command's own; 2 usage or refused tree; 3 fingerprint differs; 75 gate lock held; 76 folder held by
+# Exit codes: the command's own; 2 usage or refused tree; 3 fingerprint differs; 75 gate lock refused (see above); 76 folder held by
 # another run; 77 a live window is open; 98 a detached run died without an exit status.
 set -euo pipefail
 
@@ -44,7 +46,7 @@ RUNS="relay-runs"                      # relative to the box user's home
 LIVE_MARKER="relay-deploy/live-window" # relative to the box user's home; present while a live window is open
 GATE_CPUS="${RELAY_GATE_CPUS:-0-11}"   # the host cores a run may use (a taskset list)
 GATE_CAP="${RELAY_GATE_CAP:-auto}"
-EXCLUDES=(.git .venv __pycache__ .pytest_cache .ruff_cache .mypy_cache .mutate.lock deploy/.env 'deploy/*.env' '._*' .DS_Store)
+EXCLUDES=(.git .venv __pycache__ .pytest_cache .ruff_cache .mypy_cache .mutate.lock deploy/.env 'deploy/*.env' '._*' .DS_Store node_modules)
 
 die() { echo "box.sh: $1" >&2; exit "${2:-2}"; }
 [[ "$GATE_CPUS" =~ ^[0-9]+([-,][0-9]+)*$ ]] || die "RELAY_GATE_CPUS is a taskset list such as 0-11 or 0,2,4: '$GATE_CPUS'"
@@ -137,7 +139,7 @@ echo "$p $(starttime "$p")" > "$n.pid"
 # The same code runs on both sides. The skip rules mirror EXCLUDES: a difference between them shows as a mismatch.
 FP_PY='
 import fnmatch, hashlib, os, sys
-SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache"}
+SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", "node_modules"}
 root = sys.argv[1]
 def skipped(rel, name):
     return (name in (".git", ".DS_Store", ".mutate.lock") or name.startswith("._")
@@ -200,6 +202,7 @@ case "$mode" in run | detach) [ $# -gt 0 ] || die "no command: scripts/box.sh [-
 case "$mode" in run | detach)
   for word in "$@"; do
     case "$word" in *MUTATE_CMD*) die "MUTATE_CMD is never passed to a run on the box" ;; esac
+    case "$word" in *WEB_CHECK_CMD*) die "WEB_CHECK_CMD is never passed to a run on the box" ;; esac
   done ;;
 esac
 
@@ -308,8 +311,15 @@ if [ "$mode" = detach ]; then
     die "a run named '$name' is still running on the box"
   fi
 fi
-if [ "$is_gate" = 1 ] && ! ssh_box "mkdir -p $RUNS && flock -n $RUNS/gate.lock true"; then
-  die "a whole-tree gate is already running on the box (~/$RUNS/gate.lock): wait for it" 75
+# gate.lock is a reader/writer lock: every run holds it shared, a whole-tree gate holds it exclusive. So a gate waits
+# for no one and is refused while any other run is on the box, and every other run is refused while a gate runs.
+lock_flag=-s
+[ "$is_gate" = 0 ] || lock_flag=-x
+if { [ "$mode" = run ] || [ "$mode" = detach ]; } && ! ssh_box "mkdir -p $RUNS && flock $lock_flag -n $RUNS/gate.lock true"; then
+  if [ "$is_gate" = 1 ]; then
+    die "a whole-tree gate needs the box to itself and another run holds ~/$RUNS/gate.lock: wait for it" 75
+  fi
+  die "a whole-tree gate is running on the box (~/$RUNS/gate.lock): no other run starts until it ends" 75
 fi
 
 if ! ssh_box "mkdir -p $RUNS/$tree $RUNS/logs $BUSY && flock -n $BUSY/$tree.lock true"; then
@@ -347,10 +357,12 @@ body() {
   if [ "$capped" = 1 ]; then
     echo 'export RELAY_GATE_CAPPED=1 RELAY_GATE_CPUSET='"$GATE_CPUS"' CHECK_CPUSET='"$GATE_CPUS"
   fi
-  echo 'unset MUTATE_CMD'
+  echo 'unset MUTATE_CMD WEB_CHECK_CMD'
+  echo 'exec 9>"$HOME/'"$RUNS"'/gate.lock"'
   if [ "$is_gate" = 1 ]; then
-    echo 'exec 9>"$HOME/'"$RUNS"'/gate.lock"'
-    echo 'flock -n 9 || { echo "box.sh: a whole-tree gate is already running on the box" >&2; exit 75; }'
+    echo 'flock -x -n 9 || { echo "box.sh: a whole-tree gate needs the box to itself and another run holds gate.lock" >&2; exit 75; }'
+  else
+    echo 'flock -s -n 9 || { echo "box.sh: a whole-tree gate is running on the box: no other run starts until it ends" >&2; exit 75; }'
   fi
   if [ "$capped" = 1 ]; then
     echo "taskset -c $GATE_CPUS nice -n 10 env $quoted"   # env: a leading NAME=value stays an assignment

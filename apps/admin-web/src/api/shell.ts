@@ -1,0 +1,43 @@
+// The calls the app shell makes: login, session, the model catalog (it feeds the provider filter) and the stats strip.
+import { request } from "@/api/client";
+
+export interface LoginResult {
+  token: string;
+  expires_at: number;
+}
+
+// A 401 here is a wrong password, so it must not sign out or redirect.
+export const login = (username: string, password: string): Promise<LoginResult> =>
+  request("/login", { method: "POST", body: { username, password }, noRedirect: true });
+
+export const logout = (): Promise<unknown> => request("/logout", { method: "POST", noRedirect: true });
+
+export const getMe = (noRedirect = false): Promise<{ username: string }> => request("/me", { noRedirect });
+
+export interface CatalogModel {
+  id: string;
+  owned_by: string;
+  [key: string]: unknown;
+}
+
+export const getModels = (): Promise<{ data: CatalogModel[] }> => request("/models");
+
+export interface LiveAlert {
+  kind: string;
+  severity: string;
+  message: string;
+}
+
+export interface Stats {
+  jobs: { queued: number; in_progress: number; done: number; failed: number; pre_job_failures_24h: number };
+  made: { videos: number; images: number };
+  accounts: { usable: number; available: number; dead: number; disabled: number };
+  keys: number;
+  alerts: LiveAlert[];
+}
+
+export const getStats = (provider: string): Promise<Stats> => request("/stats", { query: { provider } });
+
+// Only the count of open groups is read here (200 is the page cap, shown as "200+").
+export const getOpenAlertGroups = (): Promise<{ items: unknown[] }> =>
+  request("/alerts/groups", { query: { status: "open", limit: 200 } });

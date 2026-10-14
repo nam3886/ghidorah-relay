@@ -308,7 +308,8 @@ def _image_violations(deploy: Path) -> list[str]:
     stages = {m.group(1) for ln in lines if (m := re.search(r"\bAS (\S+)$", ln))}
     for ln in lines:
         ref = re.match(r"FROM (\S+)", ln) or re.search(r"COPY --from=(\S+)", ln)
-        if ref and ref.group(1) not in stages and "@sha256:" not in ref.group(1):
+        # `scratch` is the empty image: nothing to pin (the web stages use it to export build output only)
+        if ref and ref.group(1) not in stages | {"scratch"} and "@sha256:" not in ref.group(1):
             bad.append("Dockerfile: %s is not pinned by digest" % ref.group(1))
     return bad
 

@@ -1,0 +1,170 @@
+<script setup lang="ts" generic="T extends object">
+import { computed } from "vue";
+import type { Column } from "./types";
+import type { Tone } from "./status-tones";
+
+// One table for every list. Cells come from the column list (`row[key]`) or a `cell-<key>` slot; row actions go in
+// the `actions` slot; the `empty-action` slot is the call to action of an empty list. States:
+//   loading and no rows   -> skeleton
+//   loading with rows     -> the old rows stay, dimmed (refreshing)
+//   error                 -> an inline message with Retry (the stale rows are hidden: they would mislead)
+//   no rows               -> the empty text and the action
+const props = withDefaults(
+  defineProps<{
+    columns: Column[];
+    rows: T[];
+    loading?: boolean;
+    error?: string | null;
+    emptyText?: string;
+    rowKey?: string;
+    // a row that opens something: clicking it (not a button or a field inside it) emits `row-click`
+    rowClickable?: boolean;
+    // a left bar in the status colour for the rows that need a look (dead, failed, unknown)
+    rowTone?: (row: T) => Tone | undefined;
+    maxHeight?: string;
+    skeletonRows?: number;
+  }>(),
+  {
+    loading: false,
+    error: null,
+    emptyText: "Nothing here yet",
+    rowKey: "id",
+    rowClickable: false,
+    rowTone: undefined,
+    maxHeight: "calc(100vh - 16rem)",
+    skeletonRows: 6,
+  },
+);
+const emit = defineEmits<{ retry: []; "row-click": [row: T] }>();
+
+const refreshing = computed(() => props.loading && props.rows.length > 0 && !props.error);
+const skeleton = computed(() => props.loading && props.rows.length === 0 && !props.error);
+const state = computed(() =>
+  props.error
+    ? "error"
+    : skeleton.value
+      ? "loading"
+      : refreshing.value
+        ? "refreshing"
+        : props.rows.length
+          ? "ready"
+          : "empty",
+);
+
+function rowClass({ row }: { row: T }): string {
+  const tone = props.rowTone?.(row);
+  return tone && tone !== "neutral" ? `row-tone row-tone-${tone}` : "";
+}
+
+function cellText(row: T, key: string): string {
+  const value = (row as Record<string, unknown>)[key];
+  return value === null || value === undefined || value === "" ? "-" : String(value);
+}
+
+function onRowClick(row: T, _column: unknown, event: Event) {
+  if (!props.rowClickable) return;
+  const target = event.target as HTMLElement | null;
+  if (target?.closest("button, a, input, label, .el-switch, .el-checkbox, .el-dropdown")) return;
+  emit("row-click", row);
+}
+</script>
+
+<template>
+  <div class="data-table" :class="{ 'is-refreshing': refreshing }" :aria-busy="props.loading" :data-state="state">
+    <div v-if="props.error" class="data-table__error" role="alert">
+      <span>{{ props.error }}</span>
+      <el-button size="small" @click="emit('retry')">Retry</el-button>
+    </div>
+    <div v-else-if="skeleton" class="data-table__skeleton">
+      <el-skeleton :rows="props.skeletonRows" animated />
+    </div>
+    <el-table
+      v-else
+      :data="props.rows"
+      :row-key="props.rowKey"
+      :max-height="props.maxHeight"
+      :row-class-name="rowClass"
+      :class="{ 'is-clickable': props.rowClickable }"
+      @row-click="onRowClick"
+    >
+      <el-table-column
+        v-for="c in props.columns"
+        :key="c.key"
+        :label="c.label"
+        :width="c.width"
+        :min-width="c.minWidth"
+        :align="c.align ?? 'left'"
+        :class-name="c.align === 'right' ? 'is-numeric' : undefined"
+      >
+        <template #default="{ row, $index }">
+          <slot :name="`cell-${c.key}`" :row="row as T" :index="$index">{{ cellText(row as T, c.key) }}</slot>
+        </template>
+      </el-table-column>
+      <el-table-column v-if="$slots.actions" label="Actions" align="right" class-name="data-table__actions">
+        <template #default="{ row }">
+          <slot name="actions" :row="row as T" />
+        </template>
+      </el-table-column>
+      <template #empty>
+        <div class="data-table__empty">
+          <p>{{ props.emptyText }}</p>
+          <slot name="empty-action" />
+        </div>
+      </template>
+    </el-table>
+  </div>
+</template>
+
+<style scoped>
+.data-table__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  color: var(--rl-bad);
+  background: var(--rl-bad-bg);
+  border-radius: var(--el-border-radius-base, 6px);
+}
+.data-table__skeleton {
+  padding: 16px;
+}
+.data-table__empty {
+  padding: 24px 0;
+  color: var(--rl-muted);
+}
+.data-table__empty p {
+  margin: 0 0 12px;
+}
+.is-refreshing :deep(.el-table) {
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+:deep(.el-table th.el-table__cell) {
+  background: var(--rl-surface-2);
+}
+:deep(.el-table .is-numeric .cell) {
+  font-variant-numeric: tabular-nums;
+}
+:deep(.el-table .el-table__row:hover > td.el-table__cell) {
+  background: var(--rl-surface-2);
+}
+:deep(.el-table.is-clickable .el-table__row) {
+  cursor: pointer;
+}
+:deep(.el-table .row-tone > td.el-table__cell:first-child) {
+  box-shadow: inset 2px 0 0 var(--row-tone-color);
+}
+:deep(.el-table .row-tone-bad) {
+  --row-tone-color: var(--rl-bad);
+}
+:deep(.el-table .row-tone-warn) {
+  --row-tone-color: var(--rl-warn);
+}
+:deep(.el-table .row-tone-info) {
+  --row-tone-color: var(--rl-info);
+}
+:deep(.el-table .row-tone-ok) {
+  --row-tone-color: var(--rl-ok);
+}
+</style>

@@ -81,10 +81,17 @@ if [ "$soak_only" = 1 ]; then
   exit $?
 fi
 uv run ruff check .
+# The admin web (apps/admin-web), in the Node container: lockfile audit, types, lint, Vitest; then a fresh build must
+# equal the committed dist and declaration files. Neither writes into the tree. On the box only (D95).
+if [ "$nargs" = 0 ]; then      # a run narrowed to some tests is PARTIAL anyway (check-verdict.sh)
+  # WEB_CHECK_CMD is the test hook of tests/test_mutate.py (box.sh never passes it to a run)
+  ${WEB_CHECK_CMD:-scripts/web.sh} check
+  ${WEB_CHECK_CMD:-scripts/web.sh} verify
+fi
 # Type gate for the provider contract (the `fetch` shape drifted once). Isolated and pinned: not a project dependency.
 uvx --from mypy==2.4.0 mypy packages/relay-core/src/relay_core/providers.py
 # PYTEST_JOBS=N runs the files on N xdist workers (each with its own database); a file stays on one worker.
-uv run pytest -m "not browser" ${PYTEST_JOBS:+-n "$PYTEST_JOBS" --dist loadfile} ${args[@]+"${args[@]}"}
+uv run pytest -m "not browser and not web_unit" ${PYTEST_JOBS:+-n "$PYTEST_JOBS" --dist loadfile} ${args[@]+"${args[@]}"}
 if [ "$full" = 1 ]; then
   # MUTATE_ONLY="pat1 pat2" limits mutate.py to markers whose test id or file contains a pattern (parallel lanes).
   only=()

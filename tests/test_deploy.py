@@ -223,7 +223,7 @@ def test_the_private_key_in_a_non_worker_template_is_caught(tmp_path):
 
 @mutation(G, 'if image and "@sha256:" not in image and not image.startswith("relay-"):', "if False:",
            expect="any(why in v for v in found), found")
-@mutation(G, 'if ref and ref.group(1) not in stages and "@sha256:" not in ref.group(1):', "if False:",
+@mutation(G, 'if ref and ref.group(1) not in stages | {"scratch"} and "@sha256:" not in ref.group(1):', "if False:",
            expect="any(why in v for v in found), found")
 @pytest.mark.parametrize("changes, why", [
     ({"compose.yml": GOOD["compose.yml"].replace("postgres:16@sha256:aa", "postgres:16")}, "postgres:16 is not pinned"),
@@ -235,6 +235,15 @@ def test_an_image_without_a_digest_is_caught(tmp_path, changes, why):
     plant_deploy(tmp_path, **changes)
     found = guards.deploy_violations(tmp_path)
     assert any(why in v for v in found), found
+
+
+@mutation(G, 'ref.group(1) not in stages | {"scratch"}', "ref.group(1) not in stages",
+          expect="the empty image scratch was reported")
+def test_the_empty_image_scratch_needs_no_digest_but_an_unpinned_node_image_still_does(tmp_path):
+    plant_deploy(tmp_path, Dockerfile=GOOD["Dockerfile"] + "FROM scratch AS out\nCOPY --from=http /x /\n")
+    assert guards.deploy_violations(tmp_path) == [], "the empty image scratch was reported"
+    plant_deploy(tmp_path, Dockerfile=GOOD["Dockerfile"] + "FROM scratch AS out\nFROM node:24-slim AS web\n")
+    assert any("node:24-slim is not pinned" in v for v in guards.deploy_violations(tmp_path))
 
 
 @mutation(G, 'return "PRIVATE_KEY" in name.upper()', "return name == PRIVATE_KEY_VAR",

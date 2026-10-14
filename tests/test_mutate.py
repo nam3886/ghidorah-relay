@@ -2,6 +2,7 @@
 
 import fcntl
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -241,8 +242,27 @@ def run_check_raw(tmp_path, *args, no_browser_tests=False, **env):
     for name in ("docker", "uv", "uvx"):
         (stubs / name).write_text(script, encoding="utf-8")
         (stubs / name).chmod(0o755)
+    web = stubs / "web"           # the stand-in for scripts/web.sh: records its subcommand, fails on request
+    web.write_text('#!/bin/sh\necho "$@" >> "%s"\n[ "$1" != "${WEB_FAIL:-}" ]\n' % (tmp_path / "web.log"),
+                   encoding="utf-8")
+    web.chmod(0o755)
     return subprocess.run(["bash", str(REPO / CHECK), *args], capture_output=True, text=True,
-                          env={"PATH": "%s:%s" % (stubs, os.environ["PATH"]), **env})
+                          env={"PATH": "%s:%s" % (stubs, os.environ["PATH"]), "WEB_CHECK_CMD": str(web), **env})
+
+
+@mutation(CHECK, '${WEB_CHECK_CMD:-scripts/web.sh} verify', "true", expect="verify did not run")
+@mutation(CHECK, 'if [ "$nargs" = 0 ]; then      # a run narrowed', 'if true; then      # a run narrowed',
+          expect="a narrowed run ran the web checks")
+def test_the_plain_gate_runs_web_check_then_verify_a_failing_one_stops_it_and_a_narrowed_run_skips_them(tmp_path):
+    whole = run_check_raw(tmp_path / "a", "--full", "--local")
+    assert whole.returncode == 0, whole.stderr
+    assert (tmp_path / "a" / "web.log").read_text(encoding="utf-8").split() == ["check", "verify"], "verify did not run"
+    narrow = run_check_raw(tmp_path / "b", "--full", "--local", "some_test.py")
+    assert narrow.returncode == 0 and not (tmp_path / "b" / "web.log").exists(), "a narrowed run ran the web checks"
+    for step in ("check", "verify"):
+        red = run_check_raw(tmp_path / ("red-" + step), "--full", "--local", WEB_FAIL=step)
+        assert red.returncode != 0 and "CHECK: GREEN" not in red.stdout, "a failing web %s did not stop the gate" % step
+    assert (tmp_path / "red-check" / "web.log").read_text(encoding="utf-8").split() == ["check"]
 
 
 def run_check(tmp_path, *args, **env):
@@ -797,3 +817,157 @@ def test_a_queue_container_is_pinned_to_the_gate_cores_only_while_the_cap_applie
     monkeypatch.setenv("RELAY_GATE_CPUSET", "0-11")
     args = mutate.container_args()
     assert args[args.index("--cpuset-cpus") + 1] == "0-11", "the queue container is not pinned to the gate cores"
+
+
+# ---- markers on the TypeScript source: the same runner, Vitest run from source in the web image -------------------
+# `docker` is a stand-in on PATH: `build` and `rmi` are recorded; `run` plays Vitest by reading the src/ it was given
+# (the spec holds when `a + b` is still in add.ts). tests/webunit.py is the real helper that builds the command line.
+
+DOCKER_STUB = """\
+#!/usr/bin/env python3
+import re, sys
+args = sys.argv[1:]
+open(%r, "a").write(" ".join(args) + "\\n")
+if args[0] == "run":
+    src = next(a.split(":")[0] for a in args if a.endswith("/src:ro"))
+    ok = "a + b" in open(src + "/add.ts").read()
+    if ok:
+        print("1 passed")
+        sys.exit(0)
+    # a long console (the failing title is far from the end) and then the JSON report, as the real run prints them
+    print("noise line of console output\\n" * 400 + "@@VITEST-JSON@@")
+    print('{"testResults": [{"name": "/web/apps/admin-web/tests/unit/add.spec.ts", "status": "failed", '
+          '"assertionResults": [{"status": "failed", "ancestorTitles": ["add"], "title": "adds a and b"}, '
+          '{"status": "passed", "ancestorTitles": ["add"], "title": "other"}]}]}')
+    sys.exit(1)
+"""
+ADD_TS = "// note: not checked by the spec\nexport const add = (a: number, b: number) => a + b\n"
+
+
+def planted_web(root: Path, marker: str) -> Path:
+    log = root / "docker.log"
+    stub = root / "bin" / "docker"
+    stub.parent.mkdir()
+    stub.write_text(DOCKER_STUB % str(log), encoding="utf-8")
+    stub.chmod(0o755)
+    (root / "deploy").mkdir()
+    (root / "deploy" / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    (root / "apps" / "admin-web" / "src").mkdir(parents=True)
+    (root / "apps" / "admin-web" / "tests" / "unit").mkdir(parents=True)
+    (root / "apps" / "admin-web" / "src" / "add.ts").write_text(ADD_TS, encoding="utf-8")
+    (root / "apps" / "admin-web" / "tests" / "unit" / "add.spec.ts").write_text("// the spec\n", encoding="utf-8")
+    (root / "tests").mkdir()
+    (root / "tests" / "guards.py").write_text("from pathlib import Path\nREPO = Path(__file__).resolve().parents[1]\n",
+                                              encoding="utf-8")
+    shutil.copy(REPO / "tests" / "webunit.py", root / "tests" / "webunit.py")
+    (root / "tests" / "test_web.py").write_text(textwrap.dedent("""\
+        from relay_core.testing.mutation import mutation
+        from webunit import vitest
+
+        %s
+        def test_add():
+            vitest("tests/unit/add.spec.ts")
+        """) % marker, encoding="utf-8")
+    return log
+
+
+@pytest.fixture
+def docker_stub(monkeypatch, tmp_path):
+    monkeypatch.setenv("PATH", "%s:%s" % (tmp_path / "bin", os.environ["PATH"]))
+    monkeypatch.delenv("MUTATE_WEB_IMAGE", raising=False)
+    monkeypatch.delenv("MUTATE_BROWSER_IMAGE", raising=False)
+
+
+@mutation(S, "if not any(m[1].startswith(WEB_APP) for m in marks)", "if True",
+          expect="the mutant ran wrong")
+@mutation(S, 'subprocess.run(["docker", "rmi", "-f", tag]', 'subprocess.run(["docker", "version", tag]',
+          expect="the web image was not removed")
+def test_a_killed_typescript_mutant_passes_runs_vitest_on_the_copy_and_leaves_the_tree_and_no_image(
+        tmp_path, capsys, docker_stub):
+    log = planted_web(tmp_path, '@mutation("apps/admin-web/src/add.ts", "a + b", "a - b", '
+                                'expect="FAILED tests/unit/add.spec.ts > add > adds a and b")')
+    assert mutate.run(tmp_path) == 0, "the mutant ran wrong: " + capsys.readouterr().out
+    assert "1/1 killed" in capsys.readouterr().out
+    assert (tmp_path / "apps" / "admin-web" / "src" / "add.ts").read_text(encoding="utf-8") == ADD_TS
+    calls = log.read_text(encoding="utf-8").splitlines()
+    runs = [c for c in calls if c.startswith("run ")]
+    assert len(runs) == 2, calls                                       # the baseline, then the mutant
+    assert all(str(tmp_path) not in c for c in runs), "the working tree was mounted, not the copy: %r" % runs
+    assert sum(c.startswith("build ") and "--target web-src" in c for c in calls) == 1, calls
+    assert any(c.startswith("rmi -f relay-web-src:mutate-") for c in calls), "the web image was not removed: %r" % calls
+
+
+@mutation(S, "if run.returncode == 1:", "if run.returncode in (0, 1):", expect="mutation survived")
+def test_a_surviving_typescript_mutant_fails_the_run_and_the_file_is_restored(tmp_path, capsys, docker_stub):
+    planted_web(tmp_path, '@mutation("apps/admin-web/src/add.ts", "// note: not checked", "// note: changed")')
+    assert mutate.run(tmp_path) == 1
+    assert "mutation survived" in capsys.readouterr().out
+    assert (tmp_path / "apps" / "admin-web" / "src" / "add.ts").read_text(encoding="utf-8") == ADD_TS
+
+
+@pytest.mark.parametrize("original, why", [("a * b", "anchor not found"), ("number", "anchor ambiguous")])
+def test_a_stale_or_ambiguous_typescript_anchor_fails_the_run_and_the_file_is_restored(
+        tmp_path, capsys, docker_stub, original, why):
+    planted_web(tmp_path, '@mutation("apps/admin-web/src/add.ts", "%s", "x")' % original)
+    assert mutate.run(tmp_path) == 1
+    assert why in capsys.readouterr().out
+    assert (tmp_path / "apps" / "admin-web" / "src" / "add.ts").read_text(encoding="utf-8") == ADD_TS
+
+
+@mutation(S, 'return None if None in parts else "".join(parts)', 'return None if None in parts else "".join(parts[1:])',
+          expect="the f-string marker was not read")
+def test_a_marker_may_use_f_strings_and_sums_of_module_level_constants(tmp_path, capsys):
+    planted_repo(tmp_path, '@mutation(KEY, "return " + "1", "return 2")')
+    test = tmp_path / "tests" / "test_m.py"
+    test.write_text('DIR = "tests"\nKEY = f"{DIR}/m" + ".py"\n' + test.read_text(encoding="utf-8"), encoding="utf-8")
+    assert mutate.run(tmp_path) == 0, "the f-string marker was not read: " + capsys.readouterr().out
+    assert "1/1 killed" in capsys.readouterr().out
+
+
+def test_the_vitest_helper_mounts_this_trees_src_and_tests_and_needs_the_image(tmp_path, monkeypatch):
+    import sys
+
+    sys.path.insert(0, str(REPO / "tests"))
+    try:
+        import webunit
+    finally:
+        sys.path.remove(str(REPO / "tests"))
+    monkeypatch.delenv("MUTATE_WEB_IMAGE", raising=False)
+    with pytest.raises(AssertionError, match="MUTATE_WEB_IMAGE is not set"):
+        webunit.vitest("tests/unit/a.spec.ts")
+    docker = tmp_path / "docker"
+    docker.write_text('#!/bin/sh\necho "$@" > "%s"\nexit 1\n' % (tmp_path / "args"), encoding="utf-8")
+    docker.chmod(0o755)
+    monkeypatch.setenv("PATH", "%s:%s" % (tmp_path, os.environ["PATH"]))
+    monkeypatch.setenv("MUTATE_WEB_IMAGE", "img:1")
+    with pytest.raises(AssertionError, match="vitest failed"):
+        webunit.vitest("tests/unit/a.spec.ts")
+    args = (tmp_path / "args").read_text(encoding="utf-8")
+    assert "%s:/web/apps/admin-web/src:ro" % (REPO / "apps" / "admin-web" / "src") in args, args
+    assert "img:1" in args and "npm run test -- tests/unit/a.spec.ts --reporter=default --reporter=json" in args, args
+
+
+@mutation("tests/webunit.py",
+          'lines.append(" > ".join(["FAILED " + spec, *t.get("ancestorTitles", []), t.get("title", "?")]))',
+          'lines.append(" > ".join(["FAILED " + spec, t.get("title", "?")]))', expect="the describe title was lost")
+@mutation("tests/webunit.py", 'if result.get("status") == "failed" and not failed:', "if False:",
+          expect="a file that did not run was not listed")
+def test_the_failed_test_list_names_spec_describe_and_title_and_a_file_that_did_not_run_has_no_test_title():
+    import sys
+
+    sys.path.insert(0, str(REPO / "tests"))
+    try:
+        import webunit
+    finally:
+        sys.path.remove(str(REPO / "tests"))
+    report = json.dumps({"testResults": [
+        {"name": "/web/apps/admin-web/tests/unit/a.spec.ts", "status": "failed", "assertionResults": [
+            {"status": "failed", "ancestorTitles": ["outer", "inner"], "title": "does x"},
+            {"status": "passed", "ancestorTitles": ["outer"], "title": "fine"}]},
+        {"name": "/web/apps/admin-web/tests/unit/b.spec.ts", "status": "failed", "assertionResults": []}]})
+    got = webunit.failed_tests(report)
+    assert got[:1] == ["FAILED tests/unit/a.spec.ts > outer > inner > does x"], "the describe title was lost: %r" % got
+    assert got[1:] == ["FAILED tests/unit/b.spec.ts > (the file did not run)"], \
+        "a file that did not run was not listed: %r" % got
+    assert webunit.failed_tests("not json")[0].startswith("(no Vitest report"), "a missing report was not said"
+    assert webunit.failed_tests(json.dumps({"testResults": [{"name": "/x", "status": "passed"}]})) == []

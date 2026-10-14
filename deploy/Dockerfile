@@ -16,7 +16,7 @@ FROM base AS build
 WORKDIR /app
 COPY pyproject.toml uv.lock .python-version ./
 COPY packages packages
-COPY apps apps
+COPY apps/relay apps/relay
 # ponytail: one install for both targets, so the http image also carries the patchright wheel (no
 # browser binary); split the lock per target if image size ever matters.
 RUN uv sync --frozen --no-dev --all-packages
@@ -62,3 +62,51 @@ COPY --from=build /opt/venv /opt/venv
 COPY --from=build /app /app
 WORKDIR /app
 CMD ["relay", "worker", "--provider", "dola"]
+
+# The admin web (Vue + Vite), built only on demand (`docker build --target web-...`, driven by scripts/web.sh): never
+# part of the http or browser chain, so those images carry no Node and no web source. The layout under /web mirrors
+# the repo, so the app builds with the same relative paths as in the tree and the output is the same bytes on every
+# run (Linux amd64 on the box is the canonical platform). Dependencies come from the lockfile alone: `npm ci`, and
+# apps/admin-web/.npmrc turns install scripts off.
+FROM node:24-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS web-base
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false NPM_CONFIG_FUND=false NPM_CONFIG_AUDIT=false CI=1
+WORKDIR /web/apps/admin-web
+COPY apps/admin-web/package.json apps/admin-web/.npmrc apps/admin-web/package-lock.jso[n] ./
+
+# `web.sh lock`: the lockfile regenerated from package.json, no scripts run.
+FROM web-base AS web-lock
+RUN npm install --package-lock-only --ignore-scripts
+FROM scratch AS web-lock-out
+COPY --from=web-lock /web/apps/admin-web/package-lock.json /
+
+FROM web-base AS web-deps
+RUN npm ci
+
+# The whole app, on top of its dependencies. This is also what the TypeScript mutation runs use (scripts/mutate.py):
+# the mutated src/ and tests/ are mounted over these, so no rebuild is needed.
+FROM web-deps AS web-src
+COPY apps/admin-web ./
+
+# `web.sh check`: a build first (it generates components.d.ts and auto-imports.d.ts in this scratch copy, so check
+# never depends on the committed ones), then types, lint, unit tests. A failing step fails the build.
+FROM web-src AS web-check
+ENV NO_COLOR=1 FORCE_COLOR=0
+RUN mkdir -p /web/packages/relay-core/src/relay_core/admin/static \
+    && npm run build \
+    && npm run typecheck && echo "WEBCHECK vue-tsc: no type errors" \
+    && npx eslint . && echo "WEBCHECK ESLint: no problems" \
+    && npm run format:check && echo "WEBCHECK Prettier: all files formatted" \
+    && npm run test
+
+# `web.sh format`: Prettier over the app; the result (without node_modules) is what web.sh compares with the tree.
+FROM web-src AS web-format
+RUN npm run format && mkdir /out && tar -C /web/apps/admin-web --exclude=./node_modules -cf - . | tar -C /out -xf -
+FROM scratch AS web-format-out
+COPY --from=web-format /out /
+
+# `web.sh build` and `verify`: the dist and the two generated declaration files.
+FROM web-src AS web-build
+RUN mkdir -p /web/packages/relay-core/src/relay_core/admin/static && npm run build
+FROM scratch AS web-out
+COPY --from=web-build /web/packages/relay-core/src/relay_core/admin/static/app /static/app
+COPY --from=web-build /web/apps/admin-web/components.d.ts /web/apps/admin-web/auto-imports.d.ts /

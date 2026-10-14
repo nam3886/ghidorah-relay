@@ -44,7 +44,7 @@ cleanup() {
 trap cleanup EXIT
 
 SYNC_EXCLUDES=(--exclude=.git --exclude=.venv --exclude=__pycache__ --exclude=.pytest_cache --exclude=.ruff_cache
-  --exclude='deploy/*.env' --exclude='._*' --exclude=.DS_Store)
+  --exclude='deploy/*.env' --exclude='._*' --exclude=.DS_Store --exclude=node_modules)
 if on_box; then
   mkdir -p "$DIR" && rsync -a "${SYNC_EXCLUDES[@]}" ./ "$DIR/"
 else

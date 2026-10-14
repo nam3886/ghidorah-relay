@@ -30,6 +30,12 @@ Browser tests (@pytest.mark.browser) need Chrome, which the box has only in its 
 MUTATE_BROWSER_IMAGE=<tag> (built by scripts/browser-image.sh) they run in that image, the copy mounted read-only, and
 with --jobs they have a queue of their own (MUTATE_BROWSER_JOBS workers, default 3). Without it they run here.
 
+TypeScript markers (apps/admin-web/src/**) use the same marker, anchor check, survivor check and restore. The marked
+Python test calls tests/webunit.py `vitest(spec)`, which runs Vitest from source in the web-src image of
+deploy/Dockerfile with the copy's src/ and tests/ mounted over it: no rebuild. The image is built once per run
+(MUTATE_WEB_IMAGE=<tag> reuses one) and removed at the end. A marker on a browser test (it judges the built dist) also
+rebuilds the dist from the mutant first and puts the committed one back after (box only, with MUTATE_BROWSER_IMAGE).
+
 Two runs in one tree corrupt each other (each restores the other's mutated snapshot, 01/10), so a run takes
 an exclusive lock on ROOT/.mutate.lock and a second run is refused (exit 2) instead of waiting.
 
@@ -65,12 +71,25 @@ IMAGE = ""                             # the image tag (scripts/browser-image.sh
 _names = itertools.count()
 
 
+def _string(a: ast.expr, names: dict[str, str]) -> str | None:
+    """The text of a string literal, of a module-level string constant, of an f-string or a `+` of those (the f-string
+    and the `+` may only use such constants, so a marker's file and text are known without running anything)."""
+    if isinstance(a, ast.Constant) and isinstance(a.value, str):
+        return a.value
+    if isinstance(a, ast.JoinedStr):      # f"{SRC}/lib/x.ts"
+        parts = [_string(p.value, names) if isinstance(p, ast.FormattedValue) and p.conversion == -1
+                 and not p.format_spec else (p.value if isinstance(p, ast.Constant) else None) for p in a.values]
+        return None if None in parts else "".join(parts)
+    if isinstance(a, ast.BinOp) and isinstance(a.op, ast.Add):
+        left, right = _string(a.left, names), _string(a.right, names)
+        return None if left is None or right is None else left + right
+    return names.get(a.id) if isinstance(a, ast.Name) else None
+
+
 def _literals(call: ast.Call, names: dict[str, str], where: str = "") -> tuple[str, str, str, str | None]:
     """The three arguments: string literals, or module-level `NAME = "..."` constants of the same file."""
     def value(a: ast.expr) -> str | None:
-        if isinstance(a, ast.Constant) and isinstance(a.value, str):
-            return a.value
-        return names.get(a.id) if isinstance(a, ast.Name) else None
+        return _string(a, names)
 
     got = [value(a) for a in call.args]
     expect = [value(k.value) for k in call.keywords if k.arg == "expect"]
@@ -89,13 +108,14 @@ def _test_functions(root: Path):
     """(file, module-level string constants, test node id, function node) for every test, in a stable order."""
     for base in ("tests", "packages", "apps"):
         for path in sorted((root / base).rglob("test_*.py")):
-            if path.name.startswith("._") or "__pycache__" in path.parts or ".venv" in path.parts:
+            if path.name.startswith("._") or {"__pycache__", ".venv", "node_modules"} & set(path.parts):
                 continue
             rel = path.relative_to(root).as_posix()
             tree = ast.parse(path.read_text(encoding="utf-8"))
-            names = {t.id: n.value.value for n in tree.body if isinstance(n, ast.Assign)
-                     and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str)
-                     for t in n.targets if isinstance(t, ast.Name)}
+            names: dict[str, str] = {}
+            for n in tree.body:               # in file order, so a constant may be built from earlier ones
+                if isinstance(n, ast.Assign) and (text := _string(n.value, names)) is not None:
+                    names.update({t.id: text for t in n.targets if isinstance(t, ast.Name)})
             funcs = (ast.FunctionDef, ast.AsyncFunctionDef)
             tests = [(rel + "::" + n.name, n) for n in tree.body if isinstance(n, funcs)]
             for cls in (n for n in tree.body if isinstance(n, ast.ClassDef)):
@@ -169,7 +189,34 @@ def purge_bytecode(root: Path) -> None:
             shutil.rmtree(d, ignore_errors=True)
 
 
-_SKIP = shutil.ignore_patterns(".venv", ".git", "__pycache__", ".pytest_cache", ".ruff_cache", ".mutate.lock")
+_SKIP = shutil.ignore_patterns(".venv", ".git", "__pycache__", ".pytest_cache", ".ruff_cache", ".mutate.lock",
+                               "node_modules")
+WEB_APP = "apps/admin-web/"
+WEB_DIST = "packages/relay-core/src/relay_core/admin/static/app"
+WEB_DECLS = ("components.d.ts", "auto-imports.d.ts")
+
+
+def web_image_build(root: Path, tag: str) -> None:
+    """The web-src stage of deploy/Dockerfile built from `root`: Node, the locked dependencies and the app."""
+    run = subprocess.run(["docker", "build", "-q", "-f", "deploy/Dockerfile", "--target", "web-src", "-t", tag, "."],
+                         cwd=root, capture_output=True, text=True, check=False)
+    if run.returncode != 0:
+        raise SystemExit("mutate: building the web image failed:\n%s" % (run.stdout + run.stderr)[-2000:])
+
+
+def web_dist_rebuild(root: Path) -> None:
+    """A mutant of the web source that a browser test judges needs a dist built from it (box only; --full only)."""
+    out = root / ".web-out"
+    shutil.rmtree(out, ignore_errors=True)
+    run = subprocess.run(["docker", "build", "-q", "-f", "deploy/Dockerfile", "--target", "web-out", "--output",
+                          "type=local,dest=%s" % out, "."], cwd=root, capture_output=True, text=True, check=False)
+    if run.returncode != 0:
+        raise SystemExit("mutate: rebuilding the web dist failed:\n%s" % (run.stdout + run.stderr)[-2000:])
+    shutil.rmtree(root / WEB_DIST, ignore_errors=True)
+    shutil.copytree(out / "static" / "app", root / WEB_DIST)
+    for name in WEB_DECLS:
+        shutil.copy(out / name, root / WEB_APP / name)
+    shutil.rmtree(out)
 
 
 def copy_tree(root: Path, into: Path) -> Path:
@@ -277,15 +324,31 @@ def mutate_once(root: Path, node_id: str, file: str, original: str, replacement:
     if hits != 1:
         what = "not found" if hits == 0 else "ambiguous (%d matches)" % hits
         return False, "anchor %s in %s" % (what, file)
+    rebuild = file.startswith(WEB_APP) and bool(IMAGE) and node_id in BROWSER     # a browser test sees the built dist
+    saved = None
+    if rebuild:
+        saved = root / ".web-saved"
+        shutil.rmtree(saved, ignore_errors=True)
+        shutil.copytree(root / WEB_DIST, saved / "app")
+        for name in WEB_DECLS:
+            shutil.copy(root / WEB_APP / name, saved / name)
     try:
         target.write_bytes(text.replace(original, replacement, 1).encode("utf-8"))
         purge_bytecode(root)
         try:
+            if rebuild:
+                web_dist_rebuild(root)
             run = _pytest(root, node_id)
         except subprocess.TimeoutExpired:
             return False, "pytest timed out after %d s" % TIMEOUT_S
     finally:
         target.write_bytes(raw)
+        if saved is not None:             # the mutated dist goes too: the next marker starts from the committed one
+            shutil.rmtree(root / WEB_DIST, ignore_errors=True)
+            shutil.copytree(saved / "app", root / WEB_DIST)
+            for name in WEB_DECLS:
+                shutil.copy(saved / name, root / WEB_APP / name)
+            shutil.rmtree(saved)
         purge_bytecode(root)
     if run.returncode == 1:
         # Red means the marked test itself failed (a FAILED/ERROR line naming it; a collection error names only the
@@ -395,6 +458,21 @@ def _run_locked(root: Path, only: tuple[str, ...], jobs: int = 1) -> int:
         print("mutate: no @mutation markers found" + (" for %s" % ", ".join(only) if only else ""),
               file=sys.stderr)
         return 1
+    # TypeScript markers: Vitest runs from source in the web-src image (deploy/Dockerfile), the copy's src/ and tests/
+    # mounted over it (tests/webunit.py). One image per run, built here unless the caller gives MUTATE_WEB_IMAGE.
+    if not any(m[1].startswith(WEB_APP) for m in marks) or os.environ.get("MUTATE_WEB_IMAGE"):
+        return _run_marks(root, marks, jobs)
+    tag = "relay-web-src:mutate-%d" % os.getpid()
+    web_image_build(root, tag)
+    os.environ["MUTATE_WEB_IMAGE"] = tag
+    try:
+        return _run_marks(root, marks, jobs)
+    finally:
+        os.environ.pop("MUTATE_WEB_IMAGE", None)
+        subprocess.run(["docker", "rmi", "-f", tag], capture_output=True, check=False)
+
+
+def _run_marks(root: Path, marks: list, jobs: int) -> int:
     global BROWSER, IMAGE
     IMAGE = os.environ.get("MUTATE_BROWSER_IMAGE", "")
     BROWSER = browser_tests(root) if IMAGE else set()

@@ -1,0 +1,1 @@
+import{it as e,st as t,ut as n,vt as r}from"./index-DUmISQTa.js";var i={"data-placeholder":`relay-admin-placeholder`},a=n({__name:`FramesView`,setup(n){return(n,a)=>(r(),t(`section`,i,[...a[0]||=[e(`h2`,null,`Prompt frames`,-1)]]))}});export{a as default};

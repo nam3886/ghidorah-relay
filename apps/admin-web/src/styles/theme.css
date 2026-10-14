@@ -1,0 +1,218 @@
+/*
+ * Theme: indigo accent, 14 px base, 6 px radius, flat layered surfaces, status colour only for status.
+ * Loaded AFTER the Element Plus CSS. `html:root` (light) and `html.dark:root` (dark) outrank Element Plus's own
+ * `:root` and `html.dark` blocks, whatever order the on-demand component styles end up in.
+ * Every Element Plus variable set in the light block is set again in the dark block.
+ * Primary and status colours are pinned (not computed at run time); text pairs are at least 4.5:1 on their fill.
+ */
+html:root {
+  color-scheme: light;
+
+  /* Layers */
+  --rl-bg: #fafafa;
+  --rl-surface: #ffffff;
+  --rl-surface-2: #f4f4f5;
+  --rl-line: #e4e4e7;
+  --rl-line-strong: #c9c9cf;
+  --rl-fg: #0e0e11;
+  --rl-muted: #5d5d65;
+
+  /* Status: text colour and chip fill, each pair at least 4.5:1 */
+  --rl-ok: #116931;
+  --rl-ok-bg: #e5fbed;
+  --rl-warn: #884c07;
+  --rl-warn-bg: #fdf1e2;
+  --rl-bad: #af1d1d;
+  --rl-bad-bg: #fbe5e5;
+  --rl-info: #1d51a5;
+  --rl-info-bg: #e5edfa;
+  --rl-neutral: #5d5d65;
+  --rl-neutral-bg: #f4f4f5;
+
+  /* Element Plus: accent (indigo 600 and its pinned tints) */
+  --el-color-primary: #4f46e5;
+  --el-color-primary-light-3: #847eed;
+  --el-color-primary-light-5: #a7a2f2;
+  --el-color-primary-light-7: #cac8f7;
+  --el-color-primary-light-8: #dcdafa;
+  --el-color-primary-light-9: #edecfc;
+  --el-color-primary-dark-2: #3f38b7;
+
+  /* Element Plus: status types map to the status pairs */
+  --el-color-success: var(--rl-ok);
+  --el-color-success-light-9: var(--rl-ok-bg);
+  --el-color-success-light-8: var(--rl-ok-bg);
+  --el-color-warning: var(--rl-warn);
+  --el-color-warning-light-9: var(--rl-warn-bg);
+  --el-color-warning-light-8: var(--rl-warn-bg);
+  --el-color-danger: var(--rl-bad);
+  --el-color-danger-light-9: var(--rl-bad-bg);
+  --el-color-danger-light-8: var(--rl-bad-bg);
+  --el-color-error: var(--rl-bad);
+  --el-color-error-light-9: var(--rl-bad-bg);
+  --el-color-error-light-8: var(--rl-bad-bg);
+  --el-color-info: var(--rl-info);
+  --el-color-info-light-9: var(--rl-info-bg);
+  --el-color-info-light-8: var(--rl-info-bg);
+
+  /* Element Plus: type, shape, layers */
+  --el-font-size-base: 14px;
+  --el-font-size-small: 13px;
+  --el-font-size-extra-small: 12px;
+  --el-border-radius-base: 6px;
+  --el-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --el-bg-color: var(--rl-surface);
+  --el-bg-color-page: var(--rl-bg);
+  --el-bg-color-overlay: var(--rl-surface);
+  --el-fill-color-blank: var(--rl-surface);
+  --el-fill-color-light: var(--rl-surface-2);
+  --el-fill-color: var(--rl-surface-2);
+  --el-text-color-primary: var(--rl-fg);
+  --el-text-color-regular: var(--rl-fg);
+  --el-text-color-secondary: var(--rl-muted);
+  --el-text-color-placeholder: #71717a;
+  --el-border-color: var(--rl-line-strong);
+  --el-border-color-light: var(--rl-line);
+  --el-border-color-lighter: var(--rl-line);
+  --el-border-color-extra-light: var(--rl-line);
+  --el-table-header-bg-color: var(--rl-surface-2);
+  --el-table-row-hover-bg-color: var(--rl-surface-2);
+  --el-box-shadow: none;
+  --el-box-shadow-light: none;
+}
+
+html.dark:root {
+  color-scheme: dark;
+
+  --rl-bg: #111113;
+  --rl-surface: #18181b;
+  --rl-surface-2: #222225;
+  --rl-line: #313135;
+  --rl-line-strong: #45454a;
+  --rl-fg: #f2f2f2;
+  --rl-muted: #a4a4ad;
+
+  --rl-ok: #64d88f;
+  --rl-ok-bg: #171f1c;
+  --rl-warn: #f5b547;
+  --rl-warn-bg: #221d17;
+  --rl-bad: #f76e6e;
+  --rl-bad-bg: #221417;
+  --rl-info: #77a9f8;
+  --rl-info-bg: #141924;
+  --rl-neutral: #a4a4ad;
+  --rl-neutral-bg: #222225;
+
+  --el-color-primary: #818cf8;
+  --el-color-primary-light-3: #6269b6;
+  --el-color-primary-light-5: #4c528a;
+  --el-color-primary-light-7: #383b5d;
+  --el-color-primary-light-8: #2d2f47;
+  --el-color-primary-light-9: #222431;
+  --el-color-primary-dark-2: #9aa3f9;
+
+  --el-color-success: var(--rl-ok);
+  --el-color-success-light-9: var(--rl-ok-bg);
+  --el-color-success-light-8: var(--rl-ok-bg);
+  --el-color-warning: var(--rl-warn);
+  --el-color-warning-light-9: var(--rl-warn-bg);
+  --el-color-warning-light-8: var(--rl-warn-bg);
+  --el-color-danger: var(--rl-bad);
+  --el-color-danger-light-9: var(--rl-bad-bg);
+  --el-color-danger-light-8: var(--rl-bad-bg);
+  --el-color-error: var(--rl-bad);
+  --el-color-error-light-9: var(--rl-bad-bg);
+  --el-color-error-light-8: var(--rl-bad-bg);
+  --el-color-info: var(--rl-info);
+  --el-color-info-light-9: var(--rl-info-bg);
+  --el-color-info-light-8: var(--rl-info-bg);
+
+  --el-font-size-base: 14px;
+  --el-font-size-small: 13px;
+  --el-font-size-extra-small: 12px;
+  --el-border-radius-base: 6px;
+  --el-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --el-bg-color: var(--rl-surface);
+  --el-bg-color-page: var(--rl-bg);
+  --el-bg-color-overlay: var(--rl-surface);
+  --el-fill-color-blank: var(--rl-surface);
+  --el-fill-color-light: var(--rl-surface-2);
+  --el-fill-color: var(--rl-surface-2);
+  --el-text-color-primary: var(--rl-fg);
+  --el-text-color-regular: var(--rl-fg);
+  --el-text-color-secondary: var(--rl-muted);
+  --el-text-color-placeholder: #8b8b94;
+  --el-border-color: var(--rl-line-strong);
+  --el-border-color-light: var(--rl-line);
+  --el-border-color-lighter: var(--rl-line);
+  --el-border-color-extra-light: var(--rl-line);
+  --el-table-header-bg-color: var(--rl-surface-2);
+  --el-table-row-hover-bg-color: var(--rl-surface-2);
+  --el-box-shadow: none;
+  --el-box-shadow-light: none;
+}
+
+/* The light indigo of dark mode needs dark text on a filled button. */
+html.dark .el-button--primary,
+html.dark .el-button--danger {
+  --el-button-text-color: #0b0b12;
+  --el-button-hover-text-color: #0b0b12;
+  --el-button-active-text-color: #0b0b12;
+}
+
+body {
+  margin: 0;
+  background: var(--rl-bg);
+  color: var(--rl-fg);
+  font: 14px/1.5 var(--el-font-family);
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Element Plus draws the tick of a selected option in a multiple select with a mask made from a data:image/svg+xml
+ * URL, which the CSP (no img-src, so 'self') blocks. Draw the same tick with borders instead.
+ */
+.el-select-dropdown.is-multiple .el-select-dropdown__item.is-selected::after {
+  -webkit-mask: none;
+  mask: none;
+  background: transparent;
+  width: 5px;
+  height: 10px;
+  border: solid var(--el-color-primary);
+  border-width: 0 2px 2px 0;
+  transform: translateY(-65%) rotate(45deg);
+}
+
+/* One focus ring for everything that takes the keyboard. */
+:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+/* Numbers in tables and strips: tabular figures, right aligned by the table wrapper. */
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Visually hidden, still read by screen readers and still focusable text (clipboard fallback helper). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

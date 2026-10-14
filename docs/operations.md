@@ -16,6 +16,7 @@ the right image on the Mac (arm64) and on the box (amd64). Recorded 2026-10-01.
 | `pgsty/minio:RELEASE.2026-08-04T00-00-00Z` | `deploy/compose.yml`, `deploy/compose.check.yml` | `sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372` |
 | `python:3.13-slim` | `deploy/Dockerfile` | `sha256:7c61056e61ac89e852de05f3dc6fa51a6dd2181797bceed46aa725dd7cb2cd3b` |
 | `ghcr.io/astral-sh/uv:0.9` | `deploy/Dockerfile` | `sha256:538e0b39736e7feae937a65983e49d2ab75e1559d35041f9878b7b7e51de91e4` |
+| `node:24-slim` | `deploy/Dockerfile` (web stages, on demand) | `sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20` |
 
 `tests/test_deploy.py` fails on any image in these files that has no digest (images built here, `relay-*`, excepted).
 A pin moves only by a deliberate edit of every place above, of `scripts/restore-images.sh` and of this table.

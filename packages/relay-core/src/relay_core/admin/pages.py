@@ -7,6 +7,7 @@ and never change while the app runs. Only the names found in `static/` are serve
 other path.
 """
 
+import re
 from pathlib import Path
 
 from fastapi import APIRouter
@@ -16,7 +17,12 @@ from relay_core.admin.router import CSP
 from relay_core.api.errors_http import ApiError
 
 STATIC = Path(__file__).parent / "static"
-PAGES = {"/login": "login.html", "/manage": "manage.html", "/reference": "reference.html"}
+# Which admin the pages serve. False: the hand-written pages (`/manage`, `/login`, the old redirects). True: the Vue
+# app built into static/app/ (`/manage` is its entry, `/login` and `/test` are routes inside it). The app is reachable
+# either way at /ui/app/index.html; flipping this is the switch of the cut-over.
+NEW_ADMIN = False
+APP_ENTRY = "app/index.html"
+LEGACY_PAGES = {"/login": "login.html", "/manage": "manage.html"}
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
          ".css": "text/css; charset=utf-8", ".txt": "text/plain; charset=utf-8"}
 HEADERS = {"Content-Security-Policy": CSP, "X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"}
@@ -25,34 +31,64 @@ HEADERS = {"Content-Security-Policy": CSP, "X-Content-Type-Options": "nosniff", 
 REFERENCE_CSP = CSP.replace("script-src 'self';", "script-src 'self'; style-src 'self' 'unsafe-inline';")
 REFERENCE_HEADERS = {**HEADERS, "Content-Security-Policy": REFERENCE_CSP}
 
-router = APIRouter(include_in_schema=False)
-_FILES = {p.relative_to(STATIC).as_posix(): p.read_bytes() for p in STATIC.rglob("*")
-          if p.is_file() and p.suffix in TYPES}
+# Vite names every built asset `<name>-<8 character content hash>.<ext>`; only those are cached for good.
+IMMUTABLE = re.compile(r"app/assets/.+-[A-Za-z0-9_-]{8}\.[a-z0-9]+")
+IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
+
+
+def _load(static: Path) -> dict[str, bytes]:
+    """The served files, read once. A package without the built app fails here, at import, not at the first request."""
+    files = {p.relative_to(static).as_posix(): p.read_bytes() for p in static.rglob("*")
+             if p.is_file() and p.suffix in TYPES}
+    if APP_ENTRY not in files:
+        raise RuntimeError("the admin web is not built: %s is missing in %s (run scripts/web.sh build)"
+                           % (APP_ENTRY, static))
+    return files
+
+
+_FILES = _load(STATIC)
 
 
 def _serve(name: str, headers: dict[str, str] = HEADERS) -> Response:
     body = _FILES.get(name)
     if body is None:
         raise ApiError("resource.not_found")
+    if IMMUTABLE.fullmatch(name):
+        headers = {**headers, "Cache-Control": IMMUTABLE_CACHE}
     return Response(body, media_type=TYPES[Path(name).suffix], headers=headers)
 
 
-for _path, _name in PAGES.items():
-    _headers = REFERENCE_HEADERS if _path == "/reference" else HEADERS
-    router.add_api_route(_path, lambda name=_name, headers=_headers: _serve(name, headers), methods=["GET"])
+def build_router(new_admin: bool) -> APIRouter:
+    """The page routes for one position of the switch (NEW_ADMIN). The tests build both."""
+    router = APIRouter(include_in_schema=False)
+    pages = {"/manage": APP_ENTRY} if new_admin else LEGACY_PAGES
+    for _path, _name in {**pages, "/reference": "reference.html"}.items():
+        _headers = REFERENCE_HEADERS if _path == "/reference" else HEADERS
+        router.add_api_route(_path, lambda name=_name, headers=_headers: _serve(name, headers), methods=["GET"])
+
+    @router.get("/")
+    async def root() -> RedirectResponse:
+        return RedirectResponse("/manage", headers=HEADERS)
+
+    if new_admin:
+        @router.get("/login")
+        async def login_page() -> RedirectResponse:
+            return RedirectResponse("/manage#/login", headers=HEADERS)
+
+        @router.get("/test")
+        async def test_page() -> RedirectResponse:
+            return RedirectResponse("/manage#/test", headers=HEADERS)
+    else:
+        @router.get("/test")
+        async def test_page() -> RedirectResponse:
+            """The model test is a tab of the dashboard now; old links keep working."""
+            return RedirectResponse("/manage#test", headers=HEADERS)
+
+    @router.get("/ui/{name:path}")
+    async def asset(name: str) -> Response:
+        return _serve(name)
+
+    return router
 
 
-@router.get("/")
-async def root() -> RedirectResponse:
-    return RedirectResponse("/manage", headers=HEADERS)
-
-
-@router.get("/test")
-async def test_page() -> RedirectResponse:
-    """The model test is a tab of the dashboard now; old links keep working."""
-    return RedirectResponse("/manage#test", headers=HEADERS)
-
-
-@router.get("/ui/{name:path}")
-async def asset(name: str) -> Response:
-    return _serve(name)
+router = build_router(NEW_ADMIN)

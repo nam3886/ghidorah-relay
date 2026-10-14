@@ -1,0 +1,92 @@
+<script setup lang="ts">
+import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import { ApiError } from "@/api/client";
+import { getMe } from "@/api/shell";
+import { errorText } from "@/lib/errors";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
+const router = useRouter();
+
+const username = ref("");
+const password = ref("");
+const busy = ref(false);
+const error = ref("");
+
+async function submit(): Promise<void> {
+  busy.value = true;
+  error.value = "";
+  try {
+    await auth.login(username.value, password.value);
+    await router.replace({ name: "jobs" });
+  } catch (err) {
+    error.value = err instanceof ApiError && err.status === 401 ? "Wrong username or password" : errorText(err);
+  } finally {
+    busy.value = false;
+  }
+}
+
+// Already signed in: go straight to the dashboard. A dead token is dropped instead.
+onMounted(async () => {
+  if (!auth.token) return;
+  try {
+    await getMe(true);
+    await router.replace({ name: "jobs" });
+  } catch {
+    auth.signOut();
+  }
+});
+</script>
+
+<template>
+  <main class="login-page">
+    <el-card class="login-card" shadow="never">
+      <h1 class="login-brand">relay</h1>
+      <el-form label-position="top" @submit.prevent="submit">
+        <el-form-item label="Username">
+          <el-input v-model="username" name="username" autocomplete="username" :maxlength="64" autofocus />
+        </el-form-item>
+        <el-form-item label="Password">
+          <el-input
+            v-model="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            :maxlength="256"
+            show-password
+          />
+        </el-form-item>
+        <el-alert v-if="error" class="login-error" type="error" :closable="false" show-icon :title="error" />
+        <el-button type="primary" native-type="submit" :loading="busy" class="login-submit">
+          {{ busy ? "Signing in..." : "Sign in" }}
+        </el-button>
+      </el-form>
+    </el-card>
+  </main>
+</template>
+
+<style scoped>
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.login-card {
+  width: 360px;
+  max-width: 100%;
+}
+.login-brand {
+  margin: 0 0 16px;
+  font-size: 24px;
+  font-weight: 600;
+}
+.login-error {
+  margin-bottom: 12px;
+}
+.login-submit {
+  width: 100%;
+}
+</style>

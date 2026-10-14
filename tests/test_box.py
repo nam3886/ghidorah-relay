@@ -2,12 +2,18 @@
 sent to the box. ssh and rsync are replaced by stubs that record their calls, so nothing here needs the box; the
 parts that do (a real sync, a detached run, the lock) are shown by the commands in the box-runner report."""
 
+import fcntl
 import os
 import re
+import shutil
+import signal
 import stat
 import subprocess
 import textwrap
+import time
 from pathlib import Path
+
+import pytest
 
 from relay_core.testing.mutation import mutation
 
@@ -27,7 +33,9 @@ case "$*" in
     if [ -n "${STUB_FP:-}" ]; then echo "$STUB_FP"; else python3 -c "$code" "$STUB_TREE"; fi ;;
   *"test ! -e relay-deploy/live-window"*) exit "${STUB_LIVE:-0}" ;;   # 1 = the marker file exists
   *"compose.project=relay)"*) exit "${STUB_PROD:-11}" ;;     # 10 = production is up, 11 = none, else an error
-  *"gate.lock true"*) exit "${STUB_GATE_BUSY:-0}" ;;
+  *"gate.lock true"*)
+    if [ -n "${STUB_REAL_LOCKS:-}" ]; then all="$*"; cd "@DIR@" && bash -c "${all#*@192.168.18.227 }"; exit $?; fi
+    exit "${STUB_GATE_BUSY:-0}" ;;
   *"busy/"*".lock true"*) exit "${STUB_FOLDER_BUSY:-0}" ;;       # is the folder free? (0 = free)
   *"cat relay-runs/busy/"*".info"*) echo "${STUB_INFO:-}" ;;
   *"bash -ls"*) cat > "@DIR@/ran.sh" ;;
@@ -130,6 +138,15 @@ def test_mutate_cmd_is_never_passed_to_a_run(tmp_path):
             "MUTATE_CMD was passed: %r" % (args,)
 
 
+@mutation(BOX, 'case "$word" in *WEB_CHECK_CMD*)', 'case "$word" in *WEB_CHECK_CMDX*)',
+          expect="WEB_CHECK_CMD was passed")
+def test_web_check_cmd_is_never_passed_to_a_run(tmp_path):
+    box = Box(tmp_path)
+    run = box.run("--", "WEB_CHECK_CMD=true", "./scripts/check.sh")
+    assert run.returncode == 2 and "WEB_CHECK_CMD is never passed" in run.stderr and box.calls() == "", \
+        "WEB_CHECK_CMD was passed"
+
+
 @mutation(BOX, '[ -z "$real_env" ] ||', "true ||", expect="a tree with a real env file was synced")
 def test_a_tree_with_a_real_env_file_is_refused_before_anything_is_sent(tmp_path):
     for where in ("deploy/prod.env", ".env", "deploy/.env", "sub/dir/secret.env"):
@@ -151,7 +168,7 @@ def test_the_sync_deletes_what_is_gone_and_leaves_out_git_venv_caches_and_env_fi
     rsync = next(line for line in box.calls().splitlines() if line.startswith("RSYNC: "))
     assert " --delete " in rsync, "rsync did not delete what the Mac deleted: " + rsync
     for pattern in (".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".mutate.lock",
-                    "deploy/.env", "deploy/*.env", "._*", ".DS_Store"):
+                    "deploy/.env", "deploy/*.env", "._*", ".DS_Store", "node_modules"):
         assert "--exclude=%s " % pattern in rsync, "the exclude list lost %s: %s" % (pattern, rsync)
     assert rsync.endswith("%s/ phuongnam@192.168.18.227:relay-runs/proj/" % box.tree), rsync
     assert "relay-secrets" not in box.calls()
@@ -212,7 +229,8 @@ def test_the_fingerprint_ignores_what_the_sync_leaves_out_and_sees_everything_el
     box = Box(tmp_path)
     base = fingerprint(box)
     for rel in (".venv/lib/x.py", "__pycache__/m.pyc", "sub/.pytest_cache/n", ".ruff_cache/r", ".mutate.lock",
-                "deploy/.env", "deploy/local.env", "._a.txt", ".DS_Store", "sub/.git"):
+                "deploy/.env", "deploy/local.env", "._a.txt", ".DS_Store", "sub/.git",
+                "node_modules/x/y.js", "apps/web/node_modules/p.js"):
         path = box.tree / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("noise\n", encoding="utf-8")
@@ -242,17 +260,20 @@ GATE = ("--", "./scripts/check.sh", "--full")
           expect="a whole-tree gate did not take the lock")
 @mutation(BOX, "MUTATE_ONLY=*) others=1 ;;", "MUTATE_ONLY=*) ;;", expect="a narrowed run took the gate lock")
 @mutation(BOX, '*) [ "$seen" = 1 ] && others=1 ;;', "*) ;;", expect="a narrowed run took the gate lock")
-def test_only_a_whole_tree_gate_takes_the_lock(tmp_path):
+def test_only_a_whole_tree_gate_takes_the_lock_exclusive_and_every_other_run_takes_it_shared(tmp_path):
     gate = Box(tmp_path / "gate")
     assert gate.run(*GATE, "--local").returncode == 0
-    assert "gate.lock true" in gate.calls() and "flock -n 9" in (gate.dir / "ran.sh").read_text(), \
+    assert "flock -x -n relay-runs/gate.lock true" in gate.calls() \
+        and "flock -x -n 9" in (gate.dir / "ran.sh").read_text(), \
         "a whole-tree gate did not take the lock"
     for narrowed in (("--", "MUTATE_ONLY=test_x", "./scripts/check.sh", "--full"),
                      ("--", "./scripts/check.sh", "--full", "packages/x/tests/test_y.py"),
                      ("--", "./scripts/check.sh", "tests/test_y.py"), ("--", "uv", "run", "ruff", "check", ".")):
         box = Box(tmp_path / ("n%d" % abs(hash(narrowed))))
         assert box.run(*narrowed).returncode == 0
-        assert "gate.lock" not in box.calls() and "flock -n 9" not in (box.dir / "ran.sh").read_text(), \
+        script = (box.dir / "ran.sh").read_text()
+        assert "flock -s -n relay-runs/gate.lock true" in box.calls() and "flock -s -n 9" in script \
+            and "flock -x" not in script and "flock -x" not in box.calls(), \
             "a narrowed run took the gate lock: %r" % (narrowed,)
 
 
@@ -268,14 +289,15 @@ def test_a_gate_wrapped_in_a_shell_takes_the_lock_like_a_plain_one_and_a_wrapped
                                  ("--", "sh", "-c", "export A=1\n./scripts/check.sh --full; echo done"))):
         box = Box(tmp_path / ("w%d" % n))
         assert box.run(*wrapped).returncode == 0
-        assert "gate.lock true" in box.calls() and "flock -n 9" in (box.dir / "ran.sh").read_text(), \
+        assert "flock -x -n relay-runs/gate.lock true" in box.calls() \
+            and "flock -x -n 9" in (box.dir / "ran.sh").read_text(), \
             "a wrapped whole-tree gate did not take the lock: %r" % (wrapped,)
     for n, narrowed in enumerate((("--", "bash", "-c", "MUTATE_ONLY=test_x ./scripts/check.sh --full"),
                                   ("--", "bash", "-c", "./scripts/check.sh --full tests/test_y.py | cat"),
                                   ("--", "bash", "-c", "./scripts/check.sh --soak | cat"))):
         box = Box(tmp_path / ("x%d" % n))
         assert box.run(*narrowed).returncode == 0
-        assert "gate.lock" not in box.calls() and "flock -n 9" not in (box.dir / "ran.sh").read_text(), \
+        assert "flock -x" not in box.calls() and "flock -x" not in (box.dir / "ran.sh").read_text(), \
             "a wrapped narrowed run took the gate lock: %r" % (narrowed,)
 
 
@@ -284,20 +306,176 @@ def test_a_gate_wrapped_in_a_shell_takes_the_lock_like_a_plain_one_and_a_wrapped
 def test_the_words_after_the_pipe_of_a_wrapped_gate_are_not_test_paths(tmp_path):
     box = Box(tmp_path / "pipe")
     assert box.run("--", "bash", "-c", "./scripts/check.sh --full | tee out.log").returncode == 0
-    assert "flock -n 9" in (box.dir / "ran.sh").read_text(), "the words after the gate's pipe counted as test paths"
+    assert "flock -x -n 9" in (box.dir / "ran.sh").read_text(), "the words after the gate's pipe counted as test paths"
 
 
-@mutation(BOX, 'wait for it" 75', 'wait for it" 0', expect="a second gate was not refused")
-def test_a_second_whole_tree_gate_is_refused_while_the_lock_is_held(tmp_path):
+@mutation(BOX, 'wait for it" 75', 'wait for it" 0', expect="a gate was not refused")
+@mutation(BOX, 'until it ends" 75', 'until it ends" 0', expect="a run was not refused while a gate runs")
+def test_a_refused_lock_check_stops_a_gate_and_any_other_run_with_exit_75_before_anything_is_synced(tmp_path):
     box = Box(tmp_path)
     for mode in (GATE, ("--detach", "g1") + GATE):
         run = box.run(*mode, STUB_GATE_BUSY="1")
-        assert run.returncode == 75 and "already running" in run.stderr, \
-            "a second gate was not refused: %r -> %d" % (mode, run.returncode)
-    assert not (box.dir / "ran.sh").exists() and not (box.dir / "detached.sh").exists()
+        assert run.returncode == 75 and "needs the box to itself" in run.stderr, \
+            "a gate was not refused: %r -> %d" % (mode, run.returncode)
+    for mode in (("--", "true"), ("--detach", "n1", "--", "true")):
+        run = box.run(*mode, STUB_GATE_BUSY="1")
+        assert run.returncode == 75 and "a whole-tree gate is running" in run.stderr, \
+            "a run was not refused while a gate runs: %r -> %d" % (mode, run.returncode)
+    assert not (box.dir / "ran.sh").exists() and not (box.dir / "detached.sh").exists() and "RSYNC" not in box.calls()
 
 
-@mutation(BOX, "echo 'unset MUTATE_CMD'", "echo ':'", expect="the run script does not unset MUTATE_CMD")
+# ---- the lock itself, for real: the script box.sh would run on the box is run here, against lock files under HOME ----
+
+FAKE_CHECK = '#!/usr/bin/env bash\ntouch "$HOME/started-$(basename "$PWD")"\nexec sleep "${HOLD:-60}"\n'
+HOLD_FOR_A_MINUTE = ("--", "bash", "-c", 'touch "$HOME/started-$(basename "$PWD")"; exec sleep 60')
+
+
+class Runs:
+    """Runs of scripts/box.sh that really hold or test ~/relay-runs/gate.lock (flock needs Linux: on the Mac these
+    tests fail rather than skip, the box is where they run, D95). Every started run is stopped at the end."""
+
+    def __init__(self, tmp_path: Path):
+        self.box = Box(tmp_path, {"scripts/check.sh": FAKE_CHECK})
+        (self.box.tree / "scripts/check.sh").chmod(0o755)
+        self.procs: list[subprocess.Popen] = []
+        assert shutil.which("flock"), "flock is not installed: these tests run on the box"
+
+    def script(self, tree: str, *args: str) -> tuple[subprocess.CompletedProcess, Path | None]:
+        """box.sh with real lock checks: its result and the script it would send to the box (None if refused)."""
+        (self.box.dir / "ran.sh").unlink(missing_ok=True)
+        run = self.box.run("--tree", tree, *args, STUB_REAL_LOCKS="1")
+        if run.returncode != 0:
+            return run, None
+        path = self.box.dir / ("ran-%s.sh" % tree)
+        shutil.copy(self.box.dir / "ran.sh", path)
+        shutil.copytree(self.box.tree, self.box.dir / "relay-runs" / tree, ignore=shutil.ignore_patterns(".git"),
+                        dirs_exist_ok=True)
+        return run, path
+
+    def start(self, path: Path) -> subprocess.Popen:
+        env = {"PATH": os.environ["PATH"], "HOME": str(self.box.dir)}
+        proc = subprocess.Popen(["bash", str(path)], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, start_new_session=True)
+        self.procs.append(proc)
+        return proc
+
+    def hold(self, tree: str, *args: str) -> subprocess.Popen:
+        """Start a run that keeps running, and wait until its command has started (so it holds the lock)."""
+        run, path = self.script(tree, *args)
+        assert path is not None, "the holder was refused: " + run.stderr
+        proc = self.start(path)
+        started = self.box.dir / ("started-%s" % tree)
+        for _ in range(150):
+            if started.exists():
+                return proc
+            assert proc.poll() is None, "the holder ended: " + proc.stderr.read()
+            time.sleep(0.1)
+        raise AssertionError("the holder never started its command")
+
+    def finish(self, proc: subprocess.Popen) -> tuple[int, str]:
+        out, err = proc.communicate(timeout=30)
+        return proc.returncode, err
+
+    def stop(self, proc: subprocess.Popen, sig: int = signal.SIGKILL) -> None:
+        try:
+            os.killpg(proc.pid, sig)
+        except ProcessLookupError:
+            pass
+        proc.wait(timeout=30)
+
+    def lock_state(self) -> tuple[bool, bool]:
+        """(an exclusive lock can be taken now, a shared one can): of gate.lock, as another process would see it."""
+        results = []
+        for kind in (fcntl.LOCK_EX, fcntl.LOCK_SH):
+            with open(self.box.dir / "relay-runs" / "gate.lock", "a") as fh:
+                try:
+                    fcntl.flock(fh, kind | fcntl.LOCK_NB)
+                    results.append(True)
+                except BlockingIOError:
+                    results.append(False)
+        return results[0], results[1]
+
+
+@pytest.fixture
+def runs(tmp_path):
+    r = Runs(tmp_path)
+    yield r
+    for proc in r.procs:
+        r.stop(proc)
+
+
+@mutation(BOX, '[ "$is_gate" = 0 ] || lock_flag=-x', '[ "$is_gate" = 0 ] || lock_flag=-s',
+          expect="a whole-tree gate was not refused by the early check")
+@mutation(BOX, "flock -x -n 9 ||", "flock -s -n 9 ||", expect="a whole-tree gate was not refused by its own lock")
+@mutation(BOX, "echo 'exec 9>\"$HOME/'\"$RUNS\"'/gate.lock\"'", "echo ':'", expect="the holder ended")
+def test_a_whole_tree_gate_is_refused_while_a_narrowed_run_holds_the_lock_and_runs_when_it_ended(runs):
+    run, prepared = runs.script("g", "--", "HOLD=0", "./scripts/check.sh", "--full")   # made while the lock is free
+    assert run.returncode == 0 and prepared is not None, run.stderr
+    narrowed = runs.hold("n1", *HOLD_FOR_A_MINUTE)
+    assert runs.lock_state() == (False, True), "a run took no lock"
+    early, none = runs.script("g", "--", "./scripts/check.sh", "--full")
+    assert none is None and early.returncode == 75 and "needs the box to itself" in early.stderr, \
+        "a whole-tree gate was not refused by the early check: %d %r" % (early.returncode, early.stderr)
+    rc, err = runs.finish(runs.start(prepared))
+    assert rc == 75 and "needs the box to itself" in err, \
+        "a whole-tree gate was not refused by its own lock: %d %r" % (rc, err)
+    runs.stop(narrowed, signal.SIGTERM)
+    # negative control: the same gate, with nobody holding the lock, runs to its end
+    run, path = runs.script("g", "--", "HOLD=0", "./scripts/check.sh", "--full")
+    assert run.returncode == 0 and path is not None, run.stderr
+    assert runs.finish(runs.start(path))[0] == 0, "the control gate did not run"
+
+
+@mutation(BOX, "flock -s -n 9 ||", "true ||", expect="a narrowed run was not refused by its own lock")
+def test_a_narrowed_run_is_refused_while_a_whole_tree_gate_holds_the_lock_and_runs_when_it_ended(runs):
+    run, prepared = runs.script("n1", "--", "true")                                    # made while the lock is free
+    assert run.returncode == 0 and prepared is not None, run.stderr
+    gate = runs.hold("g", "--", "./scripts/check.sh", "--full")
+    assert runs.lock_state() == (False, False), "a gate holds the lock exclusive"
+    for args in (("--", "true"), ("--detach", "d1", "--", "true")):
+        early, none = runs.script("n2", *args)
+        assert none is None and early.returncode == 75 and "a whole-tree gate is running" in early.stderr, \
+            "a narrowed run was not refused by the early check: %r %d %r" % (args, early.returncode, early.stderr)
+    rc, err = runs.finish(runs.start(prepared))
+    assert rc == 75 and "a whole-tree gate is running" in err, \
+        "a narrowed run was not refused by its own lock: %d %r" % (rc, err)
+    runs.stop(gate, signal.SIGTERM)
+    run, path = runs.script("n3", "--", "true")                                        # negative control
+    assert run.returncode == 0 and path is not None, run.stderr
+    assert runs.finish(runs.start(path))[0] == 0, "the control run did not run"
+
+
+@mutation(BOX, "lock_flag=-s\n", "lock_flag=-x\n", expect="two narrowed runs were refused")
+@mutation(BOX, "flock -s -n 9 ||", "flock -x -n 9 ||", expect="two narrowed runs were refused")
+def test_two_narrowed_runs_in_different_folders_hold_the_lock_together(runs):
+    first = runs.hold("n1", *HOLD_FOR_A_MINUTE)
+    run, path = runs.script("n2", *HOLD_FOR_A_MINUTE)
+    assert path is not None, "two narrowed runs were refused: %d %r" % (run.returncode, run.stderr)
+    second = runs.start(path)
+    time.sleep(1.5)                                  # a refused run ends at once with 75; a running one is still there
+    assert first.poll() is None and second.poll() is None, "two narrowed runs were refused: " + str(second.poll())
+    assert runs.lock_state() == (False, True), "two narrowed runs were refused: the lock is not shared"
+    # negative control: a third run in the first folder is refused by the folder lock, not by gate.lock
+    third, _ = runs.script("n1", "--", "true")
+    assert third.returncode in (0, 76), third.stderr   # the stub answers the folder check; gate.lock never says 75
+    assert third.returncode != 75, "gate.lock refused a shared run"
+
+
+def test_the_lock_dies_with_the_process_that_holds_it(runs):
+    gate = runs.hold("g", "--", "./scripts/check.sh", "--full")
+    assert runs.lock_state() == (False, False)
+    runs.stop(gate)                                   # SIGKILL: no trap, no clean-up code runs
+    assert runs.lock_state() == (True, True), "a killed gate still holds the lock"
+    narrowed = runs.hold("n1", *HOLD_FOR_A_MINUTE)
+    assert runs.lock_state() == (False, True)
+    runs.stop(narrowed)
+    assert runs.lock_state() == (True, True), "a killed narrowed run still holds the lock"
+    run, path = runs.script("g2", "--", "HOLD=0", "./scripts/check.sh", "--full")
+    assert run.returncode == 0 and path is not None and runs.finish(runs.start(path))[0] == 0, \
+        "a gate was refused after the holders were killed: " + run.stderr
+
+
+@mutation(BOX, "echo 'unset MUTATE_CMD WEB_CHECK_CMD'", "echo ':'", expect="the run script does not unset MUTATE_CMD")
 def test_the_script_run_on_the_box_enters_the_tree_clears_mutate_cmd_and_runs_the_quoted_command(tmp_path):
     box = Box(tmp_path)
     assert box.run("--", "sh", "-c", "echo 'a b'; exit 3", "x y", "MARK=$HOME").returncode == 0

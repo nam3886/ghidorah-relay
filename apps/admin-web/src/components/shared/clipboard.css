@@ -1,0 +1,8 @@
+/* The hidden textarea of the execCommand copy path. A class in a same-origin stylesheet: the CSP allows that, and
+   blocks a style attribute written as markup. */
+.clipboard-scratch {
+  position: fixed;
+  top: 0;
+  left: -9999px;
+  opacity: 0;
+}

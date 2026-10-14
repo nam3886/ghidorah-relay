@@ -4,6 +4,8 @@ same `db` handle the core tests use, and read back through the app."""
 
 import asyncio
 import importlib.util
+import json
+import re
 import sys
 import threading
 from pathlib import Path
@@ -85,3 +87,204 @@ def live(db, request):
     finally:
         box["server"].should_exit = True
         thread.join(30)
+
+
+# ---- the harness of the Vue admin (browser tier) ------------------------------------------------------------------
+# The new app is served from the same static folder, at the entry the build writes. Until the switch it is NOT what
+# /manage serves, so the tests open it by this one constant; the switch changes this line and nothing else.
+APP_URL = "/ui/app/index.html"
+ROUTES = ("jobs", "accounts", "keys", "logs", "alerts", "frames", "settings", "test")
+
+# Markup a hostile server string could carry: if it ever reached the DOM as HTML, the image would run its handler.
+PLANTED = "<img src=x onerror=window.__pwned=1><b>planted</b>"
+
+# An in-page recorder of the CSP violations of every document, injected before any page script runs. Each event is
+# kept in the page and also handed to Python at once through a binding, so a document that is replaced by a
+# navigation cannot take its violations with it.
+CSP_RECORDER_JS = """
+(() => {
+  const seen = (window.__cspViolations = window.__cspViolations || []);
+  document.addEventListener("securitypolicyviolation", (e) => {
+    const v = {directive: e.violatedDirective, blocked: e.blockedURI, source: e.sourceFile, line: e.lineNumber,
+               sample: e.sample, disposition: e.disposition, page: location.href};
+    seen.push(v);
+    try { window.__cspReport(JSON.stringify(v)); } catch (_) {}
+  }, true);
+})();
+"""
+
+
+class CspWatch:
+    """Watches a browser context for Content Security Policy violations on two independent channels, both registered
+    before any page exists, so the very first document is covered:
+      console: any console message that mentions the policy (what Chrome prints for a refused style or script);
+      page:    the `securitypolicyviolation` events, recorded in the page by an init script.
+    `check()` fails when either channel holds an entry. There is no way to clear or filter the entries: a test that
+    allows other console noise still fails on a CSP line."""
+
+    def __init__(self, context):
+        self._console: list[str] = []
+        self._reported: list[dict] = []
+        self._context = context
+        context.expose_function("__cspReport", lambda raw: self._reported.append(json.loads(raw)))
+        context.add_init_script(CSP_RECORDER_JS)
+        context.on("console", self._on_console)
+
+    def _on_console(self, message):
+        if "content security policy" in message.text.lower():
+            self._console.append("%s: %s" % (message.type, message.text))
+
+    def _in_page(self) -> list[dict]:
+        found = list(self._reported)
+        for page in self._context.pages:
+            try:
+                for entry in page.evaluate("window.__cspViolations || []", isolated_context=False):
+                    if entry not in found:
+                        found.append(entry)
+            except Exception:           # a page that is closing or mid-navigation: its events came through the binding
+                pass
+        return found
+
+    def entries(self) -> dict:
+        """A copy of what both channels hold now."""
+        return {"console": list(self._console), "page": self._in_page()}
+
+    def check(self) -> None:
+        got = self.entries()
+        assert not got["console"] and not got["page"], "Content Security Policy violations: %r" % (got,)
+
+    def watch(self, page):
+        """Make every navigation of `page` read both channels as soon as it settles."""
+        for name in ("goto", "reload", "go_back", "go_forward"):
+            original = getattr(page, name)
+
+            def checked(*args, _original=original, **kwargs):
+                result = _original(*args, **kwargs)
+                self.check()
+                return result
+
+            setattr(page, name, checked)
+        page.csp = self
+        return page
+
+
+def new_app_page(chrome, live, color_scheme: str = "light"):
+    """A fresh context and page for the Vue admin: CSP watch registered first, then the usual console and script error
+    list (`page.problems`, which a test may allow to hold a line it expects; the CSP entries are not in it)."""
+    context = chrome.new_context(base_url=live.url, viewport={"width": 1500, "height": 1000}, color_scheme=color_scheme)
+    context.grant_permissions(["clipboard-read", "clipboard-write"], origin=live.url)
+    watch = CspWatch(context)
+    page = watch.watch(context.new_page())
+    page.problems = []
+    page.on("pageerror", lambda e: page.problems.append("script error: %s" % e))
+    page.on("console", lambda m: page.problems.append("console %s: %s" % (m.type, m.text))
+            if m.type == "error" and "content security policy" not in m.text.lower() else None)
+    return context, page
+
+
+# Module scope: a session-wide driver keeps its event loop running and breaks every later `asyncio.run` in the session.
+@pytest.fixture(scope="module")
+def chrome():
+    from patchright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch(channel="chrome", headless=True)
+        yield browser
+        browser.close()
+
+
+@pytest.fixture
+def color_scheme():
+    """The OS colour scheme of the context; a test parametrizes it with "light" and "dark"."""
+    return "light"
+
+
+@pytest.fixture
+def app_page(chrome, live, color_scheme):
+    """A page for the Vue admin under the CSP watch. At the end the watch is read once more, and a script error or an
+    unexpected console error fails the test."""
+    context, page = new_app_page(chrome, live, color_scheme)
+    try:
+        yield page
+        page.csp.check()
+    finally:
+        context.close()
+    assert not page.problems, page.problems
+
+
+def sign_in_app(page, live, username=None, password=None) -> None:
+    """Sign in through the new app's own login view and wait for the dashboard."""
+    from patchright.sync_api import expect
+    page.goto(APP_URL + "#/login")
+    page.get_by_label("Username").fill(username or live.user)
+    page.get_by_label("Password").fill(password or live.password)
+    page.get_by_role("button", name="Sign in").click()
+    expect(page).to_have_url(re.compile(r"#/jobs$"))
+
+
+@pytest.fixture
+def app_session(app_page, live):
+    """`app_page`, signed in and on the Jobs route."""
+    sign_in_app(app_page, live)
+    return app_page
+
+
+def planted(db, scenario):
+    """jobkit's helpers run their own event loop; the browser driver already owns this thread's, so run them aside."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from jobkit import run
+    with ThreadPoolExecutor(1) as pool:
+        return pool.submit(run, db, scenario).result()
+
+
+@pytest.fixture
+def seeded(db):
+    """Rows for the shell tests, through the same helpers the API tests use (the fake provider): one done job, one
+    failed job, one dead and one disabled account beside an available one. Returns the counts."""
+    from accountkit import done_job, new_account
+    from jobkit import key as new_key
+    from test_admin_jobs import failed_job
+    k = new_key(db)
+    done_job(db, k, new_account(db, label="alive", checked=True))
+    planted(db, lambda p: failed_job(p, k, "one"))
+    new_account(db, label="gone", state="dead", checked=True)
+    new_account(db, label="off", state="disabled", checked=True)
+    return {"done": 1, "failed": 1, "dead": 1, "disabled": 1}
+
+
+def assert_planted_as_text(page, text: str = PLANTED) -> None:
+    """The planted markup is on the page as literal text and made no element and ran no handler. (`window` is the
+    page's own: patchright evaluates in an isolated world unless told otherwise.)"""
+    assert page.evaluate("window.__pwned", isolated_context=False) is None, "the planted handler ran"
+    assert page.locator("img[src='x']").count() == 0, "the planted markup became an element"
+    assert text in page.locator("body").inner_text(), "the planted text is not shown"
+
+
+class App:
+    """What a test of the Vue admin needs, as one fixture (`app`): test modules cannot import this conftest by name, so
+    the constants and helpers travel on the fixture. The module-scope `chrome` and the `live` server are its inputs."""
+
+    url = APP_URL
+    routes = ROUTES
+    planted = PLANTED
+
+    def __init__(self, chrome, live):
+        self._chrome, self._live = chrome, live
+
+    def new_page(self, color_scheme: str = "light"):
+        """(context, page) under a fresh CspWatch; the caller closes the context and reads `page.csp.check()`."""
+        return new_app_page(self._chrome, self._live, color_scheme)
+
+    def sign_in(self, page, username=None, password=None) -> None:
+        sign_in_app(page, self._live, username, password)
+
+    def run(self, db, scenario):
+        """Plant rows with a jobkit scenario (`failed_job(p, key, "x")` and the like) from inside a browser test."""
+        return planted(db, scenario)
+
+    assert_planted_as_text = staticmethod(assert_planted_as_text)
+
+
+@pytest.fixture
+def app(chrome, live):
+    return App(chrome, live)

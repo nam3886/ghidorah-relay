@@ -8,3 +8,4 @@ deploy/*.env
 ._*
 .DS_Store
 .mutate.lock
+node_modules/

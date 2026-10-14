@@ -1,0 +1,279 @@
+"""The shell of the Vue admin in Chrome against the real app (browser tier): the CSP watch and its proof, login, sign
+out, a stale token, the theme, the redirects, the stats strip and every route. Every test here runs under the watch of
+`conftest.CspWatch`: a Content Security Policy violation on either of its two channels fails the test, and no test can
+clear or filter one. The new app is opened by `app.url` until the switch makes `/manage` serve it."""
+
+import re
+
+import pytest
+from patchright.sync_api import expect
+
+from relay_core.admin.auth import LOGIN_MAX_FAILS
+
+pytestmark = pytest.mark.browser
+
+ROUTES = ("jobs", "accounts", "keys", "logs", "alerts", "frames", "settings", "test")
+WRONG = "Wrong username or password"
+
+
+def without_length(headers: dict) -> dict:
+    return {k: v for k, v in headers.items() if k.lower() != "content-length"}
+
+
+# ---- the CSP watch and its negative proof ---------------------------------------------------------------------------
+
+def test_the_csp_watch_fails_on_an_inline_style_and_an_inline_script_planted_before_startup(app):
+    context, page = app.new_page()
+    try:
+        def plant(route):
+            response = route.fetch()
+            assert response.headers.get("content-security-policy"), "the real CSP header is on the planted document"
+            planted = ('<style>body { color: red }</style><div style="color: red">x</div>'
+                       "<script>window.__ran = 1</script></head>")
+            route.fulfill(response=response, body=response.text().replace("</head>", planted, 1),
+                          headers=without_length(response.headers))
+
+        page.route("**/ui/app/index.html", plant)
+        with pytest.raises(AssertionError, match="Content Security Policy violations"):
+            page.goto(app.url)
+        got = page.csp.entries()
+        # each channel saw it on its own: the console lines and the in-page events are independent records
+        assert any("inline style" in line.lower() for line in got["console"]), got["console"]
+        assert any("inline script" in line.lower() for line in got["console"]), got["console"]
+        directives = " ".join(e["directive"] for e in got["page"])
+        assert "style-src" in directives and "script-src" in directives, got["page"]
+        assert page.evaluate("window.__ran", isolated_context=False) is None, "the planted script must not run"
+        with pytest.raises(AssertionError, match="Content Security Policy violations"):
+            page.csp.check()
+    finally:
+        context.close()
+
+
+def test_the_csp_watch_reads_a_violation_that_comes_after_the_last_navigation(app):
+    context, page = app.new_page()
+    try:
+        page.goto(app.url)
+        page.csp.check()                                        # a clean page passes the check
+        page.evaluate("document.body.setAttribute('style', 'color: red')", isolated_context=False)
+        got = page.csp.entries()
+        assert got["console"] and got["page"], got
+        with pytest.raises(AssertionError, match="Content Security Policy violations"):
+            page.csp.check()                                    # what the teardown of every test runs
+    finally:
+        context.close()
+
+
+def test_the_csp_watch_has_no_way_to_clear_or_filter_what_it_saw(app):
+    context, page = app.new_page()
+    try:
+        public = [n for n in dir(page.csp) if not n.startswith("_")]
+        assert sorted(public) == ["check", "entries", "watch"], public
+        page.goto(app.url)
+        page.evaluate("document.body.setAttribute('style', 'color: red')", isolated_context=False)
+        page.problems.clear()                                   # the allowance a test has for other console noise
+        with pytest.raises(AssertionError):
+            page.csp.check()
+        page.csp.entries()["console"].clear()                   # a copy: clearing it changes nothing
+        with pytest.raises(AssertionError):
+            page.csp.check()
+    finally:
+        context.close()
+
+
+# ---- login ----------------------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_login_wrong_password_says_so_and_the_right_one_lands_on_jobs(app, app_page, live, db, color_scheme):
+    page = app_page
+    page.goto(app.url + "#/login")
+    page.get_by_label("Username").fill(live.user)
+    page.get_by_label("Password").fill("wrong password")
+    page.get_by_role("button", name="Sign in").click()
+    expect(page.get_by_text(WRONG)).to_be_visible()
+    page.problems.clear()                                       # the 401 of a wrong password is a console line
+    app.sign_in(page)
+    assert page.evaluate("sessionStorage.getItem('relay_admin_token')"), "the token is in sessionStorage"
+    assert page.evaluate("sessionStorage.getItem('relay_admin_user')") == live.user
+    assert db.one("SELECT count(*) FROM admin_sessions")[0] == 1
+
+
+def test_login_shows_the_server_text_of_a_429(app, app_page, live, db):
+    db.run("INSERT INTO admin_login_attempts (ip) SELECT '127.0.0.1'::inet FROM generate_series(1, %s)",
+           LOGIN_MAX_FAILS)
+    page = app_page
+    page.goto(app.url + "#/login")
+    page.get_by_label("Username").fill(live.user)
+    page.get_by_label("Password").fill(live.password)              # even the right password is refused
+    page.get_by_role("button", name="Sign in").click()
+    expect(page.get_by_text("too many failed attempts; try again later")).to_be_visible()
+    expect(page).to_have_url(re.compile(r"#/login$"))
+    assert page.evaluate("sessionStorage.getItem('relay_admin_token')") is None
+    page.problems.clear()                                       # the 429 is a console line
+
+
+def test_an_already_signed_in_visit_to_login_skips_to_jobs(app, app_session):
+    page = app_session
+    page.goto(app.url + "#/login")
+    expect(page).to_have_url(re.compile(r"#/jobs$"))
+
+
+def test_a_stale_token_at_login_is_dropped_and_the_form_stays(app, app_page, live):
+    page = app_page
+    page.goto(app.url + "#/login")
+    page.evaluate("sessionStorage.setItem('relay_admin_token', 'not-a-session')")
+    page.reload()
+    expect(page.get_by_role("button", name="Sign in")).to_be_visible()
+    expect(page).to_have_url(re.compile(r"#/login$"))
+    assert page.evaluate("sessionStorage.getItem('relay_admin_token')") is None
+    page.problems.clear()                                       # the 401 of the check is a console line
+
+
+# ---- sign out and a stale token -------------------------------------------------------------------------------------
+
+def test_sign_out_ends_the_session_and_the_dashboard_then_needs_a_login(app, app_session, db):
+    page = app_session
+    page.evaluate("sessionStorage.setItem('relay_test_key', 'typed-key')")
+    page.get_by_role("button", name="Sign out").click()
+    expect(page).to_have_url(re.compile(r"#/login$"))
+    assert page.evaluate("sessionStorage.getItem('relay_admin_token')") is None
+    assert page.evaluate("sessionStorage.getItem('relay_admin_user')") is None
+    assert page.evaluate("sessionStorage.getItem('relay_test_key')") is None
+    assert db.one("SELECT count(*) FROM admin_sessions")[0] == 0
+    page.goto(app.url + "#/jobs")
+    expect(page).to_have_url(re.compile(r"#/login$"))
+
+
+def test_a_401_from_a_stale_token_clears_the_session_and_goes_to_login(app_session, db):
+    page = app_session
+    page.evaluate("sessionStorage.setItem('relay_test_key', 'typed-key')")
+    db.run("DELETE FROM admin_sessions")                         # the server forgets the session
+    page.get_by_role("tab", name=re.compile("Accounts")).click()  # any admin call now answers 401
+    expect(page).to_have_url(re.compile(r"#/login$"))
+    for key in ("relay_admin_token", "relay_admin_user", "relay_test_key"):
+        assert page.evaluate("sessionStorage.getItem(%r)" % key) is None, key
+    page.problems.clear()                                       # the 401 is a console line
+
+
+# ---- the theme ------------------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_the_theme_follows_the_os_before_the_bundle_runs_so_nothing_flashes(app, color_scheme):
+    context, page = app.new_page(color_scheme)
+    try:
+        page.route("**/ui/app/assets/**", lambda route: route.abort())      # no bundle: only theme-init.js can have run
+        page.goto(app.url)
+        is_dark = page.evaluate("document.documentElement.classList.contains('dark')")
+        assert is_dark is (color_scheme == "dark")
+        page.problems.clear()                                   # the aborted bundle is a console error
+    finally:
+        context.close()
+
+
+def test_a_stored_choice_beats_the_os_setting_before_the_bundle_runs(app):
+    context, page = app.new_page("dark")
+    try:
+        page.goto(app.url)
+        page.evaluate("localStorage.setItem('relay_admin_theme', 'light')")
+        page.route("**/ui/app/assets/**", lambda route: route.abort())
+        page.reload()
+        assert page.evaluate("document.documentElement.classList.contains('dark')") is False
+        page.problems.clear()
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_the_toggle_flips_the_theme_remembers_it_across_a_reload_and_both_themes_render(app_session, color_scheme):
+    page = app_session
+    html = page.locator("html")
+    start_dark = color_scheme == "dark"
+    if start_dark:
+        expect(html).to_have_class(re.compile("dark"))
+    else:
+        expect(html).not_to_have_class(re.compile("dark"))
+    page.get_by_role("button", name=re.compile("theme", re.I)).click()
+    if start_dark:
+        expect(html).not_to_have_class(re.compile("dark"))
+    else:
+        expect(html).to_have_class(re.compile("dark"))
+    assert page.evaluate("localStorage.getItem('relay_admin_theme')") == ("light" if start_dark else "dark")
+    page.reload()
+    assert page.evaluate("document.documentElement.classList.contains('dark')") is (not start_dark)
+    expect(page.get_by_role("button", name="Sign out")).to_be_visible()
+
+
+# ---- the redirects --------------------------------------------------------------------------------------------------
+
+def test_the_root_and_the_old_test_link_redirect_to_the_dashboard(live, app_page):
+    root = app_page.request.get(live.url + "/", max_redirects=0)
+    assert root.status == 307 and root.headers["location"] == "/manage"
+    old = app_page.request.get(live.url + "/test", max_redirects=0)
+    # until the switch the old dashboard keeps the bare hash; after it the target is the router's own hash form
+    assert old.status == 307 and old.headers["location"] in ("/manage#test", "/manage#/test"), old.headers["location"]
+
+
+def test_the_login_address_serves_the_login_or_redirects_to_its_route(live, app_page):
+    login = app_page.request.get(live.url + "/login", max_redirects=0)
+    assert login.status == 200 or (login.status == 307 and login.headers["location"] == "/manage#/login")
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_a_bare_tab_hash_of_an_old_bookmark_redirects_to_its_route(app, app_session, route):
+    page = app_session
+    page.goto(app.url + "#" + route)
+    page.reload()                                               # an old bookmark is a fresh load: the first navigation
+    expect(page).to_have_url(re.compile(r"#/%s$" % route))
+    expect(page.get_by_role("tab", selected=True)).to_have_count(1)
+
+
+def test_an_unknown_hash_lands_on_jobs(app, app_session):
+    page = app_session
+    page.goto(app.url + "#/no-such-tab")
+    page.reload()
+    expect(page).to_have_url(re.compile(r"#/jobs$"))
+
+
+# ---- the stats strip ------------------------------------------------------------------------------------------------
+
+def test_the_stats_strip_counts_what_is_planted_and_its_cells_link_to_the_filtered_tab(seeded, app_session):
+    page = app_session
+    strip = page.get_by_role("region", name="Totals")
+    expect(strip).to_be_visible()
+    for label in ("In progress", "Completed", "Failed", "Failed before a job", "Accounts ready", "Accounts dead",
+                  "Accounts disabled", "Videos made", "Images made"):
+        expect(strip.get_by_text(label).first).to_be_visible()
+    for cell, label, count in (("completed", "Completed", seeded["done"]), ("failed", "Failed", seeded["failed"]),
+                               ("accounts-dead", "Accounts dead", seeded["dead"]),
+                               ("accounts-disabled", "Accounts disabled", seeded["disabled"])):
+        expect(strip.get_by_test_id("stat-" + cell)).to_have_text(re.compile(r"%s\s*%d$" % (label, count)))
+    strip.get_by_test_id("stat-failed").click()
+    expect(page).to_have_url(re.compile(r"#/jobs\?status=failed$"))
+    strip.get_by_test_id("stat-accounts-dead").click()
+    expect(page).to_have_url(re.compile(r"#/accounts$"))
+
+
+def test_the_banner_shows_a_live_condition_and_opens_the_alerts_tab(app_session, db):
+    from accountkit import new_account
+    new_account(db, label="only", checked=True)                 # one usable account is below the limit of 3
+    page = app_session
+    page.reload()
+    banner = page.get_by_role("alert").filter(has_text="accounts_low")
+    expect(banner).to_be_visible()
+
+
+# ---- every route ----------------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_every_route_is_reachable_by_its_tab_and_by_its_address(app, app_session, color_scheme):
+    page = app_session
+    tabs = page.get_by_role("tab")
+    expect(tabs).to_have_count(len(ROUTES))
+    for route in ROUTES:
+        page.goto(app.url + "#/" + route)
+        expect(page).to_have_url(re.compile(r"#/%s$" % route))
+        expect(page.get_by_role("tab", selected=True)).to_have_count(1)
+        expect(page.get_by_role("main")).to_be_visible()
+    for index in range(len(ROUTES)):                             # and by a click on each tab
+        tabs.nth(index).click()
+        expect(page).to_have_url(re.compile(r"#/%s$" % ROUTES[index]))
+    page.csp.check()

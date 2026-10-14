@@ -20,6 +20,7 @@ package = false
 
 [tool.uv.workspace]
 members = ["packages/*", "apps/*"]
+exclude = ["apps/admin-web"]
 
 [tool.uv.sources]
 relay-core = { workspace = true }
@@ -47,6 +48,7 @@ testpaths = ["tests", "packages", "apps"]
 addopts = "-q --strict-markers"
 markers = [
     "browser: needs Google Chrome; runs in the --full gate: on the Mac with --local (D60), else in scripts/check-in-container.sh on the box (D33)",
+    "web_unit: runs Vitest specs of apps/admin-web in the web image (tests/webunit.py); only scripts/mutate.py runs these, by node id",
     "box: proves the box image (Linux Chrome .deb, Xvfb, entry script); runs only in scripts/check-in-container.sh",
 ]
 

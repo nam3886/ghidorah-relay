@@ -9,3 +9,4 @@ fixtures
 tests
 docs
 ._*
+**/node_modules
