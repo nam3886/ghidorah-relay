@@ -1,1 +1,0 @@
-import{it as e,st as t,ut as n,vt as r}from"./index-DUmISQTa.js";var i={"data-placeholder":`relay-admin-placeholder`},a=n({__name:`KeysView`,setup(n){return(n,a)=>(r(),t(`section`,i,[...a[0]||=[e(`h2`,null,`API keys`,-1)]]))}});export{a as default};
