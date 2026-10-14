@@ -15,7 +15,7 @@ function walletText(w) {
 }
 
 const KEY_COLUMNS = [
-    { key: 'label', label: 'Label', align: 'left', cell: (k) => '<div class="font-medium">' + esc(k.label || '(no label)') + '</div><div class="text-xs text-muted-foreground font-mono">' + esc(k.prefix) + '</div>' },
+    { key: 'label', label: 'Label', align: 'left', cell: (k) => '<div class="font-medium">' + esc(k.label || '(no label)') + '</div><div class="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">' + esc(k.prefix) + button('copyText', 'Copy', { copy: k.prefix }, BTN_SMALL + ' h-5', 'Copy the key prefix (the full key is not stored)') + '</div>' },
     { key: 'status', label: 'Status', align: 'center', cell: (k) => badge(k.enabled ? 'enabled' : 'disabled', k.enabled ? 'green' : 'gray') },
     { key: 'models', label: 'Models', align: 'left', cell: (k) => k.models.includes('*') ? badge('any model', 'blue') : '<div class="max-w-[260px] text-xs">' + esc(k.models.join(', ')) + '</div>' },
     { key: 'wallets', label: 'Wallets', align: 'left', cell: (k) => k.wallets.map((w) => '<div class="text-xs whitespace-nowrap">' + esc(w.provider + ' ' + w.kind) + ': ' + esc(walletText(w)) + '</div>').join('') || '-' },
@@ -137,7 +137,10 @@ ACTIONS.saveKey = async () => {
         // The raw key exists only in this answer: shown once, as text, and gone on the next reload.
         const box = document.getElementById('newKeyBox');
         box.classList.remove('hidden');
-        box.innerHTML = '<p class="font-medium">Copy this key now, it is not shown again:</p><code class="block mt-1 break-all font-mono text-xs" id="newKeyValue"></code>';
+        box.innerHTML = '<p class="font-medium">Copy this key now, it is not shown again:</p>' +
+            '<div class="mt-1 flex items-start gap-2"><code class="block flex-1 break-all font-mono text-xs select-all" id="newKeyValue"></code>' +
+            button('copyText', 'Copy', { from: '#newKeyValue' }, BTN) + '</div>' +
+            '<p class="mt-1 text-xs text-muted-foreground">Only a hash is stored: once this box is gone (a reload, another tab) the key cannot be shown again.</p>';
         document.getElementById('newKeyValue').textContent = out.key;
     }
     await loadKeys();

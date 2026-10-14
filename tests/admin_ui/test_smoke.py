@@ -34,7 +34,8 @@ JOBS_JS = "packages/relay-core/src/relay_core/admin/static/tab-jobs.js"
 LOGS_JS = "packages/relay-core/src/relay_core/admin/static/tab-logs.js"
 ACCOUNTS_JS = "packages/relay-core/src/relay_core/admin/static/tab-accounts.js"
 PAGES_PY = "packages/relay-core/src/relay_core/admin/pages.py"
-TEST_JS = "packages/relay-core/src/relay_core/admin/static/test.js"
+TEST_JS = "packages/relay-core/src/relay_core/admin/static/tab-test.js"
+KEYS_JS = "packages/relay-core/src/relay_core/admin/static/tab-keys.js"
 
 
 def planted(db, scenario):
@@ -229,6 +230,35 @@ def test_a_check_shows_what_it_found_and_a_dead_account_shows_its_reason(page, l
     expect(page.get_by_text("Check: checked - account dead (signed out)")).to_be_visible(timeout=10000)
 
 
+@mutation(COMMON, "if (navigator.clipboard && window.isSecureContext)", "if (navigator.clipboard)",
+          expect="the fallback is taken")
+def test_copy_falls_back_to_a_selected_field_when_the_page_is_not_a_secure_context(page, live, db):
+    sign_in(page, live)
+    page.evaluate("""() => {
+        Object.defineProperty(window, 'isSecureContext', { value: false });
+        navigator.clipboard.writeText = () => { window.__api = true; return Promise.resolve(); };
+        window.__copied = [];
+        document.execCommand = (cmd) => { window.__copied.push([cmd, document.activeElement.value]); return true; };
+    }""", isolated_context=False)
+    done = page.evaluate(
+        "async () => [await copyToClipboard('rk-secret-text'), window.__copied, window.__api === true]",
+        isolated_context=False)
+    assert done == [True, [["copy", "rk-secret-text"]], False], "the fallback is taken: %s" % done
+    page.evaluate("document.execCommand = () => false", isolated_context=False)
+    page.evaluate("""() => {
+        const c = document.createElement('code');
+        c.id = 'probe';
+        c.textContent = 'pick me';
+        document.body.appendChild(c);
+    }""", isolated_context=False)
+    page.evaluate("ACTIONS.copyText({ dataset: { from: '#probe' }, textContent: 'Copy' })", isolated_context=False)
+    expect(page.get_by_text("Ctrl+C")).to_be_visible()
+    assert page.evaluate("getSelection().toString()", isolated_context=False) == "pick me"
+
+
+@mutation(COMMON, "await navigator.clipboard.writeText(text); return true;", "return true;",
+          expect="the clipboard holds the key")
+@mutation(KEYS_JS, "button('copyText', 'Copy', { from: '#newKeyValue' }, BTN)", "''", expect="Locator expected")
 def test_keys_create_shows_the_raw_key_once_toggle_and_delete(page, live, db):
     sign_in(page, live)
     open_tab(page, "keys")
@@ -240,11 +270,20 @@ def test_keys_create_shows_the_raw_key_once_toggle_and_delete(page, live, db):
     page.click("#modalBody >> text=Create")
     raw = page.locator("#newKeyValue").inner_text()
     assert raw.startswith("rk-") and db.one("SELECT count(*) FROM api_keys")[0] == 1
+    copy = page.locator("#newKeyBox button")
+    expect(copy).to_be_visible()
+    copy.click()
+    expect(copy).to_have_text("Copied")
+    assert page.evaluate("navigator.clipboard.readText()") == raw, "the clipboard holds the key"
+    expect(page.locator("#newKeyBox")).to_contain_text("not shown again")
     assert raw not in json.dumps(db.all("SELECT key_hash, key_prefix FROM api_keys")), "only the hash is stored"
     row = page.locator("#keysTable tbody tr").first
     expect(row).to_contain_text("customer one")
     expect(row).to_contain_text("fake video: day 0/5")
     expect(row).to_contain_text("fake image: unlimited")
+    prefix = row.locator("td[data-col=label] .font-mono").inner_text().removesuffix("Copy").strip()
+    row.get_by_role("button", name="Copy").click()
+    assert page.evaluate("navigator.clipboard.readText()") == prefix and raw.startswith(prefix), "only the prefix"
     page.reload()
     open_tab(page, "keys")
     expect(page.locator("#newKeyBox")).to_be_hidden()
@@ -279,6 +318,9 @@ def test_settings_edit_marks_the_source_and_reset_returns_to_the_default(page, l
 
 @mutation(LOGS_JS, "if (!confirm('Clear every request log row", "if (false && !confirm('Clear every request log row",
           expect="a clear asks first")
+@mutation(LOGS_JS, "ACTIONS.refreshLogs = () => {\n    readLogFilters();",
+          "ACTIONS.refreshLogs = () => {\n    logsView.status = 'all';",
+          expect="Locator expected")
 def test_logs_filter_search_detail_and_clear(page, live, db):
     k = new_key(db)
     job = done_job(db, k)
@@ -293,7 +335,12 @@ def test_logs_filter_search_detail_and_clear(page, live, db):
     page.select_option("#logsStatus", "pre_job")
     expect(page.locator("#logsTable tbody tr")).to_have_count(1)
     expect(column(page, "logs", "error")).to_have_text("input.invalid")
+    db.run("INSERT INTO request_logs (key_id, provider, route, status_code, duration_ms, error_code) "
+           "VALUES (%s, 'fake', '/v1/video/generations', 429, 4, 'rate.limited')", k)
+    page.get_by_role("button", name="Refresh").click()
+    expect(page.locator("#logsTable tbody tr")).to_have_count(2)
     page.select_option("#logsStatus", "all")
+    expect(page.locator("#logsTable tbody tr")).to_have_count(3)
     page.fill("#logsQuery", "100%")
     page.press("#logsQuery", "Enter")
     expect(page.locator("#logsTable tbody tr")).to_have_count(1)
@@ -349,26 +396,116 @@ def test_the_reference_page_renders_its_content_and_the_browser_reports_no_csp_v
     assert page.evaluate("document.body.innerText.length") > 200, "rendered content"
 
 
-@mutation(TEST_JS, "apiKey = el('apiKey').value.trim();",
-          "apiKey = el('apiKey').value.trim(); sessionStorage.setItem('k', apiKey);", expect="no key in a store")
-def test_the_test_page_loads_models_generates_and_keeps_the_key_in_memory_only(page, live, db):
+@mutation(TEST_JS, "testState.apiKey = tid('apiKey').value.trim();",
+          "testState.apiKey = tid('apiKey').value.trim(); localStorage.setItem('k', testState.apiKey);",
+          expect="no key in a persistent store")
+@mutation(TEST_JS, "const files = await testDb('get');", "const files = null;", expect="Locator expected")
+@mutation(TEST_JS, "for (const id of TEST_FIELDS) if (typeof saved[id] === 'string') tid(id).value = saved[id];",
+          "", expect="Locator expected")
+def test_the_test_tab_generates_keeps_the_form_and_images_over_a_reload_and_the_key_only_per_browser_tab(
+        page, live, db):
     new_account(db, checked=True)
     api_key = live.call(live.env.new_key())
-    page.goto("/test")
+    sign_in(page, live)
+    open_tab(page, "test")
     page.fill("#apiKey", api_key.raw)
     page.click("#loadKey")
-    expect(page.locator(".model-item", has_text="fake-video")).to_be_visible()
-    stored = "Object.keys(localStorage).length + Object.keys(sessionStorage).length"
-    assert page.evaluate(stored) == 0, "no key in a store"
-    page.locator(".model-item", has_text="fake-video").click()
+    model = page.locator("#models [data-act=testPick]", has_text="fake-video")
+    expect(model).to_be_visible()
+    model.click()
     page.fill("#prompt", "a cat")
+    page.fill("#title", "kept title")
+    page.set_input_files("#imageFiles", files=[{"name": "ref.png", "mimeType": "image/png", "buffer": PNG}])
+    expect(page.locator("#imageList")).to_contain_text("ref.png")
     page.click("#generate")
     expect(page.locator("#status")).to_contain_text("Job")
     assert db.one("SELECT count(*) FROM jobs WHERE prompt = 'a cat'")[0] == 1
-    assert page.evaluate(stored) == 0, "no key in a store"
+    assert api_key.raw not in page.evaluate("JSON.stringify(Object.assign({}, localStorage))"), \
+        "no key in a persistent store"
+    assert page.evaluate("sessionStorage.getItem('relay_test_key')") == api_key.raw
     assert api_key.raw not in json.dumps(page.context.cookies())
     page.reload()
-    expect(page.locator("#apiKey")).to_have_value("")
+    expect(page.locator("#prompt")).to_have_value("a cat")
+    expect(page.locator("#title")).to_have_value("kept title")
+    expect(page.locator("#imageList")).to_contain_text("ref.png")
+    expect(page.locator("#apiKey")).to_have_value(api_key.raw)
+    expect(page.locator("#modelName")).to_have_text("fake-video")
+    page.get_by_role("button", name="Clear form").click()
+    expect(page.locator("#prompt")).to_have_value("")
+    page.reload()
+    expect(page.locator("#prompt")).to_have_value("")
+    expect(page.locator("#imageList")).to_have_text("")
+    expect(page.locator("#modelName")).to_have_text("Pick a model")
+
+
+GUARD_NON_IMAGE = "if (!f || !(f.blob instanceof Blob) || !f.blob.type.startsWith('image/')) continue;"
+GUARD_LIMITS = "if (kept.length >= TEST_MAX_IMAGES || bytes + f.blob.size > TEST_MAX_BYTES) continue;"
+OPEN_STORE = """const db = await new Promise((ok, no) => {
+            const r = indexedDB.open('relay-admin-test', 1);
+            r.onupgradeneeded = () => r.result.createObjectStore('kv');
+            r.onsuccess = () => ok(r.result);
+            r.onerror = no;
+        });"""
+SEED_STORE = """async (kind) => {
+        const item = (name, type, size) => ({ name, type, blob: new Blob([new Uint8Array(size)], { type }) });
+        const list = kind === 'many' ? Array.from({ length: 12 }, (_, i) => item('p' + i, 'image/png', 1024))
+            : kind === 'big' ? [item('big.png', 'image/png', 13 * 1048576)]
+            : [item('p.png', 'image/png', 1024), item('x.html', 'text/html', 3)];
+        %s
+        await new Promise((ok, no) => {
+            const tx = db.transaction('kv', 'readwrite');
+            tx.objectStore('kv').put(list, 'files');
+            tx.oncomplete = ok;
+            tx.onerror = no;
+        });
+        db.close();
+    }""" % OPEN_STORE
+READ_STORE = """async () => {
+        %s
+        const list = await new Promise((ok) => {
+            const q = db.transaction('kv').objectStore('kv').get('files');
+            q.onsuccess = () => ok(q.result || []);
+        });
+        db.close();
+        return list.map((f) => f.blob.type);
+    }""" % OPEN_STORE
+
+
+@mutation(TEST_JS, GUARD_NON_IMAGE, "if (!f) continue;", expect="Locator expected")
+@mutation(TEST_JS, GUARD_LIMITS, "", expect="Locator expected")
+def test_a_stored_image_set_over_the_limits_or_with_a_non_image_is_not_restored_and_is_cleaned(page, live):
+    sign_in(page, live)
+    open_tab(page, "test")
+    for kind, left in (("many", ["image/png"] * 10), ("big", []), ("html", ["image/png"])):
+        page.evaluate(SEED_STORE, kind, isolated_context=False)
+        page.reload()
+        expect(page.locator("#panel-test")).to_be_visible()
+        expect(page.locator("#imageList li")).to_have_count(len(left))
+        expect(page.locator("#imageNote")).to_contain_text("broke the limits")
+        assert page.evaluate(READ_STORE, isolated_context=False) == left, "the store is cleaned: %s" % kind
+
+
+def test_the_test_tab_still_works_when_every_store_is_blocked_and_the_old_link_lands_on_it(page, live, db):
+    new_account(db, checked=True)
+    api_key = live.call(live.env.new_key())
+    sign_in(page, live)
+    page.add_init_script("""
+        for (const name of ['localStorage', 'indexedDB']) {
+            Object.defineProperty(window, name, { get() { throw new DOMException('blocked', 'SecurityError'); } });
+        }""")
+    page.goto("/test")
+    page.wait_for_url(lambda url: url.endswith("/manage#test"))
+    expect(page.locator("#panel-test")).to_be_visible()
+    page.fill("#apiKey", api_key.raw)
+    page.click("#loadKey")
+    expect(page.locator("#models [data-act=testPick]", has_text="fake-video")).to_be_visible()
+    page.locator("#models [data-act=testPick]", has_text="fake-video").click()
+    page.fill("#prompt", "a dog")
+    page.set_input_files("#imageFiles", files=[{"name": "ref.png", "mimeType": "image/png", "buffer": PNG}])
+    expect(page.locator("#imageNote")).to_contain_text("could not be saved")
+    page.click("#generate")
+    expect(page.locator("#status")).to_contain_text("Job")
+    assert db.one("SELECT count(*) FROM jobs WHERE prompt = 'a dog'")[0] == 1
 
 
 @mutation(COMMON, ".replace(/</g, '&lt;')", "", expect="planted markup became an element")

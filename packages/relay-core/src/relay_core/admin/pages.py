@@ -1,4 +1,4 @@
-"""The admin pages and their static files (contracts §13, §16, D26): `/`, `/login`, `/manage`, `/test`,
+"""The admin pages and their static files (contracts §13, §16, D26): `/`, `/login`, `/manage`,
 `/reference` and `/ui/...` on the API's own port.
 
 Every response of this router carries the admin CSP, so no page can run an inline script or load a foreign asset;
@@ -16,7 +16,7 @@ from relay_core.admin.router import CSP
 from relay_core.api.errors_http import ApiError
 
 STATIC = Path(__file__).parent / "static"
-PAGES = {"/login": "login.html", "/manage": "manage.html", "/test": "test.html", "/reference": "reference.html"}
+PAGES = {"/login": "login.html", "/manage": "manage.html", "/reference": "reference.html"}
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
          ".css": "text/css; charset=utf-8", ".txt": "text/plain; charset=utf-8"}
 HEADERS = {"Content-Security-Policy": CSP, "X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"}
@@ -45,6 +45,12 @@ for _path, _name in PAGES.items():
 @router.get("/")
 async def root() -> RedirectResponse:
     return RedirectResponse("/manage", headers=HEADERS)
+
+
+@router.get("/test")
+async def test_page() -> RedirectResponse:
+    """The model test is a tab of the dashboard now; old links keep working."""
+    return RedirectResponse("/manage#test", headers=HEADERS)
 
 
 @router.get("/ui/{name:path}")

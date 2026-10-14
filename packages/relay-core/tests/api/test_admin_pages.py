@@ -52,6 +52,18 @@ def test_the_root_redirects_to_the_dashboard_and_the_dashboard_needs_no_session_
     run_app(db, scenario)
 
 
+@mutation(PAGES_PY, 'RedirectResponse("/manage#test", headers=HEADERS)', 'RedirectResponse("/manage", headers=HEADERS)',
+          expect="old test link")
+def test_the_old_test_link_redirects_to_the_test_tab_of_the_dashboard_with_the_csp(db):
+    async def scenario(env):
+        old = await env.client.get("/test", follow_redirects=False)
+        assert old.status_code == 307 and old.headers["location"] == "/manage#test", "old test link"
+        assert old.headers.get("content-security-policy") == CSP
+        assert (await env.client.get("/ui/test.html")).status_code == 404
+
+    run_app(db, scenario)
+
+
 def _ui_assets() -> list[str]:
     root = Path(PAGES_PY).parent / "static"
     return ["/ui/" + p.relative_to(root).as_posix() for p in sorted(root.rglob("*"))

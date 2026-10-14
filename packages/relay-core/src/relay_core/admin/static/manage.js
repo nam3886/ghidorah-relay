@@ -7,6 +7,7 @@ function panelOf(id) { return document.getElementById('panel-' + id); }
 
 function switchTab(id) {
     state.tab = id;
+    history.replaceState(null, '', '#' + id);
     for (const tab of TABS) {
         const active = tab.id === id;
         panelOf(tab.id).classList.toggle('hidden', !active);
@@ -37,7 +38,7 @@ function buildShell() {
         panel.className = 'hidden';
         panels.appendChild(panel);
     }
-    for (const link of [['/test', 'Test page', ''], ['/reference', 'API docs', '_blank']]) {
+    for (const link of [['/reference', 'API docs', '_blank']]) {
         const a = document.createElement('a');
         a.href = link[0];
         if (link[2]) { a.target = link[2]; a.rel = 'noopener'; }
@@ -67,7 +68,8 @@ async function startManage() {
         select.appendChild(option);
     }
     buildShell();
-    if (TABS.length) switchTab(TABS[0].id);
+    const wanted = TABS.find((t) => '#' + t.id === location.hash);
+    if (TABS.length) switchTab(wanted ? wanted.id : TABS[0].id);
 }
 
 // Tab scripts load before this one (see manage.html) and have registered themselves by now.

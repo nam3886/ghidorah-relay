@@ -98,7 +98,8 @@ registerTab({
         const options = (list, chosen, none) => (none ? '<option value="">' + none + '</option>' : '') + list.map((v) => '<option value="' + esc(v) + '"' + (v === chosen ? ' selected' : '') + '>' + esc(v) + '</option>').join('');
         panel.innerHTML = '<div class="space-y-6"><div class="flex flex-wrap items-center gap-3"><h3 class="text-lg font-semibold">Alerts</h3>' +
             '<select id="alertsStatus" data-change="alertsFilter" class="h-8 rounded-md border border-input bg-background px-2 text-xs">' + options(['open', 'acknowledged', 'all'], a.status) + '</select>' +
-            '<select id="alertsKind" data-change="alertsFilter" class="h-8 rounded-md border border-input bg-background px-2 text-xs">' + options(ALERT_KINDS, a.kind, 'All kinds') + '</select></div>' +
+            '<select id="alertsKind" data-change="alertsFilter" class="h-8 rounded-md border border-input bg-background px-2 text-xs">' + options(ALERT_KINDS, a.kind, 'All kinds') + '</select>' +
+            '<button data-act="alertsFilter" class="' + BTN + '">Refresh</button></div>' +
             '<p class="text-xs text-muted-foreground">Acknowledging a group marks the rows you saw; a row that arrives later reopens it. ' +
             'Which replies count as unclear is decided in code: new wording is a code change, there is nothing to edit here.</p>' +
             '<section class="rounded-lg border border-border bg-background p-4 space-y-2"><h4 class="text-sm font-semibold">Live conditions</h4>' +

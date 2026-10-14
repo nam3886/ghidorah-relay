@@ -1,5 +1,5 @@
 """Static guards over the admin pages (contracts §13, §16): markup the CSP allows, assets pinned, every class the pages
-use present in the built stylesheet, tables built from one column list, the session token and the `/test` key kept
+use present in the built stylesheet, tables built from one column list, the session token and the test tab's key kept
 where they may be. They read the files in `admin/static/`; no browser is needed (the browser checks are in
 test_smoke.py)."""
 
@@ -15,8 +15,11 @@ from relay_core.testing.mutation import mutation
 STATIC = Path(__file__).resolve().parents[2] / "packages/relay-core/src/relay_core/admin/static"
 TAB_KEYS_FILE = "packages/relay-core/src/relay_core/admin/static/tab-keys.js"
 REFERENCE_FILE = "packages/relay-core/src/relay_core/admin/static/reference.html"
-TEST_JS_FILE = "packages/relay-core/src/relay_core/admin/static/test.js"
-PAGES = ["login.html", "manage.html", "test.html", "reference.html"]
+TEST_JS_FILE = "packages/relay-core/src/relay_core/admin/static/tab-test.js"
+LOGS_FILE = "packages/relay-core/src/relay_core/admin/static/tab-logs.js"
+ALERTS_FILE = "packages/relay-core/src/relay_core/admin/static/tab-alerts.js"
+INPUT_CSS_FILE = "packages/relay-core/src/relay_core/admin/tailwind/input.css"
+PAGES = ["login.html", "manage.html", "reference.html"]
 HTML = sorted(p for p in STATIC.glob("*.html"))
 OWN_JS = sorted(p for p in STATIC.glob("*.js"))
 TAB_JS = sorted(p for p in STATIC.glob("tab-*.js"))
@@ -25,7 +28,7 @@ SCALAR = STATIC / "vendor" / "scalar.min.js"
 SCALAR_URL = "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.25.122/dist/browser/standalone.min.js"
 SCALAR_SHA384 = "GSEN1x/V+skrQFYZQ1d4OxNM7t1xg7f8WND43lCquTJEO+mRo9l0AAa3HzrNOLqt"
 ADMIN_CSS = STATIC / "vendor" / "admin.css"
-ADMIN_CSS_SHA384 = "vFU4OhfhpeTK86cTZ/Fq5KfxTeI3mMHJp+Ke1aCX1hLQMQaWWHnnCAAHq5OcO7DC"
+ADMIN_CSS_SHA384 = "k9VlogWCkpLFZ0brX2jti0AiXeyI3bKP6fwEcuJxuwXOdoYhGFA27aovGSa8vMQF"
 
 CLASS_ATTR = re.compile(r'class="([^"]*)"')
 JS_STRING = re.compile(r"'((?:[^'\\\n]|\\.)*)'")
@@ -54,8 +57,7 @@ CLASS_TOKEN = re.compile(r"^!?[a-z0-9][a-z0-9:/.%_-]*(?:\[[^\s\]]*\][a-z0-9:/.%_
 
 def sheet_of(name: str) -> Path:
     """Each page group has its own stylesheet: the dashboard pages share the built one."""
-    return {"test.html": STATIC / "test.css", "test.js": STATIC / "test.css",
-            "reference.html": STATIC / "reference.css"}.get(name, ADMIN_CSS)
+    return {"reference.html": STATIC / "reference.css"}.get(name, ADMIN_CSS)
 
 
 def used_classes() -> dict[str, set[str]]:
@@ -170,25 +172,78 @@ def test_copy_prompt_copies_the_customers_words_and_never_the_marker_or_a_frame(
 # ---- where the token and the key may live ------------------------------------------------------------------
 def test_the_admin_token_lives_in_session_storage_only_and_goes_out_as_the_session_header():
     scripts = {p.name: p.read_text() for p in OWN_JS}
-    assert not [n for n, t in scripts.items() if re.search(r"localStorage|document\.cookie|indexedDB", t)], \
+    assert not [n for n, t in scripts.items()
+                if n != "tab-test.js" and re.search(r"localStorage|document\.cookie|indexedDB", t)], \
         "an admin script uses a store the token must not live in"
+    assert not re.search(r"document\.cookie", scripts["tab-test.js"])
     common = scripts["common.js"]
     assert "sessionStorage.getItem(TOKEN_KEY)" in common and "'X-Admin-Session': token()" in common
     assert "sessionStorage.setItem(TOKEN_KEY" in scripts["login.js"]
 
 
-@mutation(TEST_JS_FILE, "let apiKey = '';", "let apiKey = '';\nsessionStorage.setItem('k', 'x');",
-          expect="test page keeps a key")
-def test_the_test_page_holds_the_key_in_memory_and_uses_no_storage_at_all():
-    text = (STATIC / "test.js").read_text()
-    assert not re.search(r"localStorage|sessionStorage|document\.cookie|indexedDB", text), "test page keeps a key"
-    assert "let apiKey = '';" in text
+@mutation(TEST_JS_FILE, "testState.apiKey = tid('apiKey').value.trim();",
+          "testState.apiKey = tid('apiKey').value.trim(); localStorage.setItem('k', testState.apiKey);",
+          expect="test tab keeps the key in a persistent store")
+def test_the_test_tab_keeps_its_key_in_session_storage_only_and_saves_nothing_but_the_form_and_the_images():
+    text = (STATIC / "tab-test.js").read_text()
+    stores = re.findall(r"(localStorage|sessionStorage)\.(?:setItem|getItem|removeItem)\(([A-Z_]+)", text)
+    assert ("sessionStorage", "TEST_KEY") in stores
+    assert {name for kind, name in stores if kind == "localStorage"} == {"TEST_FORM_KEY"}, \
+        "test tab keeps the key in a persistent store: %s" % stores
+    assert not re.search(r"localStorage[^\n]*apiKey|testDb\('put'[^\n]*apiKey", text), \
+        "test tab keeps the key in a persistent store"
+    assert "'apiKey'" not in re.search(r"const TEST_FIELDS = \[(.*?)\]", text).group(1), \
+        "test tab keeps the key in a persistent store"
+    # every store access sits in a try block, so a blocked store cannot break the tab
+    for line in (ln for ln in text.splitlines() if re.search(r"(?:local|session)Storage\.|indexedDB\.open", ln)):
+        assert "try" in line or line.strip().startswith(("const req = indexedDB", "try")), \
+            "unguarded store access: %s" % line.strip()
+    assert "TEST_MAX_IMAGES = 10" in text and "TEST_MAX_BYTES = 12 * 1024 * 1024" in text
 
 
-def test_the_test_page_sends_no_template_field_and_the_dashboard_has_no_phrase_or_template_control():
-    for name in ("test.js", "tab-jobs.js", "tab-settings.js"):
+def test_the_test_tab_sends_no_template_field_and_the_dashboard_has_no_phrase_or_template_control():
+    for name in ("tab-test.js", "tab-jobs.js", "tab-settings.js"):
         text = (STATIC / name).read_text()
         assert "template_category" not in text and not re.search(r"(?<![\w.])template\s*:", text), name
+
+
+def test_the_old_test_page_files_are_gone_and_the_test_is_a_tab_of_the_dashboard():
+    assert not [n for n in ("test.html", "test.js", "test.css") if (STATIC / n).exists()]
+    assert 'src="/ui/tab-test.js"' in (STATIC / "manage.html").read_text()
+    assert "id: 'test'" in (STATIC / "tab-test.js").read_text()
+
+
+@mutation(INPUT_CSS_FILE, "html { font-size: 14px; }", "html { font-size: 16px; }", expect="base size is not 14 px")
+def test_the_base_text_size_of_every_admin_page_is_14_px():
+    assert "html { font-size: 14px; }" in (STATIC.parent / "tailwind" / "input.css").read_text(), \
+        "base size is not 14 px (input.css)"
+    assert "html{font-size:14px}" in ADMIN_CSS.read_text(), "base size is not 14 px (admin.css is not rebuilt)"
+    for page in ("login.html", "manage.html"):
+        assert "vendor/admin.css" in (STATIC / page).read_text(), page
+
+
+@mutation(TAB_KEYS_FILE, "button('copyText', 'Copy', { from: '#newKeyValue' }, BTN)", "''",
+          expect="no Copy button next to the new key")
+def test_the_new_key_and_the_key_prefix_have_copy_buttons_and_no_other_place_holds_the_raw_key():
+    keys = (STATIC / "tab-keys.js").read_text()
+    assert "{ from: '#newKeyValue' }" in keys, "no Copy button next to the new key"
+    assert "{ copy: k.prefix }" in keys and "not shown again" in keys
+    assert keys.count("out.key") == 1, "the raw key is read once, to be shown"
+    assert not re.search(r"(?:local|session)Storage[^\n]*\.key\b", keys)
+    assert "ACTIONS.copyText" in (STATIC / "common.js").read_text()
+
+
+@mutation(LOGS_FILE, "'<button data-act=\"refreshLogs\" class=\"' + BTN + '\">Refresh</button>' +", "",
+          expect="a list tab has no Refresh button: logs")
+@mutation(ALERTS_FILE, "'<button data-act=\"alertsFilter\" class=\"' + BTN + '\">Refresh</button></div>' +",
+          "'</div>' +", expect="a list tab has no Refresh button: alerts")
+def test_every_list_tab_has_a_refresh_button_that_keeps_its_filters():
+    missing = [n for n in ("accounts", "jobs", "keys", "logs", "alerts")
+               if ">Refresh</button>" not in (STATIC / ("tab-%s.js" % n)).read_text()]
+    assert not missing, "a list tab has no Refresh button: %s" % ", ".join(missing)
+    logs = (STATIC / "tab-logs.js").read_text()
+    refresh = logs[logs.index("ACTIONS.refreshLogs"):]
+    assert refresh.split("};")[0].count("offset = 0") == 0 and "readLogFilters();" in refresh.split("};")[0]
 
 
 @pytest.mark.parametrize("page", PAGES)

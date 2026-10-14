@@ -34,6 +34,7 @@ registerTab({
             '<input id="logsFrom" type="date" data-change="searchLogs" class="h-8 rounded-md border border-input px-2 text-xs" value="' + esc(logsView.from) + '">' +
             '<input id="logsTo" type="date" data-change="searchLogs" class="h-8 rounded-md border border-input px-2 text-xs" value="' + esc(logsView.to) + '">' +
             '<button data-act="searchLogs" class="' + BTN + '">Search</button>' +
+            '<button data-act="refreshLogs" class="' + BTN + '">Refresh</button>' +
             '<button data-act="clearLogs" class="' + BTN + ' text-destructive">Clear logs</button></div></div>' +
             '<div id="logsTable"></div><div id="logsPager"></div></div>';
         panel.firstChild.pager = { move: (dir) => { logsView.offset = Math.max(0, logsView.offset + dir * LOGS_PAGE); return loadLogs(); } };
@@ -64,12 +65,22 @@ async function loadLogs() {
     document.getElementById('logsPager').innerHTML = pagerHtml({ offset: logsView.offset, limit: LOGS_PAGE, total: data.total });
 }
 
-ACTIONS.searchLogs = () => {
+function readLogFilters() {
     logsView.q = document.getElementById('logsQuery').value.trim();
     logsView.status = document.getElementById('logsStatus').value;
     logsView.from = document.getElementById('logsFrom').value;
     logsView.to = document.getElementById('logsTo').value;
+}
+
+ACTIONS.searchLogs = () => {
+    readLogFilters();
     logsView.offset = 0;
+    return loadLogs();
+};
+
+// Same filters, same page: only the rows are read again.
+ACTIONS.refreshLogs = () => {
+    readLogFilters();
     return loadLogs();
 };
 

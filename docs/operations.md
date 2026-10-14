@@ -410,7 +410,7 @@ token sent as the `X-Admin-Session` header (no cookie).
 
 ## The admin pages
 
-`/login`, `/manage` (the dashboard), `/test` (a model test page that keeps the API key in memory only) and `/reference`
+`/login`, `/manage` (the dashboard, whose Test tab is the model test; `/test` redirects to it) and `/reference`
 (the API reference) are static files in `relay_core/admin/static/`, served on the api's port with the admin CSP
 (`default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'`): no inline script, handler or
 style, nothing loaded from another host. The files are read once when the api starts.

@@ -4,6 +4,7 @@
 
 const TOKEN_KEY = 'relay_admin_token';
 const USER_KEY = 'relay_admin_user';
+const TEST_KEY = 'relay_test_key';
 const ACTIONS = {};
 
 // ---- escaping -----------------------------------------------------------------------------------------------
@@ -27,7 +28,7 @@ function safeMediaUrl(url) {
 // ---- session ------------------------------------------------------------------------------------------------
 function token() { try { return sessionStorage.getItem(TOKEN_KEY) || ''; } catch (_) { return ''; } }
 function clearSession() {
-    try { sessionStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(USER_KEY); } catch (_) { /* private mode */ }
+    try { sessionStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(USER_KEY); sessionStorage.removeItem(TEST_KEY); } catch (_) { /* private mode */ }
 }
 
 class ApiError extends Error {
@@ -90,6 +91,37 @@ function fmtTime(epochMs) {
     if (!epochMs) return '-';
     return new Date(epochMs).toLocaleString('en-GB', { hour12: false });
 }
+
+// Copies text to the clipboard. `navigator.clipboard` only exists on a secure origin (https or localhost) and the
+// console is often opened over plain http on a LAN, so the fallback selects a hidden field and uses execCommand.
+async function copyToClipboard(text) {
+    try {
+        if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; }
+    } catch (_) { /* fall through to the field */ }
+    const field = document.createElement('textarea');
+    field.value = text;
+    field.className = 'sr-only';
+    document.body.appendChild(field);
+    field.select();
+    try { return document.execCommand('copy'); } catch (_) { return false; } finally { field.remove(); }
+}
+
+// data-act="copyText": copies data-copy, or the text of the element named by data-from; the button says "Copied" for a moment.
+ACTIONS.copyText = async (btn) => {
+    const source = btn.dataset.from ? document.querySelector(btn.dataset.from) : null;
+    const text = source ? source.textContent : btn.dataset.copy;
+    if (!text || !(await copyToClipboard(text))) {
+        // Last resort: select the visible text so the operator can press Ctrl+C / Cmd+C.
+        if (source) { const range = document.createRange(); range.selectNodeContents(source); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range); }
+        toast('Could not copy automatically: the text is selected, press Ctrl+C (Cmd+C on a Mac)', 'error');
+        return;
+    }
+    const label = btn.dataset.label || btn.textContent;
+    btn.dataset.label = label;
+    btn.textContent = 'Copied';
+    clearTimeout(btn.copiedTimer);
+    btn.copiedTimer = setTimeout(() => { btn.textContent = label; }, 2000);
+};
 
 // ---- delegated events ---------------------------------------------------------------------------------------
 function dispatch(attr, event) {
