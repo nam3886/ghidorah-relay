@@ -89,6 +89,8 @@ READ_FAILS = FORM_SPEC + "the saved form > reports a store that cannot be read a
 WRITE_REPORTS = (FORM_SPEC + "the saved form > reports a refused write and a refused clear as failures, "
                  + "and a good one as success")
 FORM_KEY = 'export const FORM_KEY = "relay_test_form";'
+READ_BACK = FORM_SPEC + "the saved form > reads back what was saved"
+READ_STRINGS = FORM_SPEC + "the saved form > ignores a field that is not a string, one field at a time"
 
 
 @mutation(FORM, FORM_KEY, 'export const FORM_KEY = "relay_form";', expect=SAVED_FORM)
@@ -105,6 +107,9 @@ FORM_KEY = 'export const FORM_KEY = "relay_test_form";'
 @mutation(FORM, "return false;\n  }\n}\n\nexport function clearSavedForm",
           "return true;\n  }\n}\n\nexport function clearSavedForm", expect=WRITE_REPORTS)
 @mutation(FORM, "return false;\n  }\n}\n\n// The label", "return true;\n  }\n}\n\n// The label", expect=WRITE_REPORTS)
+@mutation(FORM, 'for (const field of ["model", ...FIELDS] as const)', "for (const field of FIELDS)", expect=READ_BACK)
+@mutation(FORM, 'if (typeof values[field] === "string") form[field]', "if (values[field] !== undefined) form[field]",
+          expect=READ_STRINGS)
 @pytest.mark.web_unit
 def test_form_storage_and_body():
     vitest("tests/unit/test/test-form.spec.ts")
@@ -217,6 +222,10 @@ WRITE_BLOCKED = (REFUSING + "localStorage blocked on write: the notice shows on 
 EVERY_INPUT = VIEW_SPEC + "the tab > keeps the key in sessionStorage only, the form in localStorage on every input"
 BLOCKED = (REFUSING + "IndexedDB blocked on write: the notice shows when an image is attached, "
            + "with localStorage working")
+FORM_RESTORED = VIEW_SPEC + "the tab > restores the form, the kept key, the models and the picked model after a reload"
+LOAD_ONCE = (VIEW_SPEC + "Load models > shows a busy state and sends one request for a double click and an Enter "
+             + "while the load is on its way")
+LOAD_FREE = VIEW_SPEC + "Load models > is free again after a load that failed, so the next click sends a request"
 
 
 @mutation(TEST_VIEW, "session.reset();", "", expect=SIGN_OUT)
@@ -233,6 +242,12 @@ BLOCKED = (REFUSING + "IndexedDB blocked on write: the notice shows when an imag
 @mutation(TEST_VIEW, "note.value || (formFailed.value ? NOT_SAVED_NOTE : \"\")", "note.value", expect=WRITE_BLOCKED)
 @mutation(TEST_VIEW, "if (restored.failed) note.value = NOT_SAVED_NOTE;", "", expect=RESTORE_BLOCKED)
 @mutation(TEST_VIEW, 'note.value = saved.saved ? "" : NOT_SAVED_NOTE;', 'note.value = "";', expect=BLOCKED)
+@mutation(TEST_VIEW, "files.value = restored.files;", "", expect=DROPPED)
+@mutation(TEST_VIEW, "const form = reactive(initial.form);", "const form = reactive(emptyForm());",
+          expect=FORM_RESTORED)
+@mutation(TEST_VIEW, "if (loadingModels.value) return;", "", expect=LOAD_ONCE)
+@mutation(TEST_VIEW, ':loading="loadingModels"', ':loading="false"', expect=LOAD_ONCE)
+@mutation(TEST_VIEW, "} finally {\n    loadingModels.value = false;", "} finally {", expect=LOAD_FREE)
 @pytest.mark.web_unit
 def test_test_view_rules():
     vitest("tests/unit/test/test-view.spec.ts")
@@ -294,6 +309,16 @@ STALE_ERROR_GUARD = "if (mine !== gen) return null;\n        throw err;"
 STALE_ANSWER_GUARD = "if (mine !== gen) return null;\n      draw(answer);"
 OPENS_OFF = "const opensOff = computed(() => busy.value);"
 CONTROLS_OFF = "const controlsOff = computed(() => busy.value || loading.value > 0);"
+PREVIEW_SENDS = PREVIEW + "sends the draft with the sample prompt for the open model and shows the answer"
+SAVE_WARNS = (FRAMES_SPEC + "writes > Save sends the draft, then shows the warnings of the answer "
+              + "after the redraw and a toast")
+LOCK_SENDS = (FRAMES_SPEC + "a lock toggle > toggling another model's lock keeps this editor's draft too, "
+              + "and Unlocked is its own toast")
+FOLLOW_NULL = FRAMES_SPEC + "writes > Follow the default sends a null text"
+RESET_KIND = (FRAMES_SPEC + "writes > Reset to the shipped default posts the kind of the section "
+              + "and keeps the open editor")
+REDRAWN = PREVIEW + "an editor that is redrawn starts with the sample prompt and no preview"
+WRITE_FAILS = FRAMES_SPEC + "busy states > clears the busy flags when a write fails"
 PREVIEW_MODEL = "t.target === DEFAULT_TARGET ? kindOf(t.kind)?.models[0]?.model : t.target"
 
 
@@ -317,9 +342,38 @@ PREVIEW_MODEL = "t.target === DEFAULT_TARGET ? kindOf(t.kind)?.models[0]?.model 
 @mutation(FRAMES, PREVIEW_MODEL, "t.target", expect=PREVIEW_DEFAULT)
 @mutation(FRAMES, "Object.assign(memory, { provider: p, kind: k, target: t });", "", expect=OWN_PROVIDER)
 @mutation(FRAMES, 'names.includes(preferred) ? preferred : (names[0] ?? "")', 'names[0] ?? ""', expect=START_PROVIDER)
+@mutation(FRAMES, "previewFrame(model, previewPrompt.value, text)",
+          "previewFrame(model, previewPrompt.value, loaded.value)", expect=PREVIEW_SENDS)
+@mutation(FRAMES, "warnings.value = saved.warnings;", "warnings.value = [];", expect=SAVE_WARNS)
+@mutation(FRAMES, "await lockFrame(t, locked);", "await lockFrame(t, true);", expect=LOCK_SENDS)
+@mutation(FRAMES, "await putFrame(t, null);", 'await putFrame(t, "");', expect=FOLLOW_NULL)
+@mutation(FRAMES, "resetFrame(p, resetKind)", 'resetFrame(p, "image")', expect=RESET_KIND)
+@mutation(FRAMES, "applied.value = null;\n    preview.value = null;", "applied.value = null;", expect=REDRAWN)
+@mutation(FRAMES, "previewPrompt.value = SAMPLE_PROMPT;\n    if (view.info) {", "if (view.info) {", expect=REDRAWN)
+@mutation(FRAMES, "} finally {\n      busy.value = false;", "} finally {", expect=WRITE_FAILS)
+@mutation(FRAMES, "} finally {\n      loading.value--;", "} finally {", expect=WRITE_FAILS)
 @pytest.mark.web_unit
 def test_frames_controller_rules():
     vitest("tests/unit/frames/use-frames.spec.ts")
+
+
+# ---- Prompt frames: the bodies and paths of the write calls ----------------------------------------------------
+API_FRAMES = FAILED + "frames/frames-api.spec.ts > the write calls of the Prompt frames > "
+LOCK_BODY = API_FRAMES + "lock sends the checkbox value as {locked} to the lock path of the encoded target"
+FOLLOW_BODY = API_FRAMES + "Follow the default puts text: null and a save puts the text, on the target path"
+RESET_PATH = API_FRAMES + "Reset to the shipped default posts /reset on the kind path, with no body"
+PREVIEW_BODY = API_FRAMES + "the preview posts the model, the sample prompt and the draft text"
+FRAMES_API = f"{SRC}/api/frames.ts"
+
+
+@mutation(FRAMES_API, "body: { locked }", "body: { locked: true }", expect=LOCK_BODY)
+@mutation(FRAMES_API, '{ method: "PUT", body: { text } }', '{ method: "PUT", body: { text: text ?? "" } }',
+          expect=FOLLOW_BODY)
+@mutation(FRAMES_API, "}/reset`", "}/restore`", expect=RESET_PATH)
+@mutation(FRAMES_API, "body: { model, prompt, text }", "body: { model, prompt }", expect=PREVIEW_BODY)
+@pytest.mark.web_unit
+def test_frames_write_calls():
+    vitest("tests/unit/frames/frames-api.spec.ts")
 
 
 # ---- Prompt frames: what the view enables and shows ------------------------------------------------------------

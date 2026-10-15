@@ -10,7 +10,9 @@ import uuid
 
 import pytest
 from accountkit import new_account
+from jobkit import key as new_key
 from patchright.sync_api import expect
+from test_admin_prices import fabricated, priced
 from test_frame_plan import put
 
 from relay_core.testing.fake_provider import FAKE_FRAMES
@@ -83,6 +85,34 @@ def test_a_wrong_current_password_shows_on_its_field_and_a_change_ends_every_ses
     assert page.evaluate("sessionStorage.getItem('relay_admin_token')") is None
     assert page.request.get(live.url + "/admin/me", headers={"X-Admin-Session": token}).status == 401
     assert page.request.get(live.url + "/admin/me", headers={"X-Admin-Session": other.json()["token"]}).status == 401
+
+
+@fabricated
+def test_measured_prices_are_read_from_the_real_route_and_follow_the_provider_filter(app_session, db):
+    k = new_key(db)
+    priced(db, k, price=10, upstream=8, duration=5, model="fake-video")
+    priced(db, k, price=10, upstream=10, duration=5, model="fake-video")
+    priced(db, k, price=3, upstream=3, duration=None, model="other-image", provider="other")
+    page = app_session
+    with page.expect_response(lambda r: r.url.endswith("/admin/prices")) as asked:
+        open_tab(page, "Settings")
+    assert asked.value.status == 200
+    items = asked.value.json()["items"]
+    assert [(i["provider"], i["model"], i["duration"], i["charged"], i["jobs"], i["disagreed"], i["lowest_upstream"])
+            for i in items] == [("fake", "fake-video", 5, 10, 2, 1, 8), ("other", "other-image", None, 3, 1, 0, None)]
+    rows = page.locator(".settings__block", has_text="Measured prices").locator(".el-table__body tbody tr")
+    expect(rows).to_have_count(2)
+    expect(rows.nth(0)).to_contain_text("fake-video")
+    expect(rows.nth(0)).to_contain_text("5s")
+    expect(rows.nth(1)).to_contain_text("other-image")
+
+    with page.expect_response(lambda r: r.url.endswith("/admin/prices?provider=fake")) as scoped:
+        page.get_by_test_id("provider-filter").click()
+        page.get_by_role("option", name="fake", exact=True).click()
+    assert [i["provider"] for i in scoped.value.json()["items"]] == ["fake"]
+    expect(rows).to_have_count(1)
+    expect(rows.first).to_contain_text("fake-video")
+    expect(page.get_by_text("other-image")).to_have_count(0)
 
 
 # ---- Prompt frames --------------------------------------------------------------------------------------------------
