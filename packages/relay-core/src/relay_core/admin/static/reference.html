@@ -7,6 +7,10 @@
   <link rel="stylesheet" href="/ui/reference.css">
 </head>
 <body>
+  <header id="bar">
+    <a id="back" href="/manage">&larr; Back to the dashboard</a>
+    <span id="bar-title">API reference</span>
+  </header>
   <div id="fallback" hidden>
     <h2>API reference could not load</h2>
     <p>The renderer is a file served by this host and it failed to load. The API itself is unaffected.</p>
@@ -14,8 +18,9 @@
        this same host.</p>
   </div>
   <!-- Scalar reads the public schema from /openapi.json, so the page can never drift from the code. The renderer is
-       vendored (static/vendor/scalar.min.js, pinned by SRI below); nothing is fetched from another host. -->
-  <script id="api-reference" data-url="/openapi.json" data-configuration='{"theme":"purple","darkMode":true,"layout":"modern","hideDownloadButton":false,"withDefaultFonts":false,"authentication":{"preferredSecurityScheme":"BearerAuth"}}'></script>
+       vendored (static/vendor/scalar.min.js, pinned by SRI below); nothing is fetched from another host. reference.js
+       sets "darkMode" from the stored admin theme before it loads the renderer. -->
+  <script id="api-reference" data-url="/openapi.json" data-configuration='{"theme":"default","darkMode":false,"layout":"modern","hideDownloadButton":false,"withDefaultFonts":false,"authentication":{"preferredSecurityScheme":"BearerAuth"}}'></script>
   <script src="/ui/reference.js" data-renderer="/ui/vendor/scalar.min.js" data-integrity="sha384-GSEN1x/V+skrQFYZQ1d4OxNM7t1xg7f8WND43lCquTJEO+mRo9l0AAa3HzrNOLqt"></script>
 </body>
 </html>

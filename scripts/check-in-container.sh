@@ -23,13 +23,21 @@
 # the same token, isolation and teardown. It skips the exact-count rule and the graceful-stop test, prints
 # `browser tier: PARTIAL (narrowed)` and still fails when no test is selected or one does not pass. Flags are refused.
 # Without arguments nothing changes: the whole tier, which scripts/check.sh --full runs.
+#
+# Screenshots: with RELAY_SCREENSHOTS_DIR=PATH set on the command line (`scripts/box.sh --tree NAME --
+# RELAY_SCREENSHOTS_DIR=shots scripts/check-in-container.sh tests/admin_ui/test_e2e_sweep.py`) the container gets that
+# variable as /shots (a mounted folder anyone may write) and, when the run ends (failed ones too), what it wrote is
+# copied to PATH, relative to the folder the script runs in. Unset: nothing is mounted and nothing is copied.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 for arg in "$@"; do
   case "$arg" in -*) echo "check-in-container.sh: only test paths or node ids are accepted, not '$arg'" >&2; exit 2 ;; esac
 done
 narrowed=$#
-tier_args=$(printf '%q ' "$@")
+tier_args=; [ "$#" -eq 0 ] || tier_args=$(printf '%q ' "$@")   # printf with no argument still prints one empty one ('')
+# RELAY_SCREENSHOTS_DIR (read here, never forwarded as is): a folder the run's screenshots are copied to afterwards.
+# A relative path is relative to where this script is run (the tree's folder on the box); the container writes to /shots.
+shots_dest=${RELAY_SCREENSHOTS_DIR:-}
 
 BOX="${RELAY_BOX:-phuongnam@192.168.18.227}"
 TOKEN="$(date +%s)-$$"
@@ -62,9 +70,14 @@ else
   rsync -a --rsync-path="mkdir -p $DIR && rsync" "${SYNC_EXCLUDES[@]}" ./ "$BOX:$DIR/"
 fi
 
-box "DIR=$DIR PROJECT=$PROJECT IMAGE=$IMAGE RUNNER=$RUNNER LABEL=$LABEL TOKEN=$TOKEN TIER_ARGS=$(printf %q "$tier_args") bash -s" <<'REMOTE'
+rc=0
+box "DIR=$DIR PROJECT=$PROJECT IMAGE=$IMAGE RUNNER=$RUNNER LABEL=$LABEL TOKEN=$TOKEN SHOTS=${shots_dest:+1} TIER_ARGS=$(printf %q "$tier_args") bash -s" <<'REMOTE' || rc=$?
 set -euo pipefail
 cd "$DIR"
+shots=()
+if [ -n "${SHOTS:-}" ]; then      # the container user is not the box user: the folder must be writable by anyone
+  mkdir -m 777 shots; shots=(-e RELAY_SCREENSHOTS_DIR=/shots -v "$DIR/shots:/shots")
+fi
 eval "set -- $TIER_ARGS"          # the narrowing arguments (test paths or node ids), if any
 export CHECK_PG_PORT= CHECK_MINIO_PORT=   # empty = publish an ephemeral loopback port; the tests use the network
 
@@ -80,9 +93,17 @@ envargs=(); while IFS= read -r line; do envargs+=(-e "$line"); done < <(scripts/
 docker run --rm --name "$RUNNER" --label "$LABEL" --network "${PROJECT}_default" --shm-size=1g ${RELAY_GATE_CPUSET:+--cpuset-cpus "$RELAY_GATE_CPUSET"} \
   -e PYTHONDONTWRITEBYTECODE=1 "${envargs[@]}" \
   -e PYTHONPATH="$(cd "$DIR" && printf '/work/%s:' packages/*/src apps/*/src)/work/scripts" \
-  -v "$DIR:/work:ro" -w /work \
+  -v "$DIR:/work:ro" ${shots[@]+"${shots[@]}"} -w /work \
   "$IMAGE" bash -euo pipefail -c 'echo "Chrome: $(/opt/google/chrome/chrome --version)"; exec scripts/browser-tier.sh "$@"' bash "$@"
 REMOTE
+
+# The screenshots are copied also when the run failed (a failing state is the one to look at), before the cleanup.
+if [ -n "$shots_dest" ]; then
+  mkdir -p "$shots_dest"
+  if on_box; then cp -R "$DIR/shots/." "$shots_dest/"; else rsync -a "$BOX:$DIR/shots/" "$shots_dest/"; fi \
+    && echo "screenshots: copied to $shots_dest" || echo "screenshots: the copy to $shots_dest failed" >&2
+fi
+[ "$rc" -eq 0 ] || exit "$rc"
 
 if [ "$narrowed" -gt 0 ]; then
   echo "browser tier: PARTIAL (narrowed)"     # not a gate: the exact counts and the graceful-stop test are skipped
