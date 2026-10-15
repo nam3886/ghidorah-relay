@@ -1,11 +1,16 @@
 <script setup lang="ts">
+import { RefreshLeft } from "@element-plus/icons-vue";
+import IconAction from "@/components/shared/IconAction.vue";
+import { fmtTime } from "@/lib/format";
 import {
   appliedLine,
   DEFAULT_TARGET,
   lockHistoryLine,
+  newestFirst,
   PROMPT_MARKER,
   TRACKING_MARKER,
   versionLine,
+  versionType,
 } from "./frames-model";
 import type { FramesController } from "./use-frames";
 
@@ -39,7 +44,14 @@ const FRAME_SHAPE = `${PROMPT_MARKER} ... ${TRACKING_MARKER}`;
       aria-label="Frame text"
       @update:model-value="frames.setDraft"
     />
-    <p v-if="frames.refusal" class="frame-editor__refusal" role="alert">{{ frames.refusal }}</p>
+    <el-alert
+      v-if="frames.refusal"
+      type="error"
+      show-icon
+      :closable="false"
+      :title="frames.refusal"
+      class="frame-editor__refusal"
+    />
     <div class="frame-editor__buttons">
       <el-button type="primary" :disabled="!frames.canSave" @click="frames.save">Save</el-button>
       <el-button
@@ -52,10 +64,24 @@ const FRAME_SHAPE = `${PROMPT_MARKER} ... ${TRACKING_MARKER}`;
         >Apply to all models of this kind</el-button
       >
     </div>
-    <div v-if="frames.warnings.length" class="frame-editor__warnings" role="status">
-      {{ frames.warnings.join(" ") }}
-    </div>
-    <div v-if="frames.applied" class="frame-editor__applied" role="status">{{ appliedLine(frames.applied) }}</div>
+    <el-alert
+      v-if="frames.warnings.length"
+      type="warning"
+      show-icon
+      :closable="false"
+      :title="frames.warnings.join(' ')"
+      class="frame-editor__warnings"
+      role="status"
+    />
+    <el-alert
+      v-if="frames.applied"
+      type="info"
+      show-icon
+      :closable="false"
+      :title="appliedLine(frames.applied)"
+      class="frame-editor__applied"
+      role="status"
+    />
 
     <div class="frame-editor__section">
       <h4>Preview</h4>
@@ -83,22 +109,28 @@ const FRAME_SHAPE = `${PROMPT_MARKER} ... ${TRACKING_MARKER}`;
       <p v-if="frames.shownModel && frames.info.lock_history?.length" class="frame-editor__help">
         {{ lockHistoryLine(frames.info.lock_history) }}
       </p>
-      <p v-if="!frames.info.history.length" class="frame-editor__help">No versions yet</p>
-      <ol v-else class="frame-editor__history">
-        <li v-for="v in frames.info.history" :key="v.id" :data-version="v.id">
+      <el-empty v-if="!frames.info.history.length" description="No versions yet" :image-size="48" />
+      <el-timeline v-else class="frame-editor__history">
+        <el-timeline-item
+          v-for="v in newestFirst(frames.info.history)"
+          :key="v.id"
+          :type="versionType(v)"
+          :timestamp="fmtTime(v.created_ms)"
+          placement="top"
+          :data-version="v.id"
+        >
           <div class="frame-editor__version">
             <span>{{ versionLine(v) }}</span>
-            <el-button
-              size="small"
+            <IconAction
+              :icon="RefreshLeft"
+              :label="`Roll back to version ${v.id}`"
               :disabled="frames.controlsOff"
-              :aria-label="`Roll back to version ${v.id}`"
               @click="frames.rollback(v.id)"
-              >Roll back to this</el-button
-            >
+            />
           </div>
           <pre>{{ v.text === null ? "(follows the default)" : v.text }}</pre>
-        </li>
-      </ol>
+        </el-timeline-item>
+      </el-timeline>
     </div>
   </section>
   <p v-else-if="frames.data" class="frame-editor__empty">Pick a model or a default to edit its frame.</p>
@@ -130,28 +162,10 @@ const FRAME_SHAPE = `${PROMPT_MARKER} ... ${TRACKING_MARKER}`;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 13px;
 }
-.frame-editor__refusal {
-  margin: 0;
-  color: var(--rl-bad);
-  font-size: 13px;
-}
 .frame-editor__buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-.frame-editor__warnings {
-  padding: 8px 12px;
-  color: var(--rl-warn);
-  font-size: 12px;
-  background: var(--rl-warn-bg);
-  border-radius: var(--el-border-radius-base, 6px);
-}
-.frame-editor__applied {
-  padding: 8px 12px;
-  font-size: 12px;
-  border: 1px solid var(--rl-line);
-  border-radius: var(--el-border-radius-base, 6px);
 }
 .frame-editor__section {
   display: grid;
@@ -177,17 +191,9 @@ const FRAME_SHAPE = `${PROMPT_MARKER} ... ${TRACKING_MARKER}`;
   border-radius: var(--el-border-radius-base, 6px);
 }
 .frame-editor__history {
-  display: grid;
-  gap: 8px;
   margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.frame-editor__history li {
-  padding: 8px;
+  padding-left: 4px;
   font-size: 12px;
-  border: 1px solid var(--rl-line);
-  border-radius: var(--el-border-radius-base, 6px);
 }
 .frame-editor__version {
   display: flex;

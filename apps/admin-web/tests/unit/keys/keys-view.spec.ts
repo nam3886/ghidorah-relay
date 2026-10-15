@@ -189,7 +189,7 @@ describe("the list", () => {
     vi.mocked(confirm.confirmDialog).mockResolvedValue(true);
     vi.mocked(keys.deleteKey).mockResolvedValueOnce({ id: "k1", result: "deleted" });
     const w = await open();
-    const del = () => w.findAll("tbody button").find((b) => b.text() === "Delete")!;
+    const del = () => w.findAll("tbody button").find((b) => b.attributes("aria-label") === "Delete")!;
     await del().trigger("click");
     await settle();
     expect(confirm.confirmDialog).toHaveBeenCalledWith(
@@ -207,10 +207,42 @@ describe("the list", () => {
     const w = await open();
     await w
       .findAll("tbody button")
-      .find((b) => b.text() === "Delete")!
+      .find((b) => b.attributes("aria-label") === "Delete")!
       .trigger("click");
     await settle();
     expect(keys.deleteKey).not.toHaveBeenCalled();
+  });
+});
+
+describe("the number fields of the key form", () => {
+  const inputNumbers = () => wrapper!.findAllComponents({ name: "ElInputNumber" });
+
+  it("max unfinished: an empty box sends null, a 0 sends 0 (unlimited), a number sends the number", async () => {
+    await open();
+    buttonOf("New key").click();
+    await settle();
+    const max = () => inputNumbers().find((c) => c.props("min") === 0)!;
+    expect(max().props("modelValue")).toBeUndefined();
+    max().vm.$emit("update:modelValue", 0);
+    await settle();
+    buttonOf("Create").click();
+    await settle();
+    expect(keys.createKey).toHaveBeenLastCalledWith(expect.objectContaining({ max_unfinished: 0 }));
+  });
+
+  it("clearing the field (null from the number box) goes back to the default (null)", async () => {
+    await open();
+    buttonOf("New key").click();
+    await settle();
+    const max = () => inputNumbers().find((c) => c.props("min") === 0)!;
+    max().vm.$emit("update:modelValue", 5);
+    await settle();
+    max().vm.$emit("update:modelValue", null);
+    await settle();
+    expect(max().props("modelValue")).toBeUndefined();
+    buttonOf("Create").click();
+    await settle();
+    expect(keys.createKey).toHaveBeenLastCalledWith(expect.objectContaining({ max_unfinished: null }));
   });
 });
 
@@ -314,7 +346,7 @@ describe("the one-time key", () => {
     const w = await open();
     await w
       .findAll("tbody button")
-      .find((b) => b.text() === "Edit")!
+      .find((b) => b.attributes("aria-label") === "Edit")!
       .trigger("click");
     await settle();
     buttonOf("Save").click();

@@ -72,7 +72,11 @@ const listButtons = (w: VueWrapper, text: string) =>
   w
     .findAll("button")
     // not in the detail, and not in el-table's hidden measuring copy of the columns (it renders them with an empty row)
-    .filter((b) => b.text() === text && !b.element.closest('[data-testid="alert-detail"], .hidden-columns'));
+    .filter(
+      (b) =>
+        (b.text() === text || b.attributes("aria-label") === text) &&
+        !b.element.closest('[data-testid="alert-detail"], .hidden-columns'),
+    );
 const detailButton = (w: VueWrapper, text: string) =>
   w.findAll('[data-testid="alert-detail"] button').find((b) => b.text() === text)!;
 const refresh = (w: VueWrapper) => listButtons(w, "Refresh")[0]!;
@@ -228,7 +232,7 @@ describe("the generation guard", () => {
     await settle();
     slow.reject(new ApiError(500, { error: { message: "old failure" } }));
     await settle();
-    expect(w.find('[role="alert"]').exists()).toBe(false);
+    expect(w.find(".data-table__error").exists()).toBe(false);
     expect(w.text()).toContain("second answer");
     expect(notify.error).not.toHaveBeenCalled();
   });
@@ -238,7 +242,7 @@ describe("the generation guard", () => {
     list.mockRejectedValueOnce(new ApiError(500, { error: { message: "the list failed" } }));
     await refresh(w).trigger("click");
     await settle();
-    expect(w.find('[role="alert"]').text()).toContain("the list failed");
+    expect(w.find(".data-table__error").text()).toContain("the list failed");
     expect(notify.error).toHaveBeenCalledWith("the list failed");
   });
 

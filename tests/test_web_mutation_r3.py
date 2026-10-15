@@ -254,8 +254,7 @@ LOAD_FREE = VIEW_SPEC + "Load models > is free again after a load that failed, s
 @mutation(TEST_VIEW, "if (loadingModels.value) return;", "", expect=LOAD_ONCE)
 @mutation(TEST_VIEW, ':loading="loadingModels"', ':loading="false"', expect=LOAD_ONCE)
 @mutation(TEST_VIEW, "} finally {\n    loadingModels.value = false;", "} finally {", expect=LOAD_FREE)
-@mutation(TEST_VIEW, 'v-if="!groups.length" class="test-tab__empty"', 'v-if="false" class="test-tab__empty"',
-          expect=EMPTY_MODELS)
+@mutation(TEST_VIEW, 'v-if="!groups.length"', 'v-if="false"', expect=EMPTY_MODELS)
 @mutation(TEST_VIEW, '<details v-if="points" class="test-tab__points-box">',
           '<details v-if="points" open class="test-tab__points-box">', expect=WALLET_BOX)
 @pytest.mark.web_unit
@@ -405,6 +404,22 @@ OPENS_MODEL = FRAMES_VIEW_SPEC + "opens the editor of a model: help text, Follow
 @pytest.mark.web_unit
 def test_frames_view_rules():
     vitest("tests/unit/frames/frames-view.spec.ts")
+
+
+# ---- Prompt frames: the history timeline -------------------------------------------------------------------------
+TIMELINE = FAILED + "frames/frames-model.spec.ts > the history timeline > "
+
+
+@mutation(FRAMES_MODEL, "[...history].sort((a, b) => b.id - a.id)", "[...history].sort((a, b) => a.id - b.id)",
+          expect=TIMELINE + "lists the newest version first and leaves the input alone")
+@mutation(FRAMES_MODEL, "[...history].sort(", "history.sort(",
+          expect=TIMELINE + "lists the newest version first and leaves the input alone")
+@mutation(FRAMES_MODEL, 'v.text === null ? "info" : v.restored_from ? "warning" : "primary"',
+          'v.restored_from ? "warning" : v.text === null ? "info" : "primary"',
+          expect=TIMELINE + "colours a version by where its text came from")
+@pytest.mark.web_unit
+def test_the_frames_history_runs_newest_first_with_a_colour_per_source():
+    vitest("tests/unit/frames/frames-model.spec.ts")
 
 
 # ---- Prompt frames: the lines and texts ------------------------------------------------------------------------

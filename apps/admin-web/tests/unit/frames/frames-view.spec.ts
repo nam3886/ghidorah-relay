@@ -22,7 +22,8 @@ async function open() {
   await flushPromises();
   return wrapper;
 }
-const buttons = (name: string) => wrapper!.findAll("button").filter((b) => b.text() === name);
+const buttons = (name: string) =>
+  wrapper!.findAll("button").filter((b) => b.text() === name || b.attributes("aria-label") === name);
 const button = (name: string) => buttons(name)[0]!;
 const textarea = () => wrapper!.find("textarea");
 
@@ -169,6 +170,11 @@ describe("the view", () => {
     expect(wrapper!.find(".frame-editor__preview").text()).toBe("RENDERED");
     expect(wrapper!.text()).toContain("8 characters, shown with the sample tracking code (draft frame)");
     expect(wrapper!.findAll(".frame-editor__history li")).toHaveLength(2);
+    // the timeline runs newest first
+    expect(wrapper!.findAll(".frame-editor__history li").map((li) => li.attributes("data-version"))).toEqual([
+      "5",
+      "4",
+    ]);
   });
 
   it("frame text with markup is text: in the box, the history, the preview and the warnings", async () => {

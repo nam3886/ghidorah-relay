@@ -199,9 +199,13 @@ onMounted(async () => {
 
     <div class="test-tab__grid">
       <aside class="test-tab__models">
-        <p v-if="!groups.length" class="test-tab__empty" data-testid="test-models-empty">
-          No models loaded. Enter an API key above and press Load models.
-        </p>
+        <el-empty
+          v-if="!groups.length"
+          class="test-tab__empty"
+          :image-size="64"
+          description="No models loaded. Enter an API key above and press Load models."
+          data-testid="test-models-empty"
+        />
         <div v-for="g in groups" :key="g.kind" class="test-tab__group">
           <div class="test-tab__group-title">{{ g.kind }}</div>
           <button
@@ -280,6 +284,7 @@ onMounted(async () => {
 <style scoped>
 .test-tab {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 .test-tab__key,
@@ -290,7 +295,7 @@ onMounted(async () => {
   border-radius: var(--el-border-radius-base, 6px);
 }
 .test-tab__key-input {
-  width: 320px;
+  width: min(320px, 100%);
 }
 .test-tab__hint {
   margin: 0;
@@ -348,11 +353,6 @@ onMounted(async () => {
 }
 /* the model column keeps its place while nothing is loaded, so the three columns do not jump when models arrive */
 .test-tab__empty {
-  margin: 0;
-  padding: 24px 16px;
-  color: var(--rl-muted);
-  font-size: 13px;
-  text-align: center;
   border: 1px dashed var(--rl-line-strong);
   border-radius: var(--el-border-radius-base, 6px);
 }
@@ -405,7 +405,12 @@ onMounted(async () => {
 .test-tab__row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 0 12px;
+}
+@media (max-width: 700px) {
+  .test-tab__row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 .test-tab__title {
   margin-top: 12px;

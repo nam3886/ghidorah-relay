@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { Edit } from "@element-plus/icons-vue";
 import type { FrameKind } from "@/api/frames";
+import IconAction from "@/components/shared/IconAction.vue";
 import DataTable from "@/components/shared/DataTable.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import type { Column } from "@/components/shared/types";
@@ -25,16 +27,19 @@ const columns: Column[] = [
       <span class="frame-kind__version">Default: {{ versionLine(kind.default) }}</span>
       <template v-if="kind.shipped_differs">
         <StatusChip status="shipped differs" label="differs from the shipped default" tone="warn" />
-        <el-button size="small" :disabled="frames.controlsOff" @click="frames.resetShipped(kind.kind)"
+        <el-button :disabled="frames.controlsOff" @click="frames.resetShipped(kind.kind)"
           >Reset to the shipped default</el-button
         >
       </template>
       <span class="frame-kind__grow" />
-      <el-button size="small" :disabled="frames.opensOff" @click="frames.edit(kind.kind, DEFAULT_TARGET)"
-        >Edit the default</el-button
-      >
+      <IconAction
+        :icon="Edit"
+        label="Edit the default"
+        :disabled="frames.opensOff"
+        @click="frames.edit(kind.kind, DEFAULT_TARGET)"
+      />
     </header>
-    <DataTable :columns="columns" :rows="kind.models" row-key="model" empty-text="No models" max-height="none">
+    <DataTable :columns="columns" :rows="kind.models" row-key="model" empty-text="No models">
       <template #cell-model="{ row }">
         <span class="frame-kind__mono">{{ row.model }}</span>
       </template>
@@ -56,13 +61,12 @@ const columns: Column[] = [
         </div>
       </template>
       <template #actions="{ row }">
-        <el-button
-          size="small"
+        <IconAction
+          :icon="Edit"
+          :label="`Edit ${row.model}`"
           :disabled="frames.opensOff"
-          :aria-label="`Edit ${row.model}`"
           @click="frames.edit(kind.kind, row.model)"
-          >Edit</el-button
-        >
+        />
       </template>
     </DataTable>
   </section>

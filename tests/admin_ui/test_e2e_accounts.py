@@ -3,7 +3,6 @@ switch, the commands the worker would run, the screenshot blob, auto-refresh and
 under the CSP watch of `conftest.CspWatch`. The app is opened by `app.url` (`/manage`)."""
 
 import json
-import re
 
 import pytest
 from accountkit import new_account
@@ -28,9 +27,8 @@ def rows(page):
 
 
 def more(row, name):
-    row.get_by_role("button", name=re.compile("More actions")).click()
-    # the dropdown is a popper at the end of <body>, so its items are found from the page
-    row.page.get_by_role("menuitem", name=name).click()
+    """A row action: an icon button named by its tooltip (Shot, Wake, Edit, Delete)."""
+    row.get_by_role("button", name=name, exact=True).click()
 
 
 def flip(switch):
@@ -196,6 +194,8 @@ def test_check_wake_delete_and_the_provider_commands_queue_a_command_and_say_so(
     expect(box).to_contain_text('Delete account "free one"? A used account cannot be deleted: disable it instead.')
     box.get_by_role("button", name="Cancel").click()
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'delete_account'")[0] == 0
+    # the toast stack holds four: a fifth is dropped, so let the earlier ones go first
+    expect(page.locator(".el-message")).to_have_count(0)
     more(row, "Delete")
     page.locator(".el-message-box").get_by_role("button", name="Delete").click()
     expect(page.get_by_text("Delete: queued")).to_be_visible()

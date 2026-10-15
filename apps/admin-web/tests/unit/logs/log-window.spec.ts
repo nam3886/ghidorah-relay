@@ -62,18 +62,18 @@ describe("logQuery", () => {
   const filters = { q: "", status: "all" as const, from: "", to: "" };
 
   it("no filters: the page and the status only", () => {
-    expect(logQuery(filters, "", 0)).toEqual({ limit: 50, offset: 0, status: "all" });
+    expect(logQuery(filters, "", 0)).toEqual({ limit: 10, offset: 0, status: "all" });
   });
 
   it("From alone sets since only; To alone sets until only", () => {
     expect(logQuery({ ...filters, from: "2026-10-15" }, "", 0)).toEqual({
-      limit: 50,
+      limit: 10,
       offset: 0,
       status: "all",
       since_ms: Date.UTC(2026, 9, 14, 17),
     });
     expect(logQuery({ ...filters, to: "2026-10-15" }, "", 0)).toEqual({
-      limit: 50,
+      limit: 10,
       offset: 0,
       status: "all",
       until_ms: Date.UTC(2026, 9, 15, 17),
@@ -82,7 +82,7 @@ describe("logQuery", () => {
 
   it("both dates, with the search trimmed, the provider, the status and the offset", () => {
     expect(logQuery({ q: "  abc  ", status: "pre_job", from: "2026-10-01", to: "2026-10-31" }, "dola", 100)).toEqual({
-      limit: 50,
+      limit: 10,
       offset: 100,
       status: "pre_job",
       provider: "dola",

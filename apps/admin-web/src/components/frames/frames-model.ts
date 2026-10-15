@@ -17,6 +17,14 @@ export function versionLine(v: FrameVersion | null | undefined): string {
   return `version ${v.id} by ${v.created_by}, ${fmtTime(v.created_ms)}${restored}`;
 }
 
+// The history as the timeline draws it: newest version first (ids only grow), the input list left as it was.
+export const newestFirst = (history: FrameVersion[]): FrameVersion[] => [...history].sort((a, b) => b.id - a.id);
+
+// The colour of a version on the timeline: a version that follows the default is grey, a restored one amber, the
+// others (an own text written by hand) blue.
+export const versionType = (v: FrameVersion): "info" | "warning" | "primary" =>
+  v.text === null ? "info" : v.restored_from ? "warning" : "primary";
+
 const lockWords = (lock: FrameLock): string => `${lock.locked ? "locked" : "unlocked"} by ${lock.created_by}`;
 
 // "locked by owner, 15/10/2026, 10:00:00" or "never toggled"

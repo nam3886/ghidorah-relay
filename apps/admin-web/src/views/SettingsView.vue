@@ -87,10 +87,6 @@ const reset = (key: string) =>
 onMounted(reload);
 watch(() => scope.provider, loadPrices);
 
-const envColumns: Column[] = [
-  { key: "name", label: "Boot-only value", minWidth: 200 },
-  { key: "value", label: "Value (read-only)", minWidth: 260 },
-];
 const priceColumns: Column[] = [
   { key: "provider", label: "Provider" },
   { key: "model", label: "Model", minWidth: 160 },
@@ -121,21 +117,16 @@ const withKey = (row: PriceRow): KeyedPrice => ({ ...row, id: `${row.provider}/$
     </div>
 
     <div class="settings__block">
-      <DataTable
-        :columns="envColumns"
-        :rows="envOnly"
-        :loading="settingsLoading"
-        row-key="name"
-        empty-text="None"
-        max-height="none"
-      >
-        <template #cell-name="{ row }"
-          ><span class="mono">{{ row.name }}</span></template
-        >
-        <template #cell-value="{ row }"
-          ><span class="mono">{{ row.value === null || row.value === undefined ? "-" : row.value }}</span></template
-        >
-      </DataTable>
+      <h3>Boot-only values (read-only)</h3>
+      <el-descriptions v-if="envOnly.length" :column="1" border class="settings__env" aria-label="Boot-only values">
+        <el-descriptions-item v-for="row in envOnly" :key="row.name">
+          <template #label
+            ><span class="mono">{{ row.name }}</span></template
+          >
+          <span class="mono">{{ row.value === null || row.value === undefined ? "-" : row.value }}</span>
+        </el-descriptions-item>
+      </el-descriptions>
+      <el-empty v-else description="None" :image-size="48" />
     </div>
 
     <div class="settings__block">

@@ -51,12 +51,16 @@ async function open(path = "/logs") {
   await settle();
   return { w: wrapper, router };
 }
-const button = (w: VueWrapper, text: string) => w.findAll("button").find((b) => b.text() === text)!;
+const button = (w: VueWrapper, text: string) =>
+  text === "Next" ? w.find("button.btn-next") : w.findAll("button").find((b) => b.text() === text)!;
 const lastQuery = () => list.mock.calls.at(-1)![0];
-const setDate = async (w: VueWrapper, label: string, value: string) => {
-  const input = w.find<HTMLInputElement>(`input[aria-label="${label}"]`);
-  await input.setValue(value);
-  await input.trigger("change");
+// The two day pickers, From then To.
+const picker = (w: VueWrapper, which: "From" | "To") =>
+  w.findAllComponents({ name: "ElDatePicker" })[which === "From" ? 0 : 1]!;
+// What a day picker does when the operator picks (or clears) a day: it sets its model and reports the change.
+const setDay = async (w: VueWrapper, which: "From" | "To", day: string | null) => {
+  picker(w, which).vm.$emit("update:modelValue", day);
+  picker(w, which).vm.$emit("change", day);
   await settle();
 };
 
@@ -130,25 +134,36 @@ describe("the list", () => {
     expect(w.find("tbody tr").text()).toContain("no job");
   });
 
-  it("the first load asks for 50 rows, all statuses, no dates", async () => {
+  it("the first load asks for 10 rows, all statuses, no dates", async () => {
     await open();
-    expect(lastQuery()).toEqual({ limit: 50, offset: 0, status: "all" });
+    expect(lastQuery()).toEqual({ limit: 10, offset: 0, status: "all" });
   });
 });
 
 describe("filters", () => {
   it("From and To send the half-open window of the viewer's own midnights, and search at once", async () => {
     const { w } = await open();
-    await setDate(w, "From", "2026-10-01");
-    await setDate(w, "To", "2026-10-15");
+    await setDay(w, "From", "2026-10-01");
+    await setDay(w, "To", "2026-10-15");
     expect(lastQuery()).toEqual({
-      limit: 50,
+      limit: 10,
       offset: 0,
       status: "all",
       since_ms: dayStart("2026-10-01"),
       until_ms: dayAfter("2026-10-15"),
     });
     expect(lastQuery().until_ms).toBeGreaterThan(dayStart("2026-10-15") + 23 * 3600 * 1000);
+  });
+
+  it("From alone sets since only; To alone sets until only", async () => {
+    const { w } = await open();
+    await setDay(w, "From", "2026-10-01");
+    expect(lastQuery().since_ms).toBe(dayStart("2026-10-01"));
+    expect(lastQuery().until_ms).toBeUndefined();
+    await setDay(w, "From", null);
+    await setDay(w, "To", "2026-10-15");
+    expect(lastQuery().since_ms).toBeUndefined();
+    expect(lastQuery().until_ms).toBe(dayAfter("2026-10-15"));
   });
 
   it("the search text is trimmed and Enter searches", async () => {
@@ -181,27 +196,48 @@ describe("filters", () => {
   it("the filters survive leaving and coming back; the page starts at the first", async () => {
     const { w } = await open();
     await w.find<HTMLInputElement>('input[aria-label="Search"]').setValue("keep me");
-    await setDate(w, "From", "2026-10-01");
+    await setDay(w, "From", "2026-10-01");
     await button(w, "Next").trigger("click");
     await settle();
-    expect(lastQuery().offset).toBe(50);
+    expect(lastQuery().offset).toBe(10);
     w.unmount();
     wrapper = null;
     const again = await open();
     expect(lastQuery()).toMatchObject({ offset: 0, q: "keep me", since_ms: dayStart("2026-10-01") });
-    expect(again.w.find<HTMLInputElement>('input[aria-label="From"]').element.value).toBe("2026-10-01");
+    expect(picker(again.w, "From").props("modelValue")).toBe("2026-10-01");
+    expect(picker(again.w, "To").props("modelValue")).toBeNull();
   });
 });
 
 describe("paging and refresh", () => {
+  it("a page size from the pager is asked for and starts again at the first page", async () => {
+    const { w } = await open();
+    await button(w, "Next").trigger("click");
+    await settle();
+    expect(lastQuery().offset).toBe(10);
+    w.findComponent({ name: "ListPager" }).vm.$emit("size", 100);
+    await settle();
+    expect(lastQuery()).toMatchObject({ limit: 100, offset: 0 });
+  });
+
+  it("clearing both day pickers drops both ends of the window", async () => {
+    const { w } = await open();
+    await setDay(w, "From", "2026-10-01");
+    await setDay(w, "To", "2026-10-15");
+    await setDay(w, "From", null);
+    await setDay(w, "To", null);
+    expect(lastQuery().since_ms).toBeUndefined();
+    expect(lastQuery().until_ms).toBeUndefined();
+  });
+
   it("Refresh keeps the page, Search goes back to the first", async () => {
     const { w } = await open();
     await button(w, "Next").trigger("click");
     await settle();
-    expect(lastQuery().offset).toBe(50);
+    expect(lastQuery().offset).toBe(10);
     await button(w, "Refresh").trigger("click");
     await settle();
-    expect(lastQuery().offset).toBe(50);
+    expect(lastQuery().offset).toBe(10);
     await button(w, "Search").trigger("click");
     await settle();
     expect(lastQuery().offset).toBe(0);
@@ -244,11 +280,7 @@ describe("the detail", () => {
   it("shows the request and the answer as text, titled with the id", async () => {
     vi.mocked(logs.getLog).mockResolvedValue(detail());
     const { w } = await open();
-    await w
-      .find("tbody")
-      .findAll("button")
-      .find((b) => b.text() === "Details")!
-      .trigger("click");
+    await w.find('tbody button[aria-label="Details"]').trigger("click");
     await settle();
     expect(logs.getLog).toHaveBeenCalledWith("l1");
     const dialog = document.body.querySelector(".el-dialog")!;
@@ -261,11 +293,7 @@ describe("the detail", () => {
   it("an answer that was not kept says so", async () => {
     vi.mocked(logs.getLog).mockResolvedValue(detail({ response: null }));
     const { w } = await open();
-    await w
-      .find("tbody")
-      .findAll("button")
-      .find((b) => b.text() === "Details")!
-      .trigger("click");
+    await w.find('tbody button[aria-label="Details"]').trigger("click");
     await settle();
     expect(document.body.querySelector(".el-dialog")!.textContent).toContain("(none kept)");
   });

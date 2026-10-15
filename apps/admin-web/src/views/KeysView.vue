@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef } from "vue";
+import { Delete, Edit } from "@element-plus/icons-vue";
 import { type ApiKey, createKey, deleteKey, type KeyBody, listKeys, patchKey, setKeyEnabled } from "@/api/keys";
 import type { CatalogModel } from "@/api/shell";
 import KeyFormDialog from "@/components/keys/KeyFormDialog.vue";
@@ -15,7 +16,8 @@ import {
 import CopyButton from "@/components/shared/CopyButton.vue";
 import DataTable from "@/components/shared/DataTable.vue";
 import ListToolbar from "@/components/shared/ListToolbar.vue";
-import OffsetPager from "@/components/shared/OffsetPager.vue";
+import IconAction from "@/components/shared/IconAction.vue";
+import ListPager from "@/components/shared/ListPager.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { useBusy } from "@/composables/use-busy";
@@ -38,7 +40,8 @@ const offset = ref(0);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const updatedAt = ref<number | null>(null);
-const page = computed(() => items.value.slice(offset.value, offset.value + PAGE_SIZE));
+const limit = ref(PAGE_SIZE);
+const page = computed(() => items.value.slice(offset.value, offset.value + limit.value));
 
 const formOpen = ref(false);
 const editing = shallowRef<ApiKey | null>(null);
@@ -80,7 +83,7 @@ async function load(): Promise<void> {
     items.value = out.items;
     // a shorter list than before: stay on a page that exists
     if (offset.value >= out.items.length)
-      offset.value = Math.max(0, Math.floor((out.items.length - 1) / PAGE_SIZE) * PAGE_SIZE);
+      offset.value = Math.max(0, Math.floor((out.items.length - 1) / limit.value) * limit.value);
     error.value = null;
     updatedAt.value = Date.now();
   } catch (err) {
@@ -179,7 +182,7 @@ async function remove(k: ApiKey) {
         <span v-else class="sub">enabled</span>
       </template>
       <template #cell-models="{ row }">
-        <StatusChip v-if="row.models.includes('*')" status="any model" tone="neutral" />
+        <StatusChip v-if="row.models.includes('*')" status="any model" />
         <span v-else class="sub">{{ row.models.join(", ") }}</span>
       </template>
       <template #cell-wallets="{ row }">
@@ -199,12 +202,23 @@ async function remove(k: ApiKey) {
             :aria-label="`Enabled: ${row.label || row.prefix}`"
             @change="(v: string | number | boolean) => toggle(row, Boolean(v))"
           />
-          <el-button size="small" :disabled="busy" @click="openForm(row)">Edit</el-button>
-          <el-button size="small" class="danger" @click="remove(row)">Delete</el-button>
+          <IconAction :icon="Edit" label="Edit" :disabled="busy" @click="openForm(row)" />
+          <IconAction :icon="Delete" label="Delete" type="danger" @click="remove(row)" />
         </div>
       </template>
     </DataTable>
-    <OffsetPager :offset="offset" :limit="PAGE_SIZE" :total="items.length" @move="(o: number) => (offset = o)" />
+    <ListPager
+      :offset="offset"
+      :limit="limit"
+      :total="items.length"
+      @move="(o: number) => (offset = o)"
+      @size="
+        (s: number) => {
+          limit = s;
+          offset = 0;
+        }
+      "
+    />
 
     <KeyFormDialog
       v-model="formOpen"

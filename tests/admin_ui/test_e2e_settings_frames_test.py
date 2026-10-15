@@ -374,9 +374,11 @@ def test_the_test_tab_generates_keeps_form_and_images_over_a_reload_and_the_key_
     page.locator(".test-tab__model", has_text="fake-video").click()
     page.get_by_label("Prompt", exact=True).fill("a cat")
     page.get_by_label("Title", exact=True).fill("kept title")
-    page.locator("#test-image-files").set_input_files(
+    page.locator("input.el-upload__input").set_input_files(
         files=[{"name": "ref.png", "mimeType": "image/png", "buffer": PNG}])
-    expect(page.locator(".test-images__list")).to_contain_text("ref.png")
+    items = page.locator(".test-images .el-upload-list__item")
+    expect(items).to_have_count(1)                           # the list animates: wait for one item
+    expect(items).to_contain_text("ref.png")
     page.get_by_role("button", name="Generate", exact=True).click()
     expect(page.locator(".test-result__status")).to_contain_text("Job")
     assert db.one("SELECT count(*) FROM jobs WHERE prompt = 'a cat'")[0] == 1
@@ -393,7 +395,9 @@ def test_the_test_tab_generates_keeps_form_and_images_over_a_reload_and_the_key_
     page.reload()
     expect(page.get_by_label("Prompt", exact=True)).to_have_value("a cat")
     expect(page.get_by_label("Title", exact=True)).to_have_value("kept title")
-    expect(page.locator(".test-images__list")).to_contain_text("ref.png")
+    items = page.locator(".test-images .el-upload-list__item")
+    expect(items).to_have_count(1)                           # the list animates: wait for one item
+    expect(items).to_contain_text("ref.png")
     expect(key_box(page)).to_have_value(api_key.raw)
     expect(page.locator(".test-tab__form h3")).to_have_text("fake-video")
     # Clear form empties the form, the picked model and the stored images, also after a reload
@@ -403,7 +407,7 @@ def test_the_test_tab_generates_keeps_form_and_images_over_a_reload_and_the_key_
     expect(page.get_by_role("button", name="Generate", exact=True)).to_be_disabled()
     page.reload()
     expect(page.get_by_label("Prompt", exact=True)).to_have_value("")
-    expect(page.locator(".test-images__list")).to_have_count(0)
+    expect(page.locator(".test-images .el-upload-list__item")).to_have_count(0)
     assert page.evaluate("localStorage.getItem('relay_test_form')") is None or \
         json.loads(page.evaluate("localStorage.getItem('relay_test_form')")).get("prompt") == ""
     assert page.evaluate(READ_STORE, isolated_context=False)["types"] == []
@@ -449,8 +453,8 @@ def test_a_stored_image_set_over_the_limits_or_with_a_non_image_is_not_restored_
     page.evaluate(SEED_STORE, kind, isolated_context=False)
     open_tab(page, "Test")
     expect(page.get_by_role("button", name="Load models")).to_be_visible()
-    expect(page.locator(".test-images__list li")).to_have_count(len(left) if isinstance(left, list) else 0)
-    expect(page.locator(".test-images__note")).to_contain_text("broke the limits")
+    expect(page.locator(".test-images .el-upload-list__item")).to_have_count(len(left) if isinstance(left, list) else 0)
+    expect(page.locator(".test-images .el-alert")).to_contain_text("broke the limits")
     stored = page.evaluate(READ_STORE, isolated_context=False)
     if isinstance(left, list):
         assert stored["types"] == left, "the store is cleaned: %s" % kind
@@ -469,9 +473,9 @@ def test_the_test_tab_still_works_when_localstorage_and_indexeddb_are_blocked(ap
     api_key = open_test_tab(page, db, live)
     page.locator(".test-tab__model", has_text="fake-video").click()
     page.get_by_label("Prompt", exact=True).fill("a dog")
-    page.locator("#test-image-files").set_input_files(
+    page.locator("input.el-upload__input").set_input_files(
         files=[{"name": "ref.png", "mimeType": "image/png", "buffer": PNG}])
-    expect(page.locator(".test-images__note")).to_contain_text(
+    expect(page.locator(".test-images .el-alert")).to_contain_text(
         "The attached images could not be saved in this browser: they are lost on reload.")
     page.get_by_role("button", name="Generate", exact=True).click()
     expect(page.locator(".test-result__status")).to_contain_text("Job")

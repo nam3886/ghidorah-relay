@@ -179,14 +179,14 @@ def test_the_alerts_view_drops_stale_answers_and_acknowledges_what_was_shown():
 @mutation(ALERTS, "const locked = computed(() => writing.value || loading.value > 0);",
           "const locked = computed(() => writing.value);",
           expect=GUARD + "while a view loads, Acknowledge is locked but the filters are not")
-@mutation(ALERTS, '<el-button v-if="row.open_count > 0" size="small" :disabled="locked"',
-          '<el-button v-if="row.open_count > 0" size="small" :disabled="writing"',
+@mutation(ALERTS, '<el-button v-if="row.open_count > 0" :disabled="locked"',
+          '<el-button v-if="row.open_count > 0" :disabled="writing"',
           expect=GUARD + "while a view loads, Acknowledge is locked but the filters are not")
 @mutation(ALERTS, 'aria-label="Status" :disabled="writing"', 'aria-label="Status" :disabled="false"',
           expect=IN_FLIGHT)
 @mutation(ALERTS, 'aria-label="Kind" :disabled="writing"', 'aria-label="Kind" :disabled="false"', expect=IN_FLIGHT)
-@mutation(ALERTS, '<el-button size="small" :disabled="writing" @click="openGroup(row)">',
-          '<el-button size="small" :disabled="false" @click="openGroup(row)">', expect=IN_FLIGHT)
+@mutation(ALERTS, 'label="Details" :disabled="writing" @click="openGroup(row)"',
+          'label="Details" :disabled="false" @click="openGroup(row)"', expect=IN_FLIGHT)
 @mutation(ALERT_DETAIL, '<el-button :disabled="writing" @click="$emit(\'close\')">',
           '<el-button :disabled="false" @click="$emit(\'close\')">', expect=IN_FLIGHT)
 @mutation(ALERT_DETAIL, '<el-button v-if="detail.open_count > 0" :disabled="locked"',
@@ -234,8 +234,9 @@ def test_the_alert_group_rules_hold():
           expect=LIST + "draws every server string as text, and hides the switch of an account in use")
 @mutation(ACCOUNT_MODEL, 'WAKE_LABEL = "Wake: clear cooldown and strikes"', 'WAKE_LABEL = "Clear cooldown"',
           expect=COMMANDS + "Wake queues the wake command under the label that names the cooldown and the strikes")
-@mutation(ACCOUNTS, 'title="Clear the cooldown and the strike count of this account"', 'title="Wake"',
-          expect=COMMANDS + "the Wake item says what it clears")
+@mutation(ACCOUNTS, 'label="Wake" @click="wake(row)"', 'label="Awake" @click="wake(row)"',
+          expect=COMMANDS + "every row action is an icon button with its name, and Shot shows only when there is "
+                            "a screenshot")
 @mutation(ACCOUNTS, 'queue(recheckProxy(a.id), "Proxy check")', 'queue(recheckProxy(a.id), "Proxy")',
           expect=COMMANDS + "Re-check proxy closes the dialog, queues the re-check, polls Proxy check and reads "
                             "the list again")
@@ -247,7 +248,7 @@ def test_the_accounts_view_commands_and_proxy_recheck():
 
 
 # ---- Keys: the Copy buttons ------------------------------------------------------------------------------------
-@mutation(NEW_KEY, '<CopyButton :text="() => rawKey" size="default" :select-from="() => field" />', "",
+@mutation(NEW_KEY, '<CopyButton :text="() => rawKey" :select-from="() => field?.input" />', "",
           expect=COPY + "the one-time callout has a Copy that copies the raw key")
 @mutation(KEYS, '<CopyButton :text="row.prefix"', '<CopyButton :text="row.label"',
           expect=COPY + "the prefix in a row has a Copy that copies the prefix and nothing else")
@@ -263,6 +264,41 @@ def test_the_keys_view_copy_buttons_copy_the_right_text():
           expect=CLEAR + "asks first, then says how many rows went and goes to the first page")
 @pytest.mark.web_unit
 def test_clear_logs_asks_first_and_goes_to_the_first_page():
+    vitest(LOGS_VIEW_SPEC)
+
+
+# ---- Keys: the number fields keep "empty" and "0" apart ---------------------------------------------------------
+KEY_FORM = SRC + "/components/keys/KeyFormDialog.vue"
+NUMBER = f"FAILED {KEYS_VIEW_SPEC} > the number fields of the key form > "
+@mutation(KEY_FORM, 'value === null || value === undefined ? "" : String(value)', "String(value ?? 0)",
+          expect=NUMBER + "clearing the field (null from the number box) goes back to the default (null)")
+@mutation(KEY_FORM, 'text === "" ? undefined : Number(text)', "Number(text)",
+          expect=NUMBER + "max unfinished: an empty box sends null, a 0 sends 0 (unlimited), a number sends the number")
+@pytest.mark.web_unit
+def test_the_key_form_number_fields_keep_empty_and_zero_apart():
+    vitest(KEYS_VIEW_SPEC)
+
+
+# ---- Request logs: the date range picker and the page size -------------------------------------------------------
+RANGE = (f"FAILED {LOGS_VIEW_SPEC} > filters > From and To send the half-open window of the viewer's own "
+         "midnights, and search at once")
+CLEARED = f"FAILED {LOGS_VIEW_SPEC} > paging and refresh > clearing both day pickers drops both ends of the window"
+ALONE = f"FAILED {LOGS_VIEW_SPEC} > filters > From alone sets since only; To alone sets until only"
+SIZE = (f"FAILED {LOGS_VIEW_SPEC} > paging and refresh > a page size from the pager is asked for and starts "
+        "again at the first page")
+@mutation(LOGS, 'set: (value) => (filters.to = value ?? ""),', 'set: (value) => (filters.from = value ?? ""),',
+          expect=RANGE)
+@mutation(LOGS, 'set: (value) => (filters.from = value ?? ""),', 'set: (value) => (filters.to = value ?? ""),',
+          expect=ALONE)
+@mutation(LOGS, 'set: (value) => (filters.to = value ?? ""),', 'set: (value) => (filters.to = value ?? filters.to),',
+          expect=CLEARED)
+@mutation(LOGS, 'set: (value) => (filters.from = value ?? ""),',
+          'set: (value) => (filters.from = value ?? filters.from),', expect=ALONE)
+@mutation(LOGS, "scope.provider, offset.value, limit.value)", "scope.provider, offset.value)", expect=SIZE)
+@mutation(LOGS, "          limit = s;\n          search();", "          limit = s;\n          void load();",
+          expect=SIZE)
+@pytest.mark.web_unit
+def test_the_logs_range_picker_and_page_size_reach_the_query():
     vitest(LOGS_VIEW_SPEC)
 
 
@@ -292,7 +328,6 @@ def test_the_logs_view_marks_exceptions_only():
 
 @mutation(KEYS, '<StatusChip v-if="!row.enabled" status="disabled" />', '<StatusChip v-if="true" status="disabled" />',
           expect=ENABLED)
-@mutation(KEYS, 'status="any model" tone="neutral"', 'status="any model"', expect=ENABLED)
 @pytest.mark.web_unit
 def test_the_keys_view_colours_only_the_exception():
     vitest(KEYS_VIEW_SPEC)
