@@ -185,6 +185,24 @@ describe("the shell", () => {
     expect(useScopeStore().providers).toEqual(["dola", "vibes"]);
   });
 
+  it("shows All, not the placeholder, in the provider filter, and keeps the store's empty string for All", async () => {
+    const { wrapper } = await open("/jobs");
+    const { useScopeStore } = await import("@/stores/scope");
+    const scope = useScopeStore();
+    const filter = wrapper.find('[data-testid="provider-filter"]');
+    expect(filter.text()).toBe("All");
+    expect(filter.text()).not.toContain("Select");
+    const select = wrapper.findComponent({ name: "ElSelect" });
+    select.vm.$emit("update:modelValue", "dola");
+    await flushPromises();
+    expect(scope.provider).toBe("dola");
+    expect(filter.text()).toBe("dola");
+    select.vm.$emit("update:modelValue", "__all__");
+    await flushPromises();
+    expect(scope.provider).toBe("");
+    expect(filter.text()).toBe("All");
+  });
+
   it("has an API docs link that opens the reference in a new tab", async () => {
     const { wrapper } = await open("/jobs");
     const link = wrapper.find('a[href="/reference"]');

@@ -9,6 +9,7 @@ import re
 import sys
 import threading
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 import uvicorn
@@ -168,6 +169,16 @@ class CspWatch:
         return page
 
 
+def is_handled_api_failure(message) -> bool:
+    """Chrome's own "Failed to load resource" line for an API path (`/admin/...`, `/v1/...`). An API answer of 4xx is
+    something the app handles and shows (a frames route asking for a provider with none: 404 and a message), so it is
+    not an error of the page. The same line for anything else, above all a missing file under `/ui/`, stays one."""
+    if not message.text.startswith("Failed to load resource"):
+        return False
+    path = urlsplit((message.location or {}).get("url", "")).path
+    return path.startswith(("/admin/", "/v1/"))
+
+
 def new_app_page(chrome, live, color_scheme: str = "light"):
     """A fresh context and page for the Vue admin: CSP watch registered first, then the usual console and script error
     list (`page.problems`, which a test may allow to hold a line it expects; the CSP entries are not in it)."""
@@ -178,7 +189,8 @@ def new_app_page(chrome, live, color_scheme: str = "light"):
     page.problems = []
     page.on("pageerror", lambda e: page.problems.append("script error: %s" % e))
     page.on("console", lambda m: page.problems.append("console %s: %s" % (m.type, m.text))
-            if m.type == "error" and "content security policy" not in m.text.lower() else None)
+            if m.type == "error" and "content security policy" not in m.text.lower()
+            and not is_handled_api_failure(m) else None)
     return context, page
 
 
@@ -283,6 +295,7 @@ class App:
         return planted(db, scenario)
 
     assert_planted_as_text = staticmethod(assert_planted_as_text)
+    is_handled_api_failure = staticmethod(is_handled_api_failure)
 
 
 @pytest.fixture

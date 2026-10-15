@@ -225,6 +225,8 @@ def test_client_rules():
 AUTH_FAILED = "FAILED tests/unit/stores.spec.ts > auth store > "
 
 
+@mutation(AUTH, "setSession(session.token, username);", "void 0;",
+          expect=AUTH_FAILED + "login stores the session under the old key names")
 @mutation(AUTH, "for (const hook of [...hooks]) {", "for (const hook of [...hooks].slice(0, 1)) {",
           expect=AUTH_FAILED + "signOut clears token, user and Test key and runs every hook")
 @mutation(AUTH, 'console.error("sign-out hook failed", err);', "throw err;",
@@ -274,3 +276,24 @@ def test_use_latest_rule():
 @pytest.mark.web_unit
 def test_sign_in_guard():
     vitest("tests/unit/router.spec.ts")
+
+
+# ---- the attention banner -----------------------------------------------------------------------------------------
+BANNER = f"{SRC}/components/layout/AttentionBanner.vue"
+SHELL_FAILED = "FAILED tests/unit/app-shell.spec.ts > the shell > "
+
+
+@mutation(BANNER, "alerts.value.length > 0 || stats.openGroups > 0", "true",
+          expect=SHELL_FAILED + "shows no banner when nothing needs attention")
+@mutation(BANNER, "} open alert group(s)`", "} alert group(s)`",
+          expect=SHELL_FAILED + "shows the live alerts and the open group count, 200 as 200+")
+@mutation(f"{SRC}/components/layout/AppHeader.vue", "get: () => scope.provider || ALL,", "get: () => scope.provider,",
+          expect=SHELL_FAILED + "shows All, not the placeholder, in the provider filter, "
+                 "and keeps the store's empty string for All")
+@mutation(f"{SRC}/components/layout/AppHeader.vue", 'scope.provider = value === ALL ? "" : value;',
+          "scope.provider = value;",
+          expect=SHELL_FAILED + "shows All, not the placeholder, in the provider filter, "
+                 "and keeps the store's empty string for All")
+@pytest.mark.web_unit
+def test_the_banner_rules():
+    vitest("tests/unit/app-shell.spec.ts")

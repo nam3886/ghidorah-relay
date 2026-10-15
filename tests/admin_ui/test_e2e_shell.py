@@ -6,9 +6,11 @@ clear or filter one. The new app is opened by `app.url` until the switch makes `
 import re
 
 import pytest
+from patchright.sync_api import TimeoutError as PlaywrightTimeout
 from patchright.sync_api import expect
 
 from relay_core.admin.auth import LOGIN_MAX_FAILS
+from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
 
@@ -147,7 +149,11 @@ def test_a_401_from_a_stale_token_clears_the_session_and_goes_to_login(app_sessi
     page = app_session
     page.evaluate("sessionStorage.setItem('relay_test_key', 'typed-key')")
     db.run("DELETE FROM admin_sessions")                         # the server forgets the session
-    page.get_by_role("tab", name=re.compile("Accounts")).click()  # any admin call now answers 401
+    try:
+        page.get_by_role("tab", name=re.compile("Accounts")).click(timeout=3000)   # any admin call now answers 401
+    except PlaywrightTimeout:
+        # the stats strip's own call may answer 401 first and send the page to login under the click's feet
+        assert re.search(r"#/login$", page.url), page.url
     expect(page).to_have_url(re.compile(r"#/login$"))
     for key in ("relay_admin_token", "relay_admin_user", "relay_test_key"):
         assert page.evaluate("sessionStorage.getItem(%r)" % key) is None, key
@@ -259,6 +265,76 @@ def test_the_banner_shows_a_live_condition_and_opens_the_alerts_tab(app_session,
     page.reload()
     banner = page.get_by_role("alert").filter(has_text="accounts_low")
     expect(banner).to_be_visible()
+
+
+# ---- the console-error rule of the harness ---------------------------------------------------------------------------
+
+class Message:
+    """What the harness reads of a console message."""
+
+    def __init__(self, text, url):
+        self.text, self.location = text, {"url": url}
+
+
+FAILED_LOAD = "Failed to load resource: the server responded with a status of 404 (Not Found)"
+
+
+@mutation("tests/admin_ui/conftest.py", 'path.startswith(("/admin/", "/v1/"))', "True",
+          expect="a missing file under /ui/ stays a console error")
+@mutation("tests/admin_ui/conftest.py", 'path.startswith(("/admin/", "/v1/"))', "False",
+          expect="a 404 answer of an API path is not a console error")
+def test_a_failed_load_is_a_console_error_unless_it_is_an_answer_of_an_api_path(app):
+    is_handled_api_failure = app.is_handled_api_failure
+    for path in ("/admin/frames?provider=x", "/v1/models"):
+        assert is_handled_api_failure(Message(FAILED_LOAD, "http://127.0.0.1:1" + path)), \
+            "a 404 answer of an API path is not a console error: " + path
+    for path in ("/ui/app/assets/gone.js", "/ui/app/assets/gone.css", "/m/x.png", "/administrator/x"):
+        assert not is_handled_api_failure(Message(FAILED_LOAD, "http://127.0.0.1:1" + path)), \
+            "a missing file under /ui/ stays a console error: " + path
+    assert not is_handled_api_failure(Message("Uncaught boom", "http://127.0.0.1:1/admin/x"))
+    # the text must be the browser's load failure, whatever the path
+    assert not is_handled_api_failure(Message("Failed to fetch", "http://127.0.0.1:1/v1/x"))
+
+    context, page = app.new_page()
+    try:
+        page.goto(app.url)
+        for path in ("/admin/no-such-route", "/v1/no-such-route"):
+            page.evaluate("p => fetch(p)", path)
+        page.wait_for_timeout(300)
+        assert page.problems == [], "a 404 answer of an API path is not a console error"
+        page.evaluate("p => fetch(p)", "/ui/app/assets/gone.js")
+        for _ in range(40):
+            if page.problems:
+                break
+            page.wait_for_timeout(50)
+        assert len(page.problems) == 1 and "Failed to load resource" in page.problems[0], \
+            "a missing file under /ui/ stays a console error: %r" % page.problems
+    finally:
+        context.close()
+
+
+# ---- sticky table header --------------------------------------------------------------------------------------------
+
+def test_the_header_of_a_long_list_stays_while_the_rows_scroll(app, app_session, db):
+    from accountkit import done_job, new_account
+    from jobkit import key as new_key
+    k = new_key(db)
+    account = new_account(db, label="alive", checked=True)
+    for i in range(40):
+        done_job(db, k, account, ref="r%d" % i)
+    page = app_session
+    page.reload()
+    rows = page.locator("tbody tr")
+    expect(rows).to_have_count(40)
+    header = page.locator("thead th").first
+    top = header.bounding_box()["y"]
+    last_before = rows.nth(39).bounding_box()["y"]
+    page.locator("tbody tr").first.hover()
+    page.mouse.wheel(0, 3000)
+    page.wait_for_timeout(400)
+    assert abs(header.bounding_box()["y"] - top) < 1, "the header moved with the rows"
+    assert header.bounding_box()["y"] >= 0
+    assert rows.nth(39).bounding_box()["y"] < last_before - 100, "the rows did not scroll under the header"
 
 
 # ---- every route ----------------------------------------------------------------------------------------------------

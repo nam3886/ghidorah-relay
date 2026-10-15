@@ -15,6 +15,16 @@ const { busy, run } = useBusy();
 
 const isDark = computed(() => ui.theme === "dark");
 
+// Element Plus shows the placeholder, not the option label, for a value of "": the select holds a sentinel for All and
+// the store keeps its "" (every view reads that as "no provider").
+const ALL = "__all__";
+const providerChoice = computed({
+  get: () => scope.provider || ALL,
+  set: (value: string) => {
+    scope.provider = value === ALL ? "" : value;
+  },
+});
+
 async function signOut(): Promise<void> {
   await run(async () => {
     await auth.logout();
@@ -30,13 +40,13 @@ async function signOut(): Promise<void> {
       <div class="scope" :class="{ 'scope--active': scope.provider !== '' }">
         <span class="scope-label">Provider</span>
         <el-select
-          v-model="scope.provider"
+          v-model="providerChoice"
           class="scope-select"
           size="small"
           aria-label="Provider filter"
           data-testid="provider-filter"
         >
-          <el-option label="All" value="" />
+          <el-option label="All" :value="ALL" />
           <el-option v-for="name in scope.providers" :key="name" :label="name" :value="name" />
         </el-select>
       </div>
