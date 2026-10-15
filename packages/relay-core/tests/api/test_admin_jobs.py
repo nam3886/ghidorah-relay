@@ -111,6 +111,56 @@ def test_the_list_is_newest_first_filters_by_status_and_pages_without_a_gap_or_a
         assert (r.status_code, code_of(r)) == (400, "input.invalid")
 
 
+@mutation(ROUTES, "LIMIT %(limit)s OFFSET %(offset)s", "LIMIT %(limit)s", expect="the offset slice")
+@mutation(ROUTES, "(%(status)s::text IS NULL OR j.status = %(status)s)", "(true)", expect="total follows status")
+@mutation(ROUTES, "j.provider = %(provider)s)", "true)", expect="total follows provider")
+@mutation(ROUTES, "(%(key)s::uuid IS NULL OR j.key_id = %(key)s)", "(true)", expect="total follows key")
+@mutation(ROUTES, '_COUNT = "SELECT count(*) FROM jobs j WHERE " + _FILTERS',
+          '_COUNT = "SELECT count(*) FROM jobs j WHERE true"', expect="total follows status")
+@mutation(ROUTES, "if offset is not None and (offset < 0 or cursor):", "if offset is not None and offset < 0:",
+          expect="cursor with offset")
+@mutation(ROUTES, "if offset is not None and (offset < 0 or cursor):", "if offset is not None and bool(cursor):",
+          expect="negative offset")
+def test_the_list_pages_by_offset_in_the_same_order_and_counts_the_jobs_the_filters_match(db):
+    k = key(db)
+    account(db)
+
+    async def plant(p):
+        await failed_job(p, k, "failed one")
+        for i in range(5):
+            await create(p, k, "queued %d" % i)
+
+    run(db, plant)
+    order = [str(r[0]) for r in db.all("SELECT id FROM jobs ORDER BY created_at DESC, id DESC")]
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        get = lambda q: env.client.get("/admin/jobs" + q, headers=h)  # noqa: E731
+        by_cursor = await get("?limit=2")
+        return (await get(""), await get("?limit=2&offset=0"), await get("?limit=2&offset=2"),
+                await get("?limit=2&offset=4"), await get("?limit=2&offset=6"), by_cursor,
+                await get("?limit=2&cursor=%s" % by_cursor.json()["next_cursor"]),
+                await get("?status=failed&limit=1"), await get("?status=queued&provider=fake&limit=1"),
+                await get("?provider=other"), await get("?key_id=%s" % k), await get("?key_id=%s" % uuid.uuid4()),
+                await get("?offset=-1"), await get("?limit=2&offset=0&cursor=%s" % by_cursor.json()["next_cursor"]),
+                await get("?limit=2&offset=2&cursor=%s" % by_cursor.json()["next_cursor"]), await get("?offset=x"))
+
+    (everything, o0, o2, o4, o6, c0, c1, failed, queued, other_provider, own_key, other_key, negative, both0, both2,
+     junk) = run_app(db, scenario)
+    assert [ids_of(r) for r in (o0, o2, o4)] == [order[0:2], order[2:4], order[4:6]], "the offset slice"
+    assert ids_of(o6) == [] and o6.json()["next_cursor"] is None
+    assert o0.json()["next_cursor"] is not None and o4.json()["next_cursor"] is None
+    assert ids_of(c0) == ids_of(o0) and ids_of(c1) == ids_of(o2), "the cursor and the offset agree"
+    assert [r.json()["total"] for r in (everything, o0, o2, o6, c0, c1)] == [6] * 6, "total ignores the page"
+    assert failed.json()["total"] == 1 and queued.json()["total"] == 5, "total follows status"
+    assert other_provider.json()["total"] == 0, "total follows provider"
+    assert own_key.json()["total"] == 6 and other_key.json()["total"] == 0, "total follows key"
+    assert (negative.status_code, code_of(negative), negative.json()["error"]["param"]) == (
+        400, "input.invalid", "offset"), "negative offset"
+    assert code_of(both0) == code_of(both2) == code_of(junk) == "input.invalid", "cursor with offset"
+    assert both0.status_code == both2.status_code == 400
+
+
 # ---- detail -----------------------------------------------------------------------------------------------------
 @mutation(ROUTES, DETAIL_COLUMNS, NO_FRAME_COLUMNS, expect="the frame version")
 def test_the_detail_shows_the_frame_version_and_the_exact_text_sent_and_nulls_for_a_job_made_before_frames(db):
