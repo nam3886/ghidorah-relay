@@ -152,6 +152,27 @@ describe("the lists", () => {
   });
 });
 
+describe("the filters", () => {
+  const choose = (w: VueWrapper, which: 0 | 1, value: string) => {
+    const select = w.findAllComponents({ name: "ElSelect" })[which]!;
+    select.vm.$emit("update:modelValue", value);
+    select.vm.$emit("change", value);
+  };
+
+  it("send the Status and then the Kind to the server, each in its own place", async () => {
+    const w = await open();
+    choose(w, 0, "acknowledged");
+    await settle();
+    expect(list).toHaveBeenLastCalledWith("acknowledged", "", 200);
+    choose(w, 1, "drift");
+    await settle();
+    expect(list).toHaveBeenLastCalledWith("acknowledged", "drift", 200);
+    choose(w, 0, "all");
+    await settle();
+    expect(list).toHaveBeenLastCalledWith("all", "drift", 200);
+  });
+});
+
 describe("the generation guard", () => {
   it("a slow first answer that arrives after the second is dropped", async () => {
     const w = await open();
@@ -200,7 +221,8 @@ describe("the generation guard", () => {
     await refresh(w).trigger("click");
     await settle();
     expect(listButtons(w, "Acknowledge")[0]!.attributes("disabled")).toBeDefined();
-    expect(w.find(".el-select.is-disabled").exists()).toBe(false);
+    expect(w.findAll(".el-select__wrapper")).toHaveLength(2);
+    expect(w.find(".el-select__wrapper.is-disabled").exists()).toBe(false);
     slow.resolve({ items: [group()] });
     await settle();
     expect(listButtons(w, "Acknowledge")[0]!.attributes("disabled")).toBeUndefined();
@@ -259,6 +281,22 @@ describe("the detail", () => {
     expect(alerts.getAlertGroup).toHaveBeenCalledTimes(1);
   });
 
+  it("says the detail is cut at 100 rows, and only then", async () => {
+    const rows = (n: number) => Array.from({ length: n }, (_, i) => unclearItem({ id: i + 1 }));
+    vi.mocked(alerts.getAlertGroup).mockResolvedValue(detail({ kind: "unclear_reply", items: rows(99) }));
+    const w = await open();
+    await listButtons(w, "Details")[0]!.trigger("click");
+    await settle();
+    expect(w.find('[data-testid="alert-detail"]').exists()).toBe(true);
+    expect(w.find('[data-testid="alert-detail-more"]').exists()).toBe(false);
+    vi.mocked(alerts.getAlertGroup).mockResolvedValue(detail({ kind: "unclear_reply", items: rows(100) }));
+    await refresh(w).trigger("click");
+    await settle();
+    expect(w.find('[data-testid="alert-detail-more"]').text()).toBe(
+      "Showing the newest 100 rows; older rows are not listed.",
+    );
+  });
+
   it("Close reloads the list", async () => {
     const w = await open();
     await listButtons(w, "Details")[0]!.trigger("click");
@@ -315,6 +353,44 @@ describe("acknowledge", () => {
     expect(notify.error).toHaveBeenCalledWith(
       "Acknowledged 1 row(s), but the list could not be reloaded: reload broke",
     );
+  });
+
+  // Everything the operator could press while a write is in flight, read from the page.
+  const controls = (w: VueWrapper) => ({
+    selects: w.findAll(".el-select__wrapper.is-disabled").length,
+    details: listButtons(w, "Details")[0]!.attributes("disabled") !== undefined,
+    listAck: listButtons(w, "Acknowledge")[0]!.attributes("disabled") !== undefined,
+    close: detailButton(w, "Close").attributes("disabled") !== undefined,
+    detailAck: detailButton(w, "Acknowledge").attributes("disabled") !== undefined,
+  });
+  const openDetailThenAcknowledge = async (answer: Promise<{ acknowledged: number }>) => {
+    vi.mocked(alerts.acknowledgeGroup).mockReturnValue(answer);
+    const w = await open();
+    await listButtons(w, "Details")[0]!.trigger("click");
+    await settle();
+    expect(controls(w)).toEqual({ selects: 0, details: false, listAck: false, close: false, detailAck: false });
+    await listButtons(w, "Acknowledge")[0]!.trigger("click");
+    await settle();
+    return w;
+  };
+
+  it("while an acknowledge is in flight, the selects, Details, Close and both Acknowledge buttons are off", async () => {
+    const slow = deferred<{ acknowledged: number }>();
+    const w = await openDetailThenAcknowledge(slow.promise);
+    expect(controls(w)).toEqual({ selects: 2, details: true, listAck: true, close: true, detailAck: true });
+    slow.resolve({ acknowledged: 1 });
+    await settle();
+    expect(controls(w)).toEqual({ selects: 0, details: false, listAck: false, close: false, detailAck: false });
+  });
+
+  it("after a failed acknowledge every control is on again", async () => {
+    const slow = deferred<{ acknowledged: number }>();
+    const w = await openDetailThenAcknowledge(slow.promise);
+    expect(controls(w).selects).toBe(2);
+    slow.reject(new ApiError(404, { error: { message: "group gone" } }));
+    await settle();
+    expect(notify.error).toHaveBeenCalledWith("group gone");
+    expect(controls(w)).toEqual({ selects: 0, details: false, listAck: false, close: false, detailAck: false });
   });
 
   it("a failed acknowledge toasts the error and does not reload or refresh the banner", async () => {

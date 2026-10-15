@@ -306,3 +306,34 @@ describe("the one-time key", () => {
     expect(callout()).toBeNull();
   });
 });
+
+describe("Copy", () => {
+  const writeText = vi.fn(async (_text: string) => undefined);
+  beforeEach(() => {
+    writeText.mockClear();
+    Object.defineProperty(window, "isSecureContext", { value: true, configurable: true });
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+  });
+  const copyIn = (root: ParentNode) =>
+    [...root.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Copy");
+
+  it("the prefix in a row has a Copy that copies the prefix and nothing else", async () => {
+    const w = await open();
+    copyIn(w.find("tbody").element)!.click();
+    await settle();
+    expect(writeText).toHaveBeenCalledExactlyOnceWith("rk_abcd");
+  });
+
+  it("a key without a prefix has no Copy in its row", async () => {
+    list.mockResolvedValue({ items: [key({ prefix: "" })] });
+    const w = await open();
+    expect(copyIn(w.find("tbody").element)).toBeUndefined();
+  });
+
+  it("the one-time callout has a Copy that copies the raw key", async () => {
+    await createOne();
+    copyIn(document.body.querySelector('[data-testid="new-key"]')!)!.click();
+    await settle();
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(RAW);
+  });
+});

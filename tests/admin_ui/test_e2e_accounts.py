@@ -134,6 +134,48 @@ def test_edit_sends_the_changed_fields_only_and_an_emptied_proxy_as_null(app, ap
     assert len(sent) == 2
 
 
+def test_escape_closes_the_edit_account_dialog_from_a_focused_field_and_changes_nothing(app, app_session, db):
+    page = app_session
+    acct = new_account(db, label="free one", checked=True)
+    open_accounts(page)
+    more(rows(page).filter(has_text="free one"), "Edit")
+    label = page.get_by_role("dialog").get_by_label("Label")
+    label.fill("typed, never saved")
+    label.focus()
+    page.keyboard.press("Escape")
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    assert db.one("SELECT label FROM accounts WHERE id = %s", acct)[0] == "free one"
+
+
+def test_re_check_proxy_in_the_edit_dialog_queues_the_command_and_polls_it_to_the_end(app, app_session, db):
+    page = app_session
+    acct = new_account(db, label="proxied", checked=True, proxy=("10.0.0.1", 8080))
+    open_accounts(page)
+    more(rows(page).filter(has_text="proxied"), "Edit")
+    page.get_by_role("dialog").get_by_role("button", name="Re-check proxy").click()
+    expect(page.get_by_text("Proxy check: queued")).to_be_visible()
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    assert db.one("SELECT count(*) FROM commands WHERE kind = 'proxy_recheck' AND account_id = %s", acct)[0] == 1
+    db.run("UPDATE commands SET status = 'done', result = '{}'::jsonb, finished_at = clock_timestamp() "
+           "WHERE kind = 'proxy_recheck' AND account_id = %s", acct)
+    expect(page.get_by_text("Proxy check: done")).to_be_visible(timeout=10000)
+
+
+def test_saving_a_changed_proxy_polls_the_proxy_check_the_server_queued(app, app_session, db):
+    page = app_session
+    acct = new_account(db, label="proxied", checked=True, proxy=("10.0.0.1", 8080))
+    open_accounts(page)
+    more(rows(page).filter(has_text="proxied"), "Edit")
+    box = page.get_by_role("dialog")
+    box.get_by_label("Proxy").fill("10.9.9.9:3128")
+    box.get_by_role("button", name="Save").click()
+    expect(page.get_by_text("Saved")).to_be_visible()
+    assert db.one("SELECT count(*) FROM commands WHERE kind = 'proxy_recheck' AND account_id = %s", acct)[0] == 1
+    db.run("UPDATE commands SET status = 'done', result = '{}'::jsonb, finished_at = clock_timestamp() "
+           "WHERE kind = 'proxy_recheck' AND account_id = %s", acct)
+    expect(page.get_by_text("Proxy check: done")).to_be_visible(timeout=10000)
+
+
 def test_check_wake_delete_and_the_provider_commands_queue_a_command_and_say_so(app, app_session, db):
     page = app_session
     free = new_account(db, label="free one", checked=True)
