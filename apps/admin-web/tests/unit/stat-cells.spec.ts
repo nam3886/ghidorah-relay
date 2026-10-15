@@ -18,13 +18,21 @@ describe("statCells", () => {
       ["in-progress", "In progress", "5"],
       ["completed", "Completed", "40"],
       ["failed", "Failed", "0"],
-      ["pre-job", "Failed before a job (24 h)", "0"],
+      ["pre-job", "Failed pre-job (24 h)", "0"],
       ["accounts-ready", "Accounts ready", "4 / 6"],
       ["accounts-dead", "Accounts dead", "0"],
       ["accounts-disabled", "Accounts disabled", "1"],
       ["videos", "Videos made", "11"],
       ["images", "Images made", "29"],
     ]);
+  });
+
+  it("keeps every label short for one line and spells the long one out as a tooltip", () => {
+    const cells = statCells(stats());
+    for (const c of cells) expect(c.label.length, c.key).toBeLessThanOrEqual(22);
+    const byKey = Object.fromEntries(cells.map((c) => [c.key, c]));
+    expect(byKey["pre-job"]?.title).toBe("Failed before a job was created (last 24 hours)");
+    expect(byKey["completed"]?.title).toBe("Completed");
   });
 
   it("links each cell to the tab it counts", () => {

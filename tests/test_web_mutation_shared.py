@@ -6,6 +6,7 @@ from webunit import vitest
 
 from relay_core.testing.mutation import mutation
 
+SRC = "apps/admin-web/src"
 CLIPBOARD = "apps/admin-web/src/components/shared/clipboard.ts"
 TONES = "apps/admin-web/src/components/shared/status-tones.ts"
 TABLE = "apps/admin-web/src/components/shared/DataTable.vue"
@@ -44,6 +45,8 @@ def test_a_copy_pending_at_unmount_does_nothing():
           expect="keeps the header while the rows scroll")
 @mutation(TABLE, ':max-height="props.maxHeight"', ':max-height="undefined"',
           expect="keeps the header while the rows scroll")
+@mutation(TABLE, "return value === null || value === undefined || value === \"\";",
+          "return value === undefined || value === \"\";", expect="draws an empty value as a quiet dash")
 @mutation(TABLE, "actionsWidth: 200,", "actionsWidth: 100,", expect="gives the Actions column room")
 @pytest.mark.web_unit
 def test_the_table_keeps_old_rows_while_refreshing():
@@ -65,6 +68,20 @@ def test_the_pagers_keep_their_bounds():
 @pytest.mark.web_unit
 def test_a_confirm_closed_with_escape_is_a_no():
     vitest("tests/unit/shared/confirm-dialog.spec.ts")
+
+
+@mutation(f"{SRC}/lib/format.ts", '.replace(", ", `,${NO_BREAK_SPACE}`)', '.replace(", ", ", ")',
+          expect="never offers a line break")
+@pytest.mark.web_unit
+def test_a_time_never_breaks_across_two_lines():
+    vitest("tests/unit/format.spec.ts")
+
+
+@mutation(f"{SRC}/lib/stat-cells.ts", '"Failed pre-job (24 h)"', '"Failed before a job was created (24 h)"',
+          expect="keeps every label short for one line")
+@pytest.mark.web_unit
+def test_a_strip_label_stays_short():
+    vitest("tests/unit/stat-cells.spec.ts")
 
 
 @mutation(TONES, "return code < 400 ?", "return code <= 400 ?", expect="maps an HTTP code by its class")

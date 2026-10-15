@@ -6,6 +6,7 @@ import App from "@/App.vue";
 import { ApiError } from "@/api/client";
 import * as shell from "@/api/shell";
 import type { Stats } from "@/api/shell";
+import { notify } from "@/lib/notify";
 import { THEME_KEY, TOKEN_KEY, USER_KEY } from "@/lib/session";
 import { createAppRouter } from "@/router";
 
@@ -91,7 +92,7 @@ describe("the shell", () => {
   it("draws the eight tabs in order, Jobs selected, with the user's name", async () => {
     const { wrapper } = await open("/jobs");
     const tabs = wrapper.findAll('[role="tab"]');
-    expect(tabs.map((t) => t.text())).toEqual([
+    expect(tabs.map((t) => t.find(".tab-label").text())).toEqual([
       "Jobs",
       "Accounts",
       "API keys",
@@ -133,6 +134,68 @@ describe("the shell", () => {
     await until(() => expect(vi.mocked(shell.getStats).mock.calls.length).toBe(before + 1));
   });
 
+  it("shows the strip on Jobs and Accounts only", async () => {
+    const { wrapper, router } = await open("/jobs");
+    expect(wrapper.find(".stats-strip").exists()).toBe(true);
+    await router.push("/accounts");
+    await until(() => expect(wrapper.find(".stats-strip").exists()).toBe(true));
+    for (const name of ["keys", "logs", "alerts", "frames", "settings", "test"]) {
+      await router.push({ name });
+      await until(() => expect(wrapper.find(".stats-strip").exists(), name).toBe(false));
+    }
+  });
+
+  it("keeps each strip label on one line and the long one in a tooltip", async () => {
+    const { wrapper } = await open("/jobs");
+    const cell = wrapper.find('[data-testid="stat-pre-job"]');
+    expect(cell.find(".stat-label").text()).toBe("Failed pre-job (24 h)");
+    expect(cell.attributes("title")).toBe("Failed before a job was created (last 24 hours)");
+  });
+
+  it("counts the unfinished jobs on the Jobs tab and the open groups on Alerts, only when above zero", async () => {
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 4 }, () => ({})) });
+    const { wrapper } = await open("/jobs");
+    expect(wrapper.find('[data-testid="tab-count-jobs"]').text()).toBe("5");
+    expect(wrapper.find('[data-testid="tab-count-alerts"]').text()).toBe("4");
+    expect(wrapper.find('[data-testid="tab-count-keys"]').exists()).toBe(false);
+    // the count is not part of the tab's accessible name
+    expect(wrapper.find('[data-testid="tab-count-jobs"]').attributes("aria-hidden")).toBe("true");
+  });
+
+  it("shows no count while the numbers are zero", async () => {
+    vi.mocked(shell.getStats).mockResolvedValue(
+      stats({ jobs: { queued: 0, in_progress: 0, done: 1, failed: 0, pre_job_failures_24h: 0 } }),
+    );
+    const { wrapper } = await open("/jobs");
+    expect(wrapper.find('[data-testid="tab-count-jobs"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="tab-count-alerts"]').exists()).toBe(false);
+  });
+
+  it("closes every toast when the tab changes, and not before", async () => {
+    const clear = vi.spyOn(notify, "clear");
+    const { router } = await open("/jobs");
+    expect(clear).not.toHaveBeenCalled();
+    await router.push("/accounts");
+    await flushPromises();
+    expect(clear).toHaveBeenCalledTimes(1);
+    await router.push({ name: "accounts", query: { page: "2" } });
+    await flushPromises();
+    expect(clear).toHaveBeenCalledTimes(1);
+    clear.mockRestore();
+  });
+
+  it("merges equal toasts into one, lets an error be closed and lets a success go by itself", async () => {
+    notify.error("boom");
+    notify.error("boom");
+    notify.success("fine");
+    await flushPromises();
+    const toasts = [...document.body.querySelectorAll(".el-message")];
+    expect(toasts.map((t) => t.querySelector(".el-message__content")?.textContent)).toEqual(["boom", "fine"]);
+    expect(toasts[0]?.querySelector(".el-message__closeBtn")).not.toBeNull();
+    expect(toasts[1]?.querySelector(".el-message__closeBtn")).toBeNull();
+    notify.clear();
+  });
+
   it("shows no banner when nothing needs attention", async () => {
     const { wrapper } = await open("/jobs");
     expect(wrapper.find(".attention-banner").exists()).toBe(false);
@@ -148,6 +211,30 @@ describe("the shell", () => {
     expect(banner.text()).toContain("Needs attention");
     expect(banner.text()).toContain("drift: dola: 3 of 10 jobs in 24 h show x");
     expect(wrapper.find('[data-testid="open-groups"]').text()).toContain("3 open alert group(s)");
+  });
+
+  it("folds three or more live conditions behind one count and keeps the group link in view", async () => {
+    const alert = (kind: string) => ({ kind, severity: "warning", message: `${kind} message` });
+    vi.mocked(shell.getStats).mockResolvedValue(stats({ alerts: [alert("a1"), alert("a2"), alert("a3")] }));
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
+    const { wrapper } = await open("/jobs");
+    const banner = wrapper.find(".attention-banner");
+    expect(banner.find('[data-testid="fold-alerts"]').text()).toContain("3 live conditions");
+    expect(banner.text()).not.toContain("a1 message");
+    expect(wrapper.find('[data-testid="open-groups"]').exists()).toBe(true);
+    await banner.find('[data-testid="fold-alerts"] button').trigger("click");
+    expect(banner.text()).toContain("a1: a1 message");
+    expect(banner.text()).toContain("a3: a3 message");
+    await banner.find('[data-testid="fold-alerts"] button').trigger("click");
+    expect(banner.text()).not.toContain("a2 message");
+  });
+
+  it("lists two live conditions in full, with no fold", async () => {
+    const alert = (kind: string) => ({ kind, severity: "warning", message: `${kind} message` });
+    vi.mocked(shell.getStats).mockResolvedValue(stats({ alerts: [alert("a1"), alert("a2")] }));
+    const { wrapper } = await open("/jobs");
+    expect(wrapper.find('[data-testid="fold-alerts"]').exists()).toBe(false);
+    expect(wrapper.find(".attention-banner").text()).toContain("a2: a2 message");
   });
 
   it("writes 200+ for a full page of open groups and opens Alerts from the banner", async () => {

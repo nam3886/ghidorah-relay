@@ -24,14 +24,12 @@ describe("the tones", () => {
     ["done", "ok"],
     ["ok", "ok"],
     ["available", "ok"],
-    ["enabled", "ok"],
     ["queued", "info"],
     ["submitting", "info"],
     ["waiting", "info"],
     ["fetching", "info"],
     ["in use", "info"],
     ["unknown", "warn"],
-    ["refunded", "warn"],
     ["model differs", "warn"],
     ["drift", "warn"],
     ["cooldown", "warn"],
@@ -39,6 +37,13 @@ describe("the tones", () => {
     ["dead", "bad"],
     ["disabled", "neutral"],
     ["not checked", "neutral"],
+    ["enabled", "neutral"],
+    ["refunded", "neutral"],
+    ["any model", "neutral"],
+    ["db", "neutral"],
+    ["env", "neutral"],
+    ["own", "neutral"],
+    ["default", "neutral"],
   ])("%s is %s", (status, tone) => {
     expect(toneOf(status)).toBe(tone);
   });

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Moon, Sunny } from "@element-plus/icons-vue";
+import { Moon, Sunny, TopRight } from "@element-plus/icons-vue";
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { useBusy } from "@/composables/use-busy";
@@ -50,16 +50,19 @@ async function signOut(): Promise<void> {
           <el-option v-for="name in scope.providers" :key="name" :label="name" :value="name" />
         </el-select>
       </div>
-      <span class="whoami" data-testid="whoami">{{ auth.user }}</span>
-      <el-button
-        :icon="isDark ? Sunny : Moon"
-        circle
-        size="small"
-        :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
-        data-testid="theme-toggle"
-        @click="ui.toggleTheme()"
-      />
-      <el-link href="/reference" target="_blank" rel="noopener" underline="never">API docs</el-link>
+      <div class="user">
+        <span class="whoami" data-testid="whoami">{{ auth.user }}</span>
+        <el-button
+          :icon="isDark ? Sunny : Moon"
+          circle
+          size="small"
+          :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
+          :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
+          data-testid="theme-toggle"
+          @click="ui.toggleTheme()"
+        />
+      </div>
+      <el-link href="/reference" target="_blank" rel="noopener" underline="never" :icon="TopRight">API docs</el-link>
       <el-button size="small" :loading="busy" data-testid="sign-out" @click="signOut">Sign out</el-button>
     </div>
   </header>
@@ -76,9 +79,24 @@ async function signOut(): Promise<void> {
   border-bottom: 1px solid var(--rl-line);
 }
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 18px;
   font-weight: 600;
   letter-spacing: 0.01em;
+}
+.brand::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: var(--el-color-primary);
+  border-radius: 50%;
+}
+.user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 .header-end {
   display: flex;
@@ -103,6 +121,9 @@ async function signOut(): Promise<void> {
 }
 .scope-select {
   width: 150px;
+}
+.scope-select :deep(.el-select__wrapper) {
+  font-size: 13px;
 }
 .whoami {
   font-size: 13px;

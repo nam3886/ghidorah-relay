@@ -79,6 +79,13 @@ html:root {
   --el-table-row-hover-bg-color: var(--rl-surface-2);
   --el-box-shadow: none;
   --el-box-shadow-light: none;
+
+  /* One control scale: 32 px, 28 px inside table cells; a disabled button is a grey fill, never a washed-out accent */
+  --el-component-size: 32px;
+  --el-component-size-small: 28px;
+  --el-button-disabled-bg-color: var(--rl-surface-2);
+  --el-button-disabled-text-color: var(--rl-muted);
+  --el-button-disabled-border-color: var(--rl-line);
 }
 
 html.dark:root {
@@ -93,15 +100,15 @@ html.dark:root {
   --rl-muted: #a4a4ad;
 
   --rl-ok: #64d88f;
-  --rl-ok-bg: #171f1c;
+  --rl-ok-bg: #1b2e24;
   --rl-warn: #f5b547;
-  --rl-warn-bg: #221d17;
+  --rl-warn-bg: #33280f;
   --rl-bad: #f76e6e;
-  --rl-bad-bg: #221417;
+  --rl-bad-bg: #3a1b20;
   --rl-info: #77a9f8;
-  --rl-info-bg: #141924;
+  --rl-info-bg: #1a2740;
   --rl-neutral: #a4a4ad;
-  --rl-neutral-bg: #222225;
+  --rl-neutral-bg: #2a2a2e;
 
   --el-color-primary: #818cf8;
   --el-color-primary-light-3: #6269b6;
@@ -150,14 +157,109 @@ html.dark:root {
   --el-table-row-hover-bg-color: var(--rl-surface-2);
   --el-box-shadow: none;
   --el-box-shadow-light: none;
+
+  --el-component-size: 32px;
+  --el-component-size-small: 28px;
+  --el-button-disabled-bg-color: var(--rl-surface-2);
+  --el-button-disabled-text-color: var(--rl-muted);
+  --el-button-disabled-border-color: var(--rl-line);
 }
 
-/* The light indigo of dark mode needs dark text on a filled button. */
-html.dark .el-button--primary,
-html.dark .el-button--danger {
+/* The light indigo of dark mode needs dark text on a SOLID filled button; a plain, text or link button keeps its tint. */
+html.dark .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):not(.is-disabled),
+html.dark .el-button--danger:not(.is-plain):not(.is-text):not(.is-link):not(.is-disabled) {
   --el-button-text-color: #0b0b12;
   --el-button-hover-text-color: #0b0b12;
   --el-button-active-text-color: #0b0b12;
+}
+
+/* Element Plus sets the disabled colours again on each button type, so the grey fill is set per type as well. */
+html .el-button--primary.is-disabled,
+html .el-button--danger.is-disabled,
+html .el-button--success.is-disabled,
+html .el-button--warning.is-disabled,
+html .el-button--info.is-disabled {
+  --el-button-disabled-bg-color: var(--rl-surface-2);
+  --el-button-disabled-text-color: var(--rl-muted);
+  --el-button-disabled-border-color: var(--rl-line);
+}
+
+/* Dark mode has no shadows (flat layers), so an overlay needs its own edge and shadow to leave the page. */
+html.dark .el-dialog,
+html.dark .el-message-box {
+  border: 1px solid var(--rl-line-strong);
+}
+html.dark .el-dialog,
+html.dark .el-message-box,
+html.dark .el-message,
+html.dark .el-popper.is-light {
+  box-shadow: 0 6px 20px rgb(0 0 0 / 45%);
+}
+/* A toast carries an edge in its own status colour, so it never reads as floating text. */
+.el-message--success {
+  border-color: color-mix(in srgb, var(--rl-ok) 35%, transparent);
+}
+.el-message--warning {
+  border-color: color-mix(in srgb, var(--rl-warn) 35%, transparent);
+}
+.el-message--error {
+  border-color: color-mix(in srgb, var(--rl-bad) 35%, transparent);
+}
+.el-message--info {
+  border-color: color-mix(in srgb, var(--rl-info) 35%, transparent);
+}
+
+/* One focus ring: Element Plus draws its own box-shadow on inputs and selects. */
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused,
+.el-textarea__inner:focus {
+  box-shadow:
+    0 0 0 2px var(--rl-bg),
+    0 0 0 4px var(--el-color-primary) !important;
+}
+input[type="date"]:focus-visible {
+  outline: none;
+}
+html.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
+}
+
+/* The native file button follows the Element Plus look. */
+input[type="file"]::file-selector-button {
+  margin-right: 8px;
+  padding: 4px 12px;
+  font: inherit;
+  color: var(--rl-fg);
+  background: var(--rl-surface-2);
+  border: 1px solid var(--rl-line-strong);
+  border-radius: var(--el-border-radius-base);
+  cursor: pointer;
+}
+
+/*
+ * Tables: one dense line per row. A header is one quiet line (never a split word); a cell breaks at spaces first and
+ * inside a long token (an id, a URL) only when it has to, so a date, kept whole by fmtTime, never wraps by itself.
+ */
+.el-table {
+  --el-table-header-text-color: var(--rl-muted);
+  width: 100%;
+}
+.el-table th.el-table__cell > .cell {
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+.el-table th.el-table__cell {
+  height: 36px;
+  padding: 0;
+}
+.el-table td.el-table__cell {
+  padding: 6px 0;
+}
+.el-table .cell {
+  line-height: 20px;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 body {

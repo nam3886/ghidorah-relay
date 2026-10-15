@@ -21,6 +21,7 @@ const text = computed(() => props.label ?? labelOf(props.status));
   align-items: center;
   gap: 6px;
   height: 20px;
+  vertical-align: middle;
   padding: 0 6px;
   border-radius: var(--el-border-radius-base, 6px);
   font-size: 12px;

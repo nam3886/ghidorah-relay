@@ -245,7 +245,7 @@ def test_the_stats_strip_counts_what_is_planted_and_its_cells_link_to_the_filter
     page = app_session
     strip = page.get_by_role("region", name="Totals")
     expect(strip).to_be_visible()
-    for label in ("In progress", "Completed", "Failed", "Failed before a job", "Accounts ready", "Accounts dead",
+    for label in ("In progress", "Completed", "Failed", "Failed pre-job", "Accounts ready", "Accounts dead",
                   "Accounts disabled", "Videos made", "Images made"):
         expect(strip.get_by_text(label).first).to_be_visible()
     for cell, label, count in (("completed", "Completed", seeded["done"]), ("failed", "Failed", seeded["failed"]),
