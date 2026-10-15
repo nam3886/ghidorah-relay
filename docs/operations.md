@@ -471,7 +471,11 @@ fails when any other page or `/ui/` file carries the looser one.
   release rules forbid, `packages/relay-core/tests/api/test_admin_pages.py` pins the serving (CSP, redirects, cache
   rules, only static files) and the Vitest specs of `apps/admin-web/tests/unit/` run in `web.sh check`. The browser
   tier (`tests/admin_ui/test_e2e_*.py`, the whole-app CSP sweep `test_e2e_sweep.py` and `test_reference.py`) drives the
-  app in Chrome through `/manage`; run only those with `scripts/check-in-container.sh tests/admin_ui/`.
+  app in Chrome through `/manage`; run only those with `scripts/check-in-container.sh tests/admin_ui/`. The sweep walks
+  every route's states (`tests/admin_ui/sweep_states/<route>.py`) at 1280, 768 and 390 px wide, in light and dark, under
+  the CSP watch at every width (six passes, node ids such as `[1280-light]`). With `RELAY_SCREENSHOTS_DIR` set it saves
+  each state as `<width>-<theme>-<route>-<state>.png`; the names must be the exact cross-product of widths x themes x
+  states, and two states with one name fail the sweep.
 
 ## Logs
 
