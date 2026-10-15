@@ -27,6 +27,10 @@ const props = withDefaults(
     actionsWidth?: number | string;
     // a first column of checkboxes (the table's own selection column); `selection-change` carries the ticked rows
     selectable?: boolean;
+    // new rows keep the ticks of the rows still there, matched by rowKey, with no report (Element Plus's
+    // reserve-selection); without it new rows clear the ticks and report that. The ticks of rows that left stay in
+    // the table's selection, unseen, until setSelection replaces them.
+    keepSelection?: boolean;
   }>(),
   {
     loading: false,
@@ -39,14 +43,15 @@ const props = withDefaults(
     skeletonRows: 6,
     actionsWidth: 200,
     selectable: false,
+    keepSelection: false,
   },
 );
 const emit = defineEmits<{ retry: []; "row-click": [row: T]; "selection-change": [rows: T[]] }>();
 
 const tableRef = ref<{ clearSelection: () => void; toggleRowSelection: (row: T, selected?: boolean) => void }>();
 
-// Ticks exactly the rows whose rowKey is in `ids` (after a reload or a failed bulk action). The table's
-// selection-change follows, so the view's own list matches.
+// Ticks exactly the rows whose rowKey is in `ids`. Each change is reported (selection-change) at once, inside this
+// call, so the view's own list matches the ticks on screen before anything else can run.
 function setSelection(ids: string[]): void {
   const table = tableRef.value;
   if (!table) return;
@@ -123,7 +128,7 @@ function onRowClick(row: T, _column: unknown, event: Event) {
       @row-click="onRowClick"
       @selection-change="(rows: T[]) => emit('selection-change', rows)"
     >
-      <el-table-column v-if="props.selectable" type="selection" :width="44" />
+      <el-table-column v-if="props.selectable" type="selection" :width="44" :reserve-selection="props.keepSelection" />
       <el-table-column
         v-for="c in props.columns"
         :key="c.key"

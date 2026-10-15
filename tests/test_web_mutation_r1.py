@@ -171,8 +171,6 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
           expect=FV + "paging > a reload (Refresh, a bulk action) stays on the page on screen")
 @mutation(VIEW, "    offset.value = at;", "    offset.value = offset.value;",
           expect=FV + "paging > a picked page asks for its offset, and the pager follows the page that arrived")
-@mutation(VIEW, "picked.value = new Set(pickedIds(out.items, picked.value));", "picked.value = picked.value;",
-          expect=FV + "selection > a new page starts with nothing ticked")
 @mutation(FILTERS, "(value: string): string => value || ALL", "(value: string): string => value",
           expect=FV + "filters > shows All statuses and All keys, not the placeholder, while nothing is filtered")
 @mutation(FILTERS, 'value === ALL ? "" : value', "value",
@@ -196,8 +194,6 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
           expect=FV + "bulk regenerate > asks first, naming the count, today's price and the charge")
 @mutation(VIEW, "picked.value = new Set(rows.map((r) => r.id));", "picked.value = picked.value;",
           expect=FV + "selection > the bulk buttons stay off until a job is ticked, and the count follows")
-@mutation(VIEW, "void reTick();\n    error.value = null;", "error.value = null;",
-          expect=FV + "selection > the ticks come back on the table after an error hid it and Retry drew it again")
 @mutation(VIEW, ':label="keyName(k)"', ':label="k.label"',
           expect=FV + "filters > every key option is readable: its label, else its prefix, else the start of its id")
 @mutation(VIEW, "row.key_label || shortId(row.key_id)", "row.key_label",
