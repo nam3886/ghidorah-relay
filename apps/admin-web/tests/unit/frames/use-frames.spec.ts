@@ -225,6 +225,7 @@ describe("a lock toggle", () => {
     f.setDraft("typed");
     vi.mocked(api.lockFrame).mockResolvedValue({});
     await f.setLock("video", "m2", false);
+    expect(api.lockFrame).toHaveBeenCalledWith({ provider: "flow", kind: "video", target: "m2" }, false);
     expect(f.draft).toBe("typed");
     expect(notify.success).toHaveBeenCalledWith("Unlocked");
   });
@@ -466,6 +467,15 @@ describe("preview", () => {
   it("an editor that is redrawn starts with the sample prompt and no preview", async () => {
     const f = await opened();
     f.setPreviewPrompt("a dog");
+    vi.mocked(api.previewFrame).mockResolvedValue({
+      text: "rendered",
+      length: 8,
+      frame_id: null,
+      source: "draft",
+      warnings: [],
+    });
+    await f.previewNow();
+    expect(f.preview?.text).toBe("rendered");
     vi.mocked(api.getFrame).mockResolvedValue(frameInfo("own1"));
     await f.edit("video", "m1");
     expect(f.previewPrompt).toBe("a cat on a sofa");

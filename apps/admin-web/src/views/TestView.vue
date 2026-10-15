@@ -85,7 +85,17 @@ async function afterLoad(loaded: boolean): Promise<void> {
   if (saved) await pick(saved);
 }
 
-const loadModels = async () => afterLoad(await session.loadModels());
+// A second click (or Enter) while a load is on its way sends nothing: the button shows the busy state.
+const loadingModels = ref(false);
+async function loadModels(): Promise<void> {
+  if (loadingModels.value) return;
+  loadingModels.value = true;
+  try {
+    await afterLoad(await session.loadModels());
+  } finally {
+    loadingModels.value = false;
+  }
+}
 
 // Template: a convenience only, the prompt box takes its text and the request has no template field.
 function applyTemplate(t: Template): void {
@@ -174,7 +184,7 @@ onMounted(async () => {
             @keyup.enter="loadModels"
           />
         </el-form-item>
-        <el-button type="primary" @click="loadModels">Load models</el-button>
+        <el-button type="primary" :loading="loadingModels" @click="loadModels">Load models</el-button>
         <el-button @click="session.forget">Forget key</el-button>
         <el-button type="danger" plain title="Reset the form and the attached images" @click="clearForm"
           >Clear form</el-button

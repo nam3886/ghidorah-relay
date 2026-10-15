@@ -149,6 +149,37 @@ describe("the tab", () => {
   });
 });
 
+describe("Load models", () => {
+  it("shows a busy state and sends one request for a double click and an Enter while the load is on its way", async () => {
+    await open();
+    let loaded!: (out: { data: (typeof video)[] }) => void;
+    vi.mocked(api.listModels).mockReturnValue(new Promise((resolve) => (loaded = resolve)));
+    const input = wrapper!.find("input[type=password]");
+    await input.setValue("rk-1");
+    expect(button("Load models").classes()).not.toContain("is-loading");
+    void button("Load models").trigger("click");
+    void button("Load models").trigger("click");
+    await input.trigger("keyup.enter");
+    await flushPromises();
+    expect(api.listModels).toHaveBeenCalledTimes(1);
+    expect(button("Load models").classes()).toContain("is-loading");
+    loaded({ data: [video] });
+    await flushPromises();
+    expect(button("Load models").classes()).not.toContain("is-loading");
+    expect(wrapper!.findAll(".test-tab__model")).toHaveLength(1);
+  });
+
+  it("is free again after a load that failed, so the next click sends a request", async () => {
+    await open();
+    vi.mocked(api.listModels).mockRejectedValueOnce(new api.TestApiError(500, "boom", "server down"));
+    await loadModels();
+    expect(button("Load models").classes()).not.toContain("is-loading");
+    await loadModels();
+    expect(api.listModels).toHaveBeenCalledTimes(2);
+    expect(wrapper!.findAll(".test-tab__model")).toHaveLength(2);
+  });
+});
+
 describe("images", () => {
   it("restores stored images, and a restore that drops anything rewrites the store and shows the notice", async () => {
     const store = memoryStore([...Array.from({ length: 10 }, (_, i) => png(`f${i}.png`)), png("eleven.png")]);
