@@ -287,6 +287,18 @@ SHELL_FAILED = "FAILED tests/unit/app-shell.spec.ts > the shell > "
           expect=SHELL_FAILED + "shows no banner when nothing needs attention")
 @mutation(BANNER, "} open alert group(s)`", "} alert group(s)`",
           expect=SHELL_FAILED + "shows the live alerts and the open group count, 200 as 200+")
+@mutation(BANNER, "alerts.value.length > FOLD_ABOVE", "alerts.value.length > FOLD_ABOVE + 1",
+          expect=SHELL_FAILED + "folds three or more live conditions behind one count and keeps the group link in view")
+@mutation(BANNER, "const FOLD_ABOVE = 2;", "const FOLD_ABOVE = 1;",
+          expect=SHELL_FAILED + "lists two live conditions in full, with no fold")
+@mutation(f"{SRC}/components/layout/AppShell.vue", "() => notify.clear(),", "() => undefined,",
+          expect=SHELL_FAILED + "closes every toast when the tab changes, and not before")
+@mutation(f"{SRC}/components/layout/AppShell.vue", 'new Set(["jobs", "accounts"])',
+          'new Set(["jobs", "accounts", "keys"])', expect=SHELL_FAILED + "shows the strip on Jobs and Accounts only")
+@mutation(f"{SRC}/components/layout/TabBar.vue", "stats.data.jobs.in_progress + stats.data.jobs.queued",
+          "stats.data.jobs.in_progress",
+          expect=SHELL_FAILED + "counts the unfinished jobs on the Jobs tab and the open groups on Alerts, "
+                 "only when above zero")
 @mutation(f"{SRC}/components/layout/AppHeader.vue", "get: () => scope.provider || ALL,", "get: () => scope.provider,",
           expect=SHELL_FAILED + "shows All, not the placeholder, in the provider filter, "
                  "and keeps the store's empty string for All")

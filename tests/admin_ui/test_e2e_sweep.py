@@ -10,6 +10,10 @@ design review; with it unset nothing is written."""
 
 import os
 import re
+import signal
+import threading
+import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -33,7 +37,8 @@ TABS = {"jobs": "Jobs", "accounts": "Accounts", "keys": "API keys", "logs": "Req
 # Everything the sweep opens, as (route, state), in the order it opens them.
 OPENS = [
     ("login", "form"), ("login", "busy-button"),
-    ("jobs", "loading-skeleton"), ("jobs", "list"), ("jobs", "refresh-busy"), ("jobs", "status-select"),
+    ("jobs", "loading-skeleton"), ("jobs", "list"), ("jobs", "sticky-header"),
+    ("jobs", "refresh-busy"), ("jobs", "status-select"),
     ("jobs", "key-select"), ("jobs", "bulk-selected"), ("jobs", "regenerate-confirm"), ("jobs", "recheck-toast"),
     ("jobs", "detail-loading"), ("jobs", "detail"), ("jobs", "detail-regenerate-confirm"),
     ("accounts", "loading-skeleton"), ("accounts", "list"), ("accounts", "more-menu"), ("accounts", "edit-dialog"),
@@ -53,17 +58,61 @@ OPENS = [
 ]
 
 
+# True once nothing that has a finite end is still moving: every dialog, popper, toast and fade is at rest. A loop that
+# never ends (the skeleton shimmer, a spinner) does not count.
+AT_REST_JS = """() => document.getAnimations().every(
+    a => a.playState !== 'running' || a.effect.getComputedTiming().iterations === Infinity)"""
+TWO_FRAMES_JS = "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+
+
+def settle(page):
+    """Wait until every transition has finished, so a shot never shows a dialog half faded in. Two frames first: a
+    transition only exists once the browser has styled the element that starts it."""
+    page.evaluate(TWO_FRAMES_JS)
+    page.wait_for_function(AT_REST_JS, timeout=TIMEOUT_MS)
+
+
+STEP_LIMIT_S = 90
+
+
+class StepTimeout(AssertionError):
+    """A step ran past its hard limit: a step that waits for something that never comes fails, it never hangs."""
+
+
+@contextmanager
+def hard_limit(seconds, what):
+    """Interrupt the running step after `seconds` whatever it is waiting on (the Playwright calls have their own
+    timeouts; this is the backstop for a wait that has none). Signals reach the main thread only; elsewhere no limit."""
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    def expired(signum, frame):
+        raise StepTimeout("%s ran for more than %ss" % (what, seconds))
+    previous = signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+
 class Sweep:
     """Runs and records the states of one themed pass."""
 
-    def __init__(self, page, theme, expected=OPENS):
-        self.page, self.theme, self.expected, self.done = page, theme, list(expected), []
+    def __init__(self, page, theme, expected=OPENS, limit_s=STEP_LIMIT_S):
+        self.page, self.theme, self.expected, self.done, self.limit_s = page, theme, list(expected), [], limit_s
 
-    def step(self, route, state, action):
-        action()  # raises when a control is missing: nothing is caught
-        self.page.csp.check()
-        self.shot(route, state)
-        self.done.append((route, state))
+    def step(self, route, state, action, after=None):
+        with hard_limit(self.limit_s, "step %s/%s" % (route, state)):
+            action()  # raises when a control is missing: nothing is caught
+            self.page.csp.check()
+            settle(self.page)
+            self.shot(route, state)
+            self.done.append((route, state))
+            if after:
+                after()                            # what to undo once the state has been photographed
 
     def shot(self, route, state):
         folder = os.environ.get(SHOTS_ENV)
@@ -101,16 +150,31 @@ def unslow(page, pattern):
     page.unroute(pattern)
 
 
-def skeleton_on_first_visit(page, route, pattern):
-    """Open a tab whose list answers late: the skeleton is shown, then the rows."""
-    slow(page, pattern)
-    try:
-        tab(page, route)
-        expect(page.locator("[data-state=loading]").first).to_be_visible()
-    finally:
-        page.wait_for_timeout(100)
+def hold_ms():
+    """How long a late answer is held: long enough to photograph the skeleton when shots are wanted."""
+    return 5000 if os.environ.get(SHOTS_ENV) else 1200
+
+
+def open_skeleton(page, route, pattern):
+    """Open a tab whose list answers late and stop while the skeleton is on screen (the shot is taken then)."""
+    slow(page, pattern, hold_ms())
+    tab(page, route)
+    expect(page.locator("[data-state=loading]").first).to_be_visible()
+
+
+def release_skeleton(page, pattern):
+    """Let the held answer through: the rows replace the skeleton."""
     expect(page.locator("[data-state=ready]").first).to_be_visible(timeout=TIMEOUT_MS * 2)
     unslow(page, pattern)
+
+
+def skeleton_step(sw, route, pattern, before=None):
+    """The loading state of a tab, photographed while the skeleton shows, then released."""
+    def action():
+        if before:
+            before()
+        open_skeleton(sw.page, route, pattern)
+    sw.step(route, "loading-skeleton", action, after=lambda: release_skeleton(sw.page, pattern))
 
 
 def ready(page):
@@ -143,6 +207,9 @@ def seed(app, db, live):
     k = new_key(db)
     new_account(db, label="alive", checked=True)
     new_account(db, label="gone", state="dead", checked=True)
+    filler = new_account(db, label="filler", checked=True)
+    for i in range(30):                                  # a Jobs table taller than its box, older than the rest
+        done_job(db, k, filler, ref="fill-%d" % i, status="done", prompt="filler %d" % i)
     done_job(db, k, new_account(db, label="worker", checked=True), ref="r1", status="done", prompt="a cat on a roof")
     failed = app.run(db, lambda p: failed_job(p, k, "one"))
     db.one("INSERT INTO request_logs (key_id, provider, route, status_code, duration_ms) VALUES (%s, 'fake', "
@@ -196,9 +263,16 @@ def run_sweep(page, app, live, db, sw, data):
     sw.step("login", "busy-button", login_busy)
 
     # jobs (the first load after sign-in is the loading state; open it again late for the skeleton)
-    sw.step("jobs", "loading-skeleton", lambda: (tab(page, "accounts"), skeleton_on_first_visit(
-        page, "jobs", re.compile(r"/admin/jobs\?"))))
+    skeleton_step(sw, "jobs", re.compile(r"/admin/jobs\?"), before=lambda: tab(page, "accounts"))
     sw.step("jobs", "list", lambda: ready(page))
+
+    # a table taller than its box: the header stays while the rows scroll under it
+    rows = page.locator(".el-table__body-wrapper .el-scrollbar__wrap").first
+    def sticky_header():
+        scrolled = rows.evaluate("el => { el.scrollTop = 300; return el.scrollTop; }")
+        assert scrolled > 0, "the jobs table is not taller than its box: the sticky header is not shown"
+        expect(page.locator(".el-table__header-wrapper th").first).to_be_in_viewport()
+    sw.step("jobs", "sticky-header", sticky_header, after=lambda: rows.evaluate("el => { el.scrollTop = 0; }"))
 
     def refresh_busy():
         slow(page, re.compile(r"/admin/jobs\?"))
@@ -245,8 +319,7 @@ def run_sweep(page, app, live, db, sw, data):
     expect(page.locator(".el-dialog:visible")).to_have_count(0)
 
     # accounts
-    sw.step("accounts", "loading-skeleton", lambda: skeleton_on_first_visit(page, "accounts",
-                                                                         re.compile(r"/admin/accounts")))
+    skeleton_step(sw, "accounts", re.compile(r"/admin/accounts"))
     sw.step("accounts", "list", lambda: expect(page.locator("tbody tr").filter(has_text="alive")).to_be_visible())
 
     def more_menu():
@@ -281,7 +354,7 @@ def run_sweep(page, app, live, db, sw, data):
     expect(page.locator(".el-dialog:visible")).to_have_count(0)
 
     # keys
-    sw.step("keys", "loading-skeleton", lambda: skeleton_on_first_visit(page, "keys", re.compile(r"/admin/keys")))
+    skeleton_step(sw, "keys", re.compile(r"/admin/keys"))
     sw.step("keys", "list", lambda: ready(page))
     sw.step("keys", "new-dialog", lambda: (
         page.get_by_role("button", name="New key").click(),
@@ -311,7 +384,7 @@ def run_sweep(page, app, live, db, sw, data):
     page.locator(".el-message-box").get_by_role("button", name="Cancel").click()
 
     # request logs
-    sw.step("logs", "loading-skeleton", lambda: skeleton_on_first_visit(page, "logs", re.compile(r"/admin/logs")))
+    skeleton_step(sw, "logs", re.compile(r"/admin/logs"))
     sw.step("logs", "list", lambda: ready(page))
     sw.step("logs", "status-select", lambda: (open_select(page, page, "Status"), close_select(page, "Status")))
     sw.step("logs", "date-fields", lambda: (page.get_by_label("From", exact=True).fill("2026-10-01"),
@@ -333,8 +406,7 @@ def run_sweep(page, app, live, db, sw, data):
     page.locator(".el-message-box").get_by_role("button", name="Cancel").click()
 
     # alerts
-    sw.step("alerts", "loading-skeleton", lambda: skeleton_on_first_visit(page, "alerts",
-                                                                       re.compile(r"/admin/alerts/groups")))
+    skeleton_step(sw, "alerts", re.compile(r"/admin/alerts/groups"))
     sw.step("alerts", "list", lambda: ready(page))
     sw.step("alerts", "status-select", lambda: (open_select(page, page, "Status"), close_select(page, "Status")))
     sw.step("alerts", "kind-select", lambda: (open_select(page, page, "Kind"), close_select(page, "Kind")))
@@ -354,8 +426,7 @@ def run_sweep(page, app, live, db, sw, data):
         expect(page.get_by_label("Frame text")).to_be_visible()))
 
     # settings
-    sw.step("settings", "loading-skeleton", lambda: skeleton_on_first_visit(page, "settings",
-                                                                         re.compile(r"/admin/settings")))
+    skeleton_step(sw, "settings", re.compile(r"/admin/settings"))
     sw.step("settings", "list", lambda: expect(page.get_by_label("Value of log_retention_days")).to_be_visible())
     sw.step("settings", "edited-row", lambda: (
         page.get_by_label("Value of log_retention_days").fill("45"),
@@ -417,17 +488,31 @@ def test_the_sweep_covers_both_themes():
 
 
 @mutation(SELF, "action()  # raises when " "a control is missing: nothing is caught",
-          "try:\n            action()\n        except AssertionError:\n            pass", expect="DID NOT RAISE")
+          "try:\n                action()\n            except AssertionError:\n                pass",
+          expect="DID NOT RAISE")
 def test_a_listed_control_that_cannot_be_found_fails_the_step_and_the_sweep(app, app_page):
     page = app_page
-    page.set_default_timeout(1500)
+    page.set_default_timeout(TIMEOUT_MS)                   # every wait here has its own explicit limit, none is shared
     page.goto(app.url + "#/login")
-    sw = Sweep(page, "light", expected=[("login", "form"), ("login", "ghost")])
-    sw.step("login", "form", lambda: expect(page.get_by_role("button", name="Sign in")).to_be_visible())
+    sw = Sweep(page, "light", expected=[("login", "form"), ("login", "ghost")], limit_s=60)
+    sw.step("login", "form", lambda: expect(page.get_by_role("button", name="Sign in")).to_be_visible(
+        timeout=TIMEOUT_MS))
     with pytest.raises(AssertionError):
-        sw.step("login", "ghost", lambda: expect(page.get_by_role("button", name="No such button")).to_be_visible())
+        sw.step("login", "ghost", lambda: expect(page.get_by_role("button", name="No such button")).to_be_visible(
+            timeout=1500))
     with pytest.raises(AssertionError, match="did not open"):
         sw.finish()
+
+
+@mutation(SELF, "signal.setitimer(signal.ITIMER_REAL, " "seconds)", "pass", expect="DID NOT RAISE")
+def test_a_step_that_never_ends_is_stopped_by_its_hard_limit(app, app_page):
+    app_page.goto(app.url + "#/login")
+    sw = Sweep(app_page, "light", expected=[("login", "stuck")], limit_s=1)
+    started = time.monotonic()
+    with pytest.raises(StepTimeout, match="step login/stuck ran for more than 1s"):
+        sw.step("login", "stuck", lambda: time.sleep(4))
+    assert time.monotonic() - started < 3.5
+    assert ("login", "stuck") not in sw.done
 
 
 @mutation(SELF, "assert not " "missing,", "assert True or missing,", expect="DID NOT RAISE")
@@ -435,6 +520,32 @@ def test_a_state_that_was_never_reached_fails_the_sweep(app, app_page):
     sw = Sweep(app_page, "dark", expected=[("jobs", "list")])
     with pytest.raises(AssertionError, match="did not open"):
         sw.finish()
+
+
+PROBE = """() => {
+    const d = document.createElement('div');
+    d.id = 'probe';
+    d.textContent = 'x';
+    document.body.appendChild(d);
+    d.animate([{opacity: 0}, {opacity: 1}], {duration: 800, fill: 'forwards'});
+    const loop = document.createElement('div');
+    loop.id = 'loop';
+    document.body.appendChild(loop);
+    loop.animate([{opacity: 0.5}, {opacity: 1}], {duration: 300, iterations: Infinity});
+}"""
+OPACITY = "id => getComputedStyle(document.getElementById(id)).opacity"
+
+
+@mutation(SELF, "page.wait_for_function(AT_REST_JS, " "timeout=TIMEOUT_MS)", "pass",
+          expect="the shot was taken while a transition was still running")
+def test_a_shot_waits_for_a_running_transition_but_not_for_one_that_never_ends(app, app_page):
+    page = app_page
+    page.goto(app.url + "#/login")
+    page.evaluate(PROBE, isolated_context=False)
+    settle(page)
+    assert page.evaluate(OPACITY, "probe", isolated_context=False) == "1", \
+        "the shot was taken while a transition was still running"
+    assert page.evaluate(OPACITY, "loop", isolated_context=False) != "1"        # the loop is still going: no wait
 
 
 def test_screenshots_are_saved_only_when_a_folder_is_given(app, app_page, tmp_path, monkeypatch):

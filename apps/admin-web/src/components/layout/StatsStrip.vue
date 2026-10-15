@@ -16,6 +16,7 @@ const cells = computed(() => (stats.data ? statCells(stats.data) : []));
         :key="cell.key"
         :to="cell.to"
         class="stat-cell"
+        :title="cell.title"
         :data-testid="`stat-${cell.key}`"
       >
         <span class="stat-label">{{ cell.label }}</span>
@@ -29,7 +30,7 @@ const cells = computed(() => (stats.data ? statCells(stats.data) : []));
 <style scoped>
 .stats-strip {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   margin: 12px 16px 0;
   background: var(--rl-surface);
   border: 1px solid var(--rl-line);
@@ -38,11 +39,14 @@ const cells = computed(() => (stats.data ? statCells(stats.data) : []));
 .stat-cell {
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: 2px;
+  min-width: 0;
   padding: 8px 12px;
   color: inherit;
   text-decoration: none;
   border-right: 1px solid var(--rl-line);
+  transition: background 120ms;
 }
 .stat-cell:last-child {
   border-right: none;
@@ -51,8 +55,11 @@ const cells = computed(() => (stats.data ? statCells(stats.data) : []));
   background: var(--rl-surface-2);
 }
 .stat-label {
+  overflow: hidden;
   font-size: 12px;
   color: var(--rl-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .stat-value {
   font-size: 18px;

@@ -186,6 +186,15 @@ describe("DataTable cells, actions and rows", () => {
     expect(own.find(".el-table").attributes("style")).toContain("max-height: 300px");
   });
 
+  it("draws an empty value as a quiet dash and a real value as plain text", async () => {
+    const w = await table();
+    const cells = w.findAll("tbody td .cell");
+    const dash = cells.find((c) => c.text() === "-");
+    expect(dash!.find(".data-table__none").exists()).toBe(true);
+    const value = cells.find((c) => c.text() === "alpha");
+    expect(value!.find(".data-table__none").exists()).toBe(false);
+  });
+
   it("server text is text: planted markup makes no element", async () => {
     const w = await table({ rows: [{ id: "x", name: "<img src=x onerror=alert(1)>", count: 1 }] });
     expect(w.find("img").exists()).toBe(false);

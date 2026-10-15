@@ -62,9 +62,13 @@ function rowClass({ row }: { row: T }): string {
   return tone && tone !== "neutral" ? `row-tone row-tone-${tone}` : "";
 }
 
-function cellText(row: T, key: string): string {
+function isEmpty(row: T, key: string): boolean {
   const value = (row as Record<string, unknown>)[key];
-  return value === null || value === undefined || value === "" ? "-" : String(value);
+  return value === null || value === undefined || value === "";
+}
+
+function cellText(row: T, key: string): string {
+  return isEmpty(row, key) ? "-" : String((row as Record<string, unknown>)[key]);
 }
 
 function onRowClick(row: T, _column: unknown, event: Event) {
@@ -106,7 +110,11 @@ function onRowClick(row: T, _column: unknown, event: Event) {
              probe is not data, so the user's slot never sees it. -->
         <template #default="{ row, $index }">
           <template v-if="isData($index)">
-            <slot :name="`cell-${c.key}`" :row="row as T" :index="$index">{{ cellText(row as T, c.key) }}</slot>
+            <slot :name="`cell-${c.key}`" :row="row as T" :index="$index"
+              ><span :class="{ 'data-table__none': isEmpty(row as T, c.key) }">{{
+                cellText(row as T, c.key)
+              }}</span></slot
+            >
           </template>
         </template>
       </el-table-column>
@@ -148,11 +156,18 @@ function onRowClick(row: T, _column: unknown, event: Event) {
   padding: 16px;
 }
 .data-table__empty {
-  padding: 24px 0;
+  padding: 12px 0;
   color: var(--rl-muted);
 }
 .data-table__empty p {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
+}
+.data-table__empty p:last-child {
+  margin: 0;
+}
+.data-table__none {
+  color: var(--rl-muted);
+  opacity: 0.6;
 }
 .is-refreshing :deep(.el-table) {
   opacity: 0.55;

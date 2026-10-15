@@ -26,12 +26,13 @@ const hasNext = computed(() => props.offset + props.limit < props.total);
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 4px;
   padding-top: 12px;
 }
 .pager__text {
+  margin-right: 8px;
   color: var(--rl-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 </style>
