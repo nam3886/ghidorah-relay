@@ -321,8 +321,12 @@ def test_every_route_fits_the_screen_without_the_page_scrolling_sideways(app, ap
         expect(page.locator("[aria-busy=true]")).to_have_count(0)    # measure the loaded page, not the skeleton
         overflow = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
         wide = page.evaluate(
-            "[...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > "
-            "document.documentElement.clientWidth + 0.5).slice(0, 6).map(e => e.tagName + '.' + e.className)"
+            "(() => { const w = document.documentElement.clientWidth;"
+            " const name = e => e.tagName + '.' + e.className + '@' + Math.round(e.getBoundingClientRect().right);"
+            " return [...document.querySelectorAll('body, body *')]"
+            ".filter(e => e.getBoundingClientRect().right > w + 0.5"
+            " || (e.scrollWidth > e.clientWidth + 0.5 && getComputedStyle(e).overflowX === 'visible'))"
+            ".slice(0, 8).map(name); })()"
         ) if overflow > 0 else []
         assert overflow <= 0, "%s at %d px: the page is %d px too wide (a table or toolbar must scroll): %s" % (
             route, width, overflow, wide)

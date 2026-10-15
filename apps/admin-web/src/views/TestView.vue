@@ -295,7 +295,16 @@ onMounted(async () => {
   border-radius: var(--el-border-radius-base, 6px);
 }
 .test-tab__key-input {
-  width: min(320px, 100%);
+  width: 320px;
+  max-width: 100%;
+}
+/* on a phone the key field takes the full row and the buttons wrap below it, so the box never outgrows the page */
+.test-tab__key :deep(.el-form-item) {
+  max-width: 100%;
+  margin-right: 0;
+}
+.test-tab__key :deep(.el-form-item__content) {
+  min-width: 0;
 }
 .test-tab__hint {
   margin: 0;

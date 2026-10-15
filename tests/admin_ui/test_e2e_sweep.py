@@ -41,7 +41,7 @@ OPENS = [
     ("jobs", "refresh-busy"), ("jobs", "status-select"),
     ("jobs", "key-select"), ("jobs", "bulk-selected"), ("jobs", "regenerate-confirm"), ("jobs", "recheck-toast"),
     ("jobs", "detail-loading"), ("jobs", "detail"), ("jobs", "detail-regenerate-confirm"),
-    ("accounts", "loading-skeleton"), ("accounts", "list"), ("accounts", "more-menu"), ("accounts", "edit-dialog"),
+    ("accounts", "loading-skeleton"), ("accounts", "list"), ("accounts", "row-tooltip"), ("accounts", "edit-dialog"),
     ("accounts", "delete-confirm"), ("accounts", "import-dialog"), ("accounts", "import-select"),
     ("accounts", "import-toast"),
     ("keys", "loading-skeleton"), ("keys", "list"), ("keys", "new-dialog"), ("keys", "wallet-select"),
@@ -314,20 +314,21 @@ def run_sweep(page, app, live, db, sw, data):
     skeleton_step(sw, "accounts", re.compile(r"/admin/accounts"))
     sw.step("accounts", "list", lambda: expect(page.locator("tbody tr").filter(has_text="alive")).to_be_visible())
 
-    def more_menu():
-        page.get_by_role("button", name="More actions for alive").click()
-        expect(page.get_by_role("menuitem", name="Edit")).to_be_visible()
-    sw.step("accounts", "more-menu", more_menu)
+    alive = page.locator("tbody tr").filter(has_text="alive")
+
+    def row_tooltip():
+        alive.get_by_role("button", name="Edit", exact=True).hover()
+        expect(page.get_by_role("tooltip").filter(has_text="Edit")).to_be_visible()
+    sw.step("accounts", "row-tooltip", row_tooltip)
 
     def edit_dialog():
-        page.get_by_role("menuitem", name="Edit").click()
+        alive.get_by_role("button", name="Edit", exact=True).click()
         expect(page.locator(".el-dialog__title:visible")).to_have_text("Edit account")
     sw.step("accounts", "edit-dialog", edit_dialog)
     close_dialog(page)
 
     def delete_confirm():
-        page.get_by_role("button", name="More actions for alive").click()
-        page.get_by_role("menuitem", name="Delete").click()
+        alive.get_by_role("button", name="Delete", exact=True).click()
         expect(cancel_box(page)).to_be_visible()
     sw.step("accounts", "delete-confirm", delete_confirm)
     page.locator(".el-message-box").get_by_role("button", name="Cancel").click()
