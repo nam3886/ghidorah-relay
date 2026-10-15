@@ -186,7 +186,7 @@ onMounted(async () => {
         </el-form-item>
         <el-button type="primary" :loading="loadingModels" @click="loadModels">Load models</el-button>
         <el-button @click="session.forget">Forget key</el-button>
-        <el-button type="danger" plain title="Reset the form and the attached images" @click="clearForm"
+        <el-button class="test-tab__clear" title="Reset the form and the attached images" @click="clearForm"
           >Clear form</el-button
         >
       </el-form>
@@ -199,6 +199,9 @@ onMounted(async () => {
 
     <div class="test-tab__grid">
       <aside class="test-tab__models">
+        <p v-if="!groups.length" class="test-tab__empty" data-testid="test-models-empty">
+          No models loaded. Enter an API key above and press Load models.
+        </p>
         <div v-for="g in groups" :key="g.kind" class="test-tab__group">
           <div class="test-tab__group-title">{{ g.kind }}</div>
           <button
@@ -214,7 +217,10 @@ onMounted(async () => {
             <span class="test-tab__owner">{{ m.owned_by }}</span>
           </button>
         </div>
-        <pre v-if="points" class="test-tab__points" aria-label="Points">{{ points }}</pre>
+        <details v-if="points" class="test-tab__points-box">
+          <summary>Wallet limits</summary>
+          <pre class="test-tab__points" aria-label="Points">{{ points }}</pre>
+        </details>
       </aside>
 
       <section class="test-tab__form">
@@ -232,7 +238,7 @@ onMounted(async () => {
           </el-form-item>
           <div class="test-tab__row">
             <el-form-item label="Duration (s, video)">
-              <el-input v-model="form.duration" inputmode="numeric" @input="persist" />
+              <el-input v-model="form.duration" inputmode="numeric" placeholder="optional" @input="persist" />
             </el-form-item>
             <el-form-item label="Ratio">
               <el-input v-model="form.ratio" list="test-ratio-list" placeholder="16:9" @input="persist" />
@@ -241,10 +247,10 @@ onMounted(async () => {
               </datalist>
             </el-form-item>
             <el-form-item label="Count (n)">
-              <el-input v-model="form.count" inputmode="numeric" @input="persist" />
+              <el-input v-model="form.count" inputmode="numeric" placeholder="optional" @input="persist" />
             </el-form-item>
             <el-form-item label="Style (image)">
-              <el-input v-model="form.style" list="test-style-list" @input="persist" />
+              <el-input v-model="form.style" list="test-style-list" placeholder="optional" @input="persist" />
               <datalist id="test-style-list">
                 <option v-for="s in styles" :key="s" :value="s" />
               </datalist>
@@ -340,8 +346,31 @@ onMounted(async () => {
 .test-tab__owner {
   color: var(--rl-muted);
 }
-.test-tab__points {
+/* the model column keeps its place while nothing is loaded, so the three columns do not jump when models arrive */
+.test-tab__empty {
   margin: 0;
+  padding: 24px 16px;
+  color: var(--rl-muted);
+  font-size: 13px;
+  text-align: center;
+  border: 1px dashed var(--rl-line-strong);
+  border-radius: var(--el-border-radius-base, 6px);
+}
+/* a reset is not the main action: neutral until the pointer is on it */
+.test-tab__clear {
+  --el-button-hover-text-color: var(--rl-bad);
+  --el-button-hover-border-color: var(--rl-bad);
+  --el-button-hover-bg-color: var(--rl-bad-bg);
+}
+.test-tab__points-box {
+  color: var(--rl-muted);
+  font-size: 12px;
+}
+.test-tab__points-box summary {
+  cursor: pointer;
+}
+.test-tab__points {
+  margin: 4px 0 0;
   color: var(--rl-muted);
   font-size: 12px;
   white-space: pre-wrap;

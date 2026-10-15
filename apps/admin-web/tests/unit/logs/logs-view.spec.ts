@@ -97,6 +97,33 @@ describe("the list", () => {
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 
+  it("a 5xx row has the red left bar, a 4xx row the amber one, a fine row none", async () => {
+    list.mockResolvedValue({
+      items: [
+        row({ id: "a", status_code: 503 }),
+        row({ id: "b", status_code: 422 }),
+        row({ id: "c", status_code: 200 }),
+        row({ id: "d", status_code: 399 }),
+      ],
+      total: 4,
+    });
+    const { w } = await open();
+    const classes = w.findAll("tbody tr").map((r) => r.classes().join(" "));
+    expect(classes[0]).toContain("row-tone-bad");
+    expect(classes[1]).toContain("row-tone-warn");
+    expect(classes[2]).not.toContain("row-tone");
+    expect(classes[3]).not.toContain("row-tone");
+  });
+
+  it("the error code is plain muted text: no chip, no status colour", async () => {
+    list.mockResolvedValue({ items: [row({ status_code: 503, error_code: "upstream_down" })], total: 1 });
+    const { w } = await open();
+    const code = w.findAll("tbody td").find((td) => td.text() === "upstream_down")!;
+    expect(code.find("[data-tone]").exists()).toBe(false);
+    expect(code.find(".sub").exists()).toBe(true);
+    expect(code.find(".bad").exists()).toBe(false);
+  });
+
   it("a row with no job says so", async () => {
     list.mockResolvedValue({ items: [row({ job_id: null, job_title: null })], total: 1 });
     const { w } = await open();

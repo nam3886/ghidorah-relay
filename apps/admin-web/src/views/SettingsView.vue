@@ -127,7 +127,7 @@ const withKey = (row: PriceRow): KeyedPrice => ({ ...row, id: `${row.provider}/$
         :loading="settingsLoading"
         row-key="name"
         empty-text="None"
-        max-height="260px"
+        max-height="none"
       >
         <template #cell-name="{ row }"
           ><span class="mono">{{ row.name }}</span></template
@@ -150,7 +150,7 @@ const withKey = (row: PriceRow): KeyedPrice => ({ ...row, id: `${row.provider}/$
         :loading="pricesLoading"
         :error="pricesError"
         empty-text="No job has an upstream figure yet"
-        max-height="420px"
+        max-height="none"
         @retry="loadPrices"
       >
         <template #cell-duration="{ row }">{{ row.duration === null ? "-" : `${row.duration}s` }}</template>

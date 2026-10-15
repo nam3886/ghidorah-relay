@@ -9,6 +9,7 @@ import DataTable from "@/components/shared/DataTable.vue";
 import ListToolbar from "@/components/shared/ListToolbar.vue";
 import OffsetPager from "@/components/shared/OffsetPager.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
+import { httpTone, type Tone } from "@/components/shared/status-tones";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { useBusy } from "@/composables/use-busy";
 import { useLatest } from "@/composables/use-latest";
@@ -35,6 +36,12 @@ const updatedAt = ref<number | null>(null);
 
 const detail = shallowRef<LogDetail | null>(null);
 const detailOpen = ref(false);
+
+// The left bar follows the request's own outcome: a server error is red, a client error amber, a fine one none.
+const rowTone = (row: LogRow): Tone | undefined => {
+  const tone = httpTone(row.status_code);
+  return tone === "ok" ? undefined : tone;
+};
 
 const columns = [
   { key: "time", label: "Time", width: 170 },
@@ -160,6 +167,7 @@ async function openDetail(row: LogRow) {
       :error="error"
       empty-text="No log rows"
       row-clickable
+      :row-tone="rowTone"
       @row-click="openDetail"
       @retry="load"
     >
@@ -178,7 +186,7 @@ async function openDetail(row: LogRow) {
         <StatusChip v-else status="no job" />
       </template>
       <template #cell-error="{ row }">
-        <span v-if="row.error_code" class="bad">{{ row.error_code }}</span>
+        <span v-if="row.error_code" class="mono sub">{{ row.error_code }}</span>
         <template v-else>-</template>
       </template>
       <template #cell-duration="{ row }">{{ row.duration_ms }} ms</template>
@@ -237,9 +245,16 @@ async function openDetail(row: LogRow) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.bad {
-  color: var(--rl-bad);
-  font-size: 12px;
+.date-field:focus-visible {
+  outline: none;
+  border-color: var(--el-color-primary);
+  box-shadow:
+    0 0 0 2px var(--rl-bg),
+    0 0 0 4px var(--el-color-primary);
+}
+/* the native calendar icon follows the theme (it is black on a dark field otherwise) */
+:global(html.dark) .date-field {
+  color-scheme: dark;
 }
 .danger {
   color: var(--rl-bad);

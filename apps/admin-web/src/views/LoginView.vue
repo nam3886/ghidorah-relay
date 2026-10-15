@@ -45,11 +45,12 @@ onMounted(async () => {
       <h1 class="login-brand">relay</h1>
       <el-form label-position="top" @submit.prevent="submit">
         <el-form-item label="Username">
-          <el-input v-model="username" name="username" autocomplete="username" :maxlength="64" autofocus />
+          <el-input v-model="username" size="large" name="username" autocomplete="username" :maxlength="64" autofocus />
         </el-form-item>
         <el-form-item label="Password">
           <el-input
             v-model="password"
+            size="large"
             name="password"
             type="password"
             autocomplete="current-password"
@@ -57,8 +58,11 @@ onMounted(async () => {
             show-password
           />
         </el-form-item>
-        <el-alert v-if="error" class="login-error" type="error" :closable="false" show-icon :title="error" />
-        <el-button type="primary" native-type="submit" :loading="busy" class="login-submit">
+        <!-- the slot keeps its height, so a failed sign-in does not push the button down -->
+        <div class="login-error-slot">
+          <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" role="alert" />
+        </div>
+        <el-button type="primary" size="large" native-type="submit" :loading="busy" class="login-submit">
           {{ busy ? "Signing in..." : "Sign in" }}
         </el-button>
       </el-form>
@@ -77,14 +81,15 @@ onMounted(async () => {
 .login-card {
   width: 360px;
   max-width: 100%;
+  border-color: var(--rl-line-strong);
 }
 .login-brand {
   margin: 0 0 16px;
   font-size: 24px;
   font-weight: 600;
 }
-.login-error {
-  margin-bottom: 12px;
+.login-error-slot {
+  min-height: 44px;
 }
 .login-submit {
   width: 100%;

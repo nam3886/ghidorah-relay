@@ -173,9 +173,13 @@ async function remove(k: ApiKey) {
           /></span>
         </div>
       </template>
-      <template #cell-status="{ row }"><StatusChip :status="row.enabled ? 'enabled' : 'disabled'" /></template>
+      <!-- Colour is for exceptions: an enabled key is the normal case and reads as plain text. -->
+      <template #cell-status="{ row }">
+        <StatusChip v-if="!row.enabled" status="disabled" />
+        <span v-else class="sub">enabled</span>
+      </template>
       <template #cell-models="{ row }">
-        <StatusChip v-if="row.models.includes('*')" status="any model" />
+        <StatusChip v-if="row.models.includes('*')" status="any model" tone="neutral" />
         <span v-else class="sub">{{ row.models.join(", ") }}</span>
       </template>
       <template #cell-wallets="{ row }">

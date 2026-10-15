@@ -38,17 +38,17 @@ const scope = useScopeStore();
 const ui = useUiStore();
 
 const columns: Column[] = [
-  { key: "select", label: "", width: 48, align: "center" },
-  { key: "progress", label: "Progress", width: 110 },
-  { key: "title", label: "Title", minWidth: 200 },
-  { key: "job", label: "Job", width: 110 },
-  { key: "operation", label: "Operation", minWidth: 190 },
-  { key: "status", label: "Status", minWidth: 150 },
-  { key: "price", label: "Points charged", width: 120, align: "right" },
-  { key: "outputs", label: "Results", width: 90, align: "right" },
-  { key: "inputs", label: "References", width: 110, align: "right" },
-  { key: "account_label", label: "Account", minWidth: 120 },
-  { key: "key_label", label: "Key", minWidth: 110 },
+  { key: "select", label: "", width: 44, align: "center" },
+  { key: "progress", label: "Progress", width: 90 },
+  { key: "title", label: "Title", minWidth: 120 },
+  { key: "job", label: "Job", width: 100 },
+  { key: "operation", label: "Operation", minWidth: 150 },
+  { key: "status", label: "Status", minWidth: 120 },
+  { key: "price", label: "Points", width: 80, align: "right" },
+  { key: "outputs", label: "Results", width: 84, align: "right" },
+  { key: "inputs", label: "Refs", width: 70, align: "right" },
+  { key: "account_label", label: "Account", minWidth: 90 },
+  { key: "key_label", label: "Key", minWidth: 80 },
   { key: "created", label: "Created", minWidth: 160 },
 ];
 
@@ -212,6 +212,7 @@ const barTone = (s: string): string => (s === "failed" ? "bad" : s === "done" ? 
       :error="error"
       empty-text="No jobs"
       row-clickable
+      :actions-width="96"
       :row-tone="rowTone"
       @retry="load()"
       @row-click="(job) => ui.openJob(job.id)"
@@ -251,8 +252,11 @@ const barTone = (s: string): string => (s === "failed" ? "bad" : s === "done" ? 
         <StatusChip v-if="row.model_substituted" status="model differs" />
       </template>
       <template #cell-status="{ row }">
-        <StatusChip :status="row.status" />
-        <StatusChip v-if="isRefunded(row)" status="refunded" />
+        <div class="chips">
+          <StatusChip :status="row.status" />
+          <!-- a refund is an outcome, not a warning: neutral -->
+          <StatusChip v-if="isRefunded(row)" status="refunded" tone="neutral" />
+        </div>
         <div v-if="row.error_code" class="error-code">{{ row.error_code }}</div>
       </template>
       <template #cell-created="{ row }">{{ fmtTime(row.created_ms) }}</template>
@@ -314,8 +318,17 @@ const barTone = (s: string): string => (s === "failed" ? "bad" : s === "done" ? 
   color: var(--rl-muted);
   font-size: 12px;
 }
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+/* an error code is a fact, not a status: monospace and muted; only the chip carries colour */
 .error-code {
-  color: var(--rl-bad);
+  margin-top: 2px;
+  color: var(--rl-muted);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 12px;
 }
 </style>

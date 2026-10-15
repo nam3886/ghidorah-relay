@@ -15,11 +15,12 @@ import {
   wakeAccount,
 } from "@/api/accounts";
 import {
+  ago,
   asleepLines,
   AUTO_REFRESH_MS,
   checkSummary,
   PAGE_SIZE,
-  pointsText,
+  pointsFigure,
   proxyCheck,
   proxyText,
   WAKE_LABEL,
@@ -72,10 +73,11 @@ const rowTone = (a: Account) => (a.state === "dead" ? ("bad" as const) : undefin
 const columns = [
   { key: "account", label: "Account", minWidth: 200 },
   { key: "status", label: "Status", minWidth: 150 },
-  { key: "points", label: "Points left / budget", minWidth: 170 },
+  { key: "points", label: "Points left / budget", minWidth: 190, align: "right" as const },
   { key: "asleep", label: "Asleep", minWidth: 170 },
-  { key: "made", label: "Made", minWidth: 120 },
-  { key: "proxy", label: "Proxy", minWidth: 150 },
+  { key: "videos", label: "Videos", width: 90, align: "right" as const },
+  { key: "images", label: "Images", width: 90, align: "right" as const },
+  { key: "proxy", label: "Proxy", minWidth: 170 },
   { key: "last_error", label: "Last error", minWidth: 180 },
 ];
 
@@ -271,13 +273,14 @@ const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", r
         <StatusChip :status="row.state" />
         <StatusChip v-if="row.in_use" status="in use" class="gap-left" />
         <div v-if="row.state_reason" class="sub">{{ row.state_reason }}</div>
-        <div class="sub">Checked {{ fmtTime(row.last_checked_ms) }}</div>
+        <div class="sub nowrap" :title="fmtTime(row.last_checked_ms)">Checked {{ ago(row.last_checked_ms) }}</div>
       </template>
       <template #cell-points="{ row }">
         <template v-if="row.capacity.length">
-          <div v-for="c in row.capacity" :key="c.pool" class="sub nowrap">
-            {{ pointsText(c) }}
-            <StatusChip v-if="c.drift === true" status="drift" class="gap-left" />
+          <div v-for="c in row.capacity" :key="c.pool" class="points nowrap">
+            <span class="sub">{{ c.pool }}</span>
+            <span class="figure">{{ pointsFigure(c) }}</span>
+            <StatusChip v-if="c.drift === true" status="drift" />
           </div>
         </template>
         <template v-else>-</template>
@@ -288,14 +291,15 @@ const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", r
         </template>
         <template v-else>-</template>
       </template>
-      <template #cell-made="{ row }">{{ row.made.video }} videos · {{ row.made.image }} images</template>
+      <template #cell-videos="{ row }">{{ row.made.video }}</template>
+      <template #cell-images="{ row }">{{ row.made.image }}</template>
       <template #cell-proxy="{ row }">
         <template v-if="row.proxy_host">
           {{ proxyText(row) }}
           <StatusChip v-if="row.has_proxy_auth" status="auth" class="gap-left" />
           <div>
             <StatusChip :status="proxyCheck(row).label" :tone="proxyCheck(row).tone" />
-            <span v-if="row.proxy_checked_ms" class="sub gap-left">{{ fmtTime(row.proxy_checked_ms) }}</span>
+            <span v-if="row.proxy_checked_ms" class="sub nowrap gap-left">{{ fmtTime(row.proxy_checked_ms) }}</span>
           </div>
         </template>
         <template v-else>-</template>
@@ -313,7 +317,7 @@ const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", r
             @change="(v: string | number | boolean) => toggle(row, Boolean(v))"
           />
           <el-button size="small" @click="check(row)">Check</el-button>
-          <el-dropdown trigger="click" @command="(c: string | number | object) => more(c, row)">
+          <el-dropdown trigger="click" placement="bottom-end" @command="(c: string | number | object) => more(c, row)">
             <el-button size="small" :aria-label="`More actions for ${row.label}`">More</el-button>
             <template #dropdown>
               <el-dropdown-menu>
@@ -376,7 +380,7 @@ const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", r
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--rl-bad);
+  color: var(--rl-muted);
   font-size: 12px;
 }
 .row-actions {
@@ -385,7 +389,22 @@ const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", r
   justify-content: flex-end;
   gap: 8px;
 }
-.danger-item {
+.points {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.figure {
+  font-variant-numeric: tabular-nums;
+}
+</style>
+
+<!-- The menu is drawn in a popper outside this component, so scoped rules do not reach it. -->
+<style>
+.el-dropdown-menu__item.danger-item,
+.el-dropdown-menu__item.danger-item:hover,
+.el-dropdown-menu__item.danger-item:focus {
   color: var(--rl-bad);
 }
 </style>

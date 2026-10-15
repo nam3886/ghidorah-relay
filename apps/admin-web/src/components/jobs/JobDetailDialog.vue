@@ -138,7 +138,13 @@ const technical = computed<[string, string][]>(() => {
       <section class="job-section" data-section="title">
         <h4>Title</h4>
         <div class="row">
-          <el-input v-model="title" maxlength="2000" aria-label="Title" @keyup.enter="rename" />
+          <el-input
+            v-model="title"
+            maxlength="2000"
+            placeholder="(untitled)"
+            aria-label="Title"
+            @keyup.enter="rename"
+          />
           <el-button :disabled="renaming" @click="rename">Rename</el-button>
         </div>
       </section>

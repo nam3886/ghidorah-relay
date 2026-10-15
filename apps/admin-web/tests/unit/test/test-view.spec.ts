@@ -149,6 +149,37 @@ describe("the tab", () => {
   });
 });
 
+describe("the empty state", () => {
+  it("keeps the model column with a hint while no model is loaded, and drops the hint once models arrive", async () => {
+    await open();
+    expect(wrapper!.find(".test-tab__models").exists()).toBe(true);
+    expect(wrapper!.find('[data-testid="test-models-empty"]').text()).toContain("Load models");
+    expect(wrapper!.findAll(".test-tab__model")).toHaveLength(0);
+    expect(wrapper!.find(".test-tab__points-box").exists()).toBe(false);
+    expect(button("Generate").attributes("disabled")).toBeDefined();
+    await loadModels();
+    expect(wrapper!.find('[data-testid="test-models-empty"]').exists()).toBe(false);
+    expect(wrapper!.findAll(".test-tab__model")).toHaveLength(2);
+  });
+
+  it("the wallet limits sit in a closed block of their own, and the optional fields say so", async () => {
+    await open();
+    await loadModels();
+    const box = wrapper!.find<HTMLDetailsElement>(".test-tab__points-box");
+    expect(box.find("summary").text()).toBe("Wallet limits");
+    expect(box.element.open).toBe(false);
+    expect(box.find("pre").text()).toContain('"points": 9');
+    const placeholders = wrapper!.findAll(".test-tab__row input").map((i) => i.attributes("placeholder"));
+    expect(placeholders).toEqual(["optional", "16:9", "optional", "optional"]);
+  });
+
+  it("Clear form is a plain button, not a danger one", async () => {
+    await open();
+    expect(button("Clear form").classes()).not.toContain("el-button--danger");
+    expect(button("Clear form").classes()).toContain("test-tab__clear");
+  });
+});
+
 describe("Load models", () => {
   it("shows a busy state and sends one request for a double click and an Enter while the load is on its way", async () => {
     await open();

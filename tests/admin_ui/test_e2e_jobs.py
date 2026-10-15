@@ -88,8 +88,8 @@ def test_the_list_shows_its_columns_and_a_row_opens_the_detail_but_its_tick_box_
     app.sign_in(page)
     expect(rows(page)).to_have_count(1)
     headers = page.locator("thead th").all_inner_texts()
-    assert [h.strip() for h in headers] == ["", "Progress", "Title", "Job", "Operation", "Status", "Points charged",
-                                           "Results", "References", "Account", "Key", "Created", "Actions"]
+    assert [h.strip() for h in headers] == ["", "Progress", "Title", "Job", "Operation", "Status", "Points",
+                                           "Results", "Refs", "Account", "Key", "Created", "Actions"]
     row = rows(page).first
     for text in (str(job)[:8], "clickable", "acct-a", "done"):
         expect(row).to_contain_text(text)

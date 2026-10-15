@@ -134,9 +134,9 @@ describe("the list", () => {
       "Job",
       "Operation",
       "Status",
-      "Points charged",
+      "Points",
       "Results",
-      "References",
+      "Refs",
       "Account",
       "Key",
       "Created",
@@ -165,6 +165,21 @@ describe("the list", () => {
     expect(second!.text()).toContain("render.deadline");
     expect(second!.text()).toContain("acct-1");
     expect(second!.text()).toContain("key-one");
+  });
+
+  it("a refund chip is neutral, the status chip keeps its own tone, and the error code is plain muted text", async () => {
+    listJobs.mockResolvedValue({
+      items: [job(B, { status: "failed", error_code: "render.deadline", price: 10, net_charged: 0 })],
+      next_cursor: null,
+    });
+    const { w } = await open();
+    const row = rows(w)[0]!;
+    expect(row.find('[data-tone="bad"]').text()).toBe("failed");
+    expect(row.find('[data-tone="neutral"]').text()).toBe("refunded");
+    expect(row.find('[data-tone="warn"]').exists()).toBe(false);
+    const code = row.find(".error-code");
+    expect(code.text()).toBe("render.deadline");
+    expect(code.find("[data-tone]").exists()).toBe(false);
   });
 
   it("says No jobs for an empty list", async () => {
@@ -368,6 +383,17 @@ describe("selection", () => {
     expect(button(w, "Regenerate selected").attributes("disabled")).toBeUndefined();
     await rowTick(w, 1)!.setValue(false);
     expect(count(w)).toBe("0 selected");
+  });
+
+  it("a ticked job shows its own box ticked and the select-all box half-ticked, in the same render as the count", async () => {
+    const { w } = await open();
+    await rowTick(w, 1)!.setValue(true);
+    expect(count(w)).toBe("1 selected");
+    expect((rowTick(w, 1)!.element as HTMLInputElement).checked).toBe(true);
+    expect((rowTick(w, 0)!.element as HTMLInputElement).checked).toBe(false);
+    expect((rowTick(w, 2)!.element as HTMLInputElement).checked).toBe(false);
+    expect(rows(w)[1]!.find(".el-checkbox").classes()).toContain("is-checked");
+    expect(w.find(".jobs__bulk .is-indeterminate").exists()).toBe(true);
   });
 
   it("select all ticks the page and again clears it", async () => {

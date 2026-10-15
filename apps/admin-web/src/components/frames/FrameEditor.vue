@@ -13,6 +13,9 @@ import type { FramesController } from "./use-frames";
 // with Roll back. Every frame text is shown as text. While a load or a write is in flight the draft is read-only and
 // every control is off (the controller decides, see use-frames.ts).
 defineProps<{ frames: FramesController }>();
+
+// The empty box shows the shape of a frame. Built from the markers, so no template holds a double brace.
+const FRAME_SHAPE = `${PROMPT_MARKER} ... ${TRACKING_MARKER}`;
 </script>
 
 <template>
@@ -30,6 +33,7 @@ defineProps<{ frames: FramesController }>();
       :model-value="frames.draft"
       type="textarea"
       :rows="4"
+      :placeholder="FRAME_SHAPE"
       :readonly="frames.controlsOff"
       class="frame-editor__text"
       aria-label="Frame text"
@@ -193,12 +197,10 @@ defineProps<{ frames: FramesController }>();
   margin-bottom: 4px;
   font-weight: 500;
 }
+/* a hint line, not a third card: nothing to edit yet */
 .frame-editor__empty {
   margin: 0;
-  padding: 16px;
   color: var(--rl-muted);
-  background: var(--rl-surface);
-  border: 1px solid var(--rl-line);
-  border-radius: var(--el-border-radius-base, 6px);
+  font-size: 12px;
 }
 </style>

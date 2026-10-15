@@ -88,6 +88,15 @@ describe("the view", () => {
     expect(textarea().element.value).toBe("own1");
   });
 
+  it("the frame box shows the shape of a frame as its placeholder, and the lock history sits on the checkbox's line", async () => {
+    await open();
+    expect(wrapper!.find(".frame-kind__lock").text()).toContain("keep own");
+    expect(wrapper!.find(".frame-kind__lock").text()).toContain("never toggled");
+    await wrapper!.find('button[aria-label="Edit m1"]').trigger("click");
+    await flushPromises();
+    expect(textarea().attributes("placeholder")).toBe("{{client_prompt}} ... {{tracking_code}}");
+  });
+
   it("a model that follows the default has the note, no Follow button, and the default's text in the box", async () => {
     await open();
     await wrapper!.find('button[aria-label="Edit m2"]').trigger("click");

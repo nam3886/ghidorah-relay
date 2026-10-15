@@ -35,6 +35,10 @@ const media = computed(() =>
   display: grid;
   gap: 8px;
   min-width: 0;
+  padding: 16px;
+  background: var(--rl-surface);
+  border: 1px solid var(--rl-line);
+  border-radius: var(--el-border-radius-base, 6px);
 }
 .test-result h3 {
   margin: 0;

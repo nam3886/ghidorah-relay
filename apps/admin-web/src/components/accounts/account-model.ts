@@ -53,10 +53,27 @@ export function asleepLines(a: Account, now: number = Date.now()): string[] {
   return lines;
 }
 
-// `pool: left / budget`, with `?` when the count is unknown.
-export function pointsText(c: Account["capacity"][number]): string {
+// `left / budget`, with `?` when the count is unknown. The cell shows it right-aligned after the pool name.
+export function pointsFigure(c: Account["capacity"][number]): string {
   const left = c.left_today === null || c.left_today === undefined ? "?" : c.left_today;
-  return `${c.pool}: ${left}${c.budget !== null && c.budget !== undefined ? ` / ${c.budget}` : ""}`;
+  return `${left}${c.budget !== null && c.budget !== undefined ? ` / ${c.budget}` : ""}`;
+}
+
+// `pool: left / budget`.
+export function pointsText(c: Account["capacity"][number]): string {
+  return `${c.pool}: ${pointsFigure(c)}`;
+}
+
+// How long ago, for a "checked" stamp: the table stays short, the title carries the exact time. A time in the future
+// (clock skew) reads as just now.
+export function ago(epochMs: number | null | undefined, now: number = Date.now()): string {
+  if (!epochMs) return "never";
+  const minutes = Math.floor(Math.max(0, now - epochMs) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} h ago`;
+  return `${Math.floor(hours / 24)} d ago`;
 }
 
 export function proxyCheck(a: Account): { label: string; tone: "ok" | "bad" | "neutral" } {

@@ -39,7 +39,7 @@ const edited = (item: SettingItem): boolean => drafts[item.key] !== valueText(it
     :error="error"
     row-key="key"
     empty-text="No settings"
-    max-height="460px"
+    max-height="none"
     @retry="emit('retry')"
   >
     <template #cell-key="{ row }">
