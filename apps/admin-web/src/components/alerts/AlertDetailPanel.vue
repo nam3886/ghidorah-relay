@@ -53,12 +53,17 @@ const acked = (i: { acknowledged_ms: number | null; acknowledged_by: string | nu
     </header>
     <p class="sub">{{ summaryText(detail) }}</p>
     <p v-if="oneCustomer(detail)" class="note">one customer only: may be the customer's own words</p>
-    <p v-if="isEmptyWording(detail)" class="bad" data-testid="alert-read-failure">
-      The provider's API gave no reply text, so there is no wording to read: this is an API read failure.
-    </p>
+    <el-alert
+      v-if="isEmptyWording(detail)"
+      type="error"
+      show-icon
+      :closable="false"
+      title="The provider's API gave no reply text, so there is no wording to read: this is an API read failure."
+      data-testid="alert-read-failure"
+    />
     <p v-if="unclear && detail.outcomes" data-testid="alert-outcomes">{{ outcomesText(detail) }}</p>
 
-    <DataTable v-if="unclear" :columns="unclearColumns" :rows="unclearRows" empty-text="No rows" max-height="24rem">
+    <DataTable v-if="unclear" :columns="unclearColumns" :rows="unclearRows" empty-text="No rows">
       <template #cell-at="{ row }">{{ fmtTime(row.at_ms) }}</template>
       <template #cell-text="{ row }"
         ><span class="reply">{{ row.text === "" ? "(no text)" : row.text }}</span></template
@@ -81,7 +86,7 @@ const acked = (i: { acknowledged_ms: number | null; acknowledged_by: string | nu
         <template v-else>{{ acked(row) }}</template>
       </template>
     </DataTable>
-    <DataTable v-else :columns="billingColumns" :rows="billingRows" empty-text="No rows" max-height="24rem">
+    <DataTable v-else :columns="billingColumns" :rows="billingRows" empty-text="No rows">
       <template #cell-at="{ row }">{{ fmtTime(row.at_ms) }}</template>
       <template #cell-alert="{ row }"><StatusChip :status="row.alert" tone="bad" /></template>
       <template #cell-wallet="{ row }">{{ row.provider }} / {{ row.kind }}</template>
@@ -127,9 +132,6 @@ const acked = (i: { acknowledged_ms: number | null; acknowledged_by: string | nu
   margin: 0;
   color: var(--rl-warn);
   font-size: 12px;
-}
-.bad {
-  color: var(--rl-bad);
 }
 .reply {
   white-space: pre-wrap;

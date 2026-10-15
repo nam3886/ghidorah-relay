@@ -11,6 +11,8 @@ const props = defineProps<{ status: string; job: PublicJob | null; kind: string 
 const media = computed(() =>
   [...(props.job?.result_urls ?? []), ...(props.job?.images ?? [])].map((url) => ({ url, safe: safeMediaUrl(url) })),
 );
+// The viewer pages through the safe links only.
+const previews = computed(() => media.value.flatMap((m) => (m.safe ? [m.safe] : [])));
 </script>
 
 <template>
@@ -20,7 +22,14 @@ const media = computed(() =>
     <div class="test-result__media">
       <template v-for="(m, i) in media" :key="i">
         <template v-if="m.safe">
-          <img v-if="kind === 'image'" :src="m.safe" alt="" />
+          <el-image
+            v-if="kind === 'image'"
+            :src="m.safe"
+            :preview-src-list="previews"
+            :initial-index="previews.indexOf(m.safe)"
+            fit="contain"
+            preview-teleported
+          />
           <video v-else :src="m.safe" controls />
         </template>
         <p v-else class="test-result__unsafe">link not shown: {{ m.url }}</p>
@@ -53,8 +62,9 @@ const media = computed(() =>
   display: grid;
   gap: 8px;
 }
-.test-result__media img,
+.test-result__media .el-image,
 .test-result__media video {
+  width: 100%;
   max-width: 100%;
   border-radius: var(--el-border-radius-base, 6px);
 }

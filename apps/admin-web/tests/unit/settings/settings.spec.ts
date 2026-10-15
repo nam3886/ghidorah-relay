@@ -105,7 +105,7 @@ describe("the settings page", () => {
   it("lets the page scroll: no table holds a fixed height that would clip a row", async () => {
     await open();
     const tables = wrapper!.findAll(".el-table");
-    expect(tables).toHaveLength(3);
+    expect(tables).toHaveLength(2);
     for (const t of tables) expect(t.attributes("style") ?? "").not.toMatch(/max-height:\s*(\d|calc)/);
   });
 });

@@ -68,7 +68,9 @@ def create_key(page, label="customer one"):
     box = page.get_by_role("dialog")
     box.get_by_label("Label", exact=True).fill(label)
     pick(page, "fake video mode", "limit")
-    box.get_by_label("fake video per day").fill("5")
+    per_day = box.get_by_label("fake video per day")
+    per_day.fill("5", force=True)             # Element Plus marks an empty number box aria-disabled
+    per_day.press("Tab")                      # the number field commits on blur
     pick(page, "fake image mode", "unlimited")
     box.get_by_role("button", name="Create").click()
     # the dialog has the same name; the field is the textbox
@@ -85,9 +87,10 @@ def test_create_shows_the_raw_key_once_copies_it_over_plain_http_and_it_is_gone_
     page.evaluate("Object.defineProperty(window, 'isSecureContext', { value: false })", isolated_context=False)
     raw = create_key(page)
     assert raw.startswith("rk-") and db.one("SELECT count(*) FROM api_keys")[0] == 1
-    # the callout's own field (its value, and once in the page markup) is the only place: no storage, no address
-    assert key_places(page, raw) == ["dom", "field"]
-    assert page.content().count(raw) == 1
+    # the callout's own field (its value only: the field is an Element Plus input, so the markup holds no copy of it)
+    # is the only place: no storage, no address
+    assert key_places(page, raw) == ["field"]
+    assert page.content().count(raw) == 0
     expect(page.get_by_text("Copy this key now, it is not shown again.")).to_be_visible()
     copy = page.get_by_test_id("new-key").get_by_role("button", name="Copy")
     copy.click()
@@ -291,9 +294,20 @@ def test_the_date_window_is_the_viewers_midnights_and_ends_at_the_start_of_the_d
     log(db, k, "POST /next-day", at_ms=ms(after))
     open_tab(page, "Request logs")
     expect(rows(page)).to_have_count(4)
-    page.get_by_label("From", exact=True).fill("2026-10-15")
-    expect(rows(page)).to_have_count(3)
-    page.get_by_label("To", exact=True).fill("2026-10-15")
+    # two day pickers, each usable alone: type the day, Enter commits it
+    start = page.get_by_placeholder("From", exact=True)
+    start.fill("2026-10-15")
+    start.press("Enter")
+    expect(rows(page)).to_have_count(3)                      # From alone
+    start.fill("")
+    start.press("Enter")
+    expect(rows(page)).to_have_count(4)
+    end = page.get_by_placeholder("To", exact=True)
+    end.fill("2026-10-15")
+    end.press("Enter")
+    expect(rows(page)).to_have_count(3)                      # To alone: everything before the next day
+    start.fill("2026-10-15")
+    start.press("Enter")
     expect(rows(page)).to_have_count(2)
     expect(rows(page).filter(has_text="/start-of-day")).to_have_count(1)
     expect(rows(page).filter(has_text="/last-moment")).to_have_count(1)

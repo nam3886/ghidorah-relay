@@ -39,7 +39,6 @@ onBeforeUnmount(() => {
         :model-value="frames.provider"
         aria-label="Provider"
         class="frames__provider"
-        size="small"
         :disabled="frames.opensOff"
         @change="frames.openProvider"
       >

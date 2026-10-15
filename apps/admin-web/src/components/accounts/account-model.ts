@@ -2,7 +2,7 @@
 import type { Account, AccountPatch, ImportBody, ImportResult } from "@/api/accounts";
 import { fmtTime } from "@/lib/format";
 
-export const PAGE_SIZE = 50;
+export const PAGE_SIZE = 10;
 export const AUTO_REFRESH_MS = 10000;
 export const WAKE_LABEL = "Wake: clear cooldown and strikes";
 

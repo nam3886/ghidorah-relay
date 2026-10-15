@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { reactive, watch } from "vue";
 import type { SettingItem } from "@/api/settings";
+import { RefreshLeft } from "@element-plus/icons-vue";
 import DataTable from "@/components/shared/DataTable.vue";
+import IconAction from "@/components/shared/IconAction.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import type { Column } from "@/components/shared/types";
 import { valueText } from "./settings-value";
@@ -50,7 +52,6 @@ const edited = (item: SettingItem): boolean => drafts[item.key] !== valueText(it
       <div class="setting-value">
         <el-input
           v-model="drafts[row.key]"
-          size="small"
           class="setting-input"
           :aria-label="`Value of ${row.key}`"
           :disabled="busy"
@@ -66,16 +67,13 @@ const edited = (item: SettingItem): boolean => drafts[item.key] !== valueText(it
     </template>
     <template #actions="{ row }">
       <el-button
-        size="small"
         type="primary"
         :disabled="busy || !edited(row)"
         :aria-label="`Save ${row.key}`"
         @click="emit('save', row.key, drafts[row.key] ?? '')"
         >Save</el-button
       >
-      <el-button size="small" :disabled="busy" :aria-label="`Reset ${row.key}`" @click="emit('reset', row.key)"
-        >Reset</el-button
-      >
+      <IconAction :icon="RefreshLeft" :label="`Reset ${row.key}`" :disabled="busy" @click="emit('reset', row.key)" />
     </template>
   </DataTable>
 </template>

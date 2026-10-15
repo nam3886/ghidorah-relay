@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { useRoute } from "vue-router";
+import { View } from "@element-plus/icons-vue";
 import { clearLogs, getLog, type LogDetail, listLogs, type LogRow } from "@/api/logs";
 import LogDetailDialog from "@/components/logs/LogDetailDialog.vue";
 import { isLogStatus, logQuery, PAGE_SIZE } from "@/components/logs/log-window";
 import { useLogsFilters } from "@/components/logs/logs-filters";
 import DataTable from "@/components/shared/DataTable.vue";
 import ListToolbar from "@/components/shared/ListToolbar.vue";
-import OffsetPager from "@/components/shared/OffsetPager.vue";
+import IconAction from "@/components/shared/IconAction.vue";
+import ListPager from "@/components/shared/ListPager.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { httpTone, type Tone } from "@/components/shared/status-tones";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
@@ -30,6 +32,7 @@ const detailLatest = useLatest();
 const items = shallowRef<LogRow[]>([]);
 const total = ref(0);
 const offset = ref(0);
+const limit = ref(PAGE_SIZE);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const updatedAt = ref<number | null>(null);
@@ -58,7 +61,7 @@ async function load(): Promise<void> {
   const ticket = latest.next();
   loading.value = true;
   try {
-    const out = await listLogs(logQuery(filters, scope.provider, offset.value));
+    const out = await listLogs(logQuery(filters, scope.provider, offset.value, limit.value));
     if (!latest.isCurrent(ticket)) return;
     items.value = out.items;
     total.value = out.total;
@@ -93,6 +96,17 @@ watch(
 onBeforeUnmount(() => {
   latest.invalidate();
   detailLatest.invalidate();
+});
+
+// Each day field may be set alone. The store keeps the day strings the half-open window is built from ("" = unset);
+// a cleared picker reports null.
+const from = computed<string | null>({
+  get: () => filters.from || null,
+  set: (value) => (filters.from = value ?? ""),
+});
+const to = computed<string | null>({
+  get: () => filters.to || null,
+  set: (value) => (filters.to = value ?? ""),
 });
 
 // A new search starts at the first page; Refresh reads the same page again.
@@ -152,8 +166,24 @@ async function openDetail(row: LogRow) {
         <el-option label="Errors" value="error" />
         <el-option label="Failed before a job" value="pre_job" />
       </el-select>
-      <input v-model="filters.from" type="date" class="date-field" aria-label="From" @change="search" />
-      <input v-model="filters.to" type="date" class="date-field" aria-label="To" @change="search" />
+      <el-date-picker
+        v-model="from"
+        type="date"
+        value-format="YYYY-MM-DD"
+        placeholder="From"
+        aria-label="From"
+        class="date-field"
+        @change="search"
+      />
+      <el-date-picker
+        v-model="to"
+        type="date"
+        value-format="YYYY-MM-DD"
+        placeholder="To"
+        aria-label="To"
+        class="date-field"
+        @change="search"
+      />
       <el-button @click="search">Search</el-button>
       <template #actions>
         <el-button class="danger" @click="clear">Clear logs</el-button>
@@ -191,17 +221,23 @@ async function openDetail(row: LogRow) {
       </template>
       <template #cell-duration="{ row }">{{ row.duration_ms }} ms</template>
       <template #actions="{ row }">
-        <el-button size="small" @click="openDetail(row)">Details</el-button>
+        <IconAction :icon="View" label="Details" @click="openDetail(row)" />
       </template>
     </DataTable>
-    <OffsetPager
+    <ListPager
       :offset="offset"
-      :limit="PAGE_SIZE"
+      :limit="limit"
       :total="total"
       @move="
         (o: number) => {
           offset = o;
           void load();
+        }
+      "
+      @size="
+        (s: number) => {
+          limit = s;
+          search();
         }
       "
     />
@@ -223,13 +259,7 @@ async function openDetail(row: LogRow) {
   width: 180px;
 }
 .date-field {
-  height: 32px;
-  padding: 0 8px;
-  color: var(--rl-fg);
-  background: var(--rl-surface);
-  border: 1px solid var(--rl-line-strong);
-  border-radius: var(--el-border-radius-base, 6px);
-  font: inherit;
+  width: 150px;
 }
 .mono {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -244,17 +274,6 @@ async function openDetail(row: LogRow) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.date-field:focus-visible {
-  outline: none;
-  border-color: var(--el-color-primary);
-  box-shadow:
-    0 0 0 2px var(--rl-bg),
-    0 0 0 4px var(--el-color-primary);
-}
-/* the native calendar icon follows the theme (it is black on a dark field otherwise) */
-:global(html.dark) .date-field {
-  color-scheme: dark;
 }
 .danger {
   color: var(--rl-bad);

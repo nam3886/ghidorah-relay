@@ -216,7 +216,7 @@ describe("images", () => {
     const store = memoryStore([...Array.from({ length: 10 }, (_, i) => png(`f${i}.png`)), png("eleven.png")]);
     await open(store);
     expect(text()).toContain(DROPPED_NOTE);
-    expect(wrapper!.findAll(".test-images__list li")).toHaveLength(10);
+    expect(wrapper!.findAll(".el-upload-list__item")).toHaveLength(10);
     expect(store.value()).toHaveLength(10);
   });
 
@@ -224,14 +224,43 @@ describe("images", () => {
     const store = memoryStore({ bad: true });
     await open(store);
     expect(text()).toContain(DROPPED_NOTE);
-    expect(wrapper!.findAll(".test-images__list li")).toHaveLength(0);
+    expect(wrapper!.findAll(".el-upload-list__item")).toHaveLength(0);
     expect(store.value()).toBeUndefined();
+  });
+
+  it("a dropped file that is not an image is never listed or stored, and an image is", async () => {
+    const store = memoryStore();
+    await open(store);
+    const input = wrapper!.find("input.el-upload__input");
+    Object.defineProperty(input.element, "files", {
+      configurable: true,
+      value: [new File(["x"], "notes.txt", { type: "text/plain" })],
+    });
+    await input.trigger("change");
+    await flushPromises();
+    expect(wrapper!.findAll(".el-upload-list__item")).toHaveLength(0);
+    expect(store.value()).toBeUndefined();
+    Object.defineProperty(input.element, "files", {
+      configurable: true,
+      value: [new File(["x"], "a.png", { type: "image/png" })],
+    });
+    await input.trigger("change");
+    await flushPromises();
+    expect(wrapper!.findAll(".el-upload-list__item").map((li) => li.text())).toEqual([
+      expect.stringContaining("a.png"),
+    ]);
+    expect((store.value() as StoredFile[]).map((f) => f.name)).toEqual(["a.png"]);
+  });
+
+  it("the drag area never uploads by itself", async () => {
+    await open(memoryStore());
+    expect(wrapper!.findComponent({ name: "ElUpload" }).props("autoUpload")).toBe(false);
   });
 
   it("writes only a checked list on Remove", async () => {
     const store = memoryStore([png("a.png"), png("b.png")]);
     await open(store);
-    await wrapper!.find('button[aria-label="Remove a.png"]').trigger("click");
+    await wrapper!.find(".el-upload-list__item .el-icon--close").trigger("click");
     await flushPromises();
     expect((store.value() as StoredFile[]).map((f) => f.name)).toEqual(["b.png"]);
   });
@@ -285,8 +314,11 @@ describe("storage that refuses, each says so at once", () => {
     vi.mocked(store.put).mockRejectedValue(new Error("quota"));
     await open(store);
     expect(text()).not.toContain(NOT_SAVED_NOTE);
-    const input = wrapper!.find("#test-image-files");
-    Object.defineProperty(input.element, "files", { value: [new File(["x"], "a.png", { type: "image/png" })] });
+    const input = wrapper!.find("input.el-upload__input");
+    Object.defineProperty(input.element, "files", {
+      configurable: true,
+      value: [new File(["x"], "a.png", { type: "image/png" })],
+    });
     await input.trigger("change");
     await flushPromises();
     expect(text()).toContain(NOT_SAVED_NOTE);
@@ -331,7 +363,7 @@ describe("blocked storage", () => {
     expect(text()).toContain("Job j1 done");
     expect(api.createJob).toHaveBeenCalledWith("rk-1", "image", { model: "imagen-4", prompt: "a cat" });
     // attaching a file: the store refuses, the tab says so
-    const input = wrapper!.find("#test-image-files");
+    const input = wrapper!.find("input.el-upload__input");
     const file = new File(["x"], "a.png", { type: "image/png" });
     Object.defineProperty(input.element, "files", { value: [file] });
     await input.trigger("change");

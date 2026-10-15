@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef } from "vue";
+import { View as ViewIcon } from "@element-plus/icons-vue";
 import { acknowledgeGroup, type AlertDetail, type AlertGroup, getAlertGroup, listAlertGroups } from "@/api/alerts";
 import { getStats, type LiveAlert } from "@/api/shell";
 import AlertDetailPanel from "@/components/alerts/AlertDetailPanel.vue";
@@ -15,6 +16,7 @@ import {
 import { ALL, fromSelect, toSelect } from "@/components/jobs/job-filters";
 import DataTable from "@/components/shared/DataTable.vue";
 import ListToolbar from "@/components/shared/ListToolbar.vue";
+import IconAction from "@/components/shared/IconAction.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import type { Tone } from "@/components/shared/status-tones";
 import { useBusy } from "@/composables/use-busy";
@@ -185,10 +187,13 @@ async function acknowledge(g: AlertGroup) {
         <el-option v-for="k in ALERT_KINDS" :key="k" :label="k" :value="k" />
       </el-select>
     </ListToolbar>
-    <p class="help">
-      Acknowledging a group marks the rows you saw; a row that arrives later reopens it. Which replies count as unclear
-      is decided in code: new wording is a code change, there is nothing to edit here.
-    </p>
+    <el-alert
+      type="info"
+      :closable="false"
+      class="help"
+      role="note"
+      title="Acknowledging a group marks the rows you saw; a row that arrives later reopens it. Which replies count as unclear is decided in code: new wording is a code change, there is nothing to edit here."
+    />
 
     <section class="panel" aria-label="Live conditions">
       <h3>Live conditions</h3>
@@ -199,7 +204,7 @@ async function acknowledge(g: AlertGroup) {
           >: {{ a.message }}
         </li>
       </ul>
-      <p v-else class="sub">No live condition right now</p>
+      <el-empty v-else description="No live condition right now" :image-size="48" />
     </section>
 
     <DataTable
@@ -220,10 +225,8 @@ async function acknowledge(g: AlertGroup) {
       <template #cell-first="{ row }">{{ fmtTime(row.first_ms) }}</template>
       <template #cell-last="{ row }">{{ fmtTime(row.last_ms) }}</template>
       <template #actions="{ row }">
-        <el-button size="small" :disabled="writing" @click="openGroup(row)">Details</el-button>
-        <el-button v-if="row.open_count > 0" size="small" :disabled="locked" @click="acknowledge(row)"
-          >Acknowledge</el-button
-        >
+        <IconAction :icon="ViewIcon" label="Details" :disabled="writing" @click="openGroup(row)" />
+        <el-button v-if="row.open_count > 0" :disabled="locked" @click="acknowledge(row)">Acknowledge</el-button>
       </template>
     </DataTable>
     <p v-if="groups.length >= GROUP_LIMIT" class="sub" data-testid="alerts-more">
@@ -250,7 +253,9 @@ async function acknowledge(g: AlertGroup) {
 .field {
   width: 150px;
 }
-.help,
+.help {
+  margin-bottom: 12px;
+}
 .sub {
   color: var(--rl-muted);
   font-size: 12px;

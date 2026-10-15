@@ -79,7 +79,8 @@ async function open(): Promise<VueWrapper> {
   return wrapper;
 }
 
-const button = (w: VueWrapper, text: string) => w.findAll("button").find((b) => b.text() === text)!;
+const button = (w: VueWrapper, name: string) =>
+  w.findAll("button").find((b) => b.text() === name || b.attributes("aria-label") === name)!;
 const rows = (w: VueWrapper) => w.findAll("tbody tr");
 
 beforeEach(() => {
@@ -145,10 +146,10 @@ describe("the list", () => {
     expect(table[2]!.text()).toContain("login failed");
   });
 
-  it("asks for the provider filter and 50 per page", async () => {
+  it("asks for the provider filter and 10 per page", async () => {
     useScopeStore(pinia).provider = "dola";
     await open();
-    expect(list).toHaveBeenCalledWith("dola", 50, 0);
+    expect(list).toHaveBeenCalledWith("dola", 10, 0);
   });
 
   it("a slow first answer that arrives after the second does not bring its rows back", async () => {
@@ -192,8 +193,8 @@ describe("the enable switch", () => {
 
 describe("the row commands and the edit dialog", () => {
   const done = (id: string) => ({ id, status: "done", result: null }) as unknown as commands.CommandStatus;
-  const command = (w: VueWrapper, name: string) =>
-    w.findAllComponents({ name: "ElDropdown" })[0]!.vm.$emit("command", name);
+  const command = (w: VueWrapper, name: "wake" | "edit") =>
+    w.find(`tbody button[aria-label="${name === "wake" ? "Wake" : "Edit"}"]`).trigger("click");
   const inBody = (text: string) =>
     [...document.body.querySelectorAll("button")].find((b) => b.textContent?.trim() === text)!;
   const editOpen = (w: VueWrapper) => w.findComponent(EditDialog).props("modelValue");
@@ -214,14 +215,20 @@ describe("the row commands and the edit dialog", () => {
     expect(notify.success).toHaveBeenCalledWith("Wake: clear cooldown and strikes: done");
   });
 
-  it("the Wake item says what it clears", async () => {
+  it("every row action is an icon button with its name, and Shot shows only when there is a screenshot", async () => {
     const w = await open();
-    await button(w, "More").trigger("click");
+    const names = w.findAll("tbody button").map((b) => b.attributes("aria-label"));
+    expect(names).toEqual(["Check", "Wake", "Edit", "Delete"]);
+    list.mockResolvedValue(page([account({ has_screenshot: true })]));
+    await button(w, "Refresh").trigger("click");
     await settle();
-    const wake = [...document.body.querySelectorAll<HTMLElement>(".el-dropdown-menu__item")].find(
-      (i) => i.textContent?.trim() === "Wake",
-    );
-    expect(wake?.getAttribute("title")).toBe("Clear the cooldown and the strike count of this account");
+    expect(w.findAll("tbody button").map((b) => b.attributes("aria-label"))).toEqual([
+      "Check",
+      "Shot",
+      "Wake",
+      "Edit",
+      "Delete",
+    ]);
   });
 
   it("Re-check proxy closes the dialog, queues the re-check, polls Proxy check and reads the list again", async () => {

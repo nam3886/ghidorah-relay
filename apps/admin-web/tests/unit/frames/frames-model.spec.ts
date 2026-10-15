@@ -5,10 +5,12 @@ import {
   loadedText,
   lockHistoryLine,
   lockLine,
+  newestFirst,
   PROMPT_MARKER,
   refusalText,
   TRACKING_MARKER,
   versionLine,
+  versionType,
 } from "@/components/frames/frames-model";
 import { fmtTime } from "@/lib/format";
 import { frameInfo, version } from "./fixtures";
@@ -55,5 +57,21 @@ describe("frame lines", () => {
     expect(appliedLine({ applied: [], kept: [], unchanged: ["d"], warnings: [] })).toBe(
       "Applied: -. Kept (locked): -. Unchanged: d.",
     );
+  });
+});
+
+describe("the history timeline", () => {
+  it("lists the newest version first and leaves the input alone", () => {
+    const history = [version(2, "b"), version(9, "i"), version(5, "e")];
+    expect(newestFirst(history).map((v) => v.id)).toEqual([9, 5, 2]);
+    expect(history.map((v) => v.id)).toEqual([2, 9, 5]);
+  });
+
+  it("colours a version by where its text came from", () => {
+    expect(versionType(version(1, "own text"))).toBe("primary");
+    expect(versionType(version(2, null))).toBe("info");
+    expect(versionType({ ...version(3, "again"), restored_from: 1 })).toBe("warning");
+    // a version that follows the default stays grey even when it was a restore
+    expect(versionType({ ...version(4, null), restored_from: 1 })).toBe("info");
   });
 });

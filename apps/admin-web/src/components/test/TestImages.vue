@@ -1,90 +1,70 @@
 <script setup lang="ts">
+import { nextTick, ref, watch } from "vue";
+import { UploadFilled } from "@element-plus/icons-vue";
+import type { UploadFile, UploadUserFile } from "element-plus";
 import { LIMITS_TEXT, MAX_BYTES, MAX_IMAGES, type StoredFile } from "@/lib/test-files";
 
-// The attached images: a native multi-file input (images only), the list with a Remove each, and the note about what
-// could not be kept. The limits and the storage are the parent's (lib/test-files.ts); this only reports the choice.
-defineProps<{ files: StoredFile[]; note: string }>();
+// The attached images: a drag-to-upload area (images only, nothing is ever uploaded: `auto-upload` is off), the list of
+// the attached names and the note about what could not be kept. The limits and the storage are the parent's
+// (lib/test-files.ts); this only reports the choice and shows what the parent kept, so a file the parent refused
+// never stays in the list.
+const props = defineProps<{ files: StoredFile[]; note: string }>();
 const emit = defineEmits<{ add: [files: File[]]; remove: [index: number] }>();
 
-function onPick(event: Event) {
-  const el = event.target as HTMLInputElement;
-  emit("add", Array.from(el.files ?? []));
-  // The same file can be picked again after a Remove.
-  el.value = "";
+// "text" lists names only: a thumbnail of a file that is not uploaded is a blob: URL, which the page's CSP blocks
+// (it has no img-src). If the owner allows `img-src 'self' blob:`, "picture" is the one-line switch.
+const LIST_TYPE: "text" | "picture" = "text";
+
+const shown = (files: StoredFile[]): UploadUserFile[] =>
+  files.map((f, i) => ({ name: `${f.name} (${Math.ceil(f.blob.size / 1024)} KiB)`, uid: i + 1, status: "ready" }));
+const list = ref<UploadUserFile[]>(shown(props.files));
+watch(
+  () => props.files,
+  (files) => (list.value = shown(files)),
+);
+
+async function onChange(file: UploadFile): Promise<void> {
+  if (file.status !== "ready" || !file.raw) return;
+  emit("add", [file.raw]);
+  // Show what the parent kept, not what was dropped on the area.
+  await nextTick();
+  list.value = shown(props.files);
+}
+
+function onRemove(file: UploadFile): void {
+  // the uid of a listed file is its place in the parent's list, counted from 1 (Element Plus replaces a uid of 0)
+  const index = file.uid - 1;
+  if (index >= 0 && index < props.files.length) emit("remove", index);
 }
 </script>
 
 <template>
   <div class="test-images">
-    <label class="test-images__label" for="test-image-files">
-      Attach images (up to {{ MAX_IMAGES }} files, {{ MAX_BYTES / 1048576 }} MiB together; sent as data)
-    </label>
-    <input id="test-image-files" type="file" accept="image/*" multiple :title="LIMITS_TEXT" @change="onPick" />
-    <ul v-if="files.length" class="test-images__list">
-      <li v-for="(f, i) in files" :key="`${i}-${f.name}`">
-        <span class="test-images__name">{{ f.name }}</span>
-        <span class="test-images__size">{{ Math.ceil(f.blob.size / 1024) }} KiB</span>
-        <el-button size="small" text type="danger" :aria-label="`Remove ${f.name}`" @click="emit('remove', i)"
-          >Remove</el-button
-        >
-      </li>
-    </ul>
-    <p v-if="note" class="test-images__note" role="status">{{ note }}</p>
+    <el-upload
+      v-model:file-list="list"
+      drag
+      multiple
+      accept="image/*"
+      :auto-upload="false"
+      :list-type="LIST_TYPE"
+      :on-change="onChange"
+      :on-remove="onRemove"
+      :title="LIMITS_TEXT"
+      class="test-images__drop"
+    >
+      <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+      <div class="el-upload__text">
+        Drop images here or <em>click to choose</em> (up to {{ MAX_IMAGES }} files, {{ MAX_BYTES / 1048576 }} MiB
+        together; sent as data)
+      </div>
+    </el-upload>
+    <el-alert v-if="note" type="warning" show-icon :closable="false" :title="note" role="status" />
   </div>
 </template>
 
 <style scoped>
 .test-images {
   display: grid;
-  gap: 6px;
-}
-.test-images__label {
-  color: var(--el-text-color-regular);
-  font-size: 13px;
-}
-.test-images input[type="file"] {
-  color: var(--rl-muted);
-  font: inherit;
-  font-size: 13px;
-}
-/* the native button matches the other buttons: same face, radius and border */
-.test-images input[type="file"]::file-selector-button {
-  margin-right: 10px;
-  padding: 5px 12px;
-  color: var(--rl-fg);
-  font: inherit;
-  font-size: 13px;
-  background: var(--rl-surface-2);
-  border: 1px solid var(--rl-line-strong);
-  border-radius: var(--el-border-radius-base, 6px);
-  cursor: pointer;
-}
-.test-images__list {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.test-images__list li {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  font-size: 12px;
-}
-.test-images__name {
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.test-images__size {
-  color: var(--rl-muted);
-  font-variant-numeric: tabular-nums;
-}
-.test-images__note {
-  margin: 0;
-  color: var(--rl-warn);
-  font-size: 12px;
 }
 </style>

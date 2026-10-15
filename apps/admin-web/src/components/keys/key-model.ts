@@ -3,7 +3,7 @@ import { ApiError } from "@/api/client";
 import type { ApiKey, KeyBody, Wallet, WalletBody, WalletMode } from "@/api/keys";
 import type { CatalogModel } from "@/api/shell";
 
-export const PAGE_SIZE = 50;
+export const PAGE_SIZE = 10;
 
 // `closed`, `unlimited (N used)`, or `day used/limit, total used/limit` for the limits that are set.
 export function walletText(w: Wallet): string {

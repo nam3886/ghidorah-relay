@@ -2,7 +2,8 @@
 import { reactive, watch } from "vue";
 import type { ApiKey, KeyBody } from "@/api/keys";
 import type { CatalogModel } from "@/api/shell";
-import { type CreateError, keyBody, keyForm, type KeyForm } from "./key-model";
+import { fmtTime } from "@/lib/format";
+import { type CreateError, keyBody, keyForm, type KeyForm, unfinishedText } from "./key-model";
 
 // Create or edit a key. The dialog only asks: it builds the body from what was typed and the view sends it.
 const open = defineModel<boolean>({ required: true });
@@ -28,22 +29,44 @@ watch(
   { immediate: true },
 );
 
+// The form keeps numbers as text (an empty box and a 0 differ); the number field speaks number or nothing.
+const asNumber = (text: string): number | undefined => (text === "" ? undefined : Number(text));
+const asText = (value: number | null | undefined): string =>
+  value === null || value === undefined ? "" : String(value);
+
 const MODES = ["closed", "limit", "unlimited"] as const;
 </script>
 
 <template>
   <el-dialog v-model="open" :title="props.editing ? 'Edit API key' : 'New API key'" width="min(640px, 94vw)">
     <el-form label-position="top" @submit.prevent="emit('submit', keyBody(form))">
-      <p v-if="props.error" class="form-error" role="alert">{{ props.error.text }}</p>
+      <el-descriptions v-if="props.editing" :column="2" border class="key-facts" aria-label="Key details">
+        <el-descriptions-item label="Prefix"
+          ><span class="mono">{{ props.editing.prefix }}</span></el-descriptions-item
+        >
+        <el-descriptions-item label="Created">{{ fmtTime(props.editing.created_ms) }}</el-descriptions-item>
+        <el-descriptions-item label="Jobs total">{{ props.editing.jobs }}</el-descriptions-item>
+        <el-descriptions-item label="Unfinished / max">{{ unfinishedText(props.editing) }}</el-descriptions-item>
+      </el-descriptions>
+      <el-alert
+        v-if="props.error"
+        type="error"
+        show-icon
+        :closable="false"
+        :title="props.error.text"
+        class="form-error"
+      />
       <el-form-item label="Label" :class="flagged('label')">
         <el-input v-model="form.label" aria-label="Label" maxlength="100" />
       </el-form-item>
       <el-form-item label="Max unfinished jobs (empty = default, 0 = unlimited)" :class="flagged('max_unfinished')">
-        <el-input
-          v-model="form.maxUnfinished"
-          type="number"
-          min="0"
+        <el-input-number
+          :model-value="asNumber(form.maxUnfinished)"
+          :min="0"
+          :precision="0"
+          controls-position="right"
           aria-label="Max unfinished jobs (empty = default, 0 = unlimited)"
+          @update:model-value="(v) => (form.maxUnfinished = asText(v))"
         />
       </el-form-item>
       <el-form-item label="Allowed models" :class="flagged('models')">
@@ -61,26 +84,28 @@ const MODES = ["closed", "limit", "unlimited"] as const;
           </div>
           <div v-for="w in form.wallets" :key="`${w.provider}/${w.kind}`" class="wallet-row" data-wallet>
             <span>{{ w.provider }} {{ w.kind }}</span>
-            <el-select v-model="w.mode" :aria-label="`${w.provider} ${w.kind} mode`" size="small">
+            <el-select v-model="w.mode" :aria-label="`${w.provider} ${w.kind} mode`">
               <el-option v-for="m in MODES" :key="m" :label="m" :value="m" />
             </el-select>
-            <el-input
-              v-model="w.day"
-              type="number"
-              min="1"
-              size="small"
+            <el-input-number
+              :model-value="asNumber(w.day)"
+              :min="1"
+              :precision="0"
+              :controls="false"
               placeholder="per day"
               :disabled="w.mode !== 'limit'"
               :aria-label="`${w.provider} ${w.kind} per day`"
+              @update:model-value="(v) => (w.day = asText(v))"
             />
-            <el-input
-              v-model="w.total"
-              type="number"
-              min="1"
-              size="small"
+            <el-input-number
+              :model-value="asNumber(w.total)"
+              :min="1"
+              :precision="0"
+              :controls="false"
               placeholder="total"
               :disabled="w.mode !== 'limit'"
               :aria-label="`${w.provider} ${w.kind} total`"
+              @update:model-value="(v) => (w.total = asText(v))"
             />
           </div>
         </div>
@@ -96,10 +121,23 @@ const MODES = ["closed", "limit", "unlimited"] as const;
 </template>
 
 <style scoped>
-.form-error {
+.form-error,
+.key-facts {
   margin: 0 0 12px;
-  color: var(--rl-bad);
-  font-size: 13px;
+}
+.mono {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+.wallet-row :deep(.el-input-number) {
+  width: 100%;
+}
+@media (max-width: 520px) {
+  .wallet-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .wallet-head {
+    display: none;
+  }
 }
 .model-list {
   display: grid;

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { AlarmClock, CircleCheck, Collection, Delete, DocumentChecked, Edit, Picture } from "@element-plus/icons-vue";
 import {
   type Account,
   type AccountPatch,
@@ -29,7 +30,8 @@ import EditDialog from "@/components/accounts/EditDialog.vue";
 import ImportDialog from "@/components/accounts/ImportDialog.vue";
 import DataTable from "@/components/shared/DataTable.vue";
 import ListToolbar from "@/components/shared/ListToolbar.vue";
-import OffsetPager from "@/components/shared/OffsetPager.vue";
+import IconAction from "@/components/shared/IconAction.vue";
+import ListPager from "@/components/shared/ListPager.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { useBusy } from "@/composables/use-busy";
@@ -55,6 +57,7 @@ const latest = useLatest();
 const items = shallowRef<Account[]>([]);
 const total = ref(0);
 const offset = ref(0);
+const limit = ref(PAGE_SIZE);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const updatedAt = ref<number | null>(null);
@@ -86,7 +89,7 @@ async function load(): Promise<void> {
   const ticket = latest.next();
   loading.value = true;
   try {
-    const page = await listAccounts(scope.provider, PAGE_SIZE, offset.value);
+    const page = await listAccounts(scope.provider, limit.value, offset.value);
     if (!latest.isCurrent(ticket)) return;
     items.value = page.items;
     total.value = page.total;
@@ -206,12 +209,7 @@ async function saveAccount(patch: AccountPatch) {
 
 const recheck = (a: Account) => run(() => queue(recheckProxy(a.id), "Proxy check"));
 
-function more(command: string | number | object, a: Account) {
-  if (command === "shot") void showShot(a);
-  else if (command === "wake") void run(() => queue(wakeAccount(a.id), WAKE_LABEL));
-  else if (command === "edit") openEdit(a);
-  else if (command === "delete") void remove(a);
-}
+const wake = (a: Account) => run(() => queue(wakeAccount(a.id), WAKE_LABEL));
 
 // One provider when the filter is set, else every provider one after another (the worker of each runs its own).
 async function providerNames(): Promise<string[]> {
@@ -240,15 +238,8 @@ const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", r
     >
       <h2 class="view-title">Accounts</h2>
       <template #actions>
-        <el-button :disabled="checkingAll" title="Check every enabled account, one at a time" @click="checkEvery"
-          >Check all</el-button
-        >
-        <el-button
-          :disabled="readingCatalogs"
-          title="Read the provider’s models and options again"
-          @click="readCatalogs"
-          >Refresh catalog</el-button
-        >
+        <IconAction :icon="DocumentChecked" label="Check all" :disabled="checkingAll" @click="checkEvery" />
+        <IconAction :icon="Collection" label="Refresh catalog" :disabled="readingCatalogs" @click="readCatalogs" />
         <el-button type="primary" @click="importOpen = true">Import</el-button>
       </template>
     </ListToolbar>
@@ -259,6 +250,7 @@ const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", r
       :loading="loading"
       :error="error"
       empty-text="No accounts"
+      :actions-width="250"
       :row-tone="rowTone"
       @retry="load"
     >
@@ -316,30 +308,28 @@ const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", r
             :aria-label="`Enabled: ${row.label}`"
             @change="(v: string | number | boolean) => toggle(row, Boolean(v))"
           />
-          <el-button size="small" @click="check(row)">Check</el-button>
-          <el-dropdown trigger="click" placement="bottom-end" @command="(c: string | number | object) => more(c, row)">
-            <el-button size="small" :aria-label="`More actions for ${row.label}`">More</el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item v-if="row.has_screenshot" command="shot">Shot</el-dropdown-item>
-                <el-dropdown-item command="wake" title="Clear the cooldown and the strike count of this account"
-                  >Wake</el-dropdown-item
-                >
-                <el-dropdown-item command="edit">Edit</el-dropdown-item>
-                <el-dropdown-item command="delete" divided class="danger-item">Delete</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+          <IconAction :icon="CircleCheck" label="Check" @click="check(row)" />
+          <IconAction v-if="row.has_screenshot" :icon="Picture" label="Shot" @click="showShot(row)" />
+          <IconAction :icon="AlarmClock" label="Wake" @click="wake(row)" />
+          <IconAction :icon="Edit" label="Edit" @click="openEdit(row)" />
+          <IconAction :icon="Delete" label="Delete" type="danger" @click="remove(row)" />
         </div>
       </template>
     </DataTable>
-    <OffsetPager
+    <ListPager
       :offset="offset"
-      :limit="PAGE_SIZE"
+      :limit="limit"
       :total="total"
       @move="
         (o: number) => {
           offset = o;
+          void load();
+        }
+      "
+      @size="
+        (s: number) => {
+          limit = s;
+          offset = 0;
           void load();
         }
       "
@@ -397,14 +387,5 @@ const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", r
 }
 .figure {
   font-variant-numeric: tabular-nums;
-}
-</style>
-
-<!-- The menu is drawn in a popper outside this component, so scoped rules do not reach it. -->
-<style>
-.el-dropdown-menu__item.danger-item,
-.el-dropdown-menu__item.danger-item:hover,
-.el-dropdown-menu__item.danger-item:focus {
-  color: var(--rl-bad);
 }
 </style>
