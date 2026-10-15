@@ -21,7 +21,7 @@ STATIC = Path(__file__).parent / "static"
 # (the redirects below keep the old links working). The entry is also reachable at /ui/app/index.html.
 APP_ENTRY = "app/index.html"
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
-         ".css": "text/css; charset=utf-8", ".txt": "text/plain; charset=utf-8"}
+         ".css": "text/css; charset=utf-8", ".txt": "text/plain; charset=utf-8", ".svg": "image/svg+xml"}
 HEADERS = {"Content-Security-Policy": CSP, "X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"}
 # The API reference renderer writes its styles into the page at run time, so /reference alone may use inline styles
 # (D75). Its scripts stay `'self'`, and its own assets under /ui keep the exact header above.

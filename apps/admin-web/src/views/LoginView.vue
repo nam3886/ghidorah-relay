@@ -2,6 +2,7 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ApiError } from "@/api/client";
+import BrandLogo from "@/components/layout/BrandLogo.vue";
 import { getMe } from "@/api/shell";
 import { errorText } from "@/lib/errors";
 import { useAuthStore } from "@/stores/auth";
@@ -42,7 +43,8 @@ onMounted(async () => {
 <template>
   <main class="login-page">
     <el-card class="login-card" shadow="never">
-      <h1 class="login-brand">relay</h1>
+      <BrandLogo variant="login" />
+      <h1 class="login-brand">Sign in to Ghidorah Relay</h1>
       <el-form label-position="top" @submit.prevent="submit">
         <el-form-item label="Username">
           <el-input v-model="username" size="large" name="username" autocomplete="username" :maxlength="64" autofocus />
@@ -85,7 +87,7 @@ onMounted(async () => {
 }
 .login-brand {
   margin: 0 0 16px;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
 }
 .login-error-slot {

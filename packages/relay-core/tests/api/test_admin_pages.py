@@ -11,7 +11,7 @@ PAGES_PY = "packages/relay-core/src/relay_core/admin/pages.py"
 APP = "packages/relay-core/src/relay_core/api/app.py"
 CSP = "default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'"
 PAGE_ROUTES = ["/manage", "/ui/app/index.html", "/ui/app/theme-init.js", "/ui/reference.js", "/ui/reference.css",
-               "/ui/vendor/scalar.min.js"]
+               "/ui/vendor/scalar.min.js", "/ui/app/brand/ghidorah-favicon.svg", "/ui/app/brand/FONT-LICENSE.txt"]
 REFERENCE_CSP = CSP.replace("script-src 'self';", "script-src 'self'; style-src 'self' 'unsafe-inline';")
 API_ROUTES = ["/healthz", "/openapi.json"]
 
@@ -27,6 +27,18 @@ def test_every_page_route_carries_the_exact_csp_and_an_api_route_does_not(db, pa
         assert page.headers["x-content-type-options"] == "nosniff"
         for api in API_ROUTES:
             assert "content-security-policy" not in (await env.client.get(api)).headers, api
+
+    run_app(db, scenario)
+
+
+@mutation(PAGES_PY, '".svg": "image/svg+xml"', '".svg": "text/plain; charset=utf-8"', expect="image/svg+xml")
+def test_a_brand_svg_is_served_as_an_svg_image_with_the_csp(db):
+    async def scenario(env):
+        for path in ["/ui/app/brand/ghidorah-favicon.svg", "/ui/app/brand/ghidorah-logo-dark.svg"]:
+            r = await env.client.get(path)
+            assert r.status_code == 200, path
+            assert r.headers["content-type"] == "image/svg+xml", "image/svg+xml expected on " + path
+            assert r.headers["content-security-policy"] == CSP
 
     run_app(db, scenario)
 

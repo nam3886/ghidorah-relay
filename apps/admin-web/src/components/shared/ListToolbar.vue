@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { Refresh } from "@element-plus/icons-vue";
 import { computed } from "vue";
+import IconAction from "./IconAction.vue";
 
 // The row above a list: filters on the left (default slot), then "Updated hh:mm:ss", an auto-refresh switch when the
 // view asks for one, Refresh, and the `actions` slot for the buttons of the view (Import, Clear logs...).
@@ -34,7 +36,7 @@ const updated = computed(() =>
         />
         <span class="list-toolbar__note">{{ props.autoRefreshLabel }}</span>
       </template>
-      <el-button :loading="props.loading" @click="emit('refresh')">Refresh</el-button>
+      <IconAction :icon="Refresh" label="Refresh" :loading="props.loading" @click="emit('refresh')" />
       <slot name="actions" />
     </div>
   </div>

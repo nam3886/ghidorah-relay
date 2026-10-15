@@ -41,16 +41,49 @@ def test_a_copy_pending_at_unmount_does_nothing():
           "props.loading && props.rows.length > 5 && !props.error", expect="refreshing keeps the old rows")
 @mutation(TABLE, "index >= 0", "index >= -1",
           expect="never renders the user's slots for Element Plus's empty probe row")
-@mutation(TABLE, 'maxHeight: "calc(100vh - 16rem)",', "maxHeight: undefined,",
-          expect="keeps the header while the rows scroll")
+@mutation(TABLE, "maxHeight: undefined,", 'maxHeight: "calc(100vh - 16rem)",',
+          expect="has no inner scroll unless the caller sets a max height")
 @mutation(TABLE, ':max-height="props.maxHeight"', ':max-height="undefined"',
-          expect="keeps the header while the rows scroll")
+          expect="has no inner scroll unless the caller sets a max height")
 @mutation(TABLE, "return value === null || value === undefined || value === \"\";",
           "return value === undefined || value === \"\";", expect="draws an empty value as a quiet dash")
 @mutation(TABLE, "actionsWidth: 200,", "actionsWidth: 100,", expect="gives the Actions column room")
 @pytest.mark.web_unit
 def test_the_table_keeps_old_rows_while_refreshing():
     vitest("tests/unit/shared/data-table.spec.ts")
+
+
+PAGER = "apps/admin-web/src/components/shared/ListPager.vue"
+
+
+@mutation(TABLE, 'v-if="props.selectable"', 'v-if="!props.selectable"',
+          expect="has no checkbox column unless selectable")
+@mutation(TABLE, "table.clearSelection();", "void table;",
+          expect="setSelection ticks exactly the given ids and replaces an earlier selection")
+@mutation(TABLE, "wanted.has(String((row as Record<string, unknown>)[props.rowKey]))", "true",
+          expect="setSelection ticks exactly the given ids and replaces an earlier selection")
+@pytest.mark.web_unit
+def test_the_table_selection_column_and_setselection():
+    vitest("tests/unit/shared/data-table-selection.spec.ts")
+
+
+@mutation(PAGER, "emit(\"move\", (p - 1) * props.limit)", "emit(\"move\", p * props.limit)",
+          expect="clicking a page emits move with that page's offset")
+@mutation(PAGER, "Math.floor(props.offset / props.limit) + 1", "Math.floor(props.offset / props.limit)",
+          expect="the active page follows the offset")
+@mutation(PAGER, "if (resizing.value) return;", "", expect="a size change emits size and never a move")
+@mutation(PAGER, "props.hasNext ? props.page + 1 : props.page", "props.page + 1",
+          expect="Prev is disabled on page 1, Next when there is no next page")
+@mutation(PAGER, '"total, sizes, prev, pager, next, jumper"', '"total, sizes, prev, pager, next"',
+          expect="the full layout has the size select and the jumper")
+@mutation(PAGER, "limit: 10, total: 0", "limit: 50, total: 0",
+          expect="the full layout has the size select and the jumper")
+@mutation(PAGER, "(max-width: 639px)", "(max-width: 100px)", expect="under 640 px the layout is compact")
+@mutation(PAGER, "props.sizes.includes(props.limit)", "true",
+          expect="a limit that is not in the list is added to the sizes")
+@pytest.mark.web_unit
+def test_the_pager_offsets_sizes_and_cursor_buttons():
+    vitest("tests/unit/shared/list-pager.spec.ts")
 
 
 @mutation("apps/admin-web/src/components/shared/OffsetPager.vue", "Math.max(0, props.offset - props.limit)",
@@ -94,3 +127,33 @@ def test_a_strip_label_stays_short():
 @pytest.mark.web_unit
 def test_the_tone_lookup_keeps_its_rules():
     vitest(TONES_SPEC)
+
+
+BRAND = "apps/admin-web/src/components/layout/BrandLogo.vue"
+THEME_CSS = "apps/admin-web/src/styles/theme.css"
+BRAND_SPEC = "tests/unit/brand.spec.ts"
+
+
+@mutation(BRAND, 'ui.theme === "dark" ? logoDark : logoLight', 'ui.theme === "dark" ? logoLight : logoDark',
+          expect="shows the logo with light letters in the dark theme")
+@mutation(BRAND, 'alt="Ghidorah Relay"', 'alt="Relay"', expect="names itself Ghidorah Relay")
+@mutation(BRAND, "v-if=\"props.variant === 'header'\"", "v-if=\"true\"",
+          expect="the login variant is only the wide logo")
+@mutation(THEME_CSS, "--el-button-hover-bg-color: #6d28d9;", "--el-button-hover-bg-color: #8b5cf6;",
+          expect="the primary is the brand purple in both themes")
+@mutation(THEME_CSS, "--el-border-radius-base: 10px;", "--el-border-radius-base: 6px;",
+          expect="the brand radii are 10 px for controls")
+@pytest.mark.web_unit
+def test_the_brand_logo_follows_the_theme_and_the_tokens_are_the_kits():
+    vitest(BRAND_SPEC)
+
+
+STATUS_CHIP = "apps/admin-web/src/components/shared/StatusChip.vue"
+
+
+@mutation(STATUS_CHIP, 'bad: "danger"', 'bad: "warning"', expect="is an el-tag whose type follows the tone")
+@mutation(STATUS_CHIP, 'warn: "warning"', 'warn: "danger"', expect="is an el-tag whose type follows the tone")
+@mutation(STATUS_CHIP, 'ok: "success"', 'ok: "info"', expect="is an el-tag whose type follows the tone")
+@pytest.mark.web_unit
+def test_the_status_chip_tag_type_follows_the_tone():
+    vitest("tests/unit/shared/small-components.spec.ts")

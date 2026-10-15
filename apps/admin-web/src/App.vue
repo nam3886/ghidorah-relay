@@ -13,7 +13,7 @@ const messageConfig = { max: 4, grouping: true, duration: 2500 };
 </script>
 
 <template>
-  <el-config-provider :message="messageConfig">
+  <el-config-provider size="small" :message="messageConfig">
     <template v-if="ready">
       <router-view v-if="route.meta.public" />
       <template v-else>

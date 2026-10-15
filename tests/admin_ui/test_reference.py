@@ -137,7 +137,7 @@ def test_the_page_and_the_renderer_follow_the_stored_theme_else_the_os_setting(a
         assert page.evaluate("document.body.classList.contains('light-mode')") is (not dark)
         # the bar uses the token of that theme
         bar = page.evaluate("getComputedStyle(document.getElementById('bar')).backgroundColor")
-        assert bar == ("rgb(24, 24, 27)" if dark else "rgb(255, 255, 255)"), bar
+        assert bar == ("rgb(23, 18, 34)" if dark else "rgb(255, 255, 255)"), bar
         page.csp.check()
     finally:
         context.close()

@@ -69,5 +69,11 @@ watch(
 }
 .app-main {
   padding: 12px 16px 24px;
+  min-width: 0;
+}
+@media (max-width: 639px) {
+  .app-main {
+    padding: 8px 8px 16px;
+  }
 }
 </style>

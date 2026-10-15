@@ -27,9 +27,15 @@ function go(name: string | number): void {
       <el-tab-pane v-for="tab in TABS" :key="tab.name" :name="tab.name">
         <template #label>
           <span class="tab-label">{{ tab.label }}</span>
-          <span v-if="counts[tab.name]" class="tab-count" :data-testid="`tab-count-${tab.name}`" aria-hidden="true">{{
-            counts[tab.name]
-          }}</span>
+          <el-badge
+            v-if="counts[tab.name]"
+            class="tab-count"
+            type="info"
+            :value="counts[tab.name]"
+            :max="999"
+            :data-testid="`tab-count-${tab.name}`"
+            aria-hidden="true"
+          />
         </template>
       </el-tab-pane>
     </el-tabs>
@@ -60,14 +66,17 @@ function go(name: string | number): void {
 .tab-bar :deep(.el-tabs__item.is-active) {
   color: var(--el-color-primary);
 }
+/* an inline count beside the label (the badge normally floats at a corner) */
 .tab-count {
   margin-left: 6px;
-  padding: 0 6px;
-  font-size: 12px;
+  vertical-align: middle;
+}
+.tab-count :deep(.el-badge__content) {
+  position: static;
+  transform: none;
   font-variant-numeric: tabular-nums;
-  line-height: 18px;
   color: var(--rl-muted);
   background: var(--rl-surface-2);
-  border-radius: 9px;
+  border: 1px solid var(--rl-line);
 }
 </style>

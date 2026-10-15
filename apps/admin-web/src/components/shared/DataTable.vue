@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends object">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import type { Column } from "./types";
 import type { Tone } from "./status-tones";
 
@@ -25,6 +25,8 @@ const props = withDefaults(
     skeletonRows?: number;
     // minimum width of the Actions column: Element Plus gives it about 110 px, which clips two or three buttons
     actionsWidth?: number | string;
+    // a first column of checkboxes (the table's own selection column); `selection-change` carries the ticked rows
+    selectable?: boolean;
   }>(),
   {
     loading: false,
@@ -33,12 +35,28 @@ const props = withDefaults(
     rowKey: "id",
     rowClickable: false,
     rowTone: undefined,
-    maxHeight: "calc(100vh - 16rem)",
+    maxHeight: undefined,
     skeletonRows: 6,
     actionsWidth: 200,
+    selectable: false,
   },
 );
-const emit = defineEmits<{ retry: []; "row-click": [row: T] }>();
+const emit = defineEmits<{ retry: []; "row-click": [row: T]; "selection-change": [rows: T[]] }>();
+
+const tableRef = ref<{ clearSelection: () => void; toggleRowSelection: (row: T, selected?: boolean) => void }>();
+
+// Ticks exactly the rows whose rowKey is in `ids` (after a reload or a failed bulk action). The table's
+// selection-change follows, so the view's own list matches.
+function setSelection(ids: string[]): void {
+  const table = tableRef.value;
+  if (!table) return;
+  table.clearSelection();
+  const wanted = new Set(ids);
+  for (const row of props.rows) {
+    if (wanted.has(String((row as Record<string, unknown>)[props.rowKey]))) table.toggleRowSelection(row, true);
+  }
+}
+defineExpose({ setSelection });
 
 const refreshing = computed(() => props.loading && props.rows.length > 0 && !props.error);
 const skeleton = computed(() => props.loading && props.rows.length === 0 && !props.error);
@@ -81,22 +99,31 @@ function onRowClick(row: T, _column: unknown, event: Event) {
 
 <template>
   <div class="data-table" :class="{ 'is-refreshing': refreshing }" :aria-busy="props.loading" :data-state="state">
-    <div v-if="props.error" class="data-table__error" role="alert">
-      <span>{{ props.error }}</span>
-      <el-button size="small" @click="emit('retry')">Retry</el-button>
-    </div>
+    <el-alert
+      v-if="props.error"
+      class="data-table__error"
+      type="error"
+      show-icon
+      :closable="false"
+      :title="props.error"
+    >
+      <el-button @click="emit('retry')">Retry</el-button>
+    </el-alert>
     <div v-else-if="skeleton" class="data-table__skeleton">
       <el-skeleton :rows="props.skeletonRows" animated />
     </div>
     <el-table
       v-else
+      ref="tableRef"
       :data="props.rows"
       :row-key="props.rowKey"
       :max-height="props.maxHeight"
       :row-class-name="rowClass"
       :class="{ 'is-clickable': props.rowClickable }"
       @row-click="onRowClick"
+      @selection-change="(rows: T[]) => emit('selection-change', rows)"
     >
+      <el-table-column v-if="props.selectable" type="selection" :width="44" />
       <el-table-column
         v-for="c in props.columns"
         :key="c.key"
@@ -132,38 +159,31 @@ function onRowClick(row: T, _column: unknown, event: Event) {
         </template>
       </el-table-column>
       <template #empty>
-        <div class="data-table__empty">
-          <p>{{ props.emptyText }}</p>
+        <el-empty :description="props.emptyText" :image-size="60">
           <slot name="empty-action" />
-        </div>
+        </el-empty>
       </template>
     </el-table>
   </div>
 </template>
 
 <style scoped>
-.data-table__error {
+/* a wide table scrolls inside its own box, never the page */
+.data-table {
+  overflow-x: auto;
+  /* the table's own minimum width must not widen a grid or flex parent: it scrolls here instead */
+  contain: inline-size;
+}
+.data-table :deep(.el-table) {
+  min-width: 640px;
+}
+.data-table__error :deep(.el-alert__content) {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
-  color: var(--rl-bad);
-  background: var(--rl-bad-bg);
-  border-radius: var(--el-border-radius-base, 6px);
 }
 .data-table__skeleton {
   padding: 16px;
-}
-.data-table__empty {
-  padding: 12px 0;
-  color: var(--rl-muted);
-}
-.data-table__empty p {
-  margin: 0 0 8px;
-}
-.data-table__empty p:last-child {
-  margin: 0;
 }
 .data-table__none {
   color: var(--rl-muted);

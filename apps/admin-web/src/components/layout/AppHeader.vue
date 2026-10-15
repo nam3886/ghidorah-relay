@@ -2,6 +2,7 @@
 import { Moon, Sunny, TopRight } from "@element-plus/icons-vue";
 import { computed } from "vue";
 import { useRouter } from "vue-router";
+import BrandLogo from "@/components/layout/BrandLogo.vue";
 import { useBusy } from "@/composables/use-busy";
 import { useAuthStore } from "@/stores/auth";
 import { useScopeStore } from "@/stores/scope";
@@ -35,14 +36,13 @@ async function signOut(): Promise<void> {
 
 <template>
   <header class="app-header">
-    <span class="brand">relay</span>
+    <BrandLogo />
     <div class="header-end">
       <div class="scope" :class="{ 'scope--active': scope.provider !== '' }">
         <span class="scope-label">Provider</span>
         <el-select
           v-model="providerChoice"
           class="scope-select"
-          size="small"
           aria-label="Provider filter"
           data-testid="provider-filter"
         >
@@ -55,7 +55,6 @@ async function signOut(): Promise<void> {
         <el-button
           :icon="isDark ? Sunny : Moon"
           circle
-          size="small"
           :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
           :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
           data-testid="theme-toggle"
@@ -63,7 +62,7 @@ async function signOut(): Promise<void> {
         />
       </div>
       <el-link href="/reference" target="_blank" rel="noopener" underline="never" :icon="TopRight">API docs</el-link>
-      <el-button size="small" :loading="busy" data-testid="sign-out" @click="signOut">Sign out</el-button>
+      <el-button :loading="busy" data-testid="sign-out" @click="signOut">Sign out</el-button>
     </div>
   </header>
 </template>
@@ -72,26 +71,12 @@ async function signOut(): Promise<void> {
 .app-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 16px;
+  gap: 8px 16px;
   padding: 8px 16px;
   background: var(--rl-surface);
   border-bottom: 1px solid var(--rl-line);
-}
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-.brand::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  background: var(--el-color-primary);
-  border-radius: 50%;
 }
 .user {
   display: inline-flex;
@@ -100,8 +85,14 @@ async function signOut(): Promise<void> {
 }
 .header-end {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
+}
+@media (max-width: 639px) {
+  .scope-select {
+    width: 120px;
+  }
 }
 .scope {
   display: inline-flex;
@@ -121,9 +112,6 @@ async function signOut(): Promise<void> {
 }
 .scope-select {
   width: 150px;
-}
-.scope-select :deep(.el-select__wrapper) {
-  font-size: 13px;
 }
 .whoami {
   font-size: 13px;

@@ -37,7 +37,7 @@ TABS = {"jobs": "Jobs", "accounts": "Accounts", "keys": "API keys", "logs": "Req
 # Everything the sweep opens, as (route, state), in the order it opens them.
 OPENS = [
     ("login", "form"), ("login", "busy-button"),
-    ("jobs", "loading-skeleton"), ("jobs", "list"), ("jobs", "sticky-header"),
+    ("jobs", "loading-skeleton"), ("jobs", "list"),
     ("jobs", "refresh-busy"), ("jobs", "status-select"),
     ("jobs", "key-select"), ("jobs", "bulk-selected"), ("jobs", "regenerate-confirm"), ("jobs", "recheck-toast"),
     ("jobs", "detail-loading"), ("jobs", "detail"), ("jobs", "detail-regenerate-confirm"),
@@ -265,14 +265,6 @@ def run_sweep(page, app, live, db, sw, data):
     # jobs (the first load after sign-in is the loading state; open it again late for the skeleton)
     skeleton_step(sw, "jobs", re.compile(r"/admin/jobs\?"), before=lambda: tab(page, "accounts"))
     sw.step("jobs", "list", lambda: ready(page))
-
-    # a table taller than its box: the header stays while the rows scroll under it
-    rows = page.locator(".el-table__body-wrapper .el-scrollbar__wrap").first
-    def sticky_header():
-        scrolled = rows.evaluate("el => { el.scrollTop = 300; return el.scrollTop; }")
-        assert scrolled > 0, "the jobs table is not taller than its box: the sticky header is not shown"
-        expect(page.locator(".el-table__header-wrapper th").first).to_be_in_viewport()
-    sw.step("jobs", "sticky-header", sticky_header, after=lambda: rows.evaluate("el => { el.scrollTop = 0; }"))
 
     def refresh_busy():
         slow(page, re.compile(r"/admin/jobs\?"))

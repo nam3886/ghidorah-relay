@@ -306,28 +306,27 @@ def test_a_failed_load_is_a_console_error_unless_it_is_an_answer_of_an_api_path(
         context.close()
 
 
-# ---- sticky table header --------------------------------------------------------------------------------------------
+# ---- responsive -----------------------------------------------------------------------------------------------------
 
-def test_the_header_of_a_long_list_stays_while_the_rows_scroll(app, app_session, db):
-    from accountkit import done_job, new_account
-    from jobkit import key as new_key
-    k = new_key(db)
-    account = new_account(db, label="alive", checked=True)
-    for i in range(40):
-        done_job(db, k, account, ref="r%d" % i)
+@pytest.mark.parametrize("width", [375, 768, 1280])
+def test_every_route_fits_the_screen_without_the_page_scrolling_sideways(app, app_session, width):
     page = app_session
-    page.reload()
-    rows = page.locator("tbody tr")
-    expect(rows).to_have_count(40)
-    header = page.locator("thead th").first
-    top = header.bounding_box()["y"]
-    last_before = rows.nth(39).bounding_box()["y"]
-    page.locator("tbody tr").first.hover()
-    page.mouse.wheel(0, 3000)
-    page.wait_for_timeout(400)
-    assert abs(header.bounding_box()["y"] - top) < 1, "the header moved with the rows"
-    assert header.bounding_box()["y"] >= 0
-    assert rows.nth(39).bounding_box()["y"] < last_before - 100, "the rows did not scroll under the header"
+    page.set_viewport_size({"width": width, "height": 800})
+    for route in ROUTES:
+        page.goto(app.url + "#/" + route)
+        expect(page.get_by_role("main")).to_be_visible()
+        expect(page.get_by_test_id("sign-out")).to_be_visible()      # the header wraps, it never hides a control
+        expect(page.get_by_role("tab", selected=True)).to_have_count(1)
+        page.wait_for_load_state("networkidle")
+        expect(page.locator("[aria-busy=true]")).to_have_count(0)    # measure the loaded page, not the skeleton
+        overflow = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+        wide = page.evaluate(
+            "[...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > "
+            "document.documentElement.clientWidth + 0.5).slice(0, 6).map(e => e.tagName + '.' + e.className)"
+        ) if overflow > 0 else []
+        assert overflow <= 0, "%s at %d px: the page is %d px too wide (a table or toolbar must scroll): %s" % (
+            route, width, overflow, wide)
+    page.csp.check()
 
 
 # ---- every route ----------------------------------------------------------------------------------------------------
