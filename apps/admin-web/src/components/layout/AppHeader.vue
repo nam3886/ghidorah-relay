@@ -2,6 +2,7 @@
 import { Moon, Sunny, TopRight } from "@element-plus/icons-vue";
 import { computed } from "vue";
 import { useRouter } from "vue-router";
+import BrandLogo from "@/components/layout/BrandLogo.vue";
 import { useBusy } from "@/composables/use-busy";
 import { useAuthStore } from "@/stores/auth";
 import { useScopeStore } from "@/stores/scope";
@@ -35,7 +36,7 @@ async function signOut(): Promise<void> {
 
 <template>
   <header class="app-header">
-    <span class="brand">relay</span>
+    <BrandLogo />
     <div class="header-end">
       <div class="scope" :class="{ 'scope--active': scope.provider !== '' }">
         <span class="scope-label">Provider</span>
@@ -76,21 +77,6 @@ async function signOut(): Promise<void> {
   padding: 8px 16px;
   background: var(--rl-surface);
   border-bottom: 1px solid var(--rl-line);
-}
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-.brand::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  background: var(--el-color-primary);
-  border-radius: 50%;
 }
 .user {
   display: inline-flex;

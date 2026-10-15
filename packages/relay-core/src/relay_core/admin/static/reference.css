@@ -1,26 +1,33 @@
-/* The same tokens as the dashboard (apps/admin-web/src/styles/theme.css): indigo accent, flat neutral layers. */
-html { --rl-bg: #fafafa; --rl-surface: #ffffff; --rl-line: #e4e4e7; --rl-fg: #0e0e11; --rl-muted: #5d5d65;
-  --rl-accent: #4f46e5; --bar-height: 44px; color-scheme: light; }
-html.dark { --rl-bg: #111113; --rl-surface: #18181b; --rl-line: #313135; --rl-fg: #f2f2f2; --rl-muted: #a4a4ad;
-  --rl-accent: #818cf8; color-scheme: dark; }
+/* The same tokens as the dashboard (apps/admin-web/src/styles/theme.css): the Ghidorah purple, flat layers. */
+html { --rl-bg: #faf9fd; --rl-surface: #ffffff; --rl-line: #ddd5e8; --rl-fg: #171321; --rl-muted: #655a75;
+  --rl-accent: #6d28d9; --rl-focus: #7c3aed; --bar-height: 52px; color-scheme: light; }
+html.dark { --rl-bg: #0e0b16; --rl-surface: #171222; --rl-line: #352b48; --rl-fg: #f5f3ff; --rl-muted: #b9aec9;
+  --rl-accent: #a78bfa; --rl-focus: #a78bfa; color-scheme: dark; }
 html, body { margin: 0; padding: 0; background: var(--rl-bg); color: var(--rl-fg); }
 body { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
-:focus-visible { outline: 2px solid var(--rl-accent); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--rl-focus); outline-offset: 3px; }
 
 #bar { position: sticky; top: 0; z-index: 100; box-sizing: border-box; height: var(--bar-height); display: flex;
   align-items: center; gap: 16px; padding: 0 16px; background: var(--rl-surface); border-bottom: 1px solid var(--rl-line); }
+/* the wide logo in the file that suits the theme (dark letters on light, light letters on dark); never stretched */
+#logo { display: flex; align-items: center; padding: 7px 0; }
+#logo img { display: block; height: 30px; width: auto; }
+#logo .logo-dark { display: none; }
+html.dark #logo .logo-light { display: none; }
+html.dark #logo .logo-dark { display: block; }
 #back { color: var(--rl-accent); text-decoration: none; font-weight: 500; }
 #back:hover { text-decoration: underline; }
 #bar-title { color: var(--rl-muted); }
+@media (max-width: 639px) { #bar-title { display: none; } #bar { gap: 8px; } #logo img { height: 24px; } }
 
 /* Scalar keeps its own sticky header and sidebar below the bar. */
 html { --scalar-custom-header-height: var(--bar-height); }
 html body.light-mode, html body.dark-mode { --scalar-color-accent: var(--rl-accent); --scalar-background-1: var(--rl-surface);
   --scalar-background-2: var(--rl-bg); --scalar-border-color: var(--rl-line); --scalar-color-1: var(--rl-fg);
-  --scalar-color-2: var(--rl-muted); --scalar-radius: 6px; }
+  --scalar-color-2: var(--rl-muted); --scalar-radius: 10px; --scalar-radius-lg: 16px; }
 
 #fallback { color: var(--rl-fg); max-width: 640px; margin: 15vh auto; padding: 24px; background: var(--rl-surface);
-  border: 1px solid var(--rl-line); border-radius: 6px; }
+  border: 1px solid var(--rl-line); border-radius: 16px; }
 #fallback[hidden] { display: none; }
 #fallback a { color: var(--rl-accent); }
 #fallback h2 { margin-top: 0; }

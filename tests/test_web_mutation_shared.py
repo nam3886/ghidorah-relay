@@ -129,6 +129,25 @@ def test_the_tone_lookup_keeps_its_rules():
     vitest(TONES_SPEC)
 
 
+BRAND = "apps/admin-web/src/components/layout/BrandLogo.vue"
+THEME_CSS = "apps/admin-web/src/styles/theme.css"
+BRAND_SPEC = "tests/unit/brand.spec.ts"
+
+
+@mutation(BRAND, 'ui.theme === "dark" ? logoDark : logoLight', 'ui.theme === "dark" ? logoLight : logoDark',
+          expect="shows the logo with light letters in the dark theme")
+@mutation(BRAND, 'alt="Ghidorah Relay"', 'alt="Relay"', expect="names itself Ghidorah Relay")
+@mutation(BRAND, "v-if=\"props.variant === 'header'\"", "v-if=\"true\"",
+          expect="the login variant is only the wide logo")
+@mutation(THEME_CSS, "--el-button-hover-bg-color: #6d28d9;", "--el-button-hover-bg-color: #8b5cf6;",
+          expect="the primary is the brand purple in both themes")
+@mutation(THEME_CSS, "--el-border-radius-base: 10px;", "--el-border-radius-base: 6px;",
+          expect="the brand radii are 10 px for controls")
+@pytest.mark.web_unit
+def test_the_brand_logo_follows_the_theme_and_the_tokens_are_the_kits():
+    vitest(BRAND_SPEC)
+
+
 STATUS_CHIP = "apps/admin-web/src/components/shared/StatusChip.vue"
 
 
