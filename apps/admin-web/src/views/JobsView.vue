@@ -11,7 +11,7 @@ import {
   listJobs,
   listKeyOptions,
 } from "@/api/jobs";
-import { createCursorStack } from "@/components/jobs/cursor-stack";
+import { PAGE_SIZE, PAGE_SIZES } from "@/components/jobs/paging";
 import { ALL, fromSelect, rememberedStatus, toSelect } from "@/components/jobs/job-filters";
 import { jobChanges } from "@/components/jobs/job-changes";
 import { isRefunded, keyName, progressStep, recheckToast, regenerateToast, shortId } from "@/components/jobs/job-text";
@@ -33,7 +33,7 @@ import { bulkAction } from "@/lib/operation-key";
 import { useScopeStore } from "@/stores/scope";
 import { useUiStore } from "@/stores/ui";
 
-// Newest first, 50 a page by keyset. The provider scope, the status filter (kept in memory) and the key filter all
+// Newest first, 10 a page by offset with the server's total. The provider scope, the status filter (kept in memory) and the key filter all
 // restart the paging. A job opens in the shared detail dialog through ui.openJob.
 const route = useRoute();
 const scope = useScopeStore();
@@ -57,8 +57,9 @@ const items = shallowRef<JobSummary[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const updatedAt = ref<number | null>(null);
-const stack = createCursorStack();
-const { page, hasNext } = stack;
+const offset = ref(0);
+const limit = ref(PAGE_SIZE);
+const total = ref(0);
 const latest = useLatest();
 
 const status = rememberedStatus;
@@ -103,8 +104,10 @@ function applyQuery(): void {
   if (typeof route.query.key_id === "string") keyId.value = route.query.key_id;
 }
 
-// Loads page `at` (0-based). Only the newest answer counts; a failed page move leaves the cursor where it was.
-async function load(at: number = stack.index.value): Promise<void> {
+// Loads the page that starts at `at` (the one on screen by default, so a reload after a bulk action stays on it). Only
+// the newest answer counts; a failed page move leaves the pager where it was. A list that shrank under the page on
+// screen comes back empty, and the pager (el-pagination) then moves itself to its last page.
+async function load(at: number = offset.value): Promise<void> {
   const ticket = latest.next();
   loading.value = true;
   try {
@@ -112,11 +115,13 @@ async function load(at: number = stack.index.value): Promise<void> {
       status: status.value,
       provider: scope.provider,
       keyId: keyId.value,
-      cursor: stack.cursorAt(at),
+      offset: at,
+      limit: limit.value,
     });
     if (!latest.isCurrent(ticket)) return;
     items.value = out.items;
-    stack.arrive(at, out.next_cursor);
+    total.value = out.total;
+    offset.value = at;
     // Only the ticks of jobs still on screen survive: another page starts with nothing ticked, a reload of this
     // page keeps its ticks.
     picked.value = new Set(pickedIds(out.items, picked.value));
@@ -130,9 +135,16 @@ async function load(at: number = stack.index.value): Promise<void> {
   }
 }
 
+// A new page size starts again from the first page.
+function onSize(size: number): void {
+  limit.value = size;
+  picked.value = new Set();
+  void load(0);
+}
+
 applyQuery();
 watch([status, keyId, () => scope.provider], () => {
-  stack.reset();
+  offset.value = 0;
   picked.value = new Set();
   void load(0);
 });
@@ -275,11 +287,13 @@ const barStatus = (s: string): "success" | "exception" | undefined =>
     </DataTable>
 
     <ListPager
-      mode="cursor"
-      :page="page"
-      :has-next="hasNext"
-      @prev="load(stack.prevIndex())"
-      @next="load(stack.nextIndex())"
+      mode="offset"
+      :offset="offset"
+      :limit="limit"
+      :total="total"
+      :sizes="PAGE_SIZES"
+      @move="(o: number) => load(o)"
+      @size="onSize"
     />
   </section>
 </template>

@@ -155,24 +155,48 @@ def test_a_stats_link_opens_jobs_already_filtered(app, app_page, live, db):
 def test_the_list_pages_forward_and_back_without_a_repeat(app, app_page, live, db):
     page = app_page
     k = new_key(db)
-    for _ in range(52):
+    for _ in range(25):
         db.job(k, provider="fake")
     app.sign_in(page)
-    expect(rows(page)).to_have_count(50)
+    expect(rows(page)).to_have_count(10)          # 10 a page by default
+    expect(page.locator(".pager .el-pagination__total")).to_contain_text("25")
     first_page = rows(page).all_inner_texts()
     nxt, prev = page.locator(".pager button.btn-next"), page.locator(".pager button.btn-prev")
     expect(prev).to_be_disabled()
     nxt.click()
-    expect(rows(page)).to_have_count(2)
-    expect(nxt).to_be_disabled()
+    expect(rows(page)).to_have_count(10)
     second_page = rows(page).all_inner_texts()
     assert not set(second_page) & set(first_page), "no job on both pages"
+    page.locator(".pager li.number", has_text="3").click()      # jump to the last page
+    expect(rows(page)).to_have_count(5)
+    expect(nxt).to_be_disabled()
+    third_page = rows(page).all_inner_texts()
+    assert not set(third_page) & (set(first_page) | set(second_page)), "no job on two pages"
     prev.click()
-    expect(rows(page)).to_have_count(50)
-    assert rows(page).all_inner_texts() == first_page, "the first page comes back as it was"
-    nxt.click()
-    expect(rows(page)).to_have_count(2)
-    assert rows(page).all_inner_texts() == second_page, "and so does the second"
+    expect(rows(page)).to_have_count(10)
+    assert rows(page).all_inner_texts() == second_page, "the second page comes back as it was"
+    page.locator(".pager li.number", has_text="1").click()
+    expect(rows(page)).to_have_count(10)
+    assert rows(page).all_inner_texts() == first_page, "and so does the first"
+
+
+def test_a_bigger_page_size_shows_more_rows_and_keeps_the_ticks_across_a_reload(app, app_page, live, db):
+    page = app_page
+    k = new_key(db)
+    for _ in range(25):
+        db.job(k, provider="fake")
+    app.sign_in(page)
+    expect(rows(page)).to_have_count(10)
+    page.locator(".pager .el-select").click()
+    page.get_by_role("option", name="20/page").click()
+    expect(rows(page)).to_have_count(20)
+    tick(page, 0)
+    tick(page, 3)
+    expect(page.locator(".jobs__count")).to_have_text("2 selected")
+    page.get_by_role("button", name="Refresh").click()
+    expect(rows(page)).to_have_count(20)
+    expect(page.locator(".jobs__count")).to_have_text("2 selected")
+    expect(rows(page).nth(3).locator(".el-checkbox")).to_have_class(re.compile("is-checked"))
 
 
 # ---- bulk actions ------------------------------------------------------------------------------------------------
