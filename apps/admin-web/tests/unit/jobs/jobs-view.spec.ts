@@ -1,5 +1,6 @@
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { nextTick } from "vue";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { ApiError } from "@/api/client";
@@ -554,6 +555,228 @@ describe("selection", () => {
     await button(w, "Refresh").trigger("click");
     await flushPromises();
     expect(count(w)).toBe("1 selected");
+  });
+});
+
+describe("what is sent is what is ticked on screen", () => {
+  // Timers are faked and never advanced: nothing here may wait for a timer, only for the render (microtasks). A tick
+  // must count the moment it is made, whatever reload came just before.
+  const settle = async (): Promise<void> => {
+    for (let i = 0; i < 10; i++) await nextTick();
+  };
+  const D = "dddddddd-4444";
+  const boom = () => new ApiError(500, { error: { code: "x", message: "boom" } });
+  // the boxes on screen, row by row
+  const ticks = (w: VueWrapper): boolean[] =>
+    rows(w).map((r) => (r.find("input[type=checkbox]").element as HTMLInputElement).checked);
+  // the operation-key action of the bulk Regenerate (bulkRegenerate keys the call by the same bulkAction of its ids)
+  const action = (w: VueWrapper): string => w.findComponent(RegenerateControl).props("action");
+  const deferred = () => {
+    let resolve!: (p: JobPage) => void;
+    const promise = new Promise<JobPage>((r) => (resolve = r));
+    return { promise, resolve };
+  };
+  const bulk = { "Regenerate selected": bulkRegenerate, "Re-check selected": bulkRecheck } as const;
+  const labels = Object.keys(bulk) as (keyof typeof bulk)[];
+
+  beforeEach(() => {
+    bulkRegenerate.mockResolvedValue({ created: [], failed: {} });
+    bulkRecheck.mockResolvedValue({ rechecked: [], skipped: {} });
+  });
+  afterEach(() => vi.useRealTimers());
+
+  // Opens the list (A, B, C unless the first page is given), ticks the given rows, then fakes the timers.
+  async function openTicked(indexes: number[], first?: JobPage): Promise<VueWrapper> {
+    if (first) listJobs.mockResolvedValueOnce(first);
+    const { w } = await open();
+    for (const i of indexes) await rowTick(w, i)!.setValue(true);
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    return w;
+  }
+  async function reload(w: VueWrapper, next: JobPage | ApiError = page([A, B, C])): Promise<void> {
+    if (next instanceof ApiError) listJobs.mockRejectedValueOnce(next);
+    else listJobs.mockResolvedValueOnce(next);
+    await button(w, "Refresh").trigger("click");
+    await settle();
+  }
+  async function press(w: VueWrapper, label: string): Promise<void> {
+    await button(w, label).trigger("click");
+    await settle();
+  }
+
+  it.each(labels)("a tick right after a reload counts at once: %s sends exactly the ticks on screen", async (label) => {
+    const w = await openTicked([0]);
+    await reload(w);
+    await rowTick(w, 2)!.setValue(true);
+    expect(ticks(w)).toEqual([true, false, true]);
+    expect(count(w)).toBe("2 selected");
+    expect(action(w)).toBe(`bulk:${A},${C}`);
+    await press(w, label);
+    expect(bulk[label].mock.calls).toEqual([[[A, C]]]);
+  });
+
+  it.each(labels)("an untick right after a reload counts at once: %s leaves the unticked job out", async (label) => {
+    const w = await openTicked([0, 1]);
+    await reload(w);
+    await rowTick(w, 0)!.setValue(false);
+    expect(ticks(w)).toEqual([false, true, false]);
+    expect(action(w)).toBe(`bulk:${B}`);
+    await press(w, label);
+    expect(bulk[label].mock.calls).toEqual([[[B]]]);
+  });
+
+  it("two reloads in flight, ticks made while they run: the newer answer keeps them, the older one is dropped", async () => {
+    const w = await openTicked([0]);
+    const older = deferred();
+    const newer = deferred();
+    listJobs.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+    await button(w, "Refresh").trigger("click");
+    announceJobChange();
+    await settle();
+    await rowTick(w, 1)!.setValue(true);
+    newer.resolve(page([A, B, C]));
+    await settle();
+    await rowTick(w, 2)!.setValue(true);
+    older.resolve(page([B, D]));
+    await settle();
+    expect(ticks(w)).toEqual([true, true, true]);
+    expect(action(w)).toBe(`bulk:${A},${B},${C}`);
+    await press(w, "Regenerate selected");
+    expect(bulkRegenerate.mock.calls).toEqual([[[A, B, C]]]);
+  });
+
+  it("an error hides the table: nothing can be sent until Retry draws the ticks again, and then they are what is sent", async () => {
+    const w = await openTicked([0]);
+    await reload(w, boom());
+    expect(rows(w)).toHaveLength(0);
+    expect(count(w)).toBe("0 selected");
+    expect(button(w, "Regenerate selected").attributes("disabled")).toBeDefined();
+    expect(button(w, "Re-check selected").attributes("disabled")).toBeDefined();
+    listJobs.mockResolvedValueOnce(page([A, B, C]));
+    await press(w, "Retry");
+    expect(ticks(w)).toEqual([true, false, false]);
+    expect(action(w)).toBe(`bulk:${A}`);
+    await press(w, "Regenerate selected");
+    expect(bulkRegenerate.mock.calls).toEqual([[[A]]]);
+  });
+
+  it("a reload and a failed one right behind it, then Retry: the tick comes back and is what is sent", async () => {
+    const w = await openTicked([0]);
+    const first = deferred();
+    listJobs.mockReturnValueOnce(first.promise).mockRejectedValueOnce(boom());
+    await button(w, "Refresh").trigger("click");
+    first.resolve(page([A, B, C]));
+    announceJobChange();
+    await settle();
+    expect(rows(w)).toHaveLength(0);
+    listJobs.mockResolvedValueOnce(page([A, B, C]));
+    await press(w, "Retry");
+    expect(ticks(w)).toEqual([true, false, false]);
+    await press(w, "Re-check selected");
+    expect(bulkRecheck.mock.calls).toEqual([[[A]]]);
+  });
+
+  it("a job that left the page while an error hid the table does not come back ticked", async () => {
+    const w = await openTicked([2]);
+    await reload(w, boom());
+    listJobs.mockResolvedValueOnce(page([A, B]));
+    await press(w, "Retry");
+    expect(count(w)).toBe("0 selected");
+    await reload(w, page([A, B, C]));
+    expect(ticks(w)).toEqual([false, false, false]);
+    expect(count(w)).toBe("0 selected");
+  });
+
+  it("a reload of the same page keeps the ticks still on it, and they are what is sent", async () => {
+    const w = await openTicked([0, 2]);
+    await reload(w, page([A, B]));
+    expect(ticks(w)).toEqual([true, false]);
+    expect(action(w)).toBe(`bulk:${A}`);
+    await press(w, "Re-check selected");
+    expect(bulkRecheck.mock.calls).toEqual([[[A]]]);
+  });
+
+  it("a page change starts with nothing ticked, even a job that moved onto it; a tick there is what is sent", async () => {
+    const w = await openTicked([0, 1], page([A, B], 25));
+    listJobs.mockResolvedValueOnce(page([B, D], 25));
+    w.findComponent(ListPager).vm.$emit("move", 10);
+    await settle();
+    expect(ticks(w)).toEqual([false, false]);
+    expect(count(w)).toBe("0 selected");
+    await rowTick(w, 1)!.setValue(true);
+    expect(action(w)).toBe(`bulk:${D}`);
+    await press(w, "Regenerate selected");
+    expect(bulkRegenerate.mock.calls).toEqual([[[D]]]);
+  });
+
+  it("a filter change unticks the old rows at once, before the new list arrives", async () => {
+    const w = await openTicked([0]);
+    listJobs.mockReturnValueOnce(deferred().promise);
+    selects(w)[0]!.vm.$emit("update:modelValue", "failed");
+    await settle();
+    expect(ticks(w)).toEqual([false, false, false]);
+    expect(count(w)).toBe("0 selected");
+    await rowTick(w, 1)!.setValue(true);
+    await press(w, "Re-check selected");
+    expect(bulkRecheck.mock.calls).toEqual([[[B]]]);
+  });
+
+  it("a page-size change unticks the rows at once, before the new page arrives", async () => {
+    const w = await openTicked([0, 2]);
+    listJobs.mockReturnValueOnce(deferred().promise);
+    w.findComponent(ListPager).vm.$emit("size", 20);
+    await settle();
+    expect(rows(w)).toHaveLength(3);
+    expect(ticks(w)).toEqual([false, false, false]);
+    expect(count(w)).toBe("0 selected");
+    expect(button(w, "Regenerate selected").attributes("disabled")).toBeDefined();
+    expect(button(w, "Re-check selected").attributes("disabled")).toBeDefined();
+  });
+
+  it("a filter change while an error hides the table: the new list starts with nothing ticked", async () => {
+    const w = await openTicked([0]);
+    await reload(w, boom());
+    listJobs.mockResolvedValueOnce(page([A, B]));
+    selects(w)[0]!.vm.$emit("update:modelValue", "failed");
+    await settle();
+    expect(ticks(w)).toEqual([false, false]);
+    expect(count(w)).toBe("0 selected");
+  });
+
+  it("a bulk failure that is safe to retry, then a reload: the ticks stay and the retry sends the same ids", async () => {
+    const lost = new ApiError(503, {});
+    lost.retrySafe = true;
+    bulkRegenerate.mockReset().mockRejectedValueOnce(lost).mockResolvedValueOnce({ created: [], failed: {} });
+    const w = await openTicked([0, 1]);
+    await press(w, "Regenerate selected");
+    await reload(w);
+    expect(ticks(w)).toEqual([true, true, false]);
+    expect(action(w)).toBe(`bulk:${A},${B}`);
+    await press(w, "Regenerate selected");
+    expect(bulkRegenerate.mock.calls).toEqual([[[A, B]], [[A, B]]]);
+  });
+
+  it("while the confirm is open a reload can only drop ticks: what is sent is the ticks on screen at the answer", async () => {
+    const w = await openTicked([0, 2]);
+    let answer!: (ok: boolean) => void;
+    vi.mocked(confirmDialog).mockReturnValueOnce(new Promise<boolean>((r) => (answer = r)));
+    await press(w, "Regenerate selected");
+    await reload(w, page([A, B]));
+    answer(true);
+    await settle();
+    expect(bulkRegenerate.mock.calls).toEqual([[[A]]]);
+  });
+
+  it("a confirm answered after a failed reload hid the table sends nothing", async () => {
+    const w = await openTicked([0]);
+    let answer!: (ok: boolean) => void;
+    vi.mocked(confirmDialog).mockReturnValueOnce(new Promise<boolean>((r) => (answer = r)));
+    await press(w, "Regenerate selected");
+    await reload(w, boom());
+    answer(true);
+    await settle();
+    expect(bulkRegenerate).not.toHaveBeenCalled();
+    expect(notify.error).toHaveBeenCalledWith("Tick at least one job");
   });
 });
 

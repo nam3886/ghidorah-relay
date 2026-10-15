@@ -67,34 +67,27 @@ const keyId = ref("");
 const keys = ref<KeyOption[]>([]);
 const statusOptions = [ALL, ...JOB_STATUSES];
 
-// The ticked jobs. The table's selection column reports them (@selection-change); `picked` is the copy that outlives
-// a reload, and the table is told to tick it again (setSelection). Always read through pickedIds: only what is on
-// the page is acted on.
+// The ticked jobs: what the bulk buttons act on is always the ticks on screen.
+// - The table keeps its ticks when its rows are replaced (keep-selection), so it reports only real changes: a click,
+//   or setSelection below. Every report arrives at once, inside the click or the call, and `picked` takes it as is.
+//   No report is stale, so none is ignored and there is no window to wait out.
+// - `picked` outlives a table drawn anew (an error hid it, Retry drew it again): reTick ticks it there once more.
+// - An error hides the table: nothing is ticked on screen then, so nothing is acted on.
+// Always read through pickedIds: only what is on the page is acted on, in table order.
 const picked = ref<Set<string>>(new Set());
-const ids = computed(() => pickedIds(items.value, picked.value));
+const ids = computed(() => (error.value ? [] : pickedIds(items.value, picked.value)));
 const table = ref<{ setSelection: (ids: string[]) => void } | null>(null);
 
-// While `picked` is being put back on the table, the table's own reports (it clears its ticks when its rows are
-// replaced, and says so a moment later) are stale: `picked` is the truth then.
-let restoring = false;
 const onSelection = (rows: JobSummary[]): void => {
-  if (restoring) return;
   picked.value = new Set(rows.map((r) => r.id));
 };
-// Ticks `picked` on the table again once its rows are drawn (a reload, a failed bulk call, an error that hid it).
-const RESTORE_SETTLE_MS = 50;
-const reTick = (): Promise<void> => {
-  // nothing ticked: the table's stale reports say the same, and a tick made right after a load must count
-  if (!picked.value.size) return Promise.resolve();
-  restoring = true;
-  return nextTick(() => {
-    table.value?.setSelection([...picked.value]);
-    setTimeout(() => (restoring = false), RESTORE_SETTLE_MS);
-  });
-};
+// Once the new rows are drawn, the table ticks exactly `picked`: it drops the unseen ticks of jobs that left the page
+// and ticks again a table drawn anew. This runs right after the render, before any click can come in, provided it is
+// called after the changes that render (nextTick waits only for a render already pending).
+const reTick = (): Promise<void> => nextTick(() => table.value?.setSelection([...picked.value]));
 const clearPicked = (): void => {
   picked.value = new Set();
-  void nextTick(() => table.value?.setSelection([]));
+  table.value?.setSelection([]);
 };
 
 // The stats cells link to /jobs?status=done|failed; a key id may come the same way.
@@ -119,15 +112,18 @@ async function load(at: number = offset.value): Promise<void> {
       limit: limit.value,
     });
     if (!latest.isCurrent(ticket)) return;
+    // Another page starts with nothing ticked, even a job that moved onto it; a reload of this page keeps the ticks
+    // of the jobs still on it.
+    if (at !== offset.value) clearPicked();
     items.value = out.items;
     total.value = out.total;
     offset.value = at;
-    // Only the ticks of jobs still on screen survive: another page starts with nothing ticked, a reload of this
-    // page keeps its ticks.
     picked.value = new Set(pickedIds(out.items, picked.value));
-    void reTick();
     error.value = null;
     updatedAt.value = Date.now();
+    // Last, after every change of this load: its nextTick then runs after the render they cause (the table an error
+    // hid is drawn again by error = null), or at once when nothing needs drawing.
+    void reTick();
   } catch (err) {
     if (latest.isCurrent(ticket)) error.value = errorText(err);
   } finally {
@@ -138,14 +134,16 @@ async function load(at: number = offset.value): Promise<void> {
 // A new page size starts again from the first page.
 function onSize(size: number): void {
   limit.value = size;
-  picked.value = new Set();
+  clearPicked();
   void load(0);
 }
 
 applyQuery();
+// A filter drops the ticks at once, on the table too: the old rows still on screen until the new list arrives show
+// none.
 watch([status, keyId, () => scope.provider], () => {
   offset.value = 0;
-  picked.value = new Set();
+  clearPicked();
   void load(0);
 });
 watch(() => route.query, applyQuery);
@@ -174,9 +172,15 @@ const recheck = () =>
     notify[toast.type](toast.text);
   });
 
-// A failure leaves the selection as it was: the retry of the same selection sends the same key, and a different
-// selection is a different action with its own key.
+// Runs once the confirm is accepted, on the ticks on screen then: while the confirm is open the table cannot be
+// clicked, so only a reload can change them, and only by dropping jobs (one that left the page, or every tick when
+// the reload failed). A failure leaves the selection as it was: the retry of the same selection sends the same key,
+// and a different selection is a different action with its own key.
 async function regenerate(): Promise<void> {
+  if (!ids.value.length) {
+    notify.error("Tick at least one job");
+    return;
+  }
   const out = await bulkRegenerate(ids.value);
   clearPicked();
   await load();
@@ -243,6 +247,7 @@ const barStatus = (s: string): "success" | "exception" | undefined =>
       empty-text="No jobs"
       row-clickable
       selectable
+      keep-selection
       :actions-width="96"
       :row-tone="rowTone"
       @retry="load()"
