@@ -42,6 +42,23 @@ function onPick(event: Event) {
   color: var(--el-text-color-regular);
   font-size: 13px;
 }
+.test-images input[type="file"] {
+  color: var(--rl-muted);
+  font: inherit;
+  font-size: 13px;
+}
+/* the native button matches the other buttons: same face, radius and border */
+.test-images input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  padding: 5px 12px;
+  color: var(--rl-fg);
+  font: inherit;
+  font-size: 13px;
+  background: var(--rl-surface-2);
+  border: 1px solid var(--rl-line-strong);
+  border-radius: var(--el-border-radius-base, 6px);
+  cursor: pointer;
+}
 .test-images__list {
   display: grid;
   gap: 4px;

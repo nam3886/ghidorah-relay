@@ -140,6 +140,21 @@ describe("the lists", () => {
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 
+  it("marks an error group with the red left bar and a warning with the amber one, an info group with none", async () => {
+    list.mockResolvedValue({
+      items: [
+        group({ group: "a", severity: "error" }),
+        group({ group: "b", severity: "warning" }),
+        group({ group: "c", severity: "info" }),
+      ],
+    });
+    const w = await open();
+    const classes = w.findAll("tbody tr").map((r) => r.classes().join(" "));
+    expect(classes[0]).toContain("row-tone-bad");
+    expect(classes[1]).toContain("row-tone-warn");
+    expect(classes[2]).not.toContain("row-tone");
+  });
+
   it("says the list is cut at 200 groups, and only then", async () => {
     const w = await open();
     expect(w.find('[data-testid="alerts-more"]').exists()).toBe(false);
@@ -158,6 +173,19 @@ describe("the filters", () => {
     select.vm.$emit("update:modelValue", value);
     select.vm.$emit("change", value);
   };
+
+  it("the Kind select shows All kinds, not the placeholder, and choosing All again sends no kind", async () => {
+    const w = await open();
+    const kind = () => w.findAllComponents({ name: "ElSelect" })[1]!;
+    expect(kind().find(".el-select__placeholder").text()).toBe("All kinds");
+    choose(w, 1, "drift");
+    await settle();
+    expect(list).toHaveBeenLastCalledWith("open", "drift", 200);
+    choose(w, 1, "__all__");
+    await settle();
+    expect(list).toHaveBeenLastCalledWith("open", "", 200);
+    expect(kind().find(".el-select__placeholder").text()).toBe("All kinds");
+  });
 
   it("send the Status and then the Kind to the server, each in its own place", async () => {
     const w = await open();

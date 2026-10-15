@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { Account } from "@/api/accounts";
 import {
   accountChanges,
+  ago,
   asleepLines,
   checkSummary,
   importBody,
   importSummary,
+  pointsFigure,
   pointsText,
   proxyCheck,
   proxyText,
@@ -176,6 +178,20 @@ describe("pointsText, proxyCheck, checkSummary", () => {
     expect(pointsText(cap(3, 10))).toBe("video: 3 / 10");
     expect(pointsText(cap(null, 10))).toBe("video: ? / 10");
     expect(pointsText(cap(0, null))).toBe("video: 0");
+    expect(pointsFigure(cap(3, 10))).toBe("3 / 10");
+    expect(pointsFigure(cap(null, null))).toBe("?");
+  });
+
+  it("ago: never, just now, minutes, hours, days; a future time is just now", () => {
+    const t = 1_000_000_000_000;
+    expect(ago(null, t)).toBe("never");
+    expect(ago(t - 59_000, t)).toBe("just now");
+    expect(ago(t + 5 * 60_000, t)).toBe("just now");
+    expect(ago(t - 2 * 60_000, t)).toBe("2 min ago");
+    expect(ago(t - 59 * 60_000, t)).toBe("59 min ago");
+    expect(ago(t - 60 * 60_000, t)).toBe("1 h ago");
+    expect(ago(t - 47 * 3_600_000, t)).toBe("47 h ago");
+    expect(ago(t - 48 * 3_600_000, t)).toBe("2 d ago");
   });
 
   it("proxy check: ok, failed, not checked", () => {

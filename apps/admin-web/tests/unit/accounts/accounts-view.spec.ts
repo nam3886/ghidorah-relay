@@ -135,7 +135,12 @@ describe("the list", () => {
     expect(table).toHaveLength(3);
     expect(table[0]!.find(".el-switch").exists()).toBe(true);
     expect(table[1]!.find(".el-switch").exists()).toBe(false);
-    expect(table[1]!.text()).toContain("3 videos · 2 images");
+    // the two counts are two right-aligned number columns, not one text cell
+    const headers = w.findAll("thead th").map((th) => th.text());
+    const cells = table[1]!.findAll("td").map((td) => td.text());
+    expect(cells[headers.indexOf("Videos")]).toBe("3");
+    expect(cells[headers.indexOf("Images")]).toBe("2");
+    expect(table[1]!.text()).not.toContain("videos ·");
     expect(table[1]!.text()).toContain("in use");
     expect(table[2]!.text()).toContain("login failed");
   });

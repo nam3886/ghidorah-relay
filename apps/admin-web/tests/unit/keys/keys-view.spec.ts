@@ -158,6 +158,23 @@ describe("the list", () => {
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 
+  it("an enabled key is plain text, a disabled key is the only one with a chip, and 'any model' is neutral", async () => {
+    list.mockResolvedValue({
+      items: [key({ id: "k1", enabled: true, models: ["*"] }), key({ id: "k2", enabled: false, models: ["veo-3"] })],
+    });
+    const w = await open();
+    const [on, off] = w.findAll("tbody tr");
+    expect(on!.text()).toContain("enabled");
+    expect(on!.find('[data-tone="ok"]').exists()).toBe(false);
+    expect(on!.find('[data-tone="info"]').exists()).toBe(false);
+    expect(on!.findAll("[data-tone]").map((c) => [c.text(), c.attributes("data-tone")])).toEqual([
+      ["any model", "neutral"],
+    ]);
+    expect(off!.findAll("[data-tone]").map((c) => [c.text(), c.attributes("data-tone")])).toEqual([
+      ["disabled", "neutral"],
+    ]);
+  });
+
   it("a switch that fails reads the list again, so it goes back", async () => {
     vi.mocked(keys.setKeyEnabled).mockRejectedValue(new ApiError(500, { error: { message: "boom" } }));
     const w = await open();

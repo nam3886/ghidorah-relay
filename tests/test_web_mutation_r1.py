@@ -176,6 +176,12 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
           expect=FV + "selection > the bulk buttons stay off until a job is ticked, and the count follows")
 @mutation(VIEW, "Regenerate ${ids.value.length} job(s)? ", "Regenerate job(s)? ",
           expect=FV + "bulk regenerate > asks first, naming the count, today's price and the charge")
+@mutation(VIEW, ':model-value="picked.has(row.id)"', ':model-value="false"',
+          expect=FV + "selection > a ticked job shows its own box ticked and the select-all box half-ticked, "
+                      "in the same render as the count")
+@mutation(VIEW, 'status="refunded" tone="neutral"', 'status="refunded"',
+          expect=FV + "the list > a refund chip is neutral, the status chip keeps its own tone, and the error code "
+                      "is plain muted text")
 @pytest.mark.web_unit
 def test_the_jobs_view_pages_filters_selects_and_sends_what_is_ticked():
     vitest(VIEW_SPEC)

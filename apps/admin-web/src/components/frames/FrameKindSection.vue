@@ -34,7 +34,7 @@ const columns: Column[] = [
         >Edit the default</el-button
       >
     </header>
-    <DataTable :columns="columns" :rows="kind.models" row-key="model" empty-text="No models" max-height="360px">
+    <DataTable :columns="columns" :rows="kind.models" row-key="model" empty-text="No models" max-height="none">
       <template #cell-model="{ row }">
         <span class="frame-kind__mono">{{ row.model }}</span>
       </template>
@@ -44,14 +44,16 @@ const columns: Column[] = [
         <span class="frame-kind__small">{{ versionLine(row.effective) }}</span>
       </template>
       <template #cell-locked="{ row }">
-        <el-checkbox
-          :model-value="row.locked"
-          :disabled="frames.controlsOff"
-          :aria-label="`Keep own frame of ${row.model}`"
-          @change="(value: string | number | boolean) => frames.setLock(kind.kind, row.model, Boolean(value))"
-          >keep own</el-checkbox
-        >
-        <div class="frame-kind__small frame-kind__muted">{{ lockLine(row.lock) }}</div>
+        <div class="frame-kind__lock">
+          <el-checkbox
+            :model-value="row.locked"
+            :disabled="frames.controlsOff"
+            :aria-label="`Keep own frame of ${row.model}`"
+            @change="(value: string | number | boolean) => frames.setLock(kind.kind, row.model, Boolean(value))"
+            >keep own</el-checkbox
+          >
+          <span class="frame-kind__small frame-kind__muted">{{ lockLine(row.lock) }}</span>
+        </div>
       </template>
       <template #actions="{ row }">
         <el-button
@@ -94,6 +96,13 @@ const columns: Column[] = [
 .frame-kind__mono {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 12px;
+}
+/* the checkbox and its history on one line: a one-line row stays one line */
+.frame-kind__lock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 12px;
 }
 .frame-kind__muted {
   color: var(--rl-muted);

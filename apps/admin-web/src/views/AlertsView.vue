@@ -12,9 +12,11 @@ import {
   oneCustomer,
   ROW_LIMIT,
 } from "@/components/alerts/alerts-model";
+import { ALL, fromSelect, toSelect } from "@/components/jobs/job-filters";
 import DataTable from "@/components/shared/DataTable.vue";
 import ListToolbar from "@/components/shared/ListToolbar.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
+import type { Tone } from "@/components/shared/status-tones";
 import { useBusy } from "@/composables/use-busy";
 import { useLatest } from "@/composables/use-latest";
 import { errorText } from "@/lib/errors";
@@ -120,6 +122,19 @@ onBeforeUnmount(() => latest.invalidate());
 
 const reload = () => run(load);
 
+// The select holds a stand-in for "all kinds" (an empty value would show the placeholder instead of the label).
+const kindChoice = computed({
+  get: () => toSelect(asked.value.kind),
+  set: (value: string) => {
+    asked.value = { ...asked.value, kind: fromSelect(value) };
+    void reload();
+  },
+});
+
+// A group that is an error stands out with the left bar, a warning with the amber one.
+const rowTone = (g: AlertGroup): Tone | undefined =>
+  g.severity === "error" ? "bad" : g.severity === "warning" ? "warn" : undefined;
+
 function openGroup(g: AlertGroup) {
   asked.value = { ...asked.value, open: { kind: g.kind, group: g.group } };
   void reload();
@@ -165,8 +180,8 @@ async function acknowledge(g: AlertGroup) {
         <el-option label="acknowledged" value="acknowledged" />
         <el-option label="all" value="all" />
       </el-select>
-      <el-select v-model="asked.kind" class="field" aria-label="Kind" :disabled="writing" @change="reload">
-        <el-option label="All kinds" value="" />
+      <el-select v-model="kindChoice" class="field" aria-label="Kind" :disabled="writing">
+        <el-option label="All kinds" :value="ALL" />
         <el-option v-for="k in ALERT_KINDS" :key="k" :label="k" :value="k" />
       </el-select>
     </ListToolbar>
@@ -193,6 +208,7 @@ async function acknowledge(g: AlertGroup) {
       :loading="loading > 0"
       :error="error"
       empty-text="No alert groups with this filter"
+      :row-tone="rowTone"
       @retry="reload"
     >
       <template #cell-severity="{ row }"><StatusChip :status="row.severity" /></template>

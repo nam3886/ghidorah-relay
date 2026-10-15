@@ -264,3 +264,59 @@ def test_the_keys_view_copy_buttons_copy_the_right_text():
 @pytest.mark.web_unit
 def test_clear_logs_asks_first_and_goes_to_the_first_page():
     vitest(LOGS_VIEW_SPEC)
+
+
+# ---- colour is for exceptions: the left bar and the chips ------------------------------------------------------
+BAR = f"FAILED {LOGS_VIEW_SPEC} > the list > a 5xx row has the red left bar, a 4xx row the amber one, a fine row none"
+ERROR_CODE = f"FAILED {LOGS_VIEW_SPEC} > the list > the error code is plain muted text: no chip, no status colour"
+ENABLED = (f"FAILED {KEYS_VIEW_SPEC} > the list > an enabled key is plain text, a disabled key is the only one with a "
+           "chip, and 'any model' is neutral")
+GROUP_BAR = (f"FAILED {ALERTS_VIEW_SPEC} > the lists > marks an error group with the red left bar and a warning with "
+             "the amber one, an info group with none")
+ALL_KINDS = (f"FAILED {ALERTS_VIEW_SPEC} > the filters > the Kind select shows All kinds, not the placeholder, and "
+             "choosing All again sends no kind")
+AGO = (f"FAILED {ACCOUNT_SPEC} > pointsText, proxyCheck, checkSummary > ago: never, just now, minutes, hours, days; "
+       "a future time is just now")
+COUNTS = (f"FAILED {ACCOUNTS_VIEW_SPEC} > the list > draws every server string as text, and hides the switch of an "
+          "account in use")
+
+
+@mutation(LOGS, 'return tone === "ok" ? undefined : tone;', "return tone;", expect=BAR)
+@mutation(LOGS, 'return tone === "ok" ? undefined : tone;', "return undefined;", expect=BAR)
+@mutation(LOGS, '<span v-if="row.error_code" class="mono sub">', '<span v-if="row.error_code" class="mono bad">',
+          expect=ERROR_CODE)
+@pytest.mark.web_unit
+def test_the_logs_view_marks_exceptions_only():
+    vitest(LOGS_VIEW_SPEC)
+
+
+@mutation(KEYS, '<StatusChip v-if="!row.enabled" status="disabled" />', '<StatusChip v-if="true" status="disabled" />',
+          expect=ENABLED)
+@mutation(KEYS, 'status="any model" tone="neutral"', 'status="any model"', expect=ENABLED)
+@pytest.mark.web_unit
+def test_the_keys_view_colours_only_the_exception():
+    vitest(KEYS_VIEW_SPEC)
+
+
+@mutation(ALERTS, 'g.severity === "error" ? "bad" : g.severity === "warning" ? "warn" : undefined',
+          'g.severity === "error" ? "bad" : undefined', expect=GROUP_BAR)
+@mutation(ALERTS, "kind: fromSelect(value)", "kind: value", expect=ALL_KINDS)
+@mutation(ALERTS, '<el-option label="All kinds" :value="ALL" />', '<el-option label="All kinds" value="" />',
+          expect=ALL_KINDS)
+@pytest.mark.web_unit
+def test_the_alerts_view_marks_groups_and_shows_all_kinds():
+    vitest(ALERTS_VIEW_SPEC)
+
+
+@mutation(ACCOUNT_MODEL, "if (minutes < 60) return", "if (minutes <= 60) return", expect=AGO)
+@mutation(ACCOUNT_MODEL, "if (hours < 48) return", "if (hours < 49) return", expect=AGO)
+@pytest.mark.web_unit
+def test_the_accounts_checked_stamp_reads_as_a_time_ago():
+    vitest(ACCOUNT_SPEC)
+
+
+@mutation(ACCOUNTS, '<template #cell-videos="{ row }">{{ row.made.video }}</template>',
+          '<template #cell-videos="{ row }">{{ row.made.image }}</template>', expect=COUNTS)
+@pytest.mark.web_unit
+def test_the_accounts_counts_are_two_number_columns():
+    vitest(ACCOUNTS_VIEW_SPEC)

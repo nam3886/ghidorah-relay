@@ -43,6 +43,12 @@ SETTINGS_SPEC = FAILED + "settings/settings.spec.ts > "
 FRAMES_SPEC = FAILED + "frames/use-frames.spec.ts > "
 FRAMES_VIEW_SPEC = FAILED + "frames/frames-view.spec.ts > the view > "
 MODEL_SPEC = FAILED + "frames/frames-model.spec.ts > frame lines > "
+EMPTY_MODELS = VIEW_SPEC + ("the empty state > keeps the model column with a hint while no model is loaded, and drops "
+                            "the hint once models arrive")
+WALLET_BOX = VIEW_SPEC + ("the empty state > the wallet limits sit in a closed block of their own, and the optional "
+                          "fields say so")
+FRAME_SHAPE_SPEC = (FRAMES_VIEW_SPEC + "the frame box shows the shape of a frame as its placeholder, and the lock "
+                    "history sits on the checkbox's line")
 
 # ---- the image limits, on restore and before every write ---------------------------------------------------------
 TEN = FILES_SPEC + "the limits > keeps 10 files and drops the 11th"
@@ -248,12 +254,18 @@ LOAD_FREE = VIEW_SPEC + "Load models > is free again after a load that failed, s
 @mutation(TEST_VIEW, "if (loadingModels.value) return;", "", expect=LOAD_ONCE)
 @mutation(TEST_VIEW, ':loading="loadingModels"', ':loading="false"', expect=LOAD_ONCE)
 @mutation(TEST_VIEW, "} finally {\n    loadingModels.value = false;", "} finally {", expect=LOAD_FREE)
+@mutation(TEST_VIEW, 'v-if="!groups.length" class="test-tab__empty"', 'v-if="false" class="test-tab__empty"',
+          expect=EMPTY_MODELS)
+@mutation(TEST_VIEW, '<details v-if="points" class="test-tab__points-box">',
+          '<details v-if="points" open class="test-tab__points-box">', expect=WALLET_BOX)
 @pytest.mark.web_unit
 def test_test_view_rules():
     vitest("tests/unit/test/test-view.spec.ts")
 
 
 # ---- Settings: the value parse, the dirty rule, the scope, the password change -------------------------------------
+PAGE_SCROLLS = (SETTINGS_SPEC
+                + "the settings page > lets the page scroll: no table holds a fixed height that would clip a row")
 PARSE = SETTINGS_SPEC + "setting values > are parsed as JSON first and fall back to the raw string"
 TEXT = SETTINGS_SPEC + "setting values > start in the input as the string itself, or JSON for anything else"
 TABLE = SETTINGS_SPEC + "the settings table > "
@@ -272,6 +284,7 @@ BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
 @mutation(SETTING_VALUE, "return text;", "return null;", expect=PARSE)
 @mutation(SETTING_VALUE, STRING_VALUE, "JSON.stringify(item.value)", expect=TEXT)
 @mutation(SETTINGS_TABLE, "drafts[item.key] !== valueText(item)", "true", expect=DIRTY)
+@mutation(SETTINGS_TABLE, 'max-height="none"', 'max-height="460px"', expect=PAGE_SCROLLS)
 @mutation(SETTINGS_VIEW, "await putSetting(key, parseValue(text));", "await putSetting(key, text);", expect=SAVE_SENDS)
 @mutation(SETTINGS_VIEW, "watch(() => scope.provider, loadPrices);", "watch(() => scope.provider, () => undefined);",
           expect=SCOPE)
@@ -388,6 +401,7 @@ OPENS_MODEL = FRAMES_VIEW_SPEC + "opens the editor of a model: help text, Follow
 @mutation(FRAME_EDITOR, "frames.shownModel.source === 'own'", "frames.shownModel.source === 'default'",
           expect=OPENS_MODEL)
 @mutation(FRAME_EDITOR, 'v-if="frames.shown.target === DEFAULT_TARGET"', 'v-if="true"', expect=OPENS_MODEL)
+@mutation(FRAME_EDITOR, ':placeholder="FRAME_SHAPE"', "", expect=FRAME_SHAPE_SPEC)
 @pytest.mark.web_unit
 def test_frames_view_rules():
     vitest("tests/unit/frames/frames-view.spec.ts")

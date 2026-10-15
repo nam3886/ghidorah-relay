@@ -109,6 +109,7 @@ const MODES = ["closed", "limit", "unlimited"] as const;
   overflow-y: auto;
 }
 .muted {
+  margin-left: 6px;
   color: var(--rl-muted);
   font-size: 12px;
 }
