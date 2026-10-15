@@ -1,6 +1,6 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { Refresh } from "@element-plus/icons-vue";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import IconAction from "../../../src/components/shared/IconAction.vue";
 import ListPager from "../../../src/components/shared/ListPager.vue";
 
@@ -15,6 +15,37 @@ describe("ListPager, offset mode", () => {
     expect(w.find(".el-pagination__total").text()).toContain("120");
     expect(w.findAll("li.number").map((n) => n.text())).toEqual(["1", "2", "3"]);
     expect(w.find("li.number.is-active").text()).toBe("1");
+    w.unmount();
+  });
+
+  it("the full layout has the size select and the jumper; the default size is 10 with sizes 10, 20, 50, 100", () => {
+    const w = mount(ListPager, { props: { total: 95 }, attachTo: document.body });
+    expect(w.find(".el-pagination__sizes").exists()).toBe(true);
+    expect(w.find(".el-pagination__jump").exists()).toBe(true);
+    const pagination = w.findComponent({ name: "ElPagination" });
+    expect(pagination.props("pageSize")).toBe(10);
+    expect(pagination.props("pageSizes")).toEqual([10, 20, 50, 100]);
+    expect(w.findAll("li.number").map((n) => n.text())).toEqual(["1", "2", "3", "4", "5", "6", "10"]);
+    w.unmount();
+  });
+
+  it("under 640 px the layout is compact: no select, no jumper, the total as text above", async () => {
+    const listeners: Array<(e: { matches: boolean }) => void> = [];
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: q === "(max-width: 639px)",
+      addEventListener: (_: string, fn: (e: { matches: boolean }) => void) => listeners.push(fn),
+      removeEventListener: () => {},
+    }));
+    const w = offsetPager();
+    await flushPromises();
+    expect(w.attributes("data-narrow")).toBe("true");
+    expect(w.find(".el-pagination__sizes").exists()).toBe(false);
+    expect(w.find(".el-pagination__jump").exists()).toBe(false);
+    expect(w.find(".pager__text").text()).toBe("120 total");
+    listeners[0]!({ matches: false });
+    await flushPromises();
+    expect(w.attributes("data-narrow")).toBe("false");
+    expect(w.find(".el-pagination__sizes").exists()).toBe(true);
     w.unmount();
   });
 

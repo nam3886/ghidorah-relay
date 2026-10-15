@@ -42,7 +42,6 @@ async function signOut(): Promise<void> {
         <el-select
           v-model="providerChoice"
           class="scope-select"
-          size="small"
           aria-label="Provider filter"
           data-testid="provider-filter"
         >
@@ -55,7 +54,6 @@ async function signOut(): Promise<void> {
         <el-button
           :icon="isDark ? Sunny : Moon"
           circle
-          size="small"
           :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
           :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
           data-testid="theme-toggle"
@@ -63,7 +61,7 @@ async function signOut(): Promise<void> {
         />
       </div>
       <el-link href="/reference" target="_blank" rel="noopener" underline="never" :icon="TopRight">API docs</el-link>
-      <el-button size="small" :loading="busy" data-testid="sign-out" @click="signOut">Sign out</el-button>
+      <el-button :loading="busy" data-testid="sign-out" @click="signOut">Sign out</el-button>
     </div>
   </header>
 </template>
@@ -72,8 +70,9 @@ async function signOut(): Promise<void> {
 .app-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 16px;
+  gap: 8px 16px;
   padding: 8px 16px;
   background: var(--rl-surface);
   border-bottom: 1px solid var(--rl-line);
@@ -100,8 +99,14 @@ async function signOut(): Promise<void> {
 }
 .header-end {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
+}
+@media (max-width: 639px) {
+  .scope-select {
+    width: 120px;
+  }
 }
 .scope {
   display: inline-flex;
@@ -121,9 +126,6 @@ async function signOut(): Promise<void> {
 }
 .scope-select {
   width: 150px;
-}
-.scope-select :deep(.el-select__wrapper) {
-  font-size: 13px;
 }
 .whoami {
   font-size: 13px;

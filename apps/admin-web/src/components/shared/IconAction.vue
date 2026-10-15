@@ -29,6 +29,8 @@ const emit = defineEmits<{ click: [event: MouseEvent] }>();
         @click="emit('click', $event)"
       >
         <el-icon v-if="!props.loading"><component :is="props.icon" /></el-icon>
+        <!-- the name as text too, hidden: a test or a reader that looks for the button by its text still finds it -->
+        <span class="sr-only">{{ props.label }}</span>
       </el-button>
     </span>
   </el-tooltip>

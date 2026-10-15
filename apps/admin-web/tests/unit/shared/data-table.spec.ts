@@ -177,11 +177,10 @@ describe("DataTable cells, actions and rows", () => {
     expect(trs[1]!.classes().join(" ")).not.toContain("row-tone");
   });
 
-  it("keeps the header while the rows scroll: every list gets a max height unless it sets its own", async () => {
-    // Element Plus draws a fixed header only for a table with a max height; the rows then scroll under it.
+  it("has no inner scroll unless the caller sets a max height", async () => {
+    // The page scrolls; a table holds a fixed height only when a caller asks for one.
     const fallback = await table();
-    expect(fallback.find(".el-table").attributes("style")).toContain("max-height: calc(100vh - 16rem)");
-    expect(fallback.find(".el-table__header-wrapper").exists()).toBe(true);
+    expect(fallback.find(".el-table").attributes("style") ?? "").not.toContain("max-height");
     const own = await table({ maxHeight: "300px" });
     expect(own.find(".el-table").attributes("style")).toContain("max-height: 300px");
   });

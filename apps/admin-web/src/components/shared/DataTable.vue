@@ -35,7 +35,7 @@ const props = withDefaults(
     rowKey: "id",
     rowClickable: false,
     rowTone: undefined,
-    maxHeight: "calc(100vh - 16rem)",
+    maxHeight: undefined,
     skeletonRows: 6,
     actionsWidth: 200,
     selectable: false,
@@ -92,8 +92,7 @@ function cellText(row: T, key: string): string {
 function onRowClick(row: T, _column: unknown, event: Event) {
   if (!props.rowClickable) return;
   const target = event.target as HTMLElement | null;
-  if (target?.closest("button, a, input, label, .el-switch, .el-checkbox, .el-dropdown, .el-table-column--selection"))
-    return;
+  if (target?.closest("button, a, input, label, .el-switch, .el-checkbox, .el-dropdown")) return;
   emit("row-click", row);
 }
 </script>
@@ -172,6 +171,8 @@ function onRowClick(row: T, _column: unknown, event: Event) {
 /* a wide table scrolls inside its own box, never the page */
 .data-table {
   overflow-x: auto;
+  /* the table's own minimum width must not widen a grid or flex parent: it scrolls here instead */
+  contain: inline-size;
 }
 .data-table :deep(.el-table) {
   min-width: 640px;

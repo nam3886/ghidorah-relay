@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Check, CopyDocument } from "@element-plus/icons-vue";
 import { onBeforeUnmount, ref } from "vue";
 import { notify } from "@/lib/notify";
 import { copyText, type CopyOutcome } from "./clipboard";
@@ -7,11 +8,12 @@ const props = withDefaults(
   defineProps<{
     text: string | (() => string);
     label?: string;
+    // the global size applies unless a caller sets one
     size?: "small" | "default";
     // the element the text sits in: selected when no copy path works, so the user can press Ctrl+C
     selectFrom?: () => HTMLElement | null | undefined;
   }>(),
-  { label: "Copy", size: "small", selectFrom: undefined },
+  { label: "Copy", size: undefined, selectFrom: undefined },
 );
 const emit = defineEmits<{ copied: [outcome: CopyOutcome] }>();
 
@@ -41,5 +43,7 @@ async function copy() {
 </script>
 
 <template>
-  <el-button :size="size" class="copy-button" @click="copy">{{ copied ? "Copied" : label }}</el-button>
+  <el-button :size="size" :icon="copied ? Check : CopyDocument" class="copy-button" @click="copy">{{
+    copied ? "Copied" : label
+  }}</el-button>
 </template>

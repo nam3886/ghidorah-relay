@@ -262,6 +262,51 @@ input[type="file"]::file-selector-button {
   overflow-wrap: anywhere;
 }
 
+/*
+ * Compact scale: the config provider sets size small, so every control is 28 px high. Small text would drop under 14 px,
+ * so the small font size is the base one; only tags and captions keep the 12 px extra-small.
+ */
+html:root,
+html.dark:root {
+  --el-font-size-small: 14px;
+}
+
+/* Narrow screens (down to 360 px): dialogs take the width of the screen, form labels sit on top of their field. */
+@media (max-width: 639px) {
+  .el-dialog {
+    --el-dialog-width: 94vw;
+    width: 94vw !important;
+    margin-top: 4vh;
+  }
+  .el-form-item {
+    display: block;
+  }
+  .el-form-item__label {
+    justify-content: flex-start;
+    width: auto !important;
+    text-align: left;
+  }
+  .el-form-item__content {
+    margin-left: 0 !important;
+  }
+  /* a field never takes more than the screen, whatever width its view gave it */
+  .el-form--inline .el-form-item {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    margin-right: 0;
+  }
+  .el-form--inline .el-form-item__content {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .el-input,
+  .el-select,
+  .el-textarea {
+    max-width: 100%;
+  }
+}
+
 body {
   margin: 0;
   background: var(--rl-bg);

@@ -23,7 +23,7 @@ const openGroupsText = computed(() => `${stats.openGroups === 200 ? "200+" : sta
     <ul class="attention-list">
       <li v-if="foldable" data-testid="fold-alerts">
         {{ alerts.length }} live conditions
-        <el-button link size="small" class="banner-link" :aria-expanded="expanded" @click="expanded = !expanded">{{
+        <el-button link class="banner-link" :aria-expanded="expanded" @click="expanded = !expanded">{{
           expanded ? "Hide" : "Show"
         }}</el-button>
       </li>
@@ -35,9 +35,7 @@ const openGroupsText = computed(() => `${stats.openGroups === 200 ? "200+" : sta
       </template>
       <li v-if="stats.openGroups > 0" data-testid="open-groups">
         {{ openGroupsText }}
-        <el-button link size="small" class="banner-link" @click="router.push({ name: 'alerts' })"
-          >Open the Alerts tab</el-button
-        >
+        <el-button link class="banner-link" @click="router.push({ name: 'alerts' })">Open the Alerts tab</el-button>
       </li>
     </ul>
   </el-alert>

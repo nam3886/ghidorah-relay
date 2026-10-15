@@ -64,7 +64,8 @@ describe("DataTable selection", () => {
 
   it("clicking the checkbox does not open the row", async () => {
     const w = await table({ selectable: true, rowClickable: true });
-    await w.findAll("td .el-checkbox")[0]!.trigger("click");
+    // the box drawn by Element Plus is a span inside the label: that is what a real click lands on
+    await w.findAll("td .el-checkbox__inner")[0]!.trigger("click");
     expect(w.emitted("row-click")).toBeUndefined();
     await w.findAll("td")[1]!.trigger("click");
     expect(w.emitted("row-click")).toHaveLength(1);

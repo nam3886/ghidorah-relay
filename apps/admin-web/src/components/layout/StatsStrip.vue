@@ -19,8 +19,12 @@ const cells = computed(() => (stats.data ? statCells(stats.data) : []));
         :title="cell.title"
         :data-testid="`stat-${cell.key}`"
       >
-        <span class="stat-label">{{ cell.label }}</span>
-        <span class="stat-value" :class="{ 'stat-value--bad': cell.danger }">{{ cell.value }}</span>
+        <!-- the value is already formatted text ("1,234", "-"): the formatter hands it through unchanged -->
+        <el-statistic :value="0" :formatter="() => cell.value" :class="{ 'stat-value--bad': cell.danger }">
+          <template #title
+            ><span class="stat-label">{{ cell.label }}</span></template
+          >
+        </el-statistic>
       </router-link>
     </template>
     <el-skeleton v-else animated :rows="1" class="stats-skeleton" />
@@ -28,6 +32,7 @@ const cells = computed(() => (stats.data ? statCells(stats.data) : []));
 </template>
 
 <style scoped>
+/* cells wrap into rows: two or three across on a phone, all in one line on a wide screen */
 .stats-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -37,10 +42,6 @@ const cells = computed(() => (stats.data ? statCells(stats.data) : []));
   border-radius: var(--el-border-radius-base);
 }
 .stat-cell {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 2px;
   min-width: 0;
   padding: 8px 12px;
   color: inherit;
@@ -48,25 +49,22 @@ const cells = computed(() => (stats.data ? statCells(stats.data) : []));
   border-right: 1px solid var(--rl-line);
   transition: background 120ms;
 }
-.stat-cell:last-child {
-  border-right: none;
-}
 .stat-cell:hover {
   background: var(--rl-surface-2);
 }
 .stat-label {
+  display: block;
   overflow: hidden;
   font-size: 12px;
-  color: var(--rl-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.stat-value {
+.stat-cell :deep(.el-statistic__content) {
   font-size: 18px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.stat-value--bad {
+.stat-value--bad :deep(.el-statistic__content) {
   color: var(--rl-bad);
 }
 .stats-skeleton {

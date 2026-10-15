@@ -16,6 +16,16 @@ describe("StatusChip", () => {
     expect(w.find("i.dot").exists()).toBe(true);
   });
 
+  it("is an el-tag whose type follows the tone", () => {
+    const type = (tone: "ok" | "info" | "warn" | "bad" | "neutral") =>
+      mount(StatusChip, { props: { status: "x", tone } }).classes();
+    expect(type("ok")).toContain("el-tag--success");
+    expect(type("warn")).toContain("el-tag--warning");
+    expect(type("bad")).toContain("el-tag--danger");
+    expect(type("info")).toContain("el-tag--info");
+    expect(type("neutral")).toContain("tone-neutral");
+  });
+
   it("a number is an HTTP code", () => {
     expect(mount(StatusChip, { props: { status: 503 } }).attributes("data-tone")).toBe("bad");
     expect(mount(StatusChip, { props: { status: 404 } }).attributes("data-tone")).toBe("warn");

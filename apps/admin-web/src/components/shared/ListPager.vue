@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 
 // One pager over el-pagination, in two modes.
-//   offset: the total is known. Total, a page-size select and numbered pages. The view owns `offset` and `limit`:
-//           `move` carries the new offset, `size` the new page size (the view stores it and goes back to offset 0).
+//   offset: the total is known. Total, a page-size select, numbered pages and a jumper. The view owns `offset` and
+//           `limit`: `move` carries the new offset, `size` the new page size (the view stores it and goes back to
+//           offset 0). Under 640 px a compact layout (small, 5 page buttons) with the total as text above it.
 //   cursor: a keyset list with no total. Only Prev and "Page N" and Next, no page numbers. The view keeps the cursor
 //           stack: `prev` and `next` only report the clicks. Next is disabled when `hasNext` is false.
 const props = withDefaults(
@@ -18,7 +19,7 @@ const props = withDefaults(
     page?: number;
     hasNext?: boolean;
   }>(),
-  { mode: "offset", offset: 0, limit: 50, total: 0, sizes: () => [25, 50, 100, 200], page: 1, hasNext: false },
+  { mode: "offset", offset: 0, limit: 10, total: 0, sizes: () => [10, 20, 50, 100], page: 1, hasNext: false },
 );
 const emit = defineEmits<{ move: [offset: number]; size: [limit: number]; prev: []; next: [] }>();
 
@@ -29,6 +30,19 @@ const pageSizes = computed(() =>
 );
 // a size change can make Element Plus clamp the page and report it too: only the size event is real
 const resizing = ref(false);
+
+const FULL_LAYOUT = "total, sizes, prev, pager, next, jumper";
+const COMPACT_LAYOUT = "prev, pager, next";
+const narrow = ref(false);
+let query: MediaQueryList | undefined;
+const onQuery = (e: { matches: boolean }) => (narrow.value = e.matches);
+onMounted(() => {
+  if (typeof window.matchMedia !== "function") return;
+  query = window.matchMedia("(max-width: 639px)");
+  narrow.value = query.matches;
+  query.addEventListener("change", onQuery);
+});
+onBeforeUnmount(() => query?.removeEventListener("change", onQuery));
 
 function onPage(p: number) {
   if (resizing.value) return;
@@ -42,11 +56,14 @@ function onSize(s: number) {
 </script>
 
 <template>
-  <nav class="pager" aria-label="Pages" :data-mode="props.mode">
+  <nav class="pager" aria-label="Pages" :data-mode="props.mode" :data-narrow="narrow">
+    <span v-if="narrow && props.mode === 'offset'" class="pager__text">{{ props.total }} total</span>
     <el-pagination
       v-if="props.mode === 'offset'"
       background
-      layout="total, sizes, prev, pager, next"
+      :small="narrow"
+      :pager-count="narrow ? 5 : 7"
+      :layout="narrow ? COMPACT_LAYOUT : FULL_LAYOUT"
       :total="props.total"
       :page-size="props.limit"
       :page-sizes="pageSizes"
@@ -73,9 +90,11 @@ function onSize(s: number) {
 <style scoped>
 .pager {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
+  gap: 4px 12px;
   padding-top: 12px;
-  overflow-x: auto;
 }
 .pager__text {
   color: var(--rl-muted);
