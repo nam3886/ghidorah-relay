@@ -38,6 +38,18 @@ export interface Stats {
 
 export const getStats = (provider: string): Promise<Stats> => request("/stats", { query: { provider } });
 
+// One bucket per UTC hour: jobs submitted in that hour, split by their current outcome.
+export interface HourBucket {
+  hour_ms: number;
+  delivered: number;
+  failed: number;
+  in_progress: number;
+}
+
+// 24 buckets, oldest first, the current hour last, zero-filled.
+export const getHourlyStats = (provider: string): Promise<{ hours: HourBucket[] }> =>
+  request("/stats/hourly", { query: { provider } });
+
 // Only the count of open groups is read here (200 is the page cap, shown as "200+").
 export const getOpenAlertGroups = (): Promise<{ items: unknown[] }> =>
   request("/alerts/groups", { query: { status: "open", limit: 200 } });

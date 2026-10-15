@@ -3,10 +3,14 @@ text, Re-check refusals, the Recover and title commands, rename, and Regenerate 
 
 import dataclasses
 import uuid
+from datetime import timedelta
 
+import psycopg
 from apikit import run_app
 from jobkit import POOLS, PROVIDER, account, claim, create, key, run, submit
 
+from relay_core.admin import routes_jobs
+from relay_core.admin.routes_jobs import _EPOCH
 from relay_core.jobs import store
 from relay_core.jobs.create import marker_for
 from relay_core.jobs.evidence import job_sink
@@ -26,7 +30,8 @@ def op() -> dict:
 ROUTES = "packages/relay-core/src/relay_core/admin/routes_jobs.py"
 NEWEST_FIRST = "ORDER BY j.created_at DESC, j.id DESC LIMIT %(limit)s"
 OLDEST_FIRST = "ORDER BY j.created_at ASC, j.id DESC LIMIT %(limit)s"
-AFTER_CURSOR = "(j.created_at, j.id) < (%(at)s::timestamptz"
+OFFSET_CHECK = "if offset is not None and (not 0 <= offset <= MAX_OFFSET or cursor is not None):"
+AFTER_CURSOR ="(j.created_at, j.id) < (%(at)s::timestamptz"
 FROM_CURSOR = "(j.created_at, j.id) <= (%(at)s::timestamptz"
 SERVED_AS_TEXT = 'media_type=kind if kind in _RASTER else "text/plain; charset=utf-8"'
 SERVED_AS_STORED = "media_type=mime"
@@ -117,10 +122,9 @@ def test_the_list_is_newest_first_filters_by_status_and_pages_without_a_gap_or_a
 @mutation(ROUTES, "(%(key)s::uuid IS NULL OR j.key_id = %(key)s)", "(true)", expect="total follows key")
 @mutation(ROUTES, '_COUNT = "SELECT count(*) FROM jobs j WHERE " + _FILTERS',
           '_COUNT = "SELECT count(*) FROM jobs j WHERE true"', expect="total follows status")
-@mutation(ROUTES, "if offset is not None and (offset < 0 or cursor):", "if offset is not None and offset < 0:",
+@mutation(ROUTES, OFFSET_CHECK, "if offset is not None and not 0 <= offset <= MAX_OFFSET:",
           expect="cursor with offset")
-@mutation(ROUTES, "if offset is not None and (offset < 0 or cursor):", "if offset is not None and bool(cursor):",
-          expect="negative offset")
+@mutation(ROUTES, OFFSET_CHECK, "if offset is not None and cursor is not None:", expect="negative offset")
 def test_the_list_pages_by_offset_in_the_same_order_and_counts_the_jobs_the_filters_match(db):
     k = key(db)
     account(db)
@@ -159,6 +163,151 @@ def test_the_list_pages_by_offset_in_the_same_order_and_counts_the_jobs_the_filt
         400, "input.invalid", "offset"), "negative offset"
     assert code_of(both0) == code_of(both2) == code_of(junk) == "input.invalid", "cursor with offset"
     assert both0.status_code == both2.status_code == 400
+
+
+OFFSET_NO_CAP = "if offset is not None and (offset < 0 or cursor is not None):"
+OFFSET_CAP_OFF_BY_ONE = "if offset is not None and (not 0 <= offset < MAX_OFFSET or cursor is not None):"
+OFFSET_TRUTHY_CURSOR = "if offset is not None and (not 0 <= offset <= MAX_OFFSET or cursor):"
+CURSOR_PARSE = "at, cid = _cursor(cursor) if cursor is not None else (None, None)"
+CURSOR_PARSE_TRUTHY = "at, cid = _cursor(cursor) if cursor else (None, None)"
+
+
+@mutation(ROUTES, OFFSET_CHECK, OFFSET_NO_CAP, expect="offset above the cap")
+@mutation(ROUTES, OFFSET_CHECK, OFFSET_CAP_OFF_BY_ONE, expect="offset at the cap is accepted")
+@mutation(ROUTES, OFFSET_CHECK, OFFSET_TRUTHY_CURSOR, expect="empty cursor with offset")
+@mutation(ROUTES, CURSOR_PARSE, CURSOR_PARSE_TRUTHY, expect="empty cursor alone")
+def test_the_offset_is_capped_and_an_empty_cursor_counts_as_a_cursor(db):
+    key(db)
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        get = lambda q: env.client.get("/admin/jobs?" + q, headers=h)  # noqa: E731
+        return (await get("offset=1000000"), await get("offset=1000001"), await get("offset=%d" % 10**30),
+                await get("offset=0&cursor="), await get("cursor="))
+
+    at_cap, above, huge, empty_with_offset, empty = run_app(db, scenario)
+    assert at_cap.status_code == 200, "offset at the cap is accepted"
+    for r, what in ((above, "offset above the cap"), (huge, "offset above the cap"),
+                    (empty_with_offset, "empty cursor with offset"), (empty, "empty cursor alone")):
+        assert r.status_code == 400, what + ": " + r.text
+        assert code_of(r) == "input.invalid", what
+    assert above.json()["error"]["param"] == huge.json()["error"]["param"] == "offset", "offset above the cap"
+    assert empty_with_offset.json()["error"]["param"] == "offset", "empty cursor with offset"
+    assert empty.json()["error"]["param"] == "cursor", "empty cursor alone"
+
+
+FROM_BOUND = '_FROM = " AND j.created_at >= %(from)s"'
+FROM_EXCLUSIVE = '_FROM = " AND j.created_at > %(from)s"'
+FROM_IGNORED = '_FROM = ""'
+FROM_UNSARGABLE = '_FROM = " AND j.created_at + interval \'0\' >= %(from)s"'
+TO_BOUND = '_TO = " AND j.created_at < %(to)s"'
+TO_INCLUSIVE = '_TO = " AND j.created_at <= %(to)s"'
+TO_IGNORED = '_TO = ""'
+COUNT_BOUNDED = "conn.execute(_COUNT + bounds, args)"
+COUNT_NO_WINDOW = "conn.execute(_COUNT, args)"
+PAGE_BOUNDED = "_LIST_HEAD + bounds + _LIST_TAIL"
+PAGE_NO_WINDOW = "_LIST_HEAD + _LIST_TAIL"
+NEGATIVE_BOUND = "        if value < 0:"
+NEGATIVE_ALLOWED = "        if value < -5:"
+EMPTY_WINDOW = 'window["from"] >= window["to"]'
+INVERTED_ONLY = 'window["from"] > window["to"]'
+T0 = 1_700_000_000_000                               # a fixed epoch (ms): the window starts here
+HOUR = 3_600_000
+
+
+@mutation(ROUTES, FROM_BOUND, FROM_EXCLUSIVE, expect="window start is inclusive")
+@mutation(ROUTES, FROM_BOUND, FROM_IGNORED, expect="window start")
+@mutation(ROUTES, TO_BOUND, TO_INCLUSIVE, expect="window end is exclusive")
+@mutation(ROUTES, TO_BOUND, TO_IGNORED, expect="window end")
+@mutation(ROUTES, COUNT_BOUNDED, COUNT_NO_WINDOW, expect="total follows the window")
+@mutation(ROUTES, PAGE_BOUNDED, PAGE_NO_WINDOW, expect="window start is inclusive")
+def test_the_window_bounds_the_rows_and_the_total_on_every_page(db):
+    k = key(db)
+    # created_at epochs: before, at the start, inside, the last ms inside, at the end (excluded), after
+    spots = [T0 - 1, T0, T0 + 1000, T0 + HOUR - 1, T0 + HOUR, T0 + 2 * HOUR]
+    jobs = [db.job(k, provider="fake") for _ in spots]
+    for job, spot in zip(jobs, spots, strict=True):
+        db.run("UPDATE jobs SET created_at = to_timestamp(%s::double precision / 1000) WHERE id = %s", spot, job)
+    inside = [str(j) for j in (jobs[3], jobs[2], jobs[1])]          # newest first
+    window = "created_from_ms=%d&created_to_ms=%d" % (T0, T0 + HOUR)
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        get = lambda q: env.client.get("/admin/jobs?" + q, headers=h)  # noqa: E731
+        return (await get(window), await get(window + "&limit=2&offset=0"), await get(window + "&limit=2&offset=2"),
+                await get("created_from_ms=%d" % T0), await get("created_to_ms=%d" % T0),
+                await get("created_from_ms=%d&created_to_ms=%d&status=failed" % (T0, T0 + HOUR)),
+                await get("created_from_ms=%d&created_to_ms=%d" % (T0 + 5 * HOUR, T0 + 6 * HOUR)))
+
+    whole, page1, page2, only_from, only_to, other_status, empty = run_app(db, scenario)
+    assert ids_of(whole) == inside, "window start is inclusive; window end is exclusive"
+    assert [ids_of(page1), ids_of(page2)] == [inside[:2], inside[2:]], "the window applies before paging"
+    assert [r.json()["total"] for r in (whole, page1, page2)] == [3, 3, 3], "total follows the window"
+    assert only_from.json()["total"] == 5 and only_to.json()["total"] == 1, "window start; window end"
+    assert other_status.json()["total"] == 0 and empty.json()["total"] == 0, "total follows the window"
+
+
+TO_INCLUSIVE_UNSARGABLE = '_TO = " AND j.created_at + interval \'0\' < %(to)s"'
+JOB_COLUMNS = ("id, provider, key_id, operation, media_type, model, prompt, marker, status, completion, after_sent, "
+               "submit_timeout_s, wallet_kind, price")
+BASE_MS = 1_759_996_800_000                         # the newest seeded job; the window sits 10 days before it
+SEED_SPREAD = 259                                   # seconds between seeded jobs: 10 000 of them cover 30 days
+
+
+@mutation(ROUTES, FROM_BOUND, FROM_UNSARGABLE, expect="the window is served by jobs_created_at_idx")
+@mutation(ROUTES, TO_BOUND, TO_INCLUSIVE_UNSARGABLE, expect="the window is served by jobs_created_at_idx")
+def test_an_hour_window_is_served_by_the_created_at_index_on_a_realistic_table(db):
+    """10 000 jobs over 30 days, ANALYZEd, the planner free to choose (no setting forced): a one-hour window, with
+    either bound or both, must range-scan jobs_created_at_idx for the page and for the count."""
+    seed = db.job(key(db), provider="fake")
+    db.run("INSERT INTO jobs (" + JOB_COLUMNS + ", created_at) SELECT gen_random_uuid(), provider, key_id, operation, "
+           "media_type, model, prompt, 'seed-' || g, status, completion, after_sent, submit_timeout_s, wallet_kind, "
+           "price, to_timestamp(%s::double precision / 1000) - g * %s * interval '1 second' "
+           "FROM jobs, generate_series(1, 10000) g WHERE id = %s", BASE_MS, SEED_SPREAD, seed)
+    db.run("ANALYZE jobs")
+    start = _EPOCH + timedelta(milliseconds=BASE_MS - 10 * 24 * HOUR)
+    windows = {"from and to": {"from": start, "to": start + timedelta(hours=1)}, "from only": {"from": start,
+               "to": None}, "to only": {"from": None, "to": start}}
+    with db.connect() as conn:
+        for what, window in windows.items():
+            given = {k: v for k, v in window.items() if v is not None}
+            args = {"status": None, "provider": None, "key": None, "at": None, "cid": None, "limit": 51, "offset": 0,
+                    **given}
+            bounds = routes_jobs._window_sql(window)
+            for name, sql in (("COUNT", routes_jobs._COUNT + bounds),
+                              ("LIST", routes_jobs._LIST_HEAD + bounds + routes_jobs._LIST_TAIL)):
+                plan = "\n".join(r[0] for r in psycopg.ClientCursor(conn).execute("EXPLAIN " + sql, args))
+                print("\nWINDOWED JOBS %s PLAN (%s)\n%s" % (name, what, plan))
+                if what != "from and to":
+                    continue                          # open-ended windows: the plan is printed, the planner decides
+                cond = [line for line in plan.splitlines() if "Index Cond" in line and "created_at >=" in line
+                        and "created_at <" in line]
+                assert "jobs_created_at_idx" in plan and cond and "Seq Scan on jobs" not in plan, (
+                    "the window is served by jobs_created_at_idx (%s):\n%s" % (name, plan))
+
+
+@mutation(ROUTES, NEGATIVE_BOUND, NEGATIVE_ALLOWED, expect="negative bound")
+@mutation(ROUTES, EMPTY_WINDOW, INVERTED_ONLY, expect="from equal to is empty")
+def test_a_bad_window_is_refused_not_ignored(db):
+    key(db)
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        get = lambda q: env.client.get("/admin/jobs?" + q, headers=h)  # noqa: E731
+        return (await get("created_from_ms=x"), await get("created_to_ms=1.5"), await get("created_from_ms=-1"),
+                await get("created_to_ms=-1"), await get("created_from_ms=%d&created_to_ms=%d" % (T0 + 1, T0)),
+                await get("created_from_ms=%d&created_to_ms=%d" % (T0, T0)), await get("created_from_ms=" + "9" * 30),
+                await get("created_from_ms=0&created_to_ms=1"))
+
+    not_int, fractional, negative_from, negative_to, inverted, equal, huge, fine = run_app(db, scenario)
+    for r, what in ((not_int, "not an integer"), (fractional, "not an integer"), (negative_from, "negative bound"),
+                    (negative_to, "negative bound"), (inverted, "from after to"), (equal, "from equal to is empty"),
+                    (huge, "out of range")):
+        assert r.status_code == 400, what + ": " + r.text
+        assert code_of(r) == "input.invalid", what
+    assert negative_from.json()["error"]["param"] == "created_from_ms", "negative bound"
+    assert negative_to.json()["error"]["param"] == "created_to_ms", "negative bound"
+    assert fine.status_code == 200 and fine.json()["total"] == 0
 
 
 # ---- detail -----------------------------------------------------------------------------------------------------

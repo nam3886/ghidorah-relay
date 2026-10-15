@@ -43,12 +43,23 @@ export interface JobListQuery {
   keyId: string;
   offset: number;
   limit: number;
+  // created_at window, epoch ms: from inclusive, to exclusive (one UTC hour for the band's columns)
+  createdFromMs?: number;
+  createdToMs?: number;
 }
 
 // Newest first. Empty filters are dropped by the client's query builder.
 export const listJobs = (q: JobListQuery): Promise<JobPage> =>
   request("/jobs", {
-    query: { limit: q.limit, offset: q.offset, status: q.status, provider: q.provider, key_id: q.keyId },
+    query: {
+      limit: q.limit,
+      offset: q.offset,
+      status: q.status,
+      provider: q.provider,
+      key_id: q.keyId,
+      created_from_ms: q.createdFromMs,
+      created_to_ms: q.createdToMs,
+    },
   });
 
 export interface KeyOption {
