@@ -433,7 +433,8 @@ def test_detail_regenerate_after_a_lost_answer_sends_the_same_key_after_a_reload
     expect(page.locator(".el-dialog")).to_have_count(0)
     regenerate()
     assert sent(page, keys, 3) != keys[0], "a new action gets a new key"
-    expect(page.get_by_text("New job ")).to_be_visible()
+    # the toast only: the confirm box still fading out says "makes a NEW job" and would match a bare text search
+    expect(page.locator(".el-message").get_by_text("New job ")).to_be_visible()
     assert db.one("SELECT count(*) FROM jobs")[0] == 3
 
 
