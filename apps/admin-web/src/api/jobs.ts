@@ -53,9 +53,10 @@ export const listJobs = (q: JobListQuery): Promise<JobPage> =>
 export interface KeyOption {
   id: string;
   label: string;
+  prefix?: string;
 }
 
-// The key filter's options. Only id and label are read.
+// The key filter's options. Only id, label and prefix are read (a key with no label is named by its prefix).
 export const listKeyOptions = (): Promise<{ items: KeyOption[] }> => request("/keys");
 
 export interface BulkRecheckResult {

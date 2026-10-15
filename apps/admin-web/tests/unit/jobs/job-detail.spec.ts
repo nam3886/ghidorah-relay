@@ -103,10 +103,12 @@ const media = (over: Partial<JobMediaItem> = {}): JobMediaItem => ({
 });
 
 const body = () => new DOMWrapper(document.body);
+// A button is found by its text, or by its aria-label when it is an icon button.
+const nameOf = (b: DOMWrapper<Element>): string => b.attributes("aria-label") ?? b.text();
 const button = (text: string) =>
   body()
     .findAll("button")
-    .find((b) => b.text() === text);
+    .find((b) => nameOf(b) === text);
 const section = (name: string) => body().find(`[data-section=${name}]`);
 const mounted: VueWrapper[] = [];
 
@@ -162,6 +164,7 @@ describe("opening", () => {
       .map((s) => s.attributes("data-section"));
     expect(names).toEqual([
       "conclusion",
+      "summary",
       "title",
       "prompt",
       "actions",
@@ -226,7 +229,7 @@ describe("conclusion, prompt and technical", () => {
     expect(text).toContain("video · veo · net charged 0");
     expect(text).toContain("render.deadline: too slow");
     expect(text).toContain('warnings: [{"code":"w"}]');
-    expect(section("conclusion").classes()).toContain("conclusion--bad");
+    expect(section("conclusion").find(".el-alert").classes()).toContain("el-alert--error");
   });
 
   it("a code with no message shows only the code, and no warnings shows no line", async () => {
@@ -256,7 +259,7 @@ describe("conclusion, prompt and technical", () => {
   it("lists the technical facts, a dash for what is empty", async () => {
     await show(detail({ callback: { status: "failed", attempts: 3, last: null }, frame_id: 7 }));
     const facts = section("technical")
-      .findAll("dt")
+      .findAll(".el-descriptions__label")
       .map((dt) => [dt.text(), dt.element.nextElementSibling!.textContent]);
     expect(facts).toEqual([
       ["Job id", A],
@@ -345,10 +348,7 @@ describe("rename", () => {
 });
 
 describe("which actions show", () => {
-  const shown = () =>
-    section("actions")
-      .findAll("button")
-      .map((b) => b.text());
+  const shown = () => section("actions").findAll("button").map(nameOf);
 
   it("a done job offers Recover and Regenerate, and nothing else without more facts", async () => {
     await show();
@@ -453,15 +453,11 @@ describe("what each action sends and says", () => {
   it("Revoke asks first and says how many links stopped", async () => {
     vi.mocked(api.revokeLinks).mockResolvedValue({ id: A, revoked: 2 });
     await show(detail({ media: [media()] }));
-    vi.mocked(confirmDialog).mockResolvedValueOnce(false);
     await button("Revoke share links")!.trigger("click");
-    await flushPromises();
+    await vi.waitFor(() => expect(body().text()).toContain("Every share link of this job stops working. Continue?"));
     expect(api.revokeLinks).not.toHaveBeenCalled();
-    await button("Revoke share links")!.trigger("click");
+    await body().find(".el-popconfirm__action .el-button--danger").trigger("click");
     await flushPromises();
-    expect(confirmDialog).toHaveBeenLastCalledWith(
-      expect.objectContaining({ message: "Every share link of this job stops working. Continue?" }),
-    );
     expect(api.revokeLinks).toHaveBeenCalledWith(A);
     expect(notify.success).toHaveBeenCalledWith("Revoked 2 link(s)");
   });
@@ -547,7 +543,24 @@ describe("results and references", () => {
     expect(video.attributes("controls")).toBeDefined();
     expect(view("results").text()).toContain("image/png · 120 B");
     expect(view("results").text()).toContain("video/mp4 · 5000 B · 4s");
-    expect(view("results").text()).not.toContain("Open");
+    expect(button("Open")).toBeUndefined();
+  });
+
+  it("an image is a thumbnail whose viewer lists every previewable image of the list, and a video is left out", async () => {
+    await show(
+      detail({
+        media: [
+          media({ idx: 0, url: "/m/tok1" }),
+          media({ idx: 1, mime: "video/mp4", url: "/m/tok2" }),
+          media({ idx: 2, url: "/m/tok3" }),
+          media({ idx: 3, url: null }),
+        ],
+      }),
+    );
+    const images = mounted[0]!.findAllComponents({ name: "ElImage" });
+    expect(images).toHaveLength(2);
+    expect(images[0]!.props("previewSrcList")).toEqual(["/m/tok1", "/m/tok3"]);
+    expect(images[1]!.props("initialIndex")).toBe(1);
   });
 
   it.each([
@@ -570,10 +583,7 @@ describe("results and references", () => {
     vi.mocked(api.fetchMediaBlob).mockResolvedValue(blob);
     await show(detail({ media: [media({ idx: 2, url: null })] }));
     expect(view("results").text()).toContain("no preview");
-    await view("results")
-      .findAll("button")
-      .find((b) => b.text() === "Open")!
-      .trigger("click");
+    await view("results").find("[aria-label=Open]").trigger("click");
     await flushPromises();
     expect(api.fetchMediaBlob).toHaveBeenCalledWith(A, "output", 2);
     expect(openBlob).toHaveBeenCalledWith(blob);
@@ -583,11 +593,7 @@ describe("results and references", () => {
     const blob = new Blob(["x"]);
     vi.mocked(api.fetchMediaBlob).mockResolvedValue(blob);
     await show(detail({ media: [media({ role: "input", idx: 1, url: null })] }));
-    expect(
-      view("references")
-        .findAll("button")
-        .map((b) => b.text()),
-    ).toEqual(["Open"]);
+    expect(view("references").findAll("button").map(nameOf)).toEqual(["Open"]);
     await view("references").find("button").trigger("click");
     await flushPromises();
     expect(api.fetchMediaBlob).toHaveBeenCalledWith(A, "input", 1);
@@ -598,11 +604,7 @@ describe("results and references", () => {
     const blob = new Blob(["x"]);
     vi.mocked(api.fetchDownload).mockResolvedValue(blob);
     await show(detail({ media: [media({ idx: 3 })] }));
-    expect(
-      view("results")
-        .findAll("button")
-        .map((b) => b.text()),
-    ).toEqual(["Download"]);
+    expect(view("results").findAll("button").map(nameOf)).toEqual(["Download"]);
     await view("results").find("button").trigger("click");
     await flushPromises();
     expect(api.fetchDownload).toHaveBeenCalledWith(A, 3);
@@ -614,10 +616,7 @@ describe("results and references", () => {
       new ApiError(404, { error: { code: "resource.not_found", message: "Not found" } }),
     );
     await show(detail({ media: [media({ url: null })] }));
-    await view("results")
-      .findAll("button")
-      .find((b) => b.text() === "Open")!
-      .trigger("click");
+    await view("results").find("[aria-label=Open]").trigger("click");
     await flushPromises();
     expect(notify.error).toHaveBeenCalledWith("Not found");
     expect(openBlob).not.toHaveBeenCalled();
@@ -627,7 +626,7 @@ describe("results and references", () => {
 describe("debug files", () => {
   it("says None when there are none", async () => {
     await show();
-    expect(section("debug").find("p").text()).toBe("None");
+    expect(section("debug").find(".el-empty__description").text()).toBe("None");
   });
 
   it("a text file is shown as text, never as markup", async () => {
@@ -652,13 +651,39 @@ describe("debug files", () => {
   });
 });
 
+describe("layout", () => {
+  const stubWidth = (narrow: boolean) =>
+    vi.stubGlobal("matchMedia", () => ({
+      matches: narrow,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+
+  it("the facts are one column under 640 px and two above, the wide Params row spanning both", async () => {
+    stubWidth(true);
+    const narrow = await show();
+    for (const d of narrow.w.findAllComponents({ name: "ElDescriptions" })) expect(d.props("column")).toBe(1);
+    stubWidth(false);
+    const wide = await show();
+    const tables = wide.w.findAllComponents({ name: "ElDescriptions" });
+    expect(tables).toHaveLength(2);
+    for (const d of tables) expect(d.props("column")).toBe(2);
+    for (const name of ["Job id", "Params", "Wallet"]) {
+      const label = section("technical")
+        .findAll(".el-descriptions__label")
+        .find((l) => l.text() === name)!;
+      expect(label.element.nextElementSibling!.getAttribute("colspan")).toBe(name === "Wallet" ? "1" : "3");
+    }
+  });
+});
+
 describe("timeline", () => {
   it("says No events when there are none", async () => {
     await show();
     expect(section("timeline").text()).toContain("No events");
   });
 
-  it("lists the events in order, and marks a recovery", async () => {
+  it("lists the events newest first, and marks a recovery", async () => {
     await show(
       detail({
         events: [
@@ -667,12 +692,14 @@ describe("timeline", () => {
         ],
       }),
     );
-    const items = section("timeline").findAll("li");
+    const items = section("timeline").findAll(".el-timeline-item");
     expect(items).toHaveLength(2);
-    expect(items[0]!.text()).toContain("engine");
-    expect(items[0]!.text()).toContain("submitted");
-    expect(items[0]!.text()).toContain("sent");
-    expect(items[0]!.find("[data-tone]").attributes("data-tone")).toBe("neutral");
-    expect(items[1]!.find("[data-tone]").attributes("data-tone")).toBe("ok");
+    expect(items[0]!.text()).toContain("recovered");
+    expect(items[0]!.text()).toContain("from history");
+    expect(items[0]!.find(".el-tag").classes()).toContain("el-tag--success");
+    expect(items[1]!.text()).toContain("engine");
+    expect(items[1]!.text()).toContain("submitted");
+    expect(items[1]!.text()).toContain("sent");
+    expect(items[1]!.find(".el-tag").classes()).toContain("el-tag--info");
   });
 });

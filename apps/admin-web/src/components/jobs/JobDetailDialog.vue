@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { getJob, type JobDetail, renameJob } from "@/api/jobs-detail";
 import { announceJobChange } from "@/components/jobs/job-changes";
-import { shortId } from "@/components/jobs/job-text";
+import { alertType, eventTone, newestFirst, shortId, timelineType } from "@/components/jobs/job-text";
 import JobActions from "@/components/jobs/JobActions.vue";
 import JobDebugFiles from "@/components/jobs/JobDebugFiles.vue";
 import JobMedia from "@/components/jobs/JobMedia.vue";
@@ -90,6 +90,35 @@ function onCopied(outcome: CopyOutcome): void {
 
 const conclusionTone = computed(() => (job.value ? toneOf(job.value.status) : "neutral"));
 
+// Two columns of facts on a wide dialog, one under 640 px.
+const narrowQuery = window.matchMedia("(max-width: 640px)");
+const narrow = ref(narrowQuery.matches);
+const onNarrow = (e: MediaQueryListEvent): void => {
+  narrow.value = e.matches;
+};
+narrowQuery.addEventListener("change", onNarrow);
+onBeforeUnmount(() => narrowQuery.removeEventListener("change", onNarrow));
+const columns = computed(() => (narrow.value ? 1 : 2));
+
+// The long values take a whole row. Job id leads and Params ends, so the other 14 facts pair up between them and
+// neither one is squeezed into a single leftover cell.
+const WIDE = ["Job id", "Params"];
+
+const events = computed(() => newestFirst(job.value?.events ?? []));
+
+const summary = computed<[string, string][]>(() => {
+  const j = job.value;
+  if (!j) return [];
+  return [
+    ["Operation", j.operation],
+    ["Model", j.model_substituted ? `${j.model} (model differs)` : j.model],
+    ["Media type", j.media_type],
+    ["Points", String(j.price)],
+    ["Created", fmtTime(j.created_ms)],
+    ["Finished", fmtTime(j.finished_ms)],
+  ];
+});
+
 const technical = computed<[string, string][]>(() => {
   const j = job.value;
   if (!j) return [];
@@ -117,23 +146,38 @@ const technical = computed<[string, string][]>(() => {
 
 <template>
   <el-dialog v-model="visible" :title="heading" width="min(960px, 94vw)" destroy-on-close>
-    <div v-if="error" class="job-error" role="alert">
-      <span>{{ error }}</span>
-      <el-button size="small" @click="refresh">Retry</el-button>
-    </div>
+    <el-alert v-if="error" type="error" show-icon :closable="false">
+      <div class="job-error">
+        <span>{{ error }}</span>
+        <el-button @click="refresh">Retry</el-button>
+      </div>
+    </el-alert>
     <el-skeleton v-else-if="!job" :rows="8" animated />
     <div v-else class="job" :class="{ 'is-refreshing': loading }" :aria-busy="loading">
-      <div class="conclusion" :class="`conclusion--${conclusionTone}`" data-section="conclusion">
-        <div>
-          <StatusChip :status="job.status" />
-          {{ job.operation }} · {{ job.model }} · net charged {{ job.net_charged }}
-        </div>
-        <div v-if="job.error_code">
-          <strong>{{ job.error_code }}</strong
-          ><template v-if="job.error">: {{ job.error }}</template>
-        </div>
-        <div v-if="job.warnings && job.warnings.length">warnings: {{ JSON.stringify(job.warnings) }}</div>
+      <div data-section="conclusion">
+        <el-alert :type="alertType(conclusionTone)" show-icon :closable="false">
+          <div class="conclusion">
+            <div>
+              <StatusChip :status="job.status" />
+              {{ job.operation }} · {{ job.model }} · net charged {{ job.net_charged }}
+            </div>
+            <div v-if="job.error_code">
+              <strong>{{ job.error_code }}</strong
+              ><template v-if="job.error">: {{ job.error }}</template>
+            </div>
+            <div v-if="job.warnings && job.warnings.length">warnings: {{ JSON.stringify(job.warnings) }}</div>
+          </div>
+        </el-alert>
       </div>
+
+      <section class="job-section" data-section="summary">
+        <h4>Summary</h4>
+        <el-descriptions :column="columns" border>
+          <el-descriptions-item v-for="[label, value] in summary" :key="label" :label="label">{{
+            value
+          }}</el-descriptions-item>
+        </el-descriptions>
+      </section>
 
       <section class="job-section" data-section="title">
         <h4>Title</h4>
@@ -177,25 +221,35 @@ const technical = computed<[string, string][]>(() => {
 
       <section class="job-section" data-section="timeline">
         <h4>Timeline</h4>
-        <p v-if="!job.events.length" class="muted">No events</p>
-        <ol v-else class="timeline">
-          <li v-for="e in job.events" :key="e.id">
-            <span class="muted">{{ fmtTime(e.at_ms) }}</span>
-            <StatusChip :status="e.source" :label="e.source" :tone="e.stage === 'recovered' ? 'ok' : 'neutral'" />
+        <el-empty v-if="!job.events.length" description="No events" :image-size="40" />
+        <el-timeline v-else>
+          <el-timeline-item
+            v-for="e in events"
+            :key="e.id"
+            :timestamp="fmtTime(e.at_ms)"
+            :type="timelineType(eventTone(e))"
+            placement="top"
+          >
+            <el-tag :type="timelineType(eventTone(e))" size="small">{{ e.source }}</el-tag>
             <strong>{{ e.stage }}</strong> {{ e.text }}
-          </li>
-        </ol>
+          </el-timeline-item>
+        </el-timeline>
       </section>
 
       <section class="job-section" data-section="technical">
         <h4>Technical</h4>
-        <dl class="facts">
-          <template v-for="[label, value] in technical" :key="label">
-            <dt>{{ label }}</dt>
-            <dd>{{ value }}</dd>
-          </template>
-        </dl>
-        <p class="muted">Text sent upstream (the prompt in its frame, with this job's marker)</p>
+        <el-descriptions :column="columns" border>
+          <el-descriptions-item
+            v-for="[label, value] in technical"
+            :key="label"
+            :label="label"
+            :span="WIDE.includes(label) ? columns : 1"
+            >{{ value }}</el-descriptions-item
+          >
+        </el-descriptions>
+        <el-text class="sent-note" size="small" type="info"
+          >Text sent upstream (the prompt in its frame, with this job's marker)</el-text
+        >
         <pre class="block" data-field="sent-text">{{ job.sent_text === null ? "-" : job.sent_text }}</pre>
       </section>
     </div>
@@ -219,32 +273,12 @@ const technical = computed<[string, string][]>(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
-  color: var(--rl-bad);
-  background: var(--rl-bad-bg);
-  border-radius: var(--el-border-radius-base, 6px);
 }
 .conclusion {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 12px;
   font-size: 14px;
-  border: 1px solid var(--rl-line);
-  border-radius: var(--el-border-radius-base, 6px);
-}
-.conclusion--ok {
-  color: var(--rl-ok);
-  background: var(--rl-ok-bg);
-}
-.conclusion--bad {
-  color: var(--rl-bad);
-  background: var(--rl-bad-bg);
-}
-.conclusion--warn,
-.conclusion--info {
-  color: var(--rl-warn);
-  background: var(--rl-warn-bg);
 }
 .job-section h4 {
   margin: 0 0 8px;
@@ -265,38 +299,11 @@ const technical = computed<[string, string][]>(() => {
   background: var(--rl-surface-2);
   border-radius: var(--el-border-radius-base, 6px);
 }
-.muted {
-  margin: 0 0 4px;
-  color: var(--rl-muted);
-  font-size: 12px;
+.sent-note {
+  display: block;
+  margin: 8px 0 4px;
 }
-.timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  font-size: 12px;
-  list-style: none;
-}
-.timeline li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-.facts {
-  display: grid;
-  grid-template-columns: 11rem 1fr;
-  gap: 4px 12px;
-  margin: 0 0 8px;
-  font-size: 12px;
-}
-.facts dt {
-  color: var(--rl-muted);
-}
-.facts dd {
-  margin: 0;
+.job :deep(.el-descriptions__content) {
   overflow-wrap: anywhere;
 }
 </style>

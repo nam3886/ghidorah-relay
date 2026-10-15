@@ -111,7 +111,12 @@ async function open(url = "/jobs") {
 
 const rows = (w: VueWrapper) => w.findAll("tbody tr");
 const rowTick = (w: VueWrapper, i: number) => rows(w)[i]!.find("input[type=checkbox]");
-const selectAll = (w: VueWrapper) => w.find(".jobs__bulk input[type=checkbox]");
+const selectAll = (w: VueWrapper) => w.find("thead input[type=checkbox]");
+// The header box ticks every row through a deferred table call, so the count is waited for.
+async function tickAll(w: VueWrapper, on: boolean, shown: string): Promise<void> {
+  await selectAll(w).setValue(on);
+  await vi.waitFor(() => expect(w.find(".jobs__count").text()).toBe(shown));
+}
 const button = (w: VueWrapper, text: string) => w.findAll("button").find((b) => b.text() === text)!;
 const count = (w: VueWrapper) => w.find(".jobs__count").text();
 const selects = (w: VueWrapper) => w.findAllComponents({ name: "ElSelect" });
@@ -192,8 +197,18 @@ describe("the list", () => {
     listJobs.mockResolvedValue({ items: [job(A, { status: "fetching" })], next_cursor: null });
     const { w } = await open();
     const bar = w.find("[role=progressbar]");
-    expect(bar.attributes("aria-valuenow")).toBe("3");
-    expect(w.find(".bar__fill").attributes("style")).toContain("width: 75%");
+    expect(bar.attributes("aria-valuenow")).toBe("75");
+    expect(bar.attributes("aria-label")).toBe("Progress: fetching");
+    expect(w.find(".el-progress-bar__inner").attributes("style")).toContain("width: 75%");
+    expect(bar.classes()).not.toContain("is-success");
+  });
+
+  it("the bar is green when done and red when failed", async () => {
+    listJobs.mockResolvedValue({ items: [job(A), job(B, { status: "failed" })], next_cursor: null });
+    const { w } = await open();
+    const bars = w.findAll("[role=progressbar]");
+    expect(bars[0]!.classes()).toContain("is-success");
+    expect(bars[1]!.classes()).toContain("is-exception");
   });
 
   it("shows a failed load with Retry, and Retry asks again", async () => {
@@ -273,6 +288,26 @@ describe("filters", () => {
     expect(lastQuery()).toEqual({ status: "", provider: "", keyId: "", cursor: null });
     expect(selects(w)[0]!.find(".el-select__placeholder").text()).toBe("All statuses");
     expect(selects(w)[1]!.find(".el-select__placeholder").text()).toBe("All keys");
+  });
+
+  it("every key option is readable: its label, else its prefix, else the start of its id", async () => {
+    vi.mocked(api.listKeyOptions).mockResolvedValue({
+      items: [
+        { id: "k1", label: "key-one", prefix: "rk_aaaa" },
+        { id: "k2", label: "", prefix: "rk_bbbb" },
+        { id: "k3", label: "  ", prefix: "" },
+        { id: "cccccccc-9999", label: "" },
+      ],
+    });
+    const { w } = await open();
+    const options = selects(w)[1]!.findAllComponents({ name: "ElOption" });
+    expect(options.map((o) => o.props("label"))).toEqual(["All keys", "key-one", "rk_bbbb", "k3", "cccccccc"]);
+  });
+
+  it("a job whose key has no label shows the start of the key id in the Key column", async () => {
+    listJobs.mockResolvedValue({ items: [job(A, { key_label: "", key_id: "kkkkkkkk-1234" })], next_cursor: null });
+    const { w } = await open();
+    expect(rows(w)[0]!.text()).toContain("kkkkkkkk");
   });
 
   it("a provider scope change reloads with the provider", async () => {
@@ -393,25 +428,23 @@ describe("selection", () => {
     expect((rowTick(w, 0)!.element as HTMLInputElement).checked).toBe(false);
     expect((rowTick(w, 2)!.element as HTMLInputElement).checked).toBe(false);
     expect(rows(w)[1]!.find(".el-checkbox").classes()).toContain("is-checked");
-    expect(w.find(".jobs__bulk .is-indeterminate").exists()).toBe(true);
+    expect(w.find("thead .is-indeterminate").exists()).toBe(true);
   });
 
   it("select all ticks the page and again clears it", async () => {
     const { w } = await open();
-    await selectAll(w).setValue(true);
-    expect(count(w)).toBe("3 selected");
+    await tickAll(w, true, "3 selected");
     expect((rowTick(w, 2)!.element as HTMLInputElement).checked).toBe(true);
-    await selectAll(w).setValue(false);
-    expect(count(w)).toBe("0 selected");
+    await tickAll(w, false, "0 selected");
   });
 
   it("select all is half-ticked for a part of the page and full when every row is ticked", async () => {
     const { w } = await open();
     await rowTick(w, 0)!.setValue(true);
-    expect(w.find(".jobs__bulk .is-indeterminate").exists()).toBe(true);
+    expect(w.find("thead .is-indeterminate").exists()).toBe(true);
     await rowTick(w, 1)!.setValue(true);
     await rowTick(w, 2)!.setValue(true);
-    expect(w.find(".jobs__bulk .is-indeterminate").exists()).toBe(false);
+    expect(w.find("thead .is-indeterminate").exists()).toBe(false);
     expect((selectAll(w).element as HTMLInputElement).checked).toBe(true);
   });
 
@@ -423,10 +456,7 @@ describe("selection", () => {
     await rows(w)[1]!.findAll("td")[2]!.trigger("click");
     expect(ui.openJobId).toBe(B);
     ui.closeJob();
-    await rows(w)[2]!
-      .findAll("button")
-      .find((b) => b.text() === "Details")!
-      .trigger("click");
+    await rows(w)[2]!.find("button[aria-label=Details]").trigger("click");
     expect(ui.openJobId).toBe(C);
   });
 
@@ -441,6 +471,20 @@ describe("selection", () => {
     await w.findAll("nav button")[0]!.trigger("click");
     await flushPromises();
     expect(count(w)).toBe("0 selected");
+  });
+
+  it("the ticks come back on the table after an error hid it and Retry drew it again", async () => {
+    const { w } = await open();
+    await rowTick(w, 0)!.setValue(true);
+    listJobs.mockRejectedValueOnce(new ApiError(500, { error: { code: "x", message: "boom" } }));
+    await button(w, "Refresh").trigger("click");
+    await flushPromises();
+    expect(rows(w)).toHaveLength(0);
+    await button(w, "Retry").trigger("click");
+    await flushPromises();
+    await flushPromises();
+    expect(count(w)).toBe("1 selected");
+    expect((rowTick(w, 0)!.element as HTMLInputElement).checked).toBe(true);
   });
 
   it("a reload of the same page keeps the ticks that are still on it", async () => {
@@ -471,7 +515,7 @@ describe("bulk re-check", () => {
   it("jobs left alone turn the toast to info", async () => {
     bulkRecheck.mockResolvedValue({ rechecked: [A], skipped: { [B]: "job.no_recheck" } });
     const { w } = await open();
-    await selectAll(w).setValue(true);
+    await tickAll(w, true, "3 selected");
     await button(w, "Re-check selected").trigger("click");
     await flushPromises();
     expect(notify.info).toHaveBeenCalledWith("Re-checked 1, left 1 alone");
@@ -499,7 +543,7 @@ describe("bulk regenerate", () => {
 
   it("asks first, naming the count, today's price and the charge", async () => {
     const { w } = await open();
-    await selectAll(w).setValue(true);
+    await tickAll(w, true, "3 selected");
     vi.mocked(confirmDialog).mockResolvedValueOnce(false);
     await button(w, "Regenerate selected").trigger("click");
     await flushPromises();

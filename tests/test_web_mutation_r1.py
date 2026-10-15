@@ -65,10 +65,9 @@ def test_the_cursor_stack_gives_the_same_pages_forward_and_back():
 # ---- the selection-----------------------------------------------------------------------------------------------
 @mutation(PICK, "items.filter((job) => picked.has(job.id))", "items.filter(() => true)",
           expect=FP + "selection > leaves out a ticked id that is no longer on the page")
-@mutation(PICK, "if (on) next.add(id);", "if (true) next.add(id);",
-          expect=FP + "selection > ticks and clears one job without touching the old set")
-@mutation(PICK, "on ? new Set(items.map((job) => job.id)) : new Set()", "new Set(items.map((job) => job.id))",
-          expect=FP + "selection > select all ticks every job of the page, and none clears them")
+@mutation(PICK, "items.filter((job) => picked.has(job.id)).map((job) => job.id)",
+          "items.filter((job) => picked.has(job.id)).map((job) => job.id).reverse()",
+          expect=FP + "selection > gives the ticked jobs in table order")
 @pytest.mark.web_unit
 def test_the_selection_is_the_ticked_jobs_of_the_page_in_table_order():
     vitest(PICK_SPEC)
@@ -109,6 +108,25 @@ SPLIT = FT + "job text > the regenerate toast splits made, already made and fail
 @mutation(TEXT, 'type: failed ? "info" : "success",', 'type: "success",', expect=SPLIT)
 @pytest.mark.web_unit
 def test_the_bulk_toasts_and_the_progress_bar_keep_their_rules():
+    vitest(TEXT_SPEC)
+
+
+# ---- key names and the timeline-----------------------------------------------------------------------------------
+@mutation(TEXT, "key.label?.trim() || key.prefix?.trim() || shortId(key.id)", "key.label || shortId(key.id)",
+          expect=FT + "key names > is the label, else the prefix, else the first 8 characters of the id")
+@mutation(TEXT, "(b.at_ms ?? -Infinity) - (a.at_ms ?? -Infinity) || b.id - a.id",
+          "(a.at_ms ?? -Infinity) - (b.at_ms ?? -Infinity) || b.id - a.id",
+          expect=FT + "timeline > lists the newest event first, the later id first on equal times, and an event "
+                      "with no time last")
+@mutation(TEXT, "[...events].sort(", "events.sort(",
+          expect=FT + "timeline > does not reorder the list it was given")
+@mutation(TEXT, 'if (e.stage === "recovered") return "ok";', "",
+          expect=FT + "timeline > a recovery is ok, a failed stage is bad, an unknown stage takes its source's tone, "
+                      "else neutral")
+@mutation(TEXT, '? "danger"', '? "error"',
+          expect=FT + "timeline > maps a tone to the Element Plus types of the alert and of the timeline item")
+@pytest.mark.web_unit
+def test_a_key_is_never_nameless_and_the_timeline_runs_newest_first():
     vitest(TEXT_SPEC)
 
 
@@ -176,12 +194,18 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
           expect=FV + "selection > the bulk buttons stay off until a job is ticked, and the count follows")
 @mutation(VIEW, "Regenerate ${ids.value.length} job(s)? ", "Regenerate job(s)? ",
           expect=FV + "bulk regenerate > asks first, naming the count, today's price and the charge")
-@mutation(VIEW, ':model-value="picked.has(row.id)"', ':model-value="false"',
-          expect=FV + "selection > a ticked job shows its own box ticked and the select-all box half-ticked, "
-                      "in the same render as the count")
-@mutation(VIEW, 'status="refunded" tone="neutral"', 'status="refunded"',
-          expect=FV + "the list > a refund chip is neutral, the status chip keeps its own tone, and the error code "
-                      "is plain muted text")
+@mutation(VIEW, "picked.value = new Set(rows.map((r) => r.id));", "picked.value = picked.value;",
+          expect=FV + "selection > the bulk buttons stay off until a job is ticked, and the count follows")
+@mutation(VIEW, "void reTick();\n    error.value = null;", "error.value = null;",
+          expect=FV + "selection > the ticks come back on the table after an error hid it and Retry drew it again")
+@mutation(VIEW, ':label="keyName(k)"', ':label="k.label"',
+          expect=FV + "filters > every key option is readable: its label, else its prefix, else the start of its id")
+@mutation(VIEW, "row.key_label || shortId(row.key_id)", "row.key_label",
+          expect=FV + "filters > a job whose key has no label shows the start of the key id in the Key column")
+@mutation(VIEW, 's === "failed" ? "exception"', 's === "failed" ? "success"',
+          expect=FV + "the list > the bar is green when done and red when failed")
+@mutation(VIEW, 'v-if="isRefunded(row)"', 'v-if="true"',
+          expect=FV + "the list > draws one row per job with the merged cells")
 @pytest.mark.web_unit
 def test_the_jobs_view_pages_filters_selects_and_sends_what_is_ticked():
     vitest(VIEW_SPEC)
@@ -212,15 +236,21 @@ REFERENCE = MEDIA_GROUP + "a reference opens through the input route and has no 
           expect=SHOW + "Revoke share links only while some media still has a link")
 @mutation(ACTIONS, "account.value.trim()", "account.value",
           expect=EACH + "Recover sends the trimmed account, polls the command and reads the job again")
-@mutation(ACTIONS, "if (!ok) return;", "", expect=EACH + "Revoke asks first and says how many links stopped")
+@mutation(ACTIONS, '@confirm="revoke"', '@cancel="revoke"',
+          expect=EACH + "Revoke asks first and says how many links stopped")
+@mutation(MEDIA, '.filter((s) => s.kind === "image")', ".filter(() => true)",
+          expect=MEDIA_GROUP + "an image is a thumbnail whose viewer lists every previewable image of the list, "
+                               "and a video is left out")
 @mutation(ACTIONS, '${out.replayed ? "Already made: job " : "New job "}', '${"New job "}',
           expect=EACH + "a regenerate the server already did says Already made")
 @mutation(DIALOG, 'class="block">{{ job.prompt }}</pre>', 'class="block">{{ job.sent_text }}</pre>', expect=WORDS)
 @mutation(DIALOG, 'CopyButton :text="job.prompt"', 'CopyButton :text="job.sent_text ?? \'\'"', expect=WORDS)
 @mutation(DIALOG, "if (!latest.isCurrent(ticket)) return;\n    job.value = out;", "job.value = out;",
           expect=FD + "opening > drops the answer for a job that is no longer the open one")
-@mutation(DIALOG, "e.stage === 'recovered' ? 'ok' : 'neutral'", "e.stage === 'recovered' ? 'neutral' : 'neutral'",
-          expect=FD + "timeline > lists the events in order, and marks a recovery")
+@mutation(DIALOG, "newestFirst(job.value?.events ?? [])", "(job.value?.events ?? [])",
+          expect=FD + "timeline > lists the events newest first, and marks a recovery")
+@mutation(DIALOG, "narrow.value ? 1 : 2", "2",
+          expect=FD + "layout > the facts are one column under 640 px and two above, the wide Params row spanning both")
 @pytest.mark.web_unit
 def test_the_detail_draws_media_only_from_safe_links_and_shows_the_actions_the_job_allows():
     vitest(DETAIL_SPEC)
