@@ -1,8 +1,8 @@
 """Static guards over the built admin web (`admin/static/app/`, committed): what the CSP would block or what must never
 ship, found in every html, css and js file of the dist, lazy chunks included, without opening a browser. The run-time
 proof (zero CSP violations in every route, dialog and popper) is the E2E sweep; this reaches the code that no route
-visits. The checks are in webguards.py beside it. The Scalar pin and licence check stays with `reference.html` in
-test_html_guards.py."""
+visits. The checks are in webguards.py beside it. The Scalar pin and the guards of `reference.html` are in
+test_reference.py."""
 
 import webguards
 from webguards import ALLOWED, APP, dist_files, findings, index_problems, key_of, parse_index, scan

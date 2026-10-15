@@ -194,7 +194,7 @@ Used by browser workers only (dola, meta). Everything is read from the environme
   built by `scripts/browser-image.sh`, label `relay.browser-image=<token>`), compose project
   `relay-check-<token>`, container `relay-check-run-<token>` on that project's network (no host networking). It runs
   EVERY browser test in the image, the tree mounted read-only: `pytest -m browser`, i.e. what the Mac tier selects
-  (`browser and not box`, 42 tests) plus the tests only the box can run (`browser and box`, 3), with a line per test;
+  (`browser and not box`, 154 tests) plus the tests only the box can run (`browser and box`, 3), with a line per test;
   it prints both counts and fails unless exactly that many passed (a skip is a failure) and pytest itself exited 0
   (`scripts/browser-tier.sh`, run in the image under `pipefail`; a collection that fails or does not add up fails the tier). Then the three graceful-stop
   tests (stop, kill-then-start, negative control), which drive the docker CLI, run from the Mac through
@@ -211,6 +211,9 @@ Used by browser workers only (dola, meta). Everything is read from the environme
   only what was named, and ends `browser tier: PARTIAL (narrowed)`. It still fails when nothing is selected (or a path
   does not exist) and when a selected test does not pass. A narrowed run takes the shared `gate.lock` like any other
   run. `scripts/check.sh --full` calls the script with no arguments, so the whole tier is unchanged.
+- **Per-test time limit** (whole tier and narrowed runs): `scripts/hang_guard_plugin.py` gives each browser test 300 s
+  (`TEST_TIMEOUT_S`) across its setup, body and teardown (SIGALRM; `pytest-timeout` is not a dependency). A test that
+  hangs fails with its node id and a traceback ending at the hung line, and the run goes on.
 - `scripts/check.sh --full --local`: the same without the box (D59). The browser tier runs on the Mac:
   `pytest -m "browser and not box"` with patchright driving the installed Google Chrome (D60). An unnarrowed run
   that selects no browser test fails (`browser tier: FAILED`); a green one prints `browser tier: GREEN on this Mac`.
@@ -423,19 +426,24 @@ token sent as the `X-Admin-Session` header (no cookie).
 
 ## The admin pages
 
-`/login`, `/manage` (the dashboard, whose Test tab is the model test; `/test` redirects to it) and `/reference`
-(the API reference) are static files in `relay_core/admin/static/`, served on the api's port with the admin CSP
-(`default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'`): no inline script, handler or
-style, nothing loaded from another host. The files are read once when the api starts.
+`/manage` is the admin, a Vue single-page app built into `relay_core/admin/static/app/` (its entry is `app/index.html`,
+also at `/ui/app/index.html`); `/login` and `/test` redirect into it (`/manage#/login`, `/manage#/test`), as `/` does
+to `/manage`. `/reference` (the API reference) is a static page beside it. All are served on the api's port with the
+admin CSP (`default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'`): no inline script,
+handler or style, nothing loaded from another host. The files are read once when the api starts; the api refuses to
+start when `app/index.html` is missing. Files under `app/assets/` carry a content hash in their name and are served
+`immutable`; everything else is `no-cache`.
 
 `/reference` alone adds `style-src 'self' 'unsafe-inline'` to that header, because the renderer writes its styles into
 the page at run time; its `script-src` stays `'self'`, and its own files under `/ui/` keep the exact header. A test
 fails when any other page or `/ui/` file carries the looser one.
 
-- **Look and feel:** `static/vendor/admin.css` is built once with the Tailwind CLI (3.4.17) from
-  `admin/tailwind/{tailwind.config.js,input.css}`; the regenerate command is the comment at the top of `input.css`.
-  Nothing uses node at runtime. Run it after changing a class in any page or script; a test fails if a class the pages
-  use is missing from the stylesheet, and another pins the file's hash (it prints the new value).
+- **The web build:** the source is `apps/admin-web/` (Vue, Vite, Element Plus). `scripts/web.sh [--tree NAME] build`
+  builds it in the container (Node image pinned by digest, `npm ci` from the lockfile) and pulls back the dist
+  `static/app/` and the two generated declaration files; the dist is committed, so the api image needs no Node at
+  runtime. `web.sh check` (lockfile audit, `style=` grep, vue-tsc, ESLint, Prettier, Vitest) and `web.sh verify` (a
+  fresh build must equal the committed dist byte for byte) run in `scripts/check.sh`; `web.sh format` runs Prettier.
+  Rebuild and commit the dist after any change under `apps/admin-web/`.
 - **Prompt frames:** the "Prompt frames" tab edits the text a provider sends around the customer's prompt, on the
   routes of `admin/routes_frames.py` (no route of its own). Pick a provider; each kind shows its default (who and when,
   a badge when it differs from the shipped one, and "Reset to the shipped default") and a table of models with the
@@ -459,8 +467,11 @@ fails when any other page or `/ui/` file carries the looser one.
   in `reference.html`; a test pins its hash and source URL.
 - **The admin token** lives in `sessionStorage` and goes out as `X-Admin-Session`. Media in a job's detail comes only
   from the same-origin `/m/` share links; the admin content routes are for downloads.
-- **Tests:** `tests/admin_ui/test_html_guards.py` runs in the commit gate; `tests/admin_ui/test_smoke.py` drives every
-  tab in Chrome (`browser` tier: `scripts/check.sh --full --local` on the Mac).
+- **Tests:** in the commit gate, `tests/admin_ui/test_build_guards.py` scans the committed dist for what the CSP or the
+  release rules forbid, `packages/relay-core/tests/api/test_admin_pages.py` pins the serving (CSP, redirects, cache
+  rules, only static files) and the Vitest specs of `apps/admin-web/tests/unit/` run in `web.sh check`. The browser
+  tier (`tests/admin_ui/test_e2e_*.py`, the whole-app CSP sweep `test_e2e_sweep.py` and `test_reference.py`) drives the
+  app in Chrome through `/manage`; run only those with `scripts/check-in-container.sh tests/admin_ui/`.
 
 ## Logs
 
