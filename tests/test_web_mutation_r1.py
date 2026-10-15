@@ -19,6 +19,7 @@ MEDIA = f"{SRC}/components/jobs/JobMedia.vue"
 ACTIONS = f"{SRC}/components/jobs/JobActions.vue"
 DIALOG = f"{SRC}/components/jobs/JobDetailDialog.vue"
 VIEW = f"{SRC}/views/JobsView.vue"
+FILTERS = f"{SRC}/components/jobs/job-filters.ts"
 API = f"{SRC}/api/jobs.ts"
 DETAIL_API = f"{SRC}/api/jobs-detail.ts"
 
@@ -74,7 +75,9 @@ def test_the_selection_is_the_ticked_jobs_of_the_page_in_table_order():
 
 
 # ---- the calls----------------------------------------------------------------------------------------------------
-PROXY = FA + "files > an output without a link opens through the outputs proxy, an input through the images proxy"
+WORDS = FD + "conclusion, prompt and technical > the prompt is the customer's words and Copy prompt copies exactly that"
+BARE = FA +"one job > re-check, fetch title, resend and revoke are bare POSTs"
+PROXY = FA +"files > an output without a link opens through the outputs proxy, an input through the images proxy"
 
 
 @mutation(API, "regenerateCall(bulkAction(jobIds), ", "regenerateCall(bulkAction([]), ",
@@ -86,6 +89,8 @@ PROXY = FA + "files > an output without a link opens through the outputs proxy, 
 @mutation(API, '"queued", "submitting", ', '"queued", ',
           expect=FA + "list > the status filter offers submitting beside the others")
 @mutation(DETAIL_API, 'role === "output" ? ', 'role !== "output" ? ', expect=PROXY)
+@mutation(DETAIL_API, "`${path(id)}/resend-webhook`", "`${path(id)}/resend-webhooks`", expect=BARE)
+@mutation(DETAIL_API, "`${path(id)}/revoke-links`", "`${path(id)}/revoke-link`", expect=BARE)
 @pytest.mark.web_unit
 def test_the_calls_send_the_paths_the_filters_and_one_key_per_action():
     vitest(API_SPEC)
@@ -151,6 +156,10 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
           expect=FV + "paging > Next asks for the cursor the server gave, and Prev goes back to the page it left")
 @mutation(VIEW, "picked.value = new Set(pickedIds(out.items, picked.value));", "picked.value = picked.value;",
           expect=FV + "selection > a new page starts with nothing ticked")
+@mutation(FILTERS, "(value: string): string => value || ALL", "(value: string): string => value",
+          expect=FV + "filters > shows All statuses and All keys, not the placeholder, while nothing is filtered")
+@mutation(FILTERS, 'value === ALL ? "" : value', "value",
+          expect=FV + "filters > choosing All again sends no filter, and the label follows a real choice")
 @mutation(VIEW, "stack.reset();", "",
           expect=FV + "paging > a filter change whose load fails still forgets the cursors of the old filter")
 @mutation(VIEW, "(JOB_STATUSES as readonly string[]).includes(wanted)", "true",
@@ -200,6 +209,8 @@ REFERENCE = MEDIA_GROUP + "a reference opens through the input route and has no 
 @mutation(ACTIONS, "if (!ok) return;", "", expect=EACH + "Revoke asks first and says how many links stopped")
 @mutation(ACTIONS, '${out.replayed ? "Already made: job " : "New job "}', '${"New job "}',
           expect=EACH + "a regenerate the server already did says Already made")
+@mutation(DIALOG, 'class="block">{{ job.prompt }}</pre>', 'class="block">{{ job.sent_text }}</pre>', expect=WORDS)
+@mutation(DIALOG, 'CopyButton :text="job.prompt"', 'CopyButton :text="job.sent_text ?? \'\'"', expect=WORDS)
 @mutation(DIALOG, "if (!latest.isCurrent(ticket)) return;\n    job.value = out;", "job.value = out;",
           expect=FD + "opening > drops the answer for a job that is no longer the open one")
 @mutation(DIALOG, "e.stage === 'recovered' ? 'ok' : 'neutral'", "e.stage === 'recovered' ? 'neutral' : 'neutral'",
