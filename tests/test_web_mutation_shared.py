@@ -15,6 +15,8 @@ TONES_SPEC = "tests/unit/shared/status-tones.spec.ts"
 
 @mutation(CLIPBOARD, "window.isSecureContext && navigator.clipboard?.writeText", "navigator.clipboard?.writeText",
           expect="on plain http copies through a hidden textarea")
+@mutation(CLIPBOARD, "await navigator.clipboard.writeText(text);", "void text;",
+          expect="uses the clipboard API on a secure context and nothing else")
 @mutation(CLIPBOARD, 'if (execCopy(text)) return "exec"', 'if (false) return "exec"',
           expect="on plain http copies through a hidden textarea")
 @mutation(CLIPBOARD, "previous?.focus?.()", "void previous", expect="gives the focus back")
@@ -38,6 +40,10 @@ def test_a_copy_pending_at_unmount_does_nothing():
           "props.loading && props.rows.length > 5 && !props.error", expect="refreshing keeps the old rows")
 @mutation(TABLE, "index >= 0", "index >= -1",
           expect="never renders the user's slots for Element Plus's empty probe row")
+@mutation(TABLE, 'maxHeight: "calc(100vh - 16rem)",', "maxHeight: undefined,",
+          expect="keeps the header while the rows scroll")
+@mutation(TABLE, ':max-height="props.maxHeight"', ':max-height="undefined"',
+          expect="keeps the header while the rows scroll")
 @mutation(TABLE, "actionsWidth: 200,", "actionsWidth: 100,", expect="gives the Actions column room")
 @pytest.mark.web_unit
 def test_the_table_keeps_old_rows_while_refreshing():

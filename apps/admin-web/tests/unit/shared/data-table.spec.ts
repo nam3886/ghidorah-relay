@@ -177,6 +177,15 @@ describe("DataTable cells, actions and rows", () => {
     expect(trs[1]!.classes().join(" ")).not.toContain("row-tone");
   });
 
+  it("keeps the header while the rows scroll: every list gets a max height unless it sets its own", async () => {
+    // Element Plus draws a fixed header only for a table with a max height; the rows then scroll under it.
+    const fallback = await table();
+    expect(fallback.find(".el-table").attributes("style")).toContain("max-height: calc(100vh - 16rem)");
+    expect(fallback.find(".el-table__header-wrapper").exists()).toBe(true);
+    const own = await table({ maxHeight: "300px" });
+    expect(own.find(".el-table").attributes("style")).toContain("max-height: 300px");
+  });
+
   it("server text is text: planted markup makes no element", async () => {
     const w = await table({ rows: [{ id: "x", name: "<img src=x onerror=alert(1)>", count: 1 }] });
     expect(w.find("img").exists()).toBe(false);
