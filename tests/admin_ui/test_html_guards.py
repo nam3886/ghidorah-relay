@@ -173,7 +173,8 @@ def test_copy_prompt_copies_the_customers_words_and_never_the_marker_or_a_frame(
 def test_the_admin_token_lives_in_session_storage_only_and_goes_out_as_the_session_header():
     scripts = {p.name: p.read_text() for p in OWN_JS}
     assert not [n for n, t in scripts.items()
-                if n != "tab-test.js" and re.search(r"localStorage|document\.cookie|indexedDB", t)], \
+                if n not in ("tab-test.js", "reference.js")      # reference.js reads the stored theme only
+                and re.search(r"localStorage|document\.cookie|indexedDB", t)], \
         "an admin script uses a store the token must not live in"
     assert not re.search(r"document\.cookie", scripts["tab-test.js"])
     common = scripts["common.js"]

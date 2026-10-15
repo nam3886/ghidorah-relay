@@ -3,7 +3,9 @@
 pytest is replaced by a fake that answers a collection with the numbers of the environment and a run with that many
 PASSED lines and the exit status it is told; the real script text runs under bash."""
 
+import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -124,6 +126,90 @@ def test_the_container_runner_accepts_test_paths_and_node_ids_only_and_passes_th
     assert 'exec scripts/browser-tier.sh "$@"\' bash "$@"' in text and 'eval "set -- $TIER_ARGS"' in text
     assert 'echo "browser tier: PARTIAL (narrowed)"' in text
     assert text.index("PARTIAL (narrowed)") < text.index("uv sync"), "the graceful-stop test is not skipped"
+
+
+FAKE_DOCKER = """#!{python}
+import json, os, stat, sys
+args = sys.argv[1:]
+if args[:1] == ["run"]:
+    rec = {{"args": args}}
+    mounts = [a.split(":")[0] for a in args if a.endswith(":/shots")]
+    if mounts:      # what the browser tests do inside the container: write into the mounted folder
+        rec["mode"] = oct(stat.S_IMODE(os.stat(mounts[0]).st_mode))
+        with open(os.path.join(mounts[0], "light-login.png"), "w") as f:
+            f.write("png")
+    with open(os.environ["FAKE_LOG"], "a") as f:
+        f.write(json.dumps(rec) + "\\n")
+    sys.exit(int(os.environ.get("FAKE_RUN_RC", "0")))
+sys.exit(0)
+"""
+
+
+def container_run(tmp_path: Path, *args: str, **env) -> tuple[subprocess.CompletedProcess, list[dict]]:
+    """The real scripts/check-in-container.sh on the box path (RELAY_ON_BOX=1) over a small tree, with docker and uv
+    replaced by fakes that record the `docker run` they are given and write a screenshot as the container would."""
+    tree, bin_dir = tmp_path / "tree", tmp_path / "bin"
+    (tree / "scripts").mkdir(parents=True)
+    bin_dir.mkdir()
+    shutil.copy(REPO / IN_CONTAINER, tree / IN_CONTAINER)
+    (tree / "scripts/browser-image.sh").write_text(
+        '#!/bin/bash\n[ "$1" = build ] && echo "relay-browser-image:$2"\nexit 0\n')
+    (bin_dir / "docker").write_text(FAKE_DOCKER.format(python=sys.executable), encoding="utf-8")
+    (bin_dir / "uv").write_text("#!/bin/bash\nexit 0\n")
+    for f in [tree / IN_CONTAINER, tree / "scripts/browser-image.sh", bin_dir / "docker", bin_dir / "uv"]:
+        f.chmod(f.stat().st_mode | stat.S_IEXEC)
+    log = tmp_path / "docker.log"
+    base = {"PATH": "%s:%s" % (bin_dir, os.environ["PATH"]), "HOME": str(tmp_path), "RELAY_ON_BOX": "1",
+            "FAKE_LOG": str(log)}
+    run = subprocess.run(["bash", str(tree / IN_CONTAINER), *args], capture_output=True, text=True, cwd=tree,
+                         timeout=120, env={**base, **{k: str(v) for k, v in env.items()}})
+    return run, [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+
+
+@mutation(IN_CONTAINER, '[ "$#" -eq 0 ] || tier_args=', "tier_args=", expect="an empty argument reached the tier")
+def test_a_whole_tier_run_hands_the_container_no_argument_so_the_tier_never_says_partial(tmp_path):
+    """`printf '%q ' "$@"` with no argument prints one empty argument; it reached browser-tier.sh as a narrowing
+    argument and a plain `check.sh --full` printed `PARTIAL (narrowed)` with an empty list."""
+    run, runs = container_run(tmp_path)
+    assert run.returncode == 0 and "browser tier: GREEN" in run.stdout and "PARTIAL" not in run.stdout, \
+        run.stdout + run.stderr
+    assert len(runs) == 1 and runs[0]["args"][-1] == "bash", \
+        "an empty argument reached the tier: %r" % runs[0]["args"][-2:]
+    narrowed, runs = container_run(tmp_path / "n", "tests/admin_ui/test_e2e_jobs.py", "tests/a.py::t[x y]")
+    assert narrowed.returncode == 0 and "browser tier: PARTIAL (narrowed)" in narrowed.stdout, narrowed.stdout
+    assert runs[0]["args"][-3:] == ["bash", "tests/admin_ui/test_e2e_jobs.py", "tests/a.py::t[x y]"], \
+        runs[0]["args"][-3:]
+
+
+@mutation(IN_CONTAINER, 'shots=(-e RELAY_SCREENSHOTS_DIR=/shots -v "$DIR/shots:/shots")',
+          'shots=(-v "$DIR/shots:/shots")', expect="the container was not told where the screenshots go")
+@mutation(IN_CONTAINER, "mkdir -m 777 shots", "mkdir shots",
+          expect="the shots folder is not writable by the container user")
+@mutation(IN_CONTAINER, 'cp -R "$DIR/shots/." "$shots_dest/"', "true", expect="no screenshot was copied back")
+def test_a_narrowed_run_with_a_screenshots_folder_mounts_it_and_copies_what_the_container_wrote_back(tmp_path):
+    dest = tmp_path / "out" / "screenshots"
+    run, runs = container_run(tmp_path, "tests/admin_ui/test_e2e_sweep.py", RELAY_SCREENSHOTS_DIR=dest)
+    assert run.returncode == 0, run.stdout + run.stderr
+    args = runs[0]["args"]
+    assert "RELAY_SCREENSHOTS_DIR=/shots" in args and args[args.index("RELAY_SCREENSHOTS_DIR=/shots") - 1] == "-e", \
+        "the container was not told where the screenshots go: %r" % args
+    assert runs[0]["mode"] == "0o777", "the shots folder is not writable by the container user: %s" % runs[0]["mode"]
+    assert (dest / "light-login.png").read_text() == "png", "no screenshot was copied back"
+    assert "screenshots: copied to %s" % dest in run.stdout
+
+
+@mutation(IN_CONTAINER, '[ "$rc" -eq 0 ] || exit "$rc"', "true", expect="a failed run was reported green")
+def test_the_screenshots_of_a_failed_run_are_copied_and_the_run_still_fails_with_its_status(tmp_path):
+    dest = tmp_path / "shots-out"
+    run, _ = container_run(tmp_path, "tests/admin_ui/test_e2e_sweep.py", RELAY_SCREENSHOTS_DIR=dest, FAKE_RUN_RC=3)
+    assert run.returncode == 3, "a failed run was reported green: %s %s" % (run.returncode, run.stdout + run.stderr)
+    assert (dest / "light-login.png").is_file(), "the screenshots of a failed run were lost"
+
+
+def test_without_a_screenshots_folder_nothing_is_mounted_and_nothing_is_copied(tmp_path):
+    run, runs = container_run(tmp_path, "tests/admin_ui/test_e2e_sweep.py")
+    assert run.returncode == 0 and "screenshots:" not in run.stdout, run.stdout + run.stderr
+    assert not any("RELAY_SCREENSHOTS_DIR" in a or a.endswith(":/shots") for a in runs[0]["args"]), runs[0]["args"]
 
 
 STOP_TEST = "tests/browser/test_graceful_stop.py"
