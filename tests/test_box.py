@@ -380,8 +380,25 @@ class Runs:
         try:
             os.killpg(proc.pid, sig)
         except ProcessLookupError:
-            pass
+            return
         proc.wait(timeout=30)
+        # the holder's children share its lock descriptor: the flock goes when the last of them is gone, not the leader
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            try:
+                os.killpg(proc.pid, 0)
+            except ProcessLookupError:
+                return
+            time.sleep(0.05)
+
+    def lock_state_when(self, want: tuple[bool, bool]) -> tuple[bool, bool]:
+        """lock_state(), polled for up to 10 s until it is `want`: a killed holder's flock goes a moment later."""
+        deadline = time.monotonic() + 10
+        state = self.lock_state()
+        while state != want and time.monotonic() < deadline:
+            time.sleep(0.05)
+            state = self.lock_state()
+        return state
 
     def lock_state(self) -> tuple[bool, bool]:
         """(an exclusive lock can be taken now, a shared one can): of gate.lock, as another process would see it."""
@@ -465,11 +482,11 @@ def test_the_lock_dies_with_the_process_that_holds_it(runs):
     gate = runs.hold("g", "--", "./scripts/check.sh", "--full")
     assert runs.lock_state() == (False, False)
     runs.stop(gate)                                   # SIGKILL: no trap, no clean-up code runs
-    assert runs.lock_state() == (True, True), "a killed gate still holds the lock"
+    assert runs.lock_state_when((True, True)) == (True, True), "a killed gate still holds the lock"
     narrowed = runs.hold("n1", *HOLD_FOR_A_MINUTE)
     assert runs.lock_state() == (False, True)
     runs.stop(narrowed)
-    assert runs.lock_state() == (True, True), "a killed narrowed run still holds the lock"
+    assert runs.lock_state_when((True, True)) == (True, True), "a killed narrowed run still holds the lock"
     run, path = runs.script("g2", "--", "HOLD=0", "./scripts/check.sh", "--full")
     assert run.returncode == 0 and path is not None and runs.finish(runs.start(path))[0] == 0, \
         "a gate was refused after the holders were killed: " + run.stderr
