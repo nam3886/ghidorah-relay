@@ -237,6 +237,29 @@ describe("filters", () => {
     expect(lastQuery()).toEqual({ status: "", provider: "", keyId: "k1", cursor: null });
   });
 
+  it("shows All statuses and All keys, not the placeholder, while nothing is filtered", async () => {
+    const { w } = await open();
+    const shown = (i: number) => selects(w)[i]!.find(".el-select__placeholder").text();
+    expect(shown(0)).toBe("All statuses");
+    expect(shown(1)).toBe("All keys");
+  });
+
+  it("choosing All again sends no filter, and the label follows a real choice", async () => {
+    const { w } = await open();
+    selects(w)[0]!.vm.$emit("update:modelValue", "failed");
+    selects(w)[1]!.vm.$emit("update:modelValue", "k1");
+    await flushPromises();
+    expect(lastQuery()).toEqual({ status: "failed", provider: "", keyId: "k1", cursor: null });
+    expect(selects(w)[0]!.find(".el-select__placeholder").text()).toBe("failed");
+    expect(selects(w)[1]!.find(".el-select__placeholder").text()).toBe("key-one");
+    selects(w)[0]!.vm.$emit("update:modelValue", "__all__");
+    selects(w)[1]!.vm.$emit("update:modelValue", "__all__");
+    await flushPromises();
+    expect(lastQuery()).toEqual({ status: "", provider: "", keyId: "", cursor: null });
+    expect(selects(w)[0]!.find(".el-select__placeholder").text()).toBe("All statuses");
+    expect(selects(w)[1]!.find(".el-select__placeholder").text()).toBe("All keys");
+  });
+
   it("a provider scope change reloads with the provider", async () => {
     await open();
     useScopeStore().provider = "vibes";

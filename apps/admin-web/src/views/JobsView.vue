@@ -11,7 +11,7 @@ import {
   listKeyOptions,
 } from "@/api/jobs";
 import { createCursorStack } from "@/components/jobs/cursor-stack";
-import { rememberedStatus } from "@/components/jobs/job-filters";
+import { ALL, fromSelect, rememberedStatus, toSelect } from "@/components/jobs/job-filters";
 import { jobChanges } from "@/components/jobs/job-changes";
 import { isRefunded, progressStep, recheckToast, regenerateToast, shortId } from "@/components/jobs/job-text";
 import RegenerateControl from "@/components/jobs/RegenerateControl.vue";
@@ -63,7 +63,7 @@ const latest = useLatest();
 const status = rememberedStatus;
 const keyId = ref("");
 const keys = ref<KeyOption[]>([]);
-const statusOptions = ["", ...JOB_STATUSES];
+const statusOptions = [ALL, ...JOB_STATUSES];
 
 // The ticked jobs. Always read through pickedIds: only what is on the page is acted on.
 const picked = ref<Set<string>>(new Set());
@@ -165,11 +165,21 @@ const barTone = (s: string): string => (s === "failed" ? "bad" : s === "done" ? 
 <template>
   <section class="jobs">
     <ListToolbar :loading="loading" :updated-at="updatedAt" @refresh="load()">
-      <el-select v-model="status" class="jobs__filter" aria-label="Status">
-        <el-option v-for="s in statusOptions" :key="s" :label="s || 'All statuses'" :value="s" />
+      <el-select
+        :model-value="toSelect(status)"
+        class="jobs__filter"
+        aria-label="Status"
+        @update:model-value="(v: string) => (status = fromSelect(v))"
+      >
+        <el-option v-for="s in statusOptions" :key="s" :label="s === ALL ? 'All statuses' : s" :value="s" />
       </el-select>
-      <el-select v-model="keyId" class="jobs__filter" aria-label="Key">
-        <el-option label="All keys" value="" />
+      <el-select
+        :model-value="toSelect(keyId)"
+        class="jobs__filter"
+        aria-label="Key"
+        @update:model-value="(v: string) => (keyId = fromSelect(v))"
+      >
+        <el-option label="All keys" :value="ALL" />
         <el-option v-for="k in keys" :key="k.id" :label="k.label" :value="k.id" />
       </el-select>
     </ListToolbar>
