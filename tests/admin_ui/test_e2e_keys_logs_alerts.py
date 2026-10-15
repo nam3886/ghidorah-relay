@@ -189,6 +189,32 @@ def test_edit_disable_and_delete_with_and_without_jobs(app, app_session, db):
     assert db.one("SELECT enabled FROM api_keys WHERE id = %s", used)[0] is False
 
 
+def test_escape_closes_the_edit_key_dialog_from_a_focused_field_and_changes_nothing(app, app_session, db):
+    page = app_session
+    key = new_key(db)
+    db.run("UPDATE api_keys SET label = 'plain', key_prefix = 'rk-plain' WHERE id = %s", key)
+    open_tab(page, "API keys")
+    rows(page).filter(has_text="rk-plain").get_by_role("button", name="Edit").click()
+    box = page.get_by_role("dialog")
+    label = box.get_by_label("Label", exact=True)
+    label.fill("typed, never saved")
+    label.focus()
+    page.keyboard.press("Escape")
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    assert db.one("SELECT label FROM api_keys WHERE id = %s", key)[0] == "plain"
+
+
+def test_the_key_prefix_copy_button_copies_the_prefix_only(app, app_session, db):
+    page = app_session
+    key = new_key(db)
+    db.run("UPDATE api_keys SET label = 'plain', key_prefix = 'rk-plain' WHERE id = %s", key)
+    open_tab(page, "API keys")
+    copy =rows(page).filter(has_text="rk-plain").get_by_role("button", name="Copy")
+    copy.click()
+    expect(rows(page).filter(has_text="rk-plain").get_by_role("button", name="Copied")).to_be_visible()
+    assert page.evaluate("navigator.clipboard.readText()") == "rk-plain"
+
+
 def test_a_key_label_with_markup_is_shown_as_text(app, app_session, db):
     page = app_session
     k = new_key(db)

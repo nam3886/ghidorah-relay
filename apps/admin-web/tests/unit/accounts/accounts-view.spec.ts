@@ -6,6 +6,7 @@ import type { Account } from "@/api/accounts";
 import { ApiError } from "@/api/client";
 import * as commands from "@/api/commands";
 import * as shell from "@/api/shell";
+import EditDialog from "@/components/accounts/EditDialog.vue";
 import { notify } from "@/lib/notify";
 import { useScopeStore } from "@/stores/scope";
 import { useUiStore } from "@/stores/ui";
@@ -181,6 +182,88 @@ describe("the enable switch", () => {
     await settle();
     expect(list).toHaveBeenCalledTimes(2);
     expect(notify.error).toHaveBeenCalledWith("account is busy");
+  });
+});
+
+describe("the row commands and the edit dialog", () => {
+  const done = (id: string) => ({ id, status: "done", result: null }) as unknown as commands.CommandStatus;
+  const command = (w: VueWrapper, name: string) =>
+    w.findAllComponents({ name: "ElDropdown" })[0]!.vm.$emit("command", name);
+  const inBody = (text: string) =>
+    [...document.body.querySelectorAll("button")].find((b) => b.textContent?.trim() === text)!;
+  const editOpen = (w: VueWrapper) => w.findComponent(EditDialog).props("modelValue");
+  const type = (label: string, value: string) => {
+    const el = document.body.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+    el.value = value;
+    el.dispatchEvent(new Event("input"));
+  };
+
+  it("Wake queues the wake command under the label that names the cooldown and the strikes", async () => {
+    vi.mocked(accounts.wakeAccount).mockResolvedValue({ command_id: "w1" });
+    vi.mocked(commands.getCommand).mockResolvedValue(done("w1"));
+    const w = await open();
+    command(w, "wake");
+    await settle();
+    expect(accounts.wakeAccount).toHaveBeenCalledExactlyOnceWith("a1");
+    expect(notify.info).toHaveBeenCalledWith("Wake: clear cooldown and strikes: queued");
+    expect(notify.success).toHaveBeenCalledWith("Wake: clear cooldown and strikes: done");
+  });
+
+  it("the Wake item says what it clears", async () => {
+    const w = await open();
+    await button(w, "More").trigger("click");
+    await settle();
+    const wake = [...document.body.querySelectorAll<HTMLElement>(".el-dropdown-menu__item")].find(
+      (i) => i.textContent?.trim() === "Wake",
+    );
+    expect(wake?.getAttribute("title")).toBe("Clear the cooldown and the strike count of this account");
+  });
+
+  it("Re-check proxy closes the dialog, queues the re-check, polls Proxy check and reads the list again", async () => {
+    vi.mocked(accounts.recheckProxy).mockResolvedValue({ command_id: "r1" });
+    vi.mocked(commands.getCommand).mockResolvedValue(done("r1"));
+    const w = await open();
+    command(w, "edit");
+    await settle();
+    expect(editOpen(w)).toBe(true);
+    inBody("Re-check proxy").click();
+    await settle();
+    expect(editOpen(w)).toBe(false);
+    expect(accounts.recheckProxy).toHaveBeenCalledExactlyOnceWith("a1");
+    expect(notify.info).toHaveBeenCalledWith("Proxy check: queued");
+    expect(commands.getCommand).toHaveBeenCalledWith("r1");
+    expect(notify.success).toHaveBeenCalledWith("Proxy check: done");
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
+  it("Save of a changed proxy polls the Proxy check the server queued, then reads the list", async () => {
+    vi.mocked(accounts.patchAccount).mockResolvedValue({ id: "a1", command_id: "p1" });
+    vi.mocked(commands.getCommand).mockResolvedValue(done("p1"));
+    const w = await open();
+    command(w, "edit");
+    await settle();
+    type("Proxy", "10.9.9.9:3128");
+    inBody("Save").click();
+    await settle();
+    expect(accounts.patchAccount).toHaveBeenCalledExactlyOnceWith("a1", { proxy: "10.9.9.9:3128" });
+    expect(notify.success).toHaveBeenCalledWith("Saved");
+    expect(commands.getCommand).toHaveBeenCalledWith("p1");
+    expect(notify.success).toHaveBeenCalledWith("Proxy check: done");
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(editOpen(w)).toBe(false);
+  });
+
+  it("Save of a label only polls nothing", async () => {
+    vi.mocked(accounts.patchAccount).mockResolvedValue({ id: "a1", command_id: null });
+    const w = await open();
+    command(w, "edit");
+    await settle();
+    type("Label", "renamed");
+    inBody("Save").click();
+    await settle();
+    expect(accounts.patchAccount).toHaveBeenCalledExactlyOnceWith("a1", { label: "renamed" });
+    expect(commands.getCommand).not.toHaveBeenCalled();
+    expect(list).toHaveBeenCalledTimes(2);
   });
 });
 
