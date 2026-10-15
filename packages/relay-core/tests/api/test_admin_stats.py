@@ -3,8 +3,10 @@
 import json
 import re
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
+import psycopg
 import pytest
 from accountkit import done_job
 from apikit import run_app
@@ -46,6 +48,35 @@ STALE_BEAT = "if beat_age > HEARTBEAT_STALE_S:"
 NO_STALE_BEAT = "if False:"
 FOREIGN_GROUP = "FROM accounts GROUP BY provider"
 LIKE_QUERY = "FROM accounts WHERE label LIKE 'x%' GROUP BY provider"
+DELIVERED = "count(*) FILTER (WHERE status = 'done') AS delivered"
+DELIVERED_FAILED = "count(*) FILTER (WHERE status = 'failed') AS delivered"
+FAILED = "count(*) FILTER (WHERE status = 'failed') AS failed"
+FAILED_DONE = "count(*) FILTER (WHERE status = 'done') AS failed"
+IN_PROGRESS = "count(*) FILTER (WHERE status NOT IN ('done', 'failed')) AS in_progress"
+IN_PROGRESS_NOT_QUEUED = "count(*) FILTER (WHERE status NOT IN ('queued', 'done', 'failed')) AS in_progress"
+HOURLY_PROVIDER = "AND (%(p)s::text IS NULL OR provider = %(p)s) GROUP BY 1)"
+HOURLY_ANY_PROVIDER = "GROUP BY 1)"
+BUCKET = "SELECT date_trunc('hour', created_at) AS hour"
+BUCKET_BY_FINISH = "SELECT date_trunc('hour', COALESCE(finished_at, created_at)) AS hour"
+BUCKET_SHIFTED = "SELECT date_trunc('hour', created_at + interval '1 ms') AS hour"
+SERIES_START = "date_trunc('hour', %(now)s::timestamptz) - interval '23 hours', "
+SERIES_25 = "date_trunc('hour', %(now)s::timestamptz) - interval '24 hours', "
+SERIES_23 = "date_trunc('hour', %(now)s::timestamptz) - interval '22 hours', "
+WINDOW_START = "FROM jobs WHERE created_at >= date_trunc('hour', %(now)s::timestamptz)"
+WINDOW_START_ROLLING = "FROM jobs WHERE created_at >= %(now)s::timestamptz"
+WINDOW_START_OPEN = "FROM jobs WHERE created_at > date_trunc('hour', %(now)s::timestamptz)"
+WINDOW_START_OPEN_ENDED = "FROM jobs WHERE created_at + interval '0' >= date_trunc('hour', %(now)s::timestamptz)"
+SERIES_END ="date_trunc('hour', %(now)s::timestamptz), "
+SERIES_END_PREVIOUS_HOUR = "date_trunc('hour', %(now)s::timestamptz) - interval '1 hour', "
+ANCHOR = 1_759_996_800_000                          # a UTC hour start (488888 whole hours since the epoch)
+NOW = ANCHOR + 20 * 60_000                          # the fixed instant the band's clock shows: 20 minutes in
+ZERO_FILL = "LEFT JOIN (SELECT date_trunc"
+NO_ZERO_FILL = "JOIN (SELECT date_trunc"
+ZERO_DELIVERED = "COALESCE(c.delivered, 0)"
+NULL_DELIVERED = "c.delivered"
+OLDEST_FIRST = 'ORDER BY h.hour")'
+NEWEST_FIRST = 'ORDER BY h.hour DESC")'
+HOUR_MS = 3_600_000
 
 
 def failed(db, k, kind="video"):
@@ -467,3 +498,118 @@ def test_failed_webhooks_count_the_last_24_hours_only(db):
     assert [a["message"] for a in one.json()["alerts"] if a["kind"] == "webhooks_failed"] == [
         "1 webhooks failed for good in 24 h"], "webhooks of the last 24 h"
     assert "webhooks_failed" not in kinds(none)
+
+
+# ---- the hourly band ------------------------------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def _fixed_band_clock(monkeypatch):
+    """The band reads its clock from `routes_stats._now`: every test here sees the same fixed instant."""
+    monkeypatch.setattr(routes_stats, "_now", lambda: datetime.fromtimestamp(NOW / 1000, UTC))
+
+
+def submitted_at(db, job, epoch_ms: int) -> None:
+    db.run("UPDATE jobs SET created_at = to_timestamp(%s::double precision / 1000) WHERE id = %s", epoch_ms, job)
+
+
+async def hourly(env, query: str = ""):
+    return await env.client.get("/admin/stats/hourly" + query, headers=await env.admin_headers())
+
+
+def counts(r, anchor: int) -> dict[int, tuple[int, int, int]]:
+    """The buckets that hold anything, keyed by how many hours before the current one they start."""
+    assert r.status_code == 200, r.text
+    return {(anchor - h["hour_ms"]) // HOUR_MS: (h["delivered"], h["failed"], h["in_progress"])
+            for h in r.json()["hours"] if h["delivered"] or h["failed"] or h["in_progress"]}
+
+
+@mutation(ROUTES, ZERO_FILL, NO_ZERO_FILL, expect="24 zero buckets")
+@mutation(ROUTES, ZERO_DELIVERED, NULL_DELIVERED, expect="24 zero buckets")
+@mutation(ROUTES, SERIES_START, SERIES_23, expect="24 zero buckets")
+@mutation(ROUTES, SERIES_START, SERIES_25, expect="24 zero buckets")
+@mutation(ROUTES, SERIES_END, SERIES_END_PREVIOUS_HOUR, expect="24 zero buckets")
+@mutation(ROUTES, OLDEST_FIRST, NEWEST_FIRST, expect="oldest first")
+def test_an_empty_database_gives_24_zero_buckets_one_per_utc_hour_oldest_first(db):
+    anchor = ANCHOR
+
+    async def scenario(env):
+        return await hourly(env)
+
+    body = run_app(db, scenario).json()
+    assert list(body) == ["hours"]
+    assert [h["hour_ms"] for h in body["hours"]] == [anchor - i * HOUR_MS for i in range(23, -1, -1)], (
+        "oldest first, 24 zero buckets")
+    assert all((h["delivered"], h["failed"], h["in_progress"]) == (0, 0, 0) for h in body["hours"]), (
+        "24 zero buckets")
+
+
+@mutation(ROUTES, WINDOW_START, WINDOW_START_OPEN_ENDED, expect="the band is served by jobs_created_at_idx")
+def test_the_band_query_is_served_by_the_created_at_index(db):
+    """EXPLAIN with the sequential scan switched off (the table is nearly empty): the plan must name the index."""
+    with db.connect() as conn:
+        conn.execute("SET enable_seqscan = off")
+        plan = "\n".join(r[0] for r in psycopg.ClientCursor(conn).execute(
+            "EXPLAIN " + routes_stats._HOURLY, {"p": None, "now": datetime.fromtimestamp(NOW / 1000, UTC)}))
+    print("\nHOURLY PLAN\n" + plan)
+    assert "jobs_created_at_idx" in plan and "Index Cond: (created_at >=" in plan, (
+        "the band is served by jobs_created_at_idx:\n" + plan)
+
+
+@mutation(ROUTES, DELIVERED, DELIVERED_FAILED, expect="outcome split")
+@mutation(ROUTES, FAILED, FAILED_DONE, expect="outcome split")
+@mutation(ROUTES, IN_PROGRESS, IN_PROGRESS_NOT_QUEUED, expect="queued counts as in progress")
+def test_a_bucket_splits_its_jobs_by_outcome_and_counts_queued_as_in_progress(db):
+    k = key(db)
+    anchor = ANCHOR
+    jobs = [done_job(db, k, ref="a"), done_job(db, k, ref="b"), failed(db, k), db.job(k, provider="fake"),
+            db.job(k, provider="fake")]
+    db.run("UPDATE jobs SET status = 'waiting', external_ref = 'r', next_poll_at = now() WHERE id = %s", jobs[4])
+    for job in jobs:
+        submitted_at(db, job, anchor - 2 * HOUR_MS + 5000)
+
+    async def scenario(env):
+        return await hourly(env)
+
+    assert counts(run_app(db, scenario), anchor) == {2: (2, 1, 2)}, "outcome split; queued counts as in progress"
+
+
+@mutation(ROUTES, HOURLY_PROVIDER, HOURLY_ANY_PROVIDER, expect="provider filter")
+def test_the_provider_filter_keeps_only_that_providers_jobs(db):
+    k = key(db)
+    anchor = ANCHOR
+    mine, other = done_job(db, k, ref="a"), db.job(k, provider="other")
+    for job in (mine, other):
+        submitted_at(db, job, anchor + 1000)
+
+    async def scenario(env):
+        return (await hourly(env, "?provider=fake"), await hourly(env, "?provider=other"),
+                await hourly(env, "?provider=nobody"), await hourly(env))
+
+    fake, theirs, nobody, everyone = run_app(db, scenario)
+    assert counts(fake, anchor) == {0: (1, 0, 0)}, "provider filter"
+    assert counts(theirs, anchor) == {0: (0, 0, 1)}, "provider filter"
+    assert counts(nobody, anchor) == {}, "provider filter"
+    assert counts(everyone, anchor) == {0: (1, 0, 1)}, "provider filter"
+
+
+@mutation(ROUTES, BUCKET, BUCKET_SHIFTED, expect="hour boundary")
+@mutation(ROUTES, WINDOW_START, WINDOW_START_OPEN, expect="window start is inclusive")
+@mutation(ROUTES, WINDOW_START, WINDOW_START_ROLLING, expect="window start is inclusive")
+@mutation(ROUTES, BUCKET, BUCKET_BY_FINISH, expect="bucketed by created_at")
+def test_rows_sit_in_the_hour_they_were_created_and_the_window_is_the_last_24_whole_hours(db):
+    k = key(db)
+    anchor = ANCHOR
+    # fixed epochs: the last ms of an hour and the first ms of the next, the window's first ms and the ms before it,
+    # 23 h and 24 h before the clock's instant, and a job from 30 hours ago
+    for epoch in (anchor - 1, anchor, anchor - 23 * HOUR_MS, anchor - 23 * HOUR_MS - 1, anchor - 30 * HOUR_MS,
+                  NOW - 23 * HOUR_MS, NOW - 24 * HOUR_MS):
+        submitted_at(db, db.job(k, provider="fake"), epoch)
+    early = done_job(db, k, ref="early")             # created 5 h ago, finished just now: counts where it was created
+    submitted_at(db, early, anchor - 5 * HOUR_MS + 1234)
+
+    async def scenario(env):
+        return await hourly(env)
+
+    got = run_app(db, scenario)
+    assert counts(got, anchor) == {1: (0, 0, 1), 0: (0, 0, 1), 23: (0, 0, 2), 5: (1, 0, 0)}, (
+        "hour boundary; window start is inclusive; bucketed by created_at; 24 whole hours, nothing older")
+    assert len(got.json()["hours"]) == 24

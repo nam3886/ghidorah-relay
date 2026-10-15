@@ -6,6 +6,7 @@ clamps, unclear replies) come from the alerts routes, not from here.
 """
 
 import shutil
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -109,6 +110,38 @@ async def _drift(conn, config: Settings, registry: ProviderRegistry) -> list[dic
                 text = "%s: %d of %d jobs in 24 h show %s" % (provider, hits, total, " or ".join(codes))
                 alerts.append(_alert("drift", "warning", text, provider))
     return alerts
+
+
+def _now() -> datetime:
+    """The band's clock: one value bound into both parts of the query; tests replace it with a fixed instant."""
+    return datetime.now(UTC)
+
+
+# The last 24 UTC hours, current one last, each zero-filled. Every series buckets by created_at (the hour a job was
+# submitted), split by its current outcome, so one index range scan on jobs_created_at_idx serves it. The session
+# timezone is UTC (db/pool.py), so date_trunc cuts at UTC hour starts.
+_HOURLY = (
+    "SELECT (extract(epoch FROM h.hour) * 1000)::bigint, COALESCE(c.delivered, 0), COALESCE(c.failed, 0), "
+    "COALESCE(c.in_progress, 0) "
+    "FROM generate_series(date_trunc('hour', %(now)s::timestamptz) - interval '23 hours', "
+    "date_trunc('hour', %(now)s::timestamptz), "
+    "interval '1 hour') AS h(hour) "
+    "LEFT JOIN (SELECT date_trunc('hour', created_at) AS hour, "
+    "count(*) FILTER (WHERE status = 'done') AS delivered, "
+    "count(*) FILTER (WHERE status = 'failed') AS failed, "
+    "count(*) FILTER (WHERE status NOT IN ('done', 'failed')) AS in_progress "
+    "FROM jobs WHERE created_at >= date_trunc('hour', %(now)s::timestamptz) - interval '23 hours' "
+    "AND (%(p)s::text IS NULL OR provider = %(p)s) GROUP BY 1) c ON c.hour = h.hour "
+    "ORDER BY h.hour")
+
+
+@router.get("/stats/hourly")
+async def stats_hourly(provider: str | None = None, pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
+    """Jobs submitted in each of the last 24 UTC hours, oldest first, split by their current outcome."""
+    async with tx(pool) as conn:
+        rows = await (await conn.execute(_HOURLY, {"p": provider, "now": _now()})).fetchall()
+    return {"hours": [{"hour_ms": hour, "delivered": delivered, "failed": failed, "in_progress": in_progress}
+                      for hour, delivered, failed, in_progress in rows]}
 
 
 @router.get("/stats")

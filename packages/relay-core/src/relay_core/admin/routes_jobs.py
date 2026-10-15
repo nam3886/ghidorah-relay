@@ -39,11 +39,16 @@ TITLE_LIMIT = 200
 RECHECKABLE = ("failed", "waiting", "unknown")
 TERMINAL = ("done", "failed")
 MAX_BULK = 100
+MAX_OFFSET = 1_000_000                               # a deeper page is a scan nobody reads; use the cursor
 DEBUG_READ_MAX = 8 * 1024 * 1024
 _RASTER = ("image/png", "image/jpeg", "image/webp", "image/gif")
 _FILTERS = ("(%(status)s::text IS NULL OR j.status = %(status)s) AND (%(provider)s::text IS NULL OR "
             "j.provider = %(provider)s) AND (%(key)s::uuid IS NULL OR j.key_id = %(key)s)")
-_LIST = (
+# The created_at window is added only when a bound is given, so the planner always sees a plain range on
+# jobs_created_at_idx (a nullable `IS NULL OR` branch would stop a generic plan from using it).
+_FROM = " AND j.created_at >= %(from)s"
+_TO = " AND j.created_at < %(to)s"
+_LIST_HEAD = (
     "SELECT j.id, j.provider, j.key_id, k.label, j.operation, j.media_type, j.model, j.title, j.status, "
     "j.error_code, j.price, j.account_id, a.label, j.external_ref, j.created_at, j.finished_at, "
     "(SELECT count(*) FROM job_media m WHERE m.job_id = j.id AND m.role = 'output'), "
@@ -52,10 +57,16 @@ _LIST = (
     " WHERE l.job_id = j.id AND l.entry IN ('charge', 'refund')), "
     "EXISTS (SELECT 1 FROM jsonb_array_elements(j.warnings) w WHERE w->>'code' ~ '\\.model_substituted$') "
     "FROM jobs j LEFT JOIN api_keys k ON k.id = j.key_id LEFT JOIN accounts a ON a.id = j.account_id WHERE "
-    + _FILTERS +
+    + _FILTERS)
+_LIST_TAIL = (
     " AND (%(at)s::timestamptz IS NULL OR (j.created_at, j.id) < (%(at)s::timestamptz, %(cid)s::uuid)) "
     "ORDER BY j.created_at DESC, j.id DESC LIMIT %(limit)s OFFSET %(offset)s")
 _COUNT = "SELECT count(*) FROM jobs j WHERE " + _FILTERS
+
+
+def _window_sql(window: dict[str, datetime | None]) -> str:
+    """The predicates of the bounds that are set: one of four fixed texts, every value bound by the driver."""
+    return (_FROM if window["from"] is not None else "") + (_TO if window["to"] is not None else "")
 _DETAIL = (
     "SELECT j.id, j.provider, j.key_id, k.label, j.operation, j.media_type, j.model, j.title, j.status, "
     "j.error_code, j.price, j.account_id, a.label, j.external_ref, j.created_at, j.finished_at, j.prompt, j.marker, "
@@ -107,23 +118,42 @@ def _cursor(text: str) -> tuple[datetime, uuid.UUID]:
         raise ApiError("input.invalid", "cursor") from None
 
 
+def _window_bound(value: int | None, param: str) -> datetime | None:
+    if value is None:
+        return None
+    try:
+        if value < 0:
+            raise OverflowError
+        return _EPOCH + timedelta(milliseconds=value)
+    except OverflowError:
+        raise ApiError("input.invalid", param) from None
+
+
 @router.get("/jobs")
 async def list_jobs(status: str | None = None, provider: str | None = None, key_id: uuid.UUID | None = None,
                     limit: int = 50, cursor: str | None = None, offset: int | None = None,
+                    created_from_ms: int | None = None, created_to_ms: int | None = None,
                     pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
     """Newest first. `next_cursor` is None on the last page; pass it back as `cursor` for the next one. `offset`
-    (>= 0) pages by position instead and cannot be combined with `cursor`. `total` counts the jobs that match the
+    (>= 0) pages by position instead and cannot be combined with `cursor`. `created_from_ms` (inclusive) and
+    `created_to_ms` (exclusive) bound `created_at`, epoch ms, from < to. `total` counts the jobs that match the
     same filters, read in the same transaction as the page."""
     if not 1 <= limit <= MAX_PAGE:
         raise ApiError("input.invalid", "limit")
-    if offset is not None and (offset < 0 or cursor):
+    if offset is not None and (not 0 <= offset <= MAX_OFFSET or cursor is not None):
         raise ApiError("input.invalid", "offset")
-    at, cid = _cursor(cursor) if cursor else (None, None)
-    args = {"status": status, "provider": provider, "key": key_id}
+    window = {"from": _window_bound(created_from_ms, "created_from_ms"),
+              "to": _window_bound(created_to_ms, "created_to_ms")}
+    if window["from"] is not None and window["to"] is not None and window["from"] >= window["to"]:
+        raise ApiError("input.invalid", "created_to_ms")
+    at, cid = _cursor(cursor) if cursor is not None else (None, None)
+    bounds = _window_sql(window)
+    given = {k: v for k, v in window.items() if v is not None}
+    args = {"status": status, "provider": provider, "key": key_id, **given}
     async with tx(pool) as conn:
-        rows = await (await conn.execute(_LIST, {**args, "at": at, "cid": cid, "limit": limit + 1,
-                                                 "offset": offset or 0})).fetchall()
-        total = (await (await conn.execute(_COUNT, args)).fetchone())[0]
+        rows = await (await conn.execute(_LIST_HEAD + bounds + _LIST_TAIL, {
+            **args, "at": at, "cid": cid, "limit": limit + 1, "offset": offset or 0})).fetchall()
+        total = (await (await conn.execute(_COUNT + bounds, args)).fetchone())[0]
     page = rows[:limit]
     more = len(rows) > limit
     return {"items": [{**_summary(r[:16]), "outputs": r[16], "inputs": r[17], "net_charged": r[18],

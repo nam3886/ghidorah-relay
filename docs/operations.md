@@ -413,8 +413,8 @@ token sent as the `X-Admin-Session` header (no cookie).
   is refused 401 and its body is never read; a body over the cap is 413 `input.invalid`. Caps: 1 MiB, except
   `POST /admin/accounts/import` (200 items of at most 200 000 characters each, about 40 MB). Unknown fields in a body
   are 400. Password hashing runs at most 2 at a time.
-- Routes: accounts (list, import, edit, screenshot), keys, jobs (list with a cursor or an `offset` (not both; `total` = jobs matching the filters), detail, rename, debug, recheck,
-  regenerate, media proxies), settings (read, write, reset; `BILLING_TZ`, `PUBLIC_BASE_URL` and `TRUSTED_PROXIES` are
+- Routes: accounts (list, import, edit, screenshot), keys, jobs (list with a cursor or an `offset` (0 to 1 000 000, else 400 `input.invalid`; not both, an empty `cursor=` counts as given; `total` = jobs matching the filters; `created_from_ms` inclusive and `created_to_ms` exclusive bound `created_at`, from < to, applied to the page and `total`), detail, rename, debug, recheck,
+  regenerate, media proxies), stats (`GET /admin/stats` the cards; `GET /admin/stats/hourly?provider=` the last 24 UTC hours, zero-filled, oldest first, each `{hour_ms, delivered, failed, in_progress}` counting jobs by the hour they were submitted), settings (read, write, reset; `BILLING_TZ`, `PUBLIC_BASE_URL` and `TRUSTED_PROXIES` are
   listed read-only because they are boot-time env), alerts (list, acknowledge), `GET /admin/models`. Times are epoch
   milliseconds (`*_ms`).
 - **Account actions are commands.** Delete, wake, check, proxy re-check, Check all, catalog refresh, job recover and

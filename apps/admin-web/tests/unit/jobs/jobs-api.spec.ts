@@ -55,6 +55,27 @@ describe("list", () => {
     expect(q.has("cursor")).toBe(false);
   });
 
+  it("sends the created_at window as epoch ms, and nothing when it is not set", async () => {
+    await listJobs({
+      status: "",
+      provider: "",
+      keyId: "",
+      offset: 20,
+      limit: 20,
+      createdFromMs: 1_700_000_000_000,
+      createdToMs: 1_700_003_600_000,
+    });
+    expect(Object.fromEntries(urlOf(0).searchParams)).toEqual({
+      limit: "20",
+      offset: "20",
+      created_from_ms: "1700000000000",
+      created_to_ms: "1700003600000",
+    });
+    await listJobs({ status: "", provider: "", keyId: "", offset: 0, limit: 20 });
+    expect(urlOf(1).searchParams.has("created_from_ms")).toBe(false);
+    expect(urlOf(1).searchParams.has("created_to_ms")).toBe(false);
+  });
+
   it("the status filter offers submitting beside the others", () => {
     expect([...JOB_STATUSES]).toEqual(["queued", "submitting", "waiting", "fetching", "unknown", "done", "failed"]);
   });
