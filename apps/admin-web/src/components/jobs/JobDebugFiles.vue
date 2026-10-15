@@ -25,10 +25,10 @@ const open = (idx: number) =>
 </script>
 
 <template>
-  <p v-if="!props.job.debug_files.length" class="debug-none">None</p>
+  <el-empty v-if="!props.job.debug_files.length" class="debug-none" description="None" :image-size="40" />
   <div v-else>
     <div class="debug-buttons">
-      <el-button v-for="d in props.job.debug_files" :key="d.idx" size="small" :disabled="busy" @click="open(d.idx)"
+      <el-button v-for="d in props.job.debug_files" :key="d.idx" :disabled="busy" @click="open(d.idx)"
         >File {{ d.idx }} ({{ d.mime }})</el-button
       >
     </div>
@@ -38,9 +38,7 @@ const open = (idx: number) =>
 
 <style scoped>
 .debug-none {
-  margin: 0;
-  color: var(--rl-muted);
-  font-size: 12px;
+  padding: 0;
 }
 .debug-buttons {
   display: flex;

@@ -35,6 +35,11 @@ def confirm(page, name: str) -> None:
     page.locator(".el-message-box").get_by_role("button", name=name, exact=True).click()
 
 
+def confirm_inline(page, name: str) -> None:
+    """Answer the el-popconfirm that is open (Revoke or No)."""
+    page.locator(".el-popconfirm").get_by_role("button", name=name, exact=True).click()
+
+
 def choose(page, which: int, option: str) -> None:
     """Pick an option of the n-th filter select (0 status, 1 key)."""
     page.locator(".jobs__filter").nth(which).click()
@@ -150,24 +155,48 @@ def test_a_stats_link_opens_jobs_already_filtered(app, app_page, live, db):
 def test_the_list_pages_forward_and_back_without_a_repeat(app, app_page, live, db):
     page = app_page
     k = new_key(db)
-    for _ in range(52):
+    for _ in range(25):
         db.job(k, provider="fake")
     app.sign_in(page)
-    expect(rows(page)).to_have_count(50)
+    expect(rows(page)).to_have_count(10)          # 10 a page by default
+    expect(page.locator(".pager .el-pagination__total")).to_contain_text("25")
     first_page = rows(page).all_inner_texts()
-    nxt, prev = page.get_by_role("button", name="Next", exact=True), page.get_by_role("button", name="Prev", exact=True)
+    nxt, prev = page.locator(".pager button.btn-next"), page.locator(".pager button.btn-prev")
     expect(prev).to_be_disabled()
     nxt.click()
-    expect(rows(page)).to_have_count(2)
-    expect(nxt).to_be_disabled()
+    expect(rows(page)).to_have_count(10)
     second_page = rows(page).all_inner_texts()
     assert not set(second_page) & set(first_page), "no job on both pages"
+    page.locator(".pager li.number", has_text="3").click()      # jump to the last page
+    expect(rows(page)).to_have_count(5)
+    expect(nxt).to_be_disabled()
+    third_page = rows(page).all_inner_texts()
+    assert not set(third_page) & (set(first_page) | set(second_page)), "no job on two pages"
     prev.click()
-    expect(rows(page)).to_have_count(50)
-    assert rows(page).all_inner_texts() == first_page, "the first page comes back as it was"
-    nxt.click()
-    expect(rows(page)).to_have_count(2)
-    assert rows(page).all_inner_texts() == second_page, "and so does the second"
+    expect(rows(page)).to_have_count(10)
+    assert rows(page).all_inner_texts() == second_page, "the second page comes back as it was"
+    page.locator(".pager li.number", has_text="1").click()
+    expect(rows(page)).to_have_count(10)
+    assert rows(page).all_inner_texts() == first_page, "and so does the first"
+
+
+def test_a_bigger_page_size_shows_more_rows_and_keeps_the_ticks_across_a_reload(app, app_page, live, db):
+    page = app_page
+    k = new_key(db)
+    for _ in range(25):
+        db.job(k, provider="fake")
+    app.sign_in(page)
+    expect(rows(page)).to_have_count(10)
+    page.locator(".pager .el-select").click()
+    page.get_by_role("option", name="20/page").click()
+    expect(rows(page)).to_have_count(20)
+    tick(page, 0)
+    tick(page, 3)
+    expect(page.locator(".jobs__count")).to_have_text("2 selected")
+    page.get_by_role("button", name="Refresh").click()
+    expect(rows(page)).to_have_count(20)
+    expect(page.locator(".jobs__count")).to_have_text("2 selected")
+    expect(rows(page).nth(3).locator(".el-checkbox")).to_have_class(re.compile("is-checked"))
 
 
 # ---- bulk actions ------------------------------------------------------------------------------------------------
@@ -184,10 +213,10 @@ def test_select_all_counts_and_the_bulk_buttons_wait_for_a_tick_then_recheck_rep
     expect(recheck).to_be_disabled()
     expect(regenerate).to_be_disabled()
     expect(page.locator(".jobs__count")).to_have_text("0 selected")
-    page.locator(".jobs__bulk label.el-checkbox").click()
+    page.locator("thead label.el-checkbox").click()
     expect(page.locator(".jobs__count")).to_have_text("3 selected")
     expect(recheck).to_be_enabled()
-    page.locator(".jobs__bulk label.el-checkbox").click()
+    page.locator("thead label.el-checkbox").click()
     expect(page.locator(".jobs__count")).to_have_text("0 selected")
     tick(page, 0)
     tick(page, 1)
@@ -322,7 +351,7 @@ def test_the_detail_shows_every_section_copies_the_prompt_and_renames(app, app_p
     app.sign_in(page)
     open_row(page, job)
     dialog = page.locator(".el-dialog")
-    for section in ("conclusion", "title", "prompt", "actions", "results", "references", "debug", "timeline",
+    for section in ("conclusion", "summary", "title", "prompt", "actions", "results", "references", "debug", "timeline",
                     "technical"):
         expect(dialog.locator("[data-section=%s]" % section)).to_be_visible()
     expect(dialog.locator("[data-section=conclusion]")).to_contain_text("render.deadline: too slow")
@@ -364,11 +393,11 @@ def test_detail_recheck_resend_and_revoke_each_toast_and_change_the_job(app, app
     dialog.get_by_role("button", name="Re-check", exact=True).click()
     expect(page.get_by_text("Re-checked")).to_be_visible()
     dialog.get_by_role("button", name="Revoke share links").click()
-    expect(page.locator(".el-message-box")).to_contain_text("Every share link of this job stops working")
-    page.locator(".el-message-box").get_by_role("button", name="Cancel").click()
+    expect(page.locator(".el-popconfirm")).to_contain_text("Every share link of this job stops working")
+    confirm_inline(page, "No")
     assert db.one("SELECT count(*) FROM job_media WHERE job_id = %s AND share_token IS NOT NULL", job)[0] == 1
     dialog.get_by_role("button", name="Revoke share links").click()
-    confirm(page, "Revoke")
+    confirm_inline(page, "Revoke")
     expect(page.get_by_text("Revoked 1 link(s)")).to_be_visible()
     assert db.one("SELECT count(*) FROM job_media WHERE job_id = %s AND share_token IS NOT NULL", job)[0] == 0
     expect(dialog.get_by_role("button", name="Revoke share links")).to_have_count(0)
@@ -486,7 +515,7 @@ def test_results_show_from_share_links_download_and_open_through_the_proxy_once_
     assert page.evaluate("window.__debug_ran", isolated_context=False) is None, "a debug page never runs"
     assert dialog.locator("[data-section=debug] b").count() == 0
     dialog.get_by_role("button", name="Revoke share links").click()
-    confirm(page, "Revoke")
+    confirm_inline(page, "Revoke")
     expect(page.get_by_text("Revoked 1 link(s)")).to_be_visible()
     expect(dialog.locator("[data-section=results] img")).to_have_count(0)
     expect(dialog.locator("[data-section=results]")).to_contain_text("no preview")
@@ -494,6 +523,73 @@ def test_results_show_from_share_links_download_and_open_through_the_proxy_once_
         dialog.locator("[data-section=results]").get_by_role("button", name="Open").click()
     assert proxied.value.status == 200
     assert proxied.value.headers["content-type"].startswith("image/png")
+
+
+def test_a_click_on_a_result_image_opens_the_viewer_and_escape_closes_it(app, app_page, live, db):
+    page = app_page
+    k = new_key(db)
+    job = done_job(db, k, new_account(db, label="acct", checked=True))
+    out_key = db.one("SELECT object_key FROM job_media WHERE job_id = %s", job)[0]
+    db.run("UPDATE job_media SET mime = 'image/png', share_token = %s WHERE job_id = %s",
+           storage.new_share_token(), job)
+    live.call(live.env.store.put_bytes(out_key, PNG, "image/png"))
+    app.sign_in(page)
+    open_row(page, job)
+    image = page.locator(".el-dialog [data-section=results] img")
+    expect(image).to_be_visible()
+    image.click()
+    viewer = page.locator(".el-image-viewer__wrapper")
+    expect(viewer).to_be_visible()
+    expect(viewer.locator("img.el-image-viewer__img")).to_have_attribute("src", re.compile(r"^/m/"))
+    page.keyboard.press("Escape")
+    expect(viewer).to_have_count(0)
+    expect(page.locator(".el-dialog")).to_be_visible()
+
+
+def test_the_timeline_lists_the_newest_event_first(app, app_page, live, db):
+    page = app_page
+    k = new_key(db)
+    job = done_job(db, k, new_account(db, label="acct", checked=True))
+    db.run("INSERT INTO job_events (job_id, source, stage, text, at) "
+           "VALUES (%s, 'engine', 'submitted', 'the early one', now() - interval '2 hours')", job)
+    db.run("INSERT INTO job_events (job_id, source, stage, text, at) "
+           "VALUES (%s, 'engine', 'failed', 'the late one', now() - interval '1 hour')", job)
+    app.sign_in(page)
+    open_row(page, job)
+    items = page.locator(".el-dialog [data-section=timeline] .el-timeline-item")
+    expect(items.first).to_contain_text("the late one")
+    expect(items.last).to_contain_text("the early one")
+
+
+def test_a_key_with_no_label_is_named_by_its_prefix_in_the_key_filter(app, app_page, live, db):
+    page = app_page
+    named, nameless = new_key(db), new_key(db)
+    db.run("UPDATE api_keys SET label = 'named-key' WHERE id = %s", named)
+    db.run("UPDATE api_keys SET label = '' WHERE id = %s", nameless)
+    prefix = db.one("SELECT key_prefix FROM api_keys WHERE id = %s", nameless)[0]
+    done_job(db, named, ref="a")
+    app.sign_in(page)
+    page.locator(".jobs__filter").nth(1).click()
+    for name in ("All keys", "named-key", prefix):
+        expect(page.get_by_role("option", name=name, exact=True)).to_be_visible()
+    options = page.get_by_role("option")
+    assert all(t.strip() for t in options.all_inner_texts()), "no option is blank: %r" % options.all_inner_texts()
+
+
+@pytest.mark.parametrize("width", [375, 768, 1280])
+def test_the_list_and_the_detail_fit_the_screen_at_phone_tablet_and_desktop_widths(app, app_page, live, db, width):
+    page = app_page
+    page.set_viewport_size({"width": width, "height": 800})
+    k = new_key(db)
+    job = done_job(db, k, new_account(db, label="acct", checked=True), prompt="a cat")
+    app.sign_in(page)
+    expect(rows(page)).to_have_count(1)
+    fits = page.evaluate("(e => e.scrollWidth <= e.clientWidth + 1)(document.querySelector('.jobs'))")
+    assert fits, "the list scrolls inside its own container, not the page section"
+    open_row(page, job)
+    box = page.locator(".el-dialog").bounding_box()
+    assert box["x"] >= 0 and box["x"] + box["width"] <= width + 1, box
+    expect(page.locator(".el-dialog [data-section=technical] .el-descriptions")).to_be_visible()
 
 
 # ---- server text is text -----------------------------------------------------------------------------------------

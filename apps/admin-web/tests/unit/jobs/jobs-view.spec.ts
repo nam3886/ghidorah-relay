@@ -8,6 +8,7 @@ import type { JobPage, JobSummary } from "@/api/jobs";
 import { announceJobChange } from "@/components/jobs/job-changes";
 import { rememberedStatus } from "@/components/jobs/job-filters";
 import RegenerateControl from "@/components/jobs/RegenerateControl.vue";
+import ListPager from "@/components/shared/ListPager.vue";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { RETRY_SAFE_TEXT } from "@/lib/errors";
 import { notify } from "@/lib/notify";
@@ -68,9 +69,19 @@ const job = (id: string, over: Partial<JobSummary> = {}): JobSummary => ({
   model_substituted: false,
   ...over,
 });
-const page = (ids: string[], next: string | null = null): JobPage => ({
+// A page of the list: `total` is every job the filters match (the ids on the page when not given).
+const page = (ids: string[], total: number = ids.length): JobPage => ({
   items: ids.map((id) => job(id)),
-  next_cursor: next,
+  total,
+  next_cursor: null,
+});
+const query = (over: Partial<api.JobListQuery> = {}): api.JobListQuery => ({
+  status: "",
+  provider: "",
+  keyId: "",
+  offset: 0,
+  limit: 10,
+  ...over,
 });
 const A = "aaaaaaaa-1111";
 const B = "bbbbbbbb-2222";
@@ -111,17 +122,22 @@ async function open(url = "/jobs") {
 
 const rows = (w: VueWrapper) => w.findAll("tbody tr");
 const rowTick = (w: VueWrapper, i: number) => rows(w)[i]!.find("input[type=checkbox]");
-const selectAll = (w: VueWrapper) => w.find(".jobs__bulk input[type=checkbox]");
+const selectAll = (w: VueWrapper) => w.find("thead input[type=checkbox]");
+// The header box ticks every row through a deferred table call, so the count is waited for.
+async function tickAll(w: VueWrapper, on: boolean, shown: string): Promise<void> {
+  await selectAll(w).setValue(on);
+  await vi.waitFor(() => expect(w.find(".jobs__count").text()).toBe(shown));
+}
 const button = (w: VueWrapper, text: string) => w.findAll("button").find((b) => b.text() === text)!;
 const count = (w: VueWrapper) => w.find(".jobs__count").text();
 const selects = (w: VueWrapper) => w.findAllComponents({ name: "ElSelect" });
 const lastQuery = () => listJobs.mock.lastCall![0];
 
 describe("the list", () => {
-  it("loads the first page with no filter and no cursor", async () => {
+  it("loads the first 10 jobs with no filter", async () => {
     await open();
     expect(listJobs).toHaveBeenCalledTimes(1);
-    expect(listJobs).toHaveBeenCalledWith({ status: "", provider: "", keyId: "", cursor: null });
+    expect(listJobs).toHaveBeenCalledWith(query());
   });
 
   it("shows the 13 columns of the old table", async () => {
@@ -150,6 +166,7 @@ describe("the list", () => {
         job(A, { title: null, model_substituted: true }),
         job(B, { status: "failed", error_code: "render.deadline", price: 10, net_charged: 0 }),
       ],
+      total: 2,
       next_cursor: null,
     });
     const { w } = await open();
@@ -170,6 +187,7 @@ describe("the list", () => {
   it("a refund chip is neutral, the status chip keeps its own tone, and the error code is plain muted text", async () => {
     listJobs.mockResolvedValue({
       items: [job(B, { status: "failed", error_code: "render.deadline", price: 10, net_charged: 0 })],
+      total: 1,
       next_cursor: null,
     });
     const { w } = await open();
@@ -189,11 +207,21 @@ describe("the list", () => {
   });
 
   it("the bar has the step of the status", async () => {
-    listJobs.mockResolvedValue({ items: [job(A, { status: "fetching" })], next_cursor: null });
+    listJobs.mockResolvedValue({ items: [job(A, { status: "fetching" })], total: 1, next_cursor: null });
     const { w } = await open();
     const bar = w.find("[role=progressbar]");
-    expect(bar.attributes("aria-valuenow")).toBe("3");
-    expect(w.find(".bar__fill").attributes("style")).toContain("width: 75%");
+    expect(bar.attributes("aria-valuenow")).toBe("75");
+    expect(bar.attributes("aria-label")).toBe("Progress: fetching");
+    expect(w.find(".el-progress-bar__inner").attributes("style")).toContain("width: 75%");
+    expect(bar.classes()).not.toContain("is-success");
+  });
+
+  it("the bar is green when done and red when failed", async () => {
+    listJobs.mockResolvedValue({ items: [job(A), job(B, { status: "failed" })], total: 2, next_cursor: null });
+    const { w } = await open();
+    const bars = w.findAll("[role=progressbar]");
+    expect(bars[0]!.classes()).toContain("is-success");
+    expect(bars[1]!.classes()).toContain("is-exception");
   });
 
   it("shows a failed load with Retry, and Retry asks again", async () => {
@@ -242,14 +270,14 @@ describe("filters", () => {
     const { w } = await open();
     selects(w)[0]!.vm.$emit("update:modelValue", "submitting");
     await flushPromises();
-    expect(lastQuery()).toEqual({ status: "submitting", provider: "", keyId: "", cursor: null });
+    expect(lastQuery()).toEqual(query({ status: "submitting" }));
   });
 
   it("the key filter sends the key id", async () => {
     const { w } = await open();
     selects(w)[1]!.vm.$emit("update:modelValue", "k1");
     await flushPromises();
-    expect(lastQuery()).toEqual({ status: "", provider: "", keyId: "k1", cursor: null });
+    expect(lastQuery()).toEqual(query({ keyId: "k1" }));
   });
 
   it("shows All statuses and All keys, not the placeholder, while nothing is filtered", async () => {
@@ -264,22 +292,46 @@ describe("filters", () => {
     selects(w)[0]!.vm.$emit("update:modelValue", "failed");
     selects(w)[1]!.vm.$emit("update:modelValue", "k1");
     await flushPromises();
-    expect(lastQuery()).toEqual({ status: "failed", provider: "", keyId: "k1", cursor: null });
+    expect(lastQuery()).toEqual(query({ status: "failed", keyId: "k1" }));
     expect(selects(w)[0]!.find(".el-select__placeholder").text()).toBe("failed");
     expect(selects(w)[1]!.find(".el-select__placeholder").text()).toBe("key-one");
     selects(w)[0]!.vm.$emit("update:modelValue", "__all__");
     selects(w)[1]!.vm.$emit("update:modelValue", "__all__");
     await flushPromises();
-    expect(lastQuery()).toEqual({ status: "", provider: "", keyId: "", cursor: null });
+    expect(lastQuery()).toEqual(query());
     expect(selects(w)[0]!.find(".el-select__placeholder").text()).toBe("All statuses");
     expect(selects(w)[1]!.find(".el-select__placeholder").text()).toBe("All keys");
+  });
+
+  it("every key option is readable: its label, else its prefix, else the start of its id", async () => {
+    vi.mocked(api.listKeyOptions).mockResolvedValue({
+      items: [
+        { id: "k1", label: "key-one", prefix: "rk_aaaa" },
+        { id: "k2", label: "", prefix: "rk_bbbb" },
+        { id: "k3", label: "  ", prefix: "" },
+        { id: "cccccccc-9999", label: "" },
+      ],
+    });
+    const { w } = await open();
+    const options = selects(w)[1]!.findAllComponents({ name: "ElOption" });
+    expect(options.map((o) => o.props("label"))).toEqual(["All keys", "key-one", "rk_bbbb", "k3", "cccccccc"]);
+  });
+
+  it("a job whose key has no label shows the start of the key id in the Key column", async () => {
+    listJobs.mockResolvedValue({
+      items: [job(A, { key_label: "", key_id: "kkkkkkkk-1234" })],
+      total: 1,
+      next_cursor: null,
+    });
+    const { w } = await open();
+    expect(rows(w)[0]!.text()).toContain("kkkkkkkk");
   });
 
   it("a provider scope change reloads with the provider", async () => {
     await open();
     useScopeStore().provider = "vibes";
     await flushPromises();
-    expect(lastQuery()).toEqual({ status: "", provider: "vibes", keyId: "", cursor: null });
+    expect(lastQuery()).toEqual(query({ provider: "vibes" }));
   });
 
   it("the status filter is kept in memory for the next visit", async () => {
@@ -290,7 +342,7 @@ describe("filters", () => {
     mounted.pop();
     listJobs.mockClear();
     await open();
-    expect(listJobs).toHaveBeenCalledWith({ status: "done", provider: "", keyId: "", cursor: null });
+    expect(listJobs).toHaveBeenCalledWith(query({ status: "done" }));
   });
 
   it("a stats link (?status=failed) sets the filter before the first load", async () => {
@@ -311,63 +363,105 @@ describe("filters", () => {
 });
 
 describe("paging", () => {
-  it("Next asks for the cursor the server gave, and Prev goes back to the page it left", async () => {
-    listJobs.mockResolvedValueOnce(page([A], "c-2")).mockResolvedValueOnce(page([B], "c-3"));
+  const pager = (w: VueWrapper) => w.findComponent(ListPager);
+
+  it("hands the pager the total, the offset and the page size in offset mode, with the sizes 10, 20, 50 and 100", async () => {
+    listJobs.mockResolvedValue(page([A], 25));
     const { w } = await open();
-    const nav = () => w.findAll("nav button");
-    expect(w.text()).toContain("Page 1");
-    expect(nav()[0]!.attributes("disabled")).toBeDefined();
-    await nav()[1]!.trigger("click");
+    expect(pager(w).props()).toMatchObject({
+      mode: "offset",
+      total: 25,
+      offset: 0,
+      limit: 10,
+      sizes: [10, 20, 50, 100],
+    });
+  });
+
+  it("a picked page asks for its offset, and the pager follows the page that arrived", async () => {
+    listJobs.mockResolvedValueOnce(page([A], 25)).mockResolvedValueOnce(page([B], 25));
+    const { w } = await open();
+    pager(w).vm.$emit("move", 10);
     await flushPromises();
-    expect(lastQuery().cursor).toBe("c-2");
-    expect(w.text()).toContain("Page 2");
+    expect(lastQuery()).toEqual(query({ offset: 10 }));
+    expect(pager(w).props("offset")).toBe(10);
     expect(rows(w)[0]!.text()).toContain("bbbbbbbb");
-    listJobs.mockResolvedValueOnce(page([A], "c-2"));
-    await nav()[0]!.trigger("click");
-    await flushPromises();
-    expect(lastQuery().cursor).toBeNull();
-    expect(w.text()).toContain("Page 1");
-    expect(rows(w)[0]!.text()).toContain("aaaaaaaa");
   });
 
-  it("Next is off on the last page", async () => {
+  it("the next button of the pager goes to the following page", async () => {
+    listJobs.mockResolvedValue(page([A], 25));
     const { w } = await open();
-    expect(w.findAll("nav button")[1]!.attributes("disabled")).toBeDefined();
+    await w.find(".pager button.btn-next").trigger("click");
+    await flushPromises();
+    expect(lastQuery()).toEqual(query({ offset: 10 }));
   });
 
-  it("a filter change starts again from page 1", async () => {
-    listJobs.mockResolvedValueOnce(page([A], "c-2")).mockResolvedValueOnce(page([B]));
+  it("a new page size starts again from the first page, with the new limit", async () => {
+    listJobs.mockResolvedValue(page([A], 95));
     const { w } = await open();
-    await w.findAll("nav button")[1]!.trigger("click");
+    pager(w).vm.$emit("move", 20);
     await flushPromises();
-    expect(w.text()).toContain("Page 2");
-    listJobs.mockResolvedValueOnce(page([A]));
+    pager(w).vm.$emit("size", 50);
+    await flushPromises();
+    expect(lastQuery()).toEqual(query({ offset: 0, limit: 50 }));
+    expect(pager(w).props("limit")).toBe(50);
+  });
+
+  it("a filter change starts again from the first page", async () => {
+    listJobs.mockResolvedValue(page([A], 25));
+    const { w } = await open();
+    pager(w).vm.$emit("move", 20);
+    await flushPromises();
+    expect(pager(w).props("offset")).toBe(20);
     selects(w)[0]!.vm.$emit("update:modelValue", "failed");
     await flushPromises();
-    expect(lastQuery()).toEqual({ status: "failed", provider: "", keyId: "", cursor: null });
-    expect(w.text()).toContain("Page 1");
+    expect(lastQuery()).toEqual(query({ status: "failed" }));
+    expect(pager(w).props("offset")).toBe(0);
   });
 
-  it("a filter change whose load fails still forgets the cursors of the old filter", async () => {
-    listJobs.mockResolvedValueOnce(page([A], "c-2")).mockResolvedValueOnce(page([B], "c-3"));
+  it("a filter change whose load fails still starts from the first page when it is read again", async () => {
+    listJobs.mockResolvedValue(page([A], 25));
     const { w } = await open();
-    await w.findAll("nav button")[1]!.trigger("click");
+    pager(w).vm.$emit("move", 20);
     await flushPromises();
-    expect(w.text()).toContain("Page 2");
     listJobs.mockRejectedValueOnce(new ApiError(500, { error: { code: "x", message: "boom" } }));
     selects(w)[0]!.vm.$emit("update:modelValue", "failed");
     await flushPromises();
-    expect(w.text()).toContain("Page 1");
-    expect(w.findAll("nav button")[1]!.attributes("disabled")).toBeDefined();
+    await button(w, "Retry").trigger("click");
+    await flushPromises();
+    expect(lastQuery()).toEqual(query({ status: "failed" }));
   });
 
-  it("a failed page move leaves the cursor where it was", async () => {
-    listJobs.mockResolvedValueOnce(page([A], "c-2"));
+  it("a reload (Refresh, a bulk action) stays on the page on screen", async () => {
+    listJobs.mockResolvedValue(page([A], 25));
+    const { w } = await open();
+    pager(w).vm.$emit("move", 10);
+    await flushPromises();
+    await button(w, "Refresh").trigger("click");
+    await flushPromises();
+    expect(lastQuery()).toEqual(query({ offset: 10 }));
+  });
+
+  it("a list that shrank under the page on screen ends up on its last page (the pager moves itself)", async () => {
+    listJobs.mockResolvedValueOnce(page([A], 25)).mockResolvedValueOnce(page([B], 25));
+    const { w } = await open();
+    pager(w).vm.$emit("move", 20);
+    await flushPromises();
+    listJobs.mockReset();
+    listJobs.mockResolvedValueOnce(page([], 12)).mockResolvedValueOnce(page([C], 12));
+    await button(w, "Refresh").trigger("click");
+    await flushPromises();
+    expect(listJobs.mock.calls.map((c) => c[0].offset)).toEqual([20, 10]);
+    expect(pager(w).props("offset")).toBe(10);
+    expect(rows(w)[0]!.text()).toContain("cccccccc");
+  });
+
+  it("a failed page move leaves the pager where it was", async () => {
+    listJobs.mockResolvedValue(page([A], 25));
     const { w } = await open();
     listJobs.mockRejectedValueOnce(new ApiError(500, { error: { code: "x", message: "boom" } }));
-    await w.findAll("nav button")[1]!.trigger("click");
+    pager(w).vm.$emit("move", 10);
     await flushPromises();
-    expect(w.text()).toContain("Page 1");
+    expect(pager(w).props("offset")).toBe(0);
   });
 });
 
@@ -393,25 +487,23 @@ describe("selection", () => {
     expect((rowTick(w, 0)!.element as HTMLInputElement).checked).toBe(false);
     expect((rowTick(w, 2)!.element as HTMLInputElement).checked).toBe(false);
     expect(rows(w)[1]!.find(".el-checkbox").classes()).toContain("is-checked");
-    expect(w.find(".jobs__bulk .is-indeterminate").exists()).toBe(true);
+    expect(w.find("thead .is-indeterminate").exists()).toBe(true);
   });
 
   it("select all ticks the page and again clears it", async () => {
     const { w } = await open();
-    await selectAll(w).setValue(true);
-    expect(count(w)).toBe("3 selected");
+    await tickAll(w, true, "3 selected");
     expect((rowTick(w, 2)!.element as HTMLInputElement).checked).toBe(true);
-    await selectAll(w).setValue(false);
-    expect(count(w)).toBe("0 selected");
+    await tickAll(w, false, "0 selected");
   });
 
   it("select all is half-ticked for a part of the page and full when every row is ticked", async () => {
     const { w } = await open();
     await rowTick(w, 0)!.setValue(true);
-    expect(w.find(".jobs__bulk .is-indeterminate").exists()).toBe(true);
+    expect(w.find("thead .is-indeterminate").exists()).toBe(true);
     await rowTick(w, 1)!.setValue(true);
     await rowTick(w, 2)!.setValue(true);
-    expect(w.find(".jobs__bulk .is-indeterminate").exists()).toBe(false);
+    expect(w.find("thead .is-indeterminate").exists()).toBe(false);
     expect((selectAll(w).element as HTMLInputElement).checked).toBe(true);
   });
 
@@ -423,24 +515,35 @@ describe("selection", () => {
     await rows(w)[1]!.findAll("td")[2]!.trigger("click");
     expect(ui.openJobId).toBe(B);
     ui.closeJob();
-    await rows(w)[2]!
-      .findAll("button")
-      .find((b) => b.text() === "Details")!
-      .trigger("click");
+    await rows(w)[2]!.find("button[aria-label=Details]").trigger("click");
     expect(ui.openJobId).toBe(C);
   });
 
   it("a new page starts with nothing ticked", async () => {
-    listJobs.mockResolvedValueOnce(page([A], "c-2")).mockResolvedValueOnce(page([B]));
+    listJobs.mockResolvedValueOnce(page([A], 25)).mockResolvedValueOnce(page([B], 25));
     const { w } = await open();
     await rowTick(w, 0)!.setValue(true);
-    await w.findAll("nav button")[1]!.trigger("click");
+    w.findComponent(ListPager).vm.$emit("move", 10);
     await flushPromises();
     expect(count(w)).toBe("0 selected");
-    listJobs.mockResolvedValueOnce(page([A], "c-2"));
-    await w.findAll("nav button")[0]!.trigger("click");
+    listJobs.mockResolvedValueOnce(page([A], 25));
+    w.findComponent(ListPager).vm.$emit("move", 0);
     await flushPromises();
     expect(count(w)).toBe("0 selected");
+  });
+
+  it("the ticks come back on the table after an error hid it and Retry drew it again", async () => {
+    const { w } = await open();
+    await rowTick(w, 0)!.setValue(true);
+    listJobs.mockRejectedValueOnce(new ApiError(500, { error: { code: "x", message: "boom" } }));
+    await button(w, "Refresh").trigger("click");
+    await flushPromises();
+    expect(rows(w)).toHaveLength(0);
+    await button(w, "Retry").trigger("click");
+    await flushPromises();
+    await flushPromises();
+    expect(count(w)).toBe("1 selected");
+    expect((rowTick(w, 0)!.element as HTMLInputElement).checked).toBe(true);
   });
 
   it("a reload of the same page keeps the ticks that are still on it", async () => {
@@ -471,7 +574,7 @@ describe("bulk re-check", () => {
   it("jobs left alone turn the toast to info", async () => {
     bulkRecheck.mockResolvedValue({ rechecked: [A], skipped: { [B]: "job.no_recheck" } });
     const { w } = await open();
-    await selectAll(w).setValue(true);
+    await tickAll(w, true, "3 selected");
     await button(w, "Re-check selected").trigger("click");
     await flushPromises();
     expect(notify.info).toHaveBeenCalledWith("Re-checked 1, left 1 alone");
@@ -499,7 +602,7 @@ describe("bulk regenerate", () => {
 
   it("asks first, naming the count, today's price and the charge", async () => {
     const { w } = await open();
-    await selectAll(w).setValue(true);
+    await tickAll(w, true, "3 selected");
     vi.mocked(confirmDialog).mockResolvedValueOnce(false);
     await button(w, "Regenerate selected").trigger("click");
     await flushPromises();
@@ -571,6 +674,7 @@ describe("server text", () => {
     const planted = '<img src=x onerror="window.__pwned=1">';
     listJobs.mockResolvedValue({
       items: [job(A, { title: planted, key_label: planted, account_label: planted, error_code: planted })],
+      total: 1,
       next_cursor: null,
     });
     const { w } = await open();

@@ -1,6 +1,42 @@
 import type { BulkRecheckResult, BulkRegenerateResult, JobSummary } from "@/api/jobs";
 
+import type { JobEvent } from "@/api/jobs-detail";
+import { toneOf, type Tone } from "@/components/shared/status-tones";
+
 export const shortId = (id: string): string => id.slice(0, 8);
+
+// What a key shows in a select or a cell: its label, else its prefix, else the first 8 characters of its id, so no
+// option is ever blank.
+export function keyName(key: { id: string; label?: string | null; prefix?: string | null }): string {
+  return key.label?.trim() || key.prefix?.trim() || shortId(key.id);
+}
+
+// Element Plus type of a tone, for el-alert (success, warning, error, info) and el-timeline-item (success, warning,
+// danger, primary, info).
+export const alertType = (tone: Tone): "success" | "warning" | "error" | "info" =>
+  tone === "ok" ? "success" : tone === "bad" ? "error" : tone === "warn" || tone === "info" ? "warning" : "info";
+
+// A recovered job is good news; otherwise the stage word (failed, completed...) sets the colour and an unknown stage
+// falls back to its source.
+export function eventTone(e: Pick<JobEvent, "source" | "stage">): Tone {
+  if (e.stage === "recovered") return "ok";
+  const byStage = toneOf(e.stage);
+  return byStage === "neutral" ? toneOf(e.source) : byStage;
+}
+export const timelineType = (tone: Tone): "success" | "warning" | "danger" | "primary" | "info" =>
+  tone === "ok"
+    ? "success"
+    : tone === "bad"
+      ? "danger"
+      : tone === "warn"
+        ? "warning"
+        : tone === "info"
+          ? "primary"
+          : "info";
+
+// Newest first; events with no time sort last, and equal times by id, the later one first.
+export const newestFirst = (events: readonly JobEvent[]): JobEvent[] =>
+  [...events].sort((a, b) => (b.at_ms ?? -Infinity) - (a.at_ms ?? -Infinity) || b.id - a.id);
 
 // The four-step bar of the list: queued 1, waiting and unknown 2, fetching 3, done and failed 4 (a status the bar does
 // not know, such as `submitting`, sits at 2).

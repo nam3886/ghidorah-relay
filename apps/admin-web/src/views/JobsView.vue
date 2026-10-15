@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef, watch } from "vue";
+import { View } from "@element-plus/icons-vue";
+import { computed, nextTick, onMounted, ref, shallowRef, watch } from "vue";
 import { useRoute } from "vue-router";
 import {
   bulkRecheck,
@@ -10,14 +11,15 @@ import {
   listJobs,
   listKeyOptions,
 } from "@/api/jobs";
-import { createCursorStack } from "@/components/jobs/cursor-stack";
+import { PAGE_SIZE, PAGE_SIZES } from "@/components/jobs/paging";
 import { ALL, fromSelect, rememberedStatus, toSelect } from "@/components/jobs/job-filters";
 import { jobChanges } from "@/components/jobs/job-changes";
-import { isRefunded, progressStep, recheckToast, regenerateToast, shortId } from "@/components/jobs/job-text";
+import { isRefunded, keyName, progressStep, recheckToast, regenerateToast, shortId } from "@/components/jobs/job-text";
 import RegenerateControl from "@/components/jobs/RegenerateControl.vue";
-import { pickedIds, setPage, toggled } from "@/components/jobs/selection";
-import CursorPager from "@/components/shared/CursorPager.vue";
+import { pickedIds } from "@/components/jobs/selection";
 import DataTable from "@/components/shared/DataTable.vue";
+import IconAction from "@/components/shared/IconAction.vue";
+import ListPager from "@/components/shared/ListPager.vue";
 import ListToolbar from "@/components/shared/ListToolbar.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import type { Tone } from "@/components/shared/status-tones";
@@ -31,14 +33,13 @@ import { bulkAction } from "@/lib/operation-key";
 import { useScopeStore } from "@/stores/scope";
 import { useUiStore } from "@/stores/ui";
 
-// Newest first, 50 a page by keyset. The provider scope, the status filter (kept in memory) and the key filter all
+// Newest first, 10 a page by offset with the server's total. The provider scope, the status filter (kept in memory) and the key filter all
 // restart the paging. A job opens in the shared detail dialog through ui.openJob.
 const route = useRoute();
 const scope = useScopeStore();
 const ui = useUiStore();
 
 const columns: Column[] = [
-  { key: "select", label: "", width: 44, align: "center" },
   { key: "progress", label: "Progress", width: 90 },
   { key: "title", label: "Title", minWidth: 120 },
   { key: "job", label: "Job", width: 100 },
@@ -56,8 +57,9 @@ const items = shallowRef<JobSummary[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const updatedAt = ref<number | null>(null);
-const stack = createCursorStack();
-const { page, hasNext } = stack;
+const offset = ref(0);
+const limit = ref(PAGE_SIZE);
+const total = ref(0);
 const latest = useLatest();
 
 const status = rememberedStatus;
@@ -65,11 +67,35 @@ const keyId = ref("");
 const keys = ref<KeyOption[]>([]);
 const statusOptions = [ALL, ...JOB_STATUSES];
 
-// The ticked jobs. Always read through pickedIds: only what is on the page is acted on.
+// The ticked jobs. The table's selection column reports them (@selection-change); `picked` is the copy that outlives
+// a reload, and the table is told to tick it again (setSelection). Always read through pickedIds: only what is on
+// the page is acted on.
 const picked = ref<Set<string>>(new Set());
 const ids = computed(() => pickedIds(items.value, picked.value));
-const allOnPage = computed(() => items.value.length > 0 && ids.value.length === items.value.length);
-const someOnPage = computed(() => ids.value.length > 0 && !allOnPage.value);
+const table = ref<{ setSelection: (ids: string[]) => void } | null>(null);
+
+// While `picked` is being put back on the table, the table's own reports (it clears its ticks when its rows are
+// replaced, and says so a moment later) are stale: `picked` is the truth then.
+let restoring = false;
+const onSelection = (rows: JobSummary[]): void => {
+  if (restoring) return;
+  picked.value = new Set(rows.map((r) => r.id));
+};
+// Ticks `picked` on the table again once its rows are drawn (a reload, a failed bulk call, an error that hid it).
+const RESTORE_SETTLE_MS = 50;
+const reTick = (): Promise<void> => {
+  // nothing ticked: the table's stale reports say the same, and a tick made right after a load must count
+  if (!picked.value.size) return Promise.resolve();
+  restoring = true;
+  return nextTick(() => {
+    table.value?.setSelection([...picked.value]);
+    setTimeout(() => (restoring = false), RESTORE_SETTLE_MS);
+  });
+};
+const clearPicked = (): void => {
+  picked.value = new Set();
+  void nextTick(() => table.value?.setSelection([]));
+};
 
 // The stats cells link to /jobs?status=done|failed; a key id may come the same way.
 function applyQuery(): void {
@@ -78,8 +104,10 @@ function applyQuery(): void {
   if (typeof route.query.key_id === "string") keyId.value = route.query.key_id;
 }
 
-// Loads page `at` (0-based). Only the newest answer counts; a failed page move leaves the cursor where it was.
-async function load(at: number = stack.index.value): Promise<void> {
+// Loads the page that starts at `at` (the one on screen by default, so a reload after a bulk action stays on it). Only
+// the newest answer counts; a failed page move leaves the pager where it was. A list that shrank under the page on
+// screen comes back empty, and the pager (el-pagination) then moves itself to its last page.
+async function load(at: number = offset.value): Promise<void> {
   const ticket = latest.next();
   loading.value = true;
   try {
@@ -87,14 +115,17 @@ async function load(at: number = stack.index.value): Promise<void> {
       status: status.value,
       provider: scope.provider,
       keyId: keyId.value,
-      cursor: stack.cursorAt(at),
+      offset: at,
+      limit: limit.value,
     });
     if (!latest.isCurrent(ticket)) return;
     items.value = out.items;
-    stack.arrive(at, out.next_cursor);
+    total.value = out.total;
+    offset.value = at;
     // Only the ticks of jobs still on screen survive: another page starts with nothing ticked, a reload of this
     // page keeps its ticks.
     picked.value = new Set(pickedIds(out.items, picked.value));
+    void reTick();
     error.value = null;
     updatedAt.value = Date.now();
   } catch (err) {
@@ -104,9 +135,16 @@ async function load(at: number = stack.index.value): Promise<void> {
   }
 }
 
+// A new page size starts again from the first page.
+function onSize(size: number): void {
+  limit.value = size;
+  picked.value = new Set();
+  void load(0);
+}
+
 applyQuery();
 watch([status, keyId, () => scope.provider], () => {
-  stack.reset();
+  offset.value = 0;
   picked.value = new Set();
   void load(0);
 });
@@ -121,10 +159,6 @@ onMounted(() => {
   );
 });
 
-const tick = (id: string, on: boolean): void => {
-  picked.value = toggled(picked.value, id, on);
-};
-
 const { busy: rechecking, run } = useBusy();
 const recheck = () =>
   run(async () => {
@@ -134,7 +168,7 @@ const recheck = () =>
       return;
     }
     const out = await bulkRecheck(sent);
-    picked.value = new Set();
+    clearPicked();
     await load();
     const toast = recheckToast(out);
     notify[toast.type](toast.text);
@@ -144,7 +178,7 @@ const recheck = () =>
 // selection is a different action with its own key.
 async function regenerate(): Promise<void> {
   const out = await bulkRegenerate(ids.value);
-  picked.value = new Set();
+  clearPicked();
   await load();
   const toast = regenerateToast(out);
   notify[toast.type](toast.text);
@@ -159,7 +193,9 @@ const regenerateConfirm = computed(() => ({
 
 const rowTone = (job: JobSummary): Tone | undefined =>
   job.status === "failed" ? "bad" : job.status === "unknown" ? "warn" : undefined;
-const barTone = (s: string): string => (s === "failed" ? "bad" : s === "done" ? "ok" : "info");
+// el-progress colours: green when done, red when failed, the default blue while it runs.
+const barStatus = (s: string): "success" | "exception" | undefined =>
+  s === "failed" ? "exception" : s === "done" ? "success" : undefined;
 </script>
 
 <template>
@@ -180,19 +216,12 @@ const barTone = (s: string): string => (s === "failed" ? "bad" : s === "done" ? 
         @update:model-value="(v: string) => (keyId = fromSelect(v))"
       >
         <el-option label="All keys" :value="ALL" />
-        <el-option v-for="k in keys" :key="k.id" :label="k.label" :value="k.id" />
+        <el-option v-for="k in keys" :key="k.id" :label="keyName(k)" :value="k.id" />
       </el-select>
     </ListToolbar>
 
     <div class="jobs__bulk">
-      <el-checkbox
-        :model-value="allOnPage"
-        :indeterminate="someOnPage"
-        :disabled="!items.length"
-        @change="(on) => (picked = setPage(items, Boolean(on)))"
-        >Select all</el-checkbox
-      >
-      <span class="jobs__count">{{ ids.length }} selected</span>
+      <el-text class="jobs__count" type="info">{{ ids.length }} selected</el-text>
       <el-button :disabled="!ids.length || rechecking" :loading="rechecking" @click="recheck"
         >Re-check selected</el-button
       >
@@ -206,46 +235,37 @@ const barTone = (s: string): string => (s === "failed" ? "bad" : s === "done" ? 
     </div>
 
     <DataTable
+      ref="table"
       :columns="columns"
       :rows="items"
       :loading="loading"
       :error="error"
       empty-text="No jobs"
       row-clickable
+      selectable
       :actions-width="96"
       :row-tone="rowTone"
       @retry="load()"
       @row-click="(job) => ui.openJob(job.id)"
+      @selection-change="onSelection"
     >
-      <template #cell-select="{ row }">
-        <el-checkbox
-          :model-value="picked.has(row.id)"
-          :aria-label="`Select job ${shortId(row.id)}`"
-          @change="(on) => tick(row.id, Boolean(on))"
-        />
-      </template>
       <template #cell-progress="{ row }">
-        <div
-          class="bar"
-          role="progressbar"
-          aria-valuemin="0"
-          aria-valuemax="4"
-          :aria-valuenow="progressStep(row.status)"
+        <el-progress
+          :percentage="progressStep(row.status) * 25"
+          :status="barStatus(row.status)"
+          :show-text="false"
+          :stroke-width="6"
           :aria-label="`Progress: ${row.status}`"
-        >
-          <div
-            class="bar__fill"
-            :class="`bar__fill--${barTone(row.status)}`"
-            :style="{ width: `${progressStep(row.status) * 25}%` }"
-          />
-        </div>
+        />
       </template>
       <template #cell-title="{ row }">
         <div class="title" :title="row.title ?? ''">{{ row.title || "(untitled)" }}</div>
       </template>
       <template #cell-job="{ row }">
         <span class="mono">{{ shortId(row.id) }}</span>
-        <div class="muted">{{ row.provider }}</div>
+        <div>
+          <el-text size="small" type="info">{{ row.provider }}</el-text>
+        </div>
       </template>
       <template #cell-operation="{ row }">
         {{ row.operation }} · {{ row.model }}
@@ -259,13 +279,22 @@ const barTone = (s: string): string => (s === "failed" ? "bad" : s === "done" ? 
         </div>
         <div v-if="row.error_code" class="error-code">{{ row.error_code }}</div>
       </template>
+      <template #cell-key_label="{ row }">{{ row.key_label || shortId(row.key_id) }}</template>
       <template #cell-created="{ row }">{{ fmtTime(row.created_ms) }}</template>
       <template #actions="{ row }">
-        <el-button size="small" @click="ui.openJob(row.id)">Details</el-button>
+        <IconAction :icon="View" label="Details" @click="ui.openJob(row.id)" />
       </template>
     </DataTable>
 
-    <CursorPager :page="page" :has-next="hasNext" @prev="load(stack.prevIndex())" @next="load(stack.nextIndex())" />
+    <ListPager
+      mode="offset"
+      :offset="offset"
+      :limit="limit"
+      :total="total"
+      :sizes="PAGE_SIZES"
+      @move="(o: number) => load(o)"
+      @size="onSize"
+    />
   </section>
 </template>
 
@@ -281,28 +310,7 @@ const barTone = (s: string): string => (s === "failed" ? "bad" : s === "done" ? 
   margin-bottom: 12px;
 }
 .jobs__count {
-  color: var(--rl-muted);
-  font-size: 12px;
   font-variant-numeric: tabular-nums;
-}
-.bar {
-  width: 5rem;
-  height: 6px;
-  background: var(--rl-line);
-  border-radius: 3px;
-}
-.bar__fill {
-  height: 6px;
-  border-radius: 3px;
-}
-.bar__fill--ok {
-  background: var(--rl-ok);
-}
-.bar__fill--bad {
-  background: var(--rl-bad);
-}
-.bar__fill--info {
-  background: var(--rl-info);
 }
 .title {
   max-width: 260px;
@@ -312,10 +320,6 @@ const barTone = (s: string): string => (s === "failed" ? "bad" : s === "done" ? 
 }
 .mono {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 12px;
-}
-.muted {
-  color: var(--rl-muted);
   font-size: 12px;
 }
 .chips {

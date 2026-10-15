@@ -2,8 +2,6 @@
 import { request } from "@/api/client";
 import { bulkAction, regenerateCall } from "@/lib/operation-key";
 
-export const JOBS_PAGE = 50;
-
 // The statuses the filter offers. `submitting` exists server-side and is open work like the others.
 export const JOB_STATUSES = ["queued", "submitting", "waiting", "fetching", "unknown", "done", "failed"] as const;
 
@@ -34,6 +32,8 @@ export interface JobSummary {
 
 export interface JobPage {
   items: JobSummary[];
+  // every job the filters match, not only this page
+  total: number;
   next_cursor: string | null;
 }
 
@@ -41,21 +41,23 @@ export interface JobListQuery {
   status: string;
   provider: string;
   keyId: string;
-  cursor: string | null;
+  offset: number;
+  limit: number;
 }
 
-// Empty filters are dropped by the client's query builder.
+// Newest first. Empty filters are dropped by the client's query builder.
 export const listJobs = (q: JobListQuery): Promise<JobPage> =>
   request("/jobs", {
-    query: { limit: JOBS_PAGE, status: q.status, provider: q.provider, key_id: q.keyId, cursor: q.cursor },
+    query: { limit: q.limit, offset: q.offset, status: q.status, provider: q.provider, key_id: q.keyId },
   });
 
 export interface KeyOption {
   id: string;
   label: string;
+  prefix?: string;
 }
 
-// The key filter's options. Only id and label are read.
+// The key filter's options. Only id, label and prefix are read (a key with no label is named by its prefix).
 export const listKeyOptions = (): Promise<{ items: KeyOption[] }> => request("/keys");
 
 export interface BulkRecheckResult {

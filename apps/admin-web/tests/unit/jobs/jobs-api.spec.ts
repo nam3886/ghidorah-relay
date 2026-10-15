@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { bulkRecheck, bulkRegenerate, JOB_STATUSES, JOBS_PAGE, listJobs, listKeyOptions } from "@/api/jobs";
+import { bulkRecheck, bulkRegenerate, JOB_STATUSES, listJobs, listKeyOptions } from "@/api/jobs";
 import {
   fetchDebug,
   fetchDownload,
@@ -36,23 +36,23 @@ beforeEach(() => {
 });
 
 describe("list", () => {
-  it("asks for 50 jobs and drops every empty filter", async () => {
-    await listJobs({ status: "", provider: "", keyId: "", cursor: null });
-    expect(JOBS_PAGE).toBe(50);
+  it("sends the page size and offset and drops every empty filter", async () => {
+    await listJobs({ status: "", provider: "", keyId: "", offset: 0, limit: 10 });
     expect(urlOf(0).pathname).toBe("/admin/jobs");
-    expect(urlOf(0).search).toBe("?limit=50");
+    expect(urlOf(0).search).toBe("?limit=10&offset=0");
   });
 
-  it("sends the status, provider, key and cursor that are set", async () => {
-    await listJobs({ status: "submitting", provider: "dola", keyId: "k-1", cursor: "17.abc" });
+  it("sends the status, provider and key that are set, with the offset and never a cursor", async () => {
+    await listJobs({ status: "submitting", provider: "dola", keyId: "k-1", offset: 30, limit: 20 });
     const q = urlOf(0).searchParams;
     expect(Object.fromEntries(q)).toEqual({
-      limit: "50",
+      limit: "20",
+      offset: "30",
       status: "submitting",
       provider: "dola",
       key_id: "k-1",
-      cursor: "17.abc",
     });
+    expect(q.has("cursor")).toBe(false);
   });
 
   it("the status filter offers submitting beside the others", () => {

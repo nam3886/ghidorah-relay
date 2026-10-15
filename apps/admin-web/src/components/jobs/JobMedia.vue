@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { Download, TopRight } from "@element-plus/icons-vue";
 import { computed } from "vue";
 import { fetchDownload, fetchMediaBlob, type JobDetail, type JobMediaItem } from "@/api/jobs-detail";
 import { openBlob, saveBlob } from "@/components/jobs/blob-actions";
 import { shortId } from "@/components/jobs/job-text";
+import IconAction from "@/components/shared/IconAction.vue";
 import { useBusy } from "@/composables/use-busy";
 import { safeMediaUrl } from "@/lib/safe-media-url";
 
@@ -30,36 +32,49 @@ const shown = computed<Shown[]>(() =>
   }),
 );
 
+// Only same-origin links reach `src`, so the viewer never loads anything else.
+const previews = computed(() => shown.value.filter((s) => s.kind === "image").map((s) => s.src!));
+
 const download = (idx: number) =>
   run(async () => saveBlob(await fetchDownload(props.job.id, idx), `job-${shortId(props.job.id)}-${idx}`));
 const open = (idx: number) => run(async () => openBlob(await fetchMediaBlob(props.job.id, props.role, idx)));
 </script>
 
 <template>
-  <p v-if="!shown.length" class="media-none">None</p>
+  <el-empty v-if="!shown.length" class="media-none" description="None" :image-size="40" />
   <div v-else class="media-list">
     <figure v-for="s in shown" :key="s.item.idx" class="media-item" :data-idx="s.item.idx">
-      <img v-if="s.kind === 'image'" class="media-item__view" :src="s.src!" alt="" />
-      <video v-else-if="s.kind === 'video'" class="media-item__view" :src="s.src!" controls preload="metadata" />
-      <span v-else class="media-item__none">no preview</span>
-      <figcaption class="media-item__meta">{{ s.meta }}</figcaption>
+      <!-- a same-origin /m/ image: a thumbnail, and a click opens the viewer over every image of this list -->
+      <el-image
+        v-if="s.kind === 'image'"
+        class="media-item__view"
+        :src="s.src!"
+        :preview-src-list="previews"
+        :initial-index="previews.indexOf(s.src!)"
+        fit="cover"
+        preview-teleported
+        hide-on-click-modal
+      />
+      <video v-else-if="s.kind === 'video'" class="media-item__video" :src="s.src!" controls preload="metadata" />
+      <el-text v-else size="small" type="info">no preview</el-text>
+      <el-text size="small" type="info">{{ s.meta }}</el-text>
       <div class="media-item__actions">
-        <el-button v-if="!s.kind" size="small" :disabled="busy" @click="open(s.item.idx)">Open</el-button>
-        <el-button v-if="props.role === 'output'" size="small" :disabled="busy" @click="download(s.item.idx)"
-          >Download</el-button
-        >
+        <IconAction v-if="!s.kind" :icon="TopRight" label="Open" :disabled="busy" @click="open(s.item.idx)" />
+        <IconAction
+          v-if="props.role === 'output'"
+          :icon="Download"
+          label="Download"
+          :disabled="busy"
+          @click="download(s.item.idx)"
+        />
       </div>
     </figure>
   </div>
 </template>
 
 <style scoped>
-.media-none,
-.media-item__none,
-.media-item__meta {
-  margin: 0;
-  color: var(--rl-muted);
-  font-size: 12px;
+.media-none {
+  padding: 0;
 }
 .media-list {
   display: flex;
@@ -73,6 +88,13 @@ const open = (idx: number) => run(async () => openBlob(await fetchMediaBlob(prop
   margin: 0;
 }
 .media-item__view {
+  width: 10rem;
+  height: 8rem;
+  max-width: 100%;
+  border: 1px solid var(--rl-line);
+  border-radius: var(--el-border-radius-base, 6px);
+}
+.media-item__video {
   max-height: 12rem;
   max-width: 100%;
   border: 1px solid var(--rl-line);

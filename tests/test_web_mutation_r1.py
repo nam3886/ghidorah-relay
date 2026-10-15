@@ -1,4 +1,4 @@
-"""Mutation markers of the Jobs views (cursor stack, selection, bulk actions, regenerate controls, media safety, the
+"""Mutation markers of the Jobs views (offset paging, selection, bulk actions, regenerate controls, media safety, the
 job detail's actions): each breaks one rule in the TypeScript source and demands that its Vitest spec turns red on the
 exact test that guards the rule (scripts/mutate.py runs these, no rebuild). An `expect` is the failed-test line the
 runner prints: `FAILED <spec> > <describe> > <test title>`."""
@@ -9,7 +9,7 @@ from webunit import vitest
 from relay_core.testing.mutation import mutation
 
 SRC = "apps/admin-web/src"
-STACK = f"{SRC}/components/jobs/cursor-stack.ts"
+PAGING = f"{SRC}/components/jobs/paging.ts"
 PICK = f"{SRC}/components/jobs/selection.ts"
 TEXT = f"{SRC}/components/jobs/job-text.ts"
 KEPT = f"{SRC}/components/jobs/kept-key.ts"
@@ -23,7 +23,7 @@ FILTERS = f"{SRC}/components/jobs/job-filters.ts"
 API = f"{SRC}/api/jobs.ts"
 DETAIL_API = f"{SRC}/api/jobs-detail.ts"
 
-STACK_SPEC = "tests/unit/jobs/cursor-stack.spec.ts"
+PAGING_SPEC = "tests/unit/jobs/paging.spec.ts"
 PICK_SPEC = "tests/unit/jobs/selection.spec.ts"
 TEXT_SPEC = "tests/unit/jobs/job-text.spec.ts"
 API_SPEC = "tests/unit/jobs/jobs-api.spec.ts"
@@ -33,7 +33,7 @@ VIEW_SPEC = "tests/unit/jobs/jobs-view.spec.ts"
 DETAIL_SPEC = "tests/unit/jobs/job-detail.spec.ts"
 
 # the start of every failed-test line, by spec (the describe and the title follow)
-FS = "FAILED " + STACK_SPEC + " > "
+FG = "FAILED " + PAGING_SPEC + " > "
 FP = "FAILED " + PICK_SPEC + " > "
 FT = "FAILED " + TEXT_SPEC + " > "
 FA = "FAILED " + API_SPEC + " > "
@@ -43,32 +43,22 @@ FV = "FAILED " + VIEW_SPEC + " > "
 FD = "FAILED " + DETAIL_SPEC + " > "
 
 
-# ---- the keyset pager's cursor stack-----------------------------------------------------------------------------
-SAME = FS + "cursor stack > forward and back give the same pages, asking for the same cursors"
-CUT = FS + "cursor stack > a reload of an earlier page cuts the pages after it and takes its new cursor"
-NEXT_KEPT = FS + "cursor stack > remembers where the next page starts once a page arrives with a cursor"
-
-
-@mutation(STACK, "cursors.value = cursors.value.slice(0, at + 1);", "cursors.value = cursors.value;", expect=CUT)
-@mutation(STACK, "if (next) cursors.value.push(next);", "void next;", expect=NEXT_KEPT)
-@mutation(STACK, "Math.max(0, index.value - 1)", "index.value - 1",
-          expect=FS + "cursor stack > Prev never goes below the first page")
-@mutation(STACK, "cursors.value.length > index.value + 1", "cursors.value.length >= index.value + 1",
-          expect=FS + "cursor stack > starts on page 1 with no cursor and nothing after it")
-@mutation(STACK, "nextIndex: (): number => index.value + 1,", "nextIndex: (): number => index.value,", expect=SAME)
-@mutation(STACK, "index.value = at;", "void at;", expect=SAME)
+# ---- the offset math of the pager---------------------------------------------------------------------------------
+@mutation(PAGING, "export const PAGE_SIZE = 10;", "export const PAGE_SIZE = 50;",
+          expect=FG + "paging > starts at 10 a page and offers 10, 20, 50 and 100")
+@mutation(PAGING, "[10, 20, 50, 100]", "[10, 20, 50]",
+          expect=FG + "paging > starts at 10 a page and offers 10, 20, 50 and 100")
 @pytest.mark.web_unit
-def test_the_cursor_stack_gives_the_same_pages_forward_and_back():
-    vitest(STACK_SPEC)
+def test_the_jobs_list_pages_by_10_with_the_sizes_10_20_50_and_100():
+    vitest(PAGING_SPEC)
 
 
 # ---- the selection-----------------------------------------------------------------------------------------------
 @mutation(PICK, "items.filter((job) => picked.has(job.id))", "items.filter(() => true)",
           expect=FP + "selection > leaves out a ticked id that is no longer on the page")
-@mutation(PICK, "if (on) next.add(id);", "if (true) next.add(id);",
-          expect=FP + "selection > ticks and clears one job without touching the old set")
-@mutation(PICK, "on ? new Set(items.map((job) => job.id)) : new Set()", "new Set(items.map((job) => job.id))",
-          expect=FP + "selection > select all ticks every job of the page, and none clears them")
+@mutation(PICK, "items.filter((job) => picked.has(job.id)).map((job) => job.id)",
+          "items.filter((job) => picked.has(job.id)).map((job) => job.id).reverse()",
+          expect=FP + "selection > gives the ticked jobs in table order")
 @pytest.mark.web_unit
 def test_the_selection_is_the_ticked_jobs_of_the_page_in_table_order():
     vitest(PICK_SPEC)
@@ -84,8 +74,10 @@ PROXY = FA +"files > an output without a link opens through the outputs proxy, a
           expect=FA + "bulk actions > the same selection after a 503 sends the same key, in any order")
 @mutation(DETAIL_API, "regenerateCall(jobAction(id), ", 'regenerateCall(jobAction("x"), ',
           expect=FA + "one job > regenerate posts only the key, kept under the action job:<id>")
-@mutation(API, "key_id: q.keyId, ", "",
-          expect=FA + "list > sends the status, provider, key and cursor that are set")
+@mutation(API, ", key_id: q.keyId", "",
+          expect=FA + "list > sends the status, provider and key that are set, with the offset and never a cursor")
+@mutation(API, "offset: q.offset, ", "",
+          expect=FA + "list > sends the page size and offset and drops every empty filter")
 @mutation(API, '"queued", "submitting", ', '"queued", ',
           expect=FA + "list > the status filter offers submitting beside the others")
 @mutation(DETAIL_API, 'role === "output" ? ', 'role !== "output" ? ', expect=PROXY)
@@ -109,6 +101,25 @@ SPLIT = FT + "job text > the regenerate toast splits made, already made and fail
 @mutation(TEXT, 'type: failed ? "info" : "success",', 'type: "success",', expect=SPLIT)
 @pytest.mark.web_unit
 def test_the_bulk_toasts_and_the_progress_bar_keep_their_rules():
+    vitest(TEXT_SPEC)
+
+
+# ---- key names and the timeline-----------------------------------------------------------------------------------
+@mutation(TEXT, "key.label?.trim() || key.prefix?.trim() || shortId(key.id)", "key.label || shortId(key.id)",
+          expect=FT + "key names > is the label, else the prefix, else the first 8 characters of the id")
+@mutation(TEXT, "(b.at_ms ?? -Infinity) - (a.at_ms ?? -Infinity) || b.id - a.id",
+          "(a.at_ms ?? -Infinity) - (b.at_ms ?? -Infinity) || b.id - a.id",
+          expect=FT + "timeline > lists the newest event first, the later id first on equal times, and an event "
+                      "with no time last")
+@mutation(TEXT, "[...events].sort(", "events.sort(",
+          expect=FT + "timeline > does not reorder the list it was given")
+@mutation(TEXT, 'if (e.stage === "recovered") return "ok";', "",
+          expect=FT + "timeline > a recovery is ok, a failed stage is bad, an unknown stage takes its source's tone, "
+                      "else neutral")
+@mutation(TEXT, '? "danger"', '? "error"',
+          expect=FT + "timeline > maps a tone to the Element Plus types of the alert and of the timeline item")
+@pytest.mark.web_unit
+def test_a_key_is_never_nameless_and_the_timeline_runs_newest_first():
     vitest(TEXT_SPEC)
 
 
@@ -152,16 +163,23 @@ BULK_ANCHOR = "const out = await bulkRegenerate(ids.value);"
 CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = await bulkRegenerate(sent);"
 
 
-@mutation(VIEW, "cursor: stack.cursorAt(at),", "cursor: null,",
-          expect=FV + "paging > Next asks for the cursor the server gave, and Prev goes back to the page it left")
+@mutation(VIEW, "offset: at,", "offset: 0,",
+          expect=FV + "paging > a picked page asks for its offset, and the pager follows the page that arrived")
+@mutation(VIEW, "limit.value = size;", "void size;",
+          expect=FV + "paging > a new page size starts again from the first page, with the new limit")
+@mutation(VIEW, "load(at: number = offset.value)", "load(at: number = 0)",
+          expect=FV + "paging > a reload (Refresh, a bulk action) stays on the page on screen")
+@mutation(VIEW, "    offset.value = at;", "    offset.value = offset.value;",
+          expect=FV + "paging > a picked page asks for its offset, and the pager follows the page that arrived")
 @mutation(VIEW, "picked.value = new Set(pickedIds(out.items, picked.value));", "picked.value = picked.value;",
           expect=FV + "selection > a new page starts with nothing ticked")
 @mutation(FILTERS, "(value: string): string => value || ALL", "(value: string): string => value",
           expect=FV + "filters > shows All statuses and All keys, not the placeholder, while nothing is filtered")
 @mutation(FILTERS, 'value === ALL ? "" : value', "value",
           expect=FV + "filters > choosing All again sends no filter, and the label follows a real choice")
-@mutation(VIEW, "stack.reset();", "",
-          expect=FV + "paging > a filter change whose load fails still forgets the cursors of the old filter")
+@mutation(VIEW, "offset.value = 0;", "void 0;",
+          expect=FV + "paging > a filter change whose load fails still starts from the first page "
+                      "when it is read again")
 @mutation(VIEW, "(JOB_STATUSES as readonly string[]).includes(wanted)", "true",
           expect=FV + "filters > a status in the link that is not one of ours is ignored")
 @mutation(VIEW, 'if (typeof route.query.key_id === "string") keyId.value = route.query.key_id;', "",
@@ -176,12 +194,18 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
           expect=FV + "selection > the bulk buttons stay off until a job is ticked, and the count follows")
 @mutation(VIEW, "Regenerate ${ids.value.length} job(s)? ", "Regenerate job(s)? ",
           expect=FV + "bulk regenerate > asks first, naming the count, today's price and the charge")
-@mutation(VIEW, ':model-value="picked.has(row.id)"', ':model-value="false"',
-          expect=FV + "selection > a ticked job shows its own box ticked and the select-all box half-ticked, "
-                      "in the same render as the count")
-@mutation(VIEW, 'status="refunded" tone="neutral"', 'status="refunded"',
-          expect=FV + "the list > a refund chip is neutral, the status chip keeps its own tone, and the error code "
-                      "is plain muted text")
+@mutation(VIEW, "picked.value = new Set(rows.map((r) => r.id));", "picked.value = picked.value;",
+          expect=FV + "selection > the bulk buttons stay off until a job is ticked, and the count follows")
+@mutation(VIEW, "void reTick();\n    error.value = null;", "error.value = null;",
+          expect=FV + "selection > the ticks come back on the table after an error hid it and Retry drew it again")
+@mutation(VIEW, ':label="keyName(k)"', ':label="k.label"',
+          expect=FV + "filters > every key option is readable: its label, else its prefix, else the start of its id")
+@mutation(VIEW, "row.key_label || shortId(row.key_id)", "row.key_label",
+          expect=FV + "filters > a job whose key has no label shows the start of the key id in the Key column")
+@mutation(VIEW, 's === "failed" ? "exception"', 's === "failed" ? "success"',
+          expect=FV + "the list > the bar is green when done and red when failed")
+@mutation(VIEW, 'v-if="isRefunded(row)"', 'v-if="true"',
+          expect=FV + "the list > draws one row per job with the merged cells")
 @pytest.mark.web_unit
 def test_the_jobs_view_pages_filters_selects_and_sends_what_is_ticked():
     vitest(VIEW_SPEC)
@@ -212,15 +236,21 @@ REFERENCE = MEDIA_GROUP + "a reference opens through the input route and has no 
           expect=SHOW + "Revoke share links only while some media still has a link")
 @mutation(ACTIONS, "account.value.trim()", "account.value",
           expect=EACH + "Recover sends the trimmed account, polls the command and reads the job again")
-@mutation(ACTIONS, "if (!ok) return;", "", expect=EACH + "Revoke asks first and says how many links stopped")
+@mutation(ACTIONS, '@confirm="revoke"', '@cancel="revoke"',
+          expect=EACH + "Revoke asks first and says how many links stopped")
+@mutation(MEDIA, '.filter((s) => s.kind === "image")', ".filter(() => true)",
+          expect=MEDIA_GROUP + "an image is a thumbnail whose viewer lists every previewable image of the list, "
+                               "and a video is left out")
 @mutation(ACTIONS, '${out.replayed ? "Already made: job " : "New job "}', '${"New job "}',
           expect=EACH + "a regenerate the server already did says Already made")
 @mutation(DIALOG, 'class="block">{{ job.prompt }}</pre>', 'class="block">{{ job.sent_text }}</pre>', expect=WORDS)
 @mutation(DIALOG, 'CopyButton :text="job.prompt"', 'CopyButton :text="job.sent_text ?? \'\'"', expect=WORDS)
 @mutation(DIALOG, "if (!latest.isCurrent(ticket)) return;\n    job.value = out;", "job.value = out;",
           expect=FD + "opening > drops the answer for a job that is no longer the open one")
-@mutation(DIALOG, "e.stage === 'recovered' ? 'ok' : 'neutral'", "e.stage === 'recovered' ? 'neutral' : 'neutral'",
-          expect=FD + "timeline > lists the events in order, and marks a recovery")
+@mutation(DIALOG, "newestFirst(job.value?.events ?? [])", "(job.value?.events ?? [])",
+          expect=FD + "timeline > lists the events newest first, and marks a recovery")
+@mutation(DIALOG, "narrow.value ? 1 : 2", "2",
+          expect=FD + "layout > the facts are one column under 640 px and two above, the wide Params row spanning both")
 @pytest.mark.web_unit
 def test_the_detail_draws_media_only_from_safe_links_and_shows_the_actions_the_job_allows():
     vitest(DETAIL_SPEC)

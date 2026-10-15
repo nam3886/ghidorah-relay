@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { EditPen, Link, Promotion, Refresh, RefreshLeft } from "@element-plus/icons-vue";
 import { computed, ref } from "vue";
 import {
   fetchTitle,
@@ -12,7 +13,7 @@ import {
 import { announceJobChange } from "@/components/jobs/job-changes";
 import { shortId } from "@/components/jobs/job-text";
 import RegenerateControl from "@/components/jobs/RegenerateControl.vue";
-import { confirmDialog } from "@/components/shared/confirm-dialog";
+import IconAction from "@/components/shared/IconAction.vue";
 import { useBusy } from "@/composables/use-busy";
 import { useCommandPoll } from "@/composables/use-command-poll";
 import { notify } from "@/lib/notify";
@@ -70,13 +71,6 @@ const resend = () =>
 
 const revoke = () =>
   run(async () => {
-    const ok = await confirmDialog({
-      title: "Revoke share links",
-      message: "Every share link of this job stops working. Continue?",
-      confirmText: "Revoke",
-      danger: true,
-    });
-    if (!ok) return;
     const out = await revokeLinks(props.job.id);
     emit("reload");
     notify.success(`Revoked ${out.revoked} link(s)`);
@@ -91,10 +85,10 @@ async function regenerate(): Promise<void> {
 
 <template>
   <div class="job-actions">
-    <el-button v-if="props.job.can_recheck" :disabled="busy" @click="recheck">Re-check</el-button>
+    <IconAction v-if="props.job.can_recheck" :icon="Refresh" label="Re-check" :disabled="busy" @click="recheck" />
     <template v-if="finished">
       <el-input v-model="account" class="job-actions__account" placeholder="account id or label" clearable />
-      <el-button :disabled="busy" @click="recover">Recover</el-button>
+      <IconAction :icon="RefreshLeft" label="Recover" :disabled="busy" @click="recover" />
       <RegenerateControl
         :action="jobAction(props.job.id)"
         label="Regenerate"
@@ -107,9 +101,26 @@ async function regenerate(): Promise<void> {
         :perform="regenerate"
       />
     </template>
-    <el-button v-if="props.job.callback.status === 'failed'" :disabled="busy" @click="resend">Resend webhook</el-button>
-    <el-button v-if="hasLinks" :disabled="busy" @click="revoke">Revoke share links</el-button>
-    <el-button v-if="canFetchTitle" :disabled="busy" @click="getTitle">Fetch title</el-button>
+    <IconAction
+      v-if="props.job.callback.status === 'failed'"
+      :icon="Promotion"
+      label="Resend webhook"
+      :disabled="busy"
+      @click="resend"
+    />
+    <el-popconfirm
+      v-if="hasLinks"
+      title="Every share link of this job stops working. Continue?"
+      confirm-button-text="Revoke"
+      confirm-button-type="danger"
+      width="260"
+      @confirm="revoke"
+    >
+      <template #reference>
+        <span><IconAction :icon="Link" type="danger" label="Revoke share links" :disabled="busy" /></span>
+      </template>
+    </el-popconfirm>
+    <IconAction v-if="canFetchTitle" :icon="EditPen" label="Fetch title" :disabled="busy" @click="getTitle" />
   </div>
 </template>
 

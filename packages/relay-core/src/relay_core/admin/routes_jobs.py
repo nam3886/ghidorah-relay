@@ -41,6 +41,8 @@ TERMINAL = ("done", "failed")
 MAX_BULK = 100
 DEBUG_READ_MAX = 8 * 1024 * 1024
 _RASTER = ("image/png", "image/jpeg", "image/webp", "image/gif")
+_FILTERS = ("(%(status)s::text IS NULL OR j.status = %(status)s) AND (%(provider)s::text IS NULL OR "
+            "j.provider = %(provider)s) AND (%(key)s::uuid IS NULL OR j.key_id = %(key)s)")
 _LIST = (
     "SELECT j.id, j.provider, j.key_id, k.label, j.operation, j.media_type, j.model, j.title, j.status, "
     "j.error_code, j.price, j.account_id, a.label, j.external_ref, j.created_at, j.finished_at, "
@@ -49,11 +51,11 @@ _LIST = (
     "(SELECT COALESCE(sum(CASE entry WHEN 'charge' THEN amount ELSE -amount END), 0) FROM ledger l "
     " WHERE l.job_id = j.id AND l.entry IN ('charge', 'refund')), "
     "EXISTS (SELECT 1 FROM jsonb_array_elements(j.warnings) w WHERE w->>'code' ~ '\\.model_substituted$') "
-    "FROM jobs j LEFT JOIN api_keys k ON k.id = j.key_id LEFT JOIN accounts a ON a.id = j.account_id "
-    "WHERE (%(status)s::text IS NULL OR j.status = %(status)s) AND (%(provider)s::text IS NULL OR "
-    "j.provider = %(provider)s) AND (%(key)s::uuid IS NULL OR j.key_id = %(key)s) "
-    "AND (%(at)s::timestamptz IS NULL OR (j.created_at, j.id) < (%(at)s::timestamptz, %(cid)s::uuid)) "
-    "ORDER BY j.created_at DESC, j.id DESC LIMIT %(limit)s")
+    "FROM jobs j LEFT JOIN api_keys k ON k.id = j.key_id LEFT JOIN accounts a ON a.id = j.account_id WHERE "
+    + _FILTERS +
+    " AND (%(at)s::timestamptz IS NULL OR (j.created_at, j.id) < (%(at)s::timestamptz, %(cid)s::uuid)) "
+    "ORDER BY j.created_at DESC, j.id DESC LIMIT %(limit)s OFFSET %(offset)s")
+_COUNT = "SELECT count(*) FROM jobs j WHERE " + _FILTERS
 _DETAIL = (
     "SELECT j.id, j.provider, j.key_id, k.label, j.operation, j.media_type, j.model, j.title, j.status, "
     "j.error_code, j.price, j.account_id, a.label, j.external_ref, j.created_at, j.finished_at, j.prompt, j.marker, "
@@ -107,19 +109,26 @@ def _cursor(text: str) -> tuple[datetime, uuid.UUID]:
 
 @router.get("/jobs")
 async def list_jobs(status: str | None = None, provider: str | None = None, key_id: uuid.UUID | None = None,
-                    limit: int = 50, cursor: str | None = None,
+                    limit: int = 50, cursor: str | None = None, offset: int | None = None,
                     pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
-    """Newest first. `next_cursor` is None on the last page; pass it back as `cursor` for the next one."""
+    """Newest first. `next_cursor` is None on the last page; pass it back as `cursor` for the next one. `offset`
+    (>= 0) pages by position instead and cannot be combined with `cursor`. `total` counts the jobs that match the
+    same filters, read in the same transaction as the page."""
     if not 1 <= limit <= MAX_PAGE:
         raise ApiError("input.invalid", "limit")
+    if offset is not None and (offset < 0 or cursor):
+        raise ApiError("input.invalid", "offset")
     at, cid = _cursor(cursor) if cursor else (None, None)
+    args = {"status": status, "provider": provider, "key": key_id}
     async with tx(pool) as conn:
-        rows = await (await conn.execute(_LIST, {"status": status, "provider": provider, "key": key_id, "at": at,
-                                                 "cid": cid, "limit": limit + 1})).fetchall()
+        rows = await (await conn.execute(_LIST, {**args, "at": at, "cid": cid, "limit": limit + 1,
+                                                 "offset": offset or 0})).fetchall()
+        total = (await (await conn.execute(_COUNT, args)).fetchone())[0]
     page = rows[:limit]
     more = len(rows) > limit
     return {"items": [{**_summary(r[:16]), "outputs": r[16], "inputs": r[17], "net_charged": r[18],
                        "model_substituted": r[19]} for r in page],
+            "total": total,
             "next_cursor": _cursor_text(page[-1][14], page[-1][0]) if more else None}
 
 
