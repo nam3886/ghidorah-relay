@@ -2,14 +2,14 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { Refresh } from "@element-plus/icons-vue";
 import { describe, expect, it } from "vitest";
 import IconAction from "../../../src/components/shared/IconAction.vue";
-import Pager from "../../../src/components/shared/Pager.vue";
+import ListPager from "../../../src/components/shared/ListPager.vue";
 
 const offsetPager = (props: Record<string, unknown> = {}) =>
-  mount(Pager, { props: { mode: "offset", offset: 0, limit: 50, total: 120, ...props }, attachTo: document.body });
+  mount(ListPager, { props: { mode: "offset", offset: 0, limit: 50, total: 120, ...props }, attachTo: document.body });
 const cursorPager = (page: number, hasNext: boolean) =>
-  mount(Pager, { props: { mode: "cursor", page, hasNext }, attachTo: document.body });
+  mount(ListPager, { props: { mode: "cursor", page, hasNext }, attachTo: document.body });
 
-describe("Pager, offset mode", () => {
+describe("ListPager, offset mode", () => {
   it("shows the total and one numbered page per limit", () => {
     const w = offsetPager();
     expect(w.find(".el-pagination__total").text()).toContain("120");
@@ -57,7 +57,7 @@ describe("Pager, offset mode", () => {
   });
 });
 
-describe("Pager, cursor mode", () => {
+describe("ListPager, cursor mode", () => {
   it("has Prev, 'Page N' and Next and no page numbers", () => {
     const w = cursorPager(2, true);
     expect(w.text()).toContain("Page 2");

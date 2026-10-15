@@ -20,11 +20,13 @@ const props = withDefaults(
   }>(),
   { mode: "offset", offset: 0, limit: 50, total: 0, sizes: () => [25, 50, 100, 200], page: 1, hasNext: false },
 );
-const emit = defineEmits<{ move: [offset: number]; size: [limit: number]; prev: []; next: []; }>();
+const emit = defineEmits<{ move: [offset: number]; size: [limit: number]; prev: []; next: [] }>();
 
 const currentPage = computed(() => Math.floor(props.offset / props.limit) + 1);
 // the page size in use stays in the select even when it is not in the list
-const pageSizes = computed(() => (props.sizes.includes(props.limit) ? props.sizes : [...props.sizes, props.limit].sort((a, b) => a - b)));
+const pageSizes = computed(() =>
+  props.sizes.includes(props.limit) ? props.sizes : [...props.sizes, props.limit].sort((a, b) => a - b),
+);
 // a size change can make Element Plus clamp the page and report it too: only the size event is real
 const resizing = ref(false);
 
