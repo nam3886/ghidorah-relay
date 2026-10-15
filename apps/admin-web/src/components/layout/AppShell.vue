@@ -1,25 +1,22 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from "vue";
+import { onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
-import AppHeader from "@/components/layout/AppHeader.vue";
 import AttentionBanner from "@/components/layout/AttentionBanner.vue";
-import StatsStrip from "@/components/layout/StatsStrip.vue";
-import TabBar from "@/components/layout/TabBar.vue";
+import TopBar from "@/components/layout/TopBar.vue";
+import { useBreakpoint } from "@/composables/use-breakpoint";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
 import { useAuthStore } from "@/stores/auth";
 import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 
-// Everything around the routed view: header, tabs, stats strip, banner. Mounted only while signed in.
+// Everything around the routed view: the top bar, the banner and the page frame (centred, 1360 px at most, padding 28
+// px, 24 px on a tablet, 16 px on a phone). Mounted only while signed in.
 const route = useRoute();
 const auth = useAuthStore();
 const scope = useScopeStore();
 const stats = useStatsStore();
-
-// The strip counts jobs and accounts, so it belongs to those two tabs; the banner is global.
-const STRIP_ROUTES = new Set(["jobs", "accounts"]);
-const showStrip = computed(() => STRIP_ROUTES.has(String(route.name)));
+const { isPhone, isTablet } = useBreakpoint();
 
 onMounted(async () => {
   try {
@@ -29,7 +26,8 @@ onMounted(async () => {
   }
 });
 
-// The strip is read again on every tab switch and whenever the provider filter changes.
+// The numbers behind the tab counts and the banner are read again on every tab switch and whenever the provider
+// filter changes.
 watch(
   () => [route.name, scope.provider],
   () => void stats.refresh(),
@@ -45,13 +43,10 @@ watch(
 
 <template>
   <div class="app-shell">
-    <div class="app-chrome">
-      <AppHeader />
-      <TabBar />
-    </div>
-    <StatsStrip v-if="showStrip" />
-    <AttentionBanner />
-    <main class="app-main">
+    <TopBar />
+    <main class="app-main" :class="{ 'app-main--tablet': isTablet, 'app-main--phone': isPhone }">
+      <!-- On Jobs the view draws the banner itself, after the band card. -->
+      <AttentionBanner v-if="route.name !== 'jobs'" />
       <slot />
     </main>
   </div>
@@ -61,19 +56,21 @@ watch(
 .app-shell {
   min-height: 100vh;
 }
-/* The header and the tabs stay in view on a long page. */
-.app-chrome {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
 .app-main {
-  padding: 12px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-sizing: border-box;
+  max-width: 1360px;
   min-width: 0;
+  margin: 0 auto;
+  padding: 28px 28px 48px;
 }
-@media (max-width: 639px) {
-  .app-main {
-    padding: 8px 8px 16px;
-  }
+.app-main--tablet {
+  padding: 24px 24px 40px;
+}
+.app-main--phone {
+  gap: 16px;
+  padding: 16px 16px 24px;
 }
 </style>

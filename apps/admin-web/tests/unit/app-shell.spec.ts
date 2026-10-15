@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { createMemoryHistory } from "vue-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "@/App.vue";
+import PageHeader from "@/components/layout/PageHeader.vue";
 import { ApiError } from "@/api/client";
 import * as shell from "@/api/shell";
 import type { Stats } from "@/api/shell";
@@ -35,7 +38,9 @@ vi.mock("@/views/SettingsView.vue", () => stubView("SettingsView", "Settings"));
 vi.mock("@/views/TestView.vue", () => stubView("TestView", "Test"));
 vi.mock("@/components/jobs/JobDetailDialog.vue", async () => {
   const { defineComponent, h } = await import("vue");
-  return { default: defineComponent({ name: "JobDetailDialog", render: () => h("div") }) };
+  return {
+    default: defineComponent({ name: "JobDetailDialog", render: () => h("div", { "data-testid": "job-dialog" }) }),
+  };
 });
 
 const stats = (over: Partial<Stats> = {}): Stats => ({
@@ -68,6 +73,13 @@ async function open(path: string, signedIn = true) {
 }
 
 beforeEach(() => {
+  // happy-dom answers matchMedia for a 1024 px window (a tablet): the shell tests start from the desktop layout.
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: false,
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }));
   document.documentElement.classList.remove("dark");
   localStorage.clear();
   for (const fn of Object.values(shell)) (fn as ReturnType<typeof vi.fn>).mockReset();
@@ -114,42 +126,39 @@ describe("the shell", () => {
     await until(() => expect(wrapper.find("h2").text()).toBe("API keys"));
   });
 
-  it("draws the stats strip with the dead and disabled counts and reads it for the chosen provider", async () => {
-    const { wrapper } = await open("/jobs");
-    const text = (key: string) => wrapper.find(`[data-testid="stat-${key}"]`).text();
-    expect(text("in-progress")).toBe("In progress5");
-    expect(text("completed")).toBe("Completed40");
-    expect(text("accounts-ready")).toBe("Accounts ready4 / 6");
-    expect(text("accounts-dead")).toBe("Accounts dead0");
-    expect(text("accounts-disabled")).toBe("Accounts disabled1");
-    expect(wrapper.find('[data-testid="stat-failed"] .stat-value--bad').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="stat-accounts-dead"] .stat-value--bad').exists()).toBe(false);
+  it("reads the stats for the chosen provider and draws no stats strip on any tab", async () => {
+    const { wrapper, router } = await open("/jobs");
     expect(shell.getStats).toHaveBeenCalledWith("");
+    for (const name of ["jobs", "accounts", "keys", "logs", "alerts", "frames", "settings", "test"]) {
+      await router.push({ name });
+      await flushPromises();
+      expect(wrapper.find(".stats-strip").exists(), name).toBe(false);
+      expect(wrapper.find('[aria-label="Totals"]').exists(), name).toBe(false);
+    }
   });
 
-  it("reads the strip again on a tab switch", async () => {
+  it("reads the stats again on a tab switch", async () => {
     const { wrapper } = await open("/jobs");
     const before = vi.mocked(shell.getStats).mock.calls.length;
     await wrapper.findAll('[role="tab"]')[1]?.trigger("click");
     await until(() => expect(vi.mocked(shell.getStats).mock.calls.length).toBe(before + 1));
   });
 
-  it("shows the strip on Jobs and Accounts only", async () => {
-    const { wrapper, router } = await open("/jobs");
-    expect(wrapper.find(".stats-strip").exists()).toBe(true);
-    await router.push("/accounts");
-    await until(() => expect(wrapper.find(".stats-strip").exists()).toBe(true));
-    for (const name of ["keys", "logs", "alerts", "frames", "settings", "test"]) {
-      await router.push({ name });
-      await until(() => expect(wrapper.find(".stats-strip").exists(), name).toBe(false));
-    }
+  it("mounts the job detail through JobDetailDrawer, once, while signed in only", async () => {
+    const first = await open("/jobs");
+    expect(first.wrapper.findAll('[data-testid="job-dialog"]')).toHaveLength(1);
+    first.wrapper.unmount();
+    document.body.replaceChildren();
+    const login = await open("/login", false);
+    expect(login.wrapper.find('[data-testid="job-dialog"]').exists()).toBe(false);
   });
 
-  it("keeps each strip label on one line and the long one in a tooltip", async () => {
+  it("frames the page: the top bar first, then the banner and the view inside one main", async () => {
     const { wrapper } = await open("/jobs");
-    const cell = wrapper.find('[data-testid="stat-pre-job"]');
-    expect(cell.find(".stat-label").text()).toBe("Failed pre-job (24 h)");
-    expect(cell.attributes("title")).toBe("Failed before a job was created (last 24 hours)");
+    const shellEl = wrapper.find(".app-shell");
+    expect([...shellEl.element.children].map((el) => el.tagName)).toEqual(["HEADER", "MAIN"]);
+    expect(wrapper.find("main h2").text()).toBe("Jobs");
+    expect(wrapper.find("header nav").attributes("aria-label")).toBe("Main");
   });
 
   it("counts the unfinished jobs on the Jobs tab and the open groups on Alerts, only when above zero", async () => {
@@ -196,8 +205,20 @@ describe("the shell", () => {
     notify.clear();
   });
 
+  it("draws the banner above every view but Jobs, which draws its own", async () => {
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
+    const { wrapper, router } = await open("/jobs");
+    expect(wrapper.find(".attention-banner").exists()).toBe(false);
+    for (const name of ["accounts", "keys", "logs", "alerts", "frames", "settings", "test"]) {
+      await router.push({ name });
+      await until(() => expect(wrapper.find(".attention-banner").exists(), name).toBe(true));
+    }
+    await router.push({ name: "jobs" });
+    await until(() => expect(wrapper.find(".attention-banner").exists()).toBe(false));
+  });
+
   it("shows no banner when nothing needs attention", async () => {
-    const { wrapper } = await open("/jobs");
+    const { wrapper } = await open("/accounts");
     expect(wrapper.find(".attention-banner").exists()).toBe(false);
   });
 
@@ -206,22 +227,45 @@ describe("the shell", () => {
       stats({ alerts: [{ kind: "drift", severity: "warning", message: "dola: 3 of 10 jobs in 24 h show x" }] }),
     );
     vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 3 }, () => ({})) });
-    const { wrapper } = await open("/jobs");
+    const { wrapper } = await open("/accounts");
     const banner = wrapper.find(".attention-banner");
-    expect(banner.text()).toContain("Needs attention");
+    expect(banner.attributes("role")).toBe("status");
     expect(banner.text()).toContain("drift: dola: 3 of 10 jobs in 24 h show x");
-    expect(wrapper.find('[data-testid="open-groups"]').text()).toContain("3 open alert group(s)");
+    expect(wrapper.find('[data-testid="banner-headline"]').text()).toBe("3 open alert groups.");
+    expect(wrapper.find('[data-testid="review-alerts"]').text()).toBe("Review in Alerts");
+  });
+
+  it("says group, not groups, for one open group", async () => {
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
+    const { wrapper } = await open("/accounts");
+    expect(wrapper.find('[data-testid="banner-headline"]').text()).toBe("1 open alert group.");
+  });
+
+  it("with live conditions only, says Needs attention and still offers the link to Alerts", async () => {
+    vi.mocked(shell.getStats).mockResolvedValue(
+      stats({ alerts: [{ kind: "drift", severity: "warning", message: "dola: x" }] }),
+    );
+    const { wrapper } = await open("/accounts");
+    expect(wrapper.find('[data-testid="banner-headline"]').text()).toBe("Needs attention.");
+    expect(wrapper.find('[data-testid="review-alerts"]').text()).toBe("Review in Alerts");
+  });
+
+  it("draws the banner with a warn fill and no side border", () => {
+    const source = readFileSync(join(process.cwd(), "src/components/layout/AttentionBanner.vue"), "utf8");
+    expect(source).toContain("background: var(--rl-warn-bg);");
+    expect(source).toContain("border-radius: 12px;");
+    expect(source).not.toMatch(/border-(left|right|top|bottom)\s*:/);
   });
 
   it("folds three or more live conditions behind one count and keeps the group link in view", async () => {
     const alert = (kind: string) => ({ kind, severity: "warning", message: `${kind} message` });
     vi.mocked(shell.getStats).mockResolvedValue(stats({ alerts: [alert("a1"), alert("a2"), alert("a3")] }));
     vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
-    const { wrapper } = await open("/jobs");
+    const { wrapper } = await open("/accounts");
     const banner = wrapper.find(".attention-banner");
     expect(banner.find('[data-testid="fold-alerts"]').text()).toContain("3 live conditions");
     expect(banner.text()).not.toContain("a1 message");
-    expect(wrapper.find('[data-testid="open-groups"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="review-alerts"]').exists()).toBe(true);
     await banner.find('[data-testid="fold-alerts"] button').trigger("click");
     expect(banner.text()).toContain("a1: a1 message");
     expect(banner.text()).toContain("a3: a3 message");
@@ -232,16 +276,16 @@ describe("the shell", () => {
   it("lists two live conditions in full, with no fold", async () => {
     const alert = (kind: string) => ({ kind, severity: "warning", message: `${kind} message` });
     vi.mocked(shell.getStats).mockResolvedValue(stats({ alerts: [alert("a1"), alert("a2")] }));
-    const { wrapper } = await open("/jobs");
+    const { wrapper } = await open("/accounts");
     expect(wrapper.find('[data-testid="fold-alerts"]').exists()).toBe(false);
     expect(wrapper.find(".attention-banner").text()).toContain("a2: a2 message");
   });
 
   it("writes 200+ for a full page of open groups and opens Alerts from the banner", async () => {
     vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 200 }, () => ({})) });
-    const { wrapper, router } = await open("/jobs");
-    expect(wrapper.find('[data-testid="open-groups"]').text()).toContain("200+ open alert group(s)");
-    await wrapper.find('[data-testid="open-groups"] button').trigger("click");
+    const { wrapper, router } = await open("/accounts");
+    expect(wrapper.find('[data-testid="banner-headline"]').text()).toBe("200+ open alert groups.");
+    await wrapper.find('[data-testid="review-alerts"]').trigger("click");
     await until(() => expect(router.currentRoute.value.name).toBe("alerts"));
   });
 
@@ -277,25 +321,37 @@ describe("the shell", () => {
     const { useScopeStore } = await import("@/stores/scope");
     const scope = useScopeStore();
     const filter = wrapper.find('[data-testid="provider-filter"]');
-    expect(filter.text()).toBe("All");
+    // the word Provider sits inside the select, in front of the value
+    expect(filter.text()).toBe("ProviderAll");
     expect(filter.text()).not.toContain("Select");
     const select = wrapper.findComponent({ name: "ElSelect" });
     select.vm.$emit("update:modelValue", "dola");
     await flushPromises();
     expect(scope.provider).toBe("dola");
-    expect(filter.text()).toBe("dola");
+    expect(filter.text()).toBe("Providerdola");
     select.vm.$emit("update:modelValue", "__all__");
     await flushPromises();
     expect(scope.provider).toBe("");
-    expect(filter.text()).toBe("All");
+    expect(filter.text()).toBe("ProviderAll");
   });
 
-  it("has an API docs link that opens the reference in a new tab", async () => {
+  it("opens the API reference in a new tab from the account menu, and nowhere else", async () => {
     const { wrapper } = await open("/jobs");
-    const link = wrapper.find('a[href="/reference"]');
-    expect(link.text()).toBe("API docs");
-    expect(link.attributes("target")).toBe("_blank");
-    expect(link.attributes("rel")).toContain("noopener");
+    const opened = vi.spyOn(window, "open").mockReturnValue(null);
+    const menu = wrapper.findComponent({ name: "ElDropdown" });
+    menu.vm.$emit("command", "docs");
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(opened).toHaveBeenCalledWith("/reference", "_blank", "noopener");
+    menu.vm.$emit("command", "something-else");
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(shell.logout).not.toHaveBeenCalled();
+  });
+
+  it("names the account menu after the user, with the first letter as the avatar", async () => {
+    const { wrapper } = await open("/jobs");
+    const button = wrapper.find('[data-testid="account-menu"]');
+    expect(button.attributes("aria-label")).toBe("Account menu, owner");
+    expect(button.find(".account-avatar").text()).toBe("O");
   });
 
   it("toggles the theme and remembers it", async () => {
@@ -311,13 +367,182 @@ describe("the shell", () => {
   it("signs out: calls the server, drops the session and shows the login page", async () => {
     vi.mocked(shell.logout).mockResolvedValue({});
     const { wrapper, router } = await open("/jobs");
-    await wrapper.find('[data-testid="sign-out"]').trigger("click");
+    // open the menu with a click on the account button, then click the item as a user does
+    await wrapper.find('[data-testid="account-menu"]').trigger("click");
+    await until(() => expect(document.body.querySelector('[data-testid="sign-out"]')).not.toBeNull());
+    document.body.querySelector<HTMLElement>('[data-testid="sign-out"]')?.click();
     await until(() => expect(router.currentRoute.value.name).toBe("login"));
     await flushPromises();
     expect(shell.logout).toHaveBeenCalledTimes(1);
     expect(sessionStorage.getItem(TOKEN_KEY)).toBeNull();
-    expect(wrapper.find('[data-testid="sign-out"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="account-menu"]').exists()).toBe(false);
     expect(wrapper.find('input[name="username"]').exists()).toBe(true);
+  });
+
+  it("signs out through the menu command too: server revoke first, then every sign-out hook", async () => {
+    vi.mocked(shell.logout).mockResolvedValue({});
+    const { useAuthStore } = await import("@/stores/auth");
+    const { wrapper, router } = await open("/jobs");
+    const hook = vi.fn();
+    useAuthStore().onSignOut(hook);
+    wrapper.findComponent({ name: "ElDropdown" }).vm.$emit("command", "signout");
+    await until(() => expect(router.currentRoute.value.name).toBe("login"));
+    expect(shell.logout).toHaveBeenCalledTimes(1);
+    expect(hook).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(shell.logout).mock.invocationCallOrder[0]).toBeLessThan(hook.mock.invocationCallOrder[0] ?? 0);
+  });
+
+  it("still signs out locally when the server call fails", async () => {
+    vi.mocked(shell.logout).mockRejectedValue(new Error("down"));
+    const { wrapper, router } = await open("/jobs");
+    wrapper.findComponent({ name: "ElDropdown" }).vm.$emit("command", "signout");
+    await until(() => expect(router.currentRoute.value.name).toBe("login"));
+    expect(sessionStorage.getItem(TOKEN_KEY)).toBeNull();
+  });
+});
+
+describe("the top bar", () => {
+  it("marks the count of the current tab as primary and the Alerts count as warn", async () => {
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}, {}] });
+    const { wrapper } = await open("/jobs");
+    const jobs = wrapper.find('[data-testid="tab-count-jobs"]');
+    const alerts = wrapper.find('[data-testid="tab-count-alerts"]');
+    expect(jobs.classes()).toContain("tab-count--current");
+    expect(jobs.classes()).not.toContain("tab-count--warn");
+    expect(alerts.classes()).toContain("tab-count--warn");
+    expect(alerts.classes()).not.toContain("tab-count--current");
+  });
+
+  it("moves the primary count with the current tab", async () => {
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
+    const { wrapper, router } = await open("/jobs");
+    await router.push("/alerts");
+    await flushPromises();
+    expect(wrapper.find('[data-testid="tab-count-jobs"]').classes()).not.toContain("tab-count--current");
+    expect(wrapper.find('[data-testid="tab-count-alerts"]').classes()).toContain("tab-count--current");
+  });
+
+  it("shows ready over total on the Accounts tab, and nothing without accounts", async () => {
+    const { wrapper } = await open("/jobs");
+    expect(wrapper.find('[data-testid="tab-count-accounts"]').text()).toBe("4/6");
+    expect(wrapper.find('[data-testid="tab-count-accounts"]').attributes("aria-hidden")).toBe("true");
+    wrapper.unmount();
+    vi.mocked(shell.getStats).mockResolvedValue(stats({ accounts: { usable: 1, available: 1, dead: 0, disabled: 0 } }));
+    const one = await open("/jobs");
+    expect(one.wrapper.find('[data-testid="tab-count-accounts"]').text()).toBe("1/1");
+    one.wrapper.unmount();
+    vi.mocked(shell.getStats).mockResolvedValue(stats({ accounts: { usable: 0, available: 0, dead: 0, disabled: 0 } }));
+    const none = await open("/jobs");
+    expect(none.wrapper.find('[data-testid="tab-count-accounts"]').exists()).toBe(false);
+  });
+
+  it("shows 999+ for a count above 999 and the number itself at 999", async () => {
+    vi.mocked(shell.getStats).mockResolvedValue(
+      stats({ jobs: { queued: 500, in_progress: 499, done: 0, failed: 0, pre_job_failures_24h: 0 } }),
+    );
+    const { wrapper } = await open("/jobs");
+    expect(wrapper.find('[data-testid="tab-count-jobs"]').text()).toBe("999");
+    wrapper.unmount();
+    vi.mocked(shell.getStats).mockResolvedValue(
+      stats({ jobs: { queued: 500, in_progress: 500, done: 0, failed: 0, pre_job_failures_24h: 0 } }),
+    );
+    const again = await open("/jobs");
+    expect(again.wrapper.find('[data-testid="tab-count-jobs"]').text()).toBe("999+");
+  });
+
+  it("links the logo to Jobs and names it", async () => {
+    const { wrapper, router } = await open("/accounts");
+    const home = wrapper.find('a[aria-label="Ghidorah admin home"]');
+    expect(home.exists()).toBe(true);
+    expect(home.find("img").attributes("alt")).toBe("Ghidorah");
+    await home.trigger("click");
+    await until(() => expect(router.currentRoute.value.name).toBe("jobs"));
+  });
+
+  it("is one row on a desktop, and two rows on a tablet and on a phone, with the user's name only on the desktop", async () => {
+    const stub = (matching: string[]) =>
+      vi.stubGlobal("matchMedia", (query: string) => ({
+        matches: matching.includes(query),
+        media: query,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      }));
+    const { PHONE_QUERY, TABLET_QUERY } = await import("@/composables/use-breakpoint");
+    const classesOf = async (matching: string[]) => {
+      wrapper?.unmount();
+      wrapper = null;
+      document.body.replaceChildren();
+      stub(matching);
+      const view = await open("/jobs");
+      const header = view.wrapper.find("header");
+      const out = {
+        stacked: header.classes().includes("topbar--stacked"),
+        phone: header.classes().includes("topbar--phone"),
+        name: view.wrapper.find('[data-testid="whoami"]').exists(),
+        label: view.wrapper.find(".scope-label").exists(),
+        main: view.wrapper
+          .find("main")
+          .classes()
+          .filter((c) => c.startsWith("app-main--")),
+      };
+      return out;
+    };
+    expect(await classesOf([])).toEqual({ stacked: false, phone: false, name: true, label: true, main: [] });
+    expect(await classesOf([TABLET_QUERY])).toEqual({
+      stacked: true,
+      phone: false,
+      name: false,
+      label: true,
+      main: ["app-main--tablet"],
+    });
+    expect(await classesOf([PHONE_QUERY])).toEqual({
+      stacked: true,
+      phone: true,
+      name: false,
+      label: false,
+      main: ["app-main--phone"],
+    });
+  });
+});
+
+describe("the page header", () => {
+  const mountHeader = (slots: Record<string, string> = {}) =>
+    mount(PageHeader, { props: { title: "Jobs", subtitle: "Every job." }, slots });
+
+  it("shows the title and the one muted sentence, and the meta and actions in their slots", () => {
+    const w = mountHeader({ meta: "Updated 10:00:00", actions: "<button>Refresh</button>" });
+    expect(w.find("h1").text()).toBe("Jobs");
+    expect(w.find(".page-header__subtitle").text()).toBe("Every job.");
+    expect(w.find(".page-header__meta").text()).toBe("Updated 10:00:00");
+    expect(w.find(".page-header__actions button").text()).toBe("Refresh");
+  });
+
+  it("draws no sentence, no meta and no side when it has none", () => {
+    const w = mount(PageHeader, { props: { title: "Jobs" } });
+    expect(w.find(".page-header__subtitle").exists()).toBe(false);
+    expect(w.find(".page-header__side").exists()).toBe(false);
+  });
+
+  it("leaves the meta line out on a phone but keeps the actions beside the title", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(max-width: 767px)",
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    const w = mountHeader({ meta: "Updated 10:00:00", actions: "<button>Refresh</button>" });
+    expect(w.classes()).toContain("page-header--phone");
+    expect(w.find(".page-header__meta").exists()).toBe(false);
+    expect(w.find(".page-header__actions button").exists()).toBe(true);
+  });
+
+  it("with only a meta slot on a phone has no side at all", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(max-width: 767px)",
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    const w = mountHeader({ meta: "Updated 10:00:00" });
+    expect(w.find(".page-header__side").exists()).toBe(false);
   });
 });
 

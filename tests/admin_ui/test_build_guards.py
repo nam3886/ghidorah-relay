@@ -99,6 +99,46 @@ def test_the_scanner_finds_each_forbidden_thing_in_planted_files_and_skips_what_
     assert scan({"f.js": 'u="%s and more"' % doc}) != [], "a longer URL was excused"
 
 
+def test_the_fonts_are_hashed_woff2_files_of_the_dist_and_none_is_vendored_or_inlined():
+    names = webguards.font_files()
+    assert webguards.missing_fonts(names) == [], "missing font files of the dist: %s" % webguards.missing_fonts(names)
+    assert webguards.vendored_fonts() == [], "font files vendored in public/: %s" % webguards.vendored_fonts()
+    css = "".join(text for name, text in dist_files().items() if name.endswith(".css"))
+    for family in ("Be Vietnam Pro", "IBM Plex Mono"):
+        assert family in css, "no @font-face for %s in the built css" % family
+
+
+@mutation(LIB, '(400, 500, 600, 700)', '(400, 500, 600)', expect="font check: the full set passes")
+@mutation(LIB, '("latin", "vietnamese"), (400, 500))', '("latin",), (400, 500))',
+          expect="font check: the full set passes")
+@mutation(LIB, "-normal-[A-Za-z0-9_-]+", "-[a-z]+-[A-Za-z0-9_-]+", expect="font check: only the normal style counts")
+@mutation(LIB, "if not any(pattern.match(name) for name in names):", "if False:",
+          expect="font check: a missing file is reported")
+@mutation(LIB, 'p.suffix.lower() in FONT_SUFFIXES', 'False', expect="font check: a vendored font is found")
+def test_the_font_check_finds_what_is_missing_and_what_is_vendored(tmp_path, monkeypatch):
+    def file(family, subset, weight, style="normal", ext="woff2"):
+        return "assets/%s-%s-%d-%s-AbC123_-.%s" % (family, subset, weight, style, ext)
+
+    full = [file(f, s, w) for f, (subsets, weights) in webguards.FONTS.items() for s in subsets for w in weights]
+    assert len(full) == 12 and webguards.missing_fonts(full) == [], "font check: the full set passes"
+    assert len(webguards.missing_fonts([])) == 12, "font check: a missing file is reported"
+    assert webguards.missing_fonts([n for n in full if "ibm-plex-mono-vietnamese-500" not in n]) == [
+        "ibm-plex-mono vietnamese 500"], "font check: every subset is required"
+    assert webguards.missing_fonts([n for n in full if "be-vietnam-pro-latin-700" not in n]) == [
+        "be-vietnam-pro latin 700"], "font check: every weight is required"
+    italic = [n.replace("-normal-", "-italic-") if "be-vietnam-pro-latin-400" in n else n for n in full]
+    assert webguards.missing_fonts(italic) == ["be-vietnam-pro latin 400"], "font check: only the normal style counts"
+    assert webguards.missing_fonts([n.replace(".woff2", ".woff") for n in full]) != [], "font check: only woff2 counts"
+    public = tmp_path / "public"
+    (public / "brand").mkdir(parents=True)
+    (public / "brand" / "logo.svg").write_text("<svg/>")
+    monkeypatch.setattr(webguards, "PUBLIC", public)
+    assert webguards.vendored_fonts() == []
+    (public / "fonts").mkdir()
+    (public / "fonts" / "Inter.woff2").write_bytes(b"x")
+    assert webguards.vendored_fonts() == ["Inter.woff2"], "font check: a vendored font is found"
+
+
 def test_the_entry_page_has_a_title_a_language_a_viewport_and_only_references_files_of_the_dist():
     text = (APP / "index.html").read_text(encoding="utf-8")
     problems = index_problems(text, lambda name: (APP / name).is_file())

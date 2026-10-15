@@ -44,7 +44,7 @@ onMounted(async () => {
   <main class="login-page">
     <el-card class="login-card" shadow="never">
       <BrandLogo variant="login" />
-      <h1 class="login-brand">Sign in to Ghidorah Relay</h1>
+      <h1 class="login-brand">Sign in to the admin</h1>
       <el-form label-position="top" @submit.prevent="submit">
         <el-form-item label="Username">
           <el-input v-model="username" size="large" name="username" autocomplete="username" :maxlength="64" autofocus />
