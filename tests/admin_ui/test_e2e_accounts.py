@@ -1,7 +1,6 @@
 """The Accounts tab of the Vue admin in Chrome against the real app (browser tier): the list, import, edit, the enable
 switch, the commands the worker would run, the screenshot blob, auto-refresh and server strings as text. Every test runs
-under the CSP watch of `conftest.CspWatch`. The new app is opened by `app.url` until the switch makes `/manage` serve
-it."""
+under the CSP watch of `conftest.CspWatch`. The app is opened by `app.url` (`/manage`)."""
 
 import json
 import re

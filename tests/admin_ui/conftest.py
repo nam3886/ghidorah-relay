@@ -91,9 +91,8 @@ def live(db, request):
 
 
 # ---- the harness of the Vue admin (browser tier) ------------------------------------------------------------------
-# The new app is served from the same static folder, at the entry the build writes. Until the switch it is NOT what
-# /manage serves, so the tests open it by this one constant; the switch changes this line and nothing else.
-APP_URL = "/ui/app/index.html"
+# The admin is what /manage serves; the tests open it by this one constant.
+APP_URL = "/manage"
 ROUTES = ("jobs", "accounts", "keys", "logs", "alerts", "frames", "settings", "test")
 
 # Markup a hostile server string could carry: if it ever reached the DOM as HTML, the image would run its handler.

@@ -26,6 +26,9 @@ if "--collect-only" in args:
     key = {{"browser and not box": "MAC", "browser and box": "ONLY", "browser": "EVERY"}}[expr]
     print("tests/a.py: " + env["FAKE_" + key])
     sys.exit(int(env.get("FAKE_COLLECT_RC_" + key, "0")))
+if "FAKE_ARGS_LOG" in env:
+    with open(env["FAKE_ARGS_LOG"], "a") as log:
+        log.write(" ".join(args) + "\\n")
 for n in range(int(env["FAKE_PASSED"])):
     print("tests/a.py::test_%d PASSED [100%%]" % n)
 sys.exit(int(env.get("FAKE_RC", "0")))
@@ -232,3 +235,41 @@ def test_the_stand_in_worker_is_started_with_labels_that_hide_it_from_the_produc
     assert projects and "relay" not in projects, "the stand-in carries the production project label: %r" % projects
     assert re.search(r'docker\("run", "-d", "--name", name, "--label", label, \*STANDIN_LABELS, \*prefix', text), \
         "the stand-in is started without the label override"
+
+
+@mutation(TIER, '  $PYTEST -m browser "$@" $skip -p short_tmp_plugin -p hang_guard_plugin',
+          '  $PYTEST -m browser "$@" $skip -p short_tmp_plugin', expect="the narrowed run has no per-test time limit")
+@mutation(TIER, "\n$PYTEST -m browser $skip -p short_tmp_plugin -p hang_guard_plugin",
+          "\n$PYTEST -m browser $skip -p short_tmp_plugin", expect="the whole tier has no per-test time limit")
+def test_both_the_narrowed_and_the_whole_run_load_the_per_test_time_limit(tmp_path):
+    for label, args in (("the narrowed run", ("tests/a.py",)), ("the whole tier", ())):
+        log = tmp_path / "args.log"
+        log.unlink(missing_ok=True)
+        env = {"FAKE_ARGS_LOG": log, **(NARROW_ENV if args else {})}
+        run = tier(tmp_path, *args, **env)
+        assert run.returncode == 0, run.stdout + run.stderr
+        runs = [line for line in log.read_text().splitlines() if "short_tmp_plugin" in line]
+        assert len(runs) == 1 and "-p hang_guard_plugin" in runs[0], \
+            "%s has no per-test time limit: %s" % (label, runs)
+
+
+def test_a_hang_in_a_body_a_setup_or_a_teardown_fails_with_its_node_id_and_the_run_goes_on(tmp_path):
+    (tmp_path / "test_hang.py").write_text(
+        "import time\n"
+        "import pytest\n\n"
+        "@pytest.fixture\n"
+        "def slow_setup():\n    time.sleep(30)\n\n"
+        "@pytest.fixture\n"
+        "def slow_teardown():\n    yield\n    time.sleep(30)\n\n"
+        "def test_body():\n    time.sleep(30)\n\n"
+        "def test_setup(slow_setup):\n    pass\n\n"
+        "def test_teardown(slow_teardown):\n    pass\n\n"
+        "def test_fine():\n    pass\n", encoding="utf-8")
+    run = subprocess.run([sys.executable, "-m", "pytest", "-p", "hang_guard_plugin", "-p", "no:cacheprovider",
+                          "-q", "-o", "addopts=", "test_hang.py"], capture_output=True, text=True, cwd=tmp_path,
+                         env={**os.environ, "TEST_TIMEOUT_S": "1", "PYTHONPATH": str(REPO / "scripts")}, timeout=120)
+    out = run.stdout + run.stderr
+    assert run.returncode != 0 and "1 failed, 2 passed, 2 errors" in out, out    # test_fine still ran and passed
+    for node in ("test_hang.py::test_body", "test_hang.py::test_setup", "test_hang.py::test_teardown"):
+        assert node + ": no result" in out, "%s did not fail with its node id: %s" % (node, out)
+    assert "time.sleep" in out, "the traceback does not show where it hung: " + out

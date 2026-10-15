@@ -1,7 +1,7 @@
 """The shell of the Vue admin in Chrome against the real app (browser tier): the CSP watch and its proof, login, sign
 out, a stale token, the theme, the redirects, the stats strip and every route. Every test here runs under the watch of
 `conftest.CspWatch`: a Content Security Policy violation on either of its two channels fails the test, and no test can
-clear or filter one. The new app is opened by `app.url` until the switch makes `/manage` serve it."""
+clear or filter one. The app is opened by `app.url` (`/manage`)."""
 
 import re
 
@@ -35,7 +35,7 @@ def test_the_csp_watch_fails_on_an_inline_style_and_an_inline_script_planted_bef
             route.fulfill(response=response, body=response.text().replace("</head>", planted, 1),
                           headers=without_length(response.headers))
 
-        page.route("**/ui/app/index.html", plant)
+        page.route("**/manage", plant)
         with pytest.raises(AssertionError, match="Content Security Policy violations"):
             page.goto(app.url)
         got = page.csp.entries()
@@ -210,17 +210,10 @@ def test_the_toggle_flips_the_theme_remembers_it_across_a_reload_and_both_themes
 
 # ---- the redirects --------------------------------------------------------------------------------------------------
 
-def test_the_root_and_the_old_test_link_redirect_to_the_dashboard(live, app_page):
-    root = app_page.request.get(live.url + "/", max_redirects=0)
-    assert root.status == 307 and root.headers["location"] == "/manage"
-    old = app_page.request.get(live.url + "/test", max_redirects=0)
-    # until the switch the old dashboard keeps the bare hash; after it the target is the router's own hash form
-    assert old.status == 307 and old.headers["location"] in ("/manage#test", "/manage#/test"), old.headers["location"]
-
-
-def test_the_login_address_serves_the_login_or_redirects_to_its_route(live, app_page):
-    login = app_page.request.get(live.url + "/login", max_redirects=0)
-    assert login.status == 200 or (login.status == 307 and login.headers["location"] == "/manage#/login")
+@pytest.mark.parametrize("path, target", [("/", "/manage"), ("/login", "/manage#/login"), ("/test", "/manage#/test")])
+def test_the_root_the_login_and_the_test_addresses_redirect_into_the_dashboard(live, app_page, path, target):
+    r = app_page.request.get(live.url + path, max_redirects=0)
+    assert r.status == 307 and r.headers["location"] == target, (path, r.status, r.headers.get("location"))
 
 
 @pytest.mark.parametrize("route", ROUTES)

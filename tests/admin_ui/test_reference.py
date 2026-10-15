@@ -43,6 +43,34 @@ def test_the_renderer_is_the_pinned_vendored_build_with_its_licence_and_the_page
     assert 'data-renderer="/ui/vendor/scalar.min.js"' in page
 
 
+@mutation(REFERENCE_HTML, '<a id="back" href="/manage">', '<a id="back" onclick="x()" href="/manage">',
+          expect="inline handler, style or script")
+@mutation(REFERENCE_HTML, '<span id="bar-title">', '<span style="color:red" id="bar-title">',
+          expect="inline handler, style or script")
+@mutation(REFERENCE_HTML, '<link rel="stylesheet" href="/ui/reference.css">',
+          '<link rel="stylesheet" href="https://cdn.example.com/x.css">', expect="external or missing asset")
+@mutation(REFERENCE_JS, "localStorage.getItem('relay_admin_theme')",
+          "localStorage.getItem('relay_admin_theme') || document.cookie", expect="a store the admin token lives in")
+def test_the_reference_files_hold_no_inline_handler_style_script_or_foreign_host_and_read_only_the_stored_theme():
+    page = (STATIC / "reference.html").read_text()
+    script = (STATIC / "reference.js").read_text()
+    assert re.search(r"<html lang=\"en\"", page) and "<title>" in page and 'name="viewport"' in page
+    forbidden = re.compile(r"""[\s"']on[a-z]+\s*=\s*["']|\sstyle\s*=\s*["']|<style\b|javascript:""", re.I)
+    problems = [m.group(0) for text in (page, script) for m in forbidden.finditer(text)]
+    problems += ["inline <script> body" for _ in re.finditer(r"<script(?![^>]*\bsrc=)[^>]*>\s*[^<\s]", page)]
+    assert not problems, "inline handler, style or script: %s" % problems
+    external = []
+    for url in re.findall(r"""\b(?:src|href|data-renderer)\s*=\s*["']([^"']+)["']""", page):
+        if re.match(r"(?:https?:)?//", url) or url.startswith("data:"):
+            external.append(url)
+        elif url.startswith("/ui/") and not (STATIC / url.removeprefix("/ui/")).is_file():
+            external.append(url)
+    assert not external, "a page names an external or missing asset: %s" % external
+    assert not re.search(r"document\.cookie|sessionStorage|indexedDB", script), "a store the admin token lives in"
+    assert re.findall(r"localStorage\.(\w+)\(([^)]*)\)", script) == [("getItem", "'relay_admin_theme'")], \
+        "a store the admin token lives in: reference.js may only read the stored theme"
+
+
 @pytest.mark.browser
 @mutation(PAGES_PY, "CSP.replace(\"script-src 'self';\",", "CSP.replace(\"zz\",",
           expect="Content Security Policy violations")

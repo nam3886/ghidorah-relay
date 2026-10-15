@@ -10,8 +10,8 @@ from relay_core.testing.mutation import mutation
 PAGES_PY = "packages/relay-core/src/relay_core/admin/pages.py"
 APP = "packages/relay-core/src/relay_core/api/app.py"
 CSP = "default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'"
-PAGE_ROUTES = ["/login", "/manage", "/ui/common.js", "/ui/manage.js", "/ui/login.js", "/ui/vendor/admin.css",
-               "/ui/app/index.html", "/ui/app/theme-init.js"]
+PAGE_ROUTES = ["/manage", "/ui/app/index.html", "/ui/app/theme-init.js", "/ui/reference.js", "/ui/reference.css",
+               "/ui/vendor/scalar.min.js"]
 REFERENCE_CSP = CSP.replace("script-src 'self';", "script-src 'self'; style-src 'self' 'unsafe-inline';")
 API_ROUTES = ["/healthz", "/openapi.json"]
 
@@ -34,8 +34,8 @@ def test_every_page_route_carries_the_exact_csp_and_an_api_route_does_not(db, pa
 @mutation(PAGES_PY, "body = _FILES.get(name)", "body = (STATIC / name).read_bytes()", expect="outside static")
 def test_only_files_of_the_static_folder_are_served(db):
     async def scenario(env):
-        for path in ["/ui/tailwind.config.js", "/ui/..%2Ftailwind%2Ftailwind.config.js", "/ui/../pages.py",
-                     "/ui/vendor", "/ui/nope.js", "/ui/app", "/ui/app/%2e%2e/login.html",
+        for path in ["/ui/pages.py", "/ui/..%2Frouter.py", "/ui/../pages.py", "/ui/manage.html", "/ui/manage.js",
+                     "/ui/vendor/admin.css", "/ui/vendor", "/ui/nope.js", "/ui/app", "/ui/app/%2e%2e/reference.html",
                      "/ui/app/%2e%2e/%2e%2e/pages.py",
                      "/ui/app/assets/nope-12345678.js", "/ui/app/index.html.map"]:
             r = await env.client.get(path)
@@ -55,14 +55,33 @@ def test_the_root_redirects_to_the_dashboard_and_the_dashboard_needs_no_session_
     run_app(db, scenario)
 
 
-@mutation(PAGES_PY, 'RedirectResponse("/manage#test", headers=HEADERS)', 'RedirectResponse("/manage", headers=HEADERS)',
-          expect="old test link")
-def test_the_old_test_link_redirects_to_the_test_tab_of_the_dashboard_with_the_csp(db):
+@mutation(PAGES_PY, 'RedirectResponse("/manage#/test", headers=HEADERS)',
+          'RedirectResponse("/manage", headers=HEADERS)', expect="old test link")
+@mutation(PAGES_PY, 'RedirectResponse("/manage#/login", headers=HEADERS)',
+          'RedirectResponse("/manage", headers=HEADERS)', expect="old login link")
+def test_the_old_login_and_test_links_redirect_into_the_app_with_the_csp(db):
     async def scenario(env):
-        old = await env.client.get("/test", follow_redirects=False)
-        assert old.status_code == 307 and old.headers["location"] == "/manage#test", "old test link"
-        assert old.headers.get("content-security-policy") == CSP
+        for path, target, what in (("/login", "/manage#/login", "old login link"),
+                                   ("/test", "/manage#/test", "old test link")):
+            old = await env.client.get(path, follow_redirects=False)
+            assert old.status_code == 307 and old.headers["location"] == target, what
+            assert old.headers.get("content-security-policy") == CSP, what
         assert (await env.client.get("/ui/test.html")).status_code == 404
+        assert (await env.client.get("/ui/login.html")).status_code == 404
+
+    run_app(db, scenario)
+
+
+@mutation(PAGES_PY, 'for _path, _name in {"/manage": APP_ENTRY, ', 'for _path, _name in {"/manage": "reference.html", ',
+          expect="the dashboard is the Vue entry")
+def test_the_dashboard_is_the_vue_entry_and_the_entry_file_is_the_same_bytes_at_both_paths(db):
+    entry = (Path(PAGES_PY).parent / "static" / "app" / "index.html").read_bytes()
+
+    async def scenario(env):
+        manage = await env.client.get("/manage")
+        assert manage.content == entry, "the dashboard is the Vue entry"
+        assert manage.headers["cache-control"] == "no-cache"
+        assert (await env.client.get("/ui/app/index.html")).content == entry
 
     run_app(db, scenario)
 
@@ -83,8 +102,8 @@ def test_only_hash_named_files_under_app_assets_are_immutable_and_everything_els
             r = await env.client.get("/ui/app/assets/" + asset.name)
             assert r.headers["cache-control"] == "public, max-age=31536000, immutable", \
                 "a hashed asset is not immutable: " + asset.name
-        for path in ["/ui/app/index.html", "/ui/app/theme-init.js", "/ui/common.js", "/ui/reference.js", "/manage",
-                     "/reference"]:
+        for path in ["/ui/app/index.html", "/ui/app/theme-init.js", "/ui/reference.js", "/ui/vendor/scalar.min.js",
+                     "/manage", "/reference"]:
             r = await env.client.get(path)
             assert r.headers["cache-control"] == "no-cache", "a file that is not a hashed asset is immutable: " + path
 
@@ -113,58 +132,13 @@ def test_every_file_under_app_assets_has_a_content_hash_in_its_name():
 def test_a_package_without_the_built_app_fails_at_import_and_one_with_it_loads(tmp_path):
     from relay_core.admin import pages
 
-    (tmp_path / "login.html").write_text("<html></html>", encoding="utf-8")
+    (tmp_path / "reference.html").write_text("<html></html>", encoding="utf-8")
     with pytest.raises(RuntimeError, match="not built"):
         pages._load(tmp_path)
         raise AssertionError("a package without the app booted")
     (tmp_path / "app").mkdir()
     (tmp_path / "app" / "index.html").write_text("<html></html>", encoding="utf-8")
     assert "app/index.html" in pages._load(tmp_path)               # the negative control: with the entry it loads
-
-
-def _client(new_admin: bool):
-    from fastapi import FastAPI
-    from fastapi.testclient import TestClient
-
-    from relay_core.admin import pages
-
-    app = FastAPI()
-    app.include_router(pages.build_router(new_admin))
-    return TestClient(app, follow_redirects=False)
-
-
-def test_the_switch_is_off_in_the_shipped_code_until_the_cut_over():
-    from relay_core.admin import pages
-
-    assert pages.NEW_ADMIN is False, "the old admin is served until the cut-over"
-    assert any(r.path == "/login" for r in pages.router.routes) and not _client(False).get("/login").is_redirect
-
-
-@mutation(PAGES_PY, 'pages = {"/manage": APP_ENTRY} if new_admin else LEGACY_PAGES',
-          'pages = {"/manage": APP_ENTRY} if not new_admin else LEGACY_PAGES', expect="the switch position")
-def test_switch_off_serves_the_old_pages_and_redirects_and_switch_on_serves_the_vue_entry_and_its_redirects():
-    old, new = _client(False), _client(True)
-    legacy_manage = (Path(PAGES_PY).parent / "static" / "manage.html").read_bytes()
-    app_entry = (Path(PAGES_PY).parent / "static" / "app" / "index.html").read_bytes()
-    assert old.get("/manage").content == legacy_manage, "the switch position: off must serve the old dashboard"
-    assert new.get("/manage").content == app_entry, "the switch position: on must serve the Vue entry"
-    assert old.get("/login").status_code == 200 and old.get("/login").content != app_entry
-    for client, login, test in ((old, None, "/manage#test"), (new, "/manage#/login", "/manage#/test")):
-        r = client.get("/test")
-        assert r.status_code == 307 and r.headers["location"] == test, "the switch position: " + test
-        assert r.headers["content-security-policy"] == CSP
-        root = client.get("/")
-        assert root.status_code == 307 and root.headers["location"] == "/manage"
-        if login:
-            r = client.get("/login")
-            assert r.status_code == 307 and r.headers["location"] == login, "the switch position: " + login
-            assert r.headers["content-security-policy"] == CSP
-    # the reference page and the app files are served in both positions, the reference alone with the looser header
-    for client in (old, new):
-        assert client.get("/reference").headers["content-security-policy"] == REFERENCE_CSP
-        r = client.get("/ui/app/index.html")
-        assert r.status_code == 200 and r.content == app_entry and r.headers["content-security-policy"] == CSP
-        assert r.headers["cache-control"] == "no-cache"
 
 
 def _ui_assets() -> list[str]:

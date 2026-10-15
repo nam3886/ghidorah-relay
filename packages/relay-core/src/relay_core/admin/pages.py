@@ -1,5 +1,5 @@
-"""The admin pages and their static files (contracts §13, §16, D26): `/`, `/login`, `/manage`,
-`/reference` and `/ui/...` on the API's own port.
+"""The admin pages and their static files (contracts §13, §16, D26): `/`, `/login`, `/test`, `/manage`, `/reference` and
+`/ui/...` on the API's own port.
 
 Every response of this router carries the admin CSP, so no page can run an inline script or load a foreign asset;
 `/reference` alone also allows inline styles (D75). The files are read once at import: they are part of the package
@@ -17,12 +17,9 @@ from relay_core.admin.router import CSP
 from relay_core.api.errors_http import ApiError
 
 STATIC = Path(__file__).parent / "static"
-# Which admin the pages serve. False: the hand-written pages (`/manage`, `/login`, the old redirects). True: the Vue
-# app built into static/app/ (`/manage` is its entry, `/login` and `/test` are routes inside it). The app is reachable
-# either way at /ui/app/index.html; flipping this is the switch of the cut-over.
-NEW_ADMIN = False
+# The admin is the Vue app built into static/app/: `/manage` is its entry, `/login` and `/test` are routes inside it
+# (the redirects below keep the old links working). The entry is also reachable at /ui/app/index.html.
 APP_ENTRY = "app/index.html"
-LEGACY_PAGES = {"/login": "login.html", "/manage": "manage.html"}
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
          ".css": "text/css; charset=utf-8", ".txt": "text/plain; charset=utf-8"}
 HEADERS = {"Content-Security-Policy": CSP, "X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"}
@@ -58,37 +55,28 @@ def _serve(name: str, headers: dict[str, str] = HEADERS) -> Response:
     return Response(body, media_type=TYPES[Path(name).suffix], headers=headers)
 
 
-def build_router(new_admin: bool) -> APIRouter:
-    """The page routes for one position of the switch (NEW_ADMIN). The tests build both."""
-    router = APIRouter(include_in_schema=False)
-    pages = {"/manage": APP_ENTRY} if new_admin else LEGACY_PAGES
-    for _path, _name in {**pages, "/reference": "reference.html"}.items():
-        _headers = REFERENCE_HEADERS if _path == "/reference" else HEADERS
-        router.add_api_route(_path, lambda name=_name, headers=_headers: _serve(name, headers), methods=["GET"])
-
-    @router.get("/")
-    async def root() -> RedirectResponse:
-        return RedirectResponse("/manage", headers=HEADERS)
-
-    if new_admin:
-        @router.get("/login")
-        async def login_page() -> RedirectResponse:
-            return RedirectResponse("/manage#/login", headers=HEADERS)
-
-        @router.get("/test")
-        async def test_page() -> RedirectResponse:
-            return RedirectResponse("/manage#/test", headers=HEADERS)
-    else:
-        @router.get("/test")
-        async def test_page() -> RedirectResponse:
-            """The model test is a tab of the dashboard now; old links keep working."""
-            return RedirectResponse("/manage#test", headers=HEADERS)
-
-    @router.get("/ui/{name:path}")
-    async def asset(name: str) -> Response:
-        return _serve(name)
-
-    return router
+router = APIRouter(include_in_schema=False)
+for _path, _name in {"/manage": APP_ENTRY, "/reference": "reference.html"}.items():
+    _headers = REFERENCE_HEADERS if _path == "/reference" else HEADERS
+    router.add_api_route(_path, lambda name=_name, headers=_headers: _serve(name, headers), methods=["GET"])
 
 
-router = build_router(NEW_ADMIN)
+@router.get("/")
+async def root() -> RedirectResponse:
+    return RedirectResponse("/manage", headers=HEADERS)
+
+
+@router.get("/login")
+async def login_page() -> RedirectResponse:
+    return RedirectResponse("/manage#/login", headers=HEADERS)
+
+
+@router.get("/test")
+async def test_page() -> RedirectResponse:
+    """The model test is a route of the app; old links keep working."""
+    return RedirectResponse("/manage#/test", headers=HEADERS)
+
+
+@router.get("/ui/{name:path}")
+async def asset(name: str) -> Response:
+    return _serve(name)
