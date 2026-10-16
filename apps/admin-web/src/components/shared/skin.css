@@ -193,6 +193,18 @@ html:root .el-popper.is-dark .el-popper__arrow::before {
   border: 0;
   background: var(--rl-fg);
 }
+/* A note on a piece of text (HintTip, D125): the menu surface, the 12 px type of the tooltip, never wider than 320 */
+html:root .el-popper.rl-tip {
+  max-width: 320px;
+  padding: 8px 12px;
+  border: 1px solid var(--rl-line);
+  border-radius: 12px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font-size: 12px;
+  line-height: 16px;
+  box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
+}
 
 /* The popover menu (11): the More menu and the page-size list share one surface ----------------------------------- */
 html:root .el-popper.rl-menu {

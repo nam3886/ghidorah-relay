@@ -29,8 +29,7 @@ FP = "FAILED " + PICK_SPEC + " > "
 FT = "FAILED " + TEXT_SPEC + " > "
 FA = "FAILED " + API_SPEC + " > "
 FV = "FAILED " + VIEW_SPEC + " > "
-TOTALS = (FV + "time zones > asks for the day totals in the zone of the browser (Asia/Saigon as Asia/Ho_Chi_Minh) "
-          "and puts each on its own day's header")
+TOTALS = (FV + "time zones > asks for the day totals in the zone of the browser, exactly as the browser reports it ")
 JOB_ROW = f"{SRC}/components/jobs/job-row.ts"
 
 
@@ -152,11 +151,11 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
 @mutation(VIEW, "dayTotals.value = out.day_totals ?? {};", "dayTotals.value = {};", expect=TOTALS)
 @mutation(VIEW, "dayKey((first as JobSummary).created_ms, zone)", 'dayKey(0, "UTC")', expect=TOTALS)
 @mutation(VIEW, '${total} ${total === 1 ? "job" : "jobs"}', "${total} jobs", expect=TOTALS)
-@mutation(JOB_ROW, 'zone === "Asia/Saigon" ? "Asia/Ho_Chi_Minh" : zone', "zone", expect=TOTALS)
+@mutation(JOB_ROW, "return Intl.DateTimeFormat().resolvedOptions().timeZone;", 'return "UTC";', expect=TOTALS)
 @mutation(JOB_ROW, 'new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(ms)',
           'new Intl.DateTimeFormat("en-CA", { timeZone: "UTC" }).format(ms)',
-          expect=FV + "time zones > asks for the day totals in the zone of the browser "
-                      "(America/Los_Angeles as America/Los_Angeles) and puts each on its own day's header")
+          expect=FV + "time zones > asks for the day totals in the zone of the browser, exactly as the browser "
+                      "reports it (America/Los_Angeles), and puts each on its own day's header")
 @mutation(VIEW, 'v-show="!isPhone || ids.length"', 'v-show="true"',
           expect=FV + "selection > a phone shows the bulk bar only while a job is ticked, "
                       "with the count and both buttons")

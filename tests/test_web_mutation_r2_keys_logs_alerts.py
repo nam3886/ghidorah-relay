@@ -14,7 +14,7 @@ ALERTS = SRC + "/views/AlertsView.vue"
 LOGS = SRC + "/views/LogsView.vue"
 NEW_KEY = SRC + "/components/keys/NewKeyCallout.vue"
 KEY_FORM = SRC + "/components/keys/KeyFormDialog.vue"
-KEY_SWITCH = SRC + "/components/keys/KeySwitch.vue"
+KEY_SWITCH = SRC + "/components/shared/ToggleSwitch.vue"
 WALLET_LINES = SRC + "/components/keys/WalletLines.vue"
 ALERTS_MODEL = SRC + "/components/alerts/alerts-model.ts"
 ALERT_DETAIL = SRC + "/components/alerts/AlertDetailPanel.vue"
@@ -214,10 +214,9 @@ def test_the_keys_view_shows_a_failed_create_from_fixed_text():
           expect=KEYS_LIST + "delete says whether the key went or was only disabled")
 @mutation(KEYS, "await setKeyEnabled(k.id, enabled);", "await setKeyEnabled(k.id, !enabled);",
           expect=KEYS_LIST + "a switch that fails reads the list again, so it goes back")
-@mutation(KEY_SWITCH, "emit('change', !modelValue)", "emit('change', modelValue)",
+@mutation(KEY_SWITCH, "emit('change', !props.modelValue)", "emit('change', props.modelValue)",
           expect=KEYS_LIST + "a switch that fails reads the list again, so it goes back")
-@mutation(KEY_SWITCH, ":title=\"modelValue ? 'Disable key' : 'Enable key'\"",
-          ":title=\"modelValue ? 'Enable key' : 'Disable key'\"",
+@mutation(KEYS, '(enabled ? "Disable key" : "Enable key")', '(enabled ? "Enable key" : "Disable key")',
           expect=DESIGN + "the switch is a labelled switch that shows what the server holds")
 @mutation(KEYS, '<span v-else class="k-enabled">enabled</span>', '<StatusChip v-else status="enabled" />',
           expect=KEYS_LIST + "an enabled key is plain text, a disabled key is the only one with a chip, and 'any "

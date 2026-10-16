@@ -5,6 +5,7 @@ import { ApiError } from "@/api/client";
 import * as api from "@/api/frames";
 import * as shell from "@/api/shell";
 import { forgetFramesMemory } from "@/components/frames/use-frames";
+import HintTip from "@/components/shared/HintTip.vue";
 import FramesView from "@/views/FramesView.vue";
 import { deferred, frameInfo, framesList, version } from "./fixtures";
 
@@ -45,6 +46,33 @@ afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
   document.body.replaceChildren();
+});
+
+describe("the lock history note", () => {
+  const lock = (locked: boolean) => ({
+    locked,
+    created_ms: 1_700_000_000_000,
+    created_by: "owner",
+    created_by_id: null,
+  });
+
+  it("a model with a lock history has the History heading as a focusable note with the whole history; one without has none", async () => {
+    vi.mocked(api.getFrame).mockImplementation(async () => frameInfo("own1", { lock_history: [lock(true)] }));
+    await open();
+    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await flushPromises();
+    const heading = wrapper!.findAll("h3").find((h) => h.text() === "History")!;
+    const tip = heading.findComponent(HintTip);
+    expect(tip.exists()).toBe(true);
+    expect(tip.props("text")).toMatch(/^Lock history: locked by owner /);
+    expect(tip.find("span").attributes("tabindex")).toBe("0");
+    expect(heading.attributes("title")).toBeUndefined();
+    vi.mocked(api.getFrame).mockImplementation(async () => frameInfo("own1", { lock_history: [] }));
+    await wrapper!.find('button[aria-label="Edit frame for m2"]').trigger("click");
+    await flushPromises();
+    const plain = wrapper!.findAll("h3").find((h) => h.text() === "History")!;
+    expect(plain.findComponent(HintTip).exists()).toBe(false);
+  });
 });
 
 describe("the view", () => {
@@ -198,12 +226,12 @@ describe("the view", () => {
     await flushPromises();
     expect(wrapper!.find('[data-testid="frame-preview"]').text()).toBe("RENDERED");
     expect(wrapper!.text()).toContain("8 characters");
+    // the note is a HintTip (focusable, on the menu surface), not a native title
+    const hints = wrapper!.findAllComponents(HintTip);
+    expect(hints.map((h) => h.props("text"))).toContain("Shown with the sample tracking code (draft frame).");
     expect(
-      wrapper!
-        .find('[data-testid="frame-preview"]')
-        .element.previousElementSibling!.querySelector("[title]")!
-        .getAttribute("title"),
-    ).toBe("Shown with the sample tracking code (draft frame).");
+      wrapper!.find('[data-testid="frame-preview"]').element.previousElementSibling!.querySelector("[title]"),
+    ).toBeNull();
     expect(wrapper!.findAll('[data-testid="frame-history"] li')).toHaveLength(2);
     // the history runs newest first
     expect(wrapper!.findAll('[data-testid="frame-history"] li').map((li) => li.attributes("data-version"))).toEqual([

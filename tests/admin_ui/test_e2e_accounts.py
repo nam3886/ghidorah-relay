@@ -357,15 +357,23 @@ def test_an_asleep_account_shows_until_when_and_why(app, app_session, db):
 CARD = "[aria-label='Account list'] .acct-scroll"
 
 
-def test_the_desktop_table_keeps_its_width_and_the_card_scrolls_sideways_to_reach_check(app, app_page, live, db):
+@pytest.mark.parametrize("width", [1280, 1440])
+def test_the_desktop_table_keeps_its_width_and_the_card_scrolls_sideways_to_reach_check(
+        app, app_page, live, db, width):
+    """At 1280 the table (1280 wide) is wider than the card, which scrolls to reach Check; at 1440 the page frame is
+    wide enough for the whole table, so nothing scrolls (D123) and Check is inside the card as it stands."""
     page = app_page
-    page.set_viewport_size({"width": 1280, "height": 800})
+    page.set_viewport_size({"width": width, "height": 800})
     new_account(db, label="free one", checked=True)
     app.sign_in(page)
     open_accounts(page)
     card = page.locator(CARD)
     sizes = card.evaluate("e => [e.scrollWidth, e.clientWidth]")
-    assert sizes[0] >= 1280 and sizes[0] > sizes[1], sizes          # the table is 1280 wide inside a narrower card
+    assert sizes[0] >= 1280, sizes                                   # the table keeps its width
+    if width == 1280:
+        assert sizes[0] > sizes[1], sizes                            # inside a narrower card
+    else:
+        assert sizes[0] <= sizes[1] + 1, sizes                       # the card holds the whole table
     card.evaluate("e => { e.scrollLeft = e.scrollWidth; }")
     expect(page.get_by_role("button", name="Check free one", exact=True)).to_be_visible()
     inside = page.evaluate("""css => {

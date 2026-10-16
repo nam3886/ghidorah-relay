@@ -17,7 +17,7 @@ A run narrowed to one comparison:
 import pytest
 from pixel_capture import capture
 from pixel_diff import compare
-from pixel_manifest import CEILING_PCT, ENTRIES
+from pixel_manifest import CEILING_PCT, ENTRIES, GATES
 from pixel_render import boards, font_css
 from pixel_report import status, write_result
 
@@ -209,6 +209,18 @@ def test_the_manifest_is_sound():
                 "%s: the region %r is not inside the %dx%d board" % (e.name, e.region, width, height))
         assert e.gate is not None and 0 < e.gate <= CEILING_PCT, (
             "%s: every entry has a gate, a positive percentage no looser than %s" % (e.name, CEILING_PCT))
+
+
+def test_every_entry_has_its_own_measured_gate_and_no_gate_is_left_over():
+    """The gates are per board (measured + 1.0 point), not the ceiling: an entry still at the ceiling would pass a
+    broken page, and a gate named after no entry is left over from a renamed board."""
+    names = {e.name for e in ENTRIES}
+    assert set(GATES) == names, "gates without an entry: %r; entries without a gate: %r" % (
+        sorted(set(GATES) - names), sorted(names - set(GATES)))
+    loose = {e.name: e.gate for e in ENTRIES if e.gate >= CEILING_PCT}
+    assert not loose, "entries still at the ceiling: %r" % loose
+    for e in ENTRIES:
+        assert e.gate == GATES[e.name]
 
 
 def test_the_gate_passes_the_canvas_itself_and_fails_a_wrong_page(renderer, diff_page):

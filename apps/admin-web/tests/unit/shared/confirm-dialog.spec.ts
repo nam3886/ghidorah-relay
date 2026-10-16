@@ -39,6 +39,14 @@ describe("confirmDialog", () => {
     }
   });
 
+  it("draws no close X: the box is asked not to show one, for a destructive and a plain confirm", async () => {
+    for (const danger of [true, false]) {
+      const b = box("resolve");
+      await confirmDialog({ title: "t", message: "m", danger }, b);
+      expect((b.confirm.mock.calls[0] as unknown[])[2]).toMatchObject({ showClose: false });
+    }
+  });
+
   it("marks a destructive confirm red and a plain one not", async () => {
     const danger = box("resolve");
     await confirmDialog({ title: "t", message: "m", danger: true }, danger);

@@ -1240,12 +1240,13 @@ describe("time zones", () => {
   );
 
   it.each([
-    ["Asia/Saigon", "Asia/Ho_Chi_Minh", Date.UTC(2026, 9, 14, 17)],
-    ["America/Los_Angeles", "America/Los_Angeles", Date.UTC(2026, 9, 15, 7)],
+    ["Asia/Saigon", Date.UTC(2026, 9, 14, 17)],
+    ["America/Los_Angeles", Date.UTC(2026, 9, 15, 7)],
   ])(
-    "asks for the day totals in the zone of the browser (%s as %s) and puts each on its own day's header",
-    async (tz, sent, at) => {
+    "asks for the day totals in the zone of the browser, exactly as the browser reports it (%s), and puts each on its own day's header",
+    async (tz, at) => {
       process.env.TZ = tz;
+      const sent = Intl.DateTimeFormat().resolvedOptions().timeZone;
       listJobs.mockResolvedValue({
         items: [job(A, { created_ms: at + 1000 }), job(B, { created_ms: at - 1000 })],
         total: 2,

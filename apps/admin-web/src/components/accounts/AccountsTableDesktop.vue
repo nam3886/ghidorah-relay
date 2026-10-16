@@ -14,8 +14,8 @@ import {
   type RowAction,
   rowMenu,
 } from "./account-model";
-import AccountSwitch from "./AccountSwitch.vue";
-import MenuPopover from "./MenuPopover.vue";
+import ToggleSwitch from "@/components/shared/ToggleSwitch.vue";
+import ActionMenu from "@/components/shared/ActionMenu.vue";
 import MiniChip from "./MiniChip.vue";
 
 // The account table from 1280 px (B-Accounts): nine columns inside a box that scrolls sideways below 1280 px.
@@ -88,10 +88,10 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
           </td>
           <td class="last">
             <div class="actions">
-              <AccountSwitch
+              <ToggleSwitch
                 v-if="!a.in_use"
                 size="desktop"
-                :on="a.state !== 'disabled'"
+                :model-value="a.state !== 'disabled'"
                 :label="`Enable ${a.label}`"
                 @change="(on: boolean) => emit('toggle', a, on)"
               />
@@ -105,7 +105,7 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
               >
                 Check
               </button>
-              <MenuPopover
+              <ActionMenu
                 :items="rowMenu(a, false)"
                 :trigger-label="`More actions for ${a.label}`"
                 menu-label="Account actions"

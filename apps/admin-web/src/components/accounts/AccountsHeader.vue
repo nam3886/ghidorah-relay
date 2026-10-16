@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { IconCheck, IconMoreHorizontal, IconPlus, IconRefresh } from "@/components/shared/icons";
-import MenuPopover, { type MenuItem } from "./MenuPopover.vue";
+import ActionMenu, { type MenuItem } from "@/components/shared/ActionMenu.vue";
 
 // The head of the Accounts page, drawn per width (specs/accounts.md section 1): Check all and Refresh catalog sit
 // beside Import on the desktop and fold into a More menu on a tablet and a phone; the Updated line moves under the
@@ -32,7 +32,7 @@ function pick(key: string): void {
         <button type="button" class="primary primary--phone" @click="emit('import')">
           <IconPlus :size="16" :stroke="2" />Import
         </button>
-        <MenuPopover
+        <ActionMenu
           :items="items"
           trigger-label="More actions"
           menu-label="More actions"
@@ -56,7 +56,7 @@ function pick(key: string): void {
       <span v-if="updatedLine" class="tnum updated updated--block">{{ updatedLine }}</span>
     </div>
     <div class="cluster">
-      <MenuPopover
+      <ActionMenu
         :items="items"
         trigger-label="More actions: Check all, Refresh catalog"
         menu-label="More actions"

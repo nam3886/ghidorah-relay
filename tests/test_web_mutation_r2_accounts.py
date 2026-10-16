@@ -10,8 +10,7 @@ SRC = "apps/admin-web/src"
 ACCOUNT_MODEL = SRC + "/components/accounts/account-model.ts"
 ACCOUNTS = SRC + "/views/AccountsView.vue"
 DESKTOP = SRC + "/components/accounts/AccountsTableDesktop.vue"
-SWITCH = SRC + "/components/accounts/AccountSwitch.vue"
-MENU = SRC + "/components/accounts/MenuPopover.vue"
+MENU = SRC + "/components/shared/ActionMenu.vue"
 IMPORT = SRC + "/components/accounts/ImportDialog.vue"
 
 ACCOUNT_SPEC = "tests/unit/accounts/account-model.spec.ts"
@@ -30,7 +29,7 @@ LIST = f"FAILED {ACCOUNTS_VIEW_SPEC} > the list > "
 POOL = f"FAILED {ACCOUNTS_VIEW_SPEC} > the pool card > "
 LAYOUTS = f"FAILED {ACCOUNTS_VIEW_SPEC} > the layouts > "
 COMMANDS = f"FAILED {ACCOUNTS_VIEW_SPEC} > the row commands and the edit dialog > "
-MENU_SPEC = f"FAILED {PARTS_SPEC} > MenuPopover > "
+MENU_SPEC = f"FAILED {PARTS_SPEC} > ActionMenu > "
 IMPORT_SPEC = f"FAILED {DIALOGS_SPEC} > ImportDialog > "
 WIPE = f"FAILED {DIALOGS_SPEC} > what was pasted never outlives its use > "
 
@@ -177,9 +176,6 @@ def test_the_pool_card_reads_the_pool_endpoint_and_the_layouts_follow_the_width(
 
 
 # ---- the switch, the menu and the import result ---------------------------------------------------------------
-@mutation(SWITCH, "emit('change', !props.on)", "emit('change', props.on)",
-          expect=f"FAILED {PARTS_SPEC} > AccountSwitch > is a switch with the label and the state; a click asks "
-                 "for the opposite")
 @mutation(MENU, 'if (event.key === "Escape") {', 'if (event.key === "Esc") {',
           expect=MENU_SPEC + "Escape closes it and gives the focus back to the trigger")
 @mutation(MENU, "if (target && (menu.value?.contains(target) || trigger.value?.contains(target))) return;",

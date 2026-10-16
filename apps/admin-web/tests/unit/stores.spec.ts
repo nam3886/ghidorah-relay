@@ -238,12 +238,11 @@ describe("ui store", () => {
     expect(ui.openJobId).toBeNull();
   });
 
-  it("sign-out closes the job detail and turns auto-refresh off", () => {
+  it("sign-out closes the job detail", () => {
     const ui = useUiStore();
     ui.openJob("j1");
-    ui.accountsAutoRefresh = true;
     useAuthStore().signOut();
     expect(ui.openJobId).toBeNull();
-    expect(ui.accountsAutoRefresh).toBe(false);
+    expect("accountsAutoRefresh" in ui).toBe(false);
   });
 });

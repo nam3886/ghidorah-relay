@@ -1,7 +1,6 @@
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import AccountSwitch from "@/components/accounts/AccountSwitch.vue";
-import MenuPopover, { type MenuItem } from "@/components/accounts/MenuPopover.vue";
+import ActionMenu, { type MenuItem } from "@/components/shared/ActionMenu.vue";
 import MiniChip from "@/components/accounts/MiniChip.vue";
 import { IconCamera, IconPencilMenu, IconPower, IconTrashMenu } from "@/components/shared/icons";
 
@@ -12,39 +11,6 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe("AccountSwitch", () => {
-  const mountSwitch = (on: boolean, size: "desktop" | "tablet" | "phone" = "desktop") => {
-    wrapper = mount(AccountSwitch, { props: { on, label: "Enable main", size } });
-    return wrapper;
-  };
-
-  it("is a switch with the label and the state; a click asks for the opposite", async () => {
-    const w = mountSwitch(true);
-    const sw = w.get("[role=switch]");
-    expect(sw.attributes("aria-label")).toBe("Enable main");
-    expect(sw.attributes("aria-checked")).toBe("true");
-    await sw.trigger("click");
-    expect(w.emitted("change")).toEqual([[false]]);
-    await w.setProps({ on: false });
-    expect(w.get("[role=switch]").attributes("aria-checked")).toBe("false");
-    await w.get("[role=switch]").trigger("click");
-    expect(w.emitted("change")).toEqual([[false], [true]]);
-  });
-
-  it("the track carries the on state, so the knob and the fill move with it", async () => {
-    const w = mountSwitch(true);
-    expect(w.get(".acct-switch__track").classes()).toContain("is-on");
-    await w.setProps({ on: false });
-    expect(w.get(".acct-switch__track").classes()).not.toContain("is-on");
-  });
-
-  it("each width has its own box: the class names the size", () => {
-    expect(mountSwitch(true, "tablet").get("button").classes()).toContain("acct-switch--tablet");
-    wrapper!.unmount();
-    expect(mountSwitch(true, "phone").get("button").classes()).toContain("acct-switch--phone");
-  });
-});
-
 describe("MiniChip", () => {
   it("is a 20 px chip in the tone, with the words", () => {
     wrapper = mount(MiniChip, { props: { tone: "warn" }, slots: { default: "drift" } });
@@ -53,7 +19,7 @@ describe("MiniChip", () => {
   });
 });
 
-describe("MenuPopover", () => {
+describe("ActionMenu", () => {
   const items: MenuItem[] = [
     { key: "shot", label: "Shot", icon: IconCamera, disabled: true },
     { key: "wake", label: "Wake", icon: IconPower },
@@ -61,7 +27,7 @@ describe("MenuPopover", () => {
     { key: "delete", label: "Delete", icon: IconTrashMenu, danger: true, separated: true },
   ];
   const mountMenu = () => {
-    wrapper = mount(MenuPopover, {
+    wrapper = mount(ActionMenu, {
       props: { items, triggerLabel: "More actions for main", menuLabel: "Account actions" },
       attachTo: document.body,
     });

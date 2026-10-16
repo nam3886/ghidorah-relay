@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import HintTip from "@/components/shared/HintTip.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import {
   appliedLine,
@@ -113,8 +114,10 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
         <div class="editor__label-row">
           <span class="editor__strong">Preview</span>
           <!-- the canvas draws the count alone: what the preview was made with is its tooltip -->
-          <span class="editor__count" :title="`Shown with the sample tracking code (${frames.preview.source} frame).`"
-            >{{ frames.preview.length }} characters</span
+          <span class="editor__count"
+            ><HintTip :text="`Shown with the sample tracking code (${frames.preview.source} frame).`"
+              >{{ frames.preview.length }} characters</HintTip
+            ></span
           >
         </div>
         <div class="editor__preview" data-testid="frame-preview">{{ frames.preview.text }}</div>
@@ -123,12 +126,13 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
 
     <div class="editor__section">
       <!-- the canvas draws no lock history line: the whole history of the lock is the heading's tooltip -->
-      <h3
-        :title="
-          frames.shownModel && frames.info.lock_history?.length ? lockHistoryLine(frames.info.lock_history) : undefined
-        "
-      >
-        History
+      <h3>
+        <HintTip
+          v-if="frames.shownModel && frames.info.lock_history?.length"
+          :text="lockHistoryLine(frames.info.lock_history)"
+          >History</HintTip
+        >
+        <template v-else>History</template>
       </h3>
       <p v-if="!frames.info.history.length" class="editor__note">No versions yet</p>
       <ol v-else class="editor__history" data-testid="frame-history">

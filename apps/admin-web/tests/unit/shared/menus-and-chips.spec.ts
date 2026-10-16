@@ -1,5 +1,5 @@
 import { flushPromises, mount } from "@vue/test-utils";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import ActionMenu from "../../../src/components/shared/ActionMenu.vue";
 import CommandChip from "../../../src/components/shared/CommandChip.vue";
 import DrawerPanel from "../../../src/components/shared/DrawerPanel.vue";
@@ -64,23 +64,45 @@ describe("FilterSelect", () => {
 describe("ActionMenu", () => {
   const items = [
     { key: "edit", label: "Edit", icon: IconPencilMenu },
-    { key: "delete", label: "Delete", icon: IconTrashMenu, danger: true, divided: true },
+    { key: "delete", label: "Delete", icon: IconTrashMenu, danger: true, separated: true },
   ];
 
-  it("is a 32 px button named More that has a popup menu", () => {
+  it("is a button named More that has a popup menu, closed, with the dots drawn at stroke 2.4", () => {
     const w = mount(ActionMenu, { props: { items }, attachTo: document.body });
     const button = w.find("button");
     expect(button.attributes("aria-label")).toBe("More");
     expect(button.attributes("aria-haspopup")).toBe("menu");
+    expect(button.attributes("aria-expanded")).toBe("false");
     expect(button.find("svg").attributes("stroke-width")).toBe("2.4");
+    expect(document.body.querySelector("[role=menu]")).toBeNull();
     w.unmount();
   });
 
-  it("a chosen item emits select with its key", async () => {
+  it("opens a menu named Actions; a chosen item emits select with its key and closes it", async () => {
     const w = mount(ActionMenu, { props: { items }, attachTo: document.body });
-    w.findComponent({ name: "ElDropdown" }).vm.$emit("command", "delete");
+    await w.find("button").trigger("click");
+    expect(w.find("button").attributes("aria-expanded")).toBe("true");
+    const menu = document.body.querySelector("[role=menu]")!;
+    expect(menu.getAttribute("aria-label")).toBe("Actions");
+    const entries = [...menu.querySelectorAll<HTMLElement>("[role=menuitem]")];
+    expect(entries.map((e) => e.textContent?.trim())).toEqual(["Edit", "Delete"]);
+    entries[1]!.click();
     await flushPromises();
     expect(w.emitted("select")).toEqual([["delete"]]);
+    expect(document.body.querySelector("[role=menu]")).toBeNull();
+    w.unmount();
+  });
+
+  it("an item without an icon still draws its label", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const w = mount(ActionMenu, { props: { items: [{ key: "x", label: "Plain" }] }, attachTo: document.body });
+    await w.find("button").trigger("click");
+    const entry = document.body.querySelector("[role=menuitem]")!;
+    expect(entry.textContent?.trim()).toBe("Plain");
+    expect(entry.querySelector("svg")).toBeNull();
+    // no component is made for a missing icon (Vue would warn about the undefined type)
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
     w.unmount();
   });
 });

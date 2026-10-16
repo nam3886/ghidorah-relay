@@ -347,7 +347,9 @@ COPY = f"{SHARED}/CopyButton.vue"
 @mutation(FILTER, 'current?.label ?? ""', 'current?.label ?? "?"', expect="shows the label of the current value")
 @mutation(FILTER, ":class=\"`is-${props.size}`\"", ":class=\"'is-toolbar'\"",
           expect="the height follows the size and the chevron can be left out")
-@mutation(ACTION_MENU, ':stroke="2.4"', ':stroke="2"', expect="is a 32 px button named More")
+@mutation(ACTION_MENU, ':stroke="2.4"', ':stroke="2"', expect="the dots drawn at stroke 2.4")
+@mutation(ACTION_MENU, 'triggerLabel: "More"', 'triggerLabel: "Menu"', expect="is a button named More")
+@mutation(ACTION_MENU, 'menuLabel: "Actions"', 'menuLabel: "Menu"', expect="opens a menu named Actions")
 @mutation(COMMAND_CHIP, 'v-if="props.time"', 'v-if="!props.time"', expect="ok: a dot, `ok ·` and the time in mono")
 @mutation(COMMAND_CHIP, 'v-if="props.message"', 'v-if="!props.message"', expect="error: a dot and `error · <message>`")
 @mutation(COMMAND_CHIP, ":class=\"`is-${props.state}`\"", ":class=\"'is-ok'\"", expect="running: a spinner")
@@ -429,6 +431,10 @@ def test_the_shared_skin_keeps_the_drawn_values():
 @mutation(PAGER, "min-width: 40px;", "min-width: 32px;", expect="a page button is 32 high")
 @mutation(PAGER, "border-radius: 10px;\n  background: transparent;\n  color: var(--rl-fg);",
           "border-radius: 8px;\n  background: transparent;\n  color: var(--rl-fg);", expect="a page button is 32 high")
+@mutation(f"{SRC}/components/jobs/HourBand.vue", "nothing wraps it -->", "band__ledger -->",
+          expect="is the shared LedgerList itself: nothing wraps it")
+@mutation(f"{SRC}/components/jobs/HourBand.vue", '<LedgerList :items="ledger" :columns="isTablet ? 2 : 1" />',
+          '<LedgerList :items="ledger" :columns="1" />', expect="is the shared LedgerList itself: nothing wraps it")
 @pytest.mark.web_unit
 def test_the_table_and_pager_keep_the_drawn_values():
     vitest(PAGER_CSS_SPEC)
@@ -440,3 +446,52 @@ def test_the_table_and_pager_keep_the_drawn_values():
 @pytest.mark.web_unit
 def test_the_copy_button_shape_follows_variant_and_the_old_size():
     vitest("tests/unit/shared/small-components.spec.ts")
+
+
+CONFIRM_TS = f"{SHARED}/confirm-dialog.ts"
+CONFIRM_BOX = f"{SHARED}/confirm-dialog.css"
+
+
+@mutation(CONFIRM_TS, "showClose: false,", "showClose: true,", expect="draws no close X")
+@mutation(CONFIRM_BOX, "vertical-align: top;\n  margin-top: min(240px, 30vh);",
+          "vertical-align: middle;\n  margin-top: min(240px, 30vh);", expect="the confirm box sits 240 px from the top")
+@mutation(CONFIRM_BOX, "margin-top: min(240px, 30vh);", "margin-top: 0;",
+          expect="the confirm box sits 240 px from the top")
+@mutation(LEDGER, "line-height: 20px;", "line-height: 18px;", expect="a ledger line is 20 px high")
+@pytest.mark.web_unit
+def test_the_confirm_box_sits_where_the_canvas_puts_it_and_the_ledger_line_is_20_px():
+    vitest("tests/unit/shared/confirm-dialog.spec.ts", SKIN_SPEC)
+
+
+HINT = f"{SHARED}/HintTip.vue"
+
+
+@mutation(HINT, 'class="hint-tip" tabindex="0"', 'class="hint-tip"', expect="draws its words in a tab stop")
+@mutation(HINT, 'popper-class="rl-tip"', 'popper-class="x-tip"', expect="is the menu-surface tooltip")
+@mutation(HINT, 'effect="light"', 'effect="dark"', expect="is the menu-surface tooltip")
+@mutation(HINT, ":trigger=\"['hover', 'focus']\"", 'trigger="hover"', expect="hover and focus open it")
+@mutation(HINT, '@keydown.esc="tip?.hide()"', '@keydown.enter="tip?.hide()"',
+          expect="Escape on the text asks the tooltip")
+@mutation(HINT, ':show-arrow="false"', ':show-arrow="true"', expect="is the menu-surface tooltip")
+@mutation(SKIN, "  max-width: 320px;\n  padding: 8px 12px;", "  max-width: 320px;\n  padding: 4px 8px;",
+          expect="is the menu surface: surface fill")
+@pytest.mark.web_unit
+def test_the_hint_tip_is_a_focusable_note_on_the_menu_surface():
+    vitest("tests/unit/shared/hint-tip.spec.ts", SKIN_SPEC)
+
+
+TOGGLE = f"{SHARED}/ToggleSwitch.vue"
+TOGGLE_SPEC = "tests/unit/shared/toggle-switch.spec.ts"
+
+
+@mutation(TOGGLE, "emit('change', !props.modelValue)", "emit('change', props.modelValue)",
+          expect="is a switch with the label and the state")
+@mutation(TOGGLE, ":class=\"{ 'is-on': props.modelValue }\"", ":class=\"{ 'is-on': !props.modelValue }\"",
+          expect="the track carries the on state")
+@mutation(TOGGLE, "`toggle-switch--${props.size ?? 'auto'}`", "`toggle-switch--${props.size ?? 'phone'}`",
+          expect="each width has its own box")
+@mutation(TOGGLE, ':disabled="props.disabled"', ':disabled="false"', expect="a disabled switch cannot be clicked")
+@mutation(TOGGLE, ':title="props.title"', ':title="props.label"', expect="the title is shown only when given")
+@pytest.mark.web_unit
+def test_the_toggle_switch_reports_the_opposite_and_names_its_size():
+    vitest(TOGGLE_SPEC)

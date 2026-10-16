@@ -54,7 +54,7 @@ const props = withDefaults(
   display: grid;
   gap: 8px 32px;
   font-size: 13px;
-  line-height: 18px;
+  line-height: 20px;
 }
 .ledger--1 {
   grid-template-columns: minmax(0, 1fr);

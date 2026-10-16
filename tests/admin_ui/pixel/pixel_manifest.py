@@ -9,7 +9,7 @@ on it) but not compared.
 Lanes add their screens' entries here, in their own block, with their own seed and drive functions."""
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from patchright.sync_api import expect
 from pixel_drawer import IMAGE_DONE, IMAGE_FAILED, VIDEO_DONE, open_drawer, seed_of
@@ -111,4 +111,50 @@ DRAWER = [
     Entry("P-JobDetail", "#/jobs", seed=seed_of(VIDEO_DONE), now=NOW, drive=open_drawer(VIDEO_DONE)),
 ]
 
-ENTRIES: list[Entry] = [*LOGIN, *SHELL, *LANE7, *ACCOUNTS_BOARDS, *KLA, *JOBS, *DRAWER]
+# Each board holds its own measured gate: the worst of its light and dark mismatch + anti-aliasing on the box after the
+# consolidation round, plus 1.0 point (17/10). CEILING_PCT stays only the default of a new entry; a board that gets
+# worse than its gate is a regression, and one that gets better should have its gate lowered.
+GATES: dict[str, float] = {
+    "B-AccountEdit": 4.52,
+    "B-AccountImport": 10.13,
+    "B-Accounts": 2.73,
+    "B-Alerts": 5.76,
+    "B-Frames": 2.32,
+    "B-JobDetail": 1.33,
+    "B-JobFailed": 2.67,
+    "B-Jobs": 4.47,
+    "B-Jobs-shell": 4.02,
+    "B-KeyForm": 10.21,
+    "B-Keys": 3.07,
+    "B-LogDetail": 4.69,
+    "B-Login": 1.04,
+    "B-Logs": 8.21,
+    "B-Settings": 6.00,
+    "B-Test": 3.38,
+    "P-Accounts": 1.97,
+    "P-Alerts": 9.38,
+    "P-Frames": 3.49,
+    "P-JobDetail": 9.07,
+    "P-Jobs": 10.47,
+    "P-Jobs-shell": 2.74,
+    "P-Keys": 7.96,
+    "P-Login": 1.16,
+    "P-Logs": 6.41,
+    "P-Settings": 12.34,
+    "P-Test": 7.20,
+    "T-Accounts": 1.74,
+    "T-Alerts": 8.07,
+    "T-Frames": 5.68,
+    "T-JobDetail": 1.30,
+    "T-Jobs": 6.39,
+    "T-Jobs-shell": 2.90,
+    "T-Keys": 8.41,
+    "T-Logs": 10.91,
+    "T-Settings": 9.01,
+    "T-Test": 7.09,
+}
+
+ENTRIES: list[Entry] = [
+    replace(e, gate=GATES.get(e.name, e.gate))
+    for e in [*LOGIN, *SHELL, *LANE7, *ACCOUNTS_BOARDS, *KLA, *JOBS, *DRAWER]
+]

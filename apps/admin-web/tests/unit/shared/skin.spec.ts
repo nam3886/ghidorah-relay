@@ -163,6 +163,37 @@ function decls(css: string, selector: string): Record<string, string> {
   return out;
 }
 
+const LEDGER = readFileSync(join(process.cwd(), "src/components/shared/LedgerList.vue"), "utf8");
+
+describe("confirm position and ledger line height", () => {
+  it("the confirm box sits 240 px from the top (30vh on a short page), aligned to the top of its line", () => {
+    const box = decls(CONFIRM, ".rl-confirm.el-message-box {");
+    expect(box["vertical-align"]).toBe("top");
+    expect(box["margin-top"]).toBe("min(240px, 30vh)");
+  });
+
+  it("a ledger line is 20 px high, in the one rule that sets it", () => {
+    expect(decls(LEDGER, ".ledger {")["line-height"]).toBe("20px");
+    expect(LEDGER.match(/line-height:/g)).toHaveLength(1);
+  });
+});
+
+describe("the HintTip note", () => {
+  it("is the menu surface: surface fill, a hairline, radius 12, the overlay shadow, 12/16 type, at most 320 wide", () => {
+    expect(decls(SKIN, "html:root .el-popper.rl-tip {")).toEqual({
+      "max-width": "320px",
+      padding: "8px 12px",
+      border: "1px solid var(--rl-line)",
+      "border-radius": "12px",
+      background: "var(--rl-surface)",
+      color: "var(--rl-fg)",
+      "font-size": "12px",
+      "line-height": "16px",
+      "box-shadow": "var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%))",
+    });
+  });
+});
+
 describe("skin: exact declarations", () => {
   it("the checkbox box is exactly 15 x 15 with radius 2, and no other size sneaks in", () => {
     expect(decls(SKIN, "html:root .el-checkbox__inner {")).toEqual({

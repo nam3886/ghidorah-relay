@@ -1,25 +1,53 @@
-"""The Prompt frames tab: the lists, the Provider select and the editor."""
+"""The Prompt frames tab: the lists, the Provider select, the editor and the two notes drawn on the menu surface."""
+
+import re
 
 from patchright.sync_api import expect
 
 from . import tab
 
 ROUTE = "frames"
-STATES = [("frames", "list"), ("frames", "provider-select"), ("frames", "editor"), ("frames", "editor-default")]
+STATES = [("frames", "list"), ("frames", "provider-select"), ("frames", "editor"), ("frames", "preview-tip"),
+          ("frames", "lock-history-tip"), ("frames", "editor-default")]
+
+VIDEO = "[data-frame-kind=video]"
 
 
 def run(page, app, live, sw, data):
     def frames_list():
         tab(page, "frames")
-        expect(page.locator("[data-frame-kind=video]")).to_be_visible()
+        expect(page.locator(VIDEO)).to_be_visible()
     sw.step("frames", "list", frames_list)
     # the provider list is the browser's own popup, which a page shot does not hold: the focused control is the state
     sw.step("frames", "provider-select", lambda: (
         page.locator('select[aria-label="Provider"]').focus(),
         expect(page.locator('select[aria-label="Provider"]')).to_be_focused()))
     sw.step("frames", "editor", lambda: (
-        page.locator("[data-frame-kind=video]").get_by_role("button", name="Edit frame for fake-video").click(),
+        page.locator(VIDEO).get_by_role("button", name="Edit frame for fake-video").click(),
         expect(page.get_by_label("Frame text")).to_be_visible()))
+    # the note on the preview's character count, opened from the keyboard (D125)
+    sw.step("frames", "preview-tip", lambda: (
+        # a draft to preview
+        page.get_by_label("Frame text").fill("Preview frame. {{tracking_code}} {{client_prompt}}"),
+        page.get_by_role("button", name="Preview", exact=True).click(),
+        page.get_by_text(re.compile(r"^\d+ characters$")).focus(),
+        expect(page.get_by_role("tooltip")).to_contain_text("Shown with the sample tracking code")))
+
+    # the note on the History heading holds the lock history, which exists once the model's lock was toggled
+    def lock_history_tip():
+        # a lock needs an own frame (the server refuses one for a model that follows the default): save one first
+        page.keyboard.press("Escape")
+        page.get_by_label("Frame text").fill("Sweep frame. {{tracking_code}} {{client_prompt}}")
+        save = page.get_by_role("button", name="Save", exact=True)
+        save.click()
+        expect(page.get_by_role("button", name="Follow the default")).to_be_visible()     # the frame is now its own
+        page.locator(VIDEO).get_by_label("Keep own frame of fake-video").first.check()
+        tip = page.get_by_role("heading", name="History").locator(".hint-tip")
+        expect(tip).to_be_visible()
+        tip.focus()
+        expect(page.get_by_role("tooltip")).to_contain_text("Lock history:")
+    sw.step("frames", "lock-history-tip", lock_history_tip)
     sw.step("frames", "editor-default", lambda: (
-        page.locator("[data-frame-kind=video]").get_by_role("button", name="Edit the default").click(),
+        page.keyboard.press("Escape"),
+        page.locator(VIDEO).get_by_role("button", name="Edit the default").click(),
         expect(page.get_by_role("heading", name="Editing video / default")).to_be_visible()))

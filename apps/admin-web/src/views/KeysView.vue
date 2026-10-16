@@ -4,7 +4,7 @@ import { type ApiKey, createKey, deleteKey, type KeyBody, listKeys, patchKey, se
 import type { CatalogModel } from "@/api/shell";
 import PageHeader from "@/components/layout/PageHeader.vue";
 import KeyFormDialog from "@/components/keys/KeyFormDialog.vue";
-import KeySwitch from "@/components/keys/KeySwitch.vue";
+import ToggleSwitch from "@/components/shared/ToggleSwitch.vue";
 import NewKeyCallout from "@/components/keys/NewKeyCallout.vue";
 import WalletLines from "@/components/keys/WalletLines.vue";
 import { createdText, type CreateError, createError, deleteToast, unfinishedText } from "@/components/keys/key-model";
@@ -162,6 +162,8 @@ async function copyPrefix(k: ApiKey) {
 }
 
 const labelOf = (k: ApiKey): string => k.label || k.prefix;
+// the switch says what a click does
+const switchTitle = (enabled: boolean): string => (enabled ? "Disable key" : "Enable key");
 const rowClass = ({ row }: { row: ApiKey }): string => (row.id === createdId.value ? "key-new" : "");
 const modelsText = (k: ApiKey): string => k.models.join(" · ");
 </script>
@@ -248,8 +250,9 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
         >
         <template #actions="{ row }">
           <div class="k-actions">
-            <KeySwitch
+            <ToggleSwitch
               :model-value="row.enabled"
+              :title="switchTitle(row.enabled)"
               :label="`Enable key ${labelOf(row)}`"
               @change="(v: boolean) => toggle(row, v)"
             />
@@ -282,8 +285,9 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
               <span class="p-key__label" :class="{ 'is-off': !row.enabled }">{{ row.label || "(no label)" }}</span>
               <StatusChip v-if="!row.enabled" status="disabled" />
               <span v-else class="p-key__enabled">enabled</span>
-              <KeySwitch
+              <ToggleSwitch
                 :model-value="row.enabled"
+                :title="switchTitle(row.enabled)"
                 :label="`Enable key ${labelOf(row)}`"
                 @change="(v: boolean) => toggle(row, v)"
               />

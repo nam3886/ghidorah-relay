@@ -4,7 +4,7 @@ import type { PoolStats } from "@/api/shell";
 import type { LedgerItem } from "@/components/shared/LedgerList.vue";
 import type { Tone } from "@/components/shared/status-tones";
 import { IconCamera, IconCheck, IconPencilMenu, IconPower, IconTrashMenu } from "@/components/shared/icons";
-import type { MenuItem } from "./MenuPopover.vue";
+import type { MenuItem } from "@/components/shared/ActionMenu.vue";
 
 export const PAGE_SIZE = 50;
 export const AUTO_REFRESH_MS = 10000;

@@ -6,11 +6,10 @@ import type { JobSummary } from "@/api/jobs";
 export const clock = (ms: number | null | undefined): string =>
   ms ? new Date(ms).toLocaleTimeString("en-GB", { hour12: false }) : "—";
 
-// The browser's own IANA zone, which cuts the day headers and the clock. The server's time zone data names Vietnam
-// `Asia/Ho_Chi_Minh` only, so the older alias a browser may report is renamed.
+// The browser's own IANA zone, exactly as the browser reports it: it cuts the day headers and the clock. The server
+// accepts every IANA name, so no alias is renamed here.
 export function localZone(): string {
-  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return zone === "Asia/Saigon" ? "Asia/Ho_Chi_Minh" : zone;
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
 // "2026-10-15": the calendar day of a time in `zone`, the key of the server's `day_totals`.

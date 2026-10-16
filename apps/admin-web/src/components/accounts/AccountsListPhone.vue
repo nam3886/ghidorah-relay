@@ -13,8 +13,8 @@ import {
   type RowAction,
   rowMenu,
 } from "./account-model";
-import AccountSwitch from "./AccountSwitch.vue";
-import MenuPopover from "./MenuPopover.vue";
+import ToggleSwitch from "@/components/shared/ToggleSwitch.vue";
+import ActionMenu from "@/components/shared/ActionMenu.vue";
 import MiniChip from "./MiniChip.vue";
 
 // The account list below 768 px (P-Accounts): one stacked row per account. There is no Check button: Check is the
@@ -53,15 +53,15 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
       <div class="foot">
         <span class="checked">Checked {{ ago(a.last_checked_ms) }}</span>
         <div class="controls">
-          <AccountSwitch
+          <ToggleSwitch
             v-if="!a.in_use"
             size="phone"
-            :on="a.state !== 'disabled'"
+            :model-value="a.state !== 'disabled'"
             :label="`Enable ${a.label}`"
             @change="(on: boolean) => emit('toggle', a, on)"
           />
           <span v-else class="spacer" />
-          <MenuPopover
+          <ActionMenu
             :items="rowMenu(a, true)"
             :trigger-label="`More actions for ${a.label}`"
             menu-label="Account actions"

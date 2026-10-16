@@ -80,7 +80,8 @@ const legend = computed(() => [
         <span v-for="(t, i) in axis" :key="i">{{ t }}</span>
       </div>
     </div>
-    <div class="band__ledger"><LedgerList :items="ledger" :columns="isTablet ? 2 : 1" /></div>
+    <!-- the band variant of LedgerList draws the raised panel, its padding and its rows: nothing wraps it -->
+    <LedgerList :items="ledger" :columns="isTablet ? 2 : 1" />
   </section>
 </template>
 
@@ -222,25 +223,5 @@ const legend = computed(() => [
 }
 .band__axis--phone {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.band__ledger {
-  flex: 1 1 280px;
-  padding: 16px 20px;
-  background: var(--rl-raised);
-}
-.band__ledger :deep(.ledger--1) {
-  gap: 6px;
-}
-.band--tablet .band__ledger :deep(.ledger--2) {
-  align-content: start;
-}
-.band--phone .band__ledger {
-  padding: 14px 16px;
-}
-.band--phone .band__ledger :deep(.ledger) {
-  gap: 8px;
-}
-.band__ledger :deep(.ledger__value) {
-  font-weight: 500;
 }
 </style>

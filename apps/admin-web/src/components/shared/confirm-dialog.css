@@ -2,7 +2,11 @@
    on the left and, for a destructive action, a solid --rl-bad-solid button on the right. A class in a same-origin
    stylesheet (the CSP blocks style attributes). The box is teleported to <body>, so these rules are global and keyed
    by the custom class. The buttons take their look from skin.css. */
+/* the canvas puts the box 240 px from the top of the page, not in the middle (B-JobFailed); Element Plus centres it
+   with an inline-block line of the page's height, so the box aligns to the top of that line instead */
 .rl-confirm.el-message-box {
+  vertical-align: top;
+  margin-top: min(240px, 30vh);
   width: min(440px, 100%);
   padding: 20px 20px 16px;
   border-radius: 16px;

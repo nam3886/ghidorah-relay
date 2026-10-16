@@ -20,9 +20,6 @@ export const useUiStore = defineStore("ui", () => {
   }
   const toggleTheme = (): void => setTheme(theme.value === "dark" ? "light" : "dark");
 
-  // Accounts auto-refresh: its state outlives tab switches.
-  const accountsAutoRefresh = ref(false);
-
   // The one job-detail dialog is mounted in the shell; Jobs and Alerts open it through openJob(id).
   const openJobId = ref<string | null>(null);
   const openJob = (id: string): void => {
@@ -33,9 +30,8 @@ export const useUiStore = defineStore("ui", () => {
   };
 
   useAuthStore().onSignOut(() => {
-    accountsAutoRefresh.value = false;
     openJobId.value = null;
   });
 
-  return { theme, setTheme, toggleTheme, accountsAutoRefresh, openJobId, openJob, closeJob };
+  return { theme, setTheme, toggleTheme, openJobId, openJob, closeJob };
 });

@@ -35,9 +35,20 @@ def choose(page, which: int, option: str) -> None:
     page.get_by_role("option", name=option, exact=True).click()
 
 
+def drawer(page):
+    """The job detail: the shared right-hand drawer."""
+    return page.locator("[data-testid=job-drawer]")
+
+
+def pick(page, tab: str) -> None:
+    """A tab of the drawer (Overview, Timeline, Technical): only the open tab's sections are in the page."""
+    drawer(page).get_by_role("tab", name=tab, exact=True).click()
+    expect(drawer(page).get_by_role("tab", name=tab, exact=True)).to_have_attribute("aria-selected", "true")
+
+
 def open_row(page, job) -> None:
     rows(page).filter(has_text=str(job)[:8]).locator("a.title-link, .prow").first.click()
-    expect(page.locator(".el-dialog")).to_be_visible()
+    expect(drawer(page)).to_be_visible()
 
 
 def sent_keys(page, suffix: str) -> list:
@@ -91,9 +102,9 @@ def test_the_list_shows_its_columns_and_a_row_opens_the_detail_but_its_tick_box_
     expect(page.locator('[data-testid="day-row"]')).to_contain_text("· 1 job")        # the server's total of the day
     row.locator("label.el-checkbox").click()
     expect(page.locator(".jobs__count")).to_have_text("1 selected")
-    expect(page.locator(".el-dialog")).to_have_count(0)
+    expect(drawer(page)).to_be_hidden()
     row.locator("td").nth(2).click()
-    expect(page.locator(".el-dialog__title")).to_have_text("Job " + str(job)[:8])
+    expect(page.get_by_role("dialog", name="Job " + str(job)[:8])).to_be_visible()
 
 
 @pytest.mark.fabricated_rows("plants a submitting job with no lease row and a failed job with no error code",
@@ -356,9 +367,18 @@ def test_the_list_and_the_detail_fit_the_screen_at_phone_tablet_and_desktop_widt
     fits = page.evaluate("(e => e.scrollWidth <= e.clientWidth + 1)(document.querySelector('.jobs'))")
     assert fits, "the list scrolls inside its own container, not the page section"
     open_row(page, job)
-    box = page.locator(".el-dialog").bounding_box()
+    # the drawer slides in: measure it once it has stopped (its right edge is on the screen, or the wait times out)
+    page.wait_for_function(
+        "w => document.querySelector('[data-testid=job-drawer]').getBoundingClientRect().right <= w + 1", arg=width)
+    box = drawer(page).bounding_box()
     assert box["x"] >= 0 and box["x"] + box["width"] <= width + 1, box
-    expect(page.locator(".el-dialog [data-section=technical] .el-descriptions")).to_be_visible()
+    pick(page, "Technical")
+    technical = drawer(page).locator("[data-section=technical]")
+    expect(technical).to_be_visible()
+    # the tab holds real facts: the labels the job has and the seeded job's own id
+    expect(technical).to_contain_text("Provider / pool")
+    expect(technical).to_contain_text("Job id")
+    expect(technical).to_contain_text(str(job))
 
 
 @pytest.mark.parametrize("width", [390, 768, 1280])
@@ -403,10 +423,12 @@ def test_planted_markup_in_title_name_error_events_and_prompt_renders_as_text_in
     expect(rows(page).first).to_be_visible()
     assert page.locator("tbody img").count() == 0, "planted markup became an element in the list"
     open_row(page, job)
-    dialog = page.locator(".el-dialog")
-    expect(dialog.locator("[data-section=timeline]")).to_contain_text("<img src=x")
-    assert dialog.locator("img").count() == 0, "planted markup became an element in the detail"
-    expect(dialog.locator("[data-section=prompt] pre")).to_have_text(hostile)
+    dialog = drawer(page)
+    expect(dialog.locator("[data-section=prompt] .jd-prompt__text")).to_have_text(hostile)
     expect(dialog.locator("[data-section=conclusion]")).to_contain_text(hostile)
+    pick(page, "Timeline")
+    expect(dialog.locator("[data-section=timeline]")).to_contain_text("<img src=x")
+    pick(page, "Technical")
     expect(dialog.locator("[data-section=title] input")).to_have_value(hostile)
+    assert dialog.locator("img").count() == 0, "planted markup became an element in the detail"
     app.assert_planted_as_text(page)

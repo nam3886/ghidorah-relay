@@ -22,6 +22,8 @@ export async function confirmDialog(options: ConfirmOptions, box: MessageBoxLike
       confirmButtonText: options.confirmText ?? "Confirm",
       cancelButtonText: options.cancelText ?? "Cancel",
       customClass: "rl-confirm",
+      // the canvas draws no close X: Cancel, Esc and the backdrop are the ways out
+      showClose: false,
       type: options.danger ? "warning" : "info",
       confirmButtonClass: options.danger ? "el-button--danger" : undefined,
     });

@@ -174,8 +174,14 @@ def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all
     expect(shown).to_contain_text("Draft single.")
     expect(shown).to_contain_text("a cat on a sofa")
     expect(page.get_by_text(re.compile(r"^\d+ characters$"))).to_be_visible()
-    expect(page.get_by_text(re.compile(r"^\d+ characters$"))).to_have_attribute(
-        "title", "Shown with the sample tracking code (draft frame).")
+    # what the preview was made with is a note on the menu surface, reached by the keyboard as well as the pointer
+    count = page.get_by_text(re.compile(r"^\d+ characters$"))
+    expect(count).not_to_have_attribute("title", re.compile(".*"))
+    count.focus()
+    expect(page.get_by_role("tooltip")).to_have_text("Shown with the sample tracking code (draft frame).")
+    page.keyboard.press("Escape")                            # Escape dismisses it while the focus stays on the text
+    expect(page.get_by_role("tooltip")).to_have_count(0)
+    expect(count).to_be_focused()
     assert frame_texts(db, "fake-video") == [first]
     # a refused preview (a blank sample prompt) shows its refusal and clears the old render
     page.get_by_label("Sample prompt").fill("")
