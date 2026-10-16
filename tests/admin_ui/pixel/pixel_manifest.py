@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from patchright.sync_api import expect
+from pixel_jobs import jobs_seed, tick_the_two
 from pixel_seed import NOW, shell_seed
 
 TIMEOUT_MS = 10_000
@@ -62,4 +63,10 @@ SHELL = [
     Entry("P-Jobs", "#/jobs", seed=shell_seed, now=NOW, region=(0, 0, 390, 100), label="shell"),
 ]
 
-ENTRIES: list[Entry] = [*LOGIN, *SHELL]
+# ---- jobs ----------------------------------------------------------------------------------------------------------
+# The whole page: head, band, banner, list with the failed and the unknown job ticked (pixel_jobs.py).
+
+JOBS = [Entry(board, "#/jobs", seed=jobs_seed, now=NOW, drive=tick_the_two)
+        for board in ("B-Jobs", "T-Jobs", "P-Jobs")]
+
+ENTRIES: list[Entry] = [*LOGIN, *SHELL, *JOBS]

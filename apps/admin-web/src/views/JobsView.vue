@@ -18,7 +18,7 @@ import { HOUR_MS, hourRange } from "@/components/jobs/hour-band";
 import { PAGE_SIZE, PAGE_SIZES } from "@/components/jobs/paging";
 import { ALL, fromSelect, rememberedStatus, toSelect } from "@/components/jobs/job-filters";
 import { jobChanges } from "@/components/jobs/job-changes";
-import { clock, isRunning, netPoints } from "@/components/jobs/job-row";
+import { clock, dayKey, isRunning, localZone, netPoints } from "@/components/jobs/job-row";
 import { keyName, progressStep, recheckToast, regenerateToast, shortId } from "@/components/jobs/job-text";
 import RegenerateControl from "@/components/jobs/RegenerateControl.vue";
 import { pickedIds } from "@/components/jobs/selection";
@@ -32,7 +32,7 @@ import type { Column } from "@/components/shared/types";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useBusy } from "@/composables/use-busy";
 import { useLatest } from "@/composables/use-latest";
-import { groupByDay } from "@/lib/day-rows";
+import { groupByDay, isDayRow } from "@/lib/day-rows";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
 import { bulkAction } from "@/lib/operation-key";
@@ -53,6 +53,9 @@ const auth = useAuthStore();
 const { isPhone, isTablet } = useBreakpoint();
 
 const POLL_MS = 10_000;
+// The zone the days are cut in: the browser's own, the one the clock and the day headers use too.
+const zone = localZone();
+const dayTotals = shallowRef<Record<string, number>>({});
 
 // The select's caret, drawn as the canvas draws it (a 14 px chevron) instead of Element Plus's arrow.
 const SelectChevron = () => h(IconChevronDown, { size: 14, stroke: 2 });
@@ -139,6 +142,7 @@ async function load(at: number = offset.value): Promise<void> {
       keyId: keyId.value,
       createdFromMs: hour.value ?? undefined,
       createdToMs: hour.value === null ? undefined : hour.value + HOUR_MS,
+      tz: zone,
       offset: at,
       limit: limit.value,
     });
@@ -148,12 +152,14 @@ async function load(at: number = offset.value): Promise<void> {
     if (at !== offset.value) clearPicked();
     items.value = out.items;
     total.value = out.total;
+    dayTotals.value = out.day_totals ?? {};
     offset.value = at;
     picked.value = new Set(pickedIds(out.items, picked.value));
     error.value = null;
     updatedAt.value = Date.now();
-    // Last, after every change of this load: its nextTick then runs after the render they cause (the table an error
-    // hid is drawn again by error = null), or at once when nothing needs drawing.
+    // Last, after every change of this load, as the safe order: its nextTick runs after the render they cause (the
+    // table an error hid is drawn again by error = null). `items` above already queued that render, so the order is
+    // not what brings the ticks back; it only keeps the call from depending on that.
     void reTick();
   } catch (err) {
     if (latest.isCurrent(ticket)) error.value = errorText(err);
@@ -188,6 +194,8 @@ applyQuery();
 watch([status, keyId, hour, () => scope.provider], () => {
   offset.value = 0;
   clearPicked();
+  // the totals belong to the old filters: until the new answer lands the headers count the rows on screen
+  dayTotals.value = {};
   void load(0);
 });
 watch(
@@ -273,7 +281,18 @@ const regenerateConfirm = computed(() => ({
 const rowTone = (job: JobSummary): Tone | undefined => (job.status === "failed" ? "bad" : undefined);
 
 // Day headers: the note is the jobs of that day on this page.
-const grouped = computed(() => groupByDay(items.value, { at: (j) => j.created_ms, note: (n) => `${n} jobs shown` }));
+// Each header says how many jobs that day has under the current filters (the server's day_totals, counted in the
+// same zone the days are cut in); a day the server gave no total for says how many of its jobs are on this page.
+const grouped = computed(() => {
+  const out = groupByDay(items.value, { at: (j) => j.created_ms, note: (n) => `${n} jobs shown` });
+  out.items.forEach((item, i) => {
+    const first = out.items[i + 1];
+    if (!isDayRow(item) || !first || isDayRow(first)) return;
+    const total = dayTotals.value[dayKey((first as JobSummary).created_ms, zone)];
+    if (total !== undefined) item.note = `${total} ${total === 1 ? "job" : "jobs"}`;
+  });
+  return out;
+});
 
 const filtered = computed(() => !!(status.value || keyId.value || hour.value !== null));
 function clearFilters(): void {
@@ -710,11 +729,12 @@ const subtitle = computed(() =>
 }
 .jobs__table :deep(.el-table .cell) {
   padding: 8px 12px;
-  line-height: 18px;
+  line-height: 20px;
   word-break: normal;
 }
 .jobs__table :deep(.el-table th .cell) {
   padding: 0 12px;
+  white-space: nowrap;
 }
 .jobs__table :deep(.el-table .el-table-column--selection .cell) {
   padding: 0 0 0 16px;
@@ -775,11 +795,11 @@ const subtitle = computed(() =>
   font-family: var(--rl-mono);
 }
 .jobs__id {
-  display: block;
   font-size: 12px;
   color: var(--rl-faint);
 }
 .jobs--tablet .jobs__id {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -820,6 +840,7 @@ const subtitle = computed(() =>
   line-height: 16px;
 }
 .jobs__table :deep(.el-table td:has(.jobs__kind) .cell) {
+  overflow: visible;
   white-space: nowrap;
 }
 .jobs--tablet .jobs__table :deep(.el-table td:has(.jobs__kind) .cell) {

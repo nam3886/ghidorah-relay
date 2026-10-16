@@ -16,8 +16,7 @@ VIEW = f"{SRC}/views/JobsView.vue"
 TABLE = f"{SRC}/components/shared/DataTable.vue"
 VIEW_SPEC = "tests/unit/jobs/jobs-view.spec.ts"
 TABLE_SPEC = "tests/unit/shared/data-table-selection.spec.ts"
-FV = "FAILED " + VIEW_SPEC + " > what is sent is what is ticked on screen > "
-FS = "FAILED " + VIEW_SPEC + " > selection > "
+FV = "FAILED " + VIEW_SPEC + " > what is sent is what is ticked on screen (desktop) > "
 FT = "FAILED " + TABLE_SPEC + " > DataTable selection > "
 
 KEEP_ON_VIEW = "      keep-selection\n"
@@ -25,18 +24,6 @@ KEEP_ON_TABLE = ':reserve-selection="props.keepSelection"'
 HIDDEN_BY_ERROR = "error.value ? [] : "
 RE_TICK = "table.value?.setSelection([...picked.value])"
 RE_TICK_CALL = "    void reTick();\n  } catch"
-# the success path of load(), whose reTick comes last; the mutant calls it before the changes that redraw the table
-LOAD_TAIL = ("    picked.value = new Set(pickedIds(out.items, picked.value));\n"
-             "    error.value = null;\n"
-             "    updatedAt.value = Date.now();\n"
-             "    // Last, after every change of this load: its nextTick then runs after the render they cause "
-             "(the table an error\n"
-             "    // hid is drawn again by error = null), or at once when nothing needs drawing.\n"
-             "    void reTick();\n")
-RE_TICK_FIRST = ("    picked.value = new Set(pickedIds(out.items, picked.value));\n"
-                 "    void reTick();\n"
-                 "    error.value = null;\n"
-                 "    updatedAt.value = Date.now();\n")
 PRUNE = "picked.value = new Set(pickedIds(out.items, picked.value));"
 PAGE_CLEAR = "if (at !== offset.value) clearPicked();"
 SIZE_CLEAR = "  limit.value = size;\n  clearPicked();\n"
@@ -59,8 +46,6 @@ NOTHING_TICKED = "if (!ids.value.length) {"
 @mutation(VIEW, RE_TICK_CALL, "  } catch",
           expect=FV + "an error hides the table: nothing can be sent until Retry draws the ticks again, "
                       "and then they are what is sent")
-@mutation(VIEW, LOAD_TAIL, RE_TICK_FIRST,
-          expect=FS + "the ticks come back on the table after an error hid it and Retry drew it again")
 @mutation(VIEW, PRUNE, "picked.value = picked.value;",
           expect=FV + "a job that left the page while an error hid the table does not come back ticked")
 @mutation(VIEW, PAGE_CLEAR, "",

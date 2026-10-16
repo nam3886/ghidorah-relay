@@ -9,6 +9,7 @@ import type { JobPage, JobSummary } from "@/api/jobs";
 import * as shell from "@/api/shell";
 import { announceJobChange } from "@/components/jobs/job-changes";
 import { rememberedStatus } from "@/components/jobs/job-filters";
+import { dayKey, localZone } from "@/components/jobs/job-row";
 import RegenerateControl from "@/components/jobs/RegenerateControl.vue";
 import ListPager from "@/components/shared/ListPager.vue";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
@@ -89,6 +90,7 @@ const query = (over: Partial<api.JobListQuery> = {}): api.JobListQuery => ({
   keyId: "",
   offset: 0,
   limit: 10,
+  tz: expect.any(String),
   ...over,
 });
 // The stats strip behind the band's ledger (the canvas numbers).
@@ -142,7 +144,9 @@ async function open(url = "/jobs") {
   return { w, router };
 }
 
-const rows = (w: VueWrapper) => w.findAll("tbody tr:not(.is-day)");
+// the layout the test mounts (stubWidth sets it): a table on a desktop, stacked items on a phone
+let layout: "phone" | "tablet" | "desktop" = "desktop";
+const rows = (w: VueWrapper) => w.findAll(layout === "phone" ? "li.data-table__item" : "tbody tr:not(.is-day)");
 const rowTick = (w: VueWrapper, i: number) => rows(w)[i]!.find("input[type=checkbox]");
 const selectAll = (w: VueWrapper) => w.find("thead input[type=checkbox]");
 // The header box ticks every row through a deferred table call, so the count is waited for.
@@ -150,19 +154,23 @@ async function tickAll(w: VueWrapper, on: boolean, shown: string): Promise<void>
   await selectAll(w).setValue(on);
   await vi.waitFor(() => expect(w.find(".jobs__count").text()).toBe(shown));
 }
-const button = (w: VueWrapper, text: string) => w.findAll("button").find((b) => b.text() === text)!;
+// a button by its text, or (the phone's icon-only Refresh) by the start of its aria-label
+const button = (w: VueWrapper, text: string) =>
+  w.findAll("button").find((b) => b.text() === text || b.attributes("aria-label")?.startsWith(`${text},`))!;
 const count = (w: VueWrapper) => w.find(".jobs__count").text();
 const selects = (w: VueWrapper) => w.findAllComponents({ name: "ElSelect" });
 const lastQuery = () => listJobs.mock.lastCall![0];
 
 // matchMedia answering by the width named in the query: the phone edge is 767.x, the tablet band ends at 1279.x
 function stubWidth(kind: "phone" | "tablet" | "desktop") {
+  layout = kind;
   vi.stubGlobal("matchMedia", (q: string) => ({
     matches: kind === "phone" ? /max-width:\s*767/.test(q) : kind === "tablet" ? /1279/.test(q) : false,
     addEventListener: () => {},
     removeEventListener: () => {},
   }));
 }
+const dayKeyOf = (ms: number | null): string => dayKey(ms, localZone());
 // every test starts on a desktop; the tablet and phone tests say so
 beforeEach(() => stubWidth("desktop"));
 
@@ -297,7 +305,7 @@ describe("the list", () => {
     });
     const { w } = await open();
     const net = (i: number) => rows(w)[i]!.find(".money__net").text();
-    expect([net(0), net(1), net(2)]).toEqual(["-", "2", "0"]);
+    expect([net(0), net(1), net(2)]).toEqual(["—", "2", "0"]);
   });
 
   it("groups the rows under one header per day, with the jobs shown for that day", async () => {
@@ -656,7 +664,10 @@ describe("selection", () => {
   });
 });
 
-describe("what is sent is what is ticked on screen", () => {
+// The same tests in both layouts: the table of a desktop (el-table with reserve-selection) and the stacked list of a
+// phone (its own selection). A tick, a reload, a page or filter change, an error and Retry must send the same ids.
+describe.each(["desktop", "phone"] as const)("what is sent is what is ticked on screen (%s)", (width) => {
+  beforeEach(() => stubWidth(width));
   // Timers are faked and never advanced: nothing here may wait for a timer, only for the render (microtasks). A tick
   // must count the moment it is made, whatever reload came just before.
   const settle = async (): Promise<void> => {
@@ -1227,6 +1238,58 @@ describe("time zones", () => {
       expect(lines[3]).toContain("23:59:59");
     },
   );
+
+  it.each([
+    ["Asia/Saigon", "Asia/Ho_Chi_Minh", Date.UTC(2026, 9, 14, 17)],
+    ["America/Los_Angeles", "America/Los_Angeles", Date.UTC(2026, 9, 15, 7)],
+  ])(
+    "asks for the day totals in the zone of the browser (%s as %s) and puts each on its own day's header",
+    async (tz, sent, at) => {
+      process.env.TZ = tz;
+      listJobs.mockResolvedValue({
+        items: [job(A, { created_ms: at + 1000 }), job(B, { created_ms: at - 1000 })],
+        total: 2,
+        next_cursor: null,
+        day_totals: { "2026-10-15": 212, "2026-10-14": 1 },
+      });
+      const { w } = await open();
+      expect(lastQuery().tz).toBe(sent);
+      const days = w.findAll('[data-testid="day-row"]').map((d) => d.text());
+      expect(days[0]).toMatch(/15 Oct · 212 jobs$/);
+      expect(days[1]).toMatch(/14 Oct · 1 job$/);
+    },
+  );
+
+  it.each([
+    ["the status", (w: VueWrapper) => selects(w)[0]!.vm.$emit("update:modelValue", "failed")],
+    ["the key", (w: VueWrapper) => selects(w)[1]!.vm.$emit("update:modelValue", "k1")],
+    ["the provider", () => (useScopeStore().provider = "vibes")],
+  ])("a change of %s drops the old day totals at once, before the new list arrives", async (_what, change) => {
+    const day = (w: VueWrapper) => w.get('[data-testid="day-row"]').text();
+    listJobs.mockResolvedValue({ items: [job(A), job(B)], total: 2, next_cursor: null });
+    const { w } = await open();
+    await w.vm.$nextTick();
+    listJobs.mockReset().mockResolvedValueOnce({
+      items: [job(A), job(B)],
+      total: 2,
+      next_cursor: null,
+      day_totals: { [dayKeyOf(job(A).created_ms)]: 212 },
+    });
+    await button(w, "Refresh").trigger("click");
+    await flushPromises();
+    expect(day(w)).toContain("· 212 jobs");
+    listJobs.mockReturnValueOnce(new Promise<JobPage>(() => {}));
+    change(w);
+    await flushPromises();
+    expect(day(w)).not.toContain("212");
+    expect(day(w)).toContain("· 2 jobs shown");
+  });
+
+  it("a day the server gave no total for says how many of its jobs are shown", async () => {
+    listJobs.mockResolvedValue({ items: [job(A), job(B)], total: 2, next_cursor: null, day_totals: {} });
+    const { w } = await open();
+    expect(w.get('[data-testid="day-row"]').text()).toContain("· 2 jobs shown");
+  });
 });
 
 describe("server text", () => {

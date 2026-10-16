@@ -88,6 +88,7 @@ def test_the_list_shows_its_columns_and_a_row_opens_the_detail_but_its_tick_box_
     for text in (str(job)[:8], "clickable", "acct-a", "done", "fake-video"):
         expect(row).to_contain_text(text)
     expect(page.locator('[data-testid="day-row"]')).to_contain_text("Today")
+    expect(page.locator('[data-testid="day-row"]')).to_contain_text("· 1 job")        # the server's total of the day
     row.locator("label.el-checkbox").click()
     expect(page.locator(".jobs__count")).to_have_text("1 selected")
     expect(page.locator(".el-dialog")).to_have_count(0)
@@ -152,20 +153,20 @@ def test_the_list_pages_forward_and_back_without_a_repeat(app, app_page, live, d
     expect(page.locator(".pager .pager__text").first).to_have_text("Showing 1–10 of 25")
     first_page = rows(page).all_inner_texts()
     nxt, prev = page.locator(".pager button.btn-next"), page.locator(".pager button.btn-prev")
-    expect(prev).to_be_disabled()
+    expect(prev).to_have_attribute("aria-disabled", "true")
     nxt.click()
     expect(rows(page)).to_have_count(10)
     second_page = rows(page).all_inner_texts()
     assert not set(second_page) & set(first_page), "no job on both pages"
-    page.locator(".pager li.number", has_text="3").click()      # jump to the last page
+    page.locator(".pager button.number").get_by_text("3", exact=True).click()      # jump to the last page
     expect(rows(page)).to_have_count(5)
-    expect(nxt).to_be_disabled()
+    expect(nxt).to_have_attribute("aria-disabled", "true")
     third_page = rows(page).all_inner_texts()
     assert not set(third_page) & (set(first_page) | set(second_page)), "no job on two pages"
     prev.click()
     expect(rows(page)).to_have_count(10)
     assert rows(page).all_inner_texts() == second_page, "the second page comes back as it was"
-    page.locator(".pager li.number", has_text="1").click()
+    page.locator(".pager button.number").get_by_text("1", exact=True).click()
     expect(rows(page)).to_have_count(10)
     assert rows(page).all_inner_texts() == first_page, "and so does the first"
 
@@ -177,8 +178,8 @@ def test_a_bigger_page_size_shows_more_rows_and_keeps_the_ticks_across_a_reload(
         db.job(k, provider="fake")
     app.sign_in(page)
     expect(rows(page)).to_have_count(10)
-    page.locator(".pager .el-select").click()
-    page.get_by_role("option", name="20/page").click()
+    page.locator(".pager button.is-pager").click()
+    page.locator(".rl-menu").get_by_text("20 / page", exact=True).click()
     expect(rows(page)).to_have_count(20)
     tick(page, 0)
     tick(page, 3)
