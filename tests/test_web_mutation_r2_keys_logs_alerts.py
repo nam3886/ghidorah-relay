@@ -525,6 +525,7 @@ def test_the_alert_group_rules_hold():
 
 
 # ---- the day totals and the names in the alert detail ------------------------------------------------------------
+TOTALS = f"FAILED {LOGS_VIEW_SPEC} > day totals while another answer is on its way > "
 NAMES = f"FAILED {ALERTS_VIEW_SPEC} > job titles and key labels in the detail > "
 
 
@@ -532,22 +533,30 @@ NAMES = f"FAILED {ALERTS_VIEW_SPEC} > job titles and key labels in the detail > 
           expect=QUERY + "no filters: the page and the status only")
 @mutation(WINDOW, "${two(d.getMonth() + 1)}-${two(d.getDate())}", "${two(d.getMonth())}-${two(d.getDate())}",
           expect=HEADERS + "a day's key is its local date with two digits for month and day")
-@mutation(WINDOW, "if (total === undefined || total === shown) return", "if (total === undefined) return",
-          expect=HEADERS + "the note counts the rows shown, and says of how many when the day has more")
-@mutation(WINDOW, "of ${thousands(total)} requests shown", "of ${total} requests shown",
-          expect=HEADERS + "the note counts the rows shown, and says of how many when the day has more")
-@mutation(WINDOW, '&& shown === 1 ? "request"', '&& shown === 2 ? "request"',
-          expect=HEADERS + "the note counts the rows shown, and says of how many when the day has more")
+@mutation(WINDOW, "const n = total ?? shown;", "const n = shown;",
+          expect=HEADERS + "the note is the day's total from the server, else the rows on the page, in the same words")
+@mutation(WINDOW, "${thousands(n)} ${n === 1", "${n} ${n === 1",
+          expect=HEADERS + "the note is the day's total from the server, else the rows on the page, in the same words")
+@mutation(WINDOW, 'n === 1 ? "request"', 'n === 2 ? "request"',
+          expect=HEADERS + "the note is the day's total from the server, else the rows on the page, in the same words")
 @pytest.mark.web_unit
 def test_the_day_headers_are_asked_for_in_the_viewers_zone_and_worded_right():
     vitest(WINDOW_SPEC)
 
 
 @mutation(LOGS, "dayTotals.value = out.day_totals ?? {};", "dayTotals.value = {};",
-          expect=LOGS_LIST + "a header says of how many when the server's day total is larger than the page's rows")
+          expect=LOGS_LIST + "a header shows the day's total from the server, not the rows of the page")
 @mutation(LOGS, "if (!key && item.at_ms) key = dayKey(item.at_ms);",
           "if (false && item.at_ms) key = dayKey(item.at_ms);",
-          expect=LOGS_LIST + "a header says of how many when the server's day total is larger than the page's rows")
+          expect=LOGS_LIST + "a header shows the day's total from the server, not the rows of the page")
+@mutation(LOGS, "  dayTotals.value = {};\n  void load();", "  void load();",
+          expect=LOGS_LIST + "a new search drops the old day total at once: the header counts the page's rows until "
+                             "the answer lands")
+@mutation(LOGS, "    dayTotals.value = {};\n    offset.value = 0;", "    offset.value = 0;",
+          expect=TOTALS + "Clear logs drops the old total at once: the data is gone, so are its totals")
+@mutation(LOGS, "  const ticket = latest.next();\n  loading.value = true;",
+          "  const ticket = latest.next();\n  dayTotals.value = {};\n  loading.value = true;",
+          expect=TOTALS + "a page move keeps the total of the same filters while the next page loads")
 @pytest.mark.web_unit
 def test_a_day_header_uses_the_servers_day_total():
     vitest(LOGS_VIEW_SPEC)

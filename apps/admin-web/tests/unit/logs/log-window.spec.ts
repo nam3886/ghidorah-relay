@@ -168,11 +168,12 @@ describe("the day headers", () => {
     expect(dayKey(new Date(2026, 9, 15, 0, 0).getTime())).toBe("2026-10-15");
   });
 
-  it("the note counts the rows shown, and says of how many when the day has more", () => {
+  it("the note is the day's total from the server, else the rows on the page, in the same words", () => {
     expect(dayNote(7, 7)).toBe("7 requests shown");
     expect(dayNote(7)).toBe("7 requests shown");
     expect(dayNote(1, 1)).toBe("1 request shown");
-    expect(dayNote(5, 4761)).toBe("5 of 4,761 requests shown");
-    expect(dayNote(1, 2)).toBe("1 of 2 requests shown");
+    expect(dayNote(1)).toBe("1 request shown");
+    expect(dayNote(5, 4761)).toBe("4,761 requests shown");
+    expect(dayNote(1, 2)).toBe("2 requests shown");
   });
 });

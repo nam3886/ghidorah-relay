@@ -179,7 +179,30 @@ describe("the list", () => {
     expect(days[1]).toMatch(/· 1 request shown$/);
   });
 
-  it("a header says of how many when the server's day total is larger than the page's rows", async () => {
+  it("a new search drops the old day total at once: the header counts the page's rows until the answer lands", async () => {
+    const now = Date.now();
+    const key = new Date(now);
+    const todayKey = `${key.getFullYear()}-${String(key.getMonth() + 1).padStart(2, "0")}-${String(key.getDate()).padStart(2, "0")}`;
+    list.mockResolvedValueOnce({
+      items: [row({ id: "a", at_ms: now }), row({ id: "b", at_ms: now - 1000 })],
+      total: 4812,
+      day_totals: { [todayKey]: 4761 },
+    });
+    const { w } = await open();
+    const header = () => w.find('[data-testid="day-row"]').text().replace(/\s+/g, " ");
+    expect(header()).toMatch(/· 4,761 requests shown$/);
+    let answer!: (v: Awaited<ReturnType<typeof logs.listLogs>>) => void;
+    list.mockReturnValueOnce(new Promise((r) => (answer = r)));
+    await w.find<HTMLSelectElement>('select[aria-label="Status"]').setValue("error");
+    await settle();
+    expect(header()).toMatch(/· 2 requests shown$/);
+    expect(header()).not.toContain("4,761");
+    answer({ items: [row({ id: "a", at_ms: now })], total: 1, day_totals: { [todayKey]: 9 } });
+    await settle();
+    expect(header()).toMatch(/· 9 requests shown$/);
+  });
+
+  it("a header shows the day's total from the server, not the rows of the page", async () => {
     const now = Date.now();
     const key = new Date(now);
     const todayKey = `${key.getFullYear()}-${String(key.getMonth() + 1).padStart(2, "0")}-${String(key.getDate()).padStart(2, "0")}`;
@@ -189,7 +212,7 @@ describe("the list", () => {
       day_totals: { [todayKey]: 4761 },
     });
     const { w } = await open();
-    expect(w.find('[data-testid="day-row"]').text().replace(/\s+/g, " ")).toMatch(/· 2 of 4,761 requests shown$/);
+    expect(w.find('[data-testid="day-row"]').text().replace(/\s+/g, " ")).toMatch(/· 4,761 requests shown$/);
   });
 
   it("a row opens its details from a chevron button named by the request id", async () => {
@@ -325,6 +348,53 @@ describe("paging and refresh", () => {
       "Errors",
       "Failed before a job",
     ]);
+  });
+});
+
+describe("day totals while another answer is on its way", () => {
+  const todayKey = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const first = () =>
+    list.mockResolvedValueOnce({
+      items: [row({ id: "a", at_ms: Date.now() }), row({ id: "b", at_ms: Date.now() - 1000 })],
+      total: 120,
+      day_totals: { [todayKey()]: 4761 },
+    });
+  const delayed = () => {
+    let answer!: (v: Awaited<ReturnType<typeof logs.listLogs>>) => void;
+    list.mockReturnValueOnce(new Promise((r) => (answer = r)));
+    return (v: Awaited<ReturnType<typeof logs.listLogs>>) => answer(v);
+  };
+  const header = (w: VueWrapper) => w.find('[data-testid="day-row"]').text().replace(/\s+/g, " ");
+
+  it("Clear logs drops the old total at once: the data is gone, so are its totals", async () => {
+    first();
+    vi.mocked(confirm.confirmDialog).mockResolvedValue(true);
+    vi.mocked(logs.clearLogs).mockResolvedValue({ deleted: 17 });
+    const { w } = await open();
+    expect(header(w)).toMatch(/· 4,761 requests shown$/);
+    const answer = delayed();
+    await button(w, "Clear logs").trigger("click");
+    await settle();
+    expect(header(w)).toMatch(/· 2 requests shown$/);
+    expect(header(w)).not.toContain("4,761");
+    answer({ items: [row({ id: "c", at_ms: Date.now() })], total: 1, day_totals: { [todayKey()]: 1 } });
+    await settle();
+    expect(header(w)).toMatch(/· 1 request shown$/);
+  });
+
+  it("a page move keeps the total of the same filters while the next page loads", async () => {
+    first();
+    const { w } = await open();
+    const answer = delayed();
+    await button(w, "Next").trigger("click");
+    await settle();
+    expect(header(w)).toMatch(/· 4,761 requests shown$/);
+    answer({ items: [row({ id: "d", at_ms: Date.now() })], total: 120, day_totals: { [todayKey()]: 4761 } });
+    await settle();
+    expect(header(w)).toMatch(/· 4,761 requests shown$/);
   });
 });
 

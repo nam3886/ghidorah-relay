@@ -74,11 +74,10 @@ export function dayKey(ms: number): string {
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
 }
 
-// The muted tail of a day header: the rows on this page, and the day's total when the page holds only part of it.
+// The muted tail of a day header: the day's total from the server under the current filters, else the rows on the page.
 export function dayNote(shown: number, total?: number): string {
-  const word = (shown === total || total === undefined) && shown === 1 ? "request" : "requests";
-  if (total === undefined || total === shown) return `${thousands(shown)} ${word} shown`;
-  return `${thousands(shown)} of ${thousands(total)} requests shown`;
+  const n = total ?? shown;
+  return `${thousands(n)} ${n === 1 ? "request" : "requests"} shown`;
 }
 
 export function logQuery(filters: LogFilters, provider: string, offset: number, limit = PAGE_SIZE): LogQuery {

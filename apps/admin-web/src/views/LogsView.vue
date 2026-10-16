@@ -158,6 +158,8 @@ onBeforeUnmount(() => {
 // A new search starts at the first page; Refresh reads the same page again.
 function search(): void {
   offset.value = 0;
+  // totals follow the filters and the data, not the page: a new search drops them until its answer lands
+  dayTotals.value = {};
   void load();
 }
 
@@ -173,6 +175,8 @@ async function clear() {
   await run(async () => {
     const out = await clearLogs();
     notify.success(`Cleared ${out.deleted} rows`);
+    // totals follow the filters and the data, not the page: the data is gone, so are the old totals
+    dayTotals.value = {};
     offset.value = 0;
     await load();
   });
