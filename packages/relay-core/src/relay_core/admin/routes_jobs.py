@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import psycopg
 from fastapi import APIRouter, Depends, Request, Response
 from psycopg_pool import AsyncConnectionPool
 from pydantic import Field
@@ -74,6 +75,15 @@ def _zone(name: str) -> ZoneInfo:
     try:
         return ZoneInfo(name)
     except (ZoneInfoNotFoundError, ValueError, OSError):      # ValueError: a malformed key such as "../x"
+        raise ApiError("input.invalid", "tz") from None
+
+
+async def day_rows(conn, sql: str, params: dict) -> list:
+    """Run a day-totals query. Python's tzdata and Postgres's own zone database can differ: a zone Python accepted and
+    Postgres does not know (SQLSTATE 22023) is the caller's bad `tz`, not a server error. Other errors surface."""
+    try:
+        return await (await conn.execute(sql, params)).fetchall()
+    except psycopg.errors.InvalidParameterValue:
         raise ApiError("input.invalid", "tz") from None
 
 
@@ -173,8 +183,8 @@ async def list_jobs(status: str | None = None, provider: str | None = None, key_
         page = rows[:limit]
         if zone is not None and page:
             days = [r[14].astimezone(zone).date() for r in page]
-            found = await (await conn.execute(_DAY_TOTALS + bounds + _DAY_RANGE, {
-                **args, "tz": tz, "day_first": min(days), "day_last": max(days)})).fetchall()
+            found = await day_rows(conn, _DAY_TOTALS + bounds + _DAY_RANGE, {
+                **args, "tz": tz, "day_first": min(days), "day_last": max(days)})
             day_totals = {d.isoformat(): n for d, n in sorted(found)}
     more = len(rows) > limit
     out = {"items": [{**_summary(r[:16]), "outputs": r[16], "inputs": r[17], "net_charged": r[18],

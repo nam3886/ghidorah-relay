@@ -31,7 +31,8 @@ export interface LiveAlert {
 export interface Stats {
   jobs: { queued: number; in_progress: number; done: number; failed: number; pre_job_failures_24h: number };
   made: { videos: number; images: number };
-  accounts: { usable: number; available: number; dead: number; disabled: number };
+  // in_use: accounts holding a live lease; asleep: accounts in cooldown or with a resting pool (any state, as the list)
+  accounts: { usable: number; available: number; dead: number; disabled: number; in_use?: number; asleep?: number };
   keys: number;
   alerts: LiveAlert[];
 }
