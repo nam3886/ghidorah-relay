@@ -195,6 +195,8 @@ LEDGER_SPEC = "tests/unit/shared/ledger-money-chip.spec.ts"
 @mutation(LEDGER, 'v-if="item.was !== undefined" class="ledger__was"', 'v-if="item.was" class="ledger__was"',
           expect="a was of 0 is still shown")
 @mutation(LEDGER, 'v-if="item.note"', 'v-if="!item.note"', expect="a struck old value, an arrow and the value")
+@mutation(LEDGER, ':index="i"', ':index="0"', expect="the value slot replaces the value text")
+@mutation(LEDGER, '<slot name="value"', '<slot name="values"', expect="the value slot replaces the value text")
 @mutation(LEDGER, "columns: 1,", "columns: 2,", expect="one column by default")
 @mutation(LEDGER, 'variant: "band",', 'variant: "drawer",', expect="the Jobs band is the default box")
 @mutation(LEDGER, "item.tone !== 'neutral'", "true", expect="a tone colours the value; neutral and none do not")
@@ -305,6 +307,8 @@ OPT_IN_SPEC = "tests/unit/shared/data-table-opt-in.spec.ts"
 @mutation(TABLE, "props.keepSelection || selectedKeys.value.size === 0", "selectedKeys.value.size === 0",
           expect="with keepSelection a reload reports nothing")
 @mutation(TABLE, "if (selectedKeys.value.size) publish([]);", "", expect="starts a clean selection")
+@mutation(TABLE, "c.className ?? ''", "''", expect="a column className lands on its header and body cells")
+@mutation(TABLE, ':class="props.mainClass"', ':class="undefined"', expect="mainClass lands on the open area")
 @pytest.mark.web_unit
 def test_the_table_opt_ins_day_rows_tablet_and_phone_list():
     vitest(OPT_IN_SPEC)
