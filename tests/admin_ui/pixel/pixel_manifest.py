@@ -12,9 +12,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from patchright.sync_api import expect
-from pixel_lane7 import frames_drive, frames_seed, key_page_drive, key_page_seed, settings_drive, settings_seed
-from pixel_jobs import jobs_seed, tick_the_two
 from pixel_drawer import IMAGE_DONE, IMAGE_FAILED, VIDEO_DONE, open_drawer, seed_of
+from pixel_jobs import jobs_seed, tick_the_two
+from pixel_lane7 import frames_drive, frames_seed, key_page_drive, key_page_seed, settings_drive, settings_seed
 from pixel_seed import NOW, shell_seed
 
 TIMEOUT_MS = 10_000
