@@ -62,4 +62,6 @@ SHELL = [
     Entry("P-Jobs", "#/jobs", seed=shell_seed, now=NOW, region=(0, 0, 390, 100), label="shell"),
 ]
 
-ENTRIES: list[Entry] = [*LOGIN, *SHELL]
+from pixel_kla import KLA  # noqa: E402  (lane 6: keys, request logs, alerts; imports Entry from here)
+
+ENTRIES: list[Entry] = [*LOGIN, *SHELL, *KLA]

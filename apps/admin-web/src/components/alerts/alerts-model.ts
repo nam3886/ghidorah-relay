@@ -1,6 +1,5 @@
 // Pure rules of the Alerts view: what a group is called, what the detail says about it and what an acknowledge toasts.
 import type { AlertDetail, AlertGroup } from "@/api/alerts";
-import { fmtTime } from "@/lib/format";
 
 export const GROUP_LIMIT = 200;
 export const ROW_LIMIT = 100;
@@ -23,21 +22,50 @@ export function oneCustomer(g: Pick<AlertGroup, "kind" | "title" | "keys">): boo
   return g.kind === "unclear_reply" && g.keys === 1 && !isEmptyWording(g);
 }
 
-export function summaryText(d: AlertDetail): string {
-  return `${d.kind} / ${d.provider} · first ${fmtTime(d.first_ms)} · last ${fmtTime(d.last_ms)} · ${d.count} rows, ${d.open_count} open · ${d.keys} key(s)`;
+export const ONE_CUSTOMER_NOTE = "One customer only: may be the customer’s own words.";
+
+// What the group detail says under its title: how the stored reply relates to the job outcome.
+export const REPLY_NOTE = "The reply is stored as the job’s answer; the job outcome decides what the customer got.";
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+// `14 Oct 10:02`, the time of a group or a row (local time); a dash for a missing one.
+export function alertTime(ms: number | null | undefined): string {
+  if (!ms) return "—";
+  const d = new Date(ms);
+  const two = (n: number): string => String(n).padStart(2, "0");
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${two(d.getHours())}:${two(d.getMinutes())}`;
+}
+
+export interface GroupFact {
+  label: string;
+  value: string | number;
+  tone?: "warn";
+}
+
+// The facts of a group, as the ledger panel shows them. `Open` takes the warning colour while rows are open.
+export function groupFacts(d: AlertDetail): GroupFact[] {
+  return [
+    { label: "Kind", value: d.kind },
+    { label: "Provider", value: d.provider },
+    { label: "First seen", value: alertTime(d.first_ms) },
+    { label: "Last seen", value: alertTime(d.last_ms) },
+    { label: "Rows", value: d.count },
+    d.open_count > 0 ? { label: "Open", value: d.open_count, tone: "warn" } : { label: "Open", value: d.open_count },
+    { label: "Keys", value: d.keys },
+  ];
 }
 
 // How the jobs of an unclear wording ended: delivered (an acceptance), refunded (a refusal or nothing), still open.
-export function outcomesText(d: Pick<AlertDetail, "outcomes" | "failed_codes">): string {
+export function outcomesText(d: Pick<AlertDetail, "outcomes">): string {
   const o = d.outcomes ?? { done: 0, failed: 0, open: 0 };
-  const codes = Object.entries(d.failed_codes ?? {})
-    .map(([code, n]) => `${code} x${n}`)
-    .join(", ");
-  return (
-    `Jobs of this wording: delivered ${o.done}, refunded ${o.failed}, still open ${o.open}` +
-    `${codes ? ` (refused with: ${codes})` : ""}. ` +
-    "Delivered means the wording was an acceptance; refunded, a refusal or nothing."
-  );
+  const open = o.open ? `, ${o.open} still open` : "";
+  return `${o.done} delivered after the reply, ${o.failed} refunded${open}.`;
+}
+
+// A reply row's job outcome in the words of the detail: a failed job was refunded, so it reads `refunded`.
+export function outcomeStatus(jobStatus: string): string {
+  return jobStatus === "failed" ? "refunded" : jobStatus;
 }
 
 export function ackToast(acknowledged: number): string {

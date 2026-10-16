@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import { ApiError } from "@/api/client";
 import type { ApiKey, Wallet } from "@/api/keys";
 import {
+  compareWallets,
+  createdText,
   createError,
   deleteToast,
   keyBody,
   keyForm,
   type KeyForm,
+  sortedWallets,
   unfinishedText,
+  usageLabel,
+  usagePercent,
   walletPairs,
   walletText,
 } from "@/components/keys/key-model";
@@ -32,10 +37,57 @@ describe("walletText", () => {
   });
   it("limit with both, with the day only and with the total only", () => {
     expect(walletText(wallet({ day_limit: 10, total_limit: 100, used_day: 3, used_total: 40 }))).toBe(
-      "day 3/10, total 40/100",
+      "day 3/10 · total 40/100",
     );
     expect(walletText(wallet({ day_limit: 10, used_day: 3 }))).toBe("day 3/10");
     expect(walletText(wallet({ total_limit: 100, used_total: 40 }))).toBe("total 40/100");
+  });
+});
+
+describe("usagePercent", () => {
+  it("is the rounded share of the limit used", () => {
+    expect(usagePercent(3, 20)).toBe(15);
+    expect(usagePercent(14, 200)).toBe(7);
+    expect(usagePercent(88, 300)).toBe(29);
+    expect(usagePercent(0, 20)).toBe(0);
+  });
+  it("is 0 without a limit and never more than 100", () => {
+    expect(usagePercent(5, null)).toBe(0);
+    expect(usagePercent(5, 0)).toBe(0);
+    expect(usagePercent(30, 20)).toBe(100);
+  });
+});
+
+describe("usageLabel", () => {
+  it("speaks both bars", () => {
+    expect(usageLabel(wallet({ day_limit: 20, total_limit: 200, used_day: 3, used_total: 14 }))).toBe(
+      "Used 3 of 20 today, 14 of 200 in total",
+    );
+  });
+  it("names a side that has no limit without a limit", () => {
+    expect(usageLabel(wallet({ day_limit: null, total_limit: 200, used_day: 3, used_total: 14 }))).toBe(
+      "Used 3 today, 14 of 200 in total",
+    );
+    expect(usageLabel(wallet({ day_limit: 20, total_limit: null, used_day: 3, used_total: 14 }))).toBe(
+      "Used 3 of 20 today, 14 in total",
+    );
+  });
+});
+
+describe("createdText", () => {
+  const now = new Date(2026, 9, 15, 20, 55, 2).getTime();
+  it("a key of an earlier day shows day/month/year", () => {
+    expect(createdText(new Date(2026, 8, 3, 9, 0).getTime(), now)).toBe("03/09/2026");
+  });
+  it("a key made today shows day/month and the hour and minute", () => {
+    expect(createdText(new Date(2026, 9, 15, 20, 54).getTime(), now)).toBe("15/10 20:54");
+  });
+  it("a key made at midnight today still reads as today, one a minute before as yesterday's date", () => {
+    expect(createdText(new Date(2026, 9, 15, 0, 0).getTime(), now)).toBe("15/10 00:00");
+    expect(createdText(new Date(2026, 9, 14, 23, 59).getTime(), now)).toBe("14/10/2026");
+  });
+  it("no time is a dash", () => {
+    expect(createdText(null, now)).toBe("-");
   });
 });
 
@@ -57,8 +109,8 @@ describe("walletPairs and keyForm", () => {
   it("one pair per distinct (provider, kind), sorted", () => {
     expect(walletPairs(models)).toEqual([
       ["dola", "video"],
-      ["vibes", "image"],
       ["vibes", "video"],
+      ["vibes", "image"],
     ]);
   });
 
@@ -70,8 +122,8 @@ describe("walletPairs and keyForm", () => {
       models: [],
       wallets: [
         { provider: "dola", kind: "video", mode: "closed", day: "", total: "" },
-        { provider: "vibes", kind: "image", mode: "closed", day: "", total: "" },
         { provider: "vibes", kind: "video", mode: "closed", day: "", total: "" },
+        { provider: "vibes", kind: "image", mode: "closed", day: "", total: "" },
       ],
     });
   });
@@ -100,8 +152,8 @@ describe("walletPairs and keyForm", () => {
     expect(form.models).toEqual(["m1", "m3"]);
     expect(form.wallets).toEqual([
       { provider: "dola", kind: "video", mode: "unlimited", day: "", total: "" },
-      { provider: "vibes", kind: "image", mode: "closed", day: "", total: "" },
       { provider: "vibes", kind: "video", mode: "limit", day: "5", total: "50" },
+      { provider: "vibes", kind: "image", mode: "closed", day: "", total: "" },
     ]);
   });
 });
@@ -206,5 +258,26 @@ describe("deleteToast", () => {
   it("says deleted, or that the key was only disabled", () => {
     expect(deleteToast("deleted")).toBe("Key deleted");
     expect(deleteToast("disabled")).toBe("Key has jobs: disabled instead");
+  });
+});
+
+describe("the order of the wallets", () => {
+  const at = (provider: string, kind: string) => ({ provider, kind });
+
+  it("a provider's video wallet comes before its image wallet, then any other kind by name", () => {
+    const sorted = sortedWallets([at("dola", "voice"), at("dola", "image"), at("dola", "audio"), at("dola", "video")]);
+    expect(sorted.map((w) => w.kind)).toEqual(["video", "image", "audio", "voice"]);
+  });
+
+  it("providers go in name order whatever their kinds", () => {
+    const sorted = sortedWallets([at("vibes", "video"), at("dola", "image"), at("dola", "video")]);
+    expect(sorted.map((w) => `${w.provider}/${w.kind}`)).toEqual(["dola/video", "dola/image", "vibes/video"]);
+  });
+
+  it("does not change the list it was given, and a wallet equals itself", () => {
+    const list = [at("dola", "image"), at("dola", "video")];
+    expect(sortedWallets(list)).not.toBe(list);
+    expect(list.map((w) => w.kind)).toEqual(["image", "video"]);
+    expect(compareWallets(at("dola", "video"), at("dola", "video"))).toBe(0);
   });
 });

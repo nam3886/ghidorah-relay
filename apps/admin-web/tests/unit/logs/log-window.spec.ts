@@ -1,5 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { dayAfter, dayStart, isLogStatus, logQuery } from "@/components/logs/log-window";
+import {
+  clockTime,
+  dateClock,
+  dayAfter,
+  dayStart,
+  isLogStatus,
+  isServerError,
+  logQuery,
+  PAGE_SIZE,
+  STATUS_OPTIONS,
+  thousands,
+  viewerZone,
+  dayKey,
+  dayNote,
+} from "@/components/logs/log-window";
 
 // The window is computed in the zone of the machine that runs the browser, so the specs pin the zone and check that it
 // took effect (a spec that quietly ran in another zone would prove nothing).
@@ -62,18 +76,20 @@ describe("logQuery", () => {
   const filters = { q: "", status: "all" as const, from: "", to: "" };
 
   it("no filters: the page and the status only", () => {
-    expect(logQuery(filters, "", 0)).toEqual({ limit: 10, offset: 0, status: "all" });
+    expect(logQuery(filters, "", 0)).toEqual({ limit: 50, offset: 0, status: "all", tz: viewerZone() });
   });
 
   it("From alone sets since only; To alone sets until only", () => {
     expect(logQuery({ ...filters, from: "2026-10-15" }, "", 0)).toEqual({
-      limit: 10,
+      limit: 50,
+      tz: viewerZone(),
       offset: 0,
       status: "all",
       since_ms: Date.UTC(2026, 9, 14, 17),
     });
     expect(logQuery({ ...filters, to: "2026-10-15" }, "", 0)).toEqual({
-      limit: 10,
+      limit: 50,
+      tz: viewerZone(),
       offset: 0,
       status: "all",
       until_ms: Date.UTC(2026, 9, 15, 17),
@@ -82,7 +98,8 @@ describe("logQuery", () => {
 
   it("both dates, with the search trimmed, the provider, the status and the offset", () => {
     expect(logQuery({ q: "  abc  ", status: "pre_job", from: "2026-10-01", to: "2026-10-31" }, "dola", 100)).toEqual({
-      limit: 10,
+      limit: 50,
+      tz: viewerZone(),
       offset: 100,
       status: "pre_job",
       provider: "dola",
@@ -101,5 +118,61 @@ describe("isLogStatus", () => {
   it("accepts the four statuses and nothing else", () => {
     for (const s of ["all", "ok", "error", "pre_job"]) expect(isLogStatus(s)).toBe(true);
     for (const s of ["", "done", "OK", undefined, null, ["ok"], 3]) expect(isLogStatus(s)).toBe(false);
+  });
+});
+
+describe("how a request is written", () => {
+  it("a page is 50 requests", () => {
+    expect(PAGE_SIZE).toBe(50);
+  });
+
+  it("the Status select offers the canvas words for the four statuses", () => {
+    expect(STATUS_OPTIONS.map((o) => [o.value, o.label])).toEqual([
+      ["all", "All"],
+      ["ok", "OK below 400"],
+      ["error", "Errors"],
+      ["pre_job", "Failed before a job"],
+    ]);
+  });
+
+  it("a number has a thousands comma", () => {
+    expect(thousands(1980)).toBe("1,980");
+    expect(thousands(388)).toBe("388");
+    expect(thousands(4812)).toBe("4,812");
+  });
+
+  it("only a code of 500 or more is a server error", () => {
+    expect(isServerError(502)).toBe(true);
+    expect(isServerError(500)).toBe(true);
+    expect(isServerError(499)).toBe(false);
+    expect(isServerError(422)).toBe(false);
+  });
+
+  it("the clock has two digits for each part, in local time; a missing time is a dash", () => {
+    const ms = new Date(2026, 9, 5, 8, 4, 9).getTime();
+    expect(clockTime(ms)).toBe("08:04:09");
+    expect(dateClock(ms)).toBe("05/10 08:04:09");
+    expect(clockTime(null)).toBe("—");
+    expect(dateClock(undefined)).toBe("—");
+  });
+});
+
+describe("the day headers", () => {
+  it("the query carries the viewer's own zone, so the server counts each local day in it", () => {
+    expect(viewerZone()).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    expect(logQuery({ q: "", status: "all", from: "", to: "" }, "", 0).tz).toBe(viewerZone());
+  });
+
+  it("a day's key is its local date with two digits for month and day", () => {
+    expect(dayKey(new Date(2026, 0, 5, 23, 59).getTime())).toBe("2026-01-05");
+    expect(dayKey(new Date(2026, 9, 15, 0, 0).getTime())).toBe("2026-10-15");
+  });
+
+  it("the note counts the rows shown, and says of how many when the day has more", () => {
+    expect(dayNote(7, 7)).toBe("7 requests shown");
+    expect(dayNote(7)).toBe("7 requests shown");
+    expect(dayNote(1, 1)).toBe("1 request shown");
+    expect(dayNote(5, 4761)).toBe("5 of 4,761 requests shown");
+    expect(dayNote(1, 2)).toBe("1 of 2 requests shown");
   });
 });
