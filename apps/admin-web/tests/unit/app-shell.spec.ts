@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { createMemoryHistory } from "vue-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "@/App.vue";
+import AttentionBanner from "@/components/layout/AttentionBanner.vue";
 import PageHeader from "@/components/layout/PageHeader.vue";
 import { ApiError } from "@/api/client";
 import * as shell from "@/api/shell";
@@ -36,10 +37,10 @@ vi.mock("@/views/AlertsView.vue", () => stubView("AlertsView", "Alerts"));
 vi.mock("@/views/FramesView.vue", () => stubView("FramesView", "Prompt frames"));
 vi.mock("@/views/SettingsView.vue", () => stubView("SettingsView", "Settings"));
 vi.mock("@/views/TestView.vue", () => stubView("TestView", "Test"));
-vi.mock("@/components/jobs/JobDetailDialog.vue", async () => {
+vi.mock("@/components/jobs/JobDetailDrawer.vue", async () => {
   const { defineComponent, h } = await import("vue");
   return {
-    default: defineComponent({ name: "JobDetailDialog", render: () => h("div", { "data-testid": "job-dialog" }) }),
+    default: defineComponent({ name: "JobDetailDrawer", render: () => h("div", { "data-testid": "job-dialog" }) }),
   };
 });
 
@@ -68,6 +69,21 @@ async function open(path: string, signedIn = true) {
   const router = createAppRouter(createMemoryHistory());
   await router.push(path);
   wrapper = mount(App, { global: { plugins: [pinia, router] }, attachTo: document.body });
+  await flushPromises();
+  return { router, wrapper };
+}
+
+// The banner is not part of the shell: Jobs draws it, so these tests mount the component itself.
+async function openBanner() {
+  sessionStorage.clear();
+  sessionStorage.setItem(TOKEN_KEY, "t");
+  const pinia = createPinia();
+  setActivePinia(pinia);
+  const router = createAppRouter(createMemoryHistory());
+  await router.push("/jobs");
+  const { useStatsStore } = await import("@/stores/stats");
+  wrapper = mount(AttentionBanner, { global: { plugins: [pinia, router] }, attachTo: document.body });
+  await useStatsStore().refresh();
   await flushPromises();
   return { router, wrapper };
 }
@@ -153,7 +169,7 @@ describe("the shell", () => {
     expect(login.wrapper.find('[data-testid="job-dialog"]').exists()).toBe(false);
   });
 
-  it("frames the page: the top bar first, then the banner and the view inside one main", async () => {
+  it("frames the page: the top bar first, then the view inside one main", async () => {
     const { wrapper } = await open("/jobs");
     const shellEl = wrapper.find(".app-shell");
     expect([...shellEl.element.children].map((el) => el.tagName)).toEqual(["HEADER", "MAIN"]);
@@ -205,20 +221,18 @@ describe("the shell", () => {
     notify.clear();
   });
 
-  it("draws the banner above every view but Jobs, which draws its own", async () => {
+  it("draws no banner on any tab: Jobs renders it itself, after its band card", async () => {
     vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
     const { wrapper, router } = await open("/jobs");
-    expect(wrapper.find(".attention-banner").exists()).toBe(false);
-    for (const name of ["accounts", "keys", "logs", "alerts", "frames", "settings", "test"]) {
+    for (const name of ["jobs", "accounts", "keys", "logs", "alerts", "frames", "settings", "test"]) {
       await router.push({ name });
-      await until(() => expect(wrapper.find(".attention-banner").exists(), name).toBe(true));
+      await flushPromises();
+      expect(wrapper.find(".attention-banner").exists(), name).toBe(false);
     }
-    await router.push({ name: "jobs" });
-    await until(() => expect(wrapper.find(".attention-banner").exists()).toBe(false));
   });
 
   it("shows no banner when nothing needs attention", async () => {
-    const { wrapper } = await open("/accounts");
+    const { wrapper } = await openBanner();
     expect(wrapper.find(".attention-banner").exists()).toBe(false);
   });
 
@@ -227,17 +241,17 @@ describe("the shell", () => {
       stats({ alerts: [{ kind: "drift", severity: "warning", message: "dola: 3 of 10 jobs in 24 h show x" }] }),
     );
     vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 3 }, () => ({})) });
-    const { wrapper } = await open("/accounts");
+    const { wrapper } = await openBanner();
     const banner = wrapper.find(".attention-banner");
     expect(banner.attributes("role")).toBe("status");
-    expect(banner.text()).toContain("drift: dola: 3 of 10 jobs in 24 h show x");
+    expect(banner.text()).toContain("dola: 3 of 10 jobs in 24 h show x");
     expect(wrapper.find('[data-testid="banner-headline"]').text()).toBe("3 open alert groups.");
     expect(wrapper.find('[data-testid="review-alerts"]').text()).toBe("Review in Alerts");
   });
 
   it("says group, not groups, for one open group", async () => {
     vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
-    const { wrapper } = await open("/accounts");
+    const { wrapper } = await openBanner();
     expect(wrapper.find('[data-testid="banner-headline"]').text()).toBe("1 open alert group.");
   });
 
@@ -245,7 +259,7 @@ describe("the shell", () => {
     vi.mocked(shell.getStats).mockResolvedValue(
       stats({ alerts: [{ kind: "drift", severity: "warning", message: "dola: x" }] }),
     );
-    const { wrapper } = await open("/accounts");
+    const { wrapper } = await openBanner();
     expect(wrapper.find('[data-testid="banner-headline"]').text()).toBe("Needs attention.");
     expect(wrapper.find('[data-testid="review-alerts"]').text()).toBe("Review in Alerts");
   });
@@ -257,33 +271,36 @@ describe("the shell", () => {
     expect(source).not.toMatch(/border-(left|right|top|bottom)\s*:/);
   });
 
-  it("folds three or more live conditions behind one count and keeps the group link in view", async () => {
+  it("draws one line: the bold sentence, the muted live condition and the link, with no list and no fold", async () => {
     const alert = (kind: string) => ({ kind, severity: "warning", message: `${kind} message` });
-    vi.mocked(shell.getStats).mockResolvedValue(stats({ alerts: [alert("a1"), alert("a2"), alert("a3")] }));
+    vi.mocked(shell.getStats).mockResolvedValue(stats({ alerts: [alert("a1")] }));
     vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
-    const { wrapper } = await open("/accounts");
+    const { wrapper } = await openBanner();
     const banner = wrapper.find(".attention-banner");
-    expect(banner.find('[data-testid="fold-alerts"]').text()).toContain("3 live conditions");
-    expect(banner.text()).not.toContain("a1 message");
-    expect(wrapper.find('[data-testid="review-alerts"]').exists()).toBe(true);
-    await banner.find('[data-testid="fold-alerts"] button').trigger("click");
-    expect(banner.text()).toContain("a1: a1 message");
-    expect(banner.text()).toContain("a3: a3 message");
-    await banner.find('[data-testid="fold-alerts"] button').trigger("click");
-    expect(banner.text()).not.toContain("a2 message");
+    expect(banner.find('[data-testid="banner-headline"]').text()).toBe("1 open alert group.");
+    expect(banner.find('[data-testid="banner-detail"]').text()).toBe("a1 message");
+    expect(banner.find("ul").exists()).toBe(false);
+    expect(banner.find("button").exists()).toBe(false);
+    expect(banner.find('[data-testid="review-alerts"]').exists()).toBe(true);
   });
 
-  it("lists two live conditions in full, with no fold", async () => {
+  it("with several live conditions shows the first and the count of the rest", async () => {
     const alert = (kind: string) => ({ kind, severity: "warning", message: `${kind} message` });
-    vi.mocked(shell.getStats).mockResolvedValue(stats({ alerts: [alert("a1"), alert("a2")] }));
-    const { wrapper } = await open("/accounts");
-    expect(wrapper.find('[data-testid="fold-alerts"]').exists()).toBe(false);
-    expect(wrapper.find(".attention-banner").text()).toContain("a2: a2 message");
+    vi.mocked(shell.getStats).mockResolvedValue(stats({ alerts: [alert("a1"), alert("a2"), alert("a3")] }));
+    const { wrapper } = await openBanner();
+    expect(wrapper.find('[data-testid="banner-detail"]').text()).toBe("a1 message (+2 more)");
+    expect(wrapper.text()).not.toContain("a2 message");
+  });
+
+  it("draws no detail when only open groups exist", async () => {
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
+    const { wrapper } = await openBanner();
+    expect(wrapper.find('[data-testid="banner-detail"]').exists()).toBe(false);
   });
 
   it("writes 200+ for a full page of open groups and opens Alerts from the banner", async () => {
     vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 200 }, () => ({})) });
-    const { wrapper, router } = await open("/accounts");
+    const { wrapper, router } = await openBanner();
     expect(wrapper.find('[data-testid="banner-headline"]').text()).toBe("200+ open alert groups.");
     await wrapper.find('[data-testid="review-alerts"]').trigger("click");
     await until(() => expect(router.currentRoute.value.name).toBe("alerts"));
@@ -316,34 +333,84 @@ describe("the shell", () => {
     expect(useScopeStore().providers).toEqual(["dola", "vibes"]);
   });
 
-  it("shows All, not the placeholder, in the provider filter, and keeps the store's empty string for All", async () => {
+  it("shows All in the provider trigger, lists All then the catalog's providers and keeps the store's empty string for All", async () => {
     const { wrapper } = await open("/jobs");
     const { useScopeStore } = await import("@/stores/scope");
     const scope = useScopeStore();
-    const filter = wrapper.find('[data-testid="provider-filter"]');
-    // the word Provider sits inside the select, in front of the value
-    expect(filter.text()).toBe("ProviderAll");
-    expect(filter.text()).not.toContain("Select");
-    const select = wrapper.findComponent({ name: "ElSelect" });
-    select.vm.$emit("update:modelValue", "dola");
-    await flushPromises();
+    const trigger = wrapper.find('[data-testid="provider-filter"]');
+    // the word Provider sits in front of the value
+    expect(trigger.text()).toBe("ProviderAll");
+    expect(trigger.attributes("aria-haspopup")).toBe("listbox");
+    expect(trigger.attributes("aria-expanded")).toBe("false");
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    await trigger.trigger("click");
+    const list = wrapper.find('[role="listbox"]');
+    expect(list.attributes("aria-label")).toBe("Provider");
+    expect(trigger.attributes("aria-expanded")).toBe("true");
+    const options = list.findAll('[role="option"]');
+    expect(options.map((o) => o.text())).toEqual(["All", "dola", "vibes"]);
+    expect(options.map((o) => o.attributes("aria-selected"))).toEqual(["true", "false", "false"]);
+    await options[1]?.trigger("click");
     expect(scope.provider).toBe("dola");
-    expect(filter.text()).toBe("Providerdola");
-    select.vm.$emit("update:modelValue", "__all__");
-    await flushPromises();
+    expect(trigger.text()).toBe("Providerdola");
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    await trigger.trigger("click");
+    expect(wrapper.findAll('[role="option"]').map((o) => o.attributes("aria-selected"))).toEqual([
+      "false",
+      "true",
+      "false",
+    ]);
+    await wrapper.findAll('[role="option"]')[0]?.trigger("click");
     expect(scope.provider).toBe("");
-    expect(filter.text()).toBe("ProviderAll");
+    expect(trigger.text()).toBe("ProviderAll");
+  });
+
+  it("closes an open popover on Escape and on a click outside, and keeps one open at a time", async () => {
+    const { wrapper } = await open("/jobs");
+    await wrapper.find('[data-testid="provider-filter"]').trigger("click");
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(true);
+    await wrapper.find('[data-testid="provider-filter"]').trigger("click");
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    await wrapper.find('[data-testid="provider-filter"]').trigger("click");
+    await wrapper.find('[data-testid="account-menu"]').trigger("click");
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    expect(wrapper.find('[role="menu"]').exists()).toBe(true);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await flushPromises();
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false);
+    await wrapper.find('[data-testid="account-menu"]').trigger("click");
+    expect(wrapper.find('[role="menu"]').exists()).toBe(true);
+    document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    await flushPromises();
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false);
+    // a press inside the menu does not close it
+    await wrapper.find('[data-testid="account-menu"]').trigger("click");
+    wrapper.find('[role="menu"]').element.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    await flushPromises();
+    expect(wrapper.find('[role="menu"]').exists()).toBe(true);
+  });
+
+  it("draws the account menu as API docs, a separator, Sign out", async () => {
+    const { wrapper } = await open("/jobs");
+    await wrapper.find('[data-testid="account-menu"]').trigger("click");
+    const menu = wrapper.find('[role="menu"]');
+    expect(menu.attributes("aria-label")).toBe("Account");
+    expect([...menu.element.children].map((el) => el.getAttribute("role"))).toEqual([
+      "menuitem",
+      "separator",
+      "menuitem",
+    ]);
+    expect(menu.findAll('[role="menuitem"]').map((i) => i.text())).toEqual(["API docs", "Sign out"]);
   });
 
   it("opens the API reference in a new tab from the account menu, and nowhere else", async () => {
     const { wrapper } = await open("/jobs");
     const opened = vi.spyOn(window, "open").mockReturnValue(null);
-    const menu = wrapper.findComponent({ name: "ElDropdown" });
-    menu.vm.$emit("command", "docs");
+    await wrapper.find('[data-testid="account-menu"]').trigger("click");
+    await wrapper.find('[data-testid="api-docs"]').trigger("click");
     expect(opened).toHaveBeenCalledTimes(1);
     expect(opened).toHaveBeenCalledWith("/reference", "_blank", "noopener");
-    menu.vm.$emit("command", "something-else");
-    expect(opened).toHaveBeenCalledTimes(1);
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false);
     expect(shell.logout).not.toHaveBeenCalled();
   });
 
@@ -351,26 +418,30 @@ describe("the shell", () => {
     const { wrapper } = await open("/jobs");
     const button = wrapper.find('[data-testid="account-menu"]');
     expect(button.attributes("aria-label")).toBe("Account menu, owner");
+    expect(button.attributes("aria-haspopup")).toBe("menu");
     expect(button.find(".account-avatar").text()).toBe("O");
   });
 
   it("toggles the theme and remembers it", async () => {
     const { wrapper } = await open("/jobs");
     const toggle = wrapper.find('[data-testid="theme-toggle"]');
-    expect(toggle.attributes("aria-label")).toBe("Switch to dark theme");
+    expect(toggle.attributes("aria-label")).toBe("Switch theme");
     await toggle.trigger("click");
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(localStorage.getItem(THEME_KEY)).toBe("dark");
-    expect(wrapper.find('[data-testid="theme-toggle"]').attributes("aria-label")).toBe("Switch to light theme");
+    // the moon is drawn in both themes
+    expect(wrapper.find('[data-testid="theme-toggle"] path').attributes("d")).toBe(
+      "M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z",
+    );
+    await wrapper.find('[data-testid="theme-toggle"]').trigger("click");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 
   it("signs out: calls the server, drops the session and shows the login page", async () => {
     vi.mocked(shell.logout).mockResolvedValue({});
     const { wrapper, router } = await open("/jobs");
-    // open the menu with a click on the account button, then click the item as a user does
     await wrapper.find('[data-testid="account-menu"]').trigger("click");
-    await until(() => expect(document.body.querySelector('[data-testid="sign-out"]')).not.toBeNull());
-    document.body.querySelector<HTMLElement>('[data-testid="sign-out"]')?.click();
+    await wrapper.find('[data-testid="sign-out"]').trigger("click");
     await until(() => expect(router.currentRoute.value.name).toBe("login"));
     await flushPromises();
     expect(shell.logout).toHaveBeenCalledTimes(1);
@@ -379,13 +450,14 @@ describe("the shell", () => {
     expect(wrapper.find('input[name="username"]').exists()).toBe(true);
   });
 
-  it("signs out through the menu command too: server revoke first, then every sign-out hook", async () => {
+  it("signs out through the menu item: server revoke first, then every sign-out hook", async () => {
     vi.mocked(shell.logout).mockResolvedValue({});
     const { useAuthStore } = await import("@/stores/auth");
     const { wrapper, router } = await open("/jobs");
     const hook = vi.fn();
     useAuthStore().onSignOut(hook);
-    wrapper.findComponent({ name: "ElDropdown" }).vm.$emit("command", "signout");
+    await wrapper.find('[data-testid="account-menu"]').trigger("click");
+    await wrapper.find('[data-testid="sign-out"]').trigger("click");
     await until(() => expect(router.currentRoute.value.name).toBe("login"));
     expect(shell.logout).toHaveBeenCalledTimes(1);
     expect(hook).toHaveBeenCalledTimes(1);
@@ -395,7 +467,8 @@ describe("the shell", () => {
   it("still signs out locally when the server call fails", async () => {
     vi.mocked(shell.logout).mockRejectedValue(new Error("down"));
     const { wrapper, router } = await open("/jobs");
-    wrapper.findComponent({ name: "ElDropdown" }).vm.$emit("command", "signout");
+    await wrapper.find('[data-testid="account-menu"]').trigger("click");
+    await wrapper.find('[data-testid="sign-out"]').trigger("click");
     await until(() => expect(router.currentRoute.value.name).toBe("login"));
     expect(sessionStorage.getItem(TOKEN_KEY)).toBeNull();
   });
@@ -419,7 +492,9 @@ describe("the top bar", () => {
     await router.push("/alerts");
     await flushPromises();
     expect(wrapper.find('[data-testid="tab-count-jobs"]').classes()).not.toContain("tab-count--current");
-    expect(wrapper.find('[data-testid="tab-count-alerts"]').classes()).toContain("tab-count--current");
+    // Alerts keeps its warn pill, current or not
+    expect(wrapper.find('[data-testid="tab-count-alerts"]').classes()).not.toContain("tab-count--current");
+    expect(wrapper.find('[data-testid="tab-count-alerts"]').classes()).toContain("tab-count--warn");
   });
 
   it("shows ready over total on the Accounts tab, and nothing without accounts", async () => {
@@ -499,7 +574,7 @@ describe("the top bar", () => {
       stacked: true,
       phone: true,
       name: false,
-      label: false,
+      label: true,
       main: ["app-main--phone"],
     });
   });
@@ -515,6 +590,15 @@ describe("the page header", () => {
     expect(w.find(".page-header__subtitle").text()).toBe("Every job.");
     expect(w.find(".page-header__meta").text()).toBe("Updated 10:00:00");
     expect(w.find(".page-header__actions button").text()).toBe("Refresh");
+  });
+
+  it("puts the submeta line under the subtitle and aligns the header to the top, only when it is given", () => {
+    const w = mountHeader({ submeta: "Updated 10:00:00", actions: "<button>Refresh</button>" });
+    expect(w.find(".page-header__text .page-header__submeta").text()).toBe("Updated 10:00:00");
+    expect(w.classes()).toContain("page-header--top");
+    const plain = mountHeader({ actions: "<button>Refresh</button>" });
+    expect(plain.find(".page-header__submeta").exists()).toBe(false);
+    expect(plain.classes()).not.toContain("page-header--top");
   });
 
   it("draws no sentence, no meta and no side when it has none", () => {
@@ -553,6 +637,48 @@ describe("the login page", () => {
     await wrapper.find("form").trigger("submit");
     await flushPromises();
   }
+
+  it("draws no error box until a sign-in fails, then an alert linked to the invalid password field", async () => {
+    vi.mocked(shell.login).mockRejectedValue(
+      new ApiError(401, { error: { code: "auth.invalid", message: "bad", param: null } }),
+    );
+    const { wrapper } = await open("/login", false);
+    const pass = wrapper.find('input[name="password"]');
+    expect(wrapper.find("#loginError").exists()).toBe(false);
+    expect(pass.attributes("aria-invalid")).toBeUndefined();
+    expect(pass.attributes("aria-describedby")).toBeUndefined();
+    await submit(wrapper, "owner", "nope");
+    const box = wrapper.find("#loginError");
+    expect(box.attributes("role")).toBe("alert");
+    expect(box.text()).toBe("Wrong username or password");
+    expect(pass.attributes("aria-invalid")).toBe("true");
+    expect(pass.attributes("aria-describedby")).toBe("loginError");
+    expect(pass.classes()).toContain("field-input--invalid");
+  });
+
+  it("shows and hides the password with a pressed button", async () => {
+    const { wrapper } = await open("/login", false);
+    const pass = wrapper.find('input[name="password"]');
+    const reveal = wrapper.find(".reveal");
+    expect(pass.attributes("type")).toBe("password");
+    expect(reveal.attributes("aria-label")).toBe("Show password");
+    expect(reveal.attributes("aria-pressed")).toBe("false");
+    await reveal.trigger("click");
+    expect(pass.attributes("type")).toBe("text");
+    expect(reveal.attributes("aria-label")).toBe("Hide password");
+    expect(reveal.attributes("aria-pressed")).toBe("true");
+    await reveal.trigger("click");
+    expect(pass.attributes("type")).toBe("password");
+  });
+
+  it("has its own theme toggle and the LAN-only footer, and no shell", async () => {
+    const { wrapper } = await open("/login", false);
+    expect(wrapper.find("header").exists()).toBe(false);
+    expect(wrapper.find('[data-testid="theme-toggle"]').attributes("aria-label")).toBe("Switch theme");
+    await wrapper.find('[data-testid="theme-toggle"]').trigger("click");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(wrapper.find(".login-foot").text()).toBe("Ghidorah admin · LAN only");
+  });
 
   it("signs in and opens Jobs", async () => {
     vi.mocked(shell.login).mockResolvedValue({ token: "tok", expires_at: 1 });
