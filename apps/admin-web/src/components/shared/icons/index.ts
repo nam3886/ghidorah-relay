@@ -20,6 +20,7 @@ export const IconCopy = defineIcon("IconCopy", ICON_SHAPES.copy);
 export const IconImage = defineIcon("IconImage", ICON_SHAPES.image);
 export const IconDownload = defineIcon("IconDownload", ICON_SHAPES.download);
 export const IconAlertCircle = defineIcon("IconAlertCircle", ICON_SHAPES.alertCircle);
+export const IconAlertCircleJoined = defineIcon("IconAlertCircleJoined", ICON_SHAPES.alertCircleJoined);
 export const IconAlertCircleShort = defineIcon("IconAlertCircleShort", ICON_SHAPES.alertCircleShort);
 export const IconAlertTriangle = defineIcon("IconAlertTriangle", ICON_SHAPES.alertTriangle);
 export const IconUndo = defineIcon("IconUndo", ICON_SHAPES.undo);

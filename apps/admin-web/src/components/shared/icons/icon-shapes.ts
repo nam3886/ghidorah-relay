@@ -8,6 +8,8 @@ export interface IconShape {
   nodes: IconNode[];
   /** Filled glyphs (the play triangles) draw with `fill="currentColor"`. */
   fill?: "stroke" | "solid";
+  /** P-JobDetail draws its play triangle with no stroke at all. */
+  noStroke?: boolean;
 }
 
 const p = (path: string): IconNode => ({ path });
@@ -32,6 +34,8 @@ export const ICON_SHAPES = {
   // error alert, toast and failed banner: the exclamation sits slightly low
   alertCircle: { nodes: [c(12, 12, 9), p("M12 8v5"), p("M12 16.5h.01")] },
   // login error and settings notes
+  // the failed banner in the drawer: the bar and the dot are one path
+  alertCircleJoined: { nodes: [c(12, 12, 9), p("M12 8v5M12 16.5h.01")] },
   alertCircleShort: { nodes: [c(12, 12, 9), p("M12 8v4"), p("M12 16h.01")] },
   alertTriangle: {
     nodes: [
@@ -62,7 +66,7 @@ export const ICON_SHAPES = {
   power: { nodes: [p("M12 3v9"), p("M6.3 6.8a8 8 0 1 0 11.4 0")] },
   // two slightly different triangles in the canvas: B-States keeps its stroke, P-JobDetail has none
   play: { nodes: [p("M8 5.5v13l11-6.5z")], fill: "solid" },
-  playFlat: { nodes: [p("m8 5 12 7-12 7z")], fill: "solid" },
+  playFlat: { nodes: [p("m8 5 12 7-12 7z")], fill: "solid", noStroke: true },
   upload: { nodes: [p("M12 16V4"), p("m7 9 5-5 5 5"), p("M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3")] },
   fileText: {
     nodes: [

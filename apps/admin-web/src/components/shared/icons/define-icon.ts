@@ -16,6 +16,7 @@ function node(n: IconNode) {
 
 export function defineIcon(name: string, shape: IconShape) {
   const solid = shape.fill === "solid";
+  const stroked = !shape.noStroke;
   return defineComponent({
     name,
     props: {
@@ -32,8 +33,8 @@ export function defineIcon(name: string, shape: IconShape) {
             width: props.size,
             height: props.size,
             fill: solid ? "currentColor" : "none",
-            stroke: "currentColor",
-            "stroke-width": props.stroke,
+            stroke: stroked ? "currentColor" : "none",
+            "stroke-width": stroked ? props.stroke : undefined,
             "stroke-linecap": "round",
             "stroke-linejoin": "round",
             "aria-hidden": "true",
