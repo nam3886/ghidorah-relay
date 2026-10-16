@@ -63,6 +63,11 @@ describe("local icons", () => {
     for (const name of names) {
       const svg = mount((icons as unknown as Record<string, Component>)[name]!).element;
       expect(shapes(svg), name).toBe(EXPECTED[name]);
+      expect(svg.getAttribute("focusable"), name).toBe("false");
+      expect(svg.getAttribute("aria-hidden"), name).toBe("true");
+      expect(svg.getAttribute("stroke-linejoin"), name).toBe("round");
+      expect(svg.getAttribute("stroke-linecap"), name).toBe("round");
+      expect(svg.getAttribute("viewBox"), name).toBe("0 0 24 24");
     }
   });
 
