@@ -3,9 +3,11 @@ text, Re-check refusals, the Recover and title commands, rename, and Regenerate 
 
 import dataclasses
 import json
+import tomllib
 import uuid
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import psycopg
 from apikit import run_app
@@ -313,7 +315,7 @@ def test_a_bad_window_is_refused_not_ignored(db):
 
 
 # ---- per-day totals (`tz`) ---------------------------------------------------------------------------------------
-TZ = "Asia/Ho_Chi_Minh"                  # Saigon: UTC+7, no clock change (the alias Asia/Saigon is not installed)
+TZ = "Asia/Ho_Chi_Minh"                  # Saigon: UTC+7, no clock change (the canonical name of Asia/Saigon)
 SAIGON = ZoneInfo(TZ)
 DAY_TOTALS_SQL = '"SELECT (j.created_at AT TIME ZONE %(tz)s)::date, count(*) FROM jobs j WHERE " + _FILTERS)'
 DAY_TOTALS_UNFILTERED = '"SELECT (j.created_at AT TIME ZONE %(tz)s)::date, count(*) FROM jobs j WHERE " + "true")'
@@ -440,21 +442,74 @@ def test_without_tz_the_answer_has_no_day_totals_and_a_bad_tz_is_refused(db):
         h = await env.admin_headers()
         get = lambda q: env.client.get("/admin/jobs" + q, headers=h)  # noqa: E731
         refused = ("Mars/Olympus", "", "..%2Fetc%2Fpasswd", "%2Fetc%2Fpasswd")
-        return [await get("")] + [await get("?tz=" + bad) for bad in refused] + [await get("?tz=Asia/Saigon")]
+        return [await get("")] + [await get("?tz=" + bad) for bad in refused]
 
-    plain, *bad, alias = run_app(db, scenario)
-    # the legacy alias is served only where the image ships it (Debian keeps it in tzdata-legacy): no mapping is made
+    plain, *bad = run_app(db, scenario)
     check = Soft()
-    try:
-        ZoneInfo("Asia/Saigon")
-    except ZoneInfoNotFoundError:
-        check((alias.status_code, code_of(alias)) == (400, "input.invalid"), "the alias is refused where unknown")
-    else:
-        check(alias.status_code == 200 and "day_totals" in alias.json(), "the alias is served where known")
     check(plain.status_code == 200 and plain.content == json.dumps(golden, separators=(",", ":")).encode(),
           "no tz, no field: the old answer, byte for byte")
     for r in bad:
         check((r.status_code, code_of(r), r.json()["error"]["param"]) == (400, "input.invalid", "tz"), "a bad tz")
+    check.done()
+
+
+PYPROJECT = "packages/relay-core/pyproject.toml"
+TZDATA = '    "tzdata>=2024.1",            # zoneinfo falls back to it'
+TZDATA_WIN_ONLY = '    "tzdata>=2024.1; sys_platform == \'win32\'",            # zoneinfo falls back to it'
+
+
+@mutation(PYPROJECT, TZDATA, TZDATA_WIN_ONLY, expect="tzdata on every platform")
+def test_relay_core_depends_on_the_tzdata_package_on_every_platform():
+    """The image has no system tz database and Chrome in Vietnam reports `Asia/Saigon` (a legacy alias): zoneinfo
+    must find its zones in the package, not only on Windows."""
+    root = Path(__file__).resolve().parents[4]
+    deps = tomllib.loads((root / PYPROJECT).read_text())["project"]["dependencies"]
+    tz = [d for d in deps if d.replace(">", " ").split()[0] == "tzdata"]
+    assert len(tz) == 1 and ";" not in tz[0], "tzdata on every platform: %s" % tz
+    lock = tomllib.loads((root / "uv.lock").read_text())
+    core = next(p for p in lock["package"] if p["name"] == "relay-core")
+    assert {"name": "tzdata"} in core["dependencies"], "tzdata on every platform: the lock names it"
+
+
+@mutation(ROUTES, "        return ZoneInfo(name)", '        return ZoneInfo(name.replace("Saigon", "Nowhere"))',
+          expect="the alias answers")
+def test_the_browser_zone_asia_saigon_gives_the_same_day_totals_as_asia_ho_chi_minh(db):
+    """Chrome in Vietnam reports `Asia/Saigon`: it must answer, and group by the same local days (this also proves
+    Postgres `AT TIME ZONE` takes the alias)."""
+    k = key(db)
+    for day, hhmm in (("2026-03-10", "23:30"), ("2026-03-11", "00:30"), ("2026-03-11", "08:00")):
+        place(db, db.job(k, provider=PROVIDER), day, hhmm)
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        return [await env.client.get("/admin/jobs?tz=" + zone, headers=h) for zone in ("Asia/Saigon", TZ)]
+
+    alias, canonical = run_app(db, scenario)
+    check = Soft()
+    check(alias.status_code == 200 and "day_totals" in alias.json(), "the alias answers")
+    check(alias.json().get("day_totals") == {"2026-03-10": 1, "2026-03-11": 2}, "the alias gives the same days")
+    check(alias.json().get("day_totals") == canonical.json()["day_totals"], "the alias gives the same days")
+    check.done()
+
+
+@mutation(ROUTES, "    except psycopg.errors.InvalidParameterValue:", "    except psycopg.errors.UndefinedTable:",
+          expect="a zone Postgres does not know")
+def test_a_zone_python_knows_and_postgres_does_not_is_a_bad_tz_not_a_server_error(db, monkeypatch):
+    """Python's tzdata and Postgres's own zone database can differ. Python is made to accept a name Postgres has never
+    heard of: the query's `unrecognized time zone` error is the caller's bad `tz`: 400 `input.invalid`, never 500."""
+    k = key(db)
+    place(db, db.job(k, provider=PROVIDER), "2026-03-10", "10:00")
+    monkeypatch.setattr(routes_jobs, "_zone", lambda name: SAIGON)
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        return [await env.client.get("/admin/jobs?tz=" + zone, headers=h) for zone in ("Mars/Olympus", TZ)]
+
+    unknown, known = run_app(db, scenario)
+    check = Soft()
+    check((unknown.status_code, code_of(unknown)) == (400, "input.invalid"), "a zone Postgres does not know")
+    check(unknown.status_code != 400 or unknown.json()["error"]["param"] == "tz", "a zone Postgres does not know")
+    check(known.status_code == 200 and known.json()["day_totals"] == {"2026-03-10": 1}, "a known zone still answers")
     check.done()
 
 

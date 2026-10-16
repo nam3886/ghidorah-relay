@@ -45,7 +45,15 @@ _USABLE = (
     "SELECT provider, count(*) FILTER (WHERE state = 'available' AND last_checked_at IS NOT NULL AND "
     "(cooldown_until IS NULL OR cooldown_until <= clock_timestamp())), "
     "count(*) FILTER (WHERE state = 'available'), count(*) FILTER (WHERE state = 'dead'), "
-    "count(*) FILTER (WHERE state = 'disabled') FROM accounts GROUP BY provider")
+    "count(*) FILTER (WHERE state = 'disabled'), "
+    # in_use and asleep MUST count the same accounts the Accounts list marks: the card and the rows may never differ.
+    # in use: any live lease, whatever the account's state (routes_accounts `_LIST`, `in_use`); an account that holds
+    # two counts once. asleep: its own cooldown still in the future, or a pool that rests (`rest_until`), whatever the
+    # state (account-model.ts `asleepLines`). Both on the database clock, like the list; one account can be both.
+    "count(*) FILTER (WHERE EXISTS (SELECT 1 FROM leases WHERE account_id = a.id AND until > clock_timestamp())), "
+    "count(*) FILTER (WHERE cooldown_until > clock_timestamp() "
+    "OR EXISTS (SELECT 1 FROM account_capacity c WHERE c.account_id = a.id AND c.rest_until > clock_timestamp())) "
+    "FROM accounts a GROUP BY provider")
 
 
 def _alert(kind: str, severity: str, message: str, provider: str | None = None) -> dict[str, Any]:
@@ -229,7 +237,8 @@ async def stats(provider: str | None = None, pool: AsyncConnectionPool = Depends
                  "pre_job_failures_24h": pre_job},
         "made": {"videos": videos, "images": images},
         "accounts": {"usable": sum(r[0] for r in chosen), "available": sum(r[1] for r in chosen),
-                     "dead": sum(r[2] for r in chosen), "disabled": sum(r[3] for r in chosen)},
+                     "dead": sum(r[2] for r in chosen), "disabled": sum(r[3] for r in chosen),
+                     "in_use": sum(r[4] for r in chosen), "asleep": sum(r[5] for r in chosen)},
         "keys": keys,
         "alerts": alerts,
     }

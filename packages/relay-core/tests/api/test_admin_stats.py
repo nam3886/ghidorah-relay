@@ -46,8 +46,8 @@ HOOKS_24H = "callback_status = 'failed' AND updated_at > clock_timestamp() - "
 HOOKS_EVER = "callback_status = 'failed' AND updated_at > clock_timestamp() - interval '100 years' + "
 STALE_BEAT = "if beat_age > HEARTBEAT_STALE_S:"
 NO_STALE_BEAT = "if False:"
-FOREIGN_GROUP = "FROM accounts GROUP BY provider"
-LIKE_QUERY = "FROM accounts WHERE label LIKE 'x%' GROUP BY provider"
+FOREIGN_GROUP = "FROM accounts a GROUP BY provider"
+LIKE_QUERY = "FROM accounts a WHERE label LIKE 'x%' GROUP BY provider"
 DELIVERED = "count(*) FILTER (WHERE status = 'done') AS delivered"
 DELIVERED_FAILED = "count(*) FILTER (WHERE status = 'failed') AS delivered"
 FAILED = "count(*) FILTER (WHERE status = 'failed') AS failed"
@@ -110,7 +110,7 @@ def test_the_cards_count_jobs_by_status_and_what_was_made_by_kind(db):
     body = everything.json()
     assert body["jobs"] == {"queued": 1, "in_progress": 0, "done": 2, "failed": 1, "pre_job_failures_24h": 0}
     assert body["made"] == {"videos": 1, "images": 1}
-    assert body["accounts"] == {"usable": 1, "available": 1, "dead": 0, "disabled": 1}
+    assert body["accounts"] == {"usable": 1, "available": 1, "dead": 0, "disabled": 1, "in_use": 0, "asleep": 0}
     assert body["keys"] == 1
     assert nobody.json()["jobs"]["done"] == 0 and nobody.json()["accounts"]["usable"] == 0
 
@@ -131,6 +131,74 @@ def test_pre_job_failures_count_only_failed_requests_that_made_no_job_and_could_
 
     assert run_app(db, scenario).json()["jobs"]["pre_job_failures_24h"] == 2, (
         "pre-job failures; a failed read is not counted")
+
+
+IN_USE_SUM = '"in_use": sum(r[4] for r in chosen)'
+ASLEEP_SUM = '"asleep": sum(r[5] for r in chosen)'
+IN_USE_COUNT = "count(*) FILTER (WHERE EXISTS (SELECT 1 FROM leases WHERE account_id = a.id AND until > "
+IN_USE_TWICE = ("(SELECT count(*) FROM leases JOIN accounts x ON x.id = account_id "
+                "WHERE x.provider = a.provider AND until > ")
+LEASE_LIVE = "AND until > clock_timestamp())), "
+COOLING = "count(*) FILTER (WHERE cooldown_until > clock_timestamp() "
+RESTING = "OR EXISTS (SELECT 1 FROM account_capacity c"
+REST_LIVE = "c.rest_until > clock_timestamp())) "
+
+
+@mutation(ROUTES, LEASE_LIVE, "AND true)), ", expect="in use: all")
+@mutation(ROUTES, "count(*) FILTER (WHERE EXISTS (SELECT 1 FROM leases",
+          "count(*) FILTER (WHERE state = 'available' AND EXISTS (SELECT 1 FROM leases", expect="in use: all")
+@mutation(ROUTES, IN_USE_COUNT + "clock_timestamp())), ", IN_USE_TWICE + "clock_timestamp()), ", expect="in use: all")
+@mutation(ROUTES, COOLING, "count(*) FILTER (WHERE cooldown_until IS NOT NULL ", expect="asleep: all")
+@mutation(ROUTES, COOLING, "count(*) FILTER (WHERE state = 'available' AND cooldown_until > clock_timestamp() ",
+          expect="asleep: all")
+@mutation(ROUTES, RESTING, "OR FALSE AND EXISTS (SELECT 1 FROM account_capacity c", expect="asleep: all")
+@mutation(ROUTES, REST_LIVE, "c.rest_until IS NOT NULL)) ", expect="asleep: all")
+@mutation(ROUTES, IN_USE_SUM, '"in_use": sum(r[4] for r in accounts.values())', expect="in use: fake")
+@mutation(ROUTES, ASLEEP_SUM, '"asleep": sum(r[5] for r in accounts.values())', expect="asleep: fake")
+@mutation(ROUTES, IN_USE_SUM, '"in_use": sum(r[5] for r in chosen)', expect="in use: all")
+def test_the_cards_count_the_accounts_the_list_marks_in_use_and_asleep(db):
+    """The card and the rows count the same accounts: in use = any live lease, whatever the state, once however many
+    leases; asleep = an own cooldown or a resting pool still in the future, whatever the state."""
+    def lease(account_id, seconds):
+        db.run("INSERT INTO leases (account_id, purpose, owner, until) "
+               "VALUES (%s, 'check', 'test', clock_timestamp() + make_interval(secs => %s))", account_id, seconds)
+
+    def rest(account_id, seconds):
+        db.run("UPDATE account_capacity SET rest_until = clock_timestamp() + make_interval(secs => %s) "
+               "WHERE account_id = %s", seconds, account_id)
+
+    lease(account(db), 600)                              # in use
+    twice = account(db)
+    lease(twice, 600)
+    lease(twice, 900)                                    # two live leases: still one account in use
+    lease(account(db), -600)                             # a lease that ran out: not in use
+    account(db, cooldown_s=600)                          # asleep
+    account(db, cooldown_s=300)                          # asleep
+    account(db, cooldown_s=-600)                         # a cooldown that ended: not asleep
+    lease(account(db, state="disabled", cooldown_s=600), 600)    # a disabled account: in use and asleep
+    lease(account(db, state="dead", cooldown_s=600), 600)        # a dead account: in use and asleep
+    lease(account(db, cooldown_s=600), 600)              # in use and asleep
+    account(db)                                          # idle
+    rest(account(db, left=3), 600)                       # a pool that rests: asleep
+    rest(account(db, left=3, cooldown_s=600), 600)       # a cooldown and a resting pool: one account asleep
+    rest(account(db, left=3), -600)                      # a pool whose rest ended: not asleep
+    elsewhere = account(db, cooldown_s=600)              # another provider: in use and asleep there
+    db.run("UPDATE accounts SET provider = 'other' WHERE id = %s", elsewhere)
+    lease(elsewhere, 600)
+
+    async def scenario(env):
+        return await stats(env), await stats(env, "?provider=fake"), await stats(env, "?provider=other"), await stats(
+            env, "?provider=nobody")
+
+    everything, fake, other, nobody = (r.json()["accounts"] for r in run_app(db, scenario))
+    problems = []                    # every failed check is named, so each marker finds its own
+    for who, got, want in (("all", everything, (6, 8)), ("fake", fake, (5, 7)), ("other", other, (1, 1)),
+                           ("nobody", nobody, (0, 0))):
+        if got["in_use"] != want[0]:
+            problems.append("in use: %s %d, want %d" % (who, got["in_use"], want[0]))
+        if got["asleep"] != want[1]:
+            problems.append("asleep: %s %d, want %d" % (who, got["asleep"], want[1]))
+    assert not problems, "; ".join(problems)
 
 
 @mutation(ROUTES, LOW_CHECK, LOW_CHECK_LOOSE, expect="accounts_low")
