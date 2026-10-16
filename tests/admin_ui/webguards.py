@@ -66,9 +66,6 @@ ALLOWED: dict[tuple[str, str], str] = {
     ("remote URL", "http://www.w3.org/1999/xlink"): _XML_NAMESPACE + " (Vue's xlink attribute namespace)",
     ("remote URL", "http://www.w3.org/1998/Math/MathML"): _XML_NAMESPACE + " (Vue's MathML element namespace)",
     ("remote URL", "https://vuejs.org/error-reference/#runtime-${r}"): "Vue's production error message template; text",
-    ("remote URL", "https://element-plus.org/zh-CN/component/pagination.html"): (
-        "the `ref:` of el-pagination's deprecation notice for `small` (element-plus 2.14.7 pagination.mjs, the only "
-        "doc link there with a zh-CN path); the notice prints it in a development warning, and nothing requests it"),
     # key = sha256 prefix of the whole url("data:...") text, so only this exact image is excused, not data: URLs
     ("data: URL", "sha256:c8faacbdb989b684"): (
         "the tick mask of a selected option in an Element Plus multiple select (`-webkit-mask` and `mask` of "

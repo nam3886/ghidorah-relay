@@ -12,8 +12,10 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from psycopg_pool import AsyncConnectionPool
 
+from relay_core.admin.routes_common import ms, pool_point
 from relay_core.api.deps import get_pool, get_registry, get_settings
 from relay_core.db import tx
+from relay_core.pool import pool_configs
 from relay_core.providers import ProviderRegistry
 from relay_core.settings import Settings
 
@@ -142,6 +144,68 @@ async def stats_hourly(provider: str | None = None, pool: AsyncConnectionPool = 
         rows = await (await conn.execute(_HOURLY, {"p": provider, "now": _now()})).fetchall()
     return {"hours": [{"hour_ms": hour, "delivered": delivered, "failed": failed, "in_progress": in_progress}
                       for hour, delivered, failed, in_progress in rows]}
+
+
+# The Accounts screen's pool panel. Only accounts that are `available` count toward points: a dead or a disabled
+# account hands out nothing. Budgets come from the providers' settings, not from the database.
+_POOL_ACCOUNTS = (
+    "SELECT id, provider FROM accounts WHERE state = 'available' AND (%(p)s::text IS NULL OR provider = %(p)s)")
+_POOL_CAPACITY = (
+    "SELECT c.account_id, c.pool, c.left_n, c.source, c.day_anchor FROM account_capacity c "
+    "JOIN accounts a ON a.id = c.account_id WHERE a.state = 'available' AND "
+    "(%(p)s::text IS NULL OR a.provider = %(p)s)")
+_POOL_SPENT = (
+    "SELECT c.account_id, c.pool, sum(c.amount) FROM account_charges c "
+    "JOIN account_capacity k ON k.account_id = c.account_id AND k.pool = c.pool AND k.day_anchor = c.account_day "
+    "JOIN accounts a ON a.id = c.account_id WHERE c.refunded_at IS NULL AND a.state = 'available' AND "
+    "(%(p)s::text IS NULL OR a.provider = %(p)s) GROUP BY 1, 2")
+_POOL_PROXY = (
+    "SELECT count(*) FROM accounts WHERE (%(p)s::text IS NULL OR provider = %(p)s) AND "
+    "state = 'available' AND proxy_ok = false")
+_POOL_CHECK = (
+    "SELECT max(finished_at) FROM commands WHERE kind = 'check_all' AND "
+    "status = 'done' AND (%(p)s::text IS NULL OR provider = %(p)s)")
+
+
+@router.get("/stats/pool")
+async def stats_pool(provider: str | None = None, pool: AsyncConnectionPool = Depends(get_pool),
+                     settings: Settings = Depends(get_settings),
+                     registry: ProviderRegistry = Depends(get_registry)) -> dict:
+    """Per pool (video, image, ...): points left over the budget of the accounts that know their points, the accounts
+    that do not, and the counted values that disagree with the ledger (the accounts list's own drift rule); plus the
+    proxy checks that failed and when the last `check_all` finished. A pool with no budget has every account unknown."""
+    args = {"p": provider}
+    async with tx(pool) as conn:
+        accounts = await (await conn.execute(_POOL_ACCOUNTS, args)).fetchall()
+        rows = {(a, p): (left, source, anchor) for a, p, left, source, anchor in await (
+            await conn.execute(_POOL_CAPACITY, args)).fetchall()}
+        spent = {(a, p): n for a, p, n in await (await conn.execute(_POOL_SPENT, args)).fetchall()}
+        proxy_failed = (await (await conn.execute(_POOL_PROXY, args)).fetchone())[0]
+        last_check = (await (await conn.execute(_POOL_CHECK, args)).fetchone())[0]
+        now = (await (await conn.execute("SELECT clock_timestamp()")).fetchone())[0]   # the clock the claim uses
+    configs = {name: pool_configs(registry.spec(name).caps, settings.get) for name in registry.names()}
+    totals: dict[str, dict[str, int]] = {}
+    for name, cfgs in configs.items():
+        for pool_name in cfgs if provider in (None, name) else ():
+            totals.setdefault(pool_name, {"left": 0, "budget": 0, "unknown": 0, "drift": 0})
+    for account_id, account_provider in accounts:
+        for pool_name, cfg in configs.get(account_provider, {}).items():
+            total = totals.setdefault(pool_name, {"left": 0, "budget": 0, "unknown": 0, "drift": 0})
+            row = rows.get((account_id, pool_name))
+            if cfg.budget is None or row is None:
+                total["unknown"] += 1
+                continue
+            left_n, source, anchor = row
+            # the accounts list's own rule for a row: a day that is over is the budget, drift is a counted mismatch
+            _, left_today, drift = pool_point(cfg, left_n, source, anchor, now, spent.get((account_id, pool_name), 0))
+            if left_today is None:
+                total["unknown"] += 1
+                continue
+            total["budget"] += cfg.budget
+            total["left"] += left_today
+            total["drift"] += bool(drift)
+    return {"pools": [{"pool": name, **total} for name, total in totals.items()],
+            "proxy_failed": proxy_failed, "last_full_check_ms": ms(last_check)}
 
 
 @router.get("/stats")

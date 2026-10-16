@@ -6,14 +6,16 @@ proxy parser. Not a lane module: it has no `router`, so `create_app` never lists
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from urllib.parse import quote, unquote, urlsplit
+from zoneinfo import ZoneInfo
 
 from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict
 
 from relay_core.api.errors_http import ApiError
+from relay_core.pool import PoolConfig
 from relay_core.providers import ProviderRegistry, ProviderSpec
 
 ADMIN_COMMANDS = ("delete_account", "wake", "check", "check_all", "proxy_recheck", "recover", "refresh_catalog",
@@ -31,6 +33,19 @@ class Strict(BaseModel):
 def ms(moment: datetime | None) -> int | None:
     """Admin times are epoch milliseconds for the page; None stays None."""
     return None if moment is None else int(moment.timestamp() * 1000)
+
+
+def pool_point(cfg: PoolConfig | None, left_n: int | None, source: str, anchor: date | None, now: datetime,
+               spent: int) -> tuple[bool, int | None, bool | None]:
+    """One capacity row as the next claim sees it: `(stale, left_today, drift)`. `now` is the database clock
+    (`clock_timestamp()`, the one `pool.lock_capacity` rolls the day with), `spent` the unrefunded charges of the
+    row's own day. A row whose pool day is over goes back to the pool's budget (unknown without one); drift is a
+    counted value of today that disagrees with the budget less `spent` (the pool's 5-minute pass corrects it)."""
+    stale = cfg is not None and anchor != now.astimezone(ZoneInfo(cfg.tz)).date()
+    counted = cfg is not None and cfg.budget is not None and not stale and source in ("counted", "reset") \
+        and left_n is not None
+    drift = left_n != cfg.budget - spent if counted else None
+    return stale, cfg.budget if stale and cfg else left_n, drift
 
 
 def spec_of(registry: ProviderRegistry, provider: str) -> ProviderSpec:

@@ -454,3 +454,14 @@ describe("useBreakpoint", () => {
     expect(mountProbe().text()).toBe("|");
   });
 });
+
+describe("the multiple-select tick", () => {
+  it("is drawn with borders and ranks over the Element Plus mask, which is a blocked data: image", () => {
+    const rule = css.match(
+      /html \.el-select-dropdown\.is-multiple \.el-select-dropdown__item\.is-selected::after \{([^}]*)\}/,
+    );
+    expect(rule?.[1]).toContain("mask-image: none !important;");
+    expect(rule?.[1]).toContain("-webkit-mask-image: none !important;");
+    expect(rule?.[1]).toContain("border-width: 0 2px 2px 0;");
+  });
+});
