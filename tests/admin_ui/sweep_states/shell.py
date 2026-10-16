@@ -1,9 +1,9 @@
-"""The shell around every tab: the Provider filter and the theme's multiple-select tick."""
+"""The shell around every tab: the Provider listbox, the account menu and the theme's multiple-select tick."""
 
-from . import close_select, open_select
+from patchright.sync_api import expect
 
 ROUTE = "shell"
-STATES = [("shell", "scope-select"), ("shell", "multiple-select-tick")]
+STATES = [("shell", "scope-select"), ("shell", "account-menu"), ("shell", "multiple-select-tick")]
 
 
 def check_multiple_select_tick(page):
@@ -27,7 +27,17 @@ def check_multiple_select_tick(page):
     assert all(v in ("none", "", None) for v in got), "the tick still has a mask image: %r" % (got,)
 
 
+def popover(page, trigger, popup):
+    """Open a top bar popover from its trigger, then close it with Escape."""
+    trigger.click()
+    expect(popup).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(popup).to_be_hidden()
+
+
 def run(page, app, live, sw, data):
-    sw.step("shell", "scope-select", lambda: (open_select(page, "Provider filter"),
-                                              close_select(page, "Provider filter")))
+    sw.step("shell", "scope-select", lambda: popover(page, page.get_by_test_id("provider-filter"),
+                                                     page.get_by_role("listbox", name="Provider")))
+    sw.step("shell", "account-menu", lambda: popover(page, page.get_by_test_id("account-menu"),
+                                                     page.get_by_role("menu", name="Account")))
     sw.step("shell", "multiple-select-tick", lambda: check_multiple_select_tick(page))

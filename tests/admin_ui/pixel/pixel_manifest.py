@@ -42,7 +42,7 @@ class Entry:
 
 def login_error(page, live, data):
     page.get_by_label("Username").fill("admin")
-    page.get_by_label("Password").fill("example-password")
+    page.get_by_label("Password", exact=True).fill("example-password")
     page.get_by_role("button", name="Sign in").click()
     expect(page.get_by_role("alert")).to_be_visible(timeout=TIMEOUT_MS)
 

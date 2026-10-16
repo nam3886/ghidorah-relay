@@ -14,6 +14,7 @@ import "@fontsource/ibm-plex-mono/vietnamese-500.css";
 // Element Plus base and dark variables first, then our theme (it overrides them).
 import "element-plus/theme-chalk/dark/css-vars.css";
 import "@/styles/theme.css";
+import "@/components/shared/skin.css";
 import { createPinia } from "pinia";
 import { createApp } from "vue";
 import App from "@/App.vue";

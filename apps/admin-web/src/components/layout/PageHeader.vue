@@ -9,10 +9,14 @@ const { isPhone, isTablet } = useBreakpoint();
 </script>
 
 <template>
-  <div class="page-header" :class="{ 'page-header--phone': isPhone, 'page-header--tablet': isTablet }">
+  <div
+    class="page-header"
+    :class="{ 'page-header--phone': isPhone, 'page-header--tablet': isTablet, 'page-header--top': $slots.submeta }"
+  >
     <div class="page-header__text">
       <h1 class="page-header__title">{{ title }}</h1>
       <p v-if="subtitle" class="page-header__subtitle">{{ subtitle }}</p>
+      <span v-if="$slots.submeta" class="page-header__submeta"><slot name="submeta" /></span>
     </div>
     <div v-if="($slots.meta && !isPhone) || $slots.actions" class="page-header__side">
       <span v-if="$slots.meta && !isPhone" class="page-header__meta"><slot name="meta" /></span>
@@ -32,6 +36,9 @@ const { isPhone, isTablet } = useBreakpoint();
 .page-header--phone {
   flex-wrap: nowrap;
   align-items: center;
+}
+.page-header--top {
+  align-items: flex-start;
 }
 .page-header__text {
   min-width: 0;
@@ -60,6 +67,14 @@ const { isPhone, isTablet } = useBreakpoint();
 .page-header--tablet .page-header__subtitle,
 .page-header--phone .page-header__subtitle {
   margin-top: 2px;
+}
+.page-header__submeta {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--rl-faint);
+  font-variant-numeric: tabular-nums;
 }
 .page-header__side {
   display: flex;

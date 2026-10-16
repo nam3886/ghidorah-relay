@@ -295,10 +295,11 @@ SHELL_FAILED = "FAILED tests/unit/app-shell.spec.ts > the shell > "
           expect=SHELL_FAILED + "with live conditions only, says Needs attention and still offers the link to Alerts")
 @mutation(BANNER, "Review in Alerts", "Review in alerts",
           expect=SHELL_FAILED + "shows the live alerts and the open group count, 200 as 200+")
-@mutation(BANNER, "alerts.value.length > FOLD_ABOVE", "alerts.value.length > FOLD_ABOVE + 1",
-          expect=SHELL_FAILED + "folds three or more live conditions behind one count and keeps the group link in view")
-@mutation(BANNER, "const FOLD_ABOVE = 2;", "const FOLD_ABOVE = 1;",
-          expect=SHELL_FAILED + "lists two live conditions in full, with no fold")
+@mutation(BANNER, "return rest.length ? `${first.message} (+${rest.length} more)` : first.message;",
+          "return first.message;", expect=SHELL_FAILED + "with several live conditions shows the first and the count "
+                                                           "of the rest")
+@mutation(BANNER, "if (!first) return \"\";", "if (!first) return \"x\";",
+          expect=SHELL_FAILED + "draws no detail when only open groups exist")
 @mutation(BANNER, "background: var(--rl-warn-bg);", "background: var(--rl-bad-bg);",
           expect=SHELL_FAILED + "draws the banner with a warn fill and no side border")
 @mutation(f"{SRC}/components/layout/AppShell.vue", "() => notify.clear(),", "() => undefined,",
@@ -310,48 +311,50 @@ def test_the_banner_rules():
     vitest("tests/unit/app-shell.spec.ts")
 
 
-# ---- the top bar: the three behaviours the old header and tab bar guarded, now in TopBar --------------------------
+# ---- the top bar: the behaviours the old header and tab bar guarded, now in TopBar --------------------------------
 TOP_BAR = f"{SRC}/components/layout/TopBar.vue"
-ALL_FILTER = SHELL_FAILED + ("shows All, not the placeholder, in the provider filter, "
+ALL_FILTER = SHELL_FAILED + ("shows All in the provider trigger, lists All then the catalog's providers "
                              "and keeps the store's empty string for All")
+POPOVERS = SHELL_FAILED + "closes an open popover on Escape and on a click outside, and keeps one open at a time"
+SIGN_OUT_ITEM = SHELL_FAILED + "signs out through the menu item: server revoke first, then every sign-out hook"
 BAR_FAILED = "FAILED tests/unit/app-shell.spec.ts > the top bar > "
 LAYOUT = BAR_FAILED + ("is one row on a desktop, and two rows on a tablet and on a phone, "
                        "with the user's name only on the desktop")
+CURRENT_COUNT = BAR_FAILED + "marks the count of the current tab as primary and the Alerts count as warn"
 
 
 @mutation(TOP_BAR, "stats.data.jobs.in_progress + stats.data.jobs.queued", "stats.data.jobs.in_progress",
           expect=SHELL_FAILED + "counts the unfinished jobs on the Jobs tab and the open groups on Alerts, "
                  "only when above zero")
-@mutation(TOP_BAR, "get: () => scope.provider || ALL,", "get: () => scope.provider,", expect=ALL_FILTER)
-@mutation(TOP_BAR, 'scope.provider = value === ALL ? "" : value;', "scope.provider = value;", expect=ALL_FILTER)
+@mutation(TOP_BAR, "computed(() => scope.provider || ALL)", "computed(() => scope.provider)", expect=ALL_FILTER)
+@mutation(TOP_BAR, 'scope.provider = name === ALL ? "" : name;', "scope.provider = name;", expect=ALL_FILTER)
+@mutation(TOP_BAR, ':aria-selected="name === providerLabel"', ':aria-selected="name !== providerLabel"',
+          expect=ALL_FILTER)
+@mutation(TOP_BAR, 'event.key !== "Escape"', 'event.key !== "Enter"', expect=POPOVERS)
+@mutation(TOP_BAR, "wrap && !wrap.contains(target)", "wrap && wrap.contains(target)", expect=POPOVERS)
+@mutation(TOP_BAR, "open.value = open.value === which ? null : which;", "open.value = which;", expect=POPOVERS)
 @pytest.mark.web_unit
-def test_the_top_bar_keeps_the_count_and_the_provider_all_rules():
+def test_the_top_bar_keeps_the_count_the_provider_and_the_popover_rules():
     vitest("tests/unit/app-shell.spec.ts")
 
 
-@mutation(TOP_BAR, "route.name === tab.name", "route.name !== tab.name",
-          expect=BAR_FAILED + "marks the count of the current tab as primary and the Alerts count as warn")
-@mutation(TOP_BAR, "tab.name === 'alerts'", "tab.name === 'jobs'",
-          expect=BAR_FAILED + "marks the count of the current tab as primary and the Alerts count as warn")
+@mutation(TOP_BAR, "'tab-count--current': route.name === tab.name && tab.name !== 'alerts',",
+          "'tab-count--current': route.name !== tab.name && tab.name !== 'alerts',", expect=CURRENT_COUNT)
+@mutation(TOP_BAR, "'tab-count--warn': tab.name === 'alerts',", "'tab-count--warn': tab.name === 'jobs',",
+          expect=CURRENT_COUNT)
+@mutation(TOP_BAR, "tab.name !== 'alerts',", "tab.name === 'alerts',", expect=CURRENT_COUNT)
 @mutation(TOP_BAR, 'value > 999 ? "999+"', 'value > 1000 ? "999+"',
           expect=BAR_FAILED + "shows 999+ for a count above 999 and the number itself at 999")
 @mutation(TOP_BAR, "a.available > 0", "a.available > 1",
           expect=BAR_FAILED + "shows ready over total on the Accounts tab, and nothing without accounts")
 @mutation(TOP_BAR, "`${a.usable}/${a.available}`", "`${a.available}/${a.usable}`",
           expect=BAR_FAILED + "shows ready over total on the Accounts tab, and nothing without accounts")
-@mutation(f"{SRC}/components/layout/AppShell.vue", "<AttentionBanner v-if=\"route.name !== 'jobs'\" />",
-          "<AttentionBanner />",
-          expect=SHELL_FAILED + "draws the banner above every view but Jobs, which draws its own")
-@mutation(TOP_BAR, "await auth.logout();", "void 0;",
-          expect=SHELL_FAILED + "signs out through the menu command too: server revoke first, then every sign-out hook")
+@mutation(TOP_BAR, "await auth.logout();", "void 0;", expect=SIGN_OUT_ITEM)
 @mutation(TOP_BAR, 'await router.replace({ name: "login" });', "void 0;",
           expect=SHELL_FAILED + "signs out: calls the server, drops the session and shows the login page")
 @mutation(TOP_BAR, 'window.open("/reference", "_blank", "noopener")', 'window.open("/reference", "_self", "noopener")',
           expect=SHELL_FAILED + "opens the API reference in a new tab from the account menu, and nowhere else")
-@mutation(TOP_BAR, 'else if (command === "signout")', 'else if (command === "signoff")',
-          expect=SHELL_FAILED + "signs out through the menu command too: server revoke first, then every sign-out hook")
 @mutation(TOP_BAR, "computed(() => isPhone.value || isTablet.value)", "computed(() => isPhone.value)", expect=LAYOUT)
-@mutation(TOP_BAR, '<template v-if="!isPhone" #prefix>', '<template v-if="true" #prefix>', expect=LAYOUT)
 @mutation(TOP_BAR, '<span v-if="!stacked" class="account-name"', '<span v-if="true" class="account-name"',
           expect=LAYOUT)
 @mutation(f"{SRC}/components/layout/AppShell.vue", "'app-main--tablet': isTablet", "'app-main--tablet': isPhone",
