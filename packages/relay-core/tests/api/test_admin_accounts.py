@@ -272,7 +272,8 @@ def test_the_list_shows_state_capacity_and_use_and_no_secret(db, pair):
         assert name not in everything.text
 
 
-@mutation(ROUTES, "stale = cfg is not None and anchor != ", "stale = False and anchor != ",
+@mutation("packages/relay-core/src/relay_core/admin/routes_common.py", "stale = cfg is not None and anchor != ",
+          "stale = False and anchor != ",
           expect="a pool whose day is over shows its budget")
 def test_the_list_shows_what_the_next_claim_will_see_once_a_pool_day_is_over(db, pair):
     a = new_account(db, label="alpha", checked=True)

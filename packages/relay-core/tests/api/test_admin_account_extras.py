@@ -9,6 +9,7 @@ from jobkit import key
 from relay_core.testing.mutation import mutation
 
 ROUTES = "packages/relay-core/src/relay_core/admin/routes_accounts.py"
+COMMON = "packages/relay-core/src/relay_core/admin/routes_common.py"       # the per-row pool rule lives here
 DRIFT_ON = "if counted else None"
 DRIFT_OFF = "if False else None"
 COMPOSER = "a.provider_state->>'composer'"
@@ -41,7 +42,7 @@ def test_each_account_shows_how_many_videos_and_images_it_made(db):
     assert rows["idle"]["made"] == {"video": 0, "image": 0} and idle
 
 
-@mutation(ROUTES, DRIFT_ON, DRIFT_OFF, expect="drift")
+@mutation(COMMON, DRIFT_ON, DRIFT_OFF, expect="drift")
 @pytest.mark.fabricated_rows("plants account charges that are not the job account_cost", "account_cost")
 def test_a_counted_value_that_disagrees_with_the_charges_is_flagged_and_a_reported_one_never_is(db):
     k = key(db)

@@ -76,6 +76,22 @@ describe("list", () => {
     expect(urlOf(1).searchParams.has("created_to_ms")).toBe(false);
   });
 
+  it("sends the display zone as tz, and nothing when it is not set", async () => {
+    await listJobs({ status: "", provider: "", keyId: "", offset: 0, limit: 20, tz: "Asia/Ho_Chi_Minh" });
+    expect(Object.fromEntries(urlOf(0).searchParams)).toEqual({ limit: "20", offset: "0", tz: "Asia/Ho_Chi_Minh" });
+    await listJobs({ status: "", provider: "", keyId: "", offset: 0, limit: 20 });
+    expect(urlOf(1).searchParams.has("tz")).toBe(false);
+  });
+
+  it("hands the day totals of the answer through unchanged", async () => {
+    const day_totals = { "2026-10-15": 212, "2026-10-16": 3 };
+    fetchMock.mockImplementationOnce(() =>
+      Promise.resolve(json({ items: [], total: 215, next_cursor: null, day_totals })),
+    );
+    const page = await listJobs({ status: "", provider: "", keyId: "", offset: 0, limit: 20, tz: "Asia/Ho_Chi_Minh" });
+    expect(page.day_totals).toEqual(day_totals);
+  });
+
   it("the status filter offers submitting beside the others", () => {
     expect([...JOB_STATUSES]).toEqual(["queued", "submitting", "waiting", "fetching", "unknown", "done", "failed"]);
   });

@@ -13,7 +13,6 @@ inserted like any other; the worker's first check merges it into the existing ro
 import logging
 import uuid
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import psycopg
 from fastapi import APIRouter, Depends, Request, Response
@@ -21,7 +20,7 @@ from psycopg_pool import AsyncConnectionPool
 from pydantic import Field
 
 from relay_core import crypto, storage
-from relay_core.admin.routes_common import MAX_PAGE, Strict, enqueue, ms, parse_proxy, spec_of
+from relay_core.admin.routes_common import MAX_PAGE, Strict, enqueue, ms, parse_proxy, pool_point, spec_of
 from relay_core.api.deps import get_pool, get_registry, get_settings, get_store, skip_body_log
 from relay_core.api.errors_http import ApiError
 from relay_core.db import lock_account, tx
@@ -144,14 +143,10 @@ async def list_accounts(provider: str | None = None, limit: int = 100, offset: i
     pools: dict[Any, list[dict]] = {}
     for account_id, pool_name, left_n, source, anchor, rest_until, rest_reason in capacity:
         cfg = configs.get(provider_of[account_id], {}).get(pool_name)
-        stale = cfg is not None and anchor != now.astimezone(ZoneInfo(cfg.tz)).date()
-        # drift: a counted value that disagrees with the budget minus the day's unrefunded charges (the pool's own
-        # 5-minute pass corrects it; until then the page marks it)
-        counted = cfg is not None and cfg.budget is not None and not stale and source in ("counted", "reset") \
-            and left_n is not None
-        drift = left_n != cfg.budget - spent.get((account_id, pool_name, anchor), 0) if counted else None
+        paid = spent.get((account_id, pool_name, anchor), 0)
+        _, left_today, drift = pool_point(cfg, left_n, source, anchor, now, paid)
         pools.setdefault(account_id, []).append({
-            "pool": pool_name, "left_n": left_n, "left_today": cfg.budget if stale and cfg else left_n,
+            "pool": pool_name, "left_n": left_n, "left_today": left_today,
             "budget": None if cfg is None else cfg.budget, "drift": drift, "source": source,
             "day_anchor": None if anchor is None else str(anchor), "rest_until_ms": ms(rest_until),
             "rest_reason": rest_reason})

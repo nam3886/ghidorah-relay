@@ -2,8 +2,10 @@
 text, Re-check refusals, the Recover and title commands, rename, and Regenerate at today's price through the gate."""
 
 import dataclasses
+import json
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import psycopg
 from apikit import run_app
@@ -308,6 +310,173 @@ def test_a_bad_window_is_refused_not_ignored(db):
     assert negative_from.json()["error"]["param"] == "created_from_ms", "negative bound"
     assert negative_to.json()["error"]["param"] == "created_to_ms", "negative bound"
     assert fine.status_code == 200 and fine.json()["total"] == 0
+
+
+# ---- per-day totals (`tz`) ---------------------------------------------------------------------------------------
+TZ = "Asia/Ho_Chi_Minh"                  # Saigon: UTC+7, no clock change (the alias Asia/Saigon is not installed)
+SAIGON = ZoneInfo(TZ)
+DAY_TOTALS_SQL = '"SELECT (j.created_at AT TIME ZONE %(tz)s)::date, count(*) FROM jobs j WHERE " + _FILTERS)'
+DAY_TOTALS_UNFILTERED = '"SELECT (j.created_at AT TIME ZONE %(tz)s)::date, count(*) FROM jobs j WHERE " + "true")'
+DAY_FIRST = "j.created_at >= (%(day_first)s::date)::timestamp AT TIME ZONE %(tz)s"
+DAY_FIRST_UNSARGABLE = "j.created_at + interval '0' >= (%(day_first)s::date)::timestamp AT TIME ZONE %(tz)s"
+
+
+def saigon_ms(day: str, hhmm: str) -> int:
+    """Epoch ms of a Saigon wall-clock time, so a test names the local time it means."""
+    return int(datetime.fromisoformat("%sT%s:00" % (day, hhmm)).replace(tzinfo=SAIGON).timestamp() * 1000)
+
+
+def place(db, job, day: str, hhmm: str) -> None:
+    db.run("UPDATE jobs SET created_at = to_timestamp(%s::double precision / 1000) WHERE id = %s",
+           saigon_ms(day, hhmm), job)
+
+
+class Soft:
+    """Every failed check of a test is named in its one failure, so each marker's `expect=` finds its own."""
+
+    def __init__(self):
+        self.failed = []
+
+    def __call__(self, ok: bool, what: str) -> None:
+        if not ok:
+            self.failed.append(what)
+
+    def done(self) -> None:
+        assert not self.failed, "; ".join(self.failed)
+
+
+@mutation(ROUTES, "(j.created_at AT TIME ZONE %(tz)s)::date", "(j.created_at AT TIME ZONE 'UTC')::date",
+          expect="the local day")
+@mutation(ROUTES, ">= (%(day_first)s::date)::timestamp AT TIME ZONE %(tz)s",
+          ">= (%(day_first)s::date)::timestamp AT TIME ZONE 'UTC'", expect="the start of the earliest day")
+@mutation(ROUTES, "((%(day_last)s::date + 1)::timestamp", "((%(day_last)s::date + 0)::timestamp",
+          expect="the end of the latest day")
+@mutation(ROUTES, "if zone is not None and page:", "if zone is not None:", expect="an empty page")
+def test_day_totals_count_every_job_of_a_local_day_not_only_those_on_the_page(db):
+    k = key(db)
+    jobs = [db.job(k, provider=PROVIDER) for _ in range(6)]
+    # Saigon: 23:30 and 00:30 are one hour apart, share a UTC day and sit on two local days; 05:00 is before the
+    # UTC midnight (07:00) of the earliest local day
+    when = [("2026-03-09", "05:00"), ("2026-03-10", "01:00"), ("2026-03-10", "12:00"), ("2026-03-10", "23:30"),
+            ("2026-03-11", "00:30"), ("2026-03-11", "08:00")]
+    for job, (day, hhmm) in zip(jobs, when, strict=True):
+        place(db, job, day, hhmm)
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        get = lambda q: env.client.get("/admin/jobs?tz=" + TZ + q, headers=h)  # noqa: E731
+        return (await get("&limit=2"), await get("&limit=2&offset=2"), await get("&limit=4"), await get("&limit=50"),
+                await get("&limit=2&offset=9"), await env.client.get("/admin/jobs?tz=UTC&limit=50", headers=h))
+
+    newest, middle, four, everything, past_the_end, utc = run_app(db, scenario)
+    check = Soft()
+    check(newest.json()["day_totals"] == {"2026-03-11": 2}, "the local day: newest page")
+    check(middle.json()["day_totals"] == {"2026-03-10": 3}, "a day counted beyond the page")
+    check(four.json()["day_totals"] == {"2026-03-10": 3, "2026-03-11": 2}, "the end of the latest day")
+    check(everything.json()["day_totals"] == {"2026-03-09": 1, "2026-03-10": 3, "2026-03-11": 2},
+          "the start of the earliest day")
+    check(list(everything.json()["day_totals"]) == sorted(everything.json()["day_totals"]), "days in order")
+    check(past_the_end.json().get("day_totals") == {}, "an empty page")
+    check(utc.json()["day_totals"] == {"2026-03-08": 1, "2026-03-09": 1, "2026-03-10": 3, "2026-03-11": 1},
+          "the local day: UTC")
+    check.done()
+
+
+@mutation(ROUTES, "_DAY_TOTALS + bounds + _DAY_RANGE", "_DAY_TOTALS + _DAY_RANGE", expect="totals follow the window")
+@mutation(ROUTES, DAY_TOTALS_SQL, DAY_TOTALS_UNFILTERED, expect="totals follow the filters")
+@mutation(ROUTES, "j.provider = %(provider)s)", "true)", expect="totals follow the filters")
+@mutation(ROUTES, "(%(key)s::uuid IS NULL OR j.key_id = %(key)s)", "(true)", expect="totals follow the filters")
+@mutation(ROUTES, "(%(status)s::text IS NULL OR j.status = %(status)s)", "(true)", expect="totals follow the filters")
+def test_every_filter_of_the_list_changes_the_day_totals_the_way_it_changes_the_list(db):
+    k, other_key = key(db), key(db)
+    account(db)
+
+    async def plant(p):
+        return [await failed_job(p, k, "failed"), await create(p, k, "queued a"), await create(p, k, "queued b"),
+                await create(p, other_key, "queued c")]
+
+    jobs = [j if isinstance(j, uuid.UUID) else j.job_id for j in run(db, plant)]
+    for job, hhmm in zip(jobs, ("10:00", "11:00", "12:00", "13:00"), strict=True):
+        place(db, job, "2026-03-10", hhmm)
+    window = "created_from_ms=%d&created_to_ms=%d" % (
+        saigon_ms("2026-03-10", "12:00"), saigon_ms("2026-03-10", "14:00"))
+    filters = {"": 4, "status=failed": 1, "status=queued": 3, "key_id=%s" % k: 3, "key_id=%s" % other_key: 1,
+               "provider=" + PROVIDER: 4, "provider=nobody": 0, window: 2, window + "&status=failed": 0,
+               window + "&key_id=%s" % k: 1}
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        return {q: await env.client.get("/admin/jobs?tz=%s&limit=1&%s" % (TZ, q), headers=h) for q in filters}
+
+    check = Soft()
+    for q, r in run_app(db, scenario).items():
+        body = r.json()
+        check(body["total"] == filters[q], "the list's own total: " + q)
+        # one row on the page, yet the day's count is every job the same filters match that day
+        want = {"2026-03-10": filters[q]} if filters[q] else {}
+        check(body["day_totals"] == want, ("totals follow the window: " if "created_" in q else
+                                           "totals follow the filters: ") + q)
+    check.done()
+
+
+@mutation(ROUTES, '    if zone is not None:\n        out["day_totals"] = day_totals',
+          '    out["day_totals"] = day_totals', expect="no tz, no field")
+@mutation(ROUTES, "zone = None if tz is None else _zone(tz)", "zone = None if tz is None else ZoneInfo(tz)",
+          expect="a bad tz")
+def test_without_tz_the_answer_has_no_day_totals_and_a_bad_tz_is_refused(db):
+    k = key(db)
+    db.run("UPDATE api_keys SET label = 'Golden key' WHERE id = %s", k)
+    job = db.job(k, provider=PROVIDER)
+    place(db, job, "2026-03-10", "10:00")
+    # the answer a client without `tz` has always got, byte for byte (key order and compact separators included)
+    golden = {"items": [{
+        "id": str(job), "provider": PROVIDER, "key_id": str(k), "key_label": "Golden key", "operation": "generate",
+        "media_type": "video", "model": "m", "title": None, "status": "queued", "error_code": None, "price": 0,
+        "account_id": None, "account_label": None, "external_ref": None, "created_ms": saigon_ms("2026-03-10", "10:00"),
+        "finished_ms": None, "error_status": None, "can_recheck": False, "outputs": 0, "inputs": 0, "net_charged": 0,
+        "model_substituted": False}], "total": 1, "next_cursor": None}
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        get = lambda q: env.client.get("/admin/jobs" + q, headers=h)  # noqa: E731
+        refused = ("Mars/Olympus", "", "..%2Fetc%2Fpasswd", "%2Fetc%2Fpasswd")
+        return [await get("")] + [await get("?tz=" + bad) for bad in refused] + [await get("?tz=Asia/Saigon")]
+
+    plain, *bad, alias = run_app(db, scenario)
+    # the legacy alias is served only where the image ships it (Debian keeps it in tzdata-legacy): no mapping is made
+    check = Soft()
+    try:
+        ZoneInfo("Asia/Saigon")
+    except ZoneInfoNotFoundError:
+        check((alias.status_code, code_of(alias)) == (400, "input.invalid"), "the alias is refused where unknown")
+    else:
+        check(alias.status_code == 200 and "day_totals" in alias.json(), "the alias is served where known")
+    check(plain.status_code == 200 and plain.content == json.dumps(golden, separators=(",", ":")).encode(),
+          "no tz, no field: the old answer, byte for byte")
+    for r in bad:
+        check((r.status_code, code_of(r), r.json()["error"]["param"]) == (400, "input.invalid", "tz"), "a bad tz")
+    check.done()
+
+
+@mutation(ROUTES, DAY_FIRST, DAY_FIRST_UNSARGABLE, expect="the day totals are served by jobs_created_at_idx")
+def test_the_day_totals_query_is_served_by_the_created_at_index_on_a_realistic_table(db):
+    """10 000 jobs over 30 days, ANALYZEd, nothing forced: the one-day totals range-scan jobs_created_at_idx."""
+    seed = db.job(key(db), provider="fake")
+    db.run("INSERT INTO jobs (" + JOB_COLUMNS + ", created_at) SELECT gen_random_uuid(), provider, key_id, operation, "
+           "media_type, model, prompt, 'seed-' || g, status, completion, after_sent, submit_timeout_s, wallet_kind, "
+           "price, to_timestamp(%s::double precision / 1000) - g * %s * interval '1 second' "
+           "FROM jobs, generate_series(1, 10000) g WHERE id = %s", BASE_MS, SEED_SPREAD, seed)
+    db.run("ANALYZE jobs")
+    day = (_EPOCH + timedelta(milliseconds=BASE_MS - 10 * 24 * HOUR)).date()
+    args = {"status": None, "provider": None, "key": None, "tz": TZ, "day_first": day, "day_last": day}
+    with db.connect() as conn:
+        plan = "\n".join(r[0] for r in psycopg.ClientCursor(conn).execute(
+            "EXPLAIN " + routes_jobs._DAY_TOTALS + routes_jobs._DAY_RANGE, args))
+    print("\nDAY TOTALS PLAN\n" + plan)
+    cond = [line for line in plan.splitlines() if "Index Cond" in line and "created_at >=" in line
+            and "created_at <" in line]
+    assert "jobs_created_at_idx" in plan and cond and "Seq Scan on jobs" not in plan, (
+        "the day totals are served by jobs_created_at_idx:\n" + plan)
 
 
 # ---- detail -----------------------------------------------------------------------------------------------------

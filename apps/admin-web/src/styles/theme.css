@@ -509,11 +509,14 @@ body {
 
 /*
  * Element Plus draws the tick of a selected option in a multiple select with a mask made from a data:image/svg+xml
- * URL, which the CSP (no img-src, so 'self') blocks. Draw the same tick with borders instead.
+ * URL, which the CSP (no img-src, so 'self') blocks. Draw the same tick with borders instead. `html` and !important
+ * keep this ahead of Element Plus's own rule, whichever style sheet loads last.
  */
-.el-select-dropdown.is-multiple .el-select-dropdown__item.is-selected::after {
-  -webkit-mask: none;
-  mask: none;
+html .el-select-dropdown.is-multiple .el-select-dropdown__item.is-selected::after {
+  -webkit-mask: none !important;
+  mask: none !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
   background: transparent;
   width: 5px;
   height: 10px;
