@@ -50,6 +50,25 @@ export interface HourBucket {
 export const getHourlyStats = (provider: string): Promise<{ hours: HourBucket[] }> =>
   request("/stats/hourly", { query: { provider } });
 
+// One entry per pool of the provider(s). Only `available` accounts count (not dead, not disabled); a pool with no
+// budget has every account unknown. `drift` counts accounts whose counted points disagree with the ledger.
+export interface PoolFigures {
+  pool: string;
+  left: number;
+  budget: number;
+  unknown: number;
+  drift: number;
+}
+
+export interface PoolStats {
+  pools: PoolFigures[];
+  proxy_failed: number;
+  // the newest finished "Check all", epoch ms; null when none has finished
+  last_full_check_ms: number | null;
+}
+
+export const getPoolStats = (provider: string): Promise<PoolStats> => request("/stats/pool", { query: { provider } });
+
 // Only the count of open groups is read here (200 is the page cap, shown as "200+").
 export const getOpenAlertGroups = (): Promise<{ items: unknown[] }> =>
   request("/alerts/groups", { query: { status: "open", limit: 200 } });
