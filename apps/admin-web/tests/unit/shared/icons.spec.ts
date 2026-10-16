@@ -19,6 +19,7 @@ const EXPECTED: Record<string, string> = {
   IconImage: "rect:3,3,18,18,2|circle:9,9,2|path:m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21",
   IconDownload: "path:M12 3v12|path:m7 10 5 5 5-5|path:M5 21h14",
   IconAlertCircle: "circle:12,12,9|path:M12 8v5|path:M12 16.5h.01",
+  IconAlertCircleJoined: "circle:12,12,9|path:M12 8v5M12 16.5h.01",
   IconAlertCircleShort: "circle:12,12,9|path:M12 8v4|path:M12 16h.01",
   IconAlertTriangle:
     "path:M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z|path:M12 9v4|path:M12 17h.01",
@@ -74,6 +75,7 @@ describe("local icons", () => {
     expect(svg.getAttribute("stroke")).toBe("currentColor");
     expect(svg.getAttribute("stroke-width")).toBe("1.8");
     expect(svg.getAttribute("stroke-linecap")).toBe("round");
+    expect(svg.getAttribute("focusable")).toBe("false");
     expect(svg.getAttribute("stroke-linejoin")).toBe("round");
     expect(svg.getAttribute("aria-hidden")).toBe("true");
     expect(svg.hasAttribute("style")).toBe(false);
@@ -89,5 +91,20 @@ describe("local icons", () => {
     expect(mount(icons.IconPlay).element.getAttribute("fill")).toBe("currentColor");
     expect(mount(icons.IconPlayFlat).element.getAttribute("fill")).toBe("currentColor");
     expect(mount(icons.IconSearch).element.getAttribute("fill")).toBe("none");
+  });
+
+  it("keeps the stroke of the B-States play triangle and draws the P-JobDetail one with no stroke", () => {
+    const play = mount(icons.IconPlay).element;
+    expect(play.getAttribute("stroke")).toBe("currentColor");
+    expect(play.getAttribute("stroke-width")).toBe("1.8");
+    expect(play.getAttribute("stroke-linejoin")).toBe("round");
+    const flat = mount(icons.IconPlayFlat).element;
+    expect(flat.getAttribute("stroke")).toBe("none");
+    expect(flat.hasAttribute("stroke-width")).toBe(false);
+  });
+
+  it("draws the failed-banner alert with the bar and the dot in one path, unlike the error alert", () => {
+    expect(mount(icons.IconAlertCircleJoined).element.querySelectorAll("path")).toHaveLength(1);
+    expect(mount(icons.IconAlertCircle).element.querySelectorAll("path")).toHaveLength(2);
   });
 });

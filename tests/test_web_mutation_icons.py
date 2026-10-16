@@ -14,7 +14,15 @@ SPEC = "tests/unit/shared/icons.spec.ts"
           'moon: { nodes: [p("M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.9z")] }', expect="has exactly the canvas icons")
 @mutation(SHAPES, 'play: { nodes: [p("M8 5.5v13l11-6.5z")], fill: "solid" }',
           'play: { nodes: [p("M8 5.5v13l11-6.5z")] }', expect="fills the play triangles and nothing else")
-@mutation(DEFINE, 'stroke: "currentColor",', 'stroke: "#000000",', expect="draws on the 24 box")
+@mutation(SHAPES, 'alertCircleJoined: { nodes: [c(12, 12, 9), p("M12 8v5M12 16.5h.01")] }',
+          'alertCircleJoined: { nodes: [c(12, 12, 9), p("M12 8v5"), p("M12 16.5h.01")] }',
+          expect="draws the failed-banner alert with the bar and the dot in one path")
+@mutation(SHAPES, 'fill: "solid", noStroke: true }', 'fill: "solid" }', expect="draws the P-JobDetail one with no stroke")
+@mutation(DEFINE, 'stroke: stroked ? "currentColor" : "none",', 'stroke: "currentColor",',
+          expect="draws the P-JobDetail one with no stroke")
+@mutation(DEFINE, 'stroke: stroked ? "currentColor" : "none",', 'stroke: "#000000",', expect="draws on the 24 box")
+@mutation(DEFINE, '"stroke-linejoin": "round",', '"stroke-linejoin": "miter",', expect="keeps the stroke of the B-States play")
+@mutation(DEFINE, 'focusable: "false",', 'focusable: "true",', expect="draws on the 24 box")
 @mutation(DEFINE, '"stroke-linecap": "round",', '"stroke-linecap": "butt",', expect="draws on the 24 box")
 @mutation(DEFINE, "stroke: { type: Number as PropType<number>, default: 1.8 },",
           "stroke: { type: Number as PropType<number>, default: 2 },", expect="draws on the 24 box")
