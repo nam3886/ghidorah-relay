@@ -6,10 +6,11 @@ import * as api from "@/api/jobs-detail";
 import type { JobDetail, JobMediaItem } from "@/api/jobs-detail";
 import { openBlob, saveBlob } from "@/components/jobs/blob-actions";
 import { jobChanges } from "@/components/jobs/job-changes";
-import JobDetailDialog from "@/components/jobs/JobDetailDialog.vue";
+import JobDetailDrawer from "@/components/jobs/JobDetailDrawer.vue";
 import { copyText } from "@/components/shared/clipboard";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { notify } from "@/lib/notify";
+import { useAuthStore } from "@/stores/auth";
 import { useUiStore } from "@/stores/ui";
 
 vi.mock("@/api/jobs-detail", async (importOriginal) => {
@@ -110,11 +111,25 @@ const button = (text: string) =>
     .findAll("button")
     .find((b) => nameOf(b) === text);
 const section = (name: string) => body().find(`[data-section=${name}]`);
+const sectionNames = () =>
+  body()
+    .findAll("[data-section]")
+    .map((s) => s.attributes("data-section"));
+const buttonsIn = (name: string) => section(name).findAll("button").map(nameOf);
 const mounted: VueWrapper[] = [];
+
+async function goTo(label: "Overview" | "Timeline" | "Technical") {
+  await body()
+    .findAll("[role=tab]")
+    .find((t) => t.text() === label)!
+    .trigger("click");
+  await flushPromises();
+}
 
 afterEach(() => {
   while (mounted.length) mounted.pop()!.unmount();
   document.body.replaceChildren();
+  vi.unstubAllGlobals();
 });
 beforeEach(() => {
   sessionStorage.clear();
@@ -128,52 +143,109 @@ beforeEach(() => {
   for (const fn of Object.values(notify)) vi.mocked(fn).mockReset();
 });
 
-async function show(job: JobDetail = detail()) {
+async function show(job: JobDetail = detail(), tab?: "Timeline" | "Technical") {
   while (mounted.length) mounted.pop()!.unmount();
   document.body.replaceChildren();
   setActivePinia(createPinia());
   getJob.mockResolvedValue(job);
-  const w = mount(JobDetailDialog, { attachTo: document.body });
+  const w = mount(JobDetailDrawer, { attachTo: document.body });
   mounted.push(w);
   const ui = useUiStore();
   ui.openJob(job.id);
   await flushPromises();
   await flushPromises();
+  if (tab) await goTo(tab);
   return { w, ui };
 }
+
+// The viewport is a phone: matchMedia answers true for the 767 px query only.
+const stubPhone = () =>
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: /767/.test(query),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
 
 describe("opening", () => {
   it("draws nothing until a job is opened", async () => {
     setActivePinia(createPinia());
-    mounted.push(mount(JobDetailDialog, { attachTo: document.body }));
+    mounted.push(mount(JobDetailDrawer, { attachTo: document.body }));
     await flushPromises();
     expect(getJob).not.toHaveBeenCalled();
     expect(body().find("[data-section]").exists()).toBe(false);
   });
 
-  it("reads the job that was opened and names the dialog by its first 8 characters", async () => {
+  it("reads the job that was opened and names the drawer by its first 8 characters", async () => {
     await show();
     expect(getJob).toHaveBeenCalledWith(A);
-    expect(body().find(".el-dialog__title").text()).toBe("Job aaaaaaaa");
+    expect(body().find("[role=dialog]").attributes("aria-label")).toBe("Job aaaaaaaa");
   });
 
-  it("has every section of the old dialog, in order", async () => {
+  // The three heading tests need DetailDrawer's `heading` prop (the visible h2), which F2 adds.
+  it("the drawer is headed with the job's title", async () => {
     await show();
-    const names = body()
-      .findAll("[data-section]")
-      .map((s) => s.attributes("data-section"));
-    expect(names).toEqual([
-      "conclusion",
-      "summary",
-      "title",
-      "prompt",
-      "actions",
-      "results",
-      "references",
-      "debug",
-      "timeline",
-      "technical",
+    expect(body().find(".detail-drawer__title").text()).toBe("My title");
+  });
+
+  it("a job with no title is headed (untitled)", async () => {
+    await show(detail({ title: null }));
+    expect(body().find(".detail-drawer__title").text()).toBe("(untitled)");
+  });
+
+  it("a title with markup is text in the heading", async () => {
+    const planted = `<img src=x onerror="window.__pwned=1">`;
+    await show(detail({ title: planted }));
+    expect(body().find(".detail-drawer__title").text()).toBe(planted);
+    expect(body().find(".detail-drawer__title img").exists()).toBe(false);
+  });
+
+  it("the header says status, what it is and a copy chip with the short id", async () => {
+    await show(detail({ media_type: "image", operation: "image", media: [media(), media({ idx: 1 })] }));
+    const chips = body().find(".detail-drawer__chips");
+    expect(chips.text()).toContain("done");
+    expect(chips.text()).toContain("image · veo · 2 outputs");
+    expect(chips.find("button").attributes("aria-label")).toBe("Copy job id aaaaaaaa");
+    expect(chips.find("button").text()).toBe("aaaaaaaa");
+    await chips.find("button").trigger("click");
+    await flushPromises();
+    expect(vi.mocked(copyText).mock.calls[0]![0]).toBe("aaaaaaaa");
+  });
+
+  it("a phone header says what it is without the count", async () => {
+    stubPhone();
+    await show(detail({ media: [media()] }));
+    expect(body().find(".detail-drawer__chips").text()).toContain("video · veo");
+    expect(body().find(".detail-drawer__chips").text()).not.toContain("output");
+  });
+
+  it("an answer with no outputs count still says how many results there are", async () => {
+    await show(detail({ outputs: undefined as unknown as number, media: [] }));
+    expect(body().find(".detail-drawer__chips").text()).toContain("video · veo · 0 outputs");
+  });
+
+  it("has Overview, Timeline and Technical tabs, Overview first and selected", async () => {
+    await show();
+    const tabs = body().findAll("[role=tab]");
+    expect(tabs.map((t) => [t.text(), t.attributes("aria-selected")])).toEqual([
+      ["Overview", "true"],
+      ["Timeline", "false"],
+      ["Technical", "false"],
     ]);
+    await goTo("Technical");
+    expect(
+      body()
+        .findAll("[role=tab]")
+        .map((t) => t.attributes("aria-selected")),
+    ).toEqual(["false", "false", "true"]);
+  });
+
+  it("each tab has its own sections, in order", async () => {
+    await show();
+    expect(sectionNames()).toEqual(["conclusion", "actions", "summary", "prompt"]);
+    await goTo("Timeline");
+    expect(sectionNames()).toEqual(["timeline"]);
+    await goTo("Technical");
+    expect(sectionNames()).toEqual(["technical", "title", "more-actions", "debug", "sent"]);
   });
 
   it("Close shuts it", async () => {
@@ -185,7 +257,7 @@ describe("opening", () => {
   it("a failed read is a message with Retry", async () => {
     setActivePinia(createPinia());
     getJob.mockRejectedValueOnce(new ApiError(404, { error: { code: "resource.not_found", message: "Not found" } }));
-    mounted.push(mount(JobDetailDialog, { attachTo: document.body }));
+    mounted.push(mount(JobDetailDrawer, { attachTo: document.body }));
     useUiStore().openJob(A);
     await flushPromises();
     expect(body().find("[role=alert]").text()).toContain("Not found");
@@ -200,7 +272,7 @@ describe("opening", () => {
     let slow!: (j: JobDetail) => void;
     getJob.mockImplementationOnce(() => new Promise<JobDetail>((res) => (slow = res)));
     getJob.mockResolvedValueOnce(detail({ id: B, title: "second" }));
-    mounted.push(mount(JobDetailDialog, { attachTo: document.body }));
+    mounted.push(mount(JobDetailDrawer, { attachTo: document.body }));
     const ui = useUiStore();
     ui.openJob(A);
     await flushPromises();
@@ -208,13 +280,50 @@ describe("opening", () => {
     await flushPromises();
     slow(detail({ id: A, title: "first" }));
     await flushPromises();
-    expect(body().find(".el-dialog__title").text()).toBe("Job bbbbbbbb");
+    expect(body().find("[role=dialog]").attributes("aria-label")).toBe("Job bbbbbbbb");
+    await goTo("Technical");
     expect((body().find("[data-section=title] input").element as HTMLInputElement).value).toBe("second");
+  });
+
+  it("a sign-out closes the drawer and drops what it showed", async () => {
+    const { ui } = await show(detail(), "Technical");
+    expect(section("technical").exists()).toBe(true);
+    useAuthStore().signOut();
+    await flushPromises();
+    expect(ui.openJobId).toBeNull();
+    expect(sectionNames()).toEqual([]);
+  });
+
+  it("another job opens on Overview, whatever tab the last one was on", async () => {
+    const { ui } = await show(detail(), "Technical");
+    getJob.mockResolvedValue(detail({ id: B }));
+    ui.openJob(B);
+    await flushPromises();
+    expect(
+      body()
+        .findAll("[role=tab]")
+        .map((t) => t.attributes("aria-selected")),
+    ).toEqual(["true", "false", "false"]);
+    expect(sectionNames()).toContain("summary");
   });
 });
 
-describe("conclusion, prompt and technical", () => {
-  it("shows the verdict line", async () => {
+describe("conclusion, ledger, prompt and technical", () => {
+  it("a delivered job says what it gave, what it cost and how long it took", async () => {
+    await show(
+      detail({
+        media_type: "image",
+        media: [media(), media({ idx: 1 })],
+        net_charged: 1,
+        finished_ms: 1_700_000_095_000,
+      }),
+    );
+    expect(section("conclusion").text()).toContain("Delivered 2 images");
+    expect(section("conclusion").text()).toContain("· net charged 1 point · 1 min 35 s");
+    expect(section("conclusion").classes()).toContain("jd-banner--ok");
+  });
+
+  it("a failed job says code and reason in an alert, and warnings follow", async () => {
     await show(
       detail({
         status: "failed",
@@ -224,24 +333,87 @@ describe("conclusion, prompt and technical", () => {
         warnings: [{ code: "w" }],
       }),
     );
-    const text = section("conclusion").text();
-    expect(text).toContain("failed");
-    expect(text).toContain("video · veo · net charged 0");
-    expect(text).toContain("render.deadline: too slow");
-    expect(text).toContain('warnings: [{"code":"w"}]');
-    expect(section("conclusion").find(".el-alert").classes()).toContain("el-alert--error");
+    expect(section("conclusion").attributes("role")).toBe("alert");
+    expect(section("conclusion").text()).toBe("Failed · render.deadline — too slow");
+    expect(body().text()).toContain('warnings: [{"code":"w"}]');
   });
 
   it("a code with no message shows only the code, and no warnings shows no line", async () => {
     await show(detail({ status: "failed", error_code: "render.deadline", error: null }));
-    expect(section("conclusion").text()).toContain("render.deadline");
-    expect(section("conclusion").text()).not.toContain("render.deadline:");
-    expect(section("conclusion").text()).not.toContain("warnings");
+    expect(section("conclusion").text()).toBe("Failed · render.deadline");
+    expect(body().text()).not.toContain("warnings");
+  });
+
+  it("a job that is neither done nor failed says its status and the points so far", async () => {
+    await show(detail({ status: "queued", net_charged: 0 }));
+    expect(section("conclusion").text()).toBe("queued · net charged 0 points");
+  });
+
+  const rows = () =>
+    section("summary")
+      .findAll(".ledger__row")
+      .map((r) => [r.find("dt").text(), r.find("dd").text()]);
+
+  it("the ledger of a done video job: model, media, points and the short times", async () => {
+    await show(
+      detail({
+        created_ms: new Date(2026, 9, 15, 20, 41, 12).getTime(),
+        finished_ms: new Date(2026, 9, 15, 20, 45, 24).getTime(),
+        net_charged: 10,
+        price: 10,
+        params: { ratio: "16:9", duration: 30 },
+      }),
+    );
+    expect(rows()).toEqual([
+      ["Operation", "video"],
+      ["Model", "veo"],
+      ["Media", "video · 30 s · 16:9"],
+      ["Points", "10 charged · 0 refunded"],
+      ["Account", "acct-1"],
+      ["Key", "key-one"],
+      ["Created", "15/10 20:41:12"],
+      ["Finished", "15/10 20:45:24"],
+    ]);
+  });
+
+  it("a refund strikes the price: the struck price, an arrow and what was kept", async () => {
+    await show(
+      detail({
+        media_type: "image",
+        operation: "image",
+        status: "failed",
+        price: 1,
+        net_charged: 0,
+        params: { ratio: "2:3", count: 1 },
+      }),
+    );
+    const points = section("summary")
+      .findAll(".ledger__row")
+      .find((r) => r.find("dt").text() === "Points")!;
+    expect(points.find("s").text()).toBe("1");
+    expect(points.find("dd").text()).toBe("1 → 0 refunded");
+    expect(rows()[2]).toEqual(["Ratio · count", "2:3 · 1"]);
+    const unrefunded = await show(detail({ price: 1, net_charged: 1 }));
+    expect(unrefunded.w.find("s").exists()).toBe(false);
+  });
+
+  it("a done job with a net below its price shows what was charged and no refund", async () => {
+    await show(detail({ status: "done", price: 10, net_charged: 4 }));
+    const points = section("summary")
+      .findAll(".ledger__row")
+      .find((r) => r.find("dt").text() === "Points")!;
+    expect(points.find("dd").text()).toBe("4 charged");
+    expect(points.find("s").exists()).toBe(false);
+  });
+
+  it("a substituted model says so in the ledger", async () => {
+    await show(detail({ model_substituted: true }));
+    expect(rows()[1]).toEqual(["Model", "veo (model differs)"]);
   });
 
   it("the prompt is the customer's words and Copy prompt copies exactly that", async () => {
     await show();
-    expect(section("prompt").find("pre").text()).toBe("a cat on a roof");
+    expect(section("prompt").find("p").text()).toBe("a cat on a roof");
     await button("Copy prompt")!.trigger("click");
     await flushPromises();
     expect(vi.mocked(copyText).mock.calls[0]![0]).toBe("a cat on a roof");
@@ -256,36 +428,49 @@ describe("conclusion, prompt and technical", () => {
     expect(notify.success).not.toHaveBeenCalled();
   });
 
-  it("lists the technical facts, a dash for what is empty", async () => {
-    await show(detail({ callback: { status: "failed", attempts: 3, last: null }, frame_id: 7 }));
-    const facts = section("technical")
-      .findAll(".el-descriptions__label")
-      .map((dt) => [dt.text(), dt.element.nextElementSibling!.textContent]);
-    expect(facts).toEqual([
+  const facts = (id: string) =>
+    body()
+      .findAll(`[data-testid=${id}] .tech__fact`)
+      .map((f) => [f.find("dt").text(), f.find("dd").text()]);
+
+  it("lists the technical facts, leaving out what the server does not have", async () => {
+    await show(detail({ callback: { status: "failed", attempts: 3, last: null }, frame_id: 7 }), "Technical");
+    expect(facts("job-facts")).toEqual([
       ["Job id", A],
       ["Provider / pool", "dola / video"],
       ["Wallet", "prepaid"],
-      ["Key", "key-one"],
-      ["Account", "acct-1"],
-      ["External ref", "-"],
       ["Attempts / claims", "2 / 3"],
       ["Account cost", "1"],
-      ["Upstream price", "-"],
-      ["Upstream model", "-"],
-      ["Completion", "-"],
+      ["Prompt frame", "7"],
+      ["Callback", "failed (3 attempts)"],
+    ]);
+    expect(facts("job-diagnostics")).toEqual([
       ["Sent", expect.stringMatching(/2023/)],
       ["Updated", expect.stringMatching(/2023/)],
-      ["Callback", "failed (3 attempts)"],
-      ["Prompt frame version", "7"],
       ["Params", '{"ratio":"16:9"}'],
     ]);
   });
 
+  it("a phone lists Key and Account among the facts too", async () => {
+    stubPhone();
+    await show(detail(), "Technical");
+    expect(facts("job-facts").map(([k]) => k)).toEqual([
+      "Job id",
+      "Provider / pool",
+      "Wallet",
+      "Key",
+      "Account",
+      "Attempts / claims",
+      "Account cost",
+    ]);
+    expect(body().find("[data-testid=job-facts]").classes()).toContain("is-phone");
+  });
+
   it("shows the text sent upstream, or a dash when none was sent", async () => {
-    await show();
-    expect(section("technical").find("[data-field=sent-text]").text()).toBe("FRAME a cat on a roof MARK");
-    await show(detail({ sent_text: null }));
-    expect(section("technical").find("[data-field=sent-text]").text()).toBe("-");
+    await show(detail(), "Technical");
+    expect(section("sent").find("[data-field=sent-text]").text()).toBe("FRAME a cat on a roof MARK");
+    await show(detail({ sent_text: null }), "Technical");
+    expect(section("sent").find("[data-field=sent-text]").text()).toBe("-");
   });
 });
 
@@ -308,12 +493,16 @@ describe("server text is text", () => {
         events: [{ id: 1, at_ms: 1_700_000_000_000, source: planted, stage: planted, text: planted }],
       }),
     );
-    expect(body().find(".el-dialog img").exists()).toBe(false);
-    const text = body().find(".el-dialog").text();
-    expect(text).toContain(planted);
-    expect(section("prompt").find("pre").text()).toBe(planted);
-    expect(section("conclusion").text()).toContain(`render.deadline: ${planted}`);
+    expect(section("conclusion").text()).toContain(`render.deadline — ${planted}`);
+    expect(section("prompt").find("p").text()).toBe(planted);
+    expect(section("summary").text()).toContain(planted);
+    await goTo("Timeline");
+    expect(section("timeline").text()).toContain(planted);
+    await goTo("Technical");
+    expect(section("sent").find("pre").text()).toBe(planted);
+    expect(section("technical").text()).toContain(JSON.stringify({ x: planted }));
     expect((body().find("[data-section=title] input").element as HTMLInputElement).value).toBe(planted);
+    expect(body().find("[role=dialog] img").exists()).toBe(false);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 });
@@ -321,7 +510,7 @@ describe("server text is text", () => {
 describe("rename", () => {
   it("sends the typed title, says Renamed, reads the job again and tells the list", async () => {
     vi.mocked(api.renameJob).mockResolvedValue({ id: A, title: "New name" });
-    await show();
+    await show(detail(), "Technical");
     const input = body().find("[data-section=title] input");
     expect((input.element as HTMLInputElement).value).toBe("My title");
     await input.setValue("New name");
@@ -338,7 +527,7 @@ describe("rename", () => {
     vi.mocked(api.renameJob).mockRejectedValue(
       new ApiError(422, { error: { code: "input.invalid", message: "Invalid", param: "title" } }),
     );
-    await show();
+    await show(detail(), "Technical");
     const before = jobChanges.value;
     await button("Rename")!.trigger("click");
     await flushPromises();
@@ -347,47 +536,120 @@ describe("rename", () => {
   });
 });
 
-describe("which actions show", () => {
-  const shown = () => section("actions").findAll("button").map(nameOf);
-
-  it("a done job offers Recover and Regenerate, and nothing else without more facts", async () => {
+describe("which actions show, and where", () => {
+  it("a done job offers Regenerate… in the overview row and Recover under More actions", async () => {
     await show();
-    expect(shown()).toEqual(["Recover", "Regenerate"]);
-    expect(section("actions").find("input").attributes("placeholder")).toBe("account id or label");
+    expect(buttonsIn("actions")).toEqual(["Regenerate…"]);
+    expect(section("actions").find("input").exists()).toBe(false);
+    expect(button("Regenerate…")!.attributes("aria-haspopup")).toBe("dialog");
+    await goTo("Technical");
+    expect(buttonsIn("more-actions")).toEqual(["Recover"]);
+    expect(section("more-actions").find("input").attributes("placeholder")).toBe(
+      "Account id or label, e.g. acct-n11-01",
+    );
   });
 
-  it("a job still running offers neither Recover nor Regenerate", async () => {
-    await show(detail({ status: "queued" }));
-    expect(shown()).toEqual([]);
+  it("a failed job has the Actions card: Recover with its input, then Regenerate… and a helper line", async () => {
+    await show(detail({ status: "failed" }));
+    expect(section("actions").find("h3").text()).toBe("Actions");
+    expect(buttonsIn("actions")).toEqual(["Recover", "Regenerate…"]);
+    expect(section("actions").find("input").attributes("placeholder")).toBe("Account id or label, e.g. acct-n11-01");
+    expect(section("actions").text()).toContain("Looks for a finished result of this job on that account.");
+    expect(section("actions").text()).toContain("Makes a new job at today’s price.");
+  });
+
+  it("More actions is a card with its own heading, drawn only when it has a button", async () => {
+    await show(detail({ status: "queued" }), "Technical");
+    expect(section("more-actions").find("h3").exists()).toBe(false);
+    await show(detail({ status: "done" }), "Technical");
+    expect(section("more-actions").find("h3").text()).toBe("More actions");
+  });
+
+  it("warnings are a banner of their own, and none when there are none", async () => {
+    await show(detail({ warnings: [{ code: "w" }] }));
+    expect(section("warnings").text()).toContain('warnings: [{"code":"w"}]');
+    await show(detail({ warnings: [] }));
+    expect(section("warnings").exists()).toBe(false);
+  });
+
+  it("Recover is in one place only: the card for a failed job, More actions for a done one", async () => {
+    await show(detail({ status: "failed" }), "Technical");
+    expect(buttonsIn("more-actions")).toEqual([]);
+    expect(section("more-actions").find("input").exists()).toBe(false);
+    await goTo("Overview");
+    expect(section("actions").findAll("input")).toHaveLength(1);
+    await show(detail({ status: "done" }));
     expect(section("actions").find("input").exists()).toBe(false);
+    await goTo("Technical");
+    expect(buttonsIn("more-actions")).toEqual(["Recover"]);
+    expect(section("more-actions").findAll("input")).toHaveLength(1);
+  });
+
+  it("a job still running offers neither Recover nor Regenerate…", async () => {
+    await show(detail({ status: "queued" }));
+    expect(buttonsIn("actions")).toEqual([]);
+    await goTo("Technical");
+    expect(buttonsIn("more-actions")).toEqual([]);
+    expect(section("more-actions").find("input").exists()).toBe(false);
   });
 
   it("Re-check only when the server says the job can be", async () => {
     await show(detail({ status: "unknown", can_recheck: true }));
-    expect(shown()).toEqual(["Re-check"]);
+    expect(buttonsIn("actions")).toEqual(["Re-check"]);
+  });
+
+  it("Download sits first in the row of a job with results, and says all for more than one", async () => {
+    await show(detail({ media: [media()] }));
+    expect(buttonsIn("actions")).toEqual(["Download", "Regenerate…"]);
+    await show(detail({ media: [media(), media({ idx: 1 })] }));
+    expect(buttonsIn("actions")).toEqual(["Download all", "Regenerate…"]);
   });
 
   it("Resend webhook only for a failed callback", async () => {
-    await show(detail({ status: "queued", callback: { status: "failed", attempts: 3, last: null } }));
-    expect(shown()).toEqual(["Resend webhook"]);
-    await show(detail({ status: "queued", callback: { status: "pending", attempts: 0, last: null } }));
-    expect(shown()).toEqual([]);
+    await show(detail({ status: "queued", callback: { status: "failed", attempts: 3, last: null } }), "Technical");
+    expect(buttonsIn("more-actions")).toEqual(["Resend webhook"]);
+    await show(detail({ status: "queued", callback: { status: "pending", attempts: 0, last: null } }), "Technical");
+    expect(buttonsIn("more-actions")).toEqual([]);
   });
 
   it("Revoke share links only while some media still has a link", async () => {
-    await show(detail({ status: "queued", media: [media({ url: null }), media({ idx: 1, url: "/m/t" })] }));
-    expect(shown()).toEqual(["Revoke share links"]);
-    await show(detail({ status: "queued", media: [media({ url: null })] }));
-    expect(shown()).toEqual([]);
+    await show(
+      detail({ status: "queued", media: [media({ url: null }), media({ idx: 1, url: "/m/t" })] }),
+      "Technical",
+    );
+    expect(buttonsIn("more-actions")).toEqual(["Revoke share links"]);
+    await show(detail({ status: "queued", media: [media({ url: null })] }), "Technical");
+    expect(buttonsIn("more-actions")).toEqual([]);
+    // another button keeps the card, and still no Revoke without a link
+    await show(
+      detail({
+        status: "queued",
+        media: [media({ url: null })],
+        callback: { status: "failed", attempts: 3, last: null },
+      }),
+      "Technical",
+    );
+    expect(buttonsIn("more-actions")).toEqual(["Resend webhook"]);
   });
 
   it("Fetch title needs both the upstream reference and the account", async () => {
-    await show(detail({ status: "queued", external_ref: "ref-1", account_label: null }));
-    expect(shown()).toEqual([]);
-    await show(detail({ status: "queued", external_ref: null, account_label: "acct" }));
-    expect(shown()).toEqual([]);
-    await show(detail({ status: "queued", external_ref: "ref-1", account_label: "acct" }));
-    expect(shown()).toEqual(["Fetch title"]);
+    await show(detail({ status: "queued", external_ref: "ref-1", account_label: null }), "Technical");
+    expect(buttonsIn("more-actions")).toEqual([]);
+    await show(detail({ status: "queued", external_ref: null, account_label: "acct" }), "Technical");
+    expect(buttonsIn("more-actions")).toEqual([]);
+    await show(detail({ status: "queued", external_ref: "ref-1", account_label: "acct" }), "Technical");
+    expect(buttonsIn("more-actions")).toEqual(["Fetch title"]);
+  });
+
+  it("on a phone the row moves to a sticky footer, and a failed job keeps its card in the body", async () => {
+    stubPhone();
+    await show(detail({ media: [media()] }));
+    const footer = body().find(".el-drawer__footer");
+    expect(footer.findAll("button").map(nameOf)).toEqual(["Download", "Regenerate…"]);
+    expect(section("actions").exists()).toBe(false);
+    await show(detail({ status: "failed" }));
+    expect(body().find(".el-drawer__footer").exists()).toBe(false);
+    expect(buttonsIn("actions")).toEqual(["Recover", "Regenerate…"]);
   });
 });
 
@@ -410,7 +672,7 @@ describe("what each action sends and says", () => {
   });
 
   it("Recover with an empty account sends nothing", async () => {
-    await show();
+    await show(detail({ status: "failed" }));
     await button("Recover")!.trigger("click");
     await flushPromises();
     expect(api.recoverJob).not.toHaveBeenCalled();
@@ -419,7 +681,7 @@ describe("what each action sends and says", () => {
 
   it("Recover sends the trimmed account, polls the command and reads the job again", async () => {
     vi.mocked(api.recoverJob).mockResolvedValue({ command_id: "cmd-1" });
-    await show();
+    await show(detail({ status: "failed" }));
     await section("actions").find("input").setValue("  acct-9 ");
     await button("Recover")!.trigger("click");
     await flushPromises();
@@ -431,7 +693,7 @@ describe("what each action sends and says", () => {
   it("Fetch title polls its command and reads the job and the list again", async () => {
     vi.mocked(api.fetchTitle).mockResolvedValue({ command_id: "cmd-2" });
     const before = jobChanges.value;
-    await show(detail({ external_ref: "r", account_label: "a" }));
+    await show(detail({ external_ref: "r", account_label: "a" }), "Technical");
     await button("Fetch title")!.trigger("click");
     await flushPromises();
     expect(api.fetchTitle).toHaveBeenCalledWith(A);
@@ -442,7 +704,7 @@ describe("what each action sends and says", () => {
 
   it("Resend webhook says it was queued again", async () => {
     vi.mocked(api.resendWebhook).mockResolvedValue({ id: A, resent: true });
-    await show(detail({ callback: { status: "failed", attempts: 3, last: null } }));
+    await show(detail({ callback: { status: "failed", attempts: 3, last: null } }), "Technical");
     await button("Resend webhook")!.trigger("click");
     await flushPromises();
     expect(api.resendWebhook).toHaveBeenCalledWith(A);
@@ -452,7 +714,7 @@ describe("what each action sends and says", () => {
 
   it("Revoke asks first and says how many links stopped", async () => {
     vi.mocked(api.revokeLinks).mockResolvedValue({ id: A, revoked: 2 });
-    await show(detail({ media: [media()] }));
+    await show(detail({ media: [media()] }), "Technical");
     await button("Revoke share links")!.trigger("click");
     await vi.waitFor(() => expect(body().text()).toContain("Every share link of this job stops working. Continue?"));
     expect(api.revokeLinks).not.toHaveBeenCalled();
@@ -462,7 +724,7 @@ describe("what each action sends and says", () => {
     expect(notify.success).toHaveBeenCalledWith("Revoked 2 link(s)");
   });
 
-  it("Regenerate asks first, makes the job and names it", async () => {
+  it("Regenerate… asks first, makes the job and names it", async () => {
     vi.mocked(api.regenerateJob).mockResolvedValue({
       id: "dddddddd-4444",
       status: "queued",
@@ -471,17 +733,18 @@ describe("what each action sends and says", () => {
     });
     await show();
     vi.mocked(confirmDialog).mockResolvedValueOnce(false);
-    await button("Regenerate")!.trigger("click");
+    await button("Regenerate…")!.trigger("click");
     await flushPromises();
     expect(api.regenerateJob).not.toHaveBeenCalled();
     const before = jobChanges.value;
-    await button("Regenerate")!.trigger("click");
+    await button("Regenerate…")!.trigger("click");
     await flushPromises();
-    expect(confirmDialog).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        message: "Regenerate makes a NEW job for the same key at today’s price, and charges it. Continue?",
-      }),
-    );
+    expect(confirmDialog).toHaveBeenLastCalledWith({
+      title: "Regenerate this job?",
+      message: "Regenerate makes a NEW job for the same key at today’s price, and charges it.",
+      confirmText: "Regenerate",
+      danger: true,
+    });
     expect(api.regenerateJob).toHaveBeenCalledWith(A);
     expect(notify.success).toHaveBeenCalledWith("New job dddddddd (queued)");
     expect(jobChanges.value).toBe(before + 1);
@@ -495,7 +758,7 @@ describe("what each action sends and says", () => {
       replayed: true,
     });
     await show();
-    await button("Regenerate")!.trigger("click");
+    await button("Regenerate…")!.trigger("click");
     await flushPromises();
     expect(notify.success).toHaveBeenCalledWith("Already made: job dddddddd (done)");
   });
@@ -509,7 +772,7 @@ describe("what each action sends and says", () => {
     });
     await show();
     expect(button("Start a new regenerate")).toBeUndefined();
-    await button("Regenerate")!.trigger("click");
+    await button("Regenerate…")!.trigger("click");
     await flushPromises();
     expect(button("Start a new regenerate")).toBeDefined();
     await button("Start a new regenerate")!.trigger("click");
@@ -523,6 +786,30 @@ describe("what each action sends and says", () => {
     expect(sessionStorage.getItem("regenerateOperations")).not.toContain(`job:${A}`);
     expect(button("Start a new regenerate")).toBeUndefined();
   });
+
+  it("Download saves every result as job-<id8>-<idx>, one file each", async () => {
+    const first = new Blob(["1"]);
+    const second = new Blob(["2"]);
+    vi.mocked(api.fetchDownload).mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+    await show(detail({ media: [media({ idx: 3 }), media({ idx: 5 })] }));
+    await button("Download all")!.trigger("click");
+    await flushPromises();
+    expect(api.fetchDownload).toHaveBeenNthCalledWith(1, A, 3);
+    expect(api.fetchDownload).toHaveBeenNthCalledWith(2, A, 5);
+    expect(saveBlob).toHaveBeenNthCalledWith(1, first, "job-aaaaaaaa-3");
+    expect(saveBlob).toHaveBeenNthCalledWith(2, second, "job-aaaaaaaa-5");
+  });
+
+  it("a failed download is the server's message", async () => {
+    vi.mocked(api.fetchDownload).mockRejectedValue(
+      new ApiError(404, { error: { code: "resource.not_found", message: "Not found" } }),
+    );
+    await show(detail({ media: [media()] }));
+    await button("Download")!.trigger("click");
+    await flushPromises();
+    expect(notify.error).toHaveBeenCalledWith("Not found");
+    expect(saveBlob).not.toHaveBeenCalled();
+  });
 });
 
 describe("results and references", () => {
@@ -533,20 +820,27 @@ describe("results and references", () => {
       detail({
         media: [
           media({ idx: 0, mime: "image/png", size: 120, url: "/m/tok1" }),
-          media({ idx: 1, mime: "video/mp4", size: 5000, duration_s: 4, url: "/m/tok2" }),
+          media({ idx: 1, mime: "video/mp4", size: 5000, width: 1280, height: 720, duration_s: 30.08, url: "/m/tok2" }),
         ],
       }),
     );
     expect(view("results").find("img").attributes("src")).toBe("/m/tok1");
     const video = view("results").find("video");
     expect(video.attributes("src")).toBe("/m/tok2");
-    expect(video.attributes("controls")).toBeDefined();
-    expect(view("results").text()).toContain("image/png · 120 B");
-    expect(view("results").text()).toContain("video/mp4 · 5000 B · 4s");
+    expect(video.attributes("controls")).toBeUndefined();
+    expect(view("results").find(".media__badge").text()).toBe("0:30");
+    expect(
+      view("results")
+        .findAll(".media__facts span")
+        .map((f) => f.text()),
+    ).toEqual(["video/mp4", "5.0 KB", "1280×720", "30.08 s"]);
     expect(button("Open")).toBeUndefined();
+    await view("results").find(".media__play").trigger("click");
+    expect(view("results").find("video").attributes("controls")).toBeDefined();
+    expect(view("results").find(".media__play").exists()).toBe(false);
   });
 
-  it("an image is a thumbnail whose viewer lists every previewable image of the list, and a video is left out", async () => {
+  it("an image is a tile whose viewer lists every previewable image of the list, and a video is left out", async () => {
     await show(
       detail({
         media: [
@@ -561,6 +855,10 @@ describe("results and references", () => {
     expect(images).toHaveLength(2);
     expect(images[0]!.props("previewSrcList")).toEqual(["/m/tok1", "/m/tok3"]);
     expect(images[1]!.props("initialIndex")).toBe(1);
+    expect(images.map((i) => i.find("img").attributes("aria-label"))).toEqual([
+      "Open image 1 in the viewer",
+      "Open image 2 in the viewer",
+    ]);
   });
 
   it.each([
@@ -589,26 +887,26 @@ describe("results and references", () => {
     expect(openBlob).toHaveBeenCalledWith(blob);
   });
 
-  it("a reference opens through the input route and has no Download", async () => {
+  it("a reference opens through the input route, has no Download, and is counted in its heading", async () => {
     const blob = new Blob(["x"]);
     vi.mocked(api.fetchMediaBlob).mockResolvedValue(blob);
-    await show(detail({ media: [media({ role: "input", idx: 1, url: null })] }));
-    expect(view("references").findAll("button").map(nameOf)).toEqual(["Open"]);
+    await show(detail({ status: "failed", media: [media({ role: "input", idx: 1, url: null })] }));
+    expect(buttonsIn("references")).toEqual(["Open"]);
+    expect(view("references").find("h3").text()).toBe("References · 1");
     await view("references").find("button").trigger("click");
     await flushPromises();
     expect(api.fetchMediaBlob).toHaveBeenCalledWith(A, "input", 1);
-    expect(view("results").text()).toContain("None");
+    expect(view("results").exists()).toBe(false);
+    expect(button("Download")).toBeUndefined();
   });
 
-  it("an item that previews has no Open; every result has Download, which saves job-<id8>-<idx>", async () => {
-    const blob = new Blob(["x"]);
-    vi.mocked(api.fetchDownload).mockResolvedValue(blob);
-    await show(detail({ media: [media({ idx: 3 })] }));
-    expect(view("results").findAll("button").map(nameOf)).toEqual(["Download"]);
-    await view("results").find("button").trigger("click");
-    await flushPromises();
-    expect(api.fetchDownload).toHaveBeenCalledWith(A, 3);
-    expect(saveBlob).toHaveBeenCalledWith(blob, "job-aaaaaaaa-3");
+  it("a tile reads Open image N, a reference tile Open reference N", async () => {
+    await show(
+      detail({ status: "failed", media: [media({ role: "input", idx: 0 }), media({ role: "input", idx: 1 })] }),
+    );
+    expect(
+      mounted[0]!.findAllComponents({ name: "ElImage" }).map((i) => i.find("img").attributes("aria-label")),
+    ).toEqual(["Open reference 1 in the viewer", "Open reference 2 in the viewer"]);
   });
 
   it("a failed Open is the server's message", async () => {
@@ -625,13 +923,16 @@ describe("results and references", () => {
 
 describe("debug files", () => {
   it("says None when there are none", async () => {
-    await show();
-    expect(section("debug").find(".el-empty__description").text()).toBe("None");
+    await show(detail(), "Technical");
+    expect(section("debug").find(".debug-none").text()).toBe("None");
   });
 
   it("a text file is shown as text, never as markup", async () => {
     vi.mocked(api.fetchDebug).mockResolvedValue({ kind: "text", text: "<script>window.__ran=1</script><b>x</b>" });
-    await show(detail({ debug_files: [{ idx: 4, mime: "text/html", size: 40, url: "/admin/jobs/x/debug/4" }] }));
+    await show(
+      detail({ debug_files: [{ idx: 4, mime: "text/html", size: 40, url: "/admin/jobs/x/debug/4" }] }),
+      "Technical",
+    );
     await button("File 4 (text/html)")!.trigger("click");
     await flushPromises();
     expect(api.fetchDebug).toHaveBeenCalledWith(A, 4);
@@ -643,7 +944,10 @@ describe("debug files", () => {
   it("an image file opens in a new tab as a blob", async () => {
     const blob = new Blob(["png"], { type: "image/png" });
     vi.mocked(api.fetchDebug).mockResolvedValue({ kind: "image", blob });
-    await show(detail({ debug_files: [{ idx: 0, mime: "image/png", size: 3, url: "/admin/jobs/x/debug/0" }] }));
+    await show(
+      detail({ debug_files: [{ idx: 0, mime: "image/png", size: 3, url: "/admin/jobs/x/debug/0" }] }),
+      "Technical",
+    );
     await button("File 0 (image/png)")!.trigger("click");
     await flushPromises();
     expect(openBlob).toHaveBeenCalledWith(blob);
@@ -651,55 +955,42 @@ describe("debug files", () => {
   });
 });
 
-describe("layout", () => {
-  const stubWidth = (narrow: boolean) =>
-    vi.stubGlobal("matchMedia", () => ({
-      matches: narrow,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    }));
-
-  it("the facts are one column under 640 px and two above, the wide Params row spanning both", async () => {
-    stubWidth(true);
-    const narrow = await show();
-    for (const d of narrow.w.findAllComponents({ name: "ElDescriptions" })) expect(d.props("column")).toBe(1);
-    stubWidth(false);
-    const wide = await show();
-    const tables = wide.w.findAllComponents({ name: "ElDescriptions" });
-    expect(tables).toHaveLength(2);
-    for (const d of tables) expect(d.props("column")).toBe(2);
-    for (const name of ["Job id", "Params", "Wallet"]) {
-      const label = section("technical")
-        .findAll(".el-descriptions__label")
-        .find((l) => l.text() === name)!;
-      expect(label.element.nextElementSibling!.getAttribute("colspan")).toBe(name === "Wallet" ? "1" : "3");
-    }
-  });
-});
-
 describe("timeline", () => {
   it("says No events when there are none", async () => {
-    await show();
+    await show(detail(), "Timeline");
     expect(section("timeline").text()).toContain("No events");
   });
 
-  it("lists the events newest first, and marks a recovery", async () => {
+  it("lists the events newest first with their clock time, and marks a recovery", async () => {
     await show(
       detail({
         events: [
-          { id: 1, at_ms: 1_700_000_000_000, source: "engine", stage: "submitted", text: "sent" },
-          { id: 2, at_ms: 1_700_000_100_000, source: "admin", stage: "recovered", text: "from history" },
+          {
+            id: 1,
+            at_ms: new Date(2026, 9, 15, 19, 40, 2).getTime(),
+            source: "engine",
+            stage: "submitted",
+            text: "sent",
+          },
+          {
+            id: 2,
+            at_ms: new Date(2026, 9, 15, 19, 41, 44).getTime(),
+            source: "admin",
+            stage: "recovered",
+            text: "from history",
+          },
         ],
       }),
+      "Timeline",
     );
-    const items = section("timeline").findAll(".el-timeline-item");
+    const items = section("timeline").findAll(".timeline__item");
     expect(items).toHaveLength(2);
-    expect(items[0]!.text()).toContain("recovered");
-    expect(items[0]!.text()).toContain("from history");
-    expect(items[0]!.find(".el-tag").classes()).toContain("el-tag--success");
-    expect(items[1]!.text()).toContain("engine");
-    expect(items[1]!.text()).toContain("submitted");
-    expect(items[1]!.text()).toContain("sent");
-    expect(items[1]!.find(".el-tag").classes()).toContain("el-tag--info");
+    expect(items[0]!.find(".timeline__time").text()).toBe("19:41:44");
+    expect(items[0]!.find(".timeline__what").text()).toBe("recovered from history");
+    expect(items[0]!.attributes("data-tone")).toBe("ok");
+    expect(items[0]!.find(".timeline__dot").classes()).toContain("tone-ok");
+    expect(items[1]!.find(".timeline__time").text()).toBe("19:40:02");
+    expect(items[1]!.find(".timeline__what").text()).toBe("submitted sent");
+    expect(items[1]!.attributes("data-tone")).toBe("neutral");
   });
 });
