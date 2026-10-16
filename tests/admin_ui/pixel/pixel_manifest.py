@@ -1,0 +1,65 @@
+"""Which app state each canvas board is compared with.
+
+One `Entry` per board: the hash route the app opens, whether the session is signed in, the data to plant first (the
+board's sample data, from specs/sample-data.md), the clock the board assumes, and the actions that reach the state (a
+dialog open, a drawer open, an error). The board's width and height come from `canvas.json`; the app is photographed at
+the same viewport. Every entry is run in light and dark. A board with no entry is rendered (so the renderer is proven
+on it) but not compared.
+
+Lanes add their screens' entries here, in their own block, with their own seed and drive functions."""
+
+from collections.abc import Callable
+from dataclasses import dataclass
+
+from patchright.sync_api import expect
+from pixel_seed import NOW, shell_seed
+
+TIMEOUT_MS = 10_000
+# Every entry starts under this coarse ceiling: a broken or blank page is far above it (the shell and login of drop 1
+# are at 2 to 6 %). The manager sets each board's real gate, lower, when its lane merges.
+CEILING_PCT = 35.0
+
+
+@dataclass(frozen=True)
+class Entry:
+    board: str
+    route: str                                  # hash route the app opens, e.g. "#/login"
+    signed_in: bool = True
+    seed: Callable | None = None                # seed(db, live) -> data: plant the board's sample data
+    now: str | None = None                      # frozen clock, e.g. "2026-10-15T14:00:00+07:00"
+    drive: Callable | None = None               # drive(page, live, data): reach the state
+    region: tuple | None = None                 # (x, y, width, height): compare only this part of the viewport
+    gate: float = CEILING_PCT                   # most mismatch + anti-aliasing (% of the viewport) the entry may have
+    label: str = ""                             # tells two entries of one board apart (a board's shell and its body)
+
+    @property
+    def name(self) -> str:
+        return self.board + ("-" + self.label if self.label else "")
+
+
+# ---- login ---------------------------------------------------------------------------------------------------------
+# The boards show the form with a wrong password: username "admin", an example password, and the error alert.
+
+def login_error(page, live, data):
+    page.get_by_label("Username").fill("admin")
+    page.get_by_label("Password").fill("example-password")
+    page.get_by_role("button", name="Sign in").click()
+    expect(page.get_by_role("alert")).to_be_visible(timeout=TIMEOUT_MS)
+
+
+LOGIN = [
+    Entry("B-Login", "#/login", signed_in=False, drive=login_error),
+    Entry("P-Login", "#/login", signed_in=False, drive=login_error),
+]
+
+# ---- the shell -----------------------------------------------------------------------------------------------------
+# The header and the tab strip of the Jobs boards, cropped to the shell (the board height where the Jobs content
+# begins), with the data behind the badges (Jobs 4, Accounts 7/8, Alerts 1) from pixel_seed.py.
+
+SHELL = [
+    Entry("B-Jobs", "#/jobs", seed=shell_seed, now=NOW, region=(0, 0, 1440, 65), label="shell"),
+    Entry("T-Jobs", "#/jobs", seed=shell_seed, now=NOW, region=(0, 0, 768, 110), label="shell"),
+    Entry("P-Jobs", "#/jobs", seed=shell_seed, now=NOW, region=(0, 0, 390, 100), label="shell"),
+]
+
+ENTRIES: list[Entry] = [*LOGIN, *SHELL]

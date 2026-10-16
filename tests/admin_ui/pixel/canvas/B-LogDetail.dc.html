@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ghidorah admin, direction B: Request detail drawer</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th-light{--bg:#F7F5FB;--surface:#FFFFFF;--raised:#F3EFFA;--line:#ECE6F3;--line-strong:#DDD5E8;--text:#171321;--muted:#655A75;--faint:#76698A;--primary:#7C3AED;--primary-hover:#6D28D9;--primary-soft:#EDE9FE;--focus:#7C3AED;--ok:#047857;--ok-bg:#E2F4EC;--warn:#92400E;--warn-bg:#FDF1DF;--bad:#BE123C;--bad-bg:#FDE7EC;--info:#6D28D9;--info-bg:#EFE9FD;--neutral:#655A75;--neutral-bg:#F1EEF5;--topbar:#FFFFFF;--scrim:rgba(23,19,33,.42);--logo-dark:none;--logo-light:block;color-scheme:light}
+.th-dark{--bg:#0E0B16;--surface:#171222;--raised:#211A30;--line:#2A2140;--line-strong:#3E3356;--text:#F5F3FF;--muted:#B9AEC9;--faint:#8E82A3;--primary:#7C3AED;--primary-hover:#6D28D9;--primary-soft:#2E1D4B;--focus:#A78BFA;--ok:#34D399;--ok-bg:rgba(52,211,153,.13);--warn:#FBBF24;--warn-bg:rgba(251,191,36,.13);--bad:#FB7185;--bad-bg:rgba(251,113,133,.14);--info:#C4B5FD;--info-bg:rgba(139,92,246,.2);--neutral:#B9AEC9;--neutral-bg:rgba(185,174,201,.12);--topbar:#130E1F;--scrim:rgba(5,3,10,.6);--logo-dark:block;--logo-light:none;color-scheme:dark}
+a{color:var(--primary)}a:hover{color:var(--primary-hover)}
+.th-dark a{color:#C4B5FD}
+.gd button,.gd a{font-family:inherit}
+.gd button:focus-visible,.gd a:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.ghost:hover{background:var(--raised)}
+.solid:hover{background:var(--primary-hover)}
+.logo-on-light{display:var(--logo-light)}
+.logo-on-dark{display:var(--logo-dark)}
+</style>
+</helmet>
+<div class="gd {{themeClass}}" style="position: relative; min-height: 1000px; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'Be Vietnam Pro', system-ui, sans-serif; font-size: 14px; line-height: 20px;">
+
+<div aria-hidden="true" style="pointer-events: none;">
+  <header style="background: var(--topbar); border-bottom: 1px solid var(--line);">
+    <div style="max-width: 1360px; margin: 0 auto; padding: 0 28px; display: flex; align-items: center; gap: 28px; height: 64px;">
+      <img class="logo-on-light" src="/_blob/d0a9f70a76dc022b6bc0d943aea30824" alt="" style="height: 26px; width: auto;">
+      <img class="logo-on-dark" src="/_blob/4ddd6de2d45e1d36a76b14b677eae5e2" alt="" style="height: 26px; width: auto;">
+      <div style="display: flex; gap: 20px; color: var(--muted); font-weight: 500;">
+        <span style="display: flex; align-items: center;">Jobs</span><span style="display: flex; align-items: center;">Accounts</span><span style="display: flex; align-items: center;">API keys</span><span style="color: var(--text); font-weight: 600; height: 62px; display: flex; align-items: center; border-bottom: 2px solid var(--primary);">Request logs</span><span style="display: flex; align-items: center;">Alerts</span><span style="display: flex; align-items: center;">Prompt frames</span><span style="display: flex; align-items: center;">Settings</span><span style="display: flex; align-items: center;">Test</span>
+      </div>
+    </div>
+  </header>
+  <div style="max-width: 1360px; margin: 0 auto; padding: 28px; display: flex; flex-direction: column; gap: 20px;">
+    <h1 style="margin: 0; font-size: 28px; line-height: 36px; font-weight: 600;">Request logs</h1>
+    <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;">
+      <sc-for list="{{ghostRows}}" as="g" hint-placeholder-count="8">
+        <div style="display: flex; align-items: center; gap: 24px; height: 48px; padding: 0 16px; border-bottom: 1px solid var(--line); background: {{g.bg}};">
+          <span class="num" style="width: 72px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--muted);">{{g.time}}</span>
+          <span class="num" style="width: 48px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">{{g.code}}</span>
+          <span style="width: 240px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">{{g.route}}</span>
+          <span style="font-size: 13px; color: var(--muted);">{{g.key}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+
+<div aria-hidden="true" style="position: absolute; inset: 0; background: var(--scrim);"></div>
+
+<aside role="dialog" aria-modal="true" aria-labelledby="drawerTitle" style="position: absolute; top: 0; right: 0; bottom: 0; width: min(620px, 100%); background: var(--surface); box-shadow: -16px 0 48px rgba(10,6,20,.28); display: flex; flex-direction: column;">
+  <div style="padding: 20px 24px 16px; display: flex; align-items: flex-start; gap: 12px; border-bottom: 1px solid var(--line);">
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+      <h2 id="drawerTitle" style="margin: 0; font-size: 20px; line-height: 28px; font-weight: 600;">Request rq_8f2174</h2>
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted);">
+        <span class="num" style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--warn-bg); color: var(--warn); font-size: 12px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 3px; background: var(--warn);"></span>422</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text);">POST /v1/images/generations</span>
+      </div>
+    </div>
+    <a class="ghost" href="B-Logs.dc.html" aria-label="Close" style="width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--muted);">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></a>
+  </div>
+
+  <div style="flex: 1; overflow-y: auto; padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 20px;">
+    <dl style="margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+      <sc-for list="{{summary}}" as="s" hint-placeholder-count="6">
+        <div style="display: flex; align-items: baseline; gap: 8px;">
+          <dt style="color: var(--muted); white-space: nowrap;">{{s.k}}</dt>
+          <span aria-hidden="true" style="flex: 1; border-bottom: 1px dotted var(--line-strong); transform: translateY(-4px);"></span>
+          <dd class="num" style="margin: 0; font-family: {{s.font}}; color: {{s.color}};">
+            <sc-if value="{{s.isLink}}" hint-placeholder-val="{{ false }}"><a href="B-JobFailed.dc.html">{{s.v}}</a></sc-if>
+            <sc-if value="{{s.isText}}" hint-placeholder-val="{{ true }}"><span>{{s.v}}</span></sc-if>
+          </dd>
+        </div>
+      </sc-for>
+    </dl>
+
+    <sc-for list="{{blocks}}" as="b" hint-placeholder-count="2">
+      <section aria-labelledby="{{b.id}}" style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <h3 id="{{b.id}}" style="margin: 0; font-size: 14px; font-weight: 600;">{{b.title}}</h3>
+          <button class="ghost" type="button" aria-label="Copy {{b.title}} body" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line-strong); background: transparent; color: var(--text); font-size: 12px; cursor: pointer;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button>
+        </div>
+        <pre tabindex="0" style="margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--raised); font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 20px; white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: auto;">{{b.body}}</pre>
+      </section>
+    </sc-for>
+  </div>
+</aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { dark: null };
+  }
+  renderVals() {
+    const dark = this.state.dark === null ? (this.props.dark ?? false) : this.state.dark;
+    const mono = "'IBM Plex Mono', monospace";
+    const IG = 'POST /v1/images/generations';
+    const reqBody = [
+      '{',
+      '  "model": "seedream-4.5",',
+      '  "prompt": "Close-up of a perfume bottle on white marble, hard window light, crisp reflections.",',
+      '  "n": 1,',
+      '  "ratio": "2:3",',
+      '  "references": 2',
+      '}'
+    ].join('\n');
+    const ansBody = [
+      '{',
+      '  "error": {',
+      '    "code": "dola.content_refused",',
+      '    "message": "Dola refused the prompt as content.",',
+      '    "request_id": "rq_8f2174"',
+      '  }',
+      '}'
+    ].join('\n');
+    return {
+      themeClass: dark ? 'th-dark' : 'th-light',
+      summary: [
+        { k: 'Time', v: '15/10 20:33:48', font: mono, color: 'var(--text)' },
+        { k: 'Provider', v: 'dola', font: 'inherit', color: 'var(--text)' },
+        { k: 'Key', v: 'Shop A', font: 'inherit', color: 'var(--text)' },
+        { k: 'Job', v: '5a0f3c88', font: mono, color: 'var(--text)', isLink: true, isText: false },
+        { k: 'Error', v: 'dola.content_refused', font: mono, color: 'var(--bad)' },
+        { k: 'Duration', v: '1,980 ms', font: mono, color: 'var(--text)' }
+      ].map((s) => ({ isLink: false, isText: true, ...s })),
+      blocks: [
+        { id: 'blkReq', title: 'Request', body: reqBody },
+        { id: 'blkAns', title: 'Answer', body: ansBody }
+      ],
+      ghostRows: [
+        { time: '20:54:22', code: '200', route: IG, key: 'Partner C', bg: 'transparent' },
+        { time: '20:52:30', code: '200', route: 'POST /v1/videos/generations', key: 'Shop A', bg: 'transparent' },
+        { time: '20:49:41', code: '200', route: 'GET /v1/models', key: 'Shop B', bg: 'transparent' },
+        { time: '20:41:12', code: '200', route: 'POST /v1/videos/generations', key: 'Shop A', bg: 'transparent' },
+        { time: '20:33:48', code: '422', route: IG, key: 'Shop A', bg: 'var(--bad-bg)' },
+        { time: '20:21:09', code: '400', route: 'POST /v1/videos/generations', key: 'Partner B', bg: 'transparent' },
+        { time: '20:07:15', code: '502', route: 'POST /v1/videos/generations', key: 'Shop B', bg: 'transparent' },
+        { time: '19:52:40', code: '200', route: 'POST /v1/videos/generations', key: 'Partner C', bg: 'transparent' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
