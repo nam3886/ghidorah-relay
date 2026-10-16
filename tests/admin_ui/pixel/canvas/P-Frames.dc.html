@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ghidorah admin, direction B: Prompt frames (phone)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th-light{--bg:#F7F5FB;--surface:#FFFFFF;--raised:#F3EFFA;--line:#ECE6F3;--line-strong:#DDD5E8;--control:#85758F;--text:#171321;--muted:#655A75;--faint:#76698A;--brand:#8B5CF6;--primary:#7C3AED;--primary-hover:#6D28D9;--primary-soft:#EDE9FE;--focus:#7C3AED;--ok:#047857;--ok-bg:#E2F4EC;--warn:#92400E;--warn-bg:#FDF1DF;--bad:#BE123C;--bad-bg:#FDE7EC;--info:#6D28D9;--info-bg:#EFE9FD;--neutral:#655A75;--neutral-bg:#F1EEF5;--bar-done:#7C3AED;--bar-run:#C4B5FD;--bar-fail:#E11D48;--topbar:#FFFFFF;--logo-dark:none;--logo-light:block;color-scheme:light}
+.th-dark{--bg:#0E0B16;--surface:#171222;--raised:#211A30;--line:#2A2140;--line-strong:#3E3356;--control:#82738F;--text:#F5F3FF;--muted:#B9AEC9;--faint:#8E82A3;--brand:#8B5CF6;--primary:#7C3AED;--primary-hover:#6D28D9;--primary-soft:#2E1D4B;--focus:#A78BFA;--ok:#34D399;--ok-bg:rgba(52,211,153,.13);--warn:#FBBF24;--warn-bg:rgba(251,191,36,.13);--bad:#FB7185;--bad-bg:rgba(251,113,133,.14);--info:#C4B5FD;--info-bg:rgba(139,92,246,.2);--neutral:#B9AEC9;--neutral-bg:rgba(185,174,201,.12);--bar-done:#8B5CF6;--bar-run:#4C3A73;--bar-fail:#FB7185;--topbar:#130E1F;--logo-dark:block;--logo-light:none;color-scheme:dark}
+a{color:var(--primary)}a:hover{color:var(--primary-hover)}
+.th-dark a{color:#C4B5FD}
+.gd ::selection{background:var(--primary-soft)}
+.gd button,.gd input,.gd a,.gd textarea{font-family:inherit}
+.gd button:focus-visible,.gd a:focus-visible,.gd input:focus-visible,.gd textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.tab:hover{color:var(--text)}
+.ghost:hover{background:var(--raised)}
+.solid:hover{background:var(--primary-hover)}
+.logo-on-light{display:var(--logo-light)}
+.logo-on-dark{display:var(--logo-dark)}
+</style>
+</helmet>
+<div class="gd {{themeClass}}" style="width: 100%; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); color: var(--text); font-family: 'Be Vietnam Pro', system-ui, sans-serif; font-size: 14px; line-height: 20px;">
+
+<header style="background: var(--topbar); border-bottom: 1px solid var(--line);">
+  <div style="display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 8px 0 16px; box-sizing: border-box;">
+    <a href="#" aria-label="Ghidorah admin home" style="display: flex; align-items: center; flex: 1; min-width: 0; text-decoration: none;">
+      <img class="logo-on-light" src="/_blob/d0a9f70a76dc022b6bc0d943aea30824" alt="Ghidorah" style="height: 24px; width: auto;">
+      <img class="logo-on-dark" src="/_blob/4ddd6de2d45e1d36a76b14b677eae5e2" alt="Ghidorah" style="height: 24px; width: auto;">
+    </a>
+    <button type="button" aria-haspopup="listbox" aria-label="Provider scope: All" style="display: flex; align-items: center; gap: 4px; height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 13px; cursor: pointer;">
+      <span style="color: var(--muted);">Provider</span> All
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <button class="ghost" type="button" aria-label="Switch theme" onClick="{{toggleTheme}}" style="width: 44px; height: 44px; border-radius: 10px; border: 0; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+    <button type="button" aria-haspopup="menu" aria-label="Account menu, admin" style="width: 44px; height: 44px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+      <span style="width: 32px; height: 32px; border-radius: 16px; background: var(--primary-soft); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;">A</span>
+    </button>
+  </div>
+  <nav aria-label="Main" style="overflow-x: auto; border-top: 1px solid var(--line);">
+    <ul style="list-style: none; margin: 0; padding: 0 8px; display: flex; gap: 4px; white-space: nowrap;">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="8">
+        <li>
+          <a class="tab" href="{{t.href}}" aria-current="{{t.current}}" style="display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 10px; box-sizing: border-box; text-decoration: none; font-size: 14px; font-weight: {{t.weight}}; color: {{t.color}}; border-bottom: 2px solid {{t.underline}};">
+            {{t.label}}
+            <sc-if value="{{t.count}}" hint-placeholder-val="{{ false }}"><span class="num" style="font-size: 11px; line-height: 16px; padding: 0 6px; border-radius: 8px; background: {{t.countBg}}; color: {{t.countColor}};">{{t.count}}</span></sc-if>
+          </a>
+        </li>
+      </sc-for>
+    </ul>
+  </nav>
+</header>
+
+<main style="flex: 1; padding: 16px 16px 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px;">
+
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    <div>
+      <h1 style="margin: 0; font-size: 22px; line-height: 30px; font-weight: 600; letter-spacing: -0.01em;">Prompt frames</h1>
+      <p style="margin: 2px 0 0; color: var(--muted);">The wrapper text around each customer prompt. A save applies only to jobs created after it.</p>
+    </div>
+    <button type="button" aria-haspopup="listbox" style="align-self: flex-start; display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 13px; cursor: pointer;"><span style="color: var(--muted);">Provider</span> dola <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+  </div>
+
+  <sc-for list="{{sections}}" as="s" hint-placeholder-count="2">
+    <section aria-labelledby="{{s.hid}}" style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;">
+      <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px 16px 14px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;">
+          <h2 id="{{s.hid}}" style="margin: 0; font-size: 15px; line-height: 22px; font-weight: 600;">{{s.title}}</h2>
+          <span style="font-size: 13px; color: var(--muted);">Default: <span class="num" style="font-family: 'IBM Plex Mono', monospace; color: var(--text);">{{s.version}}</span></span>
+        </div>
+        <sc-if value="{{s.differs}}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px;">
+            <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 12px; background: var(--warn-bg); color: var(--warn); font-size: 11px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 3px; background: var(--warn);"></span>differs from the shipped default</span>
+            <a href="#" style="display: flex; align-items: center; min-height: 44px; font-size: 13px; text-underline-offset: 3px;">Reset to the shipped default</a>
+          </div>
+        </sc-if>
+        <button class="ghost" type="button" style="height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 13px; cursor: pointer;">Edit the default</button>
+      </div>
+      <ul style="list-style: none; margin: 0; padding: 0;">
+        <sc-for list="{{s.rows}}" as="r" hint-placeholder-count="3">
+          <li style="display: flex; flex-direction: column; gap: 4px; padding: 12px 16px; border-top: 1px solid var(--line); background: {{r.rowBg}};">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <span style="min-width: 0; font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 500; overflow-wrap: anywhere;">{{r.model}}</span>
+              <span style="flex: none; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--{{r.tone}}-bg); color: var(--{{r.tone}}); font-size: 12px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 3px; background: var(--{{r.tone}});"></span>{{r.source}}</span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <span style="font-size: 13px; color: var(--muted);">effective <span class="num" style="font-family: 'IBM Plex Mono', monospace; color: var(--text);">{{r.effective}}</span></span>
+              <label style="display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-height: 44px; padding-left: 8px; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" checked="{{r.keep}}" onChange="{{r.toggle}}" style="accent-color: #7C3AED; width: 20px; height: 20px; margin: 0;">Keep own</label>
+            </div>
+            <sc-if value="{{r.lock}}" hint-placeholder-val="{{ true }}"><span style="font-size: 12px; color: var(--faint);">{{r.lock}}</span></sc-if>
+            <button class="ghost" type="button" aria-label="Edit frame for {{r.model}}" style="margin-top: 4px; width: 100%; height: 44px; border-radius: 10px; border: 1px solid var(--line-strong); background: transparent; color: var(--text); font-size: 14px; cursor: pointer;">Edit</button>
+          </li>
+        </sc-for>
+      </ul>
+    </section>
+  </sc-for>
+
+  <section aria-labelledby="edTitle" style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;">
+      <h2 id="edTitle" style="margin: 0; font-size: 15px; line-height: 22px; font-weight: 600;">Editing <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; overflow-wrap: anywhere;">video / seedance_v2.5</span></h2>
+      <span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 12px; background: var(--info-bg); color: var(--info); font-size: 11px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 3px; background: var(--info);"></span>own · v4</span>
+    </div>
+    <p style="margin: 0; font-size: 13px; line-height: 18px; color: var(--muted);">One line, at most 1,000 characters. It must contain <span style="font-family: 'IBM Plex Mono', monospace; color: var(--text);">{{ph1}}</span> and <span style="font-family: 'IBM Plex Mono', monospace; color: var(--text);">{{ph2}}</span> exactly once each.</p>
+
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+        <label for="frameText" style="font-size: 13px; font-weight: 500;">Frame text</label>
+        <span class="num" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--faint);">{{frameCount}} / 1,000</span>
+      </div>
+      <textarea id="frameText" rows="7" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 20px; resize: vertical;">{{frameText}}</textarea>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <button class="solid" type="button" style="width: 100%; height: 44px; border-radius: 10px; border: 0; background: var(--primary); color: #FFFFFF; font-size: 14px; font-weight: 600; cursor: pointer;">Save</button>
+      <button class="ghost" type="button" style="width: 100%; height: 44px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 14px; cursor: pointer;">Follow the default</button>
+      <button class="ghost" type="button" style="width: 100%; height: 44px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 14px; cursor: pointer;">Preview</button>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line);">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label for="sample" style="font-size: 13px; font-weight: 500;">Sample prompt</label>
+        <input id="sample" type="text" value="a cat on a sofa" style="height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 14px; box-sizing: border-box; width: 100%;">
+      </div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+        <span style="font-size: 13px; font-weight: 500;">Preview</span>
+        <span class="num" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--faint);">{{previewCount}} characters</span>
+      </div>
+      <div style="padding: 12px 14px; border-radius: 10px; background: var(--raised); font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 20px; overflow-wrap: anywhere;">{{previewText}}</div>
+    </div>
+
+    <div style="padding-top: 16px; border-top: 1px solid var(--line);">
+      <h3 style="margin: 0 0 4px; font-size: 15px; line-height: 22px; font-weight: 600;">History</h3>
+      <ol style="list-style: none; margin: 0; padding: 0;">
+        <sc-for list="{{history}}" as="h" hint-placeholder-count="3">
+          <li style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 56px; border-bottom: 1px solid var(--line);">
+            <span class="num" style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 500; min-width: 24px;">{{h.v}}</span>
+            <sc-if value="{{h.current}}" hint-placeholder-val="{{ true }}"><span style="display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 12px; background: var(--ok-bg); color: var(--ok); font-size: 11px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 3px; background: var(--ok);"></span>current</span></sc-if>
+            <span class="num" style="flex: 1; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--faint);">{{h.when}}</span>
+            <sc-if value="{{h.canRoll}}" hint-placeholder-val="{{ true }}"><button class="ghost" type="button" style="height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: transparent; color: var(--text); font-size: 13px; cursor: pointer;">Roll back to this</button></sc-if>
+          </li>
+        </sc-for>
+      </ol>
+    </div>
+  </section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":2480}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { dark: null, keep: { 'seedance_v2.5': true } };
+  }
+  renderVals() {
+    const dark = this.state.dark === null ? (this.props.dark ?? false) : this.state.dark;
+    const keep = this.state.keep;
+    const tabNames = [['Jobs', '4'], ['Accounts', '7/8'], ['API keys'], ['Request logs'], ['Alerts', '1', false, true], ['Prompt frames', '', true], ['Settings'], ['Test']];
+    const tabs = tabNames.map(([label, count, current, warn]) => ({
+      label, href: '#', current: current ? 'page' : 'false', count: count || '',
+      weight: current ? '600' : '500', color: current ? 'var(--text)' : 'var(--muted)',
+      underline: current ? 'var(--primary)' : 'transparent',
+      countBg: current ? 'var(--primary)' : (warn ? 'var(--warn-bg)' : 'var(--neutral-bg)'),
+      countColor: current ? '#FFFFFF' : (warn ? 'var(--warn)' : 'var(--muted)')
+    }));
+    const mk = (model, own, effective, lock) => ({
+      model, source: own ? 'own' : 'default', tone: own ? 'info' : 'neutral', effective,
+      keep: own ? (keep[model] ?? !!lock) : false, lock: lock || '',
+      rowBg: model === 'seedance_v2.5' ? 'var(--primary-soft)' : 'transparent',
+      toggle: () => this.setState({ keep: { ...this.state.keep, [model]: !(keep[model] ?? !!lock) } })
+    });
+    const sections = [
+      { hid: 'secVideo', title: 'Video', version: 'v3', differs: true, rows: [
+        mk('seedance_v2.5', true, 'v4', 'locked 14/10 by admin'),
+        mk('seedance_v2.0', false, 'v3'),
+        mk('seedance_v1.0', false, 'v3') ] },
+      { hid: 'secImage', title: 'Image', version: 'v3', differs: false, rows: [
+        mk('seedream-4.5', false, 'v2'),
+        mk('seedream-5.0-pro', true, 'v1') ] }
+    ];
+    // the braces are written as text here so the canvas does not read them as holes
+    const head = 'Create exactly one cinematic video for this request, no on-screen text, no watermark, no follow-up questions. Request: ';
+    const tail = ' Reference: ';
+    const frameText = head + '{' + '{client_prompt}' + '}' + tail + '{' + '{tracking_code}' + '}' + ' Keep the camera steady and the light natural.';
+    const previewText = head + 'a cat on a sofa' + tail + 'rq-3b9e1f0a Keep the camera steady and the light natural.';
+    return {
+      themeClass: dark ? 'th-dark' : 'th-light',
+      toggleTheme: () => this.setState({ dark: !dark }),
+      ph1: '{' + '{client_prompt}' + '}', ph2: '{' + '{tracking_code}' + '}',
+      tabs, sections, frameText, frameCount: String(frameText.length), previewText, previewCount: previewText.length,
+      history: [
+        { v: 'v4', current: true, canRoll: false, when: '14/10 18:40' },
+        { v: 'v3', current: false, canRoll: true, when: '12/10 11:05' },
+        { v: 'v2', current: false, canRoll: true, when: '09/10 16:22' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

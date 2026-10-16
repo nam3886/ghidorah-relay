@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ghidorah admin, phone: Sign in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th-light{--bg:#F7F5FB;--surface:#FFFFFF;--raised:#F3EFFA;--line:#ECE6F3;--line-strong:#DDD5E8;--control:#85758F;--text:#171321;--muted:#655A75;--faint:#76698A;--brand:#8B5CF6;--primary:#7C3AED;--primary-hover:#6D28D9;--primary-soft:#EDE9FE;--focus:#7C3AED;--ok:#047857;--ok-bg:#E2F4EC;--warn:#92400E;--warn-bg:#FDF1DF;--bad:#BE123C;--bad-bg:#FDE7EC;--info:#6D28D9;--info-bg:#EFE9FD;--neutral:#655A75;--neutral-bg:#F1EEF5;--bar-done:#7C3AED;--bar-run:#C4B5FD;--bar-fail:#E11D48;--topbar:#FFFFFF;--logo-dark:none;--logo-light:block;color-scheme:light}
+.th-dark{--bg:#0E0B16;--surface:#171222;--raised:#211A30;--line:#2A2140;--line-strong:#3E3356;--control:#82738F;--text:#F5F3FF;--muted:#B9AEC9;--faint:#8E82A3;--brand:#8B5CF6;--primary:#7C3AED;--primary-hover:#6D28D9;--primary-soft:#2E1D4B;--focus:#A78BFA;--ok:#34D399;--ok-bg:rgba(52,211,153,.13);--warn:#FBBF24;--warn-bg:rgba(251,191,36,.13);--bad:#FB7185;--bad-bg:rgba(251,113,133,.14);--info:#C4B5FD;--info-bg:rgba(139,92,246,.2);--neutral:#B9AEC9;--neutral-bg:rgba(185,174,201,.12);--bar-done:#8B5CF6;--bar-run:#4C3A73;--bar-fail:#FB7185;--topbar:#130E1F;--logo-dark:block;--logo-light:none;color-scheme:dark}
+a{color:var(--primary)}a:hover{color:var(--primary-hover)}
+.th-dark a{color:#C4B5FD}
+.gd ::selection{background:var(--primary-soft)}
+.gd button,.gd input,.gd a{font-family:inherit}
+.gd button:focus-visible,.gd a:focus-visible,.gd input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.ghost:hover{background:var(--raised)}
+.solid:hover{background:var(--primary-hover)}
+.logo-on-light{display:var(--logo-light)}
+.logo-on-dark{display:var(--logo-dark)}
+</style>
+</helmet>
+<div class="gd {{themeClass}}" style="position: relative; width: 100%; min-height: 760px; background: var(--bg); color: var(--text); font-family: 'Be Vietnam Pro', system-ui, sans-serif; font-size: 14px; line-height: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 72px 16px 48px; box-sizing: border-box;">
+
+  <button class="ghost" type="button" aria-label="Switch theme" onClick="{{toggleTheme}}" style="position: absolute; top: 12px; right: 16px; width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line-strong); background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+  </button>
+
+  <main style="width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px 20px 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px;">
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      <img class="logo-on-light" src="/_blob/d0a9f70a76dc022b6bc0d943aea30824" alt="Ghidorah" style="height: 28px; width: auto; align-self: flex-start;">
+      <img class="logo-on-dark" src="/_blob/4ddd6de2d45e1d36a76b14b677eae5e2" alt="Ghidorah" style="height: 28px; width: auto; align-self: flex-start;">
+      <h1 style="margin: 0; font-size: 22px; line-height: 30px; font-weight: 600;">Sign in to the admin</h1>
+    </div>
+
+    <form style="display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label for="user" style="font-size: 12px; font-weight: 500; color: var(--muted);">Username</label>
+        <input id="user" type="text" value="admin" maxlength="64" autocomplete="username" style="height: 48px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 16px; box-sizing: border-box; width: 100%;">
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label for="pass" style="font-size: 12px; font-weight: 500; color: var(--muted);">Password</label>
+        <div style="position: relative;">
+          <input id="pass" type="{{passType}}" value="example-password" maxlength="256" autocomplete="current-password" aria-describedby="loginError" aria-invalid="true" style="height: 48px; padding: 0 52px 0 12px; border-radius: 10px; border: 1px solid var(--bad); background: var(--surface); color: var(--text); font-size: 16px; box-sizing: border-box; width: 100%;">
+          <button class="ghost" type="button" aria-label="{{toggleLabel}}" aria-pressed="{{pressed}}" onClick="{{toggleShow}}" style="position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; border-radius: 8px; border: 0; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="loginError" role="alert" style="display: flex; align-items: center; gap: 8px; padding: 12px; border-radius: 10px; background: var(--bad-bg); color: var(--bad); font-size: 13px; font-weight: 500;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+        Wrong username or password
+      </div>
+
+      <button class="solid" type="button" style="width: 100%; height: 48px; border-radius: 10px; border: 0; background: var(--primary); color: #FFFFFF; font-size: 14px; font-weight: 600; cursor: pointer;">Sign in</button>
+    </form>
+  </main>
+
+  <p style="margin: 0; font-size: 12px; color: var(--faint);">Ghidorah admin · LAN only</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":760}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { dark: null, show: false };
+  }
+  renderVals() {
+    const dark = this.state.dark === null ? (this.props.dark ?? false) : this.state.dark;
+    const show = this.state.show;
+    return {
+      themeClass: dark ? 'th-dark' : 'th-light',
+      toggleTheme: () => this.setState({ dark: !dark }),
+      passType: show ? 'text' : 'password',
+      toggleLabel: show ? 'Hide password' : 'Show password',
+      pressed: show ? 'true' : 'false',
+      toggleShow: () => this.setState({ show: !show })
+    };
+  }
+}
+</script>
+</body>
+</html>

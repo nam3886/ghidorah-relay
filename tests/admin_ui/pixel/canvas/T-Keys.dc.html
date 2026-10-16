@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ghidorah admin, direction B, tablet: API keys</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th-light{--bg:#F7F5FB;--surface:#FFFFFF;--raised:#F3EFFA;--line:#ECE6F3;--line-strong:#DDD5E8;--control:#85758F;--text:#171321;--muted:#655A75;--faint:#76698A;--brand:#8B5CF6;--primary:#7C3AED;--primary-hover:#6D28D9;--primary-soft:#EDE9FE;--focus:#7C3AED;--ok:#047857;--ok-bg:#E2F4EC;--warn:#92400E;--warn-bg:#FDF1DF;--bad:#BE123C;--bad-bg:#FDE7EC;--info:#6D28D9;--info-bg:#EFE9FD;--neutral:#655A75;--neutral-bg:#F1EEF5;--topbar:#FFFFFF;--scrim:rgba(23,19,33,.42);--logo-dark:none;--logo-light:block;color-scheme:light}
+.th-dark{--bg:#0E0B16;--surface:#171222;--raised:#211A30;--line:#2A2140;--line-strong:#3E3356;--control:#82738F;--text:#F5F3FF;--muted:#B9AEC9;--faint:#8E82A3;--brand:#8B5CF6;--primary:#7C3AED;--primary-hover:#6D28D9;--primary-soft:#2E1D4B;--focus:#A78BFA;--ok:#34D399;--ok-bg:rgba(52,211,153,.13);--warn:#FBBF24;--warn-bg:rgba(251,191,36,.13);--bad:#FB7185;--bad-bg:rgba(251,113,133,.14);--info:#C4B5FD;--info-bg:rgba(139,92,246,.2);--neutral:#B9AEC9;--neutral-bg:rgba(185,174,201,.12);--topbar:#130E1F;--scrim:rgba(5,3,10,.6);--logo-dark:block;--logo-light:none;color-scheme:dark}
+a{color:var(--primary)}a:hover{color:var(--primary-hover)}
+.th-dark a{color:#C4B5FD}
+.gd ::selection{background:var(--primary-soft)}
+.gd button,.gd input,.gd a{font-family:inherit}
+.gd button:focus-visible,.gd a:focus-visible,.gd input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.tab:hover{color:var(--text)}
+.trow:hover td{background:var(--raised)}
+.ghost:hover{background:var(--raised)}
+.solid:hover{background:var(--primary-hover)}
+.danger:hover{background:var(--bad-bg)}
+.logo-on-light{display:var(--logo-light)}
+.logo-on-dark{display:var(--logo-dark)}
+</style>
+</helmet>
+<div class="gd {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: 'Be Vietnam Pro', system-ui, sans-serif; font-size: 14px; line-height: 20px;">
+
+<header style="background: var(--topbar); border-bottom: 1px solid var(--line);">
+  <div style="display: flex; align-items: center; gap: 8px; height: 60px; padding: 0 16px 0 24px; box-sizing: border-box;">
+    <a href="#" aria-label="Ghidorah admin home" style="display: flex; align-items: center; flex: 1; min-width: 0; text-decoration: none;">
+      <img class="logo-on-light" src="/_blob/d0a9f70a76dc022b6bc0d943aea30824" alt="Ghidorah" style="height: 26px; width: auto;">
+      <img class="logo-on-dark" src="/_blob/4ddd6de2d45e1d36a76b14b677eae5e2" alt="Ghidorah" style="height: 26px; width: auto;">
+    </a>
+    <button type="button" aria-haspopup="listbox" style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 13px; cursor: pointer;">
+      <span style="color: var(--muted);">Provider</span> All
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <button class="ghost" type="button" aria-label="Switch theme" onClick="{{toggleTheme}}" style="width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line-strong); background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+    <button type="button" aria-haspopup="menu" aria-label="Account menu, admin" style="width: 40px; height: 40px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+      <span style="width: 30px; height: 30px; border-radius: 15px; background: var(--primary-soft); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">A</span>
+    </button>
+  </div>
+  <nav aria-label="Main" style="overflow-x: auto; border-top: 1px solid var(--line);">
+    <ul style="list-style: none; margin: 0; padding: 0 14px; display: flex; gap: 4px; white-space: nowrap;">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="8">
+        <li>
+          <a class="tab" href="{{t.href}}" aria-current="{{t.current}}" style="display: flex; align-items: center; gap: 6px; height: 48px; padding: 0 10px; box-sizing: border-box; text-decoration: none; font-size: 14px; font-weight: {{t.weight}}; color: {{t.color}}; border-bottom: 2px solid {{t.underline}};">
+            {{t.label}}
+            <sc-if value="{{t.count}}" hint-placeholder-val="{{ false }}"><span class="num" style="font-size: 11px; line-height: 16px; padding: 0 6px; border-radius: 8px; background: {{t.countBg}}; color: {{t.countColor}};">{{t.count}}</span></sc-if>
+          </a>
+        </li>
+      </sc-for>
+    </ul>
+  </nav>
+</header>
+
+<main style="padding: 24px 24px 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px;">
+
+  <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+    <div style="min-width: 0;">
+      <h1 style="margin: 0; font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.012em;">API keys</h1>
+      <p style="margin: 2px 0 0; color: var(--muted);">Who may call the relay, which models they may use and how much each wallet may spend.</p>
+    </div>
+    <button class="solid" type="button" style="display: flex; align-items: center; gap: 6px; flex: none; height: 36px; padding: 0 16px; border-radius: 10px; border: 0; background: var(--primary); color: #FFFFFF; font-size: 13px; font-weight: 600; cursor: pointer;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New key</button>
+  </div>
+
+  <sc-if value="{{showCallout}}" hint-placeholder-val="{{ true }}">
+    <section role="status" aria-labelledby="calloutTitle" style="display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border-radius: 12px; background: var(--ok-bg);">
+      <div style="display: flex; align-items: flex-start; gap: 10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-top: 1px; flex: none;"><path d="M20 6 9 17l-5-5"/></svg>
+        <p id="calloutTitle" style="margin: 0; flex: 1; min-width: 0;"><strong style="font-weight: 600;">Key created for Partner D.</strong> <span style="color: var(--muted);">Copy it now: it is shown once and not stored.</span></p>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+        <input type="text" aria-label="New API key for Partner D" value="rk_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXX7d2e" style="flex: 1 1 300px; min-width: 0; height: 36px; padding: 0 12px; box-sizing: border-box; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 13px;">
+        <button class="solid" type="button" onClick="{{copyKey}}" style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 10px; border: 0; background: var(--primary); color: #FFFFFF; font-size: 13px; font-weight: 600; cursor: pointer;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>{{copyLabel}}</button>
+        <button class="ghost" type="button" onClick="{{dismissCallout}}" style="height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line-strong); background: transparent; color: var(--text); font-size: 13px; cursor: pointer;">Dismiss</button>
+      </div>
+    </section>
+  </sc-if>
+
+  <section aria-label="API key list" style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;">
+    <table style="width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0;">
+      <thead>
+        <tr style="text-align: left; font-size: 12px; color: var(--muted);">
+          <th scope="col" style="padding: 0 8px 0 16px; height: 38px; font-weight: 500; background: var(--raised);">Label</th>
+          <th scope="col" style="width: 84px; padding: 0 8px; font-weight: 500; background: var(--raised);">Status</th>
+          <th scope="col" style="width: 214px; padding: 0 8px; font-weight: 500; background: var(--raised);">Wallets</th>
+          <th scope="col" style="width: 100px; padding: 0 8px; font-weight: 500; background: var(--raised);">Unfinished · jobs</th>
+          <th scope="col" style="width: 128px; padding: 0 12px 0 8px; font-weight: 500; background: var(--raised); text-align: right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <sc-for list="{{keys}}" as="k" hint-placeholder-count="5">
+          <tr class="trow">
+            <td style="padding: 12px 8px 12px 16px; border-bottom: 1px solid var(--line); background: {{k.rowBg}}; vertical-align: top;">
+              <span style="display: block; font-weight: 600; color: {{k.labelColor}};">{{k.label}}</span>
+              <span style="display: inline-flex; align-items: center; gap: 4px; margin-top: 2px;">
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--faint);">{{k.prefix}}</span>
+                <button class="ghost" type="button" title="Copy key prefix" aria-label="Copy key prefix of {{k.label}}" style="width: 28px; height: 28px; border-radius: 8px; border: 0; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+              </span>
+              <span style="display: block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; line-height: 16px; color: var(--muted); word-break: break-word;">{{k.modelsLine}}</span>
+            </td>
+            <td style="padding: 12px 8px; border-bottom: 1px solid var(--line); background: {{k.rowBg}}; vertical-align: top;">
+              <sc-if value="{{k.off}}" hint-placeholder-val="{{ false }}">
+                <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--neutral-bg); color: var(--neutral); font-size: 12px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 3px; background: var(--neutral);"></span>disabled</span>
+              </sc-if>
+              <sc-if value="{{k.on}}" hint-placeholder-val="{{ true }}"><span style="display: inline-block; line-height: 24px; color: var(--muted);">enabled</span></sc-if>
+            </td>
+            <td style="padding: 12px 8px; border-bottom: 1px solid var(--line); background: {{k.rowBg}}; vertical-align: top;">
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <sc-for list="{{k.wallets}}" as="w" hint-placeholder-count="2">
+                  <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; font-size: 12px; line-height: 16px;">
+                      <span style="color: var(--muted); white-space: nowrap;">{{w.kind}}</span>
+                      <span aria-hidden="true" style="flex: 1; min-width: 8px; border-bottom: 1px dotted var(--line-strong); transform: translateY(-3px);"></span>
+                      <span class="num" style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: {{w.color}}; white-space: nowrap;">{{w.text}}</span>
+                    </div>
+                    <sc-if value="{{w.limit}}" hint-placeholder-val="{{ false }}">
+                      <div role="img" aria-label="{{w.aria}}" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                        <span style="display: block; height: 4px; border-radius: 2px; background: var(--line);"><span style="display: block; height: 4px; border-radius: 2px; width: {{w.dayPct}}%; background: var(--primary);"></span></span>
+                        <span style="display: block; height: 4px; border-radius: 2px; background: var(--line);"><span style="display: block; height: 4px; border-radius: 2px; width: {{w.totPct}}%; background: var(--primary);"></span></span>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </td>
+            <td class="num" style="padding: 12px 8px; border-bottom: 1px solid var(--line); background: {{k.rowBg}}; vertical-align: top;">
+              <span style="display: block; font-family: 'IBM Plex Mono', monospace; font-size: 13px;">{{k.unfinished}} · {{k.jobs}} jobs</span>
+              <span style="display: block; margin-top: 2px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; line-height: 16px; color: var(--muted);">{{k.created}}</span>
+            </td>
+            <td style="padding: 10px 12px 10px 8px; border-bottom: 1px solid var(--line); background: {{k.rowBg}}; vertical-align: top;">
+              <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0;">
+                <button type="button" role="switch" aria-checked="{{k.checked}}" aria-label="Enable key {{k.label}}" title="{{k.switchTitle}}" onClick="{{k.toggle}}" style="width: 44px; height: 32px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+                  <span style="position: relative; display: block; width: 34px; height: 20px; border-radius: 10px; background: {{k.track}};"><span style="position: absolute; top: 2px; left: {{k.knob}}px; width: 16px; height: 16px; border-radius: 8px; background: #FFFFFF;"></span></span>
+                </button>
+                <button class="ghost" type="button" title="Edit key" aria-label="Edit key {{k.label}}" style="width: 32px; height: 32px; border-radius: 10px; border: 0; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+                <button class="danger" type="button" title="Delete key" aria-label="Delete key {{k.label}}" style="width: 32px; height: 32px; border-radius: 10px; border: 0; background: transparent; color: var(--bad); display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
+              </div>
+            </td>
+          </tr>
+        </sc-for>
+      </tbody>
+    </table>
+    <div style="padding: 14px 16px; font-size: 13px; color: var(--muted);">A key that has jobs is only disabled when deleted. Wallet bars: left = today, right = total.</div>
+  </section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":768,"height":1320}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { dark: null, callout: true, copied: false, off: { 'rk_live_…c3d4': true } };
+  }
+  renderVals() {
+    const dark = this.state.dark === null ? (this.props.dark ?? false) : this.state.dark;
+    const tabNames = [['Jobs', '4'], ['Accounts', '7/8'], ['API keys', '', true], ['Request logs'], ['Alerts', '1', false, true], ['Prompt frames'], ['Settings'], ['Test']];
+    const tabs = tabNames.map(([label, count, current, warn]) => ({
+      label, href: '#', current: current ? 'page' : 'false', count: count && (current || label !== 'API keys') ? count : '',
+      weight: current ? '600' : '500', color: current ? 'var(--text)' : 'var(--muted)',
+      underline: current ? 'var(--primary)' : 'transparent',
+      countBg: current ? 'var(--primary)' : (warn ? 'var(--warn-bg)' : 'var(--neutral-bg)'),
+      countColor: current ? '#FFFFFF' : (warn ? 'var(--warn)' : 'var(--muted)')
+    }));
+    const limit = (kind, d, dl, t, tl) => ({
+      kind, limit: true, color: 'var(--text)', text: 'day ' + d + '/' + dl + ' · total ' + t + '/' + tl,
+      dayPct: Math.round((d / dl) * 100), totPct: Math.round((t / tl) * 100),
+      aria: 'Used ' + d + ' of ' + dl + ' today, ' + t + ' of ' + tl + ' in total'
+    });
+    const unlimited = (kind, n) => ({ kind, limit: false, color: 'var(--text)', text: 'unlimited (' + n + ' used)' });
+    const closed = (kind) => ({ kind, limit: false, color: 'var(--faint)', text: 'closed' });
+    const data = [
+      { label: 'Partner D', prefix: 'rk_live_…7d2e', isNew: true, models: ['seedance_v1.0'], wallets: [limit('dola video', 0, 5, 0, 20), closed('dola image')], unfinished: '0 / 5', jobs: '0', created: '15/10 20:54' },
+      { label: 'Partner C', prefix: 'rk_live_…9f3a', models: ['seedance_v2.0', 'seedream-4.5'], wallets: [limit('dola video', 2, 10, 12, 100), limit('dola image', 1, 10, 5, 50)], unfinished: '1 / 5', jobs: '17', created: '04/10/2026' },
+      { label: 'Partner B', prefix: 'rk_live_…c3d4', models: ['seedance_v2.5', 'seedance_v2.0'], wallets: [closed('dola video'), closed('dola image')], unfinished: '0 / 5', jobs: '23', created: '30/09/2026' },
+      { label: 'Shop B', prefix: 'rk_live_…e5f6', models: ['seedance_v2.5', 'seedream-4.5', 'seedream-5.0-pro'], wallets: [limit('dola video', 12, 30, 88, 300), limit('dola image', 2, 10, 17, 80)], unfinished: '2 / 5', jobs: '148', created: '21/09/2026' },
+      { label: 'Shop A', prefix: 'rk_live_…a1b2', models: ['seedance_v2.5', 'seedance_v2.0'], wallets: [limit('dola video', 3, 20, 14, 200), unlimited('dola image', 9)], unfinished: '1 / 5', jobs: '61', created: '03/09/2026' },
+      { label: 'Internal test', prefix: 'rk_live_…0b9a', models: [], wallets: [unlimited('dola video', 37), unlimited('dola image', 4)], unfinished: '0 / unlimited', jobs: '312', created: '12/08/2026' }
+    ];
+    const keys = data.map((k) => {
+      const off = !!this.state.off[k.prefix];
+      return {
+        ...k, off, on: !off, checked: off ? 'false' : 'true',
+        modelsLine: k.models.length === 0 ? 'any model' : k.models.join(', '),
+        labelColor: off ? 'var(--muted)' : 'var(--text)',
+        rowBg: k.isNew ? 'var(--primary-soft)' : 'transparent',
+        track: off ? 'var(--control)' : 'var(--primary)', knob: off ? 2 : 16,
+        switchTitle: off ? 'Enable key' : 'Disable key',
+        toggle: () => this.setState({ off: { ...this.state.off, [k.prefix]: !this.state.off[k.prefix] } })
+      };
+    });
+    return {
+      themeClass: dark ? 'th-dark' : 'th-light',
+      toggleTheme: () => this.setState({ dark: !dark }),
+      tabs, keys,
+      showCallout: this.state.callout,
+      copyLabel: this.state.copied ? 'Copied' : 'Copy',
+      copyKey: () => this.setState({ copied: true }),
+      dismissCallout: () => this.setState({ callout: false })
+    };
+  }
+}
+</script>
+</body>
+</html>

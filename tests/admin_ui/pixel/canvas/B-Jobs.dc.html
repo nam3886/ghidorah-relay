@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ghidorah admin, direction B: Jobs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th-light{--bg:#F7F5FB;--surface:#FFFFFF;--raised:#F3EFFA;--line:#ECE6F3;--line-strong:#DDD5E8;--control:#85758F;--text:#171321;--muted:#655A75;--faint:#76698A;--brand:#8B5CF6;--primary:#7C3AED;--primary-hover:#6D28D9;--primary-soft:#EDE9FE;--focus:#7C3AED;--ok:#047857;--ok-bg:#E2F4EC;--warn:#92400E;--warn-bg:#FDF1DF;--bad:#BE123C;--bad-bg:#FDE7EC;--info:#6D28D9;--info-bg:#EFE9FD;--neutral:#655A75;--neutral-bg:#F1EEF5;--bar-done:#7C3AED;--bar-run:#C4B5FD;--bar-fail:#E11D48;--topbar:#FFFFFF;--logo-dark:none;--logo-light:block;color-scheme:light}
+.th-dark{--bg:#0E0B16;--surface:#171222;--raised:#211A30;--line:#2A2140;--line-strong:#3E3356;--control:#82738F;--text:#F5F3FF;--muted:#B9AEC9;--faint:#8E82A3;--brand:#8B5CF6;--primary:#7C3AED;--primary-hover:#6D28D9;--primary-soft:#2E1D4B;--focus:#A78BFA;--ok:#34D399;--ok-bg:rgba(52,211,153,.13);--warn:#FBBF24;--warn-bg:rgba(251,191,36,.13);--bad:#FB7185;--bad-bg:rgba(251,113,133,.14);--info:#C4B5FD;--info-bg:rgba(139,92,246,.2);--neutral:#B9AEC9;--neutral-bg:rgba(185,174,201,.12);--bar-done:#8B5CF6;--bar-run:#4C3A73;--bar-fail:#FB7185;--topbar:#130E1F;--logo-dark:block;--logo-light:none;color-scheme:dark}
+a{color:var(--primary)}a:hover{color:var(--primary-hover)}
+.th-dark a{color:#C4B5FD}
+.gd ::selection{background:var(--primary-soft)}
+.gd button,.gd input,.gd a{font-family:inherit}
+.gd button:focus-visible,.gd a:focus-visible,.gd input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.tab:hover{color:var(--text)}
+.trow:hover td{background:var(--raised)}
+.ghost:hover{background:var(--raised)}
+.solid:hover{background:var(--primary-hover)}
+.bar:hover{opacity:.8}
+.title-link{color:var(--text);text-decoration:none}
+.title-link:hover{color:var(--primary);text-decoration:underline;text-underline-offset:3px}
+.logo-on-light{display:var(--logo-light)}
+.logo-on-dark{display:var(--logo-dark)}
+</style>
+</helmet>
+<div class="gd {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: 'Be Vietnam Pro', system-ui, sans-serif; font-size: 14px; line-height: 20px;">
+
+<header style="background: var(--topbar); border-bottom: 1px solid var(--line);">
+  <div style="max-width: 1360px; margin: 0 auto; padding: 0 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; min-height: 64px; box-sizing: border-box;">
+    <a href="#" aria-label="Ghidorah admin home" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+      <img class="logo-on-light" src="/_blob/d0a9f70a76dc022b6bc0d943aea30824" alt="Ghidorah" style="height: 26px; width: auto;">
+      <img class="logo-on-dark" src="/_blob/4ddd6de2d45e1d36a76b14b677eae5e2" alt="Ghidorah" style="height: 26px; width: auto;">
+    </a>
+    <nav aria-label="Main" style="flex: 1 1 560px; min-width: 0; overflow-x: auto;">
+      <ul style="list-style: none; margin: 0; padding: 0; display: flex; gap: 4px; white-space: nowrap;">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="8">
+          <li>
+            <a class="tab" href="{{t.href}}" aria-current="{{t.current}}" style="display: flex; align-items: center; gap: 6px; height: 64px; padding: 0 10px; box-sizing: border-box; text-decoration: none; font-size: 14px; font-weight: {{t.weight}}; color: {{t.color}}; border-bottom: 2px solid {{t.underline}};">
+              {{t.label}}
+              <sc-if value="{{t.count}}" hint-placeholder-val="{{ false }}"><span class="num" style="font-size: 11px; line-height: 16px; padding: 0 6px; border-radius: 8px; background: {{t.countBg}}; color: {{t.countColor}};">{{t.count}}</span></sc-if>
+            </a>
+          </li>
+        </sc-for>
+      </ul>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <button type="button" aria-haspopup="listbox" style="display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 13px; cursor: pointer;">
+        <span style="color: var(--muted);">Provider</span> All
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <button class="ghost" type="button" aria-label="Switch theme" onClick="{{toggleTheme}}" style="width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line-strong); background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+      <button type="button" aria-haspopup="menu" style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px 0 4px; border-radius: 10px; border: 0; background: transparent; color: var(--text); font-size: 13px; cursor: pointer;">
+        <span style="width: 28px; height: 28px; border-radius: 14px; background: var(--primary-soft); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">A</span>admin
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main style="max-width: 1360px; margin: 0 auto; padding: 28px 28px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px;">
+
+  <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px;">
+    <div>
+      <h1 style="margin: 0; font-size: 28px; line-height: 36px; font-weight: 600; letter-spacing: -0.015em;">Jobs</h1>
+      <p style="margin: 4px 0 0; color: var(--muted);">Every generation job across keys, grouped by day.</p>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span class="num" style="font-size: 12px; color: var(--faint);">Updated 20:55:02 · auto every 10 s</span>
+      <button class="ghost" type="button" style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 13px; cursor: pointer;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Refresh</button>
+    </div>
+  </div>
+
+  <section aria-labelledby="bandTitle" style="display: flex; flex-wrap: wrap; gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;">
+    <div style="flex: 3 1 560px; min-width: 0; padding: 18px 20px 14px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+        <h2 id="bandTitle" style="margin: 0; font-size: 15px; font-weight: 600;">Last 24 hours <span class="num" style="font-weight: 400; color: var(--muted);">· 191 jobs</span></h2>
+        <div style="display: flex; gap: 14px; font-size: 12px; color: var(--muted);">
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: var(--bar-done);"></span>delivered 181</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: var(--bar-fail);"></span>failed 6</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: var(--bar-run);"></span>in progress 4</span>
+        </div>
+      </div>
+      <div role="img" aria-label="Jobs per hour over the last 24 hours. Peak 16 jobs at 18:00, failures at 23:00, 11:00, 16:00, 18:00 and 20:00." style="display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 4px; align-items: end; height: 120px; border-bottom: 1px solid var(--line-strong);">
+        <sc-for list="{{hours}}" as="h" hint-placeholder-count="24">
+          <a class="bar" href="#" title="{{h.title}}" style="display: flex; flex-direction: column-reverse; height: 100%; justify-content: flex-start; gap: 1px; text-decoration: none;">
+            <span style="display: block; height: {{h.done}}%; background: var(--bar-done); border-radius: 3px 3px 0 0;"></span>
+            <span style="display: block; height: {{h.fail}}%; background: var(--bar-fail); border-radius: 3px;"></span>
+            <span style="display: block; height: {{h.run}}%; background: var(--bar-run); border-radius: 3px;"></span>
+          </a>
+        </sc-for>
+      </div>
+      <div class="num" style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); font-size: 11px; color: var(--faint); font-family: 'IBM Plex Mono', monospace;">
+        <span>21:00</span><span>00:00</span><span>03:00</span><span>06:00</span><span>09:00</span><span>12:00</span><span>15:00</span><span>18:00</span>
+      </div>
+    </div>
+    <dl style="flex: 1 1 280px; margin: 0; padding: 16px 20px; background: var(--raised); display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
+      <sc-for list="{{ledger}}" as="l" hint-placeholder-count="8">
+        <div style="display: flex; align-items: baseline; gap: 8px;">
+          <dt style="color: var(--muted); white-space: nowrap;">{{l.k}}</dt>
+          <span aria-hidden="true" style="flex: 1; border-bottom: 1px dotted var(--line-strong); transform: translateY(-4px);"></span>
+          <dd class="num" style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-weight: 500; color: {{l.color}};">{{l.v}}</dd>
+        </div>
+      </sc-for>
+    </dl>
+  </section>
+
+  <div role="status" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-radius: 12px; background: var(--warn-bg);">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+    <span style="flex: 1; min-width: 240px;"><strong style="font-weight: 600;">1 open alert group.</strong> <span style="color: var(--muted);">Dola replied “Sorry, I can't create that video” to 4 jobs from 3 keys.</span></span>
+    <a href="#" style="font-weight: 600; color: var(--warn); text-underline-offset: 3px;">Review in Alerts</a>
+  </div>
+
+  <section aria-label="Job list" style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 16px;">
+      <button type="button" aria-haspopup="listbox" style="display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 13px; cursor: pointer;"><span style="color: var(--muted);">Status</span> All <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+      <button type="button" aria-haspopup="listbox" style="display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 13px; cursor: pointer;"><span style="color: var(--muted);">Key</span> All <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div style="flex: 1;"></div>
+      <span class="num" style="font-size: 13px; color: var(--muted);">2 selected</span>
+      <button class="ghost" type="button" style="height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 13px; cursor: pointer;">Re-check</button>
+      <button type="button" style="height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--bad); background: transparent; color: var(--bad); font-size: 13px; cursor: pointer;">Regenerate…</button>
+    </div>
+
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; min-width: 1040px; border-collapse: separate; border-spacing: 0;">
+        <thead>
+          <tr style="text-align: left; font-size: 12px; color: var(--muted);">
+            <th scope="col" style="width: 40px; padding: 0 0 0 16px; height: 38px; font-weight: 500; background: var(--raised);"><input type="checkbox" aria-label="Select all on this page" style="accent-color: #7C3AED; width: 15px; height: 15px;"></th>
+            <th scope="col" style="padding: 0 12px; font-weight: 500; background: var(--raised);">Time</th>
+            <th scope="col" style="padding: 0 12px; font-weight: 500; background: var(--raised);">Job</th>
+            <th scope="col" style="padding: 0 12px; font-weight: 500; background: var(--raised);">Status</th>
+            <th scope="col" style="padding: 0 12px; font-weight: 500; background: var(--raised);">Model</th>
+            <th scope="col" style="padding: 0 12px; font-weight: 500; background: var(--raised);">Account</th>
+            <th scope="col" style="padding: 0 12px; font-weight: 500; background: var(--raised);">Key</th>
+            <th scope="col" style="padding: 0 12px; font-weight: 500; background: var(--raised); text-align: right;">Out · Refs</th>
+            <th scope="col" style="padding: 0 16px 0 12px; font-weight: 500; background: var(--raised); text-align: right;">Net points</th>
+          </tr>
+        </thead>
+        <tbody>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="11">
+            <sc-if value="{{r.isDay}}" hint-placeholder-val="{{ false }}">
+              <tr>
+                <th scope="rowgroup" colspan="9" style="text-align: left; padding: 14px 16px 6px; font-size: 12px; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line);">{{r.day}} <span class="num" style="font-weight: 400; color: var(--faint);">· {{r.dayNote}}</span></th>
+              </tr>
+            </sc-if>
+            <sc-if value="{{r.isJob}}" hint-placeholder-val="{{ true }}">
+              <tr class="trow">
+                <td style="padding: 0 0 0 16px; height: 56px; border-bottom: 1px solid var(--line); background: {{r.rowBg}};"><input type="checkbox" aria-label="Select job {{r.id}}" checked="{{r.checked}}" onChange="{{r.toggle}}" style="accent-color: #7C3AED; width: 15px; height: 15px;"></td>
+                <td class="num" style="padding: 0 12px; border-bottom: 1px solid var(--line); background: {{r.rowBg}}; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--muted); white-space: nowrap;">{{r.time}}</td>
+                <td style="padding: 8px 12px; border-bottom: 1px solid var(--line); background: {{r.rowBg}}; max-width: 300px;">
+                  <a class="title-link" href="B-JobDetail.dc.html" style="display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{r.title}}</a>
+                  <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--faint);">{{r.id}}</span>
+                </td>
+                <td style="padding: 0 12px; border-bottom: 1px solid var(--line); background: {{r.rowBg}}; white-space: nowrap;">
+                  <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--{{r.tone}}-bg); color: var(--{{r.tone}}); font-size: 12px; font-weight: 500;">
+                    <sc-if value="{{r.running}}" hint-placeholder-val="{{ false }}"><span class="num" style="font-family: 'IBM Plex Mono', monospace; font-size: 11px;">{{r.step}}</span></sc-if>
+                    <sc-if value="{{r.still}}" hint-placeholder-val="{{ true }}"><span style="width: 6px; height: 6px; border-radius: 3px; background: var(--{{r.tone}});"></span></sc-if>
+                    {{r.status}}</span>
+                  <sc-if value="{{r.err}}" hint-placeholder-val="{{ false }}"><span style="display: block; margin-top: 3px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--bad);">{{r.err}}</span></sc-if>
+                </td>
+                <td style="padding: 0 12px; border-bottom: 1px solid var(--line); background: {{r.rowBg}}; white-space: nowrap; font-size: 13px;"><span style="color: var(--muted);">{{r.kind}}</span> {{r.model}}
+                  <sc-if value="{{r.differs}}" hint-placeholder-val="{{ false }}"><span style="margin-left: 4px; font-size: 11px; padding: 1px 6px; border-radius: 6px; background: var(--warn-bg); color: var(--warn);">model differs</span></sc-if></td>
+                <td style="padding: 0 12px; border-bottom: 1px solid var(--line); background: {{r.rowBg}}; font-family: 'IBM Plex Mono', monospace; font-size: 12px;">{{r.account}}</td>
+                <td style="padding: 0 12px; border-bottom: 1px solid var(--line); background: {{r.rowBg}}; font-size: 13px; white-space: nowrap;">{{r.key}}</td>
+                <td class="num" style="padding: 0 12px; border-bottom: 1px solid var(--line); background: {{r.rowBg}}; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);">{{r.out}} · {{r.refs}}</td>
+                <td class="num" style="padding: 0 16px 0 12px; border-bottom: 1px solid var(--line); background: {{r.rowBg}}; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 13px; white-space: nowrap;">
+                  <sc-if value="{{r.refunded}}" hint-placeholder-val="{{ false }}"><span style="color: var(--faint); text-decoration: line-through;">{{r.charged}}</span> <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="refunded" style="vertical-align: -2px;"><path d="M9 14 4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> </sc-if>{{r.net}}</td>
+              </tr>
+            </sc-if>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line);">
+      <span class="num" style="font-size: 13px; color: var(--muted);">Showing 1–10 of 1,321</span>
+      <div style="display: flex; align-items: center; gap: 4px;">
+        <button type="button" aria-haspopup="listbox" style="height: 32px; padding: 0 10px; margin-right: 8px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 13px;">10 / page</button>
+        <button type="button" class="ghost" aria-label="Previous page" aria-disabled="true" style="height: 32px; padding: 0 10px; border-radius: 10px; border: 0; background: transparent; color: var(--faint); font-size: 13px;">Previous</button>
+        <button type="button" class="num" aria-current="page" style="min-width: 32px; height: 32px; border-radius: 10px; border: 0; background: var(--primary); color: #FFFFFF; font-weight: 600;">1</button>
+        <button type="button" class="num ghost" style="min-width: 32px; height: 32px; border-radius: 10px; border: 0; background: transparent; color: var(--text);">2</button>
+        <button type="button" class="num ghost" style="min-width: 32px; height: 32px; border-radius: 10px; border: 0; background: transparent; color: var(--text);">3</button>
+        <span style="padding: 0 4px; color: var(--faint);">…</span>
+        <button type="button" class="num ghost" style="min-width: 40px; height: 32px; border-radius: 10px; border: 0; background: transparent; color: var(--text);">133</button>
+        <button type="button" class="ghost" style="height: 32px; padding: 0 10px; border-radius: 10px; border: 0; background: transparent; color: var(--text); font-size: 13px;">Next</button>
+      </div>
+    </div>
+  </section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { dark: null, selected: { '5a0f3c88': true, 'a93e0d71': true } };
+  }
+  renderVals() {
+    const dark = this.state.dark === null ? (this.props.dark ?? false) : this.state.dark;
+    const sel = this.state.selected;
+    const tabNames = [['Jobs', '4', true], ['Accounts', '7/8'], ['API keys'], ['Request logs'], ['Alerts', '1', false, true], ['Prompt frames'], ['Settings'], ['Test']];
+    const tabs = tabNames.map(([label, count, current, warn]) => ({
+      label, href: '#', current: current ? 'page' : 'false', count: count || '',
+      weight: current ? '600' : '500', color: current ? 'var(--text)' : 'var(--muted)',
+      underline: current ? 'var(--primary)' : 'transparent',
+      countBg: current ? 'var(--primary)' : (warn ? 'var(--warn-bg)' : 'var(--neutral-bg)'),
+      countColor: current ? '#FFFFFF' : (warn ? 'var(--warn)' : 'var(--muted)')
+    }));
+    const counts = [[4,0,0],[3,0,0],[2,1,0],[1,0,0],[1,0,0],[2,0,0],[3,0,0],[5,0,0],[6,0,0],[8,0,0],[9,0,0],[11,0,0],[9,0,0],[10,0,0],[12,1,0],[13,0,0],[11,0,0],[14,0,0],[12,0,0],[13,1,0],[15,0,0],[14,2,0],[2,0,0],[1,1,4]];
+    const max = 20;
+    const labels = ['21','22','23','00','01','02','03','04','05','06','07','08','09','10','11','12','13','14','15','16','17','18','19','20'];
+    const hours = counts.map(([d, f, r], i) => ({
+      done: (d / max) * 100, fail: (f / max) * 100, run: (r / max) * 100,
+      title: labels[i] + ':00 · ' + d + ' delivered' + (f ? ', ' + f + ' failed' : '') + (r ? ', ' + r + ' in progress' : '')
+    }));
+    const jobs = [
+      { day: 'Today', id: '2c6b8e90', time: '20:54:22', title: '(untitled)', kind: 'image', model: 'seedream-4.5', status: 'queued', tone: 'info', step: '1/4', account: '—', key: 'Partner C', out: 0, refs: 0, net: '—' },
+      { id: 'e17c55b2', time: '20:52:30', title: 'Street food night market, handheld', kind: 'video', model: 'seedance_v2.5', status: 'waiting', tone: 'info', step: '2/4', account: 'n11-02', key: 'Shop A', out: 0, refs: 0, net: '2' },
+      { id: '9c2d7e41', time: '20:49:03', title: 'Coastal drone shot at dawn', kind: 'video', model: 'seedance_v2.0', status: 'fetching', tone: 'info', step: '3/4', account: 'n11-06', key: 'Shop B', out: 0, refs: 1, net: '1' },
+      { id: '3b9e1f0a', time: '20:41:12', title: 'Cat on a sofa, sunset light', kind: 'video', model: 'seedance_v2.5', status: 'done', tone: 'ok', account: 'n11-03', key: 'Shop A', out: 1, refs: 0, net: '2' },
+      { id: '5a0f3c88', time: '20:33:48', title: 'Product close-up, white marble', kind: 'image', model: 'seedream-4.5', status: 'failed', tone: 'bad', account: 'n11-01', key: 'Shop A', out: 0, refs: 2, net: '0', charged: '1', refunded: true, err: 'dola.content_refused' },
+      { id: 'a93e0d71', time: '20:07:15', title: 'Rainy Tokyo crossing, 9:16', kind: 'video', model: 'seedance_v2.5', status: 'unknown', tone: 'warn', account: 'n11-05', key: 'Shop B', out: 0, refs: 0, net: '2' },
+      { id: '0d4a9f13', time: '19:52:40', title: 'Logo reveal, purple smoke', kind: 'video', model: 'seedance_v2.0', status: 'done', tone: 'ok', account: 'n11-00', key: 'Partner C', out: 1, refs: 1, net: '1', differs: true },
+      { id: '7f20b6ce', time: '19:40:02', title: 'Portrait, soft window light', kind: 'image', model: 'seedream-5.0-pro', status: 'done', tone: 'ok', account: 'n11-07', key: 'Shop A', out: 4, refs: 0, net: '1' },
+      { day: 'Yesterday', id: 'c41f9a07', time: '23:58:10', title: 'Lantern festival, slow pan', kind: 'video', model: 'seedance_v2.5', status: 'done', tone: 'ok', account: 'n11-04', key: 'Shop B', out: 1, refs: 0, net: '2' },
+      { id: 'f6a2d1e4', time: '23:41:55', title: 'Kids drawing a dragon, crayon', kind: 'image', model: 'seedream-4.5', status: 'done', tone: 'ok', account: 'n11-03', key: 'Shop B', out: 4, refs: 0, net: '1' }
+    ];
+    const rows = [];
+    jobs.forEach((j) => {
+      if (j.day) rows.push({ isDay: true, isJob: false, day: j.day === 'Today' ? 'Today · 15 Oct' : 'Yesterday · 14 Oct', dayNote: j.day === 'Today' ? '8 jobs shown' : '212 jobs' });
+      const running = !!j.step;
+      rows.push({
+        ...j, isDay: false, isJob: true, running, still: !running,
+        refunded: !!j.refunded, err: j.err || '', differs: !!j.differs, charged: j.charged || '',
+        checked: !!sel[j.id],
+        rowBg: sel[j.id] ? 'var(--primary-soft)' : (j.tone === 'bad' ? 'var(--bad-bg)' : 'transparent'),
+        toggle: () => this.setState({ selected: { ...this.state.selected, [j.id]: !this.state.selected[j.id] } })
+      });
+    });
+    return {
+      themeClass: dark ? 'th-dark' : 'th-light',
+      toggleTheme: () => this.setState({ dark: !dark }),
+      tabs, hours, rows,
+      ledger: [
+        { k: 'In progress', v: '4', color: 'var(--text)' },
+        { k: 'Completed', v: '1,284', color: 'var(--text)' },
+        { k: 'Failed', v: '37', color: 'var(--bad)' },
+        { k: 'Failed pre-job · 24 h', v: '6', color: 'var(--bad)' },
+        { k: 'Accounts ready', v: '7 / 8', color: 'var(--text)' },
+        { k: 'Accounts dead · disabled', v: '1 · 0', color: 'var(--bad)' },
+        { k: 'Videos made', v: '335', color: 'var(--text)' },
+        { k: 'Images made', v: '120', color: 'var(--text)' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
