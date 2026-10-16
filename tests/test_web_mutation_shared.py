@@ -68,15 +68,20 @@ def test_the_table_selection_column_and_setselection():
     vitest("tests/unit/shared/data-table-selection.spec.ts")
 
 
-@mutation(PAGER, "emit(\"move\", (p - 1) * props.limit)", "emit(\"move\", p * props.limit)",
+PAGE_LIST = "apps/admin-web/src/components/shared/page-list.ts"
+PAGER_SPEC = "tests/unit/shared/list-pager.spec.ts"
+
+
+@mutation(PAGER, 'emit("move", (page - 1) * props.limit)', 'emit("move", page * props.limit)',
           expect="clicking a page emits move with that page's offset")
 @mutation(PAGER, "Math.floor(props.offset / props.limit) + 1", "Math.floor(props.offset / props.limit)",
           expect="the active page follows the offset")
-@mutation(PAGER, "if (resizing.value) return;", "", expect="a size change emits size and never a move")
-@mutation(PAGER, "'sizes, prev, pager, next'", "'sizes, prev, pager, next, jumper'",
-          expect="has the size select, text Previous and Next and no jumper")
+@mutation(PAGER, 'if (currentPage.value > pageCount.value) emit("move"', 'if (false) emit("move"',
+          expect="a list that shrank under the page on screen moves the pager to the last page")
 @mutation(PAGER, "limit: 10,", "limit: 50,", expect="default size 10")
-@mutation(PAGER, "isPhone ? 'prev, slot, next'", "!isPhone ? 'prev, slot, next'",
+@mutation(PAGER, '<span v-if="!isPhone" class="pager__text">', '<span v-if="isPhone" class="pager__text">',
+          expect="on a phone it is Previous, a count and Next")
+@mutation(PAGER, 'v-if="!isPhone"\n        class="pager__size"', 'v-if="isPhone"\n        class="pager__size"',
           expect="on a phone it is Previous, a count and Next")
 @mutation(PAGER, "props.sizes.includes(props.limit)", "true",
           expect="a limit that is not in the list is added to the sizes")
@@ -86,10 +91,34 @@ def test_the_table_selection_column_and_setselection():
           expect="the last page is cut at the total")
 @mutation(PAGER, '.toLocaleString("en-US")', ".toString()", expect="a thousand gets a separator")
 @mutation(PAGER, 'if (props.total === 0) return "Showing 0 of 0";', "", expect="an empty list says so")
-@mutation(PAGER, 'v-if="!isPhone"', 'v-if="isPhone"', expect="on a phone it is Previous, a count and Next")
+@mutation(PAGER, ':aria-disabled="!hasPrev"', ':aria-disabled="false"',
+          expect="Previous is disabled and silent on page 1")
+@mutation(PAGER, "if (page < 1 || ", "if (", expect="Previous is disabled and silent on page 1")
+@mutation(PAGER, "page > pageCount.value ||", "", expect="Next is disabled and silent on the last page")
+@mutation(PAGER, "|| page === currentPage.value", "", expect="the current page emits nothing")
+@mutation(PAGER, "slot === pageCount && String(slot)", "String(slot)",
+          expect="only the last page is wide")
+@mutation(PAGER, "String(slot).length >= 3", "String(slot).length >= 4",
+          expect="draws the Jobs state exactly: 1 2 3 … 133")
+@mutation(PAGER, "'is-active': slot === currentPage", "'is-active': false",
+          expect="shows 'Showing a-b of total' and one numbered page per limit")
+@mutation(PAGER, "Number(v)", "v", expect="a size change emits size with the number and never a move")
 @pytest.mark.web_unit
 def test_the_pager_offsets_sizes_and_phone_layout():
-    vitest("tests/unit/shared/list-pager.spec.ts")
+    vitest(PAGER_SPEC)
+
+
+@mutation(PAGE_LIST, "if (count <= 5)", "if (count <= 4)", expect="five pages or fewer show every number")
+@mutation(PAGE_LIST, "if (current <= 3)", "if (current <= 2)", expect="near the start the first three pages show")
+@mutation(PAGE_LIST, "if (current >= count - 2)", "if (current > count - 2)",
+          expect="near the start the first three pages show, near the end the last three")
+@mutation(PAGE_LIST, "current - 1, current, current + 1", "current - 2, current, current + 1",
+          expect="in the middle the page and its two neighbours show")
+@mutation(PAGE_LIST, '[1, "…", count - 2, count - 1, count]', '[1, count - 2, count - 1, count]',
+          expect="near the start the first three pages show, near the end the last three")
+@pytest.mark.web_unit
+def test_the_page_list_follows_the_drawn_state():
+    vitest(PAGER_SPEC)
 
 
 @mutation("apps/admin-web/src/components/shared/confirm-dialog.ts",
@@ -145,12 +174,13 @@ def test_the_brand_logo_follows_the_theme_and_the_tokens_are_the_kits():
 STATUS_CHIP = "apps/admin-web/src/components/shared/StatusChip.vue"
 
 
-@mutation(STATUS_CHIP, 'bad: "danger"', 'bad: "warning"', expect="is an el-tag whose type follows the tone")
-@mutation(STATUS_CHIP, 'warn: "warning"', 'warn: "danger"', expect="is an el-tag whose type follows the tone")
-@mutation(STATUS_CHIP, 'ok: "success"', 'ok: "info"', expect="is an el-tag whose type follows the tone")
+@mutation(STATUS_CHIP, ":class=\"`tone-${resolved}`\"", ":class=\"'tone-ok'\"",
+          expect="each tone picks its own class")
+@mutation(STATUS_CHIP, "props.tone ?? toneOf(props.status)", "toneOf(props.status)",
+          expect="a tone given by the caller wins over the lookup")
 @pytest.mark.web_unit
-def test_the_status_chip_tag_type_follows_the_tone():
-    vitest("tests/unit/shared/small-components.spec.ts")
+def test_the_status_chip_tone_class_follows_the_tone():
+    vitest(LEDGER_SPEC, "tests/unit/shared/small-components.spec.ts")
 
 
 SHARED = "apps/admin-web/src/components/shared"
@@ -162,7 +192,11 @@ NOTIFY = f"{SRC}/lib/notify.ts"
 LEDGER_SPEC = "tests/unit/shared/ledger-money-chip.spec.ts"
 
 
-@mutation(LEDGER, "{ columns: 1 }", "{ columns: 2 }", expect="one column by default")
+@mutation(LEDGER, 'v-if="item.was !== undefined" class="ledger__was"', 'v-if="item.was" class="ledger__was"',
+          expect="a was of 0 is still shown")
+@mutation(LEDGER, 'v-if="item.note"', 'v-if="!item.note"', expect="a struck old value, an arrow and the value")
+@mutation(LEDGER, "columns: 1,", "columns: 2,", expect="one column by default")
+@mutation(LEDGER, 'variant: "band",', 'variant: "drawer",', expect="the Jobs band is the default box")
 @mutation(LEDGER, "item.tone !== 'neutral'", "true", expect="a tone colours the value; neutral and none do not")
 @mutation(LEDGER, "item.mono ? 'is-mono' : ''", "'is-mono'", expect="mono is for the value only")
 @mutation(LEDGER, 'class="ledger__leader" aria-hidden="true"', 'class="ledger__leader"',
@@ -175,16 +209,16 @@ def test_the_ledger_list_columns_tones_and_leaders():
 @mutation(MONEY, "props.net < props.price", "props.net <= props.price",
           expect="no refund when the net equals the price")
 @mutation(MONEY, 'typeof props.price === "number" && typeof props.net === "number" &&', "true &&",
-          expect="a net that is not known yet is a dash and never a refund")
-@mutation(MONEY, '(typeof props.net === "number" ? String(props.net) : "-")', "(String(props.net))",
-          expect="a net that is not known yet is a dash")
+          expect="a net that is not known yet is an em dash and never a refund")
+@mutation(MONEY, 'String(props.net) : "—"', 'String(props.net) : "-"',
+          expect="a net that is not known yet is an em dash")
+@mutation(MONEY, ':size="13"', ':size="12"', expect="the refund reads struck charge")
 @pytest.mark.web_unit
 def test_the_money_cell_strikes_a_refund_and_only_a_refund():
     vitest(LEDGER_SPEC)
 
 
 @mutation(STATUS_CHIP, 'v-if="props.step"', 'v-if="!props.step"', expect="a step replaces the dot")
-@mutation(STATUS_CHIP, 'effect="light"\n    round', 'effect="light"', expect="is a round tag")
 @pytest.mark.web_unit
 def test_the_status_chip_shows_its_step_and_is_a_pill():
     vitest(LEDGER_SPEC)
@@ -199,6 +233,12 @@ def test_the_status_chip_shows_its_step_and_is_a_pill():
 @mutation(DRAWER, 'v-if="$slots.tabs"', 'v-if="true"', expect="none of those regions exist")
 @mutation(DRAWER, 'v-if="$slots.footer"', 'v-if="true"', expect="none of those regions exist")
 @mutation(DRAWER, ':data-testid="props.testid"', 'data-testid="x"', expect="the fixed test id")
+@mutation(DRAWER, "props.heading ?? props.title", "props.title", expect="heading is the visible h2 text")
+@mutation(DRAWER, ':aria-label="props.backLabel"', 'aria-label="Back"', expect="a phone sheet has a Back button")
+@mutation(DRAWER, 'aria-label="Theme"', 'aria-label="Mode"', expect="a phone sheet has a Back button")
+@mutation(DRAWER, "isPhone ? 'h1' : 'h2'", "isPhone ? 'h2' : 'h1'", expect="a phone sheet has a Back button")
+@mutation(DRAWER, ":class=\"{ 'is-sheet': isPhone }\"", ":class=\"{ 'is-sheet': false }\"",
+          expect="a phone sheet has a Back button")
 @pytest.mark.web_unit
 def test_the_detail_drawer_is_a_named_destroyed_sheet():
     vitest("tests/unit/shared/detail-drawer.spec.ts")
@@ -284,3 +324,109 @@ def test_the_table_opt_ins_day_rows_tablet_and_phone_list():
 @pytest.mark.web_unit
 def test_toasts_stack_where_the_design_puts_them():
     vitest("tests/unit/shared/notify.spec.ts")
+
+
+MENUS_SPEC = "tests/unit/shared/menus-and-chips.spec.ts"
+FILTER = f"{SHARED}/FilterSelect.vue"
+ACTION_MENU = f"{SHARED}/ActionMenu.vue"
+COMMAND_CHIP = f"{SHARED}/CommandChip.vue"
+DRAWER_TABS = f"{SHARED}/DrawerTabs.vue"
+DRAWER_PANEL = f"{SHARED}/DrawerPanel.vue"
+DRAWER_IDS = f"{SHARED}/drawer-tab-ids.ts"
+COPY = f"{SHARED}/CopyButton.vue"
+
+
+@mutation(FILTER, 'v-if="props.chevron"', 'v-if="!props.chevron"',
+          expect="the height follows the size and the chevron can be left out")
+@mutation(FILTER, 'v-if="props.label"', 'v-if="!props.label"', expect="is a listbox button")
+@mutation(FILTER, 'role="listbox"', 'role="menu"', expect="is a listbox button")
+@mutation(FILTER, 'current?.label ?? ""', 'current?.label ?? "?"', expect="shows the label of the current value")
+@mutation(FILTER, ":class=\"`is-${props.size}`\"", ":class=\"'is-toolbar'\"",
+          expect="the height follows the size and the chevron can be left out")
+@mutation(ACTION_MENU, ':stroke="2.4"', ':stroke="2"', expect="is a 32 px button named More")
+@mutation(COMMAND_CHIP, 'v-if="props.time"', 'v-if="!props.time"', expect="ok: a dot, `ok ·` and the time in mono")
+@mutation(COMMAND_CHIP, 'v-if="props.message"', 'v-if="!props.message"', expect="error: a dot and `error · <message>`")
+@mutation(COMMAND_CHIP, ":class=\"`is-${props.state}`\"", ":class=\"'is-ok'\"", expect="running: a spinner")
+@mutation(DRAWER_TABS, ":aria-controls=\"drawerPanelId(props.idPrefix, t.key)\"",
+          ":aria-controls=\"drawerTabId(props.idPrefix, t.key)\"",
+          expect="each tab has an id and names the panel it controls")
+@mutation(DRAWER_PANEL, ':aria-labelledby="drawerTabId(props.idPrefix, props.name)"', ':aria-labelledby="props.name"',
+          expect="is a tabpanel whose id is the one its tab controls")
+@mutation(DRAWER_PANEL, 'role="tabpanel"', 'role="region"', expect="is a tabpanel whose id is the one its tab controls")
+@mutation(DRAWER_PANEL, 'v-show="props.name === props.selected"', 'v-show="true"',
+          expect="only the selected tab's panel is shown")
+@mutation(DRAWER_IDS, "`${prefix}-panel-${key}`", "`${prefix}-tab-${key}`", expect="each tab has an id")
+@mutation(DRAWER_TABS, "t.key === props.modelValue ? 0 : -1", "t.key === props.modelValue ? 0 : 0",
+          expect="the current one selected and the only one in the tab order")
+@mutation(DRAWER_TABS, ':aria-selected="t.key === props.modelValue"', ':aria-selected="true"',
+          expect="the current one selected and the only one in the tab order")
+@mutation(DRAWER_TABS, "(from + step + props.tabs.length) % props.tabs.length", "(from + step) % props.tabs.length",
+          expect="wrap round")
+@pytest.mark.web_unit
+def test_the_select_menu_chip_and_tabs_keep_their_shape():
+    vitest(MENUS_SPEC)
+
+
+SKIN = f"{SHARED}/skin.css"
+CONFIRM_CSS = f"{SHARED}/confirm-dialog.css"
+NOTIFY_CSS = f"{SRC}/lib/notify.css"
+PAGER_CSS_SPEC = "tests/unit/shared/table-pager-style.spec.ts"
+SKIN_SPEC = "tests/unit/shared/skin.spec.ts"
+
+
+@mutation(SKIN, "opacity: 0.45;", "opacity: 0.5;", expect="a disabled primary is the purple at 45 %")
+@mutation(SKIN, "--el-button-hover-bg-color: transparent;", "--el-button-hover-bg-color: var(--rl-raised);",
+          expect="the danger outline draws no hover")
+@mutation(SKIN, "--el-button-text-color: #ffffff;\n  padding: 0 16px;",
+          "--el-button-text-color: #ffffff;\n  padding: 0 14px;",
+          expect="every button is 13 px / 400")
+@mutation(SKIN, "  width: 15px;\n  height: 15px;\n  border-radius: 2px;",
+          "  width: 16px;\n  height: 16px;\n  border-radius: 2px;",
+          expect="is the native-look box")
+@mutation(SKIN, "min-width: 200px;", "min-width: 180px;", expect="the menu is a 12 px radius surface")
+@mutation(SKIN, "background: var(--rl-fg);\n  color: var(--rl-surface);",
+          "background: var(--rl-surface);\n  color: var(--rl-fg);",
+          expect="the tooltip is inverted")
+@mutation(CONFIRM_CSS, "width: min(440px, 100%);", "width: min(420px, 100%);", expect="the confirm box is 440 wide")
+@mutation(CONFIRM_CSS, "padding: 20px 20px 16px;", "padding: 20px 24px;", expect="the confirm box is 440 wide")
+@mutation(NOTIFY_CSS, "  background-color: var(--rl-surface);\n}\n.el-message--success",
+          "  background-color: var(--rl-ok-bg);\n}\n.el-message--success",
+          expect="a toast is 260 wide")
+@mutation(NOTIFY_CSS, "min-width: 260px;", "min-width: 240px;", expect="a toast is 260 wide")
+@mutation(NOTIFY_CSS, "padding: 12px 8px 12px 16px;", "padding: 12px 16px;", expect="a toast is 260 wide")
+@mutation(SKIN, "  padding: 6px 10px;\n  border: 0;", "  padding: 6px 10px;\n  border: 1px solid var(--rl-line);",
+          expect="the tooltip is exactly the inverted pill")
+@mutation(SKIN, "  overflow: hidden;\n  border: 1px solid var(--rl-line);\n  border-radius: 16px;",
+          "  overflow: hidden;\n  border: 1px solid var(--rl-line);\n  border-radius: 12px;",
+          expect="the card is the surface with a hairline and radius 16")
+@mutation(SKIN, "--el-button-hover-text-color: var(--rl-bad);\n  --el-button-active-bg-color: transparent;",
+          "--el-button-hover-text-color: var(--rl-fg);\n  --el-button-active-bg-color: transparent;",
+          expect="no hover change is drawn")
+@pytest.mark.web_unit
+def test_the_shared_skin_keeps_the_drawn_values():
+    vitest(SKIN_SPEC)
+
+
+@mutation(TABLE, "height: 38px;\n  border-bottom: 0;", "height: 40px;\n  border-bottom: 0;",
+          expect="a header cell is 38 high")
+@mutation(TABLE, "height: 56px;\n  border-bottom: 1px solid var(--rl-line);",
+          "height: 52px;\n  border-bottom: 1px solid var(--rl-line);",
+          expect="a header cell is 38 high")
+@mutation(TABLE, "--row-tone-color: var(--rl-warn);\n  --row-tone-fill: transparent;",
+          "--row-tone-color: var(--rl-warn);\n  --row-tone-fill: var(--rl-warn-bg);",
+          expect="only a failed row is tinted")
+@mutation(TABLE, "padding: 44px 16px 52px;", "padding: 40px 16px 48px;", expect="the empty state is padded 44 16 52")
+@mutation(PAGER, "min-width: 40px;", "min-width: 32px;", expect="a page button is 32 high")
+@mutation(PAGER, "border-radius: 10px;\n  background: transparent;\n  color: var(--rl-fg);",
+          "border-radius: 8px;\n  background: transparent;\n  color: var(--rl-fg);", expect="a page button is 32 high")
+@pytest.mark.web_unit
+def test_the_table_and_pager_keep_the_drawn_values():
+    vitest(PAGER_CSS_SPEC)
+
+
+@mutation(COPY, 'props.size === "small" ? "tiny" : "button"', 'props.size === "small" ? "button" : "tiny"',
+          expect="the old size prop is an alias")
+@mutation(COPY, "props.variant ??", "props.size ??", expect="variant wins")
+@pytest.mark.web_unit
+def test_the_copy_button_shape_follows_variant_and_the_old_size():
+    vitest("tests/unit/shared/small-components.spec.ts")

@@ -211,6 +211,16 @@ describe("DataTable selection with day rows", () => {
 });
 
 describe("DataTable tablet and opt-in props", () => {
+  it("the selection column is 40 px on desktop and 44 px on a tablet", async () => {
+    stubWidth("desktop");
+    const desktop = await table({ selectable: true });
+    expect(desktop.find("colgroup col").attributes("width")).toBe("40");
+    stubWidth("tablet");
+    const tablet = await table({ selectable: true });
+    expect(tablet.find("colgroup col").attributes("width")).toBe("44");
+    expect(tablet.classes()).toContain("has-selection");
+  });
+
   it("shows every column unless a tablet column list is given", async () => {
     stubWidth("tablet");
     const w = await table({ rows: jobs });
@@ -384,7 +394,7 @@ describe("DataTable phone list", () => {
       { rows: [], emptyText: "No jobs" },
       { ...slots, "empty-action": "<button class='act'>Clear</button>" },
     );
-    expect(w.find(".el-empty").text()).toContain("No jobs");
+    expect(w.find(".data-table__empty").text()).toContain("No jobs");
     expect(w.find(".act").exists()).toBe(true);
   });
 
