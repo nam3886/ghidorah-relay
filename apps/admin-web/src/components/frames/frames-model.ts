@@ -10,26 +10,33 @@ export const DEFAULT_TARGET = "default";
 export const PROMPT_MARKER = "{{client_prompt}}";
 export const TRACKING_MARKER = "{{tracking_code}}";
 
-// "version 7 by owner, 15/10/2026, 10:00:00 (restored from 3)"
-export function versionLine(v: FrameVersion | null | undefined): string {
-  if (!v) return "no version";
-  const restored = v.restored_from ? ` (restored from ${v.restored_from})` : "";
-  return `version ${v.id} by ${v.created_by}, ${fmtTime(v.created_ms)}${restored}`;
-}
+// "v7": the version as the tables and the history draw it. No version at all is said so.
+export const versionTag = (v: FrameVersion | null | undefined): string => (v ? `v${v.id}` : "no version");
 
-// The history as the timeline draws it: newest version first (ids only grow), the input list left as it was.
+const two = (n: number): string => String(n).padStart(2, "0");
+
+// "14/10": the day a lock was set, day first
+export const shortDay = (ms: number | null): string => {
+  if (!ms) return "-";
+  const d = new Date(ms);
+  return `${two(d.getDate())}/${two(d.getMonth() + 1)}`;
+};
+
+// "14/10 18:40": the time of a history row
+export const shortStamp = (ms: number | null): string => {
+  if (!ms) return "-";
+  const d = new Date(ms);
+  return `${shortDay(ms)} ${two(d.getHours())}:${two(d.getMinutes())}`;
+};
+
+// The history newest version first (ids only grow), the input list left as it was.
 export const newestFirst = (history: FrameVersion[]): FrameVersion[] => [...history].sort((a, b) => b.id - a.id);
-
-// The colour of a version on the timeline: a version that follows the default is grey, a restored one amber, the
-// others (an own text written by hand) blue.
-export const versionType = (v: FrameVersion): "info" | "warning" | "primary" =>
-  v.text === null ? "info" : v.restored_from ? "warning" : "primary";
 
 const lockWords = (lock: FrameLock): string => `${lock.locked ? "locked" : "unlocked"} by ${lock.created_by}`;
 
-// "locked by owner, 15/10/2026, 10:00:00" or "never toggled"
+// "locked 14/10 by admin"; a frame whose lock was never toggled has nothing to say
 export const lockLine = (lock: FrameLock | null | undefined): string =>
-  lock ? `${lockWords(lock)}, ${fmtTime(lock.created_ms)}` : "never toggled";
+  lock ? `${lock.locked ? "locked" : "unlocked"} ${shortDay(lock.created_ms)} by ${lock.created_by}` : "";
 
 export const lockHistoryLine = (history: FrameLock[]): string =>
   `Lock history: ${history.map((l) => `${lockWords(l)} ${fmtTime(l.created_ms)}`).join("; ")}`;

@@ -18,7 +18,8 @@ def run(page, app, live, sw, data):
     sw.step("settings", "list", lambda: expect(page.get_by_label("Value of log_retention_days")).to_be_visible())
     sw.step("settings", "edited-row", lambda: (
         page.get_by_label("Value of log_retention_days").fill("45"),
-        expect(page.locator(".settings tbody tr", has_text="log_retention_days")).to_contain_text("edited")))
+        expect(page.locator("#settings tbody tr, #settings li", has_text="log_retention_days"))
+        .to_contain_text("edited")))
     sw.step("settings", "saved-toast", lambda: (
         page.get_by_role("button", name="Save log_retention_days").click(),
         expect(page.locator(".el-message--success").first).to_be_visible()))

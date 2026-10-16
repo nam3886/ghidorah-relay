@@ -11,10 +11,10 @@ import {
 } from "@/api/settings";
 import PasswordForm from "@/components/settings/PasswordForm.vue";
 import SettingsTable from "@/components/settings/SettingsTable.vue";
+import { useBreakpoint } from "@/composables/use-breakpoint";
 import { parseValue } from "@/components/settings/settings-value";
-import DataTable from "@/components/shared/DataTable.vue";
-import StatusChip from "@/components/shared/StatusChip.vue";
-import type { Column } from "@/components/shared/types";
+import PricesTable from "@/components/settings/PricesTable.vue";
+import SettingsCard from "@/components/settings/SettingsCard.vue";
 import { useBusy } from "@/composables/use-busy";
 import { useLatest } from "@/composables/use-latest";
 import { errorText } from "@/lib/errors";
@@ -22,6 +22,7 @@ import { notify } from "@/lib/notify";
 import { useScopeStore } from "@/stores/scope";
 
 const scope = useScopeStore();
+const { isPhone, isTablet } = useBreakpoint();
 const { busy, run } = useBusy();
 
 const items = ref<SettingItem[]>([]);
@@ -87,94 +88,313 @@ const reset = (key: string) =>
 onMounted(reload);
 watch(() => scope.provider, loadPrices);
 
-const priceColumns: Column[] = [
-  { key: "provider", label: "Provider" },
-  { key: "model", label: "Model", minWidth: 160 },
-  { key: "duration", label: "Duration", align: "right" },
-  { key: "charged", label: "Charged", align: "right" },
-  { key: "jobs", label: "Jobs with a figure", align: "right" },
-  { key: "disagreed", label: "Upstream disagreed", align: "right" },
-  { key: "lowest_upstream", label: "Lowest upstream", align: "right" },
-  { key: "substituted", label: "Substituted (not counted)", align: "right" },
-];
 // A row is one (provider, model, duration): that is its table key.
 const withKey = (row: PriceRow): KeyedPrice => ({ ...row, id: `${row.provider}/${row.model}/${row.duration}` });
+
+// The sub-navigation: in-page anchors. The app routes by hash, so a click scrolls to the card instead of changing it.
+const SECTIONS = [
+  { id: "settings", label: "Settings" },
+  { id: "boot", label: "Boot-only values" },
+  { id: "prices", label: "Measured prices" },
+  { id: "password", label: "Change password" },
+] as const;
+const current = ref<string>("settings");
+function go(id: string): void {
+  current.value = id;
+  document.getElementById(id)?.scrollIntoView({ block: "start" });
+}
 </script>
 
 <template>
-  <section class="settings">
-    <div class="settings__block">
-      <h3>Settings</h3>
-      <SettingsTable
-        :items="items"
-        :loading="settingsLoading"
-        :error="settingsError"
-        :busy="busy"
-        @save="save"
-        @reset="reset"
-        @retry="loadSettings"
-      />
-    </div>
-
-    <div class="settings__block">
-      <h3>Boot-only values (read-only)</h3>
-      <el-descriptions v-if="envOnly.length" :column="1" border class="settings__env" aria-label="Boot-only values">
-        <el-descriptions-item v-for="row in envOnly" :key="row.name">
-          <template #label
-            ><span class="mono">{{ row.name }}</span></template
-          >
-          <span class="mono">{{ row.value === null || row.value === undefined ? "-" : row.value }}</span>
-        </el-descriptions-item>
-      </el-descriptions>
-      <el-empty v-else description="None" :image-size="48" />
-    </div>
-
-    <div class="settings__block">
-      <h3>Measured prices</h3>
-      <p class="settings__note">
-        Points charged against what the upstream said it took. A job the upstream did something else for (another model
-        or length) is counted apart.
+  <section class="settings" :class="{ 'is-tablet': isTablet, 'is-phone': isPhone }">
+    <div>
+      <h1 class="settings__title">Settings</h1>
+      <p class="settings__subtitle">
+        Values the relay reads at run time, what it was started with, what upstream charges, and your password.
       </p>
-      <DataTable
-        :columns="priceColumns"
-        :rows="prices"
-        :loading="pricesLoading"
-        :error="pricesError"
-        empty-text="No job has an upstream figure yet"
-        max-height="none"
-        @retry="loadPrices"
-      >
-        <template #cell-duration="{ row }">{{ row.duration === null ? "-" : `${row.duration}s` }}</template>
-        <template #cell-disagreed="{ row }">
-          <StatusChip v-if="row.disagreed" status="error" :label="String(row.disagreed)" />
-          <template v-else>0</template>
-        </template>
-        <template #cell-lowest_upstream="{ row }">{{
-          row.lowest_upstream === null ? "-" : row.lowest_upstream
-        }}</template>
-      </DataTable>
     </div>
 
-    <PasswordForm />
+    <div class="settings__row">
+      <nav class="snav" aria-label="Settings sections">
+        <ul>
+          <li v-for="s in SECTIONS" :key="s.id">
+            <a
+              :href="`#${s.id}`"
+              :class="{ 'is-current': current === s.id }"
+              :aria-current="current === s.id ? 'true' : undefined"
+              @click.prevent="go(s.id)"
+              >{{ s.label }}</a
+            >
+          </li>
+        </ul>
+      </nav>
+
+      <div class="settings__content">
+        <SettingsCard
+          id="settings"
+          title="Settings"
+          note="A saved value is kept in the database and wins over the environment. Reset returns to the environment value, or the default."
+        >
+          <SettingsTable
+            :items="items"
+            :loading="settingsLoading"
+            :error="settingsError"
+            :busy="busy"
+            @save="save"
+            @reset="reset"
+            @retry="loadSettings"
+          />
+        </SettingsCard>
+
+        <SettingsCard
+          id="boot"
+          title="Boot-only values"
+          note="Read once when the relay starts. Change them in the environment and restart. Secrets are never listed."
+          snug
+        >
+          <dl v-if="envOnly.length" class="boot" aria-label="Boot-only values">
+            <div v-for="row in envOnly" :key="row.name" class="boot__row">
+              <dt>{{ row.name }}</dt>
+              <span class="boot__leader" aria-hidden="true" />
+              <dd>{{ row.value === null || row.value === undefined ? "-" : row.value }}</dd>
+            </div>
+          </dl>
+          <p v-else class="settings__none">None</p>
+        </SettingsCard>
+
+        <SettingsCard
+          id="prices"
+          title="Measured prices"
+          note="What upstream reported per job, against what the relay charges."
+        >
+          <PricesTable :rows="prices" :loading="pricesLoading" :error="pricesError" @retry="loadPrices" />
+        </SettingsCard>
+
+        <PasswordForm />
+      </div>
+    </div>
   </section>
 </template>
 
 <style scoped>
 .settings {
-  display: grid;
-  gap: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
-.settings__block h3 {
-  margin: 0 0 8px;
-  font-size: 16px;
+.settings__title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }
-.settings__note {
-  margin: 0 0 8px;
+.settings__subtitle {
+  margin: 4px 0 0;
   color: var(--rl-muted);
-  font-size: 12px;
 }
-.mono {
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+.settings__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
+}
+.settings__content {
+  flex: 1 1 640px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.settings__none {
+  margin: 0;
+  padding: 14px 20px;
+  font-size: 13px;
+  color: var(--rl-muted);
+}
+
+.snav {
+  flex: 0 1 200px;
+  min-width: 180px;
+  position: sticky;
+  top: 16px;
+}
+.snav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.snav a {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--rl-muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.snav a.is-current {
+  background: var(--rl-primary-soft);
+  color: var(--rl-fg);
+  font-weight: 600;
+}
+
+.boot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 20px 18px;
+  background: var(--rl-raised);
+  font-size: 13px;
+}
+.boot__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.boot dt {
+  font-family: var(--rl-mono);
   font-size: 12px;
+  color: var(--rl-muted);
+  white-space: nowrap;
+}
+.boot__leader {
+  flex: 1;
+  min-width: 16px;
+  border-bottom: 1px dotted var(--rl-line-strong);
+  transform: translateY(-4px);
+}
+.boot dd {
+  margin: 0;
+  font-family: var(--rl-mono);
+  font-weight: 500;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .settings__title {
+    font-size: 24px;
+    line-height: 32px;
+    letter-spacing: -0.012em;
+  }
+  .settings__row {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 20px;
+  }
+  .settings__content {
+    flex: none;
+  }
+  .snav {
+    flex: none;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    min-width: 0;
+    margin: -8px -24px;
+    padding: 8px 24px;
+    background: var(--rl-bg);
+    overflow-x: auto;
+  }
+  .snav ul {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .snav li {
+    flex: none;
+  }
+  .snav a {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    height: 36px;
+    padding: 0 14px;
+    border: 1px solid var(--rl-line-strong);
+    border-radius: 18px;
+    background: var(--rl-surface);
+    font-size: 13px;
+  }
+  .snav a.is-current {
+    border-color: var(--rl-primary);
+    background: var(--rl-primary-soft);
+  }
+}
+@media (max-width: 767px) {
+  .settings {
+    gap: 16px;
+  }
+  .settings__title {
+    font-size: 22px;
+    line-height: 30px;
+    letter-spacing: -0.01em;
+  }
+  .settings__subtitle {
+    margin-top: 2px;
+  }
+  .settings__row {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .settings__content {
+    flex: none;
+    gap: 16px;
+  }
+  .snav {
+    flex: none;
+    position: static;
+    min-width: 0;
+    margin: 0 -16px;
+    overflow-x: auto;
+  }
+  .snav ul {
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 0 16px;
+  }
+  .snav li {
+    flex: none;
+  }
+  .snav a {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--rl-line-strong);
+    border-radius: 22px;
+    background: transparent;
+    font-size: 14px;
+  }
+  .snav a.is-current {
+    border-color: var(--rl-primary);
+    background: var(--rl-primary-soft);
+  }
+  .boot {
+    gap: 12px;
+    padding: 14px 16px 18px;
+  }
+  .boot__row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+  .boot dt {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .boot__leader {
+    display: none;
+  }
+  .boot dd {
+    text-align: left;
+  }
 }
 </style>

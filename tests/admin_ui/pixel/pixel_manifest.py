@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from patchright.sync_api import expect
+from pixel_lane7 import frames_drive, frames_seed, key_page_drive, key_page_seed, settings_drive, settings_seed
 from pixel_seed import NOW, shell_seed
 
 TIMEOUT_MS = 10_000
@@ -62,4 +63,18 @@ SHELL = [
     Entry("P-Jobs", "#/jobs", seed=shell_seed, now=NOW, region=(0, 0, 390, 100), label="shell"),
 ]
 
-ENTRIES: list[Entry] = [*LOGIN, *SHELL]
+# ---- Prompt frames, Settings, Test (lane 7) ------------------------------------------------------------------------
+# One seed and one drive per screen (pixel_lane7.py), shared by its desktop, tablet and phone board. The module says
+# what the app cannot be made to show of the boards' data (model names, version numbers, the settings rows).
+
+LANE7 = [
+    Entry(board, route, seed=seed, now=NOW, drive=drive)
+    for route, seed, drive, boards in (
+        ("#/frames", frames_seed, frames_drive, ("B-Frames", "T-Frames", "P-Frames")),
+        ("#/settings", settings_seed, settings_drive, ("B-Settings", "T-Settings", "P-Settings")),
+        ("#/test", key_page_seed, key_page_drive, ("B-Test", "T-Test", "P-Test")),
+    )
+    for board in boards
+]
+
+ENTRIES: list[Entry] = [*LOGIN, *SHELL, *LANE7]

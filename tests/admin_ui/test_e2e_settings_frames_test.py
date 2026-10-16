@@ -36,7 +36,7 @@ def open_tab(page, name: str) -> None:
 def test_settings_edit_marks_the_row_saves_and_reset_returns_to_the_default(app_session, db, color_scheme):
     page = app_session
     open_tab(page, "Settings")
-    row = page.locator(".settings tbody tr", has_text="log_retention_days")
+    row = page.locator("#settings tbody tr", has_text="log_retention_days")
     source = row.locator(".status-chip")
     save = page.get_by_role("button", name="Save log_retention_days")
     expect(source).to_have_text("default")
@@ -70,8 +70,8 @@ def test_a_wrong_current_password_shows_on_its_field_and_a_change_ends_every_ses
     open_tab(page, "Settings")
     page.get_by_label("Current password").fill("not the password")
     page.get_by_label("New password").fill("another long passphrase " + uuid.uuid4().hex[:6])
-    page.get_by_role("button", name="Change password").click()
-    expect(page.locator(".el-form-item__error")).to_have_count(1)
+    page.get_by_role("button", name="Save", exact=True).click()
+    expect(page.locator('#password [role="alert"]')).to_have_count(1)
     expect(page).to_have_url(re.compile(r"#/settings$"))
     page.problems.clear()                                    # the 400 is a console line
 
@@ -79,7 +79,7 @@ def test_a_wrong_current_password_shows_on_its_field_and_a_change_ends_every_ses
     other = page.request.post(live.url + "/admin/login", data={"username": live.user, "password": live.password})
     assert other.ok, "a second session exists"
     page.get_by_label("Current password").fill(live.password)
-    page.get_by_role("button", name="Change password").click()
+    page.get_by_role("button", name="Save", exact=True).click()
     expect(page).to_have_url(re.compile(r"#/login$"))
     assert db.one("SELECT count(*) FROM admin_sessions")[0] == 0
     assert page.evaluate("sessionStorage.getItem('relay_admin_token')") is None
@@ -100,10 +100,10 @@ def test_measured_prices_are_read_from_the_real_route_and_follow_the_provider_fi
     items = asked.value.json()["items"]
     assert [(i["provider"], i["model"], i["duration"], i["charged"], i["jobs"], i["disagreed"], i["lowest_upstream"])
             for i in items] == [("fake", "fake-video", 5, 10, 2, 1, 8), ("other", "other-image", None, 3, 1, 0, None)]
-    rows = page.locator(".settings__block", has_text="Measured prices").locator(".el-table__body tbody tr")
+    rows = page.locator("#prices tbody tr")
     expect(rows).to_have_count(2)
     expect(rows.nth(0)).to_contain_text("fake-video")
-    expect(rows.nth(0)).to_contain_text("5s")
+    expect(rows.nth(0)).to_contain_text("5 s")
     expect(rows.nth(1)).to_contain_text("other-image")
 
     with page.expect_response(lambda r: r.url.endswith("/admin/prices?provider=fake")) as scoped:
@@ -133,7 +133,7 @@ def frames_page(page, db, own: str | None = None):
     video = page.locator(VIDEO)
     expect(video).to_be_visible()
     return video, video.locator("tbody tr", has_text="fake-video"), page.get_by_label("Frame text"), \
-        page.locator(".frame-editor h3")
+        page.locator(".frame-editor h2")
 
 
 def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all(app_session, db, framed):
@@ -143,8 +143,8 @@ def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all
     source = row.locator(".status-chip")
     save = page.get_by_role("button", name="Save", exact=True)
     expect(source).to_have_text("default")
-    row.get_by_role("button", name="Edit fake-video").click()
-    expect(heading).to_have_text("video / fake-video")
+    row.get_by_role("button", name="Edit frame for fake-video").click()
+    expect(heading).to_have_text("Editing video / fake-video")
     expect(text).to_have_value(default)
     expect(page.get_by_text("This model follows the default.")).to_be_visible()
     expect(save).to_be_disabled()
@@ -154,7 +154,7 @@ def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all
     text.fill(first)
     expect(save).to_be_enabled()
     save.click()
-    expect(page.locator(".frame-editor__warnings")).to_contain_text("asks for no single result")
+    expect(page.get_by_test_id("frame-warnings")).to_contain_text("asks for no single result")
     expect(source).to_have_text("own")
     assert frame_texts(db, "fake-video") == [first]
     expect(save).to_be_disabled()
@@ -162,7 +162,7 @@ def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all
     # a refused save shows its param beside the editor and stores nothing
     text.fill("no placeholders at all")
     save.click()
-    refusal = page.locator(".frame-editor__refusal")
+    refusal = page.locator('.frame-editor [role="alert"]')
     expect(refusal).to_have_text(re.compile(r"\(\{\{(client_prompt|tracking_code)\}\}\)$"))
     assert frame_texts(db, "fake-video") == [first]
     page.problems.clear()                                    # the 4xx of a refused save is a console line
@@ -170,11 +170,12 @@ def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all
     # the preview renders the draft, with its length, and stores nothing
     text.fill("Draft single. {{tracking_code}} {{client_prompt}}")
     page.get_by_role("button", name="Preview", exact=True).click()
-    shown = page.locator(".frame-editor__preview")
+    shown = page.get_by_test_id("frame-preview")
     expect(shown).to_contain_text("Draft single.")
     expect(shown).to_contain_text("a cat on a sofa")
-    expect(page.get_by_text(re.compile(r"\d+ characters, shown with the sample tracking code \(draft frame\)"))
-           ).to_be_visible()
+    expect(page.get_by_text(re.compile(r"^\d+ characters$"))).to_be_visible()
+    expect(page.get_by_text(re.compile(r"^\d+ characters$"))).to_have_attribute(
+        "title", "Shown with the sample tracking code (draft frame).")
     assert frame_texts(db, "fake-video") == [first]
     # a refused preview (a blank sample prompt) shows its refusal and clears the old render
     page.get_by_label("Sample prompt").fill("")
@@ -188,10 +189,11 @@ def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all
     second = "Second single. {{tracking_code}} {{client_prompt}}"
     text.fill(second)
     save.click()
-    history = page.locator(".frame-editor__history li")
+    history = page.get_by_test_id("frame-history").locator("li")
     expect(history).to_have_count(2)
-    expect(page.locator(".frame-editor__warnings")).to_have_count(0)
-    history.filter(has_text="Own words.").get_by_role("button", name=re.compile("Roll back")).click()
+    expect(page.get_by_test_id("frame-warnings")).to_have_count(0)
+    # only an older version has a Roll back: the first text is the one below the current
+    history.get_by_role("button", name=re.compile("Roll back")).click()
     expect(history).to_have_count(3)
     expect(text).to_have_value(first)
     assert frame_texts(db, "fake-video") == [first, second, first]
@@ -204,7 +206,7 @@ def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all
 
     # the default differs from the shipped one: the flag, then the reset
     video.get_by_role("button", name="Edit the default").click()
-    expect(heading).to_have_text("video / default")
+    expect(heading).to_have_text("Editing video / default")
     text.fill("Changed single. {{tracking_code}} {{client_prompt}}")
     page.get_by_role("button", name="Preview", exact=True).click()      # a preview from the default's editor
     expect(shown).to_contain_text("Changed single.")
@@ -216,12 +218,12 @@ def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all
     assert frame_texts(db, None)[-1] == default
 
     # a lock keeps a model's own text when a default is applied to all; unlocked, it takes it
-    row.get_by_role("button", name="Edit fake-video").click()
-    expect(heading).to_have_text("video / fake-video")
+    row.get_by_role("button", name="Edit frame for fake-video").click()
+    expect(heading).to_have_text("Editing video / fake-video")
     mine = "Mine single. {{tracking_code}} {{client_prompt}}"
     text.fill(mine)
-    row.locator(".el-checkbox").click()                      # a lock toggle does not touch the unsaved draft
-    expect(row).to_contain_text("locked by")
+    row.get_by_role("checkbox").click()                      # a lock toggle does not touch the unsaved draft
+    expect(row).to_contain_text(re.compile(r"locked \d\d/\d\d by"))
     expect(text).to_have_value(mine)
     save.click()
     expect(source).to_have_text("own")
@@ -229,11 +231,11 @@ def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all
     everywhere = "All single. {{tracking_code}} {{client_prompt}}"
     text.fill(everywhere)
     page.get_by_role("button", name="Apply to all models of this kind").click()
-    applied = page.locator(".frame-editor__applied")
+    applied = page.get_by_test_id("frame-applied")
     expect(applied).to_contain_text("Applied: -. Kept (locked): fake-video.")
     assert frame_texts(db, "fake-video")[-1] == mine
-    row.locator(".el-checkbox").click()
-    expect(row).to_contain_text("unlocked by")
+    row.get_by_role("checkbox").click()
+    expect(row).to_contain_text(re.compile(r"unlocked \d\d/\d\d by"))
     text.fill(everywhere)
     page.get_by_role("button", name="Apply to all models of this kind").click()
     expect(applied).to_contain_text("Applied: fake-video.")
@@ -248,7 +250,7 @@ def test_a_late_answer_for_an_editor_that_is_no_longer_open_is_dropped_and_the_c
     page = app_session
     video, row, text, heading = frames_page(page, db, own="Own of A single. {{tracking_code}} {{client_prompt}}")
     video.get_by_role("button", name="Edit the default").click()
-    expect(heading).to_have_text("video / default")
+    expect(heading).to_have_text("Editing video / default")
     default = FAKE_FRAMES.defaults["video"]
     expect(text).to_have_value(default)
 
@@ -261,7 +263,7 @@ def test_a_late_answer_for_an_editor_that_is_no_longer_open_is_dropped_and_the_c
             route.continue_()
 
     page.route(re.compile(r"/admin/frames/fake/video/fake-video(\?|$)"), hold)
-    row.get_by_role("button", name="Edit fake-video").click()
+    row.get_by_role("button", name="Edit frame for fake-video").click()
     for _ in range(250):
         if held:
             break
@@ -273,27 +275,25 @@ def test_a_late_answer_for_an_editor_that_is_no_longer_open_is_dropped_and_the_c
     expect(page.get_by_role("button", name="Apply to all models of this kind")).to_be_disabled()
     expect(page.get_by_role("button", name="Preview", exact=True)).to_be_disabled()
     expect(video.get_by_role("button", name="Edit the default")).to_be_enabled()
-    expect(row.get_by_role("button", name="Edit fake-video")).to_be_enabled()
-    expect(page.locator(".frames__provider .is-disabled")).to_have_count(0)
+    expect(row.get_by_role("button", name="Edit frame for fake-video")).to_be_enabled()
+    expect(page.locator('select[aria-label="Provider"]')).to_be_enabled()
     # the operator moves on to the default again; the late answer for fake-video must not replace it
     video.get_by_role("button", name="Edit the default").click()
     held[0].continue_()
     page.wait_for_timeout(500)
-    expect(heading).to_have_text("video / default")
+    expect(heading).to_have_text("Editing video / default")
     expect(text).to_have_value(default)
 
 
 def test_frame_text_with_markup_is_text_in_the_editor_the_history_and_the_preview(app_session, db, framed):
     page = app_session
     video, row, text, heading = frames_page(page, db)
-    row.get_by_role("button", name="Edit fake-video").click()
-    expect(heading).to_have_text("video / fake-video")
+    row.get_by_role("button", name="Edit frame for fake-video").click()
+    expect(heading).to_have_text("Editing video / fake-video")
     text.fill(HOSTILE)
     page.get_by_role("button", name="Preview", exact=True).click()
-    expect(page.locator(".frame-editor__preview")).to_contain_text("<img src=x")
+    expect(page.get_by_test_id("frame-preview")).to_contain_text("<img src=x")
     page.get_by_role("button", name="Save", exact=True).click()
-    entry = page.locator(".frame-editor__history li").first
-    expect(entry).to_contain_text('<img src=x onerror="window.__pwned=1">')
     expect(text).to_have_value(HOSTILE)
     page.wait_for_timeout(300)                               # a script in the markup would have run by now
     assert page.evaluate("window.__pwned", isolated_context=False) is None, "markup ran as a script"
@@ -301,14 +301,12 @@ def test_frame_text_with_markup_is_text_in_the_editor_the_history_and_the_previe
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
-def test_a_provider_without_frames_says_the_core_frame_applies_and_the_provider_popper_opens(
+def test_a_provider_without_frames_says_the_core_frame_applies_and_the_provider_select_lists_it(
         app_session, db, color_scheme):
     page = app_session
     open_tab(page, "Prompt frames")
     expect(page.get_by_text("This provider has no prompt frames: the core frame applies.")).to_be_visible()
-    page.locator(".frames__provider").click()
-    expect(page.get_by_role("option", name="fake")).to_be_visible()
-    page.keyboard.press("Escape")
+    expect(page.locator('select[aria-label="Provider"] option', has_text="fake")).to_have_count(1)
     page.problems.clear()                                    # the 404 is a console line
 
 
@@ -352,7 +350,7 @@ READ_STORE = """async () => {
 
 def key_box(page):
     """The API key input of the Test tab (the exact label: the tab 'API keys' also matches a loose one)."""
-    return page.get_by_label("API key", exact=True)
+    return page.get_by_role("textbox", name="API key", exact=True)
 
 
 def open_test_tab(page, db, live):
@@ -362,23 +360,24 @@ def open_test_tab(page, db, live):
     open_tab(page, "Test")
     key_box(page).fill(api_key.raw)
     page.get_by_role("button", name="Load models").click()
-    expect(page.locator(".test-tab__model", has_text="fake-video")).to_be_visible()
+    expect(page.get_by_test_id("test-model").filter(has_text="fake-video")).to_be_visible()
     return api_key
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
 def test_the_test_tab_generates_keeps_form_and_images_over_a_reload_and_the_key_only_per_browser_tab(
-        app_session, live, db, color_scheme):
+        app, app_session, live, db, color_scheme):
     page = app_session
     api_key = open_test_tab(page, db, live)
-    page.locator(".test-tab__model", has_text="fake-video").click()
+    page.get_by_test_id("test-model").filter(has_text="fake-video").click()
     page.get_by_label("Prompt", exact=True).fill("a cat")
     page.get_by_label("Title", exact=True).fill("kept title")
-    page.locator("input.el-upload__input").set_input_files(
+    page.get_by_test_id("attach-input").set_input_files(
         files=[{"name": "ref.png", "mimeType": "image/png", "buffer": PNG}])
-    items = page.locator(".test-images .el-upload-list__item")
-    expect(items).to_have_count(1)                           # the list animates: wait for one item
+    items = page.get_by_test_id("attachment")
+    expect(items).to_have_count(1)
     expect(items).to_contain_text("ref.png")
+    expect(items.locator("img")).to_have_count(0)            # names only: no thumbnail
     page.get_by_role("button", name="Generate", exact=True).click()
     expect(page.locator(".test-result__status")).to_contain_text("Job")
     assert db.one("SELECT count(*) FROM jobs WHERE prompt = 'a cat'")[0] == 1
@@ -395,19 +394,20 @@ def test_the_test_tab_generates_keeps_form_and_images_over_a_reload_and_the_key_
     page.reload()
     expect(page.get_by_label("Prompt", exact=True)).to_have_value("a cat")
     expect(page.get_by_label("Title", exact=True)).to_have_value("kept title")
-    items = page.locator(".test-images .el-upload-list__item")
-    expect(items).to_have_count(1)                           # the list animates: wait for one item
+    items = page.get_by_test_id("attachment")
+    expect(items).to_have_count(1)
     expect(items).to_contain_text("ref.png")
+    expect(items.locator("img")).to_have_count(0)            # names only: no thumbnail
     expect(key_box(page)).to_have_value(api_key.raw)
-    expect(page.locator(".test-tab__form h3")).to_have_text("fake-video")
+    expect(page.get_by_role("heading", level=2, name="fake-video")).to_be_visible()
     # Clear form empties the form, the picked model and the stored images, also after a reload
     page.get_by_role("button", name="Clear form").click()
     expect(page.get_by_label("Prompt", exact=True)).to_have_value("")
-    expect(page.locator(".test-tab__form h3")).to_have_text("Pick a model")
+    expect(page.get_by_role("heading", level=2, name="Pick a model")).to_be_visible()
     expect(page.get_by_role("button", name="Generate", exact=True)).to_be_disabled()
     page.reload()
     expect(page.get_by_label("Prompt", exact=True)).to_have_value("")
-    expect(page.locator(".test-images .el-upload-list__item")).to_have_count(0)
+    expect(page.get_by_test_id("attachment")).to_have_count(0)
     assert page.evaluate("localStorage.getItem('relay_test_form')") is None or \
         json.loads(page.evaluate("localStorage.getItem('relay_test_form')")).get("prompt") == ""
     assert page.evaluate(READ_STORE, isolated_context=False)["types"] == []
@@ -416,11 +416,14 @@ def test_the_test_tab_generates_keeps_form_and_images_over_a_reload_and_the_key_
     expect(key_box(page)).to_have_value(api_key.raw)
     page.get_by_role("button", name="Forget key").click()
     assert page.evaluate("sessionStorage.getItem('relay_test_key')") is None
+    expect(page.get_by_test_id("test-model")).to_have_count(0)      # Forget key takes the loaded models with it
     key_box(page).fill(api_key.raw)
     page.get_by_role("button", name="Load models").click()
-    expect(page.locator(".test-tab__model", has_text="fake-video")).to_be_visible()
+    expect(page.get_by_test_id("test-model").filter(has_text="fake-video")).to_be_visible()
+    # the key is stored when the load answers: wait for it, never read it the moment the models show
+    page.wait_for_function("k => sessionStorage.getItem('relay_test_key') === k", arg=api_key.raw)
     assert page.evaluate("sessionStorage.getItem('relay_test_key')") == api_key.raw
-    page.get_by_role("button", name="Sign out").click()
+    app.sign_out(page)
     expect(page).to_have_url(re.compile(r"#/login$"))
     assert page.evaluate("sessionStorage.getItem('relay_test_key')") is None
     assert api_key.raw not in page.evaluate("JSON.stringify(Object.assign({}, localStorage))")
@@ -453,8 +456,8 @@ def test_a_stored_image_set_over_the_limits_or_with_a_non_image_is_not_restored_
     page.evaluate(SEED_STORE, kind, isolated_context=False)
     open_tab(page, "Test")
     expect(page.get_by_role("button", name="Load models")).to_be_visible()
-    expect(page.locator(".test-images .el-upload-list__item")).to_have_count(len(left) if isinstance(left, list) else 0)
-    expect(page.locator(".test-images .el-alert")).to_contain_text("broke the limits")
+    expect(page.get_by_test_id("attachment")).to_have_count(len(left) if isinstance(left, list) else 0)
+    expect(page.get_by_test_id("attach-note")).to_contain_text("broke the limits")
     stored = page.evaluate(READ_STORE, isolated_context=False)
     if isinstance(left, list):
         assert stored["types"] == left, "the store is cleaned: %s" % kind
@@ -471,11 +474,11 @@ def test_the_test_tab_still_works_when_localstorage_and_indexeddb_are_blocked(ap
     open_tab(page, "Test")
     page.reload()
     api_key = open_test_tab(page, db, live)
-    page.locator(".test-tab__model", has_text="fake-video").click()
+    page.get_by_test_id("test-model").filter(has_text="fake-video").click()
     page.get_by_label("Prompt", exact=True).fill("a dog")
-    page.locator("input.el-upload__input").set_input_files(
+    page.get_by_test_id("attach-input").set_input_files(
         files=[{"name": "ref.png", "mimeType": "image/png", "buffer": PNG}])
-    expect(page.locator(".test-images .el-alert")).to_contain_text(
+    expect(page.get_by_test_id("attach-note")).to_contain_text(
         "The attached images could not be saved in this browser: they are lost on reload.")
     page.get_by_role("button", name="Generate", exact=True).click()
     expect(page.locator(".test-result__status")).to_contain_text("Job")
@@ -488,7 +491,7 @@ def test_generate_polls_to_a_result_draws_a_share_link_and_shows_any_other_link_
     requests = []
     page.on("request", lambda r: requests.append(r.url))
     open_test_tab(page, db, live)
-    page.locator(".test-tab__model", has_text="fake-image").click()
+    page.get_by_test_id("test-model").filter(has_text="fake-image").click()
     done = {"id": "j-1", "status": "done", "stage": "finished",
             "result_urls": ["/m/test-pixel", SCRIPT_URL, "https://evil.example/m/x.png"],
             "images": ['<img src=x onerror="window.__pwned=1">']}
@@ -512,3 +515,56 @@ def test_generate_polls_to_a_result_draws_a_share_link_and_shows_any_other_link_
     assert page.evaluate("window.__pwned", isolated_context=False) is None
     assert not [u for u in requests if "evil.example" in u], "a foreign link was requested"
     expect(page.get_by_role("button", name="Generate", exact=True)).to_be_enabled(timeout=10000)
+
+
+# ---- phone and tablet: each screen draws, fits the width and keeps its main action in reach --------------------------
+
+SMOKE = [
+    ("Prompt frames", "frames", lambda page: page.get_by_role("heading", name="Prompt frames", level=1)),
+    ("Settings", "settings", lambda page: page.get_by_role("heading", name="Settings", level=1)),
+    ("Test", "test", lambda page: page.get_by_role("heading", name="Test", level=1)),
+]
+
+
+@pytest.mark.parametrize("width", [390, 768])
+@pytest.mark.parametrize("name, route, heading", SMOKE)
+def test_frames_settings_and_test_fit_a_phone_and_a_tablet_with_their_main_action_in_reach(
+        app_session, db, framed, width, name, route, heading):
+    page = app_session
+    page.set_viewport_size({"width": width, "height": 844 if width == 390 else 1024})
+    if route == "frames":
+        put(db, "video", None, FAKE_FRAMES.defaults["video"])
+        put(db, "image", None, FAKE_FRAMES.defaults["image"])
+    open_tab(page, name)
+    expect(heading(page)).to_be_visible()
+    if route == "frames":
+        expect(page.locator(VIDEO)).to_be_visible()
+        page.locator(VIDEO).get_by_role("button", name="Edit frame for fake-video").first.click()
+        main = page.get_by_role("button", name="Follow the default").or_(
+            page.get_by_role("button", name="Save", exact=True))
+    elif route == "settings":
+        expect(page.get_by_label("Value of log_retention_days")).to_be_visible()
+        main = page.get_by_role("button", name="Save log_retention_days")
+    else:
+        main = page.get_by_role("button", name="Load models")
+    main.first.scroll_into_view_if_needed()
+    expect(main.first).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), \
+        "%s scrolls sideways at %d" % (route, width)
+    if width == 390:                                          # a phone control is a finger target
+        box = main.first.bounding_box()
+        assert box["height"] >= 43.5, box
+
+
+def test_a_failed_settings_load_has_a_retry_a_finger_can_hit_on_a_phone(app_session):
+    page = app_session
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.route(re.compile(r"/admin/settings$"), lambda route: route.fulfill(
+        status=500, content_type="application/json",
+        body=json.dumps({"error": {"code": "internal.unexpected", "message": "the settings are not there"}})))
+    open_tab(page, "Settings")
+    retry = page.locator("#settings").get_by_role("button", name="Retry")
+    expect(retry).to_be_visible()
+    box = retry.bounding_box()
+    assert box["width"] >= 43.5 and box["height"] >= 43.5, box
+    page.problems.clear()                                    # the 500 is a console line

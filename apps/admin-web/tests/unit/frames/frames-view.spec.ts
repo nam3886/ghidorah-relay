@@ -53,16 +53,30 @@ describe("the view", () => {
     const sections = wrapper!.findAll("[data-frame-kind]");
     expect(sections.map((s) => s.attributes("data-frame-kind"))).toEqual(["video", "image"]);
     const video = sections[0]!;
-    expect(video.text()).toContain("Default: version 1 by owner");
+    expect(video.text()).toContain("Default: v1");
     expect(video.text()).toContain("differs from the shipped default");
     expect(video.text()).toContain("Reset to the shipped default");
     expect(video.text()).toContain("m1");
-    expect(video.text()).toContain("keep own");
-    expect(video.text()).toContain("never toggled");
+    expect(video.text()).toContain("v2");
+    expect(video.text()).toContain("Keep own");
+    // a frame whose lock was never toggled says nothing about it
+    expect(video.text()).not.toContain("never toggled");
     expect(sections[1]!.text()).toContain("Default: no version");
     expect(sections[1]!.text()).toContain("No models");
     expect(sections[1]!.text()).not.toContain("Reset to the shipped default");
     expect(wrapper!.text()).toContain("Pick a model or a default to edit its frame.");
+  });
+
+  it("draws video before image whatever order the server lists them in", async () => {
+    vi.mocked(api.listFrames).mockImplementation(async () => {
+      const list = framesList();
+      return { ...list, kinds: [...list.kinds].reverse() };
+    });
+    await open();
+    expect(wrapper!.findAll("[data-frame-kind]").map((s) => s.attributes("data-frame-kind"))).toEqual([
+      "video",
+      "image",
+    ]);
   });
 
   it("says a provider without frames has none: the core frame applies", async () => {
@@ -76,10 +90,10 @@ describe("the view", () => {
 
   it("opens the editor of a model: help text, Follow only for an own frame, no Apply to all", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit m1"]').trigger("click");
+    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     const editor = wrapper!.find(".frame-editor");
-    expect(editor.find("h3").text()).toBe("video / m1");
+    expect(editor.find("h2").text()).toBe("Editing video / m1");
     expect(editor.text()).toContain("{{client_prompt}}");
     expect(editor.text()).toContain("{{tracking_code}}");
     expect(editor.text()).toContain("at most 1,000 characters");
@@ -89,18 +103,33 @@ describe("the view", () => {
     expect(textarea().element.value).toBe("own1");
   });
 
-  it("the frame box shows the shape of a frame as its placeholder, and the lock history sits on the checkbox's line", async () => {
+  it("the frame box shows the shape of a frame as its placeholder, and the lock line sits on the checkbox cell", async () => {
+    vi.mocked(api.listFrames).mockImplementation(async () => {
+      const list = framesList();
+      list.kinds[0]!.models[0] = {
+        ...list.kinds[0]!.models[0]!,
+        locked: true,
+        lock: {
+          locked: true,
+          created_ms: new Date(2026, 9, 14, 18, 40).getTime(),
+          created_by: "admin",
+          created_by_id: null,
+        },
+      };
+      return list;
+    });
     await open();
-    expect(wrapper!.find(".frame-kind__lock").text()).toContain("keep own");
-    expect(wrapper!.find(".frame-kind__lock").text()).toContain("never toggled");
-    await wrapper!.find('button[aria-label="Edit m1"]').trigger("click");
+    const cell = wrapper!.find('input[aria-label="Keep own frame of m1"]').element.closest("td")!;
+    expect(cell.textContent).toContain("Keep own");
+    expect(cell.textContent).toContain("locked 14/10 by admin");
+    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     expect(textarea().attributes("placeholder")).toBe("{{client_prompt}} ... {{tracking_code}}");
   });
 
   it("a model that follows the default has the note, no Follow button, and the default's text in the box", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit m2"]').trigger("click");
+    await wrapper!.find('button[aria-label="Edit frame for m2"]').trigger("click");
     await flushPromises();
     expect(wrapper!.find(".frame-editor").text()).toContain("This model follows the default.");
     expect(buttons("Follow the default")).toHaveLength(0);
@@ -111,14 +140,14 @@ describe("the view", () => {
     await open();
     await button("Edit the default").trigger("click");
     await flushPromises();
-    expect(wrapper!.find(".frame-editor h3").text()).toBe("video / default");
+    expect(wrapper!.find(".frame-editor h2").text()).toBe("Editing video / default");
     expect(buttons("Apply to all models of this kind")).toHaveLength(1);
     expect(buttons("Follow the default")).toHaveLength(0);
   });
 
   it("Save is disabled until the draft differs from the loaded text", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit m1"]').trigger("click");
+    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     expect(button("Save").attributes("disabled")).toBeDefined();
     await textarea().setValue("own1 changed");
@@ -129,7 +158,7 @@ describe("the view", () => {
 
   it("shows a refused save beside the editor as an alert with the field", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit m1"]').trigger("click");
+    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     await textarea().setValue("no placeholders");
     vi.mocked(api.putFrame).mockRejectedValue(
@@ -146,7 +175,7 @@ describe("the view", () => {
 
   it("shows save warnings, the preview and the history as text", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit m1"]').trigger("click");
+    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     await textarea().setValue("changed");
     vi.mocked(api.putFrame).mockResolvedValue({
@@ -157,7 +186,7 @@ describe("the view", () => {
     vi.mocked(api.getFrame).mockResolvedValue(frameInfo("changed"));
     await button("Save").trigger("click");
     await flushPromises();
-    expect(wrapper!.find(".frame-editor__warnings").text()).toBe("No tracking code.");
+    expect(wrapper!.find('[data-testid="frame-warnings"]').text()).toBe("No tracking code.");
     vi.mocked(api.previewFrame).mockResolvedValue({
       text: "RENDERED",
       length: 8,
@@ -167,11 +196,17 @@ describe("the view", () => {
     });
     await button("Preview").trigger("click");
     await flushPromises();
-    expect(wrapper!.find(".frame-editor__preview").text()).toBe("RENDERED");
-    expect(wrapper!.text()).toContain("8 characters, shown with the sample tracking code (draft frame)");
-    expect(wrapper!.findAll(".frame-editor__history li")).toHaveLength(2);
-    // the timeline runs newest first
-    expect(wrapper!.findAll(".frame-editor__history li").map((li) => li.attributes("data-version"))).toEqual([
+    expect(wrapper!.find('[data-testid="frame-preview"]').text()).toBe("RENDERED");
+    expect(wrapper!.text()).toContain("8 characters");
+    expect(
+      wrapper!
+        .find('[data-testid="frame-preview"]')
+        .element.previousElementSibling!.querySelector("[title]")!
+        .getAttribute("title"),
+    ).toBe("Shown with the sample tracking code (draft frame).");
+    expect(wrapper!.findAll('[data-testid="frame-history"] li')).toHaveLength(2);
+    // the history runs newest first
+    expect(wrapper!.findAll('[data-testid="frame-history"] li').map((li) => li.attributes("data-version"))).toEqual([
       "5",
       "4",
     ]);
@@ -191,35 +226,34 @@ describe("the view", () => {
       warnings: [PLANTED],
     });
     await open();
-    await wrapper!.find('button[aria-label="Edit m1"]').trigger("click");
+    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     await button("Preview").trigger("click");
     await flushPromises();
     expect(textarea().element.value).toBe(PLANTED);
-    expect(wrapper!.find(".frame-editor__history pre").text()).toBe(PLANTED);
-    expect(wrapper!.find(".frame-editor__preview").text()).toBe(PLANTED);
-    expect(wrapper!.find(".frame-editor__warnings").text()).toBe(PLANTED);
+    expect(wrapper!.find('[data-testid="frame-preview"]').text()).toBe(PLANTED);
+    expect(wrapper!.find('[data-testid="frame-warnings"]').text()).toBe(PLANTED);
     expect(wrapper!.find("img").exists()).toBe(false);
     expect(wrapper!.find("b").exists()).toBe(false);
   });
 
   it("during a load: Save and the other controls are off, the box is read-only, Edit and the provider stay on", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit m1"]').trigger("click");
+    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     await textarea().setValue("typed");
     const slow = deferred<api.FrameInfo>();
     vi.mocked(api.getFrame).mockReturnValue(slow.promise);
-    await wrapper!.find('button[aria-label="Edit m2"]').trigger("click");
+    await wrapper!.find('button[aria-label="Edit frame for m2"]').trigger("click");
     expect(textarea().attributes("readonly")).toBeDefined();
     expect(button("Save").attributes("disabled")).toBeDefined();
     expect(button("Follow the default").attributes("disabled")).toBeDefined();
     expect(button("Preview").attributes("disabled")).toBeDefined();
     expect(button("Reset to the shipped default").attributes("disabled")).toBeDefined();
-    expect(wrapper!.find(".el-checkbox input").attributes("disabled")).toBeDefined();
-    expect(wrapper!.find('button[aria-label="Edit m2"]').attributes("disabled")).toBeUndefined();
+    expect(wrapper!.find('input[type="checkbox"]').attributes("disabled")).toBeDefined();
+    expect(wrapper!.find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeUndefined();
     expect(button("Edit the default").attributes("disabled")).toBeUndefined();
-    expect(wrapper!.find(".frames__provider .is-disabled").exists()).toBe(false);
+    expect(wrapper!.find('select[aria-label="Provider"]').attributes("disabled")).toBeUndefined();
     slow.resolve(frameInfo(null));
     await flushPromises();
     expect(textarea().attributes("readonly")).toBeUndefined();
@@ -227,18 +261,18 @@ describe("the view", () => {
 
   it("during a write: everything is off, Edit buttons and the provider select too", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit m1"]').trigger("click");
+    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     await textarea().setValue("typed");
     const slow = deferred<api.SavedFrame>();
     vi.mocked(api.putFrame).mockReturnValue(slow.promise);
     await button("Save").trigger("click");
     expect(textarea().attributes("readonly")).toBeDefined();
-    expect(wrapper!.find('button[aria-label="Edit m2"]').attributes("disabled")).toBeDefined();
+    expect(wrapper!.find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeDefined();
     expect(button("Edit the default").attributes("disabled")).toBeDefined();
-    expect(wrapper!.find(".frames__provider .is-disabled").exists()).toBe(true);
+    expect(wrapper!.find('select[aria-label="Provider"]').attributes("disabled")).toBeDefined();
     slow.resolve({ version: version(9, "typed"), unchanged: false, warnings: [] });
     await flushPromises();
-    expect(wrapper!.find('button[aria-label="Edit m2"]').attributes("disabled")).toBeUndefined();
+    expect(wrapper!.find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeUndefined();
   });
 });
