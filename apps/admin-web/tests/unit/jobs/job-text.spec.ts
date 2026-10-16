@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
-  alertType,
   eventTone,
+  fmtBytes,
+  fmtClock,
+  fmtDayClock,
+  fmtTook,
   isRefunded,
   keyName,
   newestFirst,
+  plural,
   progressStep,
   recheckToast,
   regenerateToast,
   shortId,
-  timelineType,
 } from "@/components/jobs/job-text";
 
 describe("job text", () => {
@@ -96,20 +99,35 @@ describe("timeline", () => {
     expect(eventTone(ev(1, 1, "unheard-of", "unheard-of"))).toBe("neutral");
   });
 
-  it("maps a tone to the Element Plus types of the alert and of the timeline item", () => {
-    expect(["ok", "bad", "warn", "info", "neutral"].map((t) => alertType(t as never))).toEqual([
-      "success",
-      "error",
-      "warning",
-      "warning",
-      "info",
+  it("a refund is ok and an accepted job is info, whatever their source says", () => {
+    expect(eventTone(ev(1, 1, "refund", "failed"))).toBe("ok");
+    expect(eventTone(ev(1, 1, "accepted", "failed"))).toBe("info");
+  });
+});
+
+describe("drawer formats", () => {
+  it("a clock is hh:mm:ss in local time, a day clock adds dd/mm, a missing time is a dash", () => {
+    const at = new Date(2026, 9, 5, 9, 4, 7).getTime();
+    expect(fmtClock(at)).toBe("09:04:07");
+    expect(fmtDayClock(at)).toBe("05/10 09:04:07");
+    expect([fmtClock(null), fmtDayClock(undefined), fmtClock(0)]).toEqual(["-", "-", "-"]);
+  });
+
+  it("how long a job took reads in seconds, minutes or hours", () => {
+    expect([0, 35_000, 95_000, 252_000, 3_720_000].map(fmtTook)).toEqual([
+      "0 s",
+      "35 s",
+      "1 min 35 s",
+      "4 min 12 s",
+      "1 h 2 min",
     ]);
-    expect(["ok", "bad", "warn", "info", "neutral"].map((t) => timelineType(t as never))).toEqual([
-      "success",
-      "danger",
-      "warning",
-      "primary",
-      "info",
-    ]);
+  });
+
+  it("a size reads in bytes, KB or MB, powers of 1000", () => {
+    expect([120, 999, 1000, 5000, 18_400_000].map(fmtBytes)).toEqual(["120 B", "999 B", "1.0 KB", "5.0 KB", "18.4 MB"]);
+  });
+
+  it("a count takes an s except for one", () => {
+    expect([plural(1, "point"), plural(0, "point"), plural(4, "image")]).toEqual(["1 point", "0 points", "4 images"]);
   });
 });

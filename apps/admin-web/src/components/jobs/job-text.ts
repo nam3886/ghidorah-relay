@@ -11,28 +11,16 @@ export function keyName(key: { id: string; label?: string | null; prefix?: strin
   return key.label?.trim() || key.prefix?.trim() || shortId(key.id);
 }
 
-// Element Plus type of a tone, for el-alert (success, warning, error, info) and el-timeline-item (success, warning,
-// danger, primary, info).
-export const alertType = (tone: Tone): "success" | "warning" | "error" | "info" =>
-  tone === "ok" ? "success" : tone === "bad" ? "error" : tone === "warn" || tone === "info" ? "warning" : "info";
+// Stages the registry of statuses does not know: a recovery and a refund are good news, an accepted job is on its way.
+const STAGE_TONES: Record<string, Tone> = { recovered: "ok", refund: "ok", accepted: "info" };
 
-// A recovered job is good news; otherwise the stage word (failed, completed...) sets the colour and an unknown stage
-// falls back to its source.
+// The stage word (failed, completed...) sets the colour and an unknown stage falls back to its source.
 export function eventTone(e: Pick<JobEvent, "source" | "stage">): Tone {
-  if (e.stage === "recovered") return "ok";
+  const named = STAGE_TONES[e.stage];
+  if (named) return named;
   const byStage = toneOf(e.stage);
   return byStage === "neutral" ? toneOf(e.source) : byStage;
 }
-export const timelineType = (tone: Tone): "success" | "warning" | "danger" | "primary" | "info" =>
-  tone === "ok"
-    ? "success"
-    : tone === "bad"
-      ? "danger"
-      : tone === "warn"
-        ? "warning"
-        : tone === "info"
-          ? "primary"
-          : "info";
 
 // Newest first; events with no time sort last, and equal times by id, the later one first.
 export const newestFirst = (events: readonly JobEvent[]): JobEvent[] =>
@@ -54,6 +42,40 @@ export function recheckToast(out: BulkRecheckResult): { text: string; type: "suc
     type: skipped ? "info" : "success",
   };
 }
+
+const two = (n: number): string => String(n).padStart(2, "0");
+
+// The drawer's clock formats (local time): "19:41:44" for a timeline row, "15/10 19:40:02" for a ledger value. A
+// missing time is "-".
+export function fmtClock(ms: number | null | undefined): string {
+  if (!ms) return "-";
+  const d = new Date(ms);
+  return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;
+}
+export function fmtDayClock(ms: number | null | undefined): string {
+  if (!ms) return "-";
+  const d = new Date(ms);
+  return `${two(d.getDate())}/${two(d.getMonth() + 1)} ${fmtClock(ms)}`;
+}
+
+// "35 s", "1 min 35 s", "1 h 2 min": the time a job took.
+export function fmtTook(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h) return `${h} h ${m} min`;
+  return m ? `${m} min ${s} s` : `${s} s`;
+}
+
+// "120 B", "4.0 KB", "18.4 MB" (powers of 1000).
+export function fmtBytes(n: number): string {
+  if (n < 1000) return `${n} B`;
+  if (n < 1_000_000) return `${(n / 1000).toFixed(1)} KB`;
+  return `${(n / 1_000_000).toFixed(1)} MB`;
+}
+
+export const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export function regenerateToast(out: BulkRegenerateResult): { text: string; type: "success" | "info" } {
   const failed = Object.keys(out.failed).length;

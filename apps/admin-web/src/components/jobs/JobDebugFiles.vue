@@ -25,8 +25,8 @@ const open = (idx: number) =>
 </script>
 
 <template>
-  <el-empty v-if="!props.job.debug_files.length" class="debug-none" description="None" :image-size="40" />
-  <div v-else>
+  <p v-if="!props.job.debug_files.length" class="debug-none">None</p>
+  <div v-else class="debug">
     <div class="debug-buttons">
       <el-button v-for="d in props.job.debug_files" :key="d.idx" :disabled="busy" @click="open(d.idx)"
         >File {{ d.idx }} ({{ d.mime }})</el-button
@@ -38,7 +38,14 @@ const open = (idx: number) =>
 
 <style scoped>
 .debug-none {
-  padding: 0;
+  margin: 0;
+  font-size: 13px;
+  color: var(--rl-muted);
+}
+.debug {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .debug-buttons {
   display: flex;
@@ -46,14 +53,15 @@ const open = (idx: number) =>
   gap: 8px;
 }
 .debug-text {
-  margin: 8px 0 0;
-  padding: 8px;
+  margin: 0;
+  padding: 12px 14px;
   max-height: 18rem;
   overflow: auto;
+  border-radius: 12px;
+  background: var(--rl-raised);
+  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
   font-size: 12px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  background: var(--rl-surface-2);
-  border-radius: var(--el-border-radius-base, 6px);
 }
 </style>

@@ -1,7 +1,7 @@
-"""Mutation markers of the job detail (key names and the timeline, blob files and the kept key, the regenerate control,
-the media safety and the actions the job allows): each breaks one rule in the TypeScript source and demands that its
-Vitest spec turns red on the exact test that guards the rule (scripts/mutate.py runs these, no rebuild). An `expect` is
-the failed-test line the runner prints: `FAILED <spec> > <describe> > <test title>`."""
+"""Mutation markers of the job drawer (key names, the timeline and the formats, blob files and the kept key, the
+regenerate control, the media safety and the actions the job allows): each breaks one rule in the TypeScript source and
+demands that its Vitest spec turns red on the exact test that guards the rule (scripts/mutate.py runs these, no
+rebuild). An `expect` is the failed-test line the runner prints: `FAILED <spec> > <describe> > <test title>`."""
 
 import pytest
 from webunit import vitest
@@ -15,7 +15,7 @@ BLOB = f"{SRC}/components/jobs/blob-actions.ts"
 CONTROL = f"{SRC}/components/jobs/RegenerateControl.vue"
 MEDIA = f"{SRC}/components/jobs/JobMedia.vue"
 ACTIONS = f"{SRC}/components/jobs/JobActions.vue"
-DIALOG = f"{SRC}/components/jobs/JobDetailDialog.vue"
+DRAWER = f"{SRC}/components/jobs/JobDetailDrawer.vue"
 
 TEXT_SPEC = "tests/unit/jobs/job-text.spec.ts"
 BLOB_SPEC = "tests/unit/jobs/blob-actions.spec.ts"
@@ -29,7 +29,7 @@ FC = "FAILED " + CONTROL_SPEC + " > "
 FD = "FAILED " + DETAIL_SPEC + " > "
 
 
-# ---- key names and the timeline-----------------------------------------------------------------------------------
+# ---- key names, the timeline and the formats ---------------------------------------------------------------------
 @mutation(TEXT, "key.label?.trim() || key.prefix?.trim() || shortId(key.id)", "key.label || shortId(key.id)",
           expect=FT + "key names > is the label, else the prefix, else the first 8 characters of the id")
 @mutation(TEXT, "(b.at_ms ?? -Infinity) - (a.at_ms ?? -Infinity) || b.id - a.id",
@@ -38,17 +38,27 @@ FD = "FAILED " + DETAIL_SPEC + " > "
                       "with no time last")
 @mutation(TEXT, "[...events].sort(", "events.sort(",
           expect=FT + "timeline > does not reorder the list it was given")
-@mutation(TEXT, 'if (e.stage === "recovered") return "ok";', "",
+@mutation(TEXT, "  if (named) return named;\n", "",
           expect=FT + "timeline > a recovery is ok, a failed stage is bad, an unknown stage takes its source's tone, "
                       "else neutral")
-@mutation(TEXT, '? "danger"', '? "error"',
-          expect=FT + "timeline > maps a tone to the Element Plus types of the alert and of the timeline item")
+@mutation(TEXT, 'accepted: "info"', 'accepted: "neutral"',
+          expect=FT + "timeline > a refund is ok and an accepted job is info, whatever their source says")
+@mutation(TEXT, "return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;",
+          "return `${d.getHours()}:${two(d.getMinutes())}:${two(d.getSeconds())}`;",
+          expect=FT + "drawer formats > a clock is hh:mm:ss in local time, a day clock adds dd/mm, a missing time is "
+                      "a dash")
+@mutation(TEXT, "const m = Math.floor((total % 3600) / 60);", "const m = Math.floor(total / 60);",
+          expect=FT + "drawer formats > how long a job took reads in seconds, minutes or hours")
+@mutation(TEXT, "(n / 1_000_000).toFixed(1)", "(n / 1_000_000).toFixed(0)",
+          expect=FT + "drawer formats > a size reads in bytes, KB or MB, powers of 1000")
+@mutation(TEXT, 'n === 1 ? "" : "s"', '"s"',
+          expect=FT + "drawer formats > a count takes an s except for one")
 @pytest.mark.web_unit
-def test_a_key_is_never_nameless_and_the_timeline_runs_newest_first():
+def test_a_key_is_never_nameless_the_timeline_runs_newest_first_and_the_drawer_formats_are_exact():
     vitest(TEXT_SPEC)
 
 
-# ---- blob files and the kept key record---------------------------------------------------------------------------
+# ---- blob files and the kept key record --------------------------------------------------------------------------
 OPENS = FB + "blob files > opens in a new tab without an opener, then revokes the URL a minute later"
 
 
@@ -63,7 +73,7 @@ def test_blob_urls_open_without_an_opener_and_are_revoked_and_the_kept_key_must_
     vitest(BLOB_SPEC)
 
 
-# ---- the regenerate control---------------------------------------------------------------------------------------
+# ---- the regenerate control --------------------------------------------------------------------------------------
 NEW = FC + "start a new regenerate > "
 CTRL = FC + "regenerate control > "
 
@@ -74,52 +84,70 @@ CTRL = FC + "regenerate control > "
 @mutation(CONTROL, 'v-if="kept && !busy"', 'v-if="kept"', expect=NEW + "is hidden while a call is in flight")
 @mutation(CONTROL, "if (!(await confirmDialog(props.confirm))) return;", "await confirmDialog(props.confirm);",
           expect=CTRL + "asks first with the text it was given, and Cancel sends nothing")
+@mutation(CONTROL, 'aria-haspopup="dialog"', 'aria-haspopup="menu"',
+          expect=CTRL + "says it opens a dialog, and shows the icon slot before the label")
 @pytest.mark.web_unit
 def test_a_regenerate_asks_first_is_single_flight_and_a_kept_key_is_dropped_only_behind_a_warning():
     vitest(CONTROL_SPEC)
 
 
-# ---- the job detail-----------------------------------------------------------------------------------------------
-WORDS = FD + "conclusion, prompt and technical > the prompt is the customer's words and Copy prompt copies exactly that"
-SHOW = FD + "which actions show > "
+# ---- the job drawer ----------------------------------------------------------------------------------------------
+WORDS = (FD + "conclusion, ledger, prompt and technical > the prompt is the customer's words and Copy prompt copies "
+              "exactly that")
+SHOW = FD + "which actions show, and where > "
 EACH = FD + "what each action sends and says > "
 MEDIA_GROUP = FD + "results and references > "
 SCRIPT_URL = MEDIA_GROUP + "a script URL is never drawn: no preview, and Open goes through the admin session"
 OPEN_GONE = MEDIA_GROUP + "an item whose link is gone gets Open, which fetches it as a blob and opens it"
-REFERENCE = MEDIA_GROUP + "a reference opens through the input route and has no Download"
+REFERENCE = MEDIA_GROUP + "a reference opens through the input route, has no Download, and is counted in its heading"
+DONE_ROW = SHOW + "a done job offers Regenerate… in the overview row and Recover under More actions"
+RUNNING = SHOW + "a job still running offers neither Recover nor Regenerate…"
+PHONE_FOOT = SHOW + "on a phone the row moves to a sticky footer, and a failed job keeps its card in the body"
 
 
 @mutation(MEDIA, "const src = safeMediaUrl(item.url);", "const src = item.url;", expect=SCRIPT_URL)
-@mutation(MEDIA, 'v-if="!s.kind"', 'v-if="false"', expect=OPEN_GONE)
-@mutation(MEDIA, "v-if=\"props.role === 'output'\"", 'v-if="true"', expect=REFERENCE)
+@mutation(MEDIA, '@click="open(s.item.idx)"', '@click="open(0)"', expect=OPEN_GONE)
 @mutation(MEDIA, "fetchMediaBlob(props.job.id, props.role, idx)", 'fetchMediaBlob(props.job.id, "output", idx)',
           expect=REFERENCE)
-@mutation(ACTIONS, 'v-if="props.job.can_recheck"', 'v-if="true"',
-          expect=SHOW + "a done job offers Recover and Regenerate, and nothing else without more facts")
-@mutation(ACTIONS, '<template v-if="finished">', '<template v-if="true">',
-          expect=SHOW + "a job still running offers neither Recover nor Regenerate")
+@mutation(MEDIA, '.filter((s) => s.kind === "image")', ".filter(() => true)",
+          expect=MEDIA_GROUP + "an image is a tile whose viewer lists every previewable image of the list, "
+                               "and a video is left out")
+@mutation(ACTIONS, "props.job.can_recheck && props.zone !== 'more'", "true", expect=DONE_ROW)
+@mutation(ACTIONS, 'finished.value && (props.zone === "card"', 'true && (props.zone === "card"', expect=RUNNING)
+@mutation(ACTIONS, 'props.job.status !== "failed")', "true)",
+          expect=SHOW + "Recover is in one place only: the card for a failed job, More actions for a done one")
+@mutation(ACTIONS, "finished && props.zone !== 'more'", "true", expect=RUNNING)
 @mutation(ACTIONS, "props.job.external_ref && props.job.account_label",
           "props.job.external_ref || props.job.account_label",
           expect=SHOW + "Fetch title needs both the upstream reference and the account")
-@mutation(ACTIONS, 'v-if="hasLinks"', 'v-if="true"',
+@mutation(ACTIONS, "hasLinks && props.zone === 'more'", "true",
           expect=SHOW + "Revoke share links only while some media still has a link")
+@mutation(ACTIONS, "hasLinks.value ||", "true ||",
+          expect=SHOW + "More actions is a card with its own heading, drawn only when it has a button")
 @mutation(ACTIONS, "account.value.trim()", "account.value",
           expect=EACH + "Recover sends the trimmed account, polls the command and reads the job again")
 @mutation(ACTIONS, '@confirm="revoke"', '@cancel="revoke"',
           expect=EACH + "Revoke asks first and says how many links stopped")
-@mutation(MEDIA, '.filter((s) => s.kind === "image")', ".filter(() => true)",
-          expect=MEDIA_GROUP + "an image is a thumbnail whose viewer lists every previewable image of the list, "
-                               "and a video is left out")
 @mutation(ACTIONS, '${out.replayed ? "Already made: job " : "New job "}', '${"New job "}',
           expect=EACH + "a regenerate the server already did says Already made")
-@mutation(DIALOG, 'class="block">{{ job.prompt }}</pre>', 'class="block">{{ job.sent_text }}</pre>', expect=WORDS)
-@mutation(DIALOG, 'CopyButton :text="job.prompt"', 'CopyButton :text="job.sent_text ?? \'\'"', expect=WORDS)
-@mutation(DIALOG, "if (!latest.isCurrent(ticket)) return;\n    job.value = out;", "job.value = out;",
+@mutation(DRAWER, '<p ref="promptBlock" class="jd-prompt__text">{{ job.prompt }}</p>',
+          '<p ref="promptBlock" class="jd-prompt__text">{{ job.sent_text }}</p>', expect=WORDS)
+@mutation(DRAWER, ':text="job.prompt"', ':text="job.sent_text ?? \'\'"', expect=WORDS)
+@mutation(DRAWER, "if (!latest.isCurrent(ticket)) return;\n    job.value = out;", "job.value = out;",
           expect=FD + "opening > drops the answer for a job that is no longer the open one")
-@mutation(DIALOG, "newestFirst(job.value?.events ?? [])", "(job.value?.events ?? [])",
-          expect=FD + "timeline > lists the events newest first, and marks a recovery")
-@mutation(DIALOG, "narrow.value ? 1 : 2", "2",
-          expect=FD + "layout > the facts are one column under 640 px and two above, the wide Params row spanning both")
+@mutation(DRAWER, "newestFirst(job.value?.events ?? [])", "(job.value?.events ?? [])",
+          expect=FD + "timeline > lists the events newest first with their clock time, and marks a recovery")
+@mutation(DRAWER, "const refunded = isRefunded(j);", "const refunded = j.net_charged < j.price;",
+          expect=FD + "conclusion, ledger, prompt and technical > a done job with a net below its price shows what "
+                      "was charged and no refund")
+@mutation(DRAWER, "outputs.value.length > 1", "true",
+          expect=SHOW + "Download sits first in the row of a job with results, and says all for more than one")
+@mutation(DRAWER, "`job-${shortId(job.value.id)}-${m.idx}`", "`job-${shortId(job.value.id)}-0`",
+          expect=EACH + "Download saves every result as job-<id8>-<idx>, one file each")
+@mutation(DRAWER, "isPhone && !failed", "isPhone", expect=PHONE_FOOT)
+@mutation(DRAWER, 'v-if="!failed && !isPhone"', 'v-if="!failed"', expect=PHONE_FOOT)
+@mutation(DRAWER, "tab.value = \"overview\";", "", expect=FD + "opening > another job opens on Overview, whatever tab "
+                                                              "the last one was on")
 @pytest.mark.web_unit
-def test_the_detail_draws_media_only_from_safe_links_and_shows_the_actions_the_job_allows():
+def test_the_drawer_draws_media_only_from_safe_links_and_shows_the_actions_the_job_allows():
     vitest(DETAIL_SPEC)

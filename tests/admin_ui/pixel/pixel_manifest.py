@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from patchright.sync_api import expect
 from pixel_lane7 import frames_drive, frames_seed, key_page_drive, key_page_seed, settings_drive, settings_seed
 from pixel_jobs import jobs_seed, tick_the_two
+from pixel_drawer import IMAGE_DONE, IMAGE_FAILED, VIDEO_DONE, open_drawer, seed_of
 from pixel_seed import NOW, shell_seed
 
 TIMEOUT_MS = 10_000
@@ -97,4 +98,17 @@ from pixel_kla import KLA  # noqa: E402  (lane 6: keys, request logs, alerts; im
 JOBS = [Entry(board, "#/jobs", seed=jobs_seed, now=NOW, drive=tick_the_two)
         for board in ("B-Jobs", "T-Jobs", "P-Jobs")]
 
-ENTRIES: list[Entry] = [*LOGIN, *SHELL, *LANE7, *ACCOUNTS_BOARDS, *KLA, *JOBS]
+# ---- the job drawer ------------------------------------------------------------------------------------------------
+# The drawer panel only (the boards' backdrop is a mock): 620 px at the right edge of the board.
+
+DRAWER = [
+    Entry("B-JobDetail", "#/jobs", seed=seed_of(IMAGE_DONE), now=NOW, drive=open_drawer(IMAGE_DONE),
+          region=(820, 0, 620, 1180)),
+    Entry("B-JobFailed", "#/jobs", seed=seed_of(IMAGE_FAILED), now=NOW, drive=open_drawer(IMAGE_FAILED, confirm=True),
+          region=(820, 0, 620, 1100)),
+    Entry("T-JobDetail", "#/jobs", seed=seed_of(IMAGE_DONE), now=NOW, drive=open_drawer(IMAGE_DONE),
+          region=(148, 0, 620, 1280)),
+    Entry("P-JobDetail", "#/jobs", seed=seed_of(VIDEO_DONE), now=NOW, drive=open_drawer(VIDEO_DONE)),
+]
+
+ENTRIES: list[Entry] = [*LOGIN, *SHELL, *LANE7, *ACCOUNTS_BOARDS, *KLA, *JOBS, *DRAWER]
