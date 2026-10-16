@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
-import AttentionBanner from "@/components/layout/AttentionBanner.vue";
 import TopBar from "@/components/layout/TopBar.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { errorText } from "@/lib/errors";
@@ -10,7 +9,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 
-// Everything around the routed view: the top bar, the banner and the page frame (centred, 1360 px at most, padding 28
+// Everything around the routed view: the top bar and the page frame (centred, 1360 px at most, padding 28
 // px, 24 px on a tablet, 16 px on a phone). Mounted only while signed in.
 const route = useRoute();
 const auth = useAuthStore();
@@ -45,8 +44,6 @@ watch(
   <div class="app-shell">
     <TopBar />
     <main class="app-main" :class="{ 'app-main--tablet': isTablet, 'app-main--phone': isPhone }">
-      <!-- On Jobs the view draws the banner itself, after the band card. -->
-      <AttentionBanner v-if="route.name !== 'jobs'" />
       <slot />
     </main>
   </div>
@@ -54,22 +51,28 @@ watch(
 
 <style scoped>
 .app-shell {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
 }
 .app-main {
   display: flex;
   flex-direction: column;
+  flex: 1;
   gap: 20px;
   box-sizing: border-box;
+  width: 100%;
   max-width: 1360px;
   min-width: 0;
   margin: 0 auto;
   padding: 28px 28px 48px;
 }
 .app-main--tablet {
+  max-width: none;
   padding: 24px 24px 40px;
 }
 .app-main--phone {
+  max-width: none;
   gap: 16px;
   padding: 16px 16px 24px;
 }
