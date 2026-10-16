@@ -25,7 +25,7 @@ const account = (over: Partial<Account> = {}): Account => ({
   proxy_ok: null,
   proxy_checked_ms: null,
   strikes: 0,
-  cooldown_ms: null,
+  cooldown_until_ms: null,
   cooldown_reason: null,
   last_error: null,
   last_used_ms: null,
@@ -99,10 +99,31 @@ describe("EditDialog", () => {
     expect(w.emitted("update:modelValue")).toEqual([[false]]);
   });
 
-  it("Re-check proxy closes the dialog and asks the view to queue it", async () => {
+  it("is titled with the account label, and Cancel closes it without saving", async () => {
+    const w = await mountEdit(account({ label: "acct-n11-05" }));
+    expect(document.body.querySelector("h2")!.textContent).toBe("Edit account — acct-n11-05");
+    buttonOf("Cancel").click();
+    await flushPromises();
+    expect(w.emitted("update:modelValue")).toEqual([[false]]);
+    expect(w.emitted("save")).toBeUndefined();
+  });
+
+  it("shows the result of the last proxy check beside the field, with the stored reason of a failure", async () => {
+    await mountEdit(account({ proxy_ok: false, last_error: "proxy check: connect timeout after 8 s" }));
+    const status = document.body.querySelector("[role=status]")!;
+    expect(status.textContent).toContain("failed · connect timeout after 8 s");
+    expect(status.querySelector("[data-tone=bad]")).not.toBeNull();
+  });
+
+  it("an account without a proxy has no proxy status line", async () => {
+    await mountEdit(account({ proxy_host: null, proxy_port: null }));
+    expect(document.body.querySelector("[role=status]")).toBeNull();
+  });
+
+  it("Check proxy closes the dialog and asks the view to queue it", async () => {
     const a = account();
     const w = await mountEdit(a);
-    buttonOf("Re-check proxy").click();
+    buttonOf("Check proxy").click();
     await flushPromises();
     expect(w.emitted("recheck")).toEqual([[a]]);
     expect(w.emitted("update:modelValue")).toEqual([[false]]);
@@ -151,11 +172,44 @@ describe("ImportDialog", () => {
         { credential: "cred-two", proxy: "h:1:u:p" },
       ],
     });
-    expect(document.body.querySelector(".import-result")!.textContent).toBe(
-      "Imported 1, rejected 1 (line 2: credential_unparseable)",
-    );
+    const box = document.body.querySelector("[role=status][aria-label='Result of the previous import']")!;
+    expect(box.textContent).toContain("Imported 1, rejected 1");
+    expect(box.textContent).toContain("1 imported");
+    expect(box.textContent).toContain("1 rejected");
+    expect(box.querySelector("li")!.textContent).toContain("line 2");
+    expect(box.querySelector("li")!.textContent).toContain("credential_unparseable");
+    // a rejected line is named by its number and reason: the credential is never echoed back
+    expect(box.textContent).not.toContain("cred-two");
     expect(document.body.querySelector("textarea")!.value).toBe("");
     expect(w.emitted("imported")).toHaveLength(1);
+  });
+
+  it("a clean import shows one pill and no list; the box is gone on the next opening", async () => {
+    seedCatalog();
+    vi.mocked(accounts.importAccounts).mockResolvedValue({
+      imported: [{ index: 0, id: "x", label: "a" }],
+      rejected: [],
+    });
+    const w = await mountImport();
+    type(document.body.querySelector("textarea")!, "c");
+    buttonOf("Import").click();
+    await flushPromises();
+    const box = document.body.querySelector("[role=status]")!;
+    expect(box.textContent).toContain("Imported 1, rejected 0");
+    expect(box.querySelectorAll(".pill")).toHaveLength(1);
+    expect(box.querySelector("ul")).toBeNull();
+    await w.setProps({ modelValue: false });
+    await w.setProps({ modelValue: true });
+    await flushPromises();
+    expect(document.body.querySelector("[role=status]")).toBeNull();
+  });
+
+  it("Cancel closes the dialog", async () => {
+    seedCatalog();
+    const w = await mountImport();
+    buttonOf("Cancel").click();
+    await flushPromises();
+    expect(w.emitted("update:modelValue")).toEqual([[false]]);
   });
 
   it("with no filter the provider is the first one", async () => {
@@ -166,5 +220,136 @@ describe("ImportDialog", () => {
     buttonOf("Import").click();
     await flushPromises();
     expect(vi.mocked(accounts.importAccounts).mock.calls[0]![0].provider).toBe("dola");
+  });
+});
+
+describe("what was pasted never outlives its use", () => {
+  const seedCatalog = () => {
+    useScopeStore().models = [{ id: "m1", owned_by: "dola" }];
+  };
+  const mountImport = async () => {
+    wrapper = mount(ImportDialog, { props: { modelValue: false }, attachTo: document.body });
+    await wrapper.setProps({ modelValue: true });
+    await flushPromises();
+    return wrapper;
+  };
+  const fill = () => {
+    type(document.body.querySelector("textarea")!, "cred-one\ncred-two");
+    type(field("Proxy for all"), "h:1:u:p");
+  };
+  const empty = () => {
+    expect(document.body.querySelector("textarea")!.value).toBe("");
+    expect(field("Proxy for all").value).toBe("");
+  };
+
+  it("after a success both fields are empty, and the request still carried both", async () => {
+    seedCatalog();
+    vi.mocked(accounts.importAccounts).mockResolvedValue({ imported: [], rejected: [] });
+    await mountImport();
+    fill();
+    buttonOf("Import").click();
+    await flushPromises();
+    expect(vi.mocked(accounts.importAccounts).mock.calls[0]![0].items[0]).toEqual({
+      credential: "cred-one",
+      proxy: "h:1:u:p",
+    });
+    empty();
+  });
+
+  it("the fields are empty while the request is still running", async () => {
+    seedCatalog();
+    let release!: () => void;
+    vi.mocked(accounts.importAccounts).mockReturnValue(
+      new Promise((r) => (release = () => r({ imported: [], rejected: [] }))),
+    );
+    await mountImport();
+    fill();
+    buttonOf("Import").click();
+    await flushPromises();
+    empty();
+    release();
+    await flushPromises();
+  });
+
+  it("after a failure both fields are empty too", async () => {
+    seedCatalog();
+    vi.mocked(accounts.importAccounts).mockRejectedValue(new Error("down"));
+    await mountImport();
+    fill();
+    buttonOf("Import").click();
+    await flushPromises();
+    expect(notify.error).toHaveBeenCalled();
+    empty();
+  });
+
+  it("a cancelled paste is gone when the dialog is opened again", async () => {
+    seedCatalog();
+    const w = await mountImport();
+    fill();
+    buttonOf("Cancel").click();
+    await flushPromises();
+    await w.setProps({ modelValue: true });
+    await flushPromises();
+    empty();
+  });
+
+  it("closing from outside (modelValue false) wipes the fields while the dialog is gone", async () => {
+    seedCatalog();
+    const w = await mountImport();
+    fill();
+    await w.setProps({ modelValue: false });
+    await flushPromises();
+    await w.setProps({ modelValue: true });
+    await flushPromises();
+    empty();
+  });
+
+  it("an empty paste keeps what is there (a proxy typed first is not lost) and sends nothing", async () => {
+    seedCatalog();
+    await mountImport();
+    type(field("Proxy for all"), "h:1:u:p");
+    buttonOf("Import").click();
+    await flushPromises();
+    expect(accounts.importAccounts).not.toHaveBeenCalled();
+    expect(field("Proxy for all").value).toBe("h:1:u:p");
+  });
+});
+
+describe("the dialog frame", () => {
+  const stub = (phone: boolean) =>
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: phone && /max-width:\s*767/.test(q),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("from 768 px it is a box with one Close at the right of the title", async () => {
+    stub(false);
+    wrapper = mount(EditDialog, {
+      props: { modelValue: true, account: account(), busy: false },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    const closes = document.body.querySelectorAll("[aria-label=Close]");
+    expect(closes).toHaveLength(1);
+    expect(document.body.querySelector(".acct-dialog")!.classList.contains("acct-dialog--sheet")).toBe(false);
+    expect(document.body.querySelector(".acct-dialog__head button:last-child")).toBe(closes[0]);
+  });
+
+  it("below 768 px it is a full-screen sheet whose single Close is a 44 px Back before the title", async () => {
+    stub(true);
+    wrapper = mount(EditDialog, {
+      props: { modelValue: true, account: account(), busy: false },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    const closes = document.body.querySelectorAll("[aria-label=Close]");
+    expect(closes).toHaveLength(1);
+    expect(document.body.querySelector(".acct-dialog")!.classList.contains("acct-dialog--sheet")).toBe(true);
+    expect(document.body.querySelector(".acct-dialog__head button:first-child")).toBe(closes[0]);
+    (closes[0] as HTMLElement).click();
+    await flushPromises();
+    expect(wrapper.emitted("update:modelValue")).toEqual([[false]]);
   });
 });
