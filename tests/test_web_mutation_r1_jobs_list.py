@@ -61,9 +61,9 @@ PROXY = FA +"files > an output without a link opens through the outputs proxy, a
           expect=FA + "bulk actions > the same selection after a 503 sends the same key, in any order")
 @mutation(DETAIL_API, "regenerateCall(jobAction(id), ", 'regenerateCall(jobAction("x"), ',
           expect=FA + "one job > regenerate posts only the key, kept under the action job:<id>")
-@mutation(API, ", key_id: q.keyId", "",
+@mutation(API, "      key_id: q.keyId,\n", "",
           expect=FA + "list > sends the status, provider and key that are set, with the offset and never a cursor")
-@mutation(API, "offset: q.offset, ", "",
+@mutation(API, "      offset: q.offset,\n", "",
           expect=FA + "list > sends the page size and offset and drops every empty filter")
 @mutation(API, '"queued", "submitting", ', '"queued", ',
           expect=FA + "list > the status filter offers submitting beside the others")

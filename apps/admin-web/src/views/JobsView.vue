@@ -292,7 +292,6 @@ const barStatus = (s: string): "success" | "exception" | undefined =>
     </DataTable>
 
     <ListPager
-      mode="offset"
       :offset="offset"
       :limit="limit"
       :total="total"

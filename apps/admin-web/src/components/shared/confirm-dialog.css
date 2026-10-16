@@ -1,0 +1,51 @@
+/* The confirm box: a question as the title, one muted sentence, Cancel on the left and, for a destructive action, a solid
+   --rl-bad-solid button on the right. A class in a same-origin stylesheet (the CSP blocks style attributes). The box
+   is teleported to <body>, so these rules are global and keyed by the custom class. */
+.rl-confirm.el-message-box {
+  width: min(440px, 94vw);
+  padding: 20px 20px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--rl-line);
+}
+.rl-confirm .el-message-box__header {
+  padding: 0;
+}
+.rl-confirm .el-message-box__title {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  color: var(--rl-fg);
+}
+.rl-confirm .el-message-box__content {
+  padding: 6px 0 0;
+}
+.rl-confirm .el-message-box__status {
+  display: none;
+}
+.rl-confirm .el-message-box__status + .el-message-box__message {
+  padding-left: 0;
+}
+.rl-confirm .el-message-box__message {
+  color: var(--rl-muted);
+}
+.rl-confirm .el-message-box__btns {
+  padding: 20px 0 0;
+  gap: 8px;
+}
+.rl-confirm .el-message-box__btns .el-button {
+  margin: 0;
+}
+.rl-confirm .el-button--danger {
+  --el-button-text-color: #ffffff;
+  --el-button-bg-color: var(--rl-bad-solid);
+  --el-button-border-color: var(--rl-bad-solid);
+  --el-button-hover-text-color: #ffffff;
+  --el-button-hover-bg-color: var(--rl-bad-solid);
+  --el-button-hover-border-color: var(--rl-bad-solid);
+  --el-button-active-bg-color: var(--rl-bad-solid);
+  --el-button-active-border-color: var(--rl-bad-solid);
+  font-weight: 600;
+}
+.rl-confirm .el-button--danger:hover {
+  opacity: 0.92;
+}

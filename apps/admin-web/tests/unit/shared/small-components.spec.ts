@@ -1,10 +1,8 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CopyButton from "../../../src/components/shared/CopyButton.vue";
-import CursorPager from "../../../src/components/shared/CursorPager.vue";
 import JsonBlock from "../../../src/components/shared/JsonBlock.vue";
 import ListToolbar from "../../../src/components/shared/ListToolbar.vue";
-import OffsetPager from "../../../src/components/shared/OffsetPager.vue";
 import StatusChip from "../../../src/components/shared/StatusChip.vue";
 
 describe("StatusChip", () => {
@@ -42,55 +40,6 @@ describe("StatusChip", () => {
     const w = mount(StatusChip, { props: { status: "<b>x</b>" } });
     expect(w.attributes("data-tone")).toBe("neutral");
     expect(w.find("b").exists()).toBe(false);
-  });
-});
-
-describe("OffsetPager", () => {
-  const pager = (offset: number, total: number, limit = 50) => mount(OffsetPager, { props: { offset, limit, total } });
-  const buttons = (w: ReturnType<typeof pager>) => w.findAll("button");
-
-  it("shows from-to of total", () => {
-    expect(pager(0, 120).text()).toContain("1-50 of 120");
-    expect(pager(100, 120).text()).toContain("101-120 of 120");
-    expect(pager(0, 0).text()).toContain("0-0 of 0");
-  });
-
-  it("Prev is disabled on the first page and Next on the last", () => {
-    expect(buttons(pager(0, 120))[0]!.attributes("disabled")).toBeDefined();
-    expect(buttons(pager(0, 120))[1]!.attributes("disabled")).toBeUndefined();
-    expect(buttons(pager(100, 120))[1]!.attributes("disabled")).toBeDefined();
-    expect(buttons(pager(50, 100))[1]!.attributes("disabled")).toBeDefined();
-    expect(buttons(pager(0, 0))[1]!.attributes("disabled")).toBeDefined();
-  });
-
-  it("moves by one page and never below zero", async () => {
-    const w = pager(50, 200);
-    await buttons(w)[1]!.trigger("click");
-    await buttons(w)[0]!.trigger("click");
-    expect(w.emitted("move")).toEqual([[100], [0]]);
-    const near = pager(20, 200);
-    await buttons(near)[0]!.trigger("click");
-    expect(near.emitted("move")).toEqual([[0]]);
-  });
-});
-
-describe("CursorPager", () => {
-  it("shows the page, disables Prev on page 1 and Next without a next cursor", () => {
-    const first = mount(CursorPager, { props: { page: 1, hasNext: true } });
-    expect(first.text()).toContain("Page 1");
-    expect(first.findAll("button")[0]!.attributes("disabled")).toBeDefined();
-    expect(first.findAll("button")[1]!.attributes("disabled")).toBeUndefined();
-    const last = mount(CursorPager, { props: { page: 3, hasNext: false } });
-    expect(last.findAll("button")[0]!.attributes("disabled")).toBeUndefined();
-    expect(last.findAll("button")[1]!.attributes("disabled")).toBeDefined();
-  });
-
-  it("reports Prev and Next", async () => {
-    const w = mount(CursorPager, { props: { page: 2, hasNext: true } });
-    await w.findAll("button")[0]!.trigger("click");
-    await w.findAll("button")[1]!.trigger("click");
-    expect(w.emitted("prev")).toHaveLength(1);
-    expect(w.emitted("next")).toHaveLength(1);
   });
 });
 

@@ -1,3 +1,5 @@
+import "./confirm-dialog.css";
+
 export interface ConfirmOptions {
   title: string;
   message: string;
@@ -19,6 +21,7 @@ export async function confirmDialog(options: ConfirmOptions, box: MessageBoxLike
     await box.confirm(options.message, options.title, {
       confirmButtonText: options.confirmText ?? "Confirm",
       cancelButtonText: options.cancelText ?? "Cancel",
+      customClass: "rl-confirm",
       type: options.danger ? "warning" : "info",
       confirmButtonClass: options.danger ? "el-button--danger" : undefined,
     });

@@ -370,7 +370,6 @@ describe("paging", () => {
     listJobs.mockResolvedValue(page([A], 25));
     const { w } = await open();
     expect(pager(w).props()).toMatchObject({
-      mode: "offset",
       total: 25,
       offset: 0,
       limit: 10,
