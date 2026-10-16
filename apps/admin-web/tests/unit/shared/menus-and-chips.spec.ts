@@ -148,6 +148,33 @@ describe("DrawerTabs", () => {
     w.unmount();
   });
 
+  it("the focus moves with the arrow: next, previous, and round the ends in both directions", async () => {
+    const w = mounted();
+    const rows = w.findAll("[role='tab']");
+    const focused = () => document.activeElement?.id;
+    await rows[0]!.trigger("keydown", { key: "ArrowRight" });
+    expect(focused()).toBe("job-tab-timeline");
+    await rows[1]!.trigger("keydown", { key: "ArrowLeft" });
+    expect(focused()).toBe("job-tab-overview");
+    await rows[0]!.trigger("keydown", { key: "ArrowLeft" });
+    expect(focused()).toBe("job-tab-technical");
+    await rows[2]!.trigger("keydown", { key: "ArrowRight" });
+    expect(focused()).toBe("job-tab-overview");
+    expect(document.activeElement).toBe(rows[0]!.element);
+    w.unmount();
+  });
+
+  it("a key that is not an arrow moves neither the selection nor the focus", async () => {
+    const w = mounted();
+    const rows = w.findAll("[role='tab']");
+    (rows[0]!.element as HTMLElement).focus();
+    await rows[0]!.trigger("keydown", { key: "ArrowDown" });
+    await rows[0]!.trigger("keydown", { key: "a" });
+    expect(w.emitted("update:modelValue")).toBeUndefined();
+    expect(document.activeElement).toBe(rows[0]!.element);
+    w.unmount();
+  });
+
   it("each tab has an id and names the panel it controls; a tab key never collides with another prefix", () => {
     const w = mounted();
     const rows = w.findAll("[role='tab']");

@@ -366,6 +366,12 @@ COPY = f"{SHARED}/CopyButton.vue"
           expect="the current one selected and the only one in the tab order")
 @mutation(DRAWER_TABS, "(from + step + props.tabs.length) % props.tabs.length", "(from + step) % props.tabs.length",
           expect="wrap round")
+@mutation(DRAWER_TABS, "[props.tabs.indexOf(next)]?.focus();", "[props.tabs.indexOf(next)]?.id;",
+          expect="the focus moves with the arrow")
+@mutation(DRAWER_TABS, "[props.tabs.indexOf(next)]?.focus()", "[0]?.focus()",
+          expect="the focus moves with the arrow")
+@mutation(DRAWER_TABS, '@keydown.left.prevent="move(i, -1, $event)"', '@keydown.left.prevent="move(i, 1, $event)"',
+          expect="the focus moves with the arrow")
 @pytest.mark.web_unit
 def test_the_select_menu_chip_and_tabs_keep_their_shape():
     vitest(MENUS_SPEC)
