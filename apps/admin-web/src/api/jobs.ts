@@ -35,6 +35,9 @@ export interface JobPage {
   // every job the filters match, not only this page
   total: number;
   next_cursor: string | null;
+  // only when `tz` was sent: "YYYY-MM-DD" (local day in tz) -> every job that day under the same filters,
+  // one entry for each day that has a row on this page
+  day_totals?: Record<string, number>;
 }
 
 export interface JobListQuery {
@@ -46,6 +49,8 @@ export interface JobListQuery {
   // created_at window, epoch ms: from inclusive, to exclusive (one UTC hour for the band's columns)
   createdFromMs?: number;
   createdToMs?: number;
+  // IANA zone (Asia/Ho_Chi_Minh): asks for day_totals
+  tz?: string;
 }
 
 // Newest first. Empty filters are dropped by the client's query builder.
@@ -59,6 +64,7 @@ export const listJobs = (q: JobListQuery): Promise<JobPage> =>
       key_id: q.keyId,
       created_from_ms: q.createdFromMs,
       created_to_ms: q.createdToMs,
+      tz: q.tz,
     },
   });
 

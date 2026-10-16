@@ -206,7 +206,7 @@ def test_an_unclear_detail_lists_its_rows_newest_first_with_the_jobs_outcomes_an
     assert by_id[first]["account_label"] == "acc-1" and by_id[second]["account_label"] is None
     assert by_id[gone]["account_id"] == str(dangling) and by_id[gone]["account_label"] is None
     assert set(by_id[first]) == {"id", "at_ms", "job_id", "account_id", "account_label", "key_id", "text", "job_status",
-                                 "job_error_code", "acknowledged_ms", "acknowledged_by"}
+                                 "job_error_code", "acknowledged_ms", "acknowledged_by", "job_title", "key_label"}
     assert by_id[second]["job_status"] == "failed" and by_id[second]["job_error_code"] == "dola.no_video"
     assert [i["id"] for i in paged.json()["items"]] == [third, second]
 
@@ -225,8 +225,97 @@ def test_a_billing_detail_shows_the_rows_of_that_alert_kind_and_wallet_as_the_bi
     detail, other, listing = run_app(db, scenario)
     assert [i["id"] for i in detail.json()["items"]] == [clamp] and [i["id"] for i in other.json()["items"]] == [drift]
     billing = {i["id"]: i for i in listing.json()["items"]}
-    assert detail.json()["items"][0] == billing[clamp], "the hub's billing item is the billing list's row"
-    assert other.json()["items"][0] == billing[drift]
+    names = ("key_label", "job_id", "job_title")
+    row = {k: v for k, v in detail.json()["items"][0].items() if k not in names}
+    assert row == billing[clamp], "the hub's billing item is the billing list's row"
+    assert {k: v for k, v in other.json()["items"][0].items() if k not in names} == billing[drift]
+
+
+UNNAMED_KEY = "LEFT JOIN api_keys k ON k.id = b.key_id"
+UNNAMED_JOB = "LEFT JOIN ledger l ON l.id = b.ledger_id AND l.key_id = b.key_id "
+LEDGER_ANY_KEY = "LEFT JOIN ledger l ON l.id = b.ledger_id "
+UNCLEAR_KEY = "LEFT JOIN api_keys k ON k.id = j.key_id "
+JOB_JOIN = "LEFT JOIN jobs j ON j.id = l.job_id AND j.key_id = b.key_id "
+JOB_ANY_KEY = "LEFT JOIN jobs j ON j.id = l.job_id "
+
+
+@mutation(ALERTS, UNNAMED_KEY, "LEFT JOIN api_keys k ON false", expect="the clamp names its key")
+@mutation(ALERTS, UNNAMED_JOB, "LEFT JOIN ledger l ON false ", expect="the clamp names its job")
+@mutation(ALERTS, JOB_JOIN, "LEFT JOIN jobs j ON false ", expect="the clamp names its job")
+@mutation(ALERTS, UNCLEAR_KEY, "LEFT JOIN api_keys k ON false ", expect="the unclear reply names its key")
+@mutation(ALERTS, "acknowledged_by, j.title, k.label FROM", "acknowledged_by, NULL, k.label FROM",
+          expect="the unclear reply names its job")
+def test_alert_details_carry_the_job_title_and_the_key_label_next_to_the_ids(db):
+    k, clamp, drift = plant(db)
+    db.run("UPDATE api_keys SET label = 'Main key' WHERE id = %s", k)
+    job = plant_job(db, k, "done")
+    db.run("UPDATE jobs SET title = 'A Quiet Lake' WHERE id = %s", job)
+    ledger = db.one("INSERT INTO ledger (key_id, job_id, provider, kind, entry, amount, billing_day) "
+                    "VALUES (%s, %s, 'fake', 'video', 'charge', 1, current_date) RETURNING id", k, job)[0]
+    db.run("UPDATE key_wallets SET used_total = 1 WHERE key_id = %s", k)   # agrees with the ledger
+    named = db.one("INSERT INTO billing_alerts (alert, key_id, provider, kind, ledger_id, amount, used_day, "
+                   "used_total) VALUES ('clamp', %s, 'fake', 'video', %s, 5, 2, 3) RETURNING id", k, ledger)[0]
+    reply = plant_unclear(db, k, "Wording [1]")
+    db.run("UPDATE jobs SET title = 'Unclear one' WHERE id = (SELECT job_id FROM unclear_replies WHERE id = %s)", reply)
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        billing = await env.client.get(detail_url("clamp", "%s.fake.video" % k), headers=h)
+        return billing, await env.client.get(detail_url("unclear_reply", group_of("Wording [1]")), headers=h)
+
+    billing, unclear = run_app(db, scenario)
+    by_id = {i["id"]: i for i in billing.json()["items"]}
+    assert (by_id[named]["key_label"], by_id[named]["job_id"], by_id[named]["job_title"]) == (
+        "Main key", str(job), "A Quiet Lake"), "the clamp names its key; the clamp names its job"
+    assert (by_id[clamp]["key_label"], by_id[clamp]["job_id"], by_id[clamp]["job_title"]) == ("Main key", None, None)
+    [item] = unclear.json()["items"]
+    assert item["key_label"] == "Main key", "the unclear reply names its key"
+    assert item["job_title"] == "Unclear one", "the unclear reply names its job"
+
+
+@mutation(ALERTS, UNNAMED_JOB, LEDGER_ANY_KEY, expect="another key's ledger row is never named")
+@mutation(ALERTS, JOB_JOIN, JOB_ANY_KEY, expect="another key's job is never named")
+def test_a_billing_alert_never_names_a_ledger_row_or_a_job_of_another_key(db):
+    k, other = key(db), key(db)
+    db.run("UPDATE key_wallets SET used_total = 2 WHERE kind = 'video' AND key_id = %s", other)
+    db.run("UPDATE key_wallets SET used_total = 1 WHERE kind = 'video' AND key_id = %s", k)
+    mine, theirs = plant_job(db, k, "done"), plant_job(db, other, "done")
+    db.run("UPDATE jobs SET title = 'Mine' WHERE id = %s", mine)
+    db.run("UPDATE jobs SET title = 'Not yours' WHERE id = %s", theirs)
+    ledger = ("INSERT INTO ledger (key_id, job_id, provider, kind, entry, amount, billing_day) "
+              "VALUES (%s, %s, 'fake', 'video', 'charge', 1, current_date) RETURNING id")
+    alert = ("INSERT INTO billing_alerts (alert, key_id, provider, kind, ledger_id, amount, used_day, used_total) "
+             "VALUES ('clamp', %s, 'fake', 'video', %s, 5, 2, 3) RETURNING id")
+    # another key's ledger row with another key's job; with this key's job; and this key's row with another key's job
+    both, ledger_only, job_only = (db.one(alert, k, db.one(ledger, other, theirs)[0])[0],
+                                   db.one(alert, k, db.one(ledger, other, mine)[0])[0],
+                                   db.one(alert, k, db.one(ledger, k, theirs)[0])[0])
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        return await env.client.get(detail_url("clamp", "%s.fake.video" % k), headers=h)
+
+    items = {i["id"]: i for i in run_app(db, scenario).json()["items"]}
+    check = Soft()
+    check((items[both]["job_id"], items[both]["job_title"]) == (None, None), "another key's ledger row is never named")
+    check((items[ledger_only]["job_id"], items[ledger_only]["job_title"]) == (None, None),
+          "another key's ledger row is never named: even for this key's job")
+    check((items[job_only]["job_id"], items[job_only]["job_title"]) == (None, None), "another key's job is never named")
+    check.done()
+
+
+class Soft:
+    """Every failed check of a test is named in its one failure, so each marker's `expect=` finds its own."""
+
+    def __init__(self):
+        self.failed = []
+
+    def __call__(self, ok: bool, what: str) -> None:
+        if not ok:
+            self.failed.append(what)
+
+    def done(self) -> None:
+        assert not self.failed, "; ".join(self.failed)
 
 
 # ---- acknowledge ------------------------------------------------------------------------------------------------

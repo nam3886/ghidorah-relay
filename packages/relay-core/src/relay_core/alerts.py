@@ -315,22 +315,32 @@ def _billing_key(group: str) -> tuple[str, str, str]:
 
 async def billing_items(conn, kind: str, group: str, limit: int, offset: int) -> list[dict]:
     key_id, provider, wallet = _billing_key(group)
+    # The key's label and the job (through the ledger row the alert points at) ride along so the page can name them;
+    # an alert with no ledger row, or a deleted key, has null names. The ledger row and the job must belong to the
+    # alert's own key: a row of another key is never named here.
     rows = await (await conn.execute(
-        "SELECT " + ", ".join(BILLING_COLUMNS) + " FROM billing_alerts WHERE alert = %s AND key_id = %s "
-        "AND provider = %s AND kind = %s ORDER BY id DESC LIMIT %s OFFSET %s",
+        "SELECT " + ", ".join("b." + c for c in BILLING_COLUMNS) + ", k.label, j.id, j.title FROM billing_alerts b "
+        "LEFT JOIN api_keys k ON k.id = b.key_id LEFT JOIN ledger l ON l.id = b.ledger_id AND l.key_id = b.key_id "
+        "LEFT JOIN jobs j ON j.id = l.job_id AND j.key_id = b.key_id "
+        "WHERE b.alert = %s AND b.key_id = %s AND b.provider = %s AND b.kind = %s "
+        "ORDER BY b.id DESC LIMIT %s OFFSET %s",
         (kind, key_id, provider, wallet, limit, offset))).fetchall()
-    return [billing_item(r) for r in rows]
+    n = len(BILLING_COLUMNS)
+    return [{**billing_item(r[:n]), "key_label": r[n], "job_id": None if r[n + 1] is None else str(r[n + 1]),
+             "job_title": r[n + 2]} for r in rows]
 
 
 async def unclear_items(conn, group: str, limit: int, offset: int) -> list[dict]:
     rows = await (await conn.execute(
         "SELECT u.id, u.at, u.job_id, u.account_id, a.label, j.key_id, u.text, j.status, j.error_code, "
-        "u.acknowledged_at, u.acknowledged_by FROM unclear_replies u JOIN jobs j ON j.id = u.job_id "
-        "LEFT JOIN accounts a ON a.id = u.account_id WHERE u.group_id = %s ORDER BY u.id DESC LIMIT %s OFFSET %s",
+        "u.acknowledged_at, u.acknowledged_by, j.title, k.label FROM unclear_replies u JOIN jobs j ON j.id = u.job_id "
+        "LEFT JOIN accounts a ON a.id = u.account_id LEFT JOIN api_keys k ON k.id = j.key_id "
+        "WHERE u.group_id = %s ORDER BY u.id DESC LIMIT %s OFFSET %s",
         (group, limit, offset))).fetchall()
     return [{"id": r[0], "at_ms": _ms(r[1]), "job_id": str(r[2]), "account_id": None if r[3] is None else str(r[3]),
              "account_label": r[4], "key_id": str(r[5]), "text": r[6], "job_status": r[7], "job_error_code": r[8],
-             "acknowledged_ms": None if r[9] is None else _ms(r[9]), "acknowledged_by": r[10]} for r in rows]
+             "acknowledged_ms": None if r[9] is None else _ms(r[9]), "acknowledged_by": r[10], "job_title": r[11],
+             "key_label": r[12]} for r in rows]
 
 
 async def unclear_outcomes(conn, group: str) -> dict:
