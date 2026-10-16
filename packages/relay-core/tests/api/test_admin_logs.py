@@ -2,12 +2,12 @@
 pagination, the detail, and Clear removing only the log rows."""
 
 import json
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from accountkit import done_job
 from apikit import run_app
 from jobkit import key
 
+from relay_core.admin import routes_logs
 from relay_core.testing.mutation import mutation
 
 ROUTES = "packages/relay-core/src/relay_core/admin/routes_logs.py"
@@ -216,7 +216,7 @@ def test_a_moment_beyond_the_year_9999_is_refused_not_a_500(db):
 
 
 # ---- per-day totals (`tz`) ---------------------------------------------------------------------------------------
-TZ = "Asia/Ho_Chi_Minh"                  # Saigon: UTC+7, no clock change (the alias Asia/Saigon is not installed)
+TZ = "Asia/Ho_Chi_Minh"                  # Saigon: UTC+7, no clock change (the canonical name of Asia/Saigon)
 DAY_TOTALS_FROM = "_DAY_TOTALS + _FROM + _DAY_RANGE"
 DAY_TOTALS_UNFILTERED = '_DAY_TOTALS + "FROM request_logs l WHERE TRUE" + _DAY_RANGE'
 
@@ -309,22 +309,55 @@ def test_logs_without_tz_have_no_day_totals_and_a_bad_tz_is_refused(db):
 
     async def scenario(env):
         refused = ("Mars/Olympus", "", "..%2Fetc%2Fpasswd", "%2Fetc%2Fpasswd")
-        return [await get(env)] + [await get(env, "?tz=" + bad) for bad in refused] + [
-            await get(env, "?tz=Asia/Saigon")]
+        return [await get(env)] + [await get(env, "?tz=" + bad) for bad in refused]
 
-    plain, *bad, alias = run_app(db, scenario)
+    plain, *bad = run_app(db, scenario)
     check = Soft()
-    try:                        # the legacy alias is served only where the image ships it; no mapping is made
-        ZoneInfo("Asia/Saigon")
-    except ZoneInfoNotFoundError:
-        check(alias.status_code == 400 and alias.json()["error"]["code"] == "input.invalid", "the alias is refused")
-    else:
-        check(alias.status_code == 200 and "day_totals" in alias.json(), "the alias is served where known")
     check(plain.status_code == 200 and plain.content == json.dumps(golden, separators=(",", ":")).encode(),
           "no tz, no field: the old answer, byte for byte")
     for r in bad:
         check((r.status_code, r.json()["error"]["code"], r.json()["error"]["param"]) == (
             400, "input.invalid", "tz"), "a bad tz")
+    check.done()
+
+
+@mutation("packages/relay-core/src/relay_core/admin/routes_jobs.py", "        return ZoneInfo(name)",
+          '        return ZoneInfo(name.replace("Saigon", "Nowhere"))', expect="the alias answers")
+def test_the_browser_zone_asia_saigon_gives_the_same_log_day_totals_as_asia_ho_chi_minh(db):
+    """Chrome in Vietnam reports `Asia/Saigon`: it must answer and group by the same local days."""
+    k = key(db)
+    for stamp in ("2026-03-10 16:30:00+00", "2026-03-10 17:30:00+00", "2026-03-11 01:00:00+00"):
+        log(db, k, at=stamp)
+
+    async def scenario(env):
+        return [await get(env, "?tz=" + zone) for zone in ("Asia/Saigon", TZ)]
+
+    alias, canonical = run_app(db, scenario)
+    check = Soft()
+    check(alias.status_code == 200 and "day_totals" in alias.json(), "the alias answers")
+    check(alias.json().get("day_totals") == {"2026-03-10": 1, "2026-03-11": 2}, "the alias gives the same days")
+    check(alias.json().get("day_totals") == canonical.json()["day_totals"], "the alias gives the same days")
+    check.done()
+
+
+@mutation("packages/relay-core/src/relay_core/admin/routes_jobs.py", "    except psycopg.errors.InvalidParameterValue:",
+          "    except psycopg.errors.UndefinedTable:", expect="a zone Postgres does not know")
+def test_a_zone_python_knows_and_postgres_does_not_is_a_bad_tz_for_the_logs_too(db, monkeypatch):
+    """The same translation on the logs route: Python accepts a made-up name, Postgres refuses it: 400, never 500."""
+    from zoneinfo import ZoneInfo
+
+    log(db, key(db))
+    monkeypatch.setattr(routes_logs, "_zone", lambda name: ZoneInfo(TZ))
+
+    async def scenario(env):
+        return [await get(env, "?tz=" + zone) for zone in ("Mars/Olympus", TZ)]
+
+    unknown, known = run_app(db, scenario)
+    check = Soft()
+    check((unknown.status_code, unknown.json()["error"]["code"]) == (400, "input.invalid"),
+          "a zone Postgres does not know")
+    check(unknown.json()["error"].get("param") == "tz", "a zone Postgres does not know: param")
+    check(known.status_code == 200 and known.json()["day_totals"] == {"2026-01-10": 1}, "a known zone still answers")
     check.done()
 
 
