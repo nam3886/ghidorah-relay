@@ -8,7 +8,8 @@ export const PICK_A_MODEL = "Pick a model";
 
 // The key and the model list of the Test tab. The typed key is kept (in sessionStorage, by test-key.ts) only after a
 // model load with it succeeded, so a mistyped or refused key is never stored. Calls use the key that was loaded, not
-// whatever is typed in the box now. A public 401 means that key is no longer valid: it is forgotten at once.
+// whatever is typed in the box now. A public 401 means that key is no longer valid: only the key is forgotten at
+// once (forget), so the error line stays on screen. Forget key and sign-out forget everything of the key (reset).
 export function useTestSession() {
   const typedKey = ref("");
   const models = shallowRef<PublicModel[]>([]);
@@ -27,7 +28,8 @@ export function useTestSession() {
     typedKey.value = "";
   }
 
-  // Sign-out and a 401 of the admin session: nothing of the session stays, not even the loaded models.
+  // Forget key (the button), sign-out and a 401 of the admin session: nothing of the key stays, not the box, the stored
+  // key, the loaded models, the points or the status line. The public 401 of a call is not this: it uses forget().
   function reset(): void {
     forget();
     models.value = [];

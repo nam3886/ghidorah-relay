@@ -104,9 +104,8 @@ afterEach(() => {
 describe("the settings page", () => {
   it("lets the page scroll: no table holds a fixed height that would clip a row", async () => {
     await open();
-    const tables = wrapper!.findAll(".el-table");
-    expect(tables).toHaveLength(2);
-    for (const t of tables) expect(t.attributes("style") ?? "").not.toMatch(/max-height:\s*(\d|calc)/);
+    expect(wrapper!.findAll("table")).toHaveLength(2);
+    expect(wrapper!.html()).not.toMatch(/max-height:\s*(\d|calc)/);
   });
 });
 
@@ -122,8 +121,11 @@ describe("the settings table", () => {
     expect(text).toContain("1800");
     expect(text).toContain("BILLING_TZ");
     expect(text).toContain("Asia/Saigon");
-    const env = wrapper!.findAll("tr").find((r) => r.text().includes("PUBLIC_BASE_URL"));
-    expect(env!.text()).toContain("-");
+    const env = wrapper!
+      .find('dl[aria-label="Boot-only values"]')
+      .findAll("div")
+      .find((r) => r.text().includes("PUBLIC_BASE_URL"));
+    expect(env!.find("dd").text()).toBe("-");
   });
 
   it("Save is disabled until the value changed, the row says edited, and an edit back disables it again", async () => {
@@ -158,6 +160,16 @@ describe("the settings table", () => {
     await button("Save billing_label").trigger("click");
     await flushPromises();
     expect(api.putSetting).toHaveBeenCalledWith("billing_label", "my label");
+  });
+
+  it("Reset is on for a stored value or an edit, and off for a value that is only the environment or default", async () => {
+    await open();
+    expect(button("Reset session_ttl_s").attributes("disabled")).toBeUndefined();
+    expect(button("Reset billing_label").attributes("disabled")).toBeDefined();
+    await valueInput("billing_label").setValue("changed");
+    expect(button("Reset billing_label").attributes("disabled")).toBeUndefined();
+    await valueInput("billing_label").setValue("relay");
+    expect(button("Reset billing_label").attributes("disabled")).toBeDefined();
   });
 
   it("Reset deletes the stored value and says Reset", async () => {
@@ -196,15 +208,38 @@ describe("the settings table", () => {
   });
 });
 
+describe("the sub-navigation", () => {
+  it("lists the four sections in order, marks the first as current and moves the mark on a click", async () => {
+    await open();
+    const nav = wrapper!.find('nav[aria-label="Settings sections"]');
+    const links = nav.findAll("a");
+    expect(links.map((a) => a.text())).toEqual(["Settings", "Boot-only values", "Measured prices", "Change password"]);
+    expect(links.map((a) => a.attributes("aria-current"))).toEqual(["true", undefined, undefined, undefined]);
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    await links[2]!.trigger("click");
+    expect(wrapper!.findAll('nav[aria-label="Settings sections"] a').map((a) => a.attributes("aria-current"))).toEqual([
+      undefined,
+      undefined,
+      "true",
+      undefined,
+    ]);
+    expect(scroll).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("measured prices", () => {
   it("shows duration as Ns or -, flags a disagreement and shows 0 for none", async () => {
     await open();
     const rows = wrapper!.findAll("tr").filter((r) => r.text().includes("seedance"));
     expect(rows).toHaveLength(2);
-    expect(rows[0]!.text()).toContain("8s");
-    expect(rows[0]!.find(".status-chip").text()).toBe("2");
-    expect(rows[1]!.find(".status-chip").exists()).toBe(false);
-    expect(rows[1]!.text()).toContain("-");
+    expect(rows[0]!.text()).toContain("8 s");
+    expect(rows[0]!.find(".status-chip").text()).toBe("Upstream disagreed 2");
+    expect(rows[0]!.find(".status-chip").attributes("data-tone")).toBe("bad");
+    // no disagreement is a neutral pill with 0, and a missing duration or figure is a dash
+    expect(rows[1]!.find(".status-chip").text()).toBe("0");
+    expect(rows[1]!.find(".status-chip").attributes("data-tone")).toBe("neutral");
+    expect(rows[1]!.text()).toContain("—");
   });
 
   it("is empty with its own text", async () => {
@@ -225,9 +260,9 @@ describe("measured prices", () => {
 });
 
 describe("change password", () => {
-  const errorTexts = () => wrapper!.findAll(".el-form-item__error").map((e) => e.text());
+  const errorTexts = () => wrapper!.findAll('[role="alert"]').map((e) => e.text());
   const field = (label: string) => wrapper!.find(`input[autocomplete="${label}"]`);
-  const submit = () => wrapper!.findAll("button").find((b) => b.text() === "Change password")!;
+  const submit = () => wrapper!.find('button[type="submit"]');
 
   it("sends both passwords, ends the session here and lands on login", async () => {
     sessionStorage.setItem(TOKEN_KEY, "tok");
@@ -261,7 +296,6 @@ describe("change password", () => {
     );
     await submit().trigger("click");
     await flushPromises();
-    // Element Plus shows a field error after a short debounce
     await vi.waitFor(() => expect(errorTexts()).toEqual(["Current password is wrong"]));
     expect(router.currentRoute.value.name).toBe("settings");
     expect(notify.error).not.toHaveBeenCalled();

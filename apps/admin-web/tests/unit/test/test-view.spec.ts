@@ -5,6 +5,7 @@ import { defineComponent, h, KeepAlive } from "vue";
 import * as api from "@/api/test";
 import { DROPPED_NOTE, FILE_STORE, type FileStore, NOT_SAVED_NOTE, type StoredFile } from "@/lib/test-files";
 import { useAuthStore } from "@/stores/auth";
+import { useUiStore } from "@/stores/ui";
 import TestView from "@/views/TestView.vue";
 
 vi.mock("@/api/test", async (original) => ({
@@ -60,12 +61,20 @@ async function loadModels(key = "rk-1") {
 }
 async function pickModel(id: string) {
   await wrapper!
-    .findAll(".test-tab__model")
+    .findAll('[data-testid="test-model"]')
     .find((b) => b.text().startsWith(id))!
     .trigger("click");
   await flushPromises();
 }
 const text = () => wrapper!.text();
+const models = () => wrapper!.findAll('[data-testid="test-model"]');
+const attached = () => wrapper!.findAll('[data-testid="attachment"]');
+const attach = async (...picked: File[]) => {
+  const input = wrapper!.find('[data-testid="attach-input"]');
+  Object.defineProperty(input.element, "files", { configurable: true, value: picked });
+  await input.trigger("change");
+  await flushPromises();
+};
 
 beforeEach(() => {
   sessionStorage.clear();
@@ -91,16 +100,25 @@ describe("the tab", () => {
   it("loads models grouped by kind, shows the points, picks a model and fills ratio, style and templates", async () => {
     await open();
     await loadModels();
-    expect(wrapper!.findAll(".test-tab__group-title").map((g) => g.text())).toEqual(["image", "video"]);
+    expect(wrapper!.findAll('[data-testid="test-models"] h2').map((g) => g.text())).toEqual(["Video", "Image"]);
     expect(text()).toContain('"points": 9');
     expect(text()).toContain("Pick a model");
     await pickModel("veo-3");
     expect(api.getOptions).toHaveBeenCalledWith("rk-1", "flow");
-    expect(text()).toContain("video · flow · price");
-    expect(wrapper!.findAll("#test-ratio-list option").map((o) => o.attributes("value"))).toEqual(["16:9", "1:1"]);
-    expect(wrapper!.findAll("#test-style-list option").map((o) => o.attributes("value"))).toEqual(["noir"]);
+    expect(text()).toContain("video · flow");
+    const options = (id: string) =>
+      wrapper!
+        .findAll(`#${id} option`)
+        .map((o) => o.attributes("value"))
+        .filter(Boolean);
+    expect(options("test-ratio")).toEqual(["16:9", "1:1"]);
+    // the style belongs to an image model
+    expect(wrapper!.find("#test-style").exists()).toBe(false);
+    await pickModel("imagen-4");
+    expect(options("test-style")).toEqual(["noir"]);
+    await pickModel("veo-3");
     // a template copies its prompt into the box
-    await wrapper!.findAll(".test-tab__templates button")[0]!.trigger("click");
+    await wrapper!.findAll('[role="group"][aria-label="Prompt templates"] button')[0]!.trigger("click");
     expect((wrapper!.find("textarea").element as HTMLTextAreaElement).value).toBe("a sunset over the sea");
   });
 
@@ -149,17 +167,69 @@ describe("the tab", () => {
   });
 });
 
+describe("Forget key", () => {
+  it("clears everything of the key: the box, the stored key, the models, the points and the status line", async () => {
+    await open();
+    await loadModels("rk-forget-me-1");
+    await pickModel("veo-3");
+    expect(models()).toHaveLength(2);
+    expect(wrapper!.find(".test-tab__points-box").exists()).toBe(true);
+    await button("Forget key").trigger("click");
+    await flushPromises();
+    expect((wrapper!.find("input[type=password]").element as HTMLInputElement).value).toBe("");
+    expect(sessionStorage.getItem("relay_test_key")).toBeNull();
+    expect(models()).toHaveLength(0);
+    expect(wrapper!.find(".test-tab__points-box").exists()).toBe(false);
+    // status "Idle" with no models is drawn as the hint of how to start
+    expect(wrapper!.find(".test-result__status").text()).toBe(
+      "No models loaded. Enter an API key above and press Load models.",
+    );
+  });
+});
+
+describe("the key on the page", () => {
+  const SECRET = "rk-never-on-the-page-7731";
+
+  // The typed key lives in the password box's value (a property, not markup). Nowhere else may it be: not as text, not in
+  // any attribute of any element, in the tab, the result card or the status line.
+  const leaks = () =>
+    document.body.textContent.includes(SECRET) ||
+    [...document.body.querySelectorAll("*")].some((el) =>
+      el.getAttributeNames().some((name) => el.getAttribute(name)?.includes(SECRET)),
+    );
+
+  it("is never in the rendered page outside its password input, before and after sign-out", async () => {
+    await open();
+    await loadModels(SECRET);
+    await pickModel("veo-3");
+    vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
+    await wrapper!.find("textarea").setValue("a cat");
+    await button("Generate").trigger("click");
+    await flushPromises();
+    expect((wrapper!.find("input[type=password]").element as HTMLInputElement).value).toBe(SECRET);
+    expect(leaks()).toBe(false);
+    useAuthStore().signOut();
+    await flushPromises();
+    expect((wrapper!.find("input[type=password]").element as HTMLInputElement).value).toBe("");
+    expect(leaks()).toBe(false);
+  });
+});
+
 describe("the empty state", () => {
   it("keeps the model column with a hint while no model is loaded, and drops the hint once models arrive", async () => {
     await open();
-    expect(wrapper!.find(".test-tab__models").exists()).toBe(true);
-    expect(wrapper!.find('[data-testid="test-models-empty"]').text()).toContain("Load models");
-    expect(wrapper!.findAll(".test-tab__model")).toHaveLength(0);
+    expect(wrapper!.find('[data-testid="test-models"]').exists()).toBe(true);
+    expect(wrapper!.find('[data-testid="test-models-empty"]').text()).toBe("No models loaded.");
+    // the Result card says how to start
+    expect(wrapper!.find('[role="status"]').text()).toBe(
+      "No models loaded. Enter an API key above and press Load models.",
+    );
+    expect(models()).toHaveLength(0);
     expect(wrapper!.find(".test-tab__points-box").exists()).toBe(false);
     expect(button("Generate").attributes("disabled")).toBeDefined();
     await loadModels();
     expect(wrapper!.find('[data-testid="test-models-empty"]').exists()).toBe(false);
-    expect(wrapper!.findAll(".test-tab__model")).toHaveLength(2);
+    expect(models()).toHaveLength(2);
   });
 
   it("the wallet limits sit in a closed block of their own, and the optional fields say so", async () => {
@@ -169,8 +239,10 @@ describe("the empty state", () => {
     expect(box.find("summary").text()).toBe("Wallet limits");
     expect(box.element.open).toBe(false);
     expect(box.find("pre").text()).toContain('"points": 9');
-    const placeholders = wrapper!.findAll(".test-tab__row input").map((i) => i.attributes("placeholder"));
-    expect(placeholders).toEqual(["optional", "16:9", "optional", "optional"]);
+    const placeholders = ["#test-duration", "#test-ratio", "#test-count"].map((id) =>
+      wrapper!.find(id).attributes("placeholder"),
+    );
+    expect(placeholders).toEqual(["optional", "16:9", "1"]);
   });
 
   it("Clear form is a plain button, not a danger one", async () => {
@@ -187,27 +259,27 @@ describe("Load models", () => {
     vi.mocked(api.listModels).mockReturnValue(new Promise((resolve) => (loaded = resolve)));
     const input = wrapper!.find("input[type=password]");
     await input.setValue("rk-1");
-    expect(button("Load models").classes()).not.toContain("is-loading");
+    expect(button("Load models").attributes("aria-busy")).toBe("false");
     void button("Load models").trigger("click");
     void button("Load models").trigger("click");
     await input.trigger("keyup.enter");
     await flushPromises();
     expect(api.listModels).toHaveBeenCalledTimes(1);
-    expect(button("Load models").classes()).toContain("is-loading");
+    expect(button("Load models").attributes("aria-busy")).toBe("true");
     loaded({ data: [video] });
     await flushPromises();
-    expect(button("Load models").classes()).not.toContain("is-loading");
-    expect(wrapper!.findAll(".test-tab__model")).toHaveLength(1);
+    expect(button("Load models").attributes("aria-busy")).toBe("false");
+    expect(models()).toHaveLength(1);
   });
 
   it("is free again after a load that failed, so the next click sends a request", async () => {
     await open();
     vi.mocked(api.listModels).mockRejectedValueOnce(new api.TestApiError(500, "boom", "server down"));
     await loadModels();
-    expect(button("Load models").classes()).not.toContain("is-loading");
+    expect(button("Load models").attributes("aria-busy")).toBe("false");
     await loadModels();
     expect(api.listModels).toHaveBeenCalledTimes(2);
-    expect(wrapper!.findAll(".test-tab__model")).toHaveLength(2);
+    expect(models()).toHaveLength(2);
   });
 });
 
@@ -216,7 +288,7 @@ describe("images", () => {
     const store = memoryStore([...Array.from({ length: 10 }, (_, i) => png(`f${i}.png`)), png("eleven.png")]);
     await open(store);
     expect(text()).toContain(DROPPED_NOTE);
-    expect(wrapper!.findAll(".el-upload-list__item")).toHaveLength(10);
+    expect(attached()).toHaveLength(10);
     expect(store.value()).toHaveLength(10);
   });
 
@@ -224,43 +296,37 @@ describe("images", () => {
     const store = memoryStore({ bad: true });
     await open(store);
     expect(text()).toContain(DROPPED_NOTE);
-    expect(wrapper!.findAll(".el-upload-list__item")).toHaveLength(0);
+    expect(attached()).toHaveLength(0);
     expect(store.value()).toBeUndefined();
   });
 
   it("a dropped file that is not an image is never listed or stored, and an image is", async () => {
     const store = memoryStore();
     await open(store);
-    const input = wrapper!.find("input.el-upload__input");
-    Object.defineProperty(input.element, "files", {
-      configurable: true,
-      value: [new File(["x"], "notes.txt", { type: "text/plain" })],
-    });
-    await input.trigger("change");
-    await flushPromises();
-    expect(wrapper!.findAll(".el-upload-list__item")).toHaveLength(0);
+    await attach(new File(["x"], "notes.txt", { type: "text/plain" }));
+    expect(attached()).toHaveLength(0);
     expect(store.value()).toBeUndefined();
-    Object.defineProperty(input.element, "files", {
-      configurable: true,
-      value: [new File(["x"], "a.png", { type: "image/png" })],
-    });
-    await input.trigger("change");
-    await flushPromises();
-    expect(wrapper!.findAll(".el-upload-list__item").map((li) => li.text())).toEqual([
-      expect.stringContaining("a.png"),
-    ]);
+    await attach(new File(["x"], "a.png", { type: "image/png" }));
+    expect(attached().map((li) => li.text())).toEqual([expect.stringContaining("a.png")]);
     expect((store.value() as StoredFile[]).map((f) => f.name)).toEqual(["a.png"]);
   });
 
-  it("the drag area never uploads by itself", async () => {
+  it("the drag area never uploads by itself, and shows names and sizes, never a picture", async () => {
+    const send = vi.spyOn(globalThis, "fetch");
     await open(memoryStore());
-    expect(wrapper!.findComponent({ name: "ElUpload" }).props("autoUpload")).toBe(false);
+    await attach(new File(["x"], "a.png", { type: "image/png" }));
+    expect(send).not.toHaveBeenCalled();
+    expect(attached()).toHaveLength(1);
+    expect(attached()[0]!.text()).toMatch(/a\.png\s*1 KiB/);
+    expect(attached()[0]!.find("img").exists()).toBe(false);
+    expect(wrapper!.html()).not.toContain("blob:");
+    send.mockRestore();
   });
 
   it("writes only a checked list on Remove", async () => {
     const store = memoryStore([png("a.png"), png("b.png")]);
     await open(store);
-    await wrapper!.find(".el-upload-list__item .el-icon--close").trigger("click");
+    await wrapper!.find('button[aria-label="Remove a.png"]').trigger("click");
     await flushPromises();
     expect((store.value() as StoredFile[]).map((f) => f.name)).toEqual(["b.png"]);
   });
@@ -314,13 +380,7 @@ describe("storage that refuses, each says so at once", () => {
     vi.mocked(store.put).mockRejectedValue(new Error("quota"));
     await open(store);
     expect(text()).not.toContain(NOT_SAVED_NOTE);
-    const input = wrapper!.find("input.el-upload__input");
-    Object.defineProperty(input.element, "files", {
-      configurable: true,
-      value: [new File(["x"], "a.png", { type: "image/png" })],
-    });
-    await input.trigger("change");
-    await flushPromises();
+    await attach(new File(["x"], "a.png", { type: "image/png" }));
     expect(text()).toContain(NOT_SAVED_NOTE);
   });
 
@@ -363,11 +423,7 @@ describe("blocked storage", () => {
     expect(text()).toContain("Job j1 done");
     expect(api.createJob).toHaveBeenCalledWith("rk-1", "image", { model: "imagen-4", prompt: "a cat" });
     // attaching a file: the store refuses, the tab says so
-    const input = wrapper!.find("input.el-upload__input");
-    const file = new File(["x"], "a.png", { type: "image/png" });
-    Object.defineProperty(input.element, "files", { value: [file] });
-    await input.trigger("change");
-    await flushPromises();
+    await attach(new File(["x"], "a.png", { type: "image/png" }));
     expect(text()).toContain(NOT_SAVED_NOTE);
   });
 });
@@ -406,7 +462,9 @@ describe("a running job", () => {
     await vi.advanceTimersByTimeAsync(30000);
     expect(api.getJob).not.toHaveBeenCalled();
     expect(sessionStorage.getItem("relay_test_key")).toBeNull();
-    expect(wrapper!.findAll(".test-tab__model")).toHaveLength(0);
+    expect(models()).toHaveLength(0);
+    // the key box is empty too: the pasted key is not left on the page
+    expect((wrapper!.find("input[type=password]").element as HTMLInputElement).value).toBe("");
     // the loop is over, not failing on a missing key: the status line was reset and not overwritten
     expect(wrapper!.find(".test-result__status").text()).toBe("Idle");
   });
@@ -449,6 +507,113 @@ describe("a running job", () => {
     expect(text()).toContain("Job j2 queued");
     await vi.advanceTimersByTimeAsync(3000);
     expect(vi.mocked(api.getJob).mock.calls.map((c) => c[2])).toEqual(["j2"]);
+  });
+});
+
+describe("the model picker and the wallet", () => {
+  it("shows the wallet limits of /v1/points as rows: day and total, and unlimited with its use", async () => {
+    vi.mocked(api.getPoints).mockResolvedValue({
+      dola: {
+        video: { day_limit: 20, used_day: 3, total_limit: 200, used_total: 14 },
+        image: { day_limit: null, used_day: 0, total_limit: null, used_total: 9 },
+      },
+      models: [],
+    });
+    await open();
+    await loadModels();
+    const rows = wrapper!.findAll(".wallet__row").map((r) => [r.find("dt").text(), r.find("dd").text()]);
+    expect(rows).toEqual([
+      ["dola video · today", "3 / 20"],
+      ["dola video · total", "14 / 200"],
+      ["dola image", "unlimited (9 used)"],
+    ]);
+    expect(wrapper!.find(".test-tab__points-box pre").exists()).toBe(false);
+  });
+
+  it("a model with a duration list gets a select of them, and the heading names them", async () => {
+    vi.mocked(api.listModels).mockResolvedValue({
+      data: [{ ...video, limits: { durations: [5, 10, 20, 25, 30] } }, image],
+    });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    expect(text()).toContain("video · 5, 10, 20, 25 or 30 s");
+    expect(wrapper!.findAll("#test-duration option").map((o) => o.text())).toEqual([
+      "Default",
+      "5 s",
+      "10 s",
+      "20 s",
+      "25 s",
+      "30 s",
+    ]);
+    await wrapper!.find("#test-duration").setValue("30");
+    expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "").duration).toBe("30");
+  });
+
+  it("a model that names a display name shows it with its id under it; one without shows the id alone", async () => {
+    vi.mocked(api.listModels).mockResolvedValue({ data: [{ ...video, name: "Veo Three" }, image] });
+    await open();
+    await loadModels();
+    const named = models().find((m) => m.text().includes("veo-3"))!;
+    const plain = models().find((m) => m.text().startsWith("imagen-4"))!;
+    expect(named.find(".model__title").text()).toBe("Veo Three");
+    expect(named.find(".model__id").text()).toContain("veo-3");
+    expect(plain.find(".model__title").text()).toBe("imagen-4");
+    expect(plain.find(".model__id").exists()).toBe(false);
+  });
+});
+
+describe("the result card", () => {
+  it("shows the step and word of a job in progress, its short id and the fields it carries, and the id opens the job", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    const running = {
+      id: "e17c55b2-0000-4000-8000-000000000000",
+      status: "running",
+      stage: "waiting",
+      model: "veo-3",
+      duration: 30,
+      ratio: "16:9",
+      created_at: new Date(2026, 9, 15, 20, 52, 30).toISOString(),
+    };
+    vi.mocked(api.createJob).mockResolvedValue(running);
+    vi.mocked(api.getJob).mockResolvedValue(running);
+    await button("Generate").trigger("click");
+    await vi.advanceTimersByTimeAsync(0);
+    const chip = wrapper!.find(".status-chip");
+    expect(chip.text()).toBe("2/4waiting");
+    expect(chip.find(".dot").exists()).toBe(false);
+    expect(wrapper!.find('[aria-label="Empty video slot"]').text()).toBe(
+      "The video appears here when the job is done.",
+    );
+    expect(wrapper!.findAll(".result__row").map((r) => `${r.find("dt").text()} ${r.find("dd").text()}`)).toEqual([
+      "Model veo-3",
+      "Duration 30 s",
+      "Ratio 16:9",
+      "Created 20:52:30",
+    ]);
+    const link = wrapper!.find('a[aria-label="Open job e17c55b2"]');
+    expect(link.text()).toBe("e17c55b2");
+    await link.trigger("click");
+    expect(useUiStore().openJobId).toBe(running.id);
+  });
+
+  it("a finished job has no empty slot, and a failed one shows the reason", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    const failed = { id: "j1", status: "failed", error: "the prompt was refused" };
+    vi.mocked(api.createJob).mockResolvedValue(failed);
+    vi.mocked(api.getJob).mockResolvedValue(failed);
+    await button("Generate").trigger("click");
+    await vi.advanceTimersByTimeAsync(3000);
+    await flushPromises();
+    expect(wrapper!.find(".status-chip").text()).toBe("failed");
+    expect(wrapper!.find('[aria-label="Empty video slot"]').exists()).toBe(false);
+    expect(wrapper!.find('.result [role="alert"]').text()).toBe("the prompt was refused");
   });
 });
 

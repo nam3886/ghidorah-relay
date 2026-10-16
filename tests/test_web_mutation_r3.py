@@ -27,6 +27,11 @@ SETTING_VALUE = f"{SRC}/components/settings/settings-value.ts"
 SETTINGS_TABLE = f"{SRC}/components/settings/SettingsTable.vue"
 SETTINGS_VIEW = f"{SRC}/views/SettingsView.vue"
 PASSWORD = f"{SRC}/components/settings/PasswordForm.vue"
+PRICES = f"{SRC}/components/settings/PricesTable.vue"
+TEST_MODELS = f"{SRC}/components/test/test-models.ts"
+TEST_RESULT = f"{SRC}/components/test/TestResult.vue"
+TEST_RESULT_MODEL = f"{SRC}/components/test/test-result-model.ts"
+TEST_IMAGES = f"{SRC}/components/test/TestImages.vue"
 FRAMES = f"{SRC}/components/frames/use-frames.ts"
 FRAMES_MODEL = f"{SRC}/components/frames/frames-model.ts"
 FRAMES_VIEW = f"{SRC}/views/FramesView.vue"
@@ -48,7 +53,7 @@ EMPTY_MODELS = VIEW_SPEC + ("the empty state > keeps the model column with a hin
 WALLET_BOX = VIEW_SPEC + ("the empty state > the wallet limits sit in a closed block of their own, and the optional "
                           "fields say so")
 FRAME_SHAPE_SPEC = (FRAMES_VIEW_SPEC + "the frame box shows the shape of a frame as its placeholder, and the lock "
-                    "history sits on the checkbox's line")
+                    "line sits on the checkbox cell")
 
 # ---- the image limits, on restore and before every write ---------------------------------------------------------
 TEN = FILES_SPEC + "the limits > keeps 10 files and drops the 11th"
@@ -232,6 +237,20 @@ FORM_RESTORED = VIEW_SPEC + "the tab > restores the form, the kept key, the mode
 LOAD_ONCE = (VIEW_SPEC + "Load models > shows a busy state and sends one request for a double click and an Enter "
              + "while the load is on its way")
 LOAD_FREE = VIEW_SPEC + "Load models > is free again after a load that failed, so the next click sends a request"
+FORGET_ALL = (VIEW_SPEC + "Forget key > clears everything of the key: the box, the stored key, the models, "
+              + "the points and the status line")
+KEY_OFF_PAGE = (VIEW_SPEC + "the key on the page > is never in the rendered page outside its password input, "
+                + "before and after sign-out")
+PICKER = VIEW_SPEC + "the model picker and the wallet > "
+WALLET_ROWS = PICKER + "shows the wallet limits of /v1/points as rows: day and total, and unlimited with its use"
+DURATION_SELECT = PICKER + "a model with a duration list gets a select of them, and the heading names them"
+DISPLAY_NAME = (PICKER + "a model that names a display name shows it with its id under it; "
+                + "one without shows the id alone")
+NAMES_ONLY = (VIEW_SPEC + "images > the drag area never uploads by itself, and shows names and sizes, "
+              + "never a picture")
+RESULT_CARD = (VIEW_SPEC + "the result card > shows the step and word of a job in progress, its short id "
+               + "and the fields it carries, and the id opens the job")
+FAILED_JOB = VIEW_SPEC + "the result card > a finished job has no empty slot, and a failed one shows the reason"
 
 
 @mutation(TEST_VIEW, "session.reset();", "", expect=SIGN_OUT)
@@ -252,19 +271,32 @@ LOAD_FREE = VIEW_SPEC + "Load models > is free again after a load that failed, s
 @mutation(TEST_VIEW, "const form = reactive(initial.form);", "const form = reactive(emptyForm());",
           expect=FORM_RESTORED)
 @mutation(TEST_VIEW, "if (loadingModels.value) return;", "", expect=LOAD_ONCE)
-@mutation(TEST_VIEW, ':loading="loadingModels"', ':loading="false"', expect=LOAD_ONCE)
+@mutation(TEST_VIEW, ':aria-busy="loadingModels"', ':aria-busy="false"', expect=LOAD_ONCE)
 @mutation(TEST_VIEW, "} finally {\n    loadingModels.value = false;", "} finally {", expect=LOAD_FREE)
 @mutation(TEST_VIEW, 'v-if="!groups.length"', 'v-if="false"', expect=EMPTY_MODELS)
 @mutation(TEST_VIEW, '<details v-if="points" class="test-tab__points-box">',
           '<details v-if="points" open class="test-tab__points-box">', expect=WALLET_BOX)
+@mutation(TEST_VIEW, "form[name] = value;", "", expect=DURATION_SELECT)
+@mutation(TEST_VIEW, '@click="session.reset"', ':title="typedKey" @click="session.reset"', expect=KEY_OFF_PAGE)
+@mutation(TEST_VIEW, '@click="session.reset"', '@click="session.forget"', expect=FORGET_ALL)
+@mutation(TEST_MODELS, "wallet.day_limit === null && wallet.total_limit === null", "false", expect=WALLET_ROWS)
+@mutation(TEST_MODELS, "`${wallet.used_day} / ${wallet.day_limit}`", "`${wallet.used_day}`", expect=WALLET_ROWS)
+@mutation(TEST_MODELS, '`${head ? `${head} or ` : ""}${last} s`', '`${head ? `${head}, ` : ""}${last} s`',
+          expect=DURATION_SELECT)
+@mutation(TEST_MODELS, "typeof m.name === \"string\" && m.name ? m.name : m.id", "m.id", expect=DISPLAY_NAME)
+@mutation(TEST_IMAGES, "{{ sizeText(f.blob.size) }}", "", expect=NAMES_ONLY)
+@mutation(TEST_RESULT, "ui.openJob(job.id)", "ui.openJob('')", expect=RESULT_CARD)
+@mutation(TEST_RESULT_MODEL, 'waiting: "2/4",', 'waiting: "3/4",', expect=RESULT_CARD)
+@mutation(TEST_RESULT_MODEL, "return job.stage || job.status;", "return job.status;", expect=RESULT_CARD)
+@mutation(TEST_RESULT_MODEL, 'add("Created", clockTime(job.created_at));', "", expect=RESULT_CARD)
+@mutation(TEST_RESULT, "!finished && !media.length", "!media.length", expect=FAILED_JOB)
+@mutation(TEST_RESULT, 'typeof props.job?.error === "string" ? props.job.error : ""', '""', expect=FAILED_JOB)
 @pytest.mark.web_unit
 def test_test_view_rules():
     vitest("tests/unit/test/test-view.spec.ts")
 
 
 # ---- Settings: the value parse, the dirty rule, the scope, the password change -------------------------------------
-PAGE_SCROLLS = (SETTINGS_SPEC
-                + "the settings page > lets the page scroll: no table holds a fixed height that would clip a row")
 PARSE = SETTINGS_SPEC + "setting values > are parsed as JSON first and fall back to the raw string"
 TEXT = SETTINGS_SPEC + "setting values > start in the input as the string itself, or JSON for anything else"
 TABLE = SETTINGS_SPEC + "the settings table > "
@@ -272,6 +304,12 @@ DIRTY = TABLE + "Save is disabled until the value changed, the row says edited, 
 SAVE_SENDS = TABLE + "Save sends the parsed value, reloads both lists and says Saved"
 SCOPE = (SETTINGS_SPEC
          + "measured prices > follows the global provider filter and reloads only the prices when it changes")
+RESET_RULE = (TABLE + "Reset is on for a stored value or an edit, "
+              + "and off for a value that is only the environment or default")
+NAV_MOVES = (SETTINGS_SPEC + "the sub-navigation > lists the four sections in order, marks the first as current "
+             + "and moves the mark on a click")
+PRICES_SPEC = SETTINGS_SPEC + "measured prices > "
+PRICES_FIGURES = PRICES_SPEC + "shows duration as Ns or -, flags a disagreement and shows 0 for none"
 PASSWORD_SPEC = SETTINGS_SPEC + "change password > "
 LOGIN = PASSWORD_SPEC + "sends both passwords, ends the session here and lands on login"
 OLD_FIELD = PASSWORD_SPEC + "shows a refusal that names old_password on that field, and stays"
@@ -283,7 +321,10 @@ BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
 @mutation(SETTING_VALUE, "return text;", "return null;", expect=PARSE)
 @mutation(SETTING_VALUE, STRING_VALUE, "JSON.stringify(item.value)", expect=TEXT)
 @mutation(SETTINGS_TABLE, "drafts[item.key] !== valueText(item)", "true", expect=DIRTY)
-@mutation(SETTINGS_TABLE, 'max-height="none"', 'max-height="460px"', expect=PAGE_SCROLLS)
+@mutation(SETTINGS_TABLE, 'item.source === "db" || edited(item)', "edited(item)", expect=RESET_RULE)
+@mutation(SETTINGS_VIEW, "current.value = id;", "", expect=NAV_MOVES)
+@mutation(PRICES, 'const NONE = "—";', 'const NONE = "-";', expect=PRICES_FIGURES)
+@mutation(PRICES, ': "0"', ': "none"', expect=PRICES_FIGURES)
 @mutation(SETTINGS_VIEW, "await putSetting(key, parseValue(text));", "await putSetting(key, text);", expect=SAVE_SENDS)
 @mutation(SETTINGS_VIEW, "watch(() => scope.provider, loadPrices);", "watch(() => scope.provider, () => undefined);",
           expect=SCOPE)
@@ -392,10 +433,12 @@ def test_frames_write_calls():
 LOAD_VIEW = (FRAMES_VIEW_SPEC
              + "during a load: Save and the other controls are off, the box is read-only, "
              + "Edit and the provider stay on")
+VIDEO_FIRST = FRAMES_VIEW_SPEC + "draws video before image whatever order the server lists them in"
 OPENS_MODEL = FRAMES_VIEW_SPEC + "opens the editor of a model: help text, Follow only for an own frame, no Apply to all"
 
 
 @mutation(FRAMES_VIEW, ':disabled="frames.opensOff"', ':disabled="frames.controlsOff"', expect=LOAD_VIEW)
+@mutation(FRAMES_VIEW, 'Number(b.kind === "video") - Number(a.kind === "video")', "0", expect=VIDEO_FIRST)
 @mutation(FRAME_EDITOR, ':readonly="frames.controlsOff"', ':readonly="false"', expect=LOAD_VIEW)
 @mutation(FRAME_EDITOR, "frames.shownModel.source === 'own'", "frames.shownModel.source === 'default'",
           expect=OPENS_MODEL)
@@ -407,18 +450,15 @@ def test_frames_view_rules():
 
 
 # ---- Prompt frames: the history timeline -------------------------------------------------------------------------
-TIMELINE = FAILED + "frames/frames-model.spec.ts > the history timeline > "
+TIMELINE = FAILED + "frames/frames-model.spec.ts > the history > "
 
 
 @mutation(FRAMES_MODEL, "[...history].sort((a, b) => b.id - a.id)", "[...history].sort((a, b) => a.id - b.id)",
           expect=TIMELINE + "lists the newest version first and leaves the input alone")
 @mutation(FRAMES_MODEL, "[...history].sort(", "history.sort(",
           expect=TIMELINE + "lists the newest version first and leaves the input alone")
-@mutation(FRAMES_MODEL, 'v.text === null ? "info" : v.restored_from ? "warning" : "primary"',
-          'v.restored_from ? "warning" : v.text === null ? "info" : "primary"',
-          expect=TIMELINE + "colours a version by where its text came from")
 @pytest.mark.web_unit
-def test_the_frames_history_runs_newest_first_with_a_colour_per_source():
+def test_the_frames_history_runs_newest_first():
     vitest("tests/unit/frames/frames-model.spec.ts")
 
 
@@ -427,8 +467,11 @@ LOADED_TEXT = MODEL_SPEC + "the text the editor starts with is the current own t
 SUMMARY = MODEL_SPEC + "the apply-to-all summary lists applied, kept and unchanged, with - for none"
 
 
-@mutation(FRAMES_MODEL, 'return "no version";', 'return "none";', expect=MODEL_SPEC + "version line")
-@mutation(FRAMES_MODEL, ': "never toggled"', ': "never"', expect=MODEL_SPEC + "lock line and lock history")
+@mutation(FRAMES_MODEL, ': "no version"', ': "none"', expect=MODEL_SPEC + "version tag")
+@mutation(FRAMES_MODEL, '"unlocked"} ${shortDay(', '"locked"} ${shortDay(',
+          expect=MODEL_SPEC + "lock line and lock history")
+@mutation(FRAMES_MODEL, "two(d.getMonth() + 1)", "two(d.getMonth())",
+          expect=MODEL_SPEC + "day and time are day first, two digits each, in the browser time zone")
 @mutation(FRAMES_MODEL, "info.current && info.current.text !== null", "info.current && true", expect=LOADED_TEXT)
 @mutation(FRAMES_MODEL, "`${err.message} (${err.param})` : err.message", "err.message : err.message",
           expect=MODEL_SPEC + "a refusal carries its field")

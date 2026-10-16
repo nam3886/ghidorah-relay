@@ -8,9 +8,10 @@ import {
   newestFirst,
   PROMPT_MARKER,
   refusalText,
+  shortDay,
+  shortStamp,
   TRACKING_MARKER,
-  versionLine,
-  versionType,
+  versionTag,
 } from "@/components/frames/frames-model";
 import { fmtTime } from "@/lib/format";
 import { frameInfo, version } from "./fixtures";
@@ -24,16 +25,21 @@ describe("frame lines", () => {
     expect(TRACKING_MARKER).toBe("{{tracking_code}}");
   });
 
-  it("version line", () => {
-    expect(versionLine(null)).toBe("no version");
-    expect(versionLine(version(7, "x", "ann"))).toBe(`version 7 by ann, ${T}`);
-    expect(versionLine({ ...version(8, "x"), restored_from: 3 })).toBe(`version 8 by owner, ${T} (restored from 3)`);
+  it("version tag", () => {
+    expect(versionTag(null)).toBe("no version");
+    expect(versionTag(version(7, "x", "ann"))).toBe("v7");
+  });
+
+  it("day and time are day first, two digits each, in the browser time zone", () => {
+    const at = new Date(2026, 9, 4, 8, 5).getTime();
+    expect(shortDay(at)).toBe("04/10");
+    expect(shortStamp(at)).toBe("04/10 08:05");
   });
 
   it("lock line and lock history", () => {
-    expect(lockLine(null)).toBe("never toggled");
-    expect(lockLine(lock(true))).toBe(`locked by owner, ${T}`);
-    expect(lockLine(lock(false))).toBe(`unlocked by owner, ${T}`);
+    expect(lockLine(null)).toBe("");
+    expect(lockLine(lock(true))).toBe(`locked ${shortDay(1_700_000_000_000)} by owner`);
+    expect(lockLine(lock(false))).toBe(`unlocked ${shortDay(1_700_000_000_000)} by owner`);
     expect(lockHistoryLine([lock(true), lock(false)])).toBe(
       `Lock history: locked by owner ${T}; unlocked by owner ${T}`,
     );
@@ -60,18 +66,10 @@ describe("frame lines", () => {
   });
 });
 
-describe("the history timeline", () => {
+describe("the history", () => {
   it("lists the newest version first and leaves the input alone", () => {
     const history = [version(2, "b"), version(9, "i"), version(5, "e")];
     expect(newestFirst(history).map((v) => v.id)).toEqual([9, 5, 2]);
     expect(history.map((v) => v.id)).toEqual([2, 9, 5]);
-  });
-
-  it("colours a version by where its text came from", () => {
-    expect(versionType(version(1, "own text"))).toBe("primary");
-    expect(versionType(version(2, null))).toBe("info");
-    expect(versionType({ ...version(3, "again"), restored_from: 1 })).toBe("warning");
-    // a version that follows the default stays grey even when it was a restore
-    expect(versionType({ ...version(4, null), restored_from: 1 })).toBe("info");
   });
 });
