@@ -11,8 +11,9 @@ const read = (file: string): string => readFileSync(join(process.cwd(), file), "
 describe("the entry page", () => {
   const page = read("index.html");
 
-  it("is titled Ghidorah Relay", () => {
-    expect(page).toContain("<title>Ghidorah Relay</title>");
+  it("is titled Ghidorah admin", () => {
+    expect(page).toContain("<title>Ghidorah admin</title>");
+    expect(page).not.toContain("Relay");
   });
 
   it("has the Ghidorah favicon, a same-origin file", () => {
@@ -40,18 +41,23 @@ describe("the brand logo", () => {
     expect(wide(w).attributes("src")).toContain("ghidorah-logo-light");
   });
 
-  it("names itself Ghidorah Relay and, in the header, also has the symbol and the word Relay for a narrow screen", () => {
-    const w = mount(BrandLogo);
-    expect(wide(w).attributes("alt")).toBe("Ghidorah Relay");
-    expect(w.find("img.brand__symbol").attributes("src")).toContain("ghidorah-symbol-purple");
-    expect(w.find(".brand__word").text()).toBe("Relay");
+  it("names itself Ghidorah and is only the wide logo, whatever the width", () => {
+    for (const variant of ["header", "login"] as const) {
+      const w = mount(BrandLogo, { props: { variant } });
+      expect(wide(w).attributes("alt")).toBe("Ghidorah");
+      expect(w.findAll("img")).toHaveLength(1);
+      expect(w.text()).toBe("");
+    }
   });
 
-  it("the login variant is only the wide logo", () => {
-    const w = mount(BrandLogo, { props: { variant: "login" } });
-    expect(wide(w).exists()).toBe(true);
-    expect(w.find("img.brand__symbol").exists()).toBe(false);
-    expect(w.find(".brand__word").exists()).toBe(false);
+  it("never says Relay: no source file of the shell or the login page carries the word as a brand", () => {
+    for (const file of [
+      "src/components/layout/BrandLogo.vue",
+      "src/components/layout/TopBar.vue",
+      "src/views/LoginView.vue",
+    ]) {
+      expect(read(file), file).not.toMatch(/Ghidorah Relay|>Relay</);
+    }
   });
 });
 
@@ -59,21 +65,34 @@ describe("the colours", () => {
   const css = read("src/styles/theme.css");
 
   it("the primary is the brand purple in both themes, hover #6d28d9, white text on a solid button", () => {
-    expect(css.match(/--el-color-primary: #7c3aed;/g)).toHaveLength(2);
-    expect(css).toContain("--el-button-hover-bg-color: #6d28d9;");
+    expect(css.match(/--rl-primary: #7c3aed;/g)).toHaveLength(2);
+    expect(css.match(/--rl-primary-hover: #6d28d9;/g)).toHaveLength(2);
+    expect(css).toContain("--el-color-primary: var(--rl-primary);");
+    expect(css).toContain("--el-button-hover-bg-color: var(--rl-primary-hover);");
     expect(css).toContain("--el-button-text-color: #ffffff;");
   });
 
   it("the dark surfaces are the kit's", () => {
-    for (const hex of ["#0e0b16", "#171222", "#211a30", "#352b48", "#82738f", "#f5f3ff", "#b9aec9"]) {
+    for (const hex of [
+      "#0e0b16",
+      "#171222",
+      "#211a30",
+      "#130e1f",
+      "#2a2140",
+      "#3e3356",
+      "#82738f",
+      "#f5f3ff",
+      "#b9aec9",
+    ]) {
       expect(css).toContain(hex);
     }
   });
 
-  it("the brand radii are 10 px for controls and 16 px for cards and dialogs", () => {
+  it("the brand radii are 10 px for controls, 16 px for cards and dialogs, 12 px for chips", () => {
     // one shared rule for both themes
     expect(css.match(/--el-border-radius-base: 10px;/g)).toHaveLength(1);
     expect(css.match(/--el-card-border-radius: 16px;/g)).toHaveLength(1);
+    expect(css.match(/--el-tag-border-radius: 12px;/g)).toHaveLength(1);
   });
 
   it("there is no gradient and no glow", () => {

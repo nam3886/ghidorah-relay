@@ -9,7 +9,37 @@ from pathlib import Path
 
 STATIC = Path(__file__).resolve().parents[2] / "packages/relay-core/src/relay_core/admin/static"
 APP = STATIC / "app"
+PUBLIC = Path(__file__).resolve().parents[2] / "apps/admin-web/public"
 SCANNED = (".html", ".css", ".js")
+
+# The fonts the design uses (DESIGN section 4): family -> (subsets, weights). They come from two exact-pinned fontsource
+# packages and ship as hashed woff2 files of the dist; nothing is vendored in public/ and nothing is inlined as data:.
+FONTS = {"be-vietnam-pro": (("latin", "vietnamese"), (400, 500, 600, 700)),
+         "ibm-plex-mono": (("latin", "vietnamese"), (400, 500))}
+FONT_SUFFIXES = (".woff", ".woff2", ".ttf", ".otf", ".eot")
+
+
+def font_files() -> list[str]:
+    """The woff2 files of the dist, as paths relative to it."""
+    return [p.relative_to(APP).as_posix() for p in sorted(APP.rglob("*.woff2")) if p.is_file()]
+
+
+def missing_fonts(names: list[str]) -> list[str]:
+    """The font files the design needs that `names` (dist paths) do not have: `assets/<family>-<subset>-<weight>-normal-
+    <hash>.woff2`."""
+    missing = []
+    for family, (subsets, weights) in FONTS.items():
+        for subset in subsets:
+            for weight in weights:
+                pattern = re.compile(r"^assets/%s-%s-%d-normal-[A-Za-z0-9_-]+\.woff2$" % (family, subset, weight))
+                if not any(pattern.match(name) for name in names):
+                    missing.append("%s %s %d" % (family, subset, weight))
+    return missing
+
+
+def vendored_fonts() -> list[str]:
+    """Font files under public/ (there must be none: the fonts come from the packages)."""
+    return [p.name for p in sorted(PUBLIC.rglob("*")) if p.is_file() and p.suffix.lower() in FONT_SUFFIXES]
 
 # What each check looks for. Every pattern is searched in the text of every scanned file.
 REMOTE_URL = re.compile(r"""(?:https?:)?//[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}[^\s"'`)<>]*""")

@@ -232,6 +232,13 @@ def sign_in_app(page, live, username=None, password=None) -> None:
     expect(page).to_have_url(re.compile(r"#/jobs$"))
 
 
+def sign_out_app(page) -> None:
+    """Sign out the way a user does: open the account menu, then choose Sign out. (The menu lives in the top bar; its
+    button is named after the user.)"""
+    page.get_by_role("button", name=re.compile(r"^Account menu")).click()
+    page.get_by_role("menuitem", name="Sign out").click()
+
+
 @pytest.fixture
 def app_session(app_page, live):
     """`app_page`, signed in and on the Jobs route."""
@@ -288,6 +295,9 @@ class App:
 
     def sign_in(self, page, username=None, password=None) -> None:
         sign_in_app(page, self._live, username, password)
+
+    def sign_out(self, page) -> None:
+        sign_out_app(page)
 
     def run(self, db, scenario):
         """Plant rows with a jobkit scenario (`failed_job(p, key, "x")` and the like) from inside a browser test."""

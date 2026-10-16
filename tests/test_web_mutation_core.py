@@ -285,27 +285,178 @@ SHELL_FAILED = "FAILED tests/unit/app-shell.spec.ts > the shell > "
 
 @mutation(BANNER, "alerts.value.length > 0 || stats.openGroups > 0", "true",
           expect=SHELL_FAILED + "shows no banner when nothing needs attention")
-@mutation(BANNER, "} open alert group(s)`", "} alert group(s)`",
+@mutation(BANNER, "stats.openGroups === 1 ?", "stats.openGroups === 2 ?",
+          expect=SHELL_FAILED + "says group, not groups, for one open group")
+@mutation(BANNER, 'stats.openGroups === 200 ? "200+"', 'stats.openGroups === 200 ? "200"',
+          expect=SHELL_FAILED + "writes 200+ for a full page of open groups and opens Alerts from the banner")
+@mutation(BANNER, ': "Needs attention."', ': "Attention."',
+          expect=SHELL_FAILED + "with live conditions only, says Needs attention and still offers the link to Alerts")
+@mutation(BANNER, '<router-link class="banner-link"', '<router-link v-if="stats.openGroups > 0" class="banner-link"',
+          expect=SHELL_FAILED + "with live conditions only, says Needs attention and still offers the link to Alerts")
+@mutation(BANNER, "Review in Alerts", "Review in alerts",
           expect=SHELL_FAILED + "shows the live alerts and the open group count, 200 as 200+")
 @mutation(BANNER, "alerts.value.length > FOLD_ABOVE", "alerts.value.length > FOLD_ABOVE + 1",
           expect=SHELL_FAILED + "folds three or more live conditions behind one count and keeps the group link in view")
 @mutation(BANNER, "const FOLD_ABOVE = 2;", "const FOLD_ABOVE = 1;",
           expect=SHELL_FAILED + "lists two live conditions in full, with no fold")
+@mutation(BANNER, "background: var(--rl-warn-bg);", "background: var(--rl-bad-bg);",
+          expect=SHELL_FAILED + "draws the banner with a warn fill and no side border")
 @mutation(f"{SRC}/components/layout/AppShell.vue", "() => notify.clear(),", "() => undefined,",
           expect=SHELL_FAILED + "closes every toast when the tab changes, and not before")
-@mutation(f"{SRC}/components/layout/AppShell.vue", 'new Set(["jobs", "accounts"])',
-          'new Set(["jobs", "accounts", "keys"])', expect=SHELL_FAILED + "shows the strip on Jobs and Accounts only")
-@mutation(f"{SRC}/components/layout/TabBar.vue", "stats.data.jobs.in_progress + stats.data.jobs.queued",
-          "stats.data.jobs.in_progress",
-          expect=SHELL_FAILED + "counts the unfinished jobs on the Jobs tab and the open groups on Alerts, "
-                 "only when above zero")
-@mutation(f"{SRC}/components/layout/AppHeader.vue", "get: () => scope.provider || ALL,", "get: () => scope.provider,",
-          expect=SHELL_FAILED + "shows All, not the placeholder, in the provider filter, "
-                 "and keeps the store's empty string for All")
-@mutation(f"{SRC}/components/layout/AppHeader.vue", 'scope.provider = value === ALL ? "" : value;',
-          "scope.provider = value;",
-          expect=SHELL_FAILED + "shows All, not the placeholder, in the provider filter, "
-                 "and keeps the store's empty string for All")
+@mutation(f"{SRC}/App.vue", "<JobDetailDrawer />", "<!-- no drawer -->",
+          expect=SHELL_FAILED + "mounts the job detail through JobDetailDrawer, once, while signed in only")
 @pytest.mark.web_unit
 def test_the_banner_rules():
     vitest("tests/unit/app-shell.spec.ts")
+
+
+# ---- the top bar: the three behaviours the old header and tab bar guarded, now in TopBar --------------------------
+TOP_BAR = f"{SRC}/components/layout/TopBar.vue"
+ALL_FILTER = SHELL_FAILED + ("shows All, not the placeholder, in the provider filter, "
+                             "and keeps the store's empty string for All")
+BAR_FAILED = "FAILED tests/unit/app-shell.spec.ts > the top bar > "
+LAYOUT = BAR_FAILED + ("is one row on a desktop, and two rows on a tablet and on a phone, "
+                       "with the user's name only on the desktop")
+
+
+@mutation(TOP_BAR, "stats.data.jobs.in_progress + stats.data.jobs.queued", "stats.data.jobs.in_progress",
+          expect=SHELL_FAILED + "counts the unfinished jobs on the Jobs tab and the open groups on Alerts, "
+                 "only when above zero")
+@mutation(TOP_BAR, "get: () => scope.provider || ALL,", "get: () => scope.provider,", expect=ALL_FILTER)
+@mutation(TOP_BAR, 'scope.provider = value === ALL ? "" : value;', "scope.provider = value;", expect=ALL_FILTER)
+@pytest.mark.web_unit
+def test_the_top_bar_keeps_the_count_and_the_provider_all_rules():
+    vitest("tests/unit/app-shell.spec.ts")
+
+
+@mutation(TOP_BAR, "route.name === tab.name", "route.name !== tab.name",
+          expect=BAR_FAILED + "marks the count of the current tab as primary and the Alerts count as warn")
+@mutation(TOP_BAR, "tab.name === 'alerts'", "tab.name === 'jobs'",
+          expect=BAR_FAILED + "marks the count of the current tab as primary and the Alerts count as warn")
+@mutation(TOP_BAR, 'value > 999 ? "999+"', 'value > 1000 ? "999+"',
+          expect=BAR_FAILED + "shows 999+ for a count above 999 and the number itself at 999")
+@mutation(TOP_BAR, "a.available > 0", "a.available > 1",
+          expect=BAR_FAILED + "shows ready over total on the Accounts tab, and nothing without accounts")
+@mutation(TOP_BAR, "`${a.usable}/${a.available}`", "`${a.available}/${a.usable}`",
+          expect=BAR_FAILED + "shows ready over total on the Accounts tab, and nothing without accounts")
+@mutation(f"{SRC}/components/layout/AppShell.vue", "<AttentionBanner v-if=\"route.name !== 'jobs'\" />",
+          "<AttentionBanner />",
+          expect=SHELL_FAILED + "draws the banner above every view but Jobs, which draws its own")
+@mutation(TOP_BAR, "await auth.logout();", "void 0;",
+          expect=SHELL_FAILED + "signs out through the menu command too: server revoke first, then every sign-out hook")
+@mutation(TOP_BAR, 'await router.replace({ name: "login" });', "void 0;",
+          expect=SHELL_FAILED + "signs out: calls the server, drops the session and shows the login page")
+@mutation(TOP_BAR, 'window.open("/reference", "_blank", "noopener")', 'window.open("/reference", "_self", "noopener")',
+          expect=SHELL_FAILED + "opens the API reference in a new tab from the account menu, and nowhere else")
+@mutation(TOP_BAR, 'else if (command === "signout")', 'else if (command === "signoff")',
+          expect=SHELL_FAILED + "signs out through the menu command too: server revoke first, then every sign-out hook")
+@mutation(TOP_BAR, "computed(() => isPhone.value || isTablet.value)", "computed(() => isPhone.value)", expect=LAYOUT)
+@mutation(TOP_BAR, '<template v-if="!isPhone" #prefix>', '<template v-if="true" #prefix>', expect=LAYOUT)
+@mutation(TOP_BAR, '<span v-if="!stacked" class="account-name"', '<span v-if="true" class="account-name"',
+          expect=LAYOUT)
+@mutation(f"{SRC}/components/layout/AppShell.vue", "'app-main--tablet': isTablet", "'app-main--tablet': isPhone",
+          expect=LAYOUT)
+@pytest.mark.web_unit
+def test_the_top_bar_behaviour():
+    vitest("tests/unit/app-shell.spec.ts")
+
+
+# ---- the page header ---------------------------------------------------------------------------------------------
+HEADER = f"{SRC}/components/layout/PageHeader.vue"
+HEADER_FAILED = "FAILED tests/unit/app-shell.spec.ts > the page header > "
+
+
+@mutation(HEADER, '<span v-if="$slots.meta && !isPhone" class="page-header__meta">',
+          '<span v-if="$slots.meta" class="page-header__meta">',
+          expect=HEADER_FAILED + "leaves the meta line out on a phone but keeps the actions beside the title")
+@mutation(HEADER, '<div v-if="($slots.meta && !isPhone) || $slots.actions"', '<div v-if="true"',
+          expect=HEADER_FAILED + "draws no sentence, no meta and no side when it has none")
+@mutation(HEADER, '<p v-if="subtitle"', '<p v-if="true"',
+          expect=HEADER_FAILED + "draws no sentence, no meta and no side when it has none")
+@pytest.mark.web_unit
+def test_the_page_header_rules():
+    vitest("tests/unit/app-shell.spec.ts")
+
+
+# ---- breakpoints, tokens, fonts and the brand ----------------------------------------------------------------------
+BREAKPOINT = f"{SRC}/composables/use-breakpoint.ts"
+THEME_CSS = f"{SRC}/styles/theme.css"
+USE_BP = "FAILED tests/unit/theme.spec.ts > useBreakpoint > "
+TOKENS = "FAILED tests/unit/theme.spec.ts > the C2 tokens > "
+FONTS = "FAILED tests/unit/theme.spec.ts > the fonts > "
+LOGO = "FAILED tests/unit/brand.spec.ts > the brand logo > "
+BRAND_COLOURS = "FAILED tests/unit/brand.spec.ts > the colours > "
+LADDER = TOKENS + "every Element Plus ladder step is set explicitly in each theme and differs between them"
+LADDER_FILL = TOKENS + "the two light steps of each Element Plus ladder are the fill of its token"
+QUERIES = USE_BP +"asks for phone below 768 px and tablet from 768 to 1279 px, and nothing else"
+
+
+@mutation(BREAKPOINT, 'PHONE_QUERY = "(max-width: 767px)"', 'PHONE_QUERY = "(max-width: 768px)"', expect=QUERIES)
+@mutation(BREAKPOINT, "(min-width: 768px) and (max-width: 1279px)", "(min-width: 768px) and (max-width: 1280px)",
+          expect=QUERIES)
+@mutation(BREAKPOINT, "target.value = list.matches;", "target.value = false;",
+          expect=USE_BP + "is phone only for a phone width and tablet only for a tablet width")
+@mutation(BREAKPOINT, "target.value = event.matches;", "target.value = false;",
+          expect=USE_BP + "follows a change of the window width")
+@mutation(BREAKPOINT, 'onScopeDispose(() => list.removeEventListener("change", onChange));',
+          "onScopeDispose(() => undefined);",
+          expect=USE_BP + "stops listening when the component is gone, and not before")
+@mutation(BREAKPOINT, 'typeof window.matchMedia !== "function"', "false",
+          expect=USE_BP + "is the desktop where matchMedia does not exist")
+@pytest.mark.web_unit
+def test_the_breakpoint_composable():
+    vitest("tests/unit/theme.spec.ts")
+
+
+@mutation(THEME_CSS, "--rl-control: #85758f;", "--rl-control: #85758e;",
+          expect=TOKENS + "light has the value of DESIGN section 3 for every token")
+@mutation(THEME_CSS, "--rl-focus: #a78bfa;", "--rl-focus: #a78bfb;",
+          expect=TOKENS + "dark has the value of DESIGN section 3 for every token")
+@mutation(THEME_CSS, "--rl-bad-solid: #e11d48;", "--rl-bad-solid: #e11d49;",
+          expect=TOKENS + "dark has the value of DESIGN section 3 for every token")
+@mutation(THEME_CSS, "--el-color-error: var(--rl-bad);", "--el-color-error: var(--rl-ok);",
+          expect=TOKENS + "maps the Element Plus colours onto the status tokens, with error as an alias of danger")
+@mutation(THEME_CSS, "--el-component-size: 44px;", "--el-component-size: 40px;",
+          expect=TOKENS + "controls are 36 px high from the tablet width and 44 px below it")
+@mutation(THEME_CSS, "--el-button-size: var(--el-component-size);", "--el-button-size: 32px;",
+          expect=TOKENS + "a default button follows the control scale, a small or large one keeps its own size")
+@mutation(THEME_CSS, "height: var(--el-button-size);", "height: 32px;",
+          expect=TOKENS + "a default button follows the control scale, a small or large one keeps its own size")
+@mutation(THEME_CSS, "--el-checkbox-input-border: 1px solid var(--rl-control);",
+          "--el-checkbox-input-border: 1px solid var(--rl-line-strong);",
+          expect=TOKENS + "form controls take the control border colour and the focus ring is two pixels")
+@mutation(THEME_CSS, "--el-disabled-bg-color: var(--rl-raised);", "--el-disabled-bg-color: var(--rl-surface);",
+          expect=TOKENS + "disabled controls are a grey fill")
+@mutation(THEME_CSS, "--el-color-success-light-9: #e2f4ec;", "--el-color-success-light-9: #e2f4ed;",
+          expect=LADDER_FILL)
+@mutation(THEME_CSS, "--el-color-warning-light-8: rgb(251 191 36 / 13%);",
+          "--el-color-warning-light-8: rgb(251 191 36 / 14%);", expect=LADDER_FILL)
+@mutation(THEME_CSS, "--el-color-danger-light-8: #fde7ec;", "--el-color-danger-light-8: var(--rl-bad-bg);",
+          expect=LADDER)
+@mutation(THEME_CSS, "--el-color-info-light-9: rgb(185 174 201 / 12%);",
+          "--el-color-info-light-9: var(--rl-neutral-bg);", expect=LADDER)
+@mutation(THEME_CSS, "--el-color-primary-light-9: #2e1d4b;", "--el-color-primary-light-9: #2e1d4c;",
+          expect=LADDER_FILL)
+@mutation(THEME_CSS, "--el-color-error-light-9: var(--el-color-danger-light-9);",
+          "--el-color-error-light-9: var(--rl-bad-bg);",
+          expect=TOKENS + "maps the Element Plus colours onto the status tokens, with error as an alias of danger")
+@mutation(THEME_CSS, "--el-color-danger-light-3: #d25976;", "--el-color-danger-light-3: #b45264;",
+          expect=TOKENS + "every Element Plus ladder step is set explicitly in each theme and differs between them")
+@mutation(THEME_CSS, "--el-border-radius-base: 10px;", "--el-border-radius-base: 6px;",
+          expect=BRAND_COLOURS + "the brand radii are 10 px for controls, 16 px for cards and dialogs, 12 px for chips")
+@mutation(THEME_CSS, "--el-button-hover-bg-color: var(--rl-primary-hover);",
+          "--el-button-hover-bg-color: var(--rl-focus);",
+          expect=BRAND_COLOURS + "the primary is the brand purple in both themes, hover #6d28d9, "
+                                 "white text on a solid button")
+@mutation(f"{SRC}/main.ts", "be-vietnam-pro/latin-500.css", "be-vietnam-pro/latin-300.css",
+          expect=FONTS + "load the latin and vietnamese subsets of the weights the design uses, and nothing else")
+@mutation(f"{SRC}/components/layout/BrandLogo.vue", 'alt="Ghidorah"', 'alt="Relay"',
+          expect=LOGO + "names itself Ghidorah and is only the wide logo, whatever the width")
+@mutation(f"{SRC}/components/layout/BrandLogo.vue", 'ui.theme === "dark" ? logoDark : logoLight',
+          'ui.theme === "dark" ? logoLight : logoDark',
+          expect=LOGO + "shows the logo with light letters in the dark theme and dark letters in the light theme")
+# package.json, vite.config.ts and index.html are baked into the web image, not mounted, so a mutant there would never
+# reach the run: their pins (exact font versions, assetsInlineLimit, the title) are plain assertions in the specs.
+@pytest.mark.web_unit
+def test_the_tokens_the_fonts_and_the_brand_are_pinned():
+    vitest("tests/unit/theme.spec.ts", "tests/unit/brand.spec.ts")

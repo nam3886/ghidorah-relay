@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute } from "vue-router";
-import JobDetailDialog from "@/components/jobs/JobDetailDialog.vue";
+import JobDetailDrawer from "@/components/jobs/JobDetailDrawer.vue";
 import AppShell from "@/components/layout/AppShell.vue";
 
 const route = useRoute();
@@ -13,7 +13,7 @@ const messageConfig = { max: 4, grouping: true, duration: 2500 };
 </script>
 
 <template>
-  <el-config-provider size="small" :message="messageConfig">
+  <el-config-provider size="default" :message="messageConfig">
     <template v-if="ready">
       <router-view v-if="route.meta.public" />
       <template v-else>
@@ -25,7 +25,7 @@ const messageConfig = { max: 4, grouping: true, duration: 2500 };
             </keep-alive>
           </router-view>
         </AppShell>
-        <JobDetailDialog />
+        <JobDetailDrawer />
       </template>
     </template>
   </el-config-provider>

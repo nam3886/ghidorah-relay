@@ -1,100 +1,92 @@
 /*
- * Theme: the Ghidorah brand (ghidorah-brand/tokens.json): purple #7C3AED for actions, #8B5CF6 for highlights only,
- * 14 px base, 10 px radius on controls and 16 px on cards and dialogs, flat layered surfaces, no glow and no gradient,
- * status colour only for status (the word and the dot always stay).
+ * Theme: direction B "Ledger" of the Ghidorah admin (DESIGN.md sections 3 to 7, contracts C2).
+ * Light is the signature look, dark is a full theme. Flat surfaces: only overlays have a shadow. No gradient, no glow.
  * Loaded AFTER the Element Plus CSS. `html:root` (light) and `html.dark:root` (dark) outrank Element Plus's own
  * `:root` and `html.dark` blocks, whatever order the on-demand component styles end up in.
- * Every Element Plus variable set in the light block is set again in the dark block.
- * Primary and status colours are pinned (not computed at run time); text pairs are at least 4.5:1 on their fill.
- * `--rl-accent` is the purple used as TEXT (links, active tab, selected option): #7C3AED on a dark surface is only
- * 3.2:1, so the dark theme uses the lighter #A78BFA there; solid purple fills keep #7C3AED with white text.
+ * Every raw token and every Element Plus ladder is set in both themes. Pairs are at least 4.5:1 (text) or 3:1 (the
+ * control border), see DESIGN section 3. Status colour is never alone: the word and the dot always stay.
+ * Breakpoints: phone is below 768 px, tablet 768 to 1279 px (composables/use-breakpoint.ts). A style sheet cannot read
+ * the composable, so the media queries below repeat its number: 767 px is the last phone width.
  */
 html:root {
   color-scheme: light;
 
   /* Layers */
-  --rl-bg: #faf9fd;
+  --rl-bg: #f7f5fb;
   --rl-surface: #ffffff;
-  --rl-surface-2: #f3effa;
-  --rl-line: #ddd5e8;
-  --rl-line-strong: #85758f;
+  --rl-raised: #f3effa;
+  --rl-topbar: #ffffff;
+  --rl-line: #ece6f3;
+  --rl-line-strong: #ddd5e8;
+  --rl-control: #85758f;
+  --rl-scrim: rgb(23 19 33 / 42%);
+
+  /* Text */
   --rl-fg: #171321;
   --rl-muted: #655a75;
+  --rl-faint: #76698a;
 
   /* Brand */
-  --rl-brand: #8b5cf6;
-  --rl-accent: #6d28d9;
-  --rl-accent-hover: #5b21b6;
+  --rl-primary: #7c3aed;
+  --rl-primary-hover: #6d28d9;
+  --rl-primary-soft: #ede9fe;
   --rl-focus: #7c3aed;
 
-  /* Status: text colour and chip fill, each pair at least 4.5:1 (info is the brand purple) */
+  /* Status: text colour and chip fill */
   --rl-ok: #047857;
-  --rl-ok-bg: #e6f2ee;
+  --rl-ok-bg: #e2f4ec;
   --rl-warn: #92400e;
-  --rl-warn-bg: #f4ece7;
+  --rl-warn-bg: #fdf1df;
   --rl-bad: #be123c;
-  --rl-bad-bg: #f8e7ec;
+  --rl-bad-bg: #fde7ec;
+  --rl-bad-solid: #be123c;
   --rl-info: #6d28d9;
-  --rl-info-bg: #f0eafb;
+  --rl-info-bg: #efe9fd;
   --rl-neutral: #655a75;
-  --rl-neutral-bg: #f3effa;
+  --rl-neutral-bg: #f1eef5;
 
-  /* Element Plus: primary #7C3AED and its tints, mixed with white, pinned */
-  --el-color-primary: #7c3aed;
+  /* The 24-hour band */
+  --rl-bar-done: #7c3aed;
+  --rl-bar-fail: #e11d48;
+  --rl-bar-run: #c4b5fd;
+
+  /* Element Plus ladders: the tints are mixed with white, the dark step with black; pinned, never computed */
   --el-color-primary-light-3: #a375f2;
   --el-color-primary-light-5: #be9cf6;
   --el-color-primary-light-7: #d8c4fa;
   --el-color-primary-light-8: #e5d8fb;
-  --el-color-primary-light-9: #f2ebfd;
+  --el-color-primary-light-9: #ede9fe;
   --el-color-primary-dark-2: #632ebe;
+  --el-color-success-light-3: #4fa089;
+  --el-color-success-light-5: #82bcab;
+  --el-color-success-light-7: #b4d6cd;
+  --el-color-success-light-8: #e2f4ec;
+  --el-color-success-light-9: #e2f4ec;
+  --el-color-success-dark-2: #036046;
+  --el-color-warning-light-3: #b37956;
+  --el-color-warning-light-5: #c8a086;
+  --el-color-warning-light-7: #dec6b7;
+  --el-color-warning-light-8: #fdf1df;
+  --el-color-warning-light-9: #fdf1df;
+  --el-color-warning-dark-2: #75330b;
+  --el-color-danger-light-3: #d25976;
+  --el-color-danger-light-5: #de889e;
+  --el-color-danger-light-7: #ecb8c4;
+  --el-color-danger-light-8: #fde7ec;
+  --el-color-danger-light-9: #fde7ec;
+  --el-color-danger-dark-2: #980e30;
+  --el-color-info-light-3: #938c9e;
+  --el-color-info-light-5: #b2acba;
+  --el-color-info-light-7: #d1ced6;
+  --el-color-info-light-8: #f1eef5;
+  --el-color-info-light-9: #f1eef5;
+  --el-color-info-dark-2: #51485e;
 
-  /* Element Plus: status types map to the status pairs */
-  --el-color-success: var(--rl-ok);
-  --el-color-success-light-9: var(--rl-ok-bg);
-  --el-color-success-light-8: var(--rl-ok-bg);
-  --el-color-warning: var(--rl-warn);
-  --el-color-warning-light-9: var(--rl-warn-bg);
-  --el-color-warning-light-8: var(--rl-warn-bg);
-  --el-color-danger: var(--rl-bad);
-  --el-color-danger-light-9: var(--rl-bad-bg);
-  --el-color-danger-light-8: var(--rl-bad-bg);
-  --el-color-error: var(--rl-bad);
-  --el-color-error-light-9: var(--rl-bad-bg);
-  --el-color-error-light-8: var(--rl-bad-bg);
-  --el-color-info: var(--rl-info);
-  --el-color-info-light-9: var(--rl-info-bg);
-  --el-color-info-light-8: var(--rl-info-bg);
-
-  /* Element Plus: type, shape, layers */
-  --el-font-size-base: 14px;
-  --el-font-size-small: 13px;
-  --el-font-size-extra-small: 12px;
-  --el-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --el-bg-color: var(--rl-surface);
-  --el-bg-color-page: var(--rl-bg);
-  --el-bg-color-overlay: var(--rl-surface);
-  --el-fill-color-blank: var(--rl-surface);
-  --el-fill-color-light: var(--rl-surface-2);
-  --el-fill-color: var(--rl-surface-2);
-  --el-text-color-primary: var(--rl-fg);
-  --el-text-color-regular: var(--rl-fg);
-  --el-text-color-secondary: var(--rl-muted);
-  --el-text-color-placeholder: #6b6078;
-  --el-border-color: var(--rl-line-strong);
-  --el-border-color-light: var(--rl-line);
-  --el-border-color-lighter: var(--rl-line);
-  --el-border-color-extra-light: var(--rl-line);
-  --el-table-header-bg-color: var(--rl-surface-2);
-  --el-table-row-hover-bg-color: var(--rl-surface-2);
-  --el-box-shadow: none;
-  --el-box-shadow-light: none;
-
-  /* One control scale: 32 px, 28 px inside table cells; a disabled button is a grey fill, never a washed-out accent */
-  --el-component-size: 32px;
-  --el-component-size-small: 28px;
-  --el-button-disabled-bg-color: var(--rl-surface-2);
-  --el-button-disabled-text-color: var(--rl-muted);
-  --el-button-disabled-border-color: var(--rl-line);
+  /* Names the views used before the redesign; each points at a token above and goes when the last view is moved */
+  --rl-surface-2: var(--rl-raised);
+  --rl-accent: var(--rl-focus);
+  --rl-accent-hover: var(--rl-primary-hover);
+  --rl-brand: var(--rl-bar-done);
 }
 
 html.dark:root {
@@ -102,121 +94,223 @@ html.dark:root {
 
   --rl-bg: #0e0b16;
   --rl-surface: #171222;
-  --rl-surface-2: #211a30;
-  --rl-line: #352b48;
-  --rl-line-strong: #82738f;
+  --rl-raised: #211a30;
+  --rl-topbar: #130e1f;
+  --rl-line: #2a2140;
+  --rl-line-strong: #3e3356;
+  --rl-control: #82738f;
+  --rl-scrim: rgb(5 3 10 / 60%);
+
   --rl-fg: #f5f3ff;
   --rl-muted: #b9aec9;
+  --rl-faint: #8e82a3;
 
-  --rl-brand: #8b5cf6;
-  --rl-accent: #a78bfa;
-  --rl-accent-hover: #c4b5fd;
+  --rl-primary: #7c3aed;
+  --rl-primary-hover: #6d28d9;
+  --rl-primary-soft: #2e1d4b;
   --rl-focus: #a78bfa;
 
   --rl-ok: #34d399;
-  --rl-ok-bg: #1c3537;
+  --rl-ok-bg: rgb(52 211 153 / 13%);
   --rl-warn: #fbbf24;
-  --rl-warn-bg: #403122;
+  --rl-warn-bg: rgb(251 191 36 / 13%);
   --rl-bad: #fb7185;
-  --rl-bad-bg: #402334;
-  --rl-info: #a78bfa;
-  --rl-info-bg: #312849;
+  --rl-bad-bg: rgb(251 113 133 / 14%);
+  --rl-bad-solid: #e11d48;
+  --rl-info: #c4b5fd;
+  --rl-info-bg: rgb(139 92 246 / 20%);
   --rl-neutral: #b9aec9;
-  --rl-neutral-bg: #211a30;
+  --rl-neutral-bg: rgb(185 174 201 / 12%);
 
-  /* the same primary; its tints are mixed with the dark background instead of white, pinned */
-  --el-color-primary: #7c3aed;
+  --rl-bar-done: #8b5cf6;
+  --rl-bar-fail: #fb7185;
+  --rl-bar-run: #4c3a73;
+
+  /* the same hues; the tints are mixed with the dark ground instead of white, the dark step with white */
   --el-color-primary-light-3: #5b2cac;
   --el-color-primary-light-5: #452282;
   --el-color-primary-light-7: #2f1956;
   --el-color-primary-light-8: #241441;
-  --el-color-primary-light-9: #19102c;
+  --el-color-primary-light-9: #2e1d4b;
   --el-color-primary-dark-2: #9661f1;
+  --el-color-success-light-3: #299772;
+  --el-color-success-light-5: #216f58;
+  --el-color-success-light-7: #19473d;
+  --el-color-success-light-8: rgb(52 211 153 / 13%);
+  --el-color-success-light-9: rgb(52 211 153 / 13%);
+  --el-color-success-dark-2: #5ddcad;
+  --el-color-warning-light-3: #b48920;
+  --el-color-warning-light-5: #84651d;
+  --el-color-warning-light-7: #55411a;
+  --el-color-warning-light-8: rgb(251 191 36 / 13%);
+  --el-color-warning-light-9: rgb(251 191 36 / 13%);
+  --el-color-warning-dark-2: #fccc50;
+  --el-color-danger-light-3: #b45264;
+  --el-color-danger-light-5: #843e4e;
+  --el-color-danger-light-7: #552a37;
+  --el-color-danger-light-8: rgb(251 113 133 / 14%);
+  --el-color-danger-light-9: rgb(251 113 133 / 14%);
+  --el-color-danger-dark-2: #fc8d9d;
+  --el-color-info-light-3: #867d93;
+  --el-color-info-light-5: #645c70;
+  --el-color-info-light-7: #413c4c;
+  --el-color-info-light-8: rgb(185 174 201 / 12%);
+  --el-color-info-light-9: rgb(185 174 201 / 12%);
+  --el-color-info-dark-2: #c7bed4;
 
+  --rl-surface-2: var(--rl-raised);
+  --rl-accent: var(--rl-focus);
+  --rl-accent-hover: var(--rl-info);
+  --rl-brand: var(--rl-bar-done);
+}
+
+/* Fonts: Be Vietnam Pro for the interface, IBM Plex Mono for data only (ids, times, quantities, routes, JSON). */
+html:root,
+html.dark:root {
+  --rl-font: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --rl-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Element Plus mapping (DESIGN section 7), the same in both themes */
+  --el-color-primary: var(--rl-primary);
   --el-color-success: var(--rl-ok);
-  --el-color-success-light-9: var(--rl-ok-bg);
-  --el-color-success-light-8: var(--rl-ok-bg);
   --el-color-warning: var(--rl-warn);
-  --el-color-warning-light-9: var(--rl-warn-bg);
-  --el-color-warning-light-8: var(--rl-warn-bg);
   --el-color-danger: var(--rl-bad);
-  --el-color-danger-light-9: var(--rl-bad-bg);
-  --el-color-danger-light-8: var(--rl-bad-bg);
   --el-color-error: var(--rl-bad);
-  --el-color-error-light-9: var(--rl-bad-bg);
-  --el-color-error-light-8: var(--rl-bad-bg);
-  --el-color-info: var(--rl-info);
-  --el-color-info-light-9: var(--rl-info-bg);
-  --el-color-info-light-8: var(--rl-info-bg);
+  --el-color-error-light-3: var(--el-color-danger-light-3);
+  --el-color-error-light-5: var(--el-color-danger-light-5);
+  --el-color-error-light-7: var(--el-color-danger-light-7);
+  --el-color-error-light-8: var(--el-color-danger-light-8);
+  --el-color-error-light-9: var(--el-color-danger-light-9);
+  --el-color-error-dark-2: var(--el-color-danger-dark-2);
+  --el-color-info: var(--rl-neutral);
 
+  /* type and shape */
+  --el-font-family: var(--rl-font);
   --el-font-size-base: 14px;
   --el-font-size-small: 13px;
   --el-font-size-extra-small: 12px;
-  --el-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --el-border-radius-base: 10px;
+  --el-border-radius-small: 8px;
+  --el-border-radius-round: 12px;
+  --el-card-border-radius: 16px;
+  --el-dialog-border-radius: 16px;
+  --el-tag-border-radius: 12px;
+
+  /* layers and text */
   --el-bg-color: var(--rl-surface);
   --el-bg-color-page: var(--rl-bg);
   --el-bg-color-overlay: var(--rl-surface);
   --el-fill-color-blank: var(--rl-surface);
-  --el-fill-color-light: var(--rl-surface-2);
-  --el-fill-color: var(--rl-surface-2);
+  --el-fill-color-lighter: var(--rl-raised);
+  --el-fill-color-light: var(--rl-raised);
+  --el-fill-color: var(--rl-raised);
   --el-text-color-primary: var(--rl-fg);
   --el-text-color-regular: var(--rl-fg);
   --el-text-color-secondary: var(--rl-muted);
-  --el-text-color-placeholder: #9a8faa;
+  --el-text-color-placeholder: var(--rl-faint);
   --el-border-color: var(--rl-line-strong);
   --el-border-color-light: var(--rl-line);
   --el-border-color-lighter: var(--rl-line);
   --el-border-color-extra-light: var(--rl-line);
-  --el-table-header-bg-color: var(--rl-surface-2);
-  --el-table-row-hover-bg-color: var(--rl-surface-2);
+  --el-overlay-color: var(--rl-scrim);
+  --el-overlay-color-light: var(--rl-scrim);
+  --el-overlay-color-lighter: var(--rl-scrim);
+
+  /* flat: cards carry no shadow, only overlays do (set on them below) */
   --el-box-shadow: none;
   --el-box-shadow-light: none;
 
-  --el-component-size: 32px;
-  --el-component-size-small: 28px;
-  --el-button-disabled-bg-color: var(--rl-surface-2);
+  /* disabled: a grey fill, never a washed-out accent */
+  --el-disabled-bg-color: var(--rl-raised);
+  --el-disabled-text-color: var(--rl-muted);
+  --el-disabled-border-color: var(--rl-line);
+  --el-button-disabled-bg-color: var(--rl-raised);
   --el-button-disabled-text-color: var(--rl-muted);
   --el-button-disabled-border-color: var(--rl-line);
+
+  /* table */
+  --el-table-header-bg-color: var(--rl-raised);
+  --el-table-header-text-color: var(--rl-muted);
+  --el-table-row-hover-bg-color: var(--rl-raised);
+  --el-table-current-row-bg-color: var(--rl-primary-soft);
+  --el-table-border-color: var(--rl-line);
+  --el-table-border: 1px solid var(--rl-line);
+
+  /* one control scale: 36 px from the tablet width up, 44 px on a phone; 28 px inside table cells */
+  --el-component-size: 36px;
+  --el-component-size-small: 28px;
+  --el-component-size-large: 44px;
 }
 
-/* A solid purple button: white text (5.7:1 on #7C3AED), and the brand hover #6D28D9 (7.1:1). */
+@media (max-width: 767px) {
+  html:root,
+  html.dark:root {
+    --el-component-size: 44px;
+  }
+}
+
+/* Element Plus gives a default button its own 32 px: it follows the control scale (small and large keep theirs). */
+html .el-button:not(.el-button--small):not(.el-button--large) {
+  --el-button-size: var(--el-component-size);
+  height: var(--el-button-size);
+}
+
+/* A solid purple button: white text (5.7:1 on #7C3AED), hover #6D28D9. */
 html .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):not(.is-disabled) {
   --el-button-text-color: #ffffff;
   --el-button-hover-text-color: #ffffff;
   --el-button-active-text-color: #ffffff;
-  --el-button-hover-bg-color: #6d28d9;
-  --el-button-hover-border-color: #6d28d9;
-  --el-button-active-bg-color: #5b21b6;
-  --el-button-active-border-color: #5b21b6;
+  --el-button-hover-bg-color: var(--rl-primary-hover);
+  --el-button-hover-border-color: var(--rl-primary-hover);
+  --el-button-active-bg-color: var(--rl-primary-hover);
+  --el-button-active-border-color: var(--rl-primary-hover);
 }
-html.dark .el-button--danger:not(.is-plain):not(.is-text):not(.is-link):not(.is-disabled) {
-  --el-button-text-color: #0e0b16;
-  --el-button-hover-text-color: #0e0b16;
-  --el-button-active-text-color: #0e0b16;
+/* A solid destructive button: the solid red fill, white text (at least 4.5:1 in both themes). */
+html .el-button--danger:not(.is-plain):not(.is-text):not(.is-link):not(.is-disabled) {
+  --el-button-bg-color: var(--rl-bad-solid);
+  --el-button-border-color: var(--rl-bad-solid);
+  --el-button-text-color: #ffffff;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-text-color: #ffffff;
+  --el-button-hover-bg-color: color-mix(in srgb, var(--rl-bad-solid) 85%, #000000);
+  --el-button-hover-border-color: color-mix(in srgb, var(--rl-bad-solid) 85%, #000000);
+  --el-button-active-bg-color: color-mix(in srgb, var(--rl-bad-solid) 85%, #000000);
+  --el-button-active-border-color: color-mix(in srgb, var(--rl-bad-solid) 85%, #000000);
 }
 
-/* Purple used as text takes the accent (readable on every surface of its theme). */
+/* Purple used as text takes the focus colour (readable on every surface of its theme). */
 html .el-button--primary.is-plain,
 html .el-button--primary.is-text,
 html .el-button--primary.is-link {
-  --el-button-text-color: var(--rl-accent);
-  --el-button-hover-text-color: var(--rl-accent-hover);
-  --el-button-active-text-color: var(--rl-accent-hover);
+  --el-button-text-color: var(--rl-focus);
+  --el-button-hover-text-color: var(--rl-focus);
+  --el-button-active-text-color: var(--rl-focus);
 }
 html .el-link.el-link--primary {
-  --el-link-text-color: var(--rl-accent);
-  --el-link-hover-text-color: var(--rl-accent-hover);
+  --el-link-text-color: var(--rl-focus);
+  --el-link-hover-text-color: var(--rl-focus);
 }
-html .el-tabs__item.is-active,
-html .el-tabs__item:hover,
 html .el-select-dropdown__item.is-selected,
 html .el-checkbox__input.is-checked + .el-checkbox__label,
 html .el-pagination.is-background .el-pager li:not(.is-disabled):hover {
-  color: var(--rl-accent);
+  color: var(--rl-focus);
 }
-/* the active tab bar is a highlight: the brand purple */
+
+/* Tabs (the top bar and the drawer tabs): quiet text, the current one dark with a 2 px primary underline. */
+html .el-tabs__item {
+  font-weight: 500;
+  color: var(--rl-muted);
+}
+html .el-tabs__item:hover {
+  color: var(--rl-fg);
+}
+html .el-tabs__item.is-active {
+  font-weight: 600;
+  color: var(--rl-fg);
+}
 html .el-tabs__active-bar {
-  background-color: var(--rl-brand);
+  height: 2px;
+  background-color: var(--rl-primary);
 }
 
 /* Element Plus sets the disabled colours again on each button type, so the grey fill is set per type as well. */
@@ -225,21 +319,50 @@ html .el-button--danger.is-disabled,
 html .el-button--success.is-disabled,
 html .el-button--warning.is-disabled,
 html .el-button--info.is-disabled {
-  --el-button-disabled-bg-color: var(--rl-surface-2);
+  --el-button-disabled-bg-color: var(--rl-raised);
   --el-button-disabled-text-color: var(--rl-muted);
   --el-button-disabled-border-color: var(--rl-line);
 }
 
-/* Dark mode has no shadows (flat layers), so an overlay needs its own edge and shadow to leave the page. */
+/*
+ * Form controls draw their edge in --rl-control (at least 3:1 against the surface); buttons keep --rl-line-strong.
+ * Element Plus sets these variables on the component, so the override sits on the component class.
+ */
+html .el-input,
+html .el-textarea {
+  --el-input-border-color: var(--rl-control);
+  --el-input-hover-border-color: var(--rl-muted);
+}
+html .el-select__wrapper {
+  box-shadow: 0 0 0 1px var(--rl-control) inset;
+}
+html .el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--rl-muted) inset;
+}
+html .el-select__wrapper.is-disabled {
+  box-shadow: 0 0 0 1px var(--rl-line) inset;
+}
+html .el-checkbox {
+  --el-checkbox-input-border: 1px solid var(--rl-control);
+}
+html .el-input.is-disabled,
+html .el-textarea.is-disabled {
+  --el-input-border-color: var(--rl-line);
+}
+
+/* Only overlays have a shadow (DESIGN section 5); in the dark theme they also carry an edge so they leave the page. */
+html .el-drawer {
+  box-shadow: -16px 0 48px rgb(10 6 20 / 28%);
+}
+html .el-dialog,
+html .el-message-box,
+html .el-message,
+html .el-popper.is-light {
+  box-shadow: 0 12px 32px rgb(10 6 20 / 18%);
+}
 html.dark .el-dialog,
 html.dark .el-message-box {
   border: 1px solid var(--rl-line-strong);
-}
-html.dark .el-dialog,
-html.dark .el-message-box,
-html.dark .el-message,
-html.dark .el-popper.is-light {
-  box-shadow: 0 6px 20px rgb(0 0 0 / 45%);
 }
 /* A toast carries an edge in its own status colour, so it never reads as floating text. */
 .el-message--success {
@@ -255,13 +378,13 @@ html.dark .el-popper.is-light {
   border-color: color-mix(in srgb, var(--rl-info) 35%, transparent);
 }
 
-/* One focus ring: a 2 px outline 3 px away (the brand focus colour); Element Plus draws the field's edge itself. */
+/* One focus ring: a 2 px outline 2 px away in the focus colour; Element Plus draws the field's edge itself. */
 .el-input__wrapper.is-focus,
 .el-select__wrapper.is-focused,
 .el-textarea__inner:focus {
   box-shadow: 0 0 0 1px var(--rl-focus) inset !important;
   outline: 2px solid var(--rl-focus);
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 .el-input__inner:focus-visible,
 .el-textarea__inner:focus-visible {
@@ -280,31 +403,32 @@ input[type="file"]::file-selector-button {
   padding: 4px 12px;
   font: inherit;
   color: var(--rl-fg);
-  background: var(--rl-surface-2);
+  background: var(--rl-raised);
   border: 1px solid var(--rl-line-strong);
   border-radius: var(--el-border-radius-base);
   cursor: pointer;
 }
 
 /*
- * Tables: one dense line per row. A header is one quiet line (never a split word); a cell breaks at spaces first and
- * inside a long token (an id, a URL) only when it has to, so a date, kept whole by fmtTime, never wraps by itself.
+ * Tables: header 12 px / 500 in the muted colour on the raised fill, no vertical borders, body 14/20. A header is one
+ * quiet line (never a split word); a cell breaks at spaces first and inside a long token (an id, a URL) only when it
+ * has to, so a date, kept whole by fmtTime, never wraps by itself.
  */
 .el-table {
-  --el-table-header-text-color: var(--rl-muted);
   width: 100%;
 }
 .el-table th.el-table__cell > .cell {
   white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
 }
 .el-table th.el-table__cell {
   height: 36px;
   padding: 0;
 }
 .el-table td.el-table__cell {
-  padding: 6px 0;
+  padding: 12px 0;
 }
 .el-table .cell {
   line-height: 20px;
@@ -312,27 +436,14 @@ input[type="file"]::file-selector-button {
   overflow-wrap: anywhere;
 }
 
-/*
- * Compact scale: the config provider sets size small, so every control is 28 px high. Small text would drop under 14 px,
- * so the small font size is the base one; only tags and captions keep the 12 px extra-small.
- */
-html:root,
-html.dark:root {
-  --el-font-size-small: 14px;
-  /* Shape of the brand, the same in both themes: 10 px controls, 16 px cards and dialogs, 6 px tags */
-  --el-border-radius-base: 10px;
-  --el-border-radius-small: 6px;
-  --el-card-border-radius: 16px;
-  --el-dialog-border-radius: 16px;
-  --el-tag-border-radius: 6px;
-}
-
-/* Narrow screens (down to 360 px): dialogs take the width of the screen, form labels sit on top of their field. */
-@media (max-width: 639px) {
+/* Phone (below 768 px): dialogs are full-screen sheets, form labels sit on top of their field. */
+@media (max-width: 767px) {
   .el-dialog {
-    --el-dialog-width: 94vw;
-    width: 94vw !important;
-    margin-top: 4vh;
+    --el-dialog-width: 100vw;
+    width: 100vw !important;
+    min-height: 100dvh;
+    margin: 0 !important;
+    border-radius: 0;
   }
   .el-form-item {
     display: block;
@@ -367,7 +478,7 @@ body {
   margin: 0;
   background: var(--rl-bg);
   color: var(--rl-fg);
-  font: 14px/1.5 var(--el-font-family);
+  font: 14px/20px var(--rl-font);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -381,7 +492,7 @@ body {
   background: transparent;
   width: 5px;
   height: 10px;
-  border: solid var(--rl-accent);
+  border: solid var(--rl-focus);
   border-width: 0 2px 2px 0;
   transform: translateY(-65%) rotate(45deg);
 }
@@ -389,10 +500,10 @@ body {
 /* One focus ring for everything that takes the keyboard. */
 :focus-visible {
   outline: 2px solid var(--rl-focus);
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 
-/* Numbers in tables and strips: tabular figures, right aligned by the table wrapper. */
+/* Numbers: tabular figures, right aligned by the table wrapper. */
 .num {
   font-variant-numeric: tabular-nums;
   text-align: right;

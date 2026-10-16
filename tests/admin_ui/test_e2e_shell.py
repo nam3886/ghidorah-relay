@@ -135,7 +135,7 @@ def test_a_stale_token_at_login_is_dropped_and_the_form_stays(app, app_page, liv
 def test_sign_out_ends_the_session_and_the_dashboard_then_needs_a_login(app, app_session, db):
     page = app_session
     page.evaluate("sessionStorage.setItem('relay_test_key', 'typed-key')")
-    page.get_by_role("button", name="Sign out").click()
+    app.sign_out(page)
     expect(page).to_have_url(re.compile(r"#/login$"))
     assert page.evaluate("sessionStorage.getItem('relay_admin_token')") is None
     assert page.evaluate("sessionStorage.getItem('relay_admin_user')") is None
@@ -205,7 +205,7 @@ def test_the_toggle_flips_the_theme_remembers_it_across_a_reload_and_both_themes
     assert page.evaluate("localStorage.getItem('relay_admin_theme')") == ("light" if start_dark else "dark")
     page.reload()
     assert page.evaluate("document.documentElement.classList.contains('dark')") is (not start_dark)
-    expect(page.get_by_role("button", name="Sign out")).to_be_visible()
+    expect(page.get_by_role("button", name=re.compile(r"^Account menu"))).to_be_visible()
 
 
 # ---- the redirects --------------------------------------------------------------------------------------------------
@@ -232,32 +232,32 @@ def test_an_unknown_hash_lands_on_jobs(app, app_session):
     expect(page).to_have_url(re.compile(r"#/jobs$"))
 
 
-# ---- the stats strip ------------------------------------------------------------------------------------------------
+# ---- the stats strip is gone ----------------------------------------------------------------------------------------
 
-def test_the_stats_strip_counts_what_is_planted_and_its_cells_link_to_the_filtered_tab(seeded, app_session):
+@pytest.mark.parametrize("route", ["jobs", "accounts"])
+def test_no_stats_strip_is_drawn_on_the_tabs_that_used_to_have_one(seeded, app, app_session, route):
     page = app_session
-    strip = page.get_by_role("region", name="Totals")
-    expect(strip).to_be_visible()
-    for label in ("In progress", "Completed", "Failed", "Failed pre-job", "Accounts ready", "Accounts dead",
-                  "Accounts disabled", "Videos made", "Images made"):
-        expect(strip.get_by_text(label).first).to_be_visible()
-    for cell, label, count in (("completed", "Completed", seeded["done"]), ("failed", "Failed", seeded["failed"]),
-                               ("accounts-dead", "Accounts dead", seeded["dead"]),
-                               ("accounts-disabled", "Accounts disabled", seeded["disabled"])):
-        expect(strip.get_by_test_id("stat-" + cell)).to_have_text(re.compile(r"%s\s*%d$" % (label, count)))
-    strip.get_by_test_id("stat-failed").click()
-    expect(page).to_have_url(re.compile(r"#/jobs\?status=failed$"))
-    strip.get_by_test_id("stat-accounts-dead").click()
-    expect(page).to_have_url(re.compile(r"#/accounts$"))
+    page.goto(app.url + "#/" + route)
+    expect(page.get_by_role("main")).to_be_visible()
+    expect(page.get_by_role("region", name="Totals")).to_have_count(0)
 
 
-def test_the_banner_shows_a_live_condition_and_opens_the_alerts_tab(app_session, db):
+# ---- the banner -----------------------------------------------------------------------------------------------------
+
+def test_the_banner_shows_a_live_condition_on_a_warn_fill_with_no_side_border(app, app_session, db):
     from accountkit import new_account
     new_account(db, label="only", checked=True)                 # one usable account is below the limit of 3
     page = app_session
+    page.goto(app.url + "#/accounts")                           # Jobs draws the banner itself, after its band
     page.reload()
-    banner = page.get_by_role("alert").filter(has_text="accounts_low")
+    banner = page.get_by_role("status").filter(has_text="accounts_low")
     expect(banner).to_be_visible()
+    expect(banner.get_by_text("Needs attention.")).to_be_visible()
+    expect(banner.get_by_role("link", name="Review in Alerts")).to_be_visible()   # live conditions alone show it
+    style = banner.evaluate("""el => { const s = getComputedStyle(el);
+        return {bg: s.backgroundColor, radius: s.borderTopLeftRadius,
+                left: s.borderLeftWidth, top: s.borderTopWidth}; }""")
+    assert style == {"bg": "rgb(253, 241, 223)", "radius": "12px", "left": "0px", "top": "0px"}, style
 
 
 # ---- the console-error rule of the harness ---------------------------------------------------------------------------
@@ -308,14 +308,14 @@ def test_a_failed_load_is_a_console_error_unless_it_is_an_answer_of_an_api_path(
 
 # ---- responsive -----------------------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("width", [375, 768, 1280])
+@pytest.mark.parametrize("width", [390, 768, 1280])
 def test_every_route_fits_the_screen_without_the_page_scrolling_sideways(app, app_session, width):
     page = app_session
     page.set_viewport_size({"width": width, "height": 800})
     for route in ROUTES:
         page.goto(app.url + "#/" + route)
         expect(page.get_by_role("main")).to_be_visible()
-        expect(page.get_by_test_id("sign-out")).to_be_visible()      # the header wraps, it never hides a control
+        expect(page.get_by_role("button", name=re.compile(r"^Account menu"))).to_be_visible()   # the bar never hides it
         expect(page.get_by_role("tab", selected=True)).to_have_count(1)
         page.wait_for_load_state("networkidle")
         expect(page.locator("[aria-busy=true]")).to_have_count(0)    # measure the loaded page, not the skeleton
@@ -348,4 +348,106 @@ def test_every_route_is_reachable_by_its_tab_and_by_its_address(app, app_session
     for index in range(len(ROUTES)):                             # and by a click on each tab
         tabs.nth(index).click()
         expect(page).to_have_url(re.compile(r"#/%s$" % ROUTES[index]))
+    page.csp.check()
+
+
+# ---- the top bar and the frame, drawn at the three widths ---------------------------------------------------------
+
+TOPBAR_BG = {"light": "rgb(255, 255, 255)", "dark": "rgb(19, 14, 31)"}
+CONTROL = {"light": "rgb(133, 117, 143)", "dark": "rgb(130, 115, 143)"}
+
+
+def box(locator):
+    value = locator.bounding_box()
+    assert value, "not visible"
+    return value
+
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+@pytest.mark.parametrize("width, stacked, bar_height, control", [(1280, False, 65, 36), (768, True, 110, 36),
+                                                                 (390, True, 102, 44)])
+def test_the_top_bar_is_one_row_from_1280_and_two_rows_below_with_the_control_size_of_its_width(
+        app, app_session, color_scheme, width, stacked, bar_height, control):
+    page = app_session
+    page.set_viewport_size({"width": width, "height": 800})
+    page.goto(app.url + "#/jobs")
+    bar = page.get_by_role("banner")
+    logo = bar.get_by_role("link", name="Ghidorah admin home")
+    nav = bar.get_by_role("navigation", name="Main")
+    toggle = bar.get_by_role("button", name=re.compile("theme", re.I))
+    menu = bar.get_by_role("button", name=re.compile(r"^Account menu"))
+    for part in (logo, nav, toggle, menu, bar.get_by_test_id("provider-filter")):
+        expect(part).to_be_visible()
+    assert abs(box(bar)["height"] - bar_height) <= 2, box(bar)
+    assert abs(box(toggle)["height"] - control) <= 1 and abs(box(toggle)["width"] - control) <= 1, box(toggle)
+    if stacked:
+        assert box(nav)["y"] >= box(logo)["y"] + box(logo)["height"] - 1, "the tabs are on a second row"
+        assert abs(box(toggle)["y"] + box(toggle)["height"] / 2 - (box(logo)["y"] + box(logo)["height"] / 2)) < 20
+    else:
+        assert abs(box(nav)["y"] + box(nav)["height"] / 2 - (box(logo)["y"] + box(logo)["height"] / 2)) < 6
+        assert box(nav)["x"] > box(logo)["x"] + box(logo)["width"], "the tabs follow the logo on one row"
+        assert box(menu)["x"] > box(nav)["x"]
+    bg = bar.evaluate("el => getComputedStyle(el).backgroundColor")
+    assert bg == TOPBAR_BG[color_scheme], bg
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    page.csp.check()
+
+
+@pytest.mark.parametrize("width, side", [(1280, 28), (768, 24), (390, 16)])
+def test_the_page_frame_is_centred_with_the_padding_of_its_width(app, app_session, width, side):
+    page = app_session
+    page.set_viewport_size({"width": width, "height": 800})
+    page.goto(app.url + "#/settings")
+    main = page.get_by_role("main")
+    expect(main).to_be_visible()
+    padding = main.evaluate(
+        "el => { const s = getComputedStyle(el); return [s.paddingLeft, s.paddingRight, s.maxWidth]; }")
+    assert padding == ["%dpx" % side, "%dpx" % side, "1360px"], padding
+    page.set_viewport_size({"width": 1800, "height": 800})
+    wide = box(main)
+    assert abs(wide["width"] - 1360) < 1 and abs(wide["x"] - (1800 - 1360) / 2) < 2, wide
+
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_the_current_tab_is_underlined_and_a_form_control_has_the_control_border(app, app_session, color_scheme):
+    page = app_session
+    current = page.get_by_role("tab", selected=True)
+    expect(current).to_have_count(1)
+    assert page.evaluate("getComputedStyle(document.querySelector('.el-tabs__active-bar')).height") == "2px"
+    wrapper = page.get_by_test_id("provider-filter").evaluate(
+        "el => getComputedStyle(el.querySelector('.el-select__wrapper')).boxShadow")
+    assert CONTROL[color_scheme] in wrapper and "inset" in wrapper, wrapper
+
+
+def test_the_account_menu_offers_api_docs_and_sign_out_and_closes_on_escape(app_session):
+    page = app_session
+    button = page.get_by_role("button", name=re.compile(r"^Account menu"))
+    button.click()
+    expect(page.get_by_role("menuitem", name="API docs")).to_be_visible()
+    expect(page.get_by_role("menuitem", name="Sign out")).to_be_visible()
+    page.get_by_role("menuitem", name="API docs").focus()       # the keyboard is in the menu, as after an arrow key
+    page.keyboard.press("Escape")
+    expect(page.get_by_role("menuitem", name="Sign out")).to_be_hidden()
+    expect(page.get_by_role("tab", selected=True)).to_have_count(1)
+
+
+def test_the_api_docs_item_opens_the_reference_in_a_new_tab(app_session):
+    page = app_session
+    page.get_by_role("button", name=re.compile(r"^Account menu")).click()
+    with page.context.expect_page() as opened:
+        page.get_by_role("menuitem", name="API docs").click()
+    reference = opened.value
+    reference.wait_for_load_state()
+    assert reference.url.endswith("/reference"), reference.url
+    reference.close()
+
+
+def test_the_fonts_load_from_this_origin_as_files_and_the_body_uses_them(app_session):
+    page = app_session
+    page.wait_for_function("document.fonts.check('600 14px \"Be Vietnam Pro\"')")
+    assert page.evaluate("getComputedStyle(document.body).fontFamily").startswith('"Be Vietnam Pro"')
+    sources = page.evaluate("performance.getEntriesByType('resource').map(e => e.name).filter(n => /woff2?$/.test(n))")
+    assert sources, "no font file was requested"
+    origin = page.evaluate("location.origin")
+    assert all(s.startswith(origin + "/ui/app/assets/") for s in sources), sources
     page.csp.check()
