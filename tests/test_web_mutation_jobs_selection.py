@@ -47,7 +47,7 @@ NOTHING_TICKED = "if (!ids.value.length) {"
 
 @mutation(VIEW, KEEP_ON_VIEW, "",
           expect=FV + "a tick right after a reload counts at once: "
-                      "Regenerate selected sends exactly the ticks on screen")
+                      "Regenerate… sends exactly the ticks on screen")
 @mutation(TABLE, KEEP_ON_TABLE, ':reserve-selection="false"',
           expect=FT + "keepSelection: new rows keep the ticks of the rows still there, by rowKey, and report nothing")
 @mutation(VIEW, HIDDEN_BY_ERROR, "",
@@ -77,3 +77,35 @@ NOTHING_TICKED = "if (!ids.value.length) {"
 @pytest.mark.web_unit
 def test_a_bulk_action_sends_exactly_the_ticks_on_screen():
     vitest(VIEW_SPEC, TABLE_SPEC)
+
+
+# ---- the guards around the bulk request: the confirm, the lock against a second click, the body ------------------
+CONTROL = f"{SRC}/components/jobs/RegenerateControl.vue"
+API = f"{SRC}/api/jobs.ts"
+API_SPEC = "tests/unit/jobs/jobs-api.spec.ts"
+FB = "FAILED " + VIEW_SPEC + " > bulk regenerate > "
+FC = "FAILED " + VIEW_SPEC + " > bulk re-check > "
+FA = "FAILED " + API_SPEC + " > bulk actions > "
+
+
+@mutation(CONTROL, "if (!(await confirmDialog(props.confirm))) return;", "",
+          expect=FB + "asks first, naming the count, today's price and the charge")
+@mutation(CONTROL, "const { busy, run } = useBusy();",
+          "const busy = ref(false);\nconst run = (a: () => unknown) => a();",
+          expect=FB + "a second click while the confirm is open asks nothing more")
+@mutation(VIEW, ':disabled="!ids.length"', ':disabled="false"',
+          expect="FAILED " + VIEW_SPEC + " > selection > the bulk buttons stay off until a job is ticked, "
+                             "and the count follows")
+@mutation(VIEW, ':disabled="!ids.length || rechecking" :loading="rechecking"', ':disabled="!ids.length"',
+          expect=FC + "a second click while the re-check is under way sends it once")
+@mutation(API, '{ method: "POST", body: { job_ids: jobIds } }', '{ method: "POST", body: { job_ids: [] } }',
+          expect=FA + "re-check posts the job ids")
+@mutation(API, "body: { job_ids: jobIds, operation_key: operationKey },",
+          "body: { job_ids: [], operation_key: operationKey },",
+          expect=FA + "regenerate posts the ids with one key, kept under the action bulk:<sorted ids>")
+@mutation(API, "body: { job_ids: jobIds, operation_key: operationKey },",
+          "body: { job_ids: jobIds },",
+          expect=FA + "regenerate posts the ids with one key, kept under the action bulk:<sorted ids>")
+@pytest.mark.web_unit
+def test_a_bulk_regenerate_asks_first_locks_against_a_second_click_and_sends_the_ticked_body():
+    vitest(VIEW_SPEC, API_SPEC)
