@@ -149,6 +149,17 @@ const LIGHT: Record<string, string> = {
   "--rl-bar-fail": "#e11d48",
   "--rl-bar-run": "#c4b5fd",
   "--rl-scrim": "rgb(23 19 33 / 42%)",
+  "--rl-on-primary": "#ffffff",
+  "--rl-link": "var(--rl-primary)",
+  "--rl-tile-1": "#e9e2f5",
+  "--rl-tile-2": "#e2ecee",
+  "--rl-tile-3": "#f2e9df",
+  "--rl-tile-4": "#e6e2ec",
+  "--rl-tile-ink": "#655a75",
+  "--rl-media": "#1b1626",
+  "--rl-media-badge": "rgb(0 0 0 / 60%)",
+  "--rl-shadow-pop": "0 12px 32px rgb(10 6 20 / 18%)",
+  "--rl-shadow-drawer": "-16px 0 48px rgb(10 6 20 / 28%)",
 };
 const DARK: Record<string, string> = {
   "--rl-bg": "#0e0b16",
@@ -180,6 +191,17 @@ const DARK: Record<string, string> = {
   "--rl-bar-fail": "#fb7185",
   "--rl-bar-run": "#4c3a73",
   "--rl-scrim": "rgb(5 3 10 / 60%)",
+  "--rl-on-primary": "#ffffff",
+  "--rl-link": "#c4b5fd",
+  "--rl-tile-1": "#2a2140",
+  "--rl-tile-2": "#1d2a2e",
+  "--rl-tile-3": "#2e241c",
+  "--rl-tile-4": "#251f30",
+  "--rl-tile-ink": "#b9aec9",
+  "--rl-media": "#0a0710",
+  "--rl-media-badge": "rgb(0 0 0 / 60%)",
+  "--rl-shadow-pop": "0 12px 32px rgb(10 6 20 / 18%)",
+  "--rl-shadow-drawer": "-16px 0 48px rgb(10 6 20 / 28%)",
 };
 
 describe("the C2 tokens", () => {
@@ -194,7 +216,7 @@ describe("the C2 tokens", () => {
   it("the two themes set the same names, so a token can never exist in one theme only", () => {
     const names = (block: Record<string, string>) => Object.keys(block).sort();
     expect(names(darkBlock)).toEqual(names(lightBlock));
-    expect(Object.keys(LIGHT)).toHaveLength(29);
+    expect(Object.keys(LIGHT)).toHaveLength(40);
   });
 
   it("every Element Plus ladder step is set explicitly in each theme and differs between them", () => {
@@ -268,7 +290,9 @@ describe("the C2 tokens", () => {
 
   it("a solid destructive button is the solid red with white text", () => {
     expect(css).toMatch(/--el-button-bg-color: var\(--rl-bad-solid\);/);
-    expect(css).toMatch(/--el-button-bg-color: var\(--rl-bad-solid\);[^}]*--el-button-text-color: #ffffff;/);
+    expect(css).toMatch(
+      /--el-button-bg-color: var\(--rl-bad-solid\);[^}]*--el-button-text-color: var\(--rl-on-primary\);/,
+    );
   });
 
   it("disabled controls are a grey fill", () => {

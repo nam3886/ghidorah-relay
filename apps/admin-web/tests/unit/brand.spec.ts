@@ -69,7 +69,8 @@ describe("the colours", () => {
     expect(css.match(/--rl-primary-hover: #6d28d9;/g)).toHaveLength(2);
     expect(css).toContain("--el-color-primary: var(--rl-primary);");
     expect(css).toContain("--el-button-hover-bg-color: var(--rl-primary-hover);");
-    expect(css).toContain("--el-button-text-color: #ffffff;");
+    expect(css.match(/--rl-on-primary: #ffffff;/g)).toHaveLength(2);
+    expect(css).toContain("--el-button-text-color: var(--rl-on-primary);");
   });
 
   it("the dark surfaces are the kit's", () => {

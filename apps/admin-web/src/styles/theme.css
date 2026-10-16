@@ -50,6 +50,19 @@ html:root {
   --rl-bar-fail: #e11d48;
   --rl-bar-run: #c4b5fd;
 
+  /* Canvas values with no earlier name (specs/shared.md 12a.7) */
+  --rl-on-primary: #ffffff;
+  --rl-link: var(--rl-primary);
+  --rl-tile-1: #e9e2f5;
+  --rl-tile-2: #e2ecee;
+  --rl-tile-3: #f2e9df;
+  --rl-tile-4: #e6e2ec;
+  --rl-tile-ink: #655a75;
+  --rl-media: #1b1626;
+  --rl-media-badge: rgb(0 0 0 / 60%);
+  --rl-shadow-pop: 0 12px 32px rgb(10 6 20 / 18%);
+  --rl-shadow-drawer: -16px 0 48px rgb(10 6 20 / 28%);
+
   /* Element Plus ladders: the tints are mixed with white, the dark step with black; pinned, never computed */
   --el-color-primary-light-3: #a375f2;
   --el-color-primary-light-5: #be9cf6;
@@ -125,6 +138,18 @@ html.dark:root {
   --rl-bar-done: #8b5cf6;
   --rl-bar-fail: #fb7185;
   --rl-bar-run: #4c3a73;
+
+  --rl-on-primary: #ffffff;
+  --rl-link: #c4b5fd;
+  --rl-tile-1: #2a2140;
+  --rl-tile-2: #1d2a2e;
+  --rl-tile-3: #2e241c;
+  --rl-tile-4: #251f30;
+  --rl-tile-ink: #b9aec9;
+  --rl-media: #0a0710;
+  --rl-media-badge: rgb(0 0 0 / 60%);
+  --rl-shadow-pop: 0 12px 32px rgb(10 6 20 / 18%);
+  --rl-shadow-drawer: -16px 0 48px rgb(10 6 20 / 28%);
 
   /* the same hues; the tints are mixed with the dark ground instead of white, the dark step with white */
   --el-color-primary-light-3: #5b2cac;
@@ -257,9 +282,9 @@ html .el-button:not(.el-button--small):not(.el-button--large) {
 
 /* A solid purple button: white text (5.7:1 on #7C3AED), hover #6D28D9. */
 html .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):not(.is-disabled) {
-  --el-button-text-color: #ffffff;
-  --el-button-hover-text-color: #ffffff;
-  --el-button-active-text-color: #ffffff;
+  --el-button-text-color: var(--rl-on-primary);
+  --el-button-hover-text-color: var(--rl-on-primary);
+  --el-button-active-text-color: var(--rl-on-primary);
   --el-button-hover-bg-color: var(--rl-primary-hover);
   --el-button-hover-border-color: var(--rl-primary-hover);
   --el-button-active-bg-color: var(--rl-primary-hover);
@@ -269,9 +294,9 @@ html .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):not(.is-disa
 html .el-button--danger:not(.is-plain):not(.is-text):not(.is-link):not(.is-disabled) {
   --el-button-bg-color: var(--rl-bad-solid);
   --el-button-border-color: var(--rl-bad-solid);
-  --el-button-text-color: #ffffff;
-  --el-button-hover-text-color: #ffffff;
-  --el-button-active-text-color: #ffffff;
+  --el-button-text-color: var(--rl-on-primary);
+  --el-button-hover-text-color: var(--rl-on-primary);
+  --el-button-active-text-color: var(--rl-on-primary);
   --el-button-hover-bg-color: color-mix(in srgb, var(--rl-bad-solid) 85%, #000000);
   --el-button-hover-border-color: color-mix(in srgb, var(--rl-bad-solid) 85%, #000000);
   --el-button-active-bg-color: color-mix(in srgb, var(--rl-bad-solid) 85%, #000000);
@@ -352,13 +377,13 @@ html .el-textarea.is-disabled {
 
 /* Only overlays have a shadow (DESIGN section 5); in the dark theme they also carry an edge so they leave the page. */
 html .el-drawer {
-  box-shadow: -16px 0 48px rgb(10 6 20 / 28%);
+  box-shadow: var(--rl-shadow-drawer);
 }
 html .el-dialog,
 html .el-message-box,
 html .el-message,
 html .el-popper.is-light {
-  box-shadow: 0 12px 32px rgb(10 6 20 / 18%);
+  box-shadow: var(--rl-shadow-pop);
 }
 html.dark .el-dialog,
 html.dark .el-message-box {
@@ -495,6 +520,20 @@ body {
   border: solid var(--rl-focus);
   border-width: 0 2px 2px 0;
   transform: translateY(-65%) rotate(45deg);
+}
+
+/* Bare links: --rl-link, the hover step in light only (in dark the colour stays). Zero specificity, so any link with a class keeps its own colour. */
+:where(a) {
+  color: var(--rl-link);
+}
+:where(a:hover) {
+  color: var(--rl-primary-hover);
+}
+html.dark :where(a:hover) {
+  color: var(--rl-link);
+}
+::selection {
+  background: var(--rl-primary-soft);
 }
 
 /* One focus ring for everything that takes the keyboard. */
