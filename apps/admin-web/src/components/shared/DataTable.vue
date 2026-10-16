@@ -2,6 +2,7 @@
 import { computed, ref, useSlots, watch } from "vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { daySpanMethod, isDayRow, type DayRow } from "@/lib/day-rows";
+import { IconAlertCircle } from "./icons";
 import type { Column } from "./types";
 import type { Tone } from "./status-tones";
 
@@ -53,6 +54,9 @@ const props = withDefaults(
     // phone layout: the accessible names of a row's open area and of its checkbox
     rowLabel?: (row: T) => string;
     selectLabel?: (row: T) => string;
+    // phone layout: an extra class on the open area of every row (`.data-table__main`), so a view sets the padding
+    // of its own row without an override of ours
+    mainClass?: string;
   }>(),
   {
     loading: false,
@@ -62,7 +66,7 @@ const props = withDefaults(
     rowClickable: false,
     rowTone: undefined,
     maxHeight: undefined,
-    skeletonRows: 6,
+    skeletonRows: 5,
     actionsWidth: 200,
     selectable: false,
     keepSelection: false,
@@ -72,6 +76,7 @@ const props = withDefaults(
     rowClassName: undefined,
     rowLabel: undefined,
     selectLabel: undefined,
+    mainClass: undefined,
   },
 );
 const emit = defineEmits<{ retry: []; "row-click": [row: T]; "selection-change": [rows: T[]] }>();
@@ -213,23 +218,42 @@ function onListKey(row: T, event: KeyboardEvent) {
 <template>
   <div
     class="data-table"
-    :class="{ 'is-refreshing': refreshing, 'is-tablet': isTablet, 'is-tone-fill': props.toneFill }"
+    :class="{
+      'is-refreshing': refreshing,
+      'is-tablet': isTablet,
+      'is-tone-fill': props.toneFill,
+      'has-selection': props.selectable,
+    }"
     :aria-busy="props.loading"
     :data-state="state"
   >
-    <el-alert
-      v-if="props.error"
-      class="data-table__error"
-      type="error"
-      show-icon
-      :closable="false"
-      :title="props.error"
-    >
-      <el-button @click="emit('retry')">Retry</el-button>
-    </el-alert>
-    <div v-else-if="skeleton" class="data-table__skeleton">
-      <el-skeleton :rows="props.skeletonRows" animated />
+    <div v-if="props.error" class="data-table__error-wrap">
+      <div class="data-table__error" role="alert">
+        <IconAlertCircle class="data-table__error-icon" :size="18" />
+        <span class="data-table__error-text">{{ props.error }}</span>
+        <el-button type="danger" plain size="small" @click="emit('retry')">Retry</el-button>
+      </div>
     </div>
+    <table v-else-if="skeleton" class="data-table__skeleton" aria-hidden="true">
+      <thead>
+        <tr>
+          <th v-for="c in visibleColumns" :key="c.key" :class="{ 'is-right': c.align === 'right' }">{{ c.label }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="r in props.skeletonRows" :key="r">
+          <td v-for="(c, ci) in visibleColumns" :key="c.key" :class="{ 'is-right': c.align === 'right' }">
+            <i v-if="ci === 0" class="skel skel--time" />
+            <template v-else-if="ci === 1">
+              <i :class="`skel skel--title-${r % 5}`" />
+              <i class="skel skel--sub" />
+            </template>
+            <i v-else-if="ci === visibleColumns.length - 1" class="skel skel--net" />
+            <i v-else :class="`skel skel--pill-${r % 5}`" />
+          </td>
+        </tr>
+      </tbody>
+    </table>
     <template v-else-if="phoneList">
       <ul v-if="props.rows.length" class="data-table__list">
         <template v-for="(item, index) in props.rows" :key="keyOf(item)">
@@ -251,6 +275,7 @@ function onListKey(row: T, event: KeyboardEvent) {
             </label>
             <div
               class="data-table__main"
+              :class="props.mainClass"
               :role="props.rowClickable ? 'button' : undefined"
               :tabindex="props.rowClickable ? 0 : undefined"
               :aria-label="props.rowClickable ? props.rowLabel?.(item as T) : undefined"
@@ -263,7 +288,10 @@ function onListKey(row: T, event: KeyboardEvent) {
           </li>
         </template>
       </ul>
-      <el-empty v-else :description="props.emptyText" :image-size="60"><slot name="empty-action" /></el-empty>
+      <div v-else class="data-table__empty">
+        <p class="data-table__empty-text">{{ props.emptyText }}</p>
+        <slot name="empty-action" />
+      </div>
     </template>
     <el-table
       v-else
@@ -280,7 +308,7 @@ function onListKey(row: T, event: KeyboardEvent) {
       <el-table-column
         v-if="props.selectable"
         type="selection"
-        :width="44"
+        :width="isTablet ? 44 : 40"
         :reserve-selection="props.keepSelection"
         :selectable="(row: T | DayRow) => !isDayRow(row)"
       />
@@ -291,7 +319,7 @@ function onListKey(row: T, event: KeyboardEvent) {
         :width="c.width"
         :min-width="c.minWidth"
         :align="c.align ?? 'left'"
-        :class-name="c.align === 'right' ? 'is-numeric' : undefined"
+        :class-name="[c.align === 'right' ? 'is-numeric' : '', c.className ?? ''].filter(Boolean).join(' ') || undefined"
       >
         <!-- Element Plus calls this slot once with an empty row and $index -1 to read the column's children: that
              probe is not data, so the user's slot never sees it. A day row draws its header in the first column. -->
@@ -329,9 +357,10 @@ function onListKey(row: T, event: KeyboardEvent) {
         </template>
       </el-table-column>
       <template #empty>
-        <el-empty :description="props.emptyText" :image-size="60">
+        <div class="data-table__empty">
+          <p class="data-table__empty-text">{{ props.emptyText }}</p>
           <slot name="empty-action" />
-        </el-empty>
+        </div>
       </template>
     </el-table>
   </div>
@@ -343,36 +372,62 @@ function onListKey(row: T, event: KeyboardEvent) {
   overflow-x: auto;
   /* the table's own minimum width must not widen a grid or flex parent: it scrolls here instead */
   contain: inline-size;
+  --sel-w: 40px;
+}
+.data-table.is-tablet {
+  --sel-w: 44px;
 }
 .data-table :deep(.el-table) {
   min-width: 640px;
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: var(--rl-raised);
 }
 /* a tablet shows its priority columns and fits the width: no minimum */
 .data-table.is-tablet :deep(.el-table) {
   min-width: 0;
 }
-.data-table__error :deep(.el-alert__content) {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+/* the card around the table draws the outer edge; the table has no lines of its own but the row dividers */
+.data-table :deep(.el-table::before),
+.data-table :deep(.el-table__inner-wrapper::before) {
+  display: none;
 }
-.data-table__skeleton {
-  padding: 16px;
-}
-.data-table__none {
-  color: var(--rl-muted);
-  opacity: 0.6;
-}
-.is-refreshing :deep(.el-table),
-.is-refreshing .data-table__list {
-  opacity: 0.6;
-  transition: opacity 0.15s;
+:deep(.el-table .el-table__cell) {
+  padding: 0;
 }
 :deep(.el-table th.el-table__cell) {
+  height: 38px;
+  border-bottom: 0;
   background: var(--rl-raised);
   color: var(--rl-muted);
   font-size: 12px;
   font-weight: 500;
+}
+:deep(.el-table th.el-table__cell > .cell) {
+  line-height: 38px;
+}
+:deep(.el-table td.el-table__cell) {
+  height: 56px;
+  border-bottom: 1px solid var(--rl-line);
+}
+:deep(.el-table .cell) {
+  padding: 0 12px;
+  line-height: 20px;
+}
+.is-tablet :deep(.el-table .cell) {
+  padding: 0 8px;
+}
+:deep(.el-table .el-table__cell:first-child .cell) {
+  padding-left: 16px;
+}
+:deep(.el-table .el-table__cell:last-child .cell) {
+  padding-right: 16px;
+}
+/* the selection cell: 15 px box, 16 px in from the edge */
+:deep(.el-table .el-table-column--selection .cell) {
+  display: flex;
+  align-items: center;
+  padding: 0 0 0 16px;
 }
 :deep(.el-table .is-numeric .cell) {
   font-variant-numeric: tabular-nums;
@@ -383,7 +438,8 @@ function onListKey(row: T, event: KeyboardEvent) {
 :deep(.el-table.is-clickable .el-table__row) {
   cursor: pointer;
 }
-/* tone: an inset bar on the first cell, or (toneFill) the whole row */
+/* tone: an inset bar on the first cell, or (toneFill) the whole row. Only a failed row is tinted in the canvas: the
+   fill of every other tone is empty, an unknown row included. */
 :deep(.el-table .row-tone > td.el-table__cell:first-child) {
   box-shadow: inset 2px 0 0 var(--row-tone-color);
 }
@@ -398,17 +454,17 @@ function onListKey(row: T, event: KeyboardEvent) {
 :deep(.el-table .row-tone-warn),
 .data-table__item.row-tone-warn {
   --row-tone-color: var(--rl-warn);
-  --row-tone-fill: color-mix(in srgb, var(--rl-warn-bg) 50%, transparent);
+  --row-tone-fill: transparent;
 }
 :deep(.el-table .row-tone-info),
 .data-table__item.row-tone-info {
   --row-tone-color: var(--rl-info);
-  --row-tone-fill: var(--rl-info-bg);
+  --row-tone-fill: transparent;
 }
 :deep(.el-table .row-tone-ok),
 .data-table__item.row-tone-ok {
   --row-tone-color: var(--rl-ok);
-  --row-tone-fill: var(--rl-ok-bg);
+  --row-tone-fill: transparent;
 }
 :deep(.el-table .row-tone-fill) {
   --el-table-tr-bg-color: var(--row-tone-fill);
@@ -416,15 +472,34 @@ function onListKey(row: T, event: KeyboardEvent) {
 :deep(.el-table .is-selected) {
   --el-table-tr-bg-color: var(--rl-primary-soft);
 }
+:deep(.el-table .is-selected > td.el-table__cell) {
+  background: var(--rl-primary-soft);
+}
 .data-table__item.is-selected {
   background: var(--rl-primary-soft);
 }
 .data-table__item.row-tone-fill {
   background: var(--row-tone-fill);
 }
-/* day header rows: a label across the table; the (empty) selection cell is hidden */
+.data-table__item.row-tone-fill.is-selected {
+  background: var(--rl-primary-soft);
+}
+:deep(.el-table .row-tone-fill > td.el-table__cell) {
+  background: var(--row-tone-fill);
+}
+:deep(.el-table .row-tone-fill.is-selected > td.el-table__cell) {
+  background: var(--rl-primary-soft);
+}
+:deep(.el-table .row-tone-fill:hover > td.el-table__cell) {
+  background: var(--rl-raised);
+}
+/* day header rows: a label across the table; the (empty) selection cell is hidden and the label reaches back over it
+   so it starts 16 px from the edge */
 :deep(.el-table .is-day > td.el-table__cell),
 :deep(.el-table .is-day:hover > td.el-table__cell) {
+  height: auto;
+  padding: 14px 0 6px;
+  overflow: visible;
   background: transparent;
   cursor: default;
 }
@@ -432,18 +507,178 @@ function onListKey(row: T, event: KeyboardEvent) {
   visibility: hidden;
 }
 :deep(.el-table .is-day .cell) {
-  padding-top: 8px;
-  padding-bottom: 0;
+  line-height: 18px;
+  padding: 0 16px;
+  overflow: visible;
+}
+.has-selection :deep(.el-table .is-day .data-table__day-label) {
+  margin-left: calc(16px - var(--sel-w));
+}
+.has-selection :deep(.el-table .is-day .el-table__cell:not(:first-child) .cell) {
+  padding-left: 0;
 }
 .data-table__day-label {
   font-size: 12px;
+  line-height: 18px;
   font-weight: 600;
   color: var(--rl-muted);
+  white-space: nowrap;
 }
 .data-table__day-note {
   font-weight: 400;
   color: var(--rl-faint);
   font-variant-numeric: tabular-nums;
+}
+.data-table__none {
+  color: var(--rl-muted);
+  opacity: 0.6;
+}
+/* refreshing: the rows dim, the header stays at full strength */
+.is-refreshing :deep(.el-table__body-wrapper),
+.is-refreshing .data-table__list {
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+/* states */
+.data-table__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 44px 16px 52px;
+  text-align: center;
+}
+.data-table__empty-text {
+  margin: 0;
+  color: var(--rl-muted);
+}
+.data-table__error-wrap {
+  padding: 0 16px 16px;
+}
+.data-table__error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--rl-bad-bg);
+}
+.data-table__error-icon {
+  flex: none;
+  color: var(--rl-bad);
+}
+.data-table__error-text {
+  flex: 1;
+  min-width: 220px;
+  color: var(--rl-fg);
+}
+.data-table__error :deep(.el-button) {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+}
+/* the skeleton: a table of the same columns, 5 rows of 56 px, flat bars (the canvas draws no shimmer) */
+.data-table__skeleton {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.data-table__skeleton th {
+  height: 38px;
+  padding: 0 12px;
+  background: var(--rl-raised);
+  color: var(--rl-muted);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+}
+.data-table__skeleton th:first-child,
+.data-table__skeleton td:first-child {
+  width: 84px;
+  padding-left: 16px;
+}
+.data-table__skeleton th:last-child,
+.data-table__skeleton td:last-child {
+  width: 84px;
+  padding-right: 16px;
+}
+.data-table__skeleton th.is-right {
+  text-align: right;
+}
+.data-table__skeleton td {
+  height: 56px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--rl-line);
+}
+.skel {
+  display: block;
+  background: var(--rl-raised);
+}
+.skel--time {
+  width: 52px;
+  height: 12px;
+  border-radius: 6px;
+}
+.skel--title-0,
+.skel--title-1,
+.skel--title-2,
+.skel--title-3,
+.skel--title-4 {
+  height: 12px;
+  border-radius: 6px;
+}
+.skel--title-0 {
+  width: 62%;
+}
+.skel--title-1 {
+  width: 48%;
+}
+.skel--title-2 {
+  width: 71%;
+}
+.skel--title-3 {
+  width: 39%;
+}
+.skel--title-4 {
+  width: 56%;
+}
+.skel--sub {
+  width: 64px;
+  height: 10px;
+  margin-top: 8px;
+  border-radius: 5px;
+}
+.skel--pill-0,
+.skel--pill-1,
+.skel--pill-2,
+.skel--pill-3,
+.skel--pill-4 {
+  height: 22px;
+  border-radius: 11px;
+}
+.skel--pill-0 {
+  width: 72px;
+}
+.skel--pill-1 {
+  width: 84px;
+}
+.skel--pill-2 {
+  width: 64px;
+}
+.skel--pill-3 {
+  width: 78px;
+}
+.skel--pill-4 {
+  width: 70px;
+}
+.skel--net {
+  width: 22px;
+  height: 12px;
+  margin-left: auto;
+  border-radius: 6px;
 }
 /* phone list: stacked rows, whole row tappable, 44 px targets */
 .data-table__list {
@@ -481,6 +716,7 @@ function onListKey(row: T, event: KeyboardEvent) {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  gap: 3px;
   padding: 10px 16px 10px 0;
 }
 .data-table__main[role="button"] {

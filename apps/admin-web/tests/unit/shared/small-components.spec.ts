@@ -14,14 +14,15 @@ describe("StatusChip", () => {
     expect(w.find("i.dot").exists()).toBe(true);
   });
 
-  it("is an el-tag whose type follows the tone", () => {
+  it("its class follows the tone, and a tone given by the caller wins over the lookup", () => {
     const type = (tone: "ok" | "info" | "warn" | "bad" | "neutral") =>
       mount(StatusChip, { props: { status: "x", tone } }).classes();
-    expect(type("ok")).toContain("el-tag--success");
-    expect(type("warn")).toContain("el-tag--warning");
-    expect(type("bad")).toContain("el-tag--danger");
-    expect(type("info")).toContain("el-tag--info");
+    expect(type("ok")).toContain("tone-ok");
+    expect(type("warn")).toContain("tone-warn");
+    expect(type("bad")).toContain("tone-bad");
+    expect(type("info")).toContain("tone-info");
     expect(type("neutral")).toContain("tone-neutral");
+    expect(type("ok")).not.toContain("tone-neutral");
   });
 
   it("a number is an HTTP code", () => {
@@ -107,6 +108,16 @@ describe("JsonBlock", () => {
 });
 
 describe("CopyButton", () => {
+  it("the shape follows variant; the old size prop is an alias: small is tiny, default is button; variant wins", () => {
+    const shape = (props: Record<string, unknown>) => mount(CopyButton, { props: { text: "x", ...props } }).classes();
+    expect(shape({})).toContain("is-button");
+    expect(shape({ variant: "chip" })).toContain("is-chip");
+    expect(shape({ size: "small" })).toContain("is-tiny");
+    expect(shape({ size: "default" })).toContain("is-button");
+    expect(shape({ size: "small", variant: "chip" })).toContain("is-chip");
+    expect(shape({ size: "small" })).not.toContain("is-button");
+  });
+
   const writeText = vi.fn(async () => undefined);
   beforeEach(() => {
     vi.useFakeTimers();

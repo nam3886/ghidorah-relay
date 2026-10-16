@@ -23,6 +23,37 @@ describe("LedgerList", () => {
     expect(w.findAll(".ledger__leader").every((n) => n.attributes("aria-hidden") === "true")).toBe(true);
   });
 
+  it("was shows a struck old value, an arrow and the value; note follows in its own span; neither by default", () => {
+    const w = mount(LedgerList, {
+      props: {
+        variant: "drawer",
+        items: [
+          { label: "Net", value: 0, was: 1, note: "refunded" },
+          { label: "Plain", value: 2 },
+        ],
+      },
+    });
+    const dd = w.findAll("dd");
+    expect(dd[0]!.find("s").text()).toBe("1");
+    expect(dd[0]!.text()).toBe("1 → 0 refunded");
+    expect(dd[0]!.find(".ledger__note").text()).toBe("refunded");
+    expect(dd[1]!.find("s").exists()).toBe(false);
+    expect(dd[1]!.find(".ledger__note").exists()).toBe(false);
+    expect(dd[1]!.text()).toBe("2");
+  });
+
+  it("a was of 0 is still shown", () => {
+    const w = mount(LedgerList, { props: { items: [{ label: "Net", value: 3, was: 0 }] } });
+    expect(w.find("dd s").text()).toBe("0");
+  });
+
+  it("the Jobs band is the default box; the drawer and the Test result have their own", () => {
+    expect(mount(LedgerList, { props: { items } }).classes()).toContain("ledger--band");
+    expect(mount(LedgerList, { props: { items, variant: "drawer" } }).classes()).toContain("ledger--drawer");
+    expect(mount(LedgerList, { props: { items, variant: "result" } }).classes()).toContain("ledger--result");
+    expect(mount(LedgerList, { props: { items, variant: "drawer" } }).classes()).not.toContain("ledger--band");
+  });
+
   it("one column by default, two when asked", () => {
     expect(mount(LedgerList, { props: { items } }).classes()).toContain("ledger--1");
     expect(mount(LedgerList, { props: { items, columns: 2 } }).classes()).toContain("ledger--2");
@@ -56,6 +87,18 @@ describe("MoneyCell", () => {
     expect(w.find(".money__net").text()).toBe("0");
   });
 
+  it("the refund reads struck charge, undo icon, net, in that order, with the icon named", () => {
+    const w = mount(MoneyCell, { props: { price: 1, net: 0 } });
+    const order = w.findAll("s, svg, .money__net").map((n) => n.element.tagName.toLowerCase());
+    expect(order).toEqual(["s", "svg", "span"]);
+    const icon = w.find("svg");
+    expect(icon.attributes("role")).toBe("img");
+    expect(icon.attributes("aria-label")).toBe("refunded");
+    expect(icon.attributes("aria-hidden")).toBe("false");
+    expect(icon.attributes("width")).toBe("13");
+    expect(icon.attributes("stroke-width")).toBe("2");
+  });
+
   it("a part refund counts too (net below price)", () => {
     const w = mount(MoneyCell, { props: { price: 5, net: 2 } });
     expect(w.find("s").text()).toBe("5");
@@ -83,7 +126,7 @@ describe("MoneyCell", () => {
     }
   });
 
-  it("a net that is not known yet is a dash and never a refund", () => {
+  it("a net that is not known yet is an em dash and never a refund", () => {
     for (const props of [
       { price: 2, net: null } as { price: number | null | undefined; net: number | null | undefined },
       { price: null, net: 0 },
@@ -97,7 +140,7 @@ describe("MoneyCell", () => {
       mount(MoneyCell, { props: { price: 2, net: null } })
         .find(".money__net")
         .text(),
-    ).toBe("-");
+    ).toBe("—");
   });
 });
 
@@ -115,8 +158,18 @@ describe("StatusChip step and pill", () => {
     expect(w.find("i.dot").exists()).toBe(true);
   });
 
-  it("is a round tag", () => {
-    expect(mount(StatusChip, { props: { status: "done" } }).classes()).toContain("is-round");
+  it("is a plain pill, not an el-tag, with its tone in the class and the data attribute", () => {
+    const w = mount(StatusChip, { props: { status: "done" } });
+    expect(w.classes()).toContain("status-chip");
+    expect(w.classes()).toContain("tone-ok");
+    expect(w.attributes("data-tone")).toBe("ok");
+    expect(w.classes().some((c) => c.startsWith("el-tag"))).toBe(false);
+  });
+
+  it("each tone picks its own class: failed is bad, unknown is warn, queued is info", () => {
+    expect(mount(StatusChip, { props: { status: "failed" } }).classes()).toContain("tone-bad");
+    expect(mount(StatusChip, { props: { status: "unknown" } }).classes()).toContain("tone-warn");
+    expect(mount(StatusChip, { props: { status: "queued" } }).classes()).toContain("tone-info");
   });
 
   it("markup in the step is text", () => {
