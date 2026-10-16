@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Refresh } from "@element-plus/icons-vue";
 import { computed } from "vue";
 import IconAction from "./IconAction.vue";
+import { IconRefresh } from "./icons";
 
 // The row above a list: filters on the left (default slot), then "Updated hh:mm:ss", an auto-refresh switch when the
 // view asks for one, Refresh, and the `actions` slot for the buttons of the view (Import, Clear logs...).
@@ -36,7 +36,7 @@ const updated = computed(() =>
         />
         <span class="list-toolbar__note">{{ props.autoRefreshLabel }}</span>
       </template>
-      <IconAction :icon="Refresh" label="Refresh" :loading="props.loading" @click="emit('refresh')" />
+      <IconAction :icon="IconRefresh" label="Refresh" :loading="props.loading" @click="emit('refresh')" />
       <slot name="actions" />
     </div>
   </div>
@@ -57,6 +57,11 @@ const updated = computed(() =>
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+/* a toolbar button is 34 high with 12 px padding (specs/shared.md section 2) */
+.list-toolbar :deep(.el-button:not(.el-button--small, .el-button--large)) {
+  height: 34px;
+  padding: 0 12px;
 }
 .list-toolbar__note {
   color: var(--rl-muted);

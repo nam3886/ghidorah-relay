@@ -51,6 +51,27 @@ describe("DetailDrawer", () => {
     expect(phone.findComponent({ name: "ElDrawer" }).props("size")).toBe("100%");
   });
 
+  it("a phone sheet has a Back button named by backLabel, the title as h1 and a theme toggle; a desktop drawer has none of them", async () => {
+    await drawer();
+    expect(document.body.querySelector("button[aria-label='Theme']")).toBeNull();
+    expect(document.body.querySelector("h1")).toBeNull();
+    document.body.replaceChildren();
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: /max-width:\s*767/.test(q),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    const w = await drawer({ backLabel: "Back to Jobs" });
+    expect(document.body.querySelector("h1")!.textContent).toBe("Job 3b9e1f0a");
+    expect(document.body.querySelector("h2")).toBeNull();
+    expect(document.body.querySelector("button[aria-label='Theme']")).not.toBeNull();
+    expect(document.body.querySelector("button[aria-label='Close']")).toBeNull();
+    document.body.querySelector<HTMLButtonElement>("button[aria-label='Back to Jobs']")!.click();
+    await flushPromises();
+    expect(w.emitted("update:modelValue")).toEqual([[false]]);
+    expect(document.body.querySelector(".detail-drawer.is-sheet")).not.toBeNull();
+  });
+
   it("destroys its content on close: nothing of a closed detail stays in the page", async () => {
     let alive = 0;
     const Probe = defineComponent({
@@ -106,6 +127,15 @@ describe("DetailDrawer", () => {
     expect(document.body.querySelector(".detail-drawer__chips")).toBeNull();
     expect(document.body.querySelector(".detail-drawer__tabs")).toBeNull();
     expect(document.body.querySelector(".detail-drawer__foot")).toBeNull();
+  });
+
+  it("heading is the visible h2 text when given, the name stays the title; without it the title shows", async () => {
+    await drawer({ heading: "Portrait, soft window light" });
+    expect(document.body.querySelector("h2")!.textContent).toBe("Portrait, soft window light");
+    expect(dialog()!.getAttribute("aria-label")).toBe("Job 3b9e1f0a");
+    document.body.replaceChildren();
+    await drawer();
+    expect(document.body.querySelector("h2")!.textContent).toBe("Job 3b9e1f0a");
   });
 
   it("a title with markup is text, in the heading and in the name", async () => {
