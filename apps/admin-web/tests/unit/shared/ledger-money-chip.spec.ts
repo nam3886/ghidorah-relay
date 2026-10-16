@@ -42,6 +42,26 @@ describe("LedgerList", () => {
     expect(dd[1]!.text()).toBe("2");
   });
 
+  it("the plain variant has no panel box class of the band and the value slot replaces the value text", () => {
+    const w = mount(LedgerList, {
+      props: {
+        variant: "plain",
+        items: [
+          { label: "Id", value: "abc", mono: true },
+          { label: "Next", value: "def" },
+        ],
+      },
+      slots: { value: `<template #value="{ item, index }"><a href="#x">{{ item.value }}-{{ index }}</a></template>` },
+    });
+    expect(w.classes()).toContain("ledger--plain");
+    expect(w.classes()).not.toContain("ledger--band");
+    expect(w.findAll("dd a").map((a) => a.text())).toEqual(["abc-0", "def-1"]);
+    expect(w.find("dd").text()).toBe("abc-0");
+    const without = mount(LedgerList, { props: { variant: "plain", items: [{ label: "Id", value: "abc" }] } });
+    expect(without.find("dd a").exists()).toBe(false);
+    expect(without.find("dd").text()).toBe("abc");
+  });
+
   it("a was of 0 is still shown", () => {
     const w = mount(LedgerList, { props: { items: [{ label: "Net", value: 3, was: 0 }] } });
     expect(w.find("dd s").text()).toBe("0");
