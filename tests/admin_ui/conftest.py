@@ -227,7 +227,7 @@ def sign_in_app(page, live, username=None, password=None) -> None:
     from patchright.sync_api import expect
     page.goto(APP_URL + "#/login")
     page.get_by_label("Username").fill(username or live.user)
-    page.get_by_label("Password").fill(password or live.password)
+    page.get_by_label("Password", exact=True).fill(password or live.password)
     page.get_by_role("button", name="Sign in").click()
     expect(page).to_have_url(re.compile(r"#/jobs$"))
 

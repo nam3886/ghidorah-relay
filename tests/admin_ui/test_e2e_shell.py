@@ -89,7 +89,7 @@ def test_login_wrong_password_says_so_and_the_right_one_lands_on_jobs(app, app_p
     page = app_page
     page.goto(app.url + "#/login")
     page.get_by_label("Username").fill(live.user)
-    page.get_by_label("Password").fill("wrong password")
+    page.get_by_label("Password", exact=True).fill("wrong password")
     page.get_by_role("button", name="Sign in").click()
     expect(page.get_by_text(WRONG)).to_be_visible()
     page.problems.clear()                                       # the 401 of a wrong password is a console line
@@ -105,7 +105,7 @@ def test_login_shows_the_server_text_of_a_429(app, app_page, live, db):
     page = app_page
     page.goto(app.url + "#/login")
     page.get_by_label("Username").fill(live.user)
-    page.get_by_label("Password").fill(live.password)              # even the right password is refused
+    page.get_by_label("Password", exact=True).fill(live.password)              # even the right password is refused
     page.get_by_role("button", name="Sign in").click()
     expect(page.get_by_text("too many failed attempts; try again later")).to_be_visible()
     expect(page).to_have_url(re.compile(r"#/login$"))
@@ -244,20 +244,14 @@ def test_no_stats_strip_is_drawn_on_the_tabs_that_used_to_have_one(seeded, app, 
 
 # ---- the banner -----------------------------------------------------------------------------------------------------
 
-def test_the_banner_shows_a_live_condition_on_a_warn_fill_with_no_side_border(app, app_session, db):
+def test_the_shell_draws_no_banner_even_with_a_live_condition(app, app_session, db):
     from accountkit import new_account
     new_account(db, label="only", checked=True)                 # one usable account is below the limit of 3
     page = app_session
     page.goto(app.url + "#/accounts")                           # Jobs draws the banner itself, after its band
     page.reload()
-    banner = page.get_by_role("status").filter(has_text="accounts_low")
-    expect(banner).to_be_visible()
-    expect(banner.get_by_text("Needs attention.")).to_be_visible()
-    expect(banner.get_by_role("link", name="Review in Alerts")).to_be_visible()   # live conditions alone show it
-    style = banner.evaluate("""el => { const s = getComputedStyle(el);
-        return {bg: s.backgroundColor, radius: s.borderTopLeftRadius,
-                left: s.borderLeftWidth, top: s.borderTopWidth}; }""")
-    assert style == {"bg": "rgb(253, 241, 223)", "radius": "12px", "left": "0px", "top": "0px"}, style
+    expect(page.get_by_role("main")).to_be_visible()
+    expect(page.get_by_role("status").filter(has_text="accounts_low")).to_have_count(0)
 
 
 # ---- the console-error rule of the harness ---------------------------------------------------------------------------
@@ -364,7 +358,7 @@ def box(locator):
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
-@pytest.mark.parametrize("width, stacked, bar_height, control", [(1280, False, 65, 36), (768, True, 110, 36),
+@pytest.mark.parametrize("width, stacked, bar_height, control", [(1280, False, 65, 34), (768, True, 110, 36),
                                                                  (390, True, 102, 44)])
 def test_the_top_bar_is_one_row_from_1280_and_two_rows_below_with_the_control_size_of_its_width(
         app, app_session, color_scheme, width, stacked, bar_height, control):
@@ -402,21 +396,27 @@ def test_the_page_frame_is_centred_with_the_padding_of_its_width(app, app_sessio
     expect(main).to_be_visible()
     padding = main.evaluate(
         "el => { const s = getComputedStyle(el); return [s.paddingLeft, s.paddingRight, s.maxWidth]; }")
-    assert padding == ["%dpx" % side, "%dpx" % side, "1360px"], padding
+    assert padding == ["%dpx" % side, "%dpx" % side, "1360px" if width >= 1280 else "none"], padding
     page.set_viewport_size({"width": 1800, "height": 800})
     wide = box(main)
     assert abs(wide["width"] - 1360) < 1 and abs(wide["x"] - (1800 - 1360) / 2) < 2, wide
 
 
+LINE_STRONG = {"light": "rgb(221, 213, 232)", "dark": "rgb(62, 51, 86)"}
+
+
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
-def test_the_current_tab_is_underlined_and_a_form_control_has_the_control_border(app, app_session, color_scheme):
+def test_the_current_tab_is_underlined_and_the_provider_trigger_has_the_line_strong_border(
+        app, app_session, color_scheme):
     page = app_session
     current = page.get_by_role("tab", selected=True)
     expect(current).to_have_count(1)
-    assert page.evaluate("getComputedStyle(document.querySelector('.el-tabs__active-bar')).height") == "2px"
-    wrapper = page.get_by_test_id("provider-filter").evaluate(
-        "el => getComputedStyle(el.querySelector('.el-select__wrapper')).boxShadow")
-    assert CONTROL[color_scheme] in wrapper and "inset" in wrapper, wrapper
+    underline = current.evaluate(
+        "el => [getComputedStyle(el).borderBottomWidth, getComputedStyle(el).borderBottomColor]")
+    assert underline == ["2px", "rgb(124, 58, 237)"], underline
+    border = page.get_by_test_id("provider-filter").evaluate(
+        "el => [getComputedStyle(el).borderTopWidth, getComputedStyle(el).borderTopColor]")
+    assert border == ["1px", LINE_STRONG[color_scheme]], border
 
 
 def test_the_account_menu_offers_api_docs_and_sign_out_and_closes_on_escape(app_session):
@@ -451,3 +451,57 @@ def test_the_fonts_load_from_this_origin_as_files_and_the_body_uses_them(app_ses
     origin = page.evaluate("location.origin")
     assert all(s.startswith(origin + "/ui/app/assets/") for s in sources), sources
     page.csp.check()
+
+
+# ---- the drawn sizes of the top bar, its popovers and the login page (specs/shell.md 1, 2, 7; specs/login.md) --------
+
+def sizes(locator):
+    return locator.evaluate(
+        "el => { const r = el.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }")
+
+
+@pytest.mark.parametrize("width, provider, toggle, account, tab, avatar, menu_w, list_w, item_h", [
+    (1440, 34, (34, 34), (None, 34), 64, 28, 200, 180, 36),
+    (768, 36, (36, 36), (40, 40), 48, 30, 220, 200, 40),
+    (390, 44, (44, 44), (44, 44), 44, 32, 220, 200, 44)])
+def test_the_top_bar_and_its_popovers_have_the_drawn_sizes(
+        app, app_session, width, provider, toggle, account, tab, avatar, menu_w, list_w, item_h):
+    page = app_session
+    page.set_viewport_size({"width": width, "height": 900})
+    page.goto(app.url + "#/jobs")
+    bar = page.get_by_role("banner")
+    trigger = bar.get_by_test_id("provider-filter")
+    expect(trigger).to_be_visible()
+    assert sizes(trigger)[1] == provider
+    assert sizes(bar.get_by_test_id("theme-toggle")) == list(toggle)
+    button = bar.get_by_test_id("account-menu")
+    got = sizes(button)
+    assert got[1] == account[1] and (account[0] is None or got[0] == account[0]), got
+    assert sizes(button.locator(".account-avatar")) == [avatar, avatar]
+    assert sizes(bar.get_by_role("tab", selected=True))[1] == tab
+    trigger.click()
+    listbox = page.get_by_role("listbox", name="Provider")
+    assert sizes(listbox)[0] == list_w
+    assert sizes(listbox.get_by_role("option").first)[1] == item_h
+    expect(trigger).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("Escape")
+    button.click()
+    menu = page.get_by_role("menu", name="Account")
+    assert sizes(menu)[0] == menu_w
+    assert sizes(menu.get_by_role("menuitem").first)[1] == item_h
+    assert menu.evaluate("el => getComputedStyle(el).boxShadow") == "rgba(10, 6, 20, 0.18) 0px 12px 32px 0px"
+    page.csp.check()
+
+
+@pytest.mark.parametrize("width, card, field, button", [(1440, 400, 36, 40), (390, 358, 48, 48)])
+def test_the_login_page_has_the_drawn_card_and_fields(app, app_page, width, card, field, button):
+    page = app_page
+    page.set_viewport_size({"width": width, "height": 900})
+    page.goto(app.url + "#/login")
+    expect(page.get_by_role("button", name="Sign in")).to_be_visible()
+    assert sizes(page.get_by_role("main"))[0] == card
+    assert sizes(page.get_by_label("Username"))[1] == field
+    assert sizes(page.get_by_role("button", name="Sign in"))[1] == button
+    assert page.locator("#loginError").count() == 0                # absent, not hidden, until a sign-in fails
+    size = page.get_by_label("Username").evaluate("el => getComputedStyle(el).fontSize")
+    assert size == ("16px" if width < 768 else "14px")
