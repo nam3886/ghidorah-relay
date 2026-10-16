@@ -32,6 +32,9 @@ async function submit(): Promise<void> {
   } catch (err) {
     error.value = err instanceof ApiError && err.status === 401 ? "Wrong username or password" : errorText(err);
   } finally {
+    // the password never outlives the request, whatever the answer: not in reactive state, not in the field
+    password.value = "";
+    reveal.value = false;
     busy.value = false;
   }
 }

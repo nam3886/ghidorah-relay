@@ -318,6 +318,11 @@ ALL_FILTER = SHELL_FAILED + ("shows All in the provider trigger, lists All then 
 POPOVERS = SHELL_FAILED + "closes an open popover on Escape and on a click outside, and keeps one open at a time"
 SIGN_OUT_ITEM = SHELL_FAILED + "signs out through the menu item: server revoke first, then every sign-out hook"
 BAR_FAILED = "FAILED tests/unit/app-shell.spec.ts > the top bar > "
+PROVIDER_ORDER_TEST = SHELL_FAILED + "lists the providers in the drawn order, dola, vibes, meta, then any other sorted"
+SIGN_OUT_ITEM_ESC = SHELL_FAILED + (
+    "opens a popup with ArrowDown on its trigger, puts the focus on the first menu item and returns it on Escape")
+WALK = SHELL_FAILED + ("moves the focus into the listbox on open, onto the chosen option, and walks it with "
+                       "Arrow, Home and End")
 LAYOUT = BAR_FAILED + ("is one row on a desktop, and two rows on a tablet and on a phone, "
                        "with the user's name only on the desktop")
 CURRENT_COUNT = BAR_FAILED + "marks the count of the current tab as primary and the Alerts count as warn"
@@ -330,9 +335,33 @@ CURRENT_COUNT = BAR_FAILED + "marks the count of the current tab as primary and 
 @mutation(TOP_BAR, 'scope.provider = name === ALL ? "" : name;', "scope.provider = name;", expect=ALL_FILTER)
 @mutation(TOP_BAR, ':aria-selected="name === providerLabel"', ':aria-selected="name !== providerLabel"',
           expect=ALL_FILTER)
-@mutation(TOP_BAR, 'event.key !== "Escape"', 'event.key !== "Enter"', expect=POPOVERS)
+@mutation(TOP_BAR, 'if (event.key !== "Escape" || !open.value) return;\n  event.preventDefault();',
+          'if (event.key !== "Escape" || !open.value) return;', expect=SIGN_OUT_ITEM_ESC)
+@mutation(TOP_BAR, 'if (event.key !== "Escape" || !open.value) return;', 'if (event.key !== "Escape") return;',
+          expect=SIGN_OUT_ITEM_ESC)
+@mutation(TOP_BAR, 'if (event.key !== "Escape" || !open.value) return;',
+          'if (event.key !== "Enter" || !open.value) return;', expect=POPOVERS)
 @mutation(TOP_BAR, "wrap && !wrap.contains(target)", "wrap && wrap.contains(target)", expect=POPOVERS)
-@mutation(TOP_BAR, "open.value = open.value === which ? null : which;", "open.value = which;", expect=POPOVERS)
+@mutation(TOP_BAR, "const opening = open.value !== which;", "const opening = true;", expect=POPOVERS)
+@mutation(TOP_BAR, 'const PROVIDER_ORDER = ["dola", "vibes", "meta"];',
+          'const PROVIDER_ORDER = ["dola", "meta", "vibes"];',
+          expect=PROVIDER_ORDER_TEST)
+@mutation(TOP_BAR, "(items.find((el) => el.getAttribute(\"aria-selected\") === \"true\") ?? items[0])?.focus();",
+          "items[0]?.focus();", expect=SHELL_FAILED + "opens the listbox on the chosen option when one is set, and "
+                                                      "gives the focus back to the trigger on Escape and on a pick")
+@mutation(TOP_BAR, "  Home: 0,", "  Home: 1,", expect=WALK)
+@mutation(TOP_BAR, "  End: items.length - 1,", "  End: 0,", expect=WALK)
+@mutation(TOP_BAR, "ArrowDown: at + 1,", "ArrowDown: at + 2,", expect=WALK)
+@mutation(TOP_BAR, "ArrowUp: at - 1,", "ArrowUp: at - 2,", expect=WALK)
+@mutation(TOP_BAR, "  if (target === undefined) return;\n  event.preventDefault();",
+          "  if (target === undefined) return;", expect=WALK)
+@mutation(TOP_BAR, 'event.key !== "ArrowDown" || open.value === which',
+          'event.key !== "ArrowUp" || open.value === which',
+          expect=SHELL_FAILED + "opens a popup with ArrowDown on its trigger, puts the focus on the first menu item "
+                                "and returns it on Escape")
+@mutation(TOP_BAR, 'wrapOf(which)?.querySelector<HTMLElement>("button")?.focus();', "void which;",
+          expect=SHELL_FAILED + "opens the listbox on the chosen option when one is set, and gives the focus back "
+                                "to the trigger on Escape and on a pick")
 @pytest.mark.web_unit
 def test_the_top_bar_keeps_the_count_the_provider_and_the_popover_rules():
     vitest("tests/unit/app-shell.spec.ts")
@@ -463,3 +492,41 @@ def test_the_breakpoint_composable():
 @pytest.mark.web_unit
 def test_the_tokens_the_fonts_and_the_brand_are_pinned():
     vitest("tests/unit/theme.spec.ts", "tests/unit/brand.spec.ts")
+
+
+# ---- the login page keeps no password, the build strips data: URLs ------------------------------------------------
+LOGIN_FAILED = "FAILED tests/unit/app-shell.spec.ts > the login page > "
+
+
+@mutation(f"{SRC}/views/LoginView.vue", '    password.value = "";\n', "",
+          expect=LOGIN_FAILED + "clears the password after a failed sign-in, from the field and from the page's state")
+@mutation(f"{SRC}/views/LoginView.vue", "    reveal.value = false;\n", "",
+          expect=LOGIN_FAILED + "clears the password after a successful sign-in too")
+@pytest.mark.web_unit
+def test_the_login_page_clears_the_password():
+    vitest("tests/unit/app-shell.spec.ts")
+
+
+STRIP = f"{SRC}/styles/strip-data-urls.ts"
+STRIP_FAILED = "FAILED tests/unit/strip-data-urls.spec.ts > the build step that drops data: URLs from vendor CSS > "
+
+
+@mutation(STRIP, 'if (DATA_URL_IN_VALUE.test(decl.value.replace(COMMENT, ""))) decl.remove();',
+          "if (false) decl.remove();",
+          expect=STRIP_FAILED + "removes a declaration that carries a data: URL, quoted or not, in any case, "
+                                "and keeps its neighbours")
+@mutation(STRIP, "/(?:^|[\\s(,])[\"']?data:[^\\s\"')]*,/i;", "/(?:^|[\\s(,])[\"']?data:[^\\s\"')]*,/;",
+          expect=STRIP_FAILED + "removes a declaration that carries a data: URL, quoted or not, in any case, "
+                                "and keeps its neighbours")
+@mutation(STRIP, "/(?:^|[\\s(,])[\"']?data:[^\\s\"')]*,/i;", "/data:/i;",
+          expect=STRIP_FAILED + "keeps a plain url() to a file and a value that only mentions data")
+@mutation(STRIP, 'decl.value.replace(COMMENT, "")', "decl.value",
+          expect=STRIP_FAILED + "sees a data URL behind a comment inside the value")
+@mutation(STRIP, "(?:^|[\\s(,])", "(?:^|[(])",
+          expect=STRIP_FAILED + "removes a declaration whose data URL is a quoted string inside image-set(), "
+                                "first or later in the list")
+# vite.config.ts is baked into the web image, so the wiring test ("is wired into the PostCSS step") is a plain
+# assertion on the config, not a marker.
+@pytest.mark.web_unit
+def test_the_build_strips_data_urls_from_vendor_css():
+    vitest("tests/unit/strip-data-urls.spec.ts")

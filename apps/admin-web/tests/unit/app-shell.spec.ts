@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "@/App.vue";
 import AttentionBanner from "@/components/layout/AttentionBanner.vue";
 import PageHeader from "@/components/layout/PageHeader.vue";
+import LoginView from "@/views/LoginView.vue";
 import { ApiError } from "@/api/client";
 import * as shell from "@/api/shell";
 import type { Stats } from "@/api/shell";
@@ -221,6 +222,11 @@ describe("the shell", () => {
     notify.clear();
   });
 
+  it("never mounts the attention banner: the shell source does not import it", () => {
+    const source = readFileSync(join(process.cwd(), "src/components/layout/AppShell.vue"), "utf8");
+    expect(source).not.toContain("AttentionBanner");
+  });
+
   it("draws no banner on any tab: Jobs renders it itself, after its band card", async () => {
     vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
     const { wrapper, router } = await open("/jobs");
@@ -388,6 +394,104 @@ describe("the shell", () => {
     wrapper.find('[role="menu"]').element.dispatchEvent(new Event("pointerdown", { bubbles: true }));
     await flushPromises();
     expect(wrapper.find('[role="menu"]').exists()).toBe(true);
+  });
+
+  it("lists the providers in the drawn order, dola, vibes, meta, then any other sorted", async () => {
+    vi.mocked(shell.getModels).mockResolvedValue({
+      data: [
+        { id: "a", owned_by: "meta" },
+        { id: "b", owned_by: "zeta" },
+        { id: "c", owned_by: "dola" },
+        { id: "d", owned_by: "vibes" },
+        { id: "e", owned_by: "alpha" },
+      ],
+    });
+    const { wrapper } = await open("/jobs");
+    await wrapper.find('[data-testid="provider-filter"]').trigger("click");
+    expect(wrapper.findAll('[role="option"]').map((o) => o.text())).toEqual([
+      "All",
+      "dola",
+      "vibes",
+      "meta",
+      "alpha",
+      "zeta",
+    ]);
+  });
+
+  const press = async (el: Element, key: string) => {
+    const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+    el.dispatchEvent(event);
+    await flushPromises();
+    return event;
+  };
+
+  it("moves the focus into the listbox on open, onto the chosen option, and walks it with Arrow, Home and End", async () => {
+    const { wrapper } = await open("/jobs");
+    const trigger = wrapper.find('[data-testid="provider-filter"]');
+    await trigger.trigger("click");
+    await flushPromises();
+    const options = wrapper.findAll('[role="option"]').map((o) => o.element);
+    expect(document.activeElement).toBe(options[0]);
+    const down = await press(options[0]!, "ArrowDown");
+    expect(document.activeElement).toBe(options[1]);
+    expect(down.defaultPrevented).toBe(true);
+    await press(options[1]!, "End");
+    expect(document.activeElement).toBe(options.at(-1));
+    await press(options.at(-1)!, "ArrowDown");
+    expect(document.activeElement).toBe(options.at(-1));
+    await press(options.at(-1)!, "ArrowUp");
+    expect(document.activeElement).toBe(options.at(-2));
+    await press(options.at(-2)!, "Home");
+    expect(document.activeElement).toBe(options[0]);
+    await press(options[0]!, "ArrowUp");
+    expect(document.activeElement).toBe(options[0]);
+    // a key it does not own is left alone
+    const other = new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true });
+    options[0]!.dispatchEvent(other);
+    expect(other.defaultPrevented).toBe(false);
+  });
+
+  it("opens the listbox on the chosen option when one is set, and gives the focus back to the trigger on Escape and on a pick", async () => {
+    const { wrapper } = await open("/jobs");
+    const { useScopeStore } = await import("@/stores/scope");
+    useScopeStore().provider = "vibes";
+    await flushPromises();
+    const trigger = wrapper.find('[data-testid="provider-filter"]');
+    await trigger.trigger("click");
+    await flushPromises();
+    const chosen = wrapper.find('[role="option"][aria-selected="true"]').element;
+    expect(chosen.textContent?.trim()).toBe("vibes");
+    expect(document.activeElement).toBe(chosen);
+    await press(document.body, "Escape");
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    expect(document.activeElement).toBe(trigger.element);
+    await trigger.trigger("click");
+    await flushPromises();
+    await wrapper.findAll('[role="option"]')[0]?.trigger("click");
+    await flushPromises();
+    expect(document.activeElement).toBe(trigger.element);
+  });
+
+  it("opens a popup with ArrowDown on its trigger, puts the focus on the first menu item and returns it on Escape", async () => {
+    const { wrapper } = await open("/jobs");
+    const trigger = wrapper.find('[data-testid="account-menu"]');
+    (trigger.element as HTMLElement).focus();
+    await press(trigger.element, "ArrowDown");
+    expect(wrapper.find('[role="menu"]').exists()).toBe(true);
+    const items = wrapper.findAll('[role="menuitem"]').map((i) => i.element);
+    expect(document.activeElement).toBe(items[0]);
+    await press(items[0]!, "End");
+    expect(document.activeElement).toBe(items[1]);
+    const escape = await press(items[1]!, "Escape");
+    expect(escape.defaultPrevented).toBe(true);
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false);
+    expect(document.activeElement).toBe(trigger.element);
+    // an Escape with nothing open is not handled, so it is left to the page
+    const idle = await press(document.body, "Escape");
+    expect(idle.defaultPrevented).toBe(false);
+    // another key on the trigger opens nothing
+    await press(trigger.element, "ArrowUp");
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false);
   });
 
   it("draws the account menu as API docs, a separator, Sign out", async () => {
@@ -637,6 +741,41 @@ describe("the login page", () => {
     await wrapper.find("form").trigger("submit");
     await flushPromises();
   }
+
+  // The page alone (no App around it), so it stays mounted after a successful sign-in has changed the route.
+  async function mountLogin() {
+    sessionStorage.clear();
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const router = createAppRouter(createMemoryHistory());
+    await router.push("/login");
+    wrapper = mount(LoginView, { global: { plugins: [pinia, router] }, attachTo: document.body });
+    await flushPromises();
+    return wrapper;
+  }
+
+  it("clears the password after a failed sign-in, from the field and from the page's state", async () => {
+    vi.mocked(shell.login).mockRejectedValue(
+      new ApiError(401, { error: { code: "auth.invalid", message: "bad", param: null } }),
+    );
+    const login = await mountLogin();
+    await submit(login, "owner", "secret-one");
+    expect(shell.login).toHaveBeenCalledWith("owner", "secret-one");
+    expect((login.find('input[name="password"]').element as HTMLInputElement).value).toBe("");
+    expect((login.find('input[name="username"]').element as HTMLInputElement).value).toBe("owner");
+    expect(login.find(".reveal").attributes("aria-pressed")).toBe("false");
+  });
+
+  it("clears the password after a successful sign-in too", async () => {
+    vi.mocked(shell.login).mockResolvedValue({ token: "tok", expires_at: 1 });
+    const login = await mountLogin();
+    await login.find(".reveal").trigger("click");
+    await submit(login, "owner", "secret-two");
+    expect(sessionStorage.getItem(TOKEN_KEY)).toBe("tok");
+    const field = login.find('input[name="password"]');
+    expect((field.element as HTMLInputElement).value).toBe("");
+    expect(field.attributes("type")).toBe("password");
+  });
 
   it("draws no error box until a sign-in fails, then an alert linked to the invalid password field", async () => {
     vi.mocked(shell.login).mockRejectedValue(

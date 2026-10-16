@@ -4,6 +4,7 @@ import AutoImport from "unplugin-auto-import/vite";
 import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
 import Components from "unplugin-vue-components/vite";
 import { defineConfig } from "vitest/config";
+import { stripDataUrls } from "./src/styles/strip-data-urls";
 
 // The built app is served by the api under /ui/app/ (pages.py). Nothing is fetched from another host.
 export default defineConfig({
@@ -16,6 +17,7 @@ export default defineConfig({
     Components({ dirs: [], resolvers: [ElementPlusResolver()], dts: "components.d.ts" }),
   ],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  css: { postcss: { plugins: [stripDataUrls] } },
   build: {
     outDir: fileURLToPath(new URL("../../packages/relay-core/src/relay_core/admin/static/app", import.meta.url)),
     emptyOutDir: true,

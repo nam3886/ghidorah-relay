@@ -46,18 +46,57 @@ function countText(value: number | string): string | number {
 // The Provider listbox. The store keeps "" for All (every view reads that as "no provider"); the list shows the word.
 const ALL = "All";
 const providerLabel = computed(() => scope.provider || ALL);
-const providerOptions = computed(() => [ALL, ...scope.providers]);
+// The drawn order is dola, vibes, meta; a provider the canvas does not know follows, sorted.
+const PROVIDER_ORDER = ["dola", "vibes", "meta"];
+const providerOptions = computed(() => {
+  const known = PROVIDER_ORDER.filter((name) => scope.providers.includes(name));
+  return [ALL, ...known, ...scope.providers.filter((name) => !PROVIDER_ORDER.includes(name))];
+});
 function pickProvider(name: string): void {
   scope.provider = name === ALL ? "" : name;
-  open.value = null;
+  closePopup();
 }
 
 // One popover at a time; a click outside or Escape closes it and gives the focus back to its trigger.
 const open = ref<"provider" | "account" | null>(null);
 const providerWrap = ref<HTMLElement | null>(null);
 const accountWrap = ref<HTMLElement | null>(null);
-function toggle(which: "provider" | "account"): void {
-  open.value = open.value === which ? null : which;
+const wrapOf = (which: "provider" | "account") => (which === "provider" ? providerWrap.value : accountWrap.value);
+const ITEMS = '[role="option"], [role="menuitem"]';
+
+// The keyboard moves into the popup when it opens: the chosen option, else the first item. Arrow keys, Home and End
+// move between items (they stop at the ends), Escape closes and gives the focus back.
+async function toggle(which: "provider" | "account"): Promise<void> {
+  const opening = open.value !== which;
+  open.value = opening ? which : null;
+  if (!opening) return;
+  await nextTick();
+  const items = [...(wrapOf(which)?.querySelectorAll<HTMLElement>(ITEMS) ?? [])];
+  (items.find((el) => el.getAttribute("aria-selected") === "true") ?? items[0])?.focus();
+}
+function closePopup(): void {
+  const which = open.value;
+  open.value = null;
+  if (which) wrapOf(which)?.querySelector<HTMLElement>("button")?.focus();
+}
+function onTriggerKey(event: KeyboardEvent, which: "provider" | "account"): void {
+  if (event.key !== "ArrowDown" || open.value === which) return;
+  event.preventDefault();
+  void toggle(which);
+}
+function onPopupKey(event: KeyboardEvent): void {
+  const items = [...(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>(ITEMS)];
+  const at = items.indexOf(document.activeElement as HTMLElement);
+  const next: Record<string, number> = {
+    ArrowDown: at + 1,
+    ArrowUp: at - 1,
+    Home: 0,
+    End: items.length - 1,
+  };
+  const target = next[event.key];
+  if (target === undefined) return;
+  event.preventDefault();
+  items[target]?.focus();
 }
 function onPointerDown(event: Event): void {
   const target = event.target as Node | null;
@@ -67,9 +106,8 @@ function onPointerDown(event: Event): void {
 }
 function onKeydown(event: KeyboardEvent): void {
   if (event.key !== "Escape" || !open.value) return;
-  const wrap = open.value === "provider" ? providerWrap.value : accountWrap.value;
-  open.value = null;
-  wrap?.querySelector<HTMLElement>("button")?.focus();
+  event.preventDefault();
+  closePopup();
 }
 onMounted(() => {
   document.addEventListener("pointerdown", onPointerDown);
@@ -81,14 +119,14 @@ onBeforeUnmount(() => {
 });
 
 async function signOut(): Promise<void> {
-  open.value = null;
+  closePopup();
   await run(async () => {
     await auth.logout();
     await router.replace({ name: "login" });
   });
 }
 function openDocs(): void {
-  open.value = null;
+  closePopup();
   window.open("/reference", "_blank", "noopener");
 }
 
@@ -151,12 +189,19 @@ watch(() => route.name, revealCurrent);
             :aria-label="isPhone ? `Provider scope: ${providerLabel}` : undefined"
             data-testid="provider-filter"
             @click="toggle('provider')"
+            @keydown="onTriggerKey($event, 'provider')"
           >
             <span class="scope-label">Provider</span>
             <span class="scope-value">{{ providerLabel }}</span>
             <IconChevronDown :size="14" :stroke="2" />
           </button>
-          <div v-if="open === 'provider'" class="menu menu--provider" role="listbox" aria-label="Provider">
+          <div
+            v-if="open === 'provider'"
+            class="menu menu--provider"
+            role="listbox"
+            aria-label="Provider"
+            @keydown="onPopupKey"
+          >
             <button
               v-for="name in providerOptions"
               :key="name"
@@ -164,6 +209,7 @@ watch(() => route.name, revealCurrent);
               class="menu-item"
               :class="{ 'is-selected': name === providerLabel }"
               role="option"
+              tabindex="-1"
               :aria-selected="name === providerLabel"
               @click="pickProvider(name)"
             >
@@ -194,18 +240,39 @@ watch(() => route.name, revealCurrent);
             :disabled="busy"
             data-testid="account-menu"
             @click="toggle('account')"
+            @keydown="onTriggerKey($event, 'account')"
           >
             <span class="account-avatar" aria-hidden="true">{{ initial }}</span>
             <span v-if="!stacked" class="account-name" data-testid="whoami">{{ auth.user }}</span>
             <IconChevronDown v-if="!stacked" class="account-chevron" :size="14" :stroke="2" />
           </button>
-          <div v-if="open === 'account'" class="menu menu--account" role="menu" aria-label="Account">
-            <button type="button" class="menu-item" role="menuitem" data-testid="api-docs" @click="openDocs">
+          <div
+            v-if="open === 'account'"
+            class="menu menu--account"
+            role="menu"
+            aria-label="Account"
+            @keydown="onPopupKey"
+          >
+            <button
+              type="button"
+              class="menu-item"
+              role="menuitem"
+              tabindex="-1"
+              data-testid="api-docs"
+              @click="openDocs"
+            >
               <IconFileText class="menu-item__icon" :size="16" />
               <span class="menu-item__text">API docs</span>
             </button>
             <div class="menu-separator" role="separator"></div>
-            <button type="button" class="menu-item" role="menuitem" data-testid="sign-out" @click="signOut">
+            <button
+              type="button"
+              class="menu-item"
+              role="menuitem"
+              tabindex="-1"
+              data-testid="sign-out"
+              @click="signOut"
+            >
               <IconLogOut class="menu-item__icon" :size="16" />
               <span class="menu-item__text">Sign out</span>
             </button>
