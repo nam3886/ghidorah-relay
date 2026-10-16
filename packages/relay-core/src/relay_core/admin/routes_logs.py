@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends
 from psycopg_pool import AsyncConnectionPool
 
 from relay_core.admin.routes_common import MAX_PAGE, ms
-from relay_core.admin.routes_jobs import _zone
+from relay_core.admin.routes_jobs import _zone, day_rows
 from relay_core.api.deps import get_pool
 from relay_core.api.errors_http import ApiError
 from relay_core.db import tx
@@ -88,8 +88,8 @@ async def list_logs(provider: str | None = None, status: Literal["all", "ok", "e
             {**params, "limit": limit, "offset": offset})).fetchall()
         if zone is not None and rows:
             days = [r[1].astimezone(zone).date() for r in rows]
-            found = await (await conn.execute(_DAY_TOTALS + _FROM + _DAY_RANGE, {
-                **params, "tz": tz, "day_first": min(days), "day_last": max(days)})).fetchall()
+            found = await day_rows(conn, _DAY_TOTALS + _FROM + _DAY_RANGE, {
+                **params, "tz": tz, "day_first": min(days), "day_last": max(days)})
             day_totals = {d.isoformat(): n for d, n in sorted(found)}
     out = {"items": [_view(r) for r in rows], "total": total}
     if zone is not None:

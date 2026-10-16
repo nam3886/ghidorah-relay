@@ -12,6 +12,19 @@ JOBS_SPEC = "FAILED tests/unit/jobs/jobs-api.spec.ts > list > "
 SENDS_TZ = "sends the display zone as tz, and nothing when it is not set"
 
 
+SHELL = "apps/admin-web/src/api/shell.ts"
+STATS_SPEC = "FAILED tests/unit/shell-api.spec.ts > stats cards > "
+STATS_CALL = "asks /admin/stats for the provider and hands the account counts through, in use and asleep included"
+
+
+@mutation(SHELL, 'request("/stats", { query: { provider } })', 'request("/stats")', expect=STATS_SPEC + STATS_CALL)
+@mutation(SHELL, 'request("/stats", { query: { provider } })', 'request("/stats/hourly", { query: { provider } })',
+          expect=STATS_SPEC + STATS_CALL)
+@pytest.mark.web_unit
+def test_stats_cards_call():
+    vitest("tests/unit/shell-api.spec.ts")
+
+
 @mutation(JOBS, "      tz: q.tz,\n", "", expect=JOBS_SPEC + SENDS_TZ)
 @mutation(JOBS, "      tz: q.tz,\n", '      tz: q.tz ?? "UTC",\n', expect=JOBS_SPEC + SENDS_TZ)
 @pytest.mark.web_unit
