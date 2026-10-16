@@ -31,9 +31,13 @@ export interface LogQuery {
   q?: string;
   since_ms?: number;
   until_ms?: number;
+  // the viewer's IANA zone: the answer then holds the day totals
+  tz?: string;
 }
 
-export const listLogs = (query: LogQuery): Promise<{ items: LogRow[]; total: number }> =>
+export const listLogs = (
+  query: LogQuery,
+): Promise<{ items: LogRow[]; total: number; day_totals?: Record<string, number> }> =>
   request("/logs", { query: { ...query } });
 
 export const getLog = (id: string): Promise<LogDetail> => request(`/logs/${encodeURIComponent(id)}`);

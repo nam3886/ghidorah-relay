@@ -1,64 +1,149 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import type { InputInstance } from "element-plus";
-import CopyButton from "@/components/shared/CopyButton.vue";
+import { onBeforeUnmount, ref, watchEffect } from "vue";
+import { IconCheck, IconCopy } from "@/components/shared/icons";
+import { copyText, type CopyOutcome } from "@/components/shared/clipboard";
+import { notify } from "@/lib/notify";
+import "@/components/logs/lane-controls.css";
 
 // The raw key of a key just created, shown once. The view holds it in its own local state and passes it here: this
-// component keeps nothing of its own, so Dismiss (the view clearing it) removes the key from the page.
-defineProps<{ rawKey: string }>();
-defineEmits<{ dismiss: [] }>();
+// component keeps nothing of its own, so Dismiss (the view clearing it) removes the key from the page. `label` is the
+// name the operator gave the key.
+const props = defineProps<{ rawKey: string; label: string }>();
+const emit = defineEmits<{ dismiss: []; copied: [outcome: CopyOutcome] }>();
 
-const field = ref<InputInstance | null>(null);
+const field = ref<HTMLInputElement | null>(null);
+// The key goes into the field as its value property, never as a `value` attribute: nothing of it is then part of the
+// page's HTML (a `:value` binding writes the attribute too).
+watchEffect(
+  () => {
+    if (field.value) field.value.value = props.rawKey;
+  },
+  { flush: "post" },
+);
+const copied = ref(false);
+let timer: ReturnType<typeof setTimeout> | undefined;
+// aborted on unmount: a copy still pending then must not touch the clipboard fallback, toast or emit
+const abort = new AbortController();
+onBeforeUnmount(() => {
+  abort.abort();
+  clearTimeout(timer);
+});
+
+async function copy(): Promise<void> {
+  const outcome = await copyText(props.rawKey, () => field.value, abort.signal);
+  if (outcome === "aborted") return;
+  if (outcome === "select") notify.info("Press Ctrl+C to copy the selected text");
+  else if (outcome === "failed") notify.error("Could not copy: select the text and copy it by hand");
+  else {
+    copied.value = true;
+    clearTimeout(timer);
+    timer = setTimeout(() => (copied.value = false), 2000);
+  }
+  emit("copied", outcome);
+}
 </script>
 
 <template>
-  <el-alert
-    type="warning"
-    show-icon
-    :closable="false"
-    title="Copy this key now, it is not shown again."
-    class="callout"
-    aria-label="One-time key"
-    data-testid="new-key"
-  >
+  <section class="callout" role="status" aria-label="One-time key" data-testid="new-key">
+    <div class="callout__head">
+      <span class="callout__icon"><IconCheck :size="18" :stroke="2" /></span>
+      <p class="callout__text">
+        <strong>Key created for {{ label }}.</strong>
+        <span class="callout__muted"> Copy it now: it is shown once and not stored.</span>
+      </p>
+    </div>
     <div class="callout__row">
-      <el-input
+      <input
         ref="field"
         class="callout__field"
-        :model-value="rawKey"
         readonly
         aria-label="New API key"
         autocomplete="off"
         spellcheck="false"
         @focus="field?.select()"
       />
-      <CopyButton :text="() => rawKey" :select-from="() => field?.input" />
-      <el-button @click="$emit('dismiss')">Dismiss</el-button>
+      <div class="callout__buttons">
+        <button type="button" class="kla-btn kla-btn--primary kla-btn--fit callout__btn" @click="copy">
+          <IconCopy :size="15" />{{ copied ? "Copied" : "Copy" }}
+        </button>
+        <button type="button" class="kla-btn kla-btn--ghost kla-btn--fit callout__btn" @click="emit('dismiss')">
+          Dismiss
+        </button>
+      </div>
     </div>
-    <p class="callout__note">
-      Only a hash is stored: once this box is gone (a reload, another tab) the key cannot be shown again.
-    </p>
-  </el-alert>
+  </section>
 </template>
 
 <style scoped>
 .callout {
-  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--rl-ok-bg);
+}
+.callout__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.callout__icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--rl-ok);
+  line-height: 0;
+}
+.callout__text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.callout__text strong {
+  font-weight: 600;
+}
+.callout__muted {
+  color: var(--rl-muted);
 }
 .callout__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-top: 8px;
 }
 .callout__field {
-  flex: 1;
-  min-width: 12rem;
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  flex: 1 1 360px;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font-family: var(--rl-mono);
+  font-size: 13px;
 }
-.callout__note {
-  margin: 8px 0 0;
-  font-size: 12px;
+.callout__buttons {
+  display: flex;
+  gap: 8px;
+}
+@media (max-width: 1279px) {
+  .callout__field {
+    flex-basis: 300px;
+  }
+}
+@media (max-width: 767px) {
+  .callout__field {
+    flex-basis: 100%;
+    height: 44px;
+    font-size: 12px;
+  }
+  .callout__buttons {
+    flex: 1 1 100%;
+  }
+  .callout__btn {
+    flex: 1;
+  }
 }
 </style>

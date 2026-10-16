@@ -88,4 +88,6 @@ ACCOUNTS_BOARDS = [
     Entry("B-AccountEdit", "#/accounts", seed=accounts_seed, now=NOW, drive=open_edit),
 ]
 
-ENTRIES: list[Entry] = [*LOGIN, *SHELL, *LANE7, *ACCOUNTS_BOARDS]
+from pixel_kla import KLA  # noqa: E402  (lane 6: keys, request logs, alerts; imports Entry from here)
+
+ENTRIES: list[Entry] = [*LOGIN, *SHELL, *LANE7, *ACCOUNTS_BOARDS, *KLA]

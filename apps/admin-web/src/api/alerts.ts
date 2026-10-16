@@ -26,6 +26,8 @@ export interface UnclearItem {
   job_error_code: string | null;
   account_label: string | null;
   key_id: string;
+  job_title: string | null;
+  key_label: string | null;
   acknowledged_ms: number | null;
   acknowledged_by: string | null;
 }
@@ -40,6 +42,9 @@ export interface BillingItem {
   used_day: number;
   used_total: number;
   detail: string | null;
+  key_label: string | null;
+  job_id: string | null;
+  job_title: string | null;
   acknowledged_ms: number | null;
   acknowledged_by: string | null;
 }
