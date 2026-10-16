@@ -1,5 +1,7 @@
 <script setup lang="ts" generic="T extends object">
-import { computed, ref } from "vue";
+import { computed, ref, useSlots, watch } from "vue";
+import { useBreakpoint } from "@/composables/use-breakpoint";
+import { daySpanMethod, isDayRow, type DayRow } from "@/lib/day-rows";
 import type { Column } from "./types";
 import type { Tone } from "./status-tones";
 
@@ -9,10 +11,18 @@ import type { Tone } from "./status-tones";
 //   loading with rows     -> the old rows stay, dimmed (refreshing)
 //   error                 -> an inline message with Retry (the stale rows are hidden: they would mislead)
 //   no rows               -> the empty text and the action
+// Opt-in additions (a view that passes none of them gets the plain table):
+//   tabletColumns  keys shown from 768 to 1279 px (the other fields fold into a cell the view draws)
+//   row slot       the phone layout (< 768 px): a stacked row list instead of the table, with the same selection,
+//                  row click and day headers; the table is not rendered then, and `actions` is not shown
+//   toneFill       a row tone fills the whole row instead of the inset bar
+//   spanMethod / rowClassName   passed to el-table
+// Day rows (lib/day-rows.ts) may be mixed into `rows`: they draw a header across the table, are never selectable and
+// never reach `selection-change`, `row-click` or a slot.
 const props = withDefaults(
   defineProps<{
     columns: Column[];
-    rows: T[];
+    rows: Array<T | DayRow>;
     loading?: boolean;
     error?: string | null;
     emptyText?: string;
@@ -27,6 +37,18 @@ const props = withDefaults(
     actionsWidth?: number | string;
     // a first column of checkboxes (the table's own selection column); `selection-change` carries the ticked rows
     selectable?: boolean;
+    tabletColumns?: string[];
+    toneFill?: boolean;
+    spanMethod?: (args: {
+      row: T | DayRow;
+      column: unknown;
+      rowIndex: number;
+      columnIndex: number;
+    }) => number[] | { rowspan: number; colspan: number } | undefined;
+    rowClassName?: (args: { row: T; rowIndex: number }) => string;
+    // phone layout: the accessible names of a row's open area and of its checkbox
+    rowLabel?: (row: T) => string;
+    selectLabel?: (row: T) => string;
   }>(),
   {
     loading: false,
@@ -39,24 +61,80 @@ const props = withDefaults(
     skeletonRows: 6,
     actionsWidth: 200,
     selectable: false,
+    tabletColumns: undefined,
+    toneFill: false,
+    spanMethod: undefined,
+    rowClassName: undefined,
+    rowLabel: undefined,
+    selectLabel: undefined,
   },
 );
 const emit = defineEmits<{ retry: []; "row-click": [row: T]; "selection-change": [rows: T[]] }>();
+const slots = useSlots();
+const { isPhone, isTablet } = useBreakpoint();
 
+const phoneList = computed(() => isPhone.value && !!slots.row);
+const visibleColumns = computed(() =>
+  isTablet.value && props.tabletColumns
+    ? props.columns.filter((c) => props.tabletColumns!.includes(c.key))
+    : props.columns,
+);
+const columnCount = computed(() => (props.selectable ? 1 : 0) + visibleColumns.value.length + (slots.actions ? 1 : 0));
+const hasDays = computed(() => props.rows.some(isDayRow));
+const span = computed(
+  () => props.spanMethod ?? (hasDays.value ? daySpanMethod(columnCount.value, props.selectable ? 1 : 0) : undefined),
+);
+
+const keyOf = (row: T | DayRow): string =>
+  isDayRow(row) ? row.id : String((row as Record<string, unknown>)[props.rowKey]);
+const dataRows = computed(() => props.rows.filter((r): r is T => !isDayRow(r)));
+
+// the ticked rows' keys: the table's selection (or the phone list's own) mirrored here, so a row can be drawn selected
+const selectedKeys = ref<ReadonlySet<string>>(new Set());
 const tableRef = ref<{ clearSelection: () => void; toggleRowSelection: (row: T, selected?: boolean) => void }>();
 
-// Ticks exactly the rows whose rowKey is in `ids` (after a reload or a failed bulk action). The table's
-// selection-change follows, so the view's own list matches.
+function publish(rows: Array<T | DayRow>): void {
+  // a day row can never be a selection, whatever the table says
+  const picked = rows.filter((r): r is T => !isDayRow(r));
+  selectedKeys.value = new Set(picked.map(keyOf));
+  emit("selection-change", picked);
+}
+
+function onTableSelection(rows: Array<T | DayRow>): void {
+  publish(rows);
+}
+
+// Ticks exactly the rows whose rowKey is in `ids` (after a reload or a failed bulk action). The selection-change
+// that follows keeps the view's own list in step. Day rows are skipped.
 function setSelection(ids: string[]): void {
+  const wanted = new Set(ids);
+  const hits = dataRows.value.filter((r) => wanted.has(keyOf(r)));
+  if (phoneList.value) {
+    publish(hits);
+    return;
+  }
   const table = tableRef.value;
   if (!table) return;
   table.clearSelection();
-  const wanted = new Set(ids);
-  for (const row of props.rows) {
-    if (wanted.has(String((row as Record<string, unknown>)[props.rowKey]))) table.toggleRowSelection(row, true);
-  }
+  for (const row of hits) table.toggleRowSelection(row, true);
 }
 defineExpose({ setSelection });
+
+// rows that left the list (a reload, another page) drop out of the phone list's selection, as the table does
+watch(dataRows, (rows) => {
+  if (!phoneList.value || selectedKeys.value.size === 0) return;
+  const present = rows.filter((r) => selectedKeys.value.has(keyOf(r)));
+  if (present.length !== selectedKeys.value.size) publish(present);
+});
+// the two layouts keep separate selections: switching between them starts clean
+watch(phoneList, () => {
+  if (selectedKeys.value.size) publish([]);
+});
+
+function toggleRow(row: T, on: boolean): void {
+  const target = keyOf(row);
+  publish(dataRows.value.filter((r) => (keyOf(r) === target ? on : selectedKeys.value.has(keyOf(r)))));
+}
 
 const refreshing = computed(() => props.loading && props.rows.length > 0 && !props.error);
 const skeleton = computed(() => props.loading && props.rows.length === 0 && !props.error);
@@ -75,9 +153,24 @@ const state = computed(() =>
 // Element Plus probes each column's slot once with an empty row and index -1; a real row has index 0 or more.
 const isData = (index: number): boolean => index >= 0;
 
-function rowClass({ row }: { row: T }): string {
+function toneClasses(row: T): string {
   const tone = props.rowTone?.(row);
-  return tone && tone !== "neutral" ? `row-tone row-tone-${tone}` : "";
+  if (!tone || tone === "neutral") return "";
+  return `row-tone row-tone-${tone}${props.toneFill ? " row-tone-fill" : ""}`;
+}
+
+function rowClasses(row: T, rowIndex: number): string {
+  return [
+    toneClasses(row),
+    selectedKeys.value.has(keyOf(row)) ? "is-selected" : "",
+    props.rowClassName?.({ row, rowIndex }) ?? "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function rowClass({ row, rowIndex }: { row: T | DayRow; rowIndex: number }): string {
+  return isDayRow(row) ? "is-day" : rowClasses(row, rowIndex);
 }
 
 function isEmpty(row: T, key: string): boolean {
@@ -89,16 +182,35 @@ function cellText(row: T, key: string): string {
   return isEmpty(row, key) ? "-" : String((row as Record<string, unknown>)[key]);
 }
 
-function onRowClick(row: T, _column: unknown, event: Event) {
-  if (!props.rowClickable) return;
+const INTERACTIVE = "button, a, input, label, .el-switch, .el-checkbox, .el-dropdown";
+
+function onRowClick(row: T | DayRow, _column: unknown, event: Event) {
+  if (!props.rowClickable || isDayRow(row)) return;
   const target = event.target as HTMLElement | null;
-  if (target?.closest("button, a, input, label, .el-switch, .el-checkbox, .el-dropdown")) return;
+  if (target?.closest(INTERACTIVE)) return;
+  emit("row-click", row);
+}
+
+function onListClick(row: T, event: MouseEvent) {
+  if (!props.rowClickable) return;
+  if ((event.target as HTMLElement | null)?.closest(INTERACTIVE)) return;
+  emit("row-click", row);
+}
+
+function onListKey(row: T, event: KeyboardEvent) {
+  if (event.target !== event.currentTarget) return;
+  event.preventDefault();
   emit("row-click", row);
 }
 </script>
 
 <template>
-  <div class="data-table" :class="{ 'is-refreshing': refreshing }" :aria-busy="props.loading" :data-state="state">
+  <div
+    class="data-table"
+    :class="{ 'is-refreshing': refreshing, 'is-tablet': isTablet, 'is-tone-fill': props.toneFill }"
+    :aria-busy="props.loading"
+    :data-state="state"
+  >
     <el-alert
       v-if="props.error"
       class="data-table__error"
@@ -112,20 +224,61 @@ function onRowClick(row: T, _column: unknown, event: Event) {
     <div v-else-if="skeleton" class="data-table__skeleton">
       <el-skeleton :rows="props.skeletonRows" animated />
     </div>
+    <template v-else-if="phoneList">
+      <ul v-if="props.rows.length" class="data-table__list">
+        <template v-for="(item, index) in props.rows" :key="keyOf(item)">
+          <li v-if="isDayRow(item)" class="data-table__day">
+            <div class="data-table__day-label" data-testid="day-row">
+              <slot name="day" :row="item"
+                >{{ item.label }} <span v-if="item.note" class="data-table__day-note">· {{ item.note }}</span></slot
+              >
+            </div>
+          </li>
+          <li v-else class="data-table__item" :class="rowClasses(item as T, index)">
+            <label v-if="props.selectable" class="data-table__check">
+              <input
+                type="checkbox"
+                :checked="selectedKeys.has(keyOf(item))"
+                :aria-label="props.selectLabel?.(item as T) ?? 'Select row'"
+                @change="toggleRow(item as T, ($event.target as HTMLInputElement).checked)"
+              />
+            </label>
+            <div
+              class="data-table__main"
+              :role="props.rowClickable ? 'button' : undefined"
+              :tabindex="props.rowClickable ? 0 : undefined"
+              :aria-label="props.rowClickable ? props.rowLabel?.(item as T) : undefined"
+              @click="onListClick(item as T, $event)"
+              @keydown.enter="props.rowClickable && onListKey(item as T, $event)"
+              @keydown.space="props.rowClickable && onListKey(item as T, $event)"
+            >
+              <slot name="row" :row="item as T" :index="index" />
+            </div>
+          </li>
+        </template>
+      </ul>
+      <el-empty v-else :description="props.emptyText" :image-size="60"><slot name="empty-action" /></el-empty>
+    </template>
     <el-table
       v-else
       ref="tableRef"
       :data="props.rows"
-      :row-key="props.rowKey"
+      :row-key="keyOf"
       :max-height="props.maxHeight"
       :row-class-name="rowClass"
+      :span-method="span"
       :class="{ 'is-clickable': props.rowClickable }"
       @row-click="onRowClick"
-      @selection-change="(rows: T[]) => emit('selection-change', rows)"
+      @selection-change="onTableSelection"
     >
-      <el-table-column v-if="props.selectable" type="selection" :width="44" />
       <el-table-column
-        v-for="c in props.columns"
+        v-if="props.selectable"
+        type="selection"
+        :width="44"
+        :selectable="(row: T | DayRow) => !isDayRow(row)"
+      />
+      <el-table-column
+        v-for="(c, ci) in visibleColumns"
         :key="c.key"
         :label="c.label"
         :width="c.width"
@@ -134,10 +287,20 @@ function onRowClick(row: T, _column: unknown, event: Event) {
         :class-name="c.align === 'right' ? 'is-numeric' : undefined"
       >
         <!-- Element Plus calls this slot once with an empty row and $index -1 to read the column's children: that
-             probe is not data, so the user's slot never sees it. -->
+             probe is not data, so the user's slot never sees it. A day row draws its header in the first column. -->
         <template #default="{ row, $index }">
           <template v-if="isData($index)">
-            <slot :name="`cell-${c.key}`" :row="row as T" :index="$index"
+            <template v-if="isDayRow(row)">
+              <div v-if="ci === 0" class="data-table__day-label" data-testid="day-row">
+                <slot name="day" :row="row as DayRow"
+                  >{{ (row as DayRow).label }}
+                  <span v-if="(row as DayRow).note" class="data-table__day-note"
+                    >· {{ (row as DayRow).note }}</span
+                  ></slot
+                >
+              </div>
+            </template>
+            <slot v-else :name="`cell-${c.key}`" :row="row as T" :index="$index"
               ><span :class="{ 'data-table__none': isEmpty(row as T, c.key) }">{{
                 cellText(row as T, c.key)
               }}</span></slot
@@ -153,7 +316,7 @@ function onRowClick(row: T, _column: unknown, event: Event) {
         :min-width="props.actionsWidth"
       >
         <template #default="{ row, $index }">
-          <template v-if="isData($index)">
+          <template v-if="isData($index) && !isDayRow(row)">
             <slot name="actions" :row="row as T" />
           </template>
         </template>
@@ -177,6 +340,10 @@ function onRowClick(row: T, _column: unknown, event: Event) {
 .data-table :deep(.el-table) {
   min-width: 640px;
 }
+/* a tablet shows its priority columns and fits the width: no minimum */
+.data-table.is-tablet :deep(.el-table) {
+  min-width: 0;
+}
 .data-table__error :deep(.el-alert__content) {
   display: flex;
   align-items: center;
@@ -189,35 +356,130 @@ function onRowClick(row: T, _column: unknown, event: Event) {
   color: var(--rl-muted);
   opacity: 0.6;
 }
-.is-refreshing :deep(.el-table) {
-  opacity: 0.55;
+.is-refreshing :deep(.el-table),
+.is-refreshing .data-table__list {
+  opacity: 0.6;
   transition: opacity 0.15s;
 }
 :deep(.el-table th.el-table__cell) {
-  background: var(--rl-surface-2);
+  background: var(--rl-raised);
+  color: var(--rl-muted);
+  font-size: 12px;
+  font-weight: 500;
 }
 :deep(.el-table .is-numeric .cell) {
   font-variant-numeric: tabular-nums;
 }
 :deep(.el-table .el-table__row:hover > td.el-table__cell) {
-  background: var(--rl-surface-2);
+  background: var(--rl-raised);
 }
 :deep(.el-table.is-clickable .el-table__row) {
   cursor: pointer;
 }
+/* tone: an inset bar on the first cell, or (toneFill) the whole row */
 :deep(.el-table .row-tone > td.el-table__cell:first-child) {
   box-shadow: inset 2px 0 0 var(--row-tone-color);
 }
-:deep(.el-table .row-tone-bad) {
+.is-tone-fill :deep(.el-table .row-tone > td.el-table__cell:first-child) {
+  box-shadow: none;
+}
+:deep(.el-table .row-tone-bad),
+.data-table__item.row-tone-bad {
   --row-tone-color: var(--rl-bad);
+  --row-tone-fill: var(--rl-bad-bg);
 }
-:deep(.el-table .row-tone-warn) {
+:deep(.el-table .row-tone-warn),
+.data-table__item.row-tone-warn {
   --row-tone-color: var(--rl-warn);
+  --row-tone-fill: color-mix(in srgb, var(--rl-warn-bg) 50%, transparent);
 }
-:deep(.el-table .row-tone-info) {
+:deep(.el-table .row-tone-info),
+.data-table__item.row-tone-info {
   --row-tone-color: var(--rl-info);
+  --row-tone-fill: var(--rl-info-bg);
 }
-:deep(.el-table .row-tone-ok) {
+:deep(.el-table .row-tone-ok),
+.data-table__item.row-tone-ok {
   --row-tone-color: var(--rl-ok);
+  --row-tone-fill: var(--rl-ok-bg);
+}
+:deep(.el-table .row-tone-fill) {
+  --el-table-tr-bg-color: var(--row-tone-fill);
+}
+:deep(.el-table .is-selected) {
+  --el-table-tr-bg-color: var(--rl-primary-soft);
+}
+.data-table__item.is-selected {
+  background: var(--rl-primary-soft);
+}
+.data-table__item.row-tone-fill {
+  background: var(--row-tone-fill);
+}
+/* day header rows: a label across the table; the (empty) selection cell is hidden */
+:deep(.el-table .is-day > td.el-table__cell),
+:deep(.el-table .is-day:hover > td.el-table__cell) {
+  background: transparent;
+  cursor: default;
+}
+:deep(.el-table .is-day .el-table-column--selection .cell) {
+  visibility: hidden;
+}
+:deep(.el-table .is-day .cell) {
+  padding-top: 8px;
+  padding-bottom: 0;
+}
+.data-table__day-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rl-muted);
+}
+.data-table__day-note {
+  font-weight: 400;
+  color: var(--rl-faint);
+  font-variant-numeric: tabular-nums;
+}
+/* phone list: stacked rows, whole row tappable, 44 px targets */
+.data-table__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.data-table__day {
+  padding: 14px 16px 6px;
+  border-bottom: 1px solid var(--rl-line);
+}
+.data-table__item {
+  display: flex;
+  align-items: stretch;
+  min-height: 72px;
+  border-bottom: 1px solid var(--rl-line);
+}
+.data-table__check {
+  flex: none;
+  width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.data-table__check input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--rl-primary);
+}
+.data-table__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 16px 10px 0;
+}
+.data-table__main[role="button"] {
+  cursor: pointer;
+}
+.data-table__item:not(:has(.data-table__check)) .data-table__main {
+  padding-left: 16px;
 }
 </style>

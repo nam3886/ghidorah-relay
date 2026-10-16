@@ -1,0 +1,23 @@
+/* Toasts: a surface card with a hairline and the overlay shadow, in both themes (the message is teleported to <body>). */
+.el-message {
+  min-width: 260px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--rl-line);
+  background-color: var(--rl-surface);
+  box-shadow: 0 12px 32px rgba(10, 6, 20, 0.18);
+}
+.el-message .el-message__content {
+  color: var(--rl-fg);
+}
+.el-message--success .el-message__icon {
+  color: var(--rl-ok);
+}
+.el-message--error .el-message__icon {
+  color: var(--rl-bad);
+}
+.el-message .el-message__badge {
+  font-variant-numeric: tabular-nums;
+  background-color: var(--rl-ok-bg);
+  color: var(--rl-ok);
+}

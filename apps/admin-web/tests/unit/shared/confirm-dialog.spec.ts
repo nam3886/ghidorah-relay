@@ -31,6 +31,14 @@ describe("confirmDialog", () => {
     expect(options.cancelButtonText).toBe("Cancel");
   });
 
+  it("every box carries the confirm class that draws the title, the muted sentence and the solid destructive button", async () => {
+    for (const danger of [true, false]) {
+      const b = box("resolve");
+      await confirmDialog({ title: "t", message: "m", danger }, b);
+      expect((b.confirm.mock.calls[0] as unknown[])[2]).toMatchObject({ customClass: "rl-confirm" });
+    }
+  });
+
   it("marks a destructive confirm red and a plain one not", async () => {
     const danger = box("resolve");
     await confirmDialog({ title: "t", message: "m", danger: true }, danger);
