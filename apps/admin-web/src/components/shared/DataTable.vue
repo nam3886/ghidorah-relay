@@ -319,7 +319,9 @@ function onListKey(row: T, event: KeyboardEvent) {
         :width="c.width"
         :min-width="c.minWidth"
         :align="c.align ?? 'left'"
-        :class-name="[c.align === 'right' ? 'is-numeric' : '', c.className ?? ''].filter(Boolean).join(' ') || undefined"
+        :class-name="
+          [c.align === 'right' ? 'is-numeric' : '', c.className ?? ''].filter(Boolean).join(' ') || undefined
+        "
       >
         <!-- Element Plus calls this slot once with an empty row and $index -1 to read the column's children: that
              probe is not data, so the user's slot never sees it. A day row draws its header in the first column. -->

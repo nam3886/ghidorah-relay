@@ -211,6 +211,30 @@ describe("DataTable selection with day rows", () => {
 });
 
 describe("DataTable tablet and opt-in props", () => {
+  it("a column className lands on its header and body cells and on no other column", async () => {
+    const w = await table({
+      rows: jobs,
+      columns: [
+        { key: "time", label: "Time", className: "col-time" },
+        { key: "name", label: "Name" },
+      ],
+    });
+    expect(w.findAll("th.col-time")).toHaveLength(1);
+    expect(w.findAll("td.col-time").length).toBeGreaterThan(0);
+    expect(w.findAll("th")[1]!.classes()).not.toContain("col-time");
+    expect(w.findAll("tbody tr:not(.is-day) td")[1]!.classes()).not.toContain("col-time");
+  });
+
+  it("mainClass lands on the open area of every phone row", async () => {
+    stubWidth("phone");
+    const w = await table({ rows: jobs, mainClass: "mine" }, { row: "<span>x</span>" });
+    const mains = w.findAll(".data-table__main");
+    expect(mains.length).toBeGreaterThan(0);
+    expect(mains.every((m) => m.classes().includes("mine"))).toBe(true);
+    const plain = await table({ rows: jobs }, { row: "<span>x</span>" });
+    expect(plain.find(".data-table__main").classes()).not.toContain("mine");
+  });
+
   it("the selection column is 40 px on desktop and 44 px on a tablet", async () => {
     stubWidth("desktop");
     const desktop = await table({ selectable: true });
