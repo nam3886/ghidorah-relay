@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
-import { AlarmClock, CircleCheck, Collection, Delete, DocumentChecked, Edit, Picture } from "@element-plus/icons-vue";
 import {
   type Account,
   type AccountPatch,
@@ -15,40 +14,44 @@ import {
   refreshCatalog,
   wakeAccount,
 } from "@/api/accounts";
+import { getPoolStats, type PoolStats } from "@/api/shell";
+import AccountsHeader from "@/components/accounts/AccountsHeader.vue";
+import AccountsListPhone from "@/components/accounts/AccountsListPhone.vue";
+import AccountsTableDesktop from "@/components/accounts/AccountsTableDesktop.vue";
+import AccountsTableTablet from "@/components/accounts/AccountsTableTablet.vue";
 import {
-  ago,
-  asleepLines,
   AUTO_REFRESH_MS,
   checkSummary,
+  healthItems,
+  hhmmss,
   PAGE_SIZE,
-  pointsFigure,
-  proxyCheck,
-  proxyText,
+  poolItems,
+  type RowAction,
   WAKE_LABEL,
 } from "@/components/accounts/account-model";
 import EditDialog from "@/components/accounts/EditDialog.vue";
 import ImportDialog from "@/components/accounts/ImportDialog.vue";
-import DataTable from "@/components/shared/DataTable.vue";
-import ListToolbar from "@/components/shared/ListToolbar.vue";
-import IconAction from "@/components/shared/IconAction.vue";
+import PoolCard from "@/components/accounts/PoolCard.vue";
+import { IconAlertCircle, IconPlus } from "@/components/shared/icons";
 import ListPager from "@/components/shared/ListPager.vue";
-import StatusChip from "@/components/shared/StatusChip.vue";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useBusy } from "@/composables/use-busy";
 import { useCommandPoll } from "@/composables/use-command-poll";
 import { useLatest } from "@/composables/use-latest";
 import { errorText } from "@/lib/errors";
-import { fmtTime } from "@/lib/format";
 import { notify } from "@/lib/notify";
 import { useScopeStore } from "@/stores/scope";
-import { useUiStore } from "@/stores/ui";
+import { useStatsStore } from "@/stores/stats";
 
 // Accounts. Delete, check, Check all, proxy re-check and wake are commands run by the provider's worker: the page
 // queues one and polls it. A used account can only be disabled, and its switch is hidden while a worker holds it.
+// The list reads itself again every 10 s while the page is open (and no dialog or confirm box is in front of it).
 const scope = useScopeStore();
-const ui = useUiStore();
+const stats = useStatsStore();
+const { isPhone, isTablet } = useBreakpoint();
 const { busy, run } = useBusy();
-// Check all and Refresh catalog poll for a long time: each locks only its own button, as the other actions stay usable.
+// Check all and Refresh catalog poll for a long time: each locks only its own entry, as the other actions stay usable.
 const { busy: checkingAll, run: runCheckAll } = useBusy();
 const { busy: readingCatalogs, run: runReadCatalogs } = useBusy();
 const { poll } = useCommandPoll();
@@ -61,40 +64,48 @@ const limit = ref(PAGE_SIZE);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const updatedAt = ref<number | null>(null);
+const pool = shallowRef<PoolStats | null>(null);
+const poolError = ref<string | null>(null);
+// the accounts whose Check is running: their Check button is drawn disabled
+const checking = ref<ReadonlySet<string>>(new Set());
 
 const importOpen = ref(false);
 const editOpen = ref(false);
-const editing = shallowRef<Account | null>(null);
+// the account in the Edit dialog, by id: it follows the list as the list is read again
+const editingId = ref<string | null>(null);
+const editing = computed(() => items.value.find((a) => a.id === editingId.value) ?? null);
 const confirming = ref(false);
 // A dialog or a confirm box in front of the list: the auto-refresh leaves the list alone.
 const dialogOpen = computed(() => importOpen.value || editOpen.value || confirming.value);
 
 let disposed = false;
 
-const rowTone = (a: Account) => (a.state === "dead" ? ("bad" as const) : undefined);
-
-const columns = [
-  { key: "account", label: "Account", minWidth: 200 },
-  { key: "status", label: "Status", minWidth: 150 },
-  { key: "points", label: "Points left / budget", minWidth: 190, align: "right" as const },
-  { key: "asleep", label: "Asleep", minWidth: 170 },
-  { key: "videos", label: "Videos", width: 90, align: "right" as const },
-  { key: "images", label: "Images", width: 90, align: "right" as const },
-  { key: "proxy", label: "Proxy", minWidth: 170 },
-  { key: "last_error", label: "Last error", minWidth: 180 },
-];
-
 // Only the newest answer draws (or shows a failure): a slow older one must not bring old rows back.
 async function load(): Promise<void> {
   const ticket = latest.next();
   loading.value = true;
   try {
-    const page = await listAccounts(scope.provider, limit.value, offset.value);
+    const [page, poolRead] = await Promise.all([
+      listAccounts(scope.provider, limit.value, offset.value),
+      // the pool figures are a side panel: a failure keeps the old figures, says so, and never hides the list
+      getPoolStats(scope.provider).then(
+        (value) => ({ value }),
+        (err: unknown) => ({ err }),
+      ),
+    ]);
     if (!latest.isCurrent(ticket)) return;
     items.value = page.items;
     total.value = page.total;
+    if ("value" in poolRead) {
+      pool.value = poolRead.value;
+      poolError.value = null;
+    } else {
+      poolError.value = errorText(poolRead.err);
+    }
     error.value = null;
     updatedAt.value = Date.now();
+    // the tab counts and the ready / dead / disabled figures come from /admin/stats
+    void stats.refresh();
   } catch (err) {
     if (!latest.isCurrent(ticket)) return;
     error.value = errorText(err);
@@ -112,23 +123,20 @@ watch(
   },
 );
 
-// The timer exists only while this view is mounted (the Accounts tab is open); the switch itself lives in the ui
-// store, so it outlives tab switches.
-let timer: ReturnType<typeof setInterval> | undefined;
+// The timer exists only while this view is mounted (the Accounts tab is open). A hidden tab does not read, and a
+// read still in flight is never joined by a second one; a tab that comes back reads at once.
 function tick(): void {
-  if (!dialogOpen.value) void load();
+  if (!dialogOpen.value && !document.hidden && !loading.value) void load();
 }
-watch(
-  () => ui.accountsAutoRefresh,
-  (on) => {
-    clearInterval(timer);
-    timer = on ? setInterval(tick, AUTO_REFRESH_MS) : undefined;
-  },
-  { immediate: true },
-);
+const timer = setInterval(tick, AUTO_REFRESH_MS);
+document.addEventListener("visibilitychange", onVisible);
+function onVisible(): void {
+  if (!document.hidden) tick();
+}
 onBeforeUnmount(() => {
   disposed = true;
   clearInterval(timer);
+  document.removeEventListener("visibilitychange", onVisible);
   latest.invalidate();
 });
 
@@ -142,16 +150,23 @@ async function queue(start: Promise<QueuedCommand>, label: string) {
 }
 
 async function check(a: Account) {
-  await run(async () => {
-    const command = await queue(checkAccount(a.id), "Check");
-    const fresh = items.value.find((x) => x.id === a.id);
-    if (command?.status === "done" && fresh) {
-      const outcome = command.result?.outcome;
-      notify[fresh.state === "dead" ? "error" : "info"](
-        checkSummary(typeof outcome === "string" ? outcome : undefined, fresh),
-      );
-    }
-  });
+  checking.value = new Set(checking.value).add(a.id);
+  try {
+    await run(async () => {
+      const command = await queue(checkAccount(a.id), "Check");
+      const fresh = items.value.find((x) => x.id === a.id);
+      if (command?.status === "done" && fresh) {
+        const outcome = command.result?.outcome;
+        notify[fresh.state === "dead" ? "error" : "info"](
+          checkSummary(typeof outcome === "string" ? outcome : undefined, fresh),
+        );
+      }
+    });
+  } finally {
+    const rest = new Set(checking.value);
+    rest.delete(a.id);
+    checking.value = rest;
+  }
 }
 
 // The list is read again even when the change failed, so the switch goes back to what the server holds.
@@ -191,7 +206,7 @@ async function remove(a: Account) {
 }
 
 function openEdit(a: Account) {
-  editing.value = a;
+  editingId.value = a.id;
   editOpen.value = true;
 }
 
@@ -211,6 +226,14 @@ const recheck = (a: Account) => run(() => queue(recheckProxy(a.id), "Proxy check
 
 const wake = (a: Account) => run(() => queue(wakeAccount(a.id), WAKE_LABEL));
 
+function onAction(name: RowAction, a: Account) {
+  if (name === "check") void check(a);
+  else if (name === "shot") void showShot(a);
+  else if (name === "wake") void wake(a);
+  else if (name === "edit") openEdit(a);
+  else void remove(a);
+}
+
 // One provider when the filter is set, else every provider one after another (the worker of each runs its own).
 async function providerNames(): Promise<string[]> {
   if (scope.provider) return [scope.provider];
@@ -226,166 +249,210 @@ async function forEachProvider(runner: typeof run, label: string, start: (provid
 
 const checkEvery = () => forEachProvider(runCheckAll, "Check all", checkAll);
 const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", refreshCatalog);
+
+const health = computed(() => healthItems(stats.data?.accounts ?? null));
+const poolFigures = computed(() => poolItems(pool.value));
+const poolTitle = computed(
+  () => `${scope.provider || (scope.providers.length === 1 ? scope.providers[0] : "provider")} pool`,
+);
+const updated = computed(() => (updatedAt.value ? hhmmss(updatedAt.value) : null));
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / limit.value)));
+const showing = computed(() =>
+  total.value === 0
+    ? "Showing 0 of 0"
+    : `Showing ${offset.value + 1}–${Math.min(offset.value + limit.value, total.value)} of ${total.value.toLocaleString("en-US")}`,
+);
+const skeleton = computed(() => loading.value && items.value.length === 0 && !error.value);
+const refreshing = computed(() => loading.value && items.value.length > 0 && !error.value);
 </script>
 
 <template>
-  <section class="accounts-view">
-    <ListToolbar
-      v-model:auto-refresh="ui.accountsAutoRefresh"
-      :loading="loading"
-      :updated-at="updatedAt"
-      @refresh="load"
-    >
-      <h2 class="view-title">Accounts</h2>
-      <template #actions>
-        <IconAction :icon="DocumentChecked" label="Check all" :disabled="checkingAll" @click="checkEvery" />
-        <IconAction :icon="Collection" label="Refresh catalog" :disabled="readingCatalogs" @click="readCatalogs" />
-        <el-button type="primary" @click="importOpen = true">Import</el-button>
-      </template>
-    </ListToolbar>
-
-    <DataTable
-      :columns="columns"
-      :rows="items"
-      :loading="loading"
-      :error="error"
-      empty-text="No accounts"
-      :actions-width="250"
-      :row-tone="rowTone"
-      @retry="load"
-    >
-      <template #cell-account="{ row }">
-        <div class="strong">{{ row.label }}</div>
-        <div class="sub">
-          {{ row.display_name || row.identity || "" }} · {{ row.provider
-          }}<template v-if="row.composer"> · composer {{ row.composer }}</template>
-        </div>
-      </template>
-      <template #cell-status="{ row }">
-        <StatusChip :status="row.state" />
-        <StatusChip v-if="row.in_use" status="in use" class="gap-left" />
-        <div v-if="row.state_reason" class="sub">{{ row.state_reason }}</div>
-        <div class="sub nowrap" :title="fmtTime(row.last_checked_ms)">Checked {{ ago(row.last_checked_ms) }}</div>
-      </template>
-      <template #cell-points="{ row }">
-        <template v-if="row.capacity.length">
-          <div v-for="c in row.capacity" :key="c.pool" class="points nowrap">
-            <span class="sub">{{ c.pool }}</span>
-            <span class="figure">{{ pointsFigure(c) }}</span>
-            <StatusChip v-if="c.drift === true" status="drift" />
-          </div>
-        </template>
-        <template v-else>-</template>
-      </template>
-      <template #cell-asleep="{ row }">
-        <template v-if="asleepLines(row).length">
-          <div v-for="line in asleepLines(row)" :key="line" class="sub">{{ line }}</div>
-        </template>
-        <template v-else>-</template>
-      </template>
-      <template #cell-videos="{ row }">{{ row.made.video }}</template>
-      <template #cell-images="{ row }">{{ row.made.image }}</template>
-      <template #cell-proxy="{ row }">
-        <template v-if="row.proxy_host">
-          {{ proxyText(row) }}
-          <StatusChip v-if="row.has_proxy_auth" status="auth" class="gap-left" />
-          <div>
-            <StatusChip :status="proxyCheck(row).label" :tone="proxyCheck(row).tone" />
-            <span v-if="row.proxy_checked_ms" class="sub nowrap gap-left">{{ fmtTime(row.proxy_checked_ms) }}</span>
-          </div>
-        </template>
-        <template v-else>-</template>
-      </template>
-      <template #cell-last_error="{ row }">
-        <div v-if="row.last_error" class="last-error" :title="row.last_error">{{ row.last_error }}</div>
-        <template v-else>-</template>
-      </template>
-      <template #actions="{ row }">
-        <div class="row-actions">
-          <el-switch
-            v-if="!row.in_use"
-            :model-value="row.state !== 'disabled'"
-            :aria-label="`Enabled: ${row.label}`"
-            @change="(v: string | number | boolean) => toggle(row, Boolean(v))"
-          />
-          <IconAction :icon="CircleCheck" label="Check" @click="check(row)" />
-          <IconAction v-if="row.has_screenshot" :icon="Picture" label="Shot" @click="showShot(row)" />
-          <IconAction :icon="AlarmClock" label="Wake" @click="wake(row)" />
-          <IconAction :icon="Edit" label="Edit" @click="openEdit(row)" />
-          <IconAction :icon="Delete" label="Delete" type="danger" @click="remove(row)" />
-        </div>
-      </template>
-    </DataTable>
-    <ListPager
-      :offset="offset"
-      :limit="limit"
-      :total="total"
-      @move="
-        (o: number) => {
-          offset = o;
-          void load();
-        }
-      "
-      @size="
-        (s: number) => {
-          limit = s;
-          offset = 0;
-          void load();
-        }
-      "
+  <section class="accounts-view" :class="{ 'accounts-view--phone': isPhone }">
+    <AccountsHeader
+      :updated="updated"
+      :checking-all="checkingAll"
+      :reading-catalogs="readingCatalogs"
+      @import="importOpen = true"
+      @check-all="checkEvery"
+      @refresh-catalog="readCatalogs"
     />
+
+    <PoolCard :count="total" :health="health" :pool="poolFigures" :pool-title="poolTitle" />
+
+    <div v-if="poolError" class="state-error state-error--page" role="alert" data-testid="pool-error">
+      <IconAlertCircle :size="18" />
+      <span class="state-error__text">Could not read the pool figures: {{ poolError }}</span>
+    </div>
+
+    <section class="list-card" aria-label="Account list" :aria-busy="loading">
+      <div v-if="error" class="state-error" role="alert" data-state="error">
+        <IconAlertCircle :size="18" />
+        <span class="state-error__text">{{ error }}</span>
+        <button type="button" class="retry" @click="load">Retry</button>
+      </div>
+      <div v-else-if="skeleton" class="skeleton" data-state="loading">
+        <div v-for="n in 5" :key="n" class="skeleton__row"><span class="bar bar--a" /><span class="bar bar--b" /></div>
+      </div>
+      <div v-else-if="items.length === 0" class="state-empty" data-state="empty">
+        <p>No accounts yet.</p>
+        <button type="button" class="primary" @click="importOpen = true">
+          <IconPlus :size="15" :stroke="2" />Import
+        </button>
+      </div>
+      <div v-else :class="{ 'is-refreshing': refreshing }" data-state="ready">
+        <AccountsListPhone v-if="isPhone" :rows="items" @toggle="toggle" @action="onAction" />
+        <AccountsTableTablet
+          v-else-if="isTablet"
+          :rows="items"
+          :checking="checking"
+          @toggle="toggle"
+          @action="onAction"
+        />
+        <AccountsTableDesktop v-else :rows="items" :checking="checking" @toggle="toggle" @action="onAction" />
+      </div>
+      <div v-if="isPhone && pageCount <= 1" class="foot-text">
+        <span class="tnum">{{ showing }}</span>
+      </div>
+      <ListPager
+        v-else-if="!error && items.length"
+        :offset="offset"
+        :limit="limit"
+        :total="total"
+        @move="
+          (o: number) => {
+            offset = o;
+            void load();
+          }
+        "
+        @size="
+          (s: number) => {
+            limit = s;
+            offset = 0;
+            void load();
+          }
+        "
+      />
+    </section>
 
     <ImportDialog v-model="importOpen" @imported="load" />
-    <EditDialog
-      v-model="editOpen"
-      :account="editing"
-      :busy="busy"
-      @save="saveAccount"
-      @recheck="(a: Account) => recheck(a)"
-    />
+    <EditDialog v-model="editOpen" :account="editing" :busy="busy" @save="saveAccount" @recheck="recheck" />
   </section>
 </template>
 
 <style scoped>
-.view-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+.accounts-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
-.strong {
-  font-weight: 600;
+.accounts-view--phone {
+  gap: 16px;
 }
-.sub {
-  color: var(--rl-muted);
-  font-size: 12px;
-}
-.nowrap {
-  white-space: nowrap;
-}
-.gap-left {
-  margin-left: 6px;
-}
-.last-error {
-  max-width: 260px;
+.list-card {
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: var(--rl-surface);
+  border: 1px solid var(--rl-line);
+  border-radius: 16px;
+}
+.is-refreshing {
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.foot-text {
+  padding: 12px 16px;
   color: var(--rl-muted);
-  font-size: 12px;
+  font-size: 13px;
 }
-.row-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-.points {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-.figure {
+.tnum {
   font-variant-numeric: tabular-nums;
+}
+.state-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--rl-bad-bg);
+  color: var(--rl-bad);
+}
+.state-error--page {
+  margin: 0;
+}
+.state-error__text {
+  flex: 1;
+  min-width: 220px;
+  color: var(--rl-fg);
+}
+.retry {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--rl-bad);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--rl-bad);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.skeleton {
+  display: flex;
+  flex-direction: column;
+}
+.skeleton__row {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  height: 64px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--rl-line);
+}
+.bar {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--rl-raised);
+}
+.bar--a {
+  width: 180px;
+  max-width: 60%;
+}
+.bar--b {
+  width: 120px;
+  max-width: 40%;
+  height: 10px;
+}
+.state-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 44px 16px 52px;
+  text-align: center;
+}
+.state-empty p {
+  margin: 0;
+  color: var(--rl-muted);
+}
+.primary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--rl-primary);
+  color: var(--rl-on-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.primary:hover {
+  background: var(--rl-primary-hover);
 }
 </style>

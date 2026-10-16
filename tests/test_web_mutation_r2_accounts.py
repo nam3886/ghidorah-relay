@@ -9,16 +9,30 @@ from relay_core.testing.mutation import mutation
 SRC = "apps/admin-web/src"
 ACCOUNT_MODEL = SRC + "/components/accounts/account-model.ts"
 ACCOUNTS = SRC + "/views/AccountsView.vue"
+DESKTOP = SRC + "/components/accounts/AccountsTableDesktop.vue"
+SWITCH = SRC + "/components/accounts/AccountSwitch.vue"
+MENU = SRC + "/components/accounts/MenuPopover.vue"
+IMPORT = SRC + "/components/accounts/ImportDialog.vue"
 
 ACCOUNT_SPEC = "tests/unit/accounts/account-model.spec.ts"
 ACCOUNTS_VIEW_SPEC = "tests/unit/accounts/accounts-view.spec.ts"
+PARTS_SPEC = "tests/unit/accounts/account-parts.spec.ts"
+DIALOGS_SPEC = "tests/unit/accounts/accounts-dialogs.spec.ts"
 
 CHANGES = f"FAILED {ACCOUNT_SPEC} > accountChanges (the edit payload) > "
+ASLEEP = f"FAILED {ACCOUNT_SPEC} > asleepInfo > "
+ROW_TEXT = f"FAILED {ACCOUNT_SPEC} > the text of a row > "
+FIGURES = f"FAILED {ACCOUNT_SPEC} > the pool card figures > "
 AUTO = f"FAILED {ACCOUNTS_VIEW_SPEC} > auto-refresh > "
 CHECK_ALL = f"FAILED {ACCOUNTS_VIEW_SPEC} > Check all and Refresh catalog > "
-SWITCH = f"FAILED {ACCOUNTS_VIEW_SPEC} > the enable switch > "
+SWITCH_VIEW = f"FAILED {ACCOUNTS_VIEW_SPEC} > the enable switch > "
 LIST = f"FAILED {ACCOUNTS_VIEW_SPEC} > the list > "
+POOL = f"FAILED {ACCOUNTS_VIEW_SPEC} > the pool card > "
+LAYOUTS = f"FAILED {ACCOUNTS_VIEW_SPEC} > the layouts > "
 COMMANDS = f"FAILED {ACCOUNTS_VIEW_SPEC} > the row commands and the edit dialog > "
+MENU_SPEC = f"FAILED {PARTS_SPEC} > MenuPopover > "
+IMPORT_SPEC = f"FAILED {DIALOGS_SPEC} > ImportDialog > "
+WIPE = f"FAILED {DIALOGS_SPEC} > what was pasted never outlives its use > "
 
 
 # ---- the account edit payload and the auto-refresh period -------------------------------------------------------
@@ -34,14 +48,14 @@ def test_the_account_edit_sends_changed_fields_only():
 
 
 @mutation(ACCOUNT_MODEL, "AUTO_REFRESH_MS = 10000", "AUTO_REFRESH_MS = 5000",
-          expect=AUTO + "reads the list every 10 seconds while the switch is on, and stops when it is off")
-@mutation(ACCOUNTS, "if (!dialogOpen.value) void load();", "void load();",
+          expect=AUTO + "reads the list every 10 seconds while the page is open")
+@mutation(ACCOUNTS, "if (!dialogOpen.value && ", "if (",
           expect=AUTO + "does not read the list while a dialog is open, and goes on when it closes")
 @mutation(ACCOUNTS, "await queue(start(name), `${label} ${name}`);", "void queue(start(name), `${label} ${name}`);",
           expect=CHECK_ALL + "with the filter on All, goes over the providers one after another")
 @mutation(ACCOUNTS, "await patchAccount(a.id, { enabled });\n    } finally {\n      if (!disposed) await load();",
           "await patchAccount(a.id, { enabled });\n    } finally {\n      void 0;",
-          expect=SWITCH + "reads the list again when the change fails, so the switch goes back, and says why")
+          expect=SWITCH_VIEW + "reads the list again when the change fails, so the switch goes back, and says why")
 @mutation(ACCOUNTS, "const ticket = latest.next();", "const ticket = 0;",
           expect=LIST + "a slow first answer that arrives after the second does not bring its rows back")
 @pytest.mark.web_unit
@@ -50,28 +64,30 @@ def test_the_accounts_view_keeps_its_rules():
 
 
 # ---- Accounts: the switch, the reason, the commands and the proxy re-check -----------------------------------------
-@mutation(ACCOUNTS, 'v-if="!row.in_use"', 'v-if="true"',
+@mutation(DESKTOP, 'v-if="!a.in_use"', 'v-if="true"',
           expect=LIST + "draws every server string as text, and hides the switch of an account in use")
-@mutation(ACCOUNTS, '<div v-if="row.state_reason" class="sub">', '<div v-if="false" class="sub">',
+@mutation(DESKTOP, '<template v-if="a.state_reason"', '<template v-if="false"',
           expect=LIST + "draws every server string as text, and hides the switch of an account in use")
 @mutation(ACCOUNT_MODEL, 'WAKE_LABEL = "Wake: clear cooldown and strikes"', 'WAKE_LABEL = "Clear cooldown"',
           expect=COMMANDS + "Wake queues the wake command under the label that names the cooldown and the strikes")
-@mutation(ACCOUNTS, 'label="Wake" @click="wake(row)"', 'label="Awake" @click="wake(row)"',
-          expect=COMMANDS + "every row action is an icon button with its name, and Shot shows only when there is "
-                            "a screenshot")
+@mutation(ACCOUNTS, 'else if (name === "wake") void wake(a);', 'else if (name === "wake") void check(a);',
+          expect=COMMANDS + "Wake queues the wake command under the label that names the cooldown and the strikes")
 @mutation(ACCOUNTS, 'queue(recheckProxy(a.id), "Proxy check")', 'queue(recheckProxy(a.id), "Proxy")',
-          expect=COMMANDS + "Re-check proxy closes the dialog, queues the re-check, polls Proxy check and reads "
+          expect=COMMANDS + "Check proxy closes the dialog, queues the re-check, polls Proxy check and reads "
                             "the list again")
 @mutation(ACCOUNTS, 'if (out.command_id) await poll(out.command_id, "Proxy check");', "",
           expect=COMMANDS + "Save of a changed proxy polls the Proxy check the server queued, then reads the list")
+@mutation(DESKTOP, """@click="!checking.has(a.id) && emit('action', 'check', a)\"""",
+          """@click="emit('action', 'check', a)\"""",
+          expect=COMMANDS + "Check queues a check, locks that button while it runs, and says what it found")
 @pytest.mark.web_unit
 def test_the_accounts_view_commands_and_proxy_recheck():
     vitest(ACCOUNTS_VIEW_SPEC)
 
 
 # ---- colour is for exceptions: the checked stamp and the counts -------------------------------------------------
-AGO = (f"FAILED {ACCOUNT_SPEC} > pointsText, proxyCheck, checkSummary > ago: never, just now, minutes, hours, days; "
-       "a future time is just now")
+AGO = (f"FAILED {ACCOUNT_SPEC} > pointsFigure, ago, proxyCheck, checkSummary > ago: never, just now, minutes, hours, "
+       "days; a future time is just now")
 COUNTS = (f"FAILED {ACCOUNTS_VIEW_SPEC} > the list > draws every server string as text, and hides the switch of an "
           "account in use")
 
@@ -83,8 +99,128 @@ def test_the_accounts_checked_stamp_reads_as_a_time_ago():
     vitest(ACCOUNT_SPEC)
 
 
-@mutation(ACCOUNTS, '<template #cell-videos="{ row }">{{ row.made.video }}</template>',
-          '<template #cell-videos="{ row }">{{ row.made.image }}</template>', expect=COUNTS)
+@mutation(DESKTOP, '<td class="tnum right mono">{{ a.made.video }}</td>',
+          '<td class="tnum right mono">{{ a.made.image }}</td>', expect=COUNTS)
 @pytest.mark.web_unit
 def test_the_accounts_counts_are_two_number_columns():
+    vitest(ACCOUNTS_VIEW_SPEC)
+
+
+# ---- what a row says: sleep, errors, proxy, the menu ----------------------------------------------------------------
+@mutation(ACCOUNT_MODEL, 'kind: a.strikes > 0 ? "strike" : null', 'kind: "strike"',
+          expect=ASLEEP + "a cooldown still ahead: the time it ends, a strike when the account has strikes, and "
+                          "the reason")
+@mutation(ACCOUNT_MODEL, "if (a.cooldown_until_ms && a.cooldown_until_ms > now)",
+          "if (a.cooldown_until_ms && a.cooldown_until_ms > 0)",
+          expect=ASLEEP + "a time in the past, or none, is awake")
+@mutation(ACCOUNT_MODEL, "find((c) => c.rest_until_ms && c.rest_until_ms > now)",
+          "find((c) => c.rest_until_ms)", expect=ASLEEP + "a time in the past, or none, is awake")
+@mutation(ACCOUNT_MODEL, "return a.last_error && a.last_error !== a.state_reason ? a.last_error : null;",
+          "return a.last_error || null;",
+          expect=ROW_TEXT + "a narrow row shows the last error only when it adds to the reason")
+@mutation(ACCOUNT_MODEL, '.slice("proxy check: ".length)', ".slice(0)",
+          expect=ROW_TEXT + "the proxy status of the Edit dialog carries the stored reason of a failed check")
+@mutation(ACCOUNT_MODEL, "disabled: !a.has_screenshot", "disabled: false",
+          expect=ROW_TEXT + "the row menu: Shot cannot be picked without a screenshot, Delete is last and apart, "
+                            "a phone adds Check")
+@mutation(ACCOUNT_MODEL, 'return phone ? [{ key: "check", label: "Check", icon: IconCheck }, ...items] : items;',
+          "return items;",
+          expect=ROW_TEXT + "the row menu: Shot cannot be picked without a screenshot, Delete is last and apart, "
+                            "a phone adds Check")
+@mutation(ACCOUNT_MODEL, 'return [name, a.provider, a.composer ? `composer ${a.composer}` : ""].filter(Boolean)',
+          'return [name, a.provider, a.composer ? `composer ${a.composer}` : ""]',
+          expect=ROW_TEXT + "the second line is name, provider and composer, with no empty piece")
+@pytest.mark.web_unit
+def test_a_row_says_its_sleep_error_proxy_and_menu_as_drawn():
+    vitest(ACCOUNT_SPEC)
+
+
+# ---- the pool card ----------------------------------------------------------------------------------------------
+READY = (FIGURES + "health: ready is usable / available, dead is bad only when there is one, in use and asleep "
+                   "are the stats'")
+POOL_FIG = (FIGURES + "pool: video points left / budget, unknown, drift as a warning, failed proxies as bad, the "
+                      "last full check")
+POOL_EDGE = (FIGURES + "pool: one account is singular, zeros carry no colour, no full check reads never, no "
+                       "answer shows dashes")
+
+
+@mutation(ACCOUNT_MODEL, "value: stats ? `${stats.usable} / ${stats.available}` : \"-\"",
+          "value: stats ? `${stats.available} / ${stats.usable}` : \"-\"", expect=READY)
+@mutation(ACCOUNT_MODEL, "...count(stats?.in_use)", "...count(stats?.asleep)", expect=READY)
+@mutation(ACCOUNT_MODEL, "...count(stats?.asleep)", "...count(stats?.in_use)", expect=READY)
+@mutation(ACCOUNT_MODEL, "tone: n ? tone : undefined", "tone", expect=READY)
+@mutation(ACCOUNT_MODEL, 'p.pool === "video"', 'p.pool === "image"', expect=POOL_FIG)
+@mutation(ACCOUNT_MODEL, 'tone: drift ? "warn" : undefined', 'tone: "warn"', expect=POOL_EDGE)
+@mutation(ACCOUNT_MODEL, '`${n} account${n === 1 ? "" : "s"}`', '`${n} accounts`', expect=POOL_EDGE)
+@mutation(ACCOUNT_MODEL, 'pool.last_full_check_ms ? hhmmss(pool.last_full_check_ms) : "never"',
+          'hhmmss(pool.last_full_check_ms ?? 0)', expect=POOL_EDGE)
+@pytest.mark.web_unit
+def test_the_pool_card_figures():
+    vitest(ACCOUNT_SPEC)
+
+
+@mutation(ACCOUNTS, "getPoolStats(scope.provider)", 'getPoolStats("")',
+          expect=POOL + "the right half comes from the pool endpoint of the provider filter and is titled with "
+                        "the provider")
+@mutation(ACCOUNTS, "(err: unknown) => ({ err })", "(err: unknown) => {\n          throw err;\n        }",
+          expect=POOL + "a failed pool read does not hide the list; it shows an alert and keeps the old figures")
+@mutation(ACCOUNTS, "poolError.value = errorText(poolRead.err);", "poolError.value = null;",
+          expect=POOL + "a failed pool read does not hide the list; it shows an alert and keeps the old figures")
+@mutation(ACCOUNTS, "v-else-if=\"isTablet\"", "v-else-if=\"false\"",
+          expect=LAYOUTS + "a tablet draws five columns and no Videos made column")
+@mutation(ACCOUNTS, 'v-if="isPhone && pageCount <= 1"', 'v-if="false"',
+          expect=LAYOUTS + "a phone draws a list: no table, no Check button, Check first in the row menu, one "
+                           "footer line")
+@pytest.mark.web_unit
+def test_the_pool_card_reads_the_pool_endpoint_and_the_layouts_follow_the_width():
+    vitest(ACCOUNTS_VIEW_SPEC)
+
+
+# ---- the switch, the menu and the import result ---------------------------------------------------------------
+@mutation(SWITCH, "emit('change', !props.on)", "emit('change', props.on)",
+          expect=f"FAILED {PARTS_SPEC} > AccountSwitch > is a switch with the label and the state; a click asks "
+                 "for the opposite")
+@mutation(MENU, 'if (event.key === "Escape") {', 'if (event.key === "Esc") {',
+          expect=MENU_SPEC + "Escape closes it and gives the focus back to the trigger")
+@mutation(MENU, "if (target && (menu.value?.contains(target) || trigger.value?.contains(target))) return;",
+          "if (target) return;", expect=MENU_SPEC + "a press elsewhere closes it; a press inside does not")
+@mutation(MENU, "const onWindow = (): void => measure();", "const onWindow = (): void => close();",
+          expect=MENU_SPEC + "a scroll or a resize keeps the menu open and moves it under the trigger")
+@mutation(MENU, "let top = rect.bottom + GAP;", "let top = rect.top + GAP;",
+          expect=MENU_SPEC + "a scroll or a resize keeps the menu open and moves it under the trigger")
+@mutation(MENU, "if (height && top + height > window.innerHeight && rect.top - GAP - height >= 0)",
+          "if (false && height)",
+          expect=MENU_SPEC + "opens above the trigger when it would run past the bottom of the window, and there "
+                             "is room above")
+@mutation(MENU, "if (item.disabled) return;", "",
+          expect=MENU_SPEC + "a pick emits its key and closes the menu; a disabled item emits nothing and stays "
+                             "open")
+@mutation(IMPORT, "Imported {{ result.imported.length }}, rejected {{ result.rejected.length }}",
+          "Imported {{ result.rejected.length }}, rejected {{ result.imported.length }}",
+          expect=IMPORT_SPEC + "a clean import shows one pill and no list; the box is gone on the next opening")
+@pytest.mark.web_unit
+def test_the_switch_the_menu_and_the_import_result():
+    vitest(PARTS_SPEC, DIALOGS_SPEC)
+
+
+# ---- the pasted secret never outlives its use; polling is polite -----------------------------------------------------
+@mutation(IMPORT, 'proxy.value = "";', "",
+          expect=WIPE + "after a success both fields are empty, and the request still carried both")
+@mutation(IMPORT, "  wipe();\n  await run(", "  await run(",
+          expect=WIPE + "the fields are empty while the request is still running")
+@mutation(IMPORT, "watch(open, (isOpen) => {\n  wipe();", "watch(open, (isOpen) => {",
+          expect=WIPE + "a cancelled paste is gone when the dialog is opened again")
+@pytest.mark.web_unit
+def test_the_import_dialog_wipes_what_was_pasted():
+    vitest(DIALOGS_SPEC)
+
+
+@mutation(ACCOUNTS, "!document.hidden && ", "",
+          expect=AUTO + "a hidden tab does not read the list, and the tab that comes back reads at once")
+@mutation(ACCOUNTS, "if (!document.hidden) tick();", "if (document.hidden) tick();",
+          expect=AUTO + "a hidden tab does not read the list, and the tab that comes back reads at once")
+@mutation(ACCOUNTS, " && !loading.value) void load();", ") void load();",
+          expect=AUTO + "a read still in flight is never joined by a second one")
+@pytest.mark.web_unit
+def test_the_accounts_polling_is_polite():
     vitest(ACCOUNTS_VIEW_SPEC)

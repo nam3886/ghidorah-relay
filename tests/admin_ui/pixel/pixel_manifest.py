@@ -77,4 +77,15 @@ LANE7 = [
     for board in boards
 ]
 
-ENTRIES: list[Entry] = [*LOGIN, *SHELL, *LANE7]
+# ---- accounts (lane 5) ---------------------------------------------------------------------------------------------
+from pixel_accounts import accounts_seed, open_edit, open_import, phone_ready  # noqa: E402
+
+ACCOUNTS_BOARDS = [
+    Entry("B-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready),
+    Entry("T-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready),
+    Entry("P-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready),
+    Entry("B-AccountImport", "#/accounts", seed=accounts_seed, now=NOW, drive=open_import),
+    Entry("B-AccountEdit", "#/accounts", seed=accounts_seed, now=NOW, drive=open_edit),
+]
+
+ENTRIES: list[Entry] = [*LOGIN, *SHELL, *LANE7, *ACCOUNTS_BOARDS]

@@ -1,0 +1,261 @@
+/* The Import and Edit dialogs. The box is teleported to <body>, so these rules are global and keyed by the
+   `acct-dialog` classes. The shared pieces (fields, buttons) carry the `acct-` prefix and are used by both dialogs. */
+html .el-dialog.acct-dialog,
+html.dark .el-dialog.acct-dialog {
+  --el-dialog-padding-primary: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: min(640px, 94vw);
+  margin: 56px auto 24px;
+  padding: 0;
+  border-radius: 16px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font-size: 14px;
+  line-height: 20px;
+}
+html .el-dialog.acct-dialog--import,
+html.dark .el-dialog.acct-dialog--import {
+  border: 1px solid var(--rl-line);
+}
+html .el-dialog.acct-dialog--edit,
+html.dark .el-dialog.acct-dialog--edit {
+  max-height: calc(100vh - 64px);
+  margin-top: 32px;
+  margin-bottom: 32px;
+  border: 0;
+  overflow: hidden;
+}
+.acct-dialog .el-dialog__header {
+  padding: 0;
+  margin: 0;
+}
+.acct-dialog .el-dialog__body {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  overflow-y: auto;
+  color: var(--rl-fg);
+}
+.acct-dialog .el-dialog__footer {
+  padding: 0;
+}
+.acct-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 24px 0;
+}
+.acct-dialog--edit .acct-dialog__head {
+  align-items: center;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--rl-line);
+}
+.acct-dialog__titles {
+  flex: 1;
+  min-width: 0;
+}
+.acct-dialog__title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+.acct-dialog__sub {
+  margin: 2px 0 0;
+  color: var(--rl-muted);
+  font-size: 13px;
+}
+.acct-dialog__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--rl-muted);
+  cursor: pointer;
+}
+.acct-dialog__icon:hover {
+  background: var(--rl-raised);
+}
+.acct-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+}
+.acct-dialog--edit .acct-dialog__body {
+  gap: 20px;
+}
+.acct-dialog__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--rl-line);
+}
+.acct-dialog--edit .acct-dialog__foot {
+  padding: 16px 24px;
+}
+
+/* fields */
+.acct-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.acct-field__label {
+  font-size: 13px;
+  font-weight: 500;
+}
+.acct-field__label span {
+  color: var(--rl-muted);
+  font-weight: 400;
+}
+.acct-field__help {
+  margin: 0;
+  color: var(--rl-faint);
+  font-size: 12px;
+}
+.acct-dialog--edit .acct-field__help {
+  color: var(--rl-muted);
+}
+.acct-input,
+.acct-textarea,
+.acct-select {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font: inherit;
+}
+.acct-input,
+.acct-select {
+  height: 36px;
+  padding: 0 12px;
+}
+.acct-input--mono,
+.acct-textarea {
+  font-family: var(--rl-mono);
+  font-size: 13px;
+}
+.acct-textarea {
+  padding: 10px 12px;
+  line-height: 20px;
+  resize: vertical;
+}
+.acct-input::placeholder,
+.acct-textarea::placeholder {
+  color: var(--rl-faint);
+}
+.acct-select-wrap {
+  position: relative;
+}
+.acct-select {
+  padding-right: 36px;
+  appearance: none;
+}
+.acct-select-wrap svg {
+  position: absolute;
+  top: 11px;
+  right: 12px;
+  color: var(--rl-muted);
+  pointer-events: none;
+}
+
+/* buttons */
+.acct-btn {
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--rl-fg);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.acct-btn:hover {
+  background: var(--rl-raised);
+}
+.acct-btn--primary {
+  padding: 0 18px;
+  border: 0;
+  background: var(--rl-primary);
+  color: var(--rl-on-primary);
+  font-weight: 600;
+}
+.acct-btn--primary:hover {
+  background: var(--rl-primary-hover);
+}
+.acct-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.acct-btn--primary[aria-disabled="true"]:hover {
+  background: var(--rl-primary);
+}
+
+/* below 768 px: a full-screen sheet with a sticky footer */
+@media (max-width: 767px) {
+  html .el-dialog.acct-dialog,
+  html.dark .el-dialog.acct-dialog {
+    width: 100vw !important;
+    max-height: none;
+    min-height: 100dvh;
+    margin: 0 !important;
+    border: 0;
+    border-radius: 0;
+  }
+  .acct-dialog__head,
+  .acct-dialog--edit .acct-dialog__head {
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px 4px 4px;
+    border-bottom: 1px solid var(--rl-line);
+  }
+  .acct-dialog__title {
+    font-size: 18px;
+    line-height: 26px;
+  }
+  .acct-dialog__icon {
+    width: 44px;
+    height: 44px;
+  }
+  .acct-dialog__body {
+    padding: 16px;
+  }
+  .acct-dialog .el-dialog__footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    background: var(--rl-surface);
+  }
+  .acct-dialog__foot,
+  .acct-dialog--edit .acct-dialog__foot {
+    gap: 8px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--rl-line-strong);
+  }
+  .acct-dialog__foot .acct-btn {
+    flex: 1;
+    height: 44px;
+    font-size: 14px;
+  }
+  .acct-input,
+  .acct-select {
+    height: 44px;
+  }
+  .acct-select-wrap svg {
+    top: 15px;
+  }
+}
