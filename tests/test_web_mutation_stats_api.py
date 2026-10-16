@@ -24,6 +24,18 @@ def test_hourly_stats_call():
     vitest("tests/unit/shell-api.spec.ts")
 
 
+POOL_SPEC = "FAILED tests/unit/shell-api.spec.ts > pool stats > "
+
+
+@mutation(SHELL, 'request("/stats/pool", { query: { provider } })', 'request("/stats", { query: { provider } })',
+          expect=POOL_SPEC + "asks /admin/stats/pool for the provider")
+@mutation(SHELL, 'request("/stats/pool", { query: { provider } })', 'request("/stats/pool")',
+          expect=POOL_SPEC + "asks /admin/stats/pool for the provider")
+@pytest.mark.web_unit
+def test_pool_stats_call():
+    vitest("tests/unit/shell-api.spec.ts")
+
+
 @mutation(JOBS, "created_from_ms: q.createdFromMs,", "created_from_ms: q.createdToMs,",
           expect=JOBS_SPEC + "sends the created_at window as epoch ms")
 @mutation(JOBS, "created_to_ms: q.createdToMs,", "", expect=JOBS_SPEC + "sends the created_at window as epoch ms")
