@@ -17,7 +17,8 @@ SAFE_AFTER_LOST = "Trying again is safe"
 
 
 def rows(page):
-    return page.locator("tbody tr")
+    """The job rows: table rows without the day headers, or the phone's stacked list items."""
+    return page.locator("tbody tr:not(.is-day), li.data-table__item")
 
 
 def tick(page, i: int) -> None:
@@ -35,7 +36,7 @@ def choose(page, which: int, option: str) -> None:
 
 
 def open_row(page, job) -> None:
-    rows(page).filter(has_text=str(job)[:8]).get_by_role("button", name="Details").click()
+    rows(page).filter(has_text=str(job)[:8]).locator("a.title-link, .prow").first.click()
     expect(page.locator(".el-dialog")).to_be_visible()
 
 
@@ -81,11 +82,13 @@ def test_the_list_shows_its_columns_and_a_row_opens_the_detail_but_its_tick_box_
     app.sign_in(page)
     expect(rows(page)).to_have_count(1)
     headers = page.locator("thead th").all_inner_texts()
-    assert [h.strip() for h in headers] == ["", "Progress", "Title", "Job", "Operation", "Status", "Points",
-                                           "Results", "Refs", "Account", "Key", "Created", "Actions"]
+    assert [h.strip() for h in headers] == ["", "Time", "Job", "Status", "Model", "Account", "Key", "Out · Refs",
+                                           "Net points"]
     row = rows(page).first
-    for text in (str(job)[:8], "clickable", "acct-a", "done"):
+    for text in (str(job)[:8], "clickable", "acct-a", "done", "fake-video"):
         expect(row).to_contain_text(text)
+    expect(page.locator('[data-testid="day-row"]')).to_contain_text("Today")
+    expect(page.locator('[data-testid="day-row"]')).to_contain_text("· 1 job")        # the server's total of the day
     row.locator("label.el-checkbox").click()
     expect(page.locator(".jobs__count")).to_have_text("1 selected")
     expect(page.locator(".el-dialog")).to_have_count(0)
@@ -109,7 +112,7 @@ def test_the_status_filter_offers_submitting_and_the_key_filter_narrows_the_list
     choose(page, 0, "submitting")
     expect(rows(page)).to_have_count(1)
     expect(rows(page).first).to_contain_text(str(c)[:8])
-    choose(page, 0, "All statuses")
+    choose(page, 0, "All")
     expect(rows(page)).to_have_count(3)
     choose(page, 1, "second-key")
     expect(rows(page)).to_have_count(1)
@@ -131,7 +134,7 @@ def test_a_stats_link_opens_jobs_already_filtered(app, app_page, live, db):
     expect(rows(page)).to_have_count(2)
     missing = []
     page.on("response", lambda r: missing.append(r.url) if r.status == 404 else None)
-    page.locator("a", has_text="Completed").first.click()
+    page.evaluate("location.hash = '#/jobs?status=done'", isolated_context=False)
     expect(rows(page)).to_have_count(1)
     expect(rows(page).first).not_to_contain_text(str(failed)[:8])
     page.evaluate("location.hash = '#/jobs?status=failed'", isolated_context=False)
@@ -147,23 +150,23 @@ def test_the_list_pages_forward_and_back_without_a_repeat(app, app_page, live, d
         db.job(k, provider="fake")
     app.sign_in(page)
     expect(rows(page)).to_have_count(10)          # 10 a page by default
-    expect(page.locator(".pager .el-pagination__total")).to_contain_text("25")
+    expect(page.locator(".pager .pager__text").first).to_have_text("Showing 1–10 of 25")
     first_page = rows(page).all_inner_texts()
     nxt, prev = page.locator(".pager button.btn-next"), page.locator(".pager button.btn-prev")
-    expect(prev).to_be_disabled()
+    expect(prev).to_have_attribute("aria-disabled", "true")
     nxt.click()
     expect(rows(page)).to_have_count(10)
     second_page = rows(page).all_inner_texts()
     assert not set(second_page) & set(first_page), "no job on both pages"
-    page.locator(".pager li.number", has_text="3").click()      # jump to the last page
+    page.locator(".pager button.number").get_by_text("3", exact=True).click()      # jump to the last page
     expect(rows(page)).to_have_count(5)
-    expect(nxt).to_be_disabled()
+    expect(nxt).to_have_attribute("aria-disabled", "true")
     third_page = rows(page).all_inner_texts()
     assert not set(third_page) & (set(first_page) | set(second_page)), "no job on two pages"
     prev.click()
     expect(rows(page)).to_have_count(10)
     assert rows(page).all_inner_texts() == second_page, "the second page comes back as it was"
-    page.locator(".pager li.number", has_text="1").click()
+    page.locator(".pager button.number").get_by_text("1", exact=True).click()
     expect(rows(page)).to_have_count(10)
     assert rows(page).all_inner_texts() == first_page, "and so does the first"
 
@@ -175,8 +178,8 @@ def test_a_bigger_page_size_shows_more_rows_and_keeps_the_ticks_across_a_reload(
         db.job(k, provider="fake")
     app.sign_in(page)
     expect(rows(page)).to_have_count(10)
-    page.locator(".pager .el-select").click()
-    page.get_by_role("option", name="20/page").click()
+    page.locator(".pager button.is-pager").click()
+    page.locator(".rl-menu").get_by_text("20 / page", exact=True).click()
     expect(rows(page)).to_have_count(20)
     tick(page, 0)
     tick(page, 3)
@@ -196,8 +199,8 @@ def test_select_all_counts_and_the_bulk_buttons_wait_for_a_tick_then_recheck_rep
         done_job(db, k, ref="j%d" % i, status="failed")
     db.run("UPDATE jobs SET error_code = 'render.deadline'")
     app.sign_in(page)
-    recheck = page.get_by_role("button", name="Re-check selected")
-    regenerate = page.get_by_role("button", name="Regenerate selected")
+    recheck = page.get_by_role("button", name="Re-check")
+    regenerate = page.get_by_role("button", name="Regenerate…")
     expect(recheck).to_be_disabled()
     expect(regenerate).to_be_disabled()
     expect(page.locator(".jobs__count")).to_have_text("0 selected")
@@ -221,7 +224,7 @@ def test_bulk_regenerate_asks_first_makes_new_jobs_and_says_how_many(app, app_pa
     app.run(db, lambda p: failed_job(p, k, "one"))
     app.sign_in(page)
     tick(page, 0)
-    page.get_by_role("button", name="Regenerate selected").click()
+    page.get_by_role("button", name="Regenerate…").click()
     box = page.locator(".el-message-box")
     expect(box).to_contain_text("Regenerate 1 job(s)?")
     expect(box).to_contain_text("NEW job")
@@ -229,7 +232,7 @@ def test_bulk_regenerate_asks_first_makes_new_jobs_and_says_how_many(app, app_pa
     box.get_by_role("button", name="Cancel").click()
     assert db.one("SELECT count(*) FROM jobs")[0] == 1, "Cancel makes nothing"
     expect(page.locator(".jobs__count")).to_have_text("1 selected")
-    page.get_by_role("button", name="Regenerate selected").click()
+    page.get_by_role("button", name="Regenerate…").click()
     confirm(page, "Regenerate")
     expect(page.get_by_text("Made 1, already made 0, failed 0")).to_be_visible()
     assert db.one("SELECT count(*) FROM jobs")[0] == 2
@@ -246,14 +249,14 @@ def test_a_bulk_regenerate_after_a_lost_answer_sends_the_same_key_keeps_the_sele
     lose_first_answer(page, "**/admin/jobs/bulk-regenerate")
     app.sign_in(page)
     tick(page, 0)
-    page.get_by_role("button", name="Regenerate selected").click()
+    page.get_by_role("button", name="Regenerate…").click()
     confirm(page, "Regenerate")
     expect(page.get_by_text(SAFE_AFTER_LOST)).to_be_visible()
     page.problems.clear()           # the lost answer is the browser's own "Failed to load resource" console error
     assert db.one("SELECT count(*) FROM jobs")[0] == 2, "the first request made the job"
     expect(page.locator(".jobs__count")).to_have_text("1 selected")
     expect(page.get_by_role("button", name="Start a new regenerate")).to_be_visible()
-    page.get_by_role("button", name="Regenerate selected").click()
+    page.get_by_role("button", name="Regenerate…").click()
     confirm(page, "Regenerate")
     assert sent(page, keys, 2) == keys[0], "the retry sends the same key"
     expect(page.get_by_text("Made 0, already made 1, failed 0")).to_be_visible()
@@ -262,7 +265,7 @@ def test_a_bulk_regenerate_after_a_lost_answer_sends_the_same_key_keeps_the_sele
     # after an answer the next click is a new action with a new key
     expect(rows(page)).to_have_count(2)
     rows(page).filter(has_text=str(source)[:8]).locator("label.el-checkbox").click()
-    page.get_by_role("button", name="Regenerate selected").click()
+    page.get_by_role("button", name="Regenerate…").click()
     confirm(page, "Regenerate")
     assert sent(page, keys, 3) != keys[0], "the next action after an answer gets a new key"
 
@@ -276,7 +279,7 @@ def test_start_a_new_regenerate_warns_and_only_then_drops_the_kept_key(app, app_
     lose_first_answer(page, "**/admin/jobs/bulk-regenerate")
     app.sign_in(page)
     tick(page, 0)
-    page.get_by_role("button", name="Regenerate selected").click()
+    page.get_by_role("button", name="Regenerate…").click()
     confirm(page, "Regenerate")
     expect(page.get_by_text(SAFE_AFTER_LOST)).to_be_visible()
     page.problems.clear()
@@ -288,7 +291,7 @@ def test_start_a_new_regenerate_warns_and_only_then_drops_the_kept_key(app, app_
     expect(box).to_contain_text("Check the Jobs list first")
     box.get_by_role("button", name="Cancel").click()
     expect(new).to_be_visible()                       # Cancel keeps the key
-    page.get_by_role("button", name="Regenerate selected").click()
+    page.get_by_role("button", name="Regenerate…").click()
     confirm(page, "Regenerate")
     assert sent(page, keys, 2) == keys[0], "still the kept key after the cancelled warning"
     expect(page.get_by_text("Made 0, already made 1, failed 0")).to_be_visible()
@@ -314,14 +317,14 @@ def test_abandoning_a_kept_key_makes_the_next_regenerate_use_a_new_one(app, app_
     page.route("**/admin/jobs/bulk-regenerate", route)
     app.sign_in(page)
     tick(page, 0)
-    page.get_by_role("button", name="Regenerate selected").click()
+    page.get_by_role("button", name="Regenerate…").click()
     confirm(page, "Regenerate")
     expect(page.get_by_text(SAFE_AFTER_LOST)).to_be_visible()
     page.problems.clear()
     page.get_by_role("button", name="Start a new regenerate").click()
     confirm(page, "Start a new one")
     expect(page.get_by_role("button", name="Start a new regenerate")).to_have_count(0)
-    page.get_by_role("button", name="Regenerate selected").click()
+    page.get_by_role("button", name="Regenerate…").click()
     confirm(page, "Regenerate")
     assert sent(page, keys, 2) != keys[0], "an abandoned key is not sent again"
     expect(page.get_by_text("Made 1, already made 0, failed 0")).to_be_visible()
@@ -336,7 +339,7 @@ def test_a_key_with_no_label_is_named_by_its_prefix_in_the_key_filter(app, app_p
     done_job(db, named, ref="a")
     app.sign_in(page)
     page.locator(".jobs__filter").nth(1).click()
-    for name in ("All keys", "named-key", prefix):
+    for name in ("All", "named-key", prefix):
         expect(page.get_by_role("option", name=name, exact=True)).to_be_visible()
     options = page.get_by_role("option")
     assert all(t.strip() for t in options.all_inner_texts()), "no option is blank: %r" % options.all_inner_texts()
@@ -356,6 +359,30 @@ def test_the_list_and_the_detail_fit_the_screen_at_phone_tablet_and_desktop_widt
     box = page.locator(".el-dialog").bounding_box()
     assert box["x"] >= 0 and box["x"] + box["width"] <= width + 1, box
     expect(page.locator(".el-dialog [data-section=technical] .el-descriptions")).to_be_visible()
+
+
+@pytest.mark.parametrize("width", [390, 768, 1280])
+def test_the_band_draws_its_columns_filters_by_hour_and_breaks_no_csp_rule(app, app_page, live, db, width):
+    """The columns are sized by script (`:style` through the CSSOM): the CSP watch of `app_page` fails the test on any
+    violation, at every width, while the band is drawn, an hour is chosen and the chip is cleared."""
+    page = app_page
+    page.set_viewport_size({"width": width, "height": 844})
+    k = new_key(db)
+    done_job(db, k, new_account(db, label="acct", checked=True), prompt="a cat")
+    app.sign_in(page)
+    expect(rows(page)).to_have_count(1)
+    bars = page.get_by_test_id("hour-bar")
+    expect(bars).to_have_count(24)
+    expect(page.get_by_role("group", name=re.compile(r"^Jobs per hour over the last 24 hours\."))).to_be_visible()
+    heights = page.evaluate(
+        "[...document.querySelectorAll('[data-testid=hour-bar] span')].map(s => s.style.height)",
+        isolated_context=False)
+    assert any(h not in ("", "0%") for h in heights), "the current hour has a drawn segment"
+    bars.last.click()
+    expect(page.get_by_test_id("hour-chip")).to_contain_text("Hour ")
+    expect(rows(page)).to_have_count(1)
+    page.get_by_role("button", name="Clear the hour filter").click()
+    expect(page.get_by_test_id("hour-chip")).to_have_count(0)
 
 
 # ---- server text is text -----------------------------------------------------------------------------------------

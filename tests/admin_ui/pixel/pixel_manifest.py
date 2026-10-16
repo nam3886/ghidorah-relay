@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from patchright.sync_api import expect
 from pixel_lane7 import frames_drive, frames_seed, key_page_drive, key_page_seed, settings_drive, settings_seed
+from pixel_jobs import jobs_seed, tick_the_two
 from pixel_seed import NOW, shell_seed
 
 TIMEOUT_MS = 10_000
@@ -90,4 +91,10 @@ ACCOUNTS_BOARDS = [
 
 from pixel_kla import KLA  # noqa: E402  (lane 6: keys, request logs, alerts; imports Entry from here)
 
-ENTRIES: list[Entry] = [*LOGIN, *SHELL, *LANE7, *ACCOUNTS_BOARDS, *KLA]
+# ---- jobs ----------------------------------------------------------------------------------------------------------
+# The whole page: head, band, banner, list with the failed and the unknown job ticked (pixel_jobs.py).
+
+JOBS = [Entry(board, "#/jobs", seed=jobs_seed, now=NOW, drive=tick_the_two)
+        for board in ("B-Jobs", "T-Jobs", "P-Jobs")]
+
+ENTRIES: list[Entry] = [*LOGIN, *SHELL, *LANE7, *ACCOUNTS_BOARDS, *KLA, *JOBS]

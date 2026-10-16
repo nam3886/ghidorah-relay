@@ -6,13 +6,16 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import { ApiError } from "@/api/client";
 import * as api from "@/api/jobs";
 import type { JobPage, JobSummary } from "@/api/jobs";
+import * as shell from "@/api/shell";
 import { announceJobChange } from "@/components/jobs/job-changes";
 import { rememberedStatus } from "@/components/jobs/job-filters";
+import { dayKey, localZone } from "@/components/jobs/job-row";
 import RegenerateControl from "@/components/jobs/RegenerateControl.vue";
 import ListPager from "@/components/shared/ListPager.vue";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { RETRY_SAFE_TEXT } from "@/lib/errors";
 import { notify } from "@/lib/notify";
+import { useAuthStore } from "@/stores/auth";
 import { useScopeStore } from "@/stores/scope";
 import { useUiStore } from "@/stores/ui";
 import JobsView from "@/views/JobsView.vue";
@@ -26,6 +29,10 @@ vi.mock("@/api/jobs", async (importOriginal) => {
     bulkRecheck: vi.fn(),
     bulkRegenerate: vi.fn(),
   };
+});
+vi.mock("@/api/shell", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/shell")>();
+  return { ...actual, getHourlyStats: vi.fn(), getStats: vi.fn(), getOpenAlertGroups: vi.fn() };
 });
 vi.mock("@/components/shared/confirm-dialog", () => ({ confirmDialog: vi.fn() }));
 vi.mock("@/lib/notify", () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
@@ -41,6 +48,7 @@ beforeAll(() => {
   );
 });
 
+const getHourlyStats = vi.mocked(shell.getHourlyStats);
 const listJobs = vi.mocked(api.listJobs);
 const bulkRecheck = vi.mocked(api.bulkRecheck);
 const bulkRegenerate = vi.mocked(api.bulkRegenerate);
@@ -82,8 +90,17 @@ const query = (over: Partial<api.JobListQuery> = {}): api.JobListQuery => ({
   keyId: "",
   offset: 0,
   limit: 10,
+  tz: expect.any(String),
   ...over,
 });
+// The stats strip behind the band's ledger (the canvas numbers).
+const STATS: shell.Stats = {
+  jobs: { queued: 1, in_progress: 3, done: 1284, failed: 37, pre_job_failures_24h: 6 },
+  made: { videos: 335, images: 120 },
+  accounts: { usable: 7, available: 8, dead: 1, disabled: 0 },
+  keys: 5,
+  alerts: [],
+};
 const A = "aaaaaaaa-1111";
 const B = "bbbbbbbb-2222";
 const C = "cccccccc-3333";
@@ -103,6 +120,9 @@ beforeEach(() => {
     .mockResolvedValue({ items: [{ id: "k1", label: "key-one" }] });
   bulkRecheck.mockReset();
   bulkRegenerate.mockReset();
+  getHourlyStats.mockReset().mockResolvedValue({ hours: [] });
+  vi.mocked(shell.getStats).mockReset().mockResolvedValue(STATS);
+  vi.mocked(shell.getOpenAlertGroups).mockReset().mockResolvedValue({ items: [] });
   vi.mocked(confirmDialog).mockReset().mockResolvedValue(true);
   for (const fn of Object.values(notify)) vi.mocked(fn).mockReset();
 });
@@ -111,7 +131,10 @@ async function open(url = "/jobs") {
   setActivePinia(createPinia());
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: "/jobs", name: "jobs", component: JobsView }],
+    routes: [
+      { path: "/jobs", name: "jobs", component: JobsView },
+      { path: "/alerts", name: "alerts", component: { render: () => null } },
+    ],
   });
   await router.push(url);
   const w = mount(JobsView, { global: { plugins: [router] }, attachTo: document.body });
@@ -121,7 +144,9 @@ async function open(url = "/jobs") {
   return { w, router };
 }
 
-const rows = (w: VueWrapper) => w.findAll("tbody tr");
+// the layout the test mounts (stubWidth sets it): a table on a desktop, stacked items on a phone
+let layout: "phone" | "tablet" | "desktop" = "desktop";
+const rows = (w: VueWrapper) => w.findAll(layout === "phone" ? "li.data-table__item" : "tbody tr:not(.is-day)");
 const rowTick = (w: VueWrapper, i: number) => rows(w)[i]!.find("input[type=checkbox]");
 const selectAll = (w: VueWrapper) => w.find("thead input[type=checkbox]");
 // The header box ticks every row through a deferred table call, so the count is waited for.
@@ -129,10 +154,25 @@ async function tickAll(w: VueWrapper, on: boolean, shown: string): Promise<void>
   await selectAll(w).setValue(on);
   await vi.waitFor(() => expect(w.find(".jobs__count").text()).toBe(shown));
 }
-const button = (w: VueWrapper, text: string) => w.findAll("button").find((b) => b.text() === text)!;
+// a button by its text, or (the phone's icon-only Refresh) by the start of its aria-label
+const button = (w: VueWrapper, text: string) =>
+  w.findAll("button").find((b) => b.text() === text || b.attributes("aria-label")?.startsWith(`${text},`))!;
 const count = (w: VueWrapper) => w.find(".jobs__count").text();
 const selects = (w: VueWrapper) => w.findAllComponents({ name: "ElSelect" });
 const lastQuery = () => listJobs.mock.lastCall![0];
+
+// matchMedia answering by the width named in the query: the phone edge is 767.x, the tablet band ends at 1279.x
+function stubWidth(kind: "phone" | "tablet" | "desktop") {
+  layout = kind;
+  vi.stubGlobal("matchMedia", (q: string) => ({
+    matches: kind === "phone" ? /max-width:\s*767/.test(q) : kind === "tablet" ? /1279/.test(q) : false,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+const dayKeyOf = (ms: number | null): string => dayKey(ms, localZone());
+// every test starts on a desktop; the tablet and phone tests say so
+beforeEach(() => stubWidth("desktop"));
 
 describe("the list", () => {
   it("loads the first 10 jobs with no filter", async () => {
@@ -141,24 +181,35 @@ describe("the list", () => {
     expect(listJobs).toHaveBeenCalledWith(query());
   });
 
-  it("shows the 13 columns of the old table", async () => {
+  it("shows the nine columns of the Jobs table", async () => {
     const { w } = await open();
     const headers = w.findAll("thead th").map((th) => th.text());
-    expect(headers).toEqual([
-      "",
-      "Progress",
-      "Title",
-      "Job",
-      "Operation",
-      "Status",
-      "Points",
-      "Results",
-      "Refs",
-      "Account",
-      "Key",
-      "Created",
-      "Actions",
-    ]);
+    expect(headers).toEqual(["", "Time", "Job", "Status", "Model", "Account", "Key", "Out · Refs", "Net points"]);
+  });
+
+  it("a tablet drops Account, Key and Out · Refs and folds them into the Job cell", async () => {
+    stubWidth("tablet");
+    listJobs.mockResolvedValue({ items: [job(A, { account_label: null })], total: 1, next_cursor: null });
+    const { w } = await open();
+    expect(w.findAll("thead th").map((th) => th.text())).toEqual(["", "Time", "Job", "Status", "Model", "Net points"]);
+    expect(rows(w)[0]!.find(".jobs__id").text()).toBe("aaaaaaaa · — · key-one");
+  });
+
+  it("a phone draws a stacked row: title and status, then id, model and account, then time, key and net", async () => {
+    stubWidth("phone");
+    listJobs.mockResolvedValue({
+      items: [job(A, { status: "failed", error_code: "render.deadline", price: 10, net_charged: 0 })],
+      total: 1,
+      next_cursor: null,
+    });
+    const { w } = await open();
+    expect(w.find("thead").exists()).toBe(false);
+    const row = w.find(".prow");
+    expect(row.find(".prow__title").text()).toBe(`title of ${A}`);
+    expect(row.find(".prow__ids").text()).toBe("aaaaaaaa · veo · acct-1");
+    expect(row.find(".prow__meta").text()).toMatch(/^\d\d:\d\d:\d\d · key-one · render\.deadline$/);
+    expect(row.find('[data-testid="money-cell"]').attributes("data-refunded")).toBe("true");
+    expect(w.find("[aria-label^='Select job aaaaaaaa']").exists()).toBe(true);
   });
 
   it("draws one row per job with the merged cells", async () => {
@@ -174,18 +225,17 @@ describe("the list", () => {
     const [first, second] = rows(w);
     expect(first!.text()).toContain("(untitled)");
     expect(first!.text()).toContain("aaaaaaaa");
-    expect(first!.text()).toContain("dola");
-    expect(first!.text()).toContain("video · veo");
+    expect(first!.text()).toContain("video veo");
     expect(first!.text()).toContain("model differs");
-    expect(first!.text()).not.toContain("refunded");
+    expect(first!.find('[data-testid="money-cell"]').attributes("data-refunded")).toBe("false");
     expect(second!.text()).toContain("failed");
-    expect(second!.text()).toContain("refunded");
+    expect(second!.find('[data-testid="money-cell"]').attributes("data-refunded")).toBe("true");
     expect(second!.text()).toContain("render.deadline");
     expect(second!.text()).toContain("acct-1");
     expect(second!.text()).toContain("key-one");
   });
 
-  it("a refund chip is neutral, the status chip keeps its own tone, and the error code is plain muted text", async () => {
+  it("the status chip keeps its own tone, a refund is the struck charge in the money cell, and the error code is plain text", async () => {
     listJobs.mockResolvedValue({
       items: [job(B, { status: "failed", error_code: "render.deadline", price: 10, net_charged: 0 })],
       total: 1,
@@ -194,35 +244,75 @@ describe("the list", () => {
     const { w } = await open();
     const row = rows(w)[0]!;
     expect(row.find('[data-tone="bad"]').text()).toBe("failed");
-    expect(row.find('[data-tone="neutral"]').text()).toBe("refunded");
+    expect(row.find('[data-tone="neutral"]').exists()).toBe(false);
     expect(row.find('[data-tone="warn"]').exists()).toBe(false);
-    const code = row.find(".error-code");
+    expect(row.find(".money__price").text()).toBe("10");
+    expect(row.find(".money__net").text()).toBe("0");
+    const code = row.find(".jobs__code");
     expect(code.text()).toBe("render.deadline");
     expect(code.find("[data-tone]").exists()).toBe(false);
   });
 
-  it("says No jobs for an empty list", async () => {
+  it("says there are no jobs for an empty list, and that no job matches a filter", async () => {
     listJobs.mockResolvedValue(page([]));
     const { w } = await open();
-    expect(w.text()).toContain("No jobs");
+    expect(w.text()).toContain("No jobs yet.");
+    expect(w.text()).not.toContain("Clear filters");
+    selects(w)[0]!.vm.$emit("update:modelValue", "failed");
+    await flushPromises();
+    expect(w.text()).toContain("No jobs match these filters.");
+    await button(w, "Clear filters").trigger("click");
+    await flushPromises();
+    expect(lastQuery()).toEqual(query());
   });
 
-  it("the bar has the step of the status", async () => {
-    listJobs.mockResolvedValue({ items: [job(A, { status: "fetching" })], total: 1, next_cursor: null });
+  it("a job still on its way shows its step before the word, a settled one a dot", async () => {
+    listJobs.mockResolvedValue({
+      items: [job(A, { status: "fetching" }), job(B, { status: "queued" }), job(C)],
+      total: 3,
+      next_cursor: null,
+    });
     const { w } = await open();
-    const bar = w.find("[role=progressbar]");
-    expect(bar.attributes("aria-valuenow")).toBe("75");
-    expect(bar.attributes("aria-label")).toBe("Progress: fetching");
-    expect(w.find(".el-progress-bar__inner").attributes("style")).toContain("width: 75%");
-    expect(bar.classes()).not.toContain("is-success");
+    const chip = (i: number) => rows(w)[i]!.find(".status-chip");
+    expect(chip(0).find(".step").text()).toBe("3/4");
+    expect(chip(0).find(".dot").exists()).toBe(false);
+    expect(chip(1).find(".step").text()).toBe("1/4");
+    expect(chip(2).find(".step").exists()).toBe(false);
+    expect(chip(2).find(".dot").exists()).toBe(true);
   });
 
-  it("the bar is green when done and red when failed", async () => {
-    listJobs.mockResolvedValue({ items: [job(A), job(B, { status: "failed" })], total: 2, next_cursor: null });
+  it("a failed job is tinted and an unknown one is not", async () => {
+    listJobs.mockResolvedValue({
+      items: [job(A, { status: "failed" }), job(B, { status: "unknown" }), job(C)],
+      total: 3,
+      next_cursor: null,
+    });
     const { w } = await open();
-    const bars = w.findAll("[role=progressbar]");
-    expect(bars[0]!.classes()).toContain("is-success");
-    expect(bars[1]!.classes()).toContain("is-exception");
+    expect(rows(w)[0]!.classes()).toContain("row-tone-bad");
+    expect(rows(w)[1]!.classes().join(" ")).not.toContain("row-tone");
+    expect(rows(w)[2]!.classes().join(" ")).not.toContain("row-tone");
+  });
+
+  it("net points: a job still on its way that has charged nothing shows a dash, any other its net", async () => {
+    listJobs.mockResolvedValue({
+      items: [
+        job(A, { status: "queued", price: 0, net_charged: 0 }),
+        job(B, { status: "queued", price: 2, net_charged: 2 }),
+        job(C, { status: "done", price: 0, net_charged: 0 }),
+      ],
+      total: 3,
+      next_cursor: null,
+    });
+    const { w } = await open();
+    const net = (i: number) => rows(w)[i]!.find(".money__net").text();
+    expect([net(0), net(1), net(2)]).toEqual(["—", "2", "0"]);
+  });
+
+  it("groups the rows under one header per day, with the jobs shown for that day", async () => {
+    const { w } = await open();
+    const days = w.findAll('[data-testid="day-row"]');
+    expect(days).toHaveLength(1);
+    expect(days[0]!.text()).toContain("· 3 jobs shown");
   });
 
   it("shows a failed load with Retry, and Retry asks again", async () => {
@@ -281,11 +371,13 @@ describe("filters", () => {
     expect(lastQuery()).toEqual(query({ keyId: "k1" }));
   });
 
-  it("shows All statuses and All keys, not the placeholder, while nothing is filtered", async () => {
+  it("shows All, not the placeholder, while nothing is filtered, after the word Status or Key", async () => {
     const { w } = await open();
     const shown = (i: number) => selects(w)[i]!.find(".el-select__placeholder").text();
-    expect(shown(0)).toBe("All statuses");
-    expect(shown(1)).toBe("All keys");
+    expect(shown(0)).toBe("All");
+    expect(shown(1)).toBe("All");
+    expect(selects(w)[0]!.find(".jobs__filter-label").text()).toBe("Status");
+    expect(selects(w)[1]!.find(".jobs__filter-label").text()).toBe("Key");
   });
 
   it("choosing All again sends no filter, and the label follows a real choice", async () => {
@@ -300,8 +392,8 @@ describe("filters", () => {
     selects(w)[1]!.vm.$emit("update:modelValue", "__all__");
     await flushPromises();
     expect(lastQuery()).toEqual(query());
-    expect(selects(w)[0]!.find(".el-select__placeholder").text()).toBe("All statuses");
-    expect(selects(w)[1]!.find(".el-select__placeholder").text()).toBe("All keys");
+    expect(selects(w)[0]!.find(".el-select__placeholder").text()).toBe("All");
+    expect(selects(w)[1]!.find(".el-select__placeholder").text()).toBe("All");
   });
 
   it("every key option is readable: its label, else its prefix, else the start of its id", async () => {
@@ -315,7 +407,7 @@ describe("filters", () => {
     });
     const { w } = await open();
     const options = selects(w)[1]!.findAllComponents({ name: "ElOption" });
-    expect(options.map((o) => o.props("label"))).toEqual(["All keys", "key-one", "rk_bbbb", "k3", "cccccccc"]);
+    expect(options.map((o) => o.props("label"))).toEqual(["All", "key-one", "rk_bbbb", "k3", "cccccccc"]);
   });
 
   it("a job whose key has no label shows the start of the key id in the Key column", async () => {
@@ -469,12 +561,12 @@ describe("selection", () => {
   it("the bulk buttons stay off until a job is ticked, and the count follows", async () => {
     const { w } = await open();
     expect(count(w)).toBe("0 selected");
-    expect(button(w, "Re-check selected").attributes("disabled")).toBeDefined();
-    expect(button(w, "Regenerate selected").attributes("disabled")).toBeDefined();
+    expect(button(w, "Re-check").attributes("disabled")).toBeDefined();
+    expect(button(w, "Regenerate…").attributes("disabled")).toBeDefined();
     await rowTick(w, 1)!.setValue(true);
     expect(count(w)).toBe("1 selected");
-    expect(button(w, "Re-check selected").attributes("disabled")).toBeUndefined();
-    expect(button(w, "Regenerate selected").attributes("disabled")).toBeUndefined();
+    expect(button(w, "Re-check").attributes("disabled")).toBeUndefined();
+    expect(button(w, "Regenerate…").attributes("disabled")).toBeUndefined();
     await rowTick(w, 1)!.setValue(false);
     expect(count(w)).toBe("0 selected");
   });
@@ -507,7 +599,7 @@ describe("selection", () => {
     expect((selectAll(w).element as HTMLInputElement).checked).toBe(true);
   });
 
-  it("ticking a box opens nothing; a click on the row, or Details, opens the job", async () => {
+  it("ticking a box opens nothing; a click on the row, or on its title, opens the job", async () => {
     const { w } = await open();
     const ui = useUiStore();
     await rowTick(w, 0)!.trigger("click");
@@ -515,8 +607,23 @@ describe("selection", () => {
     await rows(w)[1]!.findAll("td")[2]!.trigger("click");
     expect(ui.openJobId).toBe(B);
     ui.closeJob();
-    await rows(w)[2]!.find("button[aria-label=Details]").trigger("click");
+    await rows(w)[2]!.find("a.title-link").trigger("click");
     expect(ui.openJobId).toBe(C);
+  });
+
+  it("a phone shows the bulk bar only while a job is ticked, with the count and both buttons", async () => {
+    stubWidth("phone");
+    const { w } = await open();
+    const bar = () => w.get('[aria-label="Bulk actions"]');
+    expect(bar().isVisible()).toBe(false);
+    await w.get(".data-table__check input").setValue(true);
+    expect(bar().isVisible()).toBe(true);
+    expect(bar().text()).toContain("1 selected");
+    expect(
+      bar()
+        .findAll("button")
+        .map((b) => b.text()),
+    ).toEqual(["Re-check", "Regenerate…"]);
   });
 
   it("a new page starts with nothing ticked", async () => {
@@ -557,7 +664,10 @@ describe("selection", () => {
   });
 });
 
-describe("what is sent is what is ticked on screen", () => {
+// The same tests in both layouts: the table of a desktop (el-table with reserve-selection) and the stacked list of a
+// phone (its own selection). A tick, a reload, a page or filter change, an error and Retry must send the same ids.
+describe.each(["desktop", "phone"] as const)("what is sent is what is ticked on screen (%s)", (width) => {
+  beforeEach(() => stubWidth(width));
   // Timers are faked and never advanced: nothing here may wait for a timer, only for the render (microtasks). A tick
   // must count the moment it is made, whatever reload came just before.
   const settle = async (): Promise<void> => {
@@ -575,7 +685,7 @@ describe("what is sent is what is ticked on screen", () => {
     const promise = new Promise<JobPage>((r) => (resolve = r));
     return { promise, resolve };
   };
-  const bulk = { "Regenerate selected": bulkRegenerate, "Re-check selected": bulkRecheck } as const;
+  const bulk = { "Regenerate…": bulkRegenerate, "Re-check": bulkRecheck } as const;
   const labels = Object.keys(bulk) as (keyof typeof bulk)[];
 
   beforeEach(() => {
@@ -640,7 +750,7 @@ describe("what is sent is what is ticked on screen", () => {
     await settle();
     expect(ticks(w)).toEqual([true, true, true]);
     expect(action(w)).toBe(`bulk:${A},${B},${C}`);
-    await press(w, "Regenerate selected");
+    await press(w, "Regenerate…");
     expect(bulkRegenerate.mock.calls).toEqual([[[A, B, C]]]);
   });
 
@@ -649,13 +759,13 @@ describe("what is sent is what is ticked on screen", () => {
     await reload(w, boom());
     expect(rows(w)).toHaveLength(0);
     expect(count(w)).toBe("0 selected");
-    expect(button(w, "Regenerate selected").attributes("disabled")).toBeDefined();
-    expect(button(w, "Re-check selected").attributes("disabled")).toBeDefined();
+    expect(button(w, "Regenerate…").attributes("disabled")).toBeDefined();
+    expect(button(w, "Re-check").attributes("disabled")).toBeDefined();
     listJobs.mockResolvedValueOnce(page([A, B, C]));
     await press(w, "Retry");
     expect(ticks(w)).toEqual([true, false, false]);
     expect(action(w)).toBe(`bulk:${A}`);
-    await press(w, "Regenerate selected");
+    await press(w, "Regenerate…");
     expect(bulkRegenerate.mock.calls).toEqual([[[A]]]);
   });
 
@@ -671,7 +781,7 @@ describe("what is sent is what is ticked on screen", () => {
     listJobs.mockResolvedValueOnce(page([A, B, C]));
     await press(w, "Retry");
     expect(ticks(w)).toEqual([true, false, false]);
-    await press(w, "Re-check selected");
+    await press(w, "Re-check");
     expect(bulkRecheck.mock.calls).toEqual([[[A]]]);
   });
 
@@ -691,7 +801,7 @@ describe("what is sent is what is ticked on screen", () => {
     await reload(w, page([A, B]));
     expect(ticks(w)).toEqual([true, false]);
     expect(action(w)).toBe(`bulk:${A}`);
-    await press(w, "Re-check selected");
+    await press(w, "Re-check");
     expect(bulkRecheck.mock.calls).toEqual([[[A]]]);
   });
 
@@ -704,7 +814,7 @@ describe("what is sent is what is ticked on screen", () => {
     expect(count(w)).toBe("0 selected");
     await rowTick(w, 1)!.setValue(true);
     expect(action(w)).toBe(`bulk:${D}`);
-    await press(w, "Regenerate selected");
+    await press(w, "Regenerate…");
     expect(bulkRegenerate.mock.calls).toEqual([[[D]]]);
   });
 
@@ -716,7 +826,7 @@ describe("what is sent is what is ticked on screen", () => {
     expect(ticks(w)).toEqual([false, false, false]);
     expect(count(w)).toBe("0 selected");
     await rowTick(w, 1)!.setValue(true);
-    await press(w, "Re-check selected");
+    await press(w, "Re-check");
     expect(bulkRecheck.mock.calls).toEqual([[[B]]]);
   });
 
@@ -728,8 +838,8 @@ describe("what is sent is what is ticked on screen", () => {
     expect(rows(w)).toHaveLength(3);
     expect(ticks(w)).toEqual([false, false, false]);
     expect(count(w)).toBe("0 selected");
-    expect(button(w, "Regenerate selected").attributes("disabled")).toBeDefined();
-    expect(button(w, "Re-check selected").attributes("disabled")).toBeDefined();
+    expect(button(w, "Regenerate…").attributes("disabled")).toBeDefined();
+    expect(button(w, "Re-check").attributes("disabled")).toBeDefined();
   });
 
   it("a filter change while an error hides the table: the new list starts with nothing ticked", async () => {
@@ -747,11 +857,11 @@ describe("what is sent is what is ticked on screen", () => {
     lost.retrySafe = true;
     bulkRegenerate.mockReset().mockRejectedValueOnce(lost).mockResolvedValueOnce({ created: [], failed: {} });
     const w = await openTicked([0, 1]);
-    await press(w, "Regenerate selected");
+    await press(w, "Regenerate…");
     await reload(w);
     expect(ticks(w)).toEqual([true, true, false]);
     expect(action(w)).toBe(`bulk:${A},${B}`);
-    await press(w, "Regenerate selected");
+    await press(w, "Regenerate…");
     expect(bulkRegenerate.mock.calls).toEqual([[[A, B]], [[A, B]]]);
   });
 
@@ -759,7 +869,7 @@ describe("what is sent is what is ticked on screen", () => {
     const w = await openTicked([0, 2]);
     let answer!: (ok: boolean) => void;
     vi.mocked(confirmDialog).mockReturnValueOnce(new Promise<boolean>((r) => (answer = r)));
-    await press(w, "Regenerate selected");
+    await press(w, "Regenerate…");
     await reload(w, page([A, B]));
     answer(true);
     await settle();
@@ -770,7 +880,7 @@ describe("what is sent is what is ticked on screen", () => {
     const w = await openTicked([0]);
     let answer!: (ok: boolean) => void;
     vi.mocked(confirmDialog).mockReturnValueOnce(new Promise<boolean>((r) => (answer = r)));
-    await press(w, "Regenerate selected");
+    await press(w, "Regenerate…");
     await reload(w, boom());
     answer(true);
     await settle();
@@ -785,7 +895,7 @@ describe("bulk re-check", () => {
     const { w } = await open();
     await rowTick(w, 2)!.setValue(true);
     await rowTick(w, 0)!.setValue(true);
-    await button(w, "Re-check selected").trigger("click");
+    await button(w, "Re-check").trigger("click");
     await flushPromises();
     expect(bulkRecheck).toHaveBeenCalledWith([A, C]);
     expect(notify.success).toHaveBeenCalledWith("Re-checked 2");
@@ -793,11 +903,23 @@ describe("bulk re-check", () => {
     expect(listJobs).toHaveBeenCalledTimes(2);
   });
 
+  it("a second click while the re-check is under way sends it once", async () => {
+    let done!: (r: { rechecked: string[]; skipped: Record<string, string> }) => void;
+    bulkRecheck.mockReturnValueOnce(new Promise((r) => (done = r)));
+    const { w } = await open();
+    await rowTick(w, 0)!.setValue(true);
+    await button(w, "Re-check").trigger("click");
+    await button(w, "Re-check").trigger("click");
+    expect(bulkRecheck).toHaveBeenCalledTimes(1);
+    done({ rechecked: [A], skipped: {} });
+    await flushPromises();
+  });
+
   it("jobs left alone turn the toast to info", async () => {
     bulkRecheck.mockResolvedValue({ rechecked: [A], skipped: { [B]: "job.no_recheck" } });
     const { w } = await open();
     await tickAll(w, true, "3 selected");
-    await button(w, "Re-check selected").trigger("click");
+    await button(w, "Re-check").trigger("click");
     await flushPromises();
     expect(notify.info).toHaveBeenCalledWith("Re-checked 1, left 1 alone");
   });
@@ -806,7 +928,7 @@ describe("bulk re-check", () => {
     bulkRecheck.mockRejectedValue(new ApiError(422, { error: { code: "x", message: "too many", param: "job_ids" } }));
     const { w } = await open();
     await rowTick(w, 0)!.setValue(true);
-    await button(w, "Re-check selected").trigger("click");
+    await button(w, "Re-check").trigger("click");
     await flushPromises();
     expect(notify.error).toHaveBeenCalledWith("too many (job_ids)");
     expect(count(w)).toBe("1 selected");
@@ -826,7 +948,7 @@ describe("bulk regenerate", () => {
     const { w } = await open();
     await tickAll(w, true, "3 selected");
     vi.mocked(confirmDialog).mockResolvedValueOnce(false);
-    await button(w, "Regenerate selected").trigger("click");
+    await button(w, "Regenerate…").trigger("click");
     await flushPromises();
     expect(confirmDialog).toHaveBeenCalledWith({
       title: "Regenerate",
@@ -838,12 +960,25 @@ describe("bulk regenerate", () => {
     expect(count(w)).toBe("3 selected");
   });
 
+  it("a second click while the confirm is open asks nothing more", async () => {
+    let answer!: (ok: boolean) => void;
+    vi.mocked(confirmDialog).mockReturnValueOnce(new Promise<boolean>((r) => (answer = r)));
+    const { w } = await open();
+    await rowTick(w, 0)!.setValue(true);
+    await button(w, "Regenerate…").trigger("click");
+    await button(w, "Regenerate…").trigger("click");
+    expect(confirmDialog).toHaveBeenCalledTimes(1);
+    answer(false);
+    await flushPromises();
+    expect(bulkRegenerate).not.toHaveBeenCalled();
+  });
+
   it("sends the ticked ids, says made, already made and failed, and clears the ticks", async () => {
     bulkRegenerate.mockResolvedValue(MADE);
     const { w } = await open();
     await rowTick(w, 2)!.setValue(true);
     await rowTick(w, 0)!.setValue(true);
-    await button(w, "Regenerate selected").trigger("click");
+    await button(w, "Regenerate…").trigger("click");
     await flushPromises();
     expect(bulkRegenerate).toHaveBeenCalledWith([A, C]);
     expect(notify.info).toHaveBeenCalledWith("Made 1, already made 1, failed 1");
@@ -858,12 +993,12 @@ describe("bulk regenerate", () => {
     const { w } = await open();
     await rowTick(w, 0)!.setValue(true);
     await rowTick(w, 1)!.setValue(true);
-    await button(w, "Regenerate selected").trigger("click");
+    await button(w, "Regenerate…").trigger("click");
     await flushPromises();
     expect(notify.error).toHaveBeenCalledWith(RETRY_SAFE_TEXT);
     expect(count(w)).toBe("2 selected");
     expect(listJobs).toHaveBeenCalledTimes(1);
-    await button(w, "Regenerate selected").trigger("click");
+    await button(w, "Regenerate…").trigger("click");
     await flushPromises();
     expect(bulkRegenerate.mock.calls).toEqual([[[A, B]], [[A, B]]]);
   });
@@ -888,6 +1023,272 @@ describe("bulk regenerate", () => {
     expect(w.text()).not.toContain("Start a new regenerate");
     await rowTick(w, 1)!.setValue(true);
     expect(w.text()).toContain("Start a new regenerate");
+  });
+});
+
+describe("the page head and the 24-hour band", () => {
+  const HOUR = 3_600_000;
+  // 24 columns, oldest first; the hour starts are local-time hours so the labels do not depend on the time zone
+  const BASE = new Date(2026, 9, 14, 21).getTime();
+  const hours = (): shell.HourBucket[] =>
+    Array.from({ length: 24 }, (_, i) => ({
+      hour_ms: BASE + i * HOUR,
+      delivered: i === 23 ? 1 : 2,
+      failed: i === 23 ? 1 : 0,
+      in_progress: i === 23 ? 4 : 0,
+    }));
+  const bars = (w: VueWrapper) => w.findAll('[data-testid="hour-bar"]');
+  const hidden = (on: boolean) => Object.defineProperty(document, "hidden", { configurable: true, get: () => on });
+  afterEach(() => {
+    vi.useRealTimers();
+    Reflect.deleteProperty(document, "hidden");
+  });
+
+  beforeEach(() => getHourlyStats.mockResolvedValue({ hours: hours() }));
+
+  it("heads the page with the title, one sentence, the update time and a Refresh button", async () => {
+    const { w } = await open();
+    expect(w.find("h1").text()).toBe("Jobs");
+    expect(w.text()).toContain("Every generation job across keys, grouped by day.");
+    expect(w.text()).toMatch(/Updated \d\d:\d\d:\d\d · auto every 10 s/);
+    expect(button(w, "Refresh").exists()).toBe(true);
+  });
+
+  it("a phone says 'by day' and has an icon-only Refresh that names the update time", async () => {
+    stubWidth("phone");
+    const { w } = await open();
+    expect(w.text()).toContain("Every generation job across keys, by day.");
+    expect(w.text()).not.toContain("auto every 10 s");
+    const refresh = w.find("button.jobs__refresh");
+    expect(refresh.text()).toBe("");
+    expect(refresh.attributes("aria-label")).toMatch(/^Refresh, updated \d\d:\d\d:\d\d$/);
+  });
+
+  it("draws one titled column per hour, with the legend counts and the job total of the 24 hours", async () => {
+    const { w } = await open();
+    expect(getHourlyStats).toHaveBeenCalledWith("");
+    expect(bars(w)).toHaveLength(24);
+    expect(bars(w)[0]!.attributes("title")).toBe("21:00 · 2 delivered");
+    expect(bars(w)[23]!.attributes("title")).toBe("20:00 · 1 delivered, 1 failed, 4 in progress");
+    const band = w.get('[data-testid="hour-band"]');
+    expect(band.text()).toContain("Last 24 hours · 52 jobs");
+    expect(band.text()).toContain("delivered 47");
+    expect(band.text()).toContain("failed 1");
+    expect(band.text()).toContain("in progress 4");
+  });
+
+  it("the columns are a labelled group, not an image, so every hour link stays reachable", async () => {
+    const { w } = await open();
+    const group = w.get('[role="group"][aria-label^="Jobs per hour over the last 24 hours."]');
+    expect(group.findAll("a[href]")).toHaveLength(24);
+    expect(w.find('[role="img"][aria-label^="Jobs per hour"]').exists()).toBe(false);
+  });
+
+  it("the ledger beside the columns shows the live totals once the stats are read", async () => {
+    const { w } = await open();
+    expect(w.find('[data-testid="ledger-list"]').exists()).toBe(true);
+    await button(w, "Refresh").trigger("click");
+    await flushPromises();
+    const ledger = w.get('[data-testid="ledger-list"]').text();
+    expect(ledger).toContain("Accounts ready");
+    expect(ledger).toContain("7 / 8");
+    expect(ledger).toContain("1,284");
+  });
+
+  it("a column filters the list to its hour, from the first page, and the chip names the hour", async () => {
+    listJobs.mockResolvedValue(page([A], 25));
+    const { w } = await open();
+    w.findComponent(ListPager).vm.$emit("move", 10);
+    await flushPromises();
+    await bars(w)[23]!.trigger("click");
+    await flushPromises();
+    expect(lastQuery()).toEqual(query({ createdFromMs: BASE + 23 * HOUR, createdToMs: BASE + 24 * HOUR }));
+    expect(w.get('[data-testid="hour-chip"]').text()).toBe("Hour 20:00–21:00");
+  });
+
+  it("the chip clears the hour filter, and no list call carries a window without it", async () => {
+    const { w } = await open();
+    expect(listJobs.mock.calls.every(([q]) => q.createdFromMs === undefined && q.createdToMs === undefined)).toBe(true);
+    await bars(w)[3]!.trigger("click");
+    await flushPromises();
+    await w.get('button[aria-label="Clear the hour filter"]').trigger("click");
+    await flushPromises();
+    expect(w.find('[data-testid="hour-chip"]').exists()).toBe(false);
+    expect(lastQuery()).toEqual(query());
+    expect(lastQuery().createdFromMs).toBeUndefined();
+    expect(lastQuery().createdToMs).toBeUndefined();
+  });
+
+  it("an hour filter drops the ticks, and a sign-out clears the hour", async () => {
+    const { w } = await open();
+    await rowTick(w, 0)!.setValue(true);
+    await bars(w)[5]!.trigger("click");
+    await flushPromises();
+    expect(count(w)).toBe("0 selected");
+    expect(w.find('[data-testid="hour-chip"]').exists()).toBe(true);
+    useAuthStore().signOut();
+    await flushPromises();
+    expect(w.find('[data-testid="hour-chip"]').exists()).toBe(false);
+  });
+
+  it("the band follows the provider scope", async () => {
+    await open();
+    useScopeStore().provider = "vibes";
+    await flushPromises();
+    expect(getHourlyStats).toHaveBeenLastCalledWith("vibes");
+  });
+
+  it("the banner comes after the band and before the list", async () => {
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
+    const { w } = await open();
+    await button(w, "Refresh").trigger("click");
+    await flushPromises();
+    const order = w.findAll('[data-testid="hour-band"], [role="status"], section[aria-label="Job list"]');
+    expect(order.map((n) => n.attributes("data-testid") ?? n.attributes("role") ?? n.attributes("aria-label"))).toEqual(
+      ["hour-band", "status", "Job list"],
+    );
+  });
+
+  it("reads the list and the band again every 10 s while the tab is shown, never while it is hidden", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    await open();
+    const lists = listJobs.mock.calls.length;
+    const bands = getHourlyStats.mock.calls.length;
+    const reads = () => [listJobs.mock.calls.length, getHourlyStats.mock.calls.length];
+    vi.advanceTimersByTime(9_999);
+    await flushPromises();
+    expect(reads()).toEqual([lists, bands]);
+    vi.advanceTimersByTime(1);
+    await flushPromises();
+    expect(reads()).toEqual([lists + 1, bands + 1]);
+    hidden(true);
+    vi.advanceTimersByTime(10_000);
+    await flushPromises();
+    expect(reads()).toEqual([lists + 1, bands + 1]);
+    hidden(false);
+    vi.advanceTimersByTime(10_000);
+    await flushPromises();
+    expect(reads()).toEqual([lists + 2, bands + 2]);
+  });
+
+  it("coming back to the tab reads at once, and leaving it reads nothing", async () => {
+    await open();
+    const lists = listJobs.mock.calls.length;
+    hidden(true);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await flushPromises();
+    expect(listJobs.mock.calls.length).toBe(lists);
+    hidden(false);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await flushPromises();
+    expect(listJobs.mock.calls.length).toBe(lists + 1);
+  });
+
+  it("a read still under way is not overtaken by the next tick", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    await open();
+    let slow!: (p: JobPage) => void;
+    listJobs.mockReturnValueOnce(new Promise<JobPage>((res) => (slow = res)));
+    vi.advanceTimersByTime(10_000);
+    const seen = listJobs.mock.calls.length;
+    vi.advanceTimersByTime(10_000);
+    expect(listJobs.mock.calls.length).toBe(seen);
+    slow(page([A, B, C]));
+    await flushPromises();
+  });
+
+  it("stops reading once the page is gone", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const { w } = await open();
+    w.unmount();
+    mounted.pop();
+    const lists = listJobs.mock.calls.length;
+    vi.advanceTimersByTime(30_000);
+    expect(listJobs.mock.calls.length).toBe(lists);
+  });
+});
+
+describe("time zones", () => {
+  const zone = process.env.TZ;
+  afterEach(() => {
+    if (zone === undefined) delete process.env.TZ;
+    else process.env.TZ = zone;
+  });
+
+  // [zone, the instant of its local midnight between 14 and 15 October 2026]
+  it.each([
+    ["Asia/Saigon", Date.UTC(2026, 9, 14, 17)],
+    ["America/Los_Angeles", Date.UTC(2026, 9, 15, 7)],
+    ["Pacific/Auckland", Date.UTC(2026, 9, 14, 11)],
+  ])(
+    "a job a second either side of local midnight in %s sits under two day headers, with its own clock",
+    async (tz, at) => {
+      process.env.TZ = tz;
+      listJobs.mockResolvedValue({
+        items: [job(A, { created_ms: at + 1000 }), job(B, { created_ms: at - 1000 })],
+        total: 2,
+        next_cursor: null,
+      });
+      const { w } = await open();
+      const lines = w.findAll("tbody tr").map((tr) => tr.text());
+      expect(lines).toHaveLength(4);
+      expect(lines[0]).toContain("15 Oct");
+      expect(lines[1]).toContain("00:00:01");
+      expect(lines[2]).toContain("14 Oct");
+      expect(lines[3]).toContain("23:59:59");
+    },
+  );
+
+  it.each([
+    ["Asia/Saigon", "Asia/Ho_Chi_Minh", Date.UTC(2026, 9, 14, 17)],
+    ["America/Los_Angeles", "America/Los_Angeles", Date.UTC(2026, 9, 15, 7)],
+  ])(
+    "asks for the day totals in the zone of the browser (%s as %s) and puts each on its own day's header",
+    async (tz, sent, at) => {
+      process.env.TZ = tz;
+      listJobs.mockResolvedValue({
+        items: [job(A, { created_ms: at + 1000 }), job(B, { created_ms: at - 1000 })],
+        total: 2,
+        next_cursor: null,
+        day_totals: { "2026-10-15": 212, "2026-10-14": 1 },
+      });
+      const { w } = await open();
+      expect(lastQuery().tz).toBe(sent);
+      const days = w.findAll('[data-testid="day-row"]').map((d) => d.text());
+      expect(days[0]).toMatch(/15 Oct · 212 jobs$/);
+      expect(days[1]).toMatch(/14 Oct · 1 job$/);
+    },
+  );
+
+  it.each([
+    ["the status", (w: VueWrapper) => selects(w)[0]!.vm.$emit("update:modelValue", "failed")],
+    ["the key", (w: VueWrapper) => selects(w)[1]!.vm.$emit("update:modelValue", "k1")],
+    ["the provider", () => (useScopeStore().provider = "vibes")],
+  ])("a change of %s drops the old day totals at once, before the new list arrives", async (_what, change) => {
+    const day = (w: VueWrapper) => w.get('[data-testid="day-row"]').text();
+    listJobs.mockResolvedValue({ items: [job(A), job(B)], total: 2, next_cursor: null });
+    const { w } = await open();
+    await w.vm.$nextTick();
+    listJobs.mockReset().mockResolvedValueOnce({
+      items: [job(A), job(B)],
+      total: 2,
+      next_cursor: null,
+      day_totals: { [dayKeyOf(job(A).created_ms)]: 212 },
+    });
+    await button(w, "Refresh").trigger("click");
+    await flushPromises();
+    expect(day(w)).toContain("· 212 jobs");
+    listJobs.mockReturnValueOnce(new Promise<JobPage>(() => {}));
+    change(w);
+    await flushPromises();
+    expect(day(w)).not.toContain("212");
+    expect(day(w)).toContain("· 2 jobs shown");
+  });
+
+  it("a day the server gave no total for says how many of its jobs are shown", async () => {
+    listJobs.mockResolvedValue({ items: [job(A), job(B)], total: 2, next_cursor: null, day_totals: {} });
+    const { w } = await open();
+    expect(w.get('[data-testid="day-row"]').text()).toContain("· 2 jobs shown");
   });
 });
 
