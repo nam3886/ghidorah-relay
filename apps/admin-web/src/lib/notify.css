@@ -1,14 +1,29 @@
-/* Toasts: a surface card with a hairline and the overlay shadow, in both themes (the message is teleported to <body>). */
+/* Toasts (specs/shared.md section 10): a surface card with a hairline and the overlay shadow, in both themes (the
+   message is teleported to <body>). Success and error have their own padding, icon colour and close button; the
+   grouping badge is a pill inside the toast, not Element Plus's round badge outside it. */
 .el-message {
   min-width: 260px;
+  max-width: 100%;
+  box-sizing: border-box;
+  gap: 10px;
   padding: 12px 16px;
   border-radius: 12px;
   border: 1px solid var(--rl-line);
   background-color: var(--rl-surface);
-  box-shadow: 0 12px 32px rgba(10, 6, 20, 0.18);
+  box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
 }
 .el-message .el-message__content {
+  flex: 1;
   color: var(--rl-fg);
+  font-size: 14px;
+  line-height: 20px;
+}
+.el-message .el-message__icon {
+  margin: 0;
+}
+html:root .el-message {
+  border-color: var(--rl-line);
+  background-color: var(--rl-surface);
 }
 .el-message--success .el-message__icon {
   color: var(--rl-ok);
@@ -16,8 +31,40 @@
 .el-message--error .el-message__icon {
   color: var(--rl-bad);
 }
+.el-message--info .el-message__icon {
+  color: var(--rl-info);
+}
+.el-message.is-closable {
+  padding: 12px 8px 12px 16px;
+}
+.el-message .el-message__closeBtn {
+  position: static;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  border-radius: 8px;
+  color: var(--rl-muted);
+  transform: none;
+}
+.el-message .el-message__closeBtn:hover {
+  background: var(--rl-raised);
+  color: var(--rl-muted);
+}
 .el-message .el-message__badge {
-  font-variant-numeric: tabular-nums;
+  position: static;
+  order: 3;
+  height: 20px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 10px;
   background-color: var(--rl-ok-bg);
   color: var(--rl-ok);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+  transform: none;
 }

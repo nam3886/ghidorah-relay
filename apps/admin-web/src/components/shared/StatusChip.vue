@@ -4,7 +4,8 @@ import { labelOf, toneOf, type Tone } from "./status-tones";
 
 // `status` is looked up in the tone registry (a number is an HTTP code); `label` replaces the shown word and `tone`
 // replaces the lookup, for the rare chip whose word is not the status. `step` ("2/4") replaces the dot with the
-// position of a running job. The chip is an el-tag drawn as a pill; the tone picks its colours.
+// position of a running job. The chip is a plain 24 px pill (an el-tag cannot draw the canvas pill); the tone picks
+// its colours.
 const props = defineProps<{
   status: string | number | null | undefined;
   label?: string;
@@ -13,45 +14,35 @@ const props = defineProps<{
 }>();
 const resolved = computed<Tone>(() => props.tone ?? toneOf(props.status));
 const text = computed(() => props.label ?? labelOf(props.status));
-const TAG_TYPE = { ok: "success", info: "info", warn: "warning", bad: "danger", neutral: "info" } as const;
 </script>
 
 <template>
-  <el-tag
-    class="status-chip"
-    :class="`tone-${resolved}`"
-    :type="TAG_TYPE[resolved]"
-    effect="light"
-    round
-    disable-transitions
-    :data-tone="resolved"
-  >
+  <span class="status-chip" :class="`tone-${resolved}`" :data-tone="resolved">
     <span v-if="props.step" class="step">{{ props.step }}</span>
     <i v-else class="dot" aria-hidden="true" />{{ text }}
-  </el-tag>
+  </span>
 </template>
 
 <style scoped>
 .status-chip {
-  height: 24px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--chip-fg);
-  background: var(--chip-bg);
-}
-.status-chip :deep(.el-tag__content) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--chip-fg);
+  background: var(--chip-bg);
 }
 .dot {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
-  background: currentcolor;
+  border-radius: 3px;
+  background: var(--chip-fg);
 }
 .step {
   font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);

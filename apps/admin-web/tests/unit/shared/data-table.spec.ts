@@ -60,8 +60,8 @@ describe("DataTable states", () => {
     const w = await table({ rows: [], loading: true });
     expect(w.attributes("data-state")).toBe("loading");
     expect(w.attributes("aria-busy")).toBe("true");
-    expect(w.find(".el-skeleton").exists()).toBe(true);
-    expect(w.find("table").exists()).toBe(false);
+    expect(w.find(".data-table__skeleton").exists()).toBe(true);
+    expect(w.find(".el-table").exists()).toBe(false);
   });
 
   it("refreshing keeps the old rows and marks the table dimmed and busy", async () => {
@@ -70,7 +70,7 @@ describe("DataTable states", () => {
     expect(w.classes()).toContain("is-refreshing");
     expect(w.attributes("aria-busy")).toBe("true");
     expect(w.text()).toContain("alpha");
-    expect(w.find(".el-skeleton").exists()).toBe(false);
+    expect(w.find(".data-table__skeleton").exists()).toBe(false);
   });
 
   it("not loading: not busy, not dimmed", async () => {
