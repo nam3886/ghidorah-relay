@@ -53,11 +53,11 @@ def test_every_allow_list_entry_is_used_and_has_a_reason():
           expect="a longer URL was excused")
 @mutation(LIB, 'https://element-plus\\.org/en-US', 'https://[a-z.-]+/en-US',
           expect="a link that is not a documentation page was excused")
-@mutation(LIB, '|["\'`]data:[a-z]+/"""', '"""', expect="data: URL not found")
-@mutation(LIB, 'DATA_URL = re.compile(r"""url\\(\\s*["\']?data:[^)]*\\)|', 'DATA_URL = re.compile(r"""',
-          expect="the tick mask is not found as a data: URL")
-@mutation(LIB, 'return text if len(text) <= 100 else', 'return text if len(text) <= 10000 else',
-          expect="the allowed data: image was reported")
+@mutation(LIB, '|["\'`]data:(?:[a-z]+/|[;,])"""', '"""', expect="data: URL not found")
+@mutation(LIB, '(?:[a-z]+/|[;,])""", re.I)', '(?:[a-z]+/)""", re.I)', expect="a data: URL with no media type")
+@mutation(LIB, '(?:[a-z]+/|[;,])""", re.I)', '(?:[a-z]+/|[;,])""")', expect="a data: URL in capitals")
+@mutation(LIB, 'CSS_DATA = re.compile(r"data:")', 'CSS_DATA = re.compile(r"dataX:")',
+          expect="data: URL not found")
 def test_the_scanner_finds_each_forbidden_thing_in_planted_files_and_skips_what_is_allowed(monkeypatch):
     planted = {
         "a.js": ('fetch("https://cdn.example.com/x.js"); el.innerHTML = \'<img onerror="x()">\'; '
@@ -71,15 +71,19 @@ def test_the_scanner_finds_each_forbidden_thing_in_planted_files_and_skips_what_
                      ("b.js", "source-map comment"), ("c.html", "style attribute"), ("c.html", "remote URL"),
                      ("d.css", "remote URL")]:
         assert expected in seen, "%s not found in %s: %s" % (expected[1], expected[0], sorted(seen))
-    # a data: URL: any image other than the one allowed tick mask is found, in a stylesheet and in a script string
+    # a data: URL in a stylesheet or in a script string is found; a stylesheet may hold no data: at all
     other = {"e.css": 'a{background:url("data:image/png;base64,AAAA")}', "f.js": 'img.src = "data:image/gif;base64,R0"'}
-    assert {(n, c) for n, c, _ in scan(other)} == {("e.css", "data: URL"), ("f.js", "data: URL")}, \
-        "data: URL not found"
-    # the allowed tick mask, as the dist holds it, is excused (negative control for the check above)
-    tick = next((t for _, c, t in findings(dist_files()) if c == "data: URL" and t.startswith("url(")), None)
-    assert tick, "the tick mask is not found as a data: URL"
-    assert scan({"x.css": "a{mask:%s 0 0/100%% no-repeat}" % tick}) == [], "the allowed data: image was reported"
-    assert scan({"x.css": "a{mask:%s}" % tick.replace("%3E", "%3F", 1)}) != [], "a changed image was excused"
+    assert {(n, c) for n, c, _ in scan(other)} == {("e.css", "data: URL"), ("e.css", "data: in CSS"),
+                                                   ("f.js", "data: URL")}, "data: URL not found"
+    assert {(n, c) for n, c, _ in scan({"g.css": "a{mask:url(data:image/svg+xml,%3Csvg%3E)}"})} >= {
+        ("g.css", "data: in CSS")}, "data: in CSS not found"
+    assert scan({"h.css": 'a::after{content:"data:x"}'}) != [], "data: in CSS not found"
+    assert scan({"h.js": 'const hint = "data:"'}) == [], "a bare data: in a script was reported"
+    # every form of the scheme in a script string: media type, parameter only, nothing, base64, other case, other quote
+    for form in ('"data:,payload"', "'data:;base64,AAAA'", "`data:text/plain,hi`", '"data:text/plain;charset=utf-8,hi"',
+                 '"data:image/png;base64,AAAA"'):
+        assert scan({"i.js": "const u = %s" % form}) != [], "a data: URL with no media type or another form: " + form
+    assert scan({"j.js": 'const u = "DATA:,x"'}) != [], "a data: URL in capitals"
     # negative control: clean files and an allowed finding produce nothing
     assert scan({"ok.js": 'const ns = "x"; el.className = "a b";', "ok.css": "a { color: red }"}) == []
     monkeypatch.setitem(webguards.ALLOWED, ("remote URL", "http://www.w3.org/2000/svg"),

@@ -47,8 +47,13 @@ INLINE_HANDLER = re.compile(r"""[\s"'`]on[a-z]+\s*=\s*["'`]""")
 JAVASCRIPT_URL = re.compile(r"javascript:", re.I)
 SOURCE_MAP = re.compile(r"sourceMappingURL")
 STYLE_ATTRIBUTE = re.compile(r"""\sstyle\s*=\s*["']""")
-# A data: URL in a CSS url() or in a quoted string. The admin CSP has no img-src (it falls back to 'self'): blocked.
-DATA_URL = re.compile(r"""url\(\s*["']?data:[^)]*\)|["'`]data:[a-z]+/""")
+# A data: URL in a CSS url() or at the start of a quoted string, in every form the URI scheme allows: with a media type
+# (`data:text/plain,..`, `data:image/png;base64,..`), with a parameter only (`data:;base64,..`) or with none
+# (`data:,..`).
+# The admin CSP has no img-src (it falls back to 'self'): blocked.
+DATA_URL = re.compile(r"""url\(\s*["']?data:[^)]*\)|["'`]data:(?:[a-z]+/|[;,])""", re.I)
+# Any data: in a stylesheet at all: the build strips Element Plus's data: masks (vite.config.ts), so none may ship.
+CSS_DATA = re.compile(r"data:")
 CHECKS = {"remote URL": REMOTE_URL, "inline handler": INLINE_HANDLER, "javascript: URL": JAVASCRIPT_URL,
           "source-map comment": SOURCE_MAP, "style attribute": STYLE_ATTRIBUTE, "data: URL": DATA_URL}
 
@@ -66,11 +71,6 @@ ALLOWED: dict[tuple[str, str], str] = {
     ("remote URL", "http://www.w3.org/1999/xlink"): _XML_NAMESPACE + " (Vue's xlink attribute namespace)",
     ("remote URL", "http://www.w3.org/1998/Math/MathML"): _XML_NAMESPACE + " (Vue's MathML element namespace)",
     ("remote URL", "https://vuejs.org/error-reference/#runtime-${r}"): "Vue's production error message template; text",
-    # key = sha256 prefix of the whole url("data:...") text, so only this exact image is excused, not data: URLs
-    ("data: URL", "sha256:c8faacbdb989b684"): (
-        "the tick mask of a selected option in an Element Plus multiple select (`-webkit-mask` and `mask` of "
-        "`.el-select-dropdown__item.is-selected`); theme.css replaces it with a border-drawn tick, so the URL is never "
-        "requested and the CSP never sees it; only the rule text stays in the bundle"),
     ("data: URL", "`data:attachment/"): (
         "the string a Vue devtools-free file-download helper writes into a Blob reader result (data:attachment/file;); "
         "code that rewrites a string, never a request or an element source"),
@@ -95,6 +95,9 @@ def _hits(files: dict[str, str]):
                 before = text[match.start() - 1] if match.start() else ""
                 after = text[match.end()] if match.end() < len(text) else ""
                 yield name, check, match.group(0), before, after
+        if name.endswith(".css"):
+            for match in CSS_DATA.finditer(text):
+                yield name, "data: in CSS", match.group(0), "", ""
 
 
 def findings(files: dict[str, str]) -> list[tuple[str, str, str]]:
