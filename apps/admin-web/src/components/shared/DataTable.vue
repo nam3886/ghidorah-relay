@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends object">
-import { computed, ref, useSlots, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, useSlots, watch } from "vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { daySpanMethod, isDayRow, type DayRow } from "@/lib/day-rows";
 import { IconAlertCircle } from "./icons";
@@ -57,6 +57,9 @@ const props = withDefaults(
     // phone layout: an extra class on the open area of every row (`.data-table__main`), so a view sets the padding
     // of its own row without an override of ours
     mainClass?: string;
+    // the columns the loading skeleton draws, by key (the Jobs list draws the canvas's four: Time 84, Job, Status 110,
+    // Net points 84); every visible column when left out
+    skeletonColumns?: string[];
   }>(),
   {
     loading: false,
@@ -77,9 +80,16 @@ const props = withDefaults(
     rowLabel: undefined,
     selectLabel: undefined,
     mainClass: undefined,
+    skeletonColumns: undefined,
   },
 );
-const emit = defineEmits<{ retry: []; "row-click": [row: T]; "selection-change": [rows: T[]] }>();
+// rows-drawn: the table's rows were (re)drawn, for a view that measures them (the Jobs columns); nothing else listens
+const emit = defineEmits<{
+  retry: [];
+  "row-click": [row: T];
+  "selection-change": [rows: T[]];
+  "rows-drawn": [];
+}>();
 const slots = useSlots();
 const { isPhone, isTablet } = useBreakpoint();
 
@@ -88,6 +98,11 @@ const visibleColumns = computed(() =>
   isTablet.value && props.tabletColumns
     ? props.columns.filter((c) => props.tabletColumns!.includes(c.key))
     : props.columns,
+);
+const skeletonCols = computed(() =>
+  props.skeletonColumns
+    ? visibleColumns.value.filter((c) => props.skeletonColumns!.includes(c.key))
+    : visibleColumns.value,
 );
 const columnCount = computed(() => (props.selectable ? 1 : 0) + visibleColumns.value.length + (slots.actions ? 1 : 0));
 const hasDays = computed(() => props.rows.some(isDayRow));
@@ -129,6 +144,62 @@ function setSelection(ids: string[]): void {
   for (const row of hits) table.toggleRowSelection(row, true);
 }
 defineExpose({ setSelection });
+
+// Element Plus draws the table's checkboxes with no accessible name. As the canvas names them, the header box is
+// "Select all on this page" and a row's box is `selectLabel(row)` ("Select job 5a0f3c88"). The rows are drawn in
+// the order of `rows` (a day row has no box), and Element Plus redraws them on its own schedule, so the names are put
+// on again whenever the table's body changes.
+const root = ref<HTMLElement>();
+function nameChecks(): void {
+  const el = root.value;
+  if (!el || !props.selectable) return;
+  el.querySelector(".el-table__header .el-table-column--selection input")?.setAttribute(
+    "aria-label",
+    "Select all on this page",
+  );
+  el.querySelectorAll<HTMLTableRowElement>(".el-table__body tbody > tr").forEach((tr, i) => {
+    const row = props.rows[i];
+    const box = tr.querySelector("td.el-table-column--selection input");
+    if (box && row && !isDayRow(row)) box.setAttribute("aria-label", props.selectLabel?.(row) ?? "Select row");
+  });
+}
+// The canvas draws the select-all box empty or ticked, never mixed: ticked when every row on the page is, empty
+// otherwise. Element Plus draws a part-ticked page as mixed (the box's indeterminate flag, an is-indeterminate class
+// and aria-checked="mixed"), so that is taken off again each time Element Plus puts it on; those attribute changes
+// are what is watched. An element other than the box that says "mixed" stops posing as a second checkbox too. A click
+// does what Element Plus does: a part-ticked page is ticked whole, a whole one cleared.
+const MIXED = ["role", "aria-checked", "tabindex"];
+function flatSelectAll(): void {
+  const check = root.value?.querySelector(".el-table__header .el-table-column--selection .el-checkbox");
+  const box = check?.querySelector("input");
+  if (!check || !box) return;
+  if (box.indeterminate) box.indeterminate = false;
+  for (const el of [check, ...check.querySelectorAll("*")]) {
+    if (el.classList.contains("is-indeterminate")) el.classList.remove("is-indeterminate");
+    if (el.getAttribute("aria-checked") !== "mixed") continue;
+    for (const name of el === box ? ["aria-checked"] : MIXED) el.removeAttribute(name);
+  }
+}
+let watcher: MutationObserver | undefined;
+onMounted(() => {
+  if (!root.value) return;
+  watcher = new MutationObserver((records) => {
+    if (records.some((r) => r.type === "childList")) {
+      nameChecks();
+      emit("rows-drawn");
+    }
+    flatSelectAll();
+  });
+  watcher.observe(root.value, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", ...MIXED],
+  });
+  nameChecks();
+  flatSelectAll();
+});
+onBeforeUnmount(() => watcher?.disconnect());
 
 // rows that left the list (a reload, another page) drop out of the phone list's selection, as the table does; with
 // keepSelection the ticks stay and nothing is reported, as with the table's reserve-selection
@@ -217,6 +288,7 @@ function onListKey(row: T, event: KeyboardEvent) {
 
 <template>
   <div
+    ref="root"
     class="data-table"
     :class="{
       'is-refreshing': refreshing,
@@ -231,25 +303,30 @@ function onListKey(row: T, event: KeyboardEvent) {
       <div class="data-table__error" role="alert">
         <IconAlertCircle class="data-table__error-icon" :size="18" />
         <span class="data-table__error-text">{{ props.error }}</span>
-        <el-button type="danger" plain size="small" @click="emit('retry')">Retry</el-button>
+        <button type="button" class="data-table__retry" @click="emit('retry')">Retry</button>
       </div>
     </div>
-    <table v-else-if="skeleton" class="data-table__skeleton" aria-hidden="true">
+    <table
+      v-else-if="skeleton"
+      class="data-table__skeleton"
+      :class="{ 'is-drawn': props.skeletonColumns }"
+      aria-hidden="true"
+    >
       <thead>
         <tr>
-          <th v-for="c in visibleColumns" :key="c.key" :class="{ 'is-right': c.align === 'right' }">{{ c.label }}</th>
+          <th v-for="c in skeletonCols" :key="c.key" :class="{ 'is-right': c.align === 'right' }">{{ c.label }}</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="r in props.skeletonRows" :key="r">
-          <td v-for="(c, ci) in visibleColumns" :key="c.key" :class="{ 'is-right': c.align === 'right' }">
+          <td v-for="(c, ci) in skeletonCols" :key="c.key" :class="{ 'is-right': c.align === 'right' }">
             <i v-if="ci === 0" class="skel skel--time" />
             <template v-else-if="ci === 1">
-              <i :class="`skel skel--title-${r % 5}`" />
+              <i :class="`skel skel--title-${(r - 1) % 5}`" />
               <i class="skel skel--sub" />
             </template>
-            <i v-else-if="ci === visibleColumns.length - 1" class="skel skel--net" />
-            <i v-else :class="`skel skel--pill-${r % 5}`" />
+            <i v-else-if="ci === skeletonCols.length - 1" class="skel skel--net" />
+            <i v-else :class="`skel skel--pill-${(r - 1) % 5}`" />
           </td>
         </tr>
       </tbody>
@@ -308,7 +385,7 @@ function onListKey(row: T, event: KeyboardEvent) {
       <el-table-column
         v-if="props.selectable"
         type="selection"
-        :width="isTablet ? 44 : 40"
+        :width="isTablet ? 44 : 56"
         :reserve-selection="props.keepSelection"
         :selectable="(row: T | DayRow) => !isDayRow(row)"
       />
@@ -374,10 +451,6 @@ function onListKey(row: T, event: KeyboardEvent) {
   overflow-x: auto;
   /* the table's own minimum width must not widen a grid or flex parent: it scrolls here instead */
   contain: inline-size;
-  --sel-w: 40px;
-}
-.data-table.is-tablet {
-  --sel-w: 44px;
 }
 .data-table :deep(.el-table) {
   min-width: 640px;
@@ -406,7 +479,7 @@ function onListKey(row: T, event: KeyboardEvent) {
   font-weight: 500;
 }
 :deep(.el-table th.el-table__cell > .cell) {
-  line-height: 38px;
+  line-height: 20px;
 }
 :deep(.el-table td.el-table__cell) {
   height: 56px;
@@ -425,13 +498,18 @@ function onListKey(row: T, event: KeyboardEvent) {
 :deep(.el-table .el-table__cell:last-child .cell) {
   padding-right: 16px;
 }
-/* the selection cell: 15 px box, 16 px in from the edge */
+/* the selection cell: the browser's 15 px box on the line of the text, 16 px in from the edge, as the canvas puts a
+   bare input in the cell (14 px text in the body, 12 px in the header) */
 :deep(.el-table .el-table-column--selection .cell) {
-  display: flex;
-  align-items: center;
+  display: block;
+  height: auto;
   padding: 0 0 0 16px;
+  line-height: 20px;
 }
-:deep(.el-table .is-numeric .cell) {
+:deep(.el-table td.el-table-column--selection .cell) {
+  font-size: 14px;
+}
+:deep(.el-table td.is-numeric .cell) {
   font-variant-numeric: tabular-nums;
 }
 :deep(.el-table .el-table__row:hover > td.el-table__cell) {
@@ -468,12 +546,6 @@ function onListKey(row: T, event: KeyboardEvent) {
   --row-tone-color: var(--rl-ok);
   --row-tone-fill: transparent;
 }
-:deep(.el-table .row-tone-fill) {
-  --el-table-tr-bg-color: var(--row-tone-fill);
-}
-:deep(.el-table .is-selected) {
-  --el-table-tr-bg-color: var(--rl-primary-soft);
-}
 :deep(.el-table .is-selected > td.el-table__cell) {
   background: var(--rl-primary-soft);
 }
@@ -495,33 +567,22 @@ function onListKey(row: T, event: KeyboardEvent) {
 :deep(.el-table .row-tone-fill:hover > td.el-table__cell) {
   background: var(--rl-raised);
 }
-/* day header rows: a label across the table; the (empty) selection cell is hidden and the label reaches back over it
-   so it starts 16 px from the edge */
-:deep(.el-table .is-day > td.el-table__cell),
-:deep(.el-table .is-day:hover > td.el-table__cell) {
+/* day header rows: one cell across the whole table (daySpanMethod), the label 16 px in, as the canvas's
+   `th colspan` with `padding 14px 16px 6px`. `tr` keeps these rules above a view's own cell padding */
+:deep(.el-table tr.is-day > td.el-table__cell),
+:deep(.el-table tr.is-day:hover > td.el-table__cell) {
   height: auto;
-  padding: 14px 0 6px;
-  overflow: visible;
+  padding: 0;
   background: transparent;
   cursor: default;
 }
-:deep(.el-table .is-day .el-table-column--selection .cell) {
-  visibility: hidden;
-}
-:deep(.el-table .is-day .cell) {
-  line-height: 18px;
-  padding: 0 16px;
-  overflow: visible;
-}
-.has-selection :deep(.el-table .is-day .data-table__day-label) {
-  margin-left: calc(16px - var(--sel-w));
-}
-.has-selection :deep(.el-table .is-day .el-table__cell:not(:first-child) .cell) {
-  padding-left: 0;
+:deep(.el-table tr.is-day > td.el-table__cell > .cell) {
+  padding: 14px 16px 6px;
+  line-height: 20px;
 }
 .data-table__day-label {
   font-size: 12px;
-  line-height: 18px;
+  line-height: 20px;
   font-weight: 600;
   color: var(--rl-muted);
   white-space: nowrap;
@@ -541,7 +602,20 @@ function onListKey(row: T, event: KeyboardEvent) {
   opacity: 0.6;
   transition: opacity 0.15s;
 }
-/* states */
+/* states: the empty list is the canvas's block (no table header over it, a hairline above it) */
+.data-table[data-state="empty"] :deep(.el-table__header-wrapper) {
+  display: none;
+}
+:deep(.el-table__empty-block) {
+  display: block;
+  min-height: 0;
+  border-top: 1px solid var(--rl-line);
+}
+:deep(.el-table__empty-text) {
+  width: auto;
+  line-height: inherit;
+  color: inherit;
+}
 .data-table__empty {
   display: flex;
   flex-direction: column;
@@ -552,6 +626,7 @@ function onListKey(row: T, event: KeyboardEvent) {
 }
 .data-table__empty-text {
   margin: 0;
+  font-size: 14px;
   color: var(--rl-muted);
 }
 .data-table__error-wrap {
@@ -575,12 +650,23 @@ function onListKey(row: T, event: KeyboardEvent) {
   min-width: 220px;
   color: var(--rl-fg);
 }
-.data-table__error :deep(.el-button) {
+/* Retry: the danger outline, 32 high, 13/500, raised on hover (B-States, error) */
+.data-table__retry {
+  box-sizing: border-box;
   height: 32px;
   padding: 0 14px;
+  border: 1px solid var(--rl-bad);
   border-radius: 10px;
+  background: transparent;
+  color: var(--rl-bad);
+  font: inherit;
   font-size: 13px;
+  line-height: normal;
   font-weight: 500;
+  cursor: pointer;
+}
+.data-table__retry:hover {
+  background: var(--rl-raised);
 }
 /* the skeleton: a table of the same columns, 5 rows of 56 px, flat bars (the canvas draws no shimmer) */
 .data-table__skeleton {
@@ -609,6 +695,9 @@ function onListKey(row: T, event: KeyboardEvent) {
 }
 .data-table__skeleton th.is-right {
   text-align: right;
+}
+.data-table__skeleton.is-drawn th:nth-child(3) {
+  width: 110px;
 }
 .data-table__skeleton td {
   height: 56px;

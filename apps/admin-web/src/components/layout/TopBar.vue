@@ -350,7 +350,6 @@ watch(() => route.name, revealCurrent);
   padding: 0 6px;
   font-size: 11px;
   line-height: 16px;
-  font-weight: 400;
   text-align: left;
   border-radius: 8px;
   color: var(--rl-muted);
@@ -389,6 +388,7 @@ watch(() => route.name, revealCurrent);
   color: var(--rl-fg);
   font: inherit;
   font-size: 13px;
+  line-height: normal;
   cursor: pointer;
 }
 .scope-trigger.is-open {
@@ -406,7 +406,7 @@ watch(() => route.name, revealCurrent);
   justify-content: center;
   width: var(--ctl);
   height: var(--ctl);
-  padding: 0;
+  padding: 1px 6px;
   border: 1px solid var(--rl-line-strong);
   border-radius: 10px;
   background: transparent;
@@ -431,6 +431,7 @@ watch(() => route.name, revealCurrent);
   color: var(--rl-fg);
   font: inherit;
   font-size: 13px;
+  line-height: normal;
   cursor: pointer;
 }
 .account-button.is-open {
@@ -551,10 +552,12 @@ watch(() => route.name, revealCurrent);
   --ctl: 36px;
   --tab-height: 48px;
 }
+/* the browser's own button padding, as the canvas draws it: it squeezes the 30 px avatar to 28 x 30 in the 40 px
+   button (a phone's 44 px button leaves its 32 px avatar whole) */
 .topbar--stacked .account-button {
   width: 40px;
   height: 40px;
-  padding: 0;
+  padding: 1px 6px;
   justify-content: center;
 }
 .topbar--stacked .account-avatar {

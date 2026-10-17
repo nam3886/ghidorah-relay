@@ -69,9 +69,9 @@ describe("daySpanMethod", () => {
   const data = { id: "a" };
   const span = daySpanMethod(6, 1);
 
-  it("on a day row: column 0 stays one empty cell, column 1 spans the rest, the others vanish", () => {
-    expect(span({ row: day, columnIndex: 0 })).toEqual([1, 1]);
-    expect(span({ row: day, columnIndex: 1 })).toEqual([1, 5]);
+  it("on a day row: the selection cell is not drawn, column 1 spans every column, the others vanish", () => {
+    expect(span({ row: day, columnIndex: 0 })).toEqual([0, 0]);
+    expect(span({ row: day, columnIndex: 1 })).toEqual([1, 6]);
     for (const i of [2, 3, 4, 5]) expect(span({ row: day, columnIndex: i })).toEqual([0, 0]);
   });
 

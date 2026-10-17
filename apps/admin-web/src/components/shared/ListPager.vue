@@ -139,7 +139,7 @@ function goto(page: number): void {
   color: var(--rl-fg);
   font: inherit;
   font-size: 13px;
-  font-variant-numeric: tabular-nums;
+  line-height: normal;
   cursor: pointer;
 }
 .pager__step {
@@ -149,9 +149,12 @@ function goto(page: number): void {
   color: var(--rl-faint);
   cursor: default;
 }
+/* a page number is drawn with no font size or padding of its own: the browser's button ones, 13.33 px and 1px 6px */
 .pager__page {
   min-width: 32px;
-  padding: 0;
+  padding: 1px 6px;
+  font-size: 13.3333px;
+  font-variant-numeric: tabular-nums;
 }
 .pager__page.is-wide {
   min-width: 40px;

@@ -294,12 +294,14 @@ SHELL_FAILED = "FAILED tests/unit/app-shell.spec.ts > the shell > "
 @mutation(BANNER, '<router-link class="banner-link"', '<router-link v-if="stats.openGroups > 0" class="banner-link"',
           expect=SHELL_FAILED + "with live conditions only, says Needs attention and still offers the link to Alerts")
 @mutation(BANNER, "Review in Alerts", "Review in alerts",
-          expect=SHELL_FAILED + "shows the live alerts and the open group count, 200 as 200+")
+          expect=SHELL_FAILED + "shows the open group count and words the first group")
+@mutation(BANNER, "  if (stats.firstGroup) return groupSentence(stats.firstGroup, stats.firstReply);\n", "",
+          expect=SHELL_FAILED + "shows the open group count and words the first group")
+@mutation(BANNER, "groupSentence(stats.firstGroup, stats.firstReply)", "groupSentence(stats.firstGroup)",
+          expect=SHELL_FAILED + "quotes the newest reply as it was stored")
 @mutation(BANNER, "return rest.length ? `${first.message} (+${rest.length} more)` : first.message;",
           "return first.message;", expect=SHELL_FAILED + "with several live conditions shows the first and the count "
                                                            "of the rest")
-@mutation(BANNER, "if (!first) return \"\";", "if (!first) return \"x\";",
-          expect=SHELL_FAILED + "draws no detail when only open groups exist")
 @mutation(BANNER, "background: var(--rl-warn-bg);", "background: var(--rl-bad-bg);",
           expect=SHELL_FAILED + "draws the banner with a warn fill and no side border")
 @mutation(f"{SRC}/components/layout/AppShell.vue", "() => notify.clear(),", "() => undefined,",

@@ -22,6 +22,8 @@ PICK_SPEC = "tests/unit/jobs/selection.spec.ts"
 TEXT_SPEC = "tests/unit/jobs/job-text.spec.ts"
 API_SPEC = "tests/unit/jobs/jobs-api.spec.ts"
 VIEW_SPEC = "tests/unit/jobs/jobs-view.spec.ts"
+GROWS = "on a desktop the Key column grows to its longest value up to 120 px, and Job gives up the room"
+AUTO = f"{SRC}/components/jobs/auto-columns.ts"
 
 # the start of every failed-test line, by spec (the describe and the title follow)
 FG = "FAILED " + PAGING_SPEC + " > "
@@ -29,8 +31,18 @@ FP = "FAILED " + PICK_SPEC + " > "
 FT = "FAILED " + TEXT_SPEC + " > "
 FA = "FAILED " + API_SPEC + " > "
 FV = "FAILED " + VIEW_SPEC + " > "
+TODAY = (FV + "time zones > today's header counts its jobs on this page and says shown, an earlier day says its "
+         "total, and one job is 1 job")
 TOTALS = (FV + "time zones > asks for the day totals in the zone of the browser, exactly as the browser reports it ")
 JOB_ROW = f"{SRC}/components/jobs/job-row.ts"
+
+
+# ---- the failed load of the list---------------------------------------------------------------------------------
+@mutation(TEXT, "the relay answered ${err.status} (${said})", "the relay answered (${said})",
+          expect=FT + "the failed load of the list > says what failed and what the relay answered, as drawn")
+@pytest.mark.web_unit
+def test_the_failed_load_of_the_list_is_worded_as_drawn():
+    vitest(TEXT_SPEC)
 
 
 # ---- the offset math of the pager---------------------------------------------------------------------------------
@@ -94,6 +106,8 @@ def test_the_bulk_toasts_and_the_progress_bar_keep_their_rules():
 
 
 # ---- the Jobs view------------------------------------------------------------------------------------------------
+AT_REST = (FV + "selection > with nothing ticked the toolbar says 0 selected and has no bulk buttons; a tick shows "
+                "them, and the count follows")
 TICKED = FV + "bulk regenerate > sends the ticked ids, says made, already made and failed, and clears the ticks"
 KEEPS = (FV + "bulk regenerate > keeps the selection after a failure that is safe to retry, "
          "and the retry sends the same ids")
@@ -129,20 +143,24 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
 @mutation(VIEW, "const out = await bulkRecheck(sent);", f"const out = await bulkRecheck({ALL_IDS});",
           expect=FV + "bulk re-check > posts the ticked ids in table order, says how many, and clears the ticks")
 @mutation(VIEW, ':disabled="!ids.length || rechecking"', ':disabled="rechecking"',
-          expect=FV + "selection > the bulk buttons stay off until a job is ticked, and the count follows")
+          expect=AT_REST)
 @mutation(VIEW, "Regenerate ${ids.value.length} job(s)? ", "Regenerate job(s)? ",
           expect=FV + "bulk regenerate > asks first, naming the count, today's price and the charge")
 @mutation(VIEW, "picked.value = new Set(rows.map((r) => r.id));", "picked.value = picked.value;",
-          expect=FV + "selection > the bulk buttons stay off until a job is ticked, and the count follows")
-@mutation(VIEW, ':label="keyName(k)"', ':label="k.label"',
+          expect=AT_REST)
+@mutation(VIEW, "label: keyName(k) }", "label: k.label }",
           expect=FV + "filters > every key option is readable: its label, else its prefix, else the start of its id")
-@mutation(VIEW, '<template #cell-key="{ row }">{{ row.key_label || shortId(row.key_id) }}</template>',
-          '<template #cell-key="{ row }">{{ row.key_label }}</template>',
-          expect=FV + "filters > a job whose key has no label shows the start of the key id in the Key column")
+@mutation(VIEW, '<span class="jobs__key jobs__one-line">{{ keyLabel(row) }}</span>',
+          '<span class="jobs__key jobs__one-line">{{ row.key_label }}</span>',
+          expect=FV + "filters > a job whose key has no label shows the key as the Key filter names it")
+@mutation(VIEW, "keyNames.value.get(job.key_id) || ", "",
+          expect=FV + "filters > a job whose key has no label shows the key as the Key filter names it")
+@mutation(VIEW, "label: s.charAt(0).toUpperCase() + s.slice(1)", "label: s",
+          expect=FV + "filters > the status options read as drawn")
 @mutation(VIEW, '(job.status === "failed" ? "bad" : undefined)',
           '(job.status === "failed" || job.status === "unknown" ? "bad" : undefined)',
           expect=FV + "the list > a failed job is tinted and an unknown one is not")
-@mutation(VIEW, "note: (n) => `${n} jobs shown`", "note: (n) => `${n} jobs`",
+@mutation(VIEW, "note: (n) => `${jobs(n)} shown`", "note: (n) => jobs(n)",
           expect=FV + "the list > groups the rows under one header per day, with the jobs shown for that day")
 @mutation(VIEW, "  dayTotals.value = {};\n  void load(0);", "  void load(0);",
           expect=FV + "time zones > a change of the status drops the old day totals at once, "
@@ -150,7 +168,8 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
 @mutation(VIEW, "      tz: zone,\n", "", expect=TOTALS)
 @mutation(VIEW, "dayTotals.value = out.day_totals ?? {};", "dayTotals.value = {};", expect=TOTALS)
 @mutation(VIEW, "dayKey((first as JobSummary).created_ms, zone)", 'dayKey(0, "UTC")', expect=TOTALS)
-@mutation(VIEW, '${total} ${total === 1 ? "job" : "jobs"}', "${total} jobs", expect=TOTALS)
+@mutation(VIEW, '`${n} ${n === 1 ? "job" : "jobs"}`', "`${n} jobs`", expect=TODAY)
+@mutation(VIEW, "if (day !== today && total !== undefined)", "if (total !== undefined)", expect=TODAY)
 @mutation(JOB_ROW, "return Intl.DateTimeFormat().resolvedOptions().timeZone;", 'return "UTC";', expect=TOTALS)
 @mutation(JOB_ROW, 'new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(ms)',
           'new Intl.DateTimeFormat("en-CA", { timeZone: "UTC" }).format(ms)',
@@ -159,9 +178,22 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
 @mutation(VIEW, 'v-show="!isPhone || ids.length"', 'v-show="true"',
           expect=FV + "selection > a phone shows the bulk bar only while a job is ticked, "
                       "with the count and both buttons")
+@mutation(VIEW, '<el-button v-show="ids.length" :disabled', "<el-button :disabled", expect=AT_REST)
+@mutation(VIEW, '<RegenerateControl\n            v-show="ids.length"\n', "<RegenerateControl\n", expect=AT_REST)
+@mutation(VIEW, 'v-show="items.length || ids.length" class="num jobs__count"',
+          'v-show="ids.length" class="num jobs__count"', expect=AT_REST)
+@mutation(VIEW, 'v-show="items.length || ids.length" class="num jobs__count"', 'class="num jobs__count"',
+          expect=FV + "the list > an empty list has no count in its toolbar, as the no-results card draws it")
 @mutation(VIEW, '"Every generation job across keys, by day."', '"Every generation job across keys, grouped by day."',
           expect=FV + "the page head and the 24-hour band > a phone says 'by day' and has an icon-only Refresh "
                       "that names the update time")
+@mutation(VIEW, "if (!sameColumns(next, columnWidths.value)) columnWidths.value = next;", "columnWidths.value = null;",
+          expect=GROWS)
+@mutation(VIEW, '        :style="columnVars"\n', "", expect=GROWS)
+@mutation(VIEW, '        @rows-drawn="measureColumns"\n', "", expect=GROWS)
+@mutation(VIEW, "    if (body) widthWatch?.observe(body);\n", "",
+          expect=FV + "the list > the widths follow the table element's own width")
+@mutation(f"{SRC}/components/shared/DataTable.vue", '      emit("rows-drawn");\n', "", expect=GROWS)
 @pytest.mark.web_unit
 def test_the_jobs_view_pages_filters_selects_and_sends_what_is_ticked():
     vitest(VIEW_SPEC)
@@ -255,3 +287,16 @@ def test_the_band_draws_titles_scales_and_labels_the_hours_and_the_ledger_from_t
 @pytest.mark.web_unit
 def test_the_row_text_clock_running_steps_and_net_points():
     vitest(ROW_SPEC)
+
+
+@mutation(AUTO, "Math.min(COLUMN_CAP, need.key)", "need.key", expect="neither column grows over the cap")
+@mutation(AUTO, "Math.max(drawn.account, Math.min(COLUMN_CAP, need.account))", "Math.min(COLUMN_CAP, need.account)",
+          expect="values that fit their drawn widths move nothing")
+@mutation(AUTO, "Math.max(drawn.key, Math.min(COLUMN_CAP, need.key))", "Math.min(COLUMN_CAP, need.key)",
+          expect="a drawn width over the cap is kept")
+@mutation(AUTO, "job: drawn.job - (account - drawn.account) - (key - drawn.key)", "job: drawn.job",
+          expect="Job gives up exactly that room")
+@mutation(AUTO, "Math.abs(a.job - b.job) < 0.5", "Math.abs(a.job - b.job) < 5", expect="within half a pixel")
+@pytest.mark.web_unit
+def test_the_account_and_key_columns_grow_to_their_values_up_to_the_cap():
+    vitest("tests/unit/jobs/auto-columns.spec.ts")

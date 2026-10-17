@@ -11,8 +11,11 @@ absolute sample time."""
 import json
 
 from accountkit import new_account
+from apikit import ADMIN_PASSWORD
 from jobkit import key as new_key
 from test_admin_alert_groups import plant_unclear
+
+from relay_core.admin import users
 
 NOW = "2026-10-15T20:55:02+07:00"
 PROVIDER = "dola"               # the one provider of the boards (conftest names the live server's provider after it)
@@ -44,6 +47,14 @@ IN_USE_LEASE = ("INSERT INTO leases (account_id, purpose, owner, until, hard_unt
 
 ALERT_ACCOUNTS_LOW = 8          # the pool alert reads "<provider> has 7 usable accounts (alert below 8)"
 
+BOARD_USER = "admin"            # the signed-in user the boards draw (avatar A, "admin")
+
+
+def board_user(live):
+    """The boards' user, with the test user's password: an entry with `user=BOARD_USER` signs in as it, so the top bar
+    reads "admin" and nothing right of the tabs moves by the width of another name."""
+    live.call(users.create_user(live.env.pool, BOARD_USER, ADMIN_PASSWORD))
+
 
 def set_setting(db, live, key, value):
     """Store a setting the way the admin does (row, notify) and make the running server's cache read it now."""
@@ -60,8 +71,9 @@ def plant_capacity(db, account, pool, tz, left):
 
 
 def shell_seed(db, live):
-    """What the top bar counts: 4 jobs in progress, 7 of 8 accounts usable, 1 open alert group."""
+    """What the top bar counts: 4 jobs in progress, 7 of 8 accounts usable, 1 open alert group; and its user, admin."""
     set_setting(db, live, "alert_accounts_low", ALERT_ACCOUNTS_LOW)
+    board_user(live)
     keys = [new_key(db, wallets=WALLETS) for _ in KEYS]
     for label, state, asleep, in_use in ACCOUNTS:
         account = new_account(db, label=label, state=state, checked=True, provider=PROVIDER)

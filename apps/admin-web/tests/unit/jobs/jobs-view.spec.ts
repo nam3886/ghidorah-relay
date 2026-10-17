@@ -1,3 +1,4 @@
+import type { AlertGroup } from "@/api/alerts";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { nextTick } from "vue";
@@ -32,7 +33,13 @@ vi.mock("@/api/jobs", async (importOriginal) => {
 });
 vi.mock("@/api/shell", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api/shell")>();
-  return { ...actual, getHourlyStats: vi.fn(), getStats: vi.fn(), getOpenAlertGroups: vi.fn() };
+  return {
+    ...actual,
+    getHourlyStats: vi.fn(),
+    getStats: vi.fn(),
+    getOpenAlertGroups: vi.fn(),
+    getNewestReply: vi.fn(),
+  };
 });
 vi.mock("@/components/shared/confirm-dialog", () => ({ confirmDialog: vi.fn() }));
 vi.mock("@/lib/notify", () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
@@ -158,7 +165,7 @@ async function tickAll(w: VueWrapper, on: boolean, shown: string): Promise<void>
 const button = (w: VueWrapper, text: string) =>
   w.findAll("button").find((b) => b.text() === text || b.attributes("aria-label")?.startsWith(`${text},`))!;
 const count = (w: VueWrapper) => w.find(".jobs__count").text();
-const selects = (w: VueWrapper) => w.findAllComponents({ name: "ElSelect" });
+const selects = (w: VueWrapper) => w.findAllComponents({ name: "FilterSelect" });
 const lastQuery = () => listJobs.mock.lastCall![0];
 
 // matchMedia answering by the width named in the query: the phone edge is 767.x, the tablet band ends at 1279.x
@@ -251,6 +258,98 @@ describe("the list", () => {
     const code = row.find(".jobs__code");
     expect(code.text()).toBe("render.deadline");
     expect(code.find("[data-tone]").exists()).toBe(false);
+  });
+
+  it("on a desktop the Key column grows to its longest value up to 120 px, and Job gives up the room", async () => {
+    // happy-dom lays nothing out: a key value whose text is 150 px wide, in a 1302 px table
+    const text = vi.spyOn(Range.prototype, "getBoundingClientRect").mockImplementation(function (this: Range) {
+      const inKey = (this.startContainer as Element).classList?.contains("jobs__key");
+      return { width: inKey ? 150 : 0 } as DOMRect;
+    });
+    const saved = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth");
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, get: () => 1302 });
+    try {
+      const { w } = await open();
+      await flushPromises();
+      const vars = (w.get(".jobs__table").element as HTMLElement).style;
+      expect(vars.getPropertyValue("--jobs-col-key")).toBe("120px");
+      expect(parseFloat(vars.getPropertyValue("--jobs-col-account"))).toBeCloseTo((1302 * 6.5438) / 100, 6);
+      expect(parseFloat(vars.getPropertyValue("--jobs-col-job"))).toBeCloseTo(
+        (1302 * 23.3257) / 100 - (120 - (1302 * 7.4347) / 100),
+        6,
+      );
+    } finally {
+      text.mockRestore();
+      if (saved) Object.defineProperty(HTMLElement.prototype, "offsetWidth", saved);
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetWidth;
+    }
+  });
+
+  it("the widths follow the table element's own width: first laid out narrow, then at the card's width", async () => {
+    // Element Plus lays the table out at its columns' minimum widths (1084 px) before the card's (1302 px). A key
+    // value of 84.5 px ("Partner C" with its padding; no stylesheet here) overflows the drawn Key at 1084 and fits it
+    // at 1302, where the drawn shares come back.
+    let width = 1084;
+    const watched: Array<[Element, () => void]> = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        callback: () => void;
+        constructor(callback: () => void) {
+          this.callback = callback;
+        }
+        observe(el: Element) {
+          watched.push([el, this.callback]);
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    const text = vi.spyOn(Range.prototype, "getBoundingClientRect").mockImplementation(function (this: Range) {
+      const inKey = (this.startContainer as Element).classList?.contains("jobs__key");
+      return { width: inKey ? 84.5 : 0 } as DOMRect;
+    });
+    const saved = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth");
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, get: () => width });
+    try {
+      const { w } = await open();
+      await flushPromises();
+      const vars = (w.get(".jobs__table").element as HTMLElement).style;
+      const table = w.get(".el-table__body").element;
+      const onTable = watched.filter(([el]) => el === table);
+      expect(onTable).toHaveLength(1);
+      expect(vars.getPropertyValue("--jobs-col-key")).toBe("84.5px");
+      width = 1302;
+      onTable[0]![1]();
+      await flushPromises();
+      expect(vars.getPropertyValue("--jobs-col-key")).toBe("");
+      expect(vars.getPropertyValue("--jobs-col-job")).toBe("");
+    } finally {
+      text.mockRestore();
+      if (saved) Object.defineProperty(HTMLElement.prototype, "offsetWidth", saved);
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetWidth;
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        },
+      );
+    }
+  });
+
+  it("values that fit their drawn widths leave the drawn column shares alone", async () => {
+    const { w } = await open();
+    await flushPromises();
+    expect((w.get(".jobs__table").element as HTMLElement).style.getPropertyValue("--jobs-col-key")).toBe("");
+  });
+
+  it("an empty list has no count in its toolbar, as the no-results card draws it", async () => {
+    listJobs.mockResolvedValue(page([]));
+    const { w } = await open();
+    expect(w.get(".jobs__count").isVisible()).toBe(false);
+    expect(button(w, "Re-check").isVisible()).toBe(false);
   });
 
   it("says there are no jobs for an empty list, and that no job matches a filter", async () => {
@@ -373,11 +472,11 @@ describe("filters", () => {
 
   it("shows All, not the placeholder, while nothing is filtered, after the word Status or Key", async () => {
     const { w } = await open();
-    const shown = (i: number) => selects(w)[i]!.find(".el-select__placeholder").text();
+    const shown = (i: number) => selects(w)[i]!.find(".filter-select__value").text();
     expect(shown(0)).toBe("All");
     expect(shown(1)).toBe("All");
-    expect(selects(w)[0]!.find(".jobs__filter-label").text()).toBe("Status");
-    expect(selects(w)[1]!.find(".jobs__filter-label").text()).toBe("Key");
+    expect(selects(w)[0]!.find(".filter-select__label").text()).toBe("Status");
+    expect(selects(w)[1]!.find(".filter-select__label").text()).toBe("Key");
   });
 
   it("choosing All again sends no filter, and the label follows a real choice", async () => {
@@ -386,14 +485,14 @@ describe("filters", () => {
     selects(w)[1]!.vm.$emit("update:modelValue", "k1");
     await flushPromises();
     expect(lastQuery()).toEqual(query({ status: "failed", keyId: "k1" }));
-    expect(selects(w)[0]!.find(".el-select__placeholder").text()).toBe("failed");
-    expect(selects(w)[1]!.find(".el-select__placeholder").text()).toBe("key-one");
+    expect(selects(w)[0]!.find(".filter-select__value").text()).toBe("Failed");
+    expect(selects(w)[1]!.find(".filter-select__value").text()).toBe("key-one");
     selects(w)[0]!.vm.$emit("update:modelValue", "__all__");
     selects(w)[1]!.vm.$emit("update:modelValue", "__all__");
     await flushPromises();
     expect(lastQuery()).toEqual(query());
-    expect(selects(w)[0]!.find(".el-select__placeholder").text()).toBe("All");
-    expect(selects(w)[1]!.find(".el-select__placeholder").text()).toBe("All");
+    expect(selects(w)[0]!.find(".filter-select__value").text()).toBe("All");
+    expect(selects(w)[1]!.find(".filter-select__value").text()).toBe("All");
   });
 
   it("every key option is readable: its label, else its prefix, else the start of its id", async () => {
@@ -406,18 +505,35 @@ describe("filters", () => {
       ],
     });
     const { w } = await open();
-    const options = selects(w)[1]!.findAllComponents({ name: "ElOption" });
-    expect(options.map((o) => o.props("label"))).toEqual(["All", "key-one", "rk_bbbb", "k3", "cccccccc"]);
+    const options = selects(w)[1]!.props("options") as Array<{ label: string }>;
+    expect(options.map((o) => o.label)).toEqual(["All", "key-one", "rk_bbbb", "k3", "cccccccc"]);
   });
 
-  it("a job whose key has no label shows the start of the key id in the Key column", async () => {
+  it("the status options read as drawn: All, then each status with a capital", async () => {
+    const { w } = await open();
+    const options = selects(w)[0]!.props("options") as Array<{ label: string }>;
+    expect(options.map((o) => o.label)).toEqual([
+      "All",
+      "Queued",
+      "Submitting",
+      "Waiting",
+      "Fetching",
+      "Unknown",
+      "Done",
+      "Failed",
+    ]);
+  });
+
+  it("a job whose key has no label shows the key as the Key filter names it: its prefix, else the start of its id", async () => {
+    vi.mocked(api.listKeyOptions).mockResolvedValue({ items: [{ id: "k2", label: "", prefix: "rk_bbbb" }] });
     listJobs.mockResolvedValue({
-      items: [job(A, { key_label: "", key_id: "kkkkkkkk-1234" })],
-      total: 1,
+      items: [job(A, { key_label: "", key_id: "k2" }), job(B, { key_label: "", key_id: "kkkkkkkk-1234" })],
+      total: 2,
       next_cursor: null,
     });
     const { w } = await open();
-    expect(rows(w)[0]!.text()).toContain("kkkkkkkk");
+    expect(rows(w)[0]!.find("td:nth-child(7)").text()).toBe("rk_bbbb");
+    expect(rows(w)[1]!.find("td:nth-child(7)").text()).toBe("kkkkkkkk");
   });
 
   it("a provider scope change reloads with the provider", async () => {
@@ -558,20 +674,25 @@ describe("paging", () => {
 });
 
 describe("selection", () => {
-  it("the bulk buttons stay off until a job is ticked, and the count follows", async () => {
+  it("with nothing ticked the toolbar says 0 selected and has no bulk buttons; a tick shows them, and the count follows", async () => {
     const { w } = await open();
+    const shown = () => [button(w, "Re-check").isVisible(), button(w, "Regenerate…").isVisible()];
+    expect(w.get(".jobs__count").isVisible()).toBe(true);
     expect(count(w)).toBe("0 selected");
+    expect(shown()).toEqual([false, false]);
     expect(button(w, "Re-check").attributes("disabled")).toBeDefined();
     expect(button(w, "Regenerate…").attributes("disabled")).toBeDefined();
     await rowTick(w, 1)!.setValue(true);
     expect(count(w)).toBe("1 selected");
+    expect(shown()).toEqual([true, true]);
     expect(button(w, "Re-check").attributes("disabled")).toBeUndefined();
     expect(button(w, "Regenerate…").attributes("disabled")).toBeUndefined();
     await rowTick(w, 1)!.setValue(false);
     expect(count(w)).toBe("0 selected");
+    expect(shown()).toEqual([false, false]);
   });
 
-  it("a ticked job shows its own box ticked and the select-all box half-ticked, in the same render as the count", async () => {
+  it("a ticked job shows its own box ticked in the same render as the count; the select-all box stays empty", async () => {
     const { w } = await open();
     await rowTick(w, 1)!.setValue(true);
     expect(count(w)).toBe("1 selected");
@@ -579,7 +700,9 @@ describe("selection", () => {
     expect((rowTick(w, 0)!.element as HTMLInputElement).checked).toBe(false);
     expect((rowTick(w, 2)!.element as HTMLInputElement).checked).toBe(false);
     expect(rows(w)[1]!.find(".el-checkbox").classes()).toContain("is-checked");
-    expect(w.find("thead .is-indeterminate").exists()).toBe(true);
+    await flushPromises();
+    const all = selectAll(w).element as HTMLInputElement;
+    expect([all.checked, all.indeterminate]).toEqual([false, false]);
   });
 
   it("select all ticks the page and again clears it", async () => {
@@ -589,14 +712,23 @@ describe("selection", () => {
     await tickAll(w, false, "0 selected");
   });
 
-  it("select all is half-ticked for a part of the page and full when every row is ticked", async () => {
+  it("select all is empty for a part of the page, ticked only when every row is, and a click on a part ticks all", async () => {
     const { w } = await open();
+    const all = selectAll(w).element as HTMLInputElement;
     await rowTick(w, 0)!.setValue(true);
-    expect(w.find("thead .is-indeterminate").exists()).toBe(true);
+    await flushPromises();
+    expect([all.checked, all.indeterminate]).toEqual([false, false]);
+    expect(w.find("thead .is-indeterminate").exists()).toBe(false);
+    expect(w.find("thead [aria-checked='mixed']").exists()).toBe(false);
     await rowTick(w, 1)!.setValue(true);
     await rowTick(w, 2)!.setValue(true);
-    expect(w.find("thead .is-indeterminate").exists()).toBe(false);
-    expect((selectAll(w).element as HTMLInputElement).checked).toBe(true);
+    await flushPromises();
+    expect([all.checked, all.indeterminate]).toEqual([true, false]);
+    await rowTick(w, 2)!.setValue(false);
+    await flushPromises();
+    expect([all.checked, all.indeterminate]).toEqual([false, false]);
+    await tickAll(w, true, "3 selected");
+    expect(all.checked).toBe(true);
   });
 
   it("ticking a box opens nothing; a click on the row, or on its title, opens the job", async () => {
@@ -1139,7 +1271,7 @@ describe("the page head and the 24-hour band", () => {
   });
 
   it("the banner comes after the band and before the list", async () => {
-    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{ kind: "drift" } as AlertGroup] });
     const { w } = await open();
     await button(w, "Refresh").trigger("click");
     await flushPromises();
@@ -1284,6 +1416,21 @@ describe("time zones", () => {
     await flushPromises();
     expect(day(w)).not.toContain("212");
     expect(day(w)).toContain("· 2 jobs shown");
+  });
+
+  it("today's header counts its jobs on this page and says shown, an earlier day says its total, and one job is 1 job", async () => {
+    const now = Date.now();
+    const earlier = now - 2 * 86_400_000;
+    listJobs.mockResolvedValue({
+      items: [job(A, { created_ms: now }), job(B, { created_ms: earlier })],
+      total: 2,
+      next_cursor: null,
+      day_totals: { [dayKeyOf(now)]: 212, [dayKeyOf(earlier)]: 1 },
+    });
+    const { w } = await open();
+    const days = w.findAll('[data-testid="day-row"]').map((d) => d.text());
+    expect(days[0]).toMatch(/^Today · .+ · 1 job shown$/);
+    expect(days[1]).toMatch(/ · 1 job$/);
   });
 
   it("a day the server gave no total for says how many of its jobs are shown", async () => {

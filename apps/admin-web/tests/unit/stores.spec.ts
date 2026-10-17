@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AlertGroup } from "@/api/alerts";
 import * as shell from "@/api/shell";
 import type { Stats } from "@/api/shell";
 import { notify } from "@/lib/notify";
@@ -16,6 +17,7 @@ vi.mock("@/api/shell", () => ({
   getModels: vi.fn(),
   getStats: vi.fn(),
   getOpenAlertGroups: vi.fn(),
+  getNewestReply: vi.fn(),
 }));
 vi.mock("@/lib/notify", () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
@@ -28,6 +30,21 @@ function deferred<T>() {
   });
   return { promise, resolve, reject };
 }
+
+const group = (over: Partial<AlertGroup> = {}): AlertGroup => ({
+  kind: "unclear_reply",
+  group: "g1",
+  title: "sorry, i can't create that video",
+  severity: "warning",
+  provider: "dola",
+  first_ms: 1,
+  last_ms: 2,
+  count: 4,
+  open_count: 4,
+  keys: 3,
+  newest_id: 9,
+  ...over,
+});
 
 const statsOf = (done: number): Stats => ({
   jobs: { queued: 0, in_progress: 0, done, failed: 0, pre_job_failures_24h: 0 },
@@ -172,7 +189,7 @@ describe("scope store", () => {
 describe("stats store", () => {
   it("asks for the stats of the chosen provider and the open groups", async () => {
     vi.mocked(shell.getStats).mockResolvedValue(statsOf(7));
-    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}, {}] });
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [group(), group({ group: "g2" })] });
     useScopeStore().provider = "dola";
     const stats = useStatsStore();
     await stats.refresh();
@@ -180,6 +197,28 @@ describe("stats store", () => {
     expect(stats.data?.jobs.done).toBe(7);
     expect(stats.openGroups).toBe(2);
     expect(stats.loading).toBe(false);
+  });
+
+  it("keeps the first group and its newest reply, read again only when the group or its newest row changes", async () => {
+    vi.mocked(shell.getStats).mockResolvedValue(statsOf(1));
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [group()] });
+    vi.mocked(shell.getNewestReply).mockResolvedValue("Sorry, I can’t create that video");
+    const stats = useStatsStore();
+    await stats.refresh();
+    expect(stats.firstGroup?.group).toBe("g1");
+    expect(stats.firstReply).toBe("Sorry, I can’t create that video");
+    await stats.refresh();
+    expect(shell.getNewestReply).toHaveBeenCalledTimes(1);
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [group({ newest_id: 10 })] });
+    vi.mocked(shell.getNewestReply).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await stats.refresh();
+    expect(shell.getNewestReply).toHaveBeenCalledTimes(2);
+    expect(stats.firstReply).toBeNull();
+    expect(notify.error).not.toHaveBeenCalled();
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [group({ kind: "clamp" })] });
+    await stats.refresh();
+    expect(shell.getNewestReply).toHaveBeenCalledTimes(2);
+    expect(stats.firstReply).toBeNull();
   });
 
   it("drops a slow first answer that arrives after the second", async () => {
@@ -215,7 +254,7 @@ describe("stats store", () => {
   it("an answer that arrives after sign-out is dropped and the data is cleared", async () => {
     const slow = deferred<Stats>();
     vi.mocked(shell.getStats).mockReturnValue(slow.promise);
-    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [group()] });
     const stats = useStatsStore();
     const pending = stats.refresh();
     useAuthStore().signOut();

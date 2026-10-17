@@ -84,7 +84,7 @@ const { isPhone, isTablet } = useBreakpoint();
 }
 .page-header__meta {
   font-size: 12px;
-  line-height: 16px;
+  line-height: 20px;
   color: var(--rl-faint);
   font-variant-numeric: tabular-nums;
 }

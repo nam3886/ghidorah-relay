@@ -78,18 +78,19 @@ describe("DataTable day rows (table)", () => {
     expect(w.findAll("tbody tr.is-day")).toHaveLength(2);
   });
 
-  it("the header cell spans every column but the first (the empty selection cell); no other cell of the row stays", async () => {
+  it("the header is one cell across every column, the selection column too; the day row has no other cell", async () => {
     const w = await table({ selectable: true });
     const dayRow = w.find("tbody tr.is-day");
-    const spanned = dayRow.findAll("td[colspan='3']");
+    expect(dayRow.findAll("td")).toHaveLength(1);
+    const spanned = dayRow.findAll("td[colspan='4']");
     expect(spanned).toHaveLength(1);
     expect(spanned[0]!.find("[data-testid='day-row']").exists()).toBe(true);
-    expect(dayRow.find("td .el-checkbox").exists()).toBe(true);
+    expect(dayRow.find(".el-checkbox").exists()).toBe(false);
   });
 
-  it("an Actions column counts: the header spans the data columns and the actions", async () => {
+  it("an Actions column counts: the header spans the selection, the data columns and the actions", async () => {
     const w = await table({ selectable: true }, { actions: "<button>x</button>" });
-    expect(w.find("tbody tr.is-day td[colspan='4']").exists()).toBe(true);
+    expect(w.find("tbody tr.is-day td[colspan='5']").exists()).toBe(true);
   });
 
   it("without a selection column the header cell is the first one and spans all", async () => {
@@ -139,13 +140,20 @@ describe("DataTable day rows (table)", () => {
 });
 
 describe("DataTable selection with day rows", () => {
-  it("every day row has a disabled checkbox, hidden by its row class; data rows are enabled", async () => {
+  it("a day row cannot be selected, not even by select all inside the table; every data row can", async () => {
     const w = await table({ selectable: true });
-    const day = w.findAll("tbody tr.is-day");
-    expect(day).toHaveLength(2);
-    for (const tr of day) expect(tr.find(".el-checkbox").classes()).toContain("is-disabled");
+    expect(w.findAll("tbody tr.is-day")).toHaveLength(2);
     for (const tr of w.findAll("tbody tr:not(.is-day)"))
       expect(tr.find(".el-checkbox").classes()).not.toContain("is-disabled");
+    const el = w.findComponent({ name: "ElTable" }).vm as unknown as {
+      toggleAllSelection: () => void;
+      getSelectionRows: () => unknown[];
+    };
+    el.toggleAllSelection();
+    await new Promise((r) => setTimeout(r, 100));
+    await flushPromises();
+    expect(el.getSelectionRows()).toHaveLength(3);
+    expect(el.getSelectionRows().some(isDayRow)).toBe(false);
   });
 
   it("select all ticks the job rows only: selection-change carries job ids and never a day row", async () => {
@@ -174,10 +182,42 @@ describe("DataTable selection with day rows", () => {
     expect(w.findAll("tbody tr.is-day .el-checkbox.is-checked")).toHaveLength(0);
   });
 
-  it("clicking a day row's checkbox changes nothing", async () => {
+  it("names every box as drawn: the header box selects all on the page, a row's box is selectLabel(row)", async () => {
+    const w = await table({ selectable: true, selectLabel: (r: { id: string }) => `Select job ${r.id}` });
+    await flushPromises();
+    expect(w.find("thead input[type='checkbox']").attributes("aria-label")).toBe("Select all on this page");
+    const boxes = w.findAll("tbody tr:not(.is-day) input[type='checkbox']");
+    expect(boxes.map((b) => b.attributes("aria-label"))).toEqual(["Select job a", "Select job b", "Select job c"]);
+    // a new row (drawn by the table after a reload) is named too
+    const fresh = [{ ...jobs[0]!, id: "d" }, ...jobs.slice(1)];
+    await w.setProps({ rows: groupByDay(fresh, { at: (j) => j.ms, now: NOW }).items });
+    await flushPromises();
+    await new Promise((r) => setTimeout(r, 0));
+    const after = w.findAll("tbody tr:not(.is-day) input[type='checkbox']");
+    expect(after.map((b) => b.attributes("aria-label"))).toEqual(["Select job d", "Select job b", "Select job c"]);
+  });
+
+  it("the select-all box is never mixed: empty while a part of the page is ticked, ticked when all of it is", async () => {
     const w = await table({ selectable: true });
-    await w.find("tbody tr.is-day .el-checkbox").trigger("click");
-    await w.find("tbody tr.is-day .el-checkbox__input").trigger("click");
+    const all = w.find("thead input[type='checkbox']").element as HTMLInputElement;
+    (w.findAll("tbody tr:not(.is-day) input[type='checkbox']")[0]!.element as HTMLInputElement).click();
+    await flushPromises();
+    expect(lastIds(w)).toEqual(["a"]);
+    expect([all.checked, all.indeterminate]).toEqual([false, false]);
+    expect(w.find("thead .is-indeterminate").exists()).toBe(false);
+    expect(w.find("thead [aria-checked='mixed']").exists()).toBe(false);
+    // a click on the part-ticked page ticks it whole, as Element Plus does
+    all.click();
+    await new Promise((r) => setTimeout(r, 100));
+    await flushPromises();
+    expect(lastIds(w)).toEqual(["a", "b", "c"]);
+    expect([all.checked, all.indeterminate]).toEqual([true, false]);
+  });
+
+  it("a day row has no checkbox, and a click on it changes nothing", async () => {
+    const w = await table({ selectable: true });
+    expect(w.find("tbody tr.is-day input[type='checkbox']").exists()).toBe(false);
+    await w.find("tbody tr.is-day td").trigger("click");
     expect(w.emitted("selection-change")).toBeUndefined();
   });
 
@@ -235,10 +275,10 @@ describe("DataTable tablet and opt-in props", () => {
     expect(plain.find(".data-table__main").classes()).not.toContain("mine");
   });
 
-  it("the selection column is 40 px on desktop and 44 px on a tablet", async () => {
+  it("the selection column is 56 px on desktop (the drawn 40 px box column plus its 16 px padding) and 44 on a tablet", async () => {
     stubWidth("desktop");
     const desktop = await table({ selectable: true });
-    expect(desktop.find("colgroup col").attributes("width")).toBe("40");
+    expect(desktop.find("colgroup col").attributes("width")).toBe("56");
     stubWidth("tablet");
     const tablet = await table({ selectable: true });
     expect(tablet.find("colgroup col").attributes("width")).toBe("44");

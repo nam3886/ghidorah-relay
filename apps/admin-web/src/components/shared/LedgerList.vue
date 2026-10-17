@@ -113,7 +113,8 @@ const props = withDefaults(
   font-weight: 400;
 }
 @media (max-width: 767.98px) {
-  .ledger--band {
+  .ledger--band,
+  .ledger--band.ledger--1 {
     padding: 14px 16px;
     gap: 8px;
   }

@@ -4,6 +4,9 @@
    on-demand component styles end up in. Every colour is a token; the white is the literal white of the canvas. */
 
 /* Buttons ------------------------------------------------------------------------------------------------------ */
+html:root .el-button {
+  font-family: inherit;
+}
 html:root .el-button:not(.el-button--small, .el-button--large) {
   --el-button-size: var(--el-component-size);
   height: var(--el-button-size);
@@ -111,57 +114,41 @@ html:root .el-button--primary.is-disabled:hover {
   }
 }
 
-/* Checkbox: the canvas draws the browser's own box with the accent colour, 15 px (20 px on a phone) ------------------ */
+/* Checkbox: the canvas draws the browser's own box, 15 px with the accent colour and the browser's own margin
+   (20 px, no margin, on a phone). Element Plus keeps its real input hidden and paints a span over it: here the real
+   input is shown, as it is, and the span is not. The table's selection is wired to that same input either way (its
+   model and change are Element Plus's; DataTable takes the select-all box's mixed state off, as the canvas has none). */
 html:root .el-checkbox {
-  --el-checkbox-input-width: 15px;
-  --el-checkbox-input-height: 15px;
-  --el-checkbox-border-radius: 2px;
-  --el-checkbox-input-border: 1px solid var(--rl-muted);
-  --el-checkbox-bg-color: var(--rl-surface);
-  --el-checkbox-checked-bg-color: var(--rl-primary);
-  --el-checkbox-checked-input-border-color: var(--rl-primary);
-  --el-checkbox-input-border-color-hover: var(--rl-primary);
-  --el-checkbox-checked-icon-color: #ffffff;
-  height: 15px;
+  height: auto;
 }
 html:root .el-checkbox__inner {
+  display: none;
+}
+html:root .el-checkbox__original {
+  position: static;
+  z-index: auto;
   width: 15px;
   height: 15px;
-  border-radius: 2px;
+  margin: 3px 3px 3px 4px;
+  opacity: 1;
+  accent-color: var(--rl-primary);
+  cursor: pointer;
 }
-html:root .el-checkbox__inner::after {
-  left: 4px;
-  top: 1px;
-  height: 8px;
-  width: 4px;
-  border-width: 2px;
+/* Element Plus's table sheet zeroes a checkbox's margin (`.el-table tr input[type=checkbox]`): the canvas keeps the
+   browser's */
+html:root .el-table tr .el-checkbox__original {
+  margin: 3px 3px 3px 4px;
 }
-html:root .el-checkbox__input.is-indeterminate .el-checkbox__inner {
-  background-color: var(--rl-primary);
-  border-color: var(--rl-primary);
-}
-html:root .el-checkbox__input.is-indeterminate .el-checkbox__inner::before {
-  top: 6px;
-  background-color: #ffffff;
-}
-html:root .el-checkbox__input.is-focus:not(.is-checked) .el-checkbox__inner {
-  border-color: var(--rl-muted);
+html:root .el-checkbox__original:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
 }
 @media (max-width: 767.98px) {
-  html:root .el-checkbox {
-    --el-checkbox-input-width: 20px;
-    --el-checkbox-input-height: 20px;
-    height: 20px;
-  }
-  html:root .el-checkbox__inner {
+  html:root .el-checkbox__original,
+  html:root .el-table tr .el-checkbox__original {
     width: 20px;
     height: 20px;
-  }
-  html:root .el-checkbox__inner::after {
-    left: 6px;
-    top: 2px;
-    height: 10px;
-    width: 5px;
+    margin: 0;
   }
 }
 
@@ -204,64 +191,6 @@ html:root .el-popper.rl-tip {
   font-size: 12px;
   line-height: 16px;
   box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
-}
-
-/* The popover menu (11): the More menu and the page-size list share one surface ----------------------------------- */
-html:root .el-popper.rl-menu {
-  padding: 0;
-  border: 1px solid var(--rl-line);
-  border-radius: 12px;
-  background: var(--rl-surface);
-  box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
-}
-html:root .el-popper.rl-menu .el-popper__arrow {
-  display: none;
-}
-html:root .el-popper.rl-menu .el-dropdown-menu {
-  min-width: 200px;
-  padding: 6px;
-  background: transparent;
-}
-html:root .el-popper.rl-menu .el-dropdown-menu__item {
-  gap: 10px;
-  height: 36px;
-  margin: 0;
-  padding: 0 10px;
-  border-radius: 8px;
-  color: var(--rl-fg);
-  font-size: 13px;
-  line-height: 36px;
-}
-html:root .el-popper.rl-menu .el-dropdown-menu__item:not(.is-disabled):hover,
-html:root .el-popper.rl-menu .el-dropdown-menu__item:not(.is-disabled):focus {
-  background: var(--rl-raised);
-  color: var(--rl-fg);
-}
-html:root .el-popper.rl-menu .el-dropdown-menu__item--divided {
-  margin: 6px 0 0;
-  border-top: 0;
-}
-html:root .el-popper.rl-menu .el-dropdown-menu__item--divided::before {
-  display: block;
-  height: 1px;
-  margin: 0 -2px;
-  background: var(--rl-line);
-}
-html:root .el-popper.rl-menu .el-dropdown-menu__item .rl-menu__icon {
-  display: inline-flex;
-  color: var(--rl-muted);
-}
-html:root .el-popper.rl-menu .el-dropdown-menu__item.is-danger,
-html:root .el-popper.rl-menu .el-dropdown-menu__item.is-danger .rl-menu__icon {
-  color: var(--rl-bad);
-}
-html:root .el-popper.rl-menu .el-dropdown-menu__item.is-danger:not(.is-disabled):hover,
-html:root .el-popper.rl-menu .el-dropdown-menu__item.is-danger:not(.is-disabled):focus {
-  background: var(--rl-bad-bg);
-  color: var(--rl-bad);
-}
-html:root .el-popper.rl-menu .el-dropdown-menu__item.is-current {
-  font-weight: 600;
 }
 
 /* The card every list sits in (6) ---------------------------------------------------------------------------------- */

@@ -10,6 +10,7 @@ import PageHeader from "@/components/layout/PageHeader.vue";
 import LoginView from "@/views/LoginView.vue";
 import { ApiError } from "@/api/client";
 import * as shell from "@/api/shell";
+import type { AlertGroup } from "@/api/alerts";
 import type { Stats } from "@/api/shell";
 import { notify } from "@/lib/notify";
 import { THEME_KEY, TOKEN_KEY, USER_KEY } from "@/lib/session";
@@ -22,6 +23,7 @@ vi.mock("@/api/shell", () => ({
   getModels: vi.fn(),
   getStats: vi.fn(),
   getOpenAlertGroups: vi.fn(),
+  getNewestReply: vi.fn(),
 }));
 
 // The shell is tested against tiny named stand-ins for the routed views and the job dialog, so this spec does not
@@ -73,6 +75,22 @@ async function open(path: string, signedIn = true) {
   await flushPromises();
   return { router, wrapper };
 }
+
+// An open alert group as the server lists it: the canvas's one (Dola's refusal, 4 open jobs from 3 keys).
+const group = (over: Partial<AlertGroup> = {}): AlertGroup => ({
+  kind: "unclear_reply",
+  group: "g1",
+  title: "Sorry, I can’t create that video",
+  severity: "warning",
+  provider: "dola",
+  first_ms: 1,
+  last_ms: 2,
+  count: 6,
+  open_count: 4,
+  keys: 3,
+  newest_id: 9,
+  ...over,
+});
 
 // The banner is not part of the shell: Jobs draws it, so these tests mount the component itself.
 async function openBanner() {
@@ -179,7 +197,7 @@ describe("the shell", () => {
   });
 
   it("counts the unfinished jobs on the Jobs tab and the open groups on Alerts, only when above zero", async () => {
-    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 4 }, () => ({})) });
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 4 }, () => group()) });
     const { wrapper } = await open("/jobs");
     expect(wrapper.find('[data-testid="tab-count-jobs"]').text()).toBe("5");
     expect(wrapper.find('[data-testid="tab-count-alerts"]').text()).toBe("4");
@@ -228,7 +246,7 @@ describe("the shell", () => {
   });
 
   it("draws no banner on any tab: Jobs renders it itself, after its band card", async () => {
-    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [group()] });
     const { wrapper, router } = await open("/jobs");
     for (const name of ["jobs", "accounts", "keys", "logs", "alerts", "frames", "settings", "test"]) {
       await router.push({ name });
@@ -242,21 +260,24 @@ describe("the shell", () => {
     expect(wrapper.find(".attention-banner").exists()).toBe(false);
   });
 
-  it("shows the live alerts and the open group count, 200 as 200+", async () => {
+  it("shows the open group count and words the first group, as drawn even beside a live condition", async () => {
     vi.mocked(shell.getStats).mockResolvedValue(
       stats({ alerts: [{ kind: "drift", severity: "warning", message: "dola: 3 of 10 jobs in 24 h show x" }] }),
     );
-    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 3 }, () => ({})) });
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 3 }, () => group()) });
     const { wrapper } = await openBanner();
     const banner = wrapper.find(".attention-banner");
     expect(banner.attributes("role")).toBe("status");
-    expect(banner.text()).toContain("dola: 3 of 10 jobs in 24 h show x");
     expect(wrapper.find('[data-testid="banner-headline"]').text()).toBe("3 open alert groups.");
+    expect(wrapper.find('[data-testid="banner-detail"]').text()).toBe(
+      "Dola replied “Sorry, I can’t create that video” to 4 jobs from 3 keys.",
+    );
+    expect(banner.text()).not.toContain("3 of 10 jobs");
     expect(wrapper.find('[data-testid="review-alerts"]').text()).toBe("Review in Alerts");
   });
 
   it("says group, not groups, for one open group", async () => {
-    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [group()] });
     const { wrapper } = await openBanner();
     expect(wrapper.find('[data-testid="banner-headline"]').text()).toBe("1 open alert group.");
   });
@@ -280,10 +301,9 @@ describe("the shell", () => {
   it("draws one line: the bold sentence, the muted live condition and the link, with no list and no fold", async () => {
     const alert = (kind: string) => ({ kind, severity: "warning", message: `${kind} message` });
     vi.mocked(shell.getStats).mockResolvedValue(stats({ alerts: [alert("a1")] }));
-    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
     const { wrapper } = await openBanner();
     const banner = wrapper.find(".attention-banner");
-    expect(banner.find('[data-testid="banner-headline"]').text()).toBe("1 open alert group.");
+    expect(banner.find('[data-testid="banner-headline"]').text()).toBe("Needs attention.");
     expect(banner.find('[data-testid="banner-detail"]').text()).toBe("a1 message");
     expect(banner.find("ul").exists()).toBe(false);
     expect(banner.find("button").exists()).toBe(false);
@@ -298,14 +318,31 @@ describe("the shell", () => {
     expect(wrapper.text()).not.toContain("a2 message");
   });
 
-  it("draws no detail when only open groups exist", async () => {
-    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
+  it("quotes the newest reply as it was stored, not the group's folded wording", async () => {
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({
+      items: [group({ title: "sorry, i can't create that video" })],
+    });
+    vi.mocked(shell.getNewestReply).mockResolvedValue("Sorry, I can’t\n create that video");
     const { wrapper } = await openBanner();
-    expect(wrapper.find('[data-testid="banner-detail"]').exists()).toBe(false);
+    expect(shell.getNewestReply).toHaveBeenCalledWith(expect.objectContaining({ kind: "unclear_reply", group: "g1" }));
+    expect(wrapper.find('[data-testid="banner-detail"]').text()).toBe(
+      "Dola replied “Sorry, I can’t create that video” to 4 jobs from 3 keys.",
+    );
+  });
+
+  it("words the first open group when only open groups exist: provider, reply, open jobs and keys", async () => {
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({
+      items: [group({ provider: "vibes", title: "Busy, try later", open_count: 1, keys: 1 }), group()],
+    });
+    const { wrapper } = await openBanner();
+    expect(wrapper.find('[data-testid="banner-headline"]').text()).toBe("2 open alert groups.");
+    expect(wrapper.find('[data-testid="banner-detail"]').text()).toBe(
+      "Vibes replied “Busy, try later” to 1 job from 1 key.",
+    );
   });
 
   it("writes 200+ for a full page of open groups and opens Alerts from the banner", async () => {
-    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 200 }, () => ({})) });
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 200 }, () => group()) });
     const { wrapper, router } = await openBanner();
     expect(wrapper.find('[data-testid="banner-headline"]').text()).toBe("200+ open alert groups.");
     await wrapper.find('[data-testid="review-alerts"]').trigger("click");
@@ -580,7 +617,7 @@ describe("the shell", () => {
 
 describe("the top bar", () => {
   it("marks the count of the current tab as primary and the Alerts count as warn", async () => {
-    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}, {}] });
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [group(), group()] });
     const { wrapper } = await open("/jobs");
     const jobs = wrapper.find('[data-testid="tab-count-jobs"]');
     const alerts = wrapper.find('[data-testid="tab-count-alerts"]');
@@ -591,7 +628,7 @@ describe("the top bar", () => {
   });
 
   it("moves the primary count with the current tab", async () => {
-    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{}] });
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [group()] });
     const { wrapper, router } = await open("/jobs");
     await router.push("/alerts");
     await flushPromises();

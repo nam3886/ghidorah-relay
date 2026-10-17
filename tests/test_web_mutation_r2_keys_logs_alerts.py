@@ -493,6 +493,17 @@ def test_the_alert_detail_is_drawn_as_the_design_draws_it():
 
 
 # ---- the Alerts group rules ------------------------------------------------------------------------------------
+@mutation(ALERTS_MODEL, '(reply ?? "").replace(/\\s+/g, " ").trim() || g.title', 'g.title',
+          expect=f"FAILED {ALERTS_MODEL_SPEC} > groupSentence (the Jobs banner's muted sentence) > quotes the stored")
+@mutation(ALERTS_MODEL, "said.length > QUOTE_LIMIT ?", "false ?",
+          expect=f"FAILED {ALERTS_MODEL_SPEC} > groupSentence (the Jobs banner's muted sentence) > quotes the stored")
+@mutation(ALERTS_MODEL, "${count(g.open_count, \"job\")}", "${count(g.count, \"job\")}",
+          expect=f"FAILED {ALERTS_MODEL_SPEC} > groupSentence (the Jobs banner's muted sentence) > says who replied")
+@mutation(ALERTS_MODEL, '`${n} ${one}${n === 1 ? "" : "s"}`', '`${n} ${one}s`',
+          expect=f"FAILED {ALERTS_MODEL_SPEC} > groupSentence (the Jobs banner's muted sentence) > says who replied")
+@mutation(ALERTS_MODEL, 'if (g.kind !== "unclear_reply" || isEmptyWording(g)) return', "if (false) return",
+          expect=f"FAILED {ALERTS_MODEL_SPEC} > groupSentence (the Jobs banner's muted sentence) > a reply with no "
+                 "text, or a group of another kind, says its title")
 @mutation(ALERTS_MODEL, "g.keys === 1 && !isEmptyWording(g)", "g.keys >= 1 && !isEmptyWording(g)",
           expect=ONE_CUSTOMER + "is for an unclear wording seen under exactly one key")
 @mutation(ALERTS_MODEL, "g.keys === 1 && !isEmptyWording(g)", "g.keys !== 2 && !isEmptyWording(g)",

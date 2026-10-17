@@ -5,6 +5,7 @@ import {
   alertTime,
   EMPTY_WORDING_TITLE,
   groupFacts,
+  groupSentence,
   groupTitle,
   isEmptyWording,
   ONE_CUSTOMER_NOTE,
@@ -26,6 +27,39 @@ describe("the empty-wording group", () => {
 
   it("any other title is shown as it is", () => {
     expect(groupTitle({ kind: "unclear_reply", title: "I cannot do that" })).toBe("I cannot do that");
+  });
+});
+
+describe("groupSentence (the Jobs banner's muted sentence)", () => {
+  const g = {
+    kind: "unclear_reply",
+    title: "Sorry, I can’t create that video",
+    provider: "dola",
+    open_count: 4,
+    keys: 3,
+  };
+
+  it("says who replied what to how many open jobs from how many keys, as drawn", () => {
+    expect(groupSentence(g)).toBe("Dola replied “Sorry, I can’t create that video” to 4 jobs from 3 keys.");
+    expect(groupSentence({ ...g, open_count: 1, keys: 1 })).toBe(
+      "Dola replied “Sorry, I can’t create that video” to 1 job from 1 key.",
+    );
+  });
+
+  it("quotes the stored reply on one line when there is one, cut at 200 characters", () => {
+    expect(
+      groupSentence({ ...g, title: "sorry, i can't create that video" }, " Sorry, I can’t\n\ncreate that video "),
+    ).toBe("Dola replied “Sorry, I can’t create that video” to 4 jobs from 3 keys.");
+    expect(groupSentence({ ...g, title: "folded" }, "   ")).toBe("Dola replied “folded” to 4 jobs from 3 keys.");
+    const long = groupSentence(g, "x".repeat(250));
+    expect(long).toContain(`“${"x".repeat(200)}…”`);
+  });
+
+  it("a reply with no text, or a group of another kind, says its title", () => {
+    expect(groupSentence({ ...g, title: EMPTY_WORDING_TITLE })).toBe("API read failure: no reply text was read.");
+    expect(groupSentence({ ...g, kind: "clamp", title: "clamp: dola video wallet of key k1" })).toBe(
+      "clamp: dola video wallet of key k1.",
+    );
   });
 });
 

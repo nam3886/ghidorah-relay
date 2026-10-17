@@ -67,15 +67,16 @@ describe("skin: buttons", () => {
 });
 
 describe("skin: checkbox", () => {
-  it("is the native-look box: 15 px, radius 2, the primary fill; 20 px on a phone", () => {
-    const box = rule(SKIN, "html:root .el-checkbox__inner {");
-    expect(box).toContain("width: 15px");
-    expect(box).toContain("height: 15px");
-    expect(box).toContain("border-radius: 2px");
-    const vars = rule(SKIN, "html:root .el-checkbox {");
-    expect(vars).toContain("--el-checkbox-checked-bg-color: var(--rl-primary)");
-    expect(vars).toContain("--el-checkbox-checked-input-border-color: var(--rl-primary)");
-    const phone = SKIN.slice(SKIN.indexOf("@media (max-width: 767.98px) {\n  html:root .el-checkbox {"));
+  it("is the browser's own box: the real input shown at 15 px with the accent colour, the painted span hidden", () => {
+    expect(rule(SKIN, "html:root .el-checkbox__inner {")).toContain("display: none");
+    const input = rule(SKIN, "html:root .el-checkbox__original {");
+    expect(input).toContain("opacity: 1");
+    expect(input).toContain("position: static");
+    expect(input).toContain("accent-color: var(--rl-primary)");
+    expect(rule(SKIN, "html:root .el-checkbox__original:focus-visible {")).toContain(
+      "outline: 2px solid var(--rl-focus)",
+    );
+    const phone = SKIN.slice(SKIN.indexOf("@media (max-width: 767.98px) {\n  html:root .el-checkbox__original,"));
     expect(phone).toContain("width: 20px");
     expect(phone).toContain("height: 20px");
   });
@@ -86,29 +87,7 @@ describe("skin: checkbox", () => {
   });
 });
 
-describe("skin: menu and tooltip", () => {
-  it("the menu is a 12 px radius surface with a hairline; an item is 36 high, radius 8, 13 px", () => {
-    const popper = rule(SKIN, "html:root .el-popper.rl-menu {");
-    expect(popper).toContain("border: 1px solid var(--rl-line)");
-    expect(popper).toContain("border-radius: 12px");
-    const list = rule(SKIN, "html:root .el-popper.rl-menu .el-dropdown-menu {");
-    expect(list).toContain("min-width: 200px");
-    expect(list).toContain("padding: 6px");
-    const item = rule(SKIN, "html:root .el-popper.rl-menu .el-dropdown-menu__item {");
-    expect(item).toContain("height: 36px");
-    expect(item).toContain("border-radius: 8px");
-    expect(item).toContain("font-size: 13px");
-  });
-
-  it("a danger item is red with a red wash on hover", () => {
-    expect(rule(SKIN, "html:root .el-popper.rl-menu .el-dropdown-menu__item.is-danger,")).toContain(
-      "color: var(--rl-bad)",
-    );
-    expect(
-      rule(SKIN, "html:root .el-popper.rl-menu .el-dropdown-menu__item.is-danger:not(.is-disabled):hover,"),
-    ).toContain("background: var(--rl-bad-bg)");
-  });
-
+describe("skin: tooltip", () => {
   it("the tooltip is inverted: the foreground colour as its fill and the surface colour as its text", () => {
     const tip = rule(SKIN, "html:root .el-popper.is-dark {");
     expect(tip).toContain("background: var(--rl-fg)");
@@ -195,12 +174,20 @@ describe("the HintTip note", () => {
 });
 
 describe("skin: exact declarations", () => {
-  it("the checkbox box is exactly 15 x 15 with radius 2, and no other size sneaks in", () => {
-    expect(decls(SKIN, "html:root .el-checkbox__inner {")).toEqual({
+  it("the checkbox is exactly the browser's 15 px box with its own margin, and nothing else is painted", () => {
+    expect(decls(SKIN, "html:root .el-checkbox__original {")).toEqual({
+      position: "static",
+      "z-index": "auto",
       width: "15px",
       height: "15px",
-      "border-radius": "2px",
+      margin: "3px 3px 3px 4px",
+      opacity: "1",
+      "accent-color": "var(--rl-primary)",
+      cursor: "pointer",
     });
+    expect(decls(SKIN, "html:root .el-checkbox__inner {")).toEqual({ display: "none" });
+    // Element Plus's table sheet zeroes a checkbox's margin; the table's own rule outranks it
+    expect(decls(SKIN, "html:root .el-table tr .el-checkbox__original {")).toEqual({ margin: "3px 3px 3px 4px" });
   });
 
   it("the tooltip is exactly the inverted pill and has no border", () => {
@@ -214,19 +201,6 @@ describe("skin: exact declarations", () => {
       "line-height": "16px",
       "box-shadow": "var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%))",
     });
-  });
-
-  it("the menu surface and its list are exactly the drawn box", () => {
-    expect(decls(SKIN, "html:root .el-popper.rl-menu {")).toEqual({
-      padding: "0",
-      border: "1px solid var(--rl-line)",
-      "border-radius": "12px",
-      background: "var(--rl-surface)",
-      "box-shadow": "var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%))",
-    });
-    const list = decls(SKIN, "html:root .el-popper.rl-menu .el-dropdown-menu {");
-    expect(list["min-width"]).toBe("200px");
-    expect(list.padding).toBe("6px");
   });
 
   it("the card is the surface with a hairline and radius 16", () => {

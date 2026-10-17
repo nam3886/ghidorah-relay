@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useRoute } from "vue-router";
 import {
   bulkRecheck,
@@ -19,17 +19,26 @@ import { PAGE_SIZE, PAGE_SIZES } from "@/components/jobs/paging";
 import { ALL, fromSelect, rememberedStatus, toSelect } from "@/components/jobs/job-filters";
 import { jobChanges } from "@/components/jobs/job-changes";
 import { clock, dayKey, isRunning, localZone, netPoints } from "@/components/jobs/job-row";
-import { keyName, progressStep, recheckToast, regenerateToast, shortId } from "@/components/jobs/job-text";
+import {
+  keyName,
+  loadFailedText,
+  progressStep,
+  recheckToast,
+  regenerateToast,
+  shortId,
+} from "@/components/jobs/job-text";
 import RegenerateControl from "@/components/jobs/RegenerateControl.vue";
 import { pickedIds } from "@/components/jobs/selection";
 import DataTable from "@/components/shared/DataTable.vue";
-import { IconChevronDown, IconClose, IconRefresh } from "@/components/shared/icons";
+import FilterSelect from "@/components/shared/FilterSelect.vue";
+import { IconClose, IconRefresh } from "@/components/shared/icons";
 import ListPager from "@/components/shared/ListPager.vue";
 import MoneyCell from "@/components/shared/MoneyCell.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import type { Tone } from "@/components/shared/status-tones";
 import type { Column } from "@/components/shared/types";
 import { useBreakpoint } from "@/composables/use-breakpoint";
+import { autoColumns, sameColumns, type ColumnWidths } from "@/components/jobs/auto-columns";
 import { useBusy } from "@/composables/use-busy";
 import { useLatest } from "@/composables/use-latest";
 import { groupByDay, isDayRow } from "@/lib/day-rows";
@@ -57,29 +66,30 @@ const POLL_MS = 10_000;
 const zone = localZone();
 const dayTotals = shallowRef<Record<string, number>>({});
 
-// The select's caret, drawn as the canvas draws it (a 14 px chevron) instead of Element Plus's arrow.
-const SelectChevron = () => h(IconChevronDown, { size: 14, stroke: 2 });
-
 // Tablet: the Job cell also carries the account and the key, so those columns are left out; widths are the drawn ones.
 const TABLET_COLUMNS = ["time", "job", "status", "model", "net"];
+// The loading skeleton draws the canvas's four columns at every width (B-States, loading).
+const SKELETON_COLUMNS = ["time", "job", "status", "net"];
 const columns = computed<Column[]>(() =>
   isTablet.value
     ? [
         { key: "time", label: "Time", width: 76 },
-        { key: "job", label: "Job" },
+        { key: "job", label: "Job", className: "col-job" },
         { key: "status", label: "Status", width: 112 },
         { key: "model", label: "Model", width: 138 },
         { key: "net", label: "Net points", width: 84, align: "right" },
       ]
-    : [
-        { key: "time", label: "Time", minWidth: 90 },
-        { key: "job", label: "Job", minWidth: 280 },
-        { key: "status", label: "Status", minWidth: 150 },
-        { key: "model", label: "Model", minWidth: 220 },
-        { key: "account", label: "Account", minWidth: 100 },
-        { key: "key", label: "Key", minWidth: 110 },
-        { key: "outrefs", label: "Out · Refs", minWidth: 100, align: "right" },
-        { key: "net", label: "Net points", minWidth: 110, align: "right" },
+    : // the canvas's widths scaled to its 1040 px minimum: the table shrinks to it before it scrolls; the drawn shares
+      // of the width are set in the style block below
+      [
+        { key: "time", label: "Time", minWidth: 78 },
+        { key: "job", label: "Job", minWidth: 240, className: "col-job" },
+        { key: "status", label: "Status", minWidth: 141 },
+        { key: "model", label: "Model", minWidth: 228 },
+        { key: "account", label: "Account", minWidth: 67 },
+        { key: "key", label: "Key", minWidth: 76 },
+        { key: "outrefs", label: "Out · Refs", minWidth: 73, align: "right" },
+        { key: "net", label: "Net points", minWidth: 81, align: "right" },
       ],
 );
 
@@ -95,7 +105,19 @@ const latest = useLatest();
 const status = rememberedStatus;
 const keyId = ref("");
 const keys = ref<KeyOption[]>([]);
-const statusOptions = [ALL, ...JOB_STATUSES];
+// The options read as drawn: `Status Unknown`, `Key Partner B` (B-States); a status is the word with a capital.
+const statusOptions = [
+  { value: ALL, label: "All" },
+  ...JOB_STATUSES.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) })),
+];
+const keyOptions = computed(() => [
+  { value: ALL, label: "All" },
+  ...keys.value.map((k) => ({ value: k.id, label: keyName(k) })),
+]);
+// A key is named in the Key column as the Key filter names it: its label, else its prefix, else the start of its id.
+const keyNames = computed(() => new Map(keys.value.map((k) => [k.id, keyName(k)])));
+const keyLabel = (job: JobSummary): string =>
+  job.key_label?.trim() || keyNames.value.get(job.key_id) || shortId(job.key_id);
 // The start (epoch ms, one UTC hour) of the band column that filters the list; null = no hour filter.
 const hour = ref<number | null>(null);
 
@@ -108,7 +130,7 @@ const hour = ref<number | null>(null);
 // Always read through pickedIds: only what is on the page is acted on, in table order.
 const picked = ref<Set<string>>(new Set());
 const ids = computed(() => (error.value ? [] : pickedIds(items.value, picked.value)));
-const table = ref<{ setSelection: (ids: string[]) => void } | null>(null);
+const table = ref<{ setSelection: (ids: string[]) => void; $el: unknown } | null>(null);
 
 const onSelection = (rows: JobSummary[]): void => {
   picked.value = new Set(rows.map((r) => r.id));
@@ -162,7 +184,7 @@ async function load(at: number = offset.value): Promise<void> {
     // not what brings the ticks back; it only keeps the call from depending on that.
     void reTick();
   } catch (err) {
-    if (latest.isCurrent(ticket)) error.value = errorText(err);
+    if (latest.isCurrent(ticket)) error.value = loadFailedText(err, errorText(err));
   } finally {
     if (latest.isCurrent(ticket)) loading.value = false;
   }
@@ -234,6 +256,7 @@ onMounted(() => {
   document.addEventListener("visibilitychange", onVisible);
 });
 onBeforeUnmount(() => {
+  widthWatch?.disconnect();
   clearInterval(timer);
   document.removeEventListener("visibilitychange", onVisible);
   forgetSignOut();
@@ -280,19 +303,66 @@ const regenerateConfirm = computed(() => ({
 // A failed job is tinted; an unknown one is not (the design draws only the failed fill).
 const rowTone = (job: JobSummary): Tone | undefined => (job.status === "failed" ? "bad" : undefined);
 
-// Day headers: the note is the jobs of that day on this page.
-// Each header says how many jobs that day has under the current filters (the server's day_totals, counted in the
-// same zone the days are cut in); a day the server gave no total for says how many of its jobs are on this page.
+// Day headers. Today's says how many of its jobs are on this page ("8 jobs shown"), as the canvas draws it. Every
+// earlier day says how many jobs that day has under the current filters (the server's day_totals, counted in the same
+// zone the days are cut in: "212 jobs"); an earlier day the server gave no total for says how many are on this page.
+const jobs = (n: number) => `${n} ${n === 1 ? "job" : "jobs"}`;
 const grouped = computed(() => {
-  const out = groupByDay(items.value, { at: (j) => j.created_ms, note: (n) => `${n} jobs shown` });
+  const out = groupByDay(items.value, { at: (j) => j.created_ms, note: (n) => `${jobs(n)} shown` });
+  const today = dayKey(Date.now(), zone);
   out.items.forEach((item, i) => {
     const first = out.items[i + 1];
     if (!isDayRow(item) || !first || isDayRow(first)) return;
-    const total = dayTotals.value[dayKey((first as JobSummary).created_ms, zone)];
-    if (total !== undefined) item.note = `${total} ${total === 1 ? "job" : "jobs"}`;
+    const day = dayKey((first as JobSummary).created_ms, zone);
+    const total = dayTotals.value[day];
+    if (day !== today && total !== undefined) item.note = jobs(total);
   });
   return out;
 });
+
+// Desktop: Account and Key grow to their longest value on the page (auto-columns.ts). Measured each time the table
+// draws its rows (paging, a filter, the 10-second read), when the rows change, and when the table element's own width
+// changes (Element Plus first lays it out at its columns' minimum widths, then at the card's width; the shares are of
+// that element); written only when the widths change, so the table does not jitter. Tablet and phone show the account
+// and key in the row, not in columns.
+const columnWidths = shallowRef<ColumnWidths | null>(null);
+const columnVars = computed(() => {
+  const w = columnWidths.value;
+  return w
+    ? { "--jobs-col-job": `${w.job}px`, "--jobs-col-account": `${w.account}px`, "--jobs-col-key": `${w.key}px` }
+    : {};
+});
+// a value's whole width plus its cell's padding: the text's own box (a Range), so the whole value even where the cell
+// ends it in "…", and whatever width its column has at that moment (a value that fits reads its own width, not the
+// column's)
+function valueWidth(span: HTMLElement): number {
+  const text = document.createRange();
+  text.selectNodeContents(span);
+  const cell = span.closest(".cell");
+  const pad = cell ? getComputedStyle(cell) : null;
+  const padding = pad ? (parseFloat(pad.paddingLeft) || 0) + (parseFloat(pad.paddingRight) || 0) : 0;
+  return text.getBoundingClientRect().width + padding;
+}
+const widthWatch = typeof ResizeObserver === "function" ? new ResizeObserver(() => measureColumns()) : undefined;
+let watchedTable: Element | null = null;
+function measureColumns(): void {
+  const root = table.value?.$el;
+  const body =
+    root instanceof HTMLElement && !isPhone.value && !isTablet.value ? root.querySelector(".el-table__body") : null;
+  const longest = (cls: string): number =>
+    body ? Math.max(0, ...[...body.querySelectorAll<HTMLElement>(`.${cls}`)].map(valueWidth)) : 0;
+  const next =
+    body instanceof HTMLElement
+      ? autoColumns(body.offsetWidth, { account: longest("jobs__account"), key: longest("jobs__key") })
+      : null;
+  if (!sameColumns(next, columnWidths.value)) columnWidths.value = next;
+  if (body !== watchedTable) {
+    if (watchedTable) widthWatch?.unobserve(watchedTable);
+    if (body) widthWatch?.observe(body);
+    watchedTable = body;
+  }
+}
+watch([grouped, isPhone, isTablet], () => nextTick(measureColumns), { flush: "post" });
 
 const filtered = computed(() => !!(status.value || keyId.value || hour.value !== null));
 function clearFilters(): void {
@@ -301,6 +371,8 @@ function clearFilters(): void {
   hour.value = null;
 }
 
+// A read under way while rows are on screen: the rows dim (DataTable) and the head says so (B-States, refreshing).
+const updating = computed(() => loading.value && items.value.length > 0 && !error.value);
 const updatedText = computed(() =>
   updatedAt.value ? new Date(updatedAt.value).toLocaleTimeString("en-GB", { hour12: false }) : null,
 );
@@ -313,18 +385,21 @@ const subtitle = computed(() =>
   <section class="jobs" :class="{ 'jobs--phone': isPhone, 'jobs--tablet': isTablet }">
     <PageHeader title="Jobs" :subtitle="subtitle">
       <template #meta>
+        <span v-if="updating" class="jobs__updating">Updating…</span>
         <span v-if="updatedText">Updated {{ updatedText }} · auto every 10 s</span>
       </template>
       <template #actions>
-        <el-button
+        <button
+          type="button"
           class="jobs__refresh"
-          :loading="loading"
+          :class="{ 'is-loading': loading }"
+          :aria-busy="loading"
           :aria-label="isPhone ? `Refresh${updatedText ? `, updated ${updatedText}` : ''}` : undefined"
           @click="refreshAll"
         >
           <IconRefresh :size="isPhone ? 18 : 15" />
           <template v-if="!isPhone">Refresh</template>
-        </el-button>
+        </button>
       </template>
     </PageHeader>
 
@@ -334,42 +409,40 @@ const subtitle = computed(() =>
 
     <section class="card" aria-label="Job list">
       <div class="toolbar">
-        <el-select
+        <FilterSelect
+          class="jobs__filter"
+          label="Status"
           :model-value="toSelect(status)"
+          :options="statusOptions"
+          @update:model-value="(v) => (status = fromSelect(String(v)))"
+        />
+        <FilterSelect
           class="jobs__filter"
-          :suffix-icon="SelectChevron"
-          aria-label="Status"
-          @update:model-value="(v: string) => (status = fromSelect(v))"
-        >
-          <template #prefix><span class="jobs__filter-label">Status</span></template>
-          <el-option v-for="s in statusOptions" :key="s" :label="s === ALL ? 'All' : s" :value="s" />
-        </el-select>
-        <el-select
+          label="Key"
           :model-value="toSelect(keyId)"
-          class="jobs__filter"
-          :suffix-icon="SelectChevron"
-          aria-label="Key"
-          @update:model-value="(v: string) => (keyId = fromSelect(v))"
-        >
-          <template #prefix><span class="jobs__filter-label">Key</span></template>
-          <el-option label="All" :value="ALL" />
-          <el-option v-for="k in keys" :key="k.id" :label="keyName(k)" :value="k.id" />
-        </el-select>
+          :options="keyOptions"
+          @update:model-value="(v) => (keyId = fromSelect(String(v)))"
+        />
         <span v-if="hour !== null" class="chip" data-testid="hour-chip">
           {{ hourRange(hour) }}
           <button type="button" class="chip__clear" aria-label="Clear the hour filter" @click="hour = null">
             <IconClose :size="isPhone ? 14 : 12" :stroke="2.2" />
           </button>
         </span>
+        <!-- with nothing ticked: "0 selected" alone on desktop and tablet (no count when the list is empty), no bar on
+             a phone, never the buttons, as the canvas draws each -->
         <div
           v-show="!isPhone || ids.length"
           class="jobs__bulk"
           :role="isPhone ? 'region' : undefined"
           :aria-label="isPhone ? 'Bulk actions' : undefined"
         >
-          <span v-show="ids.length" class="num jobs__count">{{ ids.length }} selected</span>
-          <el-button :disabled="!ids.length || rechecking" :loading="rechecking" @click="recheck">Re-check</el-button>
+          <span v-show="items.length || ids.length" class="num jobs__count">{{ ids.length }} selected</span>
+          <el-button v-show="ids.length" :disabled="!ids.length || rechecking" :loading="rechecking" @click="recheck"
+            >Re-check</el-button
+          >
           <RegenerateControl
+            v-show="ids.length"
             :action="bulkAction(ids)"
             label="Regenerate…"
             :disabled="!ids.length"
@@ -382,8 +455,10 @@ const subtitle = computed(() =>
       <DataTable
         ref="table"
         class="jobs__table"
+        :style="columnVars"
         :columns="columns"
         :tablet-columns="TABLET_COLUMNS"
+        :skeleton-columns="SKELETON_COLUMNS"
         :rows="grouped.items"
         :loading="loading"
         :error="error"
@@ -398,6 +473,7 @@ const subtitle = computed(() =>
         @retry="load()"
         @row-click="(job) => ui.openJob(job.id)"
         @selection-change="onSelection"
+        @rows-drawn="measureColumns"
       >
         <template #cell-time="{ row }">
           <span class="num mono jobs__time">{{ clock(row.created_ms) }}</span>
@@ -407,7 +483,7 @@ const subtitle = computed(() =>
             row.title || "(untitled)"
           }}</a>
           <span v-if="isTablet" class="mono jobs__id"
-            >{{ shortId(row.id) }} · {{ row.account_label || "—" }} · {{ row.key_label || shortId(row.key_id) }}</span
+            >{{ shortId(row.id) }} · {{ row.account_label || "—" }} · {{ keyLabel(row) }}</span
           >
           <span v-else class="mono jobs__id">{{ shortId(row.id) }}</span>
         </template>
@@ -419,13 +495,16 @@ const subtitle = computed(() =>
           <span v-if="row.error_code" class="mono jobs__code">{{ row.error_code }}</span>
         </template>
         <template #cell-model="{ row }">
-          <span class="jobs__kind">{{ row.media_type }}</span> {{ row.model }}
-          <span v-if="row.model_substituted" class="jobs__differs">model differs</span>
+          <!-- the space before the tag is drawn (a newline between two tags would be dropped) -->
+          <span class="jobs__kind">{{ row.media_type }}</span> <span class="jobs__model">{{ row.model }}</span
+          ><template v-if="row.model_substituted">{{ " " }}<span class="jobs__differs">model differs</span></template>
         </template>
         <template #cell-account="{ row }">
-          <span class="mono jobs__account">{{ row.account_label || "—" }}</span>
+          <span class="mono jobs__account jobs__one-line">{{ row.account_label || "—" }}</span>
         </template>
-        <template #cell-key="{ row }">{{ row.key_label || shortId(row.key_id) }}</template>
+        <template #cell-key="{ row }"
+          ><span class="jobs__key jobs__one-line">{{ keyLabel(row) }}</span></template
+        >
         <template #cell-outrefs="{ row }">
           <span class="num mono jobs__outrefs">{{ row.outputs }} · {{ row.inputs }}</span>
         </template>
@@ -443,8 +522,9 @@ const subtitle = computed(() =>
             </div>
             <div class="mono prow__ids">{{ shortId(row.id) }} · {{ row.model }} · {{ row.account_label || "—" }}</div>
             <div class="prow__bottom">
+              <!-- as drawn: the space after the time is part of the mono run, the key's words are in the UI font -->
               <span class="num mono prow__meta"
-                >{{ clock(row.created_ms) }}<span class="prow__key"> · {{ row.key_label || shortId(row.key_id) }}</span
+                >{{ clock(row.created_ms) }} <span class="prow__key">· {{ keyLabel(row) }}</span
                 ><span v-if="row.error_code" class="prow__code"> · {{ row.error_code }}</span></span
               >
               <MoneyCell :price="row.price" :net="netPoints(row)" />
@@ -452,11 +532,14 @@ const subtitle = computed(() =>
           </div>
         </template>
         <template v-if="filtered" #empty-action>
-          <el-button @click="clearFilters">Clear filters</el-button>
+          <button type="button" class="jobs__clear" @click="clearFilters">Clear filters</button>
         </template>
       </DataTable>
 
+      <!-- the empty, loading and error cards of B-States have no pager; it stays mounted (hidden) so it can still move
+           itself back to the last page when the list shrinks under the page on screen -->
       <ListPager
+        v-show="total > 0 && !error"
         :offset="offset"
         :limit="limit"
         :total="total"
@@ -487,33 +570,41 @@ const subtitle = computed(() =>
   overflow: hidden;
 }
 
-/* header buttons: secondary, 36 high; icon-only 44 square on a phone */
-.jobs__refresh {
+/* "Updating…" before the update time while a read is under way (B-States, refreshing) */
+.jobs__updating {
+  margin-right: 8px;
+  color: var(--rl-primary);
+  font-weight: 500;
+}
+
+/* the secondary buttons of the page: Refresh (header), Clear filters (empty list); 36 high, raised on hover. A read
+   under way changes nothing on the button (the head says "Updating…") */
+.jobs__refresh,
+.jobs__clear {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   height: 36px;
   padding: 0 14px;
-  gap: 6px;
-  border-radius: 10px;
   border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
   background: var(--rl-surface);
   color: var(--rl-fg);
+  font: inherit;
   font-size: 13px;
-  font-weight: 400;
+  line-height: normal;
+  cursor: pointer;
 }
 .jobs__refresh:hover,
-.jobs__refresh:focus {
+.jobs__clear:hover {
   background: var(--rl-raised);
-  color: var(--rl-fg);
-  border-color: var(--rl-line-strong);
-}
-.jobs__refresh > :deep(span) {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 .jobs--phone .jobs__refresh {
   width: 44px;
   height: 44px;
-  padding: 0;
+  padding: 1px 6px;
   flex: none;
 }
 
@@ -532,58 +623,6 @@ const subtitle = computed(() =>
   white-space: nowrap;
   border-bottom: 1px solid var(--rl-line);
 }
-.jobs__filter {
-  width: auto;
-  flex: none;
-}
-.jobs__filter :deep(.el-select__wrapper) {
-  min-height: 34px;
-  height: 34px;
-  padding: 0 12px;
-  gap: 6px;
-  border-radius: 10px;
-  background: var(--rl-surface);
-  box-shadow: 0 0 0 1px var(--rl-line-strong) inset;
-  font-size: 13px;
-  line-height: 18px;
-}
-.jobs__filter :deep(.el-select__prefix) {
-  margin-right: 0;
-}
-.jobs__filter :deep(.el-select__selection) {
-  flex: none;
-}
-/* the chosen word takes its own width, so the control fits it: "Status All v" */
-.jobs__filter :deep(.el-select__placeholder) {
-  position: static;
-  transform: none;
-  width: auto;
-  color: var(--rl-fg);
-}
-/* the readonly input stays in the accessibility tree (it is the combobox) but takes no room */
-.jobs__filter :deep(.el-select__input) {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-.jobs__filter :deep(.el-select__wrapper:has(input:focus-visible)) {
-  outline: 2px solid var(--rl-focus);
-  outline-offset: 2px;
-}
-.jobs__filter :deep(.el-select__suffix) {
-  margin-left: 0;
-}
-.jobs--phone .jobs__filter :deep(.el-select__wrapper) {
-  min-height: 44px;
-  height: 44px;
-}
-.jobs__filter-label {
-  color: var(--rl-muted);
-}
-
 /* the hour filter chip */
 .chip {
   display: inline-flex;
@@ -597,13 +636,14 @@ const subtitle = computed(() =>
   font-size: 12px;
   flex: none;
 }
+/* the browser's own button padding is kept, as drawn: it leaves the 12 px cross 8 px of room in the 20 px button */
 .chip__clear {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 20px;
   height: 20px;
-  padding: 0;
+  padding: 1px 6px;
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -639,8 +679,9 @@ const subtitle = computed(() =>
   font-size: 13px;
   color: var(--rl-muted);
 }
-.jobs__bulk :deep(.el-button) {
+.jobs .jobs__bulk :deep(.el-button) {
   height: 34px;
+  line-height: normal;
   margin: 0;
   padding: 0 12px;
   border-radius: 10px;
@@ -656,10 +697,16 @@ const subtitle = computed(() =>
   color: var(--rl-fg);
   border-color: var(--rl-line-strong);
 }
-.jobs__bulk :deep(.el-button.is-disabled) {
-  background: var(--rl-raised);
+/* a re-check or regenerate under way keeps the drawn look, never a grey fill; its spinner is not drawn */
+.jobs__bulk :deep(.el-button.is-disabled),
+.jobs__bulk :deep(.el-button.is-disabled:hover) {
+  background: var(--rl-surface);
   border-color: var(--rl-line-strong);
-  color: var(--rl-faint);
+  color: var(--rl-fg);
+}
+.jobs__bulk :deep(.el-button.is-loading::before),
+.jobs__bulk :deep(.el-button .el-icon.is-loading) {
+  display: none;
 }
 /* Regenerate: a danger outline */
 .jobs__bulk :deep(.regenerate .el-button) {
@@ -673,11 +720,11 @@ const subtitle = computed(() =>
   color: var(--rl-bad);
   border-color: var(--rl-bad);
 }
-.jobs__bulk :deep(.regenerate .el-button.is-disabled) {
+.jobs__bulk :deep(.regenerate .el-button.is-disabled),
+.jobs__bulk :deep(.regenerate .el-button.is-disabled:hover) {
   background: transparent;
   border-color: var(--rl-bad);
   color: var(--rl-bad);
-  opacity: 0.45;
 }
 .jobs--phone .jobs__bulk {
   position: fixed;
@@ -696,6 +743,7 @@ const subtitle = computed(() =>
   flex: 1;
   min-width: 0;
   margin: 0;
+  text-align: left;
   font-size: 13px;
   font-weight: 500;
   color: var(--rl-fg);
@@ -703,6 +751,7 @@ const subtitle = computed(() =>
 }
 .jobs--phone .jobs__bulk :deep(.el-button) {
   height: 44px;
+  padding: 0 14px;
 }
 .jobs__bar-space {
   height: 64px;
@@ -718,6 +767,36 @@ const subtitle = computed(() =>
 .jobs:not(.jobs--tablet) .jobs__table :deep(.el-table) {
   min-width: 1040px;
 }
+/* The canvas lays the desktop table out by its content (the browser's auto layout); at 1440 the columns come to these
+   widths of the 1302 px table: 56 (the 40 px box column plus its 16 px padding), 99, 303.7, 178.8, 288.2, 85.2, 96.8,
+   92.3 and 102. Element Plus lays out fixed columns, so each takes the same share of the table's width. */
+.jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(1)) {
+  width: 4.3011%;
+}
+.jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(2)) {
+  width: 7.6037%;
+}
+.jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(3)) {
+  width: var(--jobs-col-job, 23.3257%);
+}
+.jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(4)) {
+  width: 13.7327%;
+}
+.jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(5)) {
+  width: 22.1352%;
+}
+.jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(6)) {
+  width: var(--jobs-col-account, 6.5438%);
+}
+.jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(7)) {
+  width: var(--jobs-col-key, 7.4347%);
+}
+.jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(8)) {
+  width: 7.0891%;
+}
+.jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(9)) {
+  width: 7.8341%;
+}
 .jobs__table :deep(.el-table th.el-table__cell) {
   height: 38px;
   padding: 0;
@@ -727,10 +806,14 @@ const subtitle = computed(() =>
   height: 56px;
   padding: 0;
 }
+/* a one-line cell is padded 0 12, the two-line Job cell 8 12 (tablet: 0 8 and 8), as drawn */
 .jobs__table :deep(.el-table .cell) {
-  padding: 8px 12px;
+  padding: 0 12px;
   line-height: 20px;
   word-break: normal;
+}
+.jobs__table :deep(.el-table td.col-job .cell) {
+  padding: 8px 12px;
 }
 .jobs__table :deep(.el-table th .cell) {
   padding: 0 12px;
@@ -741,36 +824,27 @@ const subtitle = computed(() =>
 }
 .jobs__table :deep(.el-table td.is-numeric:last-child .cell),
 .jobs__table :deep(.el-table th.is-numeric:last-child .cell) {
-  padding: 8px 16px 8px 12px;
-}
-.jobs__table :deep(.el-table th.is-numeric:last-child .cell) {
   padding: 0 16px 0 12px;
 }
 .jobs--tablet .jobs__table :deep(.el-table .cell) {
+  padding: 0 8px;
+}
+.jobs--tablet .jobs__table :deep(.el-table td.col-job .cell) {
   padding: 8px;
 }
+/* at 768 the canvas's "Net points" does not fit its 60 px and wraps to two lines (a 40 px header): so does this one */
 .jobs--tablet .jobs__table :deep(.el-table th .cell) {
   padding: 0 8px;
+  white-space: normal;
 }
 .jobs--tablet .jobs__table :deep(.el-table .el-table-column--selection .cell) {
   padding: 0 0 0 16px;
 }
 .jobs--tablet .jobs__table :deep(.el-table td.is-numeric:last-child .cell) {
-  padding: 8px 16px 8px 8px;
+  padding: 0 16px 0 8px;
 }
 .jobs--tablet .jobs__table :deep(.el-table th.is-numeric:last-child .cell) {
   padding: 0 16px 0 8px;
-}
-/* a day header runs across the whole table: its label starts at the left edge, over the selection column */
-.jobs__table :deep(.el-table .is-day .cell) {
-  padding: 14px 16px 6px;
-  overflow: visible;
-}
-.jobs__table :deep(.el-table .is-day td.el-table__cell) {
-  height: auto;
-}
-.jobs__table :deep(.el-table .is-day .data-table__day-label) {
-  margin-left: -44px;
 }
 .title-link {
   display: block;
@@ -787,6 +861,14 @@ const subtitle = computed(() =>
   color: var(--rl-primary);
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+/* dark: the canvas's dark link rule (#c4b5fd) outranks the title-link colour, so a title is the dark link colour; the
+   title-link hover outranks it again */
+html.dark .title-link {
+  color: var(--rl-link);
+}
+html.dark .title-link:hover {
+  color: var(--rl-primary);
 }
 .jobs--tablet .title-link {
   max-width: none;
@@ -812,14 +894,22 @@ const subtitle = computed(() =>
 .jobs--tablet .jobs__time {
   font-size: 12px;
 }
+/* the status cell is one line wide (the canvas's cell is nowrap): a long code ends in an ellipsis on a tablet */
+/* The canvas lays the table out by its content, so a long value widens its column there; the app's columns are fixed,
+   so a long account, key, model or code stays on its one drawn line and ends in an ellipsis instead */
 .jobs__code {
   display: block;
   margin-top: 3px;
+  overflow: hidden;
   font-size: 11px;
   color: var(--rl-bad);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-.jobs--tablet .jobs__code {
+.jobs__one-line {
+  display: block;
   overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
 }
 .jobs__kind {
@@ -840,8 +930,8 @@ const subtitle = computed(() =>
   line-height: 16px;
 }
 .jobs__table :deep(.el-table td:has(.jobs__kind) .cell) {
-  overflow: visible;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .jobs--tablet .jobs__table :deep(.el-table td:has(.jobs__kind) .cell) {
   padding: 6px 8px;
@@ -895,7 +985,11 @@ const subtitle = computed(() =>
   justify-content: space-between;
   gap: 8px;
 }
+/* the line wraps where it does not fit, as drawn (the failed row's code goes to a second line); a long key or code
+   breaks anywhere rather than push the money cell off the row */
 .prow__meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 12px;
   color: var(--rl-muted);
   text-align: left;

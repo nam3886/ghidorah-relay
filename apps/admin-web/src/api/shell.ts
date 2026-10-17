@@ -1,4 +1,5 @@
 // The calls the app shell makes: login, session, the model catalog (it feeds the provider filter) and the stats strip.
+import type { AlertGroup } from "@/api/alerts";
 import { request } from "@/api/client";
 
 export interface LoginResult {
@@ -70,6 +71,15 @@ export interface PoolStats {
 
 export const getPoolStats = (provider: string): Promise<PoolStats> => request("/stats/pool", { query: { provider } });
 
-// Only the count of open groups is read here (200 is the page cap, shown as "200+").
-export const getOpenAlertGroups = (): Promise<{ items: unknown[] }> =>
+// The open groups, the most pressing first: the shell counts them (200 is the page cap, shown as "200+") and the Jobs
+// banner words the first one.
+export const getOpenAlertGroups = (): Promise<{ items: AlertGroup[] }> =>
   request("/alerts/groups", { query: { status: "open", limit: 200 } });
+
+// The newest reply of an unclear-reply group as it was stored (the group's title is its folded wording): the Jobs
+// banner quotes it. Customer-influenced words: shown as text only.
+export const getNewestReply = (g: Pick<AlertGroup, "kind" | "group">): Promise<string | null> =>
+  request<{ items: Array<{ text?: string }> }>(
+    `/alerts/groups/${encodeURIComponent(g.kind)}/${encodeURIComponent(g.group)}`,
+    { query: { limit: 1 } },
+  ).then((d) => d.items[0]?.text ?? null);

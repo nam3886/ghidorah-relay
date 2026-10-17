@@ -10,6 +10,7 @@ SRC = "apps/admin-web/src"
 CLIPBOARD = "apps/admin-web/src/components/shared/clipboard.ts"
 TONES = "apps/admin-web/src/components/shared/status-tones.ts"
 TABLE = "apps/admin-web/src/components/shared/DataTable.vue"
+NEVER_MIXED = "the select-all box is never mixed"
 CLIPBOARD_SPEC = "tests/unit/shared/clipboard.spec.ts"
 TONES_SPEC = "tests/unit/shared/status-tones.spec.ts"
 
@@ -48,6 +49,13 @@ def test_a_copy_pending_at_unmount_does_nothing():
 @mutation(TABLE, "return value === null || value === undefined || value === \"\";",
           "return value === undefined || value === \"\";", expect="draws an empty value as a quiet dash")
 @mutation(TABLE, "actionsWidth: 200,", "actionsWidth: 100,", expect="gives the Actions column room")
+@mutation(TABLE, "? visibleColumns.value.filter((c) => props.skeletonColumns!.includes(c.key))",
+          "? visibleColumns.value",
+          expect="the skeleton draws the columns asked for")
+@mutation(TABLE, "`skel skel--title-${(r - 1) % 5}`", "`skel skel--title-${r % 5}`",
+          expect="the skeleton draws the columns asked for")
+@mutation(TABLE, '<button type="button" class="data-table__retry"', '<button type="button" class="el-button"',
+          expect="Retry is the drawn danger outline button")
 @pytest.mark.web_unit
 def test_the_table_keeps_old_rows_while_refreshing():
     vitest("tests/unit/shared/data-table.spec.ts")
@@ -246,8 +254,10 @@ def test_the_detail_drawer_is_a_named_destroyed_sheet():
     vitest("tests/unit/shared/detail-drawer.spec.ts")
 
 
-@mutation(DAY_ROWS, "if (columnIndex < leading) return [1, 1];", "", expect="column 0 stays one empty cell")
-@mutation(DAY_ROWS, "Math.max(1, columnCount - leading)", "columnCount", expect="column 1 spans the rest")
+@mutation(DAY_ROWS, "if (columnIndex === leading) return [1, Math.max(1, columnCount)];",
+          "if (columnIndex <= leading) return [1, Math.max(1, columnCount)];", expect="the selection cell is not drawn")
+@mutation(DAY_ROWS, "Math.max(1, columnCount)]", "Math.max(1, columnCount - leading)]",
+          expect="column 1 spans every column")
 @mutation(DAY_ROWS, "if (!isDayRow(row)) return undefined;", "", expect="a data row is left alone")
 @mutation(DAY_ROWS, '(value as Partial<DayRow>)[DAY_MARK] === true', '(value as Partial<DayRow>).kind === "day"',
           expect="only a header made here is a day row")
@@ -269,8 +279,18 @@ def test_day_rows_group_by_day_and_span_the_table():
 OPT_IN_SPEC = "tests/unit/shared/data-table-opt-in.spec.ts"
 
 
+@mutation(TABLE, 'box.setAttribute("aria-label", props.selectLabel?.(row) ?? "Select row")', "void box",
+          expect="names every box as drawn")
+@mutation(TABLE, "    childList: true,\n", "", expect="names every box as drawn")
+@mutation(TABLE, "if (box.indeterminate) box.indeterminate = false;", "", expect=NEVER_MIXED)
+@mutation(TABLE, 'if (el.classList.contains("is-indeterminate")) el.classList.remove("is-indeterminate");', "",
+          expect=NEVER_MIXED)
+@mutation(TABLE, 'if (el.getAttribute("aria-checked") !== "mixed") continue;', "continue;", expect=NEVER_MIXED)
+@mutation(TABLE, '    attributes: true,\n    attributeFilter: ["class", ...MIXED],\n', "", expect=NEVER_MIXED)
+@mutation(TABLE, ':width="isTablet ? 44 : 56"', ':width="isTablet ? 44 : 40"',
+          expect="the selection column is 56 px on desktop")
 @mutation(TABLE, "(row: T | DayRow) => !isDayRow(row)", "(row: T | DayRow) => true",
-          expect="every day row has a disabled checkbox")
+          expect="a day row cannot be selected, not even by select all inside the table")
 @mutation(TABLE, "const picked = rows.filter((r): r is T => !isDayRow(r));", "const picked = rows as T[];",
           expect="a day row never leaves the component")
 @mutation(TABLE, 'isDayRow(row) ? "is-day"', 'false ? "is-day"', expect="draws one header per day")
@@ -279,7 +299,7 @@ OPT_IN_SPEC = "tests/unit/shared/data-table-opt-in.spec.ts"
 @mutation(TABLE, "daySpanMethod(columnCount.value, props.selectable ? 1 : 0)", "daySpanMethod(columnCount.value, 1)",
           expect="without a selection column the header cell is the first one")
 @mutation(TABLE, "(props.selectable ? 1 : 0) + visibleColumns.value.length", "0 + visibleColumns.value.length",
-          expect="the header cell spans every column but the first")
+          expect="the header is one cell across every column")
 @mutation(TABLE, "(slots.actions ? 1 : 0)", "0", expect="an Actions column counts")
 @mutation(TABLE, "isTablet.value && props.tabletColumns", "false && props.tabletColumns",
           expect="on a tablet shows the priority columns only")
@@ -332,6 +352,7 @@ def test_toasts_stack_where_the_design_puts_them():
 
 MENUS_SPEC = "tests/unit/shared/menus-and-chips.spec.ts"
 FILTER = f"{SHARED}/FilterSelect.vue"
+FOLLOWS = "the list sits 6 px under its trigger, follows it when the page moves"
 ACTION_MENU = f"{SHARED}/ActionMenu.vue"
 COMMAND_CHIP = f"{SHARED}/CommandChip.vue"
 DRAWER_TABS = f"{SHARED}/DrawerTabs.vue"
@@ -342,11 +363,24 @@ COPY = f"{SHARED}/CopyButton.vue"
 
 @mutation(FILTER, 'v-if="props.chevron"', 'v-if="!props.chevron"',
           expect="the height follows the size and the chevron can be left out")
+@mutation(FILTER, "if (open.value) frame = requestAnimationFrame(follow);", "", expect=FOLLOWS)
+@mutation(FILTER, "  measure();\n  frame = requestAnimationFrame(follow);", "  measure();", expect=FOLLOWS)
+@mutation(FILTER, "let top = rect.bottom + GAP;", "let top = rect.bottom;", expect=FOLLOWS)
+@mutation(FILTER, "top = rect.top - GAP - height;", "top = rect.top - height + GAP;", expect=FOLLOWS)
 @mutation(FILTER, 'v-if="props.label"', 'v-if="!props.label"', expect="is a listbox button")
-@mutation(FILTER, 'role="listbox"', 'role="menu"', expect="is a listbox button")
+@mutation(FILTER, 'role="listbox"', 'role="menu"', expect="opens its own listbox in the body")
 @mutation(FILTER, 'current?.label ?? ""', 'current?.label ?? "?"', expect="shows the label of the current value")
-@mutation(FILTER, ":class=\"`is-${props.size}`\"", ":class=\"'is-toolbar'\"",
+@mutation(FILTER, "[`is-${props.size}`, { 'is-open': open }]", "['is-toolbar', { 'is-open': open }]",
           expect="the height follows the size and the chevron can be left out")
+@mutation(FILTER, '<Teleport to="body">', '<Teleport to="body" disabled>', expect="opens its own listbox in the body")
+@mutation(FILTER, "ArrowDown: active.value + 1,", "ArrowDown: active.value,", expect="the arrows move")
+@mutation(FILTER, "if (option && option.value !== props.modelValue) emit", "if (option) emit",
+          expect="choosing the value it already has emits nothing")
+@mutation(FILTER, "  close();\n  trigger.value?.focus();", "  close();", expect="keeps the focus on the trigger")
+@mutation(FILTER, 'event.key === "Tab") {\n    close();', 'event.key === "Tab") {\n    void 0;',
+          expect="a click elsewhere or Tab closes it")
+@mutation(FILTER, "const repeat = [...typed].every((c) => c === typed[0]);", "const repeat = typed.length === 1;",
+          expect="type-to-select")
 @mutation(ACTION_MENU, ':stroke="2.4"', ':stroke="2"', expect="the dots drawn at stroke 2.4")
 @mutation(ACTION_MENU, 'triggerLabel: "More"', 'triggerLabel: "Menu"', expect="is a button named More")
 @mutation(ACTION_MENU, 'menuLabel: "Actions"', 'menuLabel: "Menu"', expect="opens a menu named Actions")
@@ -392,10 +426,12 @@ SKIN_SPEC = "tests/unit/shared/skin.spec.ts"
 @mutation(SKIN, "--el-button-text-color: #ffffff;\n  padding: 0 16px;",
           "--el-button-text-color: #ffffff;\n  padding: 0 14px;",
           expect="every button is 13 px / 400")
-@mutation(SKIN, "  width: 15px;\n  height: 15px;\n  border-radius: 2px;",
-          "  width: 16px;\n  height: 16px;\n  border-radius: 2px;",
-          expect="is the native-look box")
-@mutation(SKIN, "min-width: 200px;", "min-width: 180px;", expect="the menu is a 12 px radius surface")
+@mutation(SKIN, "html:root .el-table tr .el-checkbox__original {\n  margin: 3px 3px 3px 4px;",
+          "html:root .el-table tr .el-checkbox__original {\n  margin: 0;",
+          expect="the checkbox is exactly the browser's 15 px box")
+@mutation(SKIN, "  width: 15px;\n  height: 15px;\n  margin: 3px 3px 3px 4px;\n  opacity: 1;",
+          "  width: 15px;\n  height: 15px;\n  margin: 3px 3px 3px 4px;\n  opacity: 0;",
+          expect="is the browser's own box")
 @mutation(SKIN, "background: var(--rl-fg);\n  color: var(--rl-surface);",
           "background: var(--rl-surface);\n  color: var(--rl-fg);",
           expect="the tooltip is inverted")

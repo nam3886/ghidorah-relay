@@ -1,5 +1,7 @@
 """The app side: put the app in the state of an artboard and photograph it at the board's viewport."""
 
+from contextlib import contextmanager
+
 from patchright.sync_api import expect
 
 TIMEOUT_MS = 10_000
@@ -16,8 +18,10 @@ def settle(page) -> None:
     page.wait_for_function(AT_REST_JS, timeout=TIMEOUT_MS)
 
 
-def capture(app, db, live, entry, dark: bool, width: int, height: int) -> bytes:
-    """A viewport screenshot (or the entry's region of it) of the app in the state `entry` describes."""
+@contextmanager
+def opened(app, db, live, entry, dark: bool, width: int, height: int):
+    """The app's page at the board's viewport, in the state `entry` describes (seeded, clock frozen, driven, settled).
+    On the way out the page must have reported no CSP, script or console problem."""
     data = entry.seed(db, live) if entry.seed else None
     context, page = app.new_page("dark" if dark else "light")
     try:
@@ -26,20 +30,29 @@ def capture(app, db, live, entry, dark: bool, width: int, height: int) -> bytes:
         page.set_viewport_size({"width": width, "height": height})
         if entry.now:
             context.clock.set_fixed_time(entry.now)
+        if entry.prepare:
+            entry.prepare(page, live, data)
         if entry.signed_in:
-            app.sign_in(page)
+            app.sign_in(page, entry.user)
         page.goto(app.url + entry.route)
         if entry.drive:
             entry.drive(page, live, data)
         expect(page.locator("body")).to_be_visible()
         settle(page)
-        clip = None
-        if entry.region:
-            clip = dict(zip(("x", "y", "width", "height"), entry.region, strict=True))
-        png = page.screenshot(clip=clip, caret="hide", animations="disabled")
+        yield page
         page.csp.check()
         # a script error, a failed resource or a console error means the photo may be of a half-drawn app
         assert not page.problems, "the app reported problems while %s was drawn: %r" % (entry.name, page.problems)
-        return png
     finally:
         context.close()
+
+
+def shoot(page, region: tuple | None = None) -> bytes:
+    clip = dict(zip(("x", "y", "width", "height"), region, strict=True)) if region else None
+    return page.screenshot(clip=clip, caret="hide", animations="disabled")
+
+
+def capture(app, db, live, entry, dark: bool, width: int, height: int) -> bytes:
+    """A viewport screenshot (or the entry's region of it) of the app in the state `entry` describes."""
+    with opened(app, db, live, entry, dark, width, height) as page:
+        return shoot(page, entry.region)

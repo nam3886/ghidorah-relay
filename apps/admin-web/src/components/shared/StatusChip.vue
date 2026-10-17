@@ -33,7 +33,6 @@ const text = computed(() => props.label ?? labelOf(props.status));
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
-  line-height: 1;
   white-space: nowrap;
   color: var(--chip-fg);
   background: var(--chip-bg);

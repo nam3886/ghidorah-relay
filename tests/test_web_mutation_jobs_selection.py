@@ -79,8 +79,8 @@ FA = "FAILED " + API_SPEC + " > bulk actions > "
           "const busy = ref(false);\nconst run = (a: () => unknown) => a();",
           expect=FB + "a second click while the confirm is open asks nothing more")
 @mutation(VIEW, ':disabled="!ids.length"', ':disabled="false"',
-          expect="FAILED " + VIEW_SPEC + " > selection > the bulk buttons stay off until a job is ticked, "
-                             "and the count follows")
+          expect="FAILED " + VIEW_SPEC + " > selection > with nothing ticked the toolbar says 0 selected and has "
+                             "no bulk buttons; a tick shows them, and the count follows")
 @mutation(VIEW, ':disabled="!ids.length || rechecking" :loading="rechecking"', ':disabled="!ids.length"',
           expect=FC + "a second click while the re-check is under way sends it once")
 @mutation(API, '{ method: "POST", body: { job_ids: jobIds } }', '{ method: "POST", body: { job_ids: [] } }',

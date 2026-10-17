@@ -17,6 +17,25 @@ export function groupTitle(g: Pick<AlertGroup, "kind" | "title">): string {
   return isEmptyWording(g) ? "API read failure: no reply text was read" : g.title;
 }
 
+const count = (n: number, one: string): string => `${n} ${one}${n === 1 ? "" : "s"}`;
+
+const QUOTE_LIMIT = 200;
+
+// The sentence the Jobs banner says about the first open group (the server lists the most pressing first), as drawn:
+// `Dola replied “Sorry, I can’t create that video” to 4 jobs from 3 keys.` The quote is the newest reply as stored
+// (`reply`, on one line, cut at 200 characters), else the group's title (its folded wording). A group of another kind,
+// or a reply with no text, says its title. The reply words are customer-influenced: shown as text only.
+export function groupSentence(
+  g: Pick<AlertGroup, "kind" | "title" | "provider" | "open_count" | "keys">,
+  reply?: string | null,
+): string {
+  if (g.kind !== "unclear_reply" || isEmptyWording(g)) return `${groupTitle(g)}.`;
+  const who = g.provider ? g.provider.charAt(0).toUpperCase() + g.provider.slice(1) : "The provider";
+  const said = (reply ?? "").replace(/\s+/g, " ").trim() || g.title;
+  const quote = said.length > QUOTE_LIMIT ? `${said.slice(0, QUOTE_LIMIT)}…` : said;
+  return `${who} replied “${quote}” to ${count(g.open_count, "job")} from ${count(g.keys, "key")}.`;
+}
+
 // A wording seen under one key only may still be one customer's own words; a billing group is one wallet, not a wording.
 export function oneCustomer(g: Pick<AlertGroup, "kind" | "title" | "keys">): boolean {
   return g.kind === "unclear_reply" && g.keys === 1 && !isEmptyWording(g);

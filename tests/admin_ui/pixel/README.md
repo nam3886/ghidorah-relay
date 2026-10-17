@@ -13,6 +13,8 @@ design tool's runtime is used.
 | `pixel_diff.py` | pixelmatch-style diff computed in the browser: mismatch, anti-aliasing apart, worst 64 px cells, diff image |
 | `pixel_report.py` | `<run>/<name>-<theme>.{ref,app,diff}.png`, `.json`, and `report.md` / `report.html` (worst first) |
 | `test_pixel.py` | the browser tests; every entry's `gate` is enforced (35 % ceiling by default); the gate itself is self-tested |
+| `element_diff.py` | element by element: every visible text run and painted box of the canvas paired with the app's (by text, signature, then position) and compared (box edges over 0.5 px, font, colour, background, border, radius, padding, opacity); a markdown table per comparison and a canvas / app / diff PNG side by side |
+| `test_element_diff.py` | the Jobs page through `element_diff.py`: the B/T/P-Jobs boards and the Jobs states of B-States (a state card is widened to the app's width first); fails while a table holds a difference that is not live data. Also the Jobs list with data shaped like the live box, at 1440, 768 and 390 |
 
 Run (on the box, narrowed; the images land in `shots/pixel/` of the tree folder, never in git):
 
@@ -41,6 +43,8 @@ sc-element, an image or font that did not load, or a request that was not answer
      (`WALLETS`) and planted jobs `provider=PROVIDER` from `pixel_seed.py`, not the kits' default `fake`.
    - `drive(page, live, data)`: the clicks and fills that reach the state (a dialog or drawer open, a filter set, an
      error shown). Wait for the state with `expect(...)`, never with a sleep.
+   - `prepare(page, live, data)`: runs before the app loads, for what must be in place on the first request (a route
+     answered with the board's own figures when no database can hold them, as the Jobs band: `pixel_jobs.py`).
    - `now=NOW`: freezes the browser clock to the boards' Thu 15 Oct 2026 20:55:02 (Asia/Saigon, set on every page). The
      server's SQL clock cannot be frozen: plant rows relative to the real now when the page shows "x min ago".
    - `region=(x, y, w, h)`: compare only part of the viewport; `label` tells two entries of one board apart.
@@ -56,6 +60,15 @@ Run one board, narrowed, on the box (names are `<board>[-<label>]-<theme>`):
 ```
 scripts/box.sh --tree <folder> -- env RELAY_SCREENSHOTS_DIR=shots scripts/check-in-container.sh "tests/admin_ui/pixel/test_pixel.py::test_the_app_matches_the_canvas[B-Accounts-light]" "tests/admin_ui/pixel/test_pixel.py::test_the_app_matches_the_canvas[B-Accounts-dark]"
 ```
+
+The element diff of the Jobs page, one comparison or all (the tables and pictures land in `shots/pixel/element-diff/`):
+
+```
+scripts/box.sh --tree <folder> -- env RELAY_SCREENSHOTS_DIR=shots scripts/check-in-container.sh tests/admin_ui/pixel/test_element_diff.py
+scripts/box.sh --tree <folder> -- env RELAY_SCREENSHOTS_DIR=shots scripts/check-in-container.sh "tests/admin_ui/pixel/test_element_diff.py::test_jobs_matches_the_canvas_element_by_element[B-Jobs-light]"
+```
+
+Another page reuses it with its own `Check` list (canvas root, app root, viewport, live data texts).
 
 `check-in-container.sh` takes node ids only (no `-k`). The run prints `PIXEL <name> <theme>: <pct> %`; the images and
 `report.md` are in `shots/pixel/` (`<name>-<theme>.{ref,app,diff}.png`; the diff shows matches faded, anti-aliasing

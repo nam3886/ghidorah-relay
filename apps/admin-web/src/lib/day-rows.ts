@@ -26,14 +26,14 @@ export interface SpanArgs {
   columnIndex: number;
 }
 
-// Element Plus span-method: on a day row, column 0 stays a single (empty) cell and column 1 spans the rest; on every
+// Element Plus span-method: a day row is one cell across the whole table, as the canvas draws it (`th colspan=9`). The
+// `leading` cells before the first data column (the selection column: 1, else 0) are not drawn at all, and the first
+// data column's cell spans every column, so the header starts at the table's left edge with its own padding. On every
 // other row the cell is untouched. `columnCount` counts every column, the selection and Actions columns too.
-// `leading` is how many leading cells stay empty: 1 with a selection column, 0 without one.
 export function daySpanMethod(columnCount: number, leading = 1) {
   return ({ row, columnIndex }: SpanArgs): [number, number] | undefined => {
     if (!isDayRow(row)) return undefined;
-    if (columnIndex < leading) return [1, 1];
-    if (columnIndex === leading) return [1, Math.max(1, columnCount - leading)];
+    if (columnIndex === leading) return [1, Math.max(1, columnCount)];
     return [0, 0];
   };
 }

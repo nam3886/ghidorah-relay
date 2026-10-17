@@ -13,9 +13,9 @@ from dataclasses import dataclass, replace
 
 from patchright.sync_api import expect
 from pixel_drawer import IMAGE_DONE, IMAGE_FAILED, VIDEO_DONE, open_drawer, seed_of
-from pixel_jobs import jobs_seed, tick_the_two
+from pixel_jobs import canvas_band, jobs_seed, tick_the_two
 from pixel_lane7 import frames_drive, frames_seed, key_page_drive, key_page_seed, settings_drive, settings_seed
-from pixel_seed import NOW, shell_seed
+from pixel_seed import BOARD_USER, NOW, shell_seed
 
 TIMEOUT_MS = 10_000
 # Every entry starts under this coarse ceiling: a broken or blank page is far above it (the shell and login of drop 1
@@ -31,6 +31,8 @@ class Entry:
     seed: Callable | None = None                # seed(db, live) -> data: plant the board's sample data
     now: str | None = None                      # frozen clock, e.g. "2026-10-15T14:00:00+07:00"
     drive: Callable | None = None               # drive(page, live, data): reach the state
+    prepare: Callable | None = None             # prepare(page, live, data): before the app loads (a route to answer)
+    user: str | None = None                     # sign in as this user (the seed makes it), else the test's own
     region: tuple | None = None                 # (x, y, width, height): compare only this part of the viewport
     gate: float = CEILING_PCT                   # most mismatch + anti-aliasing (% of the viewport) the entry may have
     label: str = ""                             # tells two entries of one board apart (a board's shell and its body)
@@ -59,10 +61,19 @@ LOGIN = [
 # The header and the tab strip of the Jobs boards, cropped to the shell (the board height where the Jobs content
 # begins), with the data behind the badges (Jobs 4, Accounts 7/8, Alerts 1) from pixel_seed.py.
 
+def shell_counts(page, live, data):
+    """The tab badges arrive with the stats, after the bar itself: a photo taken before them is a bar shifted left."""
+    for tab in ("jobs", "accounts", "alerts"):
+        expect(page.get_by_test_id("tab-count-" + tab)).to_be_visible(timeout=TIMEOUT_MS)
+
+
 SHELL = [
-    Entry("B-Jobs", "#/jobs", seed=shell_seed, now=NOW, region=(0, 0, 1440, 65), label="shell"),
-    Entry("T-Jobs", "#/jobs", seed=shell_seed, now=NOW, region=(0, 0, 768, 110), label="shell"),
-    Entry("P-Jobs", "#/jobs", seed=shell_seed, now=NOW, region=(0, 0, 390, 100), label="shell"),
+    Entry("B-Jobs", "#/jobs", seed=shell_seed, now=NOW, region=(0, 0, 1440, 65), label="shell", user=BOARD_USER,
+          drive=shell_counts),
+    Entry("T-Jobs", "#/jobs", seed=shell_seed, now=NOW, region=(0, 0, 768, 110), label="shell", user=BOARD_USER,
+          drive=shell_counts),
+    Entry("P-Jobs", "#/jobs", seed=shell_seed, now=NOW, region=(0, 0, 390, 100), label="shell", user=BOARD_USER,
+          drive=shell_counts),
 ]
 
 # ---- Prompt frames, Settings, Test (lane 7) ------------------------------------------------------------------------
@@ -93,9 +104,10 @@ ACCOUNTS_BOARDS = [
 from pixel_kla import KLA  # noqa: E402  (lane 6: keys, request logs, alerts; imports Entry from here)
 
 # ---- jobs ----------------------------------------------------------------------------------------------------------
-# The whole page: head, band, banner, list with the failed and the unknown job ticked (pixel_jobs.py).
+# The whole page: head, band, banner, list with the failed and the unknown job ticked (pixel_jobs.py: the band's
+# columns are the board's own, served to the page, as no database holds both them and the board's page).
 
-JOBS = [Entry(board, "#/jobs", seed=jobs_seed, now=NOW, drive=tick_the_two)
+JOBS = [Entry(board, "#/jobs", seed=jobs_seed, now=NOW, drive=tick_the_two, prepare=canvas_band, user=BOARD_USER)
         for board in ("B-Jobs", "T-Jobs", "P-Jobs")]
 
 # ---- the job drawer ------------------------------------------------------------------------------------------------
@@ -112,8 +124,9 @@ DRAWER = [
 ]
 
 # Each board holds its own measured gate: the worst of its light and dark mismatch + anti-aliasing on the box after the
-# consolidation round, plus 1.0 point (17/10). CEILING_PCT stays only the default of a new entry; a board that gets
-# worse than its gate is a regression, and one that gets better should have its gate lowered.
+# consolidation round (the Jobs boards and their shell: after the Jobs page round), plus 1.0 point (17/10).
+# CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
+# that gets better should have its gate lowered.
 GATES: dict[str, float] = {
     "B-AccountEdit": 4.52,
     "B-AccountImport": 10.13,
@@ -122,8 +135,8 @@ GATES: dict[str, float] = {
     "B-Frames": 2.32,
     "B-JobDetail": 1.33,
     "B-JobFailed": 2.67,
-    "B-Jobs": 4.47,
-    "B-Jobs-shell": 4.02,
+    "B-Jobs": 1.14,
+    "B-Jobs-shell": 1.00,
     "B-KeyForm": 10.21,
     "B-Keys": 3.07,
     "B-LogDetail": 4.69,
@@ -135,8 +148,8 @@ GATES: dict[str, float] = {
     "P-Alerts": 9.38,
     "P-Frames": 3.49,
     "P-JobDetail": 9.07,
-    "P-Jobs": 10.47,
-    "P-Jobs-shell": 2.74,
+    "P-Jobs": 1.02,
+    "P-Jobs-shell": 1.00,
     "P-Keys": 7.96,
     "P-Login": 1.16,
     "P-Logs": 6.41,
@@ -146,8 +159,8 @@ GATES: dict[str, float] = {
     "T-Alerts": 8.07,
     "T-Frames": 5.68,
     "T-JobDetail": 1.30,
-    "T-Jobs": 6.39,
-    "T-Jobs-shell": 2.90,
+    "T-Jobs": 1.23,
+    "T-Jobs-shell": 1.00,
     "T-Keys": 8.41,
     "T-Logs": 10.91,
     "T-Settings": 9.01,

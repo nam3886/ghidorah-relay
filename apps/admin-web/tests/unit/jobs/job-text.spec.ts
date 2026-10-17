@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ApiError } from "@/api/client";
 import {
   eventTone,
   fmtBytes,
@@ -7,6 +8,7 @@ import {
   fmtTook,
   isRefunded,
   keyName,
+  loadFailedText,
   newestFirst,
   plural,
   progressStep,
@@ -14,6 +16,19 @@ import {
   regenerateToast,
   shortId,
 } from "@/components/jobs/job-text";
+
+describe("the failed load of the list", () => {
+  it("says what failed and what the relay answered, as drawn", () => {
+    const err = new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } });
+    expect(loadFailedText(err, "bad gateway")).toBe("Could not load the jobs: the relay answered 502 (bad gateway).");
+  });
+
+  it("with no answer from the relay says the app's own words", () => {
+    expect(loadFailedText(new TypeError("Failed to fetch"), "Network error, please try again")).toBe(
+      "Could not load the jobs: network error, please try again.",
+    );
+  });
+});
 
 describe("job text", () => {
   it("the id is its first 8 characters", () => {

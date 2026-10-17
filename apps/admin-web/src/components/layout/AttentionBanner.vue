@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { groupSentence } from "@/components/alerts/alerts-model";
 import { IconAlertTriangle } from "@/components/shared/icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useStatsStore } from "@/stores/stats";
 
 // The attention banner as drawn on Jobs (specs/shell.md section 5): one line, a bold sentence with the open alert
-// groups, one muted sentence with the live condition, and the link to Alerts. Jobs renders it after its band card.
-// More than one live condition shows the first and a count of the rest, so the banner never grows. No coloured side
+// groups, one muted sentence, and the link to Alerts. Jobs renders it after its band card. The muted sentence words
+// the first open group (`Dola replied “…” to 4 jobs from 3 keys.`), as drawn even beside live conditions; with no open
+// group it is the live condition, the first one and a count of the rest, so the banner never grows. No coloured side
 // border (DESIGN section 6).
 const stats = useStatsStore();
 const { isPhone } = useBreakpoint();
@@ -21,6 +23,7 @@ const headline = computed(() =>
     : "Needs attention.",
 );
 const detail = computed(() => {
+  if (stats.firstGroup) return groupSentence(stats.firstGroup, stats.firstReply);
   const [first, ...rest] = alerts.value;
   if (!first) return "";
   return rest.length ? `${first.message} (+${rest.length} more)` : first.message;

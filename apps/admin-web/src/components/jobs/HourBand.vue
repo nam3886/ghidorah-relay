@@ -124,6 +124,10 @@ const legend = computed(() => [
 .band--tablet .band__head {
   gap: 8px 12px;
 }
+/* a phone draws the legend as its own row, 10 px under the title (the chart column's gap) */
+.band--phone .band__head {
+  gap: 10px;
+}
 .band__title {
   margin: 0;
   font-size: 15px;

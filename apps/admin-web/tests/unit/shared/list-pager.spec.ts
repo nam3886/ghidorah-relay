@@ -99,9 +99,9 @@ describe("ListPager", () => {
     const w = mount(ListPager, { props: { total: 95 }, attachTo: document.body });
     const size = w.find(".pager__size");
     expect(size.exists()).toBe(true);
-    expect(w.find(".pager__size button").attributes("aria-haspopup")).toBe("listbox");
-    expect(w.find(".pager__size button").text()).toBe("10 / page");
-    expect(w.find(".pager__size svg").exists()).toBe(false);
+    expect(w.find("button.pager__size").attributes("aria-haspopup")).toBe("listbox");
+    expect(w.find("button.pager__size").text()).toBe("10 / page");
+    expect(w.find("button.pager__size svg").exists()).toBe(false);
     expect(w.find("input").exists()).toBe(false);
     expect(w.find("button.btn-prev").text()).toBe("Previous");
     expect(w.find("button.btn-next").text()).toBe("Next");

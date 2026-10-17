@@ -30,9 +30,11 @@ def confirm(page, name: str) -> None:
 
 
 def choose(page, which: int, option: str) -> None:
-    """Pick an option of the n-th filter select (0 status, 1 key)."""
+    """Pick an option of the n-th filter select (0 status, 1 key): the listbox closes and the control shows it."""
     page.locator(".jobs__filter").nth(which).click()
     page.get_by_role("option", name=option, exact=True).click()
+    expect(page.get_by_role("listbox")).to_have_count(0)
+    expect(page.locator(".jobs__filter").nth(which)).to_contain_text(option)
 
 
 def drawer(page):
@@ -99,7 +101,7 @@ def test_the_list_shows_its_columns_and_a_row_opens_the_detail_but_its_tick_box_
     for text in (str(job)[:8], "clickable", "acct-a", "done", "fake-video"):
         expect(row).to_contain_text(text)
     expect(page.locator('[data-testid="day-row"]')).to_contain_text("Today")
-    expect(page.locator('[data-testid="day-row"]')).to_contain_text("· 1 job")        # the server's total of the day
+    expect(page.locator('[data-testid="day-row"]')).to_contain_text("· 1 job shown")  # today: its jobs on the page
     row.locator("label.el-checkbox").click()
     expect(page.locator(".jobs__count")).to_have_text("1 selected")
     expect(drawer(page)).to_be_hidden()
@@ -120,7 +122,7 @@ def test_the_status_filter_offers_submitting_and_the_key_filter_narrows_the_list
     db.run("UPDATE jobs SET status = 'submitting' WHERE id = %s", c)
     app.sign_in(page)
     expect(rows(page)).to_have_count(3)
-    choose(page, 0, "submitting")
+    choose(page, 0, "Submitting")
     expect(rows(page)).to_have_count(1)
     expect(rows(page).first).to_contain_text(str(c)[:8])
     choose(page, 0, "All")
@@ -130,7 +132,7 @@ def test_the_status_filter_offers_submitting_and_the_key_filter_narrows_the_list
     expect(rows(page).first).to_contain_text(str(b)[:8])
     choose(page, 1, "first-key")
     expect(rows(page)).to_have_count(2)
-    choose(page, 0, "done")
+    choose(page, 0, "Done")
     expect(rows(page)).to_have_count(1)
     expect(rows(page).first).to_contain_text(str(a)[:8])
 
@@ -190,7 +192,7 @@ def test_a_bigger_page_size_shows_more_rows_and_keeps_the_ticks_across_a_reload(
     app.sign_in(page)
     expect(rows(page)).to_have_count(10)
     page.locator(".pager button.is-pager").click()
-    page.locator(".rl-menu").get_by_text("20 / page", exact=True).click()
+    page.get_by_role("listbox", name="Page size").get_by_role("option", name="20 / page", exact=True).click()
     expect(rows(page)).to_have_count(20)
     tick(page, 0)
     tick(page, 3)
@@ -212,14 +214,19 @@ def test_select_all_counts_and_the_bulk_buttons_wait_for_a_tick_then_recheck_rep
     app.sign_in(page)
     recheck = page.get_by_role("button", name="Re-check")
     regenerate = page.get_by_role("button", name="Regenerate…")
-    expect(recheck).to_be_disabled()
-    expect(regenerate).to_be_disabled()
+    # nothing ticked: "0 selected" and no bulk buttons, as the canvas draws it
+    expect(page.locator("[data-state=ready]")).to_be_visible()
+    expect(recheck).to_be_hidden()
+    expect(regenerate).to_be_hidden()
+    expect(page.locator(".jobs__count")).to_be_visible()
     expect(page.locator(".jobs__count")).to_have_text("0 selected")
     page.locator("thead label.el-checkbox").click()
     expect(page.locator(".jobs__count")).to_have_text("3 selected")
     expect(recheck).to_be_enabled()
+    expect(regenerate).to_be_enabled()
     page.locator("thead label.el-checkbox").click()
     expect(page.locator(".jobs__count")).to_have_text("0 selected")
+    expect(recheck).to_be_hidden()
     tick(page, 0)
     tick(page, 1)
     expect(page.locator(".jobs__count")).to_have_text("2 selected")
@@ -339,6 +346,53 @@ def test_abandoning_a_kept_key_makes_the_next_regenerate_use_a_new_one(app, app_
     confirm(page, "Regenerate")
     assert sent(page, keys, 2) != keys[0], "an abandoned key is not sent again"
     expect(page.get_by_text("Made 1, already made 0, failed 0")).to_be_visible()
+
+
+@pytest.mark.fabricated_rows("plants a failed job with no error code", "without an error code")
+def test_the_filter_select_is_the_drawn_listbox_and_answers_the_keyboard(app, app_page, live, db):
+    """No native select and no Element Plus popup: our listbox, opened and driven from the keyboard, the focus back on
+    the control after a choice or Escape, and on a phone the list is not cut by the filter row that scrolls sideways."""
+    page = app_page
+    k = new_key(db)
+    done_job(db, k, ref="a")
+    done_job(db, k, ref="b", status="failed")
+    app.sign_in(page)
+    expect(rows(page)).to_have_count(2)
+    expect(page.locator(".jobs select, .el-select, .el-select-dropdown")).to_have_count(0)
+    status = page.get_by_role("combobox", name="Status", exact=True)
+    expect(status).to_have_attribute("aria-haspopup", "listbox")
+    status.focus()
+    page.keyboard.press("ArrowDown")
+    listbox = page.get_by_role("listbox", name="Status")
+    expect(listbox).to_be_visible()
+    expect(page.get_by_role("option", name="All", exact=True)).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("End")
+    page.keyboard.press("Enter")
+    expect(listbox).to_have_count(0)
+    expect(status).to_be_focused()
+    expect(status).to_contain_text("Failed")
+    expect(rows(page)).to_have_count(1)
+    page.keyboard.press("ArrowDown")
+    expect(listbox).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(listbox).to_have_count(0)
+    expect(status).to_be_focused()
+    page.keyboard.press("d")                        # type-to-select opens the list on Done
+    expect(page.get_by_role("option", name="Done", exact=True)).to_have_class(re.compile("is-active"))
+    page.keyboard.press("Enter")
+    expect(status).to_contain_text("Done")
+    expect(rows(page)).to_have_count(1)
+    # a phone: the filter row scrolls sideways and the card hides its overflow, the list is drawn whole above both
+    page.set_viewport_size({"width": 390, "height": 800})
+    status.click()
+    box = listbox.bounding_box()
+    assert box and box["height"] >= 8 * 44, "the phone list shows all eight options at 44 px: %r" % box
+    seen = page.evaluate("""() => { const r = document.querySelector('[role=listbox]').getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.bottom - 10);
+        return !!hit && !!hit.closest('[role=listbox]'); }""", isolated_context=False)
+    assert seen, "the bottom of the list is covered or cut"
+    page.mouse.click(5, 795)
+    expect(listbox).to_have_count(0)
 
 
 def test_a_key_with_no_label_is_named_by_its_prefix_in_the_key_filter(app, app_page, live, db):

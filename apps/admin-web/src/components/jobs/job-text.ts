@@ -1,9 +1,20 @@
+import { ApiError } from "@/api/client";
 import type { BulkRecheckResult, BulkRegenerateResult, JobSummary } from "@/api/jobs";
 
 import type { JobEvent } from "@/api/jobs-detail";
 import { toneOf, type Tone } from "@/components/shared/status-tones";
 
 export const shortId = (id: string): string => id.slice(0, 8);
+
+// The list's failed load, worded as drawn (B-States): "Could not load the jobs: the relay answered 502 (bad gateway)."
+// `said` is the app's own text for the failure (errorText); with no answer from the relay it is all there is to say.
+export function loadFailedText(err: unknown, said: string): string {
+  const why =
+    err instanceof ApiError
+      ? `the relay answered ${err.status} (${said})`
+      : said.charAt(0).toLowerCase() + said.slice(1);
+  return `Could not load the jobs: ${why}.`;
+}
 
 // What a key shows in a select or a cell: its label, else its prefix, else the first 8 characters of its id, so no
 // option is ever blank.
