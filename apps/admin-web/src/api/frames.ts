@@ -19,6 +19,8 @@ export interface FrameLock {
 
 export interface FrameModel {
   model: string;
+  // The product name shown to people; the server sends the id when a model has none.
+  name?: string;
   source: "own" | "default" | string;
   own: FrameVersion | null;
   effective: FrameVersion | null;
