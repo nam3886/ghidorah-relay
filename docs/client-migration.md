@@ -99,7 +99,7 @@ ever renamed or removed.
 | `render_started_at` | ISO time the current render attempt started. `null` before the render starts (queued, being placed) and for a failed job. |
 | `estimated_finish_at` | ISO time the render is expected to end, to the minute, only while the render runs and only when there is enough recent data for this model and length. `null` otherwise: with little data relay makes no promise. `null` once the job has run longer than usual (a time in the past is not an estimate), and `null` for a failed job. |
 
-Images are fast: they show 0, then 95, then 100, and no `estimated_finish_at`. Decide that a job has ended from `status`, never from `progress`.
+Images are fast and usually go from 0 straight to 95 and then 100. When an image does wait for the provider (for example after a re-check), it shows `progress` and an `estimated_finish_at` like a video does. Decide that a job has ended from `status`, never from `progress`.
 
 All times are server time with a UTC offset. Compare an estimated time with the server's clock (the HTTP `Date` header of the answer), not with your own.
 
