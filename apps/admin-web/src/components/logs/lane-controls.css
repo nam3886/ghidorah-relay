@@ -23,7 +23,8 @@
   color: var(--rl-fg);
   font: inherit;
   font-size: 13px;
-  line-height: 16px;
+  /* the browser's own, as the canvas's buttons keep it */
+  line-height: normal;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -176,7 +177,7 @@ html.dark .kla-control[type="date"]::-webkit-calendar-picker-indicator {
   background: transparent;
 }
 
+/* ids and names in the mono face with its own figures; a count adds tabular figures where the canvas sets them */
 .kla-mono {
   font-family: var(--rl-mono);
-  font-variant-numeric: tabular-nums;
 }

@@ -1,7 +1,9 @@
-/* Toasts (specs/shared.md section 10): a surface card with a hairline and the overlay shadow, in both themes (the
-   message is teleported to <body>). Success and error have their own padding, icon colour and close button; the
-   grouping badge is a pill inside the toast, not Element Plus's round badge outside it. */
-.el-message {
+/* Toasts as B-States draws them (specs/shared.md section 10): a surface card 260 wide at least, 46 high (12 + 20 + 12
+   and the hairline), radius 12, the overlay shadow; an 18 px icon, the text in --rl-fg in every tone, a "×3" pill when
+   the toast repeats, and on an error the 28 px X button. The body (text, pill, X) is drawn by notify.ts; Element
+   Plus's own round badge and close glyph are hidden. The message is teleported to <body>. Element Plus's rules on
+   .el-message are as specific as a plain .el-message rule and load later, so these carry `html` in front. */
+html .el-message {
   min-width: 260px;
   max-width: 100%;
   box-sizing: border-box;
@@ -12,14 +14,19 @@
   background-color: var(--rl-surface);
   box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
 }
-.el-message .el-message__content {
+html .el-message .el-message__content {
+  display: flex;
   flex: 1;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
   color: var(--rl-fg);
   font-size: 14px;
   line-height: 20px;
 }
-.el-message .el-message__icon {
+html .el-message .el-message__icon {
   margin: 0;
+  font-size: 18px;
 }
 html:root .el-message {
   border-color: var(--rl-line);
@@ -34,31 +41,24 @@ html:root .el-message {
 .el-message--info .el-message__icon {
   color: var(--rl-info);
 }
-.el-message.is-closable {
+html .el-message.is-closable {
   padding: 12px 8px 12px 16px;
 }
-.el-message .el-message__closeBtn {
-  position: static;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  margin: 0;
-  border-radius: 8px;
-  color: var(--rl-muted);
-  transform: none;
+/* Element Plus's own count badge and close glyph: the drawn pill and X are in the body */
+html .el-message .el-message__badge,
+html .el-message .el-message__closeBtn {
+  display: none;
 }
-.el-message .el-message__closeBtn:hover {
-  background: var(--rl-raised);
-  color: var(--rl-muted);
+.rl-toast__text {
+  flex: 1;
+  color: var(--rl-fg);
+  overflow-wrap: anywhere;
 }
-.el-message .el-message__badge {
-  position: static;
-  order: 3;
+/* the drawn count pill: 20 high, 12/500, in the toast's own tone (B-States draws the success one) */
+.rl-toast__count {
+  flex: none;
   height: 20px;
   padding: 0 8px;
-  border: 0;
   border-radius: 10px;
   background-color: var(--rl-ok-bg);
   color: var(--rl-ok);
@@ -66,5 +66,30 @@ html:root .el-message {
   font-weight: 500;
   line-height: 20px;
   font-variant-numeric: tabular-nums;
-  transform: none;
+}
+.el-message--error .rl-toast__count {
+  background-color: var(--rl-bad-bg);
+  color: var(--rl-bad);
+}
+.el-message--info .rl-toast__count {
+  background-color: var(--rl-info-bg);
+  color: var(--rl-info);
+}
+/* the drawn close: a 28 px button, radius 8, the X at 14 in the muted colour, raised on hover */
+.rl-toast__close {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--rl-muted);
+  cursor: pointer;
+}
+.rl-toast__close:hover {
+  background: var(--rl-raised);
 }

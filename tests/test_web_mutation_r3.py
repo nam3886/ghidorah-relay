@@ -285,7 +285,7 @@ FAILED_JOB = VIEW_SPEC + "the result card > a finished job has no empty slot, an
           expect=DURATION_SELECT)
 @mutation(TEST_MODELS, "typeof m.name === \"string\" && m.name ? m.name : m.id", "m.id", expect=DISPLAY_NAME)
 @mutation(TEST_IMAGES, "{{ sizeText(f.blob.size) }}", "", expect=NAMES_ONLY)
-@mutation(TEST_RESULT, "ui.openJob(job.id)", "ui.openJob('')", expect=RESULT_CARD)
+@mutation(TEST_RESULT, "ui.openJob(props.job.id)", "ui.openJob('')", expect=RESULT_CARD)
 @mutation(TEST_RESULT_MODEL, 'waiting: "2/4",', 'waiting: "3/4",', expect=RESULT_CARD)
 @mutation(TEST_RESULT_MODEL, "return job.stage || job.status;", "return job.status;", expect=RESULT_CARD)
 @mutation(TEST_RESULT_MODEL, 'add("Created", clockTime(job.created_at));', "", expect=RESULT_CARD)
@@ -294,6 +294,72 @@ FAILED_JOB = VIEW_SPEC + "the result card > a finished job has no empty slot, an
 @pytest.mark.web_unit
 def test_test_view_rules():
     vitest("tests/unit/test/test-view.spec.ts")
+
+
+# ---- page-test-login: the Test page drawn as the design (the result card frames, the wallet order, the play box) -----
+WALLET_ORDER = PICKER + "lists the video wallet first, whatever order the points answer has"
+FRAMES_OF_RESULT = VIEW_SPEC + "the result card frames > "
+EMPTY_FRAME = FRAMES_OF_RESULT + "draws nothing made yet as a title bar over the status line in the middle"
+DONE_FRAME = (FRAMES_OF_RESULT + "draws a done job as a title bar over the media and the ledger: job, model, duration "
+              + "and time taken")
+PLAIN_FRAME = FRAMES_OF_RESULT + "a job still on its way keeps the plain card: no title bar"
+PLAY_BOX = (VIEW_SPEC + "media > draws a video link as a box with a play button, and the video element only once it "
+            + "is played")
+FAILED_CODE = (VIEW_SPEC + "the result card > a failed job with a code names it in bold before the reason, as the "
+               + "job drawer does")
+BY_VALUE = PICKER + "offers and sends a ratio by the value the provider takes, not by its label"
+CHIP_HINT = PICKER + "names a template chip by its whole text and shows the whole text in its hint"
+STYLE_VALUE = PICKER + "shows a style by its label and sends the value the provider takes"
+MODEL_RATIOS = (PICKER + "lists the picked model's own ratios over the provider's: a video model offers 21:9 and "
+                + "not 2:3")
+RATIO_FALLBACK = (PICKER + "puts the model's default in place of a ratio the next model does not take, and never "
+                  + "sends it")
+REFUNDED_POINTS = (VIEW_SPEC + "the result card > a refunded failed job strikes its charge, then 0 and refunded, as "
+                   + "the job drawer does")
+OPTION_VALUE = FORM_SPEC + "optionValue > takes the value a provider takes, and the label only when there is no value"
+
+
+@mutation(TEST_MODELS, 'Number(b === "video") - Number(a === "video") || a.localeCompare(b)', "a.localeCompare(b)",
+          expect=WALLET_ORDER)
+@mutation(TEST_VIEW, "capital(m.kind)", "m.kind", expect=DISPLAY_NAME)
+@mutation(TEST_VIEW, '<span class="num">{{ infoTail }}</span>', "{{ infoTail }}", expect=DURATION_SELECT)
+@mutation(TEST_RESULT, "'result--bar': !job || done", "'result--bar': !job", expect=DONE_FRAME)
+@mutation(TEST_RESULT, "'result--bar': !job || done", "'result--bar': true", expect=PLAIN_FRAME)
+@mutation(TEST_RESULT, 'v-if="!job" class="result__empty"', 'v-if="false" class="result__empty"', expect=EMPTY_FRAME)
+@mutation(TEST_RESULT, 'v-if="playing === i"', 'v-if="true"', expect=PLAY_BOX)
+@mutation(TEST_RESULT, 'typeof props.job?.error_code === "string" ? props.job.error_code : ""', '""',
+          expect=FAILED_CODE)
+@mutation(TEST_VIEW, "(extras.ratios ?? []).map(optionValue)", "(extras.ratios ?? []).map(optionLabel)",
+          expect=BY_VALUE)
+@mutation(TEST_VIEW, "({ value: optionValue(o), label: optionLabel(o) })",
+          "({ value: optionLabel(o), label: optionLabel(o) })", expect=STYLE_VALUE)
+@mutation(TEST_VIEW, "label: optionLabel(o) })", "label: optionValue(o) })", expect=STYLE_VALUE)
+@mutation(TEST_VIEW, '<FilterSelect\n            v-if="durations.length"', '<FilterSelect\n            v-if="false"',
+          expect=DURATION_SELECT)
+@mutation(TEST_VIEW, "return own.length ? own : withSaved(ratios.value, form.ratio);",
+          "return withSaved(ratios.value, form.ratio);", expect=MODEL_RATIOS)
+@mutation(TEST_VIEW, "if (own.length && form.ratio && !own.includes(form.ratio)) form.ratio = defaultRatioOf(model);",
+          "", expect=RATIO_FALLBACK)
+@mutation(TEST_MODELS, 'typeof ratio === "string" && ratiosOf(m).includes(ratio) ? ratio : ""', '""',
+          expect=RATIO_FALLBACK)
+@mutation(TEST_RESULT_MODEL, 'if (typeof job.points === "number") {', "if (false) {", expect=RESULT_CARD)
+@mutation(TEST_VIEW, ':content="t.show_value || t.prompt"', ':content="t.prompt.slice(0, 40)"', expect=CHIP_HINT)
+@mutation(TEST_RESULT_MODEL, "job.refunded === true", "false", expect=REFUNDED_POINTS)
+@mutation(TEST_RESULT_MODEL, 'if (took) rows.push({ label: "Took", value: took });', "", expect=DONE_FRAME)
+@mutation(TEST_RESULT_MODEL, "minutes ? `${minutes} m ${seconds % 60} s` : `${seconds} s`", "`${seconds} s`",
+          expect=DONE_FRAME)
+@mutation(TEST_RESULT_MODEL, 'const rows = [{ label: "Job", value: shortJobId(job.id) }];',
+          "const rows: Array<{ label: string; value: string }> = [];", expect=DONE_FRAME)
+@pytest.mark.web_unit
+def test_test_view_drawn_as_the_design():
+    vitest("tests/unit/test/test-view.spec.ts")
+
+
+@mutation(FORM, 'typeof option.value === "string" && option.value ? option.value : optionLabel(option)',
+          "optionLabel(option)", expect=OPTION_VALUE)
+@pytest.mark.web_unit
+def test_test_view_option_values():
+    vitest("tests/unit/test/test-form.spec.ts")
 
 
 # ---- Settings: the value parse, the dirty rule, the scope, the password change -------------------------------------
@@ -479,3 +545,48 @@ SUMMARY = MODEL_SPEC + "the apply-to-all summary lists applied, kept and unchang
 @pytest.mark.web_unit
 def test_frames_lines():
     vitest("tests/unit/frames/frames-model.spec.ts")
+
+
+# ---- page-frames-settings round: the drawn section titles, a refusal as a field error, the password error's field ---
+REFUSED = FRAMES_VIEW_SPEC + "shows a refused save beside the editor as an alert with the field"
+NOT_REFUSED = FRAMES_VIEW_SPEC + "marks no box invalid while nothing was refused"
+TITLES = FRAMES_VIEW_SPEC + "titles each kind's section as drawn: Video, Image"
+
+
+@mutation(FRAME_EDITOR, ":aria-invalid=\"frames.refusal ? 'true' : undefined\"", ':aria-invalid="undefined"',
+          expect=REFUSED)
+@mutation(FRAME_EDITOR, ":aria-describedby=\"frames.refusal ? 'frame-refusal' : undefined\"",
+          ':aria-describedby="undefined"', expect=REFUSED)
+@mutation(FRAME_EDITOR, "{ 'is-invalid': frames.refusal }", "{ 'is-invalid': true }", expect=NOT_REFUSED)
+@mutation(FRAMES_MODEL, "kind.charAt(0).toUpperCase() + kind.slice(1)", "kind", expect=TITLES)
+@pytest.mark.web_unit
+def test_frames_drawn_looks():
+    vitest("tests/unit/frames/frames-view.spec.ts")
+
+
+LOAD_WORDS = TABLE + "shows an empty list and a failed load with Retry"
+BOOT_DASH = SETTINGS_SPEC + "setting values > show a boot-only value that is unset or empty as a dash"
+PASSWORD_RULE = SETTINGS_SPEC + "setting values > hold a new password to the server's rule, 10 to 256 characters"
+LONG_DEFAULT = SETTINGS_SPEC + "setting values > show a long default on one line, the whole value laid out in its note"
+FORM_CHECK = (PASSWORD_SPEC + "checks the length in the form before sending, in the drawn words: "
+              + "at least 10, at most 256")
+LOADING_ROWS = (SETTINGS_SPEC + "the settings page > draws the first read as the drawn loading rows: each table's "
+                + "header over five rows of bars")
+
+
+@mutation(PASSWORD, "fieldErrors.new_password ? 'new-password-error' : undefined", "undefined", expect=NEW_FIELD)
+@mutation(SETTINGS_VIEW, 'errorText(err), "the settings")', 'errorText(err), "the jobs")', expect=LOAD_WORDS)
+@mutation(SETTINGS_VIEW, 'errorText(err), "the measured prices")', "errorText(err))", expect=LOAD_WORDS)
+@mutation(SETTING_VALUE, ' || value === ""', "", expect=BOOT_DASH)
+@mutation(SETTING_VALUE, "if (password.length < PASSWORD_MIN)", "if (password.length < 1)", expect=PASSWORD_RULE)
+@mutation(SETTING_VALUE, "if (password.length > PASSWORD_MAX)", "if (false)", expect=PASSWORD_RULE)
+@mutation(PASSWORD, "if (fieldErrors.new_password) return;", "", expect=FORM_CHECK)
+@mutation(SETTING_VALUE, "shown.length > LONG_DEFAULT", "shown.length > 1000", expect=LONG_DEFAULT)
+@mutation(SETTING_VALUE, "JSON.stringify(value, null, 2)", "JSON.stringify(value)", expect=LONG_DEFAULT)
+@mutation(SETTINGS_TABLE, "props.loading && !props.items.length && !props.error", "false", expect=LOADING_ROWS)
+@mutation(PRICES, "props.loading && !props.rows.length && !props.error", "false", expect=LOADING_ROWS)
+@mutation(SETTINGS_VIEW, ':empty="!envOnly.length && !settingsLoading"', ':empty="!envOnly.length"',
+          expect=LOADING_ROWS)
+@pytest.mark.web_unit
+def test_settings_errors_as_drawn():
+    vitest("tests/unit/settings/settings.spec.ts")

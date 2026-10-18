@@ -23,7 +23,8 @@ PLAIN_REPLY = "Plain wording of one key"
 
 def open_tab(page, label):
     page.get_by_role("tab", name=label, exact=True).click()
-    expect(page.get_by_role("heading", name=label)).to_be_visible()
+    # the page title (an empty or failed card repeats the name in its own heading, as drawn)
+    expect(page.get_by_role("heading", name=label, level=1)).to_be_visible()
 
 
 def rows(page):
@@ -44,6 +45,16 @@ def pick(page, label, option):
 
 
 # ---- API keys ------------------------------------------------------------------------------------------------------
+
+
+def mode(box, wallet, option):
+    """Choose a wallet's Mode in the key form (FilterSelect's field: a combobox in the wallet's group, its list opened
+    in the body)."""
+    field = box.get_by_role("group", name=wallet, exact=True).get_by_role("combobox", name="Mode")
+    field.click()
+    box.page.get_by_role("option", name=option, exact=True).click()
+    expect(field).to_contain_text(option)
+
 
 def key_places(page, raw):
     """Every place of the page the raw key could be found in, except the callout's own field."""
@@ -71,9 +82,9 @@ def create_key(page, label="customer one"):
     page.get_by_role("button", name="New key").first.click()
     box = page.get_by_role("dialog")
     box.get_by_label("Label", exact=True).fill(label)
-    box.get_by_label("fake video mode").select_option("limit")
+    mode(box, "fake video", "limit")
     box.get_by_label("fake video per day").fill("5")
-    box.get_by_label("fake image mode").select_option("unlimited")
+    mode(box, "fake image", "unlimited")
     box.get_by_role("button", name="Create key").click()
     # the dialog has the same name; the field is the textbox
     callout = page.get_by_role("textbox", name="New API key")
@@ -137,6 +148,7 @@ def test_a_failed_create_shows_fixed_text_and_never_what_the_server_said(app, ap
                else r.continue_())
     page.get_by_role("button", name="New key").first.click()
     box = page.get_by_role("dialog")
+    box.get_by_label("Label", exact=True).fill("customer one")     # a new key needs a label before it is sent
     box.get_by_role("button", name="Create key").click()
     expect(box).to_contain_text("Some of the values are not accepted. Check the highlighted field.")
     assert key_places(page, fake) == []

@@ -245,8 +245,8 @@ def test_the_keys_view_draws_the_callout_the_switch_the_bars_and_the_delete_conf
 @mutation(KEYS, ': row.models.join(", ")', ': row.models.join(" ")',
           expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
                               "unfinished cells")
-@mutation(KEYS, '<span class="kla-mono k-num"> · {{ row.jobs }} jobs</span>',
-          '<span class="kla-mono k-num"> · {{ row.jobs + 1 }} jobs</span>',
+@mutation(KEYS, "{{ unfinishedText(row) }} · {{ row.jobs }} jobs</span>",
+          "{{ unfinishedText(row) }} · {{ row.jobs + 1 }} jobs</span>",
           expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
                               "unfinished cells")
 @mutation(KEYS, 'k.models.join(" · ")', 'k.models.join(", ")',
@@ -268,10 +268,100 @@ def test_the_keys_view_folds_for_a_tablet_and_a_phone():
           expect=FORM + "an edit names the key in its title and tells what each wallet has used")
 @mutation(KEY_FORM, "`${w.used_day} used today · ${w.used_total} total`", "`${w.used_total} total`",
           expect=FORM + "an edit names the key in its title and tells what each wallet has used")
-@mutation(KEY_FORM, '`${String(m.kind ?? "")} · ${m.owned_by}`', '`${m.owned_by} · ${String(m.kind ?? "")}`',
-          expect=FORM + "each model row says its kind and provider")
+@mutation(KEY_FORM, '`${String(m.kind ?? "")} · ${m.name || m.id}`', '`${String(m.kind ?? "")} · ${m.owned_by}`',
+          expect=FORM + "each model row says its id, its kind and its display name, else its id")
+@mutation(KEY_FORM, "${m.name || m.id}`", "${m.name}`",
+          expect=FORM + "each model row says its id, its kind and its display name, else its id")
 @pytest.mark.web_unit
 def test_the_key_form_shows_what_the_design_shows():
+    vitest(KEYS_VIEW_SPEC)
+
+
+# ---- Keys, page-keys round: the empty card's heading, the names of the callout field and the dialog, the tablet
+# Unfinished column and the wallet lines per width --------------------------------------------------------------
+@mutation(KEYS, '<div v-if="emptyList || error" class="keys-card__head"', '<div v-if="false" class="keys-card__head"',
+          expect=DESIGN + "an empty list draws its card with the heading API keys; a list with keys has no heading")
+@mutation(KEYS, "items.value.length === 0);", "items.value.length >= 0);",
+          expect=DESIGN + "an empty list draws its card with the heading API keys; a list with keys has no heading")
+@mutation(NEW_KEY, ':aria-label="`New API key for ${label}`"', 'aria-label="New API key"',
+          expect=DESIGN + "the callout names the new key, and its row is the one tinted")
+@mutation(KEY_FORM, '<h2 :id="titleId" class="kd__title">', '<h2 class="kd__title">',
+          expect=FORM + "an edit names the key in its title and tells what each wallet has used")
+@mutation(KEYS, 'align: isTablet.value ? ("left" as const) : ("right" as const),', 'align: "right" as const,',
+          expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
+                              "unfinished cells")
+@mutation(KEYS, ':wallets="row.wallets" :compact="isTablet" />', ':wallets="row.wallets" />',
+          expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
+                              "unfinished cells")
+@mutation(KEYS, '<WalletLines v-if="row.wallets.length" :wallets="row.wallets" />',
+          '<WalletLines v-if="row.wallets.length" :wallets="row.wallets" compact />',
+          expect=KEYS_SMALL + "a phone lists each key as a block with its models, wallets, counts and the two row "
+                              "buttons")
+@mutation(KEYS, "error.value = loadFailedText(err, errorText(err));", "error.value = errorText(err);",
+          expect=DESIGN + "a list that fails to load says why in the canvas's words, under the card's heading")
+@mutation(KEYS, '<div v-if="emptyList || error" class="keys-card__head"',
+          '<div v-if="emptyList" class="keys-card__head"',
+          expect=DESIGN + "a list that fails to load says why in the canvas's words, under the card's heading")
+@pytest.mark.web_unit
+def test_the_keys_page_names_and_folds_its_parts_as_drawn():
+    vitest(KEYS_VIEW_SPEC)
+
+
+@mutation(KEY_MODEL, "? `the relay answered ${err.status} (${said})`", "? said",
+          expect=f"FAILED {KEY_SPEC} > loadFailedText > words a failed list as the canvas does, with the relay's "
+                 "status when it answered")
+@pytest.mark.web_unit
+def test_a_failed_keys_list_is_worded_as_drawn():
+    vitest(KEY_SPEC)
+
+
+# ---- Keys, page-keys round: a new key needs a label (B-States form validation); an edit is never held back ------
+NEW_KEY_LABEL = f"FAILED {KEYS_VIEW_SPEC} > the label of a new key > "
+OFF_AND_MARKED = (NEW_KEY_LABEL + "an empty label keeps Create key off with its reason; a click marks the field and "
+                  "sends nothing")
+TRIED = (NEW_KEY_LABEL + "leaving the label empty marks it too; a label turns Create key on, clears the error and is "
+         "sent")
+EDIT_FREE = NEW_KEY_LABEL + "an edit of a key that has no label is not held back"
+
+
+@mutation(KEY_FORM, 'const labelMissing = computed(() => !props.editing && form.label.trim() === "");',
+          "const labelMissing = computed(() => false);", expect=OFF_AND_MARKED)
+@mutation(KEY_FORM, "  if (labelMissing.value) {\n    labelTried.value = true;\n    return;",
+          "  if (false) {\n    labelTried.value = true;\n    return;", expect=OFF_AND_MARKED)
+@mutation(KEY_FORM, "const labelError = computed(() => labelMissing.value && labelTried.value);",
+          "const labelError = computed(() => labelMissing.value);", expect=OFF_AND_MARKED)
+@mutation(KEY_FORM, ':aria-describedby="labelMissing ? \'key-create-why\' : undefined"',
+          ':aria-describedby="undefined"', expect=OFF_AND_MARKED)
+@mutation(KEY_FORM, '@blur="labelTried = true"', '@blur="labelTried = labelTried"', expect=TRIED)
+@mutation(KEY_FORM, 'form.label.trim() === ""', 'form.label === ""', expect=TRIED)
+@mutation(KEY_FORM, '!props.editing && form.label', 'form.label', expect=EDIT_FREE)
+@pytest.mark.web_unit
+def test_a_new_key_needs_a_label_and_an_edit_is_never_held_back():
+    vitest(KEYS_VIEW_SPEC)
+
+
+# ---- Keys, page-keys round: a wallet's Mode is the design's select (FilterSelect's field) in the wallet's group ----
+MODE_SWITCH = (FORM + "a wallet that leaves limit mode shows empty, disabled number boxes, and a limit wallet shows "
+               "its numbers")
+
+
+@mutation(KEY_FORM, '@update:model-value="(v) => (w.mode = v as WalletMode)"', '@update:model-value="() => {}"',
+          expect=MODE_SWITCH)
+@mutation(KEY_FORM, ':aria-label="`${w.provider} ${w.kind}`"', 'aria-label="wallet"', expect=MODE_SWITCH)
+@pytest.mark.web_unit
+def test_a_wallet_mode_is_chosen_in_the_design_select_of_its_group():
+    vitest(KEYS_VIEW_SPEC)
+
+
+SHARED_SELECT = SRC + "/components/shared/FilterSelect.vue"
+MODE_NAMED = FORM + "each wallet's Mode is named after its wallet and keeps the visible word"
+
+
+@mutation(KEY_FORM, ':aria-label="`${w.provider} ${w.kind} Mode`"', "", expect=MODE_NAMED)
+@mutation(SHARED_SELECT, '"aria-label": props.ariaLabel,', '"aria-label": props.label ? undefined : props.ariaLabel,',
+          expect=MODE_NAMED)
+@pytest.mark.web_unit
+def test_each_wallet_mode_is_named_after_its_wallet():
     vitest(KEYS_VIEW_SPEC)
 
 

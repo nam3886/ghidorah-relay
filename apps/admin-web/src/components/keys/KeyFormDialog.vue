@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from "vue";
-import type { ApiKey, KeyBody } from "@/api/keys";
+import { computed, reactive, ref, watch } from "vue";
+import type { ApiKey, KeyBody, WalletMode } from "@/api/keys";
 import type { CatalogModel } from "@/api/shell";
+import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { IconAlertCircle, IconClose } from "@/components/shared/icons";
 import "@/components/logs/lane-controls.css";
 import { type CreateError, keyBody, keyForm, type KeyForm } from "./key-model";
@@ -21,11 +22,27 @@ const flagged = (name: CreateError["field"]): boolean => props.error?.field === 
 
 const form = reactive<KeyForm>(keyForm([], null));
 
+// A new key needs a label (B-States): until it has one, Create key stays off with its reason, and a try (a click, Enter,
+// leaving the field empty) marks the field and says so. A key that already has no label stays valid: its edit is not
+// held back. A label of spaces is no label.
+const labelMissing = computed(() => !props.editing && form.label.trim() === "");
+const labelTried = ref(false);
+const labelError = computed(() => labelMissing.value && labelTried.value);
+function send(): void {
+  if (labelMissing.value) {
+    labelTried.value = true;
+    return;
+  }
+  emit("submit", keyBody(form));
+}
+
 // Each opening starts from the key being edited (or a new one) and the catalog as it is now.
 watch(
   () => open.value,
   (isOpen) => {
-    if (isOpen) Object.assign(form, keyForm(props.models, props.editing));
+    if (!isOpen) return;
+    Object.assign(form, keyForm(props.models, props.editing));
+    labelTried.value = false;
   },
   { immediate: true },
 );
@@ -43,31 +60,26 @@ function usedText(provider: string, kind: string, mode: string): string {
     : `${w.used_total} used`;
 }
 
-const MODES = ["closed", "limit", "unlimited"] as const;
+const MODE_OPTIONS = (["closed", "limit", "unlimited"] as const).map((m) => ({ value: m, label: m }));
 const typed = (e: Event): string => (e.target as HTMLInputElement).value;
-const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.owned_by}`;
+// The right side of a model row, as drawn: its kind and its display name ("video · Dreamina Seedance 2.5"); the id
+// stands in for a model the catalog sent without a name.
+const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.name || m.id}`;
 </script>
 
 <template>
-  <el-dialog
-    v-model="open"
-    class="key-dialog"
-    :title="title"
-    :aria-label="title"
-    :show-close="false"
-    width="min(640px, 94vw)"
-  >
-    <template #header>
+  <el-dialog v-model="open" class="key-dialog" :show-close="false" width="min(640px, 94vw)">
+    <template #header="{ titleId }">
       <div class="kd__head">
-        <h2 class="kd__title">{{ title }}</h2>
+        <h2 :id="titleId" class="kd__title">{{ title }}</h2>
         <button type="button" class="kla-icon-btn kd__close" aria-label="Close" @click="open = false">
           <IconClose :size="18" :stroke="2" />
         </button>
       </div>
     </template>
 
-    <form class="kd__form" @submit.prevent="emit('submit', keyBody(form))">
-      <p v-if="props.error" class="kd__error" role="alert"><IconAlertCircle :size="16" />{{ props.error.text }}</p>
+    <form class="kd__form" @submit.prevent="send">
+      <p v-if="props.error" class="kd__error" role="alert"><IconAlertCircle :size="18" />{{ props.error.text }}</p>
 
       <div class="kd__field">
         <label class="kd__label" for="key-label">Label</label>
@@ -75,12 +87,18 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
           id="key-label"
           v-model="form.label"
           class="kd__input"
-          :class="{ 'is-error': flagged('label') }"
-          :aria-invalid="flagged('label') || undefined"
+          :class="{ 'is-error': flagged('label') || labelError }"
+          :aria-invalid="flagged('label') || labelError || undefined"
+          :aria-describedby="labelError ? 'key-label-error' : undefined"
           maxlength="100"
+          placeholder="Partner D"
           aria-label="Label"
+          @blur="labelTried = true"
         />
-        <p class="kd__help">
+        <p v-if="labelError" id="key-label-error" class="kd__field-error">
+          <IconAlertCircle :size="14" />A label is required.
+        </p>
+        <p v-else class="kd__help">
           Up to 100 characters.<template v-if="props.editing">
             Key <span class="kla-mono">{{ props.editing.prefix }}</span></template
           >
@@ -127,17 +145,28 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
       <fieldset class="kd__set" :class="{ 'is-error': flagged('wallets') }">
         <legend class="kd__label kd__legend kd__legend--tight">Wallets</legend>
         <p class="kd__help kd__help--wallets">Limits apply in limit mode only. Per day resets at midnight.</p>
-        <div v-for="w in form.wallets" :key="`${w.provider}/${w.kind}`" class="kd__wallet" data-wallet>
+        <!-- each wallet a group named after it: its Mode, Per day and Total read in its name -->
+        <div
+          v-for="w in form.wallets"
+          :key="`${w.provider}/${w.kind}`"
+          class="kd__wallet"
+          role="group"
+          :aria-label="`${w.provider} ${w.kind}`"
+          data-wallet
+        >
           <div class="kd__wallet-name">
             <span class="kd__wallet-kind">{{ w.provider }} {{ w.kind }}</span>
-            <span class="kd__help">{{ usedText(w.provider, w.kind, w.mode) }}</span>
+            <span class="kd__help kd__used">{{ usedText(w.provider, w.kind, w.mode) }}</span>
           </div>
-          <label class="kd__mini"
-            ><span class="kd__help">Mode</span>
-            <select v-model="w.mode" class="kd__input kd__select" :aria-label="`${w.provider} ${w.kind} mode`">
-              <option v-for="m in MODES" :key="m" :value="m">{{ m }}</option>
-            </select></label
-          >
+          <FilterSelect
+            class="kd__mode"
+            variant="field"
+            label="Mode"
+            :aria-label="`${w.provider} ${w.kind} Mode`"
+            :model-value="w.mode"
+            :options="MODE_OPTIONS"
+            @update:model-value="(v) => (w.mode = v as WalletMode)"
+          />
           <label class="kd__mini"
             ><span class="kd__help">Per day</span>
             <input
@@ -173,14 +202,20 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
     <template #footer>
       <div class="kd__foot">
         <button type="button" class="kla-btn" @click="open = false">Cancel</button>
-        <button
-          type="button"
-          class="kla-btn kla-btn--primary"
-          :disabled="props.busy"
-          @click="emit('submit', keyBody(form))"
-        >
-          {{ props.editing ? "Save" : "Create key" }}
-        </button>
+        <span class="kd__create">
+          <span v-if="labelMissing" id="key-create-why" role="tooltip" class="kd__tip">Fill in the label first</span>
+          <button
+            type="button"
+            class="kla-btn kla-btn--primary"
+            :class="{ 'is-new': !props.editing }"
+            :disabled="props.busy"
+            :aria-disabled="labelMissing || undefined"
+            :aria-describedby="labelMissing ? 'key-create-why' : undefined"
+            @click="send"
+          >
+            {{ props.editing ? "Save" : "Create key" }}
+          </button>
+        </span>
       </div>
     </template>
   </el-dialog>
@@ -197,6 +232,10 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
   max-height: calc(100% - 64px);
   display: flex;
   flex-direction: column;
+}
+/* no edge in either theme, as drawn (the dark theme gives every other dialog one) */
+html:root .key-dialog.el-dialog {
+  border: 0;
 }
 .key-dialog .el-dialog__header {
   margin: 0;
@@ -215,7 +254,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
 }
 .key-dialog .kd__head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
@@ -235,16 +274,16 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
   flex-direction: column;
   gap: 20px;
 }
+/* the B-States error alert */
 .key-dialog .kd__error {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   margin: 0;
-  padding: 10px 14px;
+  padding: 12px 16px;
   border-radius: 12px;
   background: var(--rl-bad-bg);
   color: var(--rl-fg);
-  font-size: 13px;
 }
 .key-dialog .kd__error svg {
   flex: none;
@@ -257,7 +296,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
 }
 .key-dialog .kd__label {
   font-size: 13px;
-  line-height: 18px;
+  line-height: 20px;
   font-weight: 500;
   color: var(--rl-fg);
 }
@@ -343,6 +382,9 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
 .key-dialog .kd__model-id {
   font-size: 13px;
 }
+.key-dialog .kd__used {
+  font-variant-numeric: tabular-nums;
+}
 .key-dialog .kd__spacer {
   flex: 1;
 }
@@ -373,10 +415,14 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
   flex-direction: column;
   gap: 4px;
 }
-.key-dialog .kd__select {
+/* the Mode select as B-KeyForm draws it: 140 wide and 36 high, the author padding 8 (the field's own value inset and
+   arrow follow from it); on a phone it is the field's chip */
+.key-dialog .kd__mode.filter-field {
+  --field-pad: 8px;
+}
+.key-dialog .kd__mode.filter-field:not(.is-chip) .filter-select.is-field {
   width: 140px;
-  padding: 0 8px;
-  font-size: 13px;
+  height: 36px;
 }
 .key-dialog .kd__input--wallet {
   width: 100px;
@@ -399,6 +445,46 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
 }
 .key-dialog .kd__foot .kla-btn--primary {
   padding: 0 18px;
+}
+/* B-States' form validation: Create key padded 0 16, its reason above it while the label is empty, on hover or focus;
+   the error line under the field in the bad colour */
+.key-dialog .kd__foot .kla-btn--primary.is-new {
+  padding: 0 16px;
+}
+.key-dialog .kd__create {
+  position: relative;
+  display: inline-flex;
+}
+.key-dialog .kd__tip {
+  position: absolute;
+  right: 0;
+  bottom: 44px;
+  visibility: hidden;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--rl-fg);
+  color: var(--rl-surface);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
+  pointer-events: none;
+}
+.key-dialog .kd__create:hover .kd__tip,
+.key-dialog .kd__create:focus-within .kd__tip {
+  visibility: visible;
+}
+.key-dialog .kd__field-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--rl-bad);
+}
+.key-dialog .kd__field-error svg {
+  flex: none;
 }
 @media (max-width: 767px) {
   .key-dialog.el-dialog {

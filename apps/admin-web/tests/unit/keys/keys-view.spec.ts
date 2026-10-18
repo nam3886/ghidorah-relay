@@ -55,11 +55,20 @@ async function open() {
 const buttonOf = (text: string) =>
   [...document.body.querySelectorAll("button")].find((b) => b.textContent?.trim() === text)!;
 
+// Opens the New key form and types a label (a new key needs one).
+async function openNewKey(label = "Partner E") {
+  buttonOf("New key").click();
+  await settle();
+  const field = document.body.querySelector<HTMLInputElement>("#key-label")!;
+  field.value = label;
+  field.dispatchEvent(new Event("input"));
+  await settle();
+}
+
 // Creates a key through the form and leaves the one-time callout on screen.
 async function createOne() {
   const w = await open();
-  buttonOf("New key").click();
-  await settle();
+  await openNewKey();
   buttonOf("Create key").click();
   await settle();
   return w;
@@ -118,7 +127,7 @@ beforeEach(() => {
   list.mockResolvedValue({ items: [key()] });
   vi.mocked(shell.getModels).mockResolvedValue({
     data: [
-      { id: "m1", owned_by: "vibes", kind: "video" },
+      { id: "m1", name: "Model One", owned_by: "vibes", kind: "video" },
       { id: "m2", owned_by: "dola", kind: "image" },
     ],
   });
@@ -241,8 +250,7 @@ describe("the number fields of the key form", () => {
 
   it("max unfinished: an empty box sends null, a 0 sends 0 (unlimited), a number sends the number", async () => {
     await open();
-    buttonOf("New key").click();
-    await settle();
+    await openNewKey();
     expect(max().value).toBe("");
     await type(max(), "0");
     buttonOf("Create key").click();
@@ -252,8 +260,7 @@ describe("the number fields of the key form", () => {
 
   it("clearing the field goes back to the default (null)", async () => {
     await open();
-    buttonOf("New key").click();
-    await settle();
+    await openNewKey();
     await type(max(), "5");
     await type(max(), "");
     expect(max().value).toBe("");
@@ -267,7 +274,7 @@ describe("the one-time key", () => {
   it("is shown after create in a read-only field and sent nowhere else", async () => {
     await createOne();
     expect(keys.createKey).toHaveBeenCalledWith({
-      label: "",
+      label: "Partner E",
       models: ["*"],
       max_unfinished: null,
       wallets: expect.any(Array),
@@ -305,8 +312,7 @@ describe("the one-time key", () => {
     let answer!: (v: Awaited<ReturnType<typeof keys.createKey>>) => void;
     vi.mocked(keys.createKey).mockReturnValue(new Promise((r) => (answer = r)));
     await open();
-    buttonOf("New key").click();
-    await settle();
+    await openNewKey();
     buttonOf("Create key").click();
     await settle();
     useAuthStore(pinia).signOut();
@@ -330,8 +336,7 @@ describe("the one-time key", () => {
       new ApiError(422, { error: { code: "input.invalid", message: `bad ${RAW}`, param: `label.${RAW}` } }),
     );
     await open();
-    buttonOf("New key").click();
-    await settle();
+    await openNewKey();
     buttonOf("Create key").click();
     await settle();
     const dialog = document.body.querySelector(".el-dialog")!;
@@ -346,8 +351,7 @@ describe("the one-time key", () => {
   it("a failed create with an unknown code or a network error shows the fixed fallback text", async () => {
     vi.mocked(keys.createKey).mockRejectedValueOnce(new ApiError(500, { error: { code: "x.y", message: RAW } }));
     await open();
-    buttonOf("New key").click();
-    await settle();
+    await openNewKey();
     buttonOf("Create key").click();
     await settle();
     expect(document.body.querySelector(".kd__error")!.textContent!.trim()).toBe(
@@ -504,6 +508,10 @@ describe("the page as the design draws it", () => {
     );
     const rows = w.findAll("tbody tr");
     expect(rows.map((r) => r.classes().includes("key-new"))).toEqual([false, true]);
+    // the field is named after the key it holds, as drawn
+    expect(document.body.querySelector('[data-testid="new-key"] input')!.getAttribute("aria-label")).toBe(
+      "New API key for Partner D",
+    );
   });
 
   it("an empty list says so and offers New key", async () => {
@@ -511,6 +519,23 @@ describe("the page as the design draws it", () => {
     const w = await open();
     expect(w.text()).toContain("No API keys yet.");
     expect(w.text()).not.toContain("A key that has jobs is only disabled when deleted");
+  });
+
+  it("a list that fails to load says why in the canvas's words, under the card's heading", async () => {
+    list.mockRejectedValue(new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } }));
+    const w = await open();
+    expect(w.find(".keys-card h2").text()).toBe("API keys");
+    expect(w.find('.keys-card [role="alert"]').text()).toContain("Could not load the API keys: the relay answered 502");
+  });
+
+  it("an empty list draws its card with the heading API keys; a list with keys has no heading", async () => {
+    list.mockResolvedValue({ items: [] });
+    const empty = await open();
+    expect(empty.find(".keys-card h2").text()).toBe("API keys");
+    empty.unmount();
+    list.mockResolvedValue({ items: [key()] });
+    const listed = await open();
+    expect(listed.find(".keys-card h2").exists()).toBe(false);
   });
 });
 
@@ -534,10 +559,14 @@ describe("the key form as the design draws it", () => {
     return w;
   };
   const field = (selector: string) => document.body.querySelector<HTMLInputElement>(selector)!;
-  const choose = async (selector: string, value: string) => {
-    const select = document.body.querySelector<HTMLSelectElement>(selector)!;
-    select.value = value;
-    select.dispatchEvent(new Event("change"));
+  // a wallet's Mode: the field in the wallet's group, its list opened in the body
+  const chooseMode = async (wallet: string, value: string) => {
+    const group = document.body.querySelector(`[role="group"][aria-label="${wallet}"]`)!;
+    group.querySelector<HTMLButtonElement>('[role="combobox"]')!.click();
+    await settle();
+    [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find((o) => o.textContent?.trim() === value)!
+      .click();
     await settle();
   };
 
@@ -545,6 +574,11 @@ describe("the key form as the design draws it", () => {
     await editShop();
     const dialog = document.body.querySelector(".el-dialog")!;
     expect(dialog.querySelector("h2")!.textContent).toBe("Edit API key — shop");
+    // the dialog is named by its heading, as drawn (aria-labelledby, no aria-label of its own)
+    const named = document.body.querySelector('[role="dialog"]')!;
+    expect(dialog.querySelector("h2")!.id).not.toBe("");
+    expect(named.getAttribute("aria-labelledby")).toBe(dialog.querySelector("h2")!.id);
+    expect(named.hasAttribute("aria-label")).toBe(false);
     expect(dialog.textContent).toContain("3 used today · 14 total");
     expect(dialog.textContent).toContain("9 used");
     expect(dialog.textContent).toContain("Limits apply in limit mode only. Per day resets at midnight.");
@@ -564,12 +598,22 @@ describe("the key form as the design draws it", () => {
     expect(field('input[aria-label="vibes video per day"]').value).toBe("20");
     expect(field('input[aria-label="vibes video total"]').value).toBe("200");
     expect(field('input[aria-label="vibes video per day"]').disabled).toBe(false);
-    await choose('select[aria-label="vibes video mode"]', "closed");
+    await chooseMode("vibes video", "closed");
     expect(field('input[aria-label="vibes video per day"]').value).toBe("");
     expect(field('input[aria-label="vibes video per day"]').disabled).toBe(true);
     expect(field('input[aria-label="vibes video total"]').disabled).toBe(true);
-    await choose('select[aria-label="vibes video mode"]', "limit");
+    await chooseMode("vibes video", "limit");
     expect(field('input[aria-label="vibes video per day"]').value).toBe("20");
+  });
+
+  it("each wallet's Mode is named after its wallet and keeps the visible word", async () => {
+    await editShop();
+    const modes = [...document.body.querySelectorAll<HTMLElement>('.key-dialog [role="combobox"]')];
+    expect(modes.map((m) => m.getAttribute("aria-label"))).toEqual(["dola image Mode", "vibes video Mode"]);
+    expect(modes.some((m) => m.hasAttribute("aria-labelledby"))).toBe(false);
+    modes[1]!.click();
+    await settle();
+    expect(document.body.querySelector('[role="listbox"]')!.getAttribute("aria-label")).toBe("vibes video Mode");
   });
 
   it("the model boxes are off while Any model is ticked and on once it is cleared", async () => {
@@ -591,13 +635,72 @@ describe("the key form as the design draws it", () => {
     );
   });
 
-  it("each model row says its kind and provider", async () => {
+  it("each model row says its id, its kind and its display name, else its id", async () => {
     await editShop();
     const rows = [...document.body.querySelectorAll(".kd__model")].map((r) =>
       r.textContent!.replace(/\s+/g, " ").trim(),
     );
-    expect(rows).toEqual(["m1video · vibes", "m2image · dola"]);
-    expect(document.body.querySelector(".kd__model-hint")!.textContent).toBe("video · vibes");
+    expect(rows).toEqual(["m1video · Model One", "m2image · m2"]);
+    expect(document.body.querySelector(".kd__model-hint")!.textContent).toBe("video · Model One");
+  });
+});
+
+describe("the label of a new key", () => {
+  const label = () => document.body.querySelector<HTMLInputElement>("#key-label")!;
+  const create = () => buttonOf("Create key");
+  const described = (el: Element) => document.getElementById(el.getAttribute("aria-describedby") ?? "");
+  const type = async (value: string) => {
+    label().value = value;
+    label().dispatchEvent(new Event("input"));
+    await settle();
+  };
+
+  it("an empty label keeps Create key off with its reason; a click marks the field and sends nothing", async () => {
+    await open();
+    buttonOf("New key").click();
+    await settle();
+    expect(create().getAttribute("aria-disabled")).toBe("true");
+    expect(described(create())!.getAttribute("role")).toBe("tooltip");
+    expect(described(create())!.textContent).toBe("Fill in the label first");
+    // nothing is red before a try
+    expect(document.body.textContent).not.toContain("A label is required.");
+    expect(label().getAttribute("aria-invalid")).toBeNull();
+    create().click();
+    await settle();
+    expect(keys.createKey).not.toHaveBeenCalled();
+    expect(label().getAttribute("aria-invalid")).toBe("true");
+    expect(label().classList).toContain("is-error");
+    expect(described(label())!.textContent!.trim()).toBe("A label is required.");
+  });
+
+  it("leaving the label empty marks it too; a label turns Create key on, clears the error and is sent", async () => {
+    await open();
+    buttonOf("New key").click();
+    await settle();
+    label().dispatchEvent(new Event("blur"));
+    await settle();
+    expect(document.body.textContent).toContain("A label is required.");
+    await type("   ");
+    expect(create().getAttribute("aria-disabled")).toBe("true");
+    await type("Partner E");
+    expect(create().hasAttribute("aria-disabled")).toBe(false);
+    expect(create().hasAttribute("aria-describedby")).toBe(false);
+    expect(document.body.textContent).not.toContain("A label is required.");
+    create().click();
+    await settle();
+    expect(keys.createKey).toHaveBeenCalledWith(expect.objectContaining({ label: "Partner E" }));
+  });
+
+  it("an edit of a key that has no label is not held back", async () => {
+    list.mockResolvedValue({ items: [key({ label: "", prefix: "rk_none" })] });
+    const w = await open();
+    await w.find('button[aria-label="Edit key rk_none"]').trigger("click");
+    await settle();
+    expect(buttonOf("Save").hasAttribute("aria-disabled")).toBe(false);
+    buttonOf("Save").click();
+    await settle();
+    expect(keys.patchKey).toHaveBeenCalledWith("k1", expect.objectContaining({ label: "" }));
+    expect(document.body.textContent).not.toContain("A label is required.");
   });
 });
 
@@ -632,6 +735,9 @@ describe("the tablet and the phone", () => {
     expect(any!.find(".k-models-line").text()).toBe("any model");
     expect(shop!.text()).toContain("1 / 5 · 61 jobs");
     expect(shop!.find(".k-created").exists()).toBe(true);
+    // the two lines of that cell start at the left, as drawn; the wallet lines take the tablet form
+    expect(w.findAll("thead th")[3]!.classes()).not.toContain("is-right");
+    expect(shop!.find(".wallets").classes()).toContain("is-compact");
   });
 
   it("a phone lists each key as a block with its models, wallets, counts and the two row buttons", async () => {
@@ -644,6 +750,8 @@ describe("the tablet and the phone", () => {
     expect(shop!.find(".p-key__models-list").text()).toBe("m1 · m2");
     expect(shop!.find('[role="img"]').attributes("aria-label")).toBe("Used 3 of 20 today, 14 of 200 in total");
     expect(shop!.find(".p-key__facts").text()).toContain("Unfinished 1 / 5 · 61 jobs · created");
+    // the phone draws the wallet lines at the desktop size (12 px values, one line each)
+    expect(shop!.find(".wallets").classes()).not.toContain("is-compact");
     expect(any!.find(".k-tag").text()).toBe("any model");
     expect(any!.text()).toContain("disabled");
     expect(shop!.find('button[aria-label="Edit key shop"]').exists()).toBe(true);
