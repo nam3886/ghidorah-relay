@@ -468,6 +468,42 @@ describe("useBreakpoint", () => {
   });
 });
 
+// ---- the canvas's global rules (its `.gd` stylesheet), rule by rule -------------------------------------------------
+const ruleOf = (selector: string): string => {
+  const at = css.indexOf(`\n${selector} {`);
+  return at < 0 ? "" : css.slice(at, css.indexOf("}", at));
+};
+
+describe("the canvas's global rules", () => {
+  it("gives controls and links the page font, and nothing else of the browser's control font", () => {
+    expect(ruleOf("button,\ninput,\nselect,\ntextarea,\na")).toMatch(/\{\s*font-family: inherit;\s*$/);
+  });
+
+  it("draws every scrollbar as a line-strong thumb on a transparent track", () => {
+    expect(ruleOf("*")).toMatch(/\{\s*scrollbar-color: var\(--rl-line-strong\) transparent;\s*$/);
+  });
+
+  it("gives Safari the same thumb through its own scrollbar pseudo-elements, rounded, on a transparent track", () => {
+    const thumb = ruleOf("::-webkit-scrollbar-thumb");
+    expect(thumb).toContain("background: var(--rl-line-strong) padding-box;");
+    expect(thumb).toContain("border: 3px solid transparent;");
+    expect(thumb).toContain("border-radius: 8px;");
+    expect(ruleOf("::-webkit-scrollbar-track,\n::-webkit-scrollbar-corner")).toContain("background: transparent;");
+    expect(ruleOf("::-webkit-scrollbar")).toMatch(/width: 15px;\s*height: 15px;/);
+  });
+
+  it("gives a number its tabular figures and nothing else: a number column aligns its own cells", () => {
+    expect(ruleOf(".num")).toMatch(/\{\s*font-variant-numeric: tabular-nums;\s*$/);
+  });
+
+  it("selects text on the soft primary and draws bare links in the link colour, the hover step in light only", () => {
+    expect(ruleOf("::selection")).toContain("background: var(--rl-primary-soft);");
+    expect(ruleOf(":where(a)")).toContain("color: var(--rl-link);");
+    expect(ruleOf(":where(a:hover)")).toContain("color: var(--rl-primary-hover);");
+    expect(ruleOf("html.dark :where(a:hover)")).toContain("color: var(--rl-link);");
+  });
+});
+
 describe("the multiple-select tick", () => {
   it("is drawn with borders and ranks over the Element Plus mask, which is a blocked data: image", () => {
     const rule = css.match(

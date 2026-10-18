@@ -540,6 +540,102 @@ describe("the shell", () => {
     expect(wrapper.find('[role="menu"]').exists()).toBe(false);
   });
 
+  // happy-dom lays nothing out: the trigger's box and the popup's size are given here; the window is 1024 x 768
+  const layOut = (trigger: () => DOMRect, popup: { width: number; height: number }) => {
+    const rect = Element.prototype.getBoundingClientRect;
+    const sizes = ["offsetWidth", "offsetHeight"].map(
+      (k) => [k, Object.getOwnPropertyDescriptor(HTMLElement.prototype, k)] as const,
+    );
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      return this.classList.contains("pop") ? trigger() : new DOMRect(0, 0, 0, 0);
+    };
+    for (const key of ["offsetWidth", "offsetHeight"] as const) {
+      Object.defineProperty(HTMLElement.prototype, key, {
+        configurable: true,
+        get(this: HTMLElement) {
+          return this.classList.contains("menu") ? popup[key === "offsetWidth" ? "width" : "height"] : 0;
+        },
+      });
+    }
+    return () => {
+      Element.prototype.getBoundingClientRect = rect;
+      for (const [key, size] of sizes) if (size) Object.defineProperty(HTMLElement.prototype, key, size);
+    };
+  };
+  const placed = (wrapper: VueWrapper) => {
+    const style = (wrapper.find(".menu").element as HTMLElement).style;
+    return { left: style.left, top: style.top, maxHeight: style.maxHeight };
+  };
+
+  it("places an open popup by the popup rule, relative to its trigger, and again when the window is resized", async () => {
+    let triggerLeft = 0;
+    let height = 80;
+    const restore = layOut(() => new DOMRect(triggerLeft, 10, 0, 34), {
+      width: 200,
+      get height() {
+        return height;
+      },
+    });
+    try {
+      const { wrapper } = await open("/jobs");
+      const opened = async (which: string, left: number) => {
+        triggerLeft = left;
+        await wrapper.find(`[data-testid="${which}"]`).trigger("click");
+        await flushPromises();
+        return placed(wrapper);
+      };
+      expect([window.innerWidth, window.innerHeight]).toEqual([1024, 768]);
+      // drawn: the left edge on the trigger's, 6 px under it
+      expect(await opened("provider-filter", 800)).toEqual({ left: "0px", top: "40px", maxHeight: "" });
+      await wrapper.find('[data-testid="provider-filter"]').trigger("click");
+      // 900 + 200 passes the window: its right edge on the trigger's
+      expect((await opened("provider-filter", 900)).left).toBe("-200px");
+      expect((await opened("account-menu", 900)).left).toBe("-200px");
+      // the window changes while the menu is open: placed again; too high for the room below, it is cut to it
+      triggerLeft = 100;
+      height = 900;
+      window.dispatchEvent(new Event("resize"));
+      await flushPromises();
+      expect(placed(wrapper)).toEqual({ left: "0px", top: "40px", maxHeight: `${768 - 8 - 50}px` });
+    } finally {
+      restore();
+    }
+  });
+
+  it("on a phone draws the Provider list with its right edge on the trigger, as drawn, and with its left edge on it when that would pass the window's left edge", async () => {
+    const { PHONE_QUERY } = await import("@/composables/use-breakpoint");
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === PHONE_QUERY,
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    // the trigger is 100 px wide and the list 200
+    let triggerLeft = 0;
+    const restore = layOut(() => new DOMRect(triggerLeft, 10, 100, 44), { width: 200, height: 190 });
+    try {
+      const { wrapper } = await open("/jobs");
+      const trigger = wrapper.find('[data-testid="provider-filter"]');
+      triggerLeft = 150;
+      await trigger.trigger("click");
+      await flushPromises();
+      expect(placed(wrapper).left).toBe("-100px");
+      await trigger.trigger("click");
+      triggerLeft = 40;
+      await trigger.trigger("click");
+      await flushPromises();
+      expect(placed(wrapper).left).toBe("0px");
+    } finally {
+      restore();
+    }
+  });
+
+  it("hides the scrollbar of the header's tab row only: the row keeps the drawn height and still scrolls", () => {
+    const source = readFileSync(join(process.cwd(), "src/components/layout/TopBar.vue"), "utf8");
+    expect(source).toMatch(/\.topbar__nav \{[^}]*overflow-x: auto;[^}]*scrollbar-width: none;\s*\}/);
+    expect(source).toMatch(/\.topbar__nav::-webkit-scrollbar \{\s*display: none;\s*\}/);
+  });
+
   it("draws the account menu as API docs, a separator, Sign out", async () => {
     const { wrapper } = await open("/jobs");
     await wrapper.find('[data-testid="account-menu"]').trigger("click");
@@ -673,6 +769,28 @@ describe("the top bar", () => {
     );
     const again = await open("/jobs");
     expect(again.wrapper.find('[data-testid="tab-count-jobs"]').text()).toBe("999+");
+  });
+
+  it("keeps the current tab in view: on a tab switch, and again when the counts arrive and widen the tabs before it", async () => {
+    const shown: string[] = [];
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      shown.push(this.textContent?.trim() ?? "");
+    };
+    let answer: (value: Stats) => void = () => undefined;
+    vi.mocked(shell.getStats).mockReturnValue(new Promise<Stats>((resolve) => (answer = resolve)));
+    try {
+      const { router } = await open("/test");
+      expect(shown).toEqual(["Test"]);
+      answer(stats());
+      await flushPromises();
+      expect(shown).toEqual(["Test", "Test"]);
+      await router.push("/settings");
+      await flushPromises();
+      expect(shown).toEqual(["Test", "Test", "Settings"]);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+    }
   });
 
   it("links the logo to Jobs and names it", async () => {
