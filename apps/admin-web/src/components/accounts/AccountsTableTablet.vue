@@ -121,7 +121,7 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
               class="check-btn"
               :aria-label="`Check ${a.label}`"
               :aria-disabled="checking.has(a.id) ? 'true' : undefined"
-              @click="!checking.has(a.id) && emit('action', 'check', a)"
+              @click="emit('action', 'check', a)"
             >
               Check
             </button>

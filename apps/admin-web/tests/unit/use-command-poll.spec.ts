@@ -55,7 +55,7 @@ describe("useCommandPoll", () => {
     expect(get).toHaveBeenCalledTimes(3);
     expect(get).toHaveBeenCalledWith("c1");
     expect(result?.status).toBe("done");
-    expect(notify.success).toHaveBeenCalledExactlyOnceWith("Check: done");
+    expect(notify.success).toHaveBeenCalledExactlyOnceWith("Check done");
     expect(notify.error).not.toHaveBeenCalled();
     expect(notify.info).not.toHaveBeenCalled();
   });

@@ -115,6 +115,16 @@ describe("EditDialog", () => {
     expect(status.querySelector("[data-tone=bad]")).not.toBeNull();
   });
 
+  it("a new copy of the same account keeps what was typed; another account fills the fields again", async () => {
+    const a = account();
+    const w = await mountEdit(a);
+    type(field("Label"), "renamed");
+    await w.setProps({ account: { ...a, label: "from the server" } });
+    expect(field("Label").value).toBe("renamed");
+    await w.setProps({ account: account({ id: "a2", label: "other" }) });
+    expect(field("Label").value).toBe("other");
+  });
+
   it("an account without a proxy has no proxy status line", async () => {
     await mountEdit(account({ proxy_host: null, proxy_port: null }));
     expect(document.body.querySelector("[role=status]")).toBeNull();

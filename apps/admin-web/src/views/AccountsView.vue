@@ -153,13 +153,27 @@ onBeforeUnmount(() => {
   latest.invalidate();
 });
 
-// Queue, toast, poll to the end, then read the list again (if the operator is still here).
-async function queue(start: Promise<QueuedCommand>, label: string) {
+// Queue, poll to the end, then read the list again (if the operator is still here). A command whose control has a
+// chip under it says it is under way there; the others say "queued" in a toast (`toast`).
+async function queue(start: Promise<QueuedCommand>, label: string, toast = true) {
   const out = await start;
-  notify.info(`${label}: queued`);
+  if (toast) notify.info(`${label}: queued`);
   const command = await poll(out.command_id, label);
   if (!disposed) await load();
   return command;
+}
+
+// One run of an action per account at a time (`<action>:<account id>`): a second click while the first is under way
+// does nothing, so a double click never sends twice.
+const inFlight = new Set<string>();
+async function once(key: string, action: () => Promise<unknown>): Promise<void> {
+  if (inFlight.has(key)) return;
+  inFlight.add(key);
+  try {
+    await action();
+  } finally {
+    inFlight.delete(key);
+  }
 }
 
 function setChip(key: string, chip: ChipState): void {
@@ -181,10 +195,12 @@ async function withChip(key: string, work: () => Promise<CommandStatus | null>):
 }
 
 async function check(a: Account) {
+  // the phone's Check is a menu item: it is not drawn disabled, so a second pick is refused here
+  if (checking.value.has(a.id)) return;
   checking.value = new Set(checking.value).add(a.id);
   try {
     await run(async () => {
-      const command = await withChip(`check:${a.id}`, () => queue(checkAccount(a.id), "Check"));
+      const command = await withChip(`check:${a.id}`, () => queue(checkAccount(a.id), "Check", false));
       const fresh = items.value.find((x) => x.id === a.id);
       if (command?.status === "done" && fresh) {
         const outcome = command.result?.outcome;
@@ -220,22 +236,23 @@ async function showShot(a: Account) {
   });
 }
 
-async function remove(a: Account) {
-  confirming.value = true;
-  let ok: boolean;
-  try {
-    // as B-States draws a delete confirm: the title asks, naming the item; one sentence says the consequence
-    ok = await confirmDialog({
-      title: `Delete account ${a.label}?`,
-      message: "A used account cannot be deleted: disable it instead.",
-      confirmText: "Delete",
-      danger: true,
-    });
-  } finally {
-    confirming.value = false;
-  }
-  if (ok) await run(() => queue(deleteAccount(a.id), "Delete"));
-}
+const remove = (a: Account) =>
+  once(`delete:${a.id}`, async () => {
+    confirming.value = true;
+    let ok: boolean;
+    try {
+      // as B-States draws a delete confirm: the title asks, naming the item; one sentence says the consequence
+      ok = await confirmDialog({
+        title: `Delete account ${a.label}?`,
+        message: "A used account cannot be deleted: disable it instead.",
+        confirmText: "Delete",
+        danger: true,
+      });
+    } finally {
+      confirming.value = false;
+    }
+    if (ok) await run(() => queue(deleteAccount(a.id), "Delete"));
+  });
 
 function openEdit(a: Account) {
   editingId.value = a.id;
@@ -246,6 +263,8 @@ async function saveAccount(patch: AccountPatch) {
   const a = editing.value;
   if (!a) return;
   await run(async () => {
+    // a Check proxy of this account still under way ends first: its read of the list never lands after the save
+    await proxyRuns.get(a.id);
     const out = await patchAccount(a.id, patch);
     editOpen.value = false;
     notify.success("Saved");
@@ -254,10 +273,21 @@ async function saveAccount(patch: AccountPatch) {
   });
 }
 
-const recheck = (a: Account) =>
-  runProxyCheck(() => withChip(`proxy:${a.id}`, () => queue(recheckProxy(a.id), "Proxy check")));
+// The Check proxy runs under way, by account: Save of that account waits for its run to end.
+const proxyRuns = new Map<string, Promise<unknown>>();
+function recheck(a: Account) {
+  const running = runProxyCheck(() => withChip(`proxy:${a.id}`, () => queue(recheckProxy(a.id), "Proxy check", false)));
+  proxyRuns.set(a.id, running);
+  void running.finally(() => {
+    if (proxyRuns.get(a.id) === running) proxyRuns.delete(a.id);
+  });
+  return running;
+}
 
-const wake = (a: Account) => run(() => queue(wakeAccount(a.id), WAKE_LABEL));
+const wake = (a: Account) => once(`wake:${a.id}`, () => run(() => queue(wakeAccount(a.id), WAKE_LABEL)));
+
+// The switch, once per account at a time (`toggle` itself reads the list again whatever the answer).
+const onToggle = (a: Account, enabled: boolean) => once(`toggle:${a.id}`, () => toggle(a, enabled));
 
 function onAction(name: RowAction, a: Account) {
   if (name === "check") void check(a);
@@ -285,7 +315,7 @@ async function forEachProvider(
     withChip(key, async () => {
       let ended: CommandStatus | null = null;
       for (const name of await providerNames()) {
-        const command = await queue(start(name), `${label} ${name}`);
+        const command = await queue(start(name), `${label} ${name}`, false);
         if (ended?.status !== "failed") ended = command;
       }
       return ended;
@@ -352,7 +382,7 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
           :rows="items"
           :chips="chips"
           :skeleton="skeleton"
-          @toggle="toggle"
+          @toggle="onToggle"
           @action="onAction"
         />
         <AccountsTableTablet
@@ -361,7 +391,7 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
           :checking="checking"
           :chips="chips"
           :skeleton="skeleton"
-          @toggle="toggle"
+          @toggle="onToggle"
           @action="onAction"
         />
         <AccountsTableDesktop
@@ -370,7 +400,7 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
           :checking="checking"
           :chips="chips"
           :skeleton="skeleton"
-          @toggle="toggle"
+          @toggle="onToggle"
           @action="onAction"
         />
       </div>

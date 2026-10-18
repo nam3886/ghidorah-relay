@@ -50,7 +50,8 @@ def test_the_account_edit_sends_changed_fields_only():
           expect=AUTO + "reads the list every 10 seconds while the page is open")
 @mutation(ACCOUNTS, "if (!dialogOpen.value && ", "if (",
           expect=AUTO + "does not read the list while a dialog is open, and goes on when it closes")
-@mutation(ACCOUNTS, "await queue(start(name), `${label} ${name}`);", "void queue(start(name), `${label} ${name}`);",
+@mutation(ACCOUNTS, "await queue(start(name), `${label} ${name}`, false);",
+          "void queue(start(name), `${label} ${name}`, false);",
           expect=CHECK_ALL + "with the filter on All, goes over the providers one after another")
 @mutation(ACCOUNTS, "await patchAccount(a.id, { enabled });\n    } finally {\n      if (!disposed) await load();",
           "await patchAccount(a.id, { enabled });\n    } finally {\n      void 0;",
@@ -71,16 +72,15 @@ def test_the_accounts_view_keeps_its_rules():
           expect=COMMANDS + "Wake queues the wake command under the label that names the cooldown and the strikes")
 @mutation(ACCOUNTS, 'else if (name === "wake") void wake(a);', 'else if (name === "wake") void check(a);',
           expect=COMMANDS + "Wake queues the wake command under the label that names the cooldown and the strikes")
-@mutation(ACCOUNTS, "runProxyCheck(() => withChip(", "run(() => withChip(",
+@mutation(ACCOUNTS, "runProxyCheck(() =>", "run(() =>",
           expect=COMMANDS + "Check proxy keeps the dialog open with its chip, queues the re-check, polls Proxy check "
                             "and reads the list again")
-@mutation(ACCOUNTS, 'queue(recheckProxy(a.id), "Proxy check")', 'queue(recheckProxy(a.id), "Proxy")',
+@mutation(ACCOUNTS, 'queue(recheckProxy(a.id), "Proxy check", false)', 'queue(recheckProxy(a.id), "Proxy", false)',
           expect=COMMANDS + "Check proxy keeps the dialog open with its chip, queues the re-check, polls Proxy check "
                             "and reads the list again")
 @mutation(ACCOUNTS, 'if (out.command_id) await poll(out.command_id, "Proxy check");', "",
           expect=COMMANDS + "Save of a changed proxy polls the Proxy check the server queued, then reads the list")
-@mutation(DESKTOP, """@click="!checking.has(a.id) && emit('action', 'check', a)\"""",
-          """@click="emit('action', 'check', a)\"""",
+@mutation(ACCOUNTS, "  if (checking.value.has(a.id)) return;\n  checking.value", "  checking.value",
           expect=COMMANDS + "Check queues a check, locks that button while it runs, and says what it found")
 @pytest.mark.web_unit
 def test_the_accounts_view_commands_and_proxy_recheck():
@@ -272,9 +272,10 @@ def test_a_switched_off_row_and_a_failed_read_read_as_drawn():
           "if (!props.account)",
           expect=f"FAILED {DIALOGS_SPEC} > EditDialog > Check proxy asks the view to queue it and stays open; its chip "
                  "takes the status line, locked while it runs")
-@mutation(ACCOUNT_MODEL, 'credential_unparseable: "The line is not a cookie jar."', 'credential_unparseable: ""',
-          expect=f"FAILED {ACCOUNT_SPEC} > rejectedText > says why a line was rejected in a sentence; an unknown code "
-                 "stays as it is")
+@mutation(ACCOUNT_MODEL, '["credential_unparseable", "The line is not a cookie jar."]',
+          '["credential_unparseable", ""]',
+          expect=f"FAILED {ACCOUNT_SPEC} > rejectedText > says why a line was rejected in a sentence; any other code "
+                 "gets one fixed sentence")
 @mutation(DESKTOP, '<tbody v-if="skeleton" aria-hidden="true">', '<tbody v-if="false" aria-hidden="true">',
           expect=LIST + "the first read draws the list's own header over five rows of bars, and no footer count")
 @mutation(ACCOUNTS, 'v-else-if="items.length === 0 && !skeleton"', 'v-else-if="items.length === 0"',
@@ -298,3 +299,33 @@ def test_a_failed_command_reads_as_the_canvas_writes_it():
 @pytest.mark.web_unit
 def test_the_pool_card_names_no_count_before_the_list_is_read():
     vitest(PARTS_SPEC)
+
+
+# ---- page-accounts round, review fixes: one action per account at a time, Save after a running Check proxy, no
+# server text in the import result, the toasts' words ----------------------------------------------------------------
+DUPLICATE = COMMANDS + "a second click while an action runs sends nothing: Wake, Delete, the switch, the phone's Check"
+
+
+@mutation(ACCOUNTS, "  if (inFlight.has(key)) return;\n", "", expect=DUPLICATE)
+@mutation(ACCOUNTS, "  if (checking.value.has(a.id)) return;\n", "", expect=DUPLICATE)
+@mutation(ACCOUNTS, "    await proxyRuns.get(a.id);\n", "",
+          expect=COMMANDS + "Save during a running Check proxy waits for it, then sends what was typed")
+@mutation(SRC + "/components/accounts/EditDialog.vue", "[() => open.value, () => props.account?.id]",
+          "[() => open.value, () => props.account]",
+          expect=f"FAILED {DIALOGS_SPEC} > EditDialog > a new copy of the same account keeps what was typed; another "
+                 "account fills the fields again")
+@mutation(ACCOUNTS, "  if (toast) notify.info(`${label}: queued`);", "  notify.info(`${label}: queued`);",
+          expect=COMMANDS + "Check queues a check, locks that button while it runs, and says what it found")
+@mutation(ACCOUNT_MODEL, "REJECTED.get(reason) ?? REJECTED_OTHER", "REJECTED.get(reason) ?? reason",
+          expect=f"FAILED {ACCOUNT_SPEC} > rejectedText > says why a line was rejected in a sentence; any other code "
+                 "gets one fixed sentence")
+@mutation(ACCOUNT_MODEL, "`Check done: ${", "`Check: ${",
+          expect=f"FAILED {ACCOUNT_SPEC} > pointsFigure, ago, proxyCheck, checkSummary > check summary names the "
+                 "outcome, the state and the reason")
+@mutation(SRC + "/composables/use-command-poll.ts", "notify.success(`${label} done`);",
+          "notify.success(`${label}: done`);",
+          expect="FAILED tests/unit/use-command-poll.spec.ts > useCommandPoll > stops at done with a success toast, "
+                 "one second between asks")
+@pytest.mark.web_unit
+def test_review_fixes_hold():
+    vitest(ACCOUNT_SPEC, ACCOUNTS_VIEW_SPEC, DIALOGS_SPEC, "tests/unit/use-command-poll.spec.ts")

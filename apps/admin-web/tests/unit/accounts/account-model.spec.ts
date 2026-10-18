@@ -15,7 +15,6 @@ import {
   hhmm,
   hhmmss,
   importBody,
-  importSummary,
   loadFailedText,
   madeLine,
   pointsFigure,
@@ -150,27 +149,14 @@ describe("command chips", () => {
 });
 
 describe("rejectedText", () => {
-  it("says why a line was rejected in a sentence; an unknown code stays as it is", () => {
+  it("says why a line was rejected in a sentence; any other code gets one fixed sentence", () => {
     expect(rejectedText("credential_unparseable")).toBe("The line is not a cookie jar.");
     expect(rejectedText("proxy_invalid")).toBe("The proxy is not host:port or host:port:user:pass.");
-    expect(rejectedText("something_new")).toBe("something_new");
-  });
-});
-
-describe("importSummary", () => {
-  it("counts, with the rejected lines numbered from 1", () => {
-    expect(importSummary({ imported: [{ index: 0, id: "x", label: "l" }], rejected: [] })).toBe(
-      "Imported 1, rejected 0",
-    );
-    expect(
-      importSummary({
-        imported: [],
-        rejected: [
-          { index: 0, reason: "credential_unparseable" },
-          { index: 3, reason: "proxy_invalid" },
-        ],
-      }),
-    ).toBe("Imported 0, rejected 2 (line 1: credential_unparseable; line 4: proxy_invalid)");
+    // any other code gets the one fixed sentence: nothing the server sends back is shown, whatever it carries
+    expect(rejectedText("something_new")).toBe("The line could not be imported.");
+    expect(rejectedText("sessionid=secret-cookie-value; csrftoken=abc")).toBe("The line could not be imported.");
+    expect(rejectedText("__proto__")).toBe("The line could not be imported.");
+    expect(rejectedText("toString")).toBe("The line could not be imported.");
   });
 });
 
@@ -380,9 +366,12 @@ describe("pointsFigure, ago, proxyCheck, checkSummary", () => {
   });
 
   it("check summary names the outcome, the state and the reason", () => {
-    expect(checkSummary("ok", { state: "available", state_reason: null })).toBe("Check: ok - account available");
+    // the toasts' form, "<label> done: <detail>", no " - "
+    expect(checkSummary("checked", { state: "available", state_reason: null })).toBe(
+      "Check done: checked, account available",
+    );
     expect(checkSummary(undefined, { state: "dead", state_reason: "login failed" })).toBe(
-      "Check: done - account dead (login failed)",
+      "Check done: account dead (login failed)",
     );
   });
 });

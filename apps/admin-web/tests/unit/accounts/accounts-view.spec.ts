@@ -458,7 +458,7 @@ describe("the row commands and the edit dialog", () => {
     await pick(w, "Wake");
     expect(accounts.wakeAccount).toHaveBeenCalledExactlyOnceWith("a1");
     expect(notify.info).toHaveBeenCalledWith("Wake: clear cooldown and strikes: queued");
-    expect(notify.success).toHaveBeenCalledWith("Wake: clear cooldown and strikes: done");
+    expect(notify.success).toHaveBeenCalledWith("Wake: clear cooldown and strikes done");
   });
 
   it("the row has a switch, a Check button and one More menu; the menu holds Shot (only with a screenshot), Wake, Edit, Delete", async () => {
@@ -499,7 +499,7 @@ describe("the row commands and the edit dialog", () => {
     gate.resolve(done("c1"));
     await settle();
     expect(w.find("[aria-label='Check main']").attributes("aria-disabled")).toBeUndefined();
-    expect(notify.info).toHaveBeenCalledWith("Check: queued");
+    expect(notify.info).not.toHaveBeenCalledWith("Check: queued");
   });
 
   it("Delete asks first and queues the delete only after a yes", async () => {
@@ -538,11 +538,11 @@ describe("the row commands and the edit dialog", () => {
     // the check polls for a long time: Save stays usable meanwhile
     expect(inBody("Save").getAttribute("aria-disabled")).toBeNull();
     expect(accounts.recheckProxy).toHaveBeenCalledExactlyOnceWith("a1");
-    expect(notify.info).toHaveBeenCalledWith("Proxy check: queued");
+    expect(notify.info).not.toHaveBeenCalledWith("Proxy check: queued");
     gate.resolve(done("r1"));
     await settle();
     expect(commands.getCommand).toHaveBeenCalledWith("r1");
-    expect(notify.success).toHaveBeenCalledWith("Proxy check: done");
+    expect(notify.success).toHaveBeenCalledWith("Proxy check done");
     expect(document.body.querySelector(".acct-dialog [data-state=ok]")).not.toBeNull();
     expect(list).toHaveBeenCalledTimes(2);
   });
@@ -612,9 +612,92 @@ describe("the row commands and the edit dialog", () => {
     expect(accounts.patchAccount).toHaveBeenCalledExactlyOnceWith("a1", { proxy: "10.9.9.9:3128" });
     expect(notify.success).toHaveBeenCalledWith("Saved");
     expect(commands.getCommand).toHaveBeenCalledWith("p1");
-    expect(notify.success).toHaveBeenCalledWith("Proxy check: done");
+    expect(notify.success).toHaveBeenCalledWith("Proxy check done");
     expect(list).toHaveBeenCalledTimes(2);
     expect(editOpen(w)).toBe(false);
+  });
+
+  it("a Check proxy that ends while the dialog is open never wipes what was typed", async () => {
+    vi.mocked(accounts.recheckProxy).mockResolvedValue({ command_id: "r1" });
+    const gate = deferred<commands.CommandStatus>();
+    vi.mocked(commands.getCommand).mockReturnValue(gate.promise);
+    const w = await open();
+    await pick(w, "Edit");
+    inBody("Check proxy").click();
+    await settle();
+    type("Label", "renamed");
+    gate.resolve(done("r1"));
+    await settle();
+    // the check's read of the list brought a new copy of the account: the field keeps the typed value
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(document.body.querySelector<HTMLInputElement>('[aria-label="Label"]')!.value).toBe("renamed");
+  });
+
+  it("Save during a running Check proxy waits for it, then sends what was typed", async () => {
+    vi.mocked(accounts.recheckProxy).mockResolvedValue({ command_id: "r1" });
+    vi.mocked(accounts.patchAccount).mockResolvedValue({ id: "a1", command_id: null });
+    const gate = deferred<commands.CommandStatus>();
+    vi.mocked(commands.getCommand).mockReturnValue(gate.promise);
+    const w = await open();
+    await pick(w, "Edit");
+    inBody("Check proxy").click();
+    await settle();
+    type("Label", "renamed");
+    // Save stays clickable while the check runs; the save waits for the check and its read of the list
+    expect(inBody("Save").getAttribute("aria-disabled")).toBeNull();
+    inBody("Save").click();
+    await settle();
+    expect(accounts.patchAccount).not.toHaveBeenCalled();
+    gate.resolve(done("r1"));
+    await settle();
+    expect(accounts.patchAccount).toHaveBeenCalledExactlyOnceWith("a1", { label: "renamed" });
+    // the order: the check's read, then the save, then the save's own read
+    expect(vi.mocked(accounts.patchAccount).mock.invocationCallOrder[0]!).toBeGreaterThan(
+      list.mock.invocationCallOrder[1]!,
+    );
+    expect(list).toHaveBeenCalledTimes(3);
+    expect(editOpen(w)).toBe(false);
+  });
+
+  it("a second click while an action runs sends nothing: Wake, Delete, the switch, the phone's Check", async () => {
+    const wakeGate = deferred<commands.CommandStatus>();
+    vi.mocked(accounts.wakeAccount).mockResolvedValue({ command_id: "w1" });
+    vi.mocked(commands.getCommand).mockReturnValue(wakeGate.promise);
+    const w = await open();
+    await pick(w, "Wake");
+    await pick(w, "Wake");
+    expect(accounts.wakeAccount).toHaveBeenCalledTimes(1);
+    wakeGate.resolve(done("w1"));
+    await settle();
+
+    const ask = deferred<boolean>();
+    vi.mocked(confirmDialog).mockReset().mockReturnValue(ask.promise);
+    await pick(w, "Delete");
+    await pick(w, "Delete");
+    expect(confirmDialog).toHaveBeenCalledTimes(1);
+    ask.resolve(false);
+    await settle();
+
+    const patched = deferred<{ id: string; command_id: null }>();
+    vi.mocked(accounts.patchAccount).mockReturnValue(patched.promise);
+    await rows(w)[0]!.find("[role=switch]").trigger("click");
+    await rows(w)[0]!.find("[role=switch]").trigger("click");
+    expect(accounts.patchAccount).toHaveBeenCalledTimes(1);
+    patched.resolve({ id: "a1", command_id: null });
+    await settle();
+    wrapper!.unmount();
+    wrapper = null;
+
+    stubWidth("phone");
+    const checkGate = deferred<commands.CommandStatus>();
+    vi.mocked(accounts.checkAccount).mockResolvedValue({ command_id: "c1" });
+    vi.mocked(commands.getCommand).mockReturnValue(checkGate.promise);
+    const phone = await open();
+    await pick(phone, "Check");
+    await pick(phone, "Check");
+    expect(accounts.checkAccount).toHaveBeenCalledTimes(1);
+    checkGate.resolve(done("c1"));
+    await settle();
   });
 
   it("Save of a label only polls nothing", async () => {
@@ -654,8 +737,8 @@ describe("Check all and Refresh catalog", () => {
     expect(calls).toEqual(["dola"]);
     firstDone.resolve(done("c-dola"));
     await vi.waitFor(() => expect(calls).toEqual(["dola", "vibes"]));
-    expect(notify.info).toHaveBeenCalledWith("Check all dola: queued");
-    expect(notify.info).toHaveBeenCalledWith("Check all vibes: queued");
+    expect(notify.info).not.toHaveBeenCalledWith("Check all dola: queued");
+    expect(notify.info).not.toHaveBeenCalledWith("Check all vibes: queued");
   });
 
   it("each page command has its chip under its button: running, then how the round ended (the first failure)", async () => {
@@ -672,7 +755,7 @@ describe("Check all and Refresh catalog", () => {
     gate.resolve({ ...done("c-dola"), status: "failed", result: { error: "worker gone" } });
     await vi.waitFor(() => expect(chip().attributes("data-state")).toBe("error"));
     expect(chip().text()).toBe("error · worker gone");
-    expect(notify.info).toHaveBeenCalledWith("Check all vibes: queued");
+    expect(accounts.checkAll).toHaveBeenCalledWith("vibes");
   });
 
   it("with a provider chosen, asks that provider only", async () => {
@@ -684,7 +767,7 @@ describe("Check all and Refresh catalog", () => {
     await settle();
     expect(accounts.refreshCatalog).toHaveBeenCalledTimes(1);
     expect(accounts.refreshCatalog).toHaveBeenCalledWith("vibes");
-    expect(notify.info).toHaveBeenCalledWith("Refresh catalog vibes: queued");
+    expect(notify.info).not.toHaveBeenCalledWith("Refresh catalog vibes: queued");
   });
 });
 

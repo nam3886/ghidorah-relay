@@ -17,9 +17,12 @@ const emit = defineEmits<{ save: [patch: AccountPatch]; recheck: [account: Accou
 const label = ref("");
 const proxy = ref("");
 
+// The fields fill when the dialog opens on an account, and only then: a read of the list while it is open (the end of
+// a Check proxy, the 10 s read) brings a new copy of the same account and must not wipe what was typed.
 watch(
-  () => [open.value, props.account] as const,
-  ([isOpen, account]) => {
+  [() => open.value, () => props.account?.id],
+  ([isOpen]) => {
+    const account = props.account;
     if (!isOpen || !account) return;
     label.value = account.label;
     proxy.value = proxyText(account);

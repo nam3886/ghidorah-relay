@@ -14,7 +14,8 @@ export function useCommandPoll(options: { intervalMs?: number; maxTries?: number
     for (let i = 0; i < maxTries; i++) {
       const command = await getCommand(commandId);
       if (command.status === "done") {
-        notify.success(`${label}: done`);
+        // the same form as the failed toast: "Check done"
+        notify.success(`${label} done`);
         return command;
       }
       if (command.status === "failed") {

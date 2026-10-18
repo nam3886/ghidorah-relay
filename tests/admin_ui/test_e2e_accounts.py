@@ -161,13 +161,14 @@ def test_check_proxy_in_the_edit_dialog_queues_the_command_and_polls_it_to_the_e
     open_accounts(page)
     more(rows(page).filter(has_text="proxied"), "Edit")
     page.get_by_role("dialog").get_by_role("button", name="Check proxy").click()
-    expect(page.get_by_text("Proxy check: queued")).to_be_visible()
-    # the dialog stays open: the check's chip runs in the status line under the proxy row (B-States)
+    # the dialog stays open: the check's chip runs in the status line under the proxy row (B-States); with a
+    # chip there is no "queued" toast
     expect(page.get_by_role("dialog").locator("[data-state=running]")).to_have_text("running…")
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'proxy_recheck' AND account_id = %s", acct)[0] == 1
     db.run("UPDATE commands SET status = 'done', result = '{}'::jsonb, finished_at = clock_timestamp() "
            "WHERE kind = 'proxy_recheck' AND account_id = %s", acct)
-    expect(page.get_by_text("Proxy check: done")).to_be_visible(timeout=10000)
+    expect(page.get_by_text("Proxy check done")).to_be_visible(timeout=10000)
+    expect(page.get_by_text("Proxy check: queued")).to_have_count(0)
     expect(page.get_by_role("dialog").locator("[data-state=ok]")).to_contain_text("ok ·")
 
 
@@ -183,7 +184,7 @@ def test_saving_a_changed_proxy_polls_the_proxy_check_the_server_queued(app, app
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'proxy_recheck' AND account_id = %s", acct)[0] == 1
     db.run("UPDATE commands SET status = 'done', result = '{}'::jsonb, finished_at = clock_timestamp() "
            "WHERE kind = 'proxy_recheck' AND account_id = %s", acct)
-    expect(page.get_by_text("Proxy check: done")).to_be_visible(timeout=10000)
+    expect(page.get_by_text("Proxy check done")).to_be_visible(timeout=10000)
 
 
 def test_check_wake_delete_and_the_provider_commands_queue_a_command_and_say_so(app, app_session, db):
@@ -192,14 +193,14 @@ def test_check_wake_delete_and_the_provider_commands_queue_a_command_and_say_so(
     open_accounts(page)
     row = rows(page).filter(has_text="free one")
     page.get_by_role("button", name="Refresh catalog", exact=True).click()
-    expect(page.get_by_text("Refresh catalog fake: queued")).to_be_visible()
+    expect(page.locator(".head [data-state=running]")).to_have_text("running…")   # its chip, no toast
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'refresh_catalog'")[0] == 1
     page.get_by_role("button", name="Check all", exact=True).click()
-    expect(page.get_by_text("Check all fake: queued")).to_be_visible()
+    expect(page.locator(".head [data-state=running]")).to_have_count(2)
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'check_all'")[0] == 1
     row.get_by_role("button", name="Check free one", exact=True).click()
-    expect(page.get_by_text("Check: queued")).to_be_visible()
     expect(row.locator("[data-state=running]")).to_have_text("running…")   # the chip under Check (B-States)
+    expect(page.get_by_text("Check: queued")).to_have_count(0)
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'check' AND account_id = %s", free)[0] == 1
     more(row, "Wake")
     expect(page.get_by_text("Wake: clear cooldown and strikes: queued")).to_be_visible()
@@ -222,11 +223,12 @@ def test_a_check_shows_what_it_found_and_a_dead_account_shows_its_reason(app, ap
     gone = new_account(db, label="gone one", checked=True)
     db.run("UPDATE accounts SET state = 'dead', state_reason = 'signed out' WHERE id = %s", gone)
     open_accounts(page)
-    rows(page).filter(has_text="gone one").get_by_role("button", name="Check gone one", exact=True).click()
-    expect(page.get_by_text("Check: queued")).to_be_visible()
+    row = rows(page).filter(has_text="gone one")
+    row.get_by_role("button", name="Check gone one", exact=True).click()
+    expect(row.locator("[data-state=running]")).to_have_text("running…")
     db.run("UPDATE commands SET status = 'done', result = %s::jsonb, finished_at = clock_timestamp() "
            "WHERE kind = 'check' AND account_id = %s", json.dumps({"outcome": "checked"}), gone)
-    expect(page.get_by_text("Check: checked - account dead (signed out)")).to_be_visible(timeout=10000)
+    expect(page.get_by_text("Check done: checked, account dead (signed out)")).to_be_visible(timeout=10000)
 
 
 def test_the_enable_switch_changes_the_account_and_a_refused_change_puts_it_back(app, app_session, db):

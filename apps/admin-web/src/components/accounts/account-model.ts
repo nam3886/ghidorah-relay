@@ -1,5 +1,5 @@
 // Pure rules of the Accounts view: what each cell says and what an edit or an import sends.
-import type { Account, AccountPatch, ImportBody, ImportResult } from "@/api/accounts";
+import type { Account, AccountPatch, ImportBody } from "@/api/accounts";
 import { ApiError } from "@/api/client";
 import type { CommandStatus } from "@/api/commands";
 import type { PoolStats } from "@/api/shell";
@@ -49,19 +49,14 @@ export function loadFailedText(err: unknown, said: string, what = "the accounts"
   return `Could not load ${what}: ${why}.`;
 }
 
-// Why a pasted line was rejected, in a sentence as the canvas writes it. The server sends a fixed code and nothing of
-// the line; an unknown code is shown as it is.
-const REJECTED: Record<string, string> = {
-  credential_unparseable: "The line is not a cookie jar.",
-  proxy_invalid: "The proxy is not host:port or host:port:user:pass.",
-};
-export const rejectedText = (reason: string): string => REJECTED[reason] ?? reason;
-
-export function importSummary(out: ImportResult): string {
-  const base = `Imported ${out.imported.length}, rejected ${out.rejected.length}`;
-  if (!out.rejected.length) return base;
-  return `${base} (${out.rejected.map((r) => `line ${r.index + 1}: ${r.reason}`).join("; ")})`;
-}
+// Why a pasted line was rejected, in a sentence as the canvas writes it. Only the known codes are named; anything else
+// gets one fixed sentence, so no text the server sends back (which could carry a pasted secret) is ever shown.
+const REJECTED = new Map<string, string>([
+  ["credential_unparseable", "The line is not a cookie jar."],
+  ["proxy_invalid", "The proxy is not host:port or host:port:user:pass."],
+]);
+export const REJECTED_OTHER = "The line could not be imported.";
+export const rejectedText = (reason: string): string => REJECTED.get(reason) ?? REJECTED_OTHER;
 
 // "21:30", the local clock of a time.
 export const hhmm = (ms: number): string =>
@@ -153,8 +148,9 @@ export function proxyStatus(a: Account, now: number = Date.now()): { tone: "ok" 
 }
 
 // What a finished check found, from the command's outcome and the account row it just changed.
+// In the toasts' form, "<label> done: <detail>": "Check done: signed_out, account dead (account.dead_session)".
 export function checkSummary(outcome: string | undefined, a: Pick<Account, "state" | "state_reason">): string {
-  return `Check: ${outcome || "done"} - account ${a.state}${a.state_reason ? ` (${a.state_reason})` : ""}`;
+  return `Check done: ${outcome ? `${outcome}, ` : ""}account ${a.state}${a.state_reason ? ` (${a.state_reason})` : ""}`;
 }
 
 // The pool card's left half: every figure is /admin/stats', counted over all accounts, not the page on screen.
