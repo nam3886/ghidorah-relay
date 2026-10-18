@@ -54,6 +54,9 @@ FD = "FAILED " + DETAIL_SPEC + " > "
           expect=FT + "drawer formats > a size reads in bytes, KB or MB, powers of 1000")
 @mutation(TEXT, 'n === 1 ? "" : "s"', '"s"',
           expect=FT + "drawer formats > a count takes an s except for one")
+# page-drawer: a job's request parameter is the first of its names that is set
+@mutation(TEXT, 'if (value !== undefined && value !== null && value !== "") return String(value);',
+          "return String(value);", expect=FT + "a job's request parameter > is the first of its names that is set")
 @pytest.mark.web_unit
 def test_a_key_is_never_nameless_the_timeline_runs_newest_first_and_the_drawer_formats_are_exact():
     vitest(TEXT_SPEC)
@@ -162,6 +165,8 @@ WEBHOOK = TECH_GROUP + "words a delivered webhook by its HTTP code, a retry by i
 @mutation(MEDIA, "if (m.width && m.height) return `${m.width} / ${m.height}`;", "",
           expect=MEDIA_GROUP + "a tile takes its picture's shape")
 @mutation(MEDIA, "return asked ? `${asked[1]} / ${asked[2]}` : \"2 / 3\";", "return \"2 / 3\";",
+          expect=MEDIA_GROUP + "a tile takes its picture's shape")
+@mutation(MEDIA, 'jobParam(props.job.params, "ratio", "aspect_ratio")', 'jobParam(props.job.params, "ratio")',
           expect=MEDIA_GROUP + "a tile takes its picture's shape")
 @mutation(MEDIA, "<template #toolbar=\"{ actions, reset }\">", "<template #toolbars=\"{ actions, reset }\">",
           expect=MEDIA_GROUP + "the viewer's buttons are ours")

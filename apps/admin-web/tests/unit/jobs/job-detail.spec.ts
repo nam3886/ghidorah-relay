@@ -1005,6 +1005,20 @@ describe("results and references", () => {
     expect(ratios()).toEqual(["aspect-ratio: 2304 / 1728;"]);
     await show(detail({ media: [media({ width: null, height: null })], params: { ratio: "16:9" } }));
     expect(ratios()).toEqual(["aspect-ratio: 16 / 9;"]);
+    // a job that stores its ratio as aspect_ratio, as the ledger also reads it
+    await show(
+      detail({
+        media_type: "image",
+        operation: "image",
+        media: [media({ width: null, height: null })],
+        params: { aspect_ratio: "4:3" },
+      }),
+    );
+    expect(ratios()).toEqual(["aspect-ratio: 4 / 3;"]);
+    const ledger = section("summary")
+      .findAll(".ledger__row")
+      .map((r) => [r.find("dt").text(), r.find("dd").text()]);
+    expect(ledger.find(([k]) => k === "Ratio · count")?.[1]).toContain("4:3");
     await show(detail({ media: [media({ width: null, height: null })], params: {} }));
     expect(ratios()).toEqual(["aspect-ratio: 2 / 3;"]);
   });

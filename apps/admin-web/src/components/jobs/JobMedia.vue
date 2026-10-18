@@ -14,7 +14,7 @@ import {
   IconZoomIn,
   IconZoomOut,
 } from "@/components/shared/icons";
-import { fmtBytes } from "@/components/jobs/job-text";
+import { fmtBytes, jobParam } from "@/components/jobs/job-text";
 import { useBusy } from "@/composables/use-busy";
 import { safeMediaUrl } from "@/lib/safe-media-url";
 
@@ -38,7 +38,7 @@ const dims = (m: JobMediaItem): string => (m.width && m.height ? `${m.width}×${
 // A tile takes its picture's shape: the stored size, else the job's ratio, else the canvas's 2:3.
 function ratioOf(m: JobMediaItem): string {
   if (m.width && m.height) return `${m.width} / ${m.height}`;
-  const asked = /^(\d+):(\d+)$/.exec(String((props.job.params as { ratio?: unknown } | null)?.ratio ?? ""));
+  const asked = /^(\d+):(\d+)$/.exec(jobParam(props.job.params, "ratio", "aspect_ratio"));
   return asked ? `${asked[1]} / ${asked[2]}` : "2 / 3";
 }
 const clock = (s: number): string => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;

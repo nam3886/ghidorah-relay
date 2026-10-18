@@ -7,6 +7,7 @@ import {
   fmtDayClock,
   fmtTook,
   isRefunded,
+  jobParam,
   keyName,
   loadFailedText,
   newestFirst,
@@ -16,6 +17,17 @@ import {
   regenerateToast,
   shortId,
 } from "@/components/jobs/job-text";
+
+describe("a job's request parameter", () => {
+  it("is the first of its names that is set, as text, and empty when none is", () => {
+    expect(jobParam({ aspect_ratio: "4:3" }, "ratio", "aspect_ratio")).toBe("4:3");
+    expect(jobParam({ ratio: "16:9", aspect_ratio: "4:3" }, "ratio", "aspect_ratio")).toBe("16:9");
+    expect(jobParam({ ratio: "", n: 4 }, "ratio", "n")).toBe("4");
+    expect(jobParam({ ratio: null }, "ratio")).toBe("");
+    expect(jobParam(null, "ratio")).toBe("");
+    expect(jobParam("2:3", "ratio")).toBe("");
+  });
+});
 
 describe("the failed load of the list", () => {
   it("says what failed and what the relay answered, as drawn", () => {

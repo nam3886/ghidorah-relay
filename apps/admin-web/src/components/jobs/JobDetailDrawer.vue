@@ -8,6 +8,7 @@ import {
   fmtDayClock,
   fmtTook,
   isRefunded,
+  jobParam,
   keyName,
   loadFailedText,
   newestFirst,
@@ -183,15 +184,7 @@ const onItsWay = computed(() => {
 });
 
 const asText = (v: unknown): string => (v === undefined || v === null || v === "" ? "" : String(v));
-const param = (...names: string[]): string => {
-  const p = job.value?.params;
-  if (!p || typeof p !== "object") return "";
-  for (const n of names) {
-    const v = asText((p as Record<string, unknown>)[n]);
-    if (v) return v;
-  }
-  return "";
-};
+const param = (...names: string[]): string => jobParam(job.value?.params, ...names);
 
 // The ledger of the Overview. A refund shows the price struck, an arrow and what was kept.
 const summary = computed<LedgerItem[]>(() => {

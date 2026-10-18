@@ -6,6 +6,17 @@ import { toneOf, type Tone } from "@/components/shared/status-tones";
 
 export const shortId = (id: string): string => id.slice(0, 8);
 
+// A job's request parameter by the first of its names that is set ("ratio", else "aspect_ratio"), as text; "" when
+// none is. The drawer's ledger and its tiles read the same fields through it.
+export function jobParam(params: unknown, ...names: string[]): string {
+  if (!params || typeof params !== "object") return "";
+  for (const name of names) {
+    const value = (params as Record<string, unknown>)[name];
+    if (value !== undefined && value !== null && value !== "") return String(value);
+  }
+  return "";
+}
+
 // The list's failed load, worded as drawn (B-States): "Could not load the jobs: the relay answered 502 (bad gateway)."
 // `said` is the app's own text for the failure (errorText); with no answer from the relay it is all there is to say.
 // `what` names what failed: the drawer's read says "the job".
