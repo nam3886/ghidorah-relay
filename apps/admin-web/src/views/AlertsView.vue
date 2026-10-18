@@ -9,14 +9,18 @@ import {
   type AlertAsk,
   ALERT_KINDS,
   alertTime,
+  alertTitle,
   GROUP_LIMIT,
-  groupTitle,
+  liveWord,
+  loadFailedText,
   ONE_CUSTOMER_NOTE,
   oneCustomer,
   ROW_LIMIT,
 } from "@/components/alerts/alerts-model";
+import "@/components/alerts/alert-buttons.css";
 import "@/components/logs/lane-controls.css";
 import DataTable from "@/components/shared/DataTable.vue";
+import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { IconRefresh } from "@/components/shared/icons";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
@@ -33,6 +37,10 @@ import { useStatsStore } from "@/stores/stats";
 // `asked` is what the operator asked for last (the filters and the group whose detail is open); what is drawn (`groups`,
 // `live`, `opened`) comes from one answer. A write takes its group from what was drawn, never from `asked`. Every
 // load takes the next ticket, and an answer or a failure counts only if no later load started since it was asked.
+//
+// The group list is drawn as the canvas draws it: a plain table (its columns as wide as their content, which an
+// Element Plus table cannot do) on a desktop and a tablet, a list of blocks on a phone with the open detail right
+// under its group. The loading, error and empty states are the shared table's (B-States).
 const stats = useStatsStore();
 const { run } = useBusy();
 const latest = useLatest();
@@ -49,26 +57,28 @@ const writing = ref(false);
 // While a view loads, only the controls that ask for another view stay usable: they are how it is replaced. While a
 // write is in flight nothing is.
 const locked = computed(() => writing.value || loading.value > 0);
-// A group is named by its kind and its own key; the table wants one unique id per row.
+// A group is named by its kind and its own key; a list wants one unique id per row.
 const groupRows = computed(() => groups.value.map((g) => ({ ...g, id: `${g.kind}/${g.group}` })));
 type GroupRow = (typeof groupRows.value)[number];
 
+// The columns the shared table's loading skeleton draws (the list itself is the plain table below); a phone draws
+// the tablet's three, as eight do not fit.
 const columns = computed(() =>
-  isTablet.value
+  isTablet.value || isPhone.value
     ? [
-        { key: "severity", label: "Severity", width: 110 },
-        { key: "title", label: "Alert", minWidth: 240 },
-        { key: "openrows", label: "Open / Rows", align: "right" as const, width: 120 },
+        { key: "severity", label: "Severity" },
+        { key: "title", label: "Alert" },
+        { key: "openrows", label: "Open / Rows", align: "right" as const },
       ]
     : [
-        { key: "severity", label: "Severity", width: 110 },
-        { key: "title", label: "Alert", minWidth: 280 },
-        { key: "provider", label: "Provider", width: 100 },
-        { key: "first", label: "First seen", width: 140 },
-        { key: "last", label: "Last seen", width: 140 },
-        { key: "count", label: "Rows", align: "right" as const, width: 80 },
-        { key: "open_count", label: "Open", align: "right" as const, width: 80 },
-        { key: "keys", label: "Keys", align: "right" as const, width: 80 },
+        { key: "severity", label: "Severity" },
+        { key: "title", label: "Alert" },
+        { key: "provider", label: "Provider" },
+        { key: "first", label: "First seen" },
+        { key: "last", label: "Last seen" },
+        { key: "count", label: "Rows", align: "right" as const },
+        { key: "open_count", label: "Open", align: "right" as const },
+        { key: "keys", label: "Keys", align: "right" as const },
       ],
 );
 
@@ -119,7 +129,7 @@ async function load(): Promise<void> {
       view = await read(at);
     } catch (err) {
       if (!latest.isCurrent(ticket)) return;
-      error.value = errorText(err);
+      error.value = loadFailedText(err, errorText(err));
       throw err;
     }
     if (!latest.isCurrent(ticket)) return;
@@ -142,12 +152,32 @@ const STATUS_CHOICES = [
   { value: "all", label: "All" },
   { value: "open", label: "Open" },
   { value: "acknowledged", label: "Acknowledged" },
-] as const;
+];
+const KIND_CHOICES = [{ value: "", label: "All" }, ...ALERT_KINDS.map((k) => ({ value: k, label: k }))];
+
+// A filter changed: ask for that view (the other filter and the open detail stay).
+function pick(filter: "status" | "kind", value: string | number): void {
+  asked.value =
+    filter === "status"
+      ? { ...asked.value, status: value as AlertAsk["status"] }
+      : { ...asked.value, kind: String(value) };
+  void reload();
+}
 
 // The group whose detail is open, as the table and the phone list mark it.
 const isOpened = (g: AlertGroup): boolean => asked.value.open?.kind === g.kind && asked.value.open.group === g.group;
 const rowClass = ({ row }: { row: GroupRow }): string =>
   [row.open_count === 0 ? "a-dim" : "", isOpened(row) ? "a-selected" : ""].filter(Boolean).join(" ");
+
+// The state of the list: the shared table draws loading (nothing yet), the error and the empty list; the rows are
+// drawn here, dimmed while the next answer is on its way.
+const listState = computed(() =>
+  error.value ? "error" : groups.value.length ? (loading.value > 0 ? "refreshing" : "ready") : "other",
+);
+// The phone list breaks after the opened group: its detail region sits between it and the next group, as drawn.
+const openedAt = computed(() => (opened.value ? groupRows.value.findIndex((g) => isOpened(g)) : -1));
+const phoneHead = computed(() => (openedAt.value < 0 ? groupRows.value : groupRows.value.slice(0, openedAt.value + 1)));
+const phoneTail = computed(() => (openedAt.value < 0 ? [] : groupRows.value.slice(openedAt.value + 1)));
 
 function openGroup(g: AlertGroup) {
   asked.value = { ...asked.value, open: { kind: g.kind, group: g.group } };
@@ -188,17 +218,20 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
 </script>
 
 <template>
-  <section class="alerts-view">
+  <section class="alerts-view" :class="{ 'is-tablet': isTablet, 'is-phone': isPhone }">
     <PageHeader title="Alerts" subtitle="Acknowledging marks rows as seen; a later row reopens the group.">
       <template v-if="updatedText" #meta>Updated {{ updatedText }}</template>
+      <template v-if="isPhone && updatedText" #submeta
+        ><span class="a-updated">Updated {{ updatedText }}</span></template
+      >
       <template #actions>
-        <button v-if="!isPhone" type="button" class="kla-btn" :disabled="loading > 0" @click="reload">
+        <button v-if="!isPhone" type="button" class="al-btn a-refresh" :disabled="loading > 0" @click="reload">
           <IconRefresh :size="15" />Refresh
         </button>
         <button
           v-else
           type="button"
-          class="kla-icon-btn kla-icon-btn--lg a-refresh"
+          class="al-btn a-refresh-icon"
           aria-label="Refresh"
           :disabled="loading > 0"
           @click="reload"
@@ -207,182 +240,253 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
         </button>
       </template>
     </PageHeader>
-    <span v-if="isPhone && updatedText" class="a-updated kla-mono">Updated {{ updatedText }}</span>
 
     <section class="kla-card live" aria-label="Live conditions">
-      <header class="live__head">
+      <div class="live__head">
         <h2>Live conditions</h2>
-        <span>Computed now. These cannot be acknowledged; they clear when the condition does.</span>
-      </header>
+        <span class="live__note">Computed now. These cannot be acknowledged; they clear when the condition does.</span>
+      </div>
       <ul v-if="live.length" class="live__list" data-testid="alerts-live">
         <li v-for="a in live" :key="`${a.kind}:${a.message}`">
           <StatusChip :status="a.severity" class="live__pill" />
           <span class="live__text"
-            ><span class="live__kind">{{ a.kind }}:</span> {{ a.message }}</span
+            ><span class="live__kind">{{ liveWord(a.kind) }}:</span> {{ a.message }}</span
           >
         </li>
       </ul>
-      <p v-else class="live__none">No live condition right now.</p>
+      <p v-else-if="updatedAt" class="live__none">No live condition right now.</p>
     </section>
 
     <section class="kla-card groups" aria-label="Alert groups">
       <div class="gt">
-        <component :is="isPhone ? 'label' : 'div'" :class="isPhone ? 'kla-chip-field' : 'kla-field'">
-          <component :is="isPhone ? 'span' : 'label'" :class="isPhone ? '' : 'kla-field__label'" for="alerts-status"
-            >Status</component
-          >
-          <select
-            id="alerts-status"
-            v-model="asked.status"
-            class="kla-control"
-            :class="{ 'kla-control--tall': isTablet }"
-            aria-label="Status"
-            :disabled="writing"
-            @change="reload"
-          >
-            <option v-for="o in STATUS_CHOICES" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
-        </component>
-        <component :is="isPhone ? 'label' : 'div'" :class="isPhone ? 'kla-chip-field' : 'kla-field'">
-          <component :is="isPhone ? 'span' : 'label'" :class="isPhone ? '' : 'kla-field__label'" for="alerts-kind"
-            >Kind</component
-          >
-          <select
-            id="alerts-kind"
-            v-model="asked.kind"
-            class="kla-control"
-            :class="{ 'kla-control--tall': isTablet }"
-            aria-label="Kind"
-            :disabled="writing"
-            @change="reload"
-          >
-            <option value="">All</option>
-            <option v-for="k in ALERT_KINDS" :key="k" :value="k">{{ k }}</option>
-          </select>
-        </component>
+        <FilterSelect
+          :model-value="asked.status"
+          variant="field"
+          label="Status"
+          :options="STATUS_CHOICES"
+          :disabled="writing"
+          @update:model-value="(v) => pick('status', v)"
+        />
+        <FilterSelect
+          :model-value="asked.kind"
+          variant="field"
+          label="Kind"
+          :options="KIND_CHOICES"
+          :disabled="writing"
+          @update:model-value="(v) => pick('kind', v)"
+        />
         <span v-if="!isPhone" class="gt__spacer" />
-        <span class="gt__count kla-mono" data-testid="alerts-count">{{ groupCount }}</span>
+        <span class="gt__count" data-testid="alerts-count">{{ groupCount }}</span>
       </div>
 
       <DataTable
-        class="groups-table"
-        :actions-width="210"
+        v-if="listState === 'error' || listState === 'other'"
         :columns="columns"
-        :rows="groupRows"
+        :rows="[]"
         :loading="loading > 0"
         :error="error"
         empty-text="No alert groups with this filter"
-        :row-class-name="rowClass"
         @retry="reload"
-      >
-        <template #cell-severity="{ row }"><StatusChip :status="row.severity" /></template>
-        <template #cell-title="{ row }">
-          <span class="g-title">{{ groupTitle(row) }}</span>
-          <span class="g-kind kla-mono"
-            >{{ row.kind }}<template v-if="isTablet"> · {{ row.provider }}</template></span
-          >
-          <span v-if="isTablet" class="g-range kla-mono"
-            >{{ alertTime(row.first_ms) }} → {{ alertTime(row.last_ms) }}</span
-          >
-          <span v-if="oneCustomer(row)" class="g-note">{{ ONE_CUSTOMER_NOTE }}</span>
-        </template>
-        <template #cell-provider="{ row }"
-          ><span class="g-muted">{{ row.provider }}</span></template
-        >
-        <template #cell-first="{ row }"
-          ><span class="g-time kla-mono">{{ alertTime(row.first_ms) }}</span></template
-        >
-        <template #cell-last="{ row }"
-          ><span class="g-time kla-mono">{{ alertTime(row.last_ms) }}</span></template
-        >
-        <template #cell-count="{ row }"
-          ><span class="kla-mono g-num">{{ row.count }}</span></template
-        >
-        <template #cell-open_count="{ row }"
-          ><span class="kla-mono g-num g-open" :class="{ 'is-faint': row.open_count === 0 }">{{
-            row.open_count
-          }}</span></template
-        >
-        <template #cell-keys="{ row }"
-          ><span class="kla-mono g-num">{{ row.keys }}</span></template
-        >
-        <template #cell-openrows="{ row }">
-          <span class="kla-mono g-num"
-            ><span class="g-open" :class="{ 'is-faint': row.open_count === 0 }">{{ row.open_count }}</span> /
-            {{ row.count }}</span
-          >
-        </template>
-        <template #actions="{ row }">
-          <div class="g-actions">
-            <button
-              type="button"
-              class="kla-btn kla-btn--link kla-btn--small g-details"
-              :aria-expanded="isOpened(row)"
-              :disabled="writing"
-              :aria-label="`Details of ${groupTitle(row)}`"
-              @click="openGroup(row)"
-            >
-              Details
-            </button>
-            <button
-              v-if="row.open_count > 0"
-              type="button"
-              class="kla-btn kla-btn--small g-ack"
-              :disabled="locked"
-              @click="acknowledge(row)"
-            >
-              Acknowledge
-            </button>
-          </div>
-        </template>
+      />
 
-        <!-- the phone list: a block per group, the open detail right under its group -->
-        <template #row="{ row }">
-          <div class="p-group" :class="{ 'a-dim': row.open_count === 0, 'is-selected': isOpened(row) }">
-            <StatusChip :status="row.severity" class="p-group__pill" />
-            <span class="g-title">{{ groupTitle(row) }}</span>
-            <span class="g-kind kla-mono">{{ row.kind }}</span>
-            <span v-if="oneCustomer(row)" class="g-note">{{ ONE_CUSTOMER_NOTE }}</span>
-            <span class="p-group__range kla-mono"
-              >first {{ alertTime(row.first_ms) }} → last {{ alertTime(row.last_ms) }}</span
+      <!-- the phone list: a block per group, the open detail right under its group -->
+      <div v-else-if="isPhone" class="p-lists" :data-state="listState">
+        <ul class="p-list">
+          <li
+            v-for="g in phoneHead"
+            :key="g.id"
+            class="p-group"
+            :class="{ 'a-dim': g.open_count === 0, 'is-selected': isOpened(g) }"
+          >
+            <StatusChip :status="g.severity" class="p-group__pill" />
+            <span class="p-group__title">{{ alertTitle(g) }}</span>
+            <span class="p-group__kind">{{ g.kind }}</span>
+            <span v-if="oneCustomer(g)" class="p-group__note">{{ ONE_CUSTOMER_NOTE }}</span>
+            <span class="p-group__range">first {{ alertTime(g.first_ms) }} → last {{ alertTime(g.last_ms) }}</span>
+            <span class="p-group__counts"
+              ><span>rows {{ g.count }}</span
+              ><span aria-hidden="true">·</span
+              ><span class="p-group__open" :class="{ 'is-faint': g.open_count === 0 }">open {{ g.open_count }}</span
+              ><span aria-hidden="true">·</span><span>keys {{ g.keys }}</span></span
             >
-            <span class="p-group__counts kla-mono"
-              >rows {{ row.count }} <i aria-hidden="true">·</i>
-              <span class="g-open" :class="{ 'is-faint': row.open_count === 0 }">open {{ row.open_count }}</span>
-              <i aria-hidden="true">·</i> keys {{ row.keys }}</span
-            >
-            <div class="p-group__actions">
+            <span class="p-group__actions">
               <button
                 type="button"
-                class="kla-btn kla-btn--fit p-group__btn"
-                :aria-expanded="isOpened(row)"
+                class="al-btn al-link p-group__btn"
+                :aria-expanded="isOpened(g)"
                 :disabled="writing"
-                :aria-label="`Details of ${groupTitle(row)}`"
-                @click="openGroup(row)"
+                :aria-label="`Details of ${alertTitle(g)}`"
+                @click="openGroup(g)"
               >
                 Details
               </button>
               <button
-                v-if="row.open_count > 0"
+                v-if="g.open_count > 0"
                 type="button"
-                class="kla-btn kla-btn--fit p-group__btn"
+                class="al-btn p-group__btn"
                 :disabled="locked"
-                @click="acknowledge(row)"
+                @click="acknowledge(g)"
               >
                 Acknowledge
               </button>
-            </div>
-          </div>
-          <AlertDetailPanel
-            v-if="opened && isOpened(row)"
-            :detail="opened"
-            :writing="writing"
-            :locked="locked"
-            @ack="acknowledge"
-            @close="closeDetail"
-          />
-        </template>
-      </DataTable>
+            </span>
+          </li>
+        </ul>
+        <AlertDetailPanel
+          v-if="opened && openedAt >= 0"
+          :detail="opened"
+          :writing="writing"
+          :locked="locked"
+          @ack="acknowledge"
+          @close="closeDetail"
+        />
+        <ul v-if="phoneTail.length" class="p-list">
+          <li
+            v-for="g in phoneTail"
+            :key="g.id"
+            class="p-group"
+            :class="{ 'a-dim': g.open_count === 0, 'is-selected': isOpened(g) }"
+          >
+            <StatusChip :status="g.severity" class="p-group__pill" />
+            <span class="p-group__title">{{ alertTitle(g) }}</span>
+            <span class="p-group__kind">{{ g.kind }}</span>
+            <span v-if="oneCustomer(g)" class="p-group__note">{{ ONE_CUSTOMER_NOTE }}</span>
+            <span class="p-group__range">first {{ alertTime(g.first_ms) }} → last {{ alertTime(g.last_ms) }}</span>
+            <span class="p-group__counts"
+              ><span>rows {{ g.count }}</span
+              ><span aria-hidden="true">·</span
+              ><span class="p-group__open" :class="{ 'is-faint': g.open_count === 0 }">open {{ g.open_count }}</span
+              ><span aria-hidden="true">·</span><span>keys {{ g.keys }}</span></span
+            >
+            <span class="p-group__actions">
+              <button
+                type="button"
+                class="al-btn al-link p-group__btn"
+                :aria-expanded="isOpened(g)"
+                :disabled="writing"
+                :aria-label="`Details of ${alertTitle(g)}`"
+                @click="openGroup(g)"
+              >
+                Details
+              </button>
+              <button
+                v-if="g.open_count > 0"
+                type="button"
+                class="al-btn p-group__btn"
+                :disabled="locked"
+                @click="acknowledge(g)"
+              >
+                Acknowledge
+              </button>
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- the tablet table: Severity, Alert (with the kind, provider and span under the title), Open / Rows -->
+      <table v-else-if="isTablet" class="g-table" :data-state="listState">
+        <caption class="a-caption">
+          Alert groups
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" class="g-th-sev">Severity</th>
+            <th scope="col">Alert</th>
+            <th scope="col" class="is-right">Open / Rows</th>
+            <th scope="col" class="g-th-actions is-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="g in groupRows" :key="g.id" class="g-row" :class="rowClass({ row: g })">
+            <td class="g-sev"><StatusChip :status="g.severity" /></td>
+            <td class="g-alert">
+              <span class="g-title">{{ alertTitle(g) }}</span>
+              <span class="g-kind">{{ g.kind }} · {{ g.provider }}</span>
+              <span class="g-range">{{ alertTime(g.first_ms) }} → {{ alertTime(g.last_ms) }}</span>
+              <span v-if="oneCustomer(g)" class="g-note">{{ ONE_CUSTOMER_NOTE }}</span>
+            </td>
+            <td class="g-openrows">
+              <span class="g-open" :class="{ 'is-faint': g.open_count === 0 }">{{ g.open_count }}</span> /
+              {{ g.count }}
+            </td>
+            <td class="g-actions">
+              <button
+                type="button"
+                class="al-btn al-link g-details"
+                :aria-expanded="isOpened(g)"
+                :disabled="writing"
+                :aria-label="`Details of ${alertTitle(g)}`"
+                @click="openGroup(g)"
+              >
+                Details</button
+              >&#32;<button
+                v-if="g.open_count > 0"
+                type="button"
+                class="al-btn g-ack"
+                :disabled="locked"
+                @click="acknowledge(g)"
+              >
+                Acknowledge
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- the desktop table, 1040 px at least, scrolling inside its own box -->
+      <div v-else class="g-scroll">
+        <table class="g-table" :data-state="listState">
+          <thead>
+            <tr>
+              <th scope="col" class="g-th-sev">Severity</th>
+              <th scope="col">Alert</th>
+              <th scope="col">Provider</th>
+              <th scope="col">First seen</th>
+              <th scope="col">Last seen</th>
+              <th scope="col" class="is-right">Rows</th>
+              <th scope="col" class="is-right">Open</th>
+              <th scope="col" class="is-right">Keys</th>
+              <th scope="col" class="g-th-actions is-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="g in groupRows" :key="g.id" class="g-row" :class="rowClass({ row: g })">
+              <td class="g-sev"><StatusChip :status="g.severity" /></td>
+              <td class="g-alert">
+                <span class="g-title">{{ alertTitle(g) }}</span>
+                <span class="g-kind">{{ g.kind }}</span>
+                <span v-if="oneCustomer(g)" class="g-note">{{ ONE_CUSTOMER_NOTE }}</span>
+              </td>
+              <td class="g-provider">{{ g.provider }}</td>
+              <td class="g-time">{{ alertTime(g.first_ms) }}</td>
+              <td class="g-time">{{ alertTime(g.last_ms) }}</td>
+              <td class="g-num">{{ g.count }}</td>
+              <td class="g-num g-open" :class="{ 'is-faint': g.open_count === 0 }">{{ g.open_count }}</td>
+              <td class="g-num">{{ g.keys }}</td>
+              <td class="g-actions">
+                <button
+                  type="button"
+                  class="al-btn al-link g-details"
+                  :aria-expanded="isOpened(g)"
+                  :disabled="writing"
+                  :aria-label="`Details of ${alertTitle(g)}`"
+                  @click="openGroup(g)"
+                >
+                  Details</button
+                >&#32;<button
+                  v-if="g.open_count > 0"
+                  type="button"
+                  class="al-btn g-ack"
+                  :disabled="locked"
+                  @click="acknowledge(g)"
+                >
+                  Acknowledge
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <p v-if="groups.length >= GROUP_LIMIT" class="alerts-more" data-testid="alerts-more">
         Showing the newest {{ GROUP_LIMIT }} groups; older groups are not listed.
       </p>
@@ -400,24 +504,39 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
 </template>
 
 <style scoped>
+/* every value below is the canvas's own (B-, T-, P-Alerts; specs/alerts.md) */
 .alerts-view {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
-@media (max-width: 1279px) {
-  .alerts-view {
-    gap: 16px;
-  }
+.alerts-view.is-phone {
+  gap: 16px;
+}
+
+.a-refresh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+}
+.a-refresh-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
 }
 .a-updated {
-  margin-top: -12px;
-  font-size: 12px;
-  color: var(--rl-faint);
+  display: block;
+  line-height: 20px;
 }
-.a-refresh {
-  border: 1px solid var(--rl-line-strong);
-  color: var(--rl-fg);
+.a-caption {
+  position: absolute;
+  left: -9999px;
 }
 
 /* live conditions */
@@ -435,7 +554,7 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   line-height: 22px;
   font-weight: 600;
 }
-.live__head span {
+.live__note {
   font-size: 12px;
   color: var(--rl-faint);
 }
@@ -455,8 +574,8 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   border-top: 1px solid var(--rl-line);
 }
 .live__pill {
-  min-width: 64px;
   box-sizing: border-box;
+  min-width: 64px;
 }
 .live__text {
   flex: 1;
@@ -471,38 +590,38 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   border-top: 1px solid var(--rl-line);
   color: var(--rl-muted);
 }
-@media (max-width: 1279px) {
-  .live__head {
-    display: block;
-  }
-  .live__head span {
-    display: block;
-  }
-  .live__text {
-    min-width: 0;
-  }
+.is-tablet .live__head,
+.is-phone .live__head {
+  display: block;
 }
-@media (max-width: 767px) {
-  .live__head {
-    padding: 14px 16px 10px;
-  }
-  .live__head span {
-    margin: 2px 0 0;
-    line-height: 16px;
-  }
-  .live__list li {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-    min-height: 72px;
-    padding: 12px 16px;
-  }
+.is-tablet .live__list li {
+  flex-wrap: nowrap;
 }
-
-/* groups */
-.groups {
+.is-tablet .live__text {
   min-width: 0;
 }
+.is-phone .live__note {
+  display: block;
+  margin-top: 2px;
+  line-height: 16px;
+}
+.is-phone .live__list li {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 72px;
+  padding: 12px 16px;
+}
+.is-phone .live__pill {
+  min-width: 0;
+}
+.is-phone .live__text {
+  flex: none;
+  min-width: 0;
+}
+
+/* the toolbar: the native selects, labelled above them (a chip with the word inside on a phone), and the count */
 .gt {
   display: flex;
   flex-wrap: wrap;
@@ -516,87 +635,118 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
 .gt__count {
   font-size: 13px;
   color: var(--rl-muted);
+  font-variant-numeric: tabular-nums;
 }
-@media (max-width: 1279px) {
-  .gt {
-    flex-wrap: nowrap;
-  }
-  .gt__count {
-    line-height: 36px;
-  }
+.is-tablet .gt {
+  flex-wrap: nowrap;
 }
-@media (max-width: 767px) {
-  .gt {
-    align-items: center;
-    gap: 8px;
-    padding: 12px;
-    overflow-x: auto;
-  }
-  .gt__count {
-    flex: none;
-    padding: 0 4px;
-    line-height: 20px;
-  }
+.is-tablet .gt__count {
+  line-height: 36px;
 }
-.groups-table {
-  border-top: 1px solid var(--rl-line);
+.is-phone .gt {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 12px;
 }
-.groups-table :deep(.el-table) {
+.is-phone .gt__count {
+  flex: none;
+  padding: 0 4px;
+}
+
+/* refreshing: the rows dim while the next answer is on its way, the header stays (B-States, refreshing) */
+[data-state="refreshing"] tbody,
+[data-state="refreshing"] .p-list {
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+/* the group table */
+.g-scroll {
+  overflow-x: auto;
+}
+.g-table {
+  width: 100%;
   min-width: 1040px;
+  border-collapse: separate;
+  border-spacing: 0;
 }
-.groups-table.is-tablet :deep(.el-table) {
+.is-tablet .g-table {
   min-width: 0;
 }
-.groups-table :deep(td.el-table__cell) {
-  padding: 8px 0;
-  vertical-align: top;
+.g-table thead tr {
+  text-align: left;
+  font-size: 12px;
+  color: var(--rl-muted);
 }
-.groups-table :deep(td.el-table__cell:first-child .cell),
-.groups-table :deep(th.el-table__cell:first-child .cell) {
-  padding-left: 16px;
+.g-table th {
+  height: 38px;
+  padding: 0 12px;
+  background: var(--rl-raised);
+  font-weight: 500;
 }
-.groups-table :deep(td.el-table__cell:last-child .cell),
-.groups-table :deep(th.el-table__cell:last-child .cell) {
-  padding-right: 16px;
+.g-table th.is-right {
+  text-align: right;
 }
-.groups-table :deep(tr.a-dim) {
+.g-table .g-th-sev {
+  padding: 0 12px 0 16px;
+}
+.g-table .g-th-actions {
+  padding: 0 16px 0 12px;
+}
+.g-table td {
+  padding: 0 12px;
+  border-bottom: 1px solid var(--rl-line);
+}
+.g-row.a-dim {
   opacity: 0.55;
 }
-.groups-table :deep(tr.a-selected > td.el-table__cell) {
+.g-row.a-selected td {
   background: var(--rl-primary-soft);
+}
+.g-row:hover td {
+  background: var(--rl-raised);
+}
+.g-table .g-sev {
+  height: 64px;
+  padding: 0 12px 0 16px;
+  white-space: nowrap;
+}
+.g-table .g-alert {
+  max-width: 380px;
+  padding: 8px 12px;
 }
 .g-title {
   display: block;
-  max-width: 380px;
   font-weight: 500;
-  overflow-wrap: anywhere;
-}
-.g-kind,
-.g-range {
-  display: block;
-  font-size: 12px;
 }
 .g-kind {
-  color: var(--rl-faint);
-}
-.g-range,
-.g-time {
+  font-family: var(--rl-mono);
   font-size: 12px;
-  color: var(--rl-muted);
-  white-space: nowrap;
+  color: var(--rl-faint);
 }
 .g-note {
   display: block;
   font-size: 12px;
   color: var(--rl-muted);
 }
-.g-muted {
+.g-provider {
   font-size: 13px;
   color: var(--rl-muted);
 }
-.g-num {
-  font-size: 13px;
+.g-time {
+  font-family: var(--rl-mono);
+  font-size: 12px;
+  color: var(--rl-muted);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.g-num {
+  text-align: right;
+  font-family: var(--rl-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 .g-open {
   font-weight: 500;
@@ -605,14 +755,66 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
 .g-open.is-faint {
   color: var(--rl-faint);
 }
-.g-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
+.g-table .g-actions {
+  padding: 0 16px 0 12px;
+  text-align: right;
   white-space: nowrap;
 }
+.g-details {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  line-height: 20px;
+}
 .g-ack {
+  height: 32px;
   margin-left: 4px;
+  padding: 0 10px;
+}
+.is-tablet .g-table th {
+  padding: 0 8px;
+}
+.is-tablet .g-table .g-th-sev {
+  padding: 0 8px 0 16px;
+}
+.is-tablet .g-table .g-th-actions {
+  padding: 0 16px 0 8px;
+}
+.is-tablet .g-table th.is-right {
+  white-space: nowrap;
+}
+.is-tablet .g-table td {
+  vertical-align: top;
+}
+.is-tablet .g-table .g-sev {
+  height: auto;
+  padding: 12px 8px 12px 16px;
+}
+.is-tablet .g-table .g-alert {
+  max-width: none;
+  padding: 10px 8px;
+}
+.is-tablet .g-kind,
+.is-tablet .g-range {
+  display: block;
+  font-family: var(--rl-mono);
+  font-size: 12px;
+}
+.g-range {
+  color: var(--rl-muted);
+  font-variant-numeric: tabular-nums;
+}
+.is-tablet .g-table .g-openrows {
+  padding: 12px 8px;
+  text-align: right;
+  font-family: var(--rl-mono);
+  font-size: 13px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.is-tablet .g-table .g-actions {
+  padding: 8px 16px 8px 8px;
 }
 .alerts-more {
   margin: 0;
@@ -621,21 +823,18 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   color: var(--rl-muted);
 }
 
-/* phone */
-.groups :deep(.data-table__main) {
-  padding: 0 !important;
-  align-items: stretch;
-  justify-content: flex-start;
-}
-.groups :deep(.data-table__item) {
-  display: block;
-  border-top: 1px solid var(--rl-line);
+/* the phone list */
+.p-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .p-group {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 14px 16px;
+  border-top: 1px solid var(--rl-line);
 }
 .p-group.a-dim {
   opacity: 0.55;
@@ -646,18 +845,36 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
 .p-group__pill {
   align-self: flex-start;
 }
+.p-group__title {
+  font-weight: 500;
+}
+.p-group__kind {
+  font-family: var(--rl-mono);
+  font-size: 12px;
+  color: var(--rl-faint);
+}
+.p-group__note {
+  font-size: 12px;
+  color: var(--rl-muted);
+}
 .p-group__range {
   font-size: 13px;
   color: var(--rl-muted);
+  font-variant-numeric: tabular-nums;
 }
 .p-group__counts {
   display: flex;
   gap: 6px;
+  font-family: var(--rl-mono);
   font-size: 12px;
   color: var(--rl-muted);
+  font-variant-numeric: tabular-nums;
 }
-.p-group__counts i {
-  font-style: normal;
+.p-group__open {
+  color: var(--rl-warn);
+}
+.p-group__open.is-faint {
+  color: var(--rl-faint);
 }
 .p-group__actions {
   display: flex;
@@ -666,5 +883,21 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
 }
 .p-group__btn {
   flex: 1;
+  height: 44px;
+  font-size: 14px;
+}
+/* the canvas draws Details as a link of 44 px plus its border (46 high), Acknowledge as a 44 px button */
+.p-group__btn.al-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: content-box;
+  padding: 0;
+  border: 1px solid var(--rl-line-strong);
+  background: var(--rl-surface);
+  line-height: 20px;
+}
+.p-group__btn.al-link:hover {
+  background: var(--rl-raised);
 }
 </style>

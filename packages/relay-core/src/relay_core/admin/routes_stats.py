@@ -77,6 +77,12 @@ async def live_alerts(conn, config: Settings, registry: ProviderRegistry, usable
         if usable.get(name, 0) < low:
             text = "%s has %d usable accounts (alert below %d)" % (name, usable.get(name, 0), low)
             alerts.append(_alert("accounts_low", "warning", text, name))
+    # A dead account (its session died; a disabled account is never dead, the state is one of the two): one condition
+    # each, until it is signed in again, disabled or removed. It only reads the state: no notification, no webhook.
+    for provider, label, account_id in await (await conn.execute(
+            "SELECT provider, label, id FROM accounts WHERE state = 'dead' ORDER BY label, id")).fetchall():
+        text = "%s has a dead session" % (label or str(account_id)[:8])
+        alerts.append(_alert("account_dead", "error", text, provider))
     staffed = {r[0] for r in await (await conn.execute(
         "SELECT DISTINCT provider FROM worker_heartbeats WHERE at > clock_timestamp() - make_interval(secs => %s)",
         (HEARTBEAT_STALE_S,))).fetchall()}
