@@ -168,8 +168,17 @@ function openDocs(): void {
 }
 
 // The current tab stays in view when the tabs scroll sideways (tablet and phone): on a tab switch, and when a count
-// arrives or changes, as the counts widen the tabs before it (they come after the bar is drawn).
+// arrives or changes, as the counts widen the tabs before it (they come after the bar is drawn); and once the web fonts
+// have loaded, as they change the width of every tab (the bar can be drawn in the fallback font first). That late one
+// is skipped when the user has moved the strip since (a wheel, a touch, a press or a key on it, or the focus entering
+// it, which scrolls the focused tab into view: a scroll we start ourselves sends none of these), and when the bar is
+// gone.
 const navEl = ref<HTMLElement | null>(null);
+let userMovedTabs = false;
+let unmounted = false;
+function onTabsMoved(): void {
+  userMovedTabs = true;
+}
 async function revealCurrent(): Promise<void> {
   await nextTick();
   const current = navEl.value?.querySelector<HTMLElement>('[aria-current="page"]');
@@ -177,7 +186,16 @@ async function revealCurrent(): Promise<void> {
     current.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 }
-onMounted(revealCurrent);
+onMounted(() => {
+  void revealCurrent();
+  void document.fonts?.ready.then(() => {
+    if (unmounted || userMovedTabs) return;
+    void revealCurrent();
+  });
+});
+onBeforeUnmount(() => {
+  unmounted = true;
+});
 watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" ")], revealCurrent);
 </script>
 
@@ -188,7 +206,16 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
         <BrandLogo />
       </router-link>
 
-      <nav ref="navEl" class="topbar__nav" aria-label="Main">
+      <nav
+        ref="navEl"
+        class="topbar__nav"
+        aria-label="Main"
+        @wheel.passive="onTabsMoved"
+        @touchstart.passive="onTabsMoved"
+        @pointerdown="onTabsMoved"
+        @keydown="onTabsMoved"
+        @focusin="onTabsMoved"
+      >
         <ul class="tabs" role="tablist">
           <li v-for="tab in TABS" :key="tab.name" role="presentation">
             <router-link
