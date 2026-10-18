@@ -19,7 +19,7 @@ import {
 import { useLogsFilters } from "@/components/logs/logs-filters";
 import "@/components/logs/lane-controls.css";
 import DataTable from "@/components/shared/DataTable.vue";
-import { IconChevronRight, IconMoreCircles, IconTrashClear, IconTrashMenu } from "@/components/shared/icons";
+import { IconChevronRight, IconMoreCircles, IconTrashClear } from "@/components/shared/icons";
 import ListPager from "@/components/shared/ListPager.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import type { Tone } from "@/components/shared/status-tones";
@@ -242,7 +242,7 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
             aria-label="More actions"
           >
             <button type="button" role="menuitem" class="logs-more__item" @click="clear">
-              <IconTrashMenu :size="16" />Clear logs
+              <IconTrashClear :size="16" />Clear logs
             </button>
           </div>
         </div>
