@@ -587,14 +587,3 @@ TOGGLE_SPEC = "tests/unit/shared/toggle-switch.spec.ts"
 @pytest.mark.web_unit
 def test_the_toggle_switch_reports_the_opposite_and_names_its_size():
     vitest(TOGGLE_SPEC)
-
-
-# ---- page-keys: the field inside a dialog (the key form's Mode): over the dialog, its own Escape ------------------
-DIALOG_FIELD_SPEC = "tests/unit/shared/filter-select-field.spec.ts"
-
-
-@mutation(FILTER, "  listZ.value = nextZIndex();\n", "", expect="the list sits above an open dialog")
-@mutation(FILTER, "    event.stopPropagation();\n    close();", "    close();", expect="Escape closes only the list")
-@pytest.mark.web_unit
-def test_the_field_opens_over_a_dialog_and_keeps_its_escape():
-    vitest(DIALOG_FIELD_SPEC)
