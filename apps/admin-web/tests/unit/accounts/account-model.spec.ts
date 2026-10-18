@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { Account } from "@/api/accounts";
-import { ApiError } from "@/api/client";
 import {
   accountChanges,
   accountSub,
@@ -15,7 +14,6 @@ import {
   hhmm,
   hhmmss,
   importBody,
-  loadFailedText,
   madeLine,
   pointsFigure,
   poolItems,
@@ -221,16 +219,6 @@ describe("the text of a row", () => {
     expect(statusReason({ state: "disabled", state_reason: "disabled by admin" })).toBeNull();
     expect(statusReason({ state: "dead", state_reason: "account.dead_session" })).toBe("account.dead_session");
     expect(statusReason({ state: "available", state_reason: null })).toBeNull();
-  });
-
-  it("the failed read of the list says what the relay answered, as drawn", () => {
-    const answered = new ApiError(502, { error: { code: "x", message: "bad gateway" } });
-    expect(loadFailedText(answered, "bad gateway")).toBe(
-      "Could not load the accounts: the relay answered 502 (bad gateway).",
-    );
-    expect(loadFailedText(new TypeError("x"), "Network error, please try again")).toBe(
-      "Could not load the accounts: network error, please try again.",
-    );
   });
 
   it("a narrow row shows the last error only when it adds to the reason", () => {

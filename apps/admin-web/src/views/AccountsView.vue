@@ -27,7 +27,6 @@ import {
   commandChip,
   healthItems,
   hhmmss,
-  loadFailedText,
   PAGE_SIZE,
   poolItems,
   type RowAction,
@@ -37,6 +36,7 @@ import type { CommandStatus } from "@/api/commands";
 import EditDialog from "@/components/accounts/EditDialog.vue";
 import ImportDialog from "@/components/accounts/ImportDialog.vue";
 import PoolCard from "@/components/accounts/PoolCard.vue";
+import { loadFailedText } from "@/components/jobs/job-text";
 import { IconAlertCircle, IconPlus } from "@/components/shared/icons";
 import ListPager from "@/components/shared/ListPager.vue";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
@@ -121,7 +121,7 @@ async function load(auto = false): Promise<void> {
     void stats.refresh();
   } catch (err) {
     if (!latest.isCurrent(ticket)) return;
-    error.value = loadFailedText(err, errorText(err));
+    error.value = loadFailedText(err, errorText(err), "the accounts");
   } finally {
     if (latest.isCurrent(ticket)) loading.value = false;
   }

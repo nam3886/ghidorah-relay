@@ -164,13 +164,6 @@ STATE_CHECKS = [
 CHECKS = BOARD_CHECKS + DIALOG_CHECKS + MENU_CHECKS + STATE_CHECKS
 
 
-def shape_differences(res) -> list:
-    """Two icons paired by their place are compared by size and colour only: a ⋮ drawn where the canvas has a ⋯ passes.
-    Their shapes (the svg's signature) must be equal too."""
-    return [(c, a, "shape", c["sig"], a["sig"]) for c, a, _how in res.pairs
-            if c["kind"] == "icon" and c["sig"] != a["sig"]]
-
-
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("check", CHECKS, ids=lambda c: c.name)
 def test_accounts_matches_the_canvas_element_by_element(app, db, live, renderer, diff_page, run_dir, check, theme):
@@ -203,7 +196,6 @@ def test_accounts_matches_the_canvas_element_by_element(app, db, live, renderer,
     mine["texts"] = [t for t in mine["texts"] if t["text"] not in check.accepted_app]
     mine["boxes"] = [b for b in mine["boxes"] if b["sig"] not in check.accepted_app]
     res = diff(check.name, theirs, mine, data=check.data, data_app=check.data_app, loose=check.loose)
-    res.differences += shape_differences(res)
     out = run_dir / "element-diff"
     out.mkdir(parents=True, exist_ok=True)
     stem = "%s-%s" % (check.name, theme)
@@ -523,16 +515,4 @@ def test_accounts_with_live_like_data_fits(app, db, live, run_dir, width, theme)
         live_values = set(LIVE_LABELS) | set(LIVE_NAMES)
         cut = [t["text"] for t in items["texts"] if t["clipped"] and set(t["text"].split(" · ")) & live_values]
         assert not cut, "live-shaped values cut off: %r" % cut
-
-
-def test_the_tool_tells_one_dots_icon_from_the_other(diff_page):
-    """A ⋯ drawn where the canvas has a ⋮, in the same place: the shapes differ and nothing else does."""
-    svg = ('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">'
-           '<path d="%s"/></svg>')
-    diff_page.set_content(svg % "M12 5h.01M12 12h.01M12 19h.01")
-    canvas = extract(diff_page)
-    diff_page.set_content(svg % "M5 12h.01M12 12h.01M19 12h.01")
-    res = diff("dots", canvas, extract(diff_page))
-    assert not res.differences and not res.canvas_only and not res.app_only
-    assert [prop for _c, _a, prop, _cv, _av in shape_differences(res)] == ["shape"]
 

@@ -1,6 +1,5 @@
 // Pure rules of the Accounts view: what each cell says and what an edit or an import sends.
 import type { Account, AccountPatch, ImportBody } from "@/api/accounts";
-import { ApiError } from "@/api/client";
 import type { CommandStatus } from "@/api/commands";
 import type { PoolStats } from "@/api/shell";
 import type { LedgerItem } from "@/components/shared/LedgerList.vue";
@@ -37,16 +36,6 @@ export function importBody(provider: string, text: string, proxy: string): Impor
   if (!lines.length) return null;
   const shared = proxy.trim();
   return { provider, items: lines.map((credential) => (shared ? { credential, proxy: shared } : { credential })) };
-}
-
-// A failed read, worded as B-States draws the Jobs one: "Could not load the accounts: the relay answered 502 (bad
-// gateway)." `said` is the app's own text for the failure; with no answer from the relay it is all there is to say.
-export function loadFailedText(err: unknown, said: string, what = "the accounts"): string {
-  const why =
-    err instanceof ApiError
-      ? `the relay answered ${err.status} (${said})`
-      : said.charAt(0).toLowerCase() + said.slice(1);
-  return `Could not load ${what}: ${why}.`;
 }
 
 // Why a pasted line was rejected, in a sentence as the canvas writes it. Only the known codes are named; anything else

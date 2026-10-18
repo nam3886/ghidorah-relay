@@ -58,6 +58,9 @@ def test_the_account_edit_sends_changed_fields_only():
           expect=SWITCH_VIEW + "reads the list again when the change fails, so the switch goes back, and says why")
 @mutation(ACCOUNTS, "const ticket = latest.next();", "const ticket = 0;",
           expect=LIST + "a slow first answer that arrives after the second does not bring its rows back")
+@mutation(ACCOUNTS, 'error.value = loadFailedText(err, errorText(err), "the accounts");',
+          "error.value = loadFailedText(err, errorText(err));",
+          expect=LIST + "an empty list says so and offers Import; a failed read shows the error with Retry")
 @pytest.mark.web_unit
 def test_the_accounts_view_keeps_its_rules():
     vitest(ACCOUNTS_VIEW_SPEC)
@@ -238,8 +241,6 @@ def test_the_delete_confirm_and_the_row_menu_are_placed_as_drawn():
 
 @mutation(ACCOUNT_MODEL, 'a.state === "disabled" ? null : a.state_reason', "a.state_reason",
           expect=ROW_TEXT + "a switched-off account shows no reason under its pill; a dead one shows its reason")
-@mutation(ACCOUNT_MODEL, "`the relay answered ${err.status} (${said})`", "said",
-          expect=ROW_TEXT + "the failed read of the list says what the relay answered, as drawn")
 @mutation(ACCOUNT_MODEL, 'Number(b.pool === "video") - Number(a.pool === "video")', "0",
           expect=ROW_TEXT + "the video pool comes first, the others keep their order; the tablet counts are singular "
                             "for one")
@@ -247,7 +248,7 @@ def test_the_delete_confirm_and_the_row_menu_are_placed_as_drawn():
           expect=ROW_TEXT + "the video pool comes first, the others keep their order; the tablet counts are singular "
                             "for one")
 @pytest.mark.web_unit
-def test_a_switched_off_row_and_a_failed_read_read_as_drawn():
+def test_a_switched_off_row_and_the_pool_order_read_as_drawn():
     vitest(ACCOUNT_SPEC)
 
 

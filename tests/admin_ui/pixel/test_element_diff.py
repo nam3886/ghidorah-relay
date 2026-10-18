@@ -468,3 +468,20 @@ def test_the_tool_refuses_a_rendering_property_this_browser_does_not_support(dif
         extract(diff_page, rendering=RENDERING + ("-moz-osx-font-smoothing",))
     assert extract(diff_page)["texts"]
 
+
+def test_the_tool_tells_one_dots_icon_from_the_other(diff_page):
+    """Two icons paired by their place were compared by box and colour only, so a ⋯ drawn where the canvas has a ⋮
+    passed every table. The drawing is compared too; a size alone is the box's difference, not the drawing's."""
+    svg = ('<svg width="%d" height="%d" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">'
+           '<path d="%s"/></svg>')
+    column, row = "M12 5h.01M12 12h.01M12 19h.01", "M5 12h.01M12 12h.01M19 12h.01"
+    diff_page.set_content(svg % (16, 16, column))
+    canvas = extract(diff_page)
+    diff_page.set_content(svg % (16, 16, row))
+    res = diff("dots", canvas, extract(diff_page))
+    assert [(prop, cv, av) for _c, _a, prop, cv, av in res.differences] == [("shape", column, row)]
+    assert not res.canvas_only and not res.app_only
+    diff_page.set_content(svg % (14, 14, column))
+    res = diff("smaller", canvas, extract(diff_page))
+    assert [prop for _c, _a, prop, _cv, _av in res.differences] == ["box"]
+
