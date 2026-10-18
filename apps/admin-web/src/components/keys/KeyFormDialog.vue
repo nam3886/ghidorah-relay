@@ -49,17 +49,10 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
 </script>
 
 <template>
-  <el-dialog
-    v-model="open"
-    class="key-dialog"
-    :title="title"
-    :aria-label="title"
-    :show-close="false"
-    width="min(640px, 94vw)"
-  >
-    <template #header>
+  <el-dialog v-model="open" class="key-dialog" :show-close="false" width="min(640px, 94vw)">
+    <template #header="{ titleId }">
       <div class="kd__head">
-        <h2 class="kd__title">{{ title }}</h2>
+        <h2 :id="titleId" class="kd__title">{{ title }}</h2>
         <button type="button" class="kla-icon-btn kd__close" aria-label="Close" @click="open = false">
           <IconClose :size="18" :stroke="2" />
         </button>
@@ -67,7 +60,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
     </template>
 
     <form class="kd__form" @submit.prevent="emit('submit', keyBody(form))">
-      <p v-if="props.error" class="kd__error" role="alert"><IconAlertCircle :size="16" />{{ props.error.text }}</p>
+      <p v-if="props.error" class="kd__error" role="alert"><IconAlertCircle :size="18" />{{ props.error.text }}</p>
 
       <div class="kd__field">
         <label class="kd__label" for="key-label">Label</label>
@@ -82,7 +75,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
         />
         <p class="kd__help">
           Up to 100 characters.<template v-if="props.editing">
-            Key <span class="kla-mono">{{ props.editing.prefix }}</span></template
+            Key <span class="kd__mono">{{ props.editing.prefix }}</span></template
           >
         </p>
       </div>
@@ -117,7 +110,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
         >
           <label v-for="m in props.models" :key="m.id" class="kd__model">
             <input v-model="form.models" type="checkbox" class="kd__check" :value="m.id" :disabled="form.any" />
-            <span class="kla-mono kd__model-id">{{ m.id }}</span>
+            <span class="kd__mono kd__model-id">{{ m.id }}</span>
             <span class="kd__spacer" />
             <span class="kd__model-hint">{{ modelHint(m) }}</span>
           </label>
@@ -130,7 +123,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
         <div v-for="w in form.wallets" :key="`${w.provider}/${w.kind}`" class="kd__wallet" data-wallet>
           <div class="kd__wallet-name">
             <span class="kd__wallet-kind">{{ w.provider }} {{ w.kind }}</span>
-            <span class="kd__help">{{ usedText(w.provider, w.kind, w.mode) }}</span>
+            <span class="kd__help kd__used">{{ usedText(w.provider, w.kind, w.mode) }}</span>
           </div>
           <label class="kd__mini"
             ><span class="kd__help">Mode</span>
@@ -198,6 +191,10 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
   display: flex;
   flex-direction: column;
 }
+/* no edge in either theme, as drawn (the dark theme gives every other dialog one) */
+html:root .key-dialog.el-dialog {
+  border: 0;
+}
 .key-dialog .el-dialog__header {
   margin: 0;
   padding: 20px 24px 16px;
@@ -215,7 +212,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
 }
 .key-dialog .kd__head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
@@ -235,16 +232,16 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
   flex-direction: column;
   gap: 20px;
 }
+/* the B-States error alert */
 .key-dialog .kd__error {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   margin: 0;
-  padding: 10px 14px;
+  padding: 12px 16px;
   border-radius: 12px;
   background: var(--rl-bad-bg);
   color: var(--rl-fg);
-  font-size: 13px;
 }
 .key-dialog .kd__error svg {
   flex: none;
@@ -257,7 +254,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
 }
 .key-dialog .kd__label {
   font-size: 13px;
-  line-height: 18px;
+  line-height: 20px;
   font-weight: 500;
   color: var(--rl-fg);
 }
@@ -340,8 +337,14 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
   padding: 0 4px;
   border-bottom: 1px solid var(--rl-line);
 }
+.key-dialog .kd__mono {
+  font-family: var(--rl-mono);
+}
 .key-dialog .kd__model-id {
   font-size: 13px;
+}
+.key-dialog .kd__used {
+  font-variant-numeric: tabular-nums;
 }
 .key-dialog .kd__spacer {
   flex: 1;
@@ -396,6 +399,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.o
 }
 .key-dialog .kd__foot .kla-btn {
   padding: 0 16px;
+  line-height: normal;
 }
 .key-dialog .kd__foot .kla-btn--primary {
   padding: 0 18px;

@@ -11,15 +11,18 @@ from datetime import datetime, timedelta, timezone
 from accountkit import new_account
 from jobkit import key as new_key
 from patchright.sync_api import expect
+from pixel_lane7 import use_the_boards_models
 from pixel_manifest import TIMEOUT_MS, Entry
 from pixel_seed import (
     ACCOUNTS,
     ALERT_ACCOUNTS_LOW,
     ALERT_TEXT,
+    BOARD_USER,
     IN_USE_LEASE,
     NOW,
     PROVIDER,
     WALLETS,
+    board_user,
     set_setting,
 )
 from test_admin_alert_groups import plant_unclear, stamp
@@ -97,7 +100,10 @@ def set_key(db, key_id, label, prefix, enabled, models, video, image, created) -
 
 
 def keys_seed(db, live):
-    """Five of the six keys of the board; Partner D is made by the drive (its one-time key is the callout)."""
+    """Five of the six keys of the board; Partner D is made by the drive (its one-time key is the callout). The
+    boards' user (the top bar reads "admin") and the boards' five models (the Edit dialog lists them)."""
+    board_user(live)
+    use_the_boards_models(live, frames=False)
     keys = [new_key(db, wallets=WALLETS) for _ in KEY_ROWS]
     top_bar(db, live, keys, UNFINISHED)
     for key_id, (label, prefix, enabled, models, video, image, jobs, created) in zip(keys, KEY_ROWS, strict=True):
@@ -133,6 +139,7 @@ def make_partner_d(page, data) -> None:
     # the one-time key is random: show the board's text instead (a mask for the diff, nothing else changes)
     page.evaluate("t => { document.querySelector('[data-testid=\"new-key\"] input').value = t; }", CALLOUT_KEY,
                   isolated_context=False)
+    page.mouse.move(0, 0)               # no row is hovered: the boards draw none (the switch was the last click)
 
 
 def keys_callout(page, live, data) -> None:
@@ -275,10 +282,10 @@ def alerts_detail(page, live, data) -> None:
 
 # ---- the entries -----------------------------------------------------------------------------------------------------
 KLA = [
-    Entry("B-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout),
-    Entry("T-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout),
-    Entry("P-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout),
-    Entry("B-KeyForm", "#/keys", seed=keys_seed, now=NOW, drive=keys_edit),
+    Entry("B-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout, user=BOARD_USER),
+    Entry("T-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout, user=BOARD_USER),
+    Entry("P-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout, user=BOARD_USER),
+    Entry("B-KeyForm", "#/keys", seed=keys_seed, now=NOW, drive=keys_edit, user=BOARD_USER),
     Entry("B-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_filters),
     Entry("T-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_filters),
     Entry("P-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_menu),

@@ -504,6 +504,10 @@ describe("the page as the design draws it", () => {
     );
     const rows = w.findAll("tbody tr");
     expect(rows.map((r) => r.classes().includes("key-new"))).toEqual([false, true]);
+    // the field is named after the key it holds, as drawn
+    expect(document.body.querySelector('[data-testid="new-key"] input')!.getAttribute("aria-label")).toBe(
+      "New API key for Partner D",
+    );
   });
 
   it("an empty list says so and offers New key", async () => {
@@ -511,6 +515,23 @@ describe("the page as the design draws it", () => {
     const w = await open();
     expect(w.text()).toContain("No API keys yet.");
     expect(w.text()).not.toContain("A key that has jobs is only disabled when deleted");
+  });
+
+  it("a list that fails to load says why in the canvas's words, under the card's heading", async () => {
+    list.mockRejectedValue(new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } }));
+    const w = await open();
+    expect(w.find(".keys-card h2").text()).toBe("API keys");
+    expect(w.find('.keys-card [role="alert"]').text()).toContain("Could not load the API keys: the relay answered 502");
+  });
+
+  it("an empty list draws its card with the heading API keys; a list with keys has no heading", async () => {
+    list.mockResolvedValue({ items: [] });
+    const empty = await open();
+    expect(empty.find(".keys-card h2").text()).toBe("API keys");
+    empty.unmount();
+    list.mockResolvedValue({ items: [key()] });
+    const listed = await open();
+    expect(listed.find(".keys-card h2").exists()).toBe(false);
   });
 });
 
@@ -545,6 +566,11 @@ describe("the key form as the design draws it", () => {
     await editShop();
     const dialog = document.body.querySelector(".el-dialog")!;
     expect(dialog.querySelector("h2")!.textContent).toBe("Edit API key — shop");
+    // the dialog is named by its heading, as drawn (aria-labelledby, no aria-label of its own)
+    const named = document.body.querySelector('[role="dialog"]')!;
+    expect(dialog.querySelector("h2")!.id).not.toBe("");
+    expect(named.getAttribute("aria-labelledby")).toBe(dialog.querySelector("h2")!.id);
+    expect(named.hasAttribute("aria-label")).toBe(false);
     expect(dialog.textContent).toContain("3 used today · 14 total");
     expect(dialog.textContent).toContain("9 used");
     expect(dialog.textContent).toContain("Limits apply in limit mode only. Per day resets at midnight.");
@@ -632,6 +658,9 @@ describe("the tablet and the phone", () => {
     expect(any!.find(".k-models-line").text()).toBe("any model");
     expect(shop!.text()).toContain("1 / 5 · 61 jobs");
     expect(shop!.find(".k-created").exists()).toBe(true);
+    // the two lines of that cell start at the left, as drawn; the wallet lines take the tablet form
+    expect(w.findAll("thead th")[3]!.classes()).not.toContain("is-right");
+    expect(shop!.find(".wallets").classes()).toContain("is-compact");
   });
 
   it("a phone lists each key as a block with its models, wallets, counts and the two row buttons", async () => {
@@ -644,6 +673,8 @@ describe("the tablet and the phone", () => {
     expect(shop!.find(".p-key__models-list").text()).toBe("m1 · m2");
     expect(shop!.find('[role="img"]').attributes("aria-label")).toBe("Used 3 of 20 today, 14 of 200 in total");
     expect(shop!.find(".p-key__facts").text()).toContain("Unfinished 1 / 5 · 61 jobs · created");
+    // the phone draws the wallet lines at the desktop size (12 px values, one line each)
+    expect(shop!.find(".wallets").classes()).not.toContain("is-compact");
     expect(any!.find(".k-tag").text()).toBe("any model");
     expect(any!.text()).toContain("disabled");
     expect(shop!.find('button[aria-label="Edit key shop"]').exists()).toBe(true);

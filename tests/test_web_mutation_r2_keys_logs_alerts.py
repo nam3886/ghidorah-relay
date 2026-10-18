@@ -245,8 +245,8 @@ def test_the_keys_view_draws_the_callout_the_switch_the_bars_and_the_delete_conf
 @mutation(KEYS, ': row.models.join(", ")', ': row.models.join(" ")',
           expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
                               "unfinished cells")
-@mutation(KEYS, '<span class="kla-mono k-num"> · {{ row.jobs }} jobs</span>',
-          '<span class="kla-mono k-num"> · {{ row.jobs + 1 }} jobs</span>',
+@mutation(KEYS, "{{ unfinishedText(row) }} · {{ row.jobs }} jobs</span>",
+          "{{ unfinishedText(row) }} · {{ row.jobs + 1 }} jobs</span>",
           expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
                               "unfinished cells")
 @mutation(KEYS, 'k.models.join(" · ")', 'k.models.join(", ")',
@@ -273,6 +273,44 @@ def test_the_keys_view_folds_for_a_tablet_and_a_phone():
 @pytest.mark.web_unit
 def test_the_key_form_shows_what_the_design_shows():
     vitest(KEYS_VIEW_SPEC)
+
+
+# ---- Keys, page-keys round: the empty card's heading, the names of the callout field and the dialog, the tablet
+# Unfinished column and the wallet lines per width --------------------------------------------------------------
+@mutation(KEYS, '<div v-if="emptyList || error" class="keys-card__head"', '<div v-if="false" class="keys-card__head"',
+          expect=DESIGN + "an empty list draws its card with the heading API keys; a list with keys has no heading")
+@mutation(KEYS, "items.value.length === 0);", "items.value.length >= 0);",
+          expect=DESIGN + "an empty list draws its card with the heading API keys; a list with keys has no heading")
+@mutation(NEW_KEY, ':aria-label="`New API key for ${label}`"', 'aria-label="New API key"',
+          expect=DESIGN + "the callout names the new key, and its row is the one tinted")
+@mutation(KEY_FORM, '<h2 :id="titleId" class="kd__title">', '<h2 class="kd__title">',
+          expect=FORM + "an edit names the key in its title and tells what each wallet has used")
+@mutation(KEYS, 'align: isTablet.value ? ("left" as const) : ("right" as const),', 'align: "right" as const,',
+          expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
+                              "unfinished cells")
+@mutation(KEYS, ':wallets="row.wallets" :compact="isTablet" />', ':wallets="row.wallets" />',
+          expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
+                              "unfinished cells")
+@mutation(KEYS, '<WalletLines v-if="row.wallets.length" :wallets="row.wallets" />',
+          '<WalletLines v-if="row.wallets.length" :wallets="row.wallets" compact />',
+          expect=KEYS_SMALL + "a phone lists each key as a block with its models, wallets, counts and the two row "
+                              "buttons")
+@mutation(KEYS, "error.value = loadFailedText(err, errorText(err));", "error.value = errorText(err);",
+          expect=DESIGN + "a list that fails to load says why in the canvas's words, under the card's heading")
+@mutation(KEYS, '<div v-if="emptyList || error" class="keys-card__head"',
+          '<div v-if="emptyList" class="keys-card__head"',
+          expect=DESIGN + "a list that fails to load says why in the canvas's words, under the card's heading")
+@pytest.mark.web_unit
+def test_the_keys_page_names_and_folds_its_parts_as_drawn():
+    vitest(KEYS_VIEW_SPEC)
+
+
+@mutation(KEY_MODEL, "? `the relay answered ${err.status} (${said})`", "? said",
+          expect=f"FAILED {KEY_SPEC} > loadFailedText > words a failed list as the canvas does, with the relay's "
+                 "status when it answered")
+@pytest.mark.web_unit
+def test_a_failed_keys_list_is_worded_as_drawn():
+    vitest(KEY_SPEC)
 
 
 # ---- Keys: the Copy buttons ------------------------------------------------------------------------------------

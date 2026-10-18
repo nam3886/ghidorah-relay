@@ -9,6 +9,7 @@ import {
   keyBody,
   keyForm,
   type KeyForm,
+  loadFailedText,
   sortedWallets,
   unfinishedText,
   usageLabel,
@@ -88,6 +89,17 @@ describe("createdText", () => {
   });
   it("no time is a dash", () => {
     expect(createdText(null, now)).toBe("-");
+  });
+});
+
+describe("loadFailedText", () => {
+  it("words a failed list as the canvas does, with the relay's status when it answered", () => {
+    expect(loadFailedText(new ApiError(502, { error: { message: "bad gateway" } }), "bad gateway")).toBe(
+      "Could not load the API keys: the relay answered 502 (bad gateway).",
+    );
+    expect(loadFailedText(new TypeError("x"), "Network error, please try again")).toBe(
+      "Could not load the API keys: network error, please try again.",
+    );
   });
 });
 

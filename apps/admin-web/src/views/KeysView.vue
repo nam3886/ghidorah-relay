@@ -7,7 +7,14 @@ import KeyFormDialog from "@/components/keys/KeyFormDialog.vue";
 import ToggleSwitch from "@/components/shared/ToggleSwitch.vue";
 import NewKeyCallout from "@/components/keys/NewKeyCallout.vue";
 import WalletLines from "@/components/keys/WalletLines.vue";
-import { createdText, type CreateError, createError, deleteToast, unfinishedText } from "@/components/keys/key-model";
+import {
+  createdText,
+  type CreateError,
+  createError,
+  deleteToast,
+  loadFailedText,
+  unfinishedText,
+} from "@/components/keys/key-model";
 import "@/components/logs/lane-controls.css";
 import { copyText } from "@/components/shared/clipboard";
 import DataTable from "@/components/shared/DataTable.vue";
@@ -67,8 +74,9 @@ const columns = computed(() => [
   {
     key: "unfinished",
     label: isTablet.value ? "Unfinished · jobs" : "Unfinished / max",
-    align: "right" as const,
-    width: isTablet.value ? 112 : 128,
+    // the tablet cell holds two lines that start at the left, as drawn
+    align: isTablet.value ? ("left" as const) : ("right" as const),
+    width: isTablet.value ? 116 : 128,
   },
   { key: "jobs", label: "Jobs total", align: "right" as const, width: 90 },
   { key: "created", label: "Created", width: 120 },
@@ -85,7 +93,7 @@ async function load(): Promise<void> {
     error.value = null;
   } catch (err) {
     if (!latest.isCurrent(ticket)) return;
-    error.value = errorText(err);
+    error.value = loadFailedText(err, errorText(err));
   } finally {
     if (latest.isCurrent(ticket)) loading.value = false;
   }
@@ -166,11 +174,14 @@ const labelOf = (k: ApiKey): string => k.label || k.prefix;
 const switchTitle = (enabled: boolean): string => (enabled ? "Disable key" : "Enable key");
 const rowClass = ({ row }: { row: ApiKey }): string => (row.id === createdId.value ? "key-new" : "");
 const modelsText = (k: ApiKey): string => k.models.join(" · ");
+// an empty list and a failed one draw their card with a heading, as B-States does (a list with keys has none)
+const emptyList = computed(() => !loading.value && !error.value && items.value.length === 0);
 </script>
 
 <template>
   <section class="keys-view">
     <PageHeader
+      class="keys-head"
       title="API keys"
       subtitle="Who may call the relay, which models they may use and how much each wallet may spend."
     >
@@ -183,7 +194,10 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
 
     <NewKeyCallout v-if="rawKey !== null" :raw-key="rawKey" :label="createdLabel" @dismiss="rawKey = null" />
 
-    <section class="kla-card keys-card" aria-label="API keys">
+    <section class="kla-card keys-card" aria-label="API key list">
+      <div v-if="emptyList || error" class="keys-card__head" :class="{ 'is-error': error }">
+        <h2 class="keys-card__title">API keys</h2>
+      </div>
       <DataTable
         class="keys-table"
         :actions-width="isTablet ? 128 : 141"
@@ -197,14 +211,14 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
         @retry="load"
       >
         <template #empty-action>
-          <button type="button" class="kla-btn kla-btn--primary" :disabled="busy" @click="openForm(null)">
+          <button type="button" class="kla-btn kla-btn--primary k-empty-new" :disabled="busy" @click="openForm(null)">
             <IconPlus :size="15" :stroke="2" />New key
           </button>
         </template>
         <template #cell-label="{ row }">
           <div class="k-label" :class="{ 'is-off': !row.enabled }">{{ row.label || "(no label)" }}</div>
           <div class="k-prefix">
-            <span class="k-prefix__text kla-mono">{{ row.prefix }}</span>
+            <span class="k-prefix__text k-mono">{{ row.prefix }}</span>
             <button
               v-if="row.prefix"
               type="button"
@@ -216,7 +230,7 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
               <IconCopy :size="12" />
             </button>
           </div>
-          <span v-if="isTablet" class="k-models-line kla-mono">{{
+          <span v-if="isTablet" class="k-models-line k-mono">{{
             row.models.includes("*") ? "any model" : row.models.join(", ")
           }}</span>
         </template>
@@ -227,7 +241,7 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
         </template>
         <template #cell-models="{ row }">
           <span v-if="row.models.includes('*')" class="k-tag">any model</span>
-          <div v-else class="k-models kla-mono">
+          <div v-else class="k-models k-mono">
             <span v-for="m in row.models" :key="m">{{ m }}</span>
           </div>
         </template>
@@ -236,11 +250,11 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
           <template v-else>-</template>
         </template>
         <template #cell-unfinished="{ row }">
-          <span class="kla-mono k-num">{{ unfinishedText(row) }}</span>
           <template v-if="isTablet">
-            <span class="kla-mono k-num"> · {{ row.jobs }} jobs</span>
-            <div class="k-created kla-mono">{{ createdText(row.created_ms) }}</div>
+            <span class="kla-mono k-unfinished">{{ unfinishedText(row) }} · {{ row.jobs }} jobs</span>
+            <span class="kla-mono k-created k-created--under">{{ createdText(row.created_ms) }}</span>
           </template>
+          <span v-else class="kla-mono k-num">{{ unfinishedText(row) }}</span>
         </template>
         <template #cell-jobs="{ row }"
           ><span class="kla-mono k-num">{{ row.jobs }}</span></template
@@ -268,7 +282,7 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
             </button>
             <button
               type="button"
-              class="kla-icon-btn kla-icon-btn--bad"
+              class="kla-icon-btn kla-icon-btn--bad k-delete"
               title="Delete key"
               :aria-label="`Delete key ${labelOf(row)}`"
               @click="remove(row)"
@@ -293,7 +307,7 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
               />
             </div>
             <div class="p-key__prefix">
-              <span class="kla-mono">{{ row.prefix }}</span>
+              <span class="k-mono">{{ row.prefix }}</span>
               <button
                 v-if="row.prefix"
                 type="button"
@@ -308,13 +322,13 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
             <div class="p-key__models">
               <span class="p-key__models-word">Models</span>
               <span v-if="row.models.includes('*')" class="k-tag k-tag--phone">any model</span>
-              <span v-else class="kla-mono p-key__models-list">{{ modelsText(row) }}</span>
+              <span v-else class="k-mono p-key__models-list">{{ modelsText(row) }}</span>
             </div>
-            <WalletLines v-if="row.wallets.length" :wallets="row.wallets" compact />
+            <WalletLines v-if="row.wallets.length" :wallets="row.wallets" />
             <div class="p-key__foot">
               <span class="p-key__facts"
                 >Unfinished <span class="kla-mono p-key__fg">{{ unfinishedText(row) }}</span> ·
-                <span class="kla-mono">{{ row.jobs }}</span> jobs · created
+                <span class="kla-mono p-key__fg">{{ row.jobs }}</span> jobs · created
                 <span class="kla-mono">{{ createdText(row.created_ms) }}</span></span
               >
               <span class="p-key__buttons">
@@ -330,7 +344,7 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
                 </button>
                 <button
                   type="button"
-                  class="kla-icon-btn kla-icon-btn--lg kla-icon-btn--bad"
+                  class="kla-icon-btn kla-icon-btn--lg kla-icon-btn--bad k-delete"
                   title="Delete key"
                   :aria-label="`Delete key ${labelOf(row)}`"
                   @click="remove(row)"
@@ -364,7 +378,7 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
   flex-direction: column;
   gap: 20px;
 }
-@media (max-width: 1279px) {
+@media (max-width: 767px) {
   .keys-view {
     gap: 16px;
   }
@@ -391,8 +405,54 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
 .keys-table :deep(th.el-table__cell:last-child .cell) {
   padding-right: 16px;
 }
+.keys-table.is-tablet :deep(td.el-table__cell:last-child .cell),
+.keys-table.is-tablet :deep(th.el-table__cell:last-child .cell) {
+  padding-right: 12px;
+}
 .keys-table :deep(td.data-table__actions) {
   padding: 10px 0;
+}
+/* The canvas lays the desktop table out by its content (the browser's auto layout); at 1440 the columns come to 165.7,
+   118.7, 154.2, 358.9, 138.9, 91.7, 114.3 and 159.6 of the 1302 px table. Element Plus lays out fixed columns, so each
+   takes the same share of the table's width. The tablet table is fixed in the canvas too: Label takes what is left. */
+.keys-table:not(.is-tablet) :deep(col:nth-child(1)) {
+  width: 12.7266%;
+}
+.keys-table:not(.is-tablet) :deep(col:nth-child(2)) {
+  width: 9.1167%;
+}
+.keys-table:not(.is-tablet) :deep(col:nth-child(3)) {
+  width: 11.8433%;
+}
+.keys-table:not(.is-tablet) :deep(col:nth-child(4)) {
+  width: 27.5653%;
+}
+.keys-table:not(.is-tablet) :deep(col:nth-child(5)) {
+  width: 10.6682%;
+}
+.keys-table:not(.is-tablet) :deep(col:nth-child(6)) {
+  width: 7.043%;
+}
+.keys-table:not(.is-tablet) :deep(col:nth-child(7)) {
+  width: 8.7788%;
+}
+.keys-table:not(.is-tablet) :deep(col:nth-child(8)) {
+  width: 12.2581%;
+}
+.keys-table.is-tablet :deep(col:nth-child(1)) {
+  width: auto;
+}
+.keys-table.is-tablet :deep(col:nth-child(2)) {
+  width: 100px;
+}
+.keys-table.is-tablet :deep(col:nth-child(3)) {
+  width: 230px;
+}
+.keys-table.is-tablet :deep(col:nth-child(4)) {
+  width: 116px;
+}
+.keys-table.is-tablet :deep(col:nth-child(5)) {
+  width: 148px;
 }
 .keys-table :deep(tr.key-new > td.el-table__cell) {
   background: var(--rl-primary-soft);
@@ -417,10 +477,22 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
   font-size: 12px;
   color: var(--rl-faint);
 }
+/* it may give up width when the label cell is narrow (the tablet), as the canvas's flex item does; the canvas leaves
+   it the browser's padding (1 6), which sets how much it gives up */
 .k-copy {
+  flex: 0 1 auto;
+  padding: 1px 6px;
   width: 24px;
   height: 24px;
   border-radius: 8px;
+}
+.is-tablet .k-copy {
+  width: 28px;
+  height: 28px;
+}
+/* ids and model names in the mono face, with its own figures (the canvas sets tabular figures on counts only) */
+.k-mono {
+  font-family: var(--rl-mono);
 }
 .k-models-line {
   display: block;
@@ -450,17 +522,27 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
   line-height: 18px;
 }
 .k-num {
+  display: block;
   font-size: 13px;
   white-space: nowrap;
 }
+/* a block, so its own size sets the line (an inline run in the 14 px cell sits a pixel lower than drawn) */
 .k-created {
+  display: block;
   font-size: 12px;
-  line-height: 16px;
   color: var(--rl-muted);
   white-space: nowrap;
 }
-.is-tablet .k-created {
+/* tablet: the counts on one line that may wrap, the date under them */
+.k-unfinished {
+  display: block;
+  font-size: 13px;
+}
+.k-created--under {
+  display: block;
+  margin-top: 2px;
   font-size: 11px;
+  line-height: 16px;
 }
 .k-actions {
   display: flex;
@@ -468,16 +550,80 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
   justify-content: flex-end;
   gap: 4px;
 }
+.is-tablet .k-actions {
+  gap: 0;
+}
+/* the canvas's .danger:hover */
+.k-delete:hover {
+  background: var(--rl-bad-bg);
+}
 .keys-note {
   margin: 0;
   padding: 14px 16px;
   font-size: 13px;
   color: var(--rl-muted);
 }
+/* the canvas's buttons keep the browser's line height */
+.kla-btn {
+  line-height: normal;
+}
+.k-empty-new {
+  padding: 0 14px;
+}
+/* the empty list: a heading row over the empty block (B-States) */
+.keys-card__head {
+  padding: 14px 16px;
+}
+.keys-card__head.is-error {
+  padding: 12px 16px;
+}
+.keys-card__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.keys-card :deep(.data-table > .data-table__empty) {
+  border-top: 1px solid var(--rl-line);
+}
+/* the head: on a tablet the title block wraps beside the button, on a phone the subtitle goes under the title row */
+.keys-head.page-header--tablet {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+.keys-head.page-header--phone {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "title side" "sub sub";
+  align-items: center;
+  gap: 0 8px;
+}
+.keys-head.page-header--phone :deep(.page-header__text) {
+  display: contents;
+}
+.keys-head.page-header--phone :deep(.page-header__title) {
+  grid-area: title;
+}
+.keys-head.page-header--phone :deep(.page-header__subtitle) {
+  grid-area: sub;
+}
+.keys-head.page-header--phone :deep(.page-header__side) {
+  grid-area: side;
+}
 
 /* phone */
 .keys-card :deep(.data-table__main) {
   padding: 12px 16px 6px !important;
+}
+.keys-card :deep(.data-table__item) {
+  min-height: 0;
+}
+.keys-card :deep(.data-table__item.key-new) {
+  background: var(--rl-primary-soft);
+}
+@media (max-width: 767px) {
+  .keys-note {
+    padding: 12px 16px;
+  }
 }
 .p-key {
   display: flex;
@@ -506,6 +652,7 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
 .p-key__prefix {
   display: flex;
   align-items: center;
+  gap: 2px;
   font-size: 12px;
   color: var(--rl-muted);
 }
@@ -539,6 +686,7 @@ const modelsText = (k: ApiKey): string => k.models.join(" · ");
 .p-key__facts {
   font-size: 12px;
   color: var(--rl-muted);
+  font-variant-numeric: tabular-nums;
 }
 .p-key__fg {
   color: var(--rl-fg);

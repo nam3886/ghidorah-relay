@@ -1,0 +1,332 @@
+"""The API keys page against the canvas, element by element (element_diff.py, as the Jobs page in test_element_diff.py),
+its states the canvas does not draw, and the page with data shaped like the live box's.
+
+`test_keys_matches_the_canvas_element_by_element`: one comparison per check and theme. The whole B-, T- and P-Keys
+boards (the one-time key callout of Partner D, its row tinted, Partner B disabled), the callout after Copy (the board's
+own Copied state, reached by clicking on both sides), the Edit dialog of B-KeyForm (the dialog only: the board's page
+behind the scrim is a mock), and the keys states that B-States draws (the empty list and the delete confirm). A state
+card of B-States is widened to the app's width first. Each comparison writes, into `<run>/element-diff/`,
+`<name>-<theme>.md` (the table) and `<name>-<theme>.side.png` (canvas | app | pixel diff), and fails while the table
+holds a difference, an element missing on one side, or a text that differs and is not live data. A dialog must also sit
+where the board draws it in the window.
+
+`test_keys_undrawn_states_are_photographed`: hovers, focus, the New key dialog at every width, a refused create, the
+list loading and failing, the empty list on a tablet and a phone, the toast after a delete (D125: drawn from the nearest
+drawn pattern), viewport photos in both themes.
+
+`test_keys_with_live_like_data_fits`: keys shaped like the live box's (no label and an 11-character prefix, short
+labels, any model, unlimited wallets) plus one key with every long value, at 1440, 768 and 390 in both themes: nothing
+is cut off and the page never scrolls sideways.
+
+`test_the_drawn_label_check_is_photographed`: the B-States card of the New key form refusing an empty label, which the
+app does not do (an open question), photographed from the canvas."""
+
+import re
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+
+import pixel_manifest  # before pixel_kla: the two import each other, and the manifest must load first
+import pytest
+from element_diff import EDGE_PX, diff, extract, markdown, side_by_side
+from jobkit import key as new_key
+from patchright.sync_api import expect
+from pixel_capture import opened, shoot
+from pixel_diff import compare
+from pixel_kla import keys_callout, keys_edit, keys_seed, set_key
+from pixel_seed import BOARD_USER, NOW, PROVIDER, WALLETS, board_user
+from test_element_diff import BOARDS, THEMES, WIDEN_JS, Check, _png, _root
+
+pytestmark = pytest.mark.browser
+
+TIMEOUT_MS = 10_000
+STATES = "B-States"
+DESKTOP, TABLET = (1440, 1000), (768, 1320)
+PHONE_VIEW = (390, 844)          # a phone window for the photos (the board is drawn 2280 tall)
+ROOT_BOX_JS = ("s => { const r = document.querySelector(s).getBoundingClientRect(); "
+               "return [r.x, r.y, r.width, r.height]; }")
+
+
+@dataclass(frozen=True)
+class KeyCheck(Check):
+    canvas_click: str | None = None     # clicked on the canvas board first: a state its own logic draws (Copied)
+    same_place: bool = False            # the root must also sit where the board draws it in the window (a dialog)
+
+
+def _keys(board, drive, seed=keys_seed):
+    """The keys page as `board` draws it: the boards' user and clock, the seed's data, `drive`'s state."""
+    return pixel_manifest.Entry(board, "#/keys", seed=seed, now=NOW, drive=drive, user=BOARD_USER)
+
+
+# ---- the boards --------------------------------------------------------------------------------------------------
+
+def copied(page, live, data):
+    """The callout after its Copy: the label reads Copied (for 2 s)."""
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    keys_callout(page, live, data)
+    page.get_by_test_id("new-key").get_by_role("button", name="Copy").click()
+    expect(page.get_by_test_id("new-key").get_by_role("button", name="Copied")).to_be_visible()
+    page.mouse.move(0, 0)
+
+
+BOARD_CHECKS = [KeyCheck(board, _keys(board, keys_callout)) for board in ("B-Keys", "T-Keys", "P-Keys")]
+COPIED = KeyCheck("B-Keys-copied", _keys("B-Keys", copied), 'section[role="status"]', '[data-testid="new-key"]',
+                  canvas_click='section[role="status"] button.solid')
+
+# The catalog has no display names (design-deviations 6): the right column of a model row reads `<kind> · <provider>`.
+MODEL_NAMES = ("video · Dreamina Seedance 2.5", "video · Seedance 2.0 Fast", "video · Seedance 1.0",
+               "image · Seedream 4.5", "image · Seedream 5.0 Pro")
+CATALOG_HINTS = ("video · dola", "image · dola")
+FORM = KeyCheck("B-KeyForm", _keys("B-KeyForm", keys_edit), '[role="dialog"]', ".key-dialog", data=MODEL_NAMES,
+                data_app=CATALOG_HINTS, same_place=True)
+
+
+# ---- the states of B-States --------------------------------------------------------------------------------------
+
+def no_keys_seed(db, live):
+    board_user(live)
+
+
+def no_keys(page, live, data):
+    expect(page.locator(".keys-card [data-state=empty]")).to_be_visible(timeout=TIMEOUT_MS)
+
+
+def delete_partner_b(page, live, data):
+    page.get_by_role("button", name="Delete key Partner B").click()
+    expect(page.locator(".rl-confirm")).to_be_visible(timeout=TIMEOUT_MS)
+
+
+STATE_CHECKS = [
+    KeyCheck("state-empty", _keys(STATES, no_keys, no_keys_seed), 'section[aria-label="API keys, empty"]',
+             ".keys-card", DESKTOP, widen=True),
+    KeyCheck("state-confirm-delete", _keys(STATES, delete_partner_b), '[role="dialog"][aria-labelledby="cfDel"]',
+             ".rl-confirm", DESKTOP, widen=True),
+]
+CHECKS = [*BOARD_CHECKS, COPIED, FORM, *STATE_CHECKS]
+
+
+@pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize("check", CHECKS, ids=lambda c: c.name)
+def test_keys_matches_the_canvas_element_by_element(app, db, live, renderer, diff_page, run_dir, check, theme):
+    board_w, board_h = BOARDS[check.state.board]
+    width, height = check.viewport or (board_w, board_h)
+    dark = theme == "dark"
+    with opened(app, db, live, check.state, dark, width, height) as page:
+        app_root = _root(page, check.app_root)
+        mine = extract(page, app_root)
+        app_png = _png(page, app_root)
+        app_box = page.evaluate(ROOT_BOX_JS, app_root, isolated_context=False) if check.same_place else None
+    renderer.open(check.state.board, dark, board_w, board_h)
+    if check.canvas_click:
+        renderer.page.click(check.canvas_click)
+        renderer.settle()
+    canvas_root = _root(renderer.page, check.canvas_root)
+    if check.widen:
+        renderer.page.evaluate(WIDEN_JS, [canvas_root, mine["width"]], isolated_context=False)
+        renderer.settle()
+    theirs = extract(renderer.page, canvas_root)
+    ref_png = _png(renderer.page, canvas_root)
+    canvas_box = renderer.page.evaluate(ROOT_BOX_JS, canvas_root, isolated_context=False) if check.same_place else None
+    pixels = compare(diff_page, ref_png, app_png)
+
+    theirs["texts"] = [t for t in theirs["texts"] if t["text"] not in check.accepted]
+    mine["texts"] = [t for t in mine["texts"] if t["text"] not in check.accepted_app]
+    mine["boxes"] = [b for b in mine["boxes"] if b["sig"] not in check.accepted_app]
+    res = diff(check.name, theirs, mine, data=check.data, data_app=check.data_app, loose=check.loose)
+    misplaced = None
+    if check.same_place and any(abs(c - a) > EDGE_PX for c, a in zip(canvas_box, app_box, strict=True)):
+        misplaced = "the dialog is at %s in the window, the board draws it at %s" % (
+            [round(v, 1) for v in app_box], [round(v, 1) for v in canvas_box])
+    out = run_dir / "element-diff"
+    out.mkdir(parents=True, exist_ok=True)
+    stem = "%s-%s" % (check.name, theme)
+    notes = ("Canvas %s%s, app %s at %dx%d. Pixel diff of the compared part: %.3f %% mismatch + %.3f %% anti-aliased."
+             % (check.state.board, " " + check.canvas_root if check.canvas_root else "", check.app_root or "page",
+                width, height, pixels.percent, pixels.aa_percent))
+    if check.same_place:
+        notes += " Place in the window: %s." % (misplaced or "as drawn")
+    (out / (stem + ".md")).write_text(markdown(res, "%s, %s" % (check.name, theme), notes), encoding="utf-8")
+    (out / (stem + ".side.png")).write_bytes(side_by_side(diff_page, ref_png, app_png, pixels.png))
+    print("ELEMENTS %s %s: %d differences, %d canvas only, %d app only, %d data; pixels %.3f %% + %.3f %%" % (
+        check.name, theme, len(res.differences), len(res.canvas_only), len(res.app_only), len(res.data),
+        pixels.percent, pixels.aa_percent))
+    assert res.failures == 0, "%s %s: %d element differences, see %s.md" % (check.name, theme, res.failures, stem)
+    assert misplaced is None, misplaced
+
+
+# ---- states the canvas does not draw: photographed for the side-by-side with their nearest drawn pattern ------------
+KEYS_API = re.compile(r"/admin/keys(\?|$)")
+
+
+def _ready(page):
+    expect(page.locator(".keys-card [data-state=ready]")).to_be_visible(timeout=TIMEOUT_MS)
+
+
+def _hover(name):
+    def act(page, live, data):
+        _ready(page)
+        page.get_by_role("button", name=name, exact=True).hover()
+    return act
+
+
+def hover_row(page, live, data):
+    _ready(page)
+    page.locator("tbody tr").nth(3).hover()
+
+
+def focus_switch(page, live, data):
+    _ready(page)
+    switch = page.get_by_role("switch", name="Enable key Shop B")
+    switch.focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(switch).to_be_focused()
+
+
+def new_key_dialog(page, live, data):
+    page.get_by_role("button", name="New key").first.click()
+    expect(page.get_by_role("dialog", name="New API key")).to_be_visible(timeout=TIMEOUT_MS)
+
+
+def refused_create(page, live, data):
+    """The server refuses the label: the dialog says so from its fixed table and outlines the field."""
+    def answer(route):
+        if route.request.method != "POST":
+            route.continue_()
+            return
+        route.fulfill(status=422, content_type="application/json",
+                      body='{"error": {"code": "input.invalid", "message": "label", "param": "label"}}')
+
+    page.route(KEYS_API, answer)
+    new_key_dialog(page, live, data)
+    page.get_by_role("dialog").get_by_label("Label", exact=True).fill("Partner E")
+    page.get_by_role("dialog").get_by_role("button", name="Create key").click()
+    expect(page.get_by_role("dialog").get_by_role("alert")).to_be_visible(timeout=TIMEOUT_MS)
+
+
+def load_fails(page, live, data):
+    page.route(KEYS_API, lambda route: route.fulfill(
+        status=502, content_type="application/json",
+        body='{"error": {"code": "upstream.bad_gateway", "message": "bad gateway"}}'))
+    page.reload()
+    expect(page.locator(".keys-card [data-state=error]")).to_be_visible(timeout=TIMEOUT_MS)
+
+
+def load_held(page, live, data):
+    page.route(KEYS_API, lambda route: None)
+    page.reload()
+    expect(page.locator(".keys-card [data-state=loading]")).to_be_visible(timeout=TIMEOUT_MS)
+
+
+def delete_toast(page, live, data):
+    """Partner B has jobs: Delete disables it, and the toast says so."""
+    delete_partner_b(page, live, data)
+    page.locator(".rl-confirm").get_by_role("button", name="Delete").click()
+    expect(page.get_by_text("Key has jobs: disabled instead")).to_be_visible(timeout=TIMEOUT_MS)
+    page.mouse.move(0, 0)
+
+
+UNDRAWN = [
+    ("hover-row", hover_row, keys_seed, (DESKTOP,)),
+    ("hover-delete", _hover("Delete key Shop B"), keys_seed, (DESKTOP, PHONE_VIEW)),
+    ("hover-edit", _hover("Edit key Shop B"), keys_seed, (DESKTOP,)),
+    ("hover-copy-prefix", _hover("Copy key prefix of Shop B"), keys_seed, (DESKTOP,)),
+    ("focus-switch", focus_switch, keys_seed, (DESKTOP,)),
+    ("new-key-dialog", new_key_dialog, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
+    ("refused-create", refused_create, keys_seed, (DESKTOP, PHONE_VIEW)),
+    ("load-error", load_fails, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
+    ("loading", load_held, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
+    ("empty", no_keys, no_keys_seed, (TABLET, PHONE_VIEW)),
+    ("delete-toast", delete_toast, keys_seed, (DESKTOP, PHONE_VIEW)),
+]
+UNDRAWN_CASES = [(name, drive, seed, size) for name, drive, seed, sizes in UNDRAWN for size in sizes]
+
+
+@pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize(("state", "drive", "seed", "size"), UNDRAWN_CASES,
+                         ids=["%s-%d" % (c[0], c[3][0]) for c in UNDRAWN_CASES])
+def test_keys_undrawn_states_are_photographed(app, db, live, run_dir, state, drive, seed, size, theme):
+    entry = _keys("B-Keys", drive, seed)
+    with opened(app, db, live, entry, theme == "dark", *size) as page:
+        out = run_dir / "element-diff"
+        out.mkdir(parents=True, exist_ok=True)
+        (out / ("undrawn-%s-%d-%s.png" % (state, size[0], theme))).write_bytes(shoot(page))
+        sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
+        assert sideways <= 0, "the page scrolls sideways by %d px" % sideways
+
+
+# ---- data shaped like the live box -------------------------------------------------------------------------------
+SAIGON = timezone(timedelta(hours=7))
+TODAY = datetime(2026, 10, 15, tzinfo=SAIGON)
+LONG_LABEL = "Partner Collective Southeast Asia, wholesale video and image"
+FIVE_MODELS = ["seedance_v2.5", "seedance_v2.0", "seedance_v1.0", "seedream-4.5", "seedream-5.0-pro"]
+# The live box's keys (read 17/10, lengths and shapes only): three without a label, named by an 11-character prefix
+# `aa-aaaaaaaa`; two labelled `aNa-aaaaN` (9 characters), disabled; every key any model; both dola wallets unlimited;
+# 1 to 60 jobs; max unfinished empty, 5 or 40; all made this month. Then one key with every long value.
+# (label, prefix, enabled, models, video, image, jobs, max unfinished, created)
+ANY = ["*"]
+LIVE_KEYS = (
+    (None, "rk-q7mfz2kd", True, ANY, ("unlimited", 0), ("unlimited", 0), 1, None, TODAY + timedelta(hours=19)),
+    (None, "rk-hwpaxnkd", True, ANY, ("unlimited", 2), ("unlimited", 0), 2, None, TODAY + timedelta(hours=9)),
+    (None, "rk-a_bq_xmz", True, ANY, ("unlimited", 2), ("unlimited", 0), 1, None, TODAY - timedelta(days=4)),
+    ("k7a-team2", "rk-tbqm4aho", False, ANY, ("unlimited", 2), ("unlimited", 1), 2, 5, TODAY - timedelta(days=9)),
+    ("m2c-shop1", "rk-dhqwz8c3", False, ANY, ("unlimited", 8), ("unlimited", 49), 60, 40, TODAY - timedelta(days=12)),
+    (LONG_LABEL, "rk-longestx", True, FIVE_MODELS, ("limit", 2500, 99999, 1234, 87654),
+     ("limit", 900, 50000, 899, 49999), 8765, 0, datetime(2026, 1, 3, 12, tzinfo=SAIGON)),
+)
+LIVE_VALUES = ("rk-q7mfz2kd", "rk-hwpaxnkd", "rk-a_bq_xmz", "k7a-team2", "m2c-shop1", "(no label)")
+
+
+def live_like_keys_seed(db, live):
+    board_user(live)
+    for label, prefix, enabled, models, video, image, jobs, max_unfinished, created in LIVE_KEYS:
+        key_id = new_key(db, wallets=WALLETS)
+        set_key(db, key_id, label or "", prefix, enabled, models, video, image, created)
+        db.run("UPDATE api_keys SET max_unfinished = %s WHERE id = %s", max_unfinished, key_id)
+        db.run("INSERT INTO jobs (id, provider, key_id, operation, media_type, model, prompt, marker, status, "
+               "completion, after_sent, submit_timeout_s, wallet_kind, price, error_code, finished_at) "
+               "SELECT gen_random_uuid(), %s, %s, 'generate', 'video', 'm', 'p', 'marker-' || gen_random_uuid()::text, "
+               "'failed', 'detach', 'reconcile', 60, 'video', 0, 'render.deadline', now() - interval '3 days' "
+               "FROM generate_series(1, %s)", PROVIDER, key_id, jobs)
+
+
+def live_like_ready(page, live, data):
+    _ready(page)
+    page.mouse.move(0, 0)
+
+
+@pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize("width", (1440, 768, 390))
+def test_keys_with_live_like_data_fits(app, db, live, run_dir, width, theme):
+    state = _keys("B-Keys", live_like_ready, live_like_keys_seed)
+    with opened(app, db, live, state, theme == "dark", width, 900) as page:
+        out = run_dir / "element-diff"
+        out.mkdir(parents=True, exist_ok=True)
+        (out / ("live-like-%d-%s.png" % (width, theme))).write_bytes(
+            page.screenshot(full_page=True, animations="disabled", caret="hide"))
+        sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
+        assert sideways <= 0, "the page scrolls sideways by %d px" % sideways
+        items = extract(page, ".keys-view")
+        clipped = [(t["text"], t["cls"], t["rect"], t["full"]) for t in items["texts"] if t["clipped"]]
+        assert not clipped, "texts cut off (the canvas draws every keys text whole): %r" % clipped
+        shown = {t["text"] for t in items["texts"]}
+        missing = [v for v in LIVE_VALUES if v not in shown]
+        assert not missing, "live-shaped values not drawn as one text: %r" % missing
+
+
+# ---- drawn, with no app counterpart yet: photographed for the question it raises ----------------------------------
+# B-States draws the New key form refusing an empty label (a red field, "A label is required.", Create key disabled
+# with the tooltip "Fill in the label first"). The app creates a key without a label; whether to build it is open.
+VALIDATION_CARD_JS = """() => {
+  const card = document.getElementById('fvLabel').parentElement.parentElement;
+  card.setAttribute('data-element-diff', '1');
+}"""
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_the_drawn_label_check_is_photographed(renderer, run_dir, theme):
+    board_w, board_h = BOARDS[STATES]
+    renderer.open(STATES, theme == "dark", board_w, board_h)
+    renderer.page.evaluate(VALIDATION_CARD_JS)
+    out = run_dir / "element-diff"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / ("drawn-label-check-%s.png" % theme)).write_bytes(_png(renderer.page, '[data-element-diff="1"]'))
