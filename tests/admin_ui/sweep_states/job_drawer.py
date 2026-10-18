@@ -1,5 +1,6 @@
 """The job drawer: loading, its three tabs, and the regenerate confirm."""
 
+import base64
 import re
 
 from patchright.sync_api import expect
@@ -29,6 +30,11 @@ def close_drawer(page):
 
 JOB = re.compile(r"/admin/jobs/[0-9a-f-]{36}$")
 DEBUG = "**/admin/jobs/*/debug/0"
+# The share link `tamper` adds is served a real picture: the tile loads it as it would any result, and no request of
+# the sweep ends in a 404 (a 1x1 PNG).
+SWEEP_LINK = "**/m/sweep-link"
+PICTURE = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==")
 SENT = "Create exactly one image for this request, no on-screen text. Request: a perfume bottle on white marble."
 
 
@@ -50,6 +56,10 @@ def debug_file(route):
     route.fulfill(status=200, content_type="text/plain", body="GET /v1/images -> 422\n{\"refused\": \"content\"}")
 
 
+def sweep_picture(route):
+    route.fulfill(status=200, content_type="image/png", body=PICTURE)
+
+
 def show(page, selector):
     """Bring a block of the drawer into view (the drawer scrolls inside the page)."""
     block = dialog(page, DETAIL).locator(selector)
@@ -64,7 +74,7 @@ def run(page, app, live, sw, data):
         pattern = re.compile(r"/admin/jobs/[0-9a-f-]{36}$")
         slow(page, pattern)
         page.locator("tbody tr, li").filter(has_text=failed).locator("a.title-link, .prow").first.click()
-        expect(dialog(page, DETAIL).locator(".el-skeleton")).to_be_visible()
+        expect(dialog(page, DETAIL).locator("[data-state=loading]")).to_be_visible()
         expect(dialog(page, DETAIL).locator("[data-section=conclusion]")).to_be_visible(timeout=TIMEOUT_MS * 2)
         unslow(page, pattern)
     sw.step("jobs", "detail-loading", detail_loading)
@@ -92,6 +102,7 @@ def run(page, app, live, sw, data):
     failed_title = page.locator("tbody tr, li").filter(has_text=failed).locator("a.title-link, .prow").first
     page.route(JOB, tamper)
     page.route(DEBUG, debug_file)
+    page.route(SWEEP_LINK, sweep_picture)
     failed_title.click()
     expect(dialog(page, DETAIL).locator("[data-section=conclusion]")).to_be_visible(timeout=TIMEOUT_MS * 2)
     sw.step("jobs", "detail-warnings", lambda: show(page, "[data-section=warnings]"))
@@ -107,7 +118,7 @@ def run(page, app, live, sw, data):
         dialog(page, DETAIL).get_by_role("button", name="Revoke share links").click()
         expect(page.locator(".el-popconfirm")).to_be_visible()
     sw.step("jobs", "detail-revoke-confirm", revoke_confirm,
-            after=lambda: page.locator(".el-popconfirm").get_by_role("button", name="No", exact=True).click())
+            after=lambda: page.locator(".el-popconfirm").get_by_role("button", name="Cancel", exact=True).click())
 
     def debug_files():
         dialog(page, DETAIL).get_by_role("button", name="File 0 (text/plain)").click()
@@ -118,6 +129,7 @@ def run(page, app, live, sw, data):
     close_drawer(page)
     page.unroute(JOB, tamper)
     page.unroute(DEBUG, debug_file)
+    page.unroute(SWEEP_LINK, sweep_picture)
 
     def recover_done():
         page.locator("tbody tr, li").filter(has_text="done").locator("a.title-link, .prow").first.click()

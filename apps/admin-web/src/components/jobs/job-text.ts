@@ -6,14 +6,26 @@ import { toneOf, type Tone } from "@/components/shared/status-tones";
 
 export const shortId = (id: string): string => id.slice(0, 8);
 
+// A job's request parameter by the first of its names that is set ("ratio", else "aspect_ratio"), as text; "" when
+// none is. The drawer's ledger and its tiles read the same fields through it.
+export function jobParam(params: unknown, ...names: string[]): string {
+  if (!params || typeof params !== "object") return "";
+  for (const name of names) {
+    const value = (params as Record<string, unknown>)[name];
+    if (value !== undefined && value !== null && value !== "") return String(value);
+  }
+  return "";
+}
+
 // The list's failed load, worded as drawn (B-States): "Could not load the jobs: the relay answered 502 (bad gateway)."
 // `said` is the app's own text for the failure (errorText); with no answer from the relay it is all there is to say.
-export function loadFailedText(err: unknown, said: string): string {
+// `what` names what failed: the drawer's read says "the job".
+export function loadFailedText(err: unknown, said: string, what = "the jobs"): string {
   const why =
     err instanceof ApiError
       ? `the relay answered ${err.status} (${said})`
       : said.charAt(0).toLowerCase() + said.slice(1);
-  return `Could not load the jobs: ${why}.`;
+  return `Could not load ${what}: ${why}.`;
 }
 
 // What a key shows in a select or a cell: its label, else its prefix, else the first 8 characters of its id, so no
@@ -58,13 +70,14 @@ const two = (n: number): string => String(n).padStart(2, "0");
 
 // The drawer's clock formats (local time): "19:41:44" for a timeline row, "15/10 19:40:02" for a ledger value. A
 // missing time is "-".
+// A time that is not set is the list's empty-cell dash ("—"), here and in fmtDayClock.
 export function fmtClock(ms: number | null | undefined): string {
-  if (!ms) return "-";
+  if (!ms) return "—";
   const d = new Date(ms);
   return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;
 }
 export function fmtDayClock(ms: number | null | undefined): string {
-  if (!ms) return "-";
+  if (!ms) return "—";
   const d = new Date(ms);
   return `${two(d.getDate())}/${two(d.getMonth() + 1)} ${fmtClock(ms)}`;
 }

@@ -3,11 +3,29 @@ import { computed, ref, watch } from "vue";
 import { fetchDownload, getJob, type JobDetail, renameJob } from "@/api/jobs-detail";
 import { saveBlob } from "@/components/jobs/blob-actions";
 import { announceJobChange } from "@/components/jobs/job-changes";
-import { fmtDayClock, fmtTook, isRefunded, newestFirst, plural, shortId } from "@/components/jobs/job-text";
+import { isRunning } from "@/components/jobs/job-row";
+import {
+  fmtDayClock,
+  fmtTook,
+  isRefunded,
+  jobParam,
+  keyName,
+  loadFailedText,
+  newestFirst,
+  plural,
+  progressStep,
+  shortId,
+} from "@/components/jobs/job-text";
 import JobActions from "@/components/jobs/JobActions.vue";
 import JobCopy from "@/components/jobs/JobCopy.vue";
 import JobDebugFiles from "@/components/jobs/JobDebugFiles.vue";
-import { IconAlertCircleJoined, IconAlertTriangle, IconCheck, IconDownload } from "@/components/shared/icons";
+import {
+  IconAlertCircle,
+  IconAlertCircleJoined,
+  IconAlertTriangle,
+  IconCheck,
+  IconDownload,
+} from "@/components/shared/icons";
 import JobMedia from "@/components/jobs/JobMedia.vue";
 import JobTechnical from "@/components/jobs/JobTechnical.vue";
 import JobTimeline from "@/components/jobs/JobTimeline.vue";
@@ -27,6 +45,8 @@ import { useUiStore } from "@/stores/ui";
 // Mounted once in the shell; Jobs and Alerts open it through ui.openJob(id). Every string from the server (title,
 // prompt, error, events, params, account names) is drawn as text. A later answer for a job that is no longer the open
 // one is dropped. The drawer's name is "Job <8-char id>"; its visible heading is the job's title.
+// `backLabel`: what the phone sheet's Back button says, the page it goes back to (the shell passes it)
+const props = withDefaults(defineProps<{ backLabel?: string }>(), { backLabel: "Back to Jobs" });
 const ui = useUiStore();
 const { isPhone } = useBreakpoint();
 const visible = computed({
@@ -53,7 +73,7 @@ async function load(id: string): Promise<void> {
   } catch (err) {
     if (!latest.isCurrent(ticket)) return;
     if (job.value) notify.error(errorText(err));
-    else error.value = errorText(err);
+    else error.value = loadFailedText(err, errorText(err), "the job");
   } finally {
     if (latest.isCurrent(ticket)) loading.value = false;
   }
@@ -112,14 +132,23 @@ const outputCount = computed(() => outputs.value.length || Number(param("count",
 const events = computed(() => newestFirst(job.value?.events ?? []));
 const failed = computed(() => job.value?.status === "failed");
 const done = computed(() => job.value?.status === "done");
+// The action row (the phone's footer) holds Download (results), Re-check (a job that can be) or Regenerate… (a done
+// job; a failed one has its Actions card): JobActions' rules. A job with none of them draws no row and no empty
+// footer (a queued, submitting or fetching job).
+const hasRow = computed(() => Boolean(outputs.value.length || job.value?.can_recheck || done.value));
 
 const context = computed(() => {
   const j = job.value;
   if (!j) return "";
-  // the phone sheet draws the line without the count (it has no room for it beside the id chip)
+  // the count once the job has ended (a job on its way has no results to count); the phone sheet draws the line
+  // without it (it has no room for it beside the id chip)
   const line = `${j.operation} · ${j.model}`;
-  return isPhone.value ? line : `${line} · ${plural(outputCount.value, "output")}`;
+  return isPhone.value || !(done.value || failed.value) ? line : `${line} · ${plural(outputCount.value, "output")}`;
 });
+// The header's chip: a job on its way shows its step instead of the dot, as the list does ("3/4 fetching").
+const step = computed(() =>
+  job.value && isRunning(job.value.status) ? `${progressStep(job.value.status)}/4` : undefined,
+);
 
 // "Delivered 4 images" + "net charged 1 point · 1 min 35 s".
 const delivered = computed(() => {
@@ -130,22 +159,32 @@ const delivered = computed(() => {
   const took = j.created_ms && j.finished_ms ? ` · ${fmtTook(j.finished_ms - j.created_ms)}` : "";
   return { lead: `Delivered ${plural(count, noun)}`, rest: `· net charged ${plural(j.net_charged, "point")}${took}` };
 });
-// A status that is neither done nor failed: the word and what it has cost so far.
-const neutralLine = computed(() => {
+// A job on its way, in the done banner's pattern: what it is doing, then its step (as the list's bar), what it has
+// charged and how long it has run so far. "Fetching the result" + "· step 3 of 4 · charged 2 points · 4 min so far".
+const onItsWay = computed(() => {
   const j = job.value;
-  return j ? `${j.status} · net charged ${plural(j.net_charged, "point")}` : "";
+  if (!j) return { lead: "", rest: "" };
+  const provider = j.provider.charAt(0).toUpperCase() + j.provider.slice(1);
+  const leads: Record<string, string> = {
+    queued: "Waiting for an account",
+    submitting: `Sending it to ${j.provider}`,
+    waiting: `${provider} is making it`,
+    fetching: "Fetching the result",
+    unknown: `${provider} has not confirmed it yet`,
+  };
+  const facts = [
+    isRunning(j.status) ? `step ${progressStep(j.status)} of 4` : "",
+    j.net_charged ? `charged ${plural(j.net_charged, "point")}` : "nothing charged yet",
+    j.created_ms ? `${fmtTook(Date.now() - j.created_ms)} so far` : "",
+  ];
+  return {
+    lead: leads[j.status] ?? j.status.charAt(0).toUpperCase() + j.status.slice(1),
+    rest: `· ${facts.filter(Boolean).join(" · ")}`,
+  };
 });
 
 const asText = (v: unknown): string => (v === undefined || v === null || v === "" ? "" : String(v));
-const param = (...names: string[]): string => {
-  const p = job.value?.params;
-  if (!p || typeof p !== "object") return "";
-  for (const n of names) {
-    const v = asText((p as Record<string, unknown>)[n]);
-    if (v) return v;
-  }
-  return "";
-};
+const param = (...names: string[]): string => jobParam(job.value?.params, ...names);
 
 // The ledger of the Overview. A refund shows the price struck, an arrow and what was kept.
 const summary = computed<LedgerItem[]>(() => {
@@ -170,8 +209,9 @@ const summary = computed<LedgerItem[]>(() => {
           label: "Points",
           value: j.net_charged === j.price ? `${j.net_charged} charged · 0 refunded` : `${j.net_charged} charged`,
         },
-    { label: "Account", value: asText(j.account_label) || "-", mono: true },
-    { label: "Key", value: asText(j.key_label) || "-" },
+    { label: "Account", value: asText(j.account_label) || "—", mono: true },
+    // named as the list names it: the label, else the prefix, else the start of the id
+    { label: "Key", value: keyName({ id: j.key_id, label: j.key_label, prefix: j.key_prefix }) },
     { label: "Created", value: fmtDayClock(j.created_ms), mono: true },
     { label: "Finished", value: fmtDayClock(j.finished_ms), mono: true },
   ];
@@ -189,9 +229,9 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
 </script>
 
 <template>
-  <DetailDrawer v-model="visible" :title="name" :heading="heading" testid="job-drawer">
+  <DetailDrawer v-model="visible" :title="name" :heading="heading" :back-label="props.backLabel" testid="job-drawer">
     <template v-if="job" #chips>
-      <StatusChip :status="job.status" />
+      <StatusChip :status="job.status" :step="step" />
       <span>{{ context }}</span>
       <JobCopy variant="id" :text="shortId(job.id)" :label="`Copy job id ${shortId(job.id)}`" />
     </template>
@@ -199,20 +239,29 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
       <DrawerTabs v-model="tab" :tabs="TABS" id-prefix="job" label="Job sections" />
     </template>
 
+    <!-- a failed read and the loading bars take the list's drawn patterns (B-States: error, loading) -->
     <div v-if="error" class="jd-error" role="alert">
-      <IconAlertCircleJoined :size="16" :stroke="2.2" />
-      <span>{{ error }}</span>
-      <button type="button" class="jd-btn" @click="refresh">Retry</button>
+      <IconAlertCircle class="jd-error__icon" :size="18" />
+      <span class="jd-error__text">{{ error }}</span>
+      <button type="button" class="jd-retry" @click="refresh">Retry</button>
     </div>
-    <el-skeleton v-else-if="!job" :rows="8" animated />
+    <div v-else-if="!job" class="jd-skeleton" data-state="loading" aria-busy="true" aria-label="Loading the job">
+      <span v-for="n in 8" :key="n" class="jd-skeleton__bar" />
+    </div>
 
     <div v-else class="jd" :class="{ 'is-refreshing': loading }" :aria-busy="loading">
       <DrawerPanel id-prefix="job" name="overview" :selected="tab" class="jd-panel">
         <template v-if="tab === 'overview'">
           <div v-if="done" class="jd-banner jd-banner--ok" data-section="conclusion">
             <IconCheck :size="16" :stroke="2.2" />
-            <strong>{{ delivered.lead }}</strong>
-            <span class="jd-num jd-muted">{{ delivered.rest }}</span>
+            <!-- the phone wraps the two as one line of text (P-JobDetail); the desktop sets them 10 px apart -->
+            <span v-if="isPhone"
+              ><strong>{{ delivered.lead }}</strong> <span class="jd-num jd-muted">{{ delivered.rest }}</span></span
+            >
+            <template v-else>
+              <strong>{{ delivered.lead }}</strong>
+              <span class="jd-num jd-muted">{{ delivered.rest }}</span>
+            </template>
           </div>
           <div v-else-if="failed" class="jd-banner jd-banner--bad" role="alert" data-section="conclusion">
             <IconAlertCircleJoined :size="16" :stroke="2.2" />
@@ -223,7 +272,13 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
             >
           </div>
           <div v-else class="jd-banner jd-banner--plain" data-section="conclusion">
-            <span>{{ neutralLine }}</span>
+            <span v-if="isPhone"
+              ><strong>{{ onItsWay.lead }}</strong> <span class="jd-num jd-muted">{{ onItsWay.rest }}</span></span
+            >
+            <template v-else>
+              <strong>{{ onItsWay.lead }}</strong>
+              <span class="jd-num jd-muted">{{ onItsWay.rest }}</span>
+            </template>
           </div>
           <div v-if="job.warnings && job.warnings.length" class="jd-banner jd-banner--warn" data-section="warnings">
             <IconAlertTriangle :size="16" :stroke="2.2" />
@@ -240,7 +295,7 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
             <JobMedia :job="job" role="input" />
           </section>
 
-          <div v-if="!failed && !isPhone" data-section="actions">
+          <div v-if="!failed && !isPhone && hasRow" data-section="actions">
             <JobActions :job="job" zone="row" @reload="refresh">
               <template v-if="outputs.length" #before>
                 <button type="button" class="jd-primary" :disabled="downloading" @click="downloadAll">
@@ -308,13 +363,13 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
           <section class="jd-section" data-section="sent" aria-labelledby="jd-sent">
             <h3 id="jd-sent" class="jd-h">Text sent upstream</h3>
             <p class="jd-muted jd-note">The prompt in its frame, with this job's marker.</p>
-            <pre class="jd-pre" data-field="sent-text">{{ job.sent_text === null ? "-" : job.sent_text }}</pre>
+            <pre class="jd-pre" data-field="sent-text">{{ job.sent_text === null ? "—" : job.sent_text }}</pre>
           </section>
         </template>
       </DrawerPanel>
     </div>
 
-    <template v-if="job && isPhone && !failed" #footer>
+    <template v-if="job && isPhone && !failed && hasRow" #footer>
       <JobActions :job="job" zone="row" @reload="refresh">
         <template v-if="outputs.length" #before>
           <button type="button" class="jd-primary jd-primary--phone" :disabled="downloading" @click="downloadAll">
@@ -352,22 +407,65 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
 }
 .jd-error {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 12px 16px;
   border-radius: 12px;
   background: var(--rl-bad-bg);
-  font-size: 13px;
-  color: var(--rl-fg);
 }
-.jd-error svg {
+.jd-error__icon {
   flex: none;
   color: var(--rl-bad);
 }
-.jd-error span {
+.jd-error__text {
   flex: 1;
-  min-width: 0;
+  min-width: 220px;
+  color: var(--rl-fg);
   overflow-wrap: anywhere;
+}
+/* Retry: the danger outline, 32 high, 13/500, raised on hover (B-States, error) */
+.jd-retry {
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--rl-bad);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--rl-bad);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.jd-retry:hover {
+  background: var(--rl-raised);
+}
+/* the loading bars: raised, 12 high, radius 6, no animation, at the list skeleton's widths (B-States, loading) */
+.jd-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.jd-skeleton__bar {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--rl-raised);
+}
+.jd-skeleton__bar:nth-child(5n + 1) {
+  width: 62%;
+}
+.jd-skeleton__bar:nth-child(5n + 2) {
+  width: 48%;
+}
+.jd-skeleton__bar:nth-child(5n + 3) {
+  width: 71%;
+}
+.jd-skeleton__bar:nth-child(5n + 4) {
+  width: 39%;
+}
+.jd-skeleton__bar:nth-child(5n) {
+  width: 56%;
 }
 .jd-banner {
   display: flex;
@@ -449,7 +547,8 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
   border-radius: 12px;
   background: var(--rl-raised);
   line-height: 22px;
-  white-space: pre-wrap;
+  /* the prompt's own line breaks are kept; a line wraps as the canvas's paragraph does (no space hangs at its end) */
+  white-space: pre-line;
   overflow-wrap: anywhere;
 }
 .jd-primary {
@@ -528,11 +627,16 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
   overflow-wrap: anywhere;
 }
 @media (max-width: 767.98px) {
-  .jd {
+  .jd,
+  .jd-panel {
     gap: 16px;
   }
   .jd-banner--ok {
     align-items: flex-start;
+  }
+  .jd-banner--ok svg {
+    flex: none;
+    margin-top: 2px;
   }
 }
 </style>

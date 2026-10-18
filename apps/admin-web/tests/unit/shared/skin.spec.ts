@@ -148,7 +148,27 @@ describe("confirm position and ledger line height", () => {
   it("the confirm box sits 240 px from the top (30vh on a short page), aligned to the top of its line", () => {
     const box = decls(CONFIRM, ".rl-confirm.el-message-box {");
     expect(box["vertical-align"]).toBe("top");
-    expect(box["margin-top"]).toBe("min(240px, 30vh)");
+    // Element Plus's wrapper is padded 16 px: the box's own margin is the rest of the 240
+    expect(box["margin-top"]).toBe("calc(min(240px, 30vh) - 16px)");
+    // Element Plus caps a message box at 420 px; the drawn confirm is 440
+    expect(box["--el-messagebox-width"]).toBe("440px");
+  });
+
+  it("the confirm's buttons are padded 0 16 in the browser's line height; the destructive one has no edge", () => {
+    const buttons = decls(CONFIRM, "html:root .rl-confirm .el-message-box__btns .el-button {");
+    expect(buttons.padding).toBe("0 16px");
+    expect(buttons["line-height"]).toBe("normal");
+    expect(decls(CONFIRM, "html:root .rl-confirm .el-message-box__btns .el-button--danger {").border).toBe("0");
+  });
+
+  it("the picture viewer is the scrim with buttons on the menu surface", () => {
+    const mask = decls(SKIN, "html:root .el-image-viewer__mask {");
+    expect(mask.background).toBe("var(--rl-scrim)");
+    expect(mask.opacity).toBe("1");
+    const button = decls(SKIN, "html:root .el-image-viewer__btn {");
+    expect(button.background).toBe("var(--rl-surface)");
+    expect(button.border).toBe("1px solid var(--rl-line)");
+    expect(button.color).toBe("var(--rl-fg)");
   });
 
   it("a ledger line is 20 px high, in the one rule that sets it", () => {

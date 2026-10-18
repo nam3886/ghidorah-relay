@@ -79,6 +79,21 @@ export const ICON_SHAPES = {
   },
   logOut: { nodes: [p("M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"), p("m16 17 5-5-5-5"), p("M21 12H9")] },
   arrowLeft: { nodes: [p("M19 12H5"), p("m12 19-7-7 7-7")] },
+  // The picture viewer's glyphs, which the canvas does not draw (D125), drawn from its own: chevron left mirrors
+  // chevron right; zoom in and out are the search glyph with a plus or a minus; rotate right is the refresh glyph,
+  // rotate left its mirror; fit is four corners in the same stroke.
+  chevronLeft: { nodes: [p("m15 6-6 6 6 6")] },
+  zoomIn: { nodes: [c(11, 11, 7), p("m20 20-3.5-3.5"), p("M11 8v6M8 11h6")] },
+  zoomOut: { nodes: [c(11, 11, 7), p("m20 20-3.5-3.5"), p("M8 11h6")] },
+  rotateLeft: { nodes: [p("M3 12a9 9 0 1 0 2.64-6.36"), p("M3 3v6h6")] },
+  fit: {
+    nodes: [
+      p("M8 3H5a2 2 0 0 0-2 2v3"),
+      p("M21 8V5a2 2 0 0 0-2-2h-3"),
+      p("M3 16v3a2 2 0 0 0 2 2h3"),
+      p("M16 21h3a2 2 0 0 0 2-2v-3"),
+    ],
+  },
 } satisfies Record<string, IconShape>;
 
 export type IconName = keyof typeof ICON_SHAPES;
