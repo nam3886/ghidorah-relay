@@ -848,6 +848,28 @@ describe("the top bar", () => {
     }
   });
 
+  it("leaves the tab strip alone when the focus entered it before the web fonts loaded", async () => {
+    const shown: string[] = [];
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      shown.push(this.textContent?.trim() ?? "");
+    };
+    const loaded = fontsLoadLater();
+    try {
+      const { wrapper } = await open("/test");
+      const before = shown.length;
+      // the focus moves onto the first tab, as Tab from the logo does: the browser scrolls the strip to it
+      (wrapper.find("nav a.tab").element as HTMLElement).focus();
+      expect(document.activeElement?.textContent?.trim()).toMatch(/^Jobs/);
+      loaded();
+      await flushPromises();
+      expect(shown).toHaveLength(before);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+      delete (document as { fonts?: unknown }).fonts;
+    }
+  });
+
   it("does nothing when the bar is gone before the web fonts load", async () => {
     const shown: string[] = [];
     const original = HTMLElement.prototype.scrollIntoView;

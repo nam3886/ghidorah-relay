@@ -592,6 +592,8 @@ def test_the_global_rules_follow_the_canvas():
 @mutation(TOP_BAR, "if (unmounted || userMovedTabs) return;", "if (unmounted) return;",
           expect=BAR_FAILED + "leaves the tab strip where the user put it when they moved it before the web fonts "
                               "loaded")
+@mutation(TOP_BAR, '        @focusin="onTabsMoved"\n', "",
+          expect=BAR_FAILED + "leaves the tab strip alone when the focus entered it before the web fonts loaded")
 @mutation(TOP_BAR, '        @wheel.passive="onTabsMoved"\n', "",
           expect=BAR_FAILED + "leaves the tab strip where the user put it when they moved it before the web fonts "
                               "loaded")
