@@ -59,6 +59,8 @@ function move(from: number, step: number, event: KeyboardEvent): void {
   font: inherit;
   font-size: 14px;
   font-weight: 500;
+  /* the canvas's tab is a plain button: the browser's own line height */
+  line-height: normal;
   cursor: pointer;
 }
 .drawer-tabs__tab.is-selected {
@@ -68,7 +70,7 @@ function move(from: number, step: number, event: KeyboardEvent): void {
 }
 @media (max-width: 767.98px) {
   .drawer-tabs {
-    padding: 0 8px;
+    padding: 0 12px;
   }
   .drawer-tabs__tab {
     height: 44px;

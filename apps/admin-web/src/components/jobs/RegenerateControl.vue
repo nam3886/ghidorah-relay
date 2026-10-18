@@ -90,6 +90,8 @@ async function startNew(): Promise<void> {
   color: var(--rl-bad);
   font-size: 13px;
   font-weight: 400;
+  /* a plain button on the canvas: the browser's own line height, not Element Plus's 1 */
+  line-height: normal;
 }
 .regenerate__go.el-button:hover,
 .regenerate__go.el-button:focus-visible {

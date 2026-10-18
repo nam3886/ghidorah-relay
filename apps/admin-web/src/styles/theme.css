@@ -541,16 +541,48 @@ html.dark :where(a:hover) {
   background: var(--rl-primary-soft);
 }
 
+/* Controls and links take the page font, as the canvas's `.gd button, .gd input, .gd select, .gd textarea, .gd a` rule
+   does; the browser's own size, line height and padding stay (the canvas draws on them). */
+button,
+input,
+select,
+textarea,
+a {
+  font-family: inherit;
+}
+
+/*
+ * Scrollbars: a --rl-line-strong thumb on a transparent track on every scrolling element, the page included (the
+ * canvas's `.gd *` rule). Safari does not read scrollbar-color, so it gets the bar Chrome draws for that rule (a 9 px
+ * pill, 3 px inside a 15 px track) through its own pseudo-elements; Chrome and Firefox ignore those wherever
+ * scrollbar-color is set.
+ */
+* {
+  scrollbar-color: var(--rl-line-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 15px;
+  height: 15px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background: var(--rl-line-strong) padding-box;
+}
+
 /* One focus ring for everything that takes the keyboard. */
 :focus-visible {
   outline: 2px solid var(--rl-focus);
   outline-offset: 2px;
 }
 
-/* Numbers: tabular figures, right aligned by the table wrapper. */
+/* Numbers: tabular figures, as the canvas's `.num`; a number column aligns its own cells. */
 .num {
   font-variant-numeric: tabular-nums;
-  text-align: right;
 }
 
 /* Visually hidden, still read by screen readers and still focusable text (clipboard fallback helper). */

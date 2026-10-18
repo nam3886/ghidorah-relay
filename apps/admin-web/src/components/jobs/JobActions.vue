@@ -152,8 +152,11 @@ async function regenerate(): Promise<void> {
         title="Every share link of this job stops working. Continue?"
         confirm-button-text="Revoke"
         confirm-button-type="danger"
+        cancel-button-text="Cancel"
+        cancel-button-type="default"
         popper-class="rl-job-pop"
         :hide-icon="true"
+        :offset="6"
         width="260"
         @confirm="revoke"
       >
@@ -302,16 +305,19 @@ html:root .el-popper.rl-job-pop .el-popconfirm__action {
   gap: 8px;
   margin: 0;
 }
+/* its buttons as the confirm's: Cancel the secondary (surface, strong hairline), Revoke the solid destructive with no
+   edge; both 36 high, padded 0 16, in the browser's line height */
 html:root .el-popper.rl-job-pop .el-popconfirm__action .el-button {
-  height: 32px;
+  height: 36px;
   margin: 0;
-  padding: 0 14px;
+  padding: 0 16px;
   border-radius: 10px;
   font-size: 13px;
   font-weight: 400;
+  line-height: normal;
 }
 html:root .el-popper.rl-job-pop .el-popconfirm__action .el-button--danger {
-  border-color: var(--rl-bad-solid);
+  border: 0;
   background: var(--rl-bad-solid);
   color: #fff;
   font-weight: 600;

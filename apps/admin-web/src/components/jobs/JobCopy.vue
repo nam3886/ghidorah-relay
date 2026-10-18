@@ -2,6 +2,7 @@
 import { onBeforeUnmount, ref } from "vue";
 import { IconCheck, IconCopy } from "@/components/shared/icons";
 import { copyText, type CopyOutcome } from "@/components/shared/clipboard";
+import { useBreakpoint } from "@/composables/use-breakpoint";
 import { notify } from "@/lib/notify";
 
 // The two copy buttons of the drawer, drawn as the canvas does: `id` is the mono chip under the title, `prompt` the
@@ -14,6 +15,7 @@ const props = defineProps<{
   selectFrom?: () => HTMLElement | null | undefined;
 }>();
 const emit = defineEmits<{ copied: [outcome: CopyOutcome] }>();
+const { isPhone } = useBreakpoint();
 
 const done = ref(false);
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -47,7 +49,8 @@ async function copy(): Promise<void> {
   >
     <template v-if="props.variant === 'id'">
       <span class="job-copy__text">{{ props.text }}</span>
-      <IconCheck v-if="done" :size="12" /><IconCopy v-else :size="12" />
+      <!-- the phone chip draws its icon at 14 (P-JobDetail), the desktop one at 12 -->
+      <IconCheck v-if="done" :size="isPhone ? 14 : 12" /><IconCopy v-else :size="isPhone ? 14 : 12" />
     </template>
     <template v-else><IconCopy class="job-copy__icon" :size="14" />{{ done ? "Copied" : props.label }}</template>
   </button>

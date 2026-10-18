@@ -11,6 +11,11 @@ SPEC = "tests/unit/shared/icons.spec.ts"
 ALL_ICONS = "has exactly the canvas icons"
 
 
+# page-drawer: the picture viewer's glyphs, drawn from the canvas's own
+@mutation(SHAPES, 'zoomIn: { nodes: [c(11, 11, 7), p("m20 20-3.5-3.5"), p("M11 8v6M8 11h6")] }',
+          'zoomIn: { nodes: [c(11, 11, 7), p("m20 20-3.5-3.5"), p("M8 11h6")] }', expect=ALL_ICONS)
+@mutation(SHAPES, 'rotateLeft: { nodes: [p("M3 12a9 9 0 1 0 2.64-6.36"), p("M3 3v6h6")] }',
+          'rotateLeft: { nodes: [p("M3 12a9 9 0 1 1 2.64-6.36"), p("M3 3v6h6")] }', expect=ALL_ICONS)
 @mutation(SHAPES, 'moon: { nodes: [p("M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z")] }',
           'moon: { nodes: [p("M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.9z")] }', expect="has exactly the canvas icons")
 @mutation(SHAPES, 'play: { nodes: [p("M8 5.5v13l11-6.5z")], fill: "solid" }',
