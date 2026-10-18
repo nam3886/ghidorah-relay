@@ -3,10 +3,13 @@
    stylesheet (the CSP blocks style attributes). The box is teleported to <body>, so these rules are global and keyed
    by the custom class. The buttons take their look from skin.css. */
 /* the canvas puts the box 240 px from the top of the page, not in the middle (B-JobFailed); Element Plus centres it
-   with an inline-block line of the page's height, so the box aligns to the top of that line instead */
-.rl-confirm.el-message-box {
+   with an inline-block line of the page's height, so the box aligns to the top of that line instead, under the 16 px
+   padding of Element Plus's wrapper. `html:root` outranks Element Plus's 420 px cap and the dark theme's strong edge
+   on every message box (theme.css): the confirm keeps the drawn hairline in both themes. */
+html:root .rl-confirm.el-message-box {
+  --el-messagebox-width: 440px;
   vertical-align: top;
-  margin-top: min(240px, 30vh);
+  margin-top: calc(min(240px, 30vh) - 16px);
   width: min(440px, 100%);
   padding: 20px 20px 16px;
   border-radius: 16px;
@@ -47,7 +50,13 @@
   gap: 8px;
   padding: 20px 0 0;
 }
-.rl-confirm .el-message-box__btns .el-button {
+/* both buttons as drawn: 36 high, padding 0 16, the browser's line height (outranking skin.css's 0 14); the solid
+   destructive one has no edge */
+html:root .rl-confirm .el-message-box__btns .el-button {
   margin: 0;
   padding: 0 16px;
+  line-height: normal;
+}
+html:root .rl-confirm .el-message-box__btns .el-button--danger {
+  border: 0;
 }

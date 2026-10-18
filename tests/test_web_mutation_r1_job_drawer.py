@@ -16,6 +16,7 @@ CONTROL = f"{SRC}/components/jobs/RegenerateControl.vue"
 MEDIA = f"{SRC}/components/jobs/JobMedia.vue"
 ACTIONS = f"{SRC}/components/jobs/JobActions.vue"
 DRAWER = f"{SRC}/components/jobs/JobDetailDrawer.vue"
+TECH = f"{SRC}/components/jobs/JobTechnical.vue"
 
 TEXT_SPEC = "tests/unit/jobs/job-text.spec.ts"
 BLOB_SPEC = "tests/unit/jobs/blob-actions.spec.ts"
@@ -53,6 +54,9 @@ FD = "FAILED " + DETAIL_SPEC + " > "
           expect=FT + "drawer formats > a size reads in bytes, KB or MB, powers of 1000")
 @mutation(TEXT, 'n === 1 ? "" : "s"', '"s"',
           expect=FT + "drawer formats > a count takes an s except for one")
+# page-drawer: a job's request parameter is the first of its names that is set
+@mutation(TEXT, 'if (value !== undefined && value !== null && value !== "") return String(value);',
+          "return String(value);", expect=FT + "a job's request parameter > is the first of its names that is set")
 @pytest.mark.web_unit
 def test_a_key_is_never_nameless_the_timeline_runs_newest_first_and_the_drawer_formats_are_exact():
     vitest(TEXT_SPEC)
@@ -103,6 +107,11 @@ REFERENCE = MEDIA_GROUP + "a reference opens through the input route, has no Dow
 DONE_ROW = SHOW + "a done job offers Regenerate… in the overview row and Recover under More actions"
 RUNNING = SHOW + "a job still running offers neither Recover nor Regenerate…"
 PHONE_FOOT = SHOW + "on a phone the row moves to a sticky footer, and a failed job keeps its card in the body"
+# page-drawer: the Technical tab's wording
+TECH_GROUP = FD + "conclusion, ledger, prompt and technical > "
+EMPTY_DASH = TECH_GROUP + "a value that is not set is the list's empty-cell dash"
+FACTS = TECH_GROUP + "lists the technical facts, leaving out what the server does not have"
+WEBHOOK = TECH_GROUP + "words a delivered webhook by its HTTP code, a retry by its state and code"
 
 
 @mutation(MEDIA, "const src = safeMediaUrl(item.url);", "const src = item.url;", expect=SCRIPT_URL)
@@ -145,7 +154,62 @@ PHONE_FOOT = SHOW + "on a phone the row moves to a sticky footer, and a failed j
 @mutation(DRAWER, "`job-${shortId(job.value.id)}-${m.idx}`", "`job-${shortId(job.value.id)}-0`",
           expect=EACH + "Download saves every result as job-<id8>-<idx>, one file each")
 @mutation(DRAWER, "isPhone && !failed", "isPhone", expect=PHONE_FOOT)
-@mutation(DRAWER, 'v-if="!failed && !isPhone"', 'v-if="!failed"', expect=PHONE_FOOT)
+@mutation(DRAWER, 'v-if="!failed && !isPhone && hasRow"', 'v-if="!failed && hasRow"', expect=PHONE_FOOT)
+# page-drawer (the drawer matched to the design): the action row and footer, the Back label, loading, the failed
+# read's wording, the key name, the Technical wording, the media names and the viewer's start; then the tile's shape,
+# the viewer's own buttons, the on-its-way banner and chip, the count of results, the empty-value dash, the popover
+@mutation(MEDIA, "videos.length > 1 ? `Play video ${n + 1}` : 'Play video'", "`Play video ${n + 1}`",
+          expect=MEDIA_GROUP + "a video card is named Result and its button Play video")
+@mutation(MEDIA, "@click=\"openViewer(previews.indexOf(s.src!))\"", "@click=\"openViewer(0)\"",
+          expect=MEDIA_GROUP + "an image is a tile whose viewer lists every previewable image of the list")
+@mutation(MEDIA, "if (m.width && m.height) return `${m.width} / ${m.height}`;", "",
+          expect=MEDIA_GROUP + "a tile takes its picture's shape")
+@mutation(MEDIA, "return asked ? `${asked[1]} / ${asked[2]}` : \"2 / 3\";", "return \"2 / 3\";",
+          expect=MEDIA_GROUP + "a tile takes its picture's shape")
+@mutation(MEDIA, 'jobParam(props.job.params, "ratio", "aspect_ratio")', 'jobParam(props.job.params, "ratio")',
+          expect=MEDIA_GROUP + "a tile takes its picture's shape")
+@mutation(MEDIA, "<template #toolbar=\"{ actions, reset }\">", "<template #toolbars=\"{ actions, reset }\">",
+          expect=MEDIA_GROUP + "the viewer's buttons are ours")
+@mutation(MEDIA, "setActiveItem(showing.value + by)", "setActiveItem(by)",
+          expect=MEDIA_GROUP + "the viewer's buttons are ours")
+@mutation(DRAWER, ':step="step"', "", expect=FD + "conclusion, ledger, prompt and technical > a job on its way shows "
+                                                "its step in the header chip")
+@mutation(DRAWER, "isPhone.value || !(done.value || failed.value)", "isPhone.value",
+          expect=FD + "conclusion, ledger, prompt and technical > a job on its way shows its step in the header chip")
+@mutation(DRAWER, 'fetching: "Fetching the result",', 'fetching: "fetching",',
+          expect=FD + "conclusion, ledger, prompt and technical > a job on its way says what it is doing")
+@mutation(DRAWER, "isRunning(j.status) ? `step ${progressStep(j.status)} of 4` : \"\"",
+          "`step ${progressStep(j.status)} of 4`",
+          expect=FD + "conclusion, ledger, prompt and technical > a job on its way says what it is doing")
+@mutation(DRAWER, 'asText(j.account_label) || "—"', 'asText(j.account_label) || "-"',
+          expect=EMPTY_DASH)
+@mutation(TEXT, '  if (!ms) return "—";\n  const d = new Date(ms);\n  return `${two(d.getDate())}',
+          '  if (!ms) return "-";\n  const d = new Date(ms);\n  return `${two(d.getDate())}',
+          expect=EMPTY_DASH)
+@mutation(ACTIONS, 'cancel-button-text="Cancel"', "",
+          expect=EACH + "Revoke asks first and says how many links stopped")
+@mutation(DRAWER, "Boolean(outputs.value.length || job.value?.can_recheck || done.value)", "true", expect=RUNNING)
+@mutation(DRAWER, "Boolean(outputs.value.length || job.value?.can_recheck || done.value)",
+          "Boolean(outputs.value.length || job.value?.can_recheck)", expect=DONE_ROW)
+@mutation(DRAWER, "Boolean(outputs.value.length || job.value?.can_recheck || done.value)",
+          "Boolean(outputs.value.length || done.value)",
+          expect=SHOW + "Re-check only when the server says the job can be")
+@mutation(DRAWER, "isPhone && !failed && hasRow", "isPhone && !failed",
+          expect=SHOW + "on a phone a job with nothing to offer has no footer, and one that can be re-checked has it")
+@mutation(DRAWER, ':back-label="props.backLabel" ', "",
+          expect=FD + "opening > the phone sheet's Back names the page it goes back to")
+@mutation(DRAWER, 'class="jd-skeleton" data-state="loading"', 'class="jd-skeleton"',
+          expect=FD + "loading > while the read is out the drawer draws the list's loading bars")
+@mutation(DRAWER, 'loadFailedText(err, errorText(err), "the job")', "errorText(err)",
+          expect=FD + "opening > a failed read is a message with Retry")
+@mutation(DRAWER, "keyName({ id: j.key_id, label: j.key_label, prefix: j.key_prefix })", 'asText(j.key_label) || "-"',
+          expect=FD + "conclusion, ledger, prompt and technical > a key without a label is named by its prefix")
+@mutation(TECH, 'j.wallet_kind ? `${j.provider} ${j.wallet_kind}` : ""', "text(j.wallet_kind)", expect=FACTS)
+@mutation(TECH, "text(j.frame_id) && `${j.media_type} v${j.frame_id}`", "text(j.frame_id)", expect=FACTS)
+@mutation(TECH, 'c.status === "sent" ? "" : c.status', "c.status", expect=WEBHOOK)
+@mutation(TECH, 'j.account_cost ? plural(j.account_cost, "credit") : ""', "text(j.account_cost)", expect=WEBHOOK)
+@mutation(TECH, "words(j.key_label?.trim(), j.key_prefix)", "text(j.key_label)",
+          expect=FD + "conclusion, ledger, prompt and technical > a phone lists Key and Account among the facts too")
 @mutation(DRAWER, "tab.value = \"overview\";", "", expect=FD + "opening > another job opens on Overview, whatever tab "
                                                               "the last one was on")
 @pytest.mark.web_unit

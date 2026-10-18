@@ -43,6 +43,13 @@ const EXPECTED: Record<string, string> = {
     "path:M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z|path:M14 2v6h6|path:M16 13H8|path:M16 17H8|path:M10 9H8",
   IconLogOut: "path:M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4|path:m16 17 5-5-5-5|path:M21 12H9",
   IconArrowLeft: "path:M19 12H5|path:m12 19-7-7 7-7",
+  // the picture viewer's, drawn from the canvas's own (chevron right, search, refresh)
+  IconChevronLeft: "path:m15 6-6 6 6 6",
+  IconZoomIn: "circle:11,11,7|path:m20 20-3.5-3.5|path:M11 8v6M8 11h6",
+  IconZoomOut: "circle:11,11,7|path:m20 20-3.5-3.5|path:M8 11h6",
+  IconRotateLeft: "path:M3 12a9 9 0 1 0 2.64-6.36|path:M3 3v6h6",
+  IconFit:
+    "path:M8 3H5a2 2 0 0 0-2 2v3|path:M21 8V5a2 2 0 0 0-2-2h-3|path:M3 16v3a2 2 0 0 0 2 2h3|path:M16 21h3a2 2 0 0 0 2-2v-3",
 };
 
 function shapes(svg: Element): string {

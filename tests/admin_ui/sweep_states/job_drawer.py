@@ -64,7 +64,7 @@ def run(page, app, live, sw, data):
         pattern = re.compile(r"/admin/jobs/[0-9a-f-]{36}$")
         slow(page, pattern)
         page.locator("tbody tr, li").filter(has_text=failed).locator("a.title-link, .prow").first.click()
-        expect(dialog(page, DETAIL).locator(".el-skeleton")).to_be_visible()
+        expect(dialog(page, DETAIL).locator("[data-state=loading]")).to_be_visible()
         expect(dialog(page, DETAIL).locator("[data-section=conclusion]")).to_be_visible(timeout=TIMEOUT_MS * 2)
         unslow(page, pattern)
     sw.step("jobs", "detail-loading", detail_loading)
