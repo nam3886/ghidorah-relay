@@ -330,3 +330,25 @@ DUPLICATE = COMMANDS + "a second click while an action runs sends nothing: Wake,
 @pytest.mark.web_unit
 def test_review_fixes_hold():
     vitest(ACCOUNT_SPEC, ACCOUNTS_VIEW_SPEC, DIALOGS_SPEC, "tests/unit/use-command-poll.spec.ts")
+
+
+# ---- the Provider field: FilterSelect as B-AccountImport draws its select (appearance none, the page's chevron) ------
+FIELD = SRC + "/components/shared/FilterSelect.vue"
+FIELD_SPEC = "tests/unit/shared/filter-select-field.spec.ts"
+DRAWN = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > appearance none: the page's chevron for the "
+         "arrow, no chip on a phone, and the list under the box")
+PROVIDER = (IMPORT_SPEC + "the Provider field is the drawn select: another provider picked from its list is the one "
+            "sent")
+
+
+@mutation(IMPORT, 'appearance="none"', 'appearance="auto"', expect=PROVIDER)
+@mutation(IMPORT, "@update:model-value=\"(v) => (provider = String(v))\"", "", expect=PROVIDER)
+@mutation(FIELD, "  layer.value = nextZIndex();\n", "",
+          expect=f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > the open list takes the next popup layer, "
+                 "so it lies over a dialog it is opened from")
+@mutation(FIELD, '<IconChevronDown v-if="drawn"', '<IconChevronDown v-if="false"', expect=DRAWN)
+@mutation(FIELD, "field.value && !drawn.value && isPhone.value", "field.value && isPhone.value", expect=DRAWN)
+@mutation(FIELD, '"is-tall": isTablet.value && !drawn.value,', '"is-tall": isTablet.value,', expect=DRAWN)
+@pytest.mark.web_unit
+def test_the_provider_field_is_the_drawn_select():
+    vitest(DIALOGS_SPEC, FIELD_SPEC)

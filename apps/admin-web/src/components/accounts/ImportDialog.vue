@@ -5,7 +5,7 @@ import { useBusy } from "@/composables/use-busy";
 import { notify } from "@/lib/notify";
 import { useScopeStore } from "@/stores/scope";
 import AccountDialog from "./AccountDialog.vue";
-import { IconChevronDown } from "@/components/shared/icons";
+import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { importBody, rejectedText } from "./account-model";
 
 // Import accounts: one credential per line, an optional proxy for all of them, and the result of the answer. A
@@ -21,6 +21,7 @@ const proxy = ref("");
 const result = ref<ImportResult | null>(null);
 
 const providers = computed(() => scope.providers);
+const providerOptions = computed(() => providers.value.map((name) => ({ value: name, label: name })));
 
 // What was pasted never outlives its use: both fields are emptied when the dialog opens and when it closes, right
 // after the payload is copied for the request, and on every failure.
@@ -59,15 +60,15 @@ async function submit() {
     title="Import accounts"
     subtitle="One credential per line. Lines that fail are rejected; the rest are imported."
   >
-    <label class="acct-field">
-      <span class="acct-field__label">Provider</span>
-      <span class="acct-select-wrap">
-        <select v-model="provider" class="acct-select" aria-label="Provider">
-          <option v-for="name in providers" :key="name" :value="name">{{ name }}</option>
-        </select>
-        <IconChevronDown :size="14" :stroke="2" />
-      </span>
-    </label>
+    <FilterSelect
+      :model-value="provider"
+      class="acct-provider"
+      variant="field"
+      appearance="none"
+      label="Provider"
+      :options="providerOptions"
+      @update:model-value="(v) => (provider = String(v))"
+    />
     <label class="acct-field">
       <span class="acct-field__label">Credentials</span>
       <textarea

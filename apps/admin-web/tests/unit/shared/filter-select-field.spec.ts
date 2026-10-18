@@ -1,6 +1,7 @@
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
+import { useZIndex } from "element-plus";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
 
 // The field variant of FilterSelect: the canvas's labelled select (B/T/P-Alerts toolbar) drawn as our own control.
@@ -127,6 +128,44 @@ describe("the field variant of FilterSelect", () => {
     const list = listbox() as HTMLElement;
     expect(list.style.top).toBe("150px");
     expect(list.style.left).toBe("29px");
+  });
+
+  it("appearance none: the page's chevron for the arrow, no chip on a phone, and the list under the box", async () => {
+    const w = field({ appearance: "none" });
+    expect(w.classes()).toContain("is-drawn");
+    expect(
+      trigger(w)
+        .findAll("svg path")
+        .map((p) => p.attributes("d")),
+    ).toEqual(["m6 9 6 6 6-6"]);
+    expect(trigger(w).find(".filter-field__chevron").exists()).toBe(true);
+    expect(trigger(w).find(".filter-field__arrow").exists()).toBe(false);
+    wrapper!.unmount();
+    showAt(768);
+    expect(field({ appearance: "none" }).classes()).not.toContain("is-tall");
+    wrapper!.unmount();
+    showAt(390);
+    const phone = field({ appearance: "none" });
+    expect(phone.classes()).not.toContain("is-chip");
+    const rect = (top: number, bottom: number, left: number, width: number) =>
+      ({ top, bottom, left, right: left + width, width, height: bottom - top, x: left, y: top }) as DOMRect;
+    phone.element.getBoundingClientRect = () => rect(100, 170, 16, 358);
+    trigger(phone).element.getBoundingClientRect = () => rect(126, 170, 16, 358);
+    await trigger(phone).trigger("click");
+    await nextTick();
+    await nextTick();
+    expect((listbox() as HTMLElement).style.top).toBe("176px");
+  });
+
+  it("the open list takes the next popup layer, so it lies over a dialog it is opened from", async () => {
+    const { currentZIndex } = useZIndex();
+    const before = currentZIndex.value;
+    const w = field({ appearance: "none" });
+    await trigger(w).trigger("click");
+    await nextTick();
+    const layer = Number((listbox() as HTMLElement).style.zIndex);
+    expect(layer).toBeGreaterThan(before);
+    expect(layer).toBe(currentZIndex.value);
   });
 
   it("the chip variant is unchanged: the trigger is the root, with the word inside", () => {

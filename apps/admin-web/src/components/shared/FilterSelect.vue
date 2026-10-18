@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useZIndex } from "element-plus";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { IconCheck, IconChevronDown } from "./icons";
@@ -20,6 +21,9 @@ import { IconCheck, IconChevronDown } from "./icons";
 //   above a bordered box 34 high (36 on a tablet) holding the value and Chrome's 10 x 7 arrow, as wide as its longest
 //   option; on a phone the canvas's chip, the word inside a 44 px box and the value in a borderless control. The open
 //   list is the same listbox.
+// - `appearance="none"` (field only) is the canvas's select with `appearance: none` (B-AccountImport): no look of the
+//   browser's, the page's 14 px chevron 12 px in from the end instead of Chrome's arrow, and no chip on a phone; the
+//   page that draws it so sets its height and words.
 export interface SelectOption {
   value: string | number;
   label: string;
@@ -36,9 +40,18 @@ const props = withDefaults(
     size?: "toolbar" | "header" | "pager";
     chevron?: boolean;
     variant?: "chip" | "field";
+    appearance?: "auto" | "none";
     disabled?: boolean;
   }>(),
-  { label: undefined, ariaLabel: undefined, size: "toolbar", chevron: true, variant: "chip", disabled: false },
+  {
+    label: undefined,
+    ariaLabel: undefined,
+    size: "toolbar",
+    chevron: true,
+    variant: "chip",
+    appearance: "auto",
+    disabled: false,
+  },
 );
 const emit = defineEmits<{ "update:modelValue": [value: string | number] }>();
 const { isPhone, isTablet } = useBreakpoint();
@@ -49,6 +62,9 @@ const listId = `${id}-list`;
 const triggerId = `${id}-trigger`;
 const optionId = (i: number): string => `${id}-opt-${i}`;
 const field = computed(() => props.variant === "field");
+// the field the page draws itself (`appearance="none"`), and the field drawn as the canvas's phone chip
+const drawn = computed(() => field.value && props.appearance === "none");
+const chip = computed(() => field.value && !drawn.value && isPhone.value);
 
 const current = computed(() => props.options.find((o) => o.value === props.modelValue));
 const chosenIndex = computed(() => props.options.findIndex((o) => o.value === props.modelValue));
@@ -62,13 +78,17 @@ const trigger = ref<HTMLButtonElement>();
 const box = ref<HTMLElement>();
 const list = ref<HTMLElement>();
 const place = ref<{ top: number; left?: number; right?: number; minWidth: number }>({ top: 0, left: 0, minWidth: 0 });
+// The list takes the next layer of Element Plus's popups each time it opens: a select in a dialog (Import accounts)
+// opens over the dialog, which a fixed z-index would lie under.
+const { nextZIndex } = useZIndex();
+const layer = ref<number>();
 const GAP = 6;
 
 // Under the trigger, left-aligned; right-aligned when the list would pass the window's right edge; above the trigger
 // when it would pass the bottom and there is room above. Never narrower than the trigger. Runs on every frame while
 // open, so the place is written only when it changed.
 function measure(): void {
-  const rect = (field.value && isPhone.value ? box.value : trigger.value)?.getBoundingClientRect();
+  const rect = (chip.value ? box.value : trigger.value)?.getBoundingClientRect();
   if (!rect) return;
   const width = list.value?.offsetWidth ?? 0;
   const height = list.value?.offsetHeight ?? 0;
@@ -103,6 +123,7 @@ function onOutside(event: Event): void {
 async function show(at: number): Promise<void> {
   if (open.value) return;
   active.value = at;
+  layer.value = nextZIndex();
   open.value = true;
   document.addEventListener("pointerdown", onOutside, true);
   await nextTick();
@@ -244,8 +265,9 @@ const triggerAttrs = computed(() => ({
 }));
 const triggerEvents = { click: onClick, keydown: onKey };
 const fieldClass = computed(() => ({
-  "is-chip": isPhone.value,
-  "is-tall": isTablet.value,
+  "is-chip": chip.value,
+  "is-tall": isTablet.value && !drawn.value,
+  "is-drawn": drawn.value,
   "is-open": open.value,
   "is-disabled": props.disabled,
 }));
@@ -283,7 +305,8 @@ function setRoot(el: unknown): void {
             >{{ o.label }}</span
           ></span
         >
-        <svg class="filter-field__arrow" width="12" height="9" viewBox="0 0 12 9" aria-hidden="true">
+        <IconChevronDown v-if="drawn" class="filter-field__chevron" :size="14" :stroke="2" />
+        <svg v-else class="filter-field__arrow" width="12" height="9" viewBox="0 0 12 9" aria-hidden="true">
           <path d="M2 2l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="miter" />
         </svg>
       </button>
@@ -309,6 +332,7 @@ function setRoot(el: unknown): void {
           left: place.left === undefined ? undefined : `${place.left}px`,
           right: place.right === undefined ? undefined : `${place.right}px`,
           minWidth: `${place.minWidth}px`,
+          zIndex: layer,
         }"
       >
         <div
@@ -415,6 +439,17 @@ function setRoot(el: unknown): void {
   position: absolute;
   top: calc(50% - 4px);
   right: 2px;
+}
+/* `appearance="none"`: the box has no inner start of its own and room at its end for the 14 px chevron 12 px in from
+   its outer edge (11 from the padding edge it is placed in: the 1 px border lies outside it) */
+.filter-field.is-drawn .filter-select.is-field {
+  padding: 0 36px 0 12px;
+}
+.filter-field__chevron {
+  position: absolute;
+  top: calc(50% - 7px);
+  right: 11px;
+  color: var(--rl-muted);
 }
 .filter-select.is-field:disabled {
   background: var(--rl-raised);

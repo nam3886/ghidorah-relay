@@ -129,8 +129,8 @@ DRAWER = [
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
 # that gets better should have its gate lowered.
 GATES: dict[str, float] = {
-    "B-AccountEdit": 4.52,
-    "B-AccountImport": 10.13,
+    "B-AccountEdit": 4.04,
+    "B-AccountImport": 4.45,
     "B-Accounts": 1.02,
     "B-Alerts": 1.13,
     "B-Frames": 2.32,

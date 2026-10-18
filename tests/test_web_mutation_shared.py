@@ -431,12 +431,12 @@ ALERTS_VIEW = f"{SRC}/views/AlertsView.vue"
 @mutation(FILTER, "valueWidth.value = Math.round(width);", "valueWidth.value = width;",
           expect=FIELD + "its value box is as wide as the longest option on the nearest whole pixel")
 @mutation(FILTER, '"is-tall": isTablet.value', '"is-tall": false', expect=FIELD + "is 36 high on a tablet")
-@mutation(FILTER, '"is-chip": isPhone.value', '"is-chip": false', expect=FIELD + "is 36 high on a tablet")
+@mutation(FILTER, '"is-chip": chip.value', '"is-chip": false', expect=FIELD + "is 36 high on a tablet")
 @mutation(FILTER, "disabled: props.disabled || undefined,", "disabled: undefined,",
           expect=FIELD + "disabled: the box is off and opens nothing")
 @mutation(FILTER, " || box.value?.contains(target)))", "))",
           expect=FIELD + "a press on its own label or box while open does not close it from outside")
-@mutation(FILTER, "(field.value && isPhone.value ? box.value : trigger.value)", "(trigger.value)",
+@mutation(FILTER, "(chip.value ? box.value : trigger.value)", "(trigger.value)",
           expect=FIELD + "on a phone the list hangs 6 px under the chip")
 @mutation(FILTER, ":is=\"field ? 'div' : 'button'\"", ":is=\"'div'\"",
           expect=FIELD + "the chip variant is unchanged: the trigger is the root")

@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 // it converts it, and a file on the list that no longer has one fails too, so the list only shrinks.
 const STILL_TO_CONVERT = [
   "components/logs/LogsFilterForm.vue",
-  "components/accounts/ImportDialog.vue",
   "components/keys/KeyFormDialog.vue",
   "views/TestView.vue",
   "views/FramesView.vue",

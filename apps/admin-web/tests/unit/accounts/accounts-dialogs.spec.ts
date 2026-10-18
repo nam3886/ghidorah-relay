@@ -235,6 +235,28 @@ describe("ImportDialog", () => {
     expect(w.emitted("update:modelValue")).toEqual([[false]]);
   });
 
+  it("the Provider field is the drawn select: another provider picked from its list is the one sent", async () => {
+    seedCatalog();
+    vi.mocked(accounts.importAccounts).mockResolvedValue({ imported: [], rejected: [] });
+    await mountImport();
+    expect(document.body.querySelector("select")).toBeNull();
+    const box = document.body.querySelector<HTMLButtonElement>("[role=combobox]")!;
+    expect(document.getElementById(box.getAttribute("aria-labelledby")!)!.textContent).toBe("Provider");
+    // drawn as the canvas draws it: the 14 px chevron, not the select's own arrow
+    expect([...box.querySelectorAll("svg path")].map((p) => p.getAttribute("d"))).toEqual(["m6 9 6 6 6-6"]);
+    box.click();
+    await flushPromises();
+    const vibes = [...document.body.querySelectorAll<HTMLElement>("[role=option]")].find(
+      (o) => o.textContent?.trim() === "vibes",
+    )!;
+    vibes.click();
+    await flushPromises();
+    type(document.body.querySelector("textarea")!, "c");
+    buttonOf("Import").click();
+    await flushPromises();
+    expect(vi.mocked(accounts.importAccounts).mock.calls[0]![0].provider).toBe("vibes");
+  });
+
   it("with no filter the provider is the first one", async () => {
     seedCatalog();
     vi.mocked(accounts.importAccounts).mockResolvedValue({ imported: [], rejected: [] });

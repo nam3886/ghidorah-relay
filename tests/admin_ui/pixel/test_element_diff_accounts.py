@@ -20,6 +20,7 @@ from pixel_diff import compare
 from pixel_manifest import Entry
 from pixel_seed import BOARD_USER, NOW
 from test_element_diff import BOARDS, STATES, THEMES, TIMEOUT_MS, WIDEN_JS, Check, _png, _root
+from test_element_diff_alerts import FIELD_RECTS_JS, FIELDS, SELECT_MISMATCH_PCT, _inside, select_pixels
 
 pytestmark = pytest.mark.browser
 
@@ -29,6 +30,7 @@ class Look(Check):
     canvas_drive: Callable | None = None    # canvas_drive(board page): the clicks that reach the drawn state
     popup_gap: float = 6                    # px between the open popup and its trigger, as drawn
     redraw: tuple = ()                      # (board text, redrawn text, deviation #): a canvas redraw still pending
+    fields: bool = False                    # FilterSelect fields drawn by the canvas as native selects (see below)
 
 
 # The board text a ruling has sent back to the designer: the reference is patched to the redrawn value, and every table
@@ -52,10 +54,13 @@ BOARD_CHECKS = [Look(board, replace(LIST, board=board), redraw=POINTS_UNKNOWN)
 # The dialogs: the board draws the dialog over a mock page; the dialog alone is compared. The rejected line of the
 # import result names no credential (design-deviations 5): the canvas's jar token is left out, and the sentence is the
 # one for the server's reason where the canvas writes its sample sentence.
+# The Provider select is a native select on the canvas (`appearance: none`, its chevron an svg beside it) and the
+# app's FilterSelect field: the boxes, the label and the chevron are compared in the table; the value the browser
+# paints inside the select, out of the DOM's reach, is compared as pixels of the two boxes (`select-<check>-0`).
 DIALOG_CHECKS = [
     Look("B-AccountImport", replace(LIST, board="B-AccountImport", drive=open_import), '[role="dialog"]',
          ".el-dialog.acct-dialog", accepted=("cookie-jar-n11-11 …",), data=("The jar has no session cookie.",),
-         data_app=("The line is not a cookie jar.",)),
+         data_app=("The line is not a cookie jar.",), fields=True),
     Look("B-AccountEdit", replace(LIST, board="B-AccountEdit", drive=open_edit), '[role="dialog"]',
          ".el-dialog.acct-dialog"),
 ]
@@ -174,6 +179,11 @@ def test_accounts_matches_the_canvas_element_by_element(app, db, live, renderer,
         app_root = _root(page, check.app_root)
         mine = extract(page, app_root)
         app_png = _png(page, app_root)
+        if check.fields:
+            rects = page.evaluate(FIELD_RECTS_JS, [app_root, FIELDS], isolated_context=False)
+            mine["texts"] = [t for t in mine["texts"] if not _inside(t, rects)]
+            field_pngs = [loc.screenshot(animations="disabled", caret="hide")
+                          for loc in page.locator("%s %s" % (app_root, FIELDS)).all()]
         misplaced = popup_place(page, *check.popup, gap=check.popup_gap) if check.popup else None
     renderer.open(check.state.board, dark, board_w, board_h)
     if check.canvas_drive:
@@ -191,19 +201,26 @@ def test_accounts_matches_the_canvas_element_by_element(app, db, live, renderer,
     theirs = extract(renderer.page, canvas_root)
     ref_png = _png(renderer.page, canvas_root)
     pixels = compare(diff_page, ref_png, app_png)
+    out = run_dir / "element-diff"
+    out.mkdir(parents=True, exist_ok=True)
+    stem = "%s-%s" % (check.name, theme)
+    fields = []
+    if check.fields:
+        canvas_pngs = [loc.screenshot(animations="disabled", caret="hide")
+                       for loc in renderer.page.locator("%s select" % canvas_root).all()]
+        fields = select_pixels(field_pngs, canvas_pngs, diff_page, out, stem)
 
     theirs["texts"] = [t for t in theirs["texts"] if t["text"] not in check.accepted]
     mine["texts"] = [t for t in mine["texts"] if t["text"] not in check.accepted_app]
     mine["boxes"] = [b for b in mine["boxes"] if b["sig"] not in check.accepted_app]
     res = diff(check.name, theirs, mine, data=check.data, data_app=check.data_app, loose=check.loose)
-    out = run_dir / "element-diff"
-    out.mkdir(parents=True, exist_ok=True)
-    stem = "%s-%s" % (check.name, theme)
     notes = ("Canvas %s%s, app %s at %dx%d. Pixel diff of the compared part: %.3f %% mismatch + %.3f %% anti-aliased."
              % (check.state.board, " " + check.canvas_root if check.canvas_root else "", check.app_root or "page",
                 width, height, pixels.percent, pixels.aa_percent))
     if check.popup:
         notes += " Open menu against its trigger: %s." % (misplaced or "%g px clear" % check.popup_gap)
+    for n, (pct, aa) in enumerate(fields):
+        notes += " Field %d against its native select: %.3f %% mismatch + %.3f %% anti-aliased." % (n, pct, aa)
     for board_text, redrawn, row in check.redraw:
         notes += (" **Pending canvas redraw** (design-deviations %d): the reference shows `%s` where the board still "
                   "writes `%s`." % (row, redrawn, board_text))
@@ -213,6 +230,9 @@ def test_accounts_matches_the_canvas_element_by_element(app, db, live, renderer,
         check.name, theme, len(res.differences), len(res.canvas_only), len(res.app_only), len(res.data),
         pixels.percent, pixels.aa_percent))
     assert res.failures == 0, "%s %s: %d element differences, see %s.md" % (check.name, theme, res.failures, stem)
+    if check.fields:
+        assert len(fields) == 1, "the Provider field against the native select: %r" % fields
+        assert fields[0][0] <= SELECT_MISMATCH_PCT, "the field draws its value apart from the select: %r" % fields
     assert misplaced is None, misplaced
 
 
@@ -294,6 +314,13 @@ def _import(page):
     expect(page.get_by_role("dialog", name="Import accounts")).to_be_visible(timeout=TIMEOUT_MS)
 
 
+def _import_list(page):
+    """The Provider field's list open: the canvas draws the select closed only."""
+    _import(page)
+    page.get_by_role("combobox", name="Provider").click()
+    expect(page.get_by_role("listbox")).to_be_visible(timeout=TIMEOUT_MS)
+
+
 def _hover_row(page):
     _row(page, "acct-n11-03").hover()
 
@@ -315,9 +342,15 @@ UNDRAWN = [
     ("check-running", _check_running, (1440, 768)), ("check-failed", _check_failed, (1440,)),
     ("saved", _saved, (1440,)), ("delete-confirm", _delete_confirm, (1440, 390)),
     ("row-menu", _row_menu, (768, 390)), ("edit", _edit, (768, 390)), ("import", _import, (390,)),
+    ("import-list", _import_list, (1440, 390)),
     ("hover-row", _hover_row, (1440,)), ("hover-check", _hover_check, (1440,)),
     ("focus-switch", _focus_switch, (1440,)),
 ]
+# the element at the middle of each of its options is the option itself: nothing lies over the open list
+ON_TOP_JS = """(sel) => [...document.querySelector(sel).children].every((o) => {
+  const r = o.getBoundingClientRect();
+  return o.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+})"""
 UNDRAWN_RUNS = [(name, act, width) for name, act, widths in UNDRAWN for width in widths]
 HEIGHTS = {1440: 1190, 768: 1024, 390: 844}
 
@@ -338,6 +371,12 @@ def test_accounts_undrawn_states_are_photographed(app, db, live, run_dir, state,
             gap = 8 if width >= 768 and page.locator(".menu-pop--row").count() else 6
             misplaced = popup_place(page, *MENU, gap=gap)
             assert misplaced is None, misplaced
+        if page.get_by_role("listbox").count():
+            misplaced = popup_place(page, '[role="listbox"]', '[role="combobox"][aria-expanded="true"]')
+            assert misplaced is None, misplaced
+            # visible to Playwright is not seen: a list under the dialog's overlay passes to_be_visible
+            on_top = page.evaluate(ON_TOP_JS, '[role="listbox"]', isolated_context=False)
+            assert on_top, "the open list lies under another layer"
 
 
 # ---- the command chips (B-States "Command status", the manager's ruling): running, ok and error at each width ------

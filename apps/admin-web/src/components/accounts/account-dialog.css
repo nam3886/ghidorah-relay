@@ -130,8 +130,7 @@ html.dark .el-dialog.acct-dialog--edit {
   color: var(--rl-muted);
 }
 .acct-input,
-.acct-textarea,
-.acct-select {
+.acct-textarea {
   box-sizing: border-box;
   width: 100%;
   border: 1px solid var(--rl-line-strong);
@@ -140,8 +139,7 @@ html.dark .el-dialog.acct-dialog--edit {
   color: var(--rl-fg);
   font: inherit;
 }
-.acct-input,
-.acct-select {
+.acct-input {
   height: 36px;
   padding: 0 12px;
 }
@@ -159,19 +157,21 @@ html.dark .el-dialog.acct-dialog--edit {
 .acct-textarea::placeholder {
   color: var(--rl-faint);
 }
-.acct-select-wrap {
-  position: relative;
+/* the Provider field (FilterSelect, `appearance="none"`) as B-AccountImport draws its select: the label as the other
+   fields' labels, 6 px above a box at full width, 36 high like the inputs, its value in 14 px. Three classes, so these
+   outrank the field's own scoped rules. */
+.acct-dialog .acct-provider.filter-field {
+  gap: 6px;
 }
-.acct-select {
-  padding-right: 36px;
-  appearance: none;
+.acct-dialog .acct-provider .filter-field__label {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: inherit;
+  color: inherit;
 }
-.acct-select-wrap svg {
-  position: absolute;
-  top: 11px;
-  right: 12px;
-  color: var(--rl-muted);
-  pointer-events: none;
+.acct-dialog .acct-provider .filter-select.is-field {
+  height: 36px;
+  font-size: 14px;
 }
 
 /* buttons */
@@ -270,11 +270,8 @@ html.dark .el-dialog.acct-dialog--edit {
     line-height: normal;
   }
   .acct-input,
-  .acct-select,
+  .acct-dialog .acct-provider .filter-select.is-field,
   .acct-dialog__body .acct-btn {
     height: 44px;
-  }
-  .acct-select-wrap svg {
-    top: 15px;
   }
 }
