@@ -265,6 +265,15 @@ _DESCRIPTIONS = {
     "seedream-5.0-pro": "Highest-quality images: 4 images per run.",
     "seedream-4.5": "Everyday images: 4 images per run.",
 }
+# The names people see in the catalog, as the admin design draws them. Not MODEL_LABELS / IMAGE_MODEL_LABELS on
+# purpose: those are what the browser clicks on dola's page and change when dola renames a chip.
+DISPLAY_NAMES = {
+    "seedance_v2.5": "Dreamina Seedance 2.5",
+    "seedance_v2.0": "Seedance 2.0 Fast",
+    "seedance_v1.0": "Seedance 1.0",
+    "seedream-4.5": "Seedream 4.5",
+    "seedream-5.0-pro": "Seedream 5.0 Pro",
+}
 VIDEO_OPS = ("text_to_video", "image_to_video")
 IMAGE_OPS = ("text_to_image", "image_to_image")
 
@@ -280,13 +289,14 @@ def catalog() -> list[ModelSpec]:
             pub, "video", VIDEO_OPS, aliases=(model,),
             limits={"durations": list(allowed), "ratios": list(VALID_RATIOS), "default_duration": max(allowed),
                     "default_ratio": DEFAULT_RATIO, "max_images": 10, "description": _DESCRIPTIONS[model]},
-            prices={"%ds" % d: DEFAULT_PRICES[price_key(model, "video", d)] for d in allowed}))
+            prices={"%ds" % d: DEFAULT_PRICES[price_key(model, "video", d)] for d in allowed},
+            display_name=DISPLAY_NAMES[model]))
     for model in _IMAGE_BASE:
         out.append(ModelSpec(
             model, "image", IMAGE_OPS,
             limits={"ratios": list(VALID_IMAGE_RATIOS), "styles": list(VALID_STYLES), "max_images": 10,
                     "templates": True, "description": _DESCRIPTIONS[model]},
-            prices={"default": DEFAULT_PRICES[model]}))
+            prices={"default": DEFAULT_PRICES[model]}, display_name=DISPLAY_NAMES[model]))
     return out
 
 

@@ -493,8 +493,16 @@ def public_base(request: Request) -> str:
     return (request.app.state.public_base_url or str(request.base_url)).rstrip("/")
 
 
+# `points` is what the job's charge took: its standing charge, net of re-check cycles (a re-check after a refund
+# charges again, once; a refused re-charge leaves 0). A failed job has had that charge given back (I21, `refunded`):
+# it shows the amount refunded, its last charge, so a client's net is `refunded ? 0 : points`. Both ledger reads go
+# through the `ledger_job` index.
 _STATUS = ("SELECT j.status, j.error_code, j.model, j.params, j.title, j.warnings, j.created_at, j.finished_at, "
-           "j.media_type, EXISTS (SELECT 1 FROM ledger l WHERE l.job_id = j.id AND l.entry = 'refund') "
+           "j.media_type, EXISTS (SELECT 1 FROM ledger l WHERE l.job_id = j.id AND l.entry = 'refund'), "
+           "COALESCE((SELECT CASE WHEN j.status = 'failed' "
+           "THEN (array_agg(l.amount ORDER BY l.id DESC) FILTER (WHERE l.entry = 'charge'))[1] "
+           "ELSE sum(CASE l.entry WHEN 'charge' THEN l.amount ELSE -l.amount END) END "
+           "FROM ledger l WHERE l.job_id = j.id AND l.entry IN ('charge', 'refund')), 0) "
            "FROM jobs j WHERE j.id = %s AND j.key_id = %s")
 
 
@@ -511,7 +519,7 @@ async def job_status(pool: AsyncConnectionPool, base_url: str, key_id, job_id: s
         row = await (await conn.execute(_STATUS, (wanted, key_id))).fetchone()
         if row is None or (media_type is not None and row[8] != media_type):
             raise ApiError("resource.not_found")
-        status, code, model, params, title, warnings, created, finished, kind, refunded = row
+        status, code, model, params, title, warnings, created, finished, kind, refunded, points = row
         outputs = await (await conn.execute(
             "SELECT share_token FROM job_media WHERE job_id = %s AND role = 'output' AND share_token IS NOT NULL "
             "ORDER BY idx", (wanted,))).fetchall() if status == "done" else []
@@ -526,9 +534,10 @@ async def job_status(pool: AsyncConnectionPool, base_url: str, key_id, job_id: s
     return {"id": str(wanted), "status": public, "stage": stage,
             "result_urls": urls if kind == "video" else [], "images": urls if kind == "image" else [],
             "error": message, "error_code": shown_code, "refunded": bool(refunded) and status == "failed",
-            "model": model, "duration": params.get("duration"), "ratio": params.get("ratio"), "n": params.get("n"),
-            "style": params.get("style"), "title": title, "warnings": warnings, "queue_position": position,
-            "created_at": created.isoformat(), "finished_at": finished.isoformat() if finished else None}
+            "points": points, "model": model, "duration": params.get("duration"), "ratio": params.get("ratio"),
+            "n": params.get("n"), "style": params.get("style"), "title": title, "warnings": warnings,
+            "queue_position": position, "created_at": created.isoformat(),
+            "finished_at": finished.isoformat() if finished else None}
 
 
 async def job_state(pool: AsyncConnectionPool, job_id) -> tuple[str, str | None] | None:
