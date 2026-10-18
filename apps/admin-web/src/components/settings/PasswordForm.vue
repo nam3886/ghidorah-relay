@@ -2,6 +2,8 @@
 import { computed, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { changePassword } from "@/api/settings";
+import { IconAlertCircleShort } from "@/components/shared/icons";
+import { newPasswordProblem } from "./settings-value";
 import { ApiError } from "@/api/client";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
@@ -20,9 +22,11 @@ const ready = computed(() => oldPassword.value !== "" && newPassword.value !== "
 
 async function submit(): Promise<void> {
   if (!ready.value || busy.value) return;
-  busy.value = true;
   fieldErrors.old_password = "";
-  fieldErrors.new_password = "";
+  // the length rule is checked here, before anything is sent
+  fieldErrors.new_password = newPasswordProblem(newPassword.value);
+  if (fieldErrors.new_password) return;
+  busy.value = true;
   try {
     await changePassword(oldPassword.value, newPassword.value);
   } catch (err) {
@@ -55,26 +59,12 @@ async function submit(): Promise<void> {
             type="password"
             autocomplete="current-password"
             :aria-invalid="fieldErrors.old_password !== ''"
+            :aria-describedby="fieldErrors.old_password ? 'old-password-error' : undefined"
             :class="{ 'is-invalid': fieldErrors.old_password !== '' }"
           />
-          <p v-if="fieldErrors.old_password" class="password__error" role="alert">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 8v4" />
-              <path d="M12 16h.01" />
-            </svg>
-            {{ fieldErrors.old_password }}
-          </p>
+          <span v-if="fieldErrors.old_password" id="old-password-error" class="password__error" role="alert"
+            ><IconAlertCircleShort :size="14" />{{ fieldErrors.old_password }}</span
+          >
         </div>
         <div class="password__field">
           <label for="new-password">New password</label>
@@ -84,26 +74,12 @@ async function submit(): Promise<void> {
             type="password"
             autocomplete="new-password"
             :aria-invalid="fieldErrors.new_password !== ''"
+            :aria-describedby="fieldErrors.new_password ? 'new-password-error' : undefined"
             :class="{ 'is-invalid': fieldErrors.new_password !== '' }"
           />
-          <p v-if="fieldErrors.new_password" class="password__error" role="alert">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 8v4" />
-              <path d="M12 16h.01" />
-            </svg>
-            {{ fieldErrors.new_password }}
-          </p>
+          <span v-if="fieldErrors.new_password" id="new-password-error" class="password__error" role="alert"
+            ><IconAlertCircleShort :size="14" />{{ fieldErrors.new_password }}</span
+          >
         </div>
       </div>
       <div>
@@ -126,7 +102,7 @@ async function submit(): Promise<void> {
   background: var(--rl-surface);
   border: 1px solid var(--rl-line);
   border-radius: 16px;
-  scroll-margin-top: 16px;
+  scroll-margin-top: var(--settings-anchor, 16px);
 }
 .password h2 {
   margin: 0;
@@ -166,6 +142,7 @@ async function submit(): Promise<void> {
   color: var(--rl-fg);
   font: inherit;
   font-size: 14px;
+  line-height: normal;
 }
 .password__field input.is-invalid {
   border-color: var(--rl-bad);
@@ -174,9 +151,7 @@ async function submit(): Promise<void> {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0;
   font-size: 12px;
-  line-height: 16px;
   color: var(--rl-bad);
 }
 .password__save {
@@ -189,6 +164,7 @@ async function submit(): Promise<void> {
   font: inherit;
   font-size: 13px;
   font-weight: 600;
+  line-height: normal;
   cursor: pointer;
 }
 .password__save:hover:not(:disabled) {
@@ -226,9 +202,11 @@ async function submit(): Promise<void> {
   .password__field input {
     height: 44px;
   }
+  /* the drawn phone Save sets no padding: the browser's 1px 6px */
   .password__save {
     width: 100%;
     height: 44px;
+    padding: 1px 6px;
     font-size: 14px;
   }
 }

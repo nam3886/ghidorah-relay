@@ -12,12 +12,15 @@ import {
 import PasswordForm from "@/components/settings/PasswordForm.vue";
 import SettingsTable from "@/components/settings/SettingsTable.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
-import { parseValue } from "@/components/settings/settings-value";
+import { loadFailedText } from "@/components/jobs/job-text";
+import { bootValue, parseValue } from "@/components/settings/settings-value";
+import { errorText } from "@/lib/errors";
+import SectionState from "@/components/settings/SectionState.vue";
+import "@/components/settings/settings-skeleton.css";
 import PricesTable from "@/components/settings/PricesTable.vue";
 import SettingsCard from "@/components/settings/SettingsCard.vue";
 import { useBusy } from "@/composables/use-busy";
 import { useLatest } from "@/composables/use-latest";
-import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
 import { useScopeStore } from "@/stores/scope";
 
@@ -46,7 +49,8 @@ async function loadSettings(): Promise<void> {
     envOnly.value = data.env_only;
     settingsError.value = null;
   } catch (err) {
-    if (settingsLatest.isCurrent(ticket)) settingsError.value = errorText(err);
+    // worded as B-States draws a failed load: "Could not load the settings: the relay answered 502 (bad gateway)."
+    if (settingsLatest.isCurrent(ticket)) settingsError.value = loadFailedText(err, errorText(err), "the settings");
   } finally {
     if (settingsLatest.isCurrent(ticket)) settingsLoading.value = false;
   }
@@ -62,7 +66,9 @@ async function loadPrices(): Promise<void> {
     prices.value = data.items.map(withKey);
     pricesError.value = null;
   } catch (err) {
-    if (pricesLatest.isCurrent(ticket)) pricesError.value = errorText(err);
+    if (pricesLatest.isCurrent(ticket)) {
+      pricesError.value = loadFailedText(err, errorText(err), "the measured prices");
+    }
   } finally {
     if (pricesLatest.isCurrent(ticket)) pricesLoading.value = false;
   }
@@ -99,6 +105,8 @@ const SECTIONS = [
   { id: "password", label: "Change password" },
 ] as const;
 const current = ref<string>("settings");
+// the boot-only list while the first read runs: its rows as bars (the B-States loading pattern)
+const BOOT_SKELETON = ["88px", "120px", "72px", "104px"];
 function go(id: string): void {
   current.value = id;
   document.getElementById(id)?.scrollIntoView({ block: "start" });
@@ -152,14 +160,27 @@ function go(id: string): void {
           note="Read once when the relay starts. Change them in the environment and restart. Secrets are never listed."
           snug
         >
-          <dl v-if="envOnly.length" class="boot" aria-label="Boot-only values">
+          <!-- read with the settings: their failure and their wait are this card's too -->
+          <SectionState
+            :error="settingsError"
+            :empty="!envOnly.length && !settingsLoading"
+            empty-text="None"
+            @retry="loadSettings"
+          />
+          <dl v-if="!settingsError && !envOnly.length && settingsLoading" class="boot" aria-hidden="true">
+            <div v-for="w in BOOT_SKELETON" :key="w" class="boot__row">
+              <i class="set-skel" :style="{ width: w }" />
+              <span class="boot__leader" />
+              <i class="set-skel" :style="{ width: '96px' }" />
+            </div>
+          </dl>
+          <dl v-else-if="!settingsError && envOnly.length" class="boot" aria-label="Boot-only values">
             <div v-for="row in envOnly" :key="row.name" class="boot__row">
               <dt>{{ row.name }}</dt>
               <span class="boot__leader" aria-hidden="true" />
-              <dd>{{ row.value === null || row.value === undefined ? "-" : row.value }}</dd>
+              <dd class="num">{{ bootValue(row.value) }}</dd>
             </div>
           </dl>
-          <p v-else class="settings__none">None</p>
         </SettingsCard>
 
         <SettingsCard
@@ -206,18 +227,20 @@ function go(id: string): void {
   flex-direction: column;
   gap: 20px;
 }
-.settings__none {
-  margin: 0;
-  padding: 14px 20px;
-  font-size: 13px;
-  color: var(--rl-muted);
-}
 
+/* The drawn sub-navigation sticks 16 px from the top of the page (tablet: at the top). The app's top bar sticks too, so
+   both sit under it: its height (shell.md: 64 + its line, tablet 110, phone 102) is added. A card reached from the
+   sub-navigation stops below both. ponytail: the shell's heights written here; a variable from the top bar when it
+   gets one. */
+.settings {
+  --settings-bar: 65px;
+  --settings-anchor: calc(var(--settings-bar) + 16px);
+}
 .snav {
   flex: 0 1 200px;
   min-width: 180px;
   position: sticky;
-  top: 16px;
+  top: calc(var(--settings-bar) + 16px);
 }
 .snav ul {
   display: flex;
@@ -277,10 +300,18 @@ function go(id: string): void {
 }
 
 @media (min-width: 768px) and (max-width: 1279px) {
+  /* the two-row top bar; a card stops below it and the stuck pills (8 + 36 + 8) */
+  .settings {
+    --settings-bar: 110px;
+    --settings-anchor: calc(var(--settings-bar) + 52px + 16px);
+  }
   .settings__title {
     font-size: 24px;
     line-height: 32px;
     letter-spacing: -0.012em;
+  }
+  .settings__subtitle {
+    margin-top: 2px;
   }
   .settings__row {
     flex-direction: column;
@@ -294,7 +325,7 @@ function go(id: string): void {
   .snav {
     flex: none;
     position: sticky;
-    top: 0;
+    top: var(--settings-bar);
     z-index: 2;
     min-width: 0;
     margin: -8px -24px;
@@ -327,6 +358,7 @@ function go(id: string): void {
 }
 @media (max-width: 767px) {
   .settings {
+    --settings-bar: 102px;
     gap: 16px;
   }
   .settings__title {

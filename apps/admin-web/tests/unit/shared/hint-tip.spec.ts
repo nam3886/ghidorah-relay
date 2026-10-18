@@ -32,6 +32,15 @@ describe("HintTip", () => {
     w.unmount();
   });
 
+  it("a mono note (a value) adds the mono class to the same tooltip, still as plain content", () => {
+    const w = mounted({ mono: true, text: '{\n  "a": 1\n}' });
+    const tip = w.findComponent({ name: "ElTooltip" });
+    expect(tip.props("popperClass")).toBe("rl-tip rl-tip--mono");
+    expect(tip.props("content")).toBe('{\n  "a": 1\n}');
+    expect(tip.props("rawContent")).toBeFalsy();
+    w.unmount();
+  });
+
   it("Escape on the text asks the tooltip to hide, and another key does not", async () => {
     let hidden = 0;
     const Stub = defineComponent({

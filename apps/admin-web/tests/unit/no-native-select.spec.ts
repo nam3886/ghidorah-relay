@@ -6,12 +6,7 @@ import { describe, expect, it } from "vitest";
 // differently on every system (the macOS popup button and menu on the owner's Mac). Use FilterSelect, whose `field`
 // variant is the canvas's labelled select. The files below still have one; each page takes its file off the list when
 // it converts it, and a file on the list that no longer has one fails too, so the list only shrinks.
-const STILL_TO_CONVERT = [
-  "components/logs/LogsFilterForm.vue",
-  "components/accounts/ImportDialog.vue",
-  "components/keys/KeyFormDialog.vue",
-  "views/FramesView.vue",
-];
+const STILL_TO_CONVERT = ["components/logs/LogsFilterForm.vue", "components/accounts/ImportDialog.vue"];
 
 const SRC = join(process.cwd(), "src");
 const NATIVE = /<select\b/i;

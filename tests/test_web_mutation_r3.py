@@ -545,3 +545,48 @@ SUMMARY = MODEL_SPEC + "the apply-to-all summary lists applied, kept and unchang
 @pytest.mark.web_unit
 def test_frames_lines():
     vitest("tests/unit/frames/frames-model.spec.ts")
+
+
+# ---- page-frames-settings round: the drawn section titles, a refusal as a field error, the password error's field ---
+REFUSED = FRAMES_VIEW_SPEC + "shows a refused save beside the editor as an alert with the field"
+NOT_REFUSED = FRAMES_VIEW_SPEC + "marks no box invalid while nothing was refused"
+TITLES = FRAMES_VIEW_SPEC + "titles each kind's section as drawn: Video, Image"
+
+
+@mutation(FRAME_EDITOR, ":aria-invalid=\"frames.refusal ? 'true' : undefined\"", ':aria-invalid="undefined"',
+          expect=REFUSED)
+@mutation(FRAME_EDITOR, ":aria-describedby=\"frames.refusal ? 'frame-refusal' : undefined\"",
+          ':aria-describedby="undefined"', expect=REFUSED)
+@mutation(FRAME_EDITOR, "{ 'is-invalid': frames.refusal }", "{ 'is-invalid': true }", expect=NOT_REFUSED)
+@mutation(FRAMES_MODEL, "kind.charAt(0).toUpperCase() + kind.slice(1)", "kind", expect=TITLES)
+@pytest.mark.web_unit
+def test_frames_drawn_looks():
+    vitest("tests/unit/frames/frames-view.spec.ts")
+
+
+LOAD_WORDS = TABLE + "shows an empty list and a failed load with Retry"
+BOOT_DASH = SETTINGS_SPEC + "setting values > show a boot-only value that is unset or empty as a dash"
+PASSWORD_RULE = SETTINGS_SPEC + "setting values > hold a new password to the server's rule, 10 to 256 characters"
+LONG_DEFAULT = SETTINGS_SPEC + "setting values > show a long default on one line, the whole value laid out in its note"
+FORM_CHECK = (PASSWORD_SPEC + "checks the length in the form before sending, in the drawn words: "
+              + "at least 10, at most 256")
+LOADING_ROWS = (SETTINGS_SPEC + "the settings page > draws the first read as the drawn loading rows: each table's "
+                + "header over five rows of bars")
+
+
+@mutation(PASSWORD, "fieldErrors.new_password ? 'new-password-error' : undefined", "undefined", expect=NEW_FIELD)
+@mutation(SETTINGS_VIEW, 'errorText(err), "the settings")', 'errorText(err), "the jobs")', expect=LOAD_WORDS)
+@mutation(SETTINGS_VIEW, 'errorText(err), "the measured prices")', "errorText(err))", expect=LOAD_WORDS)
+@mutation(SETTING_VALUE, ' || value === ""', "", expect=BOOT_DASH)
+@mutation(SETTING_VALUE, "if (password.length < PASSWORD_MIN)", "if (password.length < 1)", expect=PASSWORD_RULE)
+@mutation(SETTING_VALUE, "if (password.length > PASSWORD_MAX)", "if (false)", expect=PASSWORD_RULE)
+@mutation(PASSWORD, "if (fieldErrors.new_password) return;", "", expect=FORM_CHECK)
+@mutation(SETTING_VALUE, "shown.length > LONG_DEFAULT", "shown.length > 1000", expect=LONG_DEFAULT)
+@mutation(SETTING_VALUE, "JSON.stringify(value, null, 2)", "JSON.stringify(value)", expect=LONG_DEFAULT)
+@mutation(SETTINGS_TABLE, "props.loading && !props.items.length && !props.error", "false", expect=LOADING_ROWS)
+@mutation(PRICES, "props.loading && !props.rows.length && !props.error", "false", expect=LOADING_ROWS)
+@mutation(SETTINGS_VIEW, ':empty="!envOnly.length && !settingsLoading"', ':empty="!envOnly.length"',
+          expect=LOADING_ROWS)
+@pytest.mark.web_unit
+def test_settings_errors_as_drawn():
+    vitest("tests/unit/settings/settings.spec.ts")
