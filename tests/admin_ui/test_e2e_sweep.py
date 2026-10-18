@@ -11,6 +11,7 @@ widths x themes x states, and two states with one name fail the sweep."""
 
 import os
 import signal
+import struct
 import threading
 import time
 from contextlib import contextmanager
@@ -70,6 +71,7 @@ def shot_names(passes, states):
 AT_REST_JS = """() => document.getAnimations().every(
     a => a.playState !== 'running' || a.effect.getComputedTiming().iterations === Infinity)"""
 TWO_FRAMES_JS = "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+PAGE_HEIGHT_JS = "() => Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)"
 
 
 def settle(page):
@@ -131,7 +133,20 @@ class Sweep:
             return None
         path = Path(folder) / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        self.page.screenshot(path=str(path), full_page=True)
+        # Not `full_page`: about one such shot in twenty flashes the window to 1x1 for ~100 ms, the app turns phone and
+        # drops what only the wider layout holds (the Jobs tick). The viewport grows to the page's height at the same
+        # width instead, and is put back.
+        size = self.page.viewport_size
+        tall = {"width": size["width"], "height": self.page.evaluate(PAGE_HEIGHT_JS)}
+        grown = tall["height"] > size["height"]
+        if grown:
+            self.page.set_viewport_size(tall)
+            settle(self.page)
+        try:
+            self.page.screenshot(path=str(path))
+        finally:
+            if grown:
+                self.page.set_viewport_size(size)
         return path
 
     def finish(self):
@@ -302,3 +317,22 @@ def test_screenshots_are_saved_only_when_a_folder_is_given(app, app_page, tmp_pa
     files = [p.name for p in (tmp_path / "shots").iterdir()]
     assert files == ["1280-light-login-form.png"], files
     assert (tmp_path / "shots" / files[0]).stat().st_size > 1000
+
+
+def test_a_shot_grows_the_viewport_to_the_whole_page_at_the_same_width_and_puts_it_back(
+        app, app_page, tmp_path, monkeypatch):
+    page = app_page
+    page.set_viewport_size({"width": 1280, "height": 200})
+    page.goto(app.url + "#/login")
+    page.evaluate("window.__sizes = []; addEventListener('resize', () => __sizes.push([innerWidth, innerHeight]))",
+                  isolated_context=False)
+    monkeypatch.setenv(SHOTS_ENV, str(tmp_path))
+    path = Sweep(page, "light").shot("login", "form")
+    tall = page.evaluate(PAGE_HEIGHT_JS)
+    assert tall > 200, "the login page must be taller than the viewport for this test"
+    sizes = page.evaluate("window.__sizes", isolated_context=False)
+    assert sizes[0] == [1280, tall] and sizes[-1] == [1280, 200], sizes      # grown for the shot, then put back
+    assert all(w == 1280 for w, _ in sizes), "the window never left the width: %r" % sizes
+    assert page.viewport_size == {"width": 1280, "height": 200}
+    dpr = page.evaluate("devicePixelRatio")
+    assert struct.unpack(">II", path.read_bytes()[16:24]) == (1280 * dpr, tall * dpr), "the whole page, at the width"
