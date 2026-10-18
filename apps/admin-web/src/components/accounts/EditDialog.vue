@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { Account, AccountPatch } from "@/api/accounts";
+import CommandChip from "@/components/shared/CommandChip.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import AccountDialog from "./AccountDialog.vue";
-import { accountChanges, proxyStatus, proxyText } from "./account-model";
+import { accountChanges, type ChipState, proxyStatus, proxyText } from "./account-model";
 
 // Edit one account: label and proxy. The dialog only asks; the view sends. `save` carries the changed fields only
-// (nothing changed just closes the dialog); `recheck` closes the dialog and asks for the proxy to be probed again.
-// Beside the proxy field the result of its last check is shown as it stands.
+// (nothing changed just closes the dialog); `recheck` asks for the stored proxy to be probed again, and the dialog
+// stays open: under the proxy row the status line shows the check's chip while it runs and how it ended
+// (`proxyChip`, B-States "Command status"); without one, the result of the last check as it stands.
 const open = defineModel<boolean>({ required: true });
-const props = defineProps<{ account: Account | null; busy: boolean }>();
+const props = defineProps<{ account: Account | null; busy: boolean; proxyChip?: ChipState | null }>();
 const emit = defineEmits<{ save: [patch: AccountPatch]; recheck: [account: Account] }>();
 
 const label = ref("");
@@ -38,8 +40,7 @@ function save() {
 }
 
 function recheck() {
-  if (!props.account) return;
-  open.value = false;
+  if (!props.account || props.proxyChip?.state === "running") return;
   emit("recheck", props.account);
 }
 </script>
@@ -61,10 +62,20 @@ function recheck() {
           autocomplete="off"
           aria-label="Proxy"
         />
-        <button type="button" class="acct-btn check" @click="recheck">Check proxy</button>
-        <span v-if="status" class="status" role="status">
-          <StatusChip :status="status.tone" :tone="status.tone" :label="status.text" />
-        </span>
+        <button
+          type="button"
+          class="acct-btn check"
+          :aria-disabled="props.proxyChip?.state === 'running' ? 'true' : undefined"
+          @click="recheck"
+        >
+          Check proxy
+        </button>
+      </div>
+      <div v-if="props.proxyChip" class="status">
+        <CommandChip :state="props.proxyChip.state" :time="props.proxyChip.time" :message="props.proxyChip.message" />
+      </div>
+      <div v-else-if="status" class="status" role="status">
+        <StatusChip :status="status.tone" :tone="status.tone" :label="status.text" />
       </div>
       <span class="acct-field__help"
         >Leave empty to remove the proxy. The stored password is never shown; type a new one as host:port:user:pass to

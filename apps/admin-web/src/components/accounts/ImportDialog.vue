@@ -6,7 +6,7 @@ import { notify } from "@/lib/notify";
 import { useScopeStore } from "@/stores/scope";
 import AccountDialog from "./AccountDialog.vue";
 import { IconChevronDown } from "@/components/shared/icons";
-import { importBody } from "./account-model";
+import { importBody, rejectedText } from "./account-model";
 
 // Import accounts: one credential per line, an optional proxy for all of them, and the result of the answer. A
 // rejected line is named by its number and reason only: the credential itself is never echoed back.
@@ -102,8 +102,8 @@ async function submit() {
       </div>
       <ul v-if="result.rejected.length" class="result__list">
         <li v-for="r in result.rejected" :key="r.index">
-          <span class="mono faint">line {{ r.index + 1 }}</span>
-          <span class="bad">{{ r.reason }}</span>
+          <span class="mono faint tnum">line {{ r.index + 1 }}</span>
+          <span class="bad">{{ rejectedText(r.reason) }}</span>
         </li>
       </ul>
     </div>
@@ -186,6 +186,9 @@ async function submit() {
 }
 .faint {
   color: var(--rl-faint);
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
 }
 .bad {
   color: var(--rl-bad);

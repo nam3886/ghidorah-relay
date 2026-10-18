@@ -7,6 +7,7 @@ import { ApiError } from "@/api/client";
 import * as commands from "@/api/commands";
 import * as shell from "@/api/shell";
 import EditDialog from "@/components/accounts/EditDialog.vue";
+import { hhmmss } from "@/components/accounts/account-model";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { notify } from "@/lib/notify";
 import { useScopeStore } from "@/stores/scope";
@@ -281,6 +282,17 @@ describe("the list", () => {
     expect(w.text()).not.toContain("first-stale");
   });
 
+  it("the first read draws the list's own header over five rows of bars, and no footer count", async () => {
+    list.mockReturnValue(new Promise(() => {}));
+    const w = await open();
+    const loading = w.find("[data-state=loading]");
+    expect(loading.find("thead").text()).toContain("Points left / budget");
+    expect(loading.findAll("tbody tr")).toHaveLength(5);
+    expect(loading.findAll("tbody tr")[0]!.findAll(".acct-skel")).toHaveLength(10);
+    expect(w.text()).not.toContain("Showing");
+    expect(w.find("[data-state=empty]").exists()).toBe(false);
+  });
+
   it("an empty list says so and offers Import; a failed read shows the error with Retry", async () => {
     list.mockResolvedValue(page([]));
     const w = await open();
@@ -288,7 +300,9 @@ describe("the list", () => {
     list.mockRejectedValueOnce(new ApiError(502, { error: { code: "x", message: "bad gateway" } }));
     useScopeStore(pinia).provider = "dola";
     await settle();
-    expect(w.find("[role=alert]").text()).toContain("bad gateway");
+    expect(w.find("[role=alert]").text()).toContain(
+      "Could not load the accounts: the relay answered 502 (bad gateway).",
+    );
     list.mockResolvedValue(page([account({ label: "back" })]));
     await w.find("[role=alert] button").trigger("click");
     await settle();
@@ -349,7 +363,9 @@ describe("the pool card", () => {
     useScopeStore(pinia).provider = "dola";
     await settle();
     expect(rows(w)).toHaveLength(1);
-    expect(w.find("[data-testid=pool-error]").text()).toContain("pool is down");
+    expect(w.find("[data-testid=pool-error]").text()).toContain(
+      "Could not load the pool figures: the relay answered 502 (pool is down).",
+    );
     expect(w.find("[data-testid=pool-card]").text()).toContain("143 / 210");
     vi.mocked(shell.getPoolStats).mockResolvedValue({ pools: [], proxy_failed: 0, last_full_check_ms: null });
     useScopeStore(pinia).provider = "vibes";
@@ -493,26 +509,96 @@ describe("the row commands and the edit dialog", () => {
     const w = await open();
     await pick(w, "Delete");
     expect(ask).toHaveBeenCalledTimes(1);
+    // as B-States draws a delete confirm: the title asks and names the account, one sentence says the consequence
+    expect(ask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Delete account main?",
+        message: "A used account cannot be deleted: disable it instead.",
+        confirmText: "Delete",
+        danger: true,
+      }),
+    );
     expect(accounts.deleteAccount).not.toHaveBeenCalled();
     ask.mockResolvedValue(true);
     await pick(w, "Delete");
     expect(accounts.deleteAccount).toHaveBeenCalledExactlyOnceWith("a1");
   });
 
-  it("Check proxy closes the dialog, queues the re-check, polls Proxy check and reads the list again", async () => {
+  it("Check proxy keeps the dialog open with its chip, queues the re-check, polls Proxy check and reads the list again", async () => {
     vi.mocked(accounts.recheckProxy).mockResolvedValue({ command_id: "r1" });
-    vi.mocked(commands.getCommand).mockResolvedValue(done("r1"));
+    const gate = deferred<commands.CommandStatus>();
+    vi.mocked(commands.getCommand).mockReturnValue(gate.promise);
     const w = await open();
     await pick(w, "Edit");
     expect(editOpen(w)).toBe(true);
     inBody("Check proxy").click();
     await settle();
-    expect(editOpen(w)).toBe(false);
+    expect(editOpen(w)).toBe(true);
+    expect(document.body.querySelector(".acct-dialog [data-state=running]")).not.toBeNull();
+    // the check polls for a long time: Save stays usable meanwhile
+    expect(inBody("Save").getAttribute("aria-disabled")).toBeNull();
     expect(accounts.recheckProxy).toHaveBeenCalledExactlyOnceWith("a1");
     expect(notify.info).toHaveBeenCalledWith("Proxy check: queued");
+    gate.resolve(done("r1"));
+    await settle();
     expect(commands.getCommand).toHaveBeenCalledWith("r1");
     expect(notify.success).toHaveBeenCalledWith("Proxy check: done");
+    expect(document.body.querySelector(".acct-dialog [data-state=ok]")).not.toBeNull();
     expect(list).toHaveBeenCalledTimes(2);
+  });
+
+  it("a Check's chip runs under its button, says how it ended, stays through the next automatic read and goes with the one after", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      vi.mocked(accounts.checkAccount).mockResolvedValue({ command_id: "c1" });
+      const gate = deferred<commands.CommandStatus>();
+      vi.mocked(commands.getCommand).mockReturnValue(gate.promise);
+      const w = await open();
+      const chip = () => w.find("tbody td.last [data-state]");
+      await w.find("[aria-label='Check main']").trigger("click");
+      await settle();
+      expect(chip().attributes("data-state")).toBe("running");
+      const finished = Date.UTC(2026, 9, 15, 13, 55, 7);
+      gate.resolve({ ...done("c1"), finished_ms: finished });
+      await settle();
+      expect(chip().text()).toBe(`ok · ${hhmmss(finished)}`);
+      // the next automatic read keeps it (it is seen at least one period); the one after replaces the row
+      await vi.advanceTimersByTimeAsync(10000);
+      await settle();
+      expect(chip().text()).toBe(`ok · ${hhmmss(finished)}`);
+      await vi.advanceTimersByTimeAsync(10000);
+      await settle();
+      expect(chip().exists()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("two quick Checks keep both results: the reads the commands make do not clear a chip", async () => {
+    const labels = ["main", "two", "three"];
+    list.mockResolvedValue(page(labels.map((label, n) => account({ id: `a${n}`, label }))));
+    vi.mocked(accounts.checkAccount).mockImplementation(async (id) => ({ command_id: `c-${id}` }));
+    vi.mocked(commands.getCommand).mockImplementation(async (id) => done(id));
+    const w = await open();
+    for (const label of labels) {
+      await w.find(`[aria-label='Check ${label}']`).trigger("click");
+      await settle();
+    }
+    expect(w.findAll("tbody td.last [data-state=ok]")).toHaveLength(3);
+  });
+
+  it("a failed Check's chip and toast carry the worker's reason", async () => {
+    vi.mocked(accounts.checkAccount).mockResolvedValue({ command_id: "c1" });
+    vi.mocked(commands.getCommand).mockResolvedValue({
+      ...done("c1"),
+      status: "failed",
+      result: { error: "connect timeout after 8 s" },
+    });
+    const w = await open();
+    await w.find("[aria-label='Check main']").trigger("click");
+    await settle();
+    expect(w.find("tbody td.last [data-state=error]").text()).toBe("error · connect timeout after 8 s");
+    expect(notify.error).toHaveBeenCalledWith("Check failed: connect timeout after 8 s");
   });
 
   it("Save of a changed proxy polls the Proxy check the server queued, then reads the list", async () => {
@@ -569,6 +655,23 @@ describe("Check all and Refresh catalog", () => {
     firstDone.resolve(done("c-dola"));
     await vi.waitFor(() => expect(calls).toEqual(["dola", "vibes"]));
     expect(notify.info).toHaveBeenCalledWith("Check all dola: queued");
+    expect(notify.info).toHaveBeenCalledWith("Check all vibes: queued");
+  });
+
+  it("each page command has its chip under its button: running, then how the round ended (the first failure)", async () => {
+    vi.mocked(accounts.checkAll).mockImplementation(async (p) => ({ command_id: `c-${p}` }));
+    const gate = deferred<commands.CommandStatus>();
+    vi.mocked(commands.getCommand).mockImplementation((id) =>
+      id === "c-dola" ? gate.promise : Promise.resolve(done(id)),
+    );
+    const w = await open();
+    await button(w, "Check all").trigger("click");
+    await settle();
+    const chip = () => w.find(".cmd [data-state]");
+    expect(chip().attributes("data-state")).toBe("running");
+    gate.resolve({ ...done("c-dola"), status: "failed", result: { error: "worker gone" } });
+    await vi.waitFor(() => expect(chip().attributes("data-state")).toBe("error"));
+    expect(chip().text()).toBe("error · worker gone");
     expect(notify.info).toHaveBeenCalledWith("Check all vibes: queued");
   });
 

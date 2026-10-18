@@ -49,10 +49,11 @@ const open = ref(false);
 const trigger = ref<HTMLButtonElement>();
 const menu = ref<HTMLElement>();
 const place = ref({ top: 0, right: 0 });
-const GAP = 6;
 
-// Under the trigger; above it when the menu would run past the bottom of the window and there is room above.
+// Under the trigger; above it when the menu would run past the bottom of the window and there is room above. The page
+// menus sit 6 px from their trigger, the row menu 8 px (B-States draws it 8 px under a row's More button).
 function measure(): void {
+  const GAP = props.variant === "row" ? 8 : 6;
   const rect = trigger.value?.getBoundingClientRect();
   if (!rect) return;
   const height = menu.value?.offsetHeight ?? 0;
@@ -226,7 +227,9 @@ onBeforeUnmount(() => close());
   border-radius: 8px;
   background: transparent;
   color: var(--rl-fg);
-  font: inherit;
+  /* the family and size of the menu; the line height stays the button's own (normal), as drawn */
+  font-family: inherit;
+  font-size: inherit;
   text-align: left;
   cursor: pointer;
 }

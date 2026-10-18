@@ -28,6 +28,11 @@ def rows(page):
     return page.locator("tbody tr")
 
 
+def header_import(page):
+    """The page header's Import: an empty list offers an Import of its own once it has been read."""
+    return page.get_by_role("button", name="Import", exact=True).first
+
+
 def more(row, name):
     """A row action from the row's More menu (Shot, Wake, Edit, Delete); the menu is drawn in the page body."""
     row.get_by_role("button", name=re.compile(r"^More actions for ")).click()
@@ -79,7 +84,7 @@ def test_import_shows_the_accepted_and_the_rejected_lines_and_sends_the_proxy_wi
         app, app_session, db, pair):
     page = app_session
     open_accounts(page)
-    page.get_by_role("button", name="Import", exact=True).click()
+    header_import(page).click()
     box = page.get_by_role("dialog")
     result = box.get_by_role("status", name="Result of the previous import")
     box.get_by_label("Credentials").fill("cookie-one\ncookie-two")
@@ -88,7 +93,7 @@ def test_import_shows_the_accepted_and_the_rejected_lines_and_sends_the_proxy_wi
     expect(result).to_contain_text("Imported 0, rejected 2")
     expect(result).to_contain_text("line 1")
     expect(result).to_contain_text("line 2")
-    expect(result).to_contain_text("proxy_invalid")
+    expect(result).to_contain_text("The proxy is not host:port or host:port:user:pass.")
     expect(result).not_to_contain_text("cookie-one")                  # a rejected credential is never echoed back
     assert db.one("SELECT count(*) FROM accounts")[0] == 0
     box.get_by_label("Credentials").fill("cookie-one\n\ncookie-two")
@@ -103,7 +108,7 @@ def test_import_shows_the_accepted_and_the_rejected_lines_and_sends_the_proxy_wi
 def test_an_empty_paste_says_so_and_sends_nothing(app, app_session, db):
     page = app_session
     open_accounts(page)
-    page.get_by_role("button", name="Import", exact=True).click()
+    header_import(page).click()
     page.get_by_role("dialog").get_by_role("button", name="Import", exact=True).click()
     expect(page.get_by_text("Paste at least one credential")).to_be_visible()
     assert db.one("SELECT count(*) FROM accounts")[0] == 0
@@ -157,11 +162,13 @@ def test_check_proxy_in_the_edit_dialog_queues_the_command_and_polls_it_to_the_e
     more(rows(page).filter(has_text="proxied"), "Edit")
     page.get_by_role("dialog").get_by_role("button", name="Check proxy").click()
     expect(page.get_by_text("Proxy check: queued")).to_be_visible()
-    expect(page.get_by_role("dialog")).to_have_count(0)
+    # the dialog stays open: the check's chip runs in the status line under the proxy row (B-States)
+    expect(page.get_by_role("dialog").locator("[data-state=running]")).to_have_text("running…")
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'proxy_recheck' AND account_id = %s", acct)[0] == 1
     db.run("UPDATE commands SET status = 'done', result = '{}'::jsonb, finished_at = clock_timestamp() "
            "WHERE kind = 'proxy_recheck' AND account_id = %s", acct)
     expect(page.get_by_text("Proxy check: done")).to_be_visible(timeout=10000)
+    expect(page.get_by_role("dialog").locator("[data-state=ok]")).to_contain_text("ok ·")
 
 
 def test_saving_a_changed_proxy_polls_the_proxy_check_the_server_queued(app, app_session, db):
@@ -192,12 +199,14 @@ def test_check_wake_delete_and_the_provider_commands_queue_a_command_and_say_so(
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'check_all'")[0] == 1
     row.get_by_role("button", name="Check free one", exact=True).click()
     expect(page.get_by_text("Check: queued")).to_be_visible()
+    expect(row.locator("[data-state=running]")).to_have_text("running…")   # the chip under Check (B-States)
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'check' AND account_id = %s", free)[0] == 1
     more(row, "Wake")
     expect(page.get_by_text("Wake: clear cooldown and strikes: queued")).to_be_visible()
     more(row, "Delete")
     box = page.locator(".el-message-box")
-    expect(box).to_contain_text('Delete account "free one"? A used account cannot be deleted: disable it instead.')
+    expect(box).to_contain_text("Delete account free one?")
+    expect(box).to_contain_text("A used account cannot be deleted: disable it instead.")
     box.get_by_role("button", name="Cancel").click()
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'delete_account'")[0] == 0
     # the toast stack holds four: a fifth is dropped, so let the earlier ones go first

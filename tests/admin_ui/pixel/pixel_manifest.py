@@ -94,11 +94,11 @@ LANE7 = [
 from pixel_accounts import accounts_seed, open_edit, open_import, phone_ready  # noqa: E402
 
 ACCOUNTS_BOARDS = [
-    Entry("B-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready),
-    Entry("T-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready),
-    Entry("P-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready),
-    Entry("B-AccountImport", "#/accounts", seed=accounts_seed, now=NOW, drive=open_import),
-    Entry("B-AccountEdit", "#/accounts", seed=accounts_seed, now=NOW, drive=open_edit),
+    Entry("B-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready, user=BOARD_USER),
+    Entry("T-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready, user=BOARD_USER),
+    Entry("P-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready, user=BOARD_USER),
+    Entry("B-AccountImport", "#/accounts", seed=accounts_seed, now=NOW, drive=open_import, user=BOARD_USER),
+    Entry("B-AccountEdit", "#/accounts", seed=accounts_seed, now=NOW, drive=open_edit, user=BOARD_USER),
 ]
 
 from pixel_kla import KLA  # noqa: E402  (lane 6: keys, request logs, alerts; imports Entry from here)

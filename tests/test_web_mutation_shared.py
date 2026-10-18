@@ -385,7 +385,8 @@ COPY = f"{SHARED}/CopyButton.vue"
 @mutation(ACTION_MENU, 'triggerLabel: "More"', 'triggerLabel: "Menu"', expect="is a button named More")
 @mutation(ACTION_MENU, 'menuLabel: "Actions"', 'menuLabel: "Menu"', expect="opens a menu named Actions")
 @mutation(COMMAND_CHIP, 'v-if="props.time"', 'v-if="!props.time"', expect="ok: a dot, `ok ·` and the time in mono")
-@mutation(COMMAND_CHIP, 'v-if="props.message"', 'v-if="!props.message"', expect="error: a dot and `error · <message>`")
+@mutation(COMMAND_CHIP, '(props.message ? `error · ${props.message}` : "error")', '("error")',
+          expect="error: a dot and `error · <message>`")
 @mutation(COMMAND_CHIP, ":class=\"`is-${props.state}`\"", ":class=\"'is-ok'\"", expect="running: a spinner")
 @mutation(DRAWER_TABS, ":aria-controls=\"drawerPanelId(props.idPrefix, t.key)\"",
           ":aria-controls=\"drawerTabId(props.idPrefix, t.key)\"",

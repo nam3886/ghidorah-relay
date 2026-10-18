@@ -65,15 +65,18 @@ def test_the_accounts_view_keeps_its_rules():
 # ---- Accounts: the switch, the reason, the commands and the proxy re-check -----------------------------------------
 @mutation(DESKTOP, 'v-if="!a.in_use"', 'v-if="true"',
           expect=LIST + "draws every server string as text, and hides the switch of an account in use")
-@mutation(DESKTOP, '<template v-if="a.state_reason"', '<template v-if="false"',
+@mutation(DESKTOP, '<template v-if="statusReason(a)"', '<template v-if="false"',
           expect=LIST + "draws every server string as text, and hides the switch of an account in use")
 @mutation(ACCOUNT_MODEL, 'WAKE_LABEL = "Wake: clear cooldown and strikes"', 'WAKE_LABEL = "Clear cooldown"',
           expect=COMMANDS + "Wake queues the wake command under the label that names the cooldown and the strikes")
 @mutation(ACCOUNTS, 'else if (name === "wake") void wake(a);', 'else if (name === "wake") void check(a);',
           expect=COMMANDS + "Wake queues the wake command under the label that names the cooldown and the strikes")
+@mutation(ACCOUNTS, "runProxyCheck(() => withChip(", "run(() => withChip(",
+          expect=COMMANDS + "Check proxy keeps the dialog open with its chip, queues the re-check, polls Proxy check "
+                            "and reads the list again")
 @mutation(ACCOUNTS, 'queue(recheckProxy(a.id), "Proxy check")', 'queue(recheckProxy(a.id), "Proxy")',
-          expect=COMMANDS + "Check proxy closes the dialog, queues the re-check, polls Proxy check and reads "
-                            "the list again")
+          expect=COMMANDS + "Check proxy keeps the dialog open with its chip, queues the re-check, polls Proxy check "
+                            "and reads the list again")
 @mutation(ACCOUNTS, 'if (out.command_id) await poll(out.command_id, "Proxy check");', "",
           expect=COMMANDS + "Save of a changed proxy polls the Proxy check the server queued, then reads the list")
 @mutation(DESKTOP, """@click="!checking.has(a.id) && emit('action', 'check', a)\"""",
@@ -163,11 +166,12 @@ def test_the_pool_card_figures():
                         "the provider")
 @mutation(ACCOUNTS, "(err: unknown) => ({ err })", "(err: unknown) => {\n          throw err;\n        }",
           expect=POOL + "a failed pool read does not hide the list; it shows an alert and keeps the old figures")
-@mutation(ACCOUNTS, "poolError.value = errorText(poolRead.err);", "poolError.value = null;",
+@mutation(ACCOUNTS, 'poolError.value = loadFailedText(poolRead.err, errorText(poolRead.err), "the pool figures");',
+          "poolError.value = null;",
           expect=POOL + "a failed pool read does not hide the list; it shows an alert and keeps the old figures")
 @mutation(ACCOUNTS, "v-else-if=\"isTablet\"", "v-else-if=\"false\"",
           expect=LAYOUTS + "a tablet draws five columns and no Videos made column")
-@mutation(ACCOUNTS, 'v-if="isPhone && pageCount <= 1"', 'v-if="false"',
+@mutation(ACCOUNTS, 'v-if="isPhone && pageCount <= 1 && items.length"', 'v-if="false"',
           expect=LAYOUTS + "a phone draws a list: no table, no Check button, Check first in the row menu, one "
                            "footer line")
 @pytest.mark.web_unit
@@ -215,8 +219,82 @@ def test_the_import_dialog_wipes_what_was_pasted():
           expect=AUTO + "a hidden tab does not read the list, and the tab that comes back reads at once")
 @mutation(ACCOUNTS, "if (!document.hidden) tick();", "if (document.hidden) tick();",
           expect=AUTO + "a hidden tab does not read the list, and the tab that comes back reads at once")
-@mutation(ACCOUNTS, " && !loading.value) void load();", ") void load();",
+@mutation(ACCOUNTS, " && !loading.value) void load(true);", ") void load(true);",
           expect=AUTO + "a read still in flight is never joined by a second one")
 @pytest.mark.web_unit
 def test_the_accounts_polling_is_polite():
     vitest(ACCOUNTS_VIEW_SPEC)
+
+
+# ---- page-accounts round: the delete confirm and the row menu as the canvas draws them ------------------------------
+@mutation(ACCOUNTS, "title: `Delete account ${a.label}?`", "title: \"Delete account\"",
+          expect=COMMANDS + "Delete asks first and queues the delete only after a yes")
+@mutation(MENU, "const GAP = props.variant === \"row\" ? 8 : 6;", "const GAP = 6;",
+          expect=MENU_SPEC + "a row menu sits 8 px under its trigger and a page menu 6 px, as drawn")
+@pytest.mark.web_unit
+def test_the_delete_confirm_and_the_row_menu_are_placed_as_drawn():
+    vitest(ACCOUNTS_VIEW_SPEC, PARTS_SPEC)
+
+
+@mutation(ACCOUNT_MODEL, 'a.state === "disabled" ? null : a.state_reason', "a.state_reason",
+          expect=ROW_TEXT + "a switched-off account shows no reason under its pill; a dead one shows its reason")
+@mutation(ACCOUNT_MODEL, "`the relay answered ${err.status} (${said})`", "said",
+          expect=ROW_TEXT + "the failed read of the list says what the relay answered, as drawn")
+@mutation(ACCOUNT_MODEL, 'Number(b.pool === "video") - Number(a.pool === "video")', "0",
+          expect=ROW_TEXT + "the video pool comes first, the others keep their order; the tablet counts are singular "
+                            "for one")
+@mutation(ACCOUNT_MODEL, '`${n} ${word}${n === 1 ? "" : "s"}`', "`${n} ${word}s`",
+          expect=ROW_TEXT + "the video pool comes first, the others keep their order; the tablet counts are singular "
+                            "for one")
+@pytest.mark.web_unit
+def test_a_switched_off_row_and_a_failed_read_read_as_drawn():
+    vitest(ACCOUNT_SPEC)
+
+
+@mutation(ACCOUNT_MODEL, "!c.settled || c.read >= read", "true",
+          expect=f"FAILED {ACCOUNT_SPEC} > command chips > a finished chip stays through the next automatic read and "
+                 "goes with the one after; a running one stays")
+@mutation(ACCOUNT_MODEL, 'if (command.status === "failed") return', "if (false) return",
+          expect=f"FAILED {ACCOUNT_SPEC} > command chips > the end of a poll: ok with the time it finished, error with "
+                 "the worker's reason, running when it gave up")
+@mutation(ACCOUNTS, "if (auto) chips.value = chipsAfterRead(chips.value, ++autoReads);", "",
+          expect=COMMANDS + "a Check's chip runs under its button, says how it ended, stays through the next automatic "
+                            "read and goes with the one after")
+@mutation(ACCOUNTS, "if (auto) chips.value =", "if (true) chips.value =",
+          expect=COMMANDS + "two quick Checks keep both results: the reads the commands make do not clear a chip")
+@mutation(DESKTOP, 'v-if="chips[`check:${a.id}`]"', 'v-if="false"',
+          expect=COMMANDS + "a Check's chip runs under its button, says how it ended, stays through the next automatic "
+                            "read and goes with the one after")
+@mutation(ACCOUNTS, "if (ended?.status !== \"failed\") ended = command;", "ended = command;",
+          expect=CHECK_ALL + "each page command has its chip under its button: running, then how the round ended (the "
+                             "first failure)")
+@mutation(SRC + "/components/accounts/EditDialog.vue", 'if (!props.account || props.proxyChip?.state === "running")',
+          "if (!props.account)",
+          expect=f"FAILED {DIALOGS_SPEC} > EditDialog > Check proxy asks the view to queue it and stays open; its chip "
+                 "takes the status line, locked while it runs")
+@mutation(ACCOUNT_MODEL, 'credential_unparseable: "The line is not a cookie jar."', 'credential_unparseable: ""',
+          expect=f"FAILED {ACCOUNT_SPEC} > rejectedText > says why a line was rejected in a sentence; an unknown code "
+                 "stays as it is")
+@mutation(DESKTOP, '<tbody v-if="skeleton" aria-hidden="true">', '<tbody v-if="false" aria-hidden="true">',
+          expect=LIST + "the first read draws the list's own header over five rows of bars, and no footer count")
+@mutation(ACCOUNTS, 'v-else-if="items.length === 0 && !skeleton"', 'v-else-if="items.length === 0"',
+          expect=LIST + "the first read draws the list's own header over five rows of bars, and no footer count")
+@pytest.mark.web_unit
+def test_the_command_chips_follow_their_commands():
+    vitest(ACCOUNT_SPEC, ACCOUNTS_VIEW_SPEC, DIALOGS_SPEC)
+
+
+@mutation(SRC + "/composables/use-command-poll.ts", "`${label} failed${", "`${label}: failed${",
+          expect="FAILED tests/unit/use-command-poll.spec.ts > useCommandPoll > says just failed when the worker left "
+                 "no error text")
+@pytest.mark.web_unit
+def test_a_failed_command_reads_as_the_canvas_writes_it():
+    vitest("tests/unit/use-command-poll.spec.ts")
+
+
+@mutation(SRC + "/components/accounts/PoolCard.vue", 'v-if="count !== null"', 'v-if="true"',
+          expect=f"FAILED {PARTS_SPEC} > PoolCard > names the number of accounts once the list has been read, and "
+                 "nothing before")
+@pytest.mark.web_unit
+def test_the_pool_card_names_no_count_before_the_list_is_read():
+    vitest(PARTS_SPEC)

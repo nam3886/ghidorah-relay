@@ -120,13 +120,26 @@ describe("EditDialog", () => {
     expect(document.body.querySelector("[role=status]")).toBeNull();
   });
 
-  it("Check proxy closes the dialog and asks the view to queue it", async () => {
+  it("Check proxy asks the view to queue it and stays open; its chip takes the status line, locked while it runs", async () => {
     const a = account();
     const w = await mountEdit(a);
     buttonOf("Check proxy").click();
     await flushPromises();
     expect(w.emitted("recheck")).toEqual([[a]]);
-    expect(w.emitted("update:modelValue")).toEqual([[false]]);
+    expect(w.emitted("update:modelValue")).toBeUndefined();
+    await w.setProps({ proxyChip: { state: "running", settled: false, read: 1 } });
+    expect(buttonOf("Check proxy").getAttribute("aria-disabled")).toBe("true");
+    buttonOf("Check proxy").click();
+    expect(w.emitted("recheck")).toHaveLength(1);
+    expect(document.body.querySelector("[data-state=running]")!.textContent?.trim()).toBe("running…");
+    await w.setProps({ proxyChip: { state: "error", message: "connect timeout after 8 s", settled: true, read: 1 } });
+    expect(document.body.querySelector("[data-state=error]")!.textContent?.trim()).toBe(
+      "error · connect timeout after 8 s",
+    );
+    expect(buttonOf("Check proxy").getAttribute("aria-disabled")).toBeNull();
+    await w.setProps({ proxyChip: null });
+    expect(document.body.querySelector("[data-state]")).toBeNull();
+    expect(document.body.querySelector("[role=status]")!.textContent).toContain("not checked");
   });
 });
 
@@ -177,8 +190,8 @@ describe("ImportDialog", () => {
     expect(box.textContent).toContain("1 imported");
     expect(box.textContent).toContain("1 rejected");
     expect(box.querySelector("li")!.textContent).toContain("line 2");
-    expect(box.querySelector("li")!.textContent).toContain("credential_unparseable");
-    // a rejected line is named by its number and reason: the credential is never echoed back
+    expect(box.querySelector("li")!.textContent).toContain("The line is not a cookie jar.");
+    // a rejected line is named by its number and a sentence for its reason: the credential is never echoed back
     expect(box.textContent).not.toContain("cred-two");
     expect(document.body.querySelector("textarea")!.value).toBe("");
     expect(w.emitted("imported")).toHaveLength(1);
