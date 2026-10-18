@@ -341,6 +341,8 @@ Environment (names only; the template is `deploy/api.env.example`):
 | `PUBLIC_BASE_URL` | base of the media URLs in job answers; unset = built from the request |
 | `TRUSTED_PROXIES` | `X-Forwarded-*` is honoured only when this is set; there is no reverse proxy in the compose file |
 
+A status read of a `waiting` job may run one median query over recent finished jobs of its model and duration: at most one per shape every 5 minutes, in its own transaction with a 500 ms statement timeout; if it fails or is slow the answer is still served (progress by stage, no estimated finish) and the api log carries a one-line warning. It needs no index at today's volume; past about 200 000 rows in `jobs`, add a partial index on `(provider, model, finished_at DESC) WHERE status = 'done'`, built concurrently outside a migration transaction.
+
 **Refuses to start (exit 2, one line, before it connects unless noted):**
 
 - any variable with `PRIVATE_KEY` in its name is set and not empty (for example `CREDENTIAL_SEAL_PRIVATE_KEY`): the

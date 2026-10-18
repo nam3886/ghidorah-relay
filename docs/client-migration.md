@@ -23,6 +23,9 @@ For a client that now talks to dola2api (v4) and will talk to relay. Keys in eve
 A job is the same whichever door made it. A video job is read on the video route only, an image job on the image route only;
 the other route answers 404.
 
+The machine-readable description of the native calls, with every status and stage value and every field, is
+`GET /openapi.json` (no key). The interactive page is `/reference`.
+
 **Unknown fields are refused on every door** (400 `input.invalid`, `param` names the field). The OpenAI door takes only `model`,
 `messages` and `stream`. The Gemini door takes only `contents` and `systemInstruction` (an empty `generationConfig` is
 tolerated; one with content is refused). The native door takes `model`, `prompt`, `ratio`, `n`, `image`, `images`, `options`,
@@ -76,11 +79,29 @@ A video can take **about an hour** to render (28 to 56 minutes measured). An ima
 
 - **Native:** create answers at once with `{id, status: "queued"}`. Poll the status every 10 to 30 s until `done` or `failed`.
   Statuses: `queued`, `running` (with a `stage`), `done`, `failed`.
+  While `running`, `stage` is `submitting` (the order is being placed with the provider), `unknown` (the order was
+  sent and is not confirmed yet), `waiting` (the provider is rendering) or `fetching` (the render is done and relay is
+  copying the files). New `status` and `stage` values may appear later: treat a value you do not know as "still running".
 - **OpenAI and Gemini:** the request is held, at most 540 s without `stream`. If the job is not done by then, the answer is
   not an error: `finish_reason` is `length` (Gemini `MAX_TOKENS`) and the text says `still rendering — poll job <id>`. The
   job keeps running and stays charged. Poll it with the native call. A stream is held up to 30 minutes and sends a
   heartbeat every 5 s. Do not re-send the request: the job exists.
 - A held request or a stream that you close never cancels the job.
+
+## Progress and expected finish
+
+The status carries three estimate fields. Ignore fields you do not know: more may be added, and none that exists is
+ever renamed or removed.
+
+| Field | Meaning |
+|---|---|
+| `progress` | A whole number 0 to 100, always an **estimate** (there is no separate flag): the provider reports no percentage. It is based on recent render times of this model and length, and it still advances when there is little data. 0 before the render starts; then rising while it renders; 95 while the files are copied; 100 only when `done`; `null` when `failed`. It does not go down while the render runs, and is never 100 before `done`. A job that takes longer than usual stays near the top of the range until it ends. After an operator re-check or a re-send the render restarts, and so does the estimate. |
+| `render_started_at` | ISO time the current render attempt started. `null` before the render starts (queued, being placed) and for a failed job. |
+| `estimated_finish_at` | ISO time the render is expected to end, to the minute, only while the render runs and only when there is enough recent data for this model and length. `null` otherwise: with little data relay makes no promise. `null` once the job has run longer than usual (a time in the past is not an estimate), and `null` for a failed job. |
+
+Images are fast: they show 0, then 95, then 100, and no `estimated_finish_at`. Decide that a job has ended from `status`, never from `progress`.
+
+All times are server time with a UTC offset. Compare an estimated time with the server's clock (the HTTP `Date` header of the answer), not with your own.
 
 ## Refusals and refunds
 
@@ -117,6 +138,7 @@ curl -s http://192.168.18.227:8100/v1/video/generations \
 
 curl -s http://192.168.18.227:8100/v1/video/generations/<job id> -H "Authorization: Bearer rk-..."
 # {"status": "done", "result_urls": ["http://192.168.18.227:8100/m/<token>"], "refunded": false, "points": 2, ...}
+# while rendering: {"status": "running", "stage": "waiting", "progress": 45, "render_started_at": "2026-10-18T10:03:10+00:00", "estimated_finish_at": "2026-10-18T10:45:00+00:00", ...}
 ```
 
 OpenAI door (name suffixes allowed here). If the answer says `still rendering`, poll the native video route with `job_id`.
