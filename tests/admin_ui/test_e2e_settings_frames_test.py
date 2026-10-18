@@ -282,7 +282,7 @@ def test_a_late_answer_for_an_editor_that_is_no_longer_open_is_dropped_and_the_c
     expect(page.get_by_role("button", name="Preview", exact=True)).to_be_disabled()
     expect(video.get_by_role("button", name="Edit the default")).to_be_enabled()
     expect(row.get_by_role("button", name="Edit frame for fake-video")).to_be_enabled()
-    expect(page.locator('select[aria-label="Provider"]')).to_be_enabled()
+    expect(page.get_by_role("combobox", name="Provider", exact=True)).to_be_enabled()
     # the operator moves on to the default again; the late answer for fake-video must not replace it
     video.get_by_role("button", name="Edit the default").click()
     held[0].continue_()
@@ -312,7 +312,8 @@ def test_a_provider_without_frames_says_the_core_frame_applies_and_the_provider_
     page = app_session
     open_tab(page, "Prompt frames")
     expect(page.get_by_text("This provider has no prompt frames: the core frame applies.")).to_be_visible()
-    expect(page.locator('select[aria-label="Provider"] option', has_text="fake")).to_have_count(1)
+    page.get_by_role("combobox", name="Provider", exact=True).click()
+    expect(page.get_by_role("option", name="fake", exact=True)).to_have_count(1)
     page.problems.clear()                                    # the 404 is a console line
 
 

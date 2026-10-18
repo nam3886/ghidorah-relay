@@ -10,7 +10,6 @@ const STILL_TO_CONVERT = [
   "components/logs/LogsFilterForm.vue",
   "components/accounts/ImportDialog.vue",
   "components/keys/KeyFormDialog.vue",
-  "views/FramesView.vue",
 ];
 
 const SRC = join(process.cwd(), "src");

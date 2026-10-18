@@ -2,7 +2,7 @@
 import type { FrameKind, FrameModel } from "@/api/frames";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
-import { DEFAULT_TARGET, lockLine, versionTag } from "./frames-model";
+import { DEFAULT_TARGET, kindTitle, lockLine, versionTag } from "./frames-model";
 import type { FramesController } from "./use-frames";
 
 // One kind (image, video): its default frame and a table of its models. The default can be edited, reset to the shipped
@@ -24,7 +24,7 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
   >
     <div class="kind__head">
       <div class="kind__title">
-        <h2 :id="`kind-${kind.kind}`">{{ kind.kind }}</h2>
+        <h2 :id="`kind-${kind.kind}`">{{ kindTitle(kind.kind) }}</h2>
         <span class="kind__default"
           >Default: <span class="kind__mono">{{ versionTag(kind.default) }}</span></span
         >
@@ -102,9 +102,9 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
           <tr>
             <th scope="col" class="kind__first">Model</th>
             <th v-if="!isTablet" scope="col">Source</th>
-            <th scope="col" class="num">Effective version</th>
+            <th scope="col" class="kind__right">Effective version</th>
             <th scope="col">Keep own</th>
-            <th scope="col" class="kind__last num">Edit</th>
+            <th scope="col" class="kind__last">Edit</th>
           </tr>
         </thead>
         <tbody>
@@ -121,7 +121,7 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
             <td v-if="!isTablet">
               <StatusChip :status="row.source" :label="row.source" :tone="row.source === 'own' ? 'info' : 'neutral'" />
             </td>
-            <td class="num kind__mono kind__effective-cell">{{ versionTag(row.effective) }}</td>
+            <td class="num kind__right kind__mono kind__effective-cell">{{ versionTag(row.effective) }}</td>
             <td class="kind__keep-cell">
               <label class="kind__keep">
                 <input
@@ -178,7 +178,6 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
   font-size: 15px;
   line-height: 22px;
   font-weight: 600;
-  text-transform: capitalize;
 }
 .kind__default {
   font-size: 13px;
@@ -235,6 +234,7 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
   color: var(--rl-fg);
   font: inherit;
   font-size: 13px;
+  line-height: normal;
   cursor: pointer;
 }
 .kind__edit-default {
@@ -282,8 +282,7 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
   color: var(--rl-muted);
   background: var(--rl-raised);
 }
-.kind__table th.num,
-.kind__table td.num {
+.kind__table .kind__right {
   text-align: right;
 }
 .kind__table td {
@@ -321,7 +320,7 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
 .kind__effective-cell {
   font-size: 13px;
 }
-.kind__keep-cell {
+.kind__table td.kind__keep-cell {
   padding: 8px 12px;
 }
 .kind__keep {
@@ -335,6 +334,7 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
   width: 15px;
   height: 15px;
   margin: 0;
+  font-family: inherit;
   accent-color: var(--rl-primary);
 }
 .kind__lock {
@@ -379,6 +379,7 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
   height: 22px;
   margin-top: 4px;
   padding: 0 8px;
+  font-family: var(--rl-font);
   font-size: 11px;
 }
 .is-tablet .kind__keep input {
@@ -449,10 +450,12 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
 .kind__lock--phone {
   margin: 0;
 }
-.kind__edit--phone {
+/* the drawn phone Edit sets no padding: the browser's 1px 6px */
+.kind__list .kind__edit--phone {
   width: 100%;
   height: 44px;
   margin-top: 4px;
+  padding: 1px 6px;
   font-size: 14px;
 }
 .kind__title--row2 {

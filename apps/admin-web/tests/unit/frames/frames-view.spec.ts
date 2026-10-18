@@ -27,6 +27,8 @@ const buttons = (name: string) =>
   wrapper!.findAll("button").filter((b) => b.text() === name || b.attributes("aria-label") === name);
 const button = (name: string) => buttons(name)[0]!;
 const textarea = () => wrapper!.find("textarea");
+// the drawn select: a combobox button named by its label word
+const providerSelect = () => wrapper!.find('button[role="combobox"]');
 
 beforeEach(() => {
   forgetFramesMemory();
@@ -199,6 +201,24 @@ describe("the view", () => {
     const alert = wrapper!.find('.frame-editor [role="alert"]');
     expect(alert.text()).toBe("the frame needs the customer prompt (text)");
     expect(textarea().element.value).toBe("no placeholders");
+    // drawn as a field error: the box it is about is marked invalid and described by it
+    expect(textarea().attributes("aria-invalid")).toBe("true");
+    expect(textarea().classes()).toContain("is-invalid");
+    expect(textarea().attributes("aria-describedby")).toBe(alert.attributes("id"));
+  });
+
+  it("marks no box invalid while nothing was refused", async () => {
+    await open();
+    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await flushPromises();
+    expect(textarea().attributes("aria-invalid")).toBeUndefined();
+    expect(textarea().attributes("aria-describedby")).toBeUndefined();
+    expect(textarea().classes()).not.toContain("is-invalid");
+  });
+
+  it("titles each kind's section as drawn: Video, Image", async () => {
+    await open();
+    expect(wrapper!.findAll("section[data-frame-kind] h2").map((h) => h.text())).toEqual(["Video", "Image"]);
   });
 
   it("shows save warnings, the preview and the history as text", async () => {
@@ -281,7 +301,7 @@ describe("the view", () => {
     expect(wrapper!.find('input[type="checkbox"]').attributes("disabled")).toBeDefined();
     expect(wrapper!.find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeUndefined();
     expect(button("Edit the default").attributes("disabled")).toBeUndefined();
-    expect(wrapper!.find('select[aria-label="Provider"]').attributes("disabled")).toBeUndefined();
+    expect(providerSelect().attributes("disabled")).toBeUndefined();
     slow.resolve(frameInfo(null));
     await flushPromises();
     expect(textarea().attributes("readonly")).toBeUndefined();
@@ -298,7 +318,7 @@ describe("the view", () => {
     expect(textarea().attributes("readonly")).toBeDefined();
     expect(wrapper!.find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeDefined();
     expect(button("Edit the default").attributes("disabled")).toBeDefined();
-    expect(wrapper!.find('select[aria-label="Provider"]').attributes("disabled")).toBeDefined();
+    expect(providerSelect().attributes("disabled")).toBeDefined();
     slow.resolve({ version: version(9, "typed"), unchanged: false, warnings: [] });
     await flushPromises();
     expect(wrapper!.find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeUndefined();

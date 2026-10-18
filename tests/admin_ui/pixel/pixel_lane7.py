@@ -3,17 +3,20 @@ the state of each board (B-, T- and P- boards share one seed and one drive per s
 
 What the app cannot be made to show, and so stays a known difference of these boards:
 - the model display names (`Dreamina Seedance 2.5`): the catalog has an id and no name, the app shows the id;
-- the version numbers `v3`, `v4`: the app prints the database id of a version, one sequence for every target;
-- the settings rows: the live server's settings are the core ones plus the fake provider's, not the boards' six;
-- the boot-only values and the measured-price rows of the live server;
+- the version numbers of the defaults and of the models that follow them: the app prints the database id of a
+  version, one sequence for every target (the history of seedance_v2.5 is the board's v2, v3, v4);
+- the preview's tracking code (the server's sample marker) and so the preview's length;
+- the password rule's number: the board's 12 is sample data, the form holds the server's 10 (design-deviations);
 - the job id `e17c55b2` (a new job has a new id). The Test drive moves the job to the boards' step itself (the fake
   worker is not running), and its seed names the models and charges the boards' 2 points."""
 
 import dataclasses
 import io
+import json
+import re
 
 from patchright.sync_api import expect
-from pixel_seed import PROVIDER, set_setting, shell_seed
+from pixel_seed import PROVIDER, shell_seed
 
 from relay_core.providers import FrameRules, ModelSpec, check_catalog
 from relay_core.testing.fake_provider import FAKE_FRAMES
@@ -69,8 +72,14 @@ FRAME_TEXT = ("Create exactly one cinematic video for this request, no on-screen
               "light natural.")
 SAMPLE_PROMPT = "a cat on a sofa"
 OLDER = "Make one video of {{client_prompt}} {{tracking_code}}"
+# The board's Save is drawn enabled: the editor holds a change. The stored v4 is the frame before it (the board's text
+# without its last sentence) and the drive types the board's text over it.
+STORED_V4 = FRAME_TEXT.removesuffix(" Keep the camera steady and the light natural.")
 INSERT_FRAME = ("INSERT INTO prompt_frames (id, provider, kind, model, text, created_at, created_by) "
                 "VALUES (%s, %s, %s, %s, %s, %s::timestamptz, 'admin')")
+# A version's tag is its id, one sequence for every target: the history is the board's (v2, v3, v4); the defaults and
+# the image model's own frame take ids no board tag uses, so a tag that is data never pairs with an equal one elsewhere.
+VIDEO_DEFAULT_ID, IMAGE_DEFAULT_ID, IMAGE_OWN_ID = 7, 8, 9
 
 
 def frames_seed(db, live):
@@ -80,46 +89,115 @@ def frames_seed(db, live):
     use_the_boards_models(live)
     shipped_image = FAKE_FRAMES.defaults["image"]
     for row in (
-        (1, "video", None, "Default video frame {{client_prompt}} {{tracking_code}}", "2026-10-08 10:00+07"),
+        (VIDEO_DEFAULT_ID, "video", None, "Default video frame {{client_prompt}} {{tracking_code}}",
+         "2026-10-08 10:00+07"),
         (2, "video", "seedance_v2.5", OLDER, "2026-10-09 16:22+07"),
         (3, "video", "seedance_v2.5", OLDER + " again", "2026-10-12 11:05+07"),
-        (4, "video", "seedance_v2.5", FRAME_TEXT, "2026-10-14 18:40+07"),
-        (5, "image", "seedream-5.0-pro", OLDER, "2026-10-10 09:00+07"),
-        (6, "image", None, shipped_image, "2026-10-08 10:00+07"),
+        (4, "video", "seedance_v2.5", STORED_V4, "2026-10-14 18:40+07"),
+        (IMAGE_OWN_ID, "image", "seedream-5.0-pro", OLDER, "2026-10-10 09:00+07"),
+        (IMAGE_DEFAULT_ID, "image", None, shipped_image, "2026-10-08 10:00+07"),
     ):
         db.run(INSERT_FRAME, row[0], PROVIDER, row[1], row[2], row[3], row[4])
+    # the ids were given: the next saved version takes the one after the highest
+    db.run("SELECT setval(pg_get_serial_sequence('prompt_frames', 'id'), (SELECT max(id) FROM prompt_frames))")
     db.run("INSERT INTO prompt_frame_locks (provider, kind, model, locked, created_at, created_by) "
            "VALUES (%s, 'video', 'seedance_v2.5', true, '2026-10-14 18:40+07'::timestamptz, 'admin')", PROVIDER)
     return data
 
 
-def frames_drive(page, live, data):
+def open_the_boards_frame(page) -> None:
+    """The editor of seedance_v2.5, with the board's text typed over the stored one (so Save is on, as drawn)."""
     expect(page.locator("[data-frame-kind=video]")).to_be_visible(timeout=TIMEOUT_MS)
     page.get_by_role("button", name="Edit frame for seedance_v2.5").click()
-    expect(page.get_by_label("Frame text")).to_have_value(FRAME_TEXT, timeout=TIMEOUT_MS)
+    box = page.get_by_label("Frame text")
+    expect(box).to_have_value(STORED_V4, timeout=TIMEOUT_MS)
+    box.fill(FRAME_TEXT)
+
+
+def frames_drive(page, live, data):
+    open_the_boards_frame(page)
     page.get_by_role("button", name="Preview", exact=True).click()
     expect(page.get_by_test_id("frame-preview")).to_be_visible(timeout=TIMEOUT_MS)
+    page.mouse.move(0, 0)               # no hover left on the button that was clicked
     drop_the_banner(page)
 
 
 # ---- Settings -------------------------------------------------------------------------------------------------------
+# The boards' rows cannot come from the live server: it lists its own registry sorted by key, its boot-only values are
+# the deployment's, and the boards' measured prices are not what one set of jobs adds up to (a lowest figure with no
+# disagreement). So the page is answered with the boards' rows in the server's shape (the reads only; a write still
+# goes to the server).
+# (key, description, stored value, source, default); dola.max_wait_s is the edited row: the drive types 5400 over it
+BOARD_SETTINGS = (
+    ("fake.render_deadline_s", "Render deadline.", 900, "default", 900),
+    ("dola.max_wait_s", "Longest wait for one dola render before the job is marked unknown.", 4500, "db", 3600),
+    ("dola.poll_interval_s", "Pause between checks of a running render.", 5, "default", 5),
+    ("jobs.reaper_interval_s", "How often stuck jobs are looked for.", 60, "env", 120),
+    ("jobs.max_attempts", "Tries on another account before a job fails.", 3, "db", 2),
+    ("alerts.keep_days", "Days an acknowledged alert row is kept.", 30, "default", 30),
+)
+EDITED_KEY, EDITED_VALUE = "dola.max_wait_s", "5400"
+BOARD_BOOT = (("RELAY_BIND", "0.0.0.0:8100"), ("RELAY_CHROME_PATH", "/opt/chrome-154/chrome"), ("RELAY_WORKERS", "1"),
+              ("RELAY_DATA_DIR", "/var/lib/relay"), ("RELAY_LOG_LEVEL", "info"),
+              ("RELAY_PROFILE_DIR", "/var/lib/relay/profiles"))
+# (model, duration, charged, jobs with a figure, upstream disagreed, lowest upstream, substituted)
+BOARD_PRICES = (("seedance_v2.5", 5, 2, 48, 0, 2, 0), ("seedance_v2.5", 30, 2, 17, 2, 1, 3),
+                ("seedance_v2.0", 10, 1, 31, 0, 1, 1), ("seedream-4.5", None, 1, 112, 0, 1, 0))
+SETTINGS_READ = re.compile(r"/admin/settings$")
+PRICES_READ = re.compile(r"/admin/prices(\?.*)?$")
+SHORT_PASSWORD = "short-pw!"                # one character under the server's 10: the board draws `short-pass`
+
+
+def board_settings_body() -> dict:
+    return {
+        "items": [{"key": k, "type": "int", "value": v, "source": s, "default": d, "description": text,
+                   "env_name": k.upper().replace(".", "_"), "read_only": False}
+                  for k, text, v, s, d in BOARD_SETTINGS],
+        "env_only": [{"name": n, "value": v, "read_only": True} for n, v in BOARD_BOOT],
+    }
+
+
+def board_prices_body() -> dict:
+    items = [{"provider": PROVIDER, "model": m, "duration": d, "charged": c, "jobs": n, "disagreed": bad,
+              "lowest_upstream": low, "substituted": sub} for m, d, c, n, bad, low, sub in BOARD_PRICES]
+    return {"items": items, "disagreed_total": sum(i["disagreed"] for i in items),
+            "substituted_total": sum(i["substituted"] for i in items)}
+
+
+def _answer(body: dict):
+    """A read answered with `body`; anything else (a write) goes on to the server."""
+    def handle(route):
+        if route.request.method != "GET":
+            route.fallback()
+            return
+        route.fulfill(content_type="application/json", body=json.dumps(body))
+    return handle
+
+
+def serve_the_boards_settings(page) -> None:
+    """The settings, boot-only values and measured prices of the boards, then the page drawn again with them."""
+    page.route(SETTINGS_READ, _answer(board_settings_body()))
+    page.route(PRICES_READ, _answer(board_prices_body()))
+    page.reload()
+    expect(page.get_by_label("Value of " + EDITED_KEY)).to_be_visible(timeout=TIMEOUT_MS)
+
 
 def settings_seed(db, live):
-    """The edited row of the boards: a stored value with another one typed over it."""
-    data = shell_seed(db, live)
-    use_the_boards_models(live)
-    set_setting(db, live, PROVIDER + ".render_deadline_s", 3600)
-    return data
+    return shell_seed(db, live)
 
 
 def settings_drive(page, live, data):
-    box = page.get_by_label("Value of " + PROVIDER + ".render_deadline_s")
-    expect(box).to_be_visible(timeout=TIMEOUT_MS)
-    box.fill("5400")
-    expect(page.get_by_role("button", name="Save " + PROVIDER + ".render_deadline_s")).to_be_enabled()
-    password = page.get_by_label("Current password")
-    password.fill("placeholder-secret")
-    page.get_by_label("New password").fill("short-pass")
+    """The boards' state: one value typed over its stored one (the row is edited), and the password form refused on
+    the new password. The board's rule is sample data (12); the form holds the server's, 10, so a 9-character new
+    password reaches the drawn error before anything is sent."""
+    serve_the_boards_settings(page)
+    page.get_by_label("Value of " + EDITED_KEY).fill(EDITED_VALUE)
+    expect(page.get_by_role("button", name="Save " + EDITED_KEY)).to_be_enabled()
+    page.get_by_label("Current password").fill("placeholder-secret")
+    page.get_by_label("New password").fill(SHORT_PASSWORD)
+    page.locator("#password").get_by_role("button", name="Save", exact=True).click()
+    expect(page.locator("#password").get_by_role("alert")).to_be_visible(timeout=TIMEOUT_MS)
+    page.mouse.move(0, 0)
     drop_the_banner(page)
 
 
