@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import "./account-skeleton.css";
 import type { Account } from "@/api/accounts";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import {
@@ -6,20 +7,33 @@ import {
   ago,
   asleepInfo,
   extraError,
+  madeLine,
   pointsFigure,
+  poolsInOrder,
   proxyCheck,
   proxyChipText,
   proxyText,
   type RowAction,
   rowMenu,
+  statusReason,
+  type ChipState,
+  chipProps,
+  barWidth,
+  SKELETON_ROWS,
 } from "./account-model";
 import ToggleSwitch from "@/components/shared/ToggleSwitch.vue";
 import ActionMenu from "@/components/shared/ActionMenu.vue";
+import CommandChip from "@/components/shared/CommandChip.vue";
 import MiniChip from "./MiniChip.vue";
 
 // The account table from 768 to 1279 px (T-Accounts): five columns that fit the width; the counts, the proxy and the
 // last error fold into the Account, Status and Points cells.
-defineProps<{ rows: Account[]; checking: ReadonlySet<string> }>();
+defineProps<{
+  rows: Account[];
+  checking: ReadonlySet<string>;
+  chips: Record<string, ChipState>;
+  skeleton?: boolean;
+}>();
 const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [name: RowAction, account: Account] }>();
 </script>
 
@@ -34,7 +48,24 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
         <th scope="col" class="w-actions right">Actions</th>
       </tr>
     </thead>
-    <tbody>
+    <!-- loading: the header above, flat bars in each column (B-States loading) -->
+    <tbody v-if="skeleton" aria-hidden="true">
+      <tr v-for="(s, n) in SKELETON_ROWS" :key="n" class="acct-skel-row">
+        <td class="first">
+          <i class="acct-skel" :style="barWidth(s.label)" /><i
+            class="acct-skel acct-skel--sub"
+            :style="barWidth(s.sub)"
+          />
+        </td>
+        <td><i class="acct-skel acct-skel--pill" :style="barWidth(s.pill)" /></td>
+        <td>
+          <i class="acct-skel" :style="barWidth(64)" /><i class="acct-skel acct-skel--sub" :style="barWidth(80)" />
+        </td>
+        <td><i class="acct-skel" :style="barWidth(24)" /></td>
+        <td class="last"><i class="acct-skel acct-skel--end" :style="barWidth(96)" /></td>
+      </tr>
+    </tbody>
+    <tbody v-else>
       <tr v-for="a in rows" :key="a.id" class="acct-row" :class="{ 'is-dead': a.state === 'dead' }">
         <td class="first">
           <span class="label">{{ a.label }}</span>
@@ -50,13 +81,13 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
             <StatusChip :status="a.state" />
             <StatusChip v-if="a.in_use" status="in use" />
           </span>
-          <span v-if="a.state_reason" class="line mono bad">{{ a.state_reason }}</span>
+          <span v-if="statusReason(a)" class="line mono bad">{{ statusReason(a) }}</span>
           <span class="line faint">Checked {{ ago(a.last_checked_ms) }}</span>
           <span v-if="extraError(a) && extraError(a) !== '—'" class="line mono bad">{{ extraError(a) }}</span>
         </td>
         <td class="tnum">
           <template v-if="a.capacity.length">
-            <template v-for="c in a.capacity" :key="c.pool">
+            <template v-for="c in poolsInOrder(a.capacity)" :key="c.pool">
               <span class="block"
                 ><span class="word">{{ c.pool }}</span> <span class="mono figure">{{ pointsFigure(c) }}</span></span
               >
@@ -64,7 +95,7 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
             </template>
           </template>
           <span v-else class="faint">—</span>
-          <span class="made">{{ a.made.video }} videos · {{ a.made.image }} images</span>
+          <span class="made">{{ madeLine(a.made) }}</span>
         </td>
         <td>
           <template v-if="asleepInfo(a)">
@@ -90,7 +121,7 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
               class="check-btn"
               :aria-label="`Check ${a.label}`"
               :aria-disabled="checking.has(a.id) ? 'true' : undefined"
-              @click="!checking.has(a.id) && emit('action', 'check', a)"
+              @click="emit('action', 'check', a)"
             >
               Check
             </button>
@@ -101,6 +132,9 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
               :size="32"
               @select="(key: string) => emit('action', key as RowAction, a)"
             />
+            <span v-if="chips[`check:${a.id}`]" class="cmd-chip">
+              <CommandChip v-bind="chipProps(chips[`check:${a.id}`]!)" />
+            </span>
           </div>
         </td>
       </tr>
@@ -242,11 +276,18 @@ td.last {
   color: var(--rl-faint);
   font-size: 11px;
 }
+/* switch, Check, More in one row; a command chip on a second line, from under Check to the end */
 .actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto auto;
+  justify-content: end;
   align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
+  gap: 8px 6px;
+}
+.cmd-chip {
+  display: flex;
+  grid-column: 2 / 4;
+  min-width: 0;
 }
 .spacer {
   display: block;
@@ -259,7 +300,8 @@ td.last {
   border-radius: 10px;
   background: transparent;
   color: var(--rl-fg);
-  font: inherit;
+  /* the page's family; the line height stays the button's own (normal), as drawn */
+  font-family: inherit;
   font-size: 13px;
   cursor: pointer;
 }

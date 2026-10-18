@@ -96,11 +96,11 @@ LANE7 = [replace(e, user=BOARD_USER) if e.board.endswith("-Test") else e for e i
 from pixel_accounts import accounts_seed, open_edit, open_import, phone_ready  # noqa: E402
 
 ACCOUNTS_BOARDS = [
-    Entry("B-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready),
-    Entry("T-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready),
-    Entry("P-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready),
-    Entry("B-AccountImport", "#/accounts", seed=accounts_seed, now=NOW, drive=open_import),
-    Entry("B-AccountEdit", "#/accounts", seed=accounts_seed, now=NOW, drive=open_edit),
+    Entry("B-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready, user=BOARD_USER),
+    Entry("T-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready, user=BOARD_USER),
+    Entry("P-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready, user=BOARD_USER),
+    Entry("B-AccountImport", "#/accounts", seed=accounts_seed, now=NOW, drive=open_import, user=BOARD_USER),
+    Entry("B-AccountEdit", "#/accounts", seed=accounts_seed, now=NOW, drive=open_edit, user=BOARD_USER),
 ]
 
 from pixel_kla import KLA  # noqa: E402  (lane 6: keys, request logs, alerts; imports Entry from here)
@@ -126,13 +126,14 @@ DRAWER = [
 ]
 
 # Each board holds its own measured gate: the worst of its light and dark mismatch + anti-aliasing on the box after the
-# consolidation round (the Jobs boards and their shell: after the Jobs page round), plus 1.0 point (17/10).
+# consolidation round (the Jobs boards and their shell: after the Jobs page round; the Accounts boards: after the
+# Accounts page round, 18/10), plus 1.0 point (17/10).
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
 # that gets better should have its gate lowered.
 GATES: dict[str, float] = {
-    "B-AccountEdit": 4.52,
-    "B-AccountImport": 10.13,
-    "B-Accounts": 2.73,
+    "B-AccountEdit": 4.04,
+    "B-AccountImport": 4.45,
+    "B-Accounts": 1.02,
     "B-Alerts": 1.13,
     "B-Frames": 1.17,
     "B-JobDetail": 1.40,
@@ -146,7 +147,7 @@ GATES: dict[str, float] = {
     "B-Logs": 1.25,
     "B-Settings": 1.08,
     "B-Test": 1.04,
-    "P-Accounts": 1.97,
+    "P-Accounts": 1.04,
     "P-Alerts": 1.23,
     "P-Frames": 1.46,
     "P-JobDetail": 2.23,
@@ -157,7 +158,7 @@ GATES: dict[str, float] = {
     "P-Logs": 1.12,
     "P-Settings": 1.25,
     "P-Test": 1.28,
-    "T-Accounts": 1.74,
+    "T-Accounts": 1.03,
     "T-Alerts": 1.01,
     "T-Frames": 1.17,
     "T-JobDetail": 1.37,

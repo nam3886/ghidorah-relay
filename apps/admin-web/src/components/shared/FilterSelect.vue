@@ -21,6 +21,9 @@ import { IconCheck, IconChevronDown } from "./icons";
 //   above a bordered box 34 high (36 on a tablet) holding the value and Chrome's 10 x 7 arrow, as wide as its longest
 //   option; on a phone the canvas's chip, the word inside a 44 px box and the value in a borderless control. The open
 //   list is the same listbox.
+// - `appearance="none"` (field only) is the canvas's select with `appearance: none` (B-AccountImport): no look of the
+//   browser's, the page's 14 px chevron 12 px in from the end instead of Chrome's arrow, and no chip on a phone; the
+//   page that draws it so sets its height and words.
 export interface SelectOption {
   value: string | number;
   label: string;
@@ -37,6 +40,7 @@ const props = withDefaults(
     size?: "toolbar" | "header" | "pager";
     chevron?: boolean;
     variant?: "chip" | "field";
+    appearance?: "auto" | "none";
     disabled?: boolean;
     // the field variant as a form's field (B/T/P-Test): it fills its column, the box 36 high with 14 px text and the
     // label 500 with 6 px under it, 44 high on a phone and never the chip
@@ -48,6 +52,7 @@ const props = withDefaults(
     size: "toolbar",
     chevron: true,
     variant: "chip",
+    appearance: "auto",
     disabled: false,
     block: false,
   },
@@ -61,6 +66,10 @@ const listId = `${id}-list`;
 const triggerId = `${id}-trigger`;
 const optionId = (i: number): string => `${id}-opt-${i}`;
 const field = computed(() => props.variant === "field");
+// the field the page draws itself (`appearance="none"`), and the field drawn as the canvas's phone chip (never a
+// form's `block` field)
+const drawn = computed(() => field.value && props.appearance === "none");
+const chip = computed(() => field.value && !drawn.value && !props.block && isPhone.value);
 
 const current = computed(() => props.options.find((o) => o.value === props.modelValue));
 const chosenIndex = computed(() => props.options.findIndex((o) => o.value === props.modelValue));
@@ -80,7 +89,7 @@ const GAP = 6;
 // when it would pass the bottom and there is room above. Never narrower than the trigger. Runs on every frame while
 // open, so the place is written only when it changed.
 function measure(): void {
-  const rect = (field.value && isPhone.value ? box.value : trigger.value)?.getBoundingClientRect();
+  const rect = (chip.value ? box.value : trigger.value)?.getBoundingClientRect();
   if (!rect) return;
   const width = list.value?.offsetWidth ?? 0;
   const height = list.value?.offsetHeight ?? 0;
@@ -138,6 +147,19 @@ function close(): void {
   active.value = -1;
   document.removeEventListener("pointerdown", onOutside, true);
   cancelAnimationFrame(frame);
+}
+
+// A press in the list keeps the focus on the trigger, so the trigger's keydown is the only one that sees a key while the
+// list is open: an option, and the padding around the options too (a press there used to move the focus off the
+// trigger, and the next Escape went on to a dialog around the select and closed it). A press in the scrollbar gutter
+// (past the content box: clientWidth and clientHeight leave the scrollbar out) is left alone, so a long list can still
+// be dragged by its scrollbar; wheel and touch scrolling do not go through a press.
+function onListPress(event: PointerEvent): void {
+  const el = event.currentTarget as HTMLElement;
+  const box = el.getBoundingClientRect();
+  const x = event.clientX - box.left - el.clientLeft;
+  const y = event.clientY - box.top - el.clientTop;
+  if (x < el.clientWidth && y < el.clientHeight) event.preventDefault();
 }
 
 function choose(index: number): void {
@@ -265,9 +287,10 @@ const triggerAttrs = computed(() => ({
 }));
 const triggerEvents = { click: onClick, keydown: onKey };
 const fieldClass = computed(() => ({
-  "is-chip": isPhone.value && !props.block,
+  "is-chip": chip.value,
   "is-block": props.block,
-  "is-tall": isTablet.value,
+  "is-tall": isTablet.value && !drawn.value,
+  "is-drawn": drawn.value,
   "is-open": open.value,
   "is-disabled": props.disabled,
 }));
@@ -305,7 +328,8 @@ function setRoot(el: unknown): void {
             >{{ o.label }}</span
           ></span
         >
-        <svg class="filter-field__arrow" width="12" height="9" viewBox="0 0 12 9" aria-hidden="true">
+        <IconChevronDown v-if="drawn" class="filter-field__chevron" :size="14" :stroke="2" />
+        <svg v-else class="filter-field__arrow" width="12" height="9" viewBox="0 0 12 9" aria-hidden="true">
           <path d="M2 2l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="miter" />
         </svg>
       </button>
@@ -333,6 +357,7 @@ function setRoot(el: unknown): void {
           minWidth: `${place.minWidth}px`,
           zIndex: listZ,
         }"
+        @pointerdown="onListPress"
       >
         <div
           v-for="(o, i) in props.options"
@@ -342,7 +367,6 @@ function setRoot(el: unknown): void {
           class="filter-list__item"
           :class="{ 'is-selected': o.value === props.modelValue, 'is-active': i === active }"
           :aria-selected="o.value === props.modelValue"
-          @pointerdown.prevent
           @pointermove="
             active = i;
             byKeyboard = false;
@@ -438,6 +462,17 @@ function setRoot(el: unknown): void {
   position: absolute;
   top: calc(50% - 4px);
   right: 2px;
+}
+/* `appearance="none"`: the box has no inner start of its own and room at its end for the 14 px chevron 12 px in from
+   its outer edge (11 from the padding edge it is placed in: the 1 px border lies outside it) */
+.filter-field.is-drawn .filter-select.is-field {
+  padding: 0 36px 0 12px;
+}
+.filter-field__chevron {
+  position: absolute;
+  top: calc(50% - 7px);
+  right: 11px;
+  color: var(--rl-muted);
 }
 .filter-select.is-field:disabled {
   background: var(--rl-raised);

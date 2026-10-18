@@ -389,7 +389,8 @@ COPY = f"{SHARED}/CopyButton.vue"
 @mutation(ACTION_MENU, 'triggerLabel: "More"', 'triggerLabel: "Menu"', expect="is a button named More")
 @mutation(ACTION_MENU, 'menuLabel: "Actions"', 'menuLabel: "Menu"', expect="opens a menu named Actions")
 @mutation(COMMAND_CHIP, 'v-if="props.time"', 'v-if="!props.time"', expect="ok: a dot, `ok ·` and the time in mono")
-@mutation(COMMAND_CHIP, 'v-if="props.message"', 'v-if="!props.message"', expect="error: a dot and `error · <message>`")
+@mutation(COMMAND_CHIP, '(props.message ? `error · ${props.message}` : "error")', '("error")',
+          expect="error: a dot and `error · <message>`")
 @mutation(COMMAND_CHIP, ":class=\"`is-${props.state}`\"", ":class=\"'is-ok'\"", expect="running: a spinner")
 @mutation(DRAWER_TABS, ":aria-controls=\"drawerPanelId(props.idPrefix, t.key)\"",
           ":aria-controls=\"drawerTabId(props.idPrefix, t.key)\"",
@@ -437,12 +438,12 @@ ALERTS_VIEW = f"{SRC}/views/AlertsView.vue"
 @mutation(FILTER, "valueWidth.value = Math.floor(width);", "valueWidth.value = Math.round(width);",
           expect=FIELD + "takes the floor of the measured width, as Chrome sizes a select")
 @mutation(FILTER, '"is-tall": isTablet.value', '"is-tall": false', expect=FIELD + "is 36 high on a tablet")
-@mutation(FILTER, '"is-chip": isPhone.value', '"is-chip": false', expect=FIELD + "is 36 high on a tablet")
+@mutation(FILTER, '"is-chip": chip.value', '"is-chip": false', expect=FIELD + "is 36 high on a tablet")
 @mutation(FILTER, "disabled: props.disabled || undefined,", "disabled: undefined,",
           expect=FIELD + "disabled: the box is off and opens nothing")
 @mutation(FILTER, " || box.value?.contains(target)))", "))",
           expect=FIELD + "a press on its own label or box while open does not close it from outside")
-@mutation(FILTER, "(field.value && isPhone.value ? box.value : trigger.value)", "(trigger.value)",
+@mutation(FILTER, "(chip.value ? box.value : trigger.value)", "(trigger.value)",
           expect=FIELD + "on a phone the list hangs 6 px under the chip")
 @mutation(FILTER, ":is=\"field ? 'div' : 'button'\"", ":is=\"'div'\"",
           expect=FIELD + "the chip variant is unchanged: the trigger is the root")
@@ -451,15 +452,10 @@ def test_the_field_select_is_the_canvas_select_drawn_by_us():
     vitest(FIELD_SPEC)
 
 
-@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '"components/accounts/ImportDialog.vue"', "",
-          expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
-@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", "const STILL_TO_CONVERT = [",
-          'const STILL_TO_CONVERT = ["views/AlertsView.vue", ',
-          expect=NO_SELECT + "every file still to convert still has one: a converted file leaves the list")
 @mutation(ALERTS_VIEW, '<span v-if="!isPhone" class="gt__spacer" />', '<select v-if="!isPhone" class="gt__spacer" />',
-          expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
+          expect=NO_SELECT + "no source file draws a native select")
 @pytest.mark.web_unit
-def test_no_native_select_is_left_but_the_files_still_to_convert():
+def test_no_native_select_is_left():
     vitest(NO_SELECT_SPEC)
 
 
@@ -633,7 +629,7 @@ def test_the_toast_skin_outranks_element_plus():
 FORM_FIELD = FIELD + "as a form's field (block) keeps its label above the box on a phone too, never the chip"
 
 
-@mutation(FILTER, '"is-chip": isPhone.value && !props.block,', '"is-chip": isPhone.value,', expect=FORM_FIELD)
+@mutation(FILTER, "!props.block && isPhone.value", "isPhone.value", expect=FORM_FIELD)
 @mutation(FILTER, '"is-block": props.block,', '"is-block": false,', expect=FORM_FIELD)
 @pytest.mark.web_unit
 def test_the_field_select_can_be_a_form_field():

@@ -267,6 +267,11 @@ describe("CommandChip", () => {
     const w = mount(CommandChip, { props: { state: "error", message: "connect timeout after 8 s" } });
     expect(w.text()).toBe("error · connect timeout after 8 s");
     expect(w.classes()).toContain("is-error");
+    // a long one ends in "…" inside its room: the title holds the whole text
+    expect(w.attributes("title")).toBe("error · connect timeout after 8 s");
+    expect(w.find(".command-chip__text").text()).toBe("error · connect timeout after 8 s");
+    expect(mount(CommandChip, { props: { state: "error" } }).text()).toBe("error");
+    expect(mount(CommandChip, { props: { state: "ok", time: "20:55:07" } }).attributes("title")).toBeUndefined();
     const planted = mount(CommandChip, { props: { state: "error", message: "<b>x</b>" } });
     expect(planted.find("b").exists()).toBe(false);
     expect(planted.text()).toBe("error · <b>x</b>");

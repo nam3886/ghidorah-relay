@@ -209,11 +209,11 @@ def test_drawer_recover_and_fetch_title_queue_a_command_and_poll_it(app, app_pag
     expect(page.get_by_text("Enter the account id or label to recover from")).to_be_visible()
     panel.get_by_placeholder("Account id or label, e.g. acct-n11-01").fill("acct-r")
     panel.get_by_role("button", name="Recover").click()
-    expect(page.get_by_text("Recover: done")).to_be_visible()
+    expect(page.get_by_text("Recover done")).to_be_visible()
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'recover' AND job_id = %s", job)[0] == 1
     pick(page, "Technical")
     panel.get_by_role("button", name="Fetch title").click()
-    expect(page.get_by_text("Fetch title: done")).to_be_visible()
+    expect(page.get_by_text("Fetch title done")).to_be_visible()
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'titles' AND job_id = %s", job)[0] == 1
 
 

@@ -24,7 +24,8 @@ where it puts things, whichever element of the markup carries it.
 trigger's markup, so the tables never see it cover the trigger; it must sit `gap` px under the trigger or above it.
 `extract(..., opaque=, skip=)`: boxes whose inside is data (a thumbnail's picture: the box is compared, not what it
 holds), and parts left out whole (sections an accepted deviation adds). Two boxes paired by their place must carry the
-same accessible name. `place_of` / `place_differences`: where a root or a scrim sits in the viewport and what it paints.
+same accessible name, and two icons paired by their place must draw the same shapes. `place_of` / `place_differences`:
+where a root or a scrim sits in the viewport and what it paints.
 
 Text on one side that only differs from its partner because it is live data (a time, a total) is listed apart when the
 entry names it (`data`), so the table that has to be empty holds only real differences."""
@@ -326,6 +327,11 @@ def _compare(c, a, out, data=False, loose=None):
             out.append((c, a, prop, cv, av))
 
 
+def _shape(icon) -> str:
+    """An icon's shapes: its signature without the leading "svg <w>x<h>"."""
+    return icon["sig"].split(" ", 2)[2] if icon["sig"].count(" ") >= 2 else ""
+
+
 def diff(name: str, canvas: dict, app: dict, data: tuple = (), data_app: tuple = (),
          loose: dict | None = None) -> Result:
     """Pair the canvas items with the app's and compare them. `data`: canvas texts that are live data (a pair by
@@ -360,6 +366,10 @@ def diff(name: str, canvas: dict, app: dict, data: tuple = (), data_app: tuple =
         # compared root's: a reference card of B-States is named after the card, "Jobs, no results")
         if c.get("label") and not c.get("root") and c["label"] != a.get("label") and c["label"] not in data:
             res.differences.append((c, a, "label", c["label"], a.get("label") or "(none)"))
+        # two icons in one place: their drawing is part of the design (a ⋮ where the canvas has a ⋯), which neither the
+        # box nor its colours show; the size is the box's
+        if c["kind"] == "icon" and _shape(c) != _shape(a):
+            res.differences.append((c, a, "shape", _shape(c), _shape(a)))
         _compare(c, a, res.differences, loose=loose)
     res.canvas_only = [c for c in rest_ct if c["text"] not in data] + rest_cb
     res.app_only = [a for a in rest_at if a["text"] not in data_app] + rest_ab

@@ -2,6 +2,7 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ActionMenu, { type MenuItem } from "@/components/shared/ActionMenu.vue";
 import MiniChip from "@/components/accounts/MiniChip.vue";
+import PoolCard from "@/components/accounts/PoolCard.vue";
 import { IconCamera, IconPencilMenu, IconPower, IconTrashMenu } from "@/components/shared/icons";
 
 let wrapper: VueWrapper | null = null;
@@ -16,6 +17,16 @@ describe("MiniChip", () => {
     wrapper = mount(MiniChip, { props: { tone: "warn" }, slots: { default: "drift" } });
     expect(wrapper.attributes("data-tone")).toBe("warn");
     expect(wrapper.text()).toBe("drift");
+  });
+});
+
+describe("PoolCard", () => {
+  it("names the number of accounts once the list has been read, and nothing before", () => {
+    const card = (count: number | null) =>
+      mount(PoolCard, { props: { count, health: [], pool: [], poolTitle: "dola pool" } });
+    expect(card(null).find("h2").text()).toBe("Pool health");
+    expect(card(9).find("h2").text()).toBe("Pool health · 9 accounts");
+    expect(card(1).find("h2").text()).toBe("Pool health · 1 account");
   });
 });
 
@@ -109,12 +120,29 @@ describe("ActionMenu", () => {
       ({ top, bottom: top + 30, right: 500, left: 470, width: 30, height: 30, x: 470, y: top }) as DOMRect;
     const at = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rect(100));
     await w.get("button").trigger("click");
-    expect(menu()!.style.top).toBe("136px");
+    expect(menu()!.style.top).toBe("138px");
     at.mockReturnValue(rect(40));
     window.dispatchEvent(new Event("scroll"));
     await flushPromises();
     expect(menu()).not.toBeNull();
-    expect(menu()!.style.top).toBe("76px");
+    expect(menu()!.style.top).toBe("78px");
+    at.mockRestore();
+  });
+
+  it("a row menu sits 8 px under its trigger and a page menu 6 px, as drawn", async () => {
+    const rect = { top: 100, bottom: 130, right: 500, left: 470, width: 30, height: 30, x: 470, y: 100 } as DOMRect;
+    const at = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rect);
+    const w = mountMenu();
+    await w.get("button").trigger("click");
+    expect(menu()!.style.top).toBe("138px");
+    w.unmount();
+    wrapper = null;
+    for (const variant of ["header", "headerPhone"] as const) {
+      const page = mount(ActionMenu, { props: { items, variant }, attachTo: document.body });
+      await page.get("button").trigger("click");
+      expect(menu()!.style.top).toBe("136px");
+      page.unmount();
+    }
     at.mockRestore();
   });
 
@@ -127,12 +155,12 @@ describe("ActionMenu", () => {
     vi.stubGlobal("innerHeight", 800);
     await w.get("button").trigger("click");
     await flushPromises();
-    expect(menu()!.style.top).toBe("534px");
+    expect(menu()!.style.top).toBe("532px");
     // no room above either: it stays under the trigger
     at.mockReturnValue(rect(100));
     window.dispatchEvent(new Event("scroll"));
     await flushPromises();
-    expect(menu()!.style.top).toBe("136px");
+    expect(menu()!.style.top).toBe("138px");
     at.mockRestore();
     height.mockRestore();
     vi.unstubAllGlobals();

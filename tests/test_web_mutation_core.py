@@ -166,7 +166,7 @@ POLL_FAILED = "FAILED tests/unit/use-command-poll.spec.ts > useCommandPoll > "
           expect=POLL_FAILED + "polls every second up to 90 times")
 @mutation(POLL, 'command.status === "done"', 'command.status === "dne"',
           expect=POLL_FAILED + "stops at done with a success toast, one second between asks")
-@mutation(POLL, " - ${command.result.error}", " ${command.result.error}",
+@mutation(POLL, ": ${command.result.error}", " ${command.result.error}",
           expect=POLL_FAILED + "stops at failed with the worker error in the toast")
 @mutation(POLL, ": still running", ": running",
           expect=POLL_FAILED + "gives up after 90 asks with an info toast and returns null")

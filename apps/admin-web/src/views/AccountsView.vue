@@ -21,7 +21,10 @@ import AccountsTableDesktop from "@/components/accounts/AccountsTableDesktop.vue
 import AccountsTableTablet from "@/components/accounts/AccountsTableTablet.vue";
 import {
   AUTO_REFRESH_MS,
+  type ChipState,
   checkSummary,
+  chipsAfterRead,
+  commandChip,
   healthItems,
   hhmmss,
   PAGE_SIZE,
@@ -29,9 +32,11 @@ import {
   type RowAction,
   WAKE_LABEL,
 } from "@/components/accounts/account-model";
+import type { CommandStatus } from "@/api/commands";
 import EditDialog from "@/components/accounts/EditDialog.vue";
 import ImportDialog from "@/components/accounts/ImportDialog.vue";
 import PoolCard from "@/components/accounts/PoolCard.vue";
+import { loadFailedText } from "@/components/jobs/job-text";
 import { IconAlertCircle, IconPlus } from "@/components/shared/icons";
 import ListPager from "@/components/shared/ListPager.vue";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
@@ -54,6 +59,8 @@ const { busy, run } = useBusy();
 // Check all and Refresh catalog poll for a long time: each locks only its own entry, as the other actions stay usable.
 const { busy: checkingAll, run: runCheckAll } = useBusy();
 const { busy: readingCatalogs, run: runReadCatalogs } = useBusy();
+// a proxy check polls as long: the Edit dialog stays open meanwhile and its Save stays usable
+const { run: runProxyCheck } = useBusy();
 const { poll } = useCommandPoll();
 const latest = useLatest();
 
@@ -68,6 +75,11 @@ const pool = shallowRef<PoolStats | null>(null);
 const poolError = ref<string | null>(null);
 // the accounts whose Check is running: their Check button is drawn disabled
 const checking = ref<ReadonlySet<string>>(new Set());
+// The chip line under each command's control (B-States "Command status"), by control: `check:<account id>`,
+// `proxy:<account id>`, `checkAll`, `refreshCatalog`. A finished chip stays through the next automatic read of the list
+// and goes with the one after (`chipsAfterRead`); `autoReads` counts the automatic reads that answered.
+const chips = shallowRef<Record<string, ChipState>>({});
+let autoReads = 0;
 
 const importOpen = ref(false);
 const editOpen = ref(false);
@@ -81,7 +93,7 @@ const dialogOpen = computed(() => importOpen.value || editOpen.value || confirmi
 let disposed = false;
 
 // Only the newest answer draws (or shows a failure): a slow older one must not bring old rows back.
-async function load(): Promise<void> {
+async function load(auto = false): Promise<void> {
   const ticket = latest.next();
   loading.value = true;
   try {
@@ -96,11 +108,12 @@ async function load(): Promise<void> {
     if (!latest.isCurrent(ticket)) return;
     items.value = page.items;
     total.value = page.total;
+    if (auto) chips.value = chipsAfterRead(chips.value, ++autoReads);
     if ("value" in poolRead) {
       pool.value = poolRead.value;
       poolError.value = null;
     } else {
-      poolError.value = errorText(poolRead.err);
+      poolError.value = loadFailedText(poolRead.err, errorText(poolRead.err), "the pool figures");
     }
     error.value = null;
     updatedAt.value = Date.now();
@@ -108,7 +121,7 @@ async function load(): Promise<void> {
     void stats.refresh();
   } catch (err) {
     if (!latest.isCurrent(ticket)) return;
-    error.value = errorText(err);
+    error.value = loadFailedText(err, errorText(err), "the accounts");
   } finally {
     if (latest.isCurrent(ticket)) loading.value = false;
   }
@@ -126,7 +139,7 @@ watch(
 // The timer exists only while this view is mounted (the Accounts tab is open). A hidden tab does not read, and a
 // read still in flight is never joined by a second one; a tab that comes back reads at once.
 function tick(): void {
-  if (!dialogOpen.value && !document.hidden && !loading.value) void load();
+  if (!dialogOpen.value && !document.hidden && !loading.value) void load(true);
 }
 const timer = setInterval(tick, AUTO_REFRESH_MS);
 document.addEventListener("visibilitychange", onVisible);
@@ -140,20 +153,54 @@ onBeforeUnmount(() => {
   latest.invalidate();
 });
 
-// Queue, toast, poll to the end, then read the list again (if the operator is still here).
-async function queue(start: Promise<QueuedCommand>, label: string) {
+// Queue, poll to the end, then read the list again (if the operator is still here). A command whose control has a
+// chip under it says it is under way there; the others say "queued" in a toast (`toast`).
+async function queue(start: Promise<QueuedCommand>, label: string, toast = true) {
   const out = await start;
-  notify.info(`${label}: queued`);
+  if (toast) notify.info(`${label}: queued`);
   const command = await poll(out.command_id, label);
   if (!disposed) await load();
   return command;
 }
 
+// One run of an action per account at a time (`<action>:<account id>`): a second click while the first is under way
+// does nothing, so a double click never sends twice.
+const inFlight = new Set<string>();
+async function once(key: string, action: () => Promise<unknown>): Promise<void> {
+  if (inFlight.has(key)) return;
+  inFlight.add(key);
+  try {
+    await action();
+  } finally {
+    inFlight.delete(key);
+  }
+}
+
+function setChip(key: string, chip: ChipState): void {
+  chips.value = { ...chips.value, [key]: chip };
+}
+
+// The command's chip under its control: running while `work` queues and polls it, then how it ended, kept until the
+// next read of the list. The toasts go on as before (B-States draws both).
+async function withChip(key: string, work: () => Promise<CommandStatus | null>): Promise<CommandStatus | null> {
+  setChip(key, { state: "running", settled: false, read: autoReads });
+  try {
+    const command = await work();
+    setChip(key, commandChip(command, autoReads));
+    return command;
+  } catch (err) {
+    setChip(key, { state: "error", message: errorText(err), settled: true, read: autoReads });
+    throw err;
+  }
+}
+
 async function check(a: Account) {
+  // the phone's Check is a menu item: it is not drawn disabled, so a second pick is refused here
+  if (checking.value.has(a.id)) return;
   checking.value = new Set(checking.value).add(a.id);
   try {
     await run(async () => {
-      const command = await queue(checkAccount(a.id), "Check");
+      const command = await withChip(`check:${a.id}`, () => queue(checkAccount(a.id), "Check", false));
       const fresh = items.value.find((x) => x.id === a.id);
       if (command?.status === "done" && fresh) {
         const outcome = command.result?.outcome;
@@ -189,21 +236,23 @@ async function showShot(a: Account) {
   });
 }
 
-async function remove(a: Account) {
-  confirming.value = true;
-  let ok: boolean;
-  try {
-    ok = await confirmDialog({
-      title: "Delete account",
-      message: `Delete account "${a.label}"? A used account cannot be deleted: disable it instead.`,
-      confirmText: "Delete",
-      danger: true,
-    });
-  } finally {
-    confirming.value = false;
-  }
-  if (ok) await run(() => queue(deleteAccount(a.id), "Delete"));
-}
+const remove = (a: Account) =>
+  once(`delete:${a.id}`, async () => {
+    confirming.value = true;
+    let ok: boolean;
+    try {
+      // as B-States draws a delete confirm: the title asks, naming the item; one sentence says the consequence
+      ok = await confirmDialog({
+        title: `Delete account ${a.label}?`,
+        message: "A used account cannot be deleted: disable it instead.",
+        confirmText: "Delete",
+        danger: true,
+      });
+    } finally {
+      confirming.value = false;
+    }
+    if (ok) await run(() => queue(deleteAccount(a.id), "Delete"));
+  });
 
 function openEdit(a: Account) {
   editingId.value = a.id;
@@ -214,6 +263,8 @@ async function saveAccount(patch: AccountPatch) {
   const a = editing.value;
   if (!a) return;
   await run(async () => {
+    // a Check proxy of this account still under way ends first: its read of the list never lands after the save
+    await proxyRuns.get(a.id);
     const out = await patchAccount(a.id, patch);
     editOpen.value = false;
     notify.success("Saved");
@@ -222,9 +273,21 @@ async function saveAccount(patch: AccountPatch) {
   });
 }
 
-const recheck = (a: Account) => run(() => queue(recheckProxy(a.id), "Proxy check"));
+// The Check proxy runs under way, by account: Save of that account waits for its run to end.
+const proxyRuns = new Map<string, Promise<unknown>>();
+function recheck(a: Account) {
+  const running = runProxyCheck(() => withChip(`proxy:${a.id}`, () => queue(recheckProxy(a.id), "Proxy check", false)));
+  proxyRuns.set(a.id, running);
+  void running.finally(() => {
+    if (proxyRuns.get(a.id) === running) proxyRuns.delete(a.id);
+  });
+  return running;
+}
 
-const wake = (a: Account) => run(() => queue(wakeAccount(a.id), WAKE_LABEL));
+const wake = (a: Account) => once(`wake:${a.id}`, () => run(() => queue(wakeAccount(a.id), WAKE_LABEL)));
+
+// The switch, once per account at a time (`toggle` itself reads the list again whatever the answer).
+const onToggle = (a: Account, enabled: boolean) => once(`toggle:${a.id}`, () => toggle(a, enabled));
 
 function onAction(name: RowAction, a: Account) {
   if (name === "check") void check(a);
@@ -241,14 +304,27 @@ async function providerNames(): Promise<string[]> {
   return scope.providers;
 }
 
-async function forEachProvider(runner: typeof run, label: string, start: (provider: string) => Promise<QueuedCommand>) {
-  await runner(async () => {
-    for (const name of await providerNames()) await queue(start(name), `${label} ${name}`);
-  });
+// The chip of a page command says how the whole round ended: the first provider that failed, else the last one.
+async function forEachProvider(
+  runner: typeof run,
+  label: string,
+  key: string,
+  start: (provider: string) => Promise<QueuedCommand>,
+) {
+  await runner(() =>
+    withChip(key, async () => {
+      let ended: CommandStatus | null = null;
+      for (const name of await providerNames()) {
+        const command = await queue(start(name), `${label} ${name}`, false);
+        if (ended?.status !== "failed") ended = command;
+      }
+      return ended;
+    }),
+  );
 }
 
-const checkEvery = () => forEachProvider(runCheckAll, "Check all", checkAll);
-const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", refreshCatalog);
+const checkEvery = () => forEachProvider(runCheckAll, "Check all", "checkAll", checkAll);
+const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", "refreshCatalog", refreshCatalog);
 
 const health = computed(() => healthItems(stats.data?.accounts ?? null));
 const poolFigures = computed(() => poolItems(pool.value));
@@ -272,45 +348,64 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
       :updated="updated"
       :checking-all="checkingAll"
       :reading-catalogs="readingCatalogs"
+      :check-all-chip="chips.checkAll ?? null"
+      :refresh-chip="chips.refreshCatalog ?? null"
       @import="importOpen = true"
       @check-all="checkEvery"
       @refresh-catalog="readCatalogs"
     />
 
-    <PoolCard :count="total" :health="health" :pool="poolFigures" :pool-title="poolTitle" />
+    <!-- the count is the list's: none until the list has been read once -->
+    <PoolCard :count="updatedAt ? total : null" :health="health" :pool="poolFigures" :pool-title="poolTitle" />
 
     <div v-if="poolError" class="state-error state-error--page" role="alert" data-testid="pool-error">
       <IconAlertCircle :size="18" />
-      <span class="state-error__text">Could not read the pool figures: {{ poolError }}</span>
+      <span class="state-error__text">{{ poolError }}</span>
     </div>
 
     <section class="list-card" aria-label="Account list" :aria-busy="loading">
       <div v-if="error" class="state-error" role="alert" data-state="error">
         <IconAlertCircle :size="18" />
         <span class="state-error__text">{{ error }}</span>
-        <button type="button" class="retry" @click="load">Retry</button>
+        <button type="button" class="retry" @click="load()">Retry</button>
       </div>
-      <div v-else-if="skeleton" class="skeleton" data-state="loading">
-        <div v-for="n in 5" :key="n" class="skeleton__row"><span class="bar bar--a" /><span class="bar bar--b" /></div>
-      </div>
-      <div v-else-if="items.length === 0" class="state-empty" data-state="empty">
+      <div v-else-if="items.length === 0 && !skeleton" class="state-empty" data-state="empty">
         <p>No accounts yet.</p>
         <button type="button" class="primary" @click="importOpen = true">
           <IconPlus :size="15" :stroke="2" />Import
         </button>
       </div>
-      <div v-else :class="{ 'is-refreshing': refreshing }" data-state="ready">
-        <AccountsListPhone v-if="isPhone" :rows="items" @toggle="toggle" @action="onAction" />
+      <!-- the first read draws the list's own header with flat bars in its columns (the B-States loading pattern) -->
+      <div v-else :class="{ 'is-refreshing': refreshing }" :data-state="skeleton ? 'loading' : 'ready'">
+        <AccountsListPhone
+          v-if="isPhone"
+          :rows="items"
+          :chips="chips"
+          :skeleton="skeleton"
+          @toggle="onToggle"
+          @action="onAction"
+        />
         <AccountsTableTablet
           v-else-if="isTablet"
           :rows="items"
           :checking="checking"
-          @toggle="toggle"
+          :chips="chips"
+          :skeleton="skeleton"
+          @toggle="onToggle"
           @action="onAction"
         />
-        <AccountsTableDesktop v-else :rows="items" :checking="checking" @toggle="toggle" @action="onAction" />
+        <AccountsTableDesktop
+          v-else
+          :rows="items"
+          :checking="checking"
+          :chips="chips"
+          :skeleton="skeleton"
+          @toggle="onToggle"
+          @action="onAction"
+        />
       </div>
-      <div v-if="isPhone && pageCount <= 1" class="foot-text">
+      <!-- the phone's one footer line, once there are rows to count -->
+      <div v-if="isPhone && pageCount <= 1 && items.length" class="foot-text">
         <span class="tnum">{{ showing }}</span>
       </div>
       <ListPager
@@ -335,7 +430,14 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
     </section>
 
     <ImportDialog v-model="importOpen" @imported="load" />
-    <EditDialog v-model="editOpen" :account="editing" :busy="busy" @save="saveAccount" @recheck="recheck" />
+    <EditDialog
+      v-model="editOpen"
+      :account="editing"
+      :busy="busy"
+      :proxy-chip="editing ? (chips[`proxy:${editing.id}`] ?? null) : null"
+      @save="saveAccount"
+      @recheck="recheck"
+    />
   </section>
 </template>
 
@@ -392,38 +494,11 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
   border-radius: 10px;
   background: transparent;
   color: var(--rl-bad);
-  font: inherit;
+  /* the page's family; the line height stays the button's own (normal), as drawn */
+  font-family: inherit;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-}
-.skeleton {
-  display: flex;
-  flex-direction: column;
-}
-.skeleton__row {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-  height: 64px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--rl-line);
-}
-.bar {
-  display: block;
-  height: 12px;
-  border-radius: 6px;
-  background: var(--rl-raised);
-}
-.bar--a {
-  width: 180px;
-  max-width: 60%;
-}
-.bar--b {
-  width: 120px;
-  max-width: 40%;
-  height: 10px;
 }
 .state-empty {
   display: flex;
@@ -447,7 +522,7 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
   border-radius: 10px;
   background: var(--rl-primary);
   color: var(--rl-on-primary);
-  font: inherit;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;

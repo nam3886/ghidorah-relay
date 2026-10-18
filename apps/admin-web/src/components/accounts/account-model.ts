@@ -1,5 +1,6 @@
 // Pure rules of the Accounts view: what each cell says and what an edit or an import sends.
-import type { Account, AccountPatch, ImportBody, ImportResult } from "@/api/accounts";
+import type { Account, AccountPatch, ImportBody } from "@/api/accounts";
+import type { CommandStatus } from "@/api/commands";
 import type { PoolStats } from "@/api/shell";
 import type { LedgerItem } from "@/components/shared/LedgerList.vue";
 import type { Tone } from "@/components/shared/status-tones";
@@ -37,11 +38,14 @@ export function importBody(provider: string, text: string, proxy: string): Impor
   return { provider, items: lines.map((credential) => (shared ? { credential, proxy: shared } : { credential })) };
 }
 
-export function importSummary(out: ImportResult): string {
-  const base = `Imported ${out.imported.length}, rejected ${out.rejected.length}`;
-  if (!out.rejected.length) return base;
-  return `${base} (${out.rejected.map((r) => `line ${r.index + 1}: ${r.reason}`).join("; ")})`;
-}
+// Why a pasted line was rejected, in a sentence as the canvas writes it. Only the known codes are named; anything else
+// gets one fixed sentence, so no text the server sends back (which could carry a pasted secret) is ever shown.
+const REJECTED = new Map<string, string>([
+  ["credential_unparseable", "The line is not a cookie jar."],
+  ["proxy_invalid", "The proxy is not host:port or host:port:user:pass."],
+]);
+export const REJECTED_OTHER = "The line could not be imported.";
+export const rejectedText = (reason: string): string => REJECTED.get(reason) ?? REJECTED_OTHER;
 
 // "21:30", the local clock of a time.
 export const hhmm = (ms: number): string =>
@@ -73,9 +77,24 @@ export function asleepInfo(a: Account, now: number = Date.now()): Asleep | null 
 // "asleep until 21:30 · strike": the one-line form (desktop and phone).
 export const asleepLine = (s: Asleep): string => `asleep until ${s.until}${s.kind ? ` · ${s.kind}` : ""}`;
 
+// The reason under the status pill. A switched-off account's reason ("disabled by admin") only repeats its pill: the
+// canvas draws a switched-off row with none.
+export const statusReason = (a: Pick<Account, "state" | "state_reason">): string | null =>
+  a.state === "disabled" ? null : a.state_reason;
+
 // The error line a narrow row shows: the account's last error, unless it only repeats the reason already shown.
 export function extraError(a: Pick<Account, "last_error" | "state_reason">): string | null {
   return a.last_error && a.last_error !== a.state_reason ? a.last_error : null;
+}
+
+// An account's pools, the video pool first: the one the boards draw (a live account has an image pool too).
+export const poolsInOrder = (capacity: Account["capacity"]): Account["capacity"] =>
+  [...capacity].sort((a, b) => Number(b.pool === "video") - Number(a.pool === "video"));
+
+// The tablet's counts line: "31 videos · 12 images", "1 video · 1 image".
+export function madeLine(made: Account["made"]): string {
+  const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  return `${count(made.video, "video")} · ${count(made.image, "image")}`;
 }
 
 // `left / budget`, with `?` when the count is unknown. The cell shows it after the pool name.
@@ -118,8 +137,9 @@ export function proxyStatus(a: Account, now: number = Date.now()): { tone: "ok" 
 }
 
 // What a finished check found, from the command's outcome and the account row it just changed.
+// In the toasts' form, "<label> done: <detail>": "Check done: signed_out, account dead (account.dead_session)".
 export function checkSummary(outcome: string | undefined, a: Pick<Account, "state" | "state_reason">): string {
-  return `Check: ${outcome || "done"} - account ${a.state}${a.state_reason ? ` (${a.state_reason})` : ""}`;
+  return `Check done: ${outcome ? `${outcome}, ` : ""}account ${a.state}${a.state_reason ? ` (${a.state_reason})` : ""}`;
 }
 
 // The pool card's left half: every figure is /admin/stats', counted over all accounts, not the page on screen.
@@ -164,6 +184,44 @@ export function poolItems(pool: PoolStats | null): LedgerItem[] {
     },
   ];
 }
+
+// The chip line under a command's control (B-States "Command status"): `running…` while the worker runs it, then
+// `ok · <time it finished>` or `error · <the worker's reason>`. `read` is the number of automatic reads of the list
+// (every 10 s) made when it was set: a finished chip stays through the next one and goes with the one after, so it is
+// seen at least one period. The reads other commands make do not count: two quick Checks keep both results.
+export interface ChipState {
+  state: "running" | "ok" | "error";
+  time?: string;
+  message?: string;
+  // the poll has ended (a result, an error, or it gave up while the worker was still at it)
+  settled: boolean;
+  read: number;
+}
+
+// The chip for the end of a poll: the command as it ended, or null when the poll gave up while it still ran.
+export function commandChip(command: CommandStatus | null, read: number): ChipState {
+  if (!command) return { state: "running", settled: true, read };
+  if (command.status === "failed") return { state: "error", message: command.result?.error, settled: true, read };
+  return { state: "ok", time: hhmmss(command.finished_ms ?? Date.now()), settled: true, read };
+}
+
+// The loading list's bars, row by row (px): the account line and its second line, the status pill. The pills are the
+// Jobs skeleton's (B-States, loading); the lines follow the Accounts columns.
+export const SKELETON_ROWS = [
+  { label: 96, sub: 150, pill: 72 },
+  { label: 80, sub: 130, pill: 84 },
+  { label: 104, sub: 160, pill: 64 },
+  { label: 72, sub: 120, pill: 78 },
+  { label: 88, sub: 140, pill: 70 },
+] as const;
+export const barWidth = (px: number) => ({ width: `${px}px` });
+
+// What the shared CommandChip draws of a chip.
+export const chipProps = (c: ChipState) => ({ state: c.state, time: c.time, message: c.message });
+
+// The chips that outlive automatic read number `read`: those still running, and those set after the one before it.
+export const chipsAfterRead = (chips: Record<string, ChipState>, read: number): Record<string, ChipState> =>
+  Object.fromEntries(Object.entries(chips).filter(([, c]) => !c.settled || c.read >= read - 1));
 
 export type RowAction = "check" | "shot" | "wake" | "edit" | "delete";
 
