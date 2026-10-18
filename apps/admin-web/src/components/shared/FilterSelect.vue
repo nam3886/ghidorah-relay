@@ -37,8 +37,19 @@ const props = withDefaults(
     chevron?: boolean;
     variant?: "chip" | "field";
     disabled?: boolean;
+    // the field variant as a form's field (B/T/P-Test): it fills its column, the box 36 high with 14 px text and the
+    // label 500 with 6 px under it, 44 high on a phone and never the chip
+    block?: boolean;
   }>(),
-  { label: undefined, ariaLabel: undefined, size: "toolbar", chevron: true, variant: "chip", disabled: false },
+  {
+    label: undefined,
+    ariaLabel: undefined,
+    size: "toolbar",
+    chevron: true,
+    variant: "chip",
+    disabled: false,
+    block: false,
+  },
 );
 const emit = defineEmits<{ "update:modelValue": [value: string | number] }>();
 const { isPhone, isTablet } = useBreakpoint();
@@ -244,7 +255,8 @@ const triggerAttrs = computed(() => ({
 }));
 const triggerEvents = { click: onClick, keydown: onKey };
 const fieldClass = computed(() => ({
-  "is-chip": isPhone.value,
+  "is-chip": isPhone.value && !props.block,
+  "is-block": props.block,
   "is-tall": isTablet.value,
   "is-open": open.value,
   "is-disabled": props.disabled,
@@ -445,6 +457,23 @@ function setRoot(el: unknown): void {
 }
 .filter-field.is-chip.is-open {
   background: var(--rl-raised);
+}
+/* A form's field (B/T/P-Test, `block`): the select of the form as Chrome draws it there, filling its column; the box 36
+   high (44 on a phone, never the chip) with 14 px text, the label 500 with 6 px under it. */
+.filter-field.is-block {
+  gap: 6px;
+}
+.filter-field.is-block .filter-field__label {
+  font-weight: 500;
+}
+.filter-field.is-block .filter-select.is-field {
+  height: 36px;
+  font-size: 14px;
+}
+@media (max-width: 767.98px) {
+  .filter-field.is-block .filter-select.is-field {
+    height: 44px;
+  }
 }
 
 /* the drawn listbox: 180 wide at 1440, 200 below; items 36/13 px, 40/14 on a tablet, 44/14 on a phone */

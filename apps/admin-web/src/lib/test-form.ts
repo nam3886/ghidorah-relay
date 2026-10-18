@@ -68,6 +68,13 @@ export function optionLabel(option: Record<string, unknown>): string {
   return "";
 }
 
+// What the request carries for a provider option (a ratio or a style): its `value` ("16:9", "oil_painting") when it has
+// one, which is all the provider takes; else its label. dola labels a ratio with a sentence around the value and a
+// style in words, and refuses either. A ratio is also shown by its value, as drawn; a style by its label.
+export function optionValue(option: Record<string, unknown>): string {
+  return typeof option.value === "string" && option.value ? option.value : optionLabel(option);
+}
+
 // The generation request. Duration is for video, style for image; a field left empty is not sent. `images` are the
 // https URLs (one per line) followed by the attached files as data URIs. Options must be JSON: invalid text throws a
 // SyntaxError, which the tab shows in its status line.

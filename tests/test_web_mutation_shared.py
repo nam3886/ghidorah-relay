@@ -444,10 +444,10 @@ def test_the_field_select_is_the_canvas_select_drawn_by_us():
     vitest(FIELD_SPEC)
 
 
-@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '  "views/TestView.vue",\n];', "];",
+@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '  "components/keys/KeyFormDialog.vue",\n', "",
           expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
-@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '  "views/TestView.vue",\n];',
-          '  "views/TestView.vue",\n  "views/AlertsView.vue",\n];',
+@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", "const STILL_TO_CONVERT = [\n",
+          'const STILL_TO_CONVERT = [\n  "views/AlertsView.vue",\n',
           expect=NO_SELECT + "every file still to convert still has one: a converted file leaves the list")
 @mutation(ALERTS_VIEW, '<span v-if="!isPhone" class="gt__spacer" />', '<select v-if="!isPhone" class="gt__spacer" />',
           expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
@@ -620,3 +620,14 @@ def test_the_toast_body_is_drawn_as_b_states():
 @pytest.mark.web_unit
 def test_the_toast_skin_outranks_element_plus():
     vitest(SKIN_SPEC)
+
+
+# ---- page-test-login: FilterSelect's field as a form's field (the Test form's selects) -------------------------------
+FORM_FIELD = FIELD + "as a form's field (block) keeps its label above the box on a phone too, never the chip"
+
+
+@mutation(FILTER, '"is-chip": isPhone.value && !props.block,', '"is-chip": isPhone.value,', expect=FORM_FIELD)
+@mutation(FILTER, '"is-block": props.block,', '"is-block": false,', expect=FORM_FIELD)
+@pytest.mark.web_unit
+def test_the_field_select_can_be_a_form_field():
+    vitest(FIELD_SPEC)

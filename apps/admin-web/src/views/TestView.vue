@@ -6,8 +6,17 @@
 import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from "vue";
 import { getOptions, type PublicModel, type Template } from "@/api/test";
 import TestImages from "@/components/test/TestImages.vue";
+import FilterSelect from "@/components/shared/FilterSelect.vue";
 import TestResult from "@/components/test/TestResult.vue";
-import { capital, durationsOf, durationsPhrase, titleOf, walletRows } from "@/components/test/test-models";
+import {
+  capital,
+  defaultRatioOf,
+  durationsOf,
+  durationsPhrase,
+  ratiosOf,
+  titleOf,
+  walletRows,
+} from "@/components/test/test-models";
 import { useGenerate } from "@/components/test/use-generate";
 import { useTestSession } from "@/components/test/use-test-session";
 import { useBreakpoint } from "@/composables/use-breakpoint";
@@ -32,6 +41,7 @@ import {
   emptyForm,
   type FormField,
   optionLabel,
+  optionValue,
   readForm,
   saveForm,
 } from "@/lib/test-form";
@@ -53,7 +63,8 @@ const files = shallowRef<StoredFile[]>([]);
 const note = ref("");
 const chosen = shallowRef<PublicModel | null>(null);
 const ratios = ref<string[]>([]);
-const styles = ref<string[]>([]);
+// A style is sent by the value the provider takes ("oil_painting") and shown by its label.
+const styles = ref<Array<{ value: string; label: string }>>([]);
 const templates = shallowRef<Template[]>([]);
 const pickLatest = useLatest();
 
@@ -75,22 +86,40 @@ const groups = computed(() => {
     .map((kind) => ({ kind, models: byKind.get(kind) ?? [] }));
 });
 const durations = computed(() => durationsOf(chosen.value));
-const infoLine = computed(() => {
-  const m = chosen.value;
-  return m ? `${m.kind} · ${durationsPhrase(durations.value) || m.owned_by}` : "";
-});
+// The heading's second line: `<kind> · ` then the lengths the model takes ("5, 10, 20, 25 or 30 s"), or its owner.
+const infoTail = computed(() => durationsPhrase(durations.value) || chosen.value?.owned_by || "");
 const wallet = computed(() => walletRows(points.value));
 // A saved value the list no longer has stays selectable, so choosing a model never silently changes the form.
 const withSaved = (list: string[], saved: string): string[] =>
   saved && !list.includes(saved) ? [...list, saved] : list;
 const durationChoices = computed(() => withSaved(durations.value.map(String), form.duration));
-const ratioChoices = computed(() => withSaved(ratios.value, form.ratio));
-const styleChoices = computed(() => withSaved(styles.value, form.style));
+// The model's own ratios when it names them (dola's options hold its image ratios, offered for every model), else the
+// provider's options. The form never keeps a ratio the model does not take (see pick).
+const ratioChoices = computed(() => {
+  const own = ratiosOf(chosen.value);
+  return own.length ? own : withSaved(ratios.value, form.ratio);
+});
+const styleChoices = computed(() =>
+  form.style && !styles.value.some((s) => s.value === form.style)
+    ? [...styles.value, { value: form.style, label: form.style }]
+    : styles.value,
+);
+// The selects' lists, "Default" (nothing sent) first.
+const DEFAULT_OPTION = { value: "", label: "Default" };
+const durationOptions = computed(() => [
+  DEFAULT_OPTION,
+  ...durationChoices.value.map((d) => ({ value: d, label: `${d} s` })),
+]);
+const ratioOptions = computed(() => [DEFAULT_OPTION, ...ratioChoices.value.map((r) => ({ value: r, label: r }))]);
+const styleOptions = computed(() => [DEFAULT_OPTION, ...styleChoices.value]);
 
 async function pick(model: PublicModel): Promise<void> {
   const ticket = pickLatest.next();
   chosen.value = model;
   form.model = model.id;
+  // a ratio the model does not take is never sent: its own default (or none) takes its place
+  const own = ratiosOf(model);
+  if (own.length && form.ratio && !own.includes(form.ratio)) form.ratio = defaultRatioOf(model);
   persist();
   ratios.value = [];
   styles.value = [];
@@ -98,8 +127,10 @@ async function pick(model: PublicModel): Promise<void> {
   try {
     const extras = await session.call((key) => getOptions(key, model.owned_by));
     if (!pickLatest.isCurrent(ticket)) return;
-    ratios.value = (extras.ratios ?? []).map(optionLabel).filter(Boolean);
-    styles.value = (extras.styles ?? []).map(optionLabel).filter(Boolean);
+    ratios.value = (extras.ratios ?? []).map(optionValue).filter(Boolean);
+    styles.value = (extras.styles ?? [])
+      .map((o) => ({ value: optionValue(o), label: optionLabel(o) }))
+      .filter((s) => s.value);
     templates.value = extras.templates ?? [];
   } catch {
     /* the options are a convenience: the model can be used without them */
@@ -243,11 +274,16 @@ onMounted(async () => {
     <div class="grid">
       <section class="models" aria-label="Models" data-testid="test-models">
         <p v-if="!groups.length" class="models__empty" data-testid="test-models-empty">No models loaded.</p>
-        <div class="models__scroll">
+        <!-- the phone draws one row of every model, the scroller itself is the group -->
+        <div
+          class="models__scroll"
+          :role="isPhone && groups.length ? 'group' : undefined"
+          :aria-label="isPhone && groups.length ? 'Models' : undefined"
+        >
           <div
             v-for="g in groups"
             :key="g.kind"
-            role="group"
+            :role="isPhone ? undefined : 'group'"
             :aria-label="isPhone ? undefined : `${capital(g.kind)} models`"
             class="models__group"
           >
@@ -264,10 +300,11 @@ onMounted(async () => {
             >
               <span class="model__main">
                 <span class="model__title">{{ titleOf(m) }}</span>
-                <span v-if="titleOf(m) !== m.id" class="model__id"
-                  >{{ m.id }}<span class="model__tab-owner"> · {{ m.owned_by }}</span></span
-                >
-                <span class="model__kind">{{ m.kind }} · {{ m.owned_by }}</span>
+                <!-- the tablet writes the owner on the id line, as one text -->
+                <span v-if="titleOf(m) !== m.id" class="model__id">{{
+                  isTablet ? `${m.id} · ${m.owned_by}` : m.id
+                }}</span>
+                <span class="model__kind">{{ capital(m.kind) }} · {{ m.owned_by }}</span>
               </span>
               <span class="model__owner">{{ m.owned_by }}</span>
             </button>
@@ -304,12 +341,27 @@ onMounted(async () => {
       <section class="form" aria-labelledby="test-form-title">
         <div>
           <h2 id="test-form-title">{{ chosen ? titleOf(chosen) : "Pick a model" }}</h2>
-          <p v-if="infoLine" class="form__info">{{ infoLine }}</p>
+          <p v-if="chosen" class="form__info">
+            {{ chosen.kind }} · <span class="num">{{ infoTail }}</span>
+          </p>
         </div>
         <div v-if="templates.length" class="chips" role="group" aria-label="Prompt templates">
-          <button v-for="(t, i) in templates" :key="i" type="button" class="chip" @click="applyTemplate(t)">
-            {{ t.show_value || t.prompt }}
-          </button>
+          <!-- the whole template in the shared hint look (HintTip's), on the chip itself: no second tab stop -->
+          <el-tooltip
+            v-for="(t, i) in templates"
+            :key="i"
+            :content="t.show_value || t.prompt"
+            placement="top"
+            effect="light"
+            :trigger="['hover', 'focus']"
+            popper-class="rl-tip test-chip-tip"
+            :show-after="150"
+            :show-arrow="false"
+          >
+            <button type="button" class="chip" @click="applyTemplate(t)">
+              {{ t.show_value || t.prompt }}
+            </button>
+          </el-tooltip>
         </div>
 
         <div class="field">
@@ -324,20 +376,20 @@ onMounted(async () => {
         </div>
 
         <div class="trio">
-          <div class="field">
+          <!-- the design's selects, drawn by us (FilterSelect's field); a model that names no list gets a text box -->
+          <FilterSelect
+            v-if="durations.length"
+            class="field"
+            variant="field"
+            block
+            label="Duration"
+            :model-value="form.duration"
+            :options="durationOptions"
+            @update:model-value="setField('duration', String($event))"
+          />
+          <div v-else class="field">
             <label for="test-duration">Duration</label>
-            <select
-              v-if="durations.length"
-              id="test-duration"
-              class="control control--select"
-              :value="form.duration"
-              @change="setField('duration', ($event.target as HTMLSelectElement).value)"
-            >
-              <option value="">Default</option>
-              <option v-for="d in durationChoices" :key="d" :value="d">{{ d }} s</option>
-            </select>
             <input
-              v-else
               id="test-duration"
               v-model="form.duration"
               class="control"
@@ -346,19 +398,19 @@ onMounted(async () => {
               @input="persist"
             />
           </div>
-          <div class="field">
+          <FilterSelect
+            v-if="ratios.length || ratiosOf(chosen).length"
+            class="field"
+            variant="field"
+            block
+            label="Ratio"
+            :model-value="form.ratio"
+            :options="ratioOptions"
+            @update:model-value="setField('ratio', String($event))"
+          />
+          <div v-else class="field">
             <label for="test-ratio">Ratio</label>
-            <select
-              v-if="ratios.length"
-              id="test-ratio"
-              class="control control--select"
-              :value="form.ratio"
-              @change="setField('ratio', ($event.target as HTMLSelectElement).value)"
-            >
-              <option value="">Default</option>
-              <option v-for="r in ratioChoices" :key="r" :value="r">{{ r }}</option>
-            </select>
-            <input v-else id="test-ratio" v-model="form.ratio" class="control" placeholder="16:9" @input="persist" />
+            <input id="test-ratio" v-model="form.ratio" class="control" placeholder="16:9" @input="persist" />
           </div>
           <div class="field">
             <label for="test-count">Count</label>
@@ -372,27 +424,22 @@ onMounted(async () => {
               @input="setField('count', ($event.target as HTMLInputElement).value)"
             />
           </div>
-          <div v-if="chosen?.kind === 'image'" class="field">
-            <label for="test-style">Style</label>
-            <select
+          <template v-if="chosen?.kind === 'image'">
+            <FilterSelect
               v-if="styles.length"
-              id="test-style"
-              class="control control--select"
-              :value="form.style"
-              @change="setField('style', ($event.target as HTMLSelectElement).value)"
-            >
-              <option value="">Default</option>
-              <option v-for="s in styleChoices" :key="s" :value="s">{{ s }}</option>
-            </select>
-            <input
-              v-else
-              id="test-style"
-              v-model="form.style"
-              class="control"
-              placeholder="optional"
-              @input="persist"
+              class="field"
+              variant="field"
+              block
+              label="Style"
+              :model-value="form.style"
+              :options="styleOptions"
+              @update:model-value="setField('style', String($event))"
             />
-          </div>
+            <div v-else class="field">
+              <label for="test-style">Style</label>
+              <input id="test-style" v-model="form.style" class="control" placeholder="optional" @input="persist" />
+            </div>
+          </template>
         </div>
 
         <div class="field">
@@ -402,7 +449,7 @@ onMounted(async () => {
             v-model="form.images"
             rows="2"
             placeholder="https://..."
-            class="control control--text control--mono"
+            class="control control--text control--mono control--refs"
             @input="persist"
           />
         </div>
@@ -468,6 +515,7 @@ onMounted(async () => {
   color: var(--rl-fg);
   font: inherit;
   font-size: 13px;
+  line-height: normal;
   cursor: pointer;
 }
 .btn:hover:not(:disabled) {
@@ -601,6 +649,7 @@ onMounted(async () => {
   background: transparent;
   color: var(--rl-fg);
   font: inherit;
+  line-height: normal;
   text-align: left;
   cursor: pointer;
 }
@@ -625,9 +674,6 @@ onMounted(async () => {
   font-family: var(--rl-mono);
   font-size: 12px;
   color: var(--rl-faint);
-}
-.model__tab-owner {
-  display: none;
 }
 .model__kind {
   display: none;
@@ -715,26 +761,40 @@ onMounted(async () => {
   margin: 2px 0 0;
   font-size: 13px;
   color: var(--rl-muted);
-  font-variant-numeric: tabular-nums;
 }
+/* A provider's template is often its whole prompt (hundreds of characters, dozens of them): one line each, ending in
+   "…" (a click puts the whole text in the prompt box), and at most three rows of chips before the block scrolls. */
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  max-height: calc(3 * var(--chip-h) + 16px);
+  overflow-y: auto;
+  --chip-h: 28px;
 }
 .chip {
-  height: 28px;
+  max-width: 240px;
+  height: var(--chip-h);
   padding: 0 12px;
+  overflow: hidden;
   border: 1px solid var(--rl-line-strong);
   border-radius: 14px;
   background: var(--rl-surface);
   color: var(--rl-fg);
   font: inherit;
   font-size: 12px;
+  line-height: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 .chip:hover {
   background: var(--rl-raised);
+}
+/* a template can run to thousands of characters: its hint scrolls past a few lines */
+:global(.el-popper.test-chip-tip) {
+  max-height: 240px;
+  overflow-y: auto;
 }
 .field {
   display: flex;
@@ -763,9 +823,6 @@ onMounted(async () => {
   font: inherit;
   font-size: 14px;
 }
-.control--select {
-  padding: 0 10px;
-}
 .control--num {
   font-variant-numeric: tabular-nums;
 }
@@ -780,6 +837,10 @@ onMounted(async () => {
   font-family: var(--rl-mono);
   font-size: 13px;
 }
+/* the reference box takes the font's own line height (the prompt and the JSON box are 20) */
+.control--refs {
+  line-height: normal;
+}
 .trio {
   display: flex;
   flex-wrap: wrap;
@@ -788,9 +849,11 @@ onMounted(async () => {
 .trio .field {
   flex: 1 1 120px;
 }
+/* a button the design gives no padding keeps the browser's own, 1 px 6 px */
 .form__generate {
   width: 100%;
   height: 40px;
+  padding: 1px 6px;
   font-size: 14px;
 }
 
@@ -799,6 +862,9 @@ onMounted(async () => {
     font-size: 24px;
     line-height: 32px;
     letter-spacing: -0.012em;
+  }
+  .test-tab__subtitle {
+    margin-top: 2px;
   }
   .key__field {
     flex: 1 1 300px;
@@ -841,16 +907,15 @@ onMounted(async () => {
     width: auto;
     min-height: 52px;
     padding: 6px 12px;
+    border-color: var(--rl-line-strong);
     white-space: nowrap;
   }
   .model__owner {
     display: none;
   }
+  /* the tablet and the phone draw the texts straight in the button */
   .model__main {
-    flex: none;
-  }
-  .model__tab-owner {
-    display: inline;
+    display: contents;
   }
   .test-tab__points-box summary {
     min-height: 28px;
@@ -862,8 +927,10 @@ onMounted(async () => {
     flex: none;
     width: 100%;
   }
+  .chips {
+    --chip-h: 32px;
+  }
   .chip {
-    height: 32px;
     border-radius: 16px;
   }
   .form__generate {
@@ -899,6 +966,7 @@ onMounted(async () => {
   .key__load {
     width: 100%;
     height: 44px;
+    padding: 1px 6px;
     font-size: 14px;
   }
   .key__more {
@@ -908,6 +976,7 @@ onMounted(async () => {
   .key__more .btn {
     flex: 1;
     height: 44px;
+    padding: 1px 6px;
     border: 1px solid var(--rl-line-strong);
     font-size: 14px;
   }
@@ -952,11 +1021,19 @@ onMounted(async () => {
     width: 172px;
     min-height: 64px;
     padding: 8px 12px;
+    border-color: var(--rl-line-strong);
     border-radius: 12px;
+    background: var(--rl-surface);
+  }
+  .model__main {
+    display: contents;
   }
   .model__title {
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .model__id {
     white-space: nowrap;
   }
   .model__owner {
@@ -981,20 +1058,23 @@ onMounted(async () => {
   }
   .chips {
     flex-wrap: nowrap;
+    max-height: none;
     margin: 0 -16px;
     padding: 0 16px;
     overflow-x: auto;
+    overflow-y: hidden;
+    --chip-h: 44px;
   }
   .chip {
     flex: none;
-    height: 44px;
     padding: 0 16px;
     border-radius: 22px;
     font-size: 13px;
-    white-space: nowrap;
   }
+  /* three fields of the form, each 16 px from the next */
   .trio {
     flex-direction: column;
+    gap: 16px;
   }
   .trio .field {
     flex: none;
