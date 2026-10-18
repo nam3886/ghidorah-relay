@@ -96,7 +96,8 @@ def test_one_list_holds_a_clamp_a_drift_and_an_unclear_group_in_the_common_shape
         "a clamp and a drift are missing: %s" % [i["kind"] for i in items]
     by_kind = {i["kind"]: i for i in items}
     assert set(by_kind["unclear_reply"]) == {"kind", "group", "severity", "title", "provider", "first_ms", "last_ms",
-                                            "count", "open_count", "keys", "newest_id", "status", "detail"}
+                                            "count", "open_count", "keys", "newest_id", "reply", "key_label",
+                                            "status", "detail"}
     assert by_kind["clamp"]["group"] == "%s.fake.video" % k and by_kind["clamp"]["newest_id"] == clamp
     assert by_kind["drift"]["newest_id"] == drift and by_kind["clamp"]["keys"] == 1
     unclear = by_kind["unclear_reply"]
@@ -110,7 +111,7 @@ def test_open_groups_come_first_then_the_severity_rank_and_the_rank_is_not_the_n
     plant_unclear(db, k, "Odd reply")
     note = alerts.Source(("note",), "SELECT 'note' AS kind, 'g1' AS grp, 'info' AS severity, 'a note' AS title, "
                          "'fake' AS provider, clock_timestamp() AS first_at, clock_timestamp() AS last_at, "
-                         "1 AS count, 1 AS open_count, 1 AS keys, 1 AS newest_id")
+                         "1 AS count, 1 AS open_count, 1 AS keys, 1 AS newest_id, NULL AS reply, NULL AS key_label")
     monkeypatch.setattr(alerts, "SOURCES", (*alerts.SOURCES, note))
     done = plant_unclear(db, k, "Already seen")
     stamp(db, "unclear_replies", done)
@@ -178,6 +179,68 @@ def test_keys_counts_the_distinct_api_keys_behind_a_group(db):
     assert item["count"] == 3 and item["keys"] == 2, "keys counts rows, not distinct keys: %r" % item["keys"]
 
 
+NEWEST_REPLY = "WHERE t.id = max(u.id)) AS reply"
+LABEL_ELSE_PREFIX = "COALESCE(NULLIF(k.label, ''), k.key_prefix)"
+
+
+@mutation(ALERTS, NEWEST_REPLY, "WHERE t.id = min(u.id)) AS reply", expect="the newest stored reply")
+@mutation(ALERTS, "SELECT left(t.text, %(title_limit)s)", "SELECT t.text", expect="cut like the title")
+@mutation(ALERTS, LABEL_ELSE_PREFIX, "k.key_prefix", expect="the key's label")
+@mutation(ALERTS, LABEL_ELSE_PREFIX, "k.label", expect="the prefix of a key without a label")
+def test_a_reply_group_carries_its_newest_stored_reply_and_a_key_is_named_by_its_label_else_its_prefix(db):
+    k, _clamp, _drift = plant(db)
+    db.run("UPDATE api_keys SET label = 'Shop A' WHERE id = %s", k)
+    bare, _c, _d = plant(db)
+    db.run("UPDATE api_keys SET label = '', key_prefix = 'rk-q7mfz2kd' WHERE id = %s", bare)
+    plant_unclear(db, k, "Sorry, I can’t create that video [1]")
+    plant_unclear(db, k, "Sorry, I CAN’T create that video [2]")
+    plant_unclear(db, k, "A long reply" + " that goes on" * 30)
+    plant_unclear(db, bare, "Words under a key without a label")
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        bare_rows = await env.client.get(detail_url("unclear_reply", group_of("Words under a key without a label")),
+                                         headers=h)
+        return await env.client.get(groups_url(), headers=h), bare_rows
+
+    listed, bare_rows = run_app(db, scenario)
+    items = listed.json()["items"]
+    [row] = bare_rows.json()["items"]
+    assert row["key_label"] == "rk-q7mfz2kd", "the prefix of a key without a label: %r" % row["key_label"]
+    replies = {i["title"][:6]: i for i in items if i["kind"] == "unclear_reply"}
+    assert replies["sorry,"]["reply"] == "Sorry, I CAN’T create that video [2]", "the newest stored reply: %r" % replies
+    assert len(replies["a long"]["reply"]) == 200, "cut like the title: %d" % len(replies["a long"]["reply"])
+    assert all(i["key_label"] is None for i in replies.values())
+    named = sorted(i["key_label"] for i in items if i["kind"] == "clamp")
+    assert named == ["Shop A", "rk-q7mfz2kd"], "the key's label, else the prefix of a key without a label: %r" % named
+    assert all(i["reply"] is None for i in items if i["kind"] != "unclear_reply")
+
+
+ONE_MEDIA = '"media": media.pop() if len(media) == 1 else None'
+
+
+@mutation(ALERTS, ONE_MEDIA, '"media": None', expect="all the group's jobs are videos")
+@mutation(ALERTS, ONE_MEDIA, '"media": media.pop() if len(media) >= 1 else None', expect="mixed media: none")
+def test_an_unclear_detail_says_the_one_media_type_of_its_jobs_and_none_when_they_are_mixed(db):
+    k = key(db)
+    for text, kinds in (("All videos [1]", ("video", "video")), ("All images [1]", ("image",)),
+                        ("Both kinds [1]", ("video", "image"))):
+        for kind in kinds:
+            row = plant_unclear(db, k, text)
+            db.run("UPDATE jobs SET media_type = %s WHERE id = (SELECT job_id FROM unclear_replies WHERE id = %s)",
+                   kind, row)
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        return [(await env.client.get(detail_url("unclear_reply", group_of(t)), headers=h)).json()["media"]
+                for t in ("All videos [1]", "All images [1]", "Both kinds [1]")]
+
+    videos, images, mixed = run_app(db, scenario)
+    assert videos == "video", "all the group's jobs are videos: %r" % videos
+    assert images == "image", "all the group's jobs are images: %r" % images
+    assert mixed is None, "mixed media: none, %r" % mixed
+
+
 # ---- the detail -------------------------------------------------------------------------------------------------
 def test_an_unclear_detail_lists_its_rows_newest_first_with_the_jobs_outcomes_and_a_deleted_accounts_label_is_null(db):
     k = key(db)
@@ -243,7 +306,7 @@ JOB_ANY_KEY = "LEFT JOIN jobs j ON j.id = l.job_id "
 @mutation(ALERTS, UNNAMED_JOB, "LEFT JOIN ledger l ON false ", expect="the clamp names its job")
 @mutation(ALERTS, JOB_JOIN, "LEFT JOIN jobs j ON false ", expect="the clamp names its job")
 @mutation(ALERTS, UNCLEAR_KEY, "LEFT JOIN api_keys k ON false ", expect="the unclear reply names its key")
-@mutation(ALERTS, "acknowledged_by, j.title, k.label FROM", "acknowledged_by, NULL, k.label FROM",
+@mutation(ALERTS, 'u.acknowledged_by, j.title, " + KEY_NAME', 'u.acknowledged_by, NULL, " + KEY_NAME',
           expect="the unclear reply names its job")
 def test_alert_details_carry_the_job_title_and_the_key_label_next_to_the_ids(db):
     k, clamp, drift = plant(db)

@@ -417,6 +417,49 @@ def test_the_select_menu_chip_and_tabs_keep_their_shape():
     vitest(MENUS_SPEC)
 
 
+# ---- page-alerts: FilterSelect's field variant (the canvas's labelled select) and the ban on native selects ----------
+FIELD_SPEC = "tests/unit/shared/filter-select-field.spec.ts"
+FIELD = f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > "
+NO_SELECT_SPEC = "tests/unit/no-native-select.spec.ts"
+NO_SELECT = f"FAILED {NO_SELECT_SPEC} > no native select > "
+ALERTS_VIEW = f"{SRC}/views/AlertsView.vue"
+
+
+@mutation(FILTER, ":for=\"triggerId\"", ":for=\"labelId\"",
+          expect=FIELD + "draws its label above a box that holds every option")
+@mutation(FILTER, ":class=\"{ 'is-current': o.value === props.modelValue }\"", ":class=\"{ 'is-current': true }\"",
+          expect=FIELD + "draws its label above a box that holds every option")
+@mutation(FILTER, '<path d="M2 2l4 4 4-4"', '<path d="M2 4l4 4 4-4"',
+          expect=FIELD + "draws its label above a box that holds every option")
+@mutation(FILTER, "valueWidth.value = Math.round(width);", "valueWidth.value = width;",
+          expect=FIELD + "its value box is as wide as the longest option on the nearest whole pixel")
+@mutation(FILTER, '"is-tall": isTablet.value', '"is-tall": false', expect=FIELD + "is 36 high on a tablet")
+@mutation(FILTER, '"is-chip": isPhone.value', '"is-chip": false', expect=FIELD + "is 36 high on a tablet")
+@mutation(FILTER, "disabled: props.disabled || undefined,", "disabled: undefined,",
+          expect=FIELD + "disabled: the box is off and opens nothing")
+@mutation(FILTER, " || box.value?.contains(target)))", "))",
+          expect=FIELD + "a press on its own label or box while open does not close it from outside")
+@mutation(FILTER, "(field.value && isPhone.value ? box.value : trigger.value)", "(trigger.value)",
+          expect=FIELD + "on a phone the list hangs 6 px under the chip")
+@mutation(FILTER, ":is=\"field ? 'div' : 'button'\"", ":is=\"'div'\"",
+          expect=FIELD + "the chip variant is unchanged: the trigger is the root")
+@pytest.mark.web_unit
+def test_the_field_select_is_the_canvas_select_drawn_by_us():
+    vitest(FIELD_SPEC)
+
+
+@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '  "views/FramesView.vue",\n];', "];",
+          expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
+@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '  "views/FramesView.vue",\n];',
+          '  "views/FramesView.vue",\n  "views/AlertsView.vue",\n];',
+          expect=NO_SELECT + "every file still to convert still has one: a converted file leaves the list")
+@mutation(ALERTS_VIEW, '<span v-if="!isPhone" class="gt__spacer" />', '<select v-if="!isPhone" class="gt__spacer" />',
+          expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
+@pytest.mark.web_unit
+def test_no_native_select_is_left_but_the_files_still_to_convert():
+    vitest(NO_SELECT_SPEC)
+
+
 SKIN = f"{SHARED}/skin.css"
 CONFIRM_CSS = f"{SHARED}/confirm-dialog.css"
 NOTIFY_CSS = f"{SRC}/lib/notify.css"
