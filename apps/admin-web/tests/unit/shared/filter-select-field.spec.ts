@@ -140,4 +140,14 @@ describe("the field variant of FilterSelect", () => {
     expect(wrapper.find(".filter-select__value").text()).toBe("Open");
     expect(wrapper.find("label").exists()).toBe(false);
   });
+
+  it("as a form's field (block) keeps its label above the box on a phone too, never the chip", () => {
+    showAt(390);
+    const w = field({ block: true });
+    expect(w.classes()).toContain("is-block");
+    expect(w.classes()).not.toContain("is-chip");
+    expect(w.find("label").text()).toBe("Status");
+    wrapper!.unmount();
+    expect(field().classes()).not.toContain("is-block");
+  });
 });

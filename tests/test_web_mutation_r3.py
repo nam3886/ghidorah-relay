@@ -285,7 +285,7 @@ FAILED_JOB = VIEW_SPEC + "the result card > a finished job has no empty slot, an
           expect=DURATION_SELECT)
 @mutation(TEST_MODELS, "typeof m.name === \"string\" && m.name ? m.name : m.id", "m.id", expect=DISPLAY_NAME)
 @mutation(TEST_IMAGES, "{{ sizeText(f.blob.size) }}", "", expect=NAMES_ONLY)
-@mutation(TEST_RESULT, "ui.openJob(job.id)", "ui.openJob('')", expect=RESULT_CARD)
+@mutation(TEST_RESULT, "ui.openJob(props.job.id)", "ui.openJob('')", expect=RESULT_CARD)
 @mutation(TEST_RESULT_MODEL, 'waiting: "2/4",', 'waiting: "3/4",', expect=RESULT_CARD)
 @mutation(TEST_RESULT_MODEL, "return job.stage || job.status;", "return job.status;", expect=RESULT_CARD)
 @mutation(TEST_RESULT_MODEL, 'add("Created", clockTime(job.created_at));', "", expect=RESULT_CARD)
@@ -294,6 +294,72 @@ FAILED_JOB = VIEW_SPEC + "the result card > a finished job has no empty slot, an
 @pytest.mark.web_unit
 def test_test_view_rules():
     vitest("tests/unit/test/test-view.spec.ts")
+
+
+# ---- page-test-login: the Test page drawn as the design (the result card frames, the wallet order, the play box) -----
+WALLET_ORDER = PICKER + "lists the video wallet first, whatever order the points answer has"
+FRAMES_OF_RESULT = VIEW_SPEC + "the result card frames > "
+EMPTY_FRAME = FRAMES_OF_RESULT + "draws nothing made yet as a title bar over the status line in the middle"
+DONE_FRAME = (FRAMES_OF_RESULT + "draws a done job as a title bar over the media and the ledger: job, model, duration "
+              + "and time taken")
+PLAIN_FRAME = FRAMES_OF_RESULT + "a job still on its way keeps the plain card: no title bar"
+PLAY_BOX = (VIEW_SPEC + "media > draws a video link as a box with a play button, and the video element only once it "
+            + "is played")
+FAILED_CODE = (VIEW_SPEC + "the result card > a failed job with a code names it in bold before the reason, as the "
+               + "job drawer does")
+BY_VALUE = PICKER + "offers and sends a ratio by the value the provider takes, not by its label"
+CHIP_HINT = PICKER + "names a template chip by its whole text and shows the whole text in its hint"
+STYLE_VALUE = PICKER + "shows a style by its label and sends the value the provider takes"
+MODEL_RATIOS = (PICKER + "lists the picked model's own ratios over the provider's: a video model offers 21:9 and "
+                + "not 2:3")
+RATIO_FALLBACK = (PICKER + "puts the model's default in place of a ratio the next model does not take, and never "
+                  + "sends it")
+REFUNDED_POINTS = (VIEW_SPEC + "the result card > a refunded failed job strikes its charge, then 0 and refunded, as "
+                   + "the job drawer does")
+OPTION_VALUE = FORM_SPEC + "optionValue > takes the value a provider takes, and the label only when there is no value"
+
+
+@mutation(TEST_MODELS, 'Number(b === "video") - Number(a === "video") || a.localeCompare(b)', "a.localeCompare(b)",
+          expect=WALLET_ORDER)
+@mutation(TEST_VIEW, "capital(m.kind)", "m.kind", expect=DISPLAY_NAME)
+@mutation(TEST_VIEW, '<span class="num">{{ infoTail }}</span>', "{{ infoTail }}", expect=DURATION_SELECT)
+@mutation(TEST_RESULT, "'result--bar': !job || done", "'result--bar': !job", expect=DONE_FRAME)
+@mutation(TEST_RESULT, "'result--bar': !job || done", "'result--bar': true", expect=PLAIN_FRAME)
+@mutation(TEST_RESULT, 'v-if="!job" class="result__empty"', 'v-if="false" class="result__empty"', expect=EMPTY_FRAME)
+@mutation(TEST_RESULT, 'v-if="playing === i"', 'v-if="true"', expect=PLAY_BOX)
+@mutation(TEST_RESULT, 'typeof props.job?.error_code === "string" ? props.job.error_code : ""', '""',
+          expect=FAILED_CODE)
+@mutation(TEST_VIEW, "(extras.ratios ?? []).map(optionValue)", "(extras.ratios ?? []).map(optionLabel)",
+          expect=BY_VALUE)
+@mutation(TEST_VIEW, "({ value: optionValue(o), label: optionLabel(o) })",
+          "({ value: optionLabel(o), label: optionLabel(o) })", expect=STYLE_VALUE)
+@mutation(TEST_VIEW, "label: optionLabel(o) })", "label: optionValue(o) })", expect=STYLE_VALUE)
+@mutation(TEST_VIEW, '<FilterSelect\n            v-if="durations.length"', '<FilterSelect\n            v-if="false"',
+          expect=DURATION_SELECT)
+@mutation(TEST_VIEW, "return own.length ? own : withSaved(ratios.value, form.ratio);",
+          "return withSaved(ratios.value, form.ratio);", expect=MODEL_RATIOS)
+@mutation(TEST_VIEW, "if (own.length && form.ratio && !own.includes(form.ratio)) form.ratio = defaultRatioOf(model);",
+          "", expect=RATIO_FALLBACK)
+@mutation(TEST_MODELS, 'typeof ratio === "string" && ratiosOf(m).includes(ratio) ? ratio : ""', '""',
+          expect=RATIO_FALLBACK)
+@mutation(TEST_RESULT_MODEL, 'if (typeof job.points === "number") {', "if (false) {", expect=RESULT_CARD)
+@mutation(TEST_VIEW, ':content="t.show_value || t.prompt"', ':content="t.prompt.slice(0, 40)"', expect=CHIP_HINT)
+@mutation(TEST_RESULT_MODEL, "job.refunded === true", "false", expect=REFUNDED_POINTS)
+@mutation(TEST_RESULT_MODEL, 'if (took) rows.push({ label: "Took", value: took });', "", expect=DONE_FRAME)
+@mutation(TEST_RESULT_MODEL, "minutes ? `${minutes} m ${seconds % 60} s` : `${seconds} s`", "`${seconds} s`",
+          expect=DONE_FRAME)
+@mutation(TEST_RESULT_MODEL, 'const rows = [{ label: "Job", value: shortJobId(job.id) }];',
+          "const rows: Array<{ label: string; value: string }> = [];", expect=DONE_FRAME)
+@pytest.mark.web_unit
+def test_test_view_drawn_as_the_design():
+    vitest("tests/unit/test/test-view.spec.ts")
+
+
+@mutation(FORM, 'typeof option.value === "string" && option.value ? option.value : optionLabel(option)',
+          "optionLabel(option)", expect=OPTION_VALUE)
+@pytest.mark.web_unit
+def test_test_view_option_values():
+    vitest("tests/unit/test/test-form.spec.ts")
 
 
 # ---- Settings: the value parse, the dirty rule, the scope, the password change -------------------------------------

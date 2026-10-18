@@ -6,6 +6,7 @@ import * as api from "@/api/test";
 import { DROPPED_NOTE, FILE_STORE, type FileStore, NOT_SAVED_NOTE, type StoredFile } from "@/lib/test-files";
 import { useAuthStore } from "@/stores/auth";
 import { useUiStore } from "@/stores/ui";
+import FilterSelect, { type SelectOption } from "@/components/shared/FilterSelect.vue";
 import TestView from "@/views/TestView.vue";
 
 vi.mock("@/api/test", async (original) => ({
@@ -75,6 +76,14 @@ const attach = async (...picked: File[]) => {
   await input.trigger("change");
   await flushPromises();
 };
+// The form's selects (FilterSelect fields), found by their label: their options, their value, a choice.
+const selectField = (label: string) => wrapper!.findAllComponents(FilterSelect).find((c) => c.props("label") === label);
+const fieldOptions = (label: string) => (selectField(label)?.props("options") ?? []) as SelectOption[];
+const fieldValue = (label: string) => selectField(label)?.props("modelValue");
+async function choose(label: string, value: string) {
+  selectField(label)!.vm.$emit("update:modelValue", value);
+  await flushPromises();
+}
 
 beforeEach(() => {
   sessionStorage.clear();
@@ -106,16 +115,15 @@ describe("the tab", () => {
     await pickModel("veo-3");
     expect(api.getOptions).toHaveBeenCalledWith("rk-1", "flow");
     expect(text()).toContain("video · flow");
-    const options = (id: string) =>
-      wrapper!
-        .findAll(`#${id} option`)
-        .map((o) => o.attributes("value"))
+    const options = (label: string) =>
+      fieldOptions(label)
+        .map((o) => o.value)
         .filter(Boolean);
-    expect(options("test-ratio")).toEqual(["16:9", "1:1"]);
+    expect(options("Ratio")).toEqual(["16:9", "1:1"]);
     // the style belongs to an image model
-    expect(wrapper!.find("#test-style").exists()).toBe(false);
+    expect(selectField("Style")).toBeUndefined();
     await pickModel("imagen-4");
-    expect(options("test-style")).toEqual(["noir"]);
+    expect(options("Style")).toEqual(["noir"]);
     await pickModel("veo-3");
     // a template copies its prompt into the box
     await wrapper!.findAll('[role="group"][aria-label="Prompt templates"] button')[0]!.trigger("click");
@@ -530,6 +538,119 @@ describe("the model picker and the wallet", () => {
     expect(wrapper!.find(".test-tab__points-box pre").exists()).toBe(false);
   });
 
+  it("names a template chip by its whole text and shows the whole text in its hint", async () => {
+    const long = "A slow dolly shot along a rain soaked street at night. ".repeat(40).trim();
+    vi.mocked(api.getOptions).mockResolvedValue({ templates: [{ show_value: long, prompt: long }] });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    const chip = wrapper!.find('[role="group"][aria-label="Prompt templates"] button');
+    expect(chip.text()).toBe(long);
+    const hint = wrapper!.findAllComponents({ name: "ElTooltip" }).find((t) => t.props("content") === long);
+    expect(hint?.props("popperClass")).toContain("rl-tip");
+  });
+
+  it("offers and sends a ratio by the value the provider takes, not by its label", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    vi.mocked(api.getOptions).mockResolvedValue({
+      ratios: [{ label: "Widescreen, for most screens (16:9)", value: "16:9" }],
+      templates: [],
+    });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    expect(fieldOptions("Ratio").map((o) => o.label)).toEqual(["Default", "16:9"]);
+    await choose("Ratio", "16:9");
+    await wrapper!.find("#test-prompt").setValue("a cat");
+    vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
+    vi.mocked(api.getJob).mockResolvedValue({ id: "j1", status: "queued" });
+    await button("Generate").trigger("click");
+    await vi.advanceTimersByTimeAsync(0);
+    const body = vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>;
+    expect(body.ratio).toBe("16:9");
+  });
+
+  // dola's options hold its image ratios (2:3, no 21:9) for every model; each model names its own list
+  const VIDEO_RATIOS = ["1:1", "3:4", "4:3", "9:16", "16:9", "21:9"];
+  const IMAGE_RATIOS = ["1:1", "2:3", "3:4", "4:3", "9:16", "16:9"];
+  function ratioModels() {
+    vi.mocked(api.listModels).mockResolvedValue({
+      data: [
+        { ...video, limits: { ratios: VIDEO_RATIOS, default_ratio: "16:9" } },
+        { ...image, limits: { ratios: IMAGE_RATIOS, default_ratio: "1:1" } },
+      ],
+    });
+    vi.mocked(api.getOptions).mockResolvedValue({ ratios: IMAGE_RATIOS.map((value) => ({ value })) });
+  }
+  const ratioTexts = () =>
+    fieldOptions("Ratio")
+      .map((o) => o.label)
+      .slice(1);
+
+  it("lists the picked model's own ratios over the provider's: a video model offers 21:9 and not 2:3", async () => {
+    ratioModels();
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    expect(ratioTexts()).toEqual(VIDEO_RATIOS);
+    await pickModel("imagen-4");
+    expect(ratioTexts()).toEqual(IMAGE_RATIOS);
+  });
+
+  it("puts the model's default in place of a ratio the next model does not take, and never sends it", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    ratioModels();
+    await open();
+    await loadModels();
+    await pickModel("imagen-4");
+    await choose("Ratio", "2:3");
+    await pickModel("veo-3");
+    expect(fieldValue("Ratio")).toBe("16:9");
+    expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "").ratio).toBe("16:9");
+    await wrapper!.find("#test-prompt").setValue("a cat");
+    vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
+    vi.mocked(api.getJob).mockResolvedValue({ id: "j1", status: "queued" });
+    await button("Generate").trigger("click");
+    await vi.advanceTimersByTimeAsync(0);
+    expect((vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>).ratio).toBe("16:9");
+  });
+
+  it("shows a style by its label and sends the value the provider takes", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    vi.mocked(api.getOptions).mockResolvedValue({ styles: [{ label: "Oil painting", value: "oil_painting" }] });
+    await open();
+    await loadModels();
+    await pickModel("imagen-4");
+    expect(fieldOptions("Style")).toEqual([
+      { value: "", label: "Default" },
+      { value: "oil_painting", label: "Oil painting" },
+    ]);
+    await choose("Style", "oil_painting");
+    await wrapper!.find("#test-prompt").setValue("a cat");
+    vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
+    vi.mocked(api.getJob).mockResolvedValue({ id: "j1", status: "queued" });
+    await button("Generate").trigger("click");
+    await vi.advanceTimersByTimeAsync(0);
+    const body = vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>;
+    expect(body.style).toBe("oil_painting");
+  });
+
+  it("lists the video wallet first, whatever order the points answer has", async () => {
+    vi.mocked(api.getPoints).mockResolvedValue({
+      dola: {
+        image: { day_limit: null, used_day: 0, total_limit: null, used_total: 9 },
+        video: { day_limit: 20, used_day: 3, total_limit: 200, used_total: 14 },
+      },
+    });
+    await open();
+    await loadModels();
+    expect(wrapper!.findAll(".wallet__row dt").map((d) => d.text())).toEqual([
+      "dola video · today",
+      "dola video · total",
+      "dola image",
+    ]);
+  });
+
   it("a model with a duration list gets a select of them, and the heading names them", async () => {
     vi.mocked(api.listModels).mockResolvedValue({
       data: [{ ...video, limits: { durations: [5, 10, 20, 25, 30] } }, image],
@@ -538,16 +659,14 @@ describe("the model picker and the wallet", () => {
     await loadModels();
     await pickModel("veo-3");
     expect(text()).toContain("video · 5, 10, 20, 25 or 30 s");
-    expect(wrapper!.findAll("#test-duration option").map((o) => o.text())).toEqual([
-      "Default",
-      "5 s",
-      "10 s",
-      "20 s",
-      "25 s",
-      "30 s",
-    ]);
-    await wrapper!.find("#test-duration").setValue("30");
+    // the lengths carry tabular figures, the kind word does not
+    expect(wrapper!.find(".form__info .num").text()).toBe("5, 10, 20, 25 or 30 s");
+    expect(fieldOptions("Duration").map((o) => o.label)).toEqual(["Default", "5 s", "10 s", "20 s", "25 s", "30 s"]);
+    await choose("Duration", "30");
     expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "").duration).toBe("30");
+    // the design's select drawn by us, never the browser's
+    expect(wrapper!.find("select").exists()).toBe(false);
+    expect(selectField("Duration")!.props("block")).toBe(true);
   });
 
   it("a model that names a display name shows it with its id under it; one without shows the id alone", async () => {
@@ -560,6 +679,8 @@ describe("the model picker and the wallet", () => {
     expect(named.find(".model__id").text()).toContain("veo-3");
     expect(plain.find(".model__title").text()).toBe("imagen-4");
     expect(plain.find(".model__id").exists()).toBe(false);
+    // the phone's third line: the kind as the group heading writes it, then the owner
+    expect(named.find(".model__kind").text()).toBe("Video · flow");
   });
 });
 
@@ -576,6 +697,7 @@ describe("the result card", () => {
       model: "veo-3",
       duration: 30,
       ratio: "16:9",
+      points: 2,
       created_at: new Date(2026, 9, 15, 20, 52, 30).toISOString(),
     };
     vi.mocked(api.createJob).mockResolvedValue(running);
@@ -592,6 +714,7 @@ describe("the result card", () => {
       "Model veo-3",
       "Duration 30 s",
       "Ratio 16:9",
+      "Points 2",
       "Created 20:52:30",
     ]);
     const link = wrapper!.find('a[aria-label="Open job e17c55b2"]');
@@ -613,7 +736,39 @@ describe("the result card", () => {
     await flushPromises();
     expect(wrapper!.find(".status-chip").text()).toBe("failed");
     expect(wrapper!.find('[aria-label="Empty video slot"]').exists()).toBe(false);
-    expect(wrapper!.find('.result [role="alert"]').text()).toBe("the prompt was refused");
+    expect(wrapper!.find('.result [role="alert"]').text()).toBe("Failed — the prompt was refused");
+  });
+
+  it("a refunded failed job strikes its charge, then 0 and refunded, as the job drawer does", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    const failed = { id: "j1", status: "failed", error: "refused", points: 2, refunded: true };
+    vi.mocked(api.createJob).mockResolvedValue(failed);
+    vi.mocked(api.getJob).mockResolvedValue(failed);
+    await button("Generate").trigger("click");
+    await vi.advanceTimersByTimeAsync(3000);
+    await flushPromises();
+    const points = wrapper!.findAll(".result__row").find((r) => r.find("dt").text() === "Points")!;
+    expect(points.find("s").text()).toBe("2");
+    expect(points.find("dd").text()).toBe("2 → 0 refunded");
+  });
+
+  it("a failed job with a code names it in bold before the reason, as the job drawer does", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    const failed = { id: "j1", status: "failed", error: "the prompt was refused", error_code: "dola.content_refused" };
+    vi.mocked(api.createJob).mockResolvedValue(failed);
+    vi.mocked(api.getJob).mockResolvedValue(failed);
+    await button("Generate").trigger("click");
+    await vi.advanceTimersByTimeAsync(3000);
+    await flushPromises();
+    const alert = wrapper!.find('.result [role="alert"]');
+    expect(alert.find("strong").text()).toBe("Failed · dola.content_refused");
+    expect(alert.text()).toBe("Failed · dola.content_refused — the prompt was refused");
   });
 });
 
@@ -643,7 +798,7 @@ describe("media", () => {
     expect(wrapper!.find(".test-result__media video").exists()).toBe(false);
   });
 
-  it("draws a video link in a video element", async () => {
+  it("draws a video link as a box with a play button, and the video element only once it is played", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout"] });
     await open();
     await loadModels();
@@ -654,7 +809,68 @@ describe("media", () => {
     await button("Generate").trigger("click");
     await vi.advanceTimersByTimeAsync(3000);
     await flushPromises();
+    // nothing is fetched before the play button is pressed
+    expect(wrapper!.find(".test-result__media video").exists()).toBe(false);
+    await wrapper!.find('.result__frame button[aria-label="Play video"]').trigger("click");
     expect(wrapper!.find(".test-result__media video").attributes("src")).toBe("/m/v.mp4");
+    expect(wrapper!.find('button[aria-label="Play video"]').exists()).toBe(false);
     expect(wrapper!.find(".test-result__media img").exists()).toBe(false);
+  });
+});
+
+describe("the result card frames", () => {
+  it("draws nothing made yet as a title bar over the status line in the middle", async () => {
+    await open();
+    const card = wrapper!.find(".result");
+    expect(card.classes()).toContain("result--bar");
+    expect(card.find(".result__empty .test-result__status").text()).toBe(
+      "No models loaded. Enter an API key above and press Load models.",
+    );
+    await loadModels();
+    expect(wrapper!.find(".result__empty .test-result__status").text()).toBe("Pick a model");
+  });
+
+  it("draws a done job as a title bar over the media and the ledger: job, model, duration and time taken", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    const done = {
+      id: "3b9e1f0a-0000-4000-8000-000000000000",
+      status: "done",
+      result_urls: ["/m/v.mp4"],
+      model: "veo-3",
+      duration: 5,
+      created_at: "2026-10-15T13:50:12Z",
+      finished_at: "2026-10-15T13:52:00Z",
+    };
+    vi.mocked(api.createJob).mockResolvedValue(done);
+    vi.mocked(api.getJob).mockResolvedValue(done);
+    await button("Generate").trigger("click");
+    await vi.advanceTimersByTimeAsync(3000);
+    await flushPromises();
+    const card = wrapper!.find(".result");
+    expect(card.classes()).toContain("result--bar");
+    expect(card.find(".status-chip").text()).toBe("done");
+    expect(
+      card.findAll(".result__done .result__row").map((r) => `${r.find("dt").text()} ${r.find("dd").text()}`),
+    ).toEqual(["Job 3b9e1f0a", "Model veo-3", "Duration 5 s", "Took 1 m 48 s"]);
+    expect(card.find(".result__id").exists()).toBe(false);
+    await card.find('a[aria-label="Open job 3b9e1f0a"]').trigger("click");
+    expect(useUiStore().openJobId).toBe(done.id);
+  });
+
+  it("a job still on its way keeps the plain card: no title bar", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    const queued = { id: "j1", status: "queued" };
+    vi.mocked(api.createJob).mockResolvedValue(queued);
+    vi.mocked(api.getJob).mockResolvedValue(queued);
+    await button("Generate").trigger("click");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(wrapper!.find(".result").classes()).not.toContain("result--bar");
+    expect(wrapper!.find(".result__done").exists()).toBe(false);
   });
 });

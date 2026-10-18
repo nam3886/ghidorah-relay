@@ -89,8 +89,10 @@ LANE7 = [
     )
     for board in boards
 ]
+# The Test boards are signed in as the boards' user, so the top bar reads "admin" as drawn (page-test-login).
+LANE7 = [replace(e, user=BOARD_USER) if e.board.endswith("-Test") else e for e in LANE7]
 
-# ---- accounts (lane 5) ---------------------------------------------------------------------------------------------
+# ---- accounts (lane 5)---------------------------------------------------------------------------------------------
 from pixel_accounts import accounts_seed, open_edit, open_import, phone_ready  # noqa: E402
 
 ACCOUNTS_BOARDS = [
@@ -143,7 +145,7 @@ GATES: dict[str, float] = {
     "B-Login": 1.04,
     "B-Logs": 8.21,
     "B-Settings": 6.00,
-    "B-Test": 3.38,
+    "B-Test": 1.04,
     "P-Accounts": 1.97,
     "P-Alerts": 1.23,
     "P-Frames": 3.49,
@@ -154,7 +156,7 @@ GATES: dict[str, float] = {
     "P-Login": 1.16,
     "P-Logs": 6.41,
     "P-Settings": 12.34,
-    "P-Test": 7.20,
+    "P-Test": 1.28,
     "T-Accounts": 1.74,
     "T-Alerts": 1.01,
     "T-Frames": 5.68,
@@ -164,7 +166,7 @@ GATES: dict[str, float] = {
     "T-Keys": 8.41,
     "T-Logs": 10.91,
     "T-Settings": 9.01,
-    "T-Test": 7.09,
+    "T-Test": 1.05,
 }
 
 ENTRIES: list[Entry] = [

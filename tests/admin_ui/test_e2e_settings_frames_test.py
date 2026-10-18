@@ -492,6 +492,77 @@ def test_the_test_tab_still_works_when_localstorage_and_indexeddb_are_blocked(ap
     assert page.evaluate("sessionStorage.getItem('relay_test_key')") == api_key.raw
 
 
+def offered_then_pick(page, field: str, offered: list, option: str) -> None:
+    """Open one of the Test form's selects (the design's select, drawn by us), check what it offers, pick `option`."""
+    page.get_by_role("combobox", name=field, exact=True).click()
+    options = page.get_by_role("listbox").get_by_role("option")
+    expect(options).to_have_text(offered)
+    options.filter(has_text=option).first.click()
+
+
+def test_a_ratio_labelled_in_words_is_offered_and_sent_by_its_value(app_session, live, db):
+    """dola labels each ratio with a sentence around its value and takes only the value: the tab lists the value and
+    the request carries it."""
+    page = app_session
+    for name in live.env.registry.names():
+        live.env.registry.spec(name).extras = lambda snapshots: {
+            "ratios": [{"label": "Widescreen, for most screens (16:9)", "value": "16:9"}]}
+    open_test_tab(page, db, live)
+    page.get_by_test_id("test-model").filter(has_text="fake-video").click()
+    offered_then_pick(page, "Ratio", ["Default", "16:9"], "16:9")
+    page.get_by_label("Prompt", exact=True).fill("a cat")
+    with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
+        page.get_by_role("button", name="Generate", exact=True).click()
+    assert sent.value.post_data_json["ratio"] == "16:9"
+    expect(page.locator(".test-result__status")).to_contain_text("Job")
+
+
+def test_a_video_model_offers_its_own_ratios_21_9_and_not_2_3_and_sends_the_one_picked(app_session, live, db):
+    """dola's options hold its image ratios (2:3, no 21:9) for every model; each model names its own list in the
+    catalog, and the tab offers that one."""
+    import dataclasses
+
+    from relay_core.providers import check_catalog
+
+    page = app_session
+    video = ("1:1", "3:4", "4:3", "9:16", "16:9", "21:9")
+    for name in live.env.registry.names():
+        spec = live.env.registry.spec(name)
+        listed = spec.catalog()
+        spec.catalog = lambda listed=listed: [
+            dataclasses.replace(m, limits={**m.limits, "ratios": list(video), "default_ratio": "16:9"})
+            if m.media_type == "video" else m for m in listed]
+        spec.extras = lambda snapshots: {
+            "ratios": [{"value": r} for r in ("1:1", "2:3", "3:4", "4:3", "9:16", "16:9")]}
+    registry = live.env.registry
+    registry._models = check_catalog([registry.spec(n) for n in registry.names()])
+    open_test_tab(page, db, live)
+    page.get_by_test_id("test-model").filter(has_text="fake-video").click()
+    offered_then_pick(page, "Ratio", ["Default", *video], "21:9")
+    page.get_by_label("Prompt", exact=True).fill("a cat")
+    with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
+        page.get_by_role("button", name="Generate", exact=True).click()
+    assert sent.value.post_data_json["ratio"] == "21:9"
+    expect(page.locator(".test-result__status")).to_contain_text("Job")
+
+
+def test_a_style_is_shown_by_its_label_and_sent_by_its_value(app_session, live, db):
+    """dola names a style in words and takes only its value: the tab shows the words and the request carries the
+    value."""
+    page = app_session
+    for name in live.env.registry.names():
+        live.env.registry.spec(name).extras = lambda snapshots: {
+            "styles": [{"label": "Oil painting", "value": "oil_painting"}]}
+    open_test_tab(page, db, live)
+    page.get_by_test_id("test-model").filter(has_text="fake-image").click()
+    offered_then_pick(page, "Style", ["Default", "Oil painting"], "Oil painting")
+    page.get_by_label("Prompt", exact=True).fill("a cat")
+    with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
+        page.get_by_role("button", name="Generate", exact=True).click()
+    assert sent.value.post_data_json["style"] == "oil_painting"
+    expect(page.locator(".test-result__status")).to_contain_text("Job")
+
+
 def test_generate_polls_to_a_result_draws_a_share_link_and_shows_any_other_link_as_text(app_session, live, db):
     page = app_session
     requests = []

@@ -6,7 +6,8 @@ What the app cannot be made to show, and so stays a known difference of these bo
 - the version numbers `v3`, `v4`: the app prints the database id of a version, one sequence for every target;
 - the settings rows: the live server's settings are the core ones plus the fake provider's, not the boards' six;
 - the boot-only values and the measured-price rows of the live server;
-- the job id `e17c55b2` (a new job has a new id), its step (the fake worker is not running) and its Points row."""
+- the job id `e17c55b2` (a new job has a new id). The Test drive moves the job to the boards' step itself (the fake
+  worker is not running), and its seed names the models and charges the boards' 2 points."""
 
 import dataclasses
 import io
@@ -133,11 +134,33 @@ FILES = (("market-stall-reference.jpg", "image/jpeg", int(1.8 * 1048576)),
          ("noodle-bowl-closeup.png", "image/png", int(3.2 * 1048576)))
 
 
+BOARD_NAMES = {"seedance_v2.5": "Dreamina Seedance 2.5", "seedance_v2.0": "Seedance 2.0 Fast",
+               "seedance_v1.0": "Seedance 1.0", "seedream-4.5": "Seedream 4.5", "seedream-5.0-pro": "Seedream 5.0 Pro"}
+
+
+def name_and_price_the_boards_models(live) -> None:
+    """The boards' models with their display names (the catalog sends `name`, as dola's does), and the boards' price of
+    a video job, 2 points (the fake charges 10), which the result card's Points row shows."""
+    spec = live.env.registry.spec(PROVIDER)
+    models = [dataclasses.replace(m, display_name=BOARD_NAMES.get(m.id, "")) for m in spec.catalog()]
+    spec.catalog = lambda: models
+    boards_plan = spec.plan
+
+    def plan(req, settings, snapshots):
+        made = boards_plan(req, settings, snapshots)
+        return dataclasses.replace(made, price=2) if made.media_type == "video" else made
+
+    spec.plan = plan
+    registry = live.env.registry
+    registry._models = check_catalog([registry.spec(n) for n in registry.names()])
+
+
 def key_page_seed(db, live):
     """A key whose wallets read as the boards' Wallet limits: video 3 / 20 today and 14 / 200 in total, image
     unlimited with 9 used."""
     data = shell_seed(db, live)
     use_the_boards_models(live, frames=False)           # the Test board needs no stored frame to make its job
+    name_and_price_the_boards_models(live)
     key = live.call(live.env.new_key())
     day = "(clock_timestamp() AT TIME ZONE (SELECT tz FROM billing_pin))::date"
     db.run("UPDATE key_wallets SET day_limit = 20, total_limit = 200, used_day = 3, used_total = 14, "
@@ -149,27 +172,48 @@ def key_page_seed(db, live):
     for kind, amount, back in (("video", 3, 0), ("video", 11, 1), ("image", 9, 1)):
         db.run("INSERT INTO ledger (key_id, provider, kind, entry, amount, billing_day) VALUES (%s, %s, %s, 'adjust', "
                "%s, " + day + " - %s)", key.id, PROVIDER, kind, amount, back)
-    return {**data, "raw_key": key.raw}
+    return {**data, "raw_key": key.raw, "key_id": key.id, "db": db}
 
 
-def key_page_drive(page, live, data):
+# The boards' job: waiting at step 2/4 since 20:52:30, with the length and ratio it was asked for (the fake worker
+# never moves it, and the fake plan keeps neither in the job's params, so the drive does).
+BOARD_JOB = ("UPDATE jobs SET status = 'waiting', sent_at = %s::timestamptz, created_at = %s::timestamptz, "
+             "external_ref = gen_random_uuid()::text, next_poll_at = clock_timestamp() + interval '30 days', "
+             "params = params || '{\"duration\": 30, \"ratio\": \"16:9\"}'::jsonb WHERE key_id = %s")
+BOARD_JOB_AT = "2026-10-15 20:52:30+07"
+
+
+def choose(page, field: str, option: str) -> None:
+    """Pick an option of one of the Test form's selects (the design's select, drawn by us): open it, click it."""
+    box = page.get_by_role("combobox", name=field, exact=True)
+    box.click()
+    page.get_by_role("listbox").get_by_role("option", name=option, exact=True).click()
+    expect(box.locator(".is-current")).to_have_text(option)
+
+
+def key_page_drive(page, live, data, wait_for: str = "waiting"):
+    """The boards' state: the key loaded, seedance_v2.5 picked, the form filled, the job made and shown `wait_for`
+    (the boards' waiting job, or "done" when the caller answers the poll itself)."""
     box = page.get_by_role("textbox", name="API key", exact=True)
     box.fill(data["raw_key"])
     page.get_by_role("button", name="Load models").click()
     model = page.get_by_test_id("test-model").filter(has_text="seedance_v2.5")
     expect(model).to_be_visible(timeout=TIMEOUT_MS)
     model.click()
-    expect(page.get_by_role("heading", level=2, name="seedance_v2.5")).to_be_visible(timeout=TIMEOUT_MS)
+    expect(model).to_have_attribute("aria-pressed", "true")
     page.get_by_label("Prompt", exact=True).fill(PROMPT)
-    page.get_by_label("Duration", exact=True).select_option("30")
-    ratio = page.get_by_label("Ratio", exact=True)
-    ratio.select_option("16:9")
+    choose(page, "Duration", "30 s")
+    choose(page, "Ratio", "16:9")
     page.get_by_label("Count", exact=True).fill("1")
     page.get_by_label("Title", exact=True).fill("Night market, handheld")
     page.get_by_label("Extra options (JSON)").fill(EXTRA)
     page.get_by_role("button", name="Generate", exact=True).click()
     expect(page.get_by_role("link", name="Open job", exact=False)).to_be_visible(timeout=TIMEOUT_MS)
-    expect(page.get_by_text("Created", exact=True)).to_be_visible(timeout=TIMEOUT_MS * 2)    # the first poll answered
+    if wait_for == "waiting":
+        expect(page.get_by_text("Created", exact=True)).to_be_visible(timeout=TIMEOUT_MS * 2)  # the first poll answered
+        data["db"].run(BOARD_JOB, BOARD_JOB_AT, BOARD_JOB_AT, data["key_id"])
+    result = page.locator('section[aria-labelledby="result-title"]')
+    expect(result.locator(".status-chip")).to_contain_text(wait_for, timeout=TIMEOUT_MS)   # the next poll answered
     # attached after the job was made: the request would carry them as data, and the board only shows the list
     page.get_by_test_id("attach-input").set_input_files(files=[
         {"name": name, "mimeType": mime, "buffer": io.BytesIO(b"\0" * size).getvalue()} for name, mime, size in FILES])

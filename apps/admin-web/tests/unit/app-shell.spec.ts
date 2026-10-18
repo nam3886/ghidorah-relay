@@ -974,6 +974,21 @@ describe("the login page", () => {
     expect(pass.attributes("type")).toBe("password");
   });
 
+  it("says Signing in… on a disabled button while the answer is on its way", async () => {
+    let answer: (value: { token: string; expires_at: number }) => void = () => undefined;
+    vi.mocked(shell.login).mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    const login = await mountLogin();
+    await login.find('input[name="username"]').setValue("owner");
+    await login.find('input[name="password"]').setValue("secret");
+    await login.find("form").trigger("submit");
+    const button = login.find('button[type="submit"]');
+    expect(button.text()).toBe("Signing in…");
+    expect(button.attributes("disabled")).toBeDefined();
+    answer({ token: "tok", expires_at: 1 });
+    await flushPromises();
+    expect(login.find('button[type="submit"]').text()).toBe("Sign in");
+  });
+
   it("has its own theme toggle and the LAN-only footer, and no shell", async () => {
     const { wrapper } = await open("/login", false);
     expect(wrapper.find("header").exists()).toBe(false);

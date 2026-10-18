@@ -7,6 +7,7 @@ import {
   FIELDS,
   FORM_KEY,
   optionLabel,
+  optionValue,
   readForm,
   saveForm,
   type TestForm,
@@ -115,6 +116,16 @@ describe("the saved form", () => {
     expect(() => saveForm(form())).not.toThrow();
     expect(() => clearSavedForm()).not.toThrow();
     expect(readForm().form).toEqual(emptyForm());
+  });
+});
+
+describe("optionValue", () => {
+  it("takes the value a provider takes, and the label only when there is no value", () => {
+    expect(optionValue({ label: "Widescreen, for most screens (16:9)", value: "16:9" })).toBe("16:9");
+    expect(optionValue({ label: "Oil painting", value: "oil_painting" })).toBe("oil_painting");
+    expect(optionValue({ name: "16:9" })).toBe("16:9");
+    expect(optionValue({ label: "1:1", value: "" })).toBe("1:1");
+    expect(optionValue({})).toBe("");
   });
 });
 
