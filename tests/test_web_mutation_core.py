@@ -585,7 +585,10 @@ def test_the_global_rules_follow_the_canvas():
 @mutation(TOP_BAR, "watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(\" \")], "
                    "revealCurrent);",
           "watch(() => route.name, revealCurrent);", expect=REVEAL)
-@mutation(TOP_BAR, "onMounted(revealCurrent);", "", expect=REVEAL)
+@mutation(TOP_BAR, "  void revealCurrent();\n", "", expect=REVEAL)
+@mutation(TOP_BAR, "  void document.fonts?.ready.then(revealCurrent);\n", "",
+          expect=BAR_FAILED + "brings the current tab into view again once the web fonts have loaded, as they change "
+                              "every tab's width")
 @mutation(TOP_BAR, "current.scrollIntoView({ block: \"nearest\", inline: \"nearest\" });", "void current;",
           expect=REVEAL)
 @pytest.mark.web_unit

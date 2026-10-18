@@ -773,12 +773,21 @@ describe("the top bar", () => {
     expect(again.wrapper.find('[data-testid="tab-count-jobs"]').text()).toBe("999+");
   });
 
+  // the web fonts load when the test says so: returns the function that loads them
+  const fontsLoadLater = (): (() => void) => {
+    let loaded: () => void = () => undefined;
+    const ready = new Promise<void>((resolve) => (loaded = resolve));
+    Object.defineProperty(document, "fonts", { configurable: true, value: { ready } });
+    return loaded;
+  };
+
   it("keeps the current tab in view: on a tab switch, and again when the counts arrive and widen the tabs before it", async () => {
     const shown: string[] = [];
     const original = HTMLElement.prototype.scrollIntoView;
     HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
       shown.push(this.textContent?.trim() ?? "");
     };
+    fontsLoadLater();
     let answer: (value: Stats) => void = () => undefined;
     vi.mocked(shell.getStats).mockReturnValue(new Promise<Stats>((resolve) => (answer = resolve)));
     try {
@@ -792,6 +801,28 @@ describe("the top bar", () => {
       expect(shown).toEqual(["Test", "Test", "Settings"]);
     } finally {
       HTMLElement.prototype.scrollIntoView = original;
+      delete (document as { fonts?: unknown }).fonts;
+    }
+  });
+
+  it("brings the current tab into view again once the web fonts have loaded, as they change every tab's width", async () => {
+    const shown: string[] = [];
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      shown.push(this.textContent?.trim() ?? "");
+    };
+    const loaded = fontsLoadLater();
+    try {
+      await open("/test");
+      const before = shown.length;
+      expect(shown.at(-1)).toBe("Test");
+      loaded();
+      await flushPromises();
+      expect(shown).toHaveLength(before + 1);
+      expect(shown.at(-1)).toBe("Test");
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+      delete (document as { fonts?: unknown }).fonts;
     }
   });
 

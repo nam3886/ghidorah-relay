@@ -168,7 +168,8 @@ function openDocs(): void {
 }
 
 // The current tab stays in view when the tabs scroll sideways (tablet and phone): on a tab switch, and when a count
-// arrives or changes, as the counts widen the tabs before it (they come after the bar is drawn).
+// arrives or changes, as the counts widen the tabs before it (they come after the bar is drawn); and once the web fonts
+// have loaded, as they change the width of every tab (the bar can be drawn in the fallback font first).
 const navEl = ref<HTMLElement | null>(null);
 async function revealCurrent(): Promise<void> {
   await nextTick();
@@ -177,7 +178,10 @@ async function revealCurrent(): Promise<void> {
     current.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 }
-onMounted(revealCurrent);
+onMounted(() => {
+  void revealCurrent();
+  void document.fonts?.ready.then(revealCurrent);
+});
 watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" ")], revealCurrent);
 </script>
 
