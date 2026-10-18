@@ -132,7 +132,8 @@ describe("drawer formats", () => {
     const at = new Date(2026, 9, 5, 9, 4, 7).getTime();
     expect(fmtClock(at)).toBe("09:04:07");
     expect(fmtDayClock(at)).toBe("05/10 09:04:07");
-    expect([fmtClock(null), fmtDayClock(undefined), fmtClock(0)]).toEqual(["-", "-", "-"]);
+    // a time that is not set is the list empty-cell dash
+    expect([fmtClock(null), fmtDayClock(undefined), fmtClock(0)]).toEqual(["—", "—", "—"]);
   });
 
   it("how long a job took reads in seconds, minutes or hours", () => {

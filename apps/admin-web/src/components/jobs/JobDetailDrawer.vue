@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { fetchDownload, getJob, type JobDetail, renameJob } from "@/api/jobs-detail";
 import { saveBlob } from "@/components/jobs/blob-actions";
 import { announceJobChange } from "@/components/jobs/job-changes";
+import { isRunning } from "@/components/jobs/job-row";
 import {
   fmtDayClock,
   fmtTook,
@@ -11,6 +12,7 @@ import {
   loadFailedText,
   newestFirst,
   plural,
+  progressStep,
   shortId,
 } from "@/components/jobs/job-text";
 import JobActions from "@/components/jobs/JobActions.vue";
@@ -137,10 +139,15 @@ const hasRow = computed(() => Boolean(outputs.value.length || job.value?.can_rec
 const context = computed(() => {
   const j = job.value;
   if (!j) return "";
-  // the phone sheet draws the line without the count (it has no room for it beside the id chip)
+  // the count once the job has ended (a job on its way has no results to count); the phone sheet draws the line
+  // without it (it has no room for it beside the id chip)
   const line = `${j.operation} · ${j.model}`;
-  return isPhone.value ? line : `${line} · ${plural(outputCount.value, "output")}`;
+  return isPhone.value || !(done.value || failed.value) ? line : `${line} · ${plural(outputCount.value, "output")}`;
 });
+// The header's chip: a job on its way shows its step instead of the dot, as the list does ("3/4 fetching").
+const step = computed(() =>
+  job.value && isRunning(job.value.status) ? `${progressStep(job.value.status)}/4` : undefined,
+);
 
 // "Delivered 4 images" + "net charged 1 point · 1 min 35 s".
 const delivered = computed(() => {
@@ -151,10 +158,28 @@ const delivered = computed(() => {
   const took = j.created_ms && j.finished_ms ? ` · ${fmtTook(j.finished_ms - j.created_ms)}` : "";
   return { lead: `Delivered ${plural(count, noun)}`, rest: `· net charged ${plural(j.net_charged, "point")}${took}` };
 });
-// A status that is neither done nor failed: the word and what it has cost so far.
-const neutralLine = computed(() => {
+// A job on its way, in the done banner's pattern: what it is doing, then its step (as the list's bar), what it has
+// charged and how long it has run so far. "Fetching the result" + "· step 3 of 4 · charged 2 points · 4 min so far".
+const onItsWay = computed(() => {
   const j = job.value;
-  return j ? `${j.status} · net charged ${plural(j.net_charged, "point")}` : "";
+  if (!j) return { lead: "", rest: "" };
+  const provider = j.provider.charAt(0).toUpperCase() + j.provider.slice(1);
+  const leads: Record<string, string> = {
+    queued: "Waiting for an account",
+    submitting: `Sending it to ${j.provider}`,
+    waiting: `${provider} is making it`,
+    fetching: "Fetching the result",
+    unknown: `${provider} has not confirmed it yet`,
+  };
+  const facts = [
+    isRunning(j.status) ? `step ${progressStep(j.status)} of 4` : "",
+    j.net_charged ? `charged ${plural(j.net_charged, "point")}` : "nothing charged yet",
+    j.created_ms ? `${fmtTook(Date.now() - j.created_ms)} so far` : "",
+  ];
+  return {
+    lead: leads[j.status] ?? j.status.charAt(0).toUpperCase() + j.status.slice(1),
+    rest: `· ${facts.filter(Boolean).join(" · ")}`,
+  };
 });
 
 const asText = (v: unknown): string => (v === undefined || v === null || v === "" ? "" : String(v));
@@ -191,7 +216,7 @@ const summary = computed<LedgerItem[]>(() => {
           label: "Points",
           value: j.net_charged === j.price ? `${j.net_charged} charged · 0 refunded` : `${j.net_charged} charged`,
         },
-    { label: "Account", value: asText(j.account_label) || "-", mono: true },
+    { label: "Account", value: asText(j.account_label) || "—", mono: true },
     // named as the list names it: the label, else the prefix, else the start of the id
     { label: "Key", value: keyName({ id: j.key_id, label: j.key_label, prefix: j.key_prefix }) },
     { label: "Created", value: fmtDayClock(j.created_ms), mono: true },
@@ -213,7 +238,7 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
 <template>
   <DetailDrawer v-model="visible" :title="name" :heading="heading" :back-label="props.backLabel" testid="job-drawer">
     <template v-if="job" #chips>
-      <StatusChip :status="job.status" />
+      <StatusChip :status="job.status" :step="step" />
       <span>{{ context }}</span>
       <JobCopy variant="id" :text="shortId(job.id)" :label="`Copy job id ${shortId(job.id)}`" />
     </template>
@@ -254,7 +279,13 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
             >
           </div>
           <div v-else class="jd-banner jd-banner--plain" data-section="conclusion">
-            <span>{{ neutralLine }}</span>
+            <span v-if="isPhone"
+              ><strong>{{ onItsWay.lead }}</strong> <span class="jd-num jd-muted">{{ onItsWay.rest }}</span></span
+            >
+            <template v-else>
+              <strong>{{ onItsWay.lead }}</strong>
+              <span class="jd-num jd-muted">{{ onItsWay.rest }}</span>
+            </template>
           </div>
           <div v-if="job.warnings && job.warnings.length" class="jd-banner jd-banner--warn" data-section="warnings">
             <IconAlertTriangle :size="16" :stroke="2.2" />
@@ -339,7 +370,7 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
           <section class="jd-section" data-section="sent" aria-labelledby="jd-sent">
             <h3 id="jd-sent" class="jd-h">Text sent upstream</h3>
             <p class="jd-muted jd-note">The prompt in its frame, with this job's marker.</p>
-            <pre class="jd-pre" data-field="sent-text">{{ job.sent_text === null ? "-" : job.sent_text }}</pre>
+            <pre class="jd-pre" data-field="sent-text">{{ job.sent_text === null ? "—" : job.sent_text }}</pre>
           </section>
         </template>
       </DrawerPanel>

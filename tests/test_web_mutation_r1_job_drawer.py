@@ -106,6 +106,7 @@ RUNNING = SHOW + "a job still running offers neither Recover nor Regenerate…"
 PHONE_FOOT = SHOW + "on a phone the row moves to a sticky footer, and a failed job keeps its card in the body"
 # page-drawer: the Technical tab's wording
 TECH_GROUP = FD + "conclusion, ledger, prompt and technical > "
+EMPTY_DASH = TECH_GROUP + "a value that is not set is the list's empty-cell dash"
 FACTS = TECH_GROUP + "lists the technical facts, leaving out what the server does not have"
 WEBHOOK = TECH_GROUP + "words a delivered webhook by its HTTP code, a retry by its state and code"
 
@@ -152,11 +153,36 @@ WEBHOOK = TECH_GROUP + "words a delivered webhook by its HTTP code, a retry by i
 @mutation(DRAWER, "isPhone && !failed", "isPhone", expect=PHONE_FOOT)
 @mutation(DRAWER, 'v-if="!failed && !isPhone && hasRow"', 'v-if="!failed && hasRow"', expect=PHONE_FOOT)
 # page-drawer (the drawer matched to the design): the action row and footer, the Back label, loading, the failed
-# read's wording, the key name, the Technical wording, the media names and the viewer's start
+# read's wording, the key name, the Technical wording, the media names and the viewer's start; then the tile's shape,
+# the viewer's own buttons, the on-its-way banner and chip, the count of results, the empty-value dash, the popover
 @mutation(MEDIA, "videos.length > 1 ? `Play video ${n + 1}` : 'Play video'", "`Play video ${n + 1}`",
           expect=MEDIA_GROUP + "a video card is named Result and its button Play video")
-@mutation(MEDIA, "@click=\"viewer = previews.indexOf(s.src!)\"", "@click=\"viewer = 0\"",
+@mutation(MEDIA, "@click=\"openViewer(previews.indexOf(s.src!))\"", "@click=\"openViewer(0)\"",
           expect=MEDIA_GROUP + "an image is a tile whose viewer lists every previewable image of the list")
+@mutation(MEDIA, "if (m.width && m.height) return `${m.width} / ${m.height}`;", "",
+          expect=MEDIA_GROUP + "a tile takes its picture's shape")
+@mutation(MEDIA, "return asked ? `${asked[1]} / ${asked[2]}` : \"2 / 3\";", "return \"2 / 3\";",
+          expect=MEDIA_GROUP + "a tile takes its picture's shape")
+@mutation(MEDIA, "<template #toolbar=\"{ actions, reset }\">", "<template #toolbars=\"{ actions, reset }\">",
+          expect=MEDIA_GROUP + "the viewer's buttons are ours")
+@mutation(MEDIA, "setActiveItem(showing.value + by)", "setActiveItem(by)",
+          expect=MEDIA_GROUP + "the viewer's buttons are ours")
+@mutation(DRAWER, ':step="step"', "", expect=FD + "conclusion, ledger, prompt and technical > a job on its way shows "
+                                                "its step in the header chip")
+@mutation(DRAWER, "isPhone.value || !(done.value || failed.value)", "isPhone.value",
+          expect=FD + "conclusion, ledger, prompt and technical > a job on its way shows its step in the header chip")
+@mutation(DRAWER, 'fetching: "Fetching the result",', 'fetching: "fetching",',
+          expect=FD + "conclusion, ledger, prompt and technical > a job on its way says what it is doing")
+@mutation(DRAWER, "isRunning(j.status) ? `step ${progressStep(j.status)} of 4` : \"\"",
+          "`step ${progressStep(j.status)} of 4`",
+          expect=FD + "conclusion, ledger, prompt and technical > a job on its way says what it is doing")
+@mutation(DRAWER, 'asText(j.account_label) || "—"', 'asText(j.account_label) || "-"',
+          expect=EMPTY_DASH)
+@mutation(TEXT, '  if (!ms) return "—";\n  const d = new Date(ms);\n  return `${two(d.getDate())}',
+          '  if (!ms) return "-";\n  const d = new Date(ms);\n  return `${two(d.getDate())}',
+          expect=EMPTY_DASH)
+@mutation(ACTIONS, 'cancel-button-text="Cancel"', "",
+          expect=EACH + "Revoke asks first and says how many links stopped")
 @mutation(DRAWER, "Boolean(outputs.value.length || job.value?.can_recheck || done.value)", "true", expect=RUNNING)
 @mutation(DRAWER, "Boolean(outputs.value.length || job.value?.can_recheck || done.value)",
           "Boolean(outputs.value.length || job.value?.can_recheck)", expect=DONE_ROW)

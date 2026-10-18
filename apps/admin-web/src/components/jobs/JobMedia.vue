@@ -2,7 +2,18 @@
 import { computed, ref } from "vue";
 import { fetchMediaBlob, type JobDetail, type JobMediaItem } from "@/api/jobs-detail";
 import { openBlob } from "@/components/jobs/blob-actions";
-import { IconImage, IconPlayFlat } from "@/components/shared/icons";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconClose,
+  IconFit,
+  IconImage,
+  IconPlayFlat,
+  IconRefresh,
+  IconRotateLeft,
+  IconZoomIn,
+  IconZoomOut,
+} from "@/components/shared/icons";
 import { fmtBytes } from "@/components/jobs/job-text";
 import { useBusy } from "@/composables/use-busy";
 import { safeMediaUrl } from "@/lib/safe-media-url";
@@ -19,10 +30,17 @@ interface Shown {
   src: string | null;
   kind: "image" | "video" | null;
   size: string;
+  ratio: string;
   facts: string[];
   badge: string;
 }
 const dims = (m: JobMediaItem): string => (m.width && m.height ? `${m.width}×${m.height}` : "");
+// A tile takes its picture's shape: the stored size, else the job's ratio, else the canvas's 2:3.
+function ratioOf(m: JobMediaItem): string {
+  if (m.width && m.height) return `${m.width} / ${m.height}`;
+  const asked = /^(\d+):(\d+)$/.exec(String((props.job.params as { ratio?: unknown } | null)?.ratio ?? ""));
+  return asked ? `${asked[1]} / ${asked[2]}` : "2 / 3";
+}
 const clock = (s: number): string => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 
 const shown = computed<Shown[]>(() =>
@@ -43,6 +61,7 @@ const shown = computed<Shown[]>(() =>
         src,
         kind,
         size: dims(item),
+        ratio: ratioOf(item),
         facts: facts.filter(Boolean),
         badge: item.duration_s ? clock(item.duration_s) : "",
       };
@@ -55,8 +74,16 @@ const videos = computed(() => shown.value.filter((s) => s.kind === "video"));
 const previews = computed(() => shown.value.filter((s) => s.kind === "image").map((s) => s.src!));
 
 const noun = computed(() => (props.role === "output" ? "image" : "reference"));
-// the index in `previews` the viewer is open on, null while it is shut
+// the index in `previews` the viewer is opened on, null while it is shut; `showing`, the one it shows now
 const viewer = ref<number | null>(null);
+const showing = ref(0);
+const viewerRef = ref<{ setActiveItem: (index: number) => void } | null>(null);
+function openViewer(index: number): void {
+  viewer.value = index;
+  showing.value = index;
+}
+// the viewer's own previous / next (it wraps around)
+const step = (by: number): void => viewerRef.value?.setActiveItem(showing.value + by);
 const open = (idx: number) => run(async () => openBlob(await fetchMediaBlob(props.job.id, props.role, idx)));
 
 // A video plays from its own overlay button; the native controls come with it.
@@ -82,8 +109,9 @@ function play(idx: number): void {
           :class="`media__tile--${(i % 4) + 1}`"
           :title="`${s.item.mime} · ${fmtBytes(s.item.size)}`"
           :aria-label="`Open ${noun} ${i + 1} in the viewer`"
+          :style="{ aspectRatio: s.ratio }"
           :data-idx="s.item.idx"
-          @click="viewer = previews.indexOf(s.src!)"
+          @click="openViewer(previews.indexOf(s.src!))"
         >
           <el-image class="media__picture" :src="s.src!" fit="cover">
             <template #placeholder>
@@ -102,6 +130,7 @@ function play(idx: number): void {
           v-else
           class="media__tile media__tile--plain"
           :class="`media__tile--${(i % 4) + 1}`"
+          :style="{ aspectRatio: s.ratio }"
           :data-idx="s.item.idx"
         >
           <span class="media__ph">
@@ -146,15 +175,49 @@ function play(idx: number): void {
         <span v-for="f in s.facts" :key="f">{{ f }}</span>
       </figcaption>
     </figure>
-    <!-- the viewer of every previewable image, opened on the tile pressed -->
+    <!-- the viewer of every previewable image, opened on the tile pressed. Its buttons are ours, in the canvas's
+         glyphs (the toolbar through its slot; close and the arrows in its body, Element Plus's own hidden below) -->
     <el-image-viewer
       v-if="viewer !== null"
+      ref="viewerRef"
       :url-list="previews"
       :initial-index="viewer"
       teleported
       hide-on-click-modal
       @close="viewer = null"
-    />
+      @switch="(index: number) => (showing = index)"
+    >
+      <template #toolbar="{ actions, reset }">
+        <button type="button" class="viewer__tool" aria-label="Zoom out" @click="actions('zoomOut')">
+          <IconZoomOut :size="18" />
+        </button>
+        <button type="button" class="viewer__tool" aria-label="Zoom in" @click="actions('zoomIn')">
+          <IconZoomIn :size="18" />
+        </button>
+        <span class="viewer__divider" aria-hidden="true" />
+        <button type="button" class="viewer__tool" aria-label="Fit or actual size" @click="reset">
+          <IconFit :size="18" />
+        </button>
+        <span class="viewer__divider" aria-hidden="true" />
+        <button type="button" class="viewer__tool" aria-label="Rotate left" @click="actions('anticlockwise')">
+          <IconRotateLeft :size="18" />
+        </button>
+        <button type="button" class="viewer__tool" aria-label="Rotate right" @click="actions('clockwise')">
+          <IconRefresh :size="18" />
+        </button>
+      </template>
+      <button type="button" class="viewer__btn viewer__close" aria-label="Close" @click="viewer = null">
+        <IconClose :size="18" :stroke="2" />
+      </button>
+      <template v-if="previews.length > 1">
+        <button type="button" class="viewer__btn viewer__prev" aria-label="Previous image" @click="step(-1)">
+          <IconChevronLeft :size="20" />
+        </button>
+        <button type="button" class="viewer__btn viewer__next" aria-label="Next image" @click="step(1)">
+          <IconChevronRight :size="20" />
+        </button>
+      </template>
+    </el-image-viewer>
   </div>
 </template>
 
@@ -298,5 +361,72 @@ function play(idx: number): void {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     max-width: 420px;
   }
+}
+/* The viewer's buttons: close and the arrows as the menu surface's icon buttons (44 square, hairline, radius 10, the
+   overlay shadow, raised on hover); the toolbar's as ghost icon buttons (32 square, radius 8) */
+.viewer__btn {
+  position: absolute;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid var(--rl-line);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
+  cursor: pointer;
+}
+.viewer__btn:hover,
+.viewer__tool:hover {
+  background: var(--rl-raised);
+}
+.viewer__close {
+  top: 40px;
+  right: 40px;
+}
+.viewer__prev,
+.viewer__next {
+  top: 50%;
+  transform: translateY(-50%);
+}
+.viewer__prev {
+  left: 40px;
+}
+.viewer__next {
+  right: 40px;
+}
+.viewer__tool {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--rl-fg);
+  cursor: pointer;
+}
+.viewer__divider {
+  width: 1px;
+  height: 20px;
+  background: var(--rl-line);
+}
+</style>
+
+<!-- not scoped: Element Plus's own close and arrows, in its glyphs, are hidden in this viewer, which draws its own -->
+<style>
+.el-image-viewer__wrapper:has(.viewer__close) .el-image-viewer__close,
+.el-image-viewer__wrapper:has(.viewer__close) .el-image-viewer__prev,
+.el-image-viewer__wrapper:has(.viewer__close) .el-image-viewer__next {
+  display: none;
+}
+.el-image-viewer__wrapper:has(.viewer__close) .el-image-viewer__actions {
+  width: auto;
 }
 </style>

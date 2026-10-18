@@ -355,9 +355,54 @@ describe("conclusion, ledger, prompt and technical", () => {
     expect(body().text()).not.toContain("warnings");
   });
 
-  it("a job that is neither done nor failed says its status and the points so far", async () => {
-    await show(detail({ status: "queued", net_charged: 0 }));
-    expect(section("conclusion").text()).toBe("queued · net charged 0 points");
+  it("a job on its way says what it is doing, its step, its charge and how long so far", async () => {
+    // the done banner's pattern: a bold lead, then the facts muted
+    vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000 + 4 * 60_000);
+    const said = async (over: Partial<JobDetail>) => {
+      await show(detail(over));
+      return [section("conclusion").find("strong").text(), section("conclusion").find(".jd-muted").text()];
+    };
+    expect(await said({ status: "queued", net_charged: 0 })).toEqual([
+      "Waiting for an account",
+      "· step 1 of 4 · nothing charged yet · 4 min 0 s so far",
+    ]);
+    expect(await said({ status: "submitting", net_charged: 2 })).toEqual([
+      "Sending it to dola",
+      "· step 2 of 4 · charged 2 points · 4 min 0 s so far",
+    ]);
+    expect(await said({ status: "waiting", net_charged: 2 })).toEqual([
+      "Dola is making it",
+      "· step 2 of 4 · charged 2 points · 4 min 0 s so far",
+    ]);
+    expect(await said({ status: "fetching", net_charged: 1 })).toEqual([
+      "Fetching the result",
+      "· step 3 of 4 · charged 1 point · 4 min 0 s so far",
+    ]);
+    // unknown is not on the list's bar: no step
+    expect(await said({ status: "unknown", net_charged: 2 })).toEqual([
+      "Dola has not confirmed it yet",
+      "· charged 2 points · 4 min 0 s so far",
+    ]);
+    vi.restoreAllMocks();
+  });
+
+  it("a job on its way shows its step in the header chip, as the list does, and no count of results", async () => {
+    await show(detail({ status: "fetching" }));
+    const chips = body().find(".detail-drawer__chips");
+    expect(chips.find(".step").text()).toBe("3/4");
+    expect(chips.text()).toContain("video · veo");
+    expect(chips.text()).not.toContain("output");
+    await show(detail({ status: "unknown" }));
+    expect(body().find(".detail-drawer__chips .step").exists()).toBe(false);
+    await show(detail({ status: "done" }));
+    expect(body().find(".detail-drawer__chips .step").exists()).toBe(false);
+  });
+
+  it("a value that is not set is the list's empty-cell dash", async () => {
+    await show(detail({ status: "queued", account_label: null, finished_ms: null }));
+    const value = (k: string) => rows().find(([label]) => label === k)?.[1];
+    expect(value("Account")).toBe("—");
+    expect(value("Finished")).toBe("—");
   });
 
   const rows = () =>
@@ -504,7 +549,7 @@ describe("conclusion, ledger, prompt and technical", () => {
     await show(detail(), "Technical");
     expect(section("sent").find("[data-field=sent-text]").text()).toBe("FRAME a cat on a roof MARK");
     await show(detail({ sent_text: null }), "Technical");
-    expect(section("sent").find("[data-field=sent-text]").text()).toBe("-");
+    expect(section("sent").find("[data-field=sent-text]").text()).toBe("—");
   });
 });
 
@@ -780,6 +825,12 @@ describe("what each action sends and says", () => {
     await button("Revoke share links")!.trigger("click");
     await vi.waitFor(() => expect(body().text()).toContain("Every share link of this job stops working. Continue?"));
     expect(api.revokeLinks).not.toHaveBeenCalled();
+    // worded as every confirm: Cancel, then the destructive action
+    expect(
+      body()
+        .findAll(".el-popconfirm__action .el-button")
+        .map((b) => b.text()),
+    ).toEqual(["Cancel", "Revoke"]);
     await body().find(".el-popconfirm__action .el-button--danger").trigger("click");
     await flushPromises();
     expect(api.revokeLinks).toHaveBeenCalledWith(A);
@@ -943,6 +994,48 @@ describe("results and references", () => {
     const viewer = mounted[0]!.findComponent({ name: "ElImageViewer" });
     expect(viewer.props("urlList")).toEqual(["/m/tok1", "/m/tok3"]);
     expect(viewer.props("initialIndex")).toBe(1);
+  });
+
+  it("a tile takes its picture's shape: the stored size, else the job's ratio, else 2:3", async () => {
+    const ratios = () =>
+      view("results")
+        .findAll("button.media__tile")
+        .map((t) => t.attributes("style"));
+    await show(detail({ media: [media({ width: 2304, height: 1728 })], params: { ratio: "9:16" } }));
+    expect(ratios()).toEqual(["aspect-ratio: 2304 / 1728;"]);
+    await show(detail({ media: [media({ width: null, height: null })], params: { ratio: "16:9" } }));
+    expect(ratios()).toEqual(["aspect-ratio: 16 / 9;"]);
+    await show(detail({ media: [media({ width: null, height: null })], params: {} }));
+    expect(ratios()).toEqual(["aspect-ratio: 2 / 3;"]);
+  });
+
+  it("the viewer's buttons are ours, in the canvas's glyphs: no Element Plus icon is left", async () => {
+    await show(detail({ media: [media({ idx: 0, url: "/m/a" }), media({ idx: 1, url: "/m/b" })] }));
+    await view("results").findAll("button.media__tile")[0]!.trigger("click");
+    await flushPromises();
+    const names = body()
+      .findAll(".el-image-viewer__wrapper button")
+      .map((b) => b.attributes("aria-label"));
+    expect(names).toEqual([
+      "Zoom out",
+      "Zoom in",
+      "Fit or actual size",
+      "Rotate left",
+      "Rotate right",
+      "Close",
+      "Previous image",
+      "Next image",
+    ]);
+    expect(body().find(".el-image-viewer__actions .el-icon").exists()).toBe(false);
+    const viewer = mounted[0]!.findComponent({ name: "ElImageViewer" });
+    // Next steps on from the picture shown, and wraps around
+    const next = () => body().find(".el-image-viewer__wrapper [aria-label='Next image']").trigger("click");
+    await next();
+    expect(viewer.emitted("switch")?.at(-1)).toEqual([1]);
+    await next();
+    expect(viewer.emitted("switch")?.at(-1)).toEqual([0]);
+    await body().find(".el-image-viewer__wrapper [aria-label='Close']").trigger("click");
+    expect(mounted[0]!.findComponent({ name: "ElImageViewer" }).exists()).toBe(false);
   });
 
   it("a tile's name is on the tile itself, not on its picture, so a picture that does not load keeps it", async () => {

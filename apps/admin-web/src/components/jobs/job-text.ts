@@ -59,13 +59,14 @@ const two = (n: number): string => String(n).padStart(2, "0");
 
 // The drawer's clock formats (local time): "19:41:44" for a timeline row, "15/10 19:40:02" for a ledger value. A
 // missing time is "-".
+// A time that is not set is the list's empty-cell dash ("—"), here and in fmtDayClock.
 export function fmtClock(ms: number | null | undefined): string {
-  if (!ms) return "-";
+  if (!ms) return "—";
   const d = new Date(ms);
   return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;
 }
 export function fmtDayClock(ms: number | null | undefined): string {
-  if (!ms) return "-";
+  if (!ms) return "—";
   const d = new Date(ms);
   return `${two(d.getDate())}/${two(d.getMonth() + 1)} ${fmtClock(ms)}`;
 }

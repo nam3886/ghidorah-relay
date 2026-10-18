@@ -296,12 +296,45 @@ def test_the_drawer_popups_sit_by_their_trigger(app, db, live, run_dir, scroll, 
         # a tile is a button: the keyboard reaches it and opens the viewer; Escape shuts the viewer, not the drawer
         drawer.get_by_role("button", name="Open image 2 in the viewer", exact=True).focus()
         page.keyboard.press("Enter")
-        expect(page.locator(".el-image-viewer__wrapper")).to_be_visible()
+        viewer = page.locator(".el-image-viewer__wrapper")
+        expect(viewer).to_be_visible()
+        # its buttons are ours, in the canvas's glyphs: no Element Plus icon shows
+        for name in ("Zoom out", "Zoom in", "Fit or actual size", "Rotate left", "Rotate right", "Close",
+                     "Previous image", "Next image"):
+            expect(viewer.get_by_role("button", name=name, exact=True)).to_be_visible()
+        expect(viewer.locator(".el-icon:visible")).to_have_count(0)
         settle(page)
         (out / ("drawer-viewer-%s.png" % theme)).write_bytes(shoot(page))
         page.keyboard.press("Escape")
-        expect(page.locator(".el-image-viewer__wrapper")).to_have_count(0)
+        expect(viewer).to_have_count(0)
         expect(drawer).to_be_visible()
+
+
+# A tile takes its picture's shape (the canvas draws 2:3 because its sample is 2:3): each shape at every width, the
+# grid still inside the drawer.
+SHAPES = {"4x3": (2304, 1728), "16x9": (1920, 1080), "9x16": (1536, 2688), "1x1": (2048, 2048), "3x4": (1728, 2304)}
+TILE_BOXES_JS = """() => [...document.querySelectorAll('[data-testid=job-drawer] .media__tile')].map((t) => {
+  const r = t.getBoundingClientRect();
+  return [r.width, r.height];
+})"""
+
+
+@pytest.mark.parametrize("shape", list(SHAPES))
+def test_the_tiles_follow_the_shape_of_their_pictures(app, db, live, run_dir, shape):
+    w, h = SHAPES[shape]
+    spec = {**IMAGE_DONE, "params": {"ratio": shape.replace("x", ":"), "count": 4},
+            "outputs": [("image/png", 1_275_000, w, h, None)] * 4}
+    entry = Entry("B-JobDetail", "#/jobs", seed=seed_of(spec), now=NOW, drive=open_drawer(spec))
+    out = _drawer_out(run_dir)
+    with opened(app, db, live, entry, False, 1440, 1180) as page:
+        for width, height in DRAWER_SIZES:
+            _resize(page, width, height)
+            (out / ("drawer-tiles-%s-%d.png" % (shape, width))).write_bytes(shoot(page))
+            boxes = page.evaluate(TILE_BOXES_JS)
+            assert len(boxes) == 4 and all(abs(bw / bh - w / h) < 0.01 for bw, bh in boxes), (shape, width, boxes)
+            bad = [b for b in page.evaluate(FIT_JS, APP_PANEL)
+                   if not (width < 768 and DRAWN_TO_END_IN_ELLIPSIS.match(b))]
+            assert not bad, "%s at %d: %r" % (shape, width, bad)
 
 
 DETAIL_ROUTE = re.compile(r"/admin/jobs/[0-9a-f-]{36}$")

@@ -144,7 +144,7 @@ def test_the_drawer_shows_its_tabs_copies_the_prompt_and_renames(app, app_page, 
     expect(panel.locator("[data-section=timeline]")).to_contain_text("submitted")
     pick(page, "Technical")
     expect(panel.locator("[data-section=technical]")).to_contain_text("Provider / pool")
-    expect(panel.locator("[data-field=sent-text]")).to_have_text("-")
+    expect(panel.locator("[data-field=sent-text]")).to_have_text("—")      # the list's empty-cell dash
     pick(page, "Overview")
     panel.get_by_role("button", name="Copy prompt").click()
     assert page.evaluate("navigator.clipboard.readText()") == "a cat on a roof"
@@ -183,7 +183,7 @@ def test_drawer_recheck_resend_and_revoke_each_toast_and_change_the_job(app, app
     pick(page, "Technical")
     panel.get_by_role("button", name="Revoke share links").click()
     expect(page.locator(".el-popconfirm")).to_contain_text("Every share link of this job stops working")
-    confirm_inline(page, "No")
+    confirm_inline(page, "Cancel")
     assert db.one("SELECT count(*) FROM job_media WHERE job_id = %s AND share_token IS NOT NULL", job)[0] == 1
     panel.get_by_role("button", name="Revoke share links").click()
     confirm_inline(page, "Revoke")
