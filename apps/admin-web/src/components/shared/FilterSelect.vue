@@ -216,8 +216,7 @@ function onKey(event: KeyboardEvent): void {
     event.preventDefault();
     choose(active.value);
   } else if (event.key === "Escape") {
-    // the list's own Escape: a dialog around it (which closes on Escape from the document) stays open; on a closed
-    // select it goes on to the dialog as before
+    // the list's own Escape: a dialog around it (which closes on Escape from the document) stays open
     event.preventDefault();
     event.stopPropagation();
     close();
@@ -327,9 +326,7 @@ function setRoot(el: unknown): void {
       <span class="filter-select__value">{{ current?.label ?? "" }}</span>
       <IconChevronDown v-if="props.chevron" class="filter-select__chevron" :size="14" :stroke="2" />
     </template>
-    <!-- inside the root so the component has one root (a class given to it lands there); drawn in the body. A press
-         anywhere in it (an option, its padding) keeps the focus on the trigger: the trigger's keydown is the only one
-         that sees a key while the list is open -->
+    <!-- inside the root so the component has one root (a class given to it lands there); drawn in the body -->
     <Teleport to="body">
       <div
         v-if="open"
@@ -347,7 +344,6 @@ function setRoot(el: unknown): void {
           minWidth: `${place.minWidth}px`,
           zIndex: listZ,
         }"
-        @pointerdown.prevent
       >
         <div
           v-for="(o, i) in props.options"
@@ -357,6 +353,7 @@ function setRoot(el: unknown): void {
           class="filter-list__item"
           :class="{ 'is-selected': o.value === props.modelValue, 'is-active': i === active }"
           :aria-selected="o.value === props.modelValue"
+          @pointerdown.prevent
           @pointermove="
             active = i;
             byKeyboard = false;

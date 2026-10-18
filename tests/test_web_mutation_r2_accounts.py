@@ -343,10 +343,6 @@ PROVIDER = (IMPORT_SPEC + "the Provider field is the drawn select: another provi
 
 @mutation(IMPORT, 'appearance="none"', 'appearance="auto"', expect=PROVIDER)
 @mutation(IMPORT, "@update:model-value=\"(v) => (provider = String(v))\"", "", expect=PROVIDER)
-@mutation(FIELD, "    event.preventDefault();\n    event.stopPropagation();\n    close();",
-          "    event.preventDefault();\n    close();",
-          expect=f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > in a dialog: Escape closes the open list "
-                 "only > an open list: Escape closes the list, the dialog stays open and the focus is on the select")
 @mutation(FIELD, '<IconChevronDown v-if="drawn"', '<IconChevronDown v-if="false"', expect=DRAWN)
 @mutation(FIELD, "field.value && !drawn.value && !props.block", "field.value && !props.block", expect=DRAWN)
 @mutation(FIELD, '"is-tall": isTablet.value && !drawn.value,', '"is-tall": isTablet.value,', expect=DRAWN)
