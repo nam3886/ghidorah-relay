@@ -188,6 +188,15 @@ describe("the shell", () => {
     expect(login.wrapper.find('[data-testid="job-dialog"]').exists()).toBe(false);
   });
 
+  it("the job detail's Back names the page it was opened on", async () => {
+    const jobs = await open("/jobs");
+    expect(jobs.wrapper.find('[data-testid="job-dialog"]').attributes("back-label")).toBe("Back to Jobs");
+    jobs.wrapper.unmount();
+    document.body.replaceChildren();
+    const alerts = await open("/alerts");
+    expect(alerts.wrapper.find('[data-testid="job-dialog"]').attributes("back-label")).toBe("Back to Alerts");
+  });
+
   it("frames the page: the top bar first, then the view inside one main", async () => {
     const { wrapper } = await open("/jobs");
     const shellEl = wrapper.find(".app-shell");

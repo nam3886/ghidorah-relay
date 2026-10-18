@@ -48,6 +48,7 @@ const detail = (over: Partial<JobDetail> = {}): JobDetail => ({
   provider: "dola",
   key_id: "k1",
   key_label: "key-one",
+  key_prefix: "rk-key1",
   operation: "video",
   media_type: "video",
   model: "veo",
@@ -218,6 +219,14 @@ describe("opening", () => {
     expect(body().find(".detail-drawer__chips").text()).not.toContain("output");
   });
 
+  it("the phone sheet's Back names the page it goes back to", async () => {
+    stubPhone();
+    const { w } = await show();
+    expect(button("Back to Jobs")).toBeDefined();
+    await w.setProps({ backLabel: "Back to Alerts" });
+    expect(button("Back to Alerts")).toBeDefined();
+  });
+
   it("an answer with no outputs count still says how many results there are", async () => {
     await show(detail({ outputs: undefined as unknown as number, media: [] }));
     expect(body().find(".detail-drawer__chips").text()).toContain("video · veo · 0 outputs");
@@ -260,7 +269,9 @@ describe("opening", () => {
     mounted.push(mount(JobDetailDrawer, { attachTo: document.body }));
     useUiStore().openJob(A);
     await flushPromises();
-    expect(body().find("[role=alert]").text()).toContain("Not found");
+    // worded as the list's failed load is drawn, naming the job
+    expect(body().find("[role=alert]").text()).toContain("Could not load the job: the relay answered 404 (Not found).");
+    expect(body().find(".el-skeleton").exists()).toBe(false);
     getJob.mockResolvedValueOnce(detail());
     await button("Retry")!.trigger("click");
     await flushPromises();
@@ -376,6 +387,13 @@ describe("conclusion, ledger, prompt and technical", () => {
     ]);
   });
 
+  it("a key without a label is named by its prefix, as the list names it", async () => {
+    await show(detail({ key_label: null }));
+    expect(rows().find(([k]) => k === "Key")).toEqual(["Key", "rk-key1"]);
+    await show(detail({ key_label: " ", key_prefix: null }));
+    expect(rows().find(([k]) => k === "Key")).toEqual(["Key", "k1"]);
+  });
+
   it("a refund strikes the price: the struck price, an arrow and what was kept", async () => {
     await show(
       detail({
@@ -438,17 +456,32 @@ describe("conclusion, ledger, prompt and technical", () => {
     expect(facts("job-facts")).toEqual([
       ["Job id", A],
       ["Provider / pool", "dola / video"],
-      ["Wallet", "prepaid"],
+      ["Wallet", "dola prepaid"],
       ["Attempts / claims", "2 / 3"],
-      ["Account cost", "1"],
-      ["Prompt frame", "7"],
-      ["Callback", "failed (3 attempts)"],
+      ["Account cost", "1 credit"],
+      ["Prompt frame", "video v7"],
+      ["Callback", "failed · 3 attempts"],
     ]);
     expect(facts("job-diagnostics")).toEqual([
       ["Sent", expect.stringMatching(/2023/)],
       ["Updated", expect.stringMatching(/2023/)],
       ["Params", '{"ratio":"16:9"}'],
     ]);
+  });
+
+  it("words a delivered webhook by its HTTP code, a retry by its state and code, and leaves out a cost of 0", async () => {
+    const fact = (name: string) => facts("job-facts").find(([k]) => k === name)?.[1];
+    await show(detail({ callback: { status: "sent", attempts: 1, last: "HTTP 200" }, account_cost: 2 }), "Technical");
+    expect(fact("Callback")).toBe("200 · 1 attempt");
+    expect(fact("Account cost")).toBe("2 credits");
+    await show(
+      detail({ callback: { status: "pending", attempts: 2, last: "HTTP 503: busy" }, account_cost: 0 }),
+      "Technical",
+    );
+    expect(fact("Callback")).toBe("pending · 503 · 2 attempts");
+    expect(fact("Account cost")).toBeUndefined();
+    await show(detail({ callback: { status: "failed", attempts: 5, last: "error: timeout" } }), "Technical");
+    expect(fact("Callback")).toBe("failed · 5 attempts");
   });
 
   it("a phone lists Key and Account among the facts too", async () => {
@@ -463,6 +496,7 @@ describe("conclusion, ledger, prompt and technical", () => {
       "Attempts / claims",
       "Account cost",
     ]);
+    expect(facts("job-facts")[3]).toEqual(["Key", "key-one · rk-key1"]);
     expect(body().find("[data-testid=job-facts]").classes()).toContain("is-phone");
   });
 
@@ -587,7 +621,12 @@ describe("which actions show, and where", () => {
 
   it("a job still running offers neither Recover nor Regenerate…", async () => {
     await show(detail({ status: "queued" }));
-    expect(buttonsIn("actions")).toEqual([]);
+    // with nothing to offer there is no action row at all (an empty one would double the gap)
+    expect(section("actions").exists()).toBe(false);
+    // one that has a row (it can be re-checked) still offers no Regenerate…
+    await show(detail({ status: "unknown", can_recheck: true }));
+    expect(buttonsIn("actions")).toEqual(["Re-check"]);
+    await show(detail({ status: "queued" }));
     await goTo("Technical");
     expect(buttonsIn("more-actions")).toEqual([]);
     expect(section("more-actions").find("input").exists()).toBe(false);
@@ -647,9 +686,32 @@ describe("which actions show, and where", () => {
     const footer = body().find(".el-drawer__footer");
     expect(footer.findAll("button").map(nameOf)).toEqual(["Download", "Regenerate…"]);
     expect(section("actions").exists()).toBe(false);
-    await show(detail({ status: "failed" }));
+    // a failed job that can be re-checked keeps everything in its card, Re-check included: no footer
+    await show(detail({ status: "failed", can_recheck: true }));
     expect(body().find(".el-drawer__footer").exists()).toBe(false);
-    expect(buttonsIn("actions")).toEqual(["Recover", "Regenerate…"]);
+    expect(buttonsIn("actions")).toEqual(["Recover", "Re-check", "Regenerate…"]);
+  });
+
+  it("on a phone a job with nothing to offer has no footer, and one that can be re-checked has it", async () => {
+    stubPhone();
+    await show(detail({ status: "queued" }));
+    expect(body().find(".el-drawer__footer").exists()).toBe(false);
+    await show(detail({ status: "waiting", can_recheck: true }));
+    expect(body().find(".el-drawer__footer").findAll("button").map(nameOf)).toEqual(["Re-check"]);
+  });
+});
+
+describe("loading", () => {
+  it("while the read is out the drawer draws the list's loading bars, not Element Plus's shimmer", async () => {
+    setActivePinia(createPinia());
+    getJob.mockImplementationOnce(() => new Promise<JobDetail>(() => undefined));
+    mounted.push(mount(JobDetailDrawer, { attachTo: document.body }));
+    useUiStore().openJob(A);
+    await flushPromises();
+    const bars = body().find("[data-state=loading]");
+    expect(bars.attributes("aria-busy")).toBe("true");
+    expect(bars.findAll(".jd-skeleton__bar")).toHaveLength(8);
+    expect(body().find(".el-skeleton").exists()).toBe(false);
   });
 });
 
@@ -840,6 +902,24 @@ describe("results and references", () => {
     expect(view("results").find(".media__play").exists()).toBe(false);
   });
 
+  it("a video card is named Result and its button Play video, numbered only when there are several", async () => {
+    const video = (idx: number) => media({ idx, mime: "video/mp4", url: `/m/v${idx}` });
+    await show(detail({ media: [video(0)] }));
+    expect(view("results").find("figure").attributes("aria-label")).toBe("Result");
+    expect(view("results").find(".media__play").attributes("aria-label")).toBe("Play video");
+    await show(detail({ media: [video(0), video(1)] }));
+    expect(
+      view("results")
+        .findAll("figure")
+        .map((f) => f.attributes("aria-label")),
+    ).toEqual(["Result 1", "Result 2"]);
+    expect(
+      view("results")
+        .findAll(".media__play")
+        .map((b) => b.attributes("aria-label")),
+    ).toEqual(["Play video 1", "Play video 2"]);
+  });
+
   it("an image is a tile whose viewer lists every previewable image of the list, and a video is left out", async () => {
     await show(
       detail({
@@ -851,14 +931,25 @@ describe("results and references", () => {
         ],
       }),
     );
-    const images = mounted[0]!.findAllComponents({ name: "ElImage" });
-    expect(images).toHaveLength(2);
-    expect(images[0]!.props("previewSrcList")).toEqual(["/m/tok1", "/m/tok3"]);
-    expect(images[1]!.props("initialIndex")).toBe(1);
-    expect(images.map((i) => i.find("img").attributes("aria-label"))).toEqual([
+    expect(mounted[0]!.findAllComponents({ name: "ElImage" })).toHaveLength(2);
+    // each image is a named button, as drawn; pressing the second opens the viewer on it
+    const tiles = view("results").findAll("button.media__tile");
+    expect(tiles.map((t) => t.attributes("aria-label"))).toEqual([
       "Open image 1 in the viewer",
       "Open image 2 in the viewer",
     ]);
+    expect(mounted[0]!.findComponent({ name: "ElImageViewer" }).exists()).toBe(false);
+    await tiles[1]!.trigger("click");
+    const viewer = mounted[0]!.findComponent({ name: "ElImageViewer" });
+    expect(viewer.props("urlList")).toEqual(["/m/tok1", "/m/tok3"]);
+    expect(viewer.props("initialIndex")).toBe(1);
+  });
+
+  it("a tile's name is on the tile itself, not on its picture, so a picture that does not load keeps it", async () => {
+    await show(detail({ media: [media({ idx: 0, url: "/m/tok1" })] }));
+    const tile = view("results").find("button.media__tile");
+    expect(tile.attributes("aria-label")).toBe("Open image 1 in the viewer");
+    expect(tile.find("[aria-label], [role]").exists()).toBe(false);
   });
 
   it.each([
@@ -905,7 +996,9 @@ describe("results and references", () => {
       detail({ status: "failed", media: [media({ role: "input", idx: 0 }), media({ role: "input", idx: 1 })] }),
     );
     expect(
-      mounted[0]!.findAllComponents({ name: "ElImage" }).map((i) => i.find("img").attributes("aria-label")),
+      view("references")
+        .findAll("button.media__tile")
+        .map((t) => t.attributes("aria-label")),
     ).toEqual(["Open reference 1 in the viewer", "Open reference 2 in the viewer"]);
   });
 

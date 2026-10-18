@@ -154,6 +154,7 @@ async function regenerate(): Promise<void> {
         confirm-button-type="danger"
         popper-class="rl-job-pop"
         :hide-icon="true"
+        :offset="6"
         width="260"
         @confirm="revoke"
       >

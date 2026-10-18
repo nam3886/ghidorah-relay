@@ -23,6 +23,13 @@ describe("the failed load of the list", () => {
     expect(loadFailedText(err, "bad gateway")).toBe("Could not load the jobs: the relay answered 502 (bad gateway).");
   });
 
+  it("names what failed: the drawer's read of one job", () => {
+    const err = new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } });
+    expect(loadFailedText(err, "bad gateway", "the job")).toBe(
+      "Could not load the job: the relay answered 502 (bad gateway).",
+    );
+  });
+
   it("with no answer from the relay says the app's own words", () => {
     expect(loadFailedText(new TypeError("Failed to fetch"), "Network error, please try again")).toBe(
       "Could not load the jobs: network error, please try again.",

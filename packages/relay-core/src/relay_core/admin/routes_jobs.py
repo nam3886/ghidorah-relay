@@ -94,7 +94,7 @@ _DETAIL = (
     "SELECT j.id, j.provider, j.key_id, k.label, j.operation, j.media_type, j.model, j.title, j.status, "
     "j.error_code, j.price, j.account_id, a.label, j.external_ref, j.created_at, j.finished_at, j.prompt, j.marker, "
     "j.params, j.completion, j.wallet_kind, j.pool, j.account_cost, j.attempts, j.claims, j.sent_at, j.render_since, "
-    "j.upstream_price, j.upstream_model, j.error, j.warnings, j.callback_status, j.callback_attempts, "
+    "j.upstream_price, j.upstream_model, j.error, j.warnings, j.callback_status, j.callback_attempts, k.key_prefix, "
     "j.callback_last, j.updated_at, j.provider_state, j.frame_id, j.sent_text "
     "FROM jobs j LEFT JOIN api_keys k ON k.id = j.key_id LEFT JOIN accounts a ON a.id = j.account_id WHERE j.id = %s")
 _SUMMARY = ("id", "provider", "key_id", "key_label", "operation", "media_type", "model", "title", "status",
@@ -211,10 +211,11 @@ async def job_detail(job_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_
             "ORDER BY role, idx", (job_id,))).fetchall()
     item = _summary(row[:16])
     (prompt, marker, params, completion, wallet_kind, pool_name, account_cost, attempts, claims, sent_at, render_since,
-     upstream_price, upstream_model, error, warnings, callback_status, callback_attempts, callback_last, updated_at,
-     state, frame_id, sent_text) = row[16:]
+     upstream_price, upstream_model, error, warnings, callback_status, callback_attempts, key_prefix, callback_last,
+     updated_at, state, frame_id, sent_text) = row[16:]
     item.update({
-        "prompt": prompt, "marker": marker, "params": params, "completion": completion, "wallet_kind": wallet_kind,
+        "key_prefix": key_prefix, "prompt": prompt, "marker": marker, "params": params, "completion": completion,
+        "wallet_kind": wallet_kind,
         "pool": pool_name, "account_cost": account_cost, "attempts": attempts, "claims": claims,
         "sent_ms": ms(sent_at), "render_since_ms": ms(render_since), "updated_ms": ms(updated_at),
         "upstream_price": upstream_price, "upstream_model": upstream_model, "error": error, "warnings": warnings,

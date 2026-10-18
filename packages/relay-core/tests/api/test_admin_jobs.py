@@ -555,6 +555,8 @@ def test_the_detail_shows_the_frame_version_and_the_exact_text_sent_and_nulls_fo
     assert without["frame_id"] is None and without["sent_text"].startswith("a dog"), "the core frame has no row"
 
 
+@mutation(ROUTES, "j.callback_attempts, k.key_prefix, ", "j.callback_attempts, NULL, ",
+          expect="the key prefix names a key")
 def test_the_detail_shows_the_account_label_the_charged_price_a_clean_prompt_events_media_and_epoch_ms(db):
     k = key(db)
     acct = account(db)
@@ -578,6 +580,8 @@ def test_the_detail_shows_the_account_label_the_charged_price_a_clean_prompt_eve
     d = done.json()
     assert d["status"] == "failed" and d["error_code"] == "render.deadline" and d["error_status"] == 504
     assert d["account_label"] == "main acct" and d["account_id"] == str(acct), "the label, not only the id"
+    prefix = db.one("SELECT key_prefix FROM api_keys WHERE id = %s", k)[0]
+    assert prefix and d["key_prefix"] == prefix, "the key prefix names a key without a label, as the list does"
     assert d["price"] == 10 and d["net_charged"] == 0, "money is the job's own charged price and its ledger"
     assert d["prompt"] == "a cat on a roof" and d["marker"] == marker_for(failed) and d["marker"] not in d["prompt"]
     assert d["can_recheck"] is True and wait.json()["can_recheck"] is False

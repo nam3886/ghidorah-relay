@@ -223,7 +223,11 @@ const toggleTheme = (): void => useUiStore().toggleTheme();
   gap: 16px;
   padding: 16px 16px 24px;
 }
+/* the sheet's footer sticks to the bottom of the screen, over the body (specs/shared.md 8.1) */
 .detail-drawer.is-sheet .detail-drawer__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
   padding: 10px 16px;
 }
 .detail-drawer.is-sheet .detail-drawer__foot .el-button {

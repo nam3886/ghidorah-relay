@@ -306,8 +306,12 @@ SHELL_FAILED = "FAILED tests/unit/app-shell.spec.ts > the shell > "
           expect=SHELL_FAILED + "draws the banner with a warn fill and no side border")
 @mutation(f"{SRC}/components/layout/AppShell.vue", "() => notify.clear(),", "() => undefined,",
           expect=SHELL_FAILED + "closes every toast when the tab changes, and not before")
-@mutation(f"{SRC}/App.vue", "<JobDetailDrawer />", "<!-- no drawer -->",
+@mutation(f"{SRC}/App.vue", "<JobDetailDrawer :back-label=\"`Back to ${route.meta.label ?? 'Jobs'}`\" />",
+          "<!-- no drawer -->",
           expect=SHELL_FAILED + "mounts the job detail through JobDetailDrawer, once, while signed in only")
+# page-drawer: the job detail's Back names the page it was opened on
+@mutation(f"{SRC}/App.vue", "${route.meta.label ?? 'Jobs'}", "Jobs",
+          expect=SHELL_FAILED + "the job detail's Back names the page it was opened on")
 @pytest.mark.web_unit
 def test_the_banner_rules():
     vitest("tests/unit/app-shell.spec.ts")

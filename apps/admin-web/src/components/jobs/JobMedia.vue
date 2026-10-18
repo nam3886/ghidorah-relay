@@ -55,6 +55,8 @@ const videos = computed(() => shown.value.filter((s) => s.kind === "video"));
 const previews = computed(() => shown.value.filter((s) => s.kind === "image").map((s) => s.src!));
 
 const noun = computed(() => (props.role === "output" ? "image" : "reference"));
+// the index in `previews` the viewer is open on, null while it is shut
+const viewer = ref<number | null>(null);
 const open = (idx: number) => run(async () => openBlob(await fetchMediaBlob(props.job.id, props.role, idx)));
 
 // A video plays from its own overlay button; the native controls come with it.
@@ -71,32 +73,31 @@ function play(idx: number): void {
     <p v-if="!shown.length" class="media__none">None</p>
     <div v-if="tiles.length" class="media__grid">
       <template v-for="(s, i) in tiles" :key="s.item.idx">
-        <el-image
+        <!-- the tile is a button, as drawn: named and reachable by the keyboard whether its picture loads or not
+             (Element Plus puts a name given to el-image on its inner picture, which a broken tile does not have) -->
+        <button
           v-if="s.kind === 'image'"
+          type="button"
           class="media__tile"
           :class="`media__tile--${(i % 4) + 1}`"
-          :src="s.src!"
-          :preview-src-list="previews"
-          :initial-index="previews.indexOf(s.src!)"
           :title="`${s.item.mime} · ${fmtBytes(s.item.size)}`"
-          :role="'button'"
           :aria-label="`Open ${noun} ${i + 1} in the viewer`"
-          fit="cover"
-          preview-teleported
-          hide-on-click-modal
           :data-idx="s.item.idx"
+          @click="viewer = previews.indexOf(s.src!)"
         >
-          <template #placeholder>
-            <span class="media__ph"
-              ><IconImage :size="22" :stroke="1.6" /><span class="media__meta">{{ s.size }}</span></span
-            >
-          </template>
-          <template #error>
-            <span class="media__ph"
-              ><IconImage :size="22" :stroke="1.6" /><span class="media__meta">{{ s.size }}</span></span
-            >
-          </template>
-        </el-image>
+          <el-image class="media__picture" :src="s.src!" fit="cover">
+            <template #placeholder>
+              <span class="media__ph"
+                ><IconImage :size="22" :stroke="1.6" /><span class="media__meta">{{ s.size }}</span></span
+              >
+            </template>
+            <template #error>
+              <span class="media__ph"
+                ><IconImage :size="22" :stroke="1.6" /><span class="media__meta">{{ s.size }}</span></span
+              >
+            </template>
+          </el-image>
+        </button>
         <div
           v-else
           class="media__tile media__tile--plain"
@@ -114,7 +115,14 @@ function play(idx: number): void {
         </div>
       </template>
     </div>
-    <figure v-for="s in videos" :key="s.item.idx" class="media__video" :data-idx="s.item.idx">
+    <!-- named as drawn: the card `Result`, its button `Play video` (numbered only when there are several) -->
+    <figure
+      v-for="(s, n) in videos"
+      :key="s.item.idx"
+      class="media__video"
+      :aria-label="videos.length > 1 ? `Result ${n + 1}` : 'Result'"
+      :data-idx="s.item.idx"
+    >
       <div class="media__frame">
         <video
           :ref="(el) => (players[s.item.idx] = el as HTMLVideoElement | null)"
@@ -126,7 +134,7 @@ function play(idx: number): void {
           <button
             type="button"
             class="media__play"
-            :aria-label="`Play video ${s.item.idx + 1}`"
+            :aria-label="videos.length > 1 ? `Play video ${n + 1}` : 'Play video'"
             @click="play(s.item.idx)"
           >
             <IconPlayFlat :size="22" />
@@ -138,6 +146,15 @@ function play(idx: number): void {
         <span v-for="f in s.facts" :key="f">{{ f }}</span>
       </figcaption>
     </figure>
+    <!-- the viewer of every previewable image, opened on the tile pressed -->
+    <el-image-viewer
+      v-if="viewer !== null"
+      :url-list="previews"
+      :initial-index="viewer"
+      teleported
+      hide-on-click-modal
+      @close="viewer = null"
+    />
   </div>
 </template>
 
@@ -158,13 +175,22 @@ function play(idx: number): void {
   gap: 10px;
 }
 .media__tile {
+  display: block;
   aspect-ratio: 2 / 3;
   width: 100%;
+  padding: 0;
+  border: 0;
   border-radius: 12px;
   background: var(--rl-tile-1);
   color: var(--rl-tile-ink);
+  font: inherit;
   overflow: hidden;
   cursor: zoom-in;
+}
+.media__picture {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .media__tile:hover {
   filter: brightness(0.97);
@@ -181,9 +207,11 @@ function play(idx: number): void {
 .media__tile--plain {
   cursor: default;
 }
+/* the canvas's tile is a button: the browser's own line height under its icon and size */
 .media__ph {
   width: 100%;
   height: 100%;
+  line-height: normal;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -191,8 +219,6 @@ function play(idx: number): void {
   gap: 6px;
 }
 .media__meta {
-  display: block;
-  line-height: 20px;
   font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
@@ -240,7 +266,7 @@ function play(idx: number): void {
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 50%;
+  border-radius: 28px;
   background: var(--rl-primary);
   color: var(--rl-on-primary);
   cursor: pointer;
@@ -255,6 +281,7 @@ function play(idx: number): void {
   color: var(--rl-on-primary);
   font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 .media__facts {
   display: flex;
@@ -263,6 +290,7 @@ function play(idx: number): void {
   padding: 10px 14px;
   font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
   color: var(--rl-muted);
 }
 @media (max-width: 1279.98px) {

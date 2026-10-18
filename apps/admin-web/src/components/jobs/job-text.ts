@@ -8,12 +8,13 @@ export const shortId = (id: string): string => id.slice(0, 8);
 
 // The list's failed load, worded as drawn (B-States): "Could not load the jobs: the relay answered 502 (bad gateway)."
 // `said` is the app's own text for the failure (errorText); with no answer from the relay it is all there is to say.
-export function loadFailedText(err: unknown, said: string): string {
+// `what` names what failed: the drawer's read says "the job".
+export function loadFailedText(err: unknown, said: string, what = "the jobs"): string {
   const why =
     err instanceof ApiError
       ? `the relay answered ${err.status} (${said})`
       : said.charAt(0).toLowerCase() + said.slice(1);
-  return `Could not load the jobs: ${why}.`;
+  return `Could not load ${what}: ${why}.`;
 }
 
 // What a key shows in a select or a cell: its label, else its prefix, else the first 8 characters of its id, so no

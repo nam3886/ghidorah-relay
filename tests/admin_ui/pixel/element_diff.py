@@ -20,6 +20,9 @@ where it puts things, whichever element of the markup carries it.
 `markdown(...)` writes the table; `side_by_side(...)` puts the canvas, the app and the pixel diff in one PNG.
 `popup_place(page, popup, trigger)` checks an open popup against its trigger: a list fixed in the body is no part of the
 trigger's markup, so the tables never see it cover the trigger; it must sit `gap` px under the trigger or above it.
+`extract(..., opaque=, skip=)`: boxes whose inside is data (a thumbnail's picture: the box is compared, not what it
+holds), and parts left out whole (sections an accepted deviation adds). Two boxes paired by their place must carry the
+same accessible name. `place_of` / `place_differences`: where a root or a scrim sits in the viewport and what it paints.
 
 Text on one side that only differs from its partner because it is live data (a time, a total) is listed apart when the
 entry names it (`data`), so the table that has to be empty holds only real differences."""
@@ -28,9 +31,11 @@ import base64
 import math
 from dataclasses import dataclass, field
 
-EXTRACT_JS = r"""({root, region}) => {
+EXTRACT_JS = r"""({root, region, opaque, skip}) => {
   const rootEl = root ? document.querySelector(root) : document.documentElement;
   if (!rootEl) return {error: "no element matches " + root};
+  // `opaque`: its box is listed, what is inside it is data (a thumbnail); `skip`: left out with all it holds
+  const matches = (el, sel) => Boolean(sel) && el.matches(sel);
   const rr = rootEl.getBoundingClientRect();
   const ox = root ? rr.left : 0, oy = root ? rr.top : 0;
   const area = region
@@ -94,7 +99,7 @@ EXTRACT_JS = r"""({root, region}) => {
   const label = (el) => el.getAttribute("aria-label") || el.getAttribute("title") || "";
   const texts = [], boxes = [];
   const walk = (el) => {
-    if (SKIP.has(el.tagName)) return;
+    if (SKIP.has(el.tagName) || matches(el, skip)) return;
     const s = getComputedStyle(el);
     if (s.display === "none") return;
     const op = opacityOf(el);
@@ -103,7 +108,7 @@ EXTRACT_JS = r"""({root, region}) => {
     const seen = cut(box, clipOf(el));
     const shown = s.visibility !== "hidden" && op > 0.01;
     const tag = el.tagName;
-    const leaf = LEAF.has(tag) || el instanceof SVGSVGElement;
+    const leaf = LEAF.has(tag) || el instanceof SVGSVGElement || matches(el, opaque);
     // own text: the direct text nodes, as one run
     if (shown && !leaf && !(el instanceof SVGElement)) {
       let own = "", run = null;
@@ -151,16 +156,18 @@ EXTRACT_JS = r"""({root, region}) => {
       });
       const bg = s.backgroundColor;
       const floating = s.position === "fixed" || s.position === "sticky" || s.position === "absolute";
-      const paints = alpha(bg) > 0 && (floating || bg !== under(el));
+      // the compared root's own fill always counts: what lies under it is outside the comparison
+      const paints = alpha(bg) > 0 && (el === rootEl || floating || bg !== under(el));
       const shadow = s.boxShadow !== "none";
       const outline = s.outlineStyle !== "none" && parseFloat(s.outlineWidth) > 0;
       const image = s.backgroundImage !== "none";
       if (leaf || paints || shadow || outline || image || border.some((b) => b !== "none")) {
         const sig = el instanceof SVGSVGElement ? "svg " + rect.width + "x" + rect.height + " " + shapes(el)
           : tag === "INPUT" ? "input " + el.type + " " + label(el)
-          : label(el) || norm(el.textContent || "").slice(0, 80);
+          : label(el) || (matches(el, opaque) ? "" : norm(el.textContent || "").slice(0, 80));
         boxes.push({kind: el instanceof SVGSVGElement ? "icon" : (tag === "INPUT" || tag === "IMG" ? "control" : "box"),
-          sig, tag: tag.toLowerCase(), role: el.getAttribute("role") || "", rect: rel(seen), full: rel(box),
+          sig, label: label(el), root: el === rootEl, tag: tag.toLowerCase(), role: el.getAttribute("role") || "",
+          rect: rel(seen), full: rel(box),
           holdsText: [...el.childNodes].some((n) => n.nodeType === 3 && n.data.trim() !== ""),
           style: {background: paints ? bg : "none", border: border.join(" / "),
                   radius: sides.map((d, i) => s["border" + ["TopLeft", "TopRight", "BottomRight", "BottomLeft"][i] +
@@ -211,12 +218,40 @@ class Result:
         return len(self.differences) + len(self.canvas_only) + len(self.app_only)
 
 
-def extract(page, root: str | None = None, region: tuple | None = None) -> dict:
-    got = page.evaluate(EXTRACT_JS, {"root": root, "region": list(region) if region else None},
-                        isolated_context=False)
+def extract(page, root: str | None = None, region: tuple | None = None, opaque: str = "", skip: str = "") -> dict:
+    """`opaque`: elements whose box is compared and whose inside is data (a thumbnail: the picture is the job's);
+    `skip`: elements left out with everything inside them (a section an accepted deviation adds)."""
+    got = page.evaluate(EXTRACT_JS, {"root": root, "region": list(region) if region else None, "opaque": opaque,
+                                     "skip": skip}, isolated_context=False)
     if "error" in got:
         raise AssertionError(got["error"])
     return got
+
+
+PLACE_JS = r"""(sel) => {
+  const el = document.querySelector(sel);
+  if (!el) return null;
+  const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+  const k = (n) => Math.round(n * 10) / 10;
+  return {rect: [k(r.left), k(r.top), k(r.width), k(r.height)], background: s.backgroundColor, shadow: s.boxShadow};
+}"""
+
+
+def place_of(page, selector: str) -> dict | None:
+    """Where an element sits in the viewport (x, y, w, h) and what it paints there (its background and shadow): the
+    tables place everything relative to the compared root, so the root itself, and a scrim beside it, are read here."""
+    return page.evaluate(PLACE_JS, selector, isolated_context=False)
+
+
+def place_differences(canvas: dict | None, app: dict | None) -> list[str]:
+    """What differs between two `place_of` readings: a box edge more than EDGE_PX off, the background, the shadow."""
+    if not canvas or not app:
+        return ["missing on the %s" % ("canvas" if not canvas else "app")]
+    out = []
+    if any(abs(c - a) > EDGE_PX for c, a in zip(canvas["rect"], app["rect"], strict=True)):
+        out.append("box %s,%s %sx%s / %s,%s %sx%s" % (*canvas["rect"], *app["rect"]))
+    out += ["%s %s / %s" % (k, canvas[k], app[k]) for k in ("background", "shadow") if canvas[k] != app[k]]
+    return out
 
 
 def _distance(a, b) -> float:
@@ -306,6 +341,10 @@ def diff(name: str, canvas: dict, app: dict, data: tuple = (), data_app: tuple =
         _compare(c, a, res.differences, data=live, loose=loose)
     for c, a in placed_b:
         res.pairs.append((c, a, "place"))
+        # paired by place, so their names differ: an accessible name the canvas gives is part of the design (not the
+        # compared root's: a reference card of B-States is named after the card, "Jobs, no results")
+        if c.get("label") and not c.get("root") and c["label"] != a.get("label") and c["label"] not in data:
+            res.differences.append((c, a, "label", c["label"], a.get("label") or "(none)"))
         _compare(c, a, res.differences, loose=loose)
     res.canvas_only = [c for c in rest_ct if c["text"] not in data] + rest_cb
     res.app_only = [a for a in rest_at if a["text"] not in data_app] + rest_ab
