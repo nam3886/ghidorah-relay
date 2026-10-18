@@ -49,7 +49,7 @@ const second = (row: PriceRow): string =>
             class="list__pill"
           />
         </div>
-        <span class="list__meta">
+        <span class="list__meta tnum">
           <span>{{ row.provider }}</span>
           <span
             >charged <b class="mono">{{ row.charged }}</b></span
@@ -72,47 +72,47 @@ const second = (row: PriceRow): string =>
         <thead>
           <tr v-if="isTablet">
             <th scope="col" class="first">Model</th>
-            <th scope="col" class="num">Charged</th>
-            <th scope="col" class="num">Jobs</th>
+            <th scope="col" class="right">Charged</th>
+            <th scope="col" class="right">Jobs</th>
             <th scope="col">Upstream disagreed</th>
-            <th scope="col" class="num last">Lowest</th>
+            <th scope="col" class="right last">Lowest</th>
           </tr>
           <tr v-else>
             <th scope="col" class="first">Provider</th>
             <th scope="col">Model</th>
-            <th scope="col" class="num">Duration</th>
-            <th scope="col" class="num">Charged</th>
-            <th scope="col" class="num">Jobs with a figure</th>
+            <th scope="col" class="right">Duration</th>
+            <th scope="col" class="right">Charged</th>
+            <th scope="col" class="right">Jobs with a figure</th>
             <th scope="col">Upstream disagreed</th>
-            <th scope="col" class="num">Lowest upstream</th>
-            <th scope="col" class="num last">Substituted (not counted)</th>
+            <th scope="col" class="right">Lowest upstream</th>
+            <th scope="col" class="right last">Substituted (not counted)</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="row in rows" :key="row.id">
             <template v-if="isTablet">
               <td class="first first--two">
-                <span class="mono">{{ row.model }}</span>
-                <span class="second mono">{{ second(row) }}</span>
+                <span class="model mono">{{ row.model }}</span>
+                <span class="second mono tnum">{{ second(row) }}</span>
               </td>
-              <td class="num mono">{{ row.charged }}</td>
-              <td class="num mono">{{ row.jobs }}</td>
+              <td class="right num mono">{{ row.charged }}</td>
+              <td class="right num mono">{{ row.jobs }}</td>
               <td>
                 <StatusChip status="neutral" :label="pillText(row)" :tone="row.disagreed ? 'bad' : 'neutral'" />
               </td>
-              <td class="num mono last">{{ lowest(row) }}</td>
+              <td class="right num mono last">{{ lowest(row) }}</td>
             </template>
             <template v-else>
               <td class="first">{{ row.provider }}</td>
               <td class="mono">{{ row.model }}</td>
-              <td class="num mono">{{ duration(row) }}</td>
-              <td class="num mono">{{ row.charged }}</td>
-              <td class="num mono">{{ row.jobs }}</td>
+              <td class="right num mono">{{ duration(row) }}</td>
+              <td class="right num mono">{{ row.charged }}</td>
+              <td class="right num mono">{{ row.jobs }}</td>
               <td>
                 <StatusChip status="neutral" :label="pillText(row)" :tone="row.disagreed ? 'bad' : 'neutral'" />
               </td>
-              <td class="num mono">{{ lowest(row) }}</td>
-              <td class="num mono muted last">{{ row.substituted }}</td>
+              <td class="right num mono">{{ lowest(row) }}</td>
+              <td class="right num mono muted last">{{ row.substituted }}</td>
             </template>
           </tr>
         </tbody>
@@ -146,8 +146,7 @@ const second = (row: PriceRow): string =>
 .table th.first {
   padding-left: 16px;
 }
-.table th.num,
-.table td.num {
+.table .right {
   text-align: right;
 }
 .table th.last,
@@ -155,18 +154,21 @@ const second = (row: PriceRow): string =>
   padding-right: 16px;
 }
 .table td {
-  height: 44px;
-  box-sizing: border-box;
   padding: 0 12px;
   border-bottom: 1px solid var(--rl-line);
 }
+/* as drawn: the first cell is 44 px of content, so a row is 45 with its line */
 .table td.first {
+  height: 44px;
   padding-left: 16px;
 }
 .table td.first--two {
   height: auto;
-  min-height: 56px;
   padding: 8px 12px 8px 16px;
+}
+/* a block of its own, as drawn: inline beside the cell's own font its line would grow by a pixel */
+.model {
+  display: block;
 }
 .table tbody tr:hover td {
   background: var(--rl-raised);
@@ -174,6 +176,9 @@ const second = (row: PriceRow): string =>
 .mono {
   font-family: var(--rl-mono);
   font-size: 13px;
+}
+/* the canvas's `num`: tabular figures only (the app's global .num also aligns right) */
+.tnum {
   font-variant-numeric: tabular-nums;
 }
 .muted {
@@ -195,7 +200,6 @@ const second = (row: PriceRow): string =>
   justify-content: center;
   gap: 4px;
   min-height: 72px;
-  box-sizing: border-box;
   padding: 10px 16px;
   border-top: 1px solid var(--rl-line);
 }

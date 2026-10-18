@@ -69,7 +69,7 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
           />
           <span v-if="edited(row)" class="tag tag--phone">edited</span>
         </div>
-        <span class="list__meta"
+        <span class="list__meta tnum"
           >{{ row.source }} · default <span class="mono">{{ shownDefault(row) }}</span></span
         >
         <div class="list__actions">
@@ -123,11 +123,14 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
                 spellcheck="false"
                 @keyup.enter="send(row)"
               />
-              <span v-if="edited(row)" class="tag">edited</span>
-              <span v-if="isTablet" class="folded mono">default {{ shownDefault(row) }}</span>
+              <!-- the drawn cell has a space between the box and its tag, and between Save and Reset -->
+              {{ " " }}<span v-if="edited(row)" class="tag">edited</span>
+              <span v-if="isTablet" class="folded mono tnum">default {{ shownDefault(row) }}</span>
             </td>
             <td><StatusChip :status="row.source" :label="row.source" tone="neutral" /></td>
-            <td v-if="!isTablet" class="mono muted">{{ shownDefault(row) }}</td>
+            <td v-if="!isTablet" class="mono muted tnum">
+              <span class="default">{{ shownDefault(row) }}</span>
+            </td>
             <td class="last">
               <button
                 type="button"
@@ -138,7 +141,8 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
               >
                 Save
               </button>
-              <button
+              {{ " "
+              }}<button
                 type="button"
                 class="btn btn--reset"
                 :disabled="!canReset(row)"
@@ -195,9 +199,9 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
   box-sizing: border-box;
   padding: 8px 12px 8px 16px;
 }
+/* the drawn tablet cell sets a min-height, which a table cell ignores: its rows are as tall as their text */
 .is-tablet .table td.first {
-  min-height: 64px;
-  height: 64px;
+  height: auto;
   padding: 10px 12px 10px 16px;
 }
 .table tbody tr:hover td {
@@ -214,13 +218,18 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
   font-family: var(--rl-mono);
   font-size: 13px;
   font-weight: 500;
+}
+.is-tablet .key,
+.is-phone .key {
   overflow-wrap: anywhere;
 }
 .description {
   display: block;
   font-size: 12px;
-  line-height: 18px;
   color: var(--rl-muted);
+}
+.is-phone .description {
+  line-height: 18px;
 }
 .table td.value {
   padding: 8px 12px;
@@ -237,6 +246,7 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
   color: var(--rl-fg);
   font-family: var(--rl-mono);
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
   text-align: right;
 }
 .input.is-edited {
@@ -259,6 +269,17 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
   font-family: var(--rl-mono);
   font-size: 13px;
 }
+/* the canvas's `num`: tabular figures only (the app's global .num also aligns right) */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+/* A default is one word when it is a table (dola.prices: some 300 characters of JSON): it wraps inside a column of
+   at most 240 px, as the canvas wraps a long key, instead of widening the table past its card. */
+.default {
+  display: block;
+  max-width: 240px;
+  overflow-wrap: anywhere;
+}
 .muted {
   color: var(--rl-muted);
 }
@@ -271,6 +292,7 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
   color: var(--rl-fg);
   font: inherit;
   font-size: 13px;
+  line-height: normal;
   cursor: pointer;
 }
 .btn--save {
@@ -311,9 +333,12 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
 }
 .folded {
   display: block;
+  max-width: 200px;
   margin-top: 2px;
   font-size: 12px;
   color: var(--rl-muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .is-tablet .btn {
   height: 36px;
@@ -362,21 +387,23 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
   font-size: 12px;
   color: var(--rl-muted);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 .list__meta .mono {
   font-size: 12px;
-  color: var(--rl-fg);
 }
 .list__actions {
   display: flex;
   gap: 8px;
 }
-.is-phone .btn {
+/* the drawn phone buttons set no padding: the browser's 1px 6px */
+.is-phone .btn,
+.is-phone .btn--save,
+.is-phone .btn--reset {
   flex: 1;
   height: 44px;
-  font-size: 14px;
-}
-.is-phone .btn--reset {
   margin-left: 0;
+  padding: 1px 6px;
+  font-size: 14px;
 }
 </style>

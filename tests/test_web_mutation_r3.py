@@ -479,3 +479,32 @@ SUMMARY = MODEL_SPEC + "the apply-to-all summary lists applied, kept and unchang
 @pytest.mark.web_unit
 def test_frames_lines():
     vitest("tests/unit/frames/frames-model.spec.ts")
+
+
+# ---- page-frames-settings round: the drawn section titles, a refusal as a field error, the password error's field ---
+REFUSED = FRAMES_VIEW_SPEC + "shows a refused save beside the editor as an alert with the field"
+NOT_REFUSED = FRAMES_VIEW_SPEC + "marks no box invalid while nothing was refused"
+TITLES = FRAMES_VIEW_SPEC + "titles each kind's section as drawn: Video, Image"
+
+
+@mutation(FRAME_EDITOR, ":aria-invalid=\"frames.refusal ? 'true' : undefined\"", ':aria-invalid="undefined"',
+          expect=REFUSED)
+@mutation(FRAME_EDITOR, ":aria-describedby=\"frames.refusal ? 'frame-refusal' : undefined\"",
+          ':aria-describedby="undefined"', expect=REFUSED)
+@mutation(FRAME_EDITOR, "{ 'is-invalid': frames.refusal }", "{ 'is-invalid': true }", expect=NOT_REFUSED)
+@mutation(FRAMES_MODEL, "kind.charAt(0).toUpperCase() + kind.slice(1)", "kind", expect=TITLES)
+@pytest.mark.web_unit
+def test_frames_drawn_looks():
+    vitest("tests/unit/frames/frames-view.spec.ts")
+
+
+LOAD_WORDS = SETTINGS_SPEC + "setting values > word a failed read as the drawn failed load, with the relay's answer"
+BOOT_DASH = SETTINGS_SPEC + "setting values > show a boot-only value that is unset or empty as a dash"
+
+
+@mutation(PASSWORD, "fieldErrors.new_password ? 'new-password-error' : undefined", "undefined", expect=NEW_FIELD)
+@mutation(SETTING_VALUE, "`the relay answered ${err.status} (${said})`", "said", expect=LOAD_WORDS)
+@mutation(SETTING_VALUE, ' || value === ""', "", expect=BOOT_DASH)
+@pytest.mark.web_unit
+def test_settings_errors_as_drawn():
+    vitest("tests/unit/settings/settings.spec.ts")

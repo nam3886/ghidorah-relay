@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { ApiError } from "@/api/client";
 import * as api from "@/api/settings";
-import { parseValue, valueText } from "@/components/settings/settings-value";
+import { bootValue, loadFailedText, parseValue, valueText } from "@/components/settings/settings-value";
 import { notify } from "@/lib/notify";
 import { TEST_KEY, TOKEN_KEY, USER_KEY } from "@/lib/session";
 import { useAuthStore } from "@/stores/auth";
@@ -35,6 +35,24 @@ describe("setting values", () => {
     expect(valueText({ value: false })).toBe("false");
     expect(valueText({ value: [1, 2] })).toBe("[1,2]");
     expect(valueText({ value: null })).toBe("null");
+  });
+
+  it("word a failed read as the drawn failed load, with the relay's answer", () => {
+    const answered = new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } });
+    expect(loadFailedText("settings", answered)).toBe(
+      "Could not load the settings: the relay answered 502 (bad gateway).",
+    );
+    expect(loadFailedText("measured prices", new TypeError("Failed to fetch"))).toBe(
+      "Could not load the measured prices: network error, please try again.",
+    );
+  });
+
+  it("show a boot-only value that is unset or empty as a dash", () => {
+    expect(bootValue(null)).toBe("-");
+    expect(bootValue(undefined)).toBe("-");
+    expect(bootValue("")).toBe("-");
+    expect(bootValue("UTC")).toBe("UTC");
+    expect(bootValue(0)).toBe("0");
   });
 });
 
@@ -311,6 +329,11 @@ describe("change password", () => {
     await submit().trigger("click");
     await flushPromises();
     await vi.waitFor(() => expect(errorTexts()).toEqual(["Too short"]));
+    // the error describes its field, and only that one
+    const error = wrapper!.find('[role="alert"]');
+    expect(field("new-password").attributes("aria-describedby")).toBe(error.attributes("id"));
+    expect(field("new-password").attributes("aria-invalid")).toBe("true");
+    expect(field("current-password").attributes("aria-describedby")).toBeUndefined();
   });
 
   it("clears the field error on the next attempt", async () => {

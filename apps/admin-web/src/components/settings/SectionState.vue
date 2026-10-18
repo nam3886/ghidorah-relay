@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// What a settings card shows in place of its rows: the empty text, or the error with Retry (shared.md 12.5). The rows
-// themselves keep their own layout; a load in flight with no rows says so.
+// What a settings card shows in place of its rows: the error with Retry (shared.md 12.5), or the empty text in the
+// drawn empty area (12.1: centred, muted, 44 / 52 px above and below). A load in flight with no rows says so there.
 defineProps<{ loading: boolean; error: string | null; empty: boolean; emptyText: string }>();
 const emit = defineEmits<{ retry: [] }>();
 </script>
@@ -25,8 +25,10 @@ const emit = defineEmits<{ retry: [] }>();
     <span class="state__text">{{ error }}</span>
     <button type="button" class="state__retry" @click="emit('retry')">Retry</button>
   </div>
-  <p v-else-if="loading && empty" class="state__note" role="status">Loading…</p>
-  <p v-else-if="empty" class="state__note">{{ emptyText }}</p>
+  <div v-else-if="loading && empty" class="state__note" role="status"><p>Loading…</p></div>
+  <div v-else-if="empty" class="state__note">
+    <p>{{ emptyText }}</p>
+  </div>
 </template>
 
 <style scoped>
@@ -56,6 +58,7 @@ const emit = defineEmits<{ retry: [] }>();
   font: inherit;
   font-size: 13px;
   font-weight: 500;
+  line-height: normal;
   cursor: pointer;
 }
 @media (max-width: 767px) {
@@ -65,10 +68,12 @@ const emit = defineEmits<{ retry: [] }>();
   }
 }
 .state__note {
-  margin: 0;
-  padding: 14px 16px;
+  padding: 44px 16px 52px;
   border-top: 1px solid var(--rl-line);
-  font-size: 13px;
+  text-align: center;
+}
+.state__note p {
+  margin: 0;
   color: var(--rl-muted);
 }
 </style>
