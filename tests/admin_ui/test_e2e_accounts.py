@@ -11,6 +11,7 @@ from accountkit import new_account
 from patchright.sync_api import expect
 
 from relay_core import crypto
+from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
 
@@ -103,6 +104,42 @@ def test_import_shows_the_accepted_and_the_rejected_lines_and_sends_the_proxy_wi
     assert db.one("SELECT count(*) FROM accounts WHERE proxy_host = '10.1.2.3' AND proxy_auth_enc IS NOT NULL")[0] == 2
     box.get_by_role("button", name="Close", exact=True).click()
     expect(rows(page)).to_have_count(2)
+
+
+# a press on the list's padding (the 6 px around its options) must keep the focus on the select: in Chrome a press on
+# anything that cannot take the focus moves it off, and the next Escape then reaches the dialog, which closes with the
+# pasted lines (a synthetic event in a unit test cannot show where the browser puts the focus)
+@mutation("apps/admin-web/src/components/shared/FilterSelect.vue", '        @pointerdown="onListPress"\n', "",
+          expect="the focus stays on the select")
+def test_a_press_on_the_open_provider_list_and_escape_keep_the_import_dialog_and_its_paste(app, app_session, db):
+    page = app_session
+    open_accounts(page)
+    header_import(page).click()
+    box = page.get_by_role("dialog", name="Import accounts")
+    box.get_by_label("Credentials").fill("cookie-one\ncookie-two")
+    provider = box.get_by_role("combobox", name="Provider")
+    provider.click()
+    listbox = page.get_by_role("listbox", name="Provider")
+    expect(listbox).to_be_visible()
+    edge = listbox.bounding_box()
+    # the left padding strip at mid-height (its corners are rounded off: a press there would land on the dialog below)
+    page.mouse.click(edge["x"] + 3, edge["y"] + edge["height"] / 2)
+    expect(provider, "the focus stays on the select").to_be_focused()
+    page.keyboard.press("Escape")
+    expect(listbox).to_have_count(0)
+    expect(box, "the Import dialog stays open").to_be_visible()
+    expect(box.get_by_label("Credentials")).to_have_value("cookie-one\ncookie-two")
+    provider.click()
+    options = page.get_by_role("option")
+    pick = options.last
+    name = pick.inner_text().strip()
+    pick.click()
+    expect(listbox).to_have_count(0)
+    expect(provider).to_contain_text(name)
+    provider.click()
+    expect(page.get_by_role("option", name=name, exact=True)).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("Escape")
+    expect(box).to_be_visible()
 
 
 def test_an_empty_paste_says_so_and_sends_nothing(app, app_session, db):
