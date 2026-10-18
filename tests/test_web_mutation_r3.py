@@ -333,8 +333,9 @@ OPTION_VALUE = FORM_SPEC + "optionValue > takes the value a provider takes, and 
           expect=BY_VALUE)
 @mutation(TEST_VIEW, "({ value: optionValue(o), label: optionLabel(o) })",
           "({ value: optionLabel(o), label: optionLabel(o) })", expect=STYLE_VALUE)
-@mutation(TEST_VIEW, ':value="s.value">{{ s.label }}</option>', ':value="s.value">{{ s.value }}</option>',
-          expect=STYLE_VALUE)
+@mutation(TEST_VIEW, "label: optionLabel(o) })", "label: optionValue(o) })", expect=STYLE_VALUE)
+@mutation(TEST_VIEW, '<FilterSelect\n            v-if="durations.length"', '<FilterSelect\n            v-if="false"',
+          expect=DURATION_SELECT)
 @mutation(TEST_VIEW, "return own.length ? own : withSaved(ratios.value, form.ratio);",
           "return withSaved(ratios.value, form.ratio);", expect=MODEL_RATIOS)
 @mutation(TEST_VIEW, "if (own.length && form.ratio && !own.includes(form.ratio)) form.ratio = defaultRatioOf(model);",

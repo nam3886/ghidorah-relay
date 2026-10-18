@@ -6,6 +6,7 @@ import * as api from "@/api/test";
 import { DROPPED_NOTE, FILE_STORE, type FileStore, NOT_SAVED_NOTE, type StoredFile } from "@/lib/test-files";
 import { useAuthStore } from "@/stores/auth";
 import { useUiStore } from "@/stores/ui";
+import FilterSelect, { type SelectOption } from "@/components/shared/FilterSelect.vue";
 import TestView from "@/views/TestView.vue";
 
 vi.mock("@/api/test", async (original) => ({
@@ -75,6 +76,14 @@ const attach = async (...picked: File[]) => {
   await input.trigger("change");
   await flushPromises();
 };
+// The form's selects (FilterSelect fields), found by their label: their options, their value, a choice.
+const selectField = (label: string) => wrapper!.findAllComponents(FilterSelect).find((c) => c.props("label") === label);
+const fieldOptions = (label: string) => (selectField(label)?.props("options") ?? []) as SelectOption[];
+const fieldValue = (label: string) => selectField(label)?.props("modelValue");
+async function choose(label: string, value: string) {
+  selectField(label)!.vm.$emit("update:modelValue", value);
+  await flushPromises();
+}
 
 beforeEach(() => {
   sessionStorage.clear();
@@ -106,16 +115,15 @@ describe("the tab", () => {
     await pickModel("veo-3");
     expect(api.getOptions).toHaveBeenCalledWith("rk-1", "flow");
     expect(text()).toContain("video · flow");
-    const options = (id: string) =>
-      wrapper!
-        .findAll(`#${id} option`)
-        .map((o) => o.attributes("value"))
+    const options = (label: string) =>
+      fieldOptions(label)
+        .map((o) => o.value)
         .filter(Boolean);
-    expect(options("test-ratio")).toEqual(["16:9", "1:1"]);
+    expect(options("Ratio")).toEqual(["16:9", "1:1"]);
     // the style belongs to an image model
-    expect(wrapper!.find("#test-style").exists()).toBe(false);
+    expect(selectField("Style")).toBeUndefined();
     await pickModel("imagen-4");
-    expect(options("test-style")).toEqual(["noir"]);
+    expect(options("Style")).toEqual(["noir"]);
     await pickModel("veo-3");
     // a template copies its prompt into the box
     await wrapper!.findAll('[role="group"][aria-label="Prompt templates"] button')[0]!.trigger("click");
@@ -551,8 +559,8 @@ describe("the model picker and the wallet", () => {
     await open();
     await loadModels();
     await pickModel("veo-3");
-    expect(wrapper!.findAll("#test-ratio option").map((o) => o.text())).toEqual(["Default", "16:9"]);
-    await wrapper!.find("#test-ratio").setValue("16:9");
+    expect(fieldOptions("Ratio").map((o) => o.label)).toEqual(["Default", "16:9"]);
+    await choose("Ratio", "16:9");
     await wrapper!.find("#test-prompt").setValue("a cat");
     vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
     vi.mocked(api.getJob).mockResolvedValue({ id: "j1", status: "queued" });
@@ -575,9 +583,8 @@ describe("the model picker and the wallet", () => {
     vi.mocked(api.getOptions).mockResolvedValue({ ratios: IMAGE_RATIOS.map((value) => ({ value })) });
   }
   const ratioTexts = () =>
-    wrapper!
-      .findAll("#test-ratio option")
-      .map((o) => o.text())
+    fieldOptions("Ratio")
+      .map((o) => o.label)
       .slice(1);
 
   it("lists the picked model's own ratios over the provider's: a video model offers 21:9 and not 2:3", async () => {
@@ -596,9 +603,9 @@ describe("the model picker and the wallet", () => {
     await open();
     await loadModels();
     await pickModel("imagen-4");
-    await wrapper!.find("#test-ratio").setValue("2:3");
+    await choose("Ratio", "2:3");
     await pickModel("veo-3");
-    expect((wrapper!.find("#test-ratio").element as HTMLSelectElement).value).toBe("16:9");
+    expect(fieldValue("Ratio")).toBe("16:9");
     expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "").ratio).toBe("16:9");
     await wrapper!.find("#test-prompt").setValue("a cat");
     vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
@@ -614,10 +621,11 @@ describe("the model picker and the wallet", () => {
     await open();
     await loadModels();
     await pickModel("imagen-4");
-    const options = wrapper!.findAll("#test-style option");
-    expect(options.map((o) => o.text())).toEqual(["Default", "Oil painting"]);
-    expect(options.map((o) => o.attributes("value"))).toEqual(["", "oil_painting"]);
-    await wrapper!.find("#test-style").setValue("oil_painting");
+    expect(fieldOptions("Style")).toEqual([
+      { value: "", label: "Default" },
+      { value: "oil_painting", label: "Oil painting" },
+    ]);
+    await choose("Style", "oil_painting");
     await wrapper!.find("#test-prompt").setValue("a cat");
     vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
     vi.mocked(api.getJob).mockResolvedValue({ id: "j1", status: "queued" });
@@ -653,16 +661,12 @@ describe("the model picker and the wallet", () => {
     expect(text()).toContain("video · 5, 10, 20, 25 or 30 s");
     // the lengths carry tabular figures, the kind word does not
     expect(wrapper!.find(".form__info .num").text()).toBe("5, 10, 20, 25 or 30 s");
-    expect(wrapper!.findAll("#test-duration option").map((o) => o.text())).toEqual([
-      "Default",
-      "5 s",
-      "10 s",
-      "20 s",
-      "25 s",
-      "30 s",
-    ]);
-    await wrapper!.find("#test-duration").setValue("30");
+    expect(fieldOptions("Duration").map((o) => o.label)).toEqual(["Default", "5 s", "10 s", "20 s", "25 s", "30 s"]);
+    await choose("Duration", "30");
     expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "").duration).toBe("30");
+    // the design's select drawn by us, never the browser's
+    expect(wrapper!.find("select").exists()).toBe(false);
+    expect(selectField("Duration")!.props("block")).toBe(true);
   });
 
   it("a model that names a display name shows it with its id under it; one without shows the id alone", async () => {

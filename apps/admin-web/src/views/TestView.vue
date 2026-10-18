@@ -6,6 +6,7 @@
 import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from "vue";
 import { getOptions, type PublicModel, type Template } from "@/api/test";
 import TestImages from "@/components/test/TestImages.vue";
+import FilterSelect from "@/components/shared/FilterSelect.vue";
 import TestResult from "@/components/test/TestResult.vue";
 import {
   capital,
@@ -103,6 +104,14 @@ const styleChoices = computed(() =>
     ? [...styles.value, { value: form.style, label: form.style }]
     : styles.value,
 );
+// The selects' lists, "Default" (nothing sent) first.
+const DEFAULT_OPTION = { value: "", label: "Default" };
+const durationOptions = computed(() => [
+  DEFAULT_OPTION,
+  ...durationChoices.value.map((d) => ({ value: d, label: `${d} s` })),
+]);
+const ratioOptions = computed(() => [DEFAULT_OPTION, ...ratioChoices.value.map((r) => ({ value: r, label: r }))]);
+const styleOptions = computed(() => [DEFAULT_OPTION, ...styleChoices.value]);
 
 async function pick(model: PublicModel): Promise<void> {
   const ticket = pickLatest.next();
@@ -367,20 +376,20 @@ onMounted(async () => {
         </div>
 
         <div class="trio">
-          <div class="field">
+          <!-- the design's selects, drawn by us (FilterSelect's field); a model that names no list gets a text box -->
+          <FilterSelect
+            v-if="durations.length"
+            class="field"
+            variant="field"
+            block
+            label="Duration"
+            :model-value="form.duration"
+            :options="durationOptions"
+            @update:model-value="setField('duration', String($event))"
+          />
+          <div v-else class="field">
             <label for="test-duration">Duration</label>
-            <select
-              v-if="durations.length"
-              id="test-duration"
-              class="control control--select"
-              :value="form.duration"
-              @change="setField('duration', ($event.target as HTMLSelectElement).value)"
-            >
-              <option value="">Default</option>
-              <option v-for="d in durationChoices" :key="d" :value="d">{{ d }} s</option>
-            </select>
             <input
-              v-else
               id="test-duration"
               v-model="form.duration"
               class="control"
@@ -389,19 +398,19 @@ onMounted(async () => {
               @input="persist"
             />
           </div>
-          <div class="field">
+          <FilterSelect
+            v-if="ratios.length || ratiosOf(chosen).length"
+            class="field"
+            variant="field"
+            block
+            label="Ratio"
+            :model-value="form.ratio"
+            :options="ratioOptions"
+            @update:model-value="setField('ratio', String($event))"
+          />
+          <div v-else class="field">
             <label for="test-ratio">Ratio</label>
-            <select
-              v-if="ratios.length || ratiosOf(chosen).length"
-              id="test-ratio"
-              class="control control--select"
-              :value="form.ratio"
-              @change="setField('ratio', ($event.target as HTMLSelectElement).value)"
-            >
-              <option value="">Default</option>
-              <option v-for="r in ratioChoices" :key="r" :value="r">{{ r }}</option>
-            </select>
-            <input v-else id="test-ratio" v-model="form.ratio" class="control" placeholder="16:9" @input="persist" />
+            <input id="test-ratio" v-model="form.ratio" class="control" placeholder="16:9" @input="persist" />
           </div>
           <div class="field">
             <label for="test-count">Count</label>
@@ -415,27 +424,22 @@ onMounted(async () => {
               @input="setField('count', ($event.target as HTMLInputElement).value)"
             />
           </div>
-          <div v-if="chosen?.kind === 'image'" class="field">
-            <label for="test-style">Style</label>
-            <select
+          <template v-if="chosen?.kind === 'image'">
+            <FilterSelect
               v-if="styles.length"
-              id="test-style"
-              class="control control--select"
-              :value="form.style"
-              @change="setField('style', ($event.target as HTMLSelectElement).value)"
-            >
-              <option value="">Default</option>
-              <option v-for="s in styleChoices" :key="s.value" :value="s.value">{{ s.label }}</option>
-            </select>
-            <input
-              v-else
-              id="test-style"
-              v-model="form.style"
-              class="control"
-              placeholder="optional"
-              @input="persist"
+              class="field"
+              variant="field"
+              block
+              label="Style"
+              :model-value="form.style"
+              :options="styleOptions"
+              @update:model-value="setField('style', String($event))"
             />
-          </div>
+            <div v-else class="field">
+              <label for="test-style">Style</label>
+              <input id="test-style" v-model="form.style" class="control" placeholder="optional" @input="persist" />
+            </div>
+          </template>
         </div>
 
         <div class="field">
@@ -818,9 +822,6 @@ onMounted(async () => {
   color: var(--rl-fg);
   font: inherit;
   font-size: 14px;
-}
-.control--select {
-  padding: 0 10px;
 }
 .control--num {
   font-variant-numeric: tabular-nums;

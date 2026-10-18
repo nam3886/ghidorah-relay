@@ -587,3 +587,14 @@ TOGGLE_SPEC = "tests/unit/shared/toggle-switch.spec.ts"
 @pytest.mark.web_unit
 def test_the_toggle_switch_reports_the_opposite_and_names_its_size():
     vitest(TOGGLE_SPEC)
+
+
+# ---- page-test-login: FilterSelect's field as a form's field (the Test form's selects) -------------------------------
+FORM_FIELD = FIELD + "as a form's field (block) keeps its label above the box on a phone too, never the chip"
+
+
+@mutation(FILTER, '"is-chip": isPhone.value && !props.block,', '"is-chip": isPhone.value,', expect=FORM_FIELD)
+@mutation(FILTER, '"is-block": props.block,', '"is-block": false,', expect=FORM_FIELD)
+@pytest.mark.web_unit
+def test_the_field_select_can_be_a_form_field():
+    vitest(FIELD_SPEC)

@@ -183,6 +183,14 @@ BOARD_JOB = ("UPDATE jobs SET status = 'waiting', sent_at = %s::timestamptz, cre
 BOARD_JOB_AT = "2026-10-15 20:52:30+07"
 
 
+def choose(page, field: str, option: str) -> None:
+    """Pick an option of one of the Test form's selects (the design's select, drawn by us): open it, click it."""
+    box = page.get_by_role("combobox", name=field, exact=True)
+    box.click()
+    page.get_by_role("listbox").get_by_role("option", name=option, exact=True).click()
+    expect(box.locator(".is-current")).to_have_text(option)
+
+
 def key_page_drive(page, live, data, wait_for: str = "waiting"):
     """The boards' state: the key loaded, seedance_v2.5 picked, the form filled, the job made and shown `wait_for`
     (the boards' waiting job, or "done" when the caller answers the poll itself)."""
@@ -194,9 +202,8 @@ def key_page_drive(page, live, data, wait_for: str = "waiting"):
     model.click()
     expect(model).to_have_attribute("aria-pressed", "true")
     page.get_by_label("Prompt", exact=True).fill(PROMPT)
-    page.get_by_label("Duration", exact=True).select_option("30")
-    ratio = page.get_by_label("Ratio", exact=True)
-    ratio.select_option("16:9")
+    choose(page, "Duration", "30 s")
+    choose(page, "Ratio", "16:9")
     page.get_by_label("Count", exact=True).fill("1")
     page.get_by_label("Title", exact=True).fill("Night market, handheld")
     page.get_by_label("Extra options (JSON)").fill(EXTRA)

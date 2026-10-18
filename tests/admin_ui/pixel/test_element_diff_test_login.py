@@ -10,6 +10,7 @@ from dataclasses import replace
 
 import pytest
 import test_element_diff as page_one
+import test_element_diff_alerts as alerts_page
 from element_diff import extract
 from patchright.sync_api import expect
 from pixel_capture import opened, shoot
@@ -79,7 +80,45 @@ STATE_CHECKS = [
           'section[aria-label="Result, done"]', RESULT, DESKTOP, widen=True, data=("3b9e1f0a", "5.04 s"),
           data_app=("5 s",)),
 ]
-CHECKS = BOARD_CHECKS + LOGIN_CHECKS + STATE_CHECKS
+CHECKS = LOGIN_CHECKS + STATE_CHECKS
+
+
+# The boards draw the form's selects as native selects, the app as FilterSelect fields: the Alerts page's comparison
+# (test_element_diff_alerts.run_check) compares each field's box as a box and what it draws inside (its value and
+# arrow) against the native select as pixels. The boards write `<select value="30 s">`, which HTML does not read (the
+# browser shows the first option, `5 s`): the renderer is made to show the option the attribute names.
+SELECT_VALUES_JS = """() => document.querySelectorAll('select[value]').forEach((s) => {
+  const want = s.getAttribute('value');
+  const option = [...s.options].find((o) => o.text === want || o.value === want);
+  if (option) s.value = option.value;
+})"""
+
+
+class BoardSelects:
+    """The canvas renderer, each native select of the board showing the option its `value` attribute names."""
+
+    def __init__(self, renderer):
+        self._renderer = renderer
+
+    def __getattr__(self, name):
+        return getattr(self._renderer, name)
+
+    def open(self, *args, **kwargs) -> None:
+        self._renderer.open(*args, **kwargs)
+        self._renderer.page.evaluate(SELECT_VALUES_JS, isolated_context=False)
+        self._renderer.settle()
+
+
+@pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize("check", BOARD_CHECKS, ids=lambda c: c.name)
+def test_test_boards_match_the_canvas_element_by_element(app, db, live, renderer, diff_page, run_dir, check, theme):
+    fields = []
+    bad = alerts_page.failed(alerts_page.run_check(app, db, live, BoardSelects(renderer), diff_page, run_dir, check,
+                                                   theme, fields=fields))
+    assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))
+    assert len(fields) == 2, "the Duration and Ratio fields against the board's two native selects: %r" % fields
+    off = [(n, f) for n, f in enumerate(fields) if f[0] > alerts_page.SELECT_MISMATCH_PCT]
+    assert not off, "a field draws its value or arrow apart from the native select (n, (mismatch %%, aa %%)): %r" % off
 
 
 def requested_duration_leader(item, data) -> bool:
