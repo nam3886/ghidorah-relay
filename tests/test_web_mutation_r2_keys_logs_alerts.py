@@ -450,8 +450,8 @@ def test_the_logs_view_marks_exceptions_only_and_hands_a_job_to_its_drawer():
           expect=LOGS_DRAWER + "each Copy copies its own body and says Copied")
 @mutation(LOG_DRAWER, "copied.value = which;", "copied.value = null;",
           expect=LOGS_DRAWER + "each Copy copies its own body and says Copied")
-@mutation(LOG_DRAWER, "'is-muted': !isServerError(log.status_code)", "'is-muted': isServerError(log.status_code)",
-          expect=LOGS_DRAWER + "an error code is red on a server error and muted on a client error")
+@mutation(LOG_DRAWER, '<dd class="kla-mono rd__bad">', '<dd class="kla-mono">',
+          expect=LOGS_DRAWER + "an error code is red on a server error and on a client error alike")
 @mutation(LOG_DRAWER, 'v-if="log.error_code" class="rd__row"', 'v-if="true" class="rd__row"',
           expect=LOGS_DRAWER + "a request with no error has no Error line")
 @mutation(LOG_DRAWER, "<dd v-else>no job</dd>", "<dd v-else>none</dd>",
@@ -676,6 +676,48 @@ def test_a_day_header_uses_the_servers_day_total():
 @pytest.mark.web_unit
 def test_the_alert_detail_names_the_job_and_the_key():
     vitest(ALERTS_VIEW_SPEC)
+
+
+# ---- Request logs: the drawn error wording and the empty list under a filter ---------------------------------------
+EMPTY_FILTERED = ("an empty list under a filter says so; Clear filters clears every filter and searches from the "
+                  "first page")
+
+
+@mutation(LOGS, 'error.value = loadFailedText(err, errorText(err), "the request logs");',
+          "error.value = errorText(err);",
+          expect=LOGS_LIST + "a failed load says what failed and what the relay answered")
+@mutation(LOGS, 'loadFailedText(err, errorText(err), "the request logs")', "loadFailedText(err, errorText(err))",
+          expect=LOGS_LIST + "a failed load says what failed and what the relay answered")
+@mutation(LOGS, '            role="menu"\n            aria-label="More actions"', '            role="menu"',
+          expect=LOGS_TABLET + "puts Clear logs in a More menu")
+@mutation(LOGS, 'aria-label="Request log list"', 'aria-label="Request logs"',
+          expect=LOGS_TABLET + "puts Clear logs in a More menu")
+@mutation(LOGS, 'filters.q.trim() || filters.status !== "all" || filters.from', "filters.q.trim() || filters.from",
+          expect=LOGS_LIST + EMPTY_FILTERED)
+@mutation(LOGS, 'filters.q.trim() || filters.status !== "all"', 'filters.q.trim() || filters.status !== "x"',
+          expect=LOGS_LIST + "an empty list with no filter says there are no requests yet, and offers nothing")
+@mutation(LOGS, 'const SKELETON_COLUMNS = ["time", "status", "route", "duration"];',
+          'const SKELETON_COLUMNS = ["time", "status", "route", "key", "duration"];',
+          expect=LOGS_LIST + "the loading skeleton draws four columns")
+@mutation(LOGS, 'skeleton: "pill" as const', 'skeleton: "text" as const',
+          expect=LOGS_LIST + "the loading skeleton draws four columns")
+@mutation(LOGS, 'const PHONE_SKELETON_COLUMNS = ["time", "status", "route"];',
+          'const PHONE_SKELETON_COLUMNS = ["time", "status", "route", "duration"];',
+          expect=LOGS_LIST + "a phone's loading skeleton leaves the duration out")
+@mutation(LOG_FILTERS, '  filters.status = value as LogStatus;\n  emit("search");',
+          "  filters.status = value as LogStatus;",
+          expect=LOGS_PAGING + "a status choice searches at once from the first page")
+@mutation(LOGS, '<span class="l-route kla-mono" :title="row.route">', '<span class="l-route kla-mono">',
+          expect=LOGS_LIST + "a value that may end in an ellipsis carries its whole text as its title")
+@mutation(LOGS, ':class="errorTone(row)" :title="row.error_code"', ':class="errorTone(row)"',
+          expect=LOGS_LIST + "a value that may end in an ellipsis carries its whole text as its title")
+@mutation(LOGS, '                :title="row.job_title ?? undefined"\n', "",
+          expect=LOGS_LIST + "a value that may end in an ellipsis carries its whole text as its title")
+@mutation(LOGS, "  filters.reset();\n  search();", "  search();", expect=LOGS_LIST + EMPTY_FILTERED)
+@mutation(LOGS, "  filters.reset();\n  search();", "  filters.reset();", expect=LOGS_LIST + EMPTY_FILTERED)
+@pytest.mark.web_unit
+def test_the_logs_list_words_its_failure_and_its_empty_list_as_drawn():
+    vitest(LOGS_VIEW_SPEC)
 
 
 # ---- Alerts (page-alerts round): the group names, the live words and the phone order, as the canvas draws them ----

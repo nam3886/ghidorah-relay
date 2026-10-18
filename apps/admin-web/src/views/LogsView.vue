@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useRoute } from "vue-router";
 import { clearLogs, getLog, type LogDetail, listLogs, type LogRow } from "@/api/logs";
+import { loadFailedText } from "@/components/jobs/job-text";
 import PageHeader from "@/components/layout/PageHeader.vue";
 import LogDetailDrawer from "@/components/logs/LogDetailDrawer.vue";
 import LogsFilterForm from "@/components/logs/LogsFilterForm.vue";
@@ -18,7 +19,7 @@ import {
 import { useLogsFilters } from "@/components/logs/logs-filters";
 import "@/components/logs/lane-controls.css";
 import DataTable from "@/components/shared/DataTable.vue";
-import { IconChevronRight, IconMoreCircles, IconTrashClear, IconTrashMenu } from "@/components/shared/icons";
+import { IconChevronRight, IconMoreCircles, IconTrashClear } from "@/components/shared/icons";
 import ListPager from "@/components/shared/ListPager.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import type { Tone } from "@/components/shared/status-tones";
@@ -56,21 +57,27 @@ const detailOpen = ref(false);
 // Only a server error fills its row; a client error is told by its amber code alone.
 const rowTone = (row: LogRow): Tone | undefined => (isServerError(row.status_code) ? "bad" : undefined);
 
-// The desktop columns; a tablet keeps five of them and folds the rest into those cells.
+// The desktop columns; a tablet keeps five of them and folds the rest into those cells. The canvas lays the table out by
+// its content; the drawn shares of its width are set in the style block below, and these minimums are those shares of
+// the narrowest table (1080 px desktop, 600 px tablet), so every column is flexible and the shares decide.
 const columns = computed(() => {
   const tablet = isTablet.value;
   return [
-    { key: "time", label: "Time", width: tablet ? 84 : 102 },
-    { key: "status", label: "Status", width: tablet ? 92 : 96 },
-    { key: "route", label: "Route", minWidth: tablet ? 120 : 200 },
-    { key: "provider", label: "Provider", width: 88 },
-    { key: "key", label: "Key", width: tablet ? 96 : 99 },
-    { key: "job", label: "Job", width: 311 },
-    { key: "error", label: "Error code", minWidth: 150 },
-    { key: "duration", label: "Duration", align: "right" as const, width: tablet ? 96 : 100 },
+    { key: "time", label: "Time", minWidth: tablet ? 74 : 88 },
+    { key: "status", label: "Status", minWidth: tablet ? 134 : 79, skeleton: "pill" as const },
+    { key: "route", label: "Route", minWidth: tablet ? 217 : 213, skeleton: "title" as const },
+    { key: "provider", label: "Provider", minWidth: 72 },
+    { key: "key", label: "Key", minWidth: tablet ? 69 : 82 },
+    { key: "job", label: "Job", minWidth: 258 },
+    { key: "error", label: "Error code", minWidth: 164 },
+    { key: "duration", label: "Duration", align: "right" as const, minWidth: tablet ? 67 : 73 },
   ];
 });
 const TABLET_COLUMNS = ["time", "status", "route", "key", "duration"];
+// The loading skeleton, after the drawn Jobs one (B-States, loading): four columns, the time, the status pill, the route
+// with the job under it, the duration; a phone leaves the duration out, so the route keeps some room.
+const SKELETON_COLUMNS = ["time", "status", "route", "duration"];
+const PHONE_SKELETON_COLUMNS = ["time", "status", "route"];
 
 // Day headers: the newest request's day first, then each earlier one. The note counts the rows on this page.
 const dayTotals = shallowRef<Record<string, number>>({});
@@ -110,7 +117,7 @@ async function load(): Promise<void> {
     error.value = null;
   } catch (err) {
     if (!latest.isCurrent(ticket)) return;
-    error.value = errorText(err);
+    error.value = loadFailedText(err, errorText(err), "the request logs");
   } finally {
     if (latest.isCurrent(ticket)) loading.value = false;
   }
@@ -163,6 +170,13 @@ function search(): void {
   void load();
 }
 
+// An empty list under a filter offers to clear it, as the Jobs list does (B-States, no results).
+const filtered = computed(() => !!(filters.q.trim() || filters.status !== "all" || filters.from || filters.to));
+function clearFilters(): void {
+  filters.reset();
+  search();
+}
+
 async function clear() {
   menuOpen.value = false;
   const ok = await confirmDialog({
@@ -205,7 +219,7 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
   <section class="logs-view">
     <PageHeader title="Request logs" subtitle="Every API request and its HTTP outcome. Jobs are listed separately.">
       <template #actions>
-        <button v-if="!isPhone && !isTablet" type="button" class="kla-btn kla-btn--danger" @click="clear">
+        <button v-if="!isPhone && !isTablet" type="button" class="kla-btn kla-btn--danger logs-clear" @click="clear">
           <IconTrashClear :size="15" />Clear logs
         </button>
         <div v-else ref="menuWrap" class="logs-more">
@@ -220,16 +234,22 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
           >
             <IconMoreCircles :size="18" />
           </button>
-          <div v-if="menuOpen" class="logs-more__menu" :class="{ 'is-phone': isPhone }" role="menu">
+          <div
+            v-if="menuOpen"
+            class="logs-more__menu"
+            :class="{ 'is-phone': isPhone }"
+            role="menu"
+            aria-label="More actions"
+          >
             <button type="button" role="menuitem" class="logs-more__item" @click="clear">
-              <IconTrashMenu :size="16" />Clear logs
+              <IconTrashClear :size="16" />Clear logs
             </button>
           </div>
         </div>
       </template>
     </PageHeader>
 
-    <section class="kla-card logs-card" aria-label="Request logs">
+    <section class="kla-card logs-card" aria-label="Request log list">
       <LogsFilterForm @search="search" />
       <DataTable
         class="logs-table"
@@ -238,11 +258,12 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
         :rows="rows"
         :loading="loading"
         :error="error"
-        empty-text="No log rows"
+        :empty-text="filtered ? 'No requests match these filters.' : 'No requests yet.'"
         row-clickable
         tone-fill
         :row-tone="rowTone"
         :tablet-columns="TABLET_COLUMNS"
+        :skeleton-columns="isPhone ? PHONE_SKELETON_COLUMNS : SKELETON_COLUMNS"
         :row-label="(r: LogRow) => `Open request ${r.id}`"
         @row-click="openDetail"
         @retry="load"
@@ -257,9 +278,15 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
           }}</span>
         </template>
         <template #cell-route="{ row }">
-          <span class="l-route kla-mono">{{ row.route }}</span>
+          <span class="l-route kla-mono" :title="row.route">{{ row.route }}</span>
           <template v-if="isTablet">
-            <button v-if="row.job_id" type="button" class="l-job-link" @click="ui.openJob(row.job_id)">
+            <button
+              v-if="row.job_id"
+              type="button"
+              class="l-job-link"
+              :title="row.job_title ?? undefined"
+              @click="ui.openJob(row.job_id)"
+            >
               {{ row.job_title || row.job_id.slice(0, 8) }}
             </button>
             <span v-else class="l-nojob">no job</span>
@@ -268,11 +295,18 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
         <template #cell-provider="{ row }"
           ><span class="l-muted">{{ row.provider || "—" }}</span></template
         >
-        <template #cell-key="{ row }">{{ row.key_label || "—" }}</template>
+        <template #cell-key="{ row }"
+          ><span class="l-key">{{ row.key_label || "—" }}</span></template
+        >
         <template #cell-job="{ row }">
           <div class="l-job-cell">
             <template v-if="row.job_id">
-              <button type="button" class="l-job-link" @click="ui.openJob(row.job_id)">
+              <button
+                type="button"
+                class="l-job-link"
+                :title="row.job_title ?? undefined"
+                @click="ui.openJob(row.job_id)"
+              >
                 {{ row.job_title || row.job_id.slice(0, 8) }}
               </button>
               <span class="l-job-id kla-mono">{{ row.job_id.slice(0, 8) }}</span>
@@ -282,7 +316,9 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
         </template>
         <!-- always an element: an empty slot would show the table's dash, and the design leaves the cell empty -->
         <template #cell-error="{ row }">
-          <span v-if="row.error_code" class="l-err kla-mono" :class="errorTone(row)">{{ row.error_code }}</span>
+          <span v-if="row.error_code" class="l-err kla-mono" :class="errorTone(row)" :title="row.error_code">{{
+            row.error_code
+          }}</span>
           <span v-else class="l-err-none" />
         </template>
         <template #cell-duration="{ row }"
@@ -304,10 +340,12 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
           <div class="p-req">
             <div class="p-req__line">
               <StatusChip :status="row.status_code" class="l-pill" />
-              <span class="p-req__route kla-mono">{{ row.route }}</span>
+              <span class="p-req__route kla-mono" :title="row.route">{{ row.route }}</span>
             </div>
             <div class="p-req__job">
-              <template v-if="row.job_id">{{ row.job_title || row.job_id.slice(0, 8) }}</template>
+              <span v-if="row.job_id" class="p-req__title" :title="row.job_title ?? undefined">{{
+                row.job_title || row.job_id.slice(0, 8)
+              }}</span>
               <span v-else class="l-nojob">no job</span>
             </div>
             <div class="p-req__meta">
@@ -318,6 +356,9 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
             </div>
             <div v-if="row.error_code" class="p-req__err kla-mono" :class="errorTone(row)">{{ row.error_code }}</div>
           </div>
+        </template>
+        <template v-if="filtered" #empty-action>
+          <button type="button" class="kla-btn logs-clear-filters" @click="clearFilters">Clear filters</button>
         </template>
       </DataTable>
       <ListPager
@@ -349,15 +390,25 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
   flex-direction: column;
   gap: 20px;
 }
-@media (max-width: 1279px) {
+@media (max-width: 767px) {
   .logs-view {
     gap: 16px;
   }
 }
+/* the head: the tablet and phone More button sits at the top of the title block, as drawn */
+.logs-view > :deep(.page-header--tablet),
+.logs-view > :deep(.page-header--phone) {
+  align-items: flex-start;
+}
+/* Clear logs fills with the error tint on hover */
+.logs-clear:hover {
+  background: var(--rl-bad-bg);
+}
 .logs-card {
   min-width: 0;
 }
-.logs-table {
+/* a tablet draws a hairline between the filters and the table; a desktop does not */
+.logs-table.is-tablet {
   border-top: 1px solid var(--rl-line);
 }
 .logs-table :deep(.el-table) {
@@ -366,10 +417,67 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
 .logs-table.is-tablet :deep(.el-table) {
   min-width: 0;
 }
-.logs-table :deep(td.el-table__cell) {
+/* The canvas lays the table out by its content (the browser's auto layout); at 1440 the columns come to these widths
+   of the 1302 px table: 106.3, 95.2, 256.8, 87.1, 99.4, 311.5, 197.5, 88.2 and 60 (the 48 px details column plus its
+   12 px padding); at 768 to these of the 718 px table: 88.3, 160.1, 259.3, 82.8, 79.6 and 48. Element Plus lays out
+   fixed columns, so each takes the same share of the table's width. */
+.logs-table:not(.is-tablet) :deep(col:nth-child(1)) {
+  width: 8.1644%;
+}
+.logs-table:not(.is-tablet) :deep(col:nth-child(2)) {
+  width: 7.3118%;
+}
+.logs-table:not(.is-tablet) :deep(col:nth-child(3)) {
+  width: 19.7235%;
+}
+.logs-table:not(.is-tablet) :deep(col:nth-child(4)) {
+  width: 6.6897%;
+}
+.logs-table:not(.is-tablet) :deep(col:nth-child(5)) {
+  width: 7.6344%;
+}
+.logs-table:not(.is-tablet) :deep(col:nth-child(6)) {
+  width: 23.9247%;
+}
+.logs-table:not(.is-tablet) :deep(col:nth-child(7)) {
+  width: 15.169%;
+}
+.logs-table:not(.is-tablet) :deep(col:nth-child(8)) {
+  width: 6.7742%;
+}
+.logs-table:not(.is-tablet) :deep(col:nth-child(9)) {
+  width: 4.6083%;
+}
+.logs-table.is-tablet :deep(col:nth-child(1)) {
+  width: 12.2981%;
+}
+.logs-table.is-tablet :deep(col:nth-child(2)) {
+  width: 22.2981%;
+}
+.logs-table.is-tablet :deep(col:nth-child(3)) {
+  width: 36.1142%;
+}
+.logs-table.is-tablet :deep(col:nth-child(4)) {
+  width: 11.532%;
+}
+.logs-table.is-tablet :deep(col:nth-child(5)) {
+  width: 11.0864%;
+}
+.logs-table.is-tablet :deep(col:nth-child(6)) {
+  width: 6.6852%;
+}
+/* a row is as high as its content: the first cell holds it at 49 (the canvas's `height: 48px` on the first td plus its
+   1 px border: Element Plus's cells are border-box), a row with a job is higher. A tablet cell is padded 8 and starts
+   at the top. */
+.logs-table :deep(.el-table .el-table__row:not(.is-day) > td.el-table__cell) {
+  height: auto;
   padding: 0;
 }
-.logs-table.is-tablet :deep(td.el-table__cell) {
+.logs-table :deep(.el-table .el-table__row:not(.is-day) > td.el-table__cell:first-child) {
+  height: 49px;
+}
+.logs-table.is-tablet :deep(.el-table .el-table__row:not(.is-day) > td.el-table__cell) {
+  height: auto;
   padding: 8px 0;
   vertical-align: top;
 }
@@ -377,21 +485,37 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
 .logs-table :deep(th.el-table__cell:first-child .cell) {
   padding-left: 16px;
 }
-.logs-table :deep(.el-table__row > td.el-table__cell:first-child) {
-  height: 48px;
-}
-.logs-table :deep(td.data-table__actions),
-.logs-table :deep(th.data-table__actions) {
-  width: 48px;
-}
 .logs-table :deep(th.data-table__actions .cell) {
   font-size: 0;
 }
-.logs-table :deep(td.data-table__actions .cell) {
+.logs-table :deep(.el-table td.data-table__actions .cell) {
   padding: 0 12px 0 0;
 }
+.logs-table.is-tablet :deep(.el-table .el-table__row:not(.is-day) > td.data-table__actions) {
+  padding: 6px 0 0;
+}
+.logs-table.is-tablet :deep(.el-table td.data-table__actions .cell) {
+  padding: 0 8px 0 0;
+}
+/* the skeleton's four columns: Time 84, Status 110 (the drawn pill column), Route the rest, Duration 84 (a phone's
+   last column is the route, which takes the rest too) */
+.logs-table :deep(.data-table__skeleton.is-drawn th:nth-child(2)) {
+  width: 110px;
+}
+.logs-table :deep(.data-table__skeleton.is-drawn th:nth-child(3)) {
+  width: auto;
+}
+.l-key {
+  font-size: 13px;
+  white-space: nowrap;
+}
+.is-tablet .l-key {
+  line-height: 24px;
+}
+/* tabular figures on the time and the duration only, as the canvas sets them */
 .l-time {
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
   color: var(--rl-muted);
   white-space: nowrap;
 }
@@ -439,13 +563,19 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
 .is-tablet .l-job-link {
   font-size: 13px;
 }
-.l-job-link:hover {
+/* the canvas's tablet title is a bare link: the link colour in dark (its `.th-dark a`); the desktop one sets the text
+   colour itself */
+html.dark .is-tablet .l-job-link {
+  color: var(--rl-link);
+}
+.l-job-link:hover,
+html.dark .is-tablet .l-job-link:hover {
   color: var(--rl-primary);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+/* the id sits on its own line after the block title, inline, as drawn */
 .l-job-id {
-  display: block;
   font-size: 12px;
   color: var(--rl-faint);
 }
@@ -477,6 +607,7 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
 }
 .l-dur {
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .is-tablet .l-dur {
@@ -530,6 +661,7 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
   color: var(--rl-bad);
   font: inherit;
   font-size: 14px;
+  line-height: normal;
   text-align: left;
   cursor: pointer;
 }
@@ -540,9 +672,15 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
   background: var(--rl-bad-bg);
 }
 
-/* phone */
+/* phone: the day header is 12/16 (the Jobs one 12/20), a row is raised on hover */
 .logs-card :deep(.data-table__main) {
   padding: 12px 16px !important;
+}
+.logs-card :deep(.data-table__day .data-table__day-label) {
+  line-height: 16px;
+}
+.logs-card :deep(.data-table__item:hover) {
+  background: var(--rl-raised);
 }
 .p-req {
   display: flex;
@@ -567,6 +705,12 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
   text-overflow: ellipsis;
 }
 .p-req__job {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.p-req__title {
+  min-width: 0;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -587,10 +731,12 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
 }
 .p-req__when .kla-mono {
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 .p-req__dur {
   flex: none;
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 .p-req__err {
   font-size: 12px;

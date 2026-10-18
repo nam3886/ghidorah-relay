@@ -54,6 +54,10 @@ def test_a_copy_pending_at_unmount_does_nothing():
           expect="the skeleton draws the columns asked for")
 @mutation(TABLE, "`skel skel--title-${(r - 1) % 5}`", "`skel skel--title-${r % 5}`",
           expect="the skeleton draws the columns asked for")
+# Request logs: a column names its skeleton bar
+@mutation(TABLE, "if (c.skeleton) return c.skeleton;", "", expect="a column may name its skeleton bar")
+@mutation(TABLE, "<i v-if=\"barOf(c, ci) === 'title'\" class=\"skel skel--sub\" />", '<i class="skel skel--sub" />',
+          expect="a column may name its skeleton bar")
 @mutation(TABLE, '<button type="button" class="data-table__retry"', '<button type="button" class="el-button"',
           expect="Retry is the drawn danger outline button")
 @pytest.mark.web_unit
@@ -106,8 +110,8 @@ PAGER_SPEC = "tests/unit/shared/list-pager.spec.ts"
 @mutation(PAGER, "|| page === currentPage.value", "", expect="the current page emits nothing")
 @mutation(PAGER, "slot === pageCount && String(slot)", "String(slot)",
           expect="only the last page is wide")
-@mutation(PAGER, "String(slot).length >= 3", "String(slot).length >= 4",
-          expect="draws the Jobs state exactly: 1 2 3 … 133")
+@mutation(PAGER, "String(slot).length >= 2", "String(slot).length >= 3",
+          expect="draws the Request logs state exactly: 1 2 3 … 97")
 @mutation(PAGER, "'is-active': slot === currentPage", "'is-active': false",
           expect="shows 'Showing a-b of total' and one numbered page per limit")
 @mutation(PAGER, "Number(v)", "v", expect="a size change emits size with the number and never a move")
@@ -428,8 +432,11 @@ ALERTS_VIEW = f"{SRC}/views/AlertsView.vue"
           expect=FIELD + "draws its label above a box that holds every option")
 @mutation(FILTER, '<path d="M2 2l4 4 4-4"', '<path d="M2 4l4 4 4-4"',
           expect=FIELD + "draws its label above a box that holds every option")
-@mutation(FILTER, "valueWidth.value = Math.round(width);", "valueWidth.value = width;",
-          expect=FIELD + "its value box is as wide as the longest option on the nearest whole pixel")
+@mutation(FILTER, "valueWidth.value = Math.floor(width);", "valueWidth.value = width;",
+          expect=FIELD + "its value box is as wide as the longest option on a whole pixel")
+# Request logs: Chrome takes the floor of a select's width, not the nearest pixel
+@mutation(FILTER, "valueWidth.value = Math.floor(width);", "valueWidth.value = Math.round(width);",
+          expect=FIELD + "takes the floor of the measured width, as Chrome sizes a select")
 @mutation(FILTER, '"is-tall": isTablet.value', '"is-tall": false', expect=FIELD + "is 36 high on a tablet")
 @mutation(FILTER, '"is-chip": chip.value', '"is-chip": false', expect=FIELD + "is 36 high on a tablet")
 @mutation(FILTER, "disabled: props.disabled || undefined,", "disabled: undefined,",
@@ -445,15 +452,10 @@ def test_the_field_select_is_the_canvas_select_drawn_by_us():
     vitest(FIELD_SPEC)
 
 
-@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '"components/logs/LogsFilterForm.vue"', "",
-          expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
-@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", "const STILL_TO_CONVERT = [",
-          'const STILL_TO_CONVERT = ["views/AlertsView.vue", ',
-          expect=NO_SELECT + "every file still to convert still has one: a converted file leaves the list")
 @mutation(ALERTS_VIEW, '<span v-if="!isPhone" class="gt__spacer" />', '<select v-if="!isPhone" class="gt__spacer" />',
-          expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
+          expect=NO_SELECT + "no source file draws a native select")
 @pytest.mark.web_unit
-def test_no_native_select_is_left_but_the_files_still_to_convert():
+def test_no_native_select_is_left():
     vitest(NO_SELECT_SPEC)
 
 

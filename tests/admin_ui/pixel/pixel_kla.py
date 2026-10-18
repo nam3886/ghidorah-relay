@@ -6,11 +6,13 @@ explains the rest."""
 
 import dataclasses
 import json
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 
 from accountkit import new_account
 from jobkit import key as new_key
+from patchright.sync_api import Error as PlaywrightError
 from patchright.sync_api import expect
 from pixel_lane7 import use_the_boards_models
 from pixel_manifest import TIMEOUT_MS, Entry
@@ -196,6 +198,7 @@ ANSWER_BODY = {"error": {"code": "dola.content_refused", "message": "Dola refuse
 
 
 def logs_seed(db, live):
+    board_user(live)
     labels = ("Shop A", "Shop B", "Partner B", "Partner C")
     keys = dict(zip(labels, [new_key(db, wallets=WALLETS) for _ in labels], strict=True))
     for label, key_id in keys.items():
@@ -219,22 +222,55 @@ def logs_seed(db, live):
     return {"db": db}
 
 
+# The boards' list total (4,812, so 97 pages of 50) and yesterday's day total (4,761) have no rows behind them: the page
+# holds 12 rows, which 4,812 rows could never give a first page of 50. As the Jobs band (pixel_jobs.canvas_band), the
+# list answer of the boards' window is served with the database's rows and those two figures; nothing else changes.
+LOGS_TOTAL, YESTERDAY_LOGS = 4812, 4761
+
+
+def canvas_totals(page, live, data) -> None:
+    """Before the app loads: the list answer of the first page carries the boards' total and yesterday's total."""
+    def answer(route):
+        try:
+            got = route.fetch()
+            body = got.json()
+            if "offset=0" in route.request.url and body.get("total") == len(LOG_ROWS):
+                body["total"] = LOGS_TOTAL
+                body.setdefault("day_totals", {})["2026-10-14"] = YESTERDAY_LOGS
+            route.fulfill(response=got, json=body)
+        except PlaywrightError:         # the page closed while the answer was on its way
+            pass
+
+    page.route(re.compile(r"/admin/logs\?"), answer)
+
+
+# The boards draw the two dates set, nothing focused or hovered, the phone's row of filters at its start, and the tab
+# strip at its start: the app scrolls the current tab into view on a phone (DESIGN 10, which no board can draw), and
+# whether it has by the time of the photo depends on when the fonts arrive.
+AT_REST_JS = """() => { document.activeElement?.blur();
+    document.querySelectorAll('form[role=search] *, nav[aria-label=Main]').forEach((el) => { el.scrollLeft = 0; }); }"""
+
+
 def logs_filters(page, live, data) -> None:
     page.locator('input[aria-label="From"]').fill("2026-10-14")
     page.locator('input[aria-label="To"]').fill("2026-10-15")
     expect(page.get_by_text("Today · 15 Oct")).to_be_visible(timeout=TIMEOUT_MS)
+    page.evaluate(AT_REST_JS, isolated_context=False)
+    page.mouse.move(0, 0)
 
 
 def logs_drawer(page, live, data) -> None:
     logs_filters(page, live, data)
     page.get_by_role("button", name="Open details of request").nth(4).click()      # the 422 of 20:33:48
     expect(page.get_by_test_id("request-drawer")).to_be_visible(timeout=TIMEOUT_MS)
+    page.mouse.move(0, 0)
 
 
 def logs_menu(page, live, data) -> None:
     logs_filters(page, live, data)
     page.get_by_role("button", name="More actions").click()                         # P-Logs draws the menu open
     expect(page.get_by_role("menuitem", name="Clear logs")).to_be_visible(timeout=TIMEOUT_MS)
+    page.mouse.move(0, 0)
 
 
 # ---- alerts ----------------------------------------------------------------------------------------------------------
@@ -324,10 +360,11 @@ KLA = [
     Entry("T-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout, user=BOARD_USER),
     Entry("P-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout, user=BOARD_USER),
     Entry("B-KeyForm", "#/keys", seed=keys_seed, now=NOW, drive=keys_edit, user=BOARD_USER),
-    Entry("B-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_filters),
-    Entry("T-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_filters),
-    Entry("P-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_menu),
-    Entry("B-LogDetail", "#/logs", seed=logs_seed, now=NOW, drive=logs_drawer),
+    Entry("B-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_filters, prepare=canvas_totals, user=BOARD_USER),
+    Entry("T-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_filters, prepare=canvas_totals, user=BOARD_USER),
+    Entry("P-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_menu, prepare=canvas_totals, user=BOARD_USER),
+    Entry("B-LogDetail", "#/logs", seed=logs_seed, now=NOW, drive=logs_drawer, prepare=canvas_totals,
+          user=BOARD_USER),
     Entry("B-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_detail, user=BOARD_USER),
     Entry("T-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_detail, user=BOARD_USER),
     Entry("P-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_detail, user=BOARD_USER),
