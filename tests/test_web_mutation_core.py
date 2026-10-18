@@ -486,6 +486,9 @@ def test_the_breakpoint_composable():
           "--el-button-hover-bg-color: var(--rl-focus);",
           expect=BRAND_COLOURS + "the primary is the brand purple in both themes, hover #6d28d9, "
                                  "white text on a solid button")
+@mutation(THEME_CSS, "  font: 14px/20px var(--rl-font);\n}",
+          "  font: 14px/20px var(--rl-font);\n  -webkit-font-smoothing: antialiased;\n}",
+          expect=FONTS + "are drawn as the canvas draws them")
 @mutation(f"{SRC}/main.ts", "be-vietnam-pro/latin-500.css", "be-vietnam-pro/latin-300.css",
           expect=FONTS + "load the latin and vietnamese subsets of the weights the design uses, and nothing else")
 @mutation(f"{SRC}/components/layout/BrandLogo.vue", 'alt="Ghidorah"', 'alt="Relay"',

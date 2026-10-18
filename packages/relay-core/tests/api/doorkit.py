@@ -97,11 +97,11 @@ def finish_done(db, job_id, n: int = 1) -> list[str]:
     return tokens
 
 
-async def finish_failed(db, job_id, code: str = "render.deadline", detail: str = "") -> None:
+async def finish_failed(db, job_id, code: str = "render.deadline", detail: str = "", expect=("queued",)) -> None:
     """End a job as failed through the engine's own function (status, error, refund in one transaction)."""
     p = await open_pool(db.worker_dsn, max_size=2)
     try:
-        assert await store.fail_job(p, job_id, expect=["queued"], code=code, detail=detail, pools=POOLS)
+        assert await store.fail_job(p, job_id, expect=list(expect), code=code, detail=detail, pools=POOLS)
     finally:
         await p.close()
 
