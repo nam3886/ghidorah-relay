@@ -161,6 +161,39 @@ def test_the_detail_shows_the_redacted_request_and_unknown_rows_are_404(db):
     assert ghost.status_code == 404 and huge.status_code == 404
 
 
+LIST_PREFIX = ('k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "\n            "j.title, l.duration_ms, '
+               'l.error_code " + _FROM')
+LIST_NO_PREFIX = ('NULL, l.provider, l.route, l.status_code, l.job_id, "\n            "j.title, l.duration_ms, '
+                  'l.error_code " + _FROM')
+DETAIL_PREFIX = ('k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "\n            "j.title, l.duration_ms, '
+                 "l.error_code, l.body")
+DETAIL_NO_PREFIX = ('NULL, l.provider, l.route, l.status_code, l.job_id, "\n            "j.title, l.duration_ms, '
+                    "l.error_code, l.body")
+
+
+@mutation(ROUTES, LIST_PREFIX, LIST_NO_PREFIX, expect="the list names")
+@mutation(ROUTES, DETAIL_PREFIX, DETAIL_NO_PREFIX, expect="the detail names")
+def test_a_row_carries_its_key_prefix_beside_the_label_and_null_without_a_key(db):
+    named, bare = key(db), key(db)
+    db.run("UPDATE api_keys SET label = 'Golden key' WHERE id = %s", named)
+    prefix = {k: db.one("SELECT key_prefix FROM api_keys WHERE id = %s", k)[0] for k in (named, bare)}
+    rows = {log(db, named): prefix[named], log(db, bare): prefix[bare], log(db, None, status=404): None}
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        return await get(env), [await env.client.get("/admin/logs/%d" % row, headers=h) for row in rows]
+
+    listed, details = run_app(db, scenario)
+    check = Soft()
+    by_id = {int(i["id"]): i for i in listed.json()["items"]}
+    check(all(p for p in prefix.values()), "every test key has a prefix")
+    check({row: by_id[row]["key_prefix"] for row in rows} == rows,
+          "the list names each row's key by its prefix too, and a row without a key has none")
+    check({int(d.json()["id"]): d.json()["key_prefix"] for d in details} == rows,
+          "the detail names its key by its prefix too, and a row without a key has none")
+    check.done()
+
+
 @mutation(ROUTES, CLEAR, CLEAR_NOTHING, expect="cleared")
 def test_clear_removes_only_the_log_rows_and_keeps_jobs_the_ledger_and_the_audit(db):
     k = key(db)
@@ -301,9 +334,10 @@ def test_logs_without_tz_have_no_day_totals_and_a_bad_tz_is_refused(db):
     k = key(db)
     db.run("UPDATE api_keys SET label = 'Golden key' WHERE id = %s", k)
     row = log(db, k)
+    prefix = db.one("SELECT key_prefix FROM api_keys WHERE id = %s", k)[0]
     # the answer a client without `tz` has always got, byte for byte (key order and compact separators included)
     golden = {"items": [{
-        "id": str(row), "key_id": str(k), "key_label": "Golden key", "provider": "fake",
+        "id": str(row), "key_id": str(k), "key_label": "Golden key", "key_prefix": prefix, "provider": "fake",
         "route": "/v1/video/generations", "status_code": 200, "job_id": None, "job_title": None,
         "duration_ms": 7, "error_code": None, "at_ms": ms_of(T0.replace(" ", "T"))}], "total": 1}
 

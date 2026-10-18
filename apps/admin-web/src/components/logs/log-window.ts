@@ -1,6 +1,7 @@
 // The date window of the Request logs: a date field is a day, and the window is [that day's midnight, the next day's
 // midnight) in the viewer's own time zone, sent as epoch milliseconds. The server reads `until` as exclusive.
-import type { LogQuery, LogStatus } from "@/api/logs";
+import type { LogQuery, LogRow, LogStatus } from "@/api/logs";
+import { keyName } from "@/components/jobs/job-text";
 
 export const PAGE_SIZE = 50;
 export const LOG_STATUSES: readonly LogStatus[] = ["all", "ok", "error", "pre_job"];
@@ -31,6 +32,10 @@ export function dateClock(ms: number | null | undefined): string {
   const d = new Date(ms);
   return `${two(d.getDate())}/${two(d.getMonth() + 1)} ${clockTime(ms)}`;
 }
+
+// A row's key as Jobs names it: its label, else its prefix; a dash for a row with no key.
+export const logKey = (row: Pick<LogRow, "key_id" | "key_label" | "key_prefix">): string =>
+  row.key_id ? keyName({ id: row.key_id, label: row.key_label, prefix: row.key_prefix }) : "—";
 
 // The status of a request in words of the row tint: only a server error fills the row.
 export const isServerError = (code: number): boolean => code >= 500;

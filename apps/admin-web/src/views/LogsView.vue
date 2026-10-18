@@ -12,6 +12,7 @@ import {
   dayNote,
   isLogStatus,
   isServerError,
+  logKey,
   logQuery,
   PAGE_SIZE,
   thousands,
@@ -296,7 +297,7 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
           ><span class="l-muted">{{ row.provider || "—" }}</span></template
         >
         <template #cell-key="{ row }"
-          ><span class="l-key">{{ row.key_label || "—" }}</span></template
+          ><span class="l-key">{{ logKey(row) }}</span></template
         >
         <template #cell-job="{ row }">
           <div class="l-job-cell">
@@ -350,7 +351,7 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
             </div>
             <div class="p-req__meta">
               <span class="p-req__when"
-                ><span class="kla-mono">{{ clockTime(row.at_ms) }}</span> · {{ row.key_label || "—" }}</span
+                ><span class="kla-mono">{{ clockTime(row.at_ms) }}</span> · {{ logKey(row) }}</span
               >
               <span class="p-req__dur kla-mono">{{ thousands(row.duration_ms) }} ms</span>
             </div>

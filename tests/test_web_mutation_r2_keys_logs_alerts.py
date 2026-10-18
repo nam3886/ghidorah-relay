@@ -720,6 +720,16 @@ def test_the_logs_list_words_its_failure_and_its_empty_list_as_drawn():
     vitest(LOGS_VIEW_SPEC)
 
 
+# ---- Request logs: a key with no label is named by its prefix, as Jobs names it ------------------------------------
+@mutation(SRC + "/components/logs/log-window.ts", "prefix: row.key_prefix", "prefix: null",
+          expect=LOGS_LIST + "the Key cell names a key by its label, else by its prefix")
+@mutation(LOG_DRAWER, "<dd>{{ logKey(log) }}</dd>", '<dd>{{ log.key_label || "—" }}</dd>',
+          expect=LOGS_DETAIL + "names a key with no label by its prefix")
+@pytest.mark.web_unit
+def test_a_log_row_names_a_key_with_no_label_by_its_prefix():
+    vitest(LOGS_VIEW_SPEC)
+
+
 # ---- Alerts (page-alerts round): the group names, the live words and the phone order, as the canvas draws them ----
 TITLE = f"FAILED {ALERTS_MODEL_SPEC} > alertTitle (a group's name on the Alerts page) > "
 WORD = f"FAILED {ALERTS_MODEL_SPEC} > liveWord (the word before a live condition) > "

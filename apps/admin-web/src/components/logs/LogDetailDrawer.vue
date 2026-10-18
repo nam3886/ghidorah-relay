@@ -7,7 +7,7 @@ import { IconCopy } from "@/components/shared/icons";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { notify } from "@/lib/notify";
 import "./lane-controls.css";
-import { dateClock, thousands } from "./log-window";
+import { dateClock, logKey, thousands } from "./log-window";
 
 // One logged request in the right-hand drawer: the facts as a plain ledger, then the redacted request and the answer,
 // each with Copy. The job id is a link: it asks the view to close this drawer and open the job. Everything the server
@@ -80,7 +80,7 @@ async function copy(which: "request" | "answer"): Promise<void> {
         <div class="rd__row">
           <dt>Key</dt>
           <span class="rd__leader" aria-hidden="true" />
-          <dd>{{ log.key_label || "—" }}</dd>
+          <dd>{{ logKey(log) }}</dd>
         </div>
         <div class="rd__row">
           <dt>Job</dt>

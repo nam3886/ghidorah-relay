@@ -24,6 +24,7 @@ const row = (over: Partial<LogRow> = {}): LogRow => ({
   at_ms: 1,
   key_id: "k",
   key_label: "shop",
+  key_prefix: "rk-shop0001",
   provider: "vibes",
   route: "POST /v1/video/generations",
   status_code: 200,
@@ -245,6 +246,19 @@ describe("the list", () => {
     expect(cells.find(".l-route").attributes("title")).toBe("POST /v1/video/generations");
     expect(cells.find(".l-job-link").attributes("title")).toBe("a title");
     expect(cells.find(".l-err").attributes("title")).toBe("dola.content_refused_by_review");
+  });
+
+  it("the Key cell names a key by its label, else by its prefix as Jobs does; a dash only when there is no key", async () => {
+    list.mockResolvedValue({
+      items: [
+        row({ id: "l1" }),
+        row({ id: "l2", key_label: "", key_prefix: "rk-q7mfz2kd" }),
+        row({ id: "l3", key_id: null, key_label: null, key_prefix: null }),
+      ],
+      total: 3,
+    });
+    const { w } = await open();
+    expect(w.findAll("tbody .l-key").map((k) => k.text())).toEqual(["shop", "rk-q7mfz2kd", "—"]);
   });
 
   it("a row with no job says so", async () => {
@@ -525,6 +539,18 @@ describe("the detail", () => {
     expect(dialog.textContent).toContain(PLANTED);
     expect(dialog.querySelector("img")).toBeNull();
     expect(dialog.textContent).toContain('"ok": true');
+  });
+
+  it("names a key with no label by its prefix", async () => {
+    vi.mocked(logs.getLog).mockResolvedValue(detail({ key_label: "", key_prefix: "rk-q7mfz2kd" }));
+    const { w } = await open();
+    await w.find('tbody button[aria-label="Open details of request l1"]').trigger("click");
+    await settle();
+    const drawer = document.body.querySelector('[data-testid="request-drawer"]')!;
+    const key = [...drawer.querySelectorAll('[data-testid="request-facts"] .rd__row')].find(
+      (r) => r.querySelector("dt")!.textContent === "Key",
+    );
+    expect(key!.querySelector("dd")!.textContent!.trim()).toBe("rk-q7mfz2kd");
   });
 
   it("an answer that was not kept says so", async () => {

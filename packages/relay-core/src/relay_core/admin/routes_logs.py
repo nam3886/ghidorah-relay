@@ -24,8 +24,8 @@ router = APIRouter()
 
 MAX_QUERY = 200
 MAX_MS = 253402300799999      # 9999-12-31T23:59:59.999Z, the last moment a datetime holds
-_COLUMNS = ("id", "at", "key_id", "key_label", "provider", "route", "status_code", "job_id", "job_title",
-            "duration_ms", "error_code")
+_COLUMNS = ("id", "at", "key_id", "key_label", "key_prefix", "provider", "route", "status_code", "job_id",
+            "job_title", "duration_ms", "error_code")
 _FROM = (
     "FROM request_logs l LEFT JOIN api_keys k ON k.id = l.key_id LEFT JOIN jobs j ON j.id = l.job_id "
     "WHERE (%(provider)s::text IS NULL OR l.provider = %(provider)s) "
@@ -83,8 +83,9 @@ async def list_logs(provider: str | None = None, status: Literal["all", "ok", "e
     async with tx(pool) as conn:
         total = (await (await conn.execute("SELECT count(*) " + _FROM, params)).fetchone())[0]
         rows = await (await conn.execute(
-            "SELECT l.id, l.at, l.key_id, k.label, l.provider, l.route, l.status_code, l.job_id, j.title, "
-            "l.duration_ms, l.error_code " + _FROM + " ORDER BY l.at DESC, l.id DESC LIMIT %(limit)s OFFSET %(offset)s",
+            "SELECT l.id, l.at, l.key_id, k.label, k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "
+            "j.title, l.duration_ms, l.error_code " + _FROM
+            + " ORDER BY l.at DESC, l.id DESC LIMIT %(limit)s OFFSET %(offset)s",
             {**params, "limit": limit, "offset": offset})).fetchall()
         if zone is not None and rows:
             days = [r[1].astimezone(zone).date() for r in rows]
@@ -104,13 +105,13 @@ async def log_detail(log_id: int, pool: AsyncConnectionPool = Depends(get_pool))
         raise ApiError("resource.not_found")
     async with tx(pool) as conn:
         row = await (await conn.execute(
-            "SELECT l.id, l.at, l.key_id, k.label, l.provider, l.route, l.status_code, l.job_id, j.title, "
-            "l.duration_ms, l.error_code, l.body_redacted, l.response_redacted FROM request_logs l "
+            "SELECT l.id, l.at, l.key_id, k.label, k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "
+            "j.title, l.duration_ms, l.error_code, l.body_redacted, l.response_redacted FROM request_logs l "
             "LEFT JOIN api_keys k ON k.id = l.key_id LEFT JOIN jobs j ON j.id = l.job_id WHERE l.id = %s",
             (log_id,))).fetchone()
     if row is None:
         raise ApiError("resource.not_found")
-    return {**_view(row[:11]), "request": row[11], "response": row[12]}
+    return {**_view(row[:12]), "request": row[12], "response": row[13]}
 
 
 @router.delete("/logs")

@@ -8,6 +8,8 @@ export interface LogRow {
   at_ms: number | null;
   key_id: string | null;
   key_label: string | null;
+  // the key's prefix, null when the row has no key
+  key_prefix: string | null;
   provider: string | null;
   route: string;
   status_code: number;
