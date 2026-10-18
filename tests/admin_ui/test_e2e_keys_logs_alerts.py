@@ -31,9 +31,16 @@ def rows(page):
     return page.locator(".el-table__body tbody tr:not(.is-day)")
 
 
-def pick(page, select_label, option):
-    """Choose an option of a native select by its label."""
-    page.get_by_label(select_label, exact=True).select_option(label=option)
+def logs_filter(page, label):
+    """A Request logs filter (FilterSelect's field: a combobox, its list opened in the body)."""
+    return page.locator('section[aria-label="Request log list"]').get_by_role("combobox", name=label, exact=True)
+
+
+def pick(page, label, option):
+    """Choose an option of a Request logs filter; the field then shows it."""
+    logs_filter(page, label).click()
+    page.get_by_role("option", name=option, exact=True).click()
+    expect(logs_filter(page, label).locator(".is-current")).to_have_text(option)
 
 
 # ---- API keys ------------------------------------------------------------------------------------------------------
@@ -287,7 +294,7 @@ def test_an_empty_filtered_list_offers_clear_filters_and_a_failed_load_says_what
     expect(page.get_by_text("No requests match these filters.")).to_be_visible()
     page.get_by_role("button", name="Clear filters").click()
     expect(rows(page)).to_have_count(1)
-    expect(page.get_by_label("Status", exact=True)).to_have_value("all")
+    expect(logs_filter(page, "Status").locator(".is-current")).to_have_text("All")
     page.route(re.compile(r"/admin/logs\?"), lambda route: route.fulfill(
         status=502, content_type="application/json",
         body='{"error": {"code": "upstream.bad_gateway", "message": "bad gateway"}}'))

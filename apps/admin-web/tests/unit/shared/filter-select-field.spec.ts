@@ -59,7 +59,7 @@ describe("the field variant of FilterSelect", () => {
     expect(w.find("select").exists()).toBe(false);
   });
 
-  it("its value box is as wide as the longest option on the nearest whole pixel, as a select is", async () => {
+  it("its value box is as wide as the longest option on a whole pixel, as a select is", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
       const width = this.classList.contains("filter-field__value") ? 94.3 : 0;
       return { top: 0, bottom: 0, left: 0, right: width, width, height: 0, x: 0, y: 0 } as DOMRect;
@@ -139,5 +139,16 @@ describe("the field variant of FilterSelect", () => {
     expect(wrapper.find(".filter-select__label").text()).toBe("Status");
     expect(wrapper.find(".filter-select__value").text()).toBe("Open");
     expect(wrapper.find("label").exists()).toBe(false);
+  });
+
+  it("takes the floor of the measured width, as Chrome sizes a select: 117.6 is 117 (B-Logs' Status)", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const width = this.classList.contains("filter-field__value") ? 117.6 : 0;
+      return { top: 0, bottom: 0, left: 0, right: width, width, height: 0, x: 0, y: 0 } as DOMRect;
+    });
+    const w = field();
+    await nextTick();
+    await nextTick();
+    expect((w.find(".filter-field__value").element as HTMLElement).style.width).toBe("117px");
   });
 });

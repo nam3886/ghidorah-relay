@@ -431,8 +431,11 @@ ALERTS_VIEW = f"{SRC}/views/AlertsView.vue"
           expect=FIELD + "draws its label above a box that holds every option")
 @mutation(FILTER, '<path d="M2 2l4 4 4-4"', '<path d="M2 4l4 4 4-4"',
           expect=FIELD + "draws its label above a box that holds every option")
-@mutation(FILTER, "valueWidth.value = Math.round(width);", "valueWidth.value = width;",
-          expect=FIELD + "its value box is as wide as the longest option on the nearest whole pixel")
+@mutation(FILTER, "valueWidth.value = Math.floor(width);", "valueWidth.value = width;",
+          expect=FIELD + "its value box is as wide as the longest option on a whole pixel")
+# Request logs: Chrome takes the floor of a select's width, not the nearest pixel
+@mutation(FILTER, "valueWidth.value = Math.floor(width);", "valueWidth.value = Math.round(width);",
+          expect=FIELD + "takes the floor of the measured width, as Chrome sizes a select")
 @mutation(FILTER, '"is-tall": isTablet.value', '"is-tall": false', expect=FIELD + "is 36 high on a tablet")
 @mutation(FILTER, '"is-chip": isPhone.value', '"is-chip": false', expect=FIELD + "is 36 high on a tablet")
 @mutation(FILTER, "disabled: props.disabled || undefined,", "disabled: undefined,",

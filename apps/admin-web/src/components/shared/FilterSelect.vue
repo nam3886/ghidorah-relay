@@ -208,10 +208,10 @@ function onClick(): void {
 const listClass = computed(() => (isPhone.value ? "is-phone" : isTablet.value ? "is-tablet" : "is-desktop"));
 onBeforeUnmount(close);
 
-// A select is as wide as its longest option on a whole pixel (Chrome measures the option text its own way and lands on
-// the nearest pixel of what the page measures: 95.2 is 95 on B-Alerts, 88.3 is 88), so the control beside it starts on
-// a whole pixel too: the field's value box takes that width. Measured without it, once the fonts are in and whenever
-// the options change.
+// A select is as wide as its longest option on a whole pixel: Chrome takes the floor of what the page measures (95.2
+// is 95 on B-Alerts, 88.3 is 88, and 117.6 is 117 on B-Logs, the case that tells the floor from the nearest pixel), so
+// the control beside it starts on a whole pixel too: the field's value box takes that width. Measured without it,
+// once the fonts are in and whenever the options change.
 const valueBox = ref<HTMLElement>();
 const valueWidth = ref<number>();
 async function sizeValue(): Promise<void> {
@@ -219,7 +219,7 @@ async function sizeValue(): Promise<void> {
   valueWidth.value = undefined;
   await nextTick();
   const width = valueBox.value?.getBoundingClientRect().width;
-  if (width) valueWidth.value = Math.round(width);
+  if (width) valueWidth.value = Math.floor(width);
 }
 onMounted(() => {
   void sizeValue();

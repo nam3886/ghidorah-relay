@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { onBeforeUnmount } from "vue";
+import type { LogStatus } from "@/api/logs";
+import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { IconSearch } from "@/components/shared/icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import "./lane-controls.css";
 import { useLogsFilters } from "./logs-filters";
 import { STATUS_OPTIONS } from "./log-window";
 
-// The filters of the Request logs, drawn as the canvas draws them: native selects and date fields. A choice in a
-// select or a date field asks for a new search at once; the search text goes with the Search button or Enter (on a phone
-// there is no button, so the text goes after a short pause in typing).
+// The filters of the Request logs, drawn as the canvas draws them: the Status select (FilterSelect's field variant, our
+// own control drawn as the canvas's select) and native date fields. A choice in Status or a date field asks for a new
+// search at once; the search text goes with the Search button or Enter (on a phone there is no button, so the text
+// goes after a short pause in typing).
 const emit = defineEmits<{ search: [] }>();
 const filters = useLogsFilters();
 const { isPhone, isTablet } = useBreakpoint();
@@ -16,6 +19,15 @@ const { isPhone, isTablet } = useBreakpoint();
 const TYPING_PAUSE_MS = 350;
 let timer: ReturnType<typeof setTimeout> | undefined;
 onBeforeUnmount(() => clearTimeout(timer));
+
+// the field's options (a list of its own: the shared words are read-only)
+const STATUS_CHOICES = STATUS_OPTIONS.map((o) => ({ ...o }));
+
+// a status choice searches at once
+function pickStatus(value: string | number): void {
+  filters.status = value as LogStatus;
+  emit("search");
+}
 
 function typed(): void {
   if (!isPhone.value) return;
@@ -48,21 +60,15 @@ function typed(): void {
     </div>
 
     <div class="lf__row">
-      <component :is="isPhone ? 'label' : 'div'" class="lf__status" :class="isPhone ? 'kla-chip-field' : 'kla-field'">
-        <component :is="isPhone ? 'span' : 'label'" :class="isPhone ? '' : 'kla-field__label'" for="logs-status"
-          >Status</component
-        >
-        <select
-          id="logs-status"
-          v-model="filters.status"
-          class="kla-control"
-          aria-label="Status"
-          title="The request’s own outcome. The Jobs tab filters by job status."
-          @change="emit('search')"
-        >
-          <option v-for="o in STATUS_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-        </select>
-      </component>
+      <FilterSelect
+        class="lf__status"
+        variant="field"
+        label="Status"
+        title="The request’s own outcome. The Jobs tab filters by job status."
+        :model-value="filters.status"
+        :options="STATUS_CHOICES"
+        @update:model-value="pickStatus"
+      />
       <component :is="isPhone ? 'label' : 'div'" class="lf__date" :class="isPhone ? 'kla-chip-field' : 'kla-field'">
         <component :is="isPhone ? 'span' : 'label'" :class="isPhone ? '' : 'kla-field__label'" for="logs-from"
           >From</component
@@ -156,11 +162,15 @@ function typed(): void {
 }
 .lf--tablet .lf__status {
   flex: 1.4;
+  min-width: 0;
+}
+/* the drawn select fills its share of the row */
+.lf--tablet .lf__status :deep(.filter-select.is-field) {
+  width: 100%;
 }
 .lf--tablet .lf__date {
   flex: 1;
 }
-.lf--tablet .lf__status .kla-control,
 .lf--tablet .lf__date .kla-control {
   width: 100%;
   height: 36px;
@@ -196,7 +206,7 @@ function typed(): void {
   padding: 0 12px;
   overflow-x: auto;
 }
-/* the chip's own select and date field: the browser's padding and corners, as drawn */
+/* the chip's own date field: the browser's padding and corners, as drawn */
 .lf--phone .kla-chip-field .kla-control {
   padding: revert;
   border-radius: revert;

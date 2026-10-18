@@ -56,6 +56,20 @@ async function open(path = "/logs") {
 const button = (w: VueWrapper, text: string) =>
   text === "Next" ? w.find("button.btn-next") : w.findAll("button").find((b) => b.text() === text)!;
 const lastQuery = () => list.mock.calls.at(-1)![0];
+// The Status field (FilterSelect's field variant): a combobox whose list opens in the body.
+const statusField = (w: VueWrapper) => w.find('.lf__status [role="combobox"]');
+const statusShown = (w: VueWrapper) => w.find(".lf__status .is-current").text();
+async function statusWords(w: VueWrapper): Promise<string[]> {
+  await statusField(w).trigger("click");
+  const words = [...document.querySelectorAll('[role="option"]')].map((o) => o.textContent?.trim() ?? "");
+  await statusField(w).trigger("click");
+  return words;
+}
+async function chooseStatus(w: VueWrapper, word: string): Promise<void> {
+  await statusField(w).trigger("click");
+  [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.trim() === word)!.click();
+  await settle();
+}
 // The two native day fields, From then To.
 const picker = (w: VueWrapper, which: "From" | "To") => w.find<HTMLInputElement>(`input[aria-label="${which}"]`);
 // What the operator does with a day field: types (or clears) a day, and the field reports the change.
@@ -194,7 +208,7 @@ describe("the list", () => {
     expect(header()).toMatch(/· 4,761 requests shown$/);
     let answer!: (v: Awaited<ReturnType<typeof logs.listLogs>>) => void;
     list.mockReturnValueOnce(new Promise((r) => (answer = r)));
-    await w.find<HTMLSelectElement>('select[aria-label="Status"]').setValue("error");
+    await chooseStatus(w, "Errors");
     await settle();
     expect(header()).toMatch(/· 2 requests shown$/);
     expect(header()).not.toContain("4,761");
@@ -272,7 +286,7 @@ describe("the list", () => {
     const { w } = await open();
     list.mockResolvedValue({ items: [], total: 0 });
     // a status alone is a filter
-    await w.find<HTMLSelectElement>('select[aria-label="Status"]').setValue("error");
+    await chooseStatus(w, "Errors");
     await settle();
     expect(w.find(".data-table__empty").text()).toContain("No requests match these filters.");
     expect(w.find(".logs-clear-filters").exists()).toBe(true);
@@ -283,7 +297,7 @@ describe("the list", () => {
     await settle();
     expect(lastQuery()).toEqual({ limit: 50, offset: 0, status: "all", tz: viewerZone() });
     expect(w.find<HTMLInputElement>('input[aria-label="Search"]').element.value).toBe("");
-    expect(w.find<HTMLSelectElement>('select[aria-label="Status"]').element.value).toBe("all");
+    expect(statusShown(w)).toBe("All");
     expect(picker(w, "From").element.value).toBe("");
     expect(w.findAll("tbody tr:not(.is-day)")).toHaveLength(1);
   });
@@ -396,15 +410,10 @@ describe("paging and refresh", () => {
     const { w } = await open();
     await button(w, "Next").trigger("click");
     await settle();
-    await w.find<HTMLSelectElement>('select[aria-label="Status"]').setValue("error");
+    await chooseStatus(w, "Errors");
     await settle();
     expect(lastQuery()).toMatchObject({ status: "error", offset: 0 });
-    expect(w.findAll('select[aria-label="Status"] option').map((o) => o.text())).toEqual([
-      "All",
-      "OK below 400",
-      "Errors",
-      "Failed before a job",
-    ]);
+    expect(await statusWords(w)).toEqual(["All", "OK below 400", "Errors", "Failed before a job"]);
   });
 });
 
@@ -651,7 +660,7 @@ describe("the phone", () => {
     try {
       const { w } = await open();
       expect(w.findAll("button").some((b) => b.text() === "Search")).toBe(false);
-      await w.find<HTMLSelectElement>('select[aria-label="Status"]').setValue("error");
+      await chooseStatus(w, "Errors");
       await settle();
       expect(lastQuery().status).toBe("error");
       const calls = list.mock.calls.length;

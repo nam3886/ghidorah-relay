@@ -614,6 +614,9 @@ EMPTY_FILTERED = ("an empty list under a filter says so; Clear filters clears ev
 @mutation(LOGS, 'const PHONE_SKELETON_COLUMNS = ["time", "status", "route"];',
           'const PHONE_SKELETON_COLUMNS = ["time", "status", "route", "duration"];',
           expect=LOGS_LIST + "a phone's loading skeleton leaves the duration out")
+@mutation(LOG_FILTERS, '  filters.status = value as LogStatus;\n  emit("search");',
+          "  filters.status = value as LogStatus;",
+          expect=LOGS_PAGING + "a status choice searches at once from the first page")
 @mutation(LOGS, "  filters.reset();\n  search();", "  search();", expect=LOGS_LIST + EMPTY_FILTERED)
 @mutation(LOGS, "  filters.reset();\n  search();", "  filters.reset();", expect=LOGS_LIST + EMPTY_FILTERED)
 @pytest.mark.web_unit

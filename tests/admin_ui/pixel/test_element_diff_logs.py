@@ -25,6 +25,7 @@ from pixel_manifest import ENTRIES
 from pixel_seed import PROVIDER, WALLETS
 from test_element_diff import DESKTOP, STATES, THEMES, TIMEOUT_MS, Check
 from test_element_diff import test_jobs_matches_the_canvas_element_by_element as compare
+from test_element_diff_alerts import SELECT_MISMATCH_PCT, failed, run_check
 
 pytestmark = pytest.mark.browser
 
@@ -61,10 +62,11 @@ def failing(page, live, data):
     expect(page.locator("[data-state=error]")).to_be_visible(timeout=TIMEOUT_MS)
 
 
+WITH_STATUS_FIELD = ("B-Logs", "T-Logs", "P-Logs")
 CHECKS = [
     Check("B-Logs", LOGS, data=BOARD_DATA),
     Check("T-Logs", replace(LOGS, board="T-Logs"), data=BOARD_DATA),
-    Check("P-Logs", BOARD["P-Logs"], data=BOARD_DATA + ROW_NAMES, popup=MORE_MENU),
+    Check("P-Logs", BOARD["P-Logs"], data=BOARD_DATA + ROW_NAMES),   # its open menu: the menu-open-390 photo
     Check("B-LogDetail", BOARD["B-LogDetail"], 'aside[role="dialog"]',
           '[data-testid="request-drawer"]', data=("Request rq_8f2174", REQUEST_BODY)),
     Check("state-clear-confirm", replace(LOGS, board=STATES, drive=clear_confirm), '[aria-labelledby="cfClr"]',
@@ -78,7 +80,16 @@ CHECKS = [
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("check", CHECKS, ids=lambda c: c.name)
 def test_logs_matches_the_canvas_element_by_element(app, db, live, renderer, diff_page, run_dir, check, theme):
-    compare(app, db, live, renderer, diff_page, run_dir, check, theme)
+    if check.name not in WITH_STATUS_FIELD:
+        compare(app, db, live, renderer, diff_page, run_dir, check, theme)
+        return
+    # The boards draw Status as a native select; the app's is FilterSelect's field: compared as page-alerts compares
+    # its fields (the box in the tables, what the field draws inside it as pixels of the select's crop).
+    fields = []
+    bad = failed(run_check(app, db, live, renderer, diff_page, run_dir, check, theme, fields=fields))
+    assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))
+    assert len(fields) == 1, "the Status field against the native select: %r" % fields
+    assert fields[0][0] <= SELECT_MISMATCH_PCT, "the Status field draws apart from the native select: %r" % fields
 
 
 # ---- states the canvas does not draw: photographed for the side-by-side with their nearest drawn pattern ------------
@@ -128,6 +139,14 @@ def _copied(page):
 def _menu(page):
     page.get_by_role("button", name="More actions").click()
     expect(page.get_by_role("menuitem", name="Clear logs")).to_be_visible()
+    page.mouse.move(0, 0)
+
+
+def _status_list(page):
+    """The Status field open: the drawn listbox, as on every filter."""
+    page.get_by_role("combobox", name="Status", exact=True).click()
+    expect(page.get_by_role("listbox")).to_be_visible()
+    page.mouse.move(0, 0)
 
 
 def _cleared(page):
@@ -172,7 +191,8 @@ UNDRAWN = [(name, act, width) for name, act in (("loading", _held), ("no-results
 UNDRAWN += [("hover-row", _hover_row, 1440), ("hover-clear", _hover_clear, 1440), ("hover-open", _hover_open, 1440),
             ("focus-search", _focus_search, 1440), ("focus-date", _focus_date, 1440),
             ("drawer-hover-copy", _drawer_hover_copy, 1440),
-            ("drawer-copied", _copied, 1440), ("cleared", _cleared, 1440), ("menu-open", _menu, 768)]
+            ("drawer-copied", _copied, 1440), ("cleared", _cleared, 1440), ("menu-open", _menu, 768),
+            ("menu-open", _menu, 390), ("status-list", _status_list, 1440), ("status-list", _status_list, 390)]
 
 
 # ---- data shaped like the live box ---------------------------------------------------------------------------------
@@ -283,3 +303,5 @@ def test_logs_undrawn_states_are_photographed(app, db, live, run_dir, state, act
         (out / ("undrawn-%s-%d-%s.png" % (state, width, theme))).write_bytes(shoot(page))
         if page.get_by_role("menu").count():
             assert popup_place(page, *MORE_MENU) is None
+        if page.get_by_role("listbox").count():
+            assert popup_place(page, '[role="listbox"]', ".lf__status") is None
