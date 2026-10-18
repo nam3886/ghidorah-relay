@@ -32,6 +32,7 @@ import {
   emptyForm,
   type FormField,
   optionLabel,
+  optionValue,
   readForm,
   saveForm,
 } from "@/lib/test-form";
@@ -75,10 +76,8 @@ const groups = computed(() => {
     .map((kind) => ({ kind, models: byKind.get(kind) ?? [] }));
 });
 const durations = computed(() => durationsOf(chosen.value));
-const infoLine = computed(() => {
-  const m = chosen.value;
-  return m ? `${m.kind} · ${durationsPhrase(durations.value) || m.owned_by}` : "";
-});
+// The heading's second line: `<kind> · ` then the lengths the model takes ("5, 10, 20, 25 or 30 s"), or its owner.
+const infoTail = computed(() => durationsPhrase(durations.value) || chosen.value?.owned_by || "");
 const wallet = computed(() => walletRows(points.value));
 // A saved value the list no longer has stays selectable, so choosing a model never silently changes the form.
 const withSaved = (list: string[], saved: string): string[] =>
@@ -98,7 +97,7 @@ async function pick(model: PublicModel): Promise<void> {
   try {
     const extras = await session.call((key) => getOptions(key, model.owned_by));
     if (!pickLatest.isCurrent(ticket)) return;
-    ratios.value = (extras.ratios ?? []).map(optionLabel).filter(Boolean);
+    ratios.value = (extras.ratios ?? []).map(optionValue).filter(Boolean);
     styles.value = (extras.styles ?? []).map(optionLabel).filter(Boolean);
     templates.value = extras.templates ?? [];
   } catch {
@@ -243,11 +242,16 @@ onMounted(async () => {
     <div class="grid">
       <section class="models" aria-label="Models" data-testid="test-models">
         <p v-if="!groups.length" class="models__empty" data-testid="test-models-empty">No models loaded.</p>
-        <div class="models__scroll">
+        <!-- the phone draws one row of every model, the scroller itself is the group -->
+        <div
+          class="models__scroll"
+          :role="isPhone && groups.length ? 'group' : undefined"
+          :aria-label="isPhone && groups.length ? 'Models' : undefined"
+        >
           <div
             v-for="g in groups"
             :key="g.kind"
-            role="group"
+            :role="isPhone ? undefined : 'group'"
             :aria-label="isPhone ? undefined : `${capital(g.kind)} models`"
             class="models__group"
           >
@@ -264,10 +268,11 @@ onMounted(async () => {
             >
               <span class="model__main">
                 <span class="model__title">{{ titleOf(m) }}</span>
-                <span v-if="titleOf(m) !== m.id" class="model__id"
-                  >{{ m.id }}<span class="model__tab-owner"> · {{ m.owned_by }}</span></span
-                >
-                <span class="model__kind">{{ m.kind }} · {{ m.owned_by }}</span>
+                <!-- the tablet writes the owner on the id line, as one text -->
+                <span v-if="titleOf(m) !== m.id" class="model__id">{{
+                  isTablet ? `${m.id} · ${m.owned_by}` : m.id
+                }}</span>
+                <span class="model__kind">{{ capital(m.kind) }} · {{ m.owned_by }}</span>
               </span>
               <span class="model__owner">{{ m.owned_by }}</span>
             </button>
@@ -304,7 +309,9 @@ onMounted(async () => {
       <section class="form" aria-labelledby="test-form-title">
         <div>
           <h2 id="test-form-title">{{ chosen ? titleOf(chosen) : "Pick a model" }}</h2>
-          <p v-if="infoLine" class="form__info">{{ infoLine }}</p>
+          <p v-if="chosen" class="form__info">
+            {{ chosen.kind }} · <span class="num">{{ infoTail }}</span>
+          </p>
         </div>
         <div v-if="templates.length" class="chips" role="group" aria-label="Prompt templates">
           <button v-for="(t, i) in templates" :key="i" type="button" class="chip" @click="applyTemplate(t)">
@@ -402,7 +409,7 @@ onMounted(async () => {
             v-model="form.images"
             rows="2"
             placeholder="https://..."
-            class="control control--text control--mono"
+            class="control control--text control--mono control--refs"
             @input="persist"
           />
         </div>
@@ -468,6 +475,7 @@ onMounted(async () => {
   color: var(--rl-fg);
   font: inherit;
   font-size: 13px;
+  line-height: normal;
   cursor: pointer;
 }
 .btn:hover:not(:disabled) {
@@ -601,6 +609,7 @@ onMounted(async () => {
   background: transparent;
   color: var(--rl-fg);
   font: inherit;
+  line-height: normal;
   text-align: left;
   cursor: pointer;
 }
@@ -625,9 +634,6 @@ onMounted(async () => {
   font-family: var(--rl-mono);
   font-size: 12px;
   color: var(--rl-faint);
-}
-.model__tab-owner {
-  display: none;
 }
 .model__kind {
   display: none;
@@ -715,22 +721,31 @@ onMounted(async () => {
   margin: 2px 0 0;
   font-size: 13px;
   color: var(--rl-muted);
-  font-variant-numeric: tabular-nums;
 }
+/* A provider's template is often its whole prompt (hundreds of characters, dozens of them): one line each, ending in
+   "…" (a click puts the whole text in the prompt box), and at most three rows of chips before the block scrolls. */
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  max-height: calc(3 * var(--chip-h) + 16px);
+  overflow-y: auto;
+  --chip-h: 28px;
 }
 .chip {
-  height: 28px;
+  max-width: 240px;
+  height: var(--chip-h);
   padding: 0 12px;
+  overflow: hidden;
   border: 1px solid var(--rl-line-strong);
   border-radius: 14px;
   background: var(--rl-surface);
   color: var(--rl-fg);
   font: inherit;
   font-size: 12px;
+  line-height: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 .chip:hover {
@@ -780,6 +795,10 @@ onMounted(async () => {
   font-family: var(--rl-mono);
   font-size: 13px;
 }
+/* the reference box takes the font's own line height (the prompt and the JSON box are 20) */
+.control--refs {
+  line-height: normal;
+}
 .trio {
   display: flex;
   flex-wrap: wrap;
@@ -788,9 +807,11 @@ onMounted(async () => {
 .trio .field {
   flex: 1 1 120px;
 }
+/* a button the design gives no padding keeps the browser's own, 1 px 6 px */
 .form__generate {
   width: 100%;
   height: 40px;
+  padding: 1px 6px;
   font-size: 14px;
 }
 
@@ -799,6 +820,9 @@ onMounted(async () => {
     font-size: 24px;
     line-height: 32px;
     letter-spacing: -0.012em;
+  }
+  .test-tab__subtitle {
+    margin-top: 2px;
   }
   .key__field {
     flex: 1 1 300px;
@@ -841,16 +865,15 @@ onMounted(async () => {
     width: auto;
     min-height: 52px;
     padding: 6px 12px;
+    border-color: var(--rl-line-strong);
     white-space: nowrap;
   }
   .model__owner {
     display: none;
   }
+  /* the tablet and the phone draw the texts straight in the button */
   .model__main {
-    flex: none;
-  }
-  .model__tab-owner {
-    display: inline;
+    display: contents;
   }
   .test-tab__points-box summary {
     min-height: 28px;
@@ -862,8 +885,10 @@ onMounted(async () => {
     flex: none;
     width: 100%;
   }
+  .chips {
+    --chip-h: 32px;
+  }
   .chip {
-    height: 32px;
     border-radius: 16px;
   }
   .form__generate {
@@ -899,6 +924,7 @@ onMounted(async () => {
   .key__load {
     width: 100%;
     height: 44px;
+    padding: 1px 6px;
     font-size: 14px;
   }
   .key__more {
@@ -908,6 +934,7 @@ onMounted(async () => {
   .key__more .btn {
     flex: 1;
     height: 44px;
+    padding: 1px 6px;
     border: 1px solid var(--rl-line-strong);
     font-size: 14px;
   }
@@ -952,11 +979,19 @@ onMounted(async () => {
     width: 172px;
     min-height: 64px;
     padding: 8px 12px;
+    border-color: var(--rl-line-strong);
     border-radius: 12px;
+    background: var(--rl-surface);
+  }
+  .model__main {
+    display: contents;
   }
   .model__title {
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .model__id {
     white-space: nowrap;
   }
   .model__owner {
@@ -981,20 +1016,23 @@ onMounted(async () => {
   }
   .chips {
     flex-wrap: nowrap;
+    max-height: none;
     margin: 0 -16px;
     padding: 0 16px;
     overflow-x: auto;
+    overflow-y: hidden;
+    --chip-h: 44px;
   }
   .chip {
     flex: none;
-    height: 44px;
     padding: 0 16px;
     border-radius: 22px;
     font-size: 13px;
-    white-space: nowrap;
   }
+  /* three fields of the form, each 16 px from the next */
   .trio {
     flex-direction: column;
+    gap: 16px;
   }
   .trio .field {
     flex: none;

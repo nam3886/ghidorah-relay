@@ -492,6 +492,25 @@ def test_the_test_tab_still_works_when_localstorage_and_indexeddb_are_blocked(ap
     assert page.evaluate("sessionStorage.getItem('relay_test_key')") == api_key.raw
 
 
+def test_a_ratio_labelled_in_words_is_offered_and_sent_by_its_value(app_session, live, db):
+    """dola labels each ratio with a sentence around its value and takes only the value: the tab lists the value and
+    the request carries it."""
+    page = app_session
+    for name in live.env.registry.names():
+        live.env.registry.spec(name).extras = lambda snapshots: {
+            "ratios": [{"label": "Widescreen, for most screens (16:9)", "value": "16:9"}]}
+    open_test_tab(page, db, live)
+    page.get_by_test_id("test-model").filter(has_text="fake-video").click()
+    ratio = page.get_by_label("Ratio", exact=True)
+    expect(ratio.locator("option")).to_have_text(["Default", "16:9"])
+    ratio.select_option("16:9")
+    page.get_by_label("Prompt", exact=True).fill("a cat")
+    with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
+        page.get_by_role("button", name="Generate", exact=True).click()
+    assert sent.value.post_data_json["ratio"] == "16:9"
+    expect(page.locator(".test-result__status")).to_contain_text("Job")
+
+
 def test_generate_polls_to_a_result_draws_a_share_link_and_shows_any_other_link_as_text(app_session, live, db):
     page = app_session
     requests = []

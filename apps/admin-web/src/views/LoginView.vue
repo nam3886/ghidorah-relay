@@ -117,7 +117,7 @@ onMounted(async () => {
           {{ error }}
         </div>
 
-        <button type="submit" class="submit" :disabled="busy">{{ busy ? "Signing in..." : "Sign in" }}</button>
+        <button type="submit" class="submit" :disabled="busy">{{ busy ? "Signing in…" : "Sign in" }}</button>
       </form>
     </main>
 
@@ -262,6 +262,7 @@ onMounted(async () => {
   font: inherit;
   font-size: 14px;
   font-weight: 600;
+  line-height: normal;
   cursor: pointer;
 }
 .submit:hover:not(:disabled) {

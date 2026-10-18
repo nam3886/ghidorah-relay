@@ -504,6 +504,9 @@ LOGIN_FAILED = "FAILED tests/unit/app-shell.spec.ts > the login page > "
           expect=LOGIN_FAILED + "clears the password after a failed sign-in, from the field and from the page's state")
 @mutation(f"{SRC}/views/LoginView.vue", "    reveal.value = false;\n", "",
           expect=LOGIN_FAILED + "clears the password after a successful sign-in too")
+# page-test-login: the busy button says so in the app's own words
+@mutation(f"{SRC}/views/LoginView.vue", '"Signing in…"', '"Signing in..."',
+          expect=LOGIN_FAILED + "says Signing in… on a disabled button while the answer is on its way")
 @pytest.mark.web_unit
 def test_the_login_page_clears_the_password():
     vitest("tests/unit/app-shell.spec.ts")

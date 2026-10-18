@@ -89,8 +89,10 @@ LANE7 = [
     )
     for board in boards
 ]
+# The Test boards are signed in as the boards' user, so the top bar reads "admin" as drawn (page-test-login).
+LANE7 = [replace(e, user=BOARD_USER) if e.board.endswith("-Test") else e for e in LANE7]
 
-# ---- accounts (lane 5) ---------------------------------------------------------------------------------------------
+# ---- accounts (lane 5)---------------------------------------------------------------------------------------------
 from pixel_accounts import accounts_seed, open_edit, open_import, phone_ready  # noqa: E402
 
 ACCOUNTS_BOARDS = [

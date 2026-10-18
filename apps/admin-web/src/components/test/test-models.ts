@@ -48,7 +48,11 @@ export function walletRows(points: string): Array<{ label: string; value: string
   const rows: Array<{ label: string; value: string }> = [];
   for (const [provider, kinds] of Object.entries(data as Record<string, unknown>)) {
     if (!kinds || typeof kinds !== "object" || Array.isArray(kinds)) continue;
-    for (const [kind, wallet] of Object.entries(kinds as Record<string, unknown>)) {
+    // video first, as the model picker lists them (the answer has its own key order)
+    const byKind = Object.entries(kinds as Record<string, unknown>).sort(
+      ([a], [b]) => Number(b === "video") - Number(a === "video") || a.localeCompare(b),
+    );
+    for (const [kind, wallet] of byKind) {
       if (!isWallet(wallet)) continue;
       const label = `${provider} ${kind}`;
       if (wallet.day_limit === null && wallet.total_limit === null) {

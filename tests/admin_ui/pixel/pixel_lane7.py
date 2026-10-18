@@ -149,17 +149,27 @@ def key_page_seed(db, live):
     for kind, amount, back in (("video", 3, 0), ("video", 11, 1), ("image", 9, 1)):
         db.run("INSERT INTO ledger (key_id, provider, kind, entry, amount, billing_day) VALUES (%s, %s, %s, 'adjust', "
                "%s, " + day + " - %s)", key.id, PROVIDER, kind, amount, back)
-    return {**data, "raw_key": key.raw}
+    return {**data, "raw_key": key.raw, "key_id": key.id, "db": db}
 
 
-def key_page_drive(page, live, data):
+# The boards' job: waiting at step 2/4 since 20:52:30, with the length and ratio it was asked for (the fake worker
+# never moves it, and the fake plan keeps neither in the job's params, so the drive does).
+BOARD_JOB = ("UPDATE jobs SET status = 'waiting', sent_at = %s::timestamptz, created_at = %s::timestamptz, "
+             "external_ref = gen_random_uuid()::text, next_poll_at = clock_timestamp() + interval '30 days', "
+             "params = params || '{\"duration\": 30, \"ratio\": \"16:9\"}'::jsonb WHERE key_id = %s")
+BOARD_JOB_AT = "2026-10-15 20:52:30+07"
+
+
+def key_page_drive(page, live, data, wait_for: str = "waiting"):
+    """The boards' state: the key loaded, seedance_v2.5 picked, the form filled, the job made and shown `wait_for`
+    (the boards' waiting job, or "done" when the caller answers the poll itself)."""
     box = page.get_by_role("textbox", name="API key", exact=True)
     box.fill(data["raw_key"])
     page.get_by_role("button", name="Load models").click()
     model = page.get_by_test_id("test-model").filter(has_text="seedance_v2.5")
     expect(model).to_be_visible(timeout=TIMEOUT_MS)
     model.click()
-    expect(page.get_by_role("heading", level=2, name="seedance_v2.5")).to_be_visible(timeout=TIMEOUT_MS)
+    expect(model).to_have_attribute("aria-pressed", "true")
     page.get_by_label("Prompt", exact=True).fill(PROMPT)
     page.get_by_label("Duration", exact=True).select_option("30")
     ratio = page.get_by_label("Ratio", exact=True)
@@ -169,7 +179,11 @@ def key_page_drive(page, live, data):
     page.get_by_label("Extra options (JSON)").fill(EXTRA)
     page.get_by_role("button", name="Generate", exact=True).click()
     expect(page.get_by_role("link", name="Open job", exact=False)).to_be_visible(timeout=TIMEOUT_MS)
-    expect(page.get_by_text("Created", exact=True)).to_be_visible(timeout=TIMEOUT_MS * 2)    # the first poll answered
+    if wait_for == "waiting":
+        expect(page.get_by_text("Created", exact=True)).to_be_visible(timeout=TIMEOUT_MS * 2)  # the first poll answered
+        data["db"].run(BOARD_JOB, BOARD_JOB_AT, BOARD_JOB_AT, data["key_id"])
+    result = page.locator('section[aria-labelledby="result-title"]')
+    expect(result.locator(".status-chip")).to_contain_text(wait_for, timeout=TIMEOUT_MS)   # the next poll answered
     # attached after the job was made: the request would carry them as data, and the board only shows the list
     page.get_by_test_id("attach-input").set_input_files(files=[
         {"name": name, "mimeType": mime, "buffer": io.BytesIO(b"\0" * size).getvalue()} for name, mime, size in FILES])
