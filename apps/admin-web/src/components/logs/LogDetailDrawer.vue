@@ -195,6 +195,7 @@ async function copy(which: "request" | "answer"): Promise<void> {
   color: var(--rl-link, var(--rl-primary));
   font-size: 13px;
   line-height: inherit;
+  font-variant-numeric: tabular-nums;
   text-decoration: underline;
   cursor: pointer;
 }
@@ -205,9 +206,6 @@ html:not(.dark) .rd__link:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-.rd__block-head .kla-btn--tiny {
-  line-height: normal;
 }
 .rd__block-head {
   display: flex;

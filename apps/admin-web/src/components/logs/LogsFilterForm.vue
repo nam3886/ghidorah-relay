@@ -112,7 +112,7 @@ function typed(): void {
 .lf__row {
   display: contents;
 }
-/* the canvas's labels keep the page's 20 px line; its buttons carry no line height of their own */
+/* the canvas's labels keep the page's 20 px line */
 .lf .kla-field__label {
   line-height: 20px;
 }
@@ -138,7 +138,6 @@ function typed(): void {
 .lf__submit {
   height: 34px;
   padding: 0 16px;
-  line-height: normal;
 }
 
 /* tablet: the search on its own row, then Status, From, To and the button in one row. One column that does not wrap:

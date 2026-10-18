@@ -273,12 +273,12 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
         >
         <template #cell-status="{ row }">
           <StatusChip :status="row.status_code" class="l-pill" />
-          <span v-if="isTablet && row.error_code" class="l-code l-mono" :class="errorTone(row)">{{
+          <span v-if="isTablet && row.error_code" class="l-code kla-mono" :class="errorTone(row)">{{
             row.error_code
           }}</span>
         </template>
         <template #cell-route="{ row }">
-          <span class="l-route l-mono" :title="row.route">{{ row.route }}</span>
+          <span class="l-route kla-mono" :title="row.route">{{ row.route }}</span>
           <template v-if="isTablet">
             <button
               v-if="row.job_id"
@@ -309,14 +309,14 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
               >
                 {{ row.job_title || row.job_id.slice(0, 8) }}
               </button>
-              <span class="l-job-id l-mono">{{ row.job_id.slice(0, 8) }}</span>
+              <span class="l-job-id kla-mono">{{ row.job_id.slice(0, 8) }}</span>
             </template>
             <span v-else class="l-nojob">no job</span>
           </div>
         </template>
         <!-- always an element: an empty slot would show the table's dash, and the design leaves the cell empty -->
         <template #cell-error="{ row }">
-          <span v-if="row.error_code" class="l-err l-mono" :class="errorTone(row)" :title="row.error_code">{{
+          <span v-if="row.error_code" class="l-err kla-mono" :class="errorTone(row)" :title="row.error_code">{{
             row.error_code
           }}</span>
           <span v-else class="l-err-none" />
@@ -340,7 +340,7 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
           <div class="p-req">
             <div class="p-req__line">
               <StatusChip :status="row.status_code" class="l-pill" />
-              <span class="p-req__route l-mono" :title="row.route">{{ row.route }}</span>
+              <span class="p-req__route kla-mono" :title="row.route">{{ row.route }}</span>
             </div>
             <div class="p-req__job">
               <span v-if="row.job_id" class="p-req__title" :title="row.job_title ?? undefined">{{
@@ -354,7 +354,7 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
               >
               <span class="p-req__dur kla-mono">{{ thousands(row.duration_ms) }} ms</span>
             </div>
-            <div v-if="row.error_code" class="p-req__err l-mono" :class="errorTone(row)">{{ row.error_code }}</div>
+            <div v-if="row.error_code" class="p-req__err kla-mono" :class="errorTone(row)">{{ row.error_code }}</div>
           </div>
         </template>
         <template v-if="filtered" #empty-action>
@@ -400,15 +400,9 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
 .logs-view > :deep(.page-header--phone) {
   align-items: flex-start;
 }
-/* the canvas's buttons carry no line height of their own; Clear logs fills with the error tint on hover */
-.logs-clear {
-  line-height: normal;
-}
+/* Clear logs fills with the error tint on hover */
 .logs-clear:hover {
   background: var(--rl-bad-bg);
-}
-.logs-clear-filters {
-  line-height: normal;
 }
 .logs-card {
   min-width: 0;
@@ -511,10 +505,6 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
 .logs-table :deep(.data-table__skeleton.is-drawn th:nth-child(3)) {
   width: auto;
 }
-/* mono without tabular figures: the canvas sets those on the time and the duration only */
-.l-mono {
-  font-family: var(--rl-mono);
-}
 .l-key {
   font-size: 13px;
   white-space: nowrap;
@@ -522,8 +512,10 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
 .is-tablet .l-key {
   line-height: 24px;
 }
+/* tabular figures on the time and the duration only, as the canvas sets them */
 .l-time {
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
   color: var(--rl-muted);
   white-space: nowrap;
 }
@@ -615,6 +607,7 @@ html.dark .is-tablet .l-job-link:hover {
 }
 .l-dur {
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .is-tablet .l-dur {
@@ -738,10 +731,12 @@ html.dark .is-tablet .l-job-link:hover {
 }
 .p-req__when .kla-mono {
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 .p-req__dur {
   flex: none;
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 .p-req__err {
   font-size: 12px;
