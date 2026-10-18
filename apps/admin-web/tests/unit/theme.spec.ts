@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { runInThisContext } from "node:vm";
 import { mount } from "@vue/test-utils";
@@ -354,6 +354,19 @@ describe("the fonts", () => {
 
   it("are files, never inlined: the CSP has no data:", () => {
     expect(vite).toContain("assetsInlineLimit: 0,");
+  });
+
+  it("are drawn as the canvas draws them: no style sets font smoothing, text rendering or font features", () => {
+    // the canvas sets none of these; on a Mac the antialiased smoothing draws every glyph thinner than the canvas
+    const RENDERING =
+      /(-webkit-font-smoothing|-moz-osx-font-smoothing|text-rendering|font-synthesis|font-feature-settings|font-variation-settings|font-optical-sizing|font-kerning)\s*:/;
+    const src = join(process.cwd(), "src");
+    const styles = (readdirSync(src, { recursive: true }) as string[]).filter((f) => /\.(css|vue)$/.test(f));
+    expect(styles.length).toBeGreaterThan(50);
+    const setting = styles.filter((f) =>
+      RENDERING.test(readFileSync(join(src, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "")),
+    );
+    expect(setting).toEqual([]);
   });
 });
 

@@ -1,6 +1,7 @@
 """Catalog routes (contracts §8): models, aliases, the Gemini catalog, provider options and `/v1/points`, each as the
 calling key sees them."""
 
+import dataclasses
 import json
 
 from apikit import NewApiKey, run_app
@@ -13,6 +14,8 @@ from relay_core.testing.mutation import mutation
 
 CATALOG = "packages/relay-core/src/relay_core/api/routes_catalog.py"
 FILTER = "if keys.model_allowed(key.models, m.id, canonical)]"
+NAME_ENTRY = '"name": m.display_name or m.id,'
+GEMINI_NAME = '"displayName": name,'
 ROUTES = ("/v1/models", "/v1/models/aliases", "/v1beta/models", "/models", "/v1beta/models/fake-video",
           "/models/fake-video", "/v1/providers/fake/options", "/v1/points")
 
@@ -63,11 +66,42 @@ def test_models_list_the_catalog_with_prices_and_limits(db):
     assert r.status_code == 200 and r.json()["object"] == "list"
     by_id = {m["id"]: m for m in r.json()["data"]}
     assert list(by_id) == ["fake-video", "fake-image", "other-video"]
-    assert by_id["other-video"] == {"id": "other-video", "object": "model", "owned_by": "other", "kind": "video",
-                                    "operations": ["generate"], "aliases": ["other-fast"],
+    assert by_id["other-video"] == {"id": "other-video", "name": "other-video", "object": "model", "owned_by": "other",
+                                    "kind": "video", "operations": ["generate"], "aliases": ["other-fast"],
                                     "limits": {"durations": [5, 10], "max_prompt_chars": FAKE_MAX_PROMPT_CHARS},
                                     "prices": {"default": 7}, "is_alias": False}, "limits.max_prompt_chars"
     assert by_id["fake-image"]["prices"] == {"default": 1} and by_id["fake-image"]["kind"] == "image"
+
+
+class NamedSpec(AliasSpec):
+    """AliasSpec whose one model has a product name."""
+
+    def catalog(self) -> list[ModelSpec]:
+        return [dataclasses.replace(m, display_name="Other Video 2") for m in super().catalog()]
+
+
+@mutation(CATALOG, NAME_ENTRY, '"name": m.id,', expect="the display name")
+@mutation(CATALOG, NAME_ENTRY, '"name": m.display_name,', expect="the id stands in")
+@mutation(CATALOG, GEMINI_NAME, '"displayName": m.display_name or name,', expect="gemini displayName is unchanged")
+def test_every_catalog_entry_names_the_model_with_its_display_name_or_its_id(db):
+    async def scenario(env):
+        env.registry.register(NamedSpec("other"))
+        h = (await make_key(env)).headers
+        out = {p: (await env.client.get(p, headers=h)).json()
+               for p in ("/v1/models", "/v1/models/aliases", "/v1beta/models", "/models/other-fast")}
+        out["admin"] = (await env.client.get("/admin/models", headers=await env.admin_headers())).json()
+        return out
+
+    out = run_app(db, scenario)
+    names = {m["id"]: m["name"] for m in out["/v1/models"]["data"]}
+    assert names["other-video"] == "Other Video 2", "the display name: %s" % names
+    assert (names["fake-video"], names["fake-image"]) == ("fake-video", "fake-image"), "the id stands in: %s" % names
+    assert [(m["id"], m["name"]) for m in out["/v1/models/aliases"]["data"]] == [("other-fast", "Other Video 2")]
+    assert {m["id"]: m["name"] for m in out["admin"]["data"]} == names, "the admin list names them the same"
+    # The Gemini resource keeps its existing value: the id or alias asked for, display name or not.
+    shown = {m["name"]: m["displayName"] for m in out["/v1beta/models"]["models"]}
+    assert shown["models/other-video"] == "other-video", "gemini displayName is unchanged: %s" % shown
+    assert out["/models/other-fast"]["displayName"] == "other-fast", "gemini displayName is unchanged"
 
 
 def test_the_aliases_list_has_one_entry_per_alias_naming_its_base(db):

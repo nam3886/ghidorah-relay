@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from accountkit import new_account
-from element_diff import diff, extract, markdown, popup_place, side_by_side
+from element_diff import RENDERING, diff, extract, markdown, popup_place, side_by_side
 from jobkit import key as new_key
 from patchright.sync_api import expect
 from pixel_capture import opened, shoot
@@ -446,3 +446,25 @@ def test_the_tool_tells_a_list_over_its_trigger_from_one_under_it(diff_page):
     for top, clear in ((140, True), (-26, True), (60, False), (134, False)):
         diff_page.evaluate("y => document.getElementById('l').style.top = y + 'px'", top)
         assert (popup_place(diff_page, "#l", "#t") is None) is clear, top
+
+
+def test_the_tool_sees_glyphs_rendered_otherwise_than_the_canvas(diff_page):
+    """Antialiased font smoothing draws thinner glyphs on a Mac and nothing different on this Linux Chrome: a pixel
+    diff here cannot see it, so the computed value of every text run is compared."""
+    diff_page.set_content("<p>Jobs</p>")
+    canvas = extract(diff_page)
+    diff_page.evaluate("document.body.style.setProperty('-webkit-font-smoothing', 'antialiased')")
+    app = extract(diff_page)
+    res = diff("font-smoothing", canvas, app)
+    assert [(prop, cv, av) for _c, _a, prop, cv, av in res.differences] == [
+        ("-webkit-font-smoothing", "auto", "antialiased")]
+
+
+def test_the_tool_refuses_a_rendering_property_this_browser_does_not_support(diff_page):
+    """A property this Chrome does not support computes to "" in the canvas and in the app alike: compared, it could
+    never differ. The tool refuses it, naming it, instead of passing for ever."""
+    diff_page.set_content("<p>Jobs</p>")
+    with pytest.raises(AssertionError, match="does not support -moz-osx-font-smoothing"):
+        extract(diff_page, rendering=RENDERING + ("-moz-osx-font-smoothing",))
+    assert extract(diff_page)["texts"]
+
