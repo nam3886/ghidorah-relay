@@ -268,8 +268,10 @@ def test_the_keys_view_folds_for_a_tablet_and_a_phone():
           expect=FORM + "an edit names the key in its title and tells what each wallet has used")
 @mutation(KEY_FORM, "`${w.used_day} used today · ${w.used_total} total`", "`${w.used_total} total`",
           expect=FORM + "an edit names the key in its title and tells what each wallet has used")
-@mutation(KEY_FORM, '`${String(m.kind ?? "")} · ${m.owned_by}`', '`${m.owned_by} · ${String(m.kind ?? "")}`',
-          expect=FORM + "each model row says its kind and provider")
+@mutation(KEY_FORM, '`${String(m.kind ?? "")} · ${m.name || m.id}`', '`${String(m.kind ?? "")} · ${m.owned_by}`',
+          expect=FORM + "each model row says its id, its kind and its display name, else its id")
+@mutation(KEY_FORM, "${m.name || m.id}`", "${m.name}`",
+          expect=FORM + "each model row says its id, its kind and its display name, else its id")
 @pytest.mark.web_unit
 def test_the_key_form_shows_what_the_design_shows():
     vitest(KEYS_VIEW_SPEC)

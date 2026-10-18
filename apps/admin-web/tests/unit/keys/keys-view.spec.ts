@@ -118,7 +118,7 @@ beforeEach(() => {
   list.mockResolvedValue({ items: [key()] });
   vi.mocked(shell.getModels).mockResolvedValue({
     data: [
-      { id: "m1", owned_by: "vibes", kind: "video" },
+      { id: "m1", name: "Model One", owned_by: "vibes", kind: "video" },
       { id: "m2", owned_by: "dola", kind: "image" },
     ],
   });
@@ -617,13 +617,13 @@ describe("the key form as the design draws it", () => {
     );
   });
 
-  it("each model row says its kind and provider", async () => {
+  it("each model row says its id, its kind and its display name, else its id", async () => {
     await editShop();
     const rows = [...document.body.querySelectorAll(".kd__model")].map((r) =>
       r.textContent!.replace(/\s+/g, " ").trim(),
     );
-    expect(rows).toEqual(["m1video · vibes", "m2image · dola"]);
-    expect(document.body.querySelector(".kd__model-hint")!.textContent).toBe("video · vibes");
+    expect(rows).toEqual(["m1video · Model One", "m2image · m2"]);
+    expect(document.body.querySelector(".kd__model-hint")!.textContent).toBe("video · Model One");
   });
 });
 

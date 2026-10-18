@@ -23,7 +23,8 @@ PLAIN_REPLY = "Plain wording of one key"
 
 def open_tab(page, label):
     page.get_by_role("tab", name=label, exact=True).click()
-    expect(page.get_by_role("heading", name=label)).to_be_visible()
+    # the page title (an empty or failed card repeats the name in its own heading, as drawn)
+    expect(page.get_by_role("heading", name=label, level=1)).to_be_visible()
 
 
 def rows(page):

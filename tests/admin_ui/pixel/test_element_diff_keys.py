@@ -72,12 +72,8 @@ BOARD_CHECKS = [KeyCheck(board, _keys(board, keys_callout)) for board in ("B-Key
 COPIED = KeyCheck("B-Keys-copied", _keys("B-Keys", copied), 'section[role="status"]', '[data-testid="new-key"]',
                   canvas_click='section[role="status"] button.solid')
 
-# The catalog has no display names (design-deviations 6): the right column of a model row reads `<kind> · <provider>`.
-MODEL_NAMES = ("video · Dreamina Seedance 2.5", "video · Seedance 2.0 Fast", "video · Seedance 1.0",
-               "image · Seedream 4.5", "image · Seedream 5.0 Pro")
-CATALOG_HINTS = ("video · dola", "image · dola")
-FORM = KeyCheck("B-KeyForm", _keys("B-KeyForm", keys_edit), '[role="dialog"]', ".key-dialog", data=MODEL_NAMES,
-                data_app=CATALOG_HINTS, same_place=True)
+# The model rows read `<kind> · <display name>` as drawn (D129): the harness's catalog sends the boards' names.
+FORM = KeyCheck("B-KeyForm", _keys("B-KeyForm", keys_edit), '[role="dialog"]', ".key-dialog", same_place=True)
 
 
 # ---- the states of B-States --------------------------------------------------------------------------------------

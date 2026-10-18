@@ -45,7 +45,9 @@ function usedText(provider: string, kind: string, mode: string): string {
 
 const MODES = ["closed", "limit", "unlimited"] as const;
 const typed = (e: Event): string => (e.target as HTMLInputElement).value;
-const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.owned_by}`;
+// The right side of a model row, as drawn: its kind and its display name ("video · Dreamina Seedance 2.5"); the id
+// stands in for a model the catalog sent without a name.
+const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.name || m.id}`;
 </script>
 
 <template>
