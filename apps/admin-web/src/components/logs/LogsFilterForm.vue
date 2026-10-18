@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { onBeforeUnmount } from "vue";
+import { computed, onBeforeUnmount } from "vue";
 import type { LogStatus } from "@/api/logs";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { IconSearch } from "@/components/shared/icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import "./lane-controls.css";
+import "./logs-date-field.css";
 import { useLogsFilters } from "./logs-filters";
 import { STATUS_OPTIONS } from "./log-window";
 
 // The filters of the Request logs, drawn as the canvas draws them: the Status select (FilterSelect's field variant, our
-// own control drawn as the canvas's select) and native date fields. A choice in Status or a date field asks for a new
+// own control drawn as the canvas's select) and Element Plus date pickers. A choice in Status or a date asks for a new
 // search at once; the search text goes with the Search button or Enter (on a phone there is no button, so the text
 // goes after a short pause in typing).
 const emit = defineEmits<{ search: [] }>();
@@ -19,6 +20,11 @@ const { isPhone, isTablet } = useBreakpoint();
 const TYPING_PAUSE_MS = 350;
 let timer: ReturnType<typeof setTimeout> | undefined;
 onBeforeUnmount(() => clearTimeout(timer));
+
+// The day fields keep the store's `YYYY-MM-DD` text as it is (the picker's `value-format`): never a Date, so the time
+// zone cannot move a day. The picker reports `null` when cleared; the store holds "" then.
+const from = computed({ get: () => filters.from ?? "", set: (v: string | null) => (filters.from = v ?? "") });
+const to = computed({ get: () => filters.to ?? "", set: (v: string | null) => (filters.to = v ?? "") });
 
 // the field's options (a list of its own: the shared words are read-only)
 const STATUS_CHOICES = STATUS_OPTIONS.map((o) => ({ ...o }));
@@ -73,12 +79,15 @@ function typed(): void {
         <component :is="isPhone ? 'span' : 'label'" :class="isPhone ? '' : 'kla-field__label'" for="logs-from"
           >From</component
         >
-        <input
+        <el-date-picker
           id="logs-from"
-          v-model="filters.from"
-          type="date"
-          class="kla-control"
+          v-model="from"
+          value-format="YYYY-MM-DD"
+          format="YYYY-MM-DD"
+          placeholder="YYYY-MM-DD"
+          clearable
           aria-label="From"
+          popper-class="rl-date-popper"
           @change="emit('search')"
         />
       </component>
@@ -86,12 +95,15 @@ function typed(): void {
         <component :is="isPhone ? 'span' : 'label'" :class="isPhone ? '' : 'kla-field__label'" for="logs-to"
           >To</component
         >
-        <input
+        <el-date-picker
           id="logs-to"
-          v-model="filters.to"
-          type="date"
-          class="kla-control"
+          v-model="to"
+          value-format="YYYY-MM-DD"
+          format="YYYY-MM-DD"
+          placeholder="YYYY-MM-DD"
+          clearable
           aria-label="To"
+          popper-class="rl-date-popper"
           @change="emit('search')"
         />
       </component>
@@ -170,10 +182,6 @@ function typed(): void {
 .lf--tablet .lf__date {
   flex: 1;
 }
-.lf--tablet .lf__date .kla-control {
-  width: 100%;
-  height: 36px;
-}
 .lf--tablet .lf__submit {
   flex: none;
   height: 36px;
@@ -204,10 +212,5 @@ function typed(): void {
   gap: 8px;
   padding: 0 12px;
   overflow-x: auto;
-}
-/* the chip's own date field: the browser's padding and corners, as drawn */
-.lf--phone .kla-chip-field .kla-control {
-  padding: revert;
-  border-radius: revert;
 }
 </style>

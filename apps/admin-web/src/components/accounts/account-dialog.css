@@ -157,7 +157,7 @@ html.dark .el-dialog.acct-dialog--edit {
 .acct-textarea::placeholder {
   color: var(--rl-faint);
 }
-/* the Provider field (FilterSelect, `appearance="none"`) as B-AccountImport draws its select: the label as the other
+/* the Provider field (FilterSelect, `block`) as B-AccountImport draws its select: the label as the other
    fields' labels, 6 px above a box at full width, 36 high like the inputs, its value in 14 px. Three classes, so these
    outrank the field's own scoped rules. */
 .acct-dialog .acct-provider.filter-field {

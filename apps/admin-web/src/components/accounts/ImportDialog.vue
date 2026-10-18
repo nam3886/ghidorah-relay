@@ -64,7 +64,7 @@ async function submit() {
       :model-value="provider"
       class="acct-provider"
       variant="field"
-      appearance="none"
+      block
       label="Provider"
       :options="providerOptions"
       @update:model-value="(v) => (provider = String(v))"

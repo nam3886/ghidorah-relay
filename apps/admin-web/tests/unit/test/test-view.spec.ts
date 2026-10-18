@@ -247,10 +247,11 @@ describe("the empty state", () => {
     expect(box.find("summary").text()).toBe("Wallet limits");
     expect(box.element.open).toBe(false);
     expect(box.find("pre").text()).toContain('"points": 9');
-    const placeholders = ["#test-duration", "#test-ratio", "#test-count"].map((id) =>
-      wrapper!.find(id).attributes("placeholder"),
-    );
-    expect(placeholders).toEqual(["optional", "16:9", "1"]);
+    const placeholders = ["#test-ratio", "#test-count"].map((id) => wrapper!.find(id).attributes("placeholder"));
+    expect(placeholders).toEqual(["16:9", "1"]);
+    // no model names lengths yet: no Duration field of any kind
+    expect(wrapper!.find("#test-duration").exists()).toBe(false);
+    expect(selectField("Duration")).toBeUndefined();
   });
 
   it("Clear form is a plain button, not a danger one", async () => {
@@ -667,6 +668,30 @@ describe("the model picker and the wallet", () => {
     // the design's select drawn by us, never the browser's
     expect(wrapper!.find("select").exists()).toBe(false);
     expect(selectField("Duration")!.props("block")).toBe(true);
+  });
+
+  it("a model with no durations list shows no Duration field and sends no duration, even one saved for another model", async () => {
+    vi.mocked(api.listModels).mockResolvedValue({
+      data: [{ ...video, limits: { durations: [5, 10] } }, { ...video, id: "veo-plain", limits: {} }, image],
+    });
+    vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    await choose("Duration", "10");
+    await pickModel("veo-plain");
+    expect(selectField("Duration")).toBeUndefined();
+    expect(wrapper!.find("#test-duration").exists()).toBe(false);
+    expect(text()).not.toContain("Duration");
+    await button("Generate").trigger("click");
+    await flushPromises();
+    expect(api.createJob).toHaveBeenCalledWith(
+      "rk-1",
+      "video",
+      expect.not.objectContaining({ duration: expect.anything() }),
+    );
+    await pickModel("imagen-4");
+    expect(selectField("Duration")).toBeUndefined();
   });
 
   it("a model that names a display name shows it with its id under it; one without shows the id alone", async () => {

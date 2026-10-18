@@ -8,20 +8,53 @@ from . import cancel_box, dialog, dismiss_box, expect_dialog, ready, skeleton_st
 
 ROUTE = "logs"
 STATES = [
-    ("logs", "loading-skeleton"), ("logs", "list"), ("logs", "date-fields"), ("logs", "request-drawer"),
-    ("logs", "clear-confirm"),
+    ("logs", "loading-skeleton"), ("logs", "list"), ("logs", "date-fields"), ("logs", "date-picker-day"),
+    ("logs", "date-picker-year"), ("logs", "date-picker-month"), ("logs", "request-drawer"), ("logs", "clear-confirm"),
 ]
 DETAIL = "Request"                       # the drawer is titled "Request <id>"
 OPEN_REQUEST = re.compile(r"Open (details of )?request")    # the chevron of a table row, the row of the phone list
 
 
+def day(page, label, text):
+    """Type (or empty) a day and confirm with Enter: the picker reports a change when its panel closes."""
+    field = page.get_by_label(label, exact=True)
+    field.click()
+    field.fill(text)
+    field.press("Enter")
+
+
+PANEL = ".el-picker-panel:visible"
+
+
+def day_pane(page):
+    """Open the From picker on its day pane."""
+    page.get_by_label("From", exact=True).click()
+    expect(page.locator(PANEL).locator(".el-date-table")).to_be_visible()
+
+
+def year_pane(page):
+    page.locator(PANEL).locator(".el-date-picker__header-label").first.click()       # the year label
+    expect(page.locator(PANEL).locator(".el-year-table")).to_be_visible()
+
+
+def month_pane(page):
+    page.locator(PANEL).locator(".el-year-table td.available").first.click()         # a year lands on the months
+    expect(page.locator(PANEL).locator(".el-month-table")).to_be_visible()
+
+
+def close_panel(page):
+    page.get_by_label("From", exact=True).press("Escape")
+    expect(page.locator(PANEL)).to_have_count(0)
+
+
 def run(page, app, live, sw, data):
     skeleton_step(sw, "logs", re.compile(r"/admin/logs"))
     sw.step("logs", "list", lambda: ready(page))
-    sw.step("logs", "date-fields", lambda: (page.get_by_label("From", exact=True).fill("2026-10-01"),
-                                            page.get_by_label("To", exact=True).fill("2026-10-31"),
-                                            page.get_by_label("From", exact=True).fill(""),
-                                            page.get_by_label("To", exact=True).fill("")))
+    sw.step("logs", "date-fields", lambda: [day(page, "From", "2026-10-01"), day(page, "To", "2026-10-31"),
+                                            day(page, "From", ""), day(page, "To", "")])
+    sw.step("logs", "date-picker-day", lambda: day_pane(page))
+    sw.step("logs", "date-picker-year", lambda: year_pane(page))
+    sw.step("logs", "date-picker-month", lambda: month_pane(page), after=lambda: close_panel(page))
 
     def log_detail():
         page.get_by_role("button", name=OPEN_REQUEST).first.click()

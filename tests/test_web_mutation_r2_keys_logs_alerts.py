@@ -404,12 +404,30 @@ def test_clear_logs_asks_first_and_the_more_menu_opens_and_closes():
 RANGE = (f"FAILED {LOGS_VIEW_SPEC} > filters > From and To send the half-open window of the viewer's own "
          "midnights, and search at once")
 ALONE = f"FAILED {LOGS_VIEW_SPEC} > filters > From alone sets since only; To alone sets until only"
+CLEARED = (f"FAILED {LOGS_VIEW_SPEC} > filters > emptying a typed day and pressing Enter clears it: no since, and the "
+           "store holds an empty text")
+ENTER = (f"FAILED {LOGS_VIEW_SPEC} > filters > a day typed and confirmed with Enter sends the same window as a chosen "
+         "one")
+PICKED = (f"FAILED {LOGS_VIEW_SPEC} > filters > a day picked from the open panel replaces the one held and searches "
+          "for exactly that day")
+NO_DATE = "FAILED tests/unit/no-native-date.spec.ts > no native date > no source file draws a native date input"
 SIZE = (f"FAILED {LOGS_VIEW_SPEC} > paging and refresh > a page size from the pager is asked for and starts "
         "again at the first page")
 
 
-@mutation(LOG_FILTERS, 'v-model="filters.from"', 'v-model="filters.to"', expect=RANGE)
-@mutation(LOG_FILTERS, 'v-model="filters.to"', 'v-model="filters.from"', expect=ALONE)
+@mutation(LOG_FILTERS, 'v-model="from"', 'v-model="to"', expect=RANGE)
+@mutation(LOG_FILTERS, 'v-model="to"', 'v-model="from"', expect=ALONE)
+@mutation(LOG_FILTERS,
+          '          popper-class="rl-date-popper"\n          @change="emit(\'search\')"\n        />\n'
+          '      </component>\n      <component',
+          '          popper-class="rl-date-popper"\n        />\n      </component>\n      <component', expect=ENTER)
+@mutation(LOG_FILTERS,
+          '          popper-class="rl-date-popper"\n          @change="emit(\'search\')"\n        />\n'
+          '      </component>\n      <button',
+          '          popper-class="rl-date-popper"\n        />\n      </component>\n      <button', expect=PICKED)
+@mutation(LOG_FILTERS, '(filters.from = v ?? "")', "(filters.from = v as string)", expect=CLEARED)
+@mutation(LOG_FILTERS, '          id="logs-from"\n', '          id="logs-from"\n          type="date"\n',
+          expect=NO_DATE)
 @mutation(LOGS, "scope.provider, offset.value, limit.value)", "scope.provider, offset.value)", expect=SIZE)
 @mutation(LOGS, "            limit = s;\n            search();", "            limit = s;\n            void load();",
           expect=SIZE)
@@ -423,7 +441,7 @@ SIZE = (f"FAILED {LOGS_VIEW_SPEC} > paging and refresh > a page size from the pa
                               "a pause")
 @pytest.mark.web_unit
 def test_the_logs_range_fields_and_page_size_reach_the_query():
-    vitest(LOGS_VIEW_SPEC)
+    vitest(LOGS_VIEW_SPEC, "tests/unit/no-native-date.spec.ts")
 
 
 # ---- Request logs: colour is for exceptions, the day header, the drawer --------------------------------------------

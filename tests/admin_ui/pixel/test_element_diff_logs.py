@@ -62,6 +62,77 @@ def failing(page, live, data):
     expect(page.locator("[data-state=error]")).to_be_visible(timeout=TIMEOUT_MS)
 
 
+# Owner deviation 28: the day fields are Element Plus date pickers, not the browser's date inputs. The picker draws its
+# edge as an inset shadow on a wrapper and its text in an input of its own, so to the tool the control is the wrapper:
+# its box, radius and edge (read from the shadow, which must be the 1 px line colour the canvas's border is) stand
+# in for the input's, and the calendar icon, which the canvas's indicator is not, is set aside. The date text is not
+# compared
+# (the canvas shows the browser's locale format, the picker `YYYY-MM-DD`; a unit and a browser test hold the text). On a
+# phone the picker needs room for its text and icon, so the canvas's chip date is widened to the app's width.
+DATE_WRAPPERS_JS = """(root) => {
+  const rootEl = root ? document.querySelector(root) : document.documentElement;
+  const rr = rootEl.getBoundingClientRect();
+  const r1 = (n) => Math.round(n * 10) / 10;
+  // the visible part, as the tool lists a box: clipped by every ancestor that hides overflow (a phone's row scrolls)
+  const rect = (el) => {
+    const b = el.getBoundingClientRect();
+    const c = {l: b.left, t: b.top, r: b.right, b: b.bottom};
+    for (let a = el.parentElement; a; a = a.parentElement) {
+      const as = getComputedStyle(a), q = a.getBoundingClientRect();
+      if (as.overflowX !== 'visible') { c.l = Math.max(c.l, q.left); c.r = Math.min(c.r, q.right); }
+      if (as.overflowY !== 'visible') { c.t = Math.max(c.t, q.top); c.b = Math.min(c.b, q.bottom); }
+    }
+    return [r1(c.l - rr.left), r1(c.t - rr.top), r1(c.r - c.l), r1(c.b - c.t)];
+  };
+  return [...rootEl.querySelectorAll('.el-date-editor')].map((ed) => {
+    const w = ed.querySelector('.el-input__wrapper'), s = getComputedStyle(w);
+    let under = ed.parentElement;
+    const clear = 'rgba(0, 0, 0, 0)';
+    while (under.parentElement && getComputedStyle(under).backgroundColor === clear) under = under.parentElement;
+    return {editor: rect(ed), rect: rect(w), shadow: s.boxShadow, background: s.backgroundColor,
+            under: getComputedStyle(under).backgroundColor,
+            radius: ["TopLeft", "TopRight", "BottomRight", "BottomLeft"].map((d) => s["border" + d + "Radius"])
+              .join(" ")};
+  });
+}"""
+DATE_CHIP_WIDTH_JS = """(width) => window.innerWidth <= 767 &&
+  document.querySelectorAll('label > input[type=date]').forEach((i) => {
+  i.style.boxSizing = 'border-box'; i.style.flex = 'none'; i.style.width = width + 'px'; })"""
+DATE_CHIP_WIDTH_PX = 116
+EDGE = re.compile(r"^(rgb\([^)]*\)) 0px 0px 0px 1px inset$")
+
+
+def _inside_rect(box, rect) -> bool:
+    x, y, w, h = box["rect"]
+    rx, ry, rw, rh = rect
+    return x >= rx - 0.5 and y >= ry - 0.5 and x + w <= rx + rw + 0.5 and y + h <= ry + rh + 0.5
+
+
+def date_pickers_as_controls(page, items, root) -> None:
+    pickers = sorted(page.evaluate(DATE_WRAPPERS_JS, root, isolated_context=False), key=lambda p: p["rect"][0])
+    controls = [b for b in items["boxes"] if b["kind"] == "control" and b["sig"].startswith("input text")]
+    # a phone's row of chips scrolls: a picker out of view has no control in the items
+    assert len(pickers) == 2 and controls, "the From and To pickers: %r %r" % (pickers, controls)
+    items["boxes"] = [b for b in items["boxes"] if b in controls or not any(_inside_rect(b, p["editor"])
+                                                                            for p in pickers)]
+    for control in controls:
+        x, y, w, h = control["full"]
+        picker = next(p for p in pickers if p["editor"][0] - 1 <= x + w / 2 <= p["editor"][0] + p["editor"][2] + 1)
+        edge = EDGE.match(picker["shadow"])
+        color = edge.group(1) if edge else None
+        control["rect"] = control["full"] = picker["rect"]
+        control["sig"] = "input date "           # the canvas's name for it: a date input with no label
+        control["style"] = {**control["style"], "radius": picker["radius"],
+                            # the tool lists a fill only where it differs from what lies under the box
+                            "background": "none" if picker["background"] in (picker["under"], "rgba(0, 0, 0, 0)")
+                            else picker["background"],
+                            "border": " / ".join(["1px solid " + color] * 4) if color else "none / none / none / none"}
+
+
+def _chip_dates(page) -> None:
+    page.evaluate(DATE_CHIP_WIDTH_JS, DATE_CHIP_WIDTH_PX, isolated_context=False)
+
+
 WITH_STATUS_FIELD = ("B-Logs", "T-Logs", "P-Logs")
 CHECKS = [
     Check("B-Logs", LOGS, data=BOARD_DATA),
@@ -86,7 +157,8 @@ def test_logs_matches_the_canvas_element_by_element(app, db, live, renderer, dif
     # The boards draw Status as a native select; the app's is FilterSelect's field: compared as page-alerts compares
     # its fields (the box in the tables, what the field draws inside it as pixels of the select's crop).
     fields = []
-    bad = failed(run_check(app, db, live, renderer, diff_page, run_dir, check, theme, fields=fields))
+    bad = failed(run_check(app, db, live, renderer, diff_page, run_dir, check, theme, fields=fields,
+                           app_hook=date_pickers_as_controls, canvas_hook=_chip_dates))
     assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))
     assert len(fields) == 1, "the Status field against the native select: %r" % fields
     assert fields[0][0] <= SELECT_MISMATCH_PCT, "the Status field draws apart from the native select: %r" % fields

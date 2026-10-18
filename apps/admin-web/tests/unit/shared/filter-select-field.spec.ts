@@ -45,7 +45,7 @@ afterEach(() => {
 });
 
 describe("the field variant of FilterSelect", () => {
-  it("draws its label above a box that holds every option, only the current one seen, and the select's arrow", () => {
+  it("draws its label above a box that holds every option, only the current one seen, and the page's chevron", () => {
     const w = field();
     expect(w.element.classList.contains("filter-field")).toBe(true);
     const label = w.find("label");
@@ -56,7 +56,8 @@ describe("the field variant of FilterSelect", () => {
     expect(words.map((s) => s.text())).toEqual(["All", "Open", "Acknowledged"]);
     expect(words.filter((s) => s.classes("is-current")).map((s) => s.text())).toEqual(["Open"]);
     expect(words.map((s) => s.attributes("aria-hidden"))).toEqual(["true", undefined, "true"]);
-    expect(trigger(w).find("svg path").attributes("d")).toBe("M2 2l4 4 4-4");
+    expect(trigger(w).find("svg path").attributes("d")).toBe("m6 9 6 6 6-6");
+    expect(trigger(w).find("svg").attributes("width")).toBe("14");
     expect(w.find("select").exists()).toBe(false);
   });
 
@@ -130,22 +131,32 @@ describe("the field variant of FilterSelect", () => {
     expect(list.style.left).toBe("29px");
   });
 
-  it("appearance none: the page's chevron for the arrow, no chip on a phone, and the list under the box", async () => {
-    const w = field({ appearance: "none" });
-    expect(w.classes()).toContain("is-drawn");
+  it("the field draws the page's chevron, 14 px, on a desktop, a tablet and a phone chip", async () => {
+    const w = field();
     expect(
       trigger(w)
         .findAll("svg path")
         .map((p) => p.attributes("d")),
     ).toEqual(["m6 9 6 6 6-6"]);
-    expect(trigger(w).find(".filter-field__chevron").exists()).toBe(true);
+    const chevron = trigger(w).find(".filter-field__chevron");
+    expect(chevron.exists()).toBe(true);
+    expect(chevron.attributes("width")).toBe("14");
     expect(trigger(w).find(".filter-field__arrow").exists()).toBe(false);
     wrapper!.unmount();
     showAt(768);
-    expect(field({ appearance: "none" }).classes()).not.toContain("is-tall");
+    const tablet = field();
+    expect(tablet.classes()).toContain("is-tall");
+    expect(trigger(tablet).find(".filter-field__chevron").exists()).toBe(true);
     wrapper!.unmount();
     showAt(390);
-    const phone = field({ appearance: "none" });
+    const chip = field();
+    expect(chip.classes()).toContain("is-chip");
+    expect(trigger(chip).find(".filter-field__chevron").exists()).toBe(true);
+  });
+
+  it("a form's field (block) is no chip on a phone, and the list hangs under the box", async () => {
+    showAt(390);
+    const phone = field({ block: true });
     expect(phone.classes()).not.toContain("is-chip");
     const rect = (top: number, bottom: number, left: number, width: number) =>
       ({ top, bottom, left, right: left + width, width, height: bottom - top, x: left, y: top }) as DOMRect;

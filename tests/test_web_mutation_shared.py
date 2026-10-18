@@ -430,7 +430,7 @@ ALERTS_VIEW = f"{SRC}/views/AlertsView.vue"
           expect=FIELD + "draws its label above a box that holds every option")
 @mutation(FILTER, ":class=\"{ 'is-current': o.value === props.modelValue }\"", ":class=\"{ 'is-current': true }\"",
           expect=FIELD + "draws its label above a box that holds every option")
-@mutation(FILTER, '<path d="M2 2l4 4 4-4"', '<path d="M2 4l4 4 4-4"',
+@mutation(FILTER, 'class="filter-field__chevron" :size="14"', 'class="filter-field__chevron" :size="12"',
           expect=FIELD + "draws its label above a box that holds every option")
 @mutation(FILTER, "valueWidth.value = Math.floor(width);", "valueWidth.value = width;",
           expect=FIELD + "its value box is as wide as the longest option on a whole pixel")
