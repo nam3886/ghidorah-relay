@@ -617,6 +617,12 @@ EMPTY_FILTERED = ("an empty list under a filter says so; Clear filters clears ev
 @mutation(LOG_FILTERS, '  filters.status = value as LogStatus;\n  emit("search");',
           "  filters.status = value as LogStatus;",
           expect=LOGS_PAGING + "a status choice searches at once from the first page")
+@mutation(LOGS, '<span class="l-route l-mono" :title="row.route">', '<span class="l-route l-mono">',
+          expect=LOGS_LIST + "a value that may end in an ellipsis carries its whole text as its title")
+@mutation(LOGS, ':class="errorTone(row)" :title="row.error_code"', ':class="errorTone(row)"',
+          expect=LOGS_LIST + "a value that may end in an ellipsis carries its whole text as its title")
+@mutation(LOGS, '                :title="row.job_title ?? undefined"\n', "",
+          expect=LOGS_LIST + "a value that may end in an ellipsis carries its whole text as its title")
 @mutation(LOGS, "  filters.reset();\n  search();", "  search();", expect=LOGS_LIST + EMPTY_FILTERED)
 @mutation(LOGS, "  filters.reset();\n  search();", "  filters.reset();", expect=LOGS_LIST + EMPTY_FILTERED)
 @pytest.mark.web_unit

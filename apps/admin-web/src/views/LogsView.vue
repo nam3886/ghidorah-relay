@@ -278,9 +278,15 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
           }}</span>
         </template>
         <template #cell-route="{ row }">
-          <span class="l-route l-mono">{{ row.route }}</span>
+          <span class="l-route l-mono" :title="row.route">{{ row.route }}</span>
           <template v-if="isTablet">
-            <button v-if="row.job_id" type="button" class="l-job-link" @click="ui.openJob(row.job_id)">
+            <button
+              v-if="row.job_id"
+              type="button"
+              class="l-job-link"
+              :title="row.job_title ?? undefined"
+              @click="ui.openJob(row.job_id)"
+            >
               {{ row.job_title || row.job_id.slice(0, 8) }}
             </button>
             <span v-else class="l-nojob">no job</span>
@@ -295,7 +301,12 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
         <template #cell-job="{ row }">
           <div class="l-job-cell">
             <template v-if="row.job_id">
-              <button type="button" class="l-job-link" @click="ui.openJob(row.job_id)">
+              <button
+                type="button"
+                class="l-job-link"
+                :title="row.job_title ?? undefined"
+                @click="ui.openJob(row.job_id)"
+              >
                 {{ row.job_title || row.job_id.slice(0, 8) }}
               </button>
               <span class="l-job-id l-mono">{{ row.job_id.slice(0, 8) }}</span>
@@ -305,7 +316,9 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
         </template>
         <!-- always an element: an empty slot would show the table's dash, and the design leaves the cell empty -->
         <template #cell-error="{ row }">
-          <span v-if="row.error_code" class="l-err l-mono" :class="errorTone(row)">{{ row.error_code }}</span>
+          <span v-if="row.error_code" class="l-err l-mono" :class="errorTone(row)" :title="row.error_code">{{
+            row.error_code
+          }}</span>
           <span v-else class="l-err-none" />
         </template>
         <template #cell-duration="{ row }"
@@ -327,10 +340,12 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
           <div class="p-req">
             <div class="p-req__line">
               <StatusChip :status="row.status_code" class="l-pill" />
-              <span class="p-req__route l-mono">{{ row.route }}</span>
+              <span class="p-req__route l-mono" :title="row.route">{{ row.route }}</span>
             </div>
             <div class="p-req__job">
-              <span v-if="row.job_id" class="p-req__title">{{ row.job_title || row.job_id.slice(0, 8) }}</span>
+              <span v-if="row.job_id" class="p-req__title" :title="row.job_title ?? undefined">{{
+                row.job_title || row.job_id.slice(0, 8)
+              }}</span>
               <span v-else class="l-nojob">no job</span>
             </div>
             <div class="p-req__meta">

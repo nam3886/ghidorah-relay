@@ -235,6 +235,18 @@ describe("the list", () => {
     expect(w.find('tbody button[aria-label="Open details of request l1"]').exists()).toBe(true);
   });
 
+  it("a value that may end in an ellipsis carries its whole text as its title: route, job title, error code", async () => {
+    list.mockResolvedValue({
+      items: [row({ status_code: 502, error_code: "dola.content_refused_by_review" })],
+      total: 1,
+    });
+    const { w } = await open();
+    const cells = w.find("tbody tr:not(.is-day)");
+    expect(cells.find(".l-route").attributes("title")).toBe("POST /v1/video/generations");
+    expect(cells.find(".l-job-link").attributes("title")).toBe("a title");
+    expect(cells.find(".l-err").attributes("title")).toBe("dola.content_refused_by_review");
+  });
+
   it("a row with no job says so", async () => {
     list.mockResolvedValue({ items: [row({ job_id: null, job_title: null })], total: 1 });
     const { w } = await open();
