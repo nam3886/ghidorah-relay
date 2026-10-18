@@ -1180,6 +1180,27 @@ describe("the page scroll area", () => {
     expect(document.activeElement).toBe(wrapOf(wrapper));
   });
 
+  it("keeps the position when only the query changes", async () => {
+    const { wrapper, router } = await open("/accounts");
+    wrapOf(wrapper).scrollTop = 120;
+    await router.push({ name: "accounts", query: { page: "2" } });
+    await flushPromises();
+    expect(wrapOf(wrapper).scrollTop).toBe(120);
+  });
+
+  it("names the focusable wrap as the page content region", async () => {
+    const { wrapper } = await open("/jobs");
+    expect(wrapOf(wrapper).getAttribute("role")).toBe("region");
+    expect(wrapOf(wrapper).getAttribute("aria-label")).toBe("Page content");
+    expect(wrapper.find(".app-scroll").attributes("role")).toBeUndefined();
+  });
+
+  it("draws the focus ring for the keyboard only, inset", () => {
+    const source = readFileSync(join(process.cwd(), "src/components/layout/AppShell.vue"), "utf8");
+    expect(source).toContain(".app-shell .app-scroll__wrap:focus:not(:focus-visible) {\n  outline: none;");
+    expect(source).toMatch(/__wrap:focus-visible \{\s*outline: 2px solid var\(--rl-focus\);\s*outline-offset: -2px;/);
+  });
+
   it("does not take focus from a field in the page", async () => {
     const { wrapper, router } = await open("/jobs");
     const field = document.createElement("input");

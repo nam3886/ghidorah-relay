@@ -18,9 +18,10 @@ from relay_core.testing.mutation import mutation
 HERE = Path(__file__).resolve().parent
 SOURCES = sorted(p for p in HERE.rglob("*.py") if "__pycache__" not in p.parts)
 
-# the helper itself, the canvas renderer (it photographs a board, not the app), this file, and a module docstring
-FULL_PAGE_OK = {"pixel_capture.py", "test_pixel.py", "test_harness_guards.py", "test_e2e_sweep.py"}
-DOCUMENT_WIDTH_OK = {"pixel_capture.py", "test_pixel.py", "test_harness_guards.py"}
+# the helper itself and the canvas renderer (it photographs a board, not the app); this file is never scanned for the
+# patterns it spells out
+FULL_PAGE_OK = {"pixel_capture.py", "test_pixel.py"}
+DOCUMENT_WIDTH_OK = {"pixel_capture.py", "test_pixel.py"}
 # files that read the scroll width of one element, and how many times
 ELEMENT_WIDTH = {
     "pixel_capture.py": 2,                  # the helper: the document and the page scroller
@@ -37,9 +38,11 @@ ELEMENT_WIDTH = {
 }
 
 
-def _uses(pattern: str) -> dict[str, int]:
+def _uses(pattern: str, own: bool = False) -> dict[str, int]:
     found: dict[str, int] = {}
     for path in SOURCES:
+        if path.name == Path(__file__).name and not own:
+            continue
         n = len(re.findall(pattern, path.read_text(encoding="utf-8")))
         if n:
             found[path.name] = n
@@ -62,10 +65,10 @@ def test_no_sideways_check_reads_the_document_alone():
     assert not loose, "use pixel_capture.sideways (it reads the page scroller too): %r" % loose
 
 
-@mutation("tests/admin_ui/test_harness_guards.py", "_uses(r\"scrollWidth\") == ELEMENT_WIDTH",
-          "_uses(r\"scrollWidth\") != ELEMENT_WIDTH", expect="a scrollWidth was added or removed")
+@mutation("tests/admin_ui/test_harness_guards.py", "_uses(r\"scrollWidth\", own=True) == ELEMENT_WIDTH",
+          "_uses(r\"scrollWidth\", own=True) != ELEMENT_WIDTH", expect="a scrollWidth was added or removed")
 def test_a_bare_scroll_width_is_one_element_that_was_looked_at():
-    assert _uses(r"scrollWidth") == ELEMENT_WIDTH, (
+    assert _uses(r"scrollWidth", own=True) == ELEMENT_WIDTH, (
         "a scrollWidth was added or removed: a page-level reading belongs in pixel_capture.sideways; an element-level "
         "one is added to ELEMENT_WIDTH once it is reviewed")
 

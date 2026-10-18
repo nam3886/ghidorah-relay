@@ -103,10 +103,12 @@ def sideways(page) -> int:
 
 # Entries whose page is taller than its board at the board's size, each with the reason. The canvas side fails a board
 # that does not fit (`test_pixel.py`); this is its twin for the app, which reads the page scroller.
-TALL_PAGES: dict[str, str] = {
-    "B-AccountEdit": "a dialog over the Accounts list: the rows behind the scrim run past the board's height",
-    "B-AccountImport": "a dialog over the Accounts list: the rows behind the scrim run past the board's height",
-    "B-LogDetail": "a drawer over the Logs list: the rows behind the scrim run past the board's height",
+# Each with the overflow in px that was reviewed: the page may not grow or shrink by more than TALL_TOLERANCE_PX.
+TALL_TOLERANCE_PX = 8
+TALL_PAGES: dict[str, tuple[int, str]] = {
+    "B-AccountEdit": (219, "a dialog over the Accounts list: the rows behind the scrim run past the board's height"),
+    "B-AccountImport": (159, "a dialog over the Accounts list: the rows behind the scrim run past the board's height"),
+    "B-LogDetail": (128, "a drawer over the Logs list: the rows behind the scrim run past the board's height"),
 }
 
 
@@ -116,9 +118,11 @@ def assert_fits_board(page, entry) -> None:
       return w ? w.scrollHeight - w.clientHeight : document.documentElement.scrollHeight - innerHeight; }""" % WRAP,
                          isolated_context=False)
     if entry.name in TALL_PAGES:
-        assert room > 1, "%s is listed as taller than its board but fits: drop it from TALL_PAGES" % entry.name
+        reviewed = TALL_PAGES[entry.name][0]
+        assert abs(room - reviewed) <= TALL_TOLERANCE_PX, (
+            "%s overflows its board by %d px, not the reviewed %d px (TALL_PAGES)" % (entry.name, room, reviewed))
     else:
-        assert room <= 1, "the app's page for %s is %d px taller than its board" % (entry.name, room)
+        assert room <= 1, "the page of %s is %d px taller than its board" % (entry.name, room)
 
 
 def capture(app, db, live, entry, dark: bool, width: int, height: int) -> bytes:

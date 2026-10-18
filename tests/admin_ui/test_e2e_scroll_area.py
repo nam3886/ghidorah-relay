@@ -139,14 +139,49 @@ def test_the_page_scrolls_by_key_straight_after_the_page_has_loaded(app, app_ses
     page.wait_for_function("() => document.querySelector('.app-scroll__wrap').scrollTop > 0", timeout=TIMEOUT_MS)
 
 
-def test_focus_inside_the_page_is_not_taken_by_a_tab_change(app, app_session, db):
-    """A field the user types in keeps its focus when the route does not change what holds it."""
+@mutation(SHELL, "watch(() => route.name, showTop, { flush: \"post\" });",
+          "watch(() => route.fullPath, showTop, { flush: \"post\" });", expect="a query change keeps the position")
+def test_a_query_only_change_keeps_the_scroll_position(app, app_session):
+    """Only a tab change returns to the top: a change of the query on the same route leaves the page where it is."""
     page = app_session
-    go(app, page, "logs", 1440, 600)
-    field = page.get_by_role("textbox").first
-    field.focus()
-    page.evaluate("location.hash = '#/logs'", isolated_context=False)
-    assert page.evaluate("document.activeElement.tagName", isolated_context=False) == "INPUT"
+    go(app, page, "settings", 1440, 400)
+    scroll_page_to(page, 250)
+    page.evaluate("location.hash = '#/settings?x=1'", isolated_context=False)
+    page.wait_for_function("() => location.hash === '#/settings?x=1'", timeout=TIMEOUT_MS)
+    loaded(page)
+    assert state(page)["top"] == 250, "a query change keeps the position"
+
+
+@mutation(SHELL, 'wrap?.setAttribute("role", "region");', "", expect="Page content")
+def test_the_focusable_wrap_is_a_named_region(app, app_session):
+    page = app_session
+    go(app, page, "settings", 1440)
+    region = page.get_by_role("region", name="Page content")
+    expect(region).to_have_count(1)
+    assert region.evaluate("e => e.classList.contains('app-scroll__wrap') && e.getAttribute('tabindex') === '-1'"), \
+        "the focusable wrap is a named region, not Element Plus's root"
+
+
+RING_JS = """() => { const w = document.querySelector('.app-scroll__wrap'), s = getComputedStyle(w);
+  return {focused: document.activeElement === w, visible: w.matches(':focus-visible'), style: s.outlineStyle,
+          width: s.outlineWidth, offset: s.outlineOffset}; }"""
+
+
+@mutation(SHELL, "  outline-offset: -2px;\n", "  outline-offset: 2px;\n", expect="a keyboard focus draws the ring")
+def test_the_scroll_area_draws_a_focus_ring_for_the_keyboard_and_not_for_the_mouse(app, app_session):
+    page = app_session
+    go(app, page, "settings", 1440)
+    tab = page.get_by_role("tab", name="Accounts", exact=True)
+    tab.click()                                               # a mouse click: the area takes focus, no ring
+    expect(page.get_by_role("heading", name="Accounts", exact=True)).to_be_visible()
+    got = page.evaluate(RING_JS, isolated_context=False)
+    assert got["focused"] and not got["visible"] and got["style"] == "none", "a mouse click draws no ring: %r" % got
+    page.get_by_role("tab", name="Settings", exact=True).focus()
+    page.keyboard.press("Enter")                              # the keyboard moved the page: the ring shows, inset
+    page.wait_for_function("() => document.activeElement.classList.contains('app-scroll__wrap')", timeout=TIMEOUT_MS)
+    got = page.evaluate(RING_JS, isolated_context=False)
+    assert got["visible"] and got["style"] == "solid" and got["width"] == "2px" and got["offset"] == "-2px", (
+        "a keyboard focus draws the ring: %r" % got)
 
 
 # ---- Settings anchors and the sticky navigation ------------------------------------------------------------------

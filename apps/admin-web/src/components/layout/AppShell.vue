@@ -53,7 +53,14 @@ function showTop(): void {
   scroller.value?.setScrollTop(0);
   if (!main.value?.contains(document.activeElement)) focusPage();
 }
-onMounted(showTop);
+// The element that takes focus is named for a screen reader: a focusable region is announced as one. Element Plus puts
+// no role or label on its wrap.
+onMounted(() => {
+  const wrap = scroller.value?.wrapRef;
+  wrap?.setAttribute("role", "region");
+  wrap?.setAttribute("aria-label", "Page content");
+  showTop();
+});
 watch(() => route.name, showTop, { flush: "post" });
 defineExpose({ focusPage });
 </script>
@@ -136,9 +143,14 @@ defineExpose({ focusPage });
 .app-shell .app-scroll .el-scrollbar__thumb {
   border-radius: 8px;
 }
-/* the wrap is a container for the keyboard, not a control: the main landmark stays the page's region */
-.app-shell .app-scroll__wrap {
+/* the wrap takes focus by script after a tab change: no ring for a mouse click, the app's focus ring (inset, so the
+   scroller's own clip does not cut it) when the keyboard moved the focus */
+.app-shell .app-scroll__wrap:focus:not(:focus-visible) {
   outline: none;
+}
+.app-shell .app-scroll__wrap:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: -2px;
 }
 .app-shell .app-scroll__view {
   display: flex;

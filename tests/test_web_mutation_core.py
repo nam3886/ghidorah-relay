@@ -423,6 +423,18 @@ AREA_FAILED = "FAILED tests/unit/app-shell.spec.ts > the page scroll area > "
           expect=AREA_FAILED + "is laid out as one block on a phone and in print, with every selector under .app-shell")
 @mutation(SHELL_VUE, "      <main ref=\"main\" class=\"app-main\"", "      <main class=\"app-main\"",
           expect=AREA_FAILED + "does not take focus from a field in the page")
+@mutation(SHELL_VUE, 'watch(() => route.name, showTop, { flush: "post" });',
+          'watch(() => route.fullPath, showTop, { flush: "post" });',
+          expect=AREA_FAILED + "keeps the position when only the query changes")
+@mutation(SHELL_VUE, '  wrap?.setAttribute("role", "region");\n', "",
+          expect=AREA_FAILED + "names the focusable wrap as the page content region")
+@mutation(SHELL_VUE, '  wrap?.setAttribute("aria-label", "Page content");\n', "",
+          expect=AREA_FAILED + "names the focusable wrap as the page content region")
+@mutation(SHELL_VUE, "  outline-offset: -2px;\n", "  outline-offset: 2px;\n",
+          expect=AREA_FAILED + "draws the focus ring for the keyboard only, inset")
+@mutation(SHELL_VUE, ".app-shell .app-scroll__wrap:focus:not(:focus-visible) {\n  outline: none;",
+          ".app-shell .app-scroll__wrap:focus:not(:focus-visible) {\n  outline: 2px solid red;",
+          expect=AREA_FAILED + "draws the focus ring for the keyboard only, inset")
 @pytest.mark.web_unit
 def test_the_page_scroll_area():
     vitest("tests/unit/app-shell.spec.ts")
