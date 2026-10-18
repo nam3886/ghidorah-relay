@@ -7,7 +7,15 @@ import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, shallowRef
 import { getOptions, type PublicModel, type Template } from "@/api/test";
 import TestImages from "@/components/test/TestImages.vue";
 import TestResult from "@/components/test/TestResult.vue";
-import { capital, durationsOf, durationsPhrase, titleOf, walletRows } from "@/components/test/test-models";
+import {
+  capital,
+  defaultRatioOf,
+  durationsOf,
+  durationsPhrase,
+  ratiosOf,
+  titleOf,
+  walletRows,
+} from "@/components/test/test-models";
 import { useGenerate } from "@/components/test/use-generate";
 import { useTestSession } from "@/components/test/use-test-session";
 import { useBreakpoint } from "@/composables/use-breakpoint";
@@ -84,7 +92,12 @@ const wallet = computed(() => walletRows(points.value));
 const withSaved = (list: string[], saved: string): string[] =>
   saved && !list.includes(saved) ? [...list, saved] : list;
 const durationChoices = computed(() => withSaved(durations.value.map(String), form.duration));
-const ratioChoices = computed(() => withSaved(ratios.value, form.ratio));
+// The model's own ratios when it names them (dola's options hold its image ratios, offered for every model), else the
+// provider's options. The form never keeps a ratio the model does not take (see pick).
+const ratioChoices = computed(() => {
+  const own = ratiosOf(chosen.value);
+  return own.length ? own : withSaved(ratios.value, form.ratio);
+});
 const styleChoices = computed(() =>
   form.style && !styles.value.some((s) => s.value === form.style)
     ? [...styles.value, { value: form.style, label: form.style }]
@@ -95,6 +108,9 @@ async function pick(model: PublicModel): Promise<void> {
   const ticket = pickLatest.next();
   chosen.value = model;
   form.model = model.id;
+  // a ratio the model does not take is never sent: its own default (or none) takes its place
+  const own = ratiosOf(model);
+  if (own.length && form.ratio && !own.includes(form.ratio)) form.ratio = defaultRatioOf(model);
   persist();
   ratios.value = [];
   styles.value = [];
@@ -376,7 +392,7 @@ onMounted(async () => {
           <div class="field">
             <label for="test-ratio">Ratio</label>
             <select
-              v-if="ratios.length"
+              v-if="ratios.length || ratiosOf(chosen).length"
               id="test-ratio"
               class="control control--select"
               :value="form.ratio"

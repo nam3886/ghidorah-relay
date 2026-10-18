@@ -562,6 +562,52 @@ describe("the model picker and the wallet", () => {
     expect(body.ratio).toBe("16:9");
   });
 
+  // dola's options hold its image ratios (2:3, no 21:9) for every model; each model names its own list
+  const VIDEO_RATIOS = ["1:1", "3:4", "4:3", "9:16", "16:9", "21:9"];
+  const IMAGE_RATIOS = ["1:1", "2:3", "3:4", "4:3", "9:16", "16:9"];
+  function ratioModels() {
+    vi.mocked(api.listModels).mockResolvedValue({
+      data: [
+        { ...video, limits: { ratios: VIDEO_RATIOS, default_ratio: "16:9" } },
+        { ...image, limits: { ratios: IMAGE_RATIOS, default_ratio: "1:1" } },
+      ],
+    });
+    vi.mocked(api.getOptions).mockResolvedValue({ ratios: IMAGE_RATIOS.map((value) => ({ value })) });
+  }
+  const ratioTexts = () =>
+    wrapper!
+      .findAll("#test-ratio option")
+      .map((o) => o.text())
+      .slice(1);
+
+  it("lists the picked model's own ratios over the provider's: a video model offers 21:9 and not 2:3", async () => {
+    ratioModels();
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    expect(ratioTexts()).toEqual(VIDEO_RATIOS);
+    await pickModel("imagen-4");
+    expect(ratioTexts()).toEqual(IMAGE_RATIOS);
+  });
+
+  it("puts the model's default in place of a ratio the next model does not take, and never sends it", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    ratioModels();
+    await open();
+    await loadModels();
+    await pickModel("imagen-4");
+    await wrapper!.find("#test-ratio").setValue("2:3");
+    await pickModel("veo-3");
+    expect((wrapper!.find("#test-ratio").element as HTMLSelectElement).value).toBe("16:9");
+    expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "").ratio).toBe("16:9");
+    await wrapper!.find("#test-prompt").setValue("a cat");
+    vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
+    vi.mocked(api.getJob).mockResolvedValue({ id: "j1", status: "queued" });
+    await button("Generate").trigger("click");
+    await vi.advanceTimersByTimeAsync(0);
+    expect((vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>).ratio).toBe("16:9");
+  });
+
   it("shows a style by its label and sends the value the provider takes", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout"] });
     vi.mocked(api.getOptions).mockResolvedValue({ styles: [{ label: "Oil painting", value: "oil_painting" }] });

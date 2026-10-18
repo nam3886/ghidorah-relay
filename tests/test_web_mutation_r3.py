@@ -310,6 +310,10 @@ FAILED_CODE = (VIEW_SPEC + "the result card > a failed job with a code names it 
 BY_VALUE = PICKER + "offers and sends a ratio by the value the provider takes, not by its label"
 CHIP_HINT = PICKER + "names a template chip by its whole text and shows the whole text in its hint"
 STYLE_VALUE = PICKER + "shows a style by its label and sends the value the provider takes"
+MODEL_RATIOS = (PICKER + "lists the picked model's own ratios over the provider's: a video model offers 21:9 and "
+                + "not 2:3")
+RATIO_FALLBACK = (PICKER + "puts the model's default in place of a ratio the next model does not take, and never "
+                  + "sends it")
 REFUNDED_POINTS = (VIEW_SPEC + "the result card > a refunded failed job strikes its charge, then 0 and refunded, as "
                    + "the job drawer does")
 OPTION_VALUE = FORM_SPEC + "optionValue > takes the value a provider takes, and the label only when there is no value"
@@ -331,6 +335,12 @@ OPTION_VALUE = FORM_SPEC + "optionValue > takes the value a provider takes, and 
           "({ value: optionLabel(o), label: optionLabel(o) })", expect=STYLE_VALUE)
 @mutation(TEST_VIEW, ':value="s.value">{{ s.label }}</option>', ':value="s.value">{{ s.value }}</option>',
           expect=STYLE_VALUE)
+@mutation(TEST_VIEW, "return own.length ? own : withSaved(ratios.value, form.ratio);",
+          "return withSaved(ratios.value, form.ratio);", expect=MODEL_RATIOS)
+@mutation(TEST_VIEW, "if (own.length && form.ratio && !own.includes(form.ratio)) form.ratio = defaultRatioOf(model);",
+          "", expect=RATIO_FALLBACK)
+@mutation(TEST_MODELS, 'typeof ratio === "string" && ratiosOf(m).includes(ratio) ? ratio : ""', '""',
+          expect=RATIO_FALLBACK)
 @mutation(TEST_RESULT_MODEL, 'if (typeof job.points === "number") {', "if (false) {", expect=RESULT_CARD)
 @mutation(TEST_VIEW, ':content="t.show_value || t.prompt"', ':content="t.prompt.slice(0, 40)"', expect=CHIP_HINT)
 @mutation(TEST_RESULT_MODEL, "job.refunded === true", "false", expect=REFUNDED_POINTS)

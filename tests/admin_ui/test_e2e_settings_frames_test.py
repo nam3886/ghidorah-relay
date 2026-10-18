@@ -511,6 +511,37 @@ def test_a_ratio_labelled_in_words_is_offered_and_sent_by_its_value(app_session,
     expect(page.locator(".test-result__status")).to_contain_text("Job")
 
 
+def test_a_video_model_offers_its_own_ratios_21_9_and_not_2_3_and_sends_the_one_picked(app_session, live, db):
+    """dola's options hold its image ratios (2:3, no 21:9) for every model; each model names its own list in the
+    catalog, and the tab offers that one."""
+    import dataclasses
+
+    from relay_core.providers import check_catalog
+
+    page = app_session
+    video = ("1:1", "3:4", "4:3", "9:16", "16:9", "21:9")
+    for name in live.env.registry.names():
+        spec = live.env.registry.spec(name)
+        listed = spec.catalog()
+        spec.catalog = lambda listed=listed: [
+            dataclasses.replace(m, limits={**m.limits, "ratios": list(video), "default_ratio": "16:9"})
+            if m.media_type == "video" else m for m in listed]
+        spec.extras = lambda snapshots: {
+            "ratios": [{"value": r} for r in ("1:1", "2:3", "3:4", "4:3", "9:16", "16:9")]}
+    registry = live.env.registry
+    registry._models = check_catalog([registry.spec(n) for n in registry.names()])
+    open_test_tab(page, db, live)
+    page.get_by_test_id("test-model").filter(has_text="fake-video").click()
+    ratio = page.get_by_label("Ratio", exact=True)
+    expect(ratio.locator("option")).to_have_text(["Default", *video])
+    ratio.select_option("21:9")
+    page.get_by_label("Prompt", exact=True).fill("a cat")
+    with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
+        page.get_by_role("button", name="Generate", exact=True).click()
+    assert sent.value.post_data_json["ratio"] == "21:9"
+    expect(page.locator(".test-result__status")).to_contain_text("Job")
+
+
 def test_a_style_is_shown_by_its_label_and_sent_by_its_value(app_session, live, db):
     """dola names a style in words and takes only its value: the tab shows the words and the request carries the
     value."""
