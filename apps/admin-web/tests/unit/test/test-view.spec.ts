@@ -530,6 +530,18 @@ describe("the model picker and the wallet", () => {
     expect(wrapper!.find(".test-tab__points-box pre").exists()).toBe(false);
   });
 
+  it("names a template chip by its whole text and shows the whole text in its hint", async () => {
+    const long = "A slow dolly shot along a rain soaked street at night. ".repeat(40).trim();
+    vi.mocked(api.getOptions).mockResolvedValue({ templates: [{ show_value: long, prompt: long }] });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    const chip = wrapper!.find('[role="group"][aria-label="Prompt templates"] button');
+    expect(chip.text()).toBe(long);
+    const hint = wrapper!.findAllComponents({ name: "ElTooltip" }).find((t) => t.props("content") === long);
+    expect(hint?.props("popperClass")).toContain("rl-tip");
+  });
+
   it("offers and sends a ratio by the value the provider takes, not by its label", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout"] });
     vi.mocked(api.getOptions).mockResolvedValue({
@@ -548,6 +560,25 @@ describe("the model picker and the wallet", () => {
     await vi.advanceTimersByTimeAsync(0);
     const body = vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>;
     expect(body.ratio).toBe("16:9");
+  });
+
+  it("shows a style by its label and sends the value the provider takes", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    vi.mocked(api.getOptions).mockResolvedValue({ styles: [{ label: "Oil painting", value: "oil_painting" }] });
+    await open();
+    await loadModels();
+    await pickModel("imagen-4");
+    const options = wrapper!.findAll("#test-style option");
+    expect(options.map((o) => o.text())).toEqual(["Default", "Oil painting"]);
+    expect(options.map((o) => o.attributes("value"))).toEqual(["", "oil_painting"]);
+    await wrapper!.find("#test-style").setValue("oil_painting");
+    await wrapper!.find("#test-prompt").setValue("a cat");
+    vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
+    vi.mocked(api.getJob).mockResolvedValue({ id: "j1", status: "queued" });
+    await button("Generate").trigger("click");
+    await vi.advanceTimersByTimeAsync(0);
+    const body = vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>;
+    expect(body.style).toBe("oil_painting");
   });
 
   it("lists the video wallet first, whatever order the points answer has", async () => {
@@ -616,6 +647,7 @@ describe("the result card", () => {
       model: "veo-3",
       duration: 30,
       ratio: "16:9",
+      points: 2,
       created_at: new Date(2026, 9, 15, 20, 52, 30).toISOString(),
     };
     vi.mocked(api.createJob).mockResolvedValue(running);
@@ -632,6 +664,7 @@ describe("the result card", () => {
       "Model veo-3",
       "Duration 30 s",
       "Ratio 16:9",
+      "Points 2",
       "Created 20:52:30",
     ]);
     const link = wrapper!.find('a[aria-label="Open job e17c55b2"]');
@@ -654,6 +687,22 @@ describe("the result card", () => {
     expect(wrapper!.find(".status-chip").text()).toBe("failed");
     expect(wrapper!.find('[aria-label="Empty video slot"]').exists()).toBe(false);
     expect(wrapper!.find('.result [role="alert"]').text()).toBe("Failed — the prompt was refused");
+  });
+
+  it("a refunded failed job strikes its charge, then 0 and refunded, as the job drawer does", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    const failed = { id: "j1", status: "failed", error: "refused", points: 2, refunded: true };
+    vi.mocked(api.createJob).mockResolvedValue(failed);
+    vi.mocked(api.getJob).mockResolvedValue(failed);
+    await button("Generate").trigger("click");
+    await vi.advanceTimersByTimeAsync(3000);
+    await flushPromises();
+    const points = wrapper!.findAll(".result__row").find((r) => r.find("dt").text() === "Points")!;
+    expect(points.find("s").text()).toBe("2");
+    expect(points.find("dd").text()).toBe("2 → 0 refunded");
   });
 
   it("a failed job with a code names it in bold before the reason, as the job drawer does", async () => {

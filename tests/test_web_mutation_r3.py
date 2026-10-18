@@ -308,6 +308,10 @@ PLAY_BOX = (VIEW_SPEC + "media > draws a video link as a box with a play button,
 FAILED_CODE = (VIEW_SPEC + "the result card > a failed job with a code names it in bold before the reason, as the "
                + "job drawer does")
 BY_VALUE = PICKER + "offers and sends a ratio by the value the provider takes, not by its label"
+CHIP_HINT = PICKER + "names a template chip by its whole text and shows the whole text in its hint"
+STYLE_VALUE = PICKER + "shows a style by its label and sends the value the provider takes"
+REFUNDED_POINTS = (VIEW_SPEC + "the result card > a refunded failed job strikes its charge, then 0 and refunded, as "
+                   + "the job drawer does")
 OPTION_VALUE = FORM_SPEC + "optionValue > takes the value a provider takes, and the label only when there is no value"
 
 
@@ -323,6 +327,13 @@ OPTION_VALUE = FORM_SPEC + "optionValue > takes the value a provider takes, and 
           expect=FAILED_CODE)
 @mutation(TEST_VIEW, "(extras.ratios ?? []).map(optionValue)", "(extras.ratios ?? []).map(optionLabel)",
           expect=BY_VALUE)
+@mutation(TEST_VIEW, "({ value: optionValue(o), label: optionLabel(o) })",
+          "({ value: optionLabel(o), label: optionLabel(o) })", expect=STYLE_VALUE)
+@mutation(TEST_VIEW, ':value="s.value">{{ s.label }}</option>', ':value="s.value">{{ s.value }}</option>',
+          expect=STYLE_VALUE)
+@mutation(TEST_RESULT_MODEL, 'if (typeof job.points === "number") {', "if (false) {", expect=RESULT_CARD)
+@mutation(TEST_VIEW, ':content="t.show_value || t.prompt"', ':content="t.prompt.slice(0, 40)"', expect=CHIP_HINT)
+@mutation(TEST_RESULT_MODEL, "job.refunded === true", "false", expect=REFUNDED_POINTS)
 @mutation(TEST_RESULT_MODEL, 'if (took) rows.push({ label: "Took", value: took });', "", expect=DONE_FRAME)
 @mutation(TEST_RESULT_MODEL, "minutes ? `${minutes} m ${seconds % 60} s` : `${seconds} s`", "`${seconds} s`",
           expect=DONE_FRAME)

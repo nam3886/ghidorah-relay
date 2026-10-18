@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import type { PublicJob } from "@/api/test";
 import StatusChip from "@/components/shared/StatusChip.vue";
-import { IconAlertCircleJoined, IconPlay } from "@/components/shared/icons";
+import { IconAlertCircleJoined, IconImage, IconPlay } from "@/components/shared/icons";
 import { safeMediaUrl } from "@/lib/safe-media-url";
 import { useUiStore } from "@/stores/ui";
 import { jobLine } from "./use-generate";
@@ -81,15 +81,19 @@ const openJob = (): void => {
       <div class="test-result__media">
         <template v-for="(m, i) in media" :key="i">
           <template v-if="m.safe">
-            <el-image
-              v-if="kind === 'image'"
-              :src="m.safe"
-              :preview-src-list="previews"
-              :initial-index="previews.indexOf(m.safe)"
-              fit="contain"
-              preview-teleported
-              class="result__image"
-            />
+            <!-- an image sits in the drawn media box; a broken one shows the canvas's image glyph -->
+            <div v-if="kind === 'image'" class="result__frame">
+              <el-image
+                :src="m.safe"
+                :preview-src-list="previews"
+                :initial-index="previews.indexOf(m.safe)"
+                fit="contain"
+                preview-teleported
+                class="result__image"
+              >
+                <template #error><IconImage class="result__broken" :size="22" :stroke="1.6" /></template>
+              </el-image>
+            </div>
             <div v-else class="result__frame">
               <video v-if="playing === i" :src="m.safe" controls autoplay class="result__video" />
               <button v-else type="button" class="result__play" aria-label="Play video" @click="playing = i">
@@ -140,7 +144,15 @@ const openJob = (): void => {
           <div v-for="row in ledger" :key="row.label" class="result__row">
             <dt>{{ row.label }}</dt>
             <span class="result__leader" aria-hidden="true" />
-            <dd>{{ row.value }}</dd>
+            <dd>
+              <template v-if="row.was"
+                ><s class="result__was">{{ row.was }}</s
+                >{{ " → " }}</template
+              >{{ row.value
+              }}<template v-if="row.note"
+                >{{ " " }}<span class="result__note">{{ row.note }}</span></template
+              >
+            </dd>
           </div>
         </dl>
         <div class="test-result__media">
@@ -285,6 +297,12 @@ const openJob = (): void => {
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
+.result__was {
+  color: var(--rl-muted);
+}
+.result__note {
+  color: var(--rl-ok);
+}
 .test-result__media {
   display: flex;
   flex-direction: column;
@@ -316,8 +334,7 @@ const openJob = (): void => {
 .result__done .test-result__media {
   display: contents;
 }
-.result__frame,
-.result__image {
+.result__frame {
   flex: 1 1 280px;
   min-width: 0;
 }
@@ -352,7 +369,14 @@ const openJob = (): void => {
   height: 100%;
 }
 .result__image {
-  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.result__broken {
+  color: var(--rl-muted);
 }
 .result__ledger--done {
   flex: 1 1 200px;

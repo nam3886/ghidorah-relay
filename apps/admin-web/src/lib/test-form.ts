@@ -68,8 +68,9 @@ export function optionLabel(option: Record<string, unknown>): string {
   return "";
 }
 
-// What the request carries for a ratio, and what the select shows: its `value` ("16:9") when it has one, which is all
-// the provider takes; else its label. dola labels a ratio with a sentence around the value and refuses the sentence.
+// What the request carries for a provider option (a ratio or a style): its `value` ("16:9", "oil_painting") when it has
+// one, which is all the provider takes; else its label. dola labels a ratio with a sentence around the value and a
+// style in words, and refuses either. A ratio is also shown by its value, as drawn; a style by its label.
 export function optionValue(option: Record<string, unknown>): string {
   return typeof option.value === "string" && option.value ? option.value : optionLabel(option);
 }

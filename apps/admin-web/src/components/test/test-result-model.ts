@@ -37,15 +37,30 @@ export function sizeText(bytes: number): string {
   return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MiB` : `${Math.max(1, Math.round(bytes / 1024))} KiB`;
 }
 
+// A ledger row; a refunded charge reads as the job drawer writes it: the charge struck (`was`), then 0 and "refunded".
+export interface LedgerRow {
+  label: string;
+  value: string;
+  was?: string;
+  note?: string;
+}
+
 // The ledger under the job id: only the fields the status body really carries, in the order the design draws them.
-export function jobLedger(job: PublicJob): Array<{ label: string; value: string }> {
-  const rows: Array<{ label: string; value: string }> = [];
+export function jobLedger(job: PublicJob): LedgerRow[] {
+  const rows: LedgerRow[] = [];
   const add = (label: string, value: string): void => {
     if (value) rows.push({ label, value });
   };
   if (typeof job.model === "string") add("Model", job.model);
   if (typeof job.duration === "number") add("Duration", `${job.duration} s`);
   if (typeof job.ratio === "string") add("Ratio", job.ratio);
+  if (typeof job.points === "number") {
+    rows.push(
+      job.refunded === true
+        ? { label: "Points", value: "0", was: String(job.points), note: "refunded" }
+        : { label: "Points", value: String(job.points) },
+    );
+  }
   add("Created", clockTime(job.created_at));
   return rows;
 }

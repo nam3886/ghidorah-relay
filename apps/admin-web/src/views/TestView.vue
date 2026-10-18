@@ -54,7 +54,8 @@ const files = shallowRef<StoredFile[]>([]);
 const note = ref("");
 const chosen = shallowRef<PublicModel | null>(null);
 const ratios = ref<string[]>([]);
-const styles = ref<string[]>([]);
+// A style is sent by the value the provider takes ("oil_painting") and shown by its label.
+const styles = ref<Array<{ value: string; label: string }>>([]);
 const templates = shallowRef<Template[]>([]);
 const pickLatest = useLatest();
 
@@ -84,7 +85,11 @@ const withSaved = (list: string[], saved: string): string[] =>
   saved && !list.includes(saved) ? [...list, saved] : list;
 const durationChoices = computed(() => withSaved(durations.value.map(String), form.duration));
 const ratioChoices = computed(() => withSaved(ratios.value, form.ratio));
-const styleChoices = computed(() => withSaved(styles.value, form.style));
+const styleChoices = computed(() =>
+  form.style && !styles.value.some((s) => s.value === form.style)
+    ? [...styles.value, { value: form.style, label: form.style }]
+    : styles.value,
+);
 
 async function pick(model: PublicModel): Promise<void> {
   const ticket = pickLatest.next();
@@ -98,7 +103,9 @@ async function pick(model: PublicModel): Promise<void> {
     const extras = await session.call((key) => getOptions(key, model.owned_by));
     if (!pickLatest.isCurrent(ticket)) return;
     ratios.value = (extras.ratios ?? []).map(optionValue).filter(Boolean);
-    styles.value = (extras.styles ?? []).map(optionLabel).filter(Boolean);
+    styles.value = (extras.styles ?? [])
+      .map((o) => ({ value: optionValue(o), label: optionLabel(o) }))
+      .filter((s) => s.value);
     templates.value = extras.templates ?? [];
   } catch {
     /* the options are a convenience: the model can be used without them */
@@ -314,9 +321,22 @@ onMounted(async () => {
           </p>
         </div>
         <div v-if="templates.length" class="chips" role="group" aria-label="Prompt templates">
-          <button v-for="(t, i) in templates" :key="i" type="button" class="chip" @click="applyTemplate(t)">
-            {{ t.show_value || t.prompt }}
-          </button>
+          <!-- the whole template in the shared hint look (HintTip's), on the chip itself: no second tab stop -->
+          <el-tooltip
+            v-for="(t, i) in templates"
+            :key="i"
+            :content="t.show_value || t.prompt"
+            placement="top"
+            effect="light"
+            :trigger="['hover', 'focus']"
+            popper-class="rl-tip test-chip-tip"
+            :show-after="150"
+            :show-arrow="false"
+          >
+            <button type="button" class="chip" @click="applyTemplate(t)">
+              {{ t.show_value || t.prompt }}
+            </button>
+          </el-tooltip>
         </div>
 
         <div class="field">
@@ -389,7 +409,7 @@ onMounted(async () => {
               @change="setField('style', ($event.target as HTMLSelectElement).value)"
             >
               <option value="">Default</option>
-              <option v-for="s in styleChoices" :key="s" :value="s">{{ s }}</option>
+              <option v-for="s in styleChoices" :key="s.value" :value="s.value">{{ s.label }}</option>
             </select>
             <input
               v-else
@@ -750,6 +770,11 @@ onMounted(async () => {
 }
 .chip:hover {
   background: var(--rl-raised);
+}
+/* a template can run to thousands of characters: its hint scrolls past a few lines */
+:global(.el-popper.test-chip-tip) {
+  max-height: 240px;
+  overflow-y: auto;
 }
 .field {
   display: flex;

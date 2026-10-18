@@ -511,6 +511,25 @@ def test_a_ratio_labelled_in_words_is_offered_and_sent_by_its_value(app_session,
     expect(page.locator(".test-result__status")).to_contain_text("Job")
 
 
+def test_a_style_is_shown_by_its_label_and_sent_by_its_value(app_session, live, db):
+    """dola names a style in words and takes only its value: the tab shows the words and the request carries the
+    value."""
+    page = app_session
+    for name in live.env.registry.names():
+        live.env.registry.spec(name).extras = lambda snapshots: {
+            "styles": [{"label": "Oil painting", "value": "oil_painting"}]}
+    open_test_tab(page, db, live)
+    page.get_by_test_id("test-model").filter(has_text="fake-image").click()
+    style = page.get_by_label("Style", exact=True)
+    expect(style.locator("option")).to_have_text(["Default", "Oil painting"])
+    style.select_option("oil_painting")
+    page.get_by_label("Prompt", exact=True).fill("a cat")
+    with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
+        page.get_by_role("button", name="Generate", exact=True).click()
+    assert sent.value.post_data_json["style"] == "oil_painting"
+    expect(page.locator(".test-result__status")).to_contain_text("Job")
+
+
 def test_generate_polls_to_a_result_draws_a_share_link_and_shows_any_other_link_as_text(app_session, live, db):
     page = app_session
     requests = []

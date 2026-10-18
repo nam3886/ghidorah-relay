@@ -6,7 +6,8 @@ What the app cannot be made to show, and so stays a known difference of these bo
 - the version numbers `v3`, `v4`: the app prints the database id of a version, one sequence for every target;
 - the settings rows: the live server's settings are the core ones plus the fake provider's, not the boards' six;
 - the boot-only values and the measured-price rows of the live server;
-- the job id `e17c55b2` (a new job has a new id), its step (the fake worker is not running) and its Points row."""
+- the job id `e17c55b2` (a new job has a new id). The Test drive moves the job to the boards' step itself (the fake
+  worker is not running), and its seed names the models and charges the boards' 2 points."""
 
 import dataclasses
 import io
@@ -133,11 +134,33 @@ FILES = (("market-stall-reference.jpg", "image/jpeg", int(1.8 * 1048576)),
          ("noodle-bowl-closeup.png", "image/png", int(3.2 * 1048576)))
 
 
+BOARD_NAMES = {"seedance_v2.5": "Dreamina Seedance 2.5", "seedance_v2.0": "Seedance 2.0 Fast",
+               "seedance_v1.0": "Seedance 1.0", "seedream-4.5": "Seedream 4.5", "seedream-5.0-pro": "Seedream 5.0 Pro"}
+
+
+def name_and_price_the_boards_models(live) -> None:
+    """The boards' models with their display names (the catalog sends `name`, as dola's does), and the boards' price of
+    a video job, 2 points (the fake charges 10), which the result card's Points row shows."""
+    spec = live.env.registry.spec(PROVIDER)
+    models = [dataclasses.replace(m, display_name=BOARD_NAMES.get(m.id, "")) for m in spec.catalog()]
+    spec.catalog = lambda: models
+    boards_plan = spec.plan
+
+    def plan(req, settings, snapshots):
+        made = boards_plan(req, settings, snapshots)
+        return dataclasses.replace(made, price=2) if made.media_type == "video" else made
+
+    spec.plan = plan
+    registry = live.env.registry
+    registry._models = check_catalog([registry.spec(n) for n in registry.names()])
+
+
 def key_page_seed(db, live):
     """A key whose wallets read as the boards' Wallet limits: video 3 / 20 today and 14 / 200 in total, image
     unlimited with 9 used."""
     data = shell_seed(db, live)
     use_the_boards_models(live, frames=False)           # the Test board needs no stored frame to make its job
+    name_and_price_the_boards_models(live)
     key = live.call(live.env.new_key())
     day = "(clock_timestamp() AT TIME ZONE (SELECT tz FROM billing_pin))::date"
     db.run("UPDATE key_wallets SET day_limit = 20, total_limit = 200, used_day = 3, used_total = 14, "
