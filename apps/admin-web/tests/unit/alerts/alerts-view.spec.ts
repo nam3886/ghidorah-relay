@@ -136,7 +136,7 @@ describe("the lists", () => {
   it("asks for the open groups, 200 of them, with the live conditions beside", async () => {
     const w = await open();
     expect(list).toHaveBeenCalledWith("open", "", 200);
-    expect(w.find('[data-testid="alerts-live"]').text()).toContain("accounts_low: only 1 usable account");
+    expect(w.find('[data-testid="alerts-live"]').text()).toContain("pool: only 1 usable account");
     expect(w.find("tbody tr").text()).toContain("Clamp on fake");
     // the Updated line sits under the title on a phone only; on a desktop it is in the header
     expect(w.find(".a-updated").exists()).toBe(false);
@@ -320,6 +320,22 @@ describe("the generation guard", () => {
     expect(notify.error).toHaveBeenCalledWith("the list failed");
   });
 
+  it("the failed list is worded as the canvas words one: who answered what", async () => {
+    const w = await open();
+    list.mockRejectedValueOnce(new ApiError(502, { error: { message: "bad gateway" } }));
+    await refresh(w).trigger("click");
+    await settle();
+    expect(w.find(".data-table__error-text").text()).toBe(
+      "Could not load the alerts: the relay answered 502 (bad gateway).",
+    );
+    list.mockRejectedValueOnce(new Error("no answer"));
+    await refresh(w).trigger("click");
+    await settle();
+    expect(w.find(".data-table__error-text").text()).toBe(
+      "Could not load the alerts: network error, please try again.",
+    );
+  });
+
   it("while a view loads, Acknowledge is locked but the filters are not", async () => {
     const w = await open();
     const slow = deferred<{ items: AlertGroup[] }>();
@@ -352,7 +368,7 @@ describe("the detail", () => {
     await settle();
     expect(alerts.getAlertGroup).toHaveBeenCalledWith({ kind: "clamp", group: "g1" }, 100);
     const panel = w.find('[data-testid="alert-detail"]');
-    expect(panel.find('[data-testid="alert-detail-title"]').text()).toBe(PLANTED);
+    expect(panel.find('[data-testid="alert-detail-title"]').text()).toBe(`Fake replied “${PLANTED}”`);
     expect(panel.find('[data-testid="alert-outcomes"]').text()).toBe("1 delivered after the reply, 2 refunded.");
     expect(panel.find("img").exists()).toBe(false);
     await panel
@@ -528,6 +544,7 @@ describe("the detail as the design draws it", () => {
           reply({ id: 2, job_status: "failed", job_error_code: "dola.likeness_refused", account_label: "n11-06" }),
         ],
         outcomes: { done: 3, failed: 1, open: 0 },
+        media: "video",
       }),
     );
   const openIt = async () => {
@@ -550,8 +567,8 @@ describe("the detail as the design draws it", () => {
 
   it("says what the reply is and what decides the outcome, and counts delivered and refunded", async () => {
     const panel = await openIt();
-    expect(panel.text()).toContain(
-      "The reply is stored as the job’s answer; the job outcome decides what the customer got.",
+    expect(panel.find(".ad__sentence").text()).toBe(
+      "The reply is stored as the video’s answer; the job outcome decides what the customer got.",
     );
     expect(panel.find('[data-testid="alert-outcomes"]').text()).toBe("3 delivered after the reply, 1 refunded.");
   });
@@ -634,9 +651,12 @@ describe("the tablet and the phone", () => {
     const w = await open();
     await w.find('.p-group button[aria-label^="Details"]').trigger("click");
     await settle();
-    const items = w.findAll(".data-table__item");
-    expect(items[0]!.find('[data-testid="alert-detail"]').exists()).toBe(true);
-    expect(items[1]!.find('[data-testid="alert-detail"]').exists()).toBe(false);
+    // the region sits right after the opened group's block and before the next group's, outside both
+    const order = [...document.querySelectorAll('.p-group, [data-testid="alert-detail"]')].map((el) =>
+      el.matches(".p-group") ? el.querySelector(".p-group__title")!.textContent : "detail",
+    );
+    expect(order).toEqual(["first", "detail", "second"]);
+    expect(w.find('.p-group [data-testid="alert-detail"]').exists()).toBe(false);
     expect(w.find('[data-testid="alert-detail"]').element.tagName).toBe("DIV");
     expect(w.find('[data-testid="alert-detail-title"]').text()).toBe("Group summary and rows");
     expect(w.findAll('[data-testid="alert-detail"] button').map((b) => b.text())).toEqual(["Acknowledge"]);
@@ -739,5 +759,39 @@ describe("what a row of the reply list draws on each width", () => {
     expect(item.find(".ad-job").text()).toBe("A title");
     expect(item.find(".ad-jobid").exists()).toBe(false);
     expect(item.text()).not.toContain("abcdef01");
+  });
+});
+
+describe("the names of the groups, as the canvas writes them", () => {
+  const reply = group({
+    kind: "unclear_reply",
+    group: "0123456789abcdef",
+    title: "sorry, i can't create that video",
+    provider: "dola",
+    reply: "Sorry, I can’t create that video",
+  });
+  const clamp = group({
+    group: "k1.dola.video",
+    title: "clamp: dola video wallet of key k1",
+    provider: "dola",
+    key_label: "Shop A",
+  });
+  const SAID = "Dola replied “Sorry, I can’t create that video”";
+
+  it("the list and the detail name a reply group by its newest reply, a billing group by its wallet and key", async () => {
+    list.mockResolvedValue({ items: [reply, clamp] });
+    vi.mocked(alerts.getAlertGroup).mockResolvedValue(detail({ ...reply, items: [] }));
+    const w = await open();
+    expect(w.findAll("tbody .g-title").map((t) => t.text())).toEqual([SAID, "dola video wallet of key Shop A"]);
+    await listButtons(w, `Details of ${SAID}`)[0]!.trigger("click");
+    await settle();
+    expect(w.find('[data-testid="alert-detail-title"]').text()).toBe(SAID);
+  });
+
+  it("a phone names them the same way", async () => {
+    showAt(390);
+    list.mockResolvedValue({ items: [reply, clamp] });
+    const w = await open();
+    expect(w.findAll(".p-group__title").map((t) => t.text())).toEqual([SAID, "dola video wallet of key Shop A"]);
   });
 });
