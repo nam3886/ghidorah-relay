@@ -173,6 +173,15 @@ def text_of(length: int, head: str = "") -> str:
     return (head + WORDS * (length // len(WORDS) + 2))[:length - 1] + "."
 
 
+def live_limits(kind: str, lengths: tuple) -> dict:
+    """A model's limits as dola's catalog writes them: video its lengths, its six ratios (21:9, no 2:3) and its
+    defaults; an image its six ratios (2:3, no 21:9)."""
+    if kind == "video":
+        return {"durations": list(lengths), "ratios": ["1:1", "3:4", "4:3", "9:16", "16:9", "21:9"],
+                "default_duration": max(lengths), "default_ratio": "16:9"}
+    return {"ratios": ["1:1", "2:3", "3:4", "4:3", "9:16", "16:9"]}
+
+
 def live_catalog(live) -> None:
     """The live server's one provider serves the live catalog's shapes (see above)."""
     import dataclasses
@@ -181,7 +190,7 @@ def live_catalog(live) -> None:
 
     spec = live.env.registry.spec(PROVIDER)
     spec.frames = None
-    spec.catalog = lambda: [ModelSpec(m, kind, ("generate",), limits={"durations": list(lengths)} if lengths else {},
+    spec.catalog = lambda: [ModelSpec(m, kind, ("generate",), limits=live_limits(kind, lengths),
                                       prices={"default": 2 if kind == "video" else 1}, display_name=name)
                             for m, kind, lengths, name in LIVE_MODELS]
     original = type(spec).plan.__get__(spec)            # the fake's own plan, not the boards' wrapper of it
