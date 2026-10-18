@@ -228,12 +228,12 @@ function go(id: string): void {
   gap: 20px;
 }
 
-/* The drawn sub-navigation sticks 16 px from the top of the page (tablet: at the top). The app's top bar sticks too, so
-   both sit under it: its height (shell.md: 64 + its line, tablet 110, phone 102) is added. A card reached from the
-   sub-navigation stops below both. ponytail: the shell's heights written here; a variable from the top bar when it
-   gets one. */
+/* The drawn sub-navigation sticks 16 px from the top of the page (tablet: at the top). On a tablet and a desktop the
+   page scrolls in its own area under the top bar, so nothing is added for the bar (--settings-bar 0); on a phone the
+   window scrolls and the sticky bar (102 px) is added. A card reached from the sub-navigation stops below the stuck
+   navigation. ponytail: the phone bar height written here; a variable from the top bar when it gets one. */
 .settings {
-  --settings-bar: 65px;
+  --settings-bar: 0px;
   --settings-anchor: calc(var(--settings-bar) + 16px);
 }
 .snav {
@@ -300,9 +300,9 @@ function go(id: string): void {
 }
 
 @media (min-width: 768px) and (max-width: 1279px) {
-  /* the two-row top bar; a card stops below it and the stuck pills (8 + 36 + 8) */
+  /* a card stops below the stuck pills (8 + 36 + 8) */
   .settings {
-    --settings-bar: 110px;
+    --settings-bar: 0px;
     --settings-anchor: calc(var(--settings-bar) + 52px + 16px);
   }
   .settings__title {

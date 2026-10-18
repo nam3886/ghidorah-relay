@@ -15,7 +15,7 @@ import pytest
 from element_diff import diff, extract, markdown, popup_place, side_by_side
 from patchright.sync_api import expect
 from pixel_accounts import accounts_seed, open_edit, open_import, phone_ready
-from pixel_capture import opened, shoot
+from pixel_capture import full_photo, opened, shoot, sideways
 from pixel_diff import compare
 from pixel_manifest import Entry
 from pixel_seed import BOARD_USER, NOW
@@ -107,7 +107,8 @@ MENU_CHECKS = [
 # A click on the switch, which lies past the card's edge at 1440 (D123), scrolls the card sideways (and the page): both
 # sides are scrolled back before the comparison.
 UNSCROLL_JS = ("() => { document.querySelectorAll('*').forEach(e => { if (e.scrollLeft) e.scrollLeft = 0; }); "
-               "window.scrollTo(0, 0); }")
+               "window.scrollTo(0, 0); const w = document.querySelector('.app-scroll__wrap'); "
+               "if (w) w.scrollTop = 0; }")
 
 
 def switched_off(page, live, data) -> None:
@@ -441,7 +442,7 @@ def _photo(page, run_dir, name: str, full: bool = False) -> None:
     page.evaluate("() => document.querySelectorAll('.acct-scroll').forEach(e => e.scrollLeft = e.scrollWidth)",
                   isolated_context=False)
     (out / (name + ".png")).write_bytes(
-        page.screenshot(full_page=full, animations="disabled", caret="hide") if full else shoot(page))
+        full_photo(page) if full else shoot(page))
 
 
 @pytest.mark.parametrize("theme", THEMES)
@@ -551,9 +552,9 @@ def test_accounts_with_live_like_data_fits(app, db, live, run_dir, width, theme)
         out = run_dir / "element-diff"
         out.mkdir(parents=True, exist_ok=True)
         (out / ("live-like-%d-%s.png" % (width, theme))).write_bytes(
-            page.screenshot(full_page=True, animations="disabled", caret="hide"))
-        sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
-        assert sideways <= 0, "the page scrolls sideways by %d px" % sideways
+            full_photo(page))
+        over = sideways(page)
+        assert over <= 0, "the page scrolls sideways by %d px" % over
         if width == 1440:
             seen = page.evaluate(SEEN_JS, isolated_context=False)
             assert seen == {"proxy": True, "lastError": True}, "the card hides columns B-Accounts shows: %r" % seen

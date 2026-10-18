@@ -197,10 +197,13 @@ describe("the shell", () => {
     expect(alerts.wrapper.find('[data-testid="job-dialog"]').attributes("back-label")).toBe("Back to Alerts");
   });
 
-  it("frames the page: the top bar first, then the view inside one main", async () => {
+  it("frames the page: the top bar first, then the scroll area around one main with the view inside", async () => {
     const { wrapper } = await open("/jobs");
     const shellEl = wrapper.find(".app-shell");
-    expect([...shellEl.element.children].map((el) => el.tagName)).toEqual(["HEADER", "MAIN"]);
+    expect([...shellEl.element.children].map((el) => el.tagName)).toEqual(["HEADER", "DIV"]);
+    expect(shellEl.element.children[1]?.classList.contains("app-scroll")).toBe(true);
+    expect(wrapper.find(".app-scroll__wrap > .app-scroll__view > main").exists()).toBe(true);
+    expect(wrapper.find("header").element.closest(".app-scroll")).toBeNull();
     expect(wrapper.find("main h2").text()).toBe("Jobs");
     expect(wrapper.find("header nav").attributes("aria-label")).toBe("Main");
   });
@@ -1150,5 +1153,64 @@ describe("the login page", () => {
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("login");
     expect(sessionStorage.getItem(TOKEN_KEY)).toBeNull();
+  });
+});
+
+describe("the page scroll area", () => {
+  const wrapOf = (wrapper: VueWrapper): HTMLElement => wrapper.find(".app-scroll__wrap").element as HTMLElement;
+
+  it("is a container for the keyboard: the wrap takes focus by script only, so it is not a stop of the Tab key", async () => {
+    const { wrapper } = await open("/jobs");
+    expect(wrapOf(wrapper).getAttribute("tabindex")).toBe("-1");
+  });
+
+  it("moves focus to the scroll area when it is drawn, so the page scrolls by key at once", async () => {
+    const { wrapper } = await open("/jobs");
+    expect(document.activeElement).toBe(wrapOf(wrapper));
+  });
+
+  it("returns to the top and takes focus when the tab changes", async () => {
+    const { wrapper, router } = await open("/jobs");
+    wrapOf(wrapper).scrollTop = 120;
+    (wrapper.find('[role="tab"]').element as HTMLElement).focus();
+    expect(document.activeElement).not.toBe(wrapOf(wrapper));
+    await router.push("/accounts");
+    await flushPromises();
+    expect(wrapOf(wrapper).scrollTop).toBe(0);
+    expect(document.activeElement).toBe(wrapOf(wrapper));
+  });
+
+  it("does not take focus from a field in the page", async () => {
+    const { wrapper, router } = await open("/jobs");
+    const field = document.createElement("input");
+    wrapper.find("main").element.appendChild(field);
+    field.focus();
+    await router.push("/accounts");
+    await flushPromises();
+    expect(document.activeElement).toBe(field);
+  });
+
+  it("is laid out as one block on a phone and in print, with every selector under .app-shell", async () => {
+    const { PHONE_QUERY } = await import("@/composables/use-breakpoint");
+    const source = readFileSync(join(process.cwd(), "src/components/layout/AppShell.vue"), "utf8");
+    expect(PHONE_QUERY).toBe("(max-width: 767px)");
+    const head = `@media ${PHONE_QUERY}, print {`;
+    const at = source.indexOf(head);
+    expect(at, "the flow block's media query is the phone query and print").toBeGreaterThan(0);
+    const block = source.slice(at, source.indexOf("\n}\n", at));
+    const selectors = [...block.matchAll(/^ {2}([^\s].*) \{$/gm)].map((m) => m[1]);
+    expect(selectors.length).toBeGreaterThanOrEqual(5);
+    for (const selector of selectors) expect(selector, "one class would lose to Element Plus").toMatch(/^\.app-shell/);
+    const rule = (selector: string): string => block.slice(block.indexOf(`  ${selector} {`)).split("}")[0] ?? "";
+    expect(rule(".app-shell")).toMatch(/min-height: 100vh;\s*overflow: visible;/);
+    expect(rule(".app-shell .app-scroll.el-scrollbar")).toContain("overflow: visible;");
+    expect(rule(".app-shell .app-scroll__wrap")).toContain("overflow: visible;");
+    expect(rule(".app-shell .app-scroll .el-scrollbar__bar")).toContain("display: none;");
+  });
+
+  it("draws no inline style and no data: URL", () => {
+    const source = readFileSync(join(process.cwd(), "src/components/layout/AppShell.vue"), "utf8");
+    expect(source).not.toMatch(/\sstyle=/);
+    expect(source).not.toContain("data:");
   });
 });

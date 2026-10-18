@@ -12,6 +12,7 @@ import pytest
 from accountkit import done_job, new_account
 from jobkit import key as new_key
 from patchright.sync_api import expect
+from pixel_capture import sideways
 from test_admin_alert_groups import group_of, plant_unclear, stamp
 from test_admin_alerts import plant
 
@@ -509,7 +510,7 @@ def test_a_slow_answer_for_an_older_view_does_not_replace_the_newer_one(app, app
 
 def no_sideways_scroll(page):
     """The page itself never scrolls sideways (a wide table scrolls inside its own box)."""
-    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"), "the page scrolls sideways"
+    assert sideways(page) <= 1, "the page scrolls sideways"
 
 
 @pytest.mark.parametrize("width, height", [(390, 844), (768, 1024)])

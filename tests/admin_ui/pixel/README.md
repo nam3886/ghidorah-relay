@@ -8,7 +8,7 @@ design tool's runtime is used.
 | `canvas/` | copy of the B-, T- and P- boards (`*.dc.html`) and `canvas.json` (each board's width and height) |
 | `dc-mini.js` | the renderer: `{{path}}`, `<sc-for>`, `<sc-if>`, `onClick/onChange/onSubmit`, `DCLogic` with `setState`, `?dark=1` |
 | `pixel_render.py` | serves a board from local files only (fonts from the built dist, `/_blob/<id>` logos from `apps/admin-web/src/assets/brand`) and screenshots it at the board's size |
-| `pixel_capture.py` | puts the app in the state of an artboard (seed, frozen clock, actions) and photographs it |
+| `pixel_capture.py` | puts the app in the state of an artboard (seed, frozen clock, actions) and photographs it. The page scrolls in its own area, so every whole-page photo is `full_photo`, every sideways reading `sideways`, every scroll `scroll_page_to` (source scans in `../test_harness_guards.py` reject the loopholes); `flow` lays the page out as one block |
 | `pixel_manifest.py` | one `Entry` per compared board: route, sign-in, seed, clock, drive, optional region. Lanes add theirs here |
 | `pixel_diff.py` | pixelmatch-style diff computed in the browser: mismatch, anti-aliasing apart, worst 64 px cells, diff image |
 | `pixel_report.py` | `<run>/<name>-<theme>.{ref,app,diff}.png`, `.json`, and `report.md` / `report.html` (worst first) |

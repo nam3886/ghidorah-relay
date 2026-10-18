@@ -399,6 +399,35 @@ def test_the_top_bar_behaviour():
     vitest("tests/unit/app-shell.spec.ts")
 
 
+# ---- the page scroll area: the top of the page, the keyboard, the one-block layout of a phone and print -------------
+SHELL_VUE = f"{SRC}/components/layout/AppShell.vue"
+AREA_FAILED = "FAILED tests/unit/app-shell.spec.ts > the page scroll area > "
+
+
+@mutation(SHELL_VUE, "  scroller.value?.setScrollTop(0);\n", "",
+          expect=AREA_FAILED + "returns to the top and takes focus when the tab changes")
+@mutation(SHELL_VUE, "  if (!main.value?.contains(document.activeElement)) focusPage();\n", "",
+          expect=AREA_FAILED + "moves focus to the scroll area when it is drawn, so the page scrolls by key at once")
+@mutation(SHELL_VUE, "  if (!main.value?.contains(document.activeElement)) focusPage();\n", "  focusPage();\n",
+          expect=AREA_FAILED + "does not take focus from a field in the page")
+@mutation(SHELL_VUE, 'tabindex="-1"', 'tabindex="0"',
+          expect=AREA_FAILED + "is a container for the keyboard: the wrap takes focus by script only, so it is not a "
+                               "stop of the Tab key")
+@mutation(SHELL_VUE, "@media (max-width: 767px), print {", "@media (max-width: 767px) {",
+          expect=AREA_FAILED + "is laid out as one block on a phone and in print, with every selector under .app-shell")
+@mutation(SHELL_VUE, "    height: auto;\n    overflow: visible;\n  }\n  .app-shell .app-scroll__wrap {",
+          "    height: auto;\n    overflow: hidden;\n  }\n  .app-shell .app-scroll__wrap {",
+          expect=AREA_FAILED + "is laid out as one block on a phone and in print, with every selector under .app-shell")
+@mutation(SHELL_VUE, "  .app-shell .app-scroll .el-scrollbar__bar {\n    display: none;",
+          "  .app-scroll .el-scrollbar__bar {\n    display: none;",
+          expect=AREA_FAILED + "is laid out as one block on a phone and in print, with every selector under .app-shell")
+@mutation(SHELL_VUE, "      <main ref=\"main\" class=\"app-main\"", "      <main class=\"app-main\"",
+          expect=AREA_FAILED + "does not take focus from a field in the page")
+@pytest.mark.web_unit
+def test_the_page_scroll_area():
+    vitest("tests/unit/app-shell.spec.ts")
+
+
 # ---- the page header ---------------------------------------------------------------------------------------------
 HEADER = f"{SRC}/components/layout/PageHeader.vue"
 HEADER_FAILED = "FAILED tests/unit/app-shell.spec.ts > the page header > "

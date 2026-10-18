@@ -8,6 +8,7 @@ import re
 import pytest
 from patchright.sync_api import TimeoutError as PlaywrightTimeout
 from patchright.sync_api import expect
+from pixel_capture import sideways
 
 from relay_core.admin.auth import LOGIN_MAX_FAILS
 from relay_core.testing.mutation import mutation
@@ -313,7 +314,7 @@ def test_every_route_fits_the_screen_without_the_page_scrolling_sideways(app, ap
         expect(page.get_by_role("tab", selected=True)).to_have_count(1)
         page.wait_for_load_state("networkidle")
         expect(page.locator("[aria-busy=true]")).to_have_count(0)    # measure the loaded page, not the skeleton
-        overflow = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+        overflow = sideways(page)
         wide = page.evaluate(
             "(() => { const w = document.documentElement.clientWidth;"
             " const name = e => e.tagName + '.' + e.className + '@' + Math.round(e.getBoundingClientRect().right);"
@@ -383,7 +384,7 @@ def test_the_top_bar_is_one_row_from_1280_and_two_rows_below_with_the_control_si
         assert box(menu)["x"] > box(nav)["x"]
     bg = bar.evaluate("el => getComputedStyle(el).backgroundColor")
     assert bg == TOPBAR_BG[color_scheme], bg
-    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    assert sideways(page) <= 0
     page.csp.check()
 
 

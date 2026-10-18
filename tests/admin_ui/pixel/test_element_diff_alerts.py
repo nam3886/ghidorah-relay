@@ -30,7 +30,7 @@ from accountkit import new_account
 from element_diff import diff, extract, markdown, popup_place, side_by_side
 from jobkit import key as new_key
 from patchright.sync_api import expect
-from pixel_capture import TIMEOUT_MS, opened, settle
+from pixel_capture import TIMEOUT_MS, full_photo, opened, settle, shoot, sideways
 from pixel_diff import compare
 from pixel_manifest import ENTRIES
 from pixel_render import boards
@@ -340,7 +340,7 @@ def test_alerts_undrawn_states_are_photographed(app, db, live, run_dir, state, r
             if again:
                 again(page)
                 settle(page)
-            png = page.screenshot(full_page=not viewport, animations="disabled", caret="hide")
+            png = shoot(page) if viewport else full_photo(page)
             (out / ("undrawn-%s-%s-%d.png" % (state, theme, width))).write_bytes(png)
 
 
@@ -434,9 +434,9 @@ def test_alerts_with_live_like_data_fits(app, db, live, run_dir, view, nth, them
             page.set_viewport_size({"width": width, "height": height})
             settle(page)
             (out / ("live-like-%s-%s-%d.png" % (view, theme, width))).write_bytes(
-                page.screenshot(full_page=True, animations="disabled", caret="hide"))
-            sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
-            assert sideways <= 0, "%d: the page scrolls sideways by %d px" % (width, sideways)
+                full_photo(page))
+            over = sideways(page)
+            assert over <= 0, "%d: the page scrolls sideways by %d px" % (width, over)
             # A wide table scrolls sideways inside its own box, as the canvas wraps it: a text it hides at one end is
             # reachable at the other. A text is cut only when it is clipped with the boxes at both ends.
             ends = []

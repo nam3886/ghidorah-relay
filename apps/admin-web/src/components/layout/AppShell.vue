@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, watch } from "vue";
+import type { ScrollbarInstance } from "element-plus";
+import { onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import TopBar from "@/components/layout/TopBar.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
@@ -10,12 +11,15 @@ import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 
 // Everything around the routed view: the top bar and the page frame (centred, 1360 px at most, padding 28
-// px, 24 px on a tablet, 16 px on a phone). Mounted only while signed in.
+// px, 24 px on a tablet, 16 px on a phone). Mounted only while signed in. On a tablet and a desktop the page scrolls
+// in its own area under the bar (the style block below); on a phone the window scrolls, as the bar sticks.
 const route = useRoute();
 const auth = useAuthStore();
 const scope = useScopeStore();
 const stats = useStatsStore();
 const { isPhone, isTablet } = useBreakpoint();
+const scroller = ref<ScrollbarInstance | null>(null);
+const main = ref<HTMLElement | null>(null);
 
 onMounted(async () => {
   try {
@@ -38,23 +42,41 @@ watch(
   () => route.name,
   () => notify.clear(),
 );
+
+// The scroll area takes the keyboard (Space, PageDown, Home, End) once it has focus, so focus is moved to it, the usual
+// move of a single-page app. A tab link in the bar is not page content: after a click on a tab the page scrolls by key.
+// A field the user is typing in keeps its focus.
+function focusPage(): void {
+  scroller.value?.wrapRef?.focus({ preventScroll: true });
+}
+function showTop(): void {
+  scroller.value?.setScrollTop(0);
+  if (!main.value?.contains(document.activeElement)) focusPage();
+}
+onMounted(showTop);
+watch(() => route.name, showTop, { flush: "post" });
+defineExpose({ focusPage });
 </script>
 
 <template>
   <div class="app-shell">
     <TopBar />
-    <main class="app-main" :class="{ 'app-main--tablet': isTablet, 'app-main--phone': isPhone }">
-      <slot />
-    </main>
+    <el-scrollbar
+      ref="scroller"
+      class="app-scroll"
+      wrap-class="app-scroll__wrap"
+      view-class="app-scroll__view"
+      always
+      tabindex="-1"
+    >
+      <main ref="main" class="app-main" :class="{ 'app-main--tablet': isTablet, 'app-main--phone': isPhone }">
+        <slot />
+      </main>
+    </el-scrollbar>
   </div>
 </template>
 
 <style scoped>
-.app-shell {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
 .app-main {
   display: flex;
   flex-direction: column;
@@ -75,5 +97,81 @@ watch(
   max-width: none;
   gap: 16px;
   padding: 16px 16px 24px;
+}
+</style>
+
+<!-- Not scoped: the scroll area's wrap and bars belong to Element Plus. Every selector starts with `.app-shell`, so it
+     outranks Element Plus's one-class rules whatever the order of the sheets. -->
+<style>
+/* the frame is as high as the window; the bar keeps its height and the scroll area takes the rest */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+.app-shell > .topbar {
+  flex: none;
+}
+/* the pill: 9 px, the strong line colour, 3 px from the edge, always drawn, no track; it overlays the page, so the top
+   bar and the content share one axis */
+.app-shell .el-scrollbar.app-scroll {
+  --el-scrollbar-opacity: 1;
+  --el-scrollbar-bg-color: var(--rl-line-strong);
+  --el-scrollbar-hover-opacity: 1;
+  --el-scrollbar-hover-bg-color: var(--rl-line-strong);
+  flex: 1 1 0;
+  min-height: 0;
+}
+.app-shell .app-scroll .el-scrollbar__bar.is-vertical {
+  top: 0;
+  right: 3px;
+  bottom: 0;
+  width: 9px;
+}
+.app-shell .app-scroll .el-scrollbar__bar.is-horizontal {
+  display: none;
+}
+.app-shell .app-scroll .el-scrollbar__thumb {
+  border-radius: 8px;
+}
+/* the wrap is a container for the keyboard, not a control: the main landmark stays the page's region */
+.app-shell .app-scroll__wrap {
+  outline: none;
+}
+.app-shell .app-scroll__view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* One block, no scroll area: a phone (the window scrolls under the sticky bar), print, and the test harness's whole
+   page photos (print media). Overflow stays visible all the way up, or the scroll area would become the scroller of
+   a sticky element inside the page (the Settings sub-navigation). */
+@media (max-width: 767px), print {
+  .app-shell {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+  .app-shell .app-scroll.el-scrollbar {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+  }
+  .app-shell .app-scroll__wrap {
+    height: auto;
+    overflow: visible;
+  }
+  .app-shell .app-scroll__view {
+    flex: 1 0 auto;
+    min-height: 0;
+  }
+  .app-shell .app-scroll .el-scrollbar__bar {
+    display: none;
+  }
 }
 </style>

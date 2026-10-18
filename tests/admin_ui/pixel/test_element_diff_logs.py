@@ -20,7 +20,7 @@ import pytest
 from element_diff import extract, popup_place
 from jobkit import key as new_key
 from patchright.sync_api import expect
-from pixel_capture import opened, settle, shoot
+from pixel_capture import full_photo, opened, settle, shoot, sideways
 from pixel_manifest import ENTRIES
 from pixel_seed import PROVIDER, WALLETS
 from test_element_diff import DESKTOP, STATES, THEMES, TIMEOUT_MS, Check
@@ -267,9 +267,9 @@ def test_logs_with_live_like_data_fits(app, db, live, run_dir, width, theme):
         out = run_dir / "element-diff"
         out.mkdir(parents=True, exist_ok=True)
         (out / ("live-like-%d-%s.png" % (width, theme))).write_bytes(
-            page.screenshot(full_page=True, animations="disabled", caret="hide"))
-        sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
-        assert sideways <= 0, "the page scrolls sideways by %d px" % sideways
+            full_photo(page))
+        over = sideways(page)
+        assert over <= 0, "the page scrolls sideways by %d px" % over
         items = extract(page, ".logs-view")
         clipped = [t for t in items["texts"] if t["clipped"] and not ELLIPSIS.search(t.get("cls", ""))]
         assert not clipped, "texts cut off where the canvas draws them whole: %r" % [

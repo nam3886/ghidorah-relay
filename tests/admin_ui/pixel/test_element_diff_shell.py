@@ -19,6 +19,8 @@ drawer, an open list and the tab rows, in a Chrome that draws its scrollbars (th
 dark; once more with scrollbar-color unset, which makes Chrome draw the ::-webkit-scrollbar fallback Safari uses."""
 
 import json
+import struct
+import zlib
 from dataclasses import dataclass, field
 from itertools import count
 
@@ -486,7 +488,7 @@ def _tabs(page, live, data):
 # (name, entry, viewport, the scrolling element, the part photographed: a selector or None for the viewport)
 SCENES = [
     ("page", Entry("B-Jobs", "#/jobs", seed=jobs_seed, now=NOW, drive=_ready, prepare=canvas_band, user=BOARD_USER),
-     (1440, 900), "html", None),
+     (1440, 900), ".app-scroll__wrap", None),
     ("table-card", Entry("B-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=_accounts_card_end),
      (1440, 900), ".acct-scroll", ".list-card"),
     ("drawer", Entry("B-JobDetail", "#/jobs", seed=seed_of(IMAGE_DONE), now=NOW, drive=open_drawer(IMAGE_DONE)),
@@ -519,14 +521,80 @@ BARS_JS = """(sel) => {
           lineStrong: getComputedStyle(document.documentElement).getPropertyValue('--rl-line-strong').trim()};
 }"""
 # Chrome's bar for scrollbar-color and the Safari fallback both take 15 px, so turning one into the other moves nothing;
-# the header's tab row takes none in either
-GUTTERS = {"page": [15, 0], "table-card": [0, 15], "drawer": [15, 0], "list": [15, 0], "tabs-768": [0, 0],
+# the header's tab row takes none in either, and neither does the page's own bar (it overlays the page)
+GUTTERS = {"page": [0, 0], "table-card": [0, 15], "drawer": [15, 0], "list": [15, 0], "tabs-768": [0, 0],
            "tabs-390": [0, 0]}
 PART_JS = """(sel) => {
   const r = document.querySelector(sel).getBoundingClientRect();
   const x = Math.max(0, Math.floor(r.left)), y = Math.max(0, Math.floor(r.top));
   return [x, y, Math.min(innerWidth, Math.ceil(r.right)) - x, Math.min(innerHeight, Math.ceil(r.bottom)) - y];
 }"""
+
+
+# The page's bar is the one Element Plus draws over the page: a pill 9 px wide, 3 px from the right edge, in the strong
+# line colour, as the signed-off photos of the page's native bar show it (page-light.png and page-dark.png: the thumb
+# fills columns 1428-1436 of a 1440 px viewport, the columns on both sides are the page's background).
+THUMB_JS = """() => {
+  const t = document.querySelector('.app-scroll > .el-scrollbar__bar.is-vertical .el-scrollbar__thumb');
+  const r = t.getBoundingClientRect(), s = getComputedStyle(t);
+  return {right: innerWidth - r.right, width: r.width, top: r.top, height: r.height, color: s.backgroundColor,
+          opacity: s.opacity, radius: s.borderTopLeftRadius, view: innerWidth};
+}"""
+THUMB_COLUMNS = (1428, 1436)
+
+
+def png_row(png: bytes, y: int) -> list[tuple[int, int, int]]:
+    """The pixels (r, g, b) of row `y` of an 8-bit RGB or RGBA PNG (the test image has no Pillow)."""
+    assert png[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"
+    pos, data = 8, b""
+    while pos < len(png):
+        size, kind = struct.unpack(">I4s", png[pos:pos + 8])
+        body = png[pos + 8:pos + 8 + size]
+        pos += 12 + size
+        if kind == b"IHDR":
+            width, _height, depth, ctype, _c, _f, interlace = struct.unpack(">IIBBBBB", body)
+            assert depth == 8 and ctype in (2, 6) and interlace == 0, "a PNG this reader does not know"
+        elif kind == b"IDAT":
+            data += body
+    bpp = 3 if ctype == 2 else 4
+    stride = width * bpp
+    raw = zlib.decompress(data)
+    prev = bytearray(stride)
+    for row in range(y + 1):
+        start = row * (stride + 1)
+        kind, cur = raw[start], bytearray(raw[start + 1:start + 1 + stride])
+        for i in range(stride):
+            a = cur[i - bpp] if i >= bpp else 0
+            b = prev[i]
+            c = prev[i - bpp] if i >= bpp else 0
+            if kind == 1:
+                cur[i] = (cur[i] + a) & 255
+            elif kind == 2:
+                cur[i] = (cur[i] + b) & 255
+            elif kind == 3:
+                cur[i] = (cur[i] + (a + b) // 2) & 255
+            elif kind == 4:
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                cur[i] = (cur[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        prev = cur
+    return [tuple(prev[i * bpp:i * bpp + 3]) for i in range(width)]
+
+
+def test_the_png_row_reader_undoes_every_filter():
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+
+    rows = [(0, [10, 20, 30, 40, 50, 60]), (1, [1, 1, 1, 1, 1, 1]), (2, [5, 5, 5, 5, 5, 5]), (3, [2, 2, 2, 2, 2, 2]),
+            (4, [3, 3, 3, 3, 3, 3])]
+    raw = b"".join(bytes([kind]) + bytes(values) for kind, values in rows)
+    png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 2, len(rows), 8, 2, 0, 0, 0))
+           + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+    assert png_row(png, 0) == [(10, 20, 30), (40, 50, 60)]
+    assert png_row(png, 1) == [(1, 1, 1), (2, 2, 2)]              # Sub: each byte adds the one to its left
+    assert png_row(png, 2) == [(6, 6, 6), (7, 7, 7)]              # Up: each byte adds the one above
+    assert png_row(png, 3) == [(5, 5, 5), (8, 8, 8)]              # Average of the left and the above
+    assert png_row(png, 4) == [(8, 8, 8), (11, 11, 11)]           # Paeth
 
 
 def _hex_rgb(value: str) -> str:
@@ -539,6 +607,8 @@ def _hex_rgb(value: str) -> str:
 @pytest.mark.parametrize(("scene", "entry", "view", "scroller", "part"), SCENES, ids=[s[0] for s in SCENES])
 def test_the_scrollbars_are_photographed(app, chrome_with_bars, db, live, run_dir, scene, entry, view, scroller, part,
                                          theme, fallback):
+    if scene == "page" and fallback:
+        pytest.skip("the page's bar is Element Plus's own div: it has no webkit fallback")
     with opened(type(app)(chrome_with_bars, live), db, live, entry, theme == "dark", *view) as page:
         bars = page.evaluate(BARS_JS, scroller, isolated_context=False)
         if not scene.startswith("tabs"):
@@ -553,7 +623,17 @@ def test_the_scrollbars_are_photographed(app, chrome_with_bars, db, live, run_di
         out = run_dir / "scrollbars"
         out.mkdir(parents=True, exist_ok=True)
         # a viewport shot clipped to the part: an element shot leaves the scrollbars out
-        png = shoot(page, page.evaluate(PART_JS, part, isolated_context=False) if part else None)
+        png = shoot(page, page.evaluate(PART_JS, part, isolated_context=False) if part else None, bars=True)
+        if scene == "page":
+            thumb = page.evaluate(THUMB_JS, isolated_context=False)
+            assert thumb["width"] == 9 and thumb["right"] == 3 and thumb["opacity"] == "1", thumb
+            assert thumb["color"] == _hex_rgb(bars["lineStrong"]) and thumb["radius"] != "0px", thumb
+            # the photo's columns: the thumb fills the signed-off ones (within 1 px) and the page shows on both sides
+            row = png_row(png, int(thumb["top"]) + 10)
+            colour = tuple(int(n) for n in thumb["color"][4:-1].split(","))
+            drawn = [x for x, px in enumerate(row) if px == colour and x > thumb["view"] - 20]
+            assert drawn and abs(drawn[0] - THUMB_COLUMNS[0]) <= 1 and abs(drawn[-1] - THUMB_COLUMNS[1]) <= 1, drawn
+            assert row[THUMB_COLUMNS[0] - 3] != colour and row[THUMB_COLUMNS[1] + 3] != colour
         stem = "%s-%s%s" % (scene, theme, "-webkit" if fallback else "")
         (out / (stem + ".png")).write_bytes(png)
         (out / (stem + ".json")).write_text(json.dumps(bars), encoding="utf-8")
@@ -562,12 +642,13 @@ def test_the_scrollbars_are_photographed(app, chrome_with_bars, db, live, run_di
 # Element Plus draws its own bars (a grey div, not a scrollbar) inside a scroll area of its own, such as a table body.
 # The app's lists are its own; this proves no Element Plus scroll area overflows on the boards that hold a table, so no
 # Element Plus bar is shown where the custom scrollbar should be.
-EP_SCROLL_JS = """() => [...document.querySelectorAll(".el-scrollbar__wrap")].filter(
+# The page's own scroll area is meant to overflow: it is the page scroller and is left out.
+EP_SCROLL_JS = """() => [...document.querySelectorAll(".el-scrollbar__wrap:not(.app-scroll__wrap)")].filter(
   (w) => w.scrollWidth > w.clientWidth + 1 || w.scrollHeight > w.clientHeight + 1).map((w) => w.className)"""
-TABLE_BOARDS = [e for e in ENTRIES if not e.label and e.board.split("-", 1)[1] in ("Jobs", "Logs", "Keys", "Alerts")]
+EP_BOARDS = [e for e in ENTRIES if e.signed_in and not e.label]
 
 
-@pytest.mark.parametrize("entry", TABLE_BOARDS, ids=lambda e: e.name)
+@pytest.mark.parametrize("entry", EP_BOARDS, ids=lambda e: e.name)
 def test_no_element_plus_scroll_area_overflows(app, db, live, entry):
     width, height = BOARDS[entry.board]
     with opened(app, db, live, entry, False, width, min(height, 1000)) as page:
@@ -584,19 +665,21 @@ TAB_ROW_JS = """(n) => {
 }"""
 
 
-@pytest.mark.parametrize(("width", "header"), ((768, 110), (390, 102)), ids=("768", "390"))
-def test_the_tab_row_scrolls_without_a_bar(app, chrome_with_bars, db, live, width, header):
+# At 768 the page no longer loses 15 px to a scrollbar beside the header (the page's bar overlays it), so the tab row
+# fits as the canvas draws it; on a phone it is wider than the screen and scrolls.
+@pytest.mark.parametrize(("width", "header", "overflows"), ((768, 110, False), (390, 102, True)), ids=("768", "390"))
+def test_the_tab_row_scrolls_without_a_bar(app, chrome_with_bars, db, live, width, header, overflows):
     """In a Chrome that draws its scrollbars, as a desktop browser does: the header's tab row shows none, as drawn, so
-    the header keeps the drawn height; it still scrolls by the wheel and the shift-wheel, and the current tab (Test, the
-    last) is in view once the counts have widened the tabs before it."""
+    the header keeps the drawn height; where it is wider than the page it still scrolls by the wheel and the
+    shift-wheel, and the current tab (Test, the last) is in view once the counts have widened the tabs before it."""
     entry = Entry("T-Jobs", "#/test", seed=shell_seed, now=NOW, drive=shell_counts, user=BOARD_USER)
     with opened(type(app)(chrome_with_bars, live), db, live, entry, False, width, 600) as page:
         nav = page.locator("header nav")
         got = nav.evaluate(TAB_ROW_JS)
-        assert got["sideways"] > 0 and got["bar"] == 0 and got["header"] == header, got
+        assert (got["sideways"] > 0) == overflows and got["bar"] == 0 and got["header"] == header, got
         tab = page.locator('header [aria-current="page"]').bounding_box()
         assert tab and tab["x"] >= 0 and tab["x"] + tab["width"] <= got["page"] + EDGE, (tab, got)
-        for shift in (False, True):
+        for shift in (False, True) if overflows else ():
             nav.evaluate("n => { n.scrollLeft = 0; }")
             nav.hover()
             if shift:

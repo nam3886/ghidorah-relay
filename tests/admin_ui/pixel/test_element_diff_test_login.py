@@ -13,7 +13,7 @@ import test_element_diff as page_one
 import test_element_diff_alerts as alerts_page
 from element_diff import extract
 from patchright.sync_api import expect
-from pixel_capture import opened, shoot
+from pixel_capture import full_photo, opened, shoot, sideways
 from pixel_lane7 import key_page_drive, key_page_seed
 from pixel_manifest import Entry, login_error
 from pixel_seed import BOARD_USER, NOW, PROVIDER, shell_seed
@@ -247,12 +247,6 @@ SPILL_JS = """() => [...document.querySelectorAll('.test-tab button, .test-tab l
                 el.scrollHeight])"""
 
 
-def whole_page(page) -> bytes:
-    """A full-page photo from the top: taken while scrolled, it draws the sticky top bar in the middle of the page."""
-    page.evaluate("window.scrollTo(0, 0)")
-    return page.screenshot(full_page=True, animations="disabled", caret="hide")
-
-
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("width", (1440, 768, 390))
 def test_test_page_with_live_like_data_fits(app, db, live, run_dir, width, theme):
@@ -260,9 +254,9 @@ def test_test_page_with_live_like_data_fits(app, db, live, run_dir, width, theme
     with opened(app, db, live, state, theme == "dark", width, 900) as page:
         out = run_dir / "element-diff"
         out.mkdir(parents=True, exist_ok=True)
-        (out / ("live-like-test-%d-%s.png" % (width, theme))).write_bytes(whole_page(page))
-        sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
-        assert sideways <= 0, "the page scrolls sideways by %d px" % sideways
+        (out / ("live-like-test-%d-%s.png" % (width, theme))).write_bytes(full_photo(page))
+        over = sideways(page)
+        assert over <= 0, "the page scrolls sideways by %d px" % over
         items = extract(page, ".test-tab")
         # below 1280 the models are one row that scrolls sideways, as the T and P boards draw it: a card past the edge
         # is scrolled to, not cut
@@ -447,4 +441,4 @@ def test_test_undrawn_states_are_photographed(app, db, live, run_dir, state, act
     with opened(app, db, live, entry, theme == "dark", width, 900) as page:
         out = run_dir / "element-diff"
         out.mkdir(parents=True, exist_ok=True)
-        (out / ("undrawn-test-%s-%d-%s.png" % (state, width, theme))).write_bytes(whole_page(page))
+        (out / ("undrawn-test-%s-%d-%s.png" % (state, width, theme))).write_bytes(full_photo(page))

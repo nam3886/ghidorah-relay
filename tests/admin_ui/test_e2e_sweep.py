@@ -323,6 +323,7 @@ def test_a_shot_is_the_viewport_and_never_resizes_the_window(app, app_page, tmp_
     page.set_viewport_size({"width": 1280, "height": 200})
     page.goto(app.url + "#/login")
     expect(page.get_by_role("button", name="Sign in")).to_be_visible()
+    # the sign-in page is a public route outside the app shell: it scrolls the window, not the page scroll area
     assert page.evaluate("document.documentElement.scrollHeight") > 200, "the page must be taller than the viewport"
     page.evaluate("window.__sizes = []; addEventListener('resize', () => __sizes.push([innerWidth, innerHeight]))",
                   isolated_context=False)

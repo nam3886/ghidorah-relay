@@ -34,6 +34,8 @@ import base64
 import math
 from dataclasses import dataclass, field
 
+from pixel_capture import WRAP, flow
+
 # The computed properties of how glyphs are drawn, compared on every text run: the boards set none of them, and some
 # (font smoothing) change the pixels only on another system, where the owner looks. Only properties this Chrome
 # supports: an unsupported one computes to "" on both sides and would compare equal for ever, so extract() refuses it
@@ -236,9 +238,17 @@ def extract(page, root: str | None = None, region: tuple | None = None, renderin
             opaque: str = "", skip: str = "") -> dict:
     """`opaque`: elements whose box is compared and whose inside is data (a thumbnail: the picture is the job's);
     `skip`: elements left out with everything inside them (a section an accepted deviation adds)."""
-    got = page.evaluate(EXTRACT_JS, {"root": root, "region": list(region) if region else None,
-                                     "rendering": list(rendering), "opaque": opaque, "skip": skip},
-                        isolated_context=False)
+    args = {"root": root, "region": list(region) if region else None, "rendering": list(rendering),
+            "opaque": opaque, "skip": skip}
+    # a page that scrolls in the app's scroll area is read in the flow layout, or every box below the fold is cut off
+    # by the scroller's own clip
+    tall = page.evaluate("() => { const w = document.querySelector('%s');"
+                         " return !!w && w.scrollHeight > w.clientHeight + 1; }" % WRAP, isolated_context=False)
+    if tall:
+        with flow(page):
+            got = page.evaluate(EXTRACT_JS, args, isolated_context=False)
+    else:
+        got = page.evaluate(EXTRACT_JS, args, isolated_context=False)
     if "error" in got:
         raise AssertionError(got["error"])
     return got

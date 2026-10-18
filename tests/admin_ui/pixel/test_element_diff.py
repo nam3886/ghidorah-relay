@@ -22,7 +22,7 @@ from accountkit import new_account
 from element_diff import RENDERING, diff, extract, markdown, popup_place, side_by_side
 from jobkit import key as new_key
 from patchright.sync_api import expect
-from pixel_capture import opened, shoot
+from pixel_capture import full_photo, opened, scroll_page_to, shoot, sideways
 from pixel_diff import compare
 from pixel_jobs import SAIGON, canvas_band, jobs_seed, tick_the_two
 from pixel_manifest import Entry
@@ -329,9 +329,9 @@ def test_jobs_with_live_like_data_fits(app, db, live, run_dir, width, view, them
         out = run_dir / "element-diff"
         out.mkdir(parents=True, exist_ok=True)
         (out / ("live-like-%s-%d-%s.png" % (view, width, theme))).write_bytes(
-            page.screenshot(full_page=True, animations="disabled", caret="hide"))
-        sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
-        assert sideways <= 0, "the page scrolls sideways by %d px" % sideways
+            full_photo(page))
+        over = sideways(page)
+        assert over <= 0, "the page scrolls sideways by %d px" % over
         items = extract(page, ".jobs")
         clipped = [t for t in items["texts"] if t["clipped"] and not ELLIPSIS.search(t.get("cls", ""))]
         assert not clipped, "texts cut off where the canvas draws them whole: %r" % [
@@ -415,7 +415,15 @@ def test_an_open_list_sits_by_its_trigger_at_any_scroll(app, db, live, run_dir, 
 
     entry = Entry("B-Jobs", "#/jobs", seed=jobs_seed, now=NOW, drive=ready, prepare=canvas_band, user=BOARD_USER)
     with opened(app, db, live, entry, theme == "dark", 1440, 900) as page:
-        page.evaluate("y => window.scrollTo(0, y)", scroll)
+        scroll_page_to(page, scroll)
+        # the page really scrolled (the 300 case must differ from 0), whichever element is the scroller
+        room = page.evaluate("""() => { const w = document.querySelector('.app-scroll__wrap');
+          return w ? w.scrollHeight - w.clientHeight : document.documentElement.scrollHeight - innerHeight; }""",
+                             isolated_context=False)
+        assert room > 0, "the Jobs page does not scroll, so the scroll %d case proves nothing" % scroll
+        got = page.evaluate("""() => { const w = document.querySelector('.app-scroll__wrap');
+          return w ? w.scrollTop : scrollY; }""", isolated_context=False)
+        assert abs(got - min(scroll, room)) <= 1, "the page is at %s, not %s" % (got, min(scroll, room))
         page.get_by_role("combobox", name=name, exact=True).click()
         expect(page.get_by_role("listbox")).to_be_visible()
         page.wait_for_timeout(300)
@@ -423,7 +431,7 @@ def test_an_open_list_sits_by_its_trigger_at_any_scroll(app, db, live, run_dir, 
         out.mkdir(parents=True, exist_ok=True)
         (out / ("list-%s-scroll%d-%s.png" % (control, scroll, theme))).write_bytes(shoot(page))
         misplaced = popup_place(page, *OPEN_LIST)
-        assert misplaced is None, "at scroll %s: %s" % (page.evaluate("window.scrollY"), misplaced)
+        assert misplaced is None, "at scroll %s: %s" % (got, misplaced)
 
 
 def test_the_tool_tells_a_mixed_checkbox_from_an_empty_one(diff_page):

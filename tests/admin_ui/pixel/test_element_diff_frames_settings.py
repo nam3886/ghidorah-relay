@@ -15,7 +15,7 @@ from dataclasses import dataclass
 import pytest
 from element_diff import diff, extract, markdown, popup_place, side_by_side
 from patchright.sync_api import expect
-from pixel_capture import opened, shoot
+from pixel_capture import full_photo, opened, shoot, sideways
 from pixel_diff import compare
 from pixel_lane7 import (
     frames_drive,
@@ -469,9 +469,9 @@ def test_frames_settings_with_live_like_data_fit(app, db, live, run_dir, page_na
         out = run_dir / "element-diff"
         out.mkdir(parents=True, exist_ok=True)
         (out / ("live-like-%s-%d-%s.png" % (page_name, width, theme))).write_bytes(
-            page.screenshot(full_page=True, animations="disabled", caret="hide"))
-        sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
-        assert sideways <= 0, "the page scrolls sideways by %d px" % sideways
+            full_photo(page))
+        over = sideways(page)
+        assert over <= 0, "the page scrolls sideways by %d px" % over
         items = extract(page, "main")
         # a value that ends in "…" with its whole text in a note (a HintTip) is cut as ruled
         noted = set(page.evaluate("[...document.querySelectorAll('main .hint-tip')].map((e) => e.textContent.trim())",
@@ -605,5 +605,5 @@ def test_frames_settings_undrawn_states_are_photographed(app, db, live, run_dir,
         if page.get_by_role("listbox").count():
             misplaced = popup_place(page, *OPEN_LIST)
             assert misplaced is None, misplaced
-        sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
-        assert sideways <= 0, "the page scrolls sideways by %d px" % sideways
+        over = sideways(page)
+        assert over <= 0, "the page scrolls sideways by %d px" % over

@@ -17,6 +17,8 @@ import uvicorn
 CORE_TESTS = Path(__file__).resolve().parents[2] / "packages" / "relay-core" / "tests"
 sys.path.insert(0, str(CORE_TESTS))
 sys.path.insert(0, str(CORE_TESTS / "api"))
+# the browser tests of this folder share the photo and scroll helpers of the pixel harness
+sys.path.insert(0, str(Path(__file__).resolve().parent / "pixel"))
 
 # The core fixtures live in a conftest of another directory; load that file once under its own name.
 _spec = importlib.util.spec_from_file_location("relay_core_tests_conftest", CORE_TESTS / "conftest.py")

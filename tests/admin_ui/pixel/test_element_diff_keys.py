@@ -28,7 +28,7 @@ import pytest
 from element_diff import EDGE_PX, diff, extract, markdown, popup_place, side_by_side
 from jobkit import key as new_key
 from patchright.sync_api import expect
-from pixel_capture import opened, shoot
+from pixel_capture import full_photo, opened, shoot, sideways
 from pixel_diff import compare
 from pixel_kla import keys_callout, keys_edit, keys_seed, set_key
 from pixel_seed import BOARD_USER, NOW, PROVIDER, WALLETS, board_user
@@ -344,8 +344,8 @@ def test_keys_undrawn_states_are_photographed(app, db, live, run_dir, state, dri
         out = run_dir / "element-diff"
         out.mkdir(parents=True, exist_ok=True)
         (out / ("undrawn-%s-%d-%s.png" % (state, size[0], theme))).write_bytes(shoot(page))
-        sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
-        assert sideways <= 0, "the page scrolls sideways by %d px" % sideways
+        over = sideways(page)
+        assert over <= 0, "the page scrolls sideways by %d px" % over
         if page.get_by_role("listbox").count():
             misplaced = popup_place(page, *OPEN_LIST)
             assert misplaced is None, misplaced
@@ -401,9 +401,9 @@ def test_keys_with_live_like_data_fits(app, db, live, run_dir, width, theme):
         out = run_dir / "element-diff"
         out.mkdir(parents=True, exist_ok=True)
         (out / ("live-like-%d-%s.png" % (width, theme))).write_bytes(
-            page.screenshot(full_page=True, animations="disabled", caret="hide"))
-        sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
-        assert sideways <= 0, "the page scrolls sideways by %d px" % sideways
+            full_photo(page))
+        over = sideways(page)
+        assert over <= 0, "the page scrolls sideways by %d px" % over
         items = extract(page, ".keys-view")
         clipped = [(t["text"], t["cls"], t["rect"], t["full"]) for t in items["texts"] if t["clipped"]]
         assert not clipped, "texts cut off (the canvas draws every keys text whole): %r" % clipped

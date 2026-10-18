@@ -9,6 +9,7 @@ import re
 import pytest
 from accountkit import new_account
 from patchright.sync_api import expect
+from pixel_capture import sideways
 
 from relay_core import crypto
 from relay_core.testing.mutation import mutation
@@ -375,8 +376,7 @@ def test_the_list_fits_the_screen_at_tablet_and_phone_widths_and_import_is_reach
     app.sign_in(page)
     open_accounts(page)
     expect(page.get_by_text("free one")).to_be_visible()
-    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1"), \
-        "the page scrolls sideways"
+    assert sideways(page) <= 1, "the page scrolls sideways"
     page.get_by_role("button", name="Import", exact=True).click()
     expect(page.get_by_role("dialog", name="Import accounts")).to_be_visible()
     if width == 390:

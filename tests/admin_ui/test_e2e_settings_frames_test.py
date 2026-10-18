@@ -12,6 +12,7 @@ import pytest
 from accountkit import new_account
 from jobkit import key as new_key
 from patchright.sync_api import expect
+from pixel_capture import sideways
 from test_admin_prices import fabricated, priced
 from test_frame_plan import put
 
@@ -627,8 +628,7 @@ def test_frames_settings_and_test_fit_a_phone_and_a_tablet_with_their_main_actio
         main = page.get_by_role("button", name="Load models")
     main.first.scroll_into_view_if_needed()
     expect(main.first).to_be_visible()
-    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), \
-        "%s scrolls sideways at %d" % (route, width)
+    assert sideways(page) <= 0, "%s scrolls sideways at %d" % (route, width)
     if width == 390:                                          # a phone control is a finger target
         box = main.first.bounding_box()
         assert box["height"] >= 43.5, box
