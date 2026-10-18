@@ -376,7 +376,8 @@ onMounted(async () => {
         </div>
 
         <div class="trio">
-          <!-- the design's selects, drawn by us (FilterSelect's field); a model that names no list gets a text box -->
+          <!-- the design's selects, drawn by us (FilterSelect's field); a model that names no list of lengths has no
+               Duration at all, and none is sent -->
           <FilterSelect
             v-if="durations.length"
             class="field"
@@ -387,17 +388,6 @@ onMounted(async () => {
             :options="durationOptions"
             @update:model-value="setField('duration', String($event))"
           />
-          <div v-else class="field">
-            <label for="test-duration">Duration</label>
-            <input
-              id="test-duration"
-              v-model="form.duration"
-              class="control"
-              inputmode="numeric"
-              placeholder="optional"
-              @input="persist"
-            />
-          </div>
           <FilterSelect
             v-if="ratios.length || ratiosOf(chosen).length"
             class="field"
@@ -592,6 +582,8 @@ onMounted(async () => {
 .key__note {
   flex: 1 1 240px;
   align-self: center;
+  margin-inline: auto;
+  text-align: center;
   font-size: 12px;
   color: var(--rl-faint);
 }

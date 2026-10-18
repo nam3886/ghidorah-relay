@@ -92,7 +92,8 @@ def test_image_limits():
 SAVED_FORM = (FORM_SPEC
               + "the saved form > is kept under relay_test_form with the model and the eight fields, and nothing else")
 BODY = FORM_SPEC + "the request body > "
-BODY_KINDS = BODY + "sends duration for a video and not for an image, style for an image and not for a video"
+BODY_KINDS = BODY + ("sends duration for a video that names its lengths and for nothing else, style for an image and "
+                     "not for a video")
 BODY_TRIM = BODY + "sends ratio, count as n, and title trimmed, and leaves empty ones out"
 BODY_IMAGES = BODY + "sends the URL lines, then the attached files as data URIs, in that order"
 BODY_OPTIONS = BODY + "parses the options as JSON and fails on text that is not JSON"
@@ -106,7 +107,8 @@ READ_STRINGS = FORM_SPEC + "the saved form > ignores a field that is not a strin
 
 @mutation(FORM, FORM_KEY, 'export const FORM_KEY = "relay_form";', expect=SAVED_FORM)
 @mutation(FORM, "localStorage.setItem(FORM_KEY", "sessionStorage.setItem(FORM_KEY", expect=SAVED_FORM)
-@mutation(FORM, 'model.kind === "video" && form.duration.trim()', "form.duration.trim()", expect=BODY_KINDS)
+@mutation(FORM, 'model.kind === "video" && durationsOf(model).length && form.duration.trim()',
+          'model.kind === "video" && form.duration.trim()', expect=BODY_KINDS)
 @mutation(FORM, 'model.kind === "image" && style', "style", expect=BODY_KINDS)
 @mutation(FORM, "body.n = Number(form.count)", "body.count = Number(form.count)", expect=BODY_TRIM)
 @mutation(FORM, "...dataUris,", "", expect=BODY_IMAGES)
@@ -244,6 +246,8 @@ KEY_OFF_PAGE = (VIEW_SPEC + "the key on the page > is never in the rendered page
 PICKER = VIEW_SPEC + "the model picker and the wallet > "
 WALLET_ROWS = PICKER + "shows the wallet limits of /v1/points as rows: day and total, and unlimited with its use"
 DURATION_SELECT = PICKER + "a model with a duration list gets a select of them, and the heading names them"
+NO_DURATION = PICKER + ("a model with no durations list shows no Duration field and sends no duration, even one saved "
+                        "for another model")
 DISPLAY_NAME = (PICKER + "a model that names a display name shows it with its id under it; "
                 + "one without shows the id alone")
 NAMES_ONLY = (VIEW_SPEC + "images > the drag area never uploads by itself, and shows names and sizes, "
@@ -336,6 +340,8 @@ OPTION_VALUE = FORM_SPEC + "optionValue > takes the value a provider takes, and 
 @mutation(TEST_VIEW, "label: optionLabel(o) })", "label: optionValue(o) })", expect=STYLE_VALUE)
 @mutation(TEST_VIEW, '<FilterSelect\n            v-if="durations.length"', '<FilterSelect\n            v-if="false"',
           expect=DURATION_SELECT)
+@mutation(TEST_VIEW, '<FilterSelect\n            v-if="durations.length"', '<FilterSelect\n            v-if="true"',
+          expect=NO_DURATION)
 @mutation(TEST_VIEW, "return own.length ? own : withSaved(ratios.value, form.ratio);",
           "return withSaved(ratios.value, form.ratio);", expect=MODEL_RATIOS)
 @mutation(TEST_VIEW, "if (own.length && form.ratio && !own.includes(form.ratio)) form.ratio = defaultRatioOf(model);",

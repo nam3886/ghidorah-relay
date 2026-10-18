@@ -40,8 +40,14 @@ def board_state(page, live, data):
 # Live data: the job id (a new job has a new id). The B and T boards write "tab's" with a straight apostrophe, P-Test
 # and specs/test.md with U+2019 ("use U+2019 everywhere"): the app writes the curly one.
 TEST = Entry("B-Test", "#/test", seed=key_page_seed, now=NOW, drive=board_state, user=BOARD_USER)
-BOARD_DATA = ("e17c55b2", "The key lives only in this tab's session storage.")
-BOARD_CHECKS = [Check(board, replace(TEST, board=board), data=BOARD_DATA) for board in ("B-Test", "T-Test", "P-Test")]
+BOARD_DATA = ("e17c55b2",)
+# Owner deviation 29: the key note is centred in the space after the buttons (the boards draw it at the start of that
+# space). It is set aside from the pairing under both spellings of the apostrophe, and `test_the_key_note_is_centred`
+# holds its place.
+NOTE = "The key lives only in this tab’s session storage."
+BOARD_CHECKS = [Check(board, replace(TEST, board=board), data=BOARD_DATA,
+                      accepted=(NOTE, NOTE.replace("’", "'")), accepted_app=(NOTE,))
+                for board in ("B-Test", "T-Test", "P-Test")]
 LOGIN_CHECKS = [Check(board, Entry(board, "#/login", signed_in=False, drive=login_error))
                 for board in ("B-Login", "P-Login")]
 
@@ -448,3 +454,25 @@ def test_test_undrawn_states_are_photographed(app, db, live, run_dir, state, act
         out = run_dir / "element-diff"
         out.mkdir(parents=True, exist_ok=True)
         (out / ("undrawn-test-%s-%d-%s.png" % (state, width, theme))).write_bytes(whole_page(page))
+
+
+NOTE_JS = """() => {
+  const note = document.querySelector('.key__note');
+  const box = note.getBoundingClientRect();
+  const range = document.createRange();
+  range.selectNodeContents(note);
+  const text = range.getBoundingClientRect();
+  return {align: getComputedStyle(note).textAlign, box: [box.left, box.width], text: [text.left, text.width]};
+}"""
+
+
+@pytest.mark.parametrize("width", (1440, 768, 390))
+def test_the_key_note_is_centred(app, db, live, width):
+    """The note's text sits in the middle of its own box at every width (the box spans the free space of the row)."""
+    entry = Entry("B-Test", "#/test", seed=key_page_seed, now=NOW, drive=board_state, user=BOARD_USER)
+    with opened(app, db, live, entry, False, width, 900) as page:
+        got = page.evaluate(NOTE_JS, isolated_context=False)
+        assert got["align"] == "center", got
+        box_mid = got["box"][0] + got["box"][1] / 2
+        text_mid = got["text"][0] + got["text"][1] / 2
+        assert abs(box_mid - text_mid) <= 1, got

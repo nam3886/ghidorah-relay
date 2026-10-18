@@ -335,18 +335,19 @@ def test_review_fixes_hold():
     vitest(ACCOUNT_SPEC, ACCOUNTS_VIEW_SPEC, DIALOGS_SPEC, "tests/unit/use-command-poll.spec.ts")
 
 
-# ---- the Provider field: FilterSelect as B-AccountImport draws its select (appearance none, the page's chevron) ------
+# ---- the Provider field: FilterSelect draws the page's chevron on every field -------------------------------------
 FIELD = SRC + "/components/shared/FilterSelect.vue"
 FIELD_SPEC = "tests/unit/shared/filter-select-field.spec.ts"
-DRAWN = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > appearance none: the page's chevron for the "
-         "arrow, no chip on a phone, and the list under the box")
+DRAWN = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > the field draws the page's chevron, 14 px, on a "
+         "desktop, a tablet and a phone chip")
+FORM_FIELD = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > a form's field (block) is no chip on a "
+              "phone, and the list hangs under the box")
 IN_DIALOG = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > in a dialog: Escape closes the open list "
              "only > ")
 PROVIDER = (IMPORT_SPEC + "the Provider field is the drawn select: another provider picked from its list is the one "
             "sent")
 
 
-@mutation(IMPORT, 'appearance="none"', 'appearance="auto"', expect=PROVIDER)
 @mutation(IMPORT, "@update:model-value=\"(v) => (provider = String(v))\"", "", expect=PROVIDER)
 @mutation(FIELD, '        @pointerdown="onListPress"\n', "",
           expect=IN_DIALOG + "a press on the list's padding keeps the focus on the select, and Escape still leaves the "
@@ -354,9 +355,10 @@ PROVIDER = (IMPORT_SPEC + "the Provider field is the drawn select: another provi
 @mutation(FIELD, "  if (x < el.clientWidth && y < el.clientHeight) event.preventDefault();",
           "  event.preventDefault();",
           expect=IN_DIALOG + "a press in the list's scrollbar gutter is left alone, so the scrollbar can be dragged")
-@mutation(FIELD, '<IconChevronDown v-if="drawn"', '<IconChevronDown v-if="false"', expect=DRAWN)
-@mutation(FIELD, "field.value && !drawn.value && !props.block", "field.value && !props.block", expect=DRAWN)
-@mutation(FIELD, '"is-tall": isTablet.value && !drawn.value,', '"is-tall": isTablet.value,', expect=DRAWN)
+@mutation(FIELD, '<IconChevronDown class="filter-field__chevron"',
+          '<IconChevronDown v-if="false" class="filter-field__chevron"', expect=DRAWN)
+@mutation(FIELD, "field.value && !props.block && isPhone.value", "field.value && isPhone.value", expect=FORM_FIELD)
+@mutation(FIELD, '"is-tall": isTablet.value,', '"is-tall": false,', expect=DRAWN)
 @pytest.mark.web_unit
 def test_the_provider_field_is_the_drawn_select():
     vitest(DIALOGS_SPEC, FIELD_SPEC)

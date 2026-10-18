@@ -1,0 +1,87 @@
+/* The Logs From and To day fields (Element Plus date pickers) drawn as the page's own `.kla-control` box: 34 high (36 on a
+   tablet, a borderless 40 inside the phone chip), 10 px padding, a 1 px `--rl-line-strong` edge, radius 10, 13 px text
+   on `--rl-surface`. The edge is Element Plus's inset shadow, so it is set here for every state; the focus ring is the
+   page's one 2 px outline 2 px away (`lane-controls.css`). No inline style and no `data:` URL: the CSP has no `img-src`
+   and the picker draws its icons as inline svg. */
+.lf__date .el-date-editor.el-input {
+  --lf-date-height: 34px;
+  width: 148px;
+  height: var(--lf-date-height);
+  font-size: 13px;
+}
+.lf__date .el-date-editor .el-input__wrapper,
+.lf__date .el-date-editor .el-input__wrapper:hover,
+.lf__date .el-date-editor .el-input__wrapper.is-focus {
+  box-sizing: border-box;
+  height: var(--lf-date-height);
+  padding: 0 10px;
+  border-radius: 10px;
+  background: var(--rl-surface);
+  box-shadow: 0 0 0 1px var(--rl-line-strong) inset !important;
+}
+.lf__date .el-date-editor .el-input__wrapper:has(.el-input__inner:focus-visible) {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
+}
+.lf__date .el-date-editor .el-input__inner {
+  height: 100%;
+  color: var(--rl-fg);
+  font: inherit;
+  font-size: 13px;
+}
+.lf__date .el-date-editor .el-input__inner::placeholder {
+  color: var(--rl-faint);
+}
+.lf__date .el-date-editor .el-input__icon {
+  color: var(--rl-muted);
+}
+/* the calendar sits at the end, where the browser draws its indicator; the picker puts it first, before the text */
+.lf__date .el-date-editor .el-input__prefix {
+  order: 2;
+  margin-inline-start: 6px;
+}
+.lf__date .el-date-editor .el-input__suffix {
+  order: 1;
+}
+
+/* a tablet: the field fills its share of the row, 36 high like the other fields there */
+.lf--tablet .lf__date .el-date-editor.el-input {
+  --lf-date-height: 36px;
+  width: 100%;
+}
+
+/* the phone chip draws the edge itself: the field inside it is borderless and 40 high */
+.kla-chip-field .el-date-editor.el-input {
+  --lf-date-height: 40px;
+  width: 116px;
+}
+.kla-chip-field .el-date-editor .el-input__wrapper,
+.kla-chip-field .el-date-editor .el-input__wrapper:hover,
+.kla-chip-field .el-date-editor .el-input__wrapper.is-focus {
+  padding: 0 4px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none !important;
+}
+
+/* the open panel: the page's surface, edge and ink in both themes (the dark variables come with `html.dark`) */
+html:root .el-popper.rl-date-popper {
+  --el-bg-color-overlay: var(--rl-surface);
+  --el-text-color-regular: var(--rl-fg);
+  --el-text-color-primary: var(--rl-fg);
+  --el-text-color-placeholder: var(--rl-faint);
+  --el-border-color-light: var(--rl-line);
+  --el-datepicker-text-color: var(--rl-fg);
+  --el-datepicker-off-text-color: var(--rl-faint);
+  --el-datepicker-header-text-color: var(--rl-fg);
+  --el-datepicker-icon-color: var(--rl-muted);
+  --el-datepicker-border-color: var(--rl-line);
+  --el-datepicker-inner-border-color: var(--rl-line);
+  --el-datepicker-active-color: var(--rl-primary);
+  --el-datepicker-hover-text-color: var(--rl-primary);
+  border: 1px solid var(--rl-line);
+  border-radius: 12px;
+}
+html:root .el-popper.rl-date-popper .el-date-table td.current:not(.disabled) .el-date-table-cell__text {
+  color: var(--rl-on-primary);
+}

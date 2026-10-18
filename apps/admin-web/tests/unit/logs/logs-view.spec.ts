@@ -6,6 +6,7 @@ import { ApiError } from "@/api/client";
 import * as logs from "@/api/logs";
 import type { LogRow } from "@/api/logs";
 import { dayAfter, dayStart, viewerZone } from "@/components/logs/log-window";
+import { useLogsFilters } from "@/components/logs/logs-filters";
 import * as confirm from "@/components/shared/confirm-dialog";
 import { notify } from "@/lib/notify";
 import { useScopeStore } from "@/stores/scope";
@@ -71,12 +72,16 @@ async function chooseStatus(w: VueWrapper, word: string): Promise<void> {
   [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.trim() === word)!.click();
   await settle();
 }
-// The two native day fields, From then To.
+// The two day pickers, From then To: the text input inside each.
 const picker = (w: VueWrapper, which: "From" | "To") => w.find<HTMLInputElement>(`input[aria-label="${which}"]`);
-// What the operator does with a day field: types (or clears) a day, and the field reports the change.
+// What the operator does with a day field: clicks into it (the panel opens), types or clears a day and presses Enter. The
+// picker reports the change when the panel closes, against the value it had when it opened.
 const setDay = async (w: VueWrapper, which: "From" | "To", day: string | null) => {
+  await picker(w, which).trigger("focus");
+  await settle();
   await picker(w, which).setValue(day ?? "");
-  await picker(w, which).trigger("change");
+  await settle();
+  await picker(w, which).trigger("keydown", { code: "Enter", key: "Enter" });
   await settle();
 };
 
@@ -343,6 +348,60 @@ describe("filters", () => {
       until_ms: dayAfter("2026-10-15"),
     });
     expect(lastQuery().until_ms).toBeGreaterThan(dayStart("2026-10-15") + 23 * 3600 * 1000);
+  });
+
+  it("a day typed and confirmed with Enter sends the same window as a chosen one", async () => {
+    const { w } = await open();
+    await setDay(w, "From", "2026-10-01");
+    expect(picker(w, "From").element.value).toBe("2026-10-01");
+    expect(lastQuery().since_ms).toBe(dayStart("2026-10-01"));
+    await setDay(w, "To", "2026-10-15");
+    expect(lastQuery().until_ms).toBe(dayAfter("2026-10-15"));
+  });
+
+  it("a day typed and left with the focus (blur) is applied", async () => {
+    const { w } = await open();
+    await picker(w, "From").trigger("focus");
+    await picker(w, "From").setValue("2026-10-01");
+    await settle();
+    await picker(w, "From").trigger("blur");
+    await settle();
+    expect(lastQuery().since_ms).toBe(dayStart("2026-10-01"));
+  });
+
+  it("emptying a typed day and pressing Enter clears it: no since, and the store holds an empty text", async () => {
+    const { w } = await open();
+    await setDay(w, "From", "2026-10-01");
+    await setDay(w, "From", "");
+    expect(lastQuery().since_ms).toBeUndefined();
+    expect(useLogsFilters(pinia).from).toBe("");
+  });
+
+  it("a day picked from the open panel is sent as that day", async () => {
+    const { w } = await open();
+    await picker(w, "From").trigger("focus");
+    await settle();
+    const cells = [...document.body.querySelectorAll<HTMLElement>(".el-date-table td.available")];
+    const first = cells.find((td) => td.textContent?.trim() === "1")!;
+    first.click();
+    await settle();
+    expect(picker(w, "From").element.value).toMatch(/^\d{4}-\d{2}-01$/);
+    expect(lastQuery().since_ms).toBe(dayStart(picker(w, "From").element.value));
+  });
+
+  it("the day text never becomes a Date in the app: the window is the viewer's own midnights, even 14 hours ahead of UTC", async () => {
+    const zone = process.env.TZ;
+    process.env.TZ = "Pacific/Kiritimati";
+    try {
+      const { w } = await open();
+      await setDay(w, "From", "2026-10-01");
+      await setDay(w, "To", "2026-10-01");
+      expect(lastQuery().since_ms).toBe(Date.UTC(2026, 9, 1) - 14 * 3600 * 1000);
+      expect(lastQuery().until_ms).toBe(Date.UTC(2026, 9, 2) - 14 * 3600 * 1000);
+    } finally {
+      if (zone === undefined) delete process.env.TZ;
+      else process.env.TZ = zone;
+    }
   });
 
   it("From alone sets since only; To alone sets until only", async () => {

@@ -252,8 +252,11 @@ AT_REST_JS = """() => { document.activeElement?.blur();
 
 
 def logs_filters(page, live, data) -> None:
-    page.locator('input[aria-label="From"]').fill("2026-10-14")
-    page.locator('input[aria-label="To"]').fill("2026-10-15")
+    for label, day in (("From", "2026-10-14"), ("To", "2026-10-15")):
+        field = page.locator('input[aria-label="%s"]' % label)
+        field.click()
+        field.fill(day)
+        field.press("Enter")
     expect(page.get_by_text("Today · 15 Oct")).to_be_visible(timeout=TIMEOUT_MS)
     page.evaluate(AT_REST_JS, isolated_context=False)
     page.mouse.move(0, 0)

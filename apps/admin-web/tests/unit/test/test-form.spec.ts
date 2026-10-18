@@ -15,6 +15,8 @@ import {
 
 const video: PublicModel = { id: "veo-3", kind: "video", owned_by: "flow" };
 const image: PublicModel = { id: "imagen-4", kind: "image", owned_by: "flow" };
+// a video that names the lengths it takes
+const timed: PublicModel = { ...video, limits: { durations: [5, 8] } };
 const form = (over: Partial<TestForm> = {}): TestForm => ({ ...emptyForm(), prompt: "a cat", ...over });
 
 beforeEach(() => {
@@ -146,15 +148,17 @@ describe("the request body", () => {
     expect(buildBody(video, form(), [])).toEqual({ model: "veo-3", prompt: "a cat" });
   });
 
-  it("sends duration for a video and not for an image, style for an image and not for a video", () => {
+  it("sends duration for a video that names its lengths and for nothing else, style for an image and not for a video", () => {
     const typed = form({ duration: "8", style: "noir" });
-    expect(buildBody(video, typed, [])).toEqual({ model: "veo-3", prompt: "a cat", duration: 8 });
+    expect(buildBody(timed, typed, [])).toEqual({ model: "veo-3", prompt: "a cat", duration: 8 });
+    // no list: the form shows no Duration, so a value saved earlier is not sent
+    expect(buildBody(video, typed, [])).toEqual({ model: "veo-3", prompt: "a cat" });
     expect(buildBody(image, typed, [])).toEqual({ model: "imagen-4", prompt: "a cat", style: "noir" });
   });
 
   it("sends ratio, count as n, and title trimmed, and leaves empty ones out", () => {
     const typed = form({ ratio: " 16:9 ", count: " 2 ", title: " Cat ", duration: "  " });
-    expect(buildBody(video, typed, [])).toEqual({ model: "veo-3", prompt: "a cat", ratio: "16:9", n: 2, title: "Cat" });
+    expect(buildBody(timed, typed, [])).toEqual({ model: "veo-3", prompt: "a cat", ratio: "16:9", n: 2, title: "Cat" });
   });
 
   it("sends the URL lines, then the attached files as data URIs, in that order", () => {

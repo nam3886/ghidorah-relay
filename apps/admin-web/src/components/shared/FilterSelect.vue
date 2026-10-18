@@ -18,12 +18,10 @@ import { IconCheck, IconChevronDown } from "./icons";
 //   resize, or the page moving under it), so it never covers the trigger; a click elsewhere closes it. `size` is the trigger height: toolbar 34 (44 on a phone), page header 36, pager 32 (no chevron there).
 // - `variant="field"` is the canvas's labelled select (B/T/P-Alerts toolbar), drawn as the box's Chrome draws a
 //   native select element, but our own control (a native one looks and opens differently on every system): the label
-//   above a bordered box 34 high (36 on a tablet) holding the value and Chrome's 10 x 7 arrow, as wide as its longest
-//   option; on a phone the canvas's chip, the word inside a 44 px box and the value in a borderless control. The open
-//   list is the same listbox.
-// - `appearance="none"` (field only) is the canvas's select with `appearance: none` (B-AccountImport): no look of the
-//   browser's, the page's 14 px chevron 12 px in from the end instead of Chrome's arrow, and no chip on a phone; the
-//   page that draws it so sets its height and words.
+//   above a bordered box 34 high (36 on a tablet) holding the value and the page's 14 px chevron 12 px in from the
+//   end (the Jobs chip's chevron, not Chrome's arrow), as wide as its longest option plus 48; on a phone the canvas's
+//   chip, the word inside a 44 px box and the value in a borderless control, the chevron 12 px in from the chip's
+//   border. The open list is the same listbox.
 export interface SelectOption {
   value: string | number;
   label: string;
@@ -40,7 +38,6 @@ const props = withDefaults(
     size?: "toolbar" | "header" | "pager";
     chevron?: boolean;
     variant?: "chip" | "field";
-    appearance?: "auto" | "none";
     disabled?: boolean;
     // the field variant as a form's field (B/T/P-Test): it fills its column, the box 36 high with 14 px text and the
     // label 500 with 6 px under it, 44 high on a phone and never the chip
@@ -52,7 +49,6 @@ const props = withDefaults(
     size: "toolbar",
     chevron: true,
     variant: "chip",
-    appearance: "auto",
     disabled: false,
     block: false,
   },
@@ -66,10 +62,8 @@ const listId = `${id}-list`;
 const triggerId = `${id}-trigger`;
 const optionId = (i: number): string => `${id}-opt-${i}`;
 const field = computed(() => props.variant === "field");
-// the field the page draws itself (`appearance="none"`), and the field drawn as the canvas's phone chip (never a
-// form's `block` field)
-const drawn = computed(() => field.value && props.appearance === "none");
-const chip = computed(() => field.value && !drawn.value && !props.block && isPhone.value);
+// the field drawn as the canvas's phone chip (never a form's `block` field)
+const chip = computed(() => field.value && !props.block && isPhone.value);
 
 const current = computed(() => props.options.find((o) => o.value === props.modelValue));
 const chosenIndex = computed(() => props.options.findIndex((o) => o.value === props.modelValue));
@@ -289,8 +283,7 @@ const triggerEvents = { click: onClick, keydown: onKey };
 const fieldClass = computed(() => ({
   "is-chip": chip.value,
   "is-block": props.block,
-  "is-tall": isTablet.value && !drawn.value,
-  "is-drawn": drawn.value,
+  "is-tall": isTablet.value,
   "is-open": open.value,
   "is-disabled": props.disabled,
 }));
@@ -328,10 +321,7 @@ function setRoot(el: unknown): void {
             >{{ o.label }}</span
           ></span
         >
-        <IconChevronDown v-if="drawn" class="filter-field__chevron" :size="14" :stroke="2" />
-        <svg v-else class="filter-field__arrow" width="12" height="9" viewBox="0 0 12 9" aria-hidden="true">
-          <path d="M2 2l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="miter" />
-        </svg>
+        <IconChevronDown class="filter-field__chevron" :size="14" :stroke="2" />
       </button>
     </template>
     <template v-else>
@@ -422,14 +412,11 @@ function setRoot(el: unknown): void {
   }
 }
 
-/* The field: the canvas's labelled native select as the box's Chrome draws it (measured on B/T/P-Alerts). The label
-   12 px muted above; the box 34 high (36 on a tablet) with the author padding 10, the value 4 px further in (the
-   select's own inner start), as wide as its longest option plus the select's own room for the arrow at the end; the
-   arrow 2 px in from the padding edge, centred, in the text colour. On a phone the canvas's chip: the word inside a
-   44 px box (padding 0 6 0 12), the value in a borderless control 40 high with no author padding. */
+/* The field: the canvas's labelled select with the page's chevron. The label 12 px muted above; the box 34 high (36
+   on a tablet) with padding 12 at the start and 36 at the end, as wide as its longest option plus 48; the 14 px chevron
+   12 px in from the box's outer edge, centred. On a phone the canvas's chip: the word inside a 44 px box (padding
+   0 6 0 12), the value in a borderless control 40 high. */
 .filter-field {
-  --field-pad: 10px;
-  --field-arrow: 17px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -443,7 +430,7 @@ function setRoot(el: unknown): void {
   position: relative;
   display: flex;
   gap: 0;
-  padding: 0 calc(var(--field-pad) + var(--field-arrow)) 0 calc(var(--field-pad) + 4px);
+  padding: 0 36px 0 12px;
   text-align: left;
 }
 .filter-field.is-tall .filter-select.is-field {
@@ -458,16 +445,7 @@ function setRoot(el: unknown): void {
 .filter-field__value > span:not(.is-current) {
   visibility: hidden;
 }
-.filter-field__arrow {
-  position: absolute;
-  top: calc(50% - 4px);
-  right: 2px;
-}
-/* `appearance="none"`: the box has no inner start of its own and room at its end for the 14 px chevron 12 px in from
-   its outer edge (11 from the padding edge it is placed in: the 1 px border lies outside it) */
-.filter-field.is-drawn .filter-select.is-field {
-  padding: 0 36px 0 12px;
-}
+/* 11 from the padding edge the chevron is placed in: the 1 px border lies outside it, so 12 from the outer edge */
 .filter-field__chevron {
   position: absolute;
   top: calc(50% - 7px);
@@ -480,7 +458,6 @@ function setRoot(el: unknown): void {
   cursor: default;
 }
 .filter-field.is-chip {
-  --field-pad: 0px;
   box-sizing: border-box;
   flex: none;
   flex-direction: row;
@@ -497,12 +474,17 @@ function setRoot(el: unknown): void {
 }
 .filter-field.is-chip .filter-select.is-field {
   height: 40px;
+  padding: 0 24px 0 4px;
   border: 0;
   border-radius: 0;
   background: transparent;
 }
 .filter-field.is-chip.is-open {
   background: var(--rl-raised);
+}
+/* the chip's control sits 6 px inside the chip's border, so 5 more puts the chevron 12 px in from that border */
+.filter-field.is-chip .filter-field__chevron {
+  right: 5px;
 }
 /* A form's field (B/T/P-Test, `block`): the select of the form as Chrome draws it there, filling its column; the box 36
    high (44 on a phone, never the chip) with 14 px text, the label 500 with 6 px under it. */

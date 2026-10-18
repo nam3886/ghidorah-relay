@@ -19,6 +19,7 @@ each photographed at 1440, 768 and 390 in both themes from one page (the viewpor
 read-failure group), with long values beside it, at 1440, 768 and 390: no sideways scroll, and no text cut off but the
 ones drawn to end in an ellipsis; a live-shaped value is never cut."""
 
+import base64
 import json
 import re
 import uuid
@@ -105,8 +106,57 @@ TRIGGER_BOXES_JS = """([root, sel]) => {
                     opacity: String(Math.round(op * 100) / 100)}};
   });
 }"""
-# the most a field's drawn value and arrow may differ from the native select's, as pixels of its crop
+# the most a field's drawn value may differ from the native select's, as pixels of its crop
 SELECT_MISMATCH_PCT = 0.5
+
+# Owner deviation 27: the field draws the page's 14 px chevron 12 px in from the box edge, not Chrome's arrow. The box
+# is the longest value + 12 + 36 (+ the 2 border) where the canvas's native select is the value + 14 + 27: every
+# field is 7 px wider, and its value starts 2 px earlier. The deviation is declared once, here, as exact numbers:
+# each canvas select gets 7 px more padding at its end before it is read (so the row it sits in lays out as the app's
+# does and the boxes are compared at the declared offset, nothing else is loosened), the value text is compared 2 px
+# earlier, and the arrow zone is not compared as pixels but asserted by its geometry (14 px, 12 px in, the label's
+# colour).
+FIELD_EXTRA_PX = 7
+FIELD_TEXT_SHIFT_PX = 2
+FIELD_CORNER_PX = 6          # the rounded corner and its edge are left out of the crops: they are boxes, compared above
+FIELD_ENLARGE_JS = """(extra) => document.querySelectorAll('main select').forEach((s) => {
+  s.style.paddingRight = (parseFloat(getComputedStyle(s).paddingRight) + extra) + 'px';
+})"""
+# each field's trigger: its width, its chevron's width, the gap from the chevron to the bordered edge (the trigger's,
+# the phone chip's own), and the chevron's colour beside its label's
+FIELD_GEOMETRY_JS = """(sel) => [...document.querySelectorAll(sel)].map((t) => {
+  const svg = t.querySelector('.filter-field__chevron').getBoundingClientRect();
+  const chip = t.closest('.filter-field.is-chip');
+  const edge = (chip || t).getBoundingClientRect();
+  const field = t.closest('.filter-field');
+  const box = t.getBoundingClientRect();
+  return {chip: !!chip, width: box.width, height: box.height, chevron: svg.width,
+          gap: edge.right - svg.right,
+          color: getComputedStyle(t.querySelector('.filter-field__chevron')).color,
+          label: getComputedStyle(field.querySelector('.filter-field__label')).color};
+})"""
+CROP_JS = r"""async ({png, x, y, w, h}) => {
+  const bitmap = await createImageBitmap(await (await fetch("data:image/png;base64," + png)).blob());
+  const c = new OffscreenCanvas(w, h);
+  c.getContext("2d").drawImage(bitmap, x, y, w, h, 0, 0, w, h);
+  const bytes = new Uint8Array(await (await c.convertToBlob({type: "image/png"})).arrayBuffer());
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}"""
+
+
+def crop(page, png: bytes, x: float, w: float, height: float) -> bytes:
+    """`png` cut to x..x+w across its whole height (a PNG is the element's own screenshot, so x is its own)."""
+    got = page.evaluate(CROP_JS, {"png": base64.b64encode(png).decode(), "x": int(x), "y": 0, "w": int(w),
+                                  "h": int(height)})
+    return base64.b64decode(got)
+
+
+def assert_chevrons(geometry: list) -> None:
+    """The arrow zone of every field by geometry: a 14 px chevron, 12 px in from the edge, in the label's colour."""
+    bad = [g for g in geometry if abs(g["chevron"] - 14) > 0.5 or abs(g["gap"] - 12) > 0.5 or g["color"] != g["label"]]
+    assert geometry and not bad, "a field's chevron is not 14 px, 12 px in, in the label colour: %r" % (bad or geometry)
 
 
 def _inside(item, rects) -> bool:
@@ -121,10 +171,22 @@ def _drawn_inside_a_field(items: dict, rects: list) -> dict:
             "boxes": [b for b in items["boxes"] if b["kind"] == "box" or not _inside(b, rects)]}
 
 
-def select_pixels(page_pngs: list, canvas_pngs: list, diff_page, out, stem: str) -> list:
-    """Each field against its native select, as pixels of the two crops; returns (mismatch %, anti-aliased %)."""
+def select_pixels(page_pngs: list, canvas_pngs: list, diff_page, out, stem: str, sizes: list | None = None) -> list:
+    """Each field against its native select, as pixels of the two crops; returns (mismatch %, anti-aliased %). With
+    `sizes` (per field: width, height, on a phone chip) the crops are of the value zone only: what is left of the
+    arrow zone, the corner at the start left out, the app's value 2 px earlier than the canvas's; without it, the
+    whole box."""
     got = []
     for n, (app_png, ref_png) in enumerate(zip(page_pngs, canvas_pngs, strict=True)):
+        if sizes is not None:
+            width, height, chip = sizes[n]
+            if chip:        # borderless in its chip on both sides: the arrow zone is the 24 px at the end
+                span = width - 24
+                app_png, ref_png = crop(diff_page, app_png, 0, span, height), crop(diff_page, ref_png, 0, span, height)
+            else:           # the app: border 1, then the value, up to 36 + border from the end; the canvas 2 px later
+                span = width - 37 - FIELD_CORNER_PX
+                app_png = crop(diff_page, app_png, FIELD_CORNER_PX, span, height)
+                ref_png = crop(diff_page, ref_png, FIELD_CORNER_PX + FIELD_TEXT_SHIFT_PX, span, height)
         pixels = compare(diff_page, ref_png, app_png)
         (out / ("select-%s-%d.side.png" % (stem, n))).write_bytes(side_by_side(diff_page, ref_png, app_png,
                                                                                pixels.png))
@@ -134,10 +196,12 @@ def select_pixels(page_pngs: list, canvas_pngs: list, diff_page, out, stem: str)
 
 
 def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: str, parts=None,
-              fields: list | None = None) -> list:
+              fields: list | None = None, app_hook=None, canvas_hook=None) -> list:
     """The app in the check's state and the canvas board, each opened once; then, for each part (name suffix, canvas
     root, app root), the table and the side-by-side. Returns (result, file stem) per part. With `fields` (a list),
-    each FilterSelect field is also compared with its native select as pixels, and the figures land in it."""
+    each FilterSelect field is also compared with its native select as pixels, and the figures land in it. The hooks
+    state a page's own declared deviation: `app_hook(page, items, app_root)` rewrites the app's items before pairing,
+    `canvas_hook(page)` changes the opened board."""
     parts = parts or (("", check.canvas_root, check.app_root),)
     board_w, board_h = BOARDS[check.state.board]
     width, height = check.viewport or (board_w, board_h)
@@ -149,9 +213,18 @@ def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: 
             rects = page.evaluate(FIELD_RECTS_JS, [app_root, FIELDS], isolated_context=False)
             items = _drawn_inside_a_field(extract(page, app_root), rects)
             items["boxes"] += page.evaluate(TRIGGER_BOXES_JS, [app_root, CHIP_TRIGGERS], isolated_context=False)
+            if app_hook:
+                app_hook(page, items, app_root)
             mine[suffix] = (items, _png(page, app_root))
         field_pngs = [loc.screenshot(animations="disabled", caret="hide") for loc in page.locator(FIELDS).all()]
+        geometry = page.evaluate(FIELD_GEOMETRY_JS, FIELDS, isolated_context=False) if fields is not None else []
+        if fields is not None:
+            assert_chevrons(geometry)
     renderer.open(check.state.board, dark, board_w, board_h)
+    renderer.page.evaluate(FIELD_ENLARGE_JS, FIELD_EXTRA_PX, isolated_context=False)
+    if canvas_hook:
+        canvas_hook(renderer.page)
+    renderer.settle()
     out = run_dir / "element-diff"
     out.mkdir(parents=True, exist_ok=True)
     results = []
@@ -183,7 +256,8 @@ def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: 
     if fields is not None:
         canvas_pngs = [loc.screenshot(animations="disabled", caret="hide")
                        for loc in renderer.page.locator("main select").all()]
-        fields += select_pixels(field_pngs, canvas_pngs, diff_page, out, "%s-%s" % (check.name, theme))
+        sizes = [(g["width"], g["height"], g["chip"]) for g in geometry]
+        fields += select_pixels(field_pngs, canvas_pngs, diff_page, out, "%s-%s" % (check.name, theme), sizes)
     return results
 
 
