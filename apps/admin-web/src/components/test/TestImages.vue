@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useBreakpoint } from "@/composables/use-breakpoint";
 import { MAX_BYTES, MAX_IMAGES, type StoredFile } from "@/lib/test-files";
 import { sizeText } from "./test-result-model";
 
@@ -10,6 +11,7 @@ import { sizeText } from "./test-result-model";
 defineProps<{ files: StoredFile[]; note: string }>();
 const emit = defineEmits<{ add: [files: File[]]; remove: [index: number] }>();
 
+const { isPhone } = useBreakpoint();
 const input = ref<HTMLInputElement | null>(null);
 const over = ref(false);
 
@@ -57,9 +59,9 @@ const HINT = `Images only · up to ${MAX_IMAGES} files · ${MAX_BYTES / 1048576}
         <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
       </svg>
       <span class="images__text"
-        ><span class="images__drag">Drag to upload, or </span
+        ><span v-if="!isPhone">Drag to upload, or </span
         ><button type="button" class="images__browse" @click="input?.click()">
-          <span class="images__drag">browse</span><span class="images__phone">Browse images</span>
+          {{ isPhone ? "Browse images" : "browse" }}
         </button></span
       >
       <span class="images__hint">{{ HINT }}</span>
@@ -92,12 +94,15 @@ const HINT = `Images only · up to ${MAX_IMAGES} files · ${MAX_BYTES / 1048576}
           <circle cx="9" cy="9" r="2" />
           <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
         </svg>
-        <span class="images__name">{{ f.name }}</span>
-        <span class="images__size">{{ sizeText(f.blob.size) }}</span>
+        <!-- the phone stacks the name over the size -->
+        <span class="images__meta">
+          <span class="images__name">{{ f.name }}</span>
+          <span class="images__size">{{ sizeText(f.blob.size) }}</span>
+        </span>
         <button type="button" class="images__remove" :aria-label="`Remove ${f.name}`" @click="emit('remove', i)">
           <svg
-            width="14"
-            height="14"
+            :width="isPhone ? 16 : 14"
+            :height="isPhone ? 16 : 14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -156,9 +161,6 @@ const HINT = `Images only · up to ${MAX_IMAGES} files · ${MAX_BYTES / 1048576}
   text-decoration: underline;
   cursor: pointer;
 }
-.images__phone {
-  display: none;
-}
 .images__hint {
   font-size: 12px;
   color: var(--rl-faint);
@@ -184,6 +186,10 @@ const HINT = `Images only · up to ${MAX_IMAGES} files · ${MAX_BYTES / 1048576}
   height: 40px;
   border-bottom: 1px solid var(--rl-line);
   color: var(--rl-muted);
+}
+/* the name and the size are on the row itself; the phone stacks them */
+.images__meta {
+  display: contents;
 }
 .images__name {
   flex: 1;
@@ -234,12 +240,6 @@ const HINT = `Images only · up to ${MAX_IMAGES} files · ${MAX_BYTES / 1048576}
   }
 }
 @media (max-width: 767px) {
-  .images__drag {
-    display: none;
-  }
-  .images__phone {
-    display: inline;
-  }
   .images__browse {
     display: flex;
     align-items: center;
@@ -249,6 +249,15 @@ const HINT = `Images only · up to ${MAX_IMAGES} files · ${MAX_BYTES / 1048576}
   .images__list li {
     min-height: 52px;
     height: auto;
+  }
+  .images__list svg {
+    flex: none;
+  }
+  .images__meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
   }
   .images__remove {
     width: 44px;

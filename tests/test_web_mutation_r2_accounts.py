@@ -347,7 +347,7 @@ PROVIDER = (IMPORT_SPEC + "the Provider field is the drawn select: another provi
           expect=f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > the open list takes the next popup layer, "
                  "so it lies over a dialog it is opened from")
 @mutation(FIELD, '<IconChevronDown v-if="drawn"', '<IconChevronDown v-if="false"', expect=DRAWN)
-@mutation(FIELD, "field.value && !drawn.value && isPhone.value", "field.value && isPhone.value", expect=DRAWN)
+@mutation(FIELD, "field.value && !drawn.value && !props.block", "field.value && !props.block", expect=DRAWN)
 @mutation(FIELD, '"is-tall": isTablet.value && !drawn.value,', '"is-tall": isTablet.value,', expect=DRAWN)
 @pytest.mark.web_unit
 def test_the_provider_field_is_the_drawn_select():

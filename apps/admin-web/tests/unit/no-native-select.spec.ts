@@ -5,12 +5,12 @@ import { describe, expect, it } from "vitest";
 // No native select element anywhere in the app: the design draws its selects, and a native one looks and opens
 // differently on every system (the macOS popup button and menu on the owner's Mac). Use FilterSelect, whose `field`
 // variant is the canvas's labelled select. The files below still have one; each page takes its file off the list when
-// it converts it, and a file on the list that no longer has one fails too, so the list only shrinks.
+// it converts it, and a file on the list that no longer has one fails too, so the list only shrinks. One file a line,
+// so taking a file off is a one-line change however short the list gets.
+// prettier-ignore
 const STILL_TO_CONVERT = [
   "components/logs/LogsFilterForm.vue",
   "components/keys/KeyFormDialog.vue",
-  "views/TestView.vue",
-  "views/FramesView.vue",
 ];
 
 const SRC = join(process.cwd(), "src");

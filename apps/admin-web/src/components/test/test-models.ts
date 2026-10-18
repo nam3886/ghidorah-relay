@@ -13,6 +13,18 @@ export function durationsOf(m: PublicModel | null): number[] {
   return Array.isArray(list) ? list.filter((n): n is number => typeof n === "number") : [];
 }
 
+// The ratios the model itself takes (`limits.ratios`, dola: video has 21:9, images 2:3), or none when it names no list;
+// and the one it uses when none is sent (`limits.default_ratio`), when that is one of them.
+export function ratiosOf(m: PublicModel | null): string[] {
+  const list = (m?.limits as { ratios?: unknown } | undefined)?.ratios;
+  return Array.isArray(list) ? list.filter((r): r is string => typeof r === "string" && r !== "") : [];
+}
+
+export function defaultRatioOf(m: PublicModel | null): string {
+  const ratio = (m?.limits as { default_ratio?: unknown } | undefined)?.default_ratio;
+  return typeof ratio === "string" && ratiosOf(m).includes(ratio) ? ratio : "";
+}
+
 // "5, 10, 20, 25 or 30 s"
 export function durationsPhrase(durations: number[]): string {
   if (!durations.length) return "";
@@ -48,7 +60,11 @@ export function walletRows(points: string): Array<{ label: string; value: string
   const rows: Array<{ label: string; value: string }> = [];
   for (const [provider, kinds] of Object.entries(data as Record<string, unknown>)) {
     if (!kinds || typeof kinds !== "object" || Array.isArray(kinds)) continue;
-    for (const [kind, wallet] of Object.entries(kinds as Record<string, unknown>)) {
+    // video first, as the model picker lists them (the answer has its own key order)
+    const byKind = Object.entries(kinds as Record<string, unknown>).sort(
+      ([a], [b]) => Number(b === "video") - Number(a === "video") || a.localeCompare(b),
+    );
+    for (const [kind, wallet] of byKind) {
       if (!isWallet(wallet)) continue;
       const label = `${provider} ${kind}`;
       if (wallet.day_limit === null && wallet.total_limit === null) {

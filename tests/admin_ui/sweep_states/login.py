@@ -21,7 +21,7 @@ def run(page, app, live, sw, data):
         page.get_by_label("Username").fill(live.user)
         page.get_by_label("Password", exact=True).fill(live.password)
         page.get_by_role("button", name="Sign in").click()
-        expect(page.get_by_role("button", name="Signing in...")).to_be_visible()
+        expect(page.get_by_role("button", name="Signing in…")).to_be_visible()
         expect(page).to_have_url(re.compile(r"#/jobs$"), timeout=TIMEOUT_MS * 2)
         unslow(page, "**/admin/login")
     sw.step("login", "busy-button", login_busy)

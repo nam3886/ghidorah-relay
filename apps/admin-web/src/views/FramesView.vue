@@ -4,6 +4,7 @@
 import { computed, onBeforeUnmount, onMounted } from "vue";
 import FrameEditor from "@/components/frames/FrameEditor.vue";
 import FrameKindSection from "@/components/frames/FrameKindSection.vue";
+import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { NO_FRAMES_TEXT } from "@/components/frames/frames-model";
 import { forgetFramesMemory, useFrames } from "@/components/frames/use-frames";
 import { errorText } from "@/lib/errors";
@@ -35,7 +36,8 @@ const kinds = computed(() =>
   [...(frames.data?.kinds ?? [])].sort((a, b) => Number(b.kind === "video") - Number(a.kind === "video")),
 );
 
-const onProvider = (event: Event): void => void frames.openProvider((event.target as HTMLSelectElement).value);
+const providerOptions = computed(() => frames.providers.map((name) => ({ value: name, label: name })));
+const onProvider = (name: string | number): void => void frames.openProvider(String(name));
 </script>
 
 <template>
@@ -47,35 +49,21 @@ const onProvider = (event: Event): void => void frames.openProvider((event.targe
           The wrapper text around each customer prompt. A save applies only to jobs created after it.
         </p>
       </div>
-      <!-- The trigger is drawn by the label; the real control is the transparent select on top of it. -->
-      <label class="frames__provider" :class="{ 'is-disabled': frames.opensOff }">
-        <span class="frames__provider-label">Provider</span>
-        <span class="frames__provider-value">{{ frames.provider }}</span>
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-        <select
-          class="frames__provider-select"
-          aria-label="Provider"
-          :value="frames.provider"
-          :disabled="frames.opensOff"
-          @change="onProvider"
-        >
-          <option v-for="name in frames.providers" :key="name" :value="name">{{ name }}</option>
-        </select>
-      </label>
+      <!-- the drawn `Provider dola` trigger and list; `disabled` lands on its button -->
+      <FilterSelect
+        class="frames__provider"
+        size="header"
+        label="Provider"
+        :model-value="frames.provider"
+        :options="providerOptions"
+        :disabled="frames.opensOff"
+        @update:model-value="onProvider"
+      />
     </header>
-    <p v-if="frames.noFrames" class="frames__none">{{ NO_FRAMES_TEXT }}</p>
+    <!-- a provider with no frames: the drawn empty card (12.6) -->
+    <section v-if="frames.noFrames" class="frames__none" aria-label="Prompt frames, none">
+      <p>{{ NO_FRAMES_TEXT }}</p>
+    </section>
     <div class="frames__body">
       <div class="frames__kinds">
         <FrameKindSection v-for="k in kinds" :key="k.kind" :frames="frames" :kind="k" />
@@ -114,47 +102,22 @@ const onProvider = (event: Event): void => void frames.openProvider((event.targe
   color: var(--rl-muted);
 }
 .frames__none {
+  padding: 44px 24px 52px;
+  border: 1px solid var(--rl-line);
+  border-radius: 16px;
+  background: var(--rl-surface);
+  text-align: center;
+}
+.frames__none p {
   margin: 0;
   color: var(--rl-muted);
-  font-size: 13px;
 }
 
-/* Provider select: a label-shaped trigger with the real select laid over it, invisible */
-.frames__provider {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  box-sizing: border-box;
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--rl-line-strong);
-  border-radius: 10px;
-  background: var(--rl-surface);
-  color: var(--rl-fg);
-  font-size: 13px;
-  cursor: pointer;
-}
-.frames__provider.is-disabled {
+/* off while a write runs: the drawn disabled secondary (the view's own rules outrank the select's) */
+.frames .frames__head .frames__provider:disabled {
+  background: var(--rl-raised);
+  color: var(--rl-faint);
   cursor: default;
-  opacity: 0.6;
-}
-.frames__provider-label {
-  color: var(--rl-muted);
-}
-.frames__provider-select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
-  cursor: inherit;
-  font: inherit;
-}
-.frames__provider:focus-within {
-  outline: 2px solid var(--rl-focus);
-  outline-offset: 2px;
 }
 
 .frames__body {
@@ -176,6 +139,9 @@ const onProvider = (event: Event): void => void frames.openProvider((event.targe
     font-size: 24px;
     line-height: 32px;
     letter-spacing: -0.012em;
+  }
+  .frames__subtitle {
+    margin-top: 2px;
   }
   .frames__body,
   .frames__kinds {
@@ -204,7 +170,7 @@ const onProvider = (event: Event): void => void frames.openProvider((event.targe
   .frames__subtitle {
     margin-top: 2px;
   }
-  .frames__provider {
+  .frames .frames__head .frames__provider {
     align-self: flex-start;
     height: 44px;
     padding: 0 14px;

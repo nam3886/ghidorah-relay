@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from "vue";
 import type { SettingItem } from "@/api/settings";
+import HintTip from "@/components/shared/HintTip.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import SectionState from "./SectionState.vue";
-import { valueText } from "./settings-value";
+import "./settings-skeleton.css";
+import { fullDefault, isLongDefault, valueText } from "./settings-value";
 
 // The live settings. Each value is an input with its own draft: it is "edited" (and Save is enabled) only while the
 // draft differs from the stored value. The view does the calls and reloads; a reload gives every draft its stored value.
@@ -33,6 +35,16 @@ const state = computed(() =>
   props.error ? "error" : props.loading && !props.items.length ? "loading" : !props.items.length ? "empty" : "ready",
 );
 const shownDefault = (item: SettingItem): string => JSON.stringify(item.default);
+const longDefault = (item: SettingItem): boolean => isLongDefault(shownDefault(item));
+// The first read: the table's own header over five rows of bars (the B-States loading pattern)
+const skeleton = computed(() => props.loading && !props.items.length && !props.error);
+const SKELETON = [
+  { key: "128px", sub: "62%", pill: "64px" },
+  { key: "104px", sub: "48%", pill: "48px" },
+  { key: "152px", sub: "71%", pill: "64px" },
+  { key: "96px", sub: "39%", pill: "40px" },
+  { key: "140px", sub: "56%", pill: "64px" },
+];
 </script>
 
 <template>
@@ -42,15 +54,18 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
     :aria-busy="loading"
     :data-state="state"
   >
-    <SectionState
-      :loading="loading"
-      :error="error"
-      :empty="!items.length"
-      empty-text="No settings"
-      @retry="emit('retry')"
-    />
+    <SectionState :error="error" :empty="!items.length && !loading" empty-text="No settings" @retry="emit('retry')" />
 
-    <ul v-if="!error && items.length && isPhone" class="list">
+    <ul v-if="skeleton && isPhone" class="list" aria-hidden="true">
+      <li v-for="(s, n) in SKELETON" :key="n">
+        <div>
+          <i class="set-skel" :style="{ width: s.key }" /><i class="set-skel set-skel--sub" :style="{ width: s.sub }" />
+        </div>
+        <i class="set-skel" :style="{ width: '100%' }" />
+        <i class="set-skel" :style="{ width: '120px' }" />
+      </li>
+    </ul>
+    <ul v-else-if="!error && items.length && isPhone" class="list">
       <li v-for="row in items" :key="row.key" :class="{ 'is-edited': edited(row) }">
         <div>
           <div class="key">{{ row.key }}</div>
@@ -69,8 +84,11 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
           />
           <span v-if="edited(row)" class="tag tag--phone">edited</span>
         </div>
-        <span class="list__meta"
-          >{{ row.source }} · default <span class="mono">{{ shownDefault(row) }}</span></span
+        <span class="list__meta tnum" :class="{ 'is-long': longDefault(row) }"
+          >{{ row.source }} · default
+          <HintTip v-if="longDefault(row)" mono :text="fullDefault(row.default)"
+            ><span class="mono">{{ shownDefault(row) }}</span></HintTip
+          ><span v-else class="mono">{{ shownDefault(row) }}</span></span
         >
         <div class="list__actions">
           <button
@@ -95,7 +113,7 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
       </li>
     </ul>
 
-    <div v-else-if="!error && items.length" class="scroll">
+    <div v-else-if="!error && (items.length || skeleton)" class="scroll">
       <table class="table">
         <thead>
           <tr>
@@ -106,7 +124,21 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
             <th scope="col" class="last">Actions</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody v-if="skeleton" aria-hidden="true">
+          <tr v-for="(s, n) in SKELETON" :key="n" class="set-skel-row">
+            <td class="first">
+              <i class="set-skel" :style="{ width: s.key }" /><i
+                class="set-skel set-skel--sub"
+                :style="{ width: s.sub }"
+              />
+            </td>
+            <td class="value"><i class="set-skel" :style="{ width: isTablet ? '96px' : '120px' }" /></td>
+            <td><i class="set-skel set-skel--pill" :style="{ width: s.pill }" /></td>
+            <td v-if="!isTablet"><i class="set-skel" :style="{ width: '40px' }" /></td>
+            <td class="last"><i class="set-skel set-skel--end" :style="{ width: '110px' }" /></td>
+          </tr>
+        </tbody>
+        <tbody v-else>
           <tr v-for="row in items" :key="row.key" :class="{ 'is-edited': edited(row) }">
             <td class="first">
               <span class="key">{{ row.key }}</span>
@@ -123,11 +155,20 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
                 spellcheck="false"
                 @keyup.enter="send(row)"
               />
-              <span v-if="edited(row)" class="tag">edited</span>
-              <span v-if="isTablet" class="folded mono">default {{ shownDefault(row) }}</span>
+              <!-- the drawn cell has a space between the box and its tag, and between Save and Reset -->
+              {{ " " }}<span v-if="edited(row)" class="tag">edited</span>
+              <span v-if="isTablet && longDefault(row)" class="folded mono tnum is-long"
+                >default <HintTip mono :text="fullDefault(row.default)">{{ shownDefault(row) }}</HintTip></span
+              >
+              <span v-else-if="isTablet" class="folded mono tnum">default {{ shownDefault(row) }}</span>
             </td>
             <td><StatusChip :status="row.source" :label="row.source" tone="neutral" /></td>
-            <td v-if="!isTablet" class="mono muted">{{ shownDefault(row) }}</td>
+            <td v-if="!isTablet" class="mono muted tnum">
+              <span v-if="longDefault(row)" class="default"
+                ><HintTip mono :text="fullDefault(row.default)">{{ shownDefault(row) }}</HintTip></span
+              >
+              <template v-else>{{ shownDefault(row) }}</template>
+            </td>
             <td class="last">
               <button
                 type="button"
@@ -138,7 +179,8 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
               >
                 Save
               </button>
-              <button
+              {{ " "
+              }}<button
                 type="button"
                 class="btn btn--reset"
                 :disabled="!canReset(row)"
@@ -195,9 +237,9 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
   box-sizing: border-box;
   padding: 8px 12px 8px 16px;
 }
+/* the drawn tablet cell sets a min-height, which a table cell ignores: its rows are as tall as their text */
 .is-tablet .table td.first {
-  min-height: 64px;
-  height: 64px;
+  height: auto;
   padding: 10px 12px 10px 16px;
 }
 .table tbody tr:hover td {
@@ -214,13 +256,18 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
   font-family: var(--rl-mono);
   font-size: 13px;
   font-weight: 500;
+}
+.is-tablet .key,
+.is-phone .key {
   overflow-wrap: anywhere;
 }
 .description {
   display: block;
   font-size: 12px;
-  line-height: 18px;
   color: var(--rl-muted);
+}
+.is-phone .description {
+  line-height: 18px;
 }
 .table td.value {
   padding: 8px 12px;
@@ -237,6 +284,7 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
   color: var(--rl-fg);
   font-family: var(--rl-mono);
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
   text-align: right;
 }
 .input.is-edited {
@@ -259,6 +307,32 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
   font-family: var(--rl-mono);
   font-size: 13px;
 }
+/* the canvas's `num`: tabular figures only (the app's global .num also aligns right) */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+/* A default longer than its column (dola.prices: some 300 characters of JSON) is one line ending in "…", so the row
+   keeps its drawn height; the whole value is the note of the words (desktop 240 px, tablet 200, the phone's line). The
+   note's own words are the "…" box, so the note opens over the words that show, not over the whole hidden line. */
+.default {
+  display: block;
+  max-width: 240px;
+}
+.folded.is-long,
+.list__meta.is-long {
+  display: flex;
+  gap: 1ch;
+  white-space: nowrap;
+}
+.default :deep(.hint-tip),
+.folded.is-long :deep(.hint-tip),
+.list__meta.is-long :deep(.hint-tip) {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .muted {
   color: var(--rl-muted);
 }
@@ -271,6 +345,7 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
   color: var(--rl-fg);
   font: inherit;
   font-size: 13px;
+  line-height: normal;
   cursor: pointer;
 }
 .btn--save {
@@ -302,6 +377,9 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
 }
 
 /* tablet */
+.is-tablet {
+  --set-skel-row: 61px;
+}
 .is-tablet .input {
   width: 96px;
   height: 36px;
@@ -314,6 +392,9 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
   margin-top: 2px;
   font-size: 12px;
   color: var(--rl-muted);
+}
+.folded.is-long {
+  max-width: 200px;
 }
 .is-tablet .btn {
   height: 36px;
@@ -365,18 +446,19 @@ const shownDefault = (item: SettingItem): string => JSON.stringify(item.default)
 }
 .list__meta .mono {
   font-size: 12px;
-  color: var(--rl-fg);
 }
 .list__actions {
   display: flex;
   gap: 8px;
 }
-.is-phone .btn {
+/* the drawn phone buttons set no padding: the browser's 1px 6px */
+.is-phone .btn,
+.is-phone .btn--save,
+.is-phone .btn--reset {
   flex: 1;
   height: 44px;
-  font-size: 14px;
-}
-.is-phone .btn--reset {
   margin-left: 0;
+  padding: 1px 6px;
+  font-size: 14px;
 }
 </style>

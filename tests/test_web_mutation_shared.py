@@ -344,7 +344,7 @@ def test_the_table_opt_ins_day_rows_tablet_and_phone_list():
 @mutation(NOTIFY, 'placement: "bottom", offset', 'placement: "top", offset', expect="on a phone they sit bottom centre")
 @mutation(NOTIFY, "PHONE_OFFSET_PX = 72", "PHONE_OFFSET_PX = 0", expect="lifted above the bulk bar")
 @mutation(NOTIFY, "(max-width: 767.98px)", "(max-width: 10px)", expect="asks the phone edge")
-@mutation(NOTIFY, "clear: () => message.closeAll()", "clear: () => void message", expect="clear closes every toast")
+@mutation(NOTIFY, "  message.closeAll();\n    },", "  void message;\n    },", expect="clear closes every toast")
 @pytest.mark.web_unit
 def test_toasts_stack_where_the_design_puts_them():
     vitest("tests/unit/shared/notify.spec.ts")
@@ -445,10 +445,10 @@ def test_the_field_select_is_the_canvas_select_drawn_by_us():
     vitest(FIELD_SPEC)
 
 
-@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '  "views/FramesView.vue",\n];', "];",
+@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '  "components/keys/KeyFormDialog.vue",\n', "",
           expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
-@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '  "views/FramesView.vue",\n];',
-          '  "views/FramesView.vue",\n  "views/AlertsView.vue",\n];',
+@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", "const STILL_TO_CONVERT = [\n",
+          'const STILL_TO_CONVERT = [\n  "views/AlertsView.vue",\n',
           expect=NO_SELECT + "every file still to convert still has one: a converted file leaves the list")
 @mutation(ALERTS_VIEW, '<span v-if="!isPhone" class="gt__spacer" />', '<select v-if="!isPhone" class="gt__spacer" />',
           expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
@@ -588,3 +588,47 @@ TOGGLE_SPEC = "tests/unit/shared/toggle-switch.spec.ts"
 @pytest.mark.web_unit
 def test_the_toggle_switch_reports_the_opposite_and_names_its_size():
     vitest(TOGGLE_SPEC)
+
+
+# ---- page-frames-settings round: the toast drawn as B-States (its body, the ×N pill, the X, over Element Plus) ------
+NOTIFY_SPEC = "tests/unit/shared/notify.spec.ts"
+REPEAT = "a repeat while the toast is open is the same body"
+DRAWN_BODY = "draws the body as B-States"
+OUTRANKS = "a toast outranks Element Plus"
+AFTER_CLEAR = "the same words right after clear are a new toast"
+AFTER_X = "the same error right after a click on its X is a new toast"
+
+
+@mutation(NOTIFY, "entry.count.value += 1;", "", expect=REPEAT)
+@mutation(NOTIFY, "props.count > 1 ?", "props.count > 9 ?", expect=REPEAT)
+@mutation(NOTIFY, "if (shown.get(key) === own) shown.delete(key);", "", expect=REPEAT)
+@mutation(NOTIFY, "if (shown.get(key) === own) shown.delete(key);", "shown.delete(key);", expect=AFTER_CLEAR)
+@mutation(NOTIFY, "      shown.clear();\n      message.closeAll();", "      message.closeAll();", expect=AFTER_CLEAR)
+@mutation(NOTIFY, "            forget(made);\n            made.handle?.close?.();", "            made.handle?.close?.();",
+          expect=AFTER_X)
+@mutation(NOTIFY, '"aria-label": "Close message"', '"aria-label": "Close"', expect=DRAWN_BODY)
+@mutation(NOTIFY, "h(IconClose, { size: 14, stroke: 2 })", "h(IconClose, { size: 16, stroke: 2 })", expect=DRAWN_BODY)
+@pytest.mark.web_unit
+def test_the_toast_body_is_drawn_as_b_states():
+    vitest(NOTIFY_SPEC)
+
+
+@mutation(NOTIFY_CSS, "  margin: 0;\n  font-size: 18px;", "  margin: 0;\n  font-size: 14px;", expect=OUTRANKS)
+@mutation(NOTIFY_CSS, "  color: var(--rl-fg);\n  font-size: 14px;\n  line-height: 20px;",
+          "  font-size: 14px;\n  line-height: 20px;", expect=OUTRANKS)
+@mutation(NOTIFY_CSS, "html .el-message .el-message__closeBtn {\n  display: none;",
+          "html .el-message .el-message__closeBtn {\n  display: flex;", expect="the close button is 28 square")
+@pytest.mark.web_unit
+def test_the_toast_skin_outranks_element_plus():
+    vitest(SKIN_SPEC)
+
+
+# ---- page-test-login: FilterSelect's field as a form's field (the Test form's selects) -------------------------------
+FORM_FIELD = FIELD + "as a form's field (block) keeps its label above the box on a phone too, never the chip"
+
+
+@mutation(FILTER, "!props.block && isPhone.value", "isPhone.value", expect=FORM_FIELD)
+@mutation(FILTER, '"is-block": props.block,', '"is-block": false,', expect=FORM_FIELD)
+@pytest.mark.web_unit
+def test_the_field_select_can_be_a_form_field():
+    vitest(FIELD_SPEC)

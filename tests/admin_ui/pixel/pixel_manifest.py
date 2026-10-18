@@ -89,8 +89,10 @@ LANE7 = [
     )
     for board in boards
 ]
+# The Test boards are signed in as the boards' user, so the top bar reads "admin" as drawn (page-test-login).
+LANE7 = [replace(e, user=BOARD_USER) if e.board.endswith("-Test") else e for e in LANE7]
 
-# ---- accounts (lane 5) ---------------------------------------------------------------------------------------------
+# ---- accounts (lane 5)---------------------------------------------------------------------------------------------
 from pixel_accounts import accounts_seed, open_edit, open_import, phone_ready  # noqa: E402
 
 ACCOUNTS_BOARDS = [
@@ -133,7 +135,7 @@ GATES: dict[str, float] = {
     "B-AccountImport": 4.45,
     "B-Accounts": 1.02,
     "B-Alerts": 1.13,
-    "B-Frames": 2.32,
+    "B-Frames": 1.17,
     "B-JobDetail": 1.40,
     "B-JobFailed": 1.32,
     "B-Jobs": 1.14,
@@ -143,29 +145,29 @@ GATES: dict[str, float] = {
     "B-LogDetail": 4.69,
     "B-Login": 1.04,
     "B-Logs": 8.21,
-    "B-Settings": 6.00,
-    "B-Test": 3.38,
+    "B-Settings": 1.08,
+    "B-Test": 1.04,
     "P-Accounts": 1.04,
     "P-Alerts": 1.23,
-    "P-Frames": 3.49,
+    "P-Frames": 1.46,
     "P-JobDetail": 2.23,
     "P-Jobs": 1.02,
     "P-Jobs-shell": 1.00,
     "P-Keys": 7.96,
     "P-Login": 1.16,
     "P-Logs": 6.41,
-    "P-Settings": 12.34,
-    "P-Test": 7.20,
+    "P-Settings": 1.25,
+    "P-Test": 1.28,
     "T-Accounts": 1.03,
     "T-Alerts": 1.01,
-    "T-Frames": 5.68,
+    "T-Frames": 1.17,
     "T-JobDetail": 1.37,
     "T-Jobs": 1.23,
     "T-Jobs-shell": 1.00,
     "T-Keys": 8.41,
     "T-Logs": 10.91,
-    "T-Settings": 9.01,
-    "T-Test": 7.09,
+    "T-Settings": 1.06,
+    "T-Test": 1.05,
 }
 
 ENTRIES: list[Entry] = [

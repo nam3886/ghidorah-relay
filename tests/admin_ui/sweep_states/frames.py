@@ -18,11 +18,13 @@ def run(page, app, live, sw, data):
         tab(page, "frames")
         expect(page.locator(VIDEO)).to_be_visible()
     sw.step("frames", "list", frames_list)
-    # the provider list is the browser's own popup, which a page shot does not hold: the focused control is the state
+    # the provider list open: the drawn listbox under its trigger
     sw.step("frames", "provider-select", lambda: (
-        page.locator('select[aria-label="Provider"]').focus(),
-        expect(page.locator('select[aria-label="Provider"]')).to_be_focused()))
+        page.get_by_role("combobox", name="Provider", exact=True).click(),
+        expect(page.get_by_role("listbox", name="Provider")).to_be_visible()))
     sw.step("frames", "editor", lambda: (
+        page.keyboard.press("Escape"),
+        expect(page.get_by_role("listbox", name="Provider")).to_have_count(0),
         page.locator(VIDEO).get_by_role("button", name="Edit frame for fake-video").click(),
         expect(page.get_by_label("Frame text")).to_be_visible()))
     # the note on the preview's character count, opened from the keyboard (D125)
