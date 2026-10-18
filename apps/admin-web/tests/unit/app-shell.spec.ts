@@ -773,12 +773,21 @@ describe("the top bar", () => {
     expect(again.wrapper.find('[data-testid="tab-count-jobs"]').text()).toBe("999+");
   });
 
+  // the web fonts load when the test says so: returns the function that loads them
+  const fontsLoadLater = (): (() => void) => {
+    let loaded: () => void = () => undefined;
+    const ready = new Promise<void>((resolve) => (loaded = resolve));
+    Object.defineProperty(document, "fonts", { configurable: true, value: { ready } });
+    return loaded;
+  };
+
   it("keeps the current tab in view: on a tab switch, and again when the counts arrive and widen the tabs before it", async () => {
     const shown: string[] = [];
     const original = HTMLElement.prototype.scrollIntoView;
     HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
       shown.push(this.textContent?.trim() ?? "");
     };
+    fontsLoadLater();
     let answer: (value: Stats) => void = () => undefined;
     vi.mocked(shell.getStats).mockReturnValue(new Promise<Stats>((resolve) => (answer = resolve)));
     try {
@@ -792,6 +801,93 @@ describe("the top bar", () => {
       expect(shown).toEqual(["Test", "Test", "Settings"]);
     } finally {
       HTMLElement.prototype.scrollIntoView = original;
+      delete (document as { fonts?: unknown }).fonts;
+    }
+  });
+
+  it("brings the current tab into view again once the web fonts have loaded, as they change every tab's width", async () => {
+    const shown: string[] = [];
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      shown.push(this.textContent?.trim() ?? "");
+    };
+    const loaded = fontsLoadLater();
+    try {
+      const { wrapper } = await open("/test");
+      const before = shown.length;
+      expect(shown.at(-1)).toBe("Test");
+      // the strip scrolling by itself (our own reveal) is not the user moving it
+      await wrapper.find("nav").trigger("scroll");
+      loaded();
+      await flushPromises();
+      expect(shown).toHaveLength(before + 1);
+      expect(shown.at(-1)).toBe("Test");
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+      delete (document as { fonts?: unknown }).fonts;
+    }
+  });
+
+  it("leaves the tab strip where the user put it when they moved it before the web fonts loaded", async () => {
+    const shown: string[] = [];
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      shown.push(this.textContent?.trim() ?? "");
+    };
+    const loaded = fontsLoadLater();
+    try {
+      const { wrapper } = await open("/test");
+      const before = shown.length;
+      await wrapper.find("nav").trigger("wheel");
+      loaded();
+      await flushPromises();
+      expect(shown).toHaveLength(before);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+      delete (document as { fonts?: unknown }).fonts;
+    }
+  });
+
+  it("leaves the tab strip alone when the focus entered it before the web fonts loaded", async () => {
+    const shown: string[] = [];
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      shown.push(this.textContent?.trim() ?? "");
+    };
+    const loaded = fontsLoadLater();
+    try {
+      const { wrapper } = await open("/test");
+      const before = shown.length;
+      // the focus moves onto the first tab, as Tab from the logo does: the browser scrolls the strip to it
+      (wrapper.find("nav a.tab").element as HTMLElement).focus();
+      expect(document.activeElement?.textContent?.trim()).toMatch(/^Jobs/);
+      loaded();
+      await flushPromises();
+      expect(shown).toHaveLength(before);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+      delete (document as { fonts?: unknown }).fonts;
+    }
+  });
+
+  it("does nothing when the bar is gone before the web fonts load", async () => {
+    const shown: string[] = [];
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      shown.push(this.textContent?.trim() ?? "");
+    };
+    const loaded = fontsLoadLater();
+    try {
+      const { wrapper: bar } = await open("/test");
+      const before = shown.length;
+      bar.unmount();
+      wrapper = null;
+      loaded();
+      await flushPromises();
+      expect(shown).toHaveLength(before);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+      delete (document as { fonts?: unknown }).fonts;
     }
   });
 
