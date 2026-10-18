@@ -532,3 +532,79 @@ STRIP_FAILED = "FAILED tests/unit/strip-data-urls.spec.ts > the build step that 
 @pytest.mark.web_unit
 def test_the_build_strips_data_urls_from_vendor_css():
     vitest("tests/unit/strip-data-urls.spec.ts")
+
+
+# ---- page-shell: the canvas's global rules and the current tab kept in view ----------------------------------------
+GLOBAL_RULES = "FAILED tests/unit/theme.spec.ts > the canvas's global rules > "
+REVEAL = BAR_FAILED + ("keeps the current tab in view: on a tab switch, and again when the counts arrive and widen "
+                       "the tabs before it")
+
+
+@mutation(THEME_CSS, "textarea,\na {\n  font-family: inherit;", "textarea,\na {\n  font-family: system-ui;",
+          expect=GLOBAL_RULES + "gives controls and links the page font, and nothing else of the browser's "
+                                "control font")
+@mutation(THEME_CSS, "scrollbar-color: var(--rl-line-strong) transparent;", "scrollbar-color: auto;",
+          expect=GLOBAL_RULES + "draws every scrollbar as a line-strong thumb on a transparent track")
+@mutation(THEME_CSS, "background: var(--rl-line-strong) padding-box;", "background: var(--rl-muted) padding-box;",
+          expect=GLOBAL_RULES + "gives Safari the same thumb through its own scrollbar pseudo-elements, rounded, on a "
+                                "transparent track")
+@mutation(THEME_CSS, "  border-radius: 8px;\n  background: var(--rl-line-strong)",
+          "  border-radius: 0;\n  background: var(--rl-line-strong)",
+          expect=GLOBAL_RULES + "gives Safari the same thumb through its own scrollbar pseudo-elements, rounded, on a "
+                                "transparent track")
+@mutation(THEME_CSS, "  width: 15px;\n  height: 15px;", "  width: 12px;\n  height: 12px;",
+          expect=GLOBAL_RULES + "gives Safari the same thumb through its own scrollbar pseudo-elements, rounded, on a "
+                                "transparent track")
+@mutation(THEME_CSS, "::-webkit-scrollbar-corner {\n  background: transparent;",
+          "::-webkit-scrollbar-corner {\n  background: var(--rl-raised);",
+          expect=GLOBAL_RULES + "gives Safari the same thumb through its own scrollbar pseudo-elements, rounded, on a "
+                                "transparent track")
+@mutation(THEME_CSS, ".num {\n  font-variant-numeric: tabular-nums;\n}",
+          ".num {\n  font-variant-numeric: tabular-nums;\n  text-align: right;\n}",
+          expect=GLOBAL_RULES + "gives a number its tabular figures and nothing else: a number column aligns its own "
+                                "cells")
+@mutation(THEME_CSS, "::selection {\n  background: var(--rl-primary-soft);",
+          "::selection {\n  background: var(--rl-raised);",
+          expect=GLOBAL_RULES + "selects text on the soft primary and draws bare links in the link colour, the hover "
+                                "step in light only")
+@pytest.mark.web_unit
+def test_the_global_rules_follow_the_canvas():
+    vitest("tests/unit/theme.spec.ts")
+
+
+@mutation(TOP_BAR, "watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(\" \")], "
+                   "revealCurrent);",
+          "watch(() => route.name, revealCurrent);", expect=REVEAL)
+@mutation(TOP_BAR, "onMounted(revealCurrent);", "", expect=REVEAL)
+@mutation(TOP_BAR, "current.scrollIntoView({ block: \"nearest\", inline: \"nearest\" });", "void current;",
+          expect=REVEAL)
+@pytest.mark.web_unit
+def test_the_current_tab_stays_in_view():
+    vitest("tests/unit/app-shell.spec.ts")
+
+
+PLACE = SHELL_FAILED + ("opens a popup with its left edge on its trigger, right-aligned when it would pass the "
+                        "window's right edge")
+PHONE_END = SHELL_FAILED + ("on a phone draws the Provider list with its right edge on the trigger, as drawn, and with "
+                            "its left edge on it when that would pass the window's left edge")
+TAB_ROW = SHELL_FAILED + ("hides the scrollbar of the header's tab row only: the row keeps the drawn height and still "
+                          "scrolls")
+
+
+@mutation(TOP_BAR, 'return trigger.left + width > window.innerWidth ? "end" : "start";', 'return "start";',
+          expect=PLACE)
+@mutation(TOP_BAR, "trigger.left + width > window.innerWidth", "trigger.left + width >= window.innerWidth",
+          expect=PLACE)
+@mutation(TOP_BAR, '  window.addEventListener("resize", placePopup);\n', "", expect=PLACE)
+@mutation(TOP_BAR, 'class="menu menu--account"\n            :class="{ \'menu--end\': atEnd }"',
+          'class="menu menu--account"', expect=PLACE)
+@mutation(TOP_BAR, 'class="menu menu--provider"\n            :class="{ \'menu--end\': atEnd }"',
+          'class="menu menu--provider"', expect=PLACE)
+@mutation(TOP_BAR, 'provider: isPhone.value ? "end" : "start",', 'provider: "start",', expect=PHONE_END)
+@mutation(TOP_BAR, 'return trigger.right - width < 0 ? "start" : "end";', 'return "end";', expect=PHONE_END)
+@mutation(TOP_BAR, "  scrollbar-width: none;\n}", "}", expect=TAB_ROW)
+@mutation(TOP_BAR, ".topbar__nav::-webkit-scrollbar {\n  display: none;",
+          ".topbar__nav::-webkit-scrollbar {\n  height: 4px;", expect=TAB_ROW)
+@pytest.mark.web_unit
+def test_the_top_bar_popups_and_tab_row_follow_the_rulings():
+    vitest("tests/unit/app-shell.spec.ts")

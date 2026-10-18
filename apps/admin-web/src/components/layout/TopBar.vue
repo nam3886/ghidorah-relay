@@ -64,12 +64,38 @@ const accountWrap = ref<HTMLElement | null>(null);
 const wrapOf = (which: "provider" | "account") => (which === "provider" ? providerWrap.value : accountWrap.value);
 const ITEMS = '[role="option"], [role="menuitem"]';
 
+// Where an open popup sits, by FilterSelect's rule: aligned to one edge of its trigger, `start` (its left edge on the
+// trigger's) or `end` (its right edge on the trigger's), and on the other edge when the drawn one would pass the window.
+// Both popups start at the trigger, as drawn, except the Provider list on a phone, which the canvas ends at it. The
+// account trigger is at the right of the header, so its menu ends at the trigger at every width. Placed again when the
+// window is resized.
+type Align = "start" | "end";
+const align = computed<Record<"provider" | "account", Align>>(() => ({
+  provider: isPhone.value ? "end" : "start",
+  account: "start",
+}));
+function side(drawn: Align, trigger: DOMRect, width: number): Align {
+  if (drawn === "start") return trigger.left + width > window.innerWidth ? "end" : "start";
+  return trigger.right - width < 0 ? "start" : "end";
+}
+const atEnd = ref(false);
+function placePopup(): void {
+  const which = open.value;
+  const wrap = which ? wrapOf(which) : null;
+  const popup = wrap?.querySelector<HTMLElement>('[role="listbox"], [role="menu"]');
+  if (!which || !wrap || !popup) return;
+  atEnd.value = side(align.value[which], wrap.getBoundingClientRect(), popup.offsetWidth) === "end";
+}
+
 // The keyboard moves into the popup when it opens: the chosen option, else the first item. Arrow keys, Home and End
-// move between items (they stop at the ends), Escape closes and gives the focus back.
+// move between items (they stop at the ends), Escape closes and gives the focus back. The popup is placed first, so
+// the focus never scrolls the page towards a popup that has not been placed yet.
 async function toggle(which: "provider" | "account"): Promise<void> {
   const opening = open.value !== which;
   open.value = opening ? which : null;
   if (!opening) return;
+  await nextTick();
+  placePopup();
   await nextTick();
   const items = [...(wrapOf(which)?.querySelectorAll<HTMLElement>(ITEMS) ?? [])];
   (items.find((el) => el.getAttribute("aria-selected") === "true") ?? items[0])?.focus();
@@ -112,10 +138,12 @@ function onKeydown(event: KeyboardEvent): void {
 onMounted(() => {
   document.addEventListener("pointerdown", onPointerDown);
   document.addEventListener("keydown", onKeydown);
+  window.addEventListener("resize", placePopup);
 });
 onBeforeUnmount(() => {
   document.removeEventListener("pointerdown", onPointerDown);
   document.removeEventListener("keydown", onKeydown);
+  window.removeEventListener("resize", placePopup);
 });
 
 async function signOut(): Promise<void> {
@@ -130,7 +158,8 @@ function openDocs(): void {
   window.open("/reference", "_blank", "noopener");
 }
 
-// The current tab stays in view when the tabs scroll sideways (tablet and phone).
+// The current tab stays in view when the tabs scroll sideways (tablet and phone): on a tab switch, and when a count
+// arrives or changes, as the counts widen the tabs before it (they come after the bar is drawn).
 const navEl = ref<HTMLElement | null>(null);
 async function revealCurrent(): Promise<void> {
   await nextTick();
@@ -140,7 +169,7 @@ async function revealCurrent(): Promise<void> {
   }
 }
 onMounted(revealCurrent);
-watch(() => route.name, revealCurrent);
+watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" ")], revealCurrent);
 </script>
 
 <template>
@@ -198,6 +227,7 @@ watch(() => route.name, revealCurrent);
           <div
             v-if="open === 'provider'"
             class="menu menu--provider"
+            :class="{ 'menu--end': atEnd }"
             role="listbox"
             aria-label="Provider"
             @keydown="onPopupKey"
@@ -249,6 +279,7 @@ watch(() => route.name, revealCurrent);
           <div
             v-if="open === 'account'"
             class="menu menu--account"
+            :class="{ 'menu--end': atEnd }"
             role="menu"
             aria-label="Account"
             @keydown="onPopupKey"
@@ -315,6 +346,12 @@ watch(() => route.name, revealCurrent);
   flex: 1 1 560px;
   min-width: 0;
   overflow-x: auto;
+  /* the tab row scrolls without a bar, as drawn (on a desktop browser narrower than the tabs a bar would add 15 px
+     under them): touch, trackpad and shift-wheel still scroll it, and the current tab is kept in view */
+  scrollbar-width: none;
+}
+.topbar__nav::-webkit-scrollbar {
+  display: none;
 }
 .tabs {
   display: flex;
@@ -350,7 +387,6 @@ watch(() => route.name, revealCurrent);
   padding: 0 6px;
   font-size: 11px;
   line-height: 16px;
-  text-align: left;
   border-radius: 8px;
   color: var(--rl-muted);
   background: var(--rl-neutral-bg);
@@ -461,6 +497,7 @@ watch(() => route.name, revealCurrent);
 .menu {
   position: absolute;
   top: calc(100% + 6px);
+  left: 0;
   z-index: 2;
   box-sizing: border-box;
   padding: 6px;
@@ -469,12 +506,14 @@ watch(() => route.name, revealCurrent);
   background: var(--rl-surface);
   box-shadow: var(--rl-shadow-pop);
 }
-.menu--account {
+.menu--end {
+  left: auto;
   right: 0;
+}
+.menu--account {
   width: 200px;
 }
 .menu--provider {
-  left: 0;
   width: 180px;
 }
 .menu-item {
@@ -491,6 +530,7 @@ watch(() => route.name, revealCurrent);
   color: var(--rl-fg);
   font: inherit;
   font-size: 13px;
+  line-height: normal;
   text-align: left;
   cursor: pointer;
 }
@@ -607,10 +647,6 @@ watch(() => route.name, revealCurrent);
   height: 32px;
   border-radius: 16px;
   font-size: 13px;
-}
-.topbar--phone .menu--provider {
-  left: auto;
-  right: 0;
 }
 .topbar--phone .menu-item {
   height: 44px;

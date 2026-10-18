@@ -531,6 +531,91 @@ describe("the shell", () => {
     expect(wrapper.find('[role="menu"]').exists()).toBe(false);
   });
 
+  it("opens a popup with its left edge on its trigger, right-aligned when it would pass the window's right edge", async () => {
+    // happy-dom lays nothing out: the trigger's left edge and the popup's width are given here, the window is 1024 wide
+    let triggerLeft = 0;
+    const rect = Element.prototype.getBoundingClientRect;
+    const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth");
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      const left = this.classList.contains("pop") ? triggerLeft : 0;
+      return new DOMRect(left, 0, 0, 0);
+    };
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.classList.contains("menu") ? 200 : 0;
+      },
+    });
+    try {
+      const { wrapper } = await open("/jobs");
+      const place = async (which: string, left: number) => {
+        triggerLeft = left;
+        await wrapper.find(`[data-testid="${which}"]`).trigger("click");
+        await flushPromises();
+        return wrapper.find(".menu").classes().includes("menu--end");
+      };
+      expect(window.innerWidth).toBe(1024);
+      // 824 + 200 = 1024 still fits: drawn, left edge on the trigger
+      expect(await place("provider-filter", 824)).toBe(false);
+      await wrapper.find('[data-testid="provider-filter"]').trigger("click");
+      expect(await place("provider-filter", 825)).toBe(true);
+      expect(await place("account-menu", 900)).toBe(true);
+      // the window grows while the menu is open: it is placed again
+      triggerLeft = 100;
+      window.dispatchEvent(new Event("resize"));
+      await flushPromises();
+      expect(wrapper.find(".menu").classes()).not.toContain("menu--end");
+    } finally {
+      Element.prototype.getBoundingClientRect = rect;
+      if (width) Object.defineProperty(HTMLElement.prototype, "offsetWidth", width);
+    }
+  });
+
+  it("on a phone draws the Provider list with its right edge on the trigger, as drawn, and with its left edge on it when that would pass the window's left edge", async () => {
+    const { PHONE_QUERY } = await import("@/composables/use-breakpoint");
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === PHONE_QUERY,
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    // the trigger is 100 px wide and the list 200: it ends at the trigger while the trigger's right edge is 200 or more
+    let triggerLeft = 0;
+    const rect = Element.prototype.getBoundingClientRect;
+    const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth");
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      return new DOMRect(this.classList.contains("pop") ? triggerLeft : 0, 0, 100, 0);
+    };
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.classList.contains("menu") ? 200 : 0;
+      },
+    });
+    try {
+      const { wrapper } = await open("/jobs");
+      const trigger = wrapper.find('[data-testid="provider-filter"]');
+      triggerLeft = 100;
+      await trigger.trigger("click");
+      await flushPromises();
+      expect(wrapper.find('[role="listbox"]').classes()).toContain("menu--end");
+      await trigger.trigger("click");
+      triggerLeft = 99;
+      await trigger.trigger("click");
+      await flushPromises();
+      expect(wrapper.find('[role="listbox"]').classes()).not.toContain("menu--end");
+    } finally {
+      Element.prototype.getBoundingClientRect = rect;
+      if (width) Object.defineProperty(HTMLElement.prototype, "offsetWidth", width);
+    }
+  });
+
+  it("hides the scrollbar of the header's tab row only: the row keeps the drawn height and still scrolls", () => {
+    const source = readFileSync(join(process.cwd(), "src/components/layout/TopBar.vue"), "utf8");
+    expect(source).toMatch(/\.topbar__nav \{[^}]*overflow-x: auto;[^}]*scrollbar-width: none;\s*\}/);
+    expect(source).toMatch(/\.topbar__nav::-webkit-scrollbar \{\s*display: none;\s*\}/);
+  });
+
   it("draws the account menu as API docs, a separator, Sign out", async () => {
     const { wrapper } = await open("/jobs");
     await wrapper.find('[data-testid="account-menu"]').trigger("click");
@@ -664,6 +749,28 @@ describe("the top bar", () => {
     );
     const again = await open("/jobs");
     expect(again.wrapper.find('[data-testid="tab-count-jobs"]').text()).toBe("999+");
+  });
+
+  it("keeps the current tab in view: on a tab switch, and again when the counts arrive and widen the tabs before it", async () => {
+    const shown: string[] = [];
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      shown.push(this.textContent?.trim() ?? "");
+    };
+    let answer: (value: Stats) => void = () => undefined;
+    vi.mocked(shell.getStats).mockReturnValue(new Promise<Stats>((resolve) => (answer = resolve)));
+    try {
+      const { router } = await open("/test");
+      expect(shown).toEqual(["Test"]);
+      answer(stats());
+      await flushPromises();
+      expect(shown).toEqual(["Test", "Test"]);
+      await router.push("/settings");
+      await flushPromises();
+      expect(shown).toEqual(["Test", "Test", "Settings"]);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+    }
   });
 
   it("links the logo to Jobs and names it", async () => {
