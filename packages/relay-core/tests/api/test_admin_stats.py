@@ -225,6 +225,48 @@ def test_the_low_accounts_alert_counts_usable_accounts_and_clears_itself(db):
     assert "accounts_low" not in kinds(again), "an alert clears when its condition does"
 
 
+DEAD_ONLY = "WHERE state = 'dead' ORDER BY label, id"
+
+
+@mutation(ROUTES, DEAD_ONLY, "WHERE state IN ('dead', 'disabled') ORDER BY label, id", expect="disabled: not shown")
+@mutation(ROUTES, DEAD_ONLY, "WHERE state = 'dead' AND false ORDER BY label, id", expect="dead and enabled: shown")
+@mutation(ROUTES, '"%s has a dead session" % (label or str(account_id)[:8])', '"%s has a dead session" % label',
+          expect="without a label it is named by its id start")
+def test_a_dead_account_is_a_live_condition_until_it_recovers_is_disabled_or_is_removed(db):
+    for _ in range(3):
+        account(db)                                              # enough usable accounts: no accounts_low
+    dead = account(db, state="dead")
+    db.run("UPDATE accounts SET label = 'acct-n11-08' WHERE id = %s", dead)
+    nameless = account(db, state="dead")
+    off = account(db, state="disabled")
+    db.run("UPDATE accounts SET label = 'acct-off' WHERE id = %s", off)
+
+    async def scenario(env):
+        both = await stats(env)
+        db.run("UPDATE accounts SET state = 'disabled' WHERE id = %s", nameless)
+        one = await stats(env)
+        db.run("UPDATE accounts SET state = 'available' WHERE id = %s", dead)
+        recovered = await stats(env)
+        db.run("UPDATE accounts SET state = 'dead' WHERE id = %s", dead)
+        db.run("DELETE FROM accounts WHERE id = %s", dead)
+        removed = await stats(env)
+        return both, one, recovered, removed
+
+    both, one, recovered, removed = run_app(db, scenario)
+    dead_rows = lambda r: [(a["severity"], a["message"], a["provider"])  # noqa: E731
+                           for a in r.json()["alerts"] if a["kind"] == "account_dead"]
+    assert not [r for r in dead_rows(both) if "acct-off" in r[1]], "disabled: not shown, %r" % dead_rows(both)
+    assert ("error", "acct-n11-08 has a dead session", "fake") in dead_rows(both), \
+        "dead and enabled: shown, %r" % dead_rows(both)
+    assert ("error", "%s has a dead session" % str(nameless)[:8], "fake") in dead_rows(both), \
+        "without a label it is named by its id start: %r" % dead_rows(both)
+    assert len(dead_rows(both)) == 2, "one condition per dead account: %r" % dead_rows(both)
+    assert dead_rows(one) == [("error", "acct-n11-08 has a dead session", "fake")], "disabled later: gone"
+    assert dead_rows(recovered) == [], "recovered: gone"
+    assert dead_rows(removed) == [], "removed: gone"
+    assert kinds(both) == ["account_dead", "account_dead"], "a dead account raises no other condition"
+
+
 @mutation(ROUTES, MIN_SAMPLE, NO_MIN_SAMPLE, expect="minimum sample")
 def test_the_error_rate_alert_needs_five_jobs_and_half_of_them_failed(db):
     k = key(db)

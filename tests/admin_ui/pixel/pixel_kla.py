@@ -16,13 +16,17 @@ from pixel_seed import (
     ACCOUNTS,
     ALERT_ACCOUNTS_LOW,
     ALERT_TEXT,
+    BOARD_USER,
     IN_USE_LEASE,
     NOW,
     PROVIDER,
     WALLETS,
+    board_user,
     set_setting,
 )
 from test_admin_alert_groups import plant_unclear, stamp
+
+from relay_core import alerts
 
 SAIGON = timezone(timedelta(hours=7))
 CALLOUT_KEY = "rk_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXX7d2e"       # the board's text; the real key is random (masked)
@@ -213,6 +217,15 @@ def logs_menu(page, live, data) -> None:
 
 
 # ---- alerts ----------------------------------------------------------------------------------------------------------
+# The reply rows of group 1 as the boards list them: (seen, job id prefix, job title, status, error code, account, key)
+REPLIES = (
+    (at(15, 8, 55), "b72e4d19", "Beach wedding, golden hour", "done", None, "n11-03", "Shop A"),
+    (at(15, 2, 31), "4e8a0c63", "Crowd at a night festival", "failed", "dola.likeness_refused", "n11-06", "Shop B"),
+    (at(14, 16, 12), "91d3f7a8", "Skater at a neon underpass", "done", None, "n11-02", "Partner C"),
+    (at(14, 10, 2), "c41f9a07", "Lantern festival, slow pan", "done", None, "n11-04", "Shop B"),
+)
+
+
 def alerts_seed(db, live):
     labels = ("Shop A", "Shop B", "Partner B", "Partner C")
     keys = dict(zip(labels, [new_key(db, wallets=WALLETS) for _ in labels], strict=True))
@@ -228,18 +241,27 @@ def alerts_seed(db, live):
             db.run(IN_USE_LEASE, account)
     for label in ("Shop A", "Shop B", "Shop B", "Partner C"):
         db.job(keys[label], provider=PROVIDER)
-    # group 1: Dola's refusal, four replies (done, refunded, done, done), open
-    video = "Sorry, I can’t create that video"
-    replies = (
-        (at(15, 8, 55), "done", None, "n11-03", "Shop A"), (at(15, 2, 31), "failed", "dola.likeness_refused", "n11-06",
-                                                           "Shop B"),
-        (at(14, 16, 12), "done", None, "n11-02", "Partner C"), (at(14, 10, 2), "done", None, "n11-04", "Shop B"),
-    )
-    for when, status, error, account_label, key in replies:
-        account = new_account(db, label=account_label, checked=True, provider=PROVIDER)
-        row = plant_unclear(db, keys[key], video, status=status, error_code=error, provider=PROVIDER,
-                            account_id=account)
-        db.run("UPDATE unclear_replies SET at = %s WHERE id = %s", when, row)
+    # a live dola worker, so the four queued jobs raise no "no live worker" condition (the boards draw none); its beat
+    # is a few minutes ahead, so it cannot go stale while the page is photographed
+    db.run("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at) "
+           "VALUES ('pixel-dola', %s, clock_timestamp(), clock_timestamp() + interval '10 min')", PROVIDER)
+    board_user(live)
+    # group 1: Dola's refusal, four replies on the boards' jobs (done, refunded, done, done), open. The detail lists the
+    # newest row first: planted oldest first. The reply accounts are disabled, so the Accounts tab keeps 7/8.
+    accounts = {label: new_account(db, label=label, state="disabled", checked=True, provider=PROVIDER)
+                for label in ("n11-02", "n11-03", "n11-04", "n11-06")}
+    for when, prefix, title, status, error, account_label, key in reversed(REPLIES):
+        job_id = uuid.UUID(prefix + "-0000-4000-8000-000000000000")
+        db.run(JOB_SQL, job_id, PROVIDER, keys[key], "video", "marker-" + prefix, "video", title)
+        if status == "failed":
+            db.run("UPDATE jobs SET status = 'failed', error_code = %s WHERE id = %s", error, job_id)
+        else:
+            db.run("INSERT INTO job_media (job_id, role, idx, object_key, mime, size) "
+                   "VALUES (%s, 'output', 0, 'k', 'video/mp4', 1)", job_id)
+        built = alerts.build(PROVIDER, ALERT_TEXT)
+        db.run("INSERT INTO unclear_replies (provider, job_id, account_id, text, wording, group_id, at) "
+               "VALUES (%s, %s, %s, %s, %s, %s, %s)", PROVIDER, job_id, accounts[account_label], built.text,
+               built.wording, built.group_id, when)
     # group 2: a clamp of Shop A's video wallet, acknowledged; group 3: a drift of Partner B's image wallet (2 rows)
     ledger = db.one("INSERT INTO ledger (key_id, provider, kind, entry, amount, billing_day) VALUES (%s, %s, 'video', "
                     "'adjust', 0, current_date) RETURNING id", keys["Shop A"], PROVIDER)[0]
@@ -262,8 +284,9 @@ def alerts_seed(db, live):
 
 
 def alerts_all(page, live, data) -> None:
-    # the popper of the Jobs tab's own select stays in the page after a route change: take the native select
-    page.locator('select[aria-label="Status"]').select_option(label="All")
+    # in the Alerts card: right after sign-in the Jobs page, with its own Status filter, may still be on its way out
+    page.locator('section[aria-label="Alert groups"]').get_by_role("combobox", name="Status", exact=True).click()
+    page.get_by_role("option", name="All", exact=True).click()
     expect(page.get_by_text("4 groups")).to_be_visible(timeout=TIMEOUT_MS)
 
 
@@ -271,6 +294,7 @@ def alerts_detail(page, live, data) -> None:
     alerts_all(page, live, data)
     page.get_by_role("button", name="Details of").first.click()
     expect(page.get_by_test_id("alert-detail")).to_be_visible(timeout=TIMEOUT_MS)
+    page.mouse.move(0, 0)       # the boards draw nothing hovered: not the row, not its Details
 
 
 # ---- the entries -----------------------------------------------------------------------------------------------------
@@ -283,7 +307,7 @@ KLA = [
     Entry("T-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_filters),
     Entry("P-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_menu),
     Entry("B-LogDetail", "#/logs", seed=logs_seed, now=NOW, drive=logs_drawer),
-    Entry("B-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_detail),
-    Entry("T-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_detail),
-    Entry("P-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_detail),
+    Entry("B-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_detail, user=BOARD_USER),
+    Entry("T-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_detail, user=BOARD_USER),
+    Entry("P-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_detail, user=BOARD_USER),
 ]

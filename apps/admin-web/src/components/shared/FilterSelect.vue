@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, useId } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { IconCheck, IconChevronDown } from "./icons";
 
@@ -15,6 +15,11 @@ import { IconCheck, IconChevronDown } from "./icons";
 //   the right edge of the window, above the trigger when it would run past the bottom), so a card that hides overflow
 //   or a filter row that scrolls sideways never clips it. While open it follows the trigger on every frame (a scroll, a
 //   resize, or the page moving under it), so it never covers the trigger; a click elsewhere closes it. `size` is the trigger height: toolbar 34 (44 on a phone), page header 36, pager 32 (no chevron there).
+// - `variant="field"` is the canvas's labelled select (B/T/P-Alerts toolbar), drawn as the box's Chrome draws a
+//   native select element, but our own control (a native one looks and opens differently on every system): the label
+//   above a bordered box 34 high (36 on a tablet) holding the value and Chrome's 10 x 7 arrow, as wide as its longest
+//   option; on a phone the canvas's chip, the word inside a 44 px box and the value in a borderless control. The open
+//   list is the same listbox.
 export interface SelectOption {
   value: string | number;
   label: string;
@@ -24,14 +29,16 @@ const props = withDefaults(
   defineProps<{
     modelValue: string | number;
     options: SelectOption[];
-    // the word inside the control, before the value: `Status`
+    // the word inside the control, before the value: `Status` (above it in the field variant)
     label?: string;
     // the accessible name when there is no label word
     ariaLabel?: string;
     size?: "toolbar" | "header" | "pager";
     chevron?: boolean;
+    variant?: "chip" | "field";
+    disabled?: boolean;
   }>(),
-  { label: undefined, ariaLabel: undefined, size: "toolbar", chevron: true },
+  { label: undefined, ariaLabel: undefined, size: "toolbar", chevron: true, variant: "chip", disabled: false },
 );
 const emit = defineEmits<{ "update:modelValue": [value: string | number] }>();
 const { isPhone, isTablet } = useBreakpoint();
@@ -39,7 +46,9 @@ const { isPhone, isTablet } = useBreakpoint();
 const id = useId();
 const labelId = `${id}-label`;
 const listId = `${id}-list`;
+const triggerId = `${id}-trigger`;
 const optionId = (i: number): string => `${id}-opt-${i}`;
+const field = computed(() => props.variant === "field");
 
 const current = computed(() => props.options.find((o) => o.value === props.modelValue));
 const chosenIndex = computed(() => props.options.findIndex((o) => o.value === props.modelValue));
@@ -49,6 +58,8 @@ const active = ref(-1);
 // the focus ring on the active item is drawn only while the keyboard moves it (a click opens the list as drawn)
 const byKeyboard = ref(false);
 const trigger = ref<HTMLButtonElement>();
+// the field variant's own box (the label and the trigger); on a phone it is the drawn chip, so the list hangs from it
+const box = ref<HTMLElement>();
 const list = ref<HTMLElement>();
 const place = ref<{ top: number; left?: number; right?: number; minWidth: number }>({ top: 0, left: 0, minWidth: 0 });
 const GAP = 6;
@@ -57,7 +68,7 @@ const GAP = 6;
 // when it would pass the bottom and there is room above. Never narrower than the trigger. Runs on every frame while
 // open, so the place is written only when it changed.
 function measure(): void {
-  const rect = trigger.value?.getBoundingClientRect();
+  const rect = (field.value && isPhone.value ? box.value : trigger.value)?.getBoundingClientRect();
   if (!rect) return;
   const width = list.value?.offsetWidth ?? 0;
   const height = list.value?.offsetHeight ?? 0;
@@ -84,7 +95,8 @@ function follow(): void {
 }
 function onOutside(event: Event): void {
   const target = event.target as Node | null;
-  if (target && (list.value?.contains(target) || trigger.value?.contains(target))) return;
+  if (target && (list.value?.contains(target) || trigger.value?.contains(target) || box.value?.contains(target)))
+    return;
   close();
 }
 
@@ -195,28 +207,93 @@ function onClick(): void {
 
 const listClass = computed(() => (isPhone.value ? "is-phone" : isTablet.value ? "is-tablet" : "is-desktop"));
 onBeforeUnmount(close);
+
+// A select is as wide as its longest option on a whole pixel (Chrome measures the option text its own way and lands on
+// the nearest pixel of what the page measures: 95.2 is 95 on B-Alerts, 88.3 is 88), so the control beside it starts on
+// a whole pixel too: the field's value box takes that width. Measured without it, once the fonts are in and whenever
+// the options change.
+const valueBox = ref<HTMLElement>();
+const valueWidth = ref<number>();
+async function sizeValue(): Promise<void> {
+  if (!field.value) return;
+  valueWidth.value = undefined;
+  await nextTick();
+  const width = valueBox.value?.getBoundingClientRect().width;
+  if (width) valueWidth.value = Math.round(width);
+}
+onMounted(() => {
+  void sizeValue();
+  void document.fonts?.ready.then(sizeValue);
+});
+watch(() => props.options, sizeValue);
+
+// The chip's root is its trigger; the field's root is its box, with the label and the trigger inside (one root
+// element either way, so a class given to the component lands on it). The trigger's attributes and handlers: on the
+// root for the chip, on the inner button for the field.
+const triggerAttrs = computed(() => ({
+  id: triggerId,
+  type: "button" as const,
+  role: "combobox",
+  "aria-haspopup": "listbox" as const,
+  "aria-expanded": open.value,
+  "aria-controls": listId,
+  "aria-activedescendant": open.value && active.value >= 0 ? optionId(active.value) : undefined,
+  "aria-labelledby": props.label ? labelId : undefined,
+  "aria-label": props.label ? undefined : props.ariaLabel,
+  disabled: props.disabled || undefined,
+}));
+const triggerEvents = { click: onClick, keydown: onKey };
+const fieldClass = computed(() => ({
+  "is-chip": isPhone.value,
+  "is-tall": isTablet.value,
+  "is-open": open.value,
+  "is-disabled": props.disabled,
+}));
+function setRoot(el: unknown): void {
+  if (field.value) box.value = (el as HTMLElement | null) ?? undefined;
+  else trigger.value = (el as HTMLButtonElement | null) ?? undefined;
+}
 </script>
 
 <template>
-  <button
-    ref="trigger"
-    type="button"
-    role="combobox"
-    class="filter-select"
-    :class="[`is-${props.size}`, { 'is-open': open }]"
-    aria-haspopup="listbox"
-    :aria-expanded="open"
-    :aria-controls="listId"
-    :aria-activedescendant="open && active >= 0 ? optionId(active) : undefined"
-    :aria-labelledby="props.label ? labelId : undefined"
-    :aria-label="props.label ? undefined : props.ariaLabel"
-    @click="onClick"
-    @keydown="onKey"
+  <component
+    :is="field ? 'div' : 'button'"
+    :ref="setRoot"
+    v-bind="field ? {} : triggerAttrs"
+    :class="field ? ['filter-field', fieldClass] : ['filter-select', [`is-${props.size}`, { 'is-open': open }]]"
+    v-on="field ? {} : triggerEvents"
   >
-    <span v-if="props.label" :id="labelId" class="filter-select__label">{{ props.label }}</span>
-    <span class="filter-select__value">{{ current?.label ?? "" }}</span>
-    <IconChevronDown v-if="props.chevron" class="filter-select__chevron" :size="14" :stroke="2" />
-    <!-- inside the trigger so the component has one root (a class given to it lands here); drawn in the body -->
+    <template v-if="field">
+      <label :id="labelId" :for="triggerId" class="filter-field__label">{{ props.label }}</label>
+      <button
+        ref="trigger"
+        v-bind="triggerAttrs"
+        class="filter-select is-field"
+        :class="{ 'is-open': open }"
+        v-on="triggerEvents"
+      >
+        <!-- every option in one cell, only the current one seen: the box is as wide as its longest option, as a
+             select is -->
+        <span ref="valueBox" class="filter-field__value" :style="valueWidth ? { width: `${valueWidth}px` } : undefined"
+          ><span
+            v-for="o in props.options"
+            :key="o.value"
+            :class="{ 'is-current': o.value === props.modelValue }"
+            :aria-hidden="o.value === props.modelValue ? undefined : 'true'"
+            >{{ o.label }}</span
+          ></span
+        >
+        <svg class="filter-field__arrow" width="12" height="9" viewBox="0 0 12 9" aria-hidden="true">
+          <path d="M2 2l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="miter" />
+        </svg>
+      </button>
+    </template>
+    <template v-else>
+      <span v-if="props.label" :id="labelId" class="filter-select__label">{{ props.label }}</span>
+      <span class="filter-select__value">{{ current?.label ?? "" }}</span>
+      <IconChevronDown v-if="props.chevron" class="filter-select__chevron" :size="14" :stroke="2" />
+    </template>
+    <!-- inside the root so the component has one root (a class given to it lands there); drawn in the body -->
     <Teleport to="body">
       <div
         v-if="open"
@@ -254,7 +331,7 @@ onBeforeUnmount(close);
         </div>
       </div>
     </Teleport>
-  </button>
+  </component>
 </template>
 
 <style scoped>
@@ -296,6 +373,78 @@ onBeforeUnmount(close);
   .filter-select.is-toolbar {
     height: 44px;
   }
+}
+
+/* The field: the canvas's labelled native select as the box's Chrome draws it (measured on B/T/P-Alerts). The label
+   12 px muted above; the box 34 high (36 on a tablet) with the author padding 10, the value 4 px further in (the
+   select's own inner start), as wide as its longest option plus the select's own room for the arrow at the end; the
+   arrow 2 px in from the padding edge, centred, in the text colour. On a phone the canvas's chip: the word inside a
+   44 px box (padding 0 6 0 12), the value in a borderless control 40 high with no author padding. */
+.filter-field {
+  --field-pad: 10px;
+  --field-arrow: 17px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.filter-field__label {
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--rl-muted);
+}
+.filter-select.is-field {
+  position: relative;
+  display: flex;
+  gap: 0;
+  padding: 0 calc(var(--field-pad) + var(--field-arrow)) 0 calc(var(--field-pad) + 4px);
+  text-align: left;
+}
+.filter-field.is-tall .filter-select.is-field {
+  height: 36px;
+}
+.filter-field__value {
+  display: grid;
+}
+.filter-field__value > span {
+  grid-area: 1 / 1;
+}
+.filter-field__value > span:not(.is-current) {
+  visibility: hidden;
+}
+.filter-field__arrow {
+  position: absolute;
+  top: calc(50% - 4px);
+  right: 2px;
+}
+.filter-select.is-field:disabled {
+  background: var(--rl-raised);
+  color: var(--rl-faint);
+  cursor: default;
+}
+.filter-field.is-chip {
+  --field-pad: 0px;
+  box-sizing: border-box;
+  flex: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 6px 0 12px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+}
+.filter-field.is-chip .filter-field__label {
+  font-size: 13px;
+}
+.filter-field.is-chip .filter-select.is-field {
+  height: 40px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.filter-field.is-chip.is-open {
+  background: var(--rl-raised);
 }
 
 /* the drawn listbox: 180 wide at 1440, 200 below; items 36/13 px, 40/14 on a tablet, 44/14 on a phone */

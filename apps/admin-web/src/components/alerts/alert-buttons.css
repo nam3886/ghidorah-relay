@@ -1,0 +1,59 @@
+/*
+ * The buttons of the Alerts page as B-, T- and P-Alerts draw them (specs/alerts.md): the secondary (`.ghost`) box, the
+ * Details link drawn as a ghost button, and the primary Acknowledge. 13 px, the browser's own line height; the
+ * sizes are set where each one is used.
+ */
+.al-btn {
+  box-sizing: border-box;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.al-btn:hover {
+  background: var(--rl-raised);
+}
+.al-btn:disabled {
+  background: var(--rl-raised);
+  color: var(--rl-faint);
+  cursor: default;
+}
+/* Details: a link in a ghost box (no border, no fill until hovered), in the link colour */
+.al-link {
+  border: 0;
+  background: transparent;
+  color: var(--rl-link);
+  line-height: 20px;
+}
+.al-link:hover {
+  color: var(--rl-primary-hover);
+}
+html.dark .al-link:hover {
+  color: var(--rl-link);
+}
+.al-link:disabled {
+  background: transparent;
+  color: var(--rl-faint);
+}
+.al-primary {
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 10px;
+  background: var(--rl-primary);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.al-primary:hover {
+  background: var(--rl-primary-hover);
+}
+.al-primary:disabled {
+  background: var(--rl-primary);
+  opacity: 0.45;
+  cursor: not-allowed;
+}

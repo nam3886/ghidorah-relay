@@ -1,5 +1,6 @@
 // Pure rules of the Alerts view: what a group is called, what the detail says about it and what an acknowledge toasts.
 import type { AlertDetail, AlertGroup } from "@/api/alerts";
+import { ApiError } from "@/api/client";
 
 export const GROUP_LIMIT = 200;
 export const ROW_LIMIT = 100;
@@ -30,11 +31,45 @@ export function groupSentence(
   reply?: string | null,
 ): string {
   if (g.kind !== "unclear_reply" || isEmptyWording(g)) return `${groupTitle(g)}.`;
+  return `${replied(g, reply)} to ${count(g.open_count, "job")} from ${count(g.keys, "key")}.`;
+}
+
+// `Dola replied “Sorry, I can’t create that video”`: who replied and the reply as stored, on one line and cut at 200
+// characters, else the group's folded wording.
+function replied(g: Pick<AlertGroup, "title" | "provider">, reply?: string | null): string {
   const who = g.provider ? g.provider.charAt(0).toUpperCase() + g.provider.slice(1) : "The provider";
   const said = (reply ?? "").replace(/\s+/g, " ").trim() || g.title;
   const quote = said.length > QUOTE_LIMIT ? `${said.slice(0, QUOTE_LIMIT)}…` : said;
-  return `${who} replied “${quote}” to ${count(g.open_count, "job")} from ${count(g.keys, "key")}.`;
+  return `${who} replied “${quote}”`;
 }
+
+// The name of a group on the Alerts page, as the canvas writes it: a reply group is who replied and the newest reply
+// as stored (`Dola replied “Sorry, I can’t create that video”`); a billing group is its wallet and the key's name
+// (`dola video wallet of key Shop A`, the wallet kind from the group id `<key>.<provider>.<kind>`). Without those
+// fields it is the server's title; the read failure keeps its own words.
+export function alertTitle(
+  g: Pick<AlertGroup, "kind" | "group" | "title" | "provider" | "reply" | "key_label">,
+): string {
+  if (g.kind === "unclear_reply") return isEmptyWording(g) ? groupTitle(g) : replied(g, g.reply);
+  const wallet = g.group.split(".")[2];
+  return g.key_label && wallet ? `${g.provider} ${wallet} wallet of key ${g.key_label}` : g.title;
+}
+
+// The word before a live condition's message (`pool: dola has 7 usable accounts (alert below 8)`): what it is about.
+// A kind added to the server later shows as it is.
+const LIVE_WORDS = new Map([
+  ["accounts_low", "pool"],
+  ["account_dead", "account"],
+  ["worker_stale", "worker"],
+  ["worker_errors", "worker"],
+  ["no_worker", "worker"],
+  ["error_rate", "jobs"],
+  ["drift", "jobs"],
+  ["disk_low", "disk"],
+  ["webhooks_failed", "webhooks"],
+]);
+
+export const liveWord = (kind: string): string => LIVE_WORDS.get(kind) ?? kind;
 
 // A wording seen under one key only may still be one customer's own words; a billing group is one wallet, not a wording.
 export function oneCustomer(g: Pick<AlertGroup, "kind" | "title" | "keys">): boolean {
@@ -43,8 +78,12 @@ export function oneCustomer(g: Pick<AlertGroup, "kind" | "title" | "keys">): boo
 
 export const ONE_CUSTOMER_NOTE = "One customer only: may be the customer’s own words.";
 
-// What the group detail says under its title: how the stored reply relates to the job outcome.
-export const REPLY_NOTE = "The reply is stored as the job’s answer; the job outcome decides what the customer got.";
+// What the group detail says under its title: how the stored reply relates to the job outcome. The reply is the
+// video's or the image's answer when every job of the group is one, the job's when they are mixed (or unknown).
+export function replyNote(media?: string | null): string {
+  const whose = media === "video" ? "video’s" : media === "image" ? "image’s" : "job’s";
+  return `The reply is stored as the ${whose} answer; the job outcome decides what the customer got.`;
+}
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
@@ -85,6 +124,17 @@ export function outcomesText(d: Pick<AlertDetail, "outcomes">): string {
 // A reply row's job outcome in the words of the detail: a failed job was refunded, so it reads `refunded`.
 export function outcomeStatus(jobStatus: string): string {
   return jobStatus === "failed" ? "refunded" : jobStatus;
+}
+
+// The list's failed load, worded as the canvas words a failed list (B-States, the Jobs error card):
+// "Could not load the alerts: the relay answered 502 (bad gateway)." `said` is the app's own text for the failure
+// (errorText); with no answer from the relay it is all there is to say.
+export function loadFailedText(err: unknown, said: string): string {
+  const why =
+    err instanceof ApiError
+      ? `the relay answered ${err.status} (${said})`
+      : said.charAt(0).toLowerCase() + said.slice(1);
+  return `Could not load the alerts: ${why}.`;
 }
 
 export function ackToast(acknowledged: number): string {

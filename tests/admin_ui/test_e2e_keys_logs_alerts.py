@@ -347,14 +347,27 @@ def alerts_planted(db):
     return k1, k2
 
 
+def groups(page):
+    """The rows of the alert group table (a plain table, as the canvas draws it)."""
+    return page.locator('section[aria-label="Alert groups"] tbody tr')
+
+
 def group_row(page, text):
-    return rows(page).filter(has_text=text)
+    return groups(page).filter(has_text=text)
+
+
+def choose(page, label, option):
+    """Choose an option of an Alerts filter (FilterSelect's field: a combobox, its list opened in the body)."""
+    field = page.locator('section[aria-label="Alert groups"]').get_by_role("combobox", name=label, exact=True)
+    field.click()
+    page.get_by_role("option", name=option, exact=True).click()
+    expect(field).to_contain_text(option)
 
 
 def alerts_page(page, db):
     keys = alerts_planted(db)
     open_tab(page, "Alerts")
-    expect(rows(page)).to_have_count(5)
+    expect(groups(page)).to_have_count(5)
     return keys
 
 
@@ -362,8 +375,8 @@ def test_the_lists_the_live_condition_the_filters_and_the_one_customer_mark(app,
     page = app_session
     alerts_planted(db)
     open_tab(page, "Alerts")
-    expect(rows(page)).to_have_count(5)
-    expect(page.get_by_test_id("alerts-live")).to_contain_text("accounts_low")
+    expect(groups(page)).to_have_count(5)
+    expect(page.get_by_test_id("alerts-live")).to_contain_text("pool: ")
     assert page.get_by_test_id("alerts-live").get_by_role("button").count() == 0, "nothing to acknowledge there"
     expect(page.get_by_test_id("alerts-more")).to_have_count(0)
     page.wait_for_timeout(300)                           # a script in the planted markup would have run by now
@@ -373,18 +386,19 @@ def test_the_lists_the_live_condition_the_filters_and_the_one_customer_mark(app,
     for other in (hostile, group_row(page, "clamp"), group_row(page, "drift"), group_row(page, "API read failure")):
         assert "One customer only" not in other.inner_text()
     assert_hostile_wording_is_text(page)
-    # the selects are native selects; a field one could type a phrase into would be an input
+    # the filters are the design's own selects (no native one); there is no field to type a phrase into
+    assert page.locator("select").count() == 0, "a native select"
     assert page.locator("input:not([readonly]), textarea").count() == 0, "there is no phrase field"
-    pick(page, "Status", "Acknowledged")
-    expect(rows(page)).to_have_count(1)
+    choose(page, "Status", "Acknowledged")
+    expect(groups(page)).to_have_count(1)
     expect(group_row(page, "seen and acknowledged")).to_be_visible()
-    pick(page, "Status", "All")
-    expect(rows(page)).to_have_count(6)
-    pick(page, "Kind", "drift")
-    expect(rows(page)).to_have_count(1)
-    pick(page, "Kind", "All")
-    pick(page, "Status", "Open")
-    expect(rows(page)).to_have_count(5)
+    choose(page, "Status", "All")
+    expect(groups(page)).to_have_count(6)
+    choose(page, "Kind", "drift")
+    expect(groups(page)).to_have_count(1)
+    choose(page, "Kind", "All")
+    choose(page, "Status", "Open")
+    expect(groups(page)).to_have_count(5)
 
 
 def test_the_detail_shows_outcomes_and_opens_a_job_and_acknowledge_sends_what_it_showed(app, app_session, db):
@@ -398,9 +412,9 @@ def test_the_detail_shows_outcomes_and_opens_a_job_and_acknowledge_sends_what_it
     expect(page.get_by_test_id("alert-detail-title")).to_contain_text("<img src=x")
     expect(page.get_by_test_id("alert-outcomes")).to_contain_text(
         "1 delivered after the reply, 1 refunded, 1 still open.")
-    expect(detail.locator(".el-table__body tbody tr")).to_have_count(3)
+    expect(detail.locator("tbody tr")).to_have_count(3)
     assert_hostile_wording_is_text(page)
-    detail.locator(".el-table__body tbody tr", has_text="render.deadline").get_by_role("button").click()
+    detail.locator("tbody tr", has_text="render.deadline").get_by_role("button").click()
     expect(page.get_by_role("dialog")).to_be_visible()
     page.get_by_role("dialog").get_by_role("button", name="Close").first.click()
     # acknowledge from the detail sends the newest row it showed; a row that arrives later keeps the group open
@@ -411,16 +425,16 @@ def test_the_detail_shows_outcomes_and_opens_a_job_and_acknowledge_sends_what_it
     assert posted[0].post_data_json == {"through_id": seen}
     assert db.one("SELECT acknowledged_at FROM unclear_replies WHERE id = %s", late)[0] is None, \
         "a row that arrived after the page loaded must leave the group open"
-    expect(detail.locator(".el-table__body tbody tr")).to_have_count(4)
+    expect(detail.locator("tbody tr")).to_have_count(4)
     # the empty wording is an API read failure; a billing group lists its rows; an acknowledge from the list
     group_row(page, "API read failure").get_by_role("button", name="Details").click()
     expect(page.get_by_test_id("alert-read-failure")).to_be_visible()
     group_row(page, "clamp").get_by_role("button", name="Details").click()
-    expect(detail.locator(".el-table__body tbody tr")).to_have_count(1)
+    expect(detail.locator("tbody tr")).to_have_count(1)
     detail.get_by_role("button", name="Close").click()
     expect(detail).to_have_count(0)
     group_row(page, "plain wording").get_by_role("button", name="Acknowledge").click()
-    expect(rows(page)).to_have_count(4)
+    expect(groups(page)).to_have_count(4)
     assert posted[1].post_data_json == {"through_id": max(alert_rows(db, plain))}
     # the Alerts tab counts the open groups (the banner is on Jobs only)
     expect(page.get_by_role("tab", name=re.compile(r"^Alerts")).first).to_contain_text("4")
@@ -444,11 +458,11 @@ def test_a_slow_answer_for_an_older_view_does_not_replace_the_newer_one(app, app
             break
         page.wait_for_timeout(20)
     assert held, "the refresh was not sent"
-    pick(page, "Status", "Acknowledged")                              # the newer view
-    expect(rows(page)).to_have_count(1)
+    choose(page, "Status", "Acknowledged")                              # the newer view
+    expect(groups(page)).to_have_count(1)
     held[0].continue_()                                               # the older answer (5 open groups) arrives now
     page.wait_for_timeout(500)
-    expect(rows(page)).to_have_count(1)
+    expect(groups(page)).to_have_count(1)
     expect(group_row(page, "seen and acknowledged")).to_be_visible()
 
 
