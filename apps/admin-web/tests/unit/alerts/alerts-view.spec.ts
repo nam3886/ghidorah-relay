@@ -1,4 +1,4 @@
-import { type DOMWrapper, flushPromises, mount, type VueWrapper } from "@vue/test-utils";
+import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as alerts from "@/api/alerts";
@@ -82,8 +82,18 @@ const listButtons = (w: VueWrapper, text: string) =>
 const detailButton = (w: VueWrapper, text: string) =>
   w.findAll('[data-testid="alert-detail"] button').find((b) => b.text() === text)!;
 const refresh = (w: VueWrapper) => listButtons(w, "Refresh")[0]!;
-const statusSelect = (w: VueWrapper) => w.find<HTMLSelectElement>('select[aria-label="Status"]');
-const kindSelect = (w: VueWrapper) => w.find<HTMLSelectElement>('select[aria-label="Kind"]');
+// The Status and Kind filters: FilterSelect fields, named by the label above them; their list opens in the body.
+const filter = (w: VueWrapper, name: string) =>
+  w
+    .findAll('[role="combobox"]')
+    .find((b) => document.getElementById(b.attributes("aria-labelledby") ?? "")?.textContent?.trim() === name)!;
+const shown = (w: VueWrapper, name: string) => filter(w, name).find(".is-current").text();
+const optionsOf = async (w: VueWrapper, name: string) => {
+  await filter(w, name).trigger("click");
+  const words = [...document.querySelectorAll('[role="option"]')].map((o) => o.textContent?.trim());
+  await filter(w, name).trigger("click");
+  return words;
+};
 
 // happy-dom answers matchMedia for a 1024 px window (a tablet): each spec says which width it wants (desktop by default).
 function showAt(width: number): void {
@@ -235,46 +245,41 @@ describe("the lists", () => {
 });
 
 describe("the filters", () => {
-  const choose = async (select: DOMWrapper<HTMLSelectElement>, value: string) => {
-    await select.setValue(value);
+  const choose = async (w: VueWrapper, name: string, word: string) => {
+    await filter(w, name).trigger("click");
+    const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
+      (o) => o.textContent?.trim() === word,
+    )!;
+    option.click();
     await settle();
   };
 
   it("the selects offer the canvas words: Status All, Open, Acknowledged; Kind All and the three kinds", async () => {
     const w = await open();
-    expect(
-      statusSelect(w)
-        .findAll("option")
-        .map((o) => [o.text(), o.element.value]),
-    ).toEqual([
-      ["All", "all"],
-      ["Open", "open"],
-      ["Acknowledged", "acknowledged"],
-    ]);
-    expect(
-      kindSelect(w)
-        .findAll("option")
-        .map((o) => o.text()),
-    ).toEqual(["All", "clamp", "drift", "unclear_reply"]);
-    expect(statusSelect(w).element.value).toBe("open");
-    expect(kindSelect(w).element.value).toBe("");
+    expect(await optionsOf(w, "Status")).toEqual(["All", "Open", "Acknowledged"]);
+    expect(await optionsOf(w, "Kind")).toEqual(["All", "clamp", "drift", "unclear_reply"]);
+    expect(shown(w, "Status")).toBe("Open");
+    expect(shown(w, "Kind")).toBe("All");
+    // no native select: the field variant of the shared FilterSelect
+    expect(w.find("select").exists()).toBe(false);
   });
 
   it("choosing the Kind and then All again sends no kind", async () => {
     const w = await open();
-    await choose(kindSelect(w), "drift");
+    await choose(w, "Kind", "drift");
     expect(list).toHaveBeenLastCalledWith("open", "drift", 200);
-    await choose(kindSelect(w), "");
+    await choose(w, "Kind", "All");
     expect(list).toHaveBeenLastCalledWith("open", "", 200);
   });
 
   it("send the Status and then the Kind to the server, each in its own place", async () => {
     const w = await open();
-    await choose(statusSelect(w), "acknowledged");
+    await choose(w, "Status", "Acknowledged");
     expect(list).toHaveBeenLastCalledWith("acknowledged", "", 200);
-    await choose(kindSelect(w), "drift");
+    expect(shown(w, "Status")).toBe("Acknowledged");
+    await choose(w, "Kind", "drift");
     expect(list).toHaveBeenLastCalledWith("acknowledged", "drift", 200);
-    await choose(statusSelect(w), "all");
+    await choose(w, "Status", "All");
     expect(list).toHaveBeenLastCalledWith("all", "drift", 200);
   });
 });
@@ -343,8 +348,8 @@ describe("the generation guard", () => {
     await refresh(w).trigger("click");
     await settle();
     expect(listButtons(w, "Acknowledge")[0]!.attributes("disabled")).toBeDefined();
-    expect(w.findAll("select")).toHaveLength(2);
-    expect(w.findAll("select:disabled")).toHaveLength(0);
+    expect(w.findAll('[role="combobox"]')).toHaveLength(2);
+    expect(w.findAll('[role="combobox"]:disabled')).toHaveLength(0);
     slow.resolve({ items: [group()] });
     await settle();
     expect(listButtons(w, "Acknowledge")[0]!.attributes("disabled")).toBeUndefined();
@@ -477,7 +482,7 @@ describe("acknowledge", () => {
 
   // Everything the operator could press while a write is in flight, read from the page.
   const controls = (w: VueWrapper) => ({
-    selects: w.findAll("select:disabled").length,
+    selects: w.findAll('[role="combobox"]:disabled').length,
     details: listButtons(w, "Details")[0]!.attributes("disabled") !== undefined,
     listAck: listButtons(w, "Acknowledge")[0]!.attributes("disabled") !== undefined,
     close: detailButton(w, "Close").attributes("disabled") !== undefined,

@@ -20,6 +20,7 @@ import {
 import "@/components/alerts/alert-buttons.css";
 import "@/components/logs/lane-controls.css";
 import DataTable from "@/components/shared/DataTable.vue";
+import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { IconRefresh } from "@/components/shared/icons";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
@@ -151,7 +152,17 @@ const STATUS_CHOICES = [
   { value: "all", label: "All" },
   { value: "open", label: "Open" },
   { value: "acknowledged", label: "Acknowledged" },
-] as const;
+];
+const KIND_CHOICES = [{ value: "", label: "All" }, ...ALERT_KINDS.map((k) => ({ value: k, label: k }))];
+
+// A filter changed: ask for that view (the other filter and the open detail stay).
+function pick(filter: "status" | "kind", value: string | number): void {
+  asked.value =
+    filter === "status"
+      ? { ...asked.value, status: value as AlertAsk["status"] }
+      : { ...asked.value, kind: String(value) };
+  void reload();
+}
 
 // The group whose detail is open, as the table and the phone list mark it.
 const isOpened = (g: AlertGroup): boolean => asked.value.open?.kind === g.kind && asked.value.open.group === g.group;
@@ -248,33 +259,22 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
 
     <section class="kla-card groups" aria-label="Alert groups">
       <div class="gt">
-        <component :is="isPhone ? 'label' : 'div'" :class="isPhone ? 'gt__chip' : 'gt__field'">
-          <component :is="isPhone ? 'span' : 'label'" class="gt__label" for="alerts-status">Status</component>
-          <select
-            id="alerts-status"
-            v-model="asked.status"
-            class="gt__select"
-            aria-label="Status"
-            :disabled="writing"
-            @change="reload"
-          >
-            <option v-for="o in STATUS_CHOICES" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
-        </component>
-        <component :is="isPhone ? 'label' : 'div'" :class="isPhone ? 'gt__chip' : 'gt__field'">
-          <component :is="isPhone ? 'span' : 'label'" class="gt__label" for="alerts-kind">Kind</component>
-          <select
-            id="alerts-kind"
-            v-model="asked.kind"
-            class="gt__select"
-            aria-label="Kind"
-            :disabled="writing"
-            @change="reload"
-          >
-            <option value="">All</option>
-            <option v-for="k in ALERT_KINDS" :key="k" :value="k">{{ k }}</option>
-          </select>
-        </component>
+        <FilterSelect
+          :model-value="asked.status"
+          variant="field"
+          label="Status"
+          :options="STATUS_CHOICES"
+          :disabled="writing"
+          @update:model-value="(v) => pick('status', v)"
+        />
+        <FilterSelect
+          :model-value="asked.kind"
+          variant="field"
+          label="Kind"
+          :options="KIND_CHOICES"
+          :disabled="writing"
+          @update:model-value="(v) => pick('kind', v)"
+        />
         <span v-if="!isPhone" class="gt__spacer" />
         <span class="gt__count" data-testid="alerts-count">{{ groupCount }}</span>
       </div>
@@ -629,26 +629,6 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   gap: 12px;
   padding: 14px 16px;
 }
-.gt__field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.gt__label {
-  font-size: 12px;
-  color: var(--rl-muted);
-}
-.gt__select {
-  box-sizing: border-box;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--rl-line-strong);
-  border-radius: 10px;
-  background: var(--rl-surface);
-  color: var(--rl-fg);
-  font-family: inherit;
-  font-size: 13px;
-}
 .gt__spacer {
   flex: 1;
 }
@@ -660,9 +640,6 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
 .is-tablet .gt {
   flex-wrap: nowrap;
 }
-.is-tablet .gt__select {
-  height: 36px;
-}
 .is-tablet .gt__count {
   line-height: 36px;
 }
@@ -672,29 +649,6 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   gap: 8px;
   overflow-x: auto;
   padding: 12px;
-}
-.gt__chip {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 6px;
-  box-sizing: border-box;
-  height: 44px;
-  padding: 0 6px 0 12px;
-  border: 1px solid var(--rl-line-strong);
-  border-radius: 10px;
-  background: var(--rl-surface);
-  font-size: 13px;
-}
-.gt__chip .gt__label {
-  font-size: 13px;
-}
-.gt__chip .gt__select {
-  height: 40px;
-  padding: revert;
-  border: 0;
-  border-radius: revert;
-  background: transparent;
 }
 .is-phone .gt__count {
   flex: none;

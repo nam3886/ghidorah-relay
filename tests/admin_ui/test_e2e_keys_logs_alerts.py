@@ -356,6 +356,14 @@ def group_row(page, text):
     return groups(page).filter(has_text=text)
 
 
+def choose(page, label, option):
+    """Choose an option of an Alerts filter (FilterSelect's field: a combobox, its list opened in the body)."""
+    field = page.locator('section[aria-label="Alert groups"]').get_by_role("combobox", name=label, exact=True)
+    field.click()
+    page.get_by_role("option", name=option, exact=True).click()
+    expect(field).to_contain_text(option)
+
+
 def alerts_page(page, db):
     keys = alerts_planted(db)
     open_tab(page, "Alerts")
@@ -378,17 +386,18 @@ def test_the_lists_the_live_condition_the_filters_and_the_one_customer_mark(app,
     for other in (hostile, group_row(page, "clamp"), group_row(page, "drift"), group_row(page, "API read failure")):
         assert "One customer only" not in other.inner_text()
     assert_hostile_wording_is_text(page)
-    # the selects are native selects; a field one could type a phrase into would be an input
+    # the filters are the design's own selects (no native one); there is no field to type a phrase into
+    assert page.locator("select").count() == 0, "a native select"
     assert page.locator("input:not([readonly]), textarea").count() == 0, "there is no phrase field"
-    pick(page, "Status", "Acknowledged")
+    choose(page, "Status", "Acknowledged")
     expect(groups(page)).to_have_count(1)
     expect(group_row(page, "seen and acknowledged")).to_be_visible()
-    pick(page, "Status", "All")
+    choose(page, "Status", "All")
     expect(groups(page)).to_have_count(6)
-    pick(page, "Kind", "drift")
+    choose(page, "Kind", "drift")
     expect(groups(page)).to_have_count(1)
-    pick(page, "Kind", "All")
-    pick(page, "Status", "Open")
+    choose(page, "Kind", "All")
+    choose(page, "Status", "Open")
     expect(groups(page)).to_have_count(5)
 
 
@@ -449,7 +458,7 @@ def test_a_slow_answer_for_an_older_view_does_not_replace_the_newer_one(app, app
             break
         page.wait_for_timeout(20)
     assert held, "the refresh was not sent"
-    pick(page, "Status", "Acknowledged")                              # the newer view
+    choose(page, "Status", "Acknowledged")                              # the newer view
     expect(groups(page)).to_have_count(1)
     held[0].continue_()                                               # the older answer (5 open groups) arrives now
     page.wait_for_timeout(500)

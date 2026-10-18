@@ -27,7 +27,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from accountkit import new_account
-from element_diff import diff, extract, markdown, side_by_side
+from element_diff import diff, extract, markdown, popup_place, side_by_side
 from jobkit import key as new_key
 from patchright.sync_api import expect
 from pixel_capture import TIMEOUT_MS, opened, settle
@@ -64,9 +64,80 @@ BOARD_CHECKS = [Check(board, replace(ALERTS, board=board), data=ROWS + STRAIGHT)
                 for board in ("B-Alerts", "T-Alerts", "P-Alerts")]
 
 
-def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: str, parts=None) -> list:
+# The canvas draws its filters as native selects: to the tool a select is one box (the browser paints its value and
+# arrow inside it, out of the DOM's reach), while the app's FilterSelect field is a box holding its value and its arrow.
+# The boxes are compared as every box is (they pair by their options' text); what the field draws inside its box is
+# set aside in the tables and compared as pixels instead, select by select (`select-<board>-<n>-<theme>.side.png`).
+FIELDS = ".filter-select.is-field"
+FIELD_RECTS_JS = """([root, sel]) => {
+  const r = root ? document.querySelector(root).getBoundingClientRect() : {left: 0, top: 0};
+  return [...document.querySelectorAll(sel)].map((b) => {
+    const q = b.getBoundingClientRect();
+    return [q.left - r.left, q.top - r.top, q.width, q.height];
+  });
+}"""
+# On a phone the canvas's select is borderless inside its chip, and so is the field's trigger: the tool lists a select
+# whatever it paints, but a button only when it paints, so the trigger is listed here as the tool lists a box (its
+# visible part, clipped by every ancestor that hides overflow), to be paired with the select and compared.
+CHIP_TRIGGERS = ".filter-field.is-chip .filter-select.is-field"
+TRIGGER_BOXES_JS = """([root, sel]) => {
+  const rootEl = root ? document.querySelector(root) : document.documentElement;
+  const rr = root ? rootEl.getBoundingClientRect() : {left: 0, top: 0};
+  const r1 = (n) => Math.round(n * 10) / 10;
+  return [...rootEl.querySelectorAll(sel)].map((el) => {
+    const s = getComputedStyle(el), b = el.getBoundingClientRect();
+    const c = {l: b.left, t: b.top, r: b.right, b: b.bottom};
+    let op = 1;
+    for (let a = el; a; a = a.parentElement) op *= parseFloat(getComputedStyle(a).opacity);
+    for (let a = el.parentElement; a; a = a.parentElement) {
+      const as = getComputedStyle(a), q = a.getBoundingClientRect();
+      if (as.overflowX !== "visible") { c.l = Math.max(c.l, q.left); c.r = Math.min(c.r, q.right); }
+      if (as.overflowY !== "visible") { c.t = Math.max(c.t, q.top); c.b = Math.min(c.b, q.bottom); }
+    }
+    const radius = ["TopLeft", "TopRight", "BottomRight", "BottomLeft"].map((d) => s["border" + d + "Radius"]);
+    return {kind: "box", sig: (el.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 80), tag: "button",
+            role: el.getAttribute("role") || "", holdsText: false,
+            rect: [r1(c.l - rr.left), r1(c.t - rr.top), r1(c.r - c.l), r1(c.b - c.t)],
+            full: [r1(b.left - rr.left), r1(b.top - rr.top), r1(b.width), r1(b.height)],
+            style: {background: "none", border: "none / none / none / none", radius: radius.join(" "),
+                    padding: ["Top", "Right", "Bottom", "Left"].map((d) => s["padding" + d]).join(" "),
+                    shadow: s.boxShadow, outline: "none", color: "", checked: "", indeterminate: "", margin: "",
+                    opacity: String(Math.round(op * 100) / 100)}};
+  });
+}"""
+# the most a field's drawn value and arrow may differ from the native select's, as pixels of its crop
+SELECT_MISMATCH_PCT = 0.5
+
+
+def _inside(item, rects) -> bool:
+    x, y, w, h = item["rect"]
+    return any(x >= fx - 0.5 and y >= fy - 0.5 and x + w <= fx + fw + 0.5 and y + h <= fy + fh + 0.5
+               for fx, fy, fw, fh in rects)
+
+
+def _drawn_inside_a_field(items: dict, rects: list) -> dict:
+    """The app's items with what a field draws inside its own box (its value text, its arrow) taken out."""
+    return {**items, "texts": [t for t in items["texts"] if not _inside(t, rects)],
+            "boxes": [b for b in items["boxes"] if b["kind"] == "box" or not _inside(b, rects)]}
+
+
+def select_pixels(page_pngs: list, canvas_pngs: list, diff_page, out, stem: str) -> list:
+    """Each field against its native select, as pixels of the two crops; returns (mismatch %, anti-aliased %)."""
+    got = []
+    for n, (app_png, ref_png) in enumerate(zip(page_pngs, canvas_pngs, strict=True)):
+        pixels = compare(diff_page, ref_png, app_png)
+        (out / ("select-%s-%d.side.png" % (stem, n))).write_bytes(side_by_side(diff_page, ref_png, app_png,
+                                                                               pixels.png))
+        print("SELECT %s %d: %.3f %% + %.3f %%" % (stem, n, pixels.percent, pixels.aa_percent))
+        got.append((pixels.percent, pixels.aa_percent))
+    return got
+
+
+def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: str, parts=None,
+              fields: list | None = None) -> list:
     """The app in the check's state and the canvas board, each opened once; then, for each part (name suffix, canvas
-    root, app root), the table and the side-by-side. Returns (result, file stem) per part."""
+    root, app root), the table and the side-by-side. Returns (result, file stem) per part. With `fields` (a list),
+    each FilterSelect field is also compared with its native select as pixels, and the figures land in it."""
     parts = parts or (("", check.canvas_root, check.app_root),)
     board_w, board_h = BOARDS[check.state.board]
     width, height = check.viewport or (board_w, board_h)
@@ -75,7 +146,11 @@ def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: 
     with opened(app, db, live, check.state, dark, width, height) as page:
         for suffix, _canvas, app_sel in parts:
             app_root = _root(page, app_sel)
-            mine[suffix] = (extract(page, app_root), _png(page, app_root))
+            rects = page.evaluate(FIELD_RECTS_JS, [app_root, FIELDS], isolated_context=False)
+            items = _drawn_inside_a_field(extract(page, app_root), rects)
+            items["boxes"] += page.evaluate(TRIGGER_BOXES_JS, [app_root, CHIP_TRIGGERS], isolated_context=False)
+            mine[suffix] = (items, _png(page, app_root))
+        field_pngs = [loc.screenshot(animations="disabled", caret="hide") for loc in page.locator(FIELDS).all()]
     renderer.open(check.state.board, dark, board_w, board_h)
     out = run_dir / "element-diff"
     out.mkdir(parents=True, exist_ok=True)
@@ -105,6 +180,10 @@ def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: 
             name, theme, len(res.differences), len(res.canvas_only), len(res.app_only), len(res.data),
             pixels.percent, pixels.aa_percent))
         results.append((res, stem))
+    if fields is not None:
+        canvas_pngs = [loc.screenshot(animations="disabled", caret="hide")
+                       for loc in renderer.page.locator("main select").all()]
+        fields += select_pixels(field_pngs, canvas_pngs, diff_page, out, "%s-%s" % (check.name, theme))
     return results
 
 
@@ -115,8 +194,12 @@ def failed(results) -> list:
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("check", BOARD_CHECKS, ids=lambda c: c.name)
 def test_alerts_matches_the_canvas_element_by_element(app, db, live, renderer, diff_page, run_dir, check, theme):
-    bad = failed(run_check(app, db, live, renderer, diff_page, run_dir, check, theme, PARTS))
+    fields = []
+    bad = failed(run_check(app, db, live, renderer, diff_page, run_dir, check, theme, PARTS, fields))
     assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))
+    assert len(fields) == 2, "the Status and Kind fields against the two native selects: %r" % fields
+    off = [(n, f) for n, f in enumerate(fields) if f[0] > SELECT_MISMATCH_PCT]
+    assert not off, "a field draws its value or arrow apart from the native select (n, (mismatch %%, aa %%)): %r" % off
 
 
 # ---- states the canvas does not draw: photographed at the three widths, beside their nearest drawn pattern -----------
@@ -125,8 +208,19 @@ GROUPS = re.compile(r"/admin/alerts/groups\?")
 STATS = re.compile(r"/admin/stats(\?|$)")
 
 
+# An Alerts filter, found in the Alerts card: right after sign-in the Jobs page, with its own Status filter, may still
+# be on its way out.
+def _field(page, label):
+    return page.locator('section[aria-label="Alert groups"]').get_by_role("combobox", name=label, exact=True)
+
+
+def _filter(page, label, option):
+    _field(page, label).click()
+    page.get_by_role("option", name=option, exact=True).click()
+
+
 def _all(page):
-    page.locator('select[aria-label="Status"]').select_option(label="All")
+    _filter(page, "Status", "All")
     expect(page.get_by_test_id("alerts-count")).to_have_text(re.compile(r"^\d+ groups?$"), timeout=TIMEOUT_MS)
     expect(page.locator('[data-state="ready"]')).to_be_visible(timeout=TIMEOUT_MS)
 
@@ -159,7 +253,7 @@ def _error(page):
 
 
 def _empty(page):
-    page.locator('select[aria-label="Kind"]').select_option(label="drift")
+    _filter(page, "Kind", "drift")
     expect(page.locator('[data-state="empty"]')).to_be_visible(timeout=TIMEOUT_MS)
 
 
@@ -191,7 +285,7 @@ def _hover(locate):
 
 
 def _focus_status(page):
-    select = page.locator('select[aria-label="Status"]')
+    select = _field(page, "Status")
     select.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
@@ -355,3 +449,32 @@ def test_alerts_with_live_like_data_fits(app, db, live, run_dir, view, nth, them
             assert not clipped, "%d: texts cut off where the canvas draws them whole: %r" % (width, clipped)
             live_cut = sorted(text for text, _cls in cut if any(v in text for v in LIVE_VALUES))
             assert not live_cut, "%d: live-shaped values cut off: %r" % (width, live_cut)
+
+
+
+# ---- the open list of a field (the canvas draws none: FilterSelect's listbox, the B-States Provider list) ------------
+# Opened at 1440, 768 and 390, viewport photos: it must sit 6 px under its box (above it near the bottom of the
+# window), never on it; Escape closes it and leaves the focus on the field. On a phone the box is the chip.
+@pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize("name", ("Status", "Kind"))
+def test_an_open_field_list_sits_by_its_box_at_every_width(app, db, live, run_dir, name, theme):
+    entry = replace(ALERTS, drive=None)
+    out = run_dir / "element-diff"
+    out.mkdir(parents=True, exist_ok=True)
+    with opened(app, db, live, entry, theme == "dark", *WIDTHS[0]) as page:
+        expect(page.get_by_test_id("alerts-count")).to_have_text("1 group", timeout=TIMEOUT_MS)
+        for width, _height in WIDTHS:
+            page.set_viewport_size({"width": width, "height": 900})
+            settle(page)
+            field = _field(page, name)
+            field.click()
+            expect(page.get_by_role("listbox")).to_be_visible()
+            settle(page)
+            (out / ("field-list-%s-%s-%d.png" % (name.lower(), theme, width))).write_bytes(
+                page.screenshot(animations="disabled", caret="hide"))
+            box = ".filter-field.is-open" if width < 768 else '[role="combobox"][aria-expanded="true"]'
+            misplaced = popup_place(page, '[role="listbox"]', box)
+            assert misplaced is None, "%d: %s" % (width, misplaced)
+            page.keyboard.press("Escape")
+            expect(page.get_by_role("listbox")).to_have_count(0)
+            expect(field).to_be_focused()

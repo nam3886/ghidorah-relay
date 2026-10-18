@@ -284,8 +284,9 @@ def alerts_seed(db, live):
 
 
 def alerts_all(page, live, data) -> None:
-    # the popper of the Jobs tab's own select stays in the page after a route change: take the native select
-    page.locator('select[aria-label="Status"]').select_option(label="All")
+    # in the Alerts card: right after sign-in the Jobs page, with its own Status filter, may still be on its way out
+    page.locator('section[aria-label="Alert groups"]').get_by_role("combobox", name="Status", exact=True).click()
+    page.get_by_role("option", name="All", exact=True).click()
     expect(page.get_by_text("4 groups")).to_be_visible(timeout=TIMEOUT_MS)
 
 

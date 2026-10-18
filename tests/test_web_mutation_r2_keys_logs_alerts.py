@@ -420,11 +420,11 @@ def test_the_alerts_view_drops_stale_answers_and_acknowledges_what_was_shown():
 @mutation(ALERTS, 'class="al-btn g-ack"\n                  :disabled="locked"',
           'class="al-btn g-ack"\n                  :disabled="writing"',
           expect=GUARD + "while a view loads, Acknowledge is locked but the filters are not")
-@mutation(ALERTS, 'aria-label="Status"\n            :disabled="writing"',
-          'aria-label="Status"\n            :disabled="false"',
+@mutation(ALERTS, ':options="STATUS_CHOICES"\n          :disabled="writing"',
+          ':options="STATUS_CHOICES"\n          :disabled="false"',
           expect=IN_FLIGHT)
-@mutation(ALERTS, 'aria-label="Kind"\n            :disabled="writing"',
-          'aria-label="Kind"\n            :disabled="false"',
+@mutation(ALERTS, ':options="KIND_CHOICES"\n          :disabled="writing"',
+          ':options="KIND_CHOICES"\n          :disabled="false"',
           expect=IN_FLIGHT)
 @mutation(ALERTS, '                  :disabled="writing"\n                  :aria-label="',
           '                  :disabled="false"\n                  :aria-label="', expect=IN_FLIGHT)
