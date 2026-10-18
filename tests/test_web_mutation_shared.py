@@ -595,6 +595,7 @@ REPEAT = "a repeat while the toast is open is the same body"
 DRAWN_BODY = "draws the body as B-States"
 OUTRANKS = "a toast outranks Element Plus"
 AFTER_CLEAR = "the same words right after clear are a new toast"
+AFTER_X = "the same error right after a click on its X is a new toast"
 
 
 @mutation(NOTIFY, "entry.count.value += 1;", "", expect=REPEAT)
@@ -602,6 +603,8 @@ AFTER_CLEAR = "the same words right after clear are a new toast"
 @mutation(NOTIFY, "if (shown.get(key) === own) shown.delete(key);", "", expect=REPEAT)
 @mutation(NOTIFY, "if (shown.get(key) === own) shown.delete(key);", "shown.delete(key);", expect=AFTER_CLEAR)
 @mutation(NOTIFY, "      shown.clear();\n      message.closeAll();", "      message.closeAll();", expect=AFTER_CLEAR)
+@mutation(NOTIFY, "            forget(made);\n            made.handle?.close?.();", "            made.handle?.close?.();",
+          expect=AFTER_X)
 @mutation(NOTIFY, '"aria-label": "Close message"', '"aria-label": "Close"', expect=DRAWN_BODY)
 @mutation(NOTIFY, "h(IconClose, { size: 14, stroke: 2 })", "h(IconClose, { size: 16, stroke: 2 })", expect=DRAWN_BODY)
 @pytest.mark.web_unit

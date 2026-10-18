@@ -75,13 +75,24 @@ export function makeNotify(message: MessageLike) {
   // and counts one more; a closed toast forgets it.
   function toast(type: string, text: string, options: object, closable: boolean): unknown {
     const key = `${type}\n${text}`;
+    // a toast forgets its own body only: after `clear` or its X, a new toast of the same words may hold the key
+    const forget = (own: Shown) => {
+      if (shown.get(key) === own) shown.delete(key);
+    };
     let entry = shown.get(key);
     if (entry) {
       entry.count.value += 1;
     } else {
       const count = ref(1);
       const made = { count, handle: undefined } as Shown;
-      const dismiss = closable ? () => made.handle?.close?.() : undefined;
+      // Forget first: Element Plus groups into a toast until its leave starts, on the next render, so the same error
+      // raised right after the click is a new toast, not a repeat of the one going away.
+      const dismiss = closable
+        ? () => {
+            forget(made);
+            made.handle?.close?.();
+          }
+        : undefined;
       made.body = () => h(ToastBody, { text, count: count.value, onDismiss: dismiss });
       shown.set(key, (entry = made));
     }
@@ -91,10 +102,7 @@ export function makeNotify(message: MessageLike) {
       ...options,
       type,
       message: entry.body,
-      // a toast that closes forgets its own body only: after `clear` a new toast of the same words may hold the key
-      onClose: () => {
-        if (shown.get(key) === own) shown.delete(key);
-      },
+      onClose: () => forget(own),
     }) as Shown["handle"];
     entry.handle ??= handle;
     return handle;

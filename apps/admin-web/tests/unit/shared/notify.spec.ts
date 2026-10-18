@@ -129,6 +129,23 @@ describe("notify", () => {
     notify.success("Saved");
     expect(lastOptions(message).message).toBe(fresh.message);
   });
+
+  it("the same error right after a click on its X is a new toast, which the old one's late close leaves alone", async () => {
+    const { message, close, notify } = stub();
+    notify.error("Check failed");
+    const closing = lastOptions(message);
+    await body(closing).get('button[aria-label="Close message"]').trigger("click");
+    expect(close).toHaveBeenCalledTimes(1);
+    // the clicked toast is still leaving: the same error must not count into it
+    notify.error("Check failed");
+    const fresh = lastOptions(message);
+    expect(fresh.message).not.toBe(closing.message);
+    expect(body(fresh).find(".rl-toast__count").exists()).toBe(false);
+    // the old toast finishes leaving: the new one keeps its body, and a repeat still groups into it
+    (closing.onClose as () => void)();
+    notify.error("Check failed");
+    expect(lastOptions(message).message).toBe(fresh.message);
+  });
 });
 
 describe("isPhoneNow", () => {
