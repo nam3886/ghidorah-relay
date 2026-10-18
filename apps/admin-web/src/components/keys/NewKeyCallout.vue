@@ -2,6 +2,7 @@
 import { onBeforeUnmount, ref, watchEffect } from "vue";
 import { IconCheck, IconCopy } from "@/components/shared/icons";
 import { copyText, type CopyOutcome } from "@/components/shared/clipboard";
+import { useBreakpoint } from "@/composables/use-breakpoint";
 import { notify } from "@/lib/notify";
 import "@/components/logs/lane-controls.css";
 
@@ -10,6 +11,7 @@ import "@/components/logs/lane-controls.css";
 // name the operator gave the key.
 const props = defineProps<{ rawKey: string; label: string }>();
 const emit = defineEmits<{ dismiss: []; copied: [outcome: CopyOutcome] }>();
+const { isPhone } = useBreakpoint();
 
 const field = ref<HTMLInputElement | null>(null);
 // The key goes into the field as its value property, never as a `value` attribute: nothing of it is then part of the
@@ -57,14 +59,14 @@ async function copy(): Promise<void> {
         ref="field"
         class="callout__field"
         readonly
-        aria-label="New API key"
+        :aria-label="`New API key for ${label}`"
         autocomplete="off"
         spellcheck="false"
         @focus="field?.select()"
       />
       <div class="callout__buttons">
         <button type="button" class="kla-btn kla-btn--primary kla-btn--fit callout__btn" @click="copy">
-          <IconCopy :size="15" />{{ copied ? "Copied" : "Copy" }}
+          <IconCopy :size="isPhone ? 16 : 15" />{{ copied ? "Copied" : "Copy" }}
         </button>
         <button type="button" class="kla-btn kla-btn--ghost kla-btn--fit callout__btn" @click="emit('dismiss')">
           Dismiss
@@ -128,19 +130,25 @@ async function copy(): Promise<void> {
   display: flex;
   gap: 8px;
 }
+/* as drawn: Copy padded 0 14 like Dismiss */
+.callout__btn {
+  padding: 0 14px;
+}
 @media (max-width: 1279px) {
   .callout__field {
     flex-basis: 300px;
   }
 }
+/* phone: the field on its own row and the two buttons sharing the next, both rows 12 px apart like the rest */
 @media (max-width: 767px) {
+  .callout__row {
+    display: contents;
+  }
   .callout__field {
-    flex-basis: 100%;
+    flex: none;
+    width: 100%;
     height: 44px;
     font-size: 12px;
-  }
-  .callout__buttons {
-    flex: 1 1 100%;
   }
   .callout__btn {
     flex: 1;

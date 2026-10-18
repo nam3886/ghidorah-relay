@@ -35,6 +35,17 @@ export function createdText(ms: number | null, now: number = Date.now()): string
   return `${date}/${d.getFullYear()}`;
 }
 
+// The list's failed load, worded as the canvas words a failed list (B-States): "Could not load the API keys: the relay
+// answered 502 (bad gateway)." `said` is the app's own text for the failure (errorText); with no answer from the relay
+// it is all there is to say.
+export function loadFailedText(err: unknown, said: string): string {
+  const why =
+    err instanceof ApiError
+      ? `the relay answered ${err.status} (${said})`
+      : said.charAt(0).toLowerCase() + said.slice(1);
+  return `Could not load the API keys: ${why}.`;
+}
+
 export function unfinishedText(k: Pick<ApiKey, "unfinished" | "max_unfinished_effective">): string {
   return `${k.unfinished} / ${k.max_unfinished_effective === 0 ? "unlimited" : k.max_unfinished_effective}`;
 }

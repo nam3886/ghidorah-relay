@@ -445,10 +445,10 @@ def test_the_field_select_is_the_canvas_select_drawn_by_us():
     vitest(FIELD_SPEC)
 
 
-@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '  "components/keys/KeyFormDialog.vue",\n', "",
+@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '"components/logs/LogsFilterForm.vue"', "",
           expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
-@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", "const STILL_TO_CONVERT = [\n",
-          'const STILL_TO_CONVERT = [\n  "views/AlertsView.vue",\n',
+@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", "const STILL_TO_CONVERT = [",
+          'const STILL_TO_CONVERT = ["views/AlertsView.vue", ',
           expect=NO_SELECT + "every file still to convert still has one: a converted file leaves the list")
 @mutation(ALERTS_VIEW, '<span v-if="!isPhone" class="gt__spacer" />', '<select v-if="!isPhone" class="gt__spacer" />',
           expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
@@ -631,4 +631,12 @@ FORM_FIELD = FIELD + "as a form's field (block) keeps its label above the box on
 @mutation(FILTER, '"is-block": props.block,', '"is-block": false,', expect=FORM_FIELD)
 @pytest.mark.web_unit
 def test_the_field_select_can_be_a_form_field():
+    vitest(FIELD_SPEC)
+
+
+# ---- page-keys: the field inside a dialog (the key form's Mode): over the dialog, its own Escape ------------------
+@mutation(FILTER, "  listZ.value = nextZIndex();\n", "", expect="the list sits above an open dialog")
+@mutation(FILTER, "    event.stopPropagation();\n    close();", "    close();", expect="Escape closes only the list")
+@pytest.mark.web_unit
+def test_the_field_opens_over_a_dialog_and_keeps_its_escape():
     vitest(FIELD_SPEC)
