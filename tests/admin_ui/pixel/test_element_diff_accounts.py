@@ -319,7 +319,7 @@ def _focus_switch(page):
 
 
 UNDRAWN = [
-    ("loading", _loading, (1440,)), ("pool-failed", _pool_failed, (1440,)),
+    ("loading", _loading, (1440, 768, 390)), ("pool-failed", _pool_failed, (1440,)),
     ("check-running", _check_running, (1440, 768)), ("check-failed", _check_failed, (1440,)),
     ("saved", _saved, (1440,)), ("delete-confirm", _delete_confirm, (1440, 390)),
     ("row-menu", _row_menu, (768, 390)), ("edit", _edit, (768, 390)), ("import", _import, (390,)),
