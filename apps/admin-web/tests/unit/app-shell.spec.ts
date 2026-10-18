@@ -234,9 +234,11 @@ describe("the shell", () => {
     notify.success("fine");
     await flushPromises();
     const toasts = [...document.body.querySelectorAll(".el-message")];
-    expect(toasts.map((t) => t.querySelector(".el-message__content")?.textContent)).toEqual(["boom", "fine"]);
-    expect(toasts[0]?.querySelector(".el-message__closeBtn")).not.toBeNull();
-    expect(toasts[1]?.querySelector(".el-message__closeBtn")).toBeNull();
+    expect(toasts.map((t) => t.querySelector(".rl-toast__text")?.textContent)).toEqual(["boom", "fine"]);
+    // the merged one counts its repeats in the drawn pill; only the error has the drawn X
+    expect(toasts.map((t) => t.querySelector(".rl-toast__count")?.textContent ?? "")).toEqual(["×2", ""]);
+    expect(toasts[0]?.querySelector('button[aria-label="Close message"]')).not.toBeNull();
+    expect(toasts[1]?.querySelector('button[aria-label="Close message"]')).toBeNull();
     notify.clear();
   });
 

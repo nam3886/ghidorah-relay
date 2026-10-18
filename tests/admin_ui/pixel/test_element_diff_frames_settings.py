@@ -38,8 +38,8 @@ FRAMES_DATA = ("v3", "v2", "v1",
                "Create exactly one cinematic video for this request, no on-screen text, no watermark, no follow-up "
                "questions. Request: a cat on a sofa Reference: rq-3b9e1f0a Keep the camera steady and the light "
                "natural.", "203 characters")
-# Settings: the server's one text for a refused field, where the board writes the rule (a question to the manager)
-SETTINGS_DATA, SETTINGS_DATA_APP = ("At least 12 characters",), ("the request is not valid",)
+# Settings: the password rule's number, the board's sample 12 against the server's 10 (design-deviations)
+SETTINGS_DATA, SETTINGS_DATA_APP = ("At least 12 characters",), ("At least 10 characters",)
 FRAMES = Entry("B-Frames", "#/frames", seed=frames_seed, now=NOW, drive=frames_drive, user=BOARD_USER)
 SETTINGS = Entry("B-Settings", "#/settings", seed=settings_seed, now=NOW, drive=settings_drive, user=BOARD_USER)
 
@@ -121,6 +121,16 @@ def setting_saved(page, live, data):
     _hold_toast(page, "success")
 
 
+def setting_saved_thrice(page, live, data):
+    """Three saves while the first toast is open: one toast, counted "×3" (B-States' grouped toast)."""
+    for value in ("45", "46", "47"):
+        _value(page, "log_retention_days", value)
+        expect(page.get_by_label("Value of log_retention_days")).to_have_value(value, timeout=TIMEOUT_MS)
+        expect(page.get_by_role("button", name="Save log_retention_days")).to_be_disabled(timeout=TIMEOUT_MS)
+    expect(page.locator(".rl-toast__count")).to_have_text("×3", timeout=TIMEOUT_MS)
+    _hold_toast(page, "success")
+
+
 def setting_refused(page, live, data):
     _value(page, "log_retention_days", "not a number")
     _hold_toast(page, "error")
@@ -158,6 +168,11 @@ EMPTY_CARD_BODY = 'section[aria-label="API keys, empty"] > div:last-child'
 EMPTY_PADDING = ("padding-top", "padding-right", "padding-bottom", "padding-left", "text-align", "border-top-color",
                  "border-top-width")
 ERROR_ALERT = 'section[aria-label="Jobs, error"] [role="alert"]'
+# the drawn skeleton's first row: its time bar, the title bar's second line, the status pill (the N-th span of the row)
+SKEL_BAR = 'section[aria-label="Jobs, loading"] tbody span@%d'
+SKEL_STYLE = ("height", "border-top-left-radius", "background-color", "margin-top")
+TOAST_BOX = ("padding-top", "padding-right", "padding-bottom", "padding-left", "column-gap", "min-width")
+CLOSE_BOX = ("width", "height", "border-top-left-radius", "color", "background-color")
 LOAD_FAILED = ("Could not load the jobs: the relay answered 502 (bad gateway).",)
 LISTBOX = '[role="listbox"][aria-label="Provider"]@%d'
 LIST_SURFACE = ("width", "background-color", "border-top-color", "border-top-width", "border-top-left-radius",
@@ -175,7 +190,8 @@ STATE_CHECKS = [
                              (LISTBOX % n, '[role="listbox"]', LIST_SURFACE)))
       for n, (width, viewport) in enumerate(((1440, DESKTOP), (768, TABLET), (390, PHONE)))),
     StateCheck("frames-saved-toast", _frames_state(frame_saved), '[role="status"]@0', ".el-message", DESKTOP,
-               data=("Saved",), loose={"*": "w"}),
+               data=("Saved",), data_app=("Saved: applies to jobs created from now on",), loose={"*": "w"},
+               same_style=(('[role="status"]@0', ".el-message", TOAST_BOX),)),
     StateCheck("frames-refusal", _frames_state(frame_refused), "#fvErr", "#frame-refusal", DESKTOP,
                data=("A label is required.",), data_app=FRAME_REFUSED,
                same_style=(("#fvLabel", "#frame-text", ("border-top-color", "border-top-width", "border-radius")),)),
@@ -185,8 +201,12 @@ STATE_CHECKS = [
                same_style=(('section[aria-label="Result, empty"] > div:last-child', ".editor--empty",
                             EMPTY_PADDING[:5]),)),
     StateCheck("settings-saved-toast", _settings_state(setting_saved), '[role="status"]@0', ".el-message", DESKTOP),
+    # the toast is as wide as its text, which is data: what sits right of the text (the X) moves with it, so the X and
+    # the toast's padding are compared by their style instead of their place
     StateCheck("settings-error-toast", _settings_state(setting_refused), '[role="alert"]@1', ".el-message", DESKTOP,
-               data=("Check failed: connect timeout after 8 s",), loose={"*": "w"}),
+               data=("Check failed: connect timeout after 8 s",), loose={"*": "w", "": "x"},
+               same_style=(('[role="alert"]@1', ".el-message", TOAST_BOX),
+                           ('button[aria-label="Close message"]', ".rl-toast__close", CLOSE_BOX))),
     StateCheck("settings-load-error", _settings_state(_failing(SETTINGS_READ)), ERROR_ALERT,
                '#settings [role="alert"]', DESKTOP, widen=True, data=LOAD_FAILED,
                data_app=("Could not load the settings: the relay answered 502 (bad gateway).",)),
@@ -198,10 +218,14 @@ STATE_CHECKS = [
                widen=True, data=("No API keys yet.",), data_app=("No job has an upstream figure yet",),
                accepted=("New key",), canvas_drop=("New key", "svg *"), loose={"": "h"},
                same_style=((EMPTY_CARD_BODY, "#prices .state__note", EMPTY_PADDING),)),
-    StateCheck("settings-loading", _settings_state(settings_held), EMPTY_CARD_BODY, "#settings .state__note",
-               DESKTOP, widen=True, data=("No API keys yet.",), data_app=("Loading…",), accepted=("New key",),
-               canvas_drop=("New key", "svg *"), loose={"": "h"},
-               same_style=((EMPTY_CARD_BODY, "#settings .state__note", EMPTY_PADDING),)),
+    # the loading rows: the drawn skeleton's bars (a 12 px line and its 10 px second line, the 22 px pill), compared bar
+    # with bar (the columns are the card's own), and a loading row as tall as the drawn one
+    StateCheck("settings-loading", _settings_state(settings_held), SKEL_BAR % 1, "#settings tbody .set-skel@0",
+               DESKTOP, loose={"*": "w"},
+               same_style=((SKEL_BAR % 2, "#settings tbody .set-skel--sub@0", SKEL_STYLE),
+                           (SKEL_BAR % 3, "#settings tbody .set-skel--pill@0", SKEL_STYLE))),
+    StateCheck("settings-saved-toast-x3", _settings_state(setting_saved_thrice), '[role="status"]@1', ".el-message",
+               DESKTOP),
 ]
 CHECKS = BOARD_CHECKS + STATE_CHECKS
 
@@ -449,8 +473,11 @@ def test_frames_settings_with_live_like_data_fit(app, db, live, run_dir, page_na
         sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
         assert sideways <= 0, "the page scrolls sideways by %d px" % sideways
         items = extract(page, "main")
+        # a value that ends in "…" with its whole text in a note (a HintTip) is cut as ruled
+        noted = set(page.evaluate("[...document.querySelectorAll('main .hint-tip')].map((e) => e.textContent.trim())",
+                                  isolated_context=False))
         clipped = [(t["text"][:60], t["cls"], t["rect"], t["full"]) for t in items["texts"]
-                   if t["clipped"] and t["text"] not in SUBNAV]
+                   if t["clipped"] and t["text"] not in SUBNAV and t["text"] not in noted]
         # a part that scrolls sideways (a table card) clips what is past its edge: that is a cut text too
         assert not clipped, "texts cut off: %r" % clipped
 
@@ -527,6 +554,13 @@ def password_failed(page, live, data):
     _hold_toast(page, "error")
 
 
+def long_default_note(page, live, data):
+    """The live `dola.prices` default: one line ending in "…", its whole value in the note, opened from the keyboard."""
+    live_settings(page, live, data)
+    page.locator("#settings .hint-tip").first.focus()
+    expect(page.get_by_role("tooltip")).to_be_visible(timeout=TIMEOUT_MS)
+
+
 def _frames(drive, seed=frames_seed):
     return Entry("B-Frames", "#/frames", seed=seed, now=NOW, drive=drive, user=BOARD_USER)
 
@@ -556,6 +590,7 @@ UNDRAWN = [
     ("settings-loading", _settings(settings_held), ALL_WIDTHS[2:]),
     ("prices-empty", _settings(prices_empty), ALL_WIDTHS),
     ("password-failed", _settings(password_failed), ALL_WIDTHS[:1]),
+    ("settings-long-default-note", _settings(long_default_note), ALL_WIDTHS[:1]),
 ]
 PHOTOS = [(name, entry, size) for name, entry, sizes in UNDRAWN for size in sizes]
 

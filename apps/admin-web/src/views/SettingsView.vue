@@ -14,6 +14,7 @@ import SettingsTable from "@/components/settings/SettingsTable.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { bootValue, loadFailedText, parseValue } from "@/components/settings/settings-value";
 import SectionState from "@/components/settings/SectionState.vue";
+import "@/components/settings/settings-skeleton.css";
 import PricesTable from "@/components/settings/PricesTable.vue";
 import SettingsCard from "@/components/settings/SettingsCard.vue";
 import { useBusy } from "@/composables/use-busy";
@@ -99,6 +100,8 @@ const SECTIONS = [
   { id: "password", label: "Change password" },
 ] as const;
 const current = ref<string>("settings");
+// the boot-only list while the first read runs: its rows as bars (the B-States loading pattern)
+const BOOT_SKELETON = ["88px", "120px", "72px", "104px"];
 function go(id: string): void {
   current.value = id;
   document.getElementById(id)?.scrollIntoView({ block: "start" });
@@ -154,13 +157,19 @@ function go(id: string): void {
         >
           <!-- read with the settings: their failure and their wait are this card's too -->
           <SectionState
-            :loading="settingsLoading"
             :error="settingsError"
-            :empty="!envOnly.length"
+            :empty="!envOnly.length && !settingsLoading"
             empty-text="None"
             @retry="loadSettings"
           />
-          <dl v-if="!settingsError && envOnly.length" class="boot" aria-label="Boot-only values">
+          <dl v-if="!settingsError && !envOnly.length && settingsLoading" class="boot" aria-hidden="true">
+            <div v-for="w in BOOT_SKELETON" :key="w" class="boot__row">
+              <i class="set-skel" :style="{ width: w }" />
+              <span class="boot__leader" />
+              <i class="set-skel" :style="{ width: '96px' }" />
+            </div>
+          </dl>
+          <dl v-else-if="!settingsError && envOnly.length" class="boot" aria-label="Boot-only values">
             <div v-for="row in envOnly" :key="row.name" class="boot__row">
               <dt>{{ row.name }}</dt>
               <span class="boot__leader" aria-hidden="true" />

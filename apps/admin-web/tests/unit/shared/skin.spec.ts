@@ -121,14 +121,27 @@ describe("confirm and toasts", () => {
   });
 
   it("the close button is 28 square with radius 8; the grouping badge is a 20 high pill inside the toast", () => {
-    const close = rule(TOAST, ".el-message .el-message__closeBtn {");
+    const close = rule(TOAST, ".rl-toast__close {");
     expect(close).toContain("width: 28px");
     expect(close).toContain("height: 28px");
     expect(close).toContain("border-radius: 8px");
-    const badge = rule(TOAST, ".el-message .el-message__badge {");
-    expect(badge).toContain("position: static");
+    const badge = rule(TOAST, ".rl-toast__count {");
     expect(badge).toContain("height: 20px");
+    expect(badge).toContain("border-radius: 10px");
     expect(badge).toContain("background-color: var(--rl-ok-bg)");
+    // Element Plus's own round badge and close glyph give way to the drawn ones
+    expect(rule(TOAST, ".el-message .el-message__closeBtn {")).toContain("display: none");
+  });
+
+  it("a toast outranks Element Plus: 46 high with an 18 px icon, the text in --rl-fg in every tone", () => {
+    const toast = rule(TOAST, "html .el-message {");
+    expect(toast).toContain("padding: 12px 16px");
+    expect(toast).toContain("border-radius: 12px");
+    const content = rule(TOAST, "html .el-message .el-message__content {");
+    expect(content).toContain("color: var(--rl-fg)");
+    expect(content).toContain("line-height: 20px");
+    expect(rule(TOAST, "html .el-message .el-message__icon {")).toContain("font-size: 18px");
+    expect(rule(TOAST, ".rl-toast__text {")).toContain("color: var(--rl-fg)");
   });
 });
 

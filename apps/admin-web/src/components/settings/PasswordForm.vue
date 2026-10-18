@@ -3,6 +3,7 @@ import { computed, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { changePassword } from "@/api/settings";
 import { IconAlertCircleShort } from "@/components/shared/icons";
+import { newPasswordProblem } from "./settings-value";
 import { ApiError } from "@/api/client";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
@@ -21,9 +22,11 @@ const ready = computed(() => oldPassword.value !== "" && newPassword.value !== "
 
 async function submit(): Promise<void> {
   if (!ready.value || busy.value) return;
-  busy.value = true;
   fieldErrors.old_password = "";
-  fieldErrors.new_password = "";
+  // the length rule is checked here, before anything is sent
+  fieldErrors.new_password = newPasswordProblem(newPassword.value);
+  if (fieldErrors.new_password) return;
+  busy.value = true;
   try {
     await changePassword(oldPassword.value, newPassword.value);
   } catch (err) {

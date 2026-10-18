@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // What a settings card shows in place of its rows: the error with Retry (shared.md 12.5), or the empty text in the
-// drawn empty area (12.1: centred, muted, 44 / 52 px above and below). A load in flight with no rows says so there.
-defineProps<{ loading: boolean; error: string | null; empty: boolean; emptyText: string }>();
+// drawn empty area (12.1: centred, muted, 44 / 52 px above and below). A first read draws its own loading rows.
+defineProps<{ error: string | null; empty: boolean; emptyText: string }>();
 const emit = defineEmits<{ retry: [] }>();
 </script>
 
@@ -25,7 +25,6 @@ const emit = defineEmits<{ retry: [] }>();
     <span class="state__text">{{ error }}</span>
     <button type="button" class="state__retry" @click="emit('retry')">Retry</button>
   </div>
-  <div v-else-if="loading && empty" class="state__note" role="status"><p>Loading…</p></div>
   <div v-else-if="empty" class="state__note">
     <p>{{ emptyText }}</p>
   </div>

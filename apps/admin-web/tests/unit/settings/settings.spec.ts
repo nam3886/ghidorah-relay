@@ -4,7 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { ApiError } from "@/api/client";
 import * as api from "@/api/settings";
-import { bootValue, loadFailedText, parseValue, valueText } from "@/components/settings/settings-value";
+import {
+  bootValue,
+  fullDefault,
+  isLongDefault,
+  loadFailedText,
+  newPasswordProblem,
+  parseValue,
+  valueText,
+} from "@/components/settings/settings-value";
 import { notify } from "@/lib/notify";
 import { TEST_KEY, TOKEN_KEY, USER_KEY } from "@/lib/session";
 import { useAuthStore } from "@/stores/auth";
@@ -45,6 +53,20 @@ describe("setting values", () => {
     expect(loadFailedText("measured prices", new TypeError("Failed to fetch"))).toBe(
       "Could not load the measured prices: network error, please try again.",
     );
+  });
+
+  it("hold a new password to the server's rule, 10 to 256 characters", () => {
+    expect(newPasswordProblem("x".repeat(9))).toBe("At least 10 characters");
+    expect(newPasswordProblem("x".repeat(10))).toBe("");
+    expect(newPasswordProblem("x".repeat(256))).toBe("");
+    expect(newPasswordProblem("x".repeat(257))).toBe("At most 256 characters");
+  });
+
+  it("show a long default on one line, the whole value laid out in its note", () => {
+    expect(isLongDefault("x".repeat(30))).toBe(false);
+    expect(isLongDefault("x".repeat(31))).toBe(true);
+    expect(fullDefault({ "a@5s": 1 })).toBe('{\n  "a@5s": 1\n}');
+    expect(fullDefault("{prompt}_{duration}")).toBe("{prompt}_{duration}");
   });
 
   it("show a boot-only value that is unset or empty as a dash", () => {
@@ -124,6 +146,26 @@ describe("the settings page", () => {
     await open();
     expect(wrapper!.findAll("table")).toHaveLength(2);
     expect(wrapper!.html()).not.toMatch(/max-height:\s*(\d|calc)/);
+  });
+
+  it("draws the first read as the drawn loading rows: each table's header over five rows of bars", async () => {
+    vi.mocked(api.getSettings).mockReturnValue(new Promise(() => undefined));
+    vi.mocked(api.getPrices).mockReturnValue(new Promise(() => undefined));
+    await open();
+    const tables = wrapper!.findAll("table");
+    expect(tables).toHaveLength(2);
+    for (const table of tables) {
+      expect(table.find("thead").exists()).toBe(true);
+      const body = table.find("tbody");
+      expect(body.attributes("aria-hidden")).toBe("true");
+      expect(body.findAll("tr")).toHaveLength(5);
+      expect(body.findAll(".set-skel").length).toBeGreaterThan(5);
+    }
+    // the boot-only list shares the settings read: bars too, and no empty text while it runs
+    expect(wrapper!.find("#boot .set-skel").exists()).toBe(true);
+    expect(wrapper!.text()).not.toContain("No settings");
+    expect(wrapper!.text()).not.toContain("None");
+    expect(wrapper!.text()).not.toContain("No job has an upstream figure yet");
   });
 });
 
@@ -322,7 +364,7 @@ describe("change password", () => {
   it("shows a refusal that names new_password on that field", async () => {
     await open();
     await field("current-password").setValue("right password");
-    await field("new-password").setValue("short");
+    await field("new-password").setValue("an example one");
     vi.mocked(api.changePassword).mockRejectedValue(
       new ApiError(400, { error: { code: "input.invalid", message: "Too short", param: "new_password" } }),
     );
@@ -339,7 +381,7 @@ describe("change password", () => {
   it("clears the field error on the next attempt", async () => {
     await open();
     await field("current-password").setValue("x");
-    await field("new-password").setValue("y");
+    await field("new-password").setValue("a long new password");
     vi.mocked(api.changePassword)
       .mockRejectedValueOnce(
         new ApiError(400, { error: { code: "input.invalid", message: "Too short", param: "new_password" } }),
@@ -353,11 +395,31 @@ describe("change password", () => {
     await vi.waitFor(() => expect(errorTexts()).toHaveLength(0));
   });
 
+  it("checks the length in the form before sending, in the drawn words: at least 10, at most 256", async () => {
+    await open();
+    await field("current-password").setValue("right password");
+    await field("new-password").setValue("short-pw!");
+    await submit().trigger("click");
+    await flushPromises();
+    expect(errorTexts()).toEqual(["At least 10 characters"]);
+    expect(field("new-password").attributes("aria-invalid")).toBe("true");
+    await field("new-password").setValue("x".repeat(257));
+    await submit().trigger("click");
+    await flushPromises();
+    expect(errorTexts()).toEqual(["At most 256 characters"]);
+    expect(api.changePassword).not.toHaveBeenCalled();
+    vi.mocked(api.changePassword).mockResolvedValue({});
+    await field("new-password").setValue("short-pass");
+    await submit().trigger("click");
+    await flushPromises();
+    expect(api.changePassword).toHaveBeenCalledWith("right password", "short-pass");
+  });
+
   it("any other error is a toast and the session stays", async () => {
     sessionStorage.setItem(TOKEN_KEY, "tok");
     await open();
     await field("current-password").setValue("a");
-    await field("new-password").setValue("b");
+    await field("new-password").setValue("b long enough");
     vi.mocked(api.changePassword).mockRejectedValue(
       new ApiError(500, { error: { code: "server.error", message: "boom" } }),
     );

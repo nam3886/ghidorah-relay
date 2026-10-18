@@ -6,7 +6,7 @@ What the app cannot be made to show, and so stays a known difference of these bo
 - the version numbers of the defaults and of the models that follow them: the app prints the database id of a
   version, one sequence for every target (the history of seedance_v2.5 is the board's v2, v3, v4);
 - the preview's tracking code (the server's sample marker) and so the preview's length;
-- the password refusal's words: the server has one text for every refused field;
+- the password rule's number: the board's 12 is sample data, the form holds the server's 10 (design-deviations);
 - the job id `e17c55b2` (a new job has a new id), its step (the fake worker is not running) and its Points row."""
 
 import dataclasses
@@ -144,10 +144,7 @@ BOARD_PRICES = (("seedance_v2.5", 5, 2, 48, 0, 2, 0), ("seedance_v2.5", 30, 2, 1
                 ("seedance_v2.0", 10, 1, 31, 0, 1, 1), ("seedream-4.5", None, 1, 112, 0, 1, 0))
 SETTINGS_READ = re.compile(r"/admin/settings$")
 PRICES_READ = re.compile(r"/admin/prices(\?.*)?$")
-PASSWORD_WRITE = re.compile(r"/admin/password$")
-# the refusal the server sends for a new password it does not take (admin/router.py): its one text for input.invalid
-PASSWORD_REFUSED = {"error": {"code": "input.invalid", "message": "the request is not valid",
-                              "type": "invalid_request_error", "param": "new_password"}}
+SHORT_PASSWORD = "short-pw!"                # one character under the server's 10: the board draws `short-pass`
 
 
 def board_settings_body() -> dict:
@@ -166,12 +163,13 @@ def board_prices_body() -> dict:
             "substituted_total": sum(i["substituted"] for i in items)}
 
 
-def _answer(body: dict, status: int = 200):
+def _answer(body: dict):
+    """A read answered with `body`; anything else (a write) goes on to the server."""
     def handle(route):
-        if route.request.method != ("GET" if status == 200 else "POST"):
+        if route.request.method != "GET":
             route.fallback()
             return
-        route.fulfill(status=status, content_type="application/json", body=json.dumps(body))
+        route.fulfill(content_type="application/json", body=json.dumps(body))
     return handle
 
 
@@ -189,13 +187,13 @@ def settings_seed(db, live):
 
 def settings_drive(page, live, data):
     """The boards' state: one value typed over its stored one (the row is edited), and the password form refused on
-    the new password (the server is answered for that one write: the boards' values are not a password it refuses)."""
+    the new password. The board's rule is sample data (12); the form holds the server's, 10, so a 9-character new
+    password reaches the drawn error before anything is sent."""
     serve_the_boards_settings(page)
     page.get_by_label("Value of " + EDITED_KEY).fill(EDITED_VALUE)
     expect(page.get_by_role("button", name="Save " + EDITED_KEY)).to_be_enabled()
     page.get_by_label("Current password").fill("placeholder-secret")
-    page.get_by_label("New password").fill("short-pass")
-    page.route(PASSWORD_WRITE, _answer(PASSWORD_REFUSED, 400))
+    page.get_by_label("New password").fill(SHORT_PASSWORD)
     page.locator("#password").get_by_role("button", name="Save", exact=True).click()
     expect(page.locator("#password").get_by_role("alert")).to_be_visible(timeout=TIMEOUT_MS)
     page.mouse.move(0, 0)

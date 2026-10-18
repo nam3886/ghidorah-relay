@@ -531,3 +531,30 @@ TOGGLE_SPEC = "tests/unit/shared/toggle-switch.spec.ts"
 @pytest.mark.web_unit
 def test_the_toggle_switch_reports_the_opposite_and_names_its_size():
     vitest(TOGGLE_SPEC)
+
+
+# ---- page-frames-settings round: the toast drawn as B-States (its body, the ×N pill, the X, over Element Plus) ------
+NOTIFY_SPEC = "tests/unit/shared/notify.spec.ts"
+REPEAT = "a repeat while the toast is open is the same body"
+DRAWN_BODY = "draws the body as B-States"
+OUTRANKS = "a toast outranks Element Plus"
+
+
+@mutation(NOTIFY, "entry.count.value += 1;", "", expect=REPEAT)
+@mutation(NOTIFY, "props.count > 1 ?", "props.count > 9 ?", expect=REPEAT)
+@mutation(NOTIFY, "onClose: () => shown.delete(key),", "onClose: () => undefined,", expect=REPEAT)
+@mutation(NOTIFY, '"aria-label": "Close message"', '"aria-label": "Close"', expect=DRAWN_BODY)
+@mutation(NOTIFY, "h(IconClose, { size: 14, stroke: 2 })", "h(IconClose, { size: 16, stroke: 2 })", expect=DRAWN_BODY)
+@pytest.mark.web_unit
+def test_the_toast_body_is_drawn_as_b_states():
+    vitest(NOTIFY_SPEC)
+
+
+@mutation(NOTIFY_CSS, "  margin: 0;\n  font-size: 18px;", "  margin: 0;\n  font-size: 14px;", expect=OUTRANKS)
+@mutation(NOTIFY_CSS, "  color: var(--rl-fg);\n  font-size: 14px;\n  line-height: 20px;",
+          "  font-size: 14px;\n  line-height: 20px;", expect=OUTRANKS)
+@mutation(NOTIFY_CSS, "html .el-message .el-message__closeBtn {\n  display: none;",
+          "html .el-message .el-message__closeBtn {\n  display: flex;", expect="the close button is 28 square")
+@pytest.mark.web_unit
+def test_the_toast_skin_outranks_element_plus():
+    vitest(SKIN_SPEC)

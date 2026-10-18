@@ -192,8 +192,14 @@ html:root .el-popper.rl-tip {
   line-height: 16px;
   box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
 }
+/* a value as the note (HintTip `mono`): the mono font, its own line breaks kept, a long word broken anywhere */
+html:root .el-popper.rl-tip--mono {
+  font-family: var(--rl-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 
-/* The card every list sits in (6) ---------------------------------------------------------------------------------- */
+/* The card every list sits in (6)---------------------------------------------------------------------------------- */
 .rl-card {
   overflow: hidden;
   border: 1px solid var(--rl-line);

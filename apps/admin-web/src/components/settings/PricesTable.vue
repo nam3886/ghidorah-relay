@@ -4,6 +4,7 @@ import type { PriceRow } from "@/api/settings";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import SectionState from "./SectionState.vue";
+import "./settings-skeleton.css";
 
 // What upstream reported per job against what the relay charged. A row is one (provider, model, duration). Desktop is
 // the full table; tablet keeps five columns and folds provider, duration and substituted under the model; a phone gets
@@ -17,6 +18,15 @@ const { isPhone, isTablet } = useBreakpoint();
 const state = computed(() =>
   props.error ? "error" : props.loading && !props.rows.length ? "loading" : !props.rows.length ? "empty" : "ready",
 );
+// The first read: the table's own header over five rows of bars (the B-States loading pattern)
+const skeleton = computed(() => props.loading && !props.rows.length && !props.error);
+const SKELETON = [
+  { model: "104px", pill: "40px" },
+  { model: "88px", pill: "128px" },
+  { model: "112px", pill: "40px" },
+  { model: "96px", pill: "40px" },
+  { model: "100px", pill: "40px" },
+];
 const NONE = "—";
 const duration = (row: PriceRow): string => (row.duration === null ? NONE : `${row.duration} s`);
 const lowest = (row: PriceRow): string => (row.lowest_upstream === null ? NONE : String(row.lowest_upstream));
@@ -29,14 +39,24 @@ const second = (row: PriceRow): string =>
 <template>
   <div class="prices" :class="{ 'is-tablet': isTablet }" :aria-busy="loading" :data-state="state">
     <SectionState
-      :loading="loading"
       :error="error"
-      :empty="!rows.length"
+      :empty="!rows.length && !loading"
       empty-text="No job has an upstream figure yet"
       @retry="emit('retry')"
     />
 
-    <ul v-if="!error && rows.length && isPhone" class="list">
+    <ul v-if="skeleton && isPhone" class="list" aria-hidden="true">
+      <li v-for="(w, n) in SKELETON" :key="n">
+        <div class="list__line">
+          <i class="set-skel" :style="{ width: w.model }" /><i
+            class="set-skel set-skel--pill"
+            :style="{ width: w.pill }"
+          />
+        </div>
+        <i class="set-skel set-skel--sub" :style="{ width: '220px' }" />
+      </li>
+    </ul>
+    <ul v-else-if="!error && rows.length && isPhone" class="list">
       <li v-for="row in rows" :key="row.id">
         <div class="list__line">
           <span class="list__model"
@@ -67,7 +87,7 @@ const second = (row: PriceRow): string =>
       </li>
     </ul>
 
-    <div v-else-if="!error && rows.length" class="scroll">
+    <div v-else-if="!error && (rows.length || skeleton)" class="scroll">
       <table class="table">
         <thead>
           <tr v-if="isTablet">
@@ -88,7 +108,33 @@ const second = (row: PriceRow): string =>
             <th scope="col" class="right last">Substituted (not counted)</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody v-if="skeleton" aria-hidden="true">
+          <tr v-for="(w, n) in SKELETON" :key="n" class="set-skel-row">
+            <template v-if="isTablet">
+              <td class="first first--two">
+                <i class="set-skel" :style="{ width: w.model }" /><i
+                  class="set-skel set-skel--sub"
+                  :style="{ width: '64px' }"
+                />
+              </td>
+              <td><i class="set-skel set-skel--end" :style="{ width: '16px' }" /></td>
+              <td><i class="set-skel set-skel--end" :style="{ width: '24px' }" /></td>
+              <td><i class="set-skel set-skel--pill" :style="{ width: w.pill }" /></td>
+              <td class="last"><i class="set-skel set-skel--end" :style="{ width: '16px' }" /></td>
+            </template>
+            <template v-else>
+              <td class="first"><i class="set-skel" :style="{ width: '28px' }" /></td>
+              <td><i class="set-skel" :style="{ width: w.model }" /></td>
+              <td><i class="set-skel set-skel--end" :style="{ width: '24px' }" /></td>
+              <td><i class="set-skel set-skel--end" :style="{ width: '16px' }" /></td>
+              <td><i class="set-skel set-skel--end" :style="{ width: '24px' }" /></td>
+              <td><i class="set-skel set-skel--pill" :style="{ width: w.pill }" /></td>
+              <td><i class="set-skel set-skel--end" :style="{ width: '16px' }" /></td>
+              <td class="last"><i class="set-skel set-skel--end" :style="{ width: '16px' }" /></td>
+            </template>
+          </tr>
+        </tbody>
+        <tbody v-else>
           <tr v-for="row in rows" :key="row.id">
             <template v-if="isTablet">
               <td class="first first--two">
@@ -122,6 +168,13 @@ const second = (row: PriceRow): string =>
 </template>
 
 <style scoped>
+/* the loading rows are as tall as loaded ones: 45 on a desktop, 57 on a tablet */
+.prices {
+  --set-skel-row: 45px;
+}
+.prices.is-tablet {
+  --set-skel-row: 57px;
+}
 .scroll {
   overflow-x: auto;
 }
