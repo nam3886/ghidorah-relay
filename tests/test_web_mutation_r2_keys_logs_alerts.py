@@ -315,6 +315,31 @@ def test_a_failed_keys_list_is_worded_as_drawn():
     vitest(KEY_SPEC)
 
 
+# ---- Keys, page-keys round: a new key needs a label (B-States form validation); an edit is never held back ------
+NEW_KEY_LABEL = f"FAILED {KEYS_VIEW_SPEC} > the label of a new key > "
+OFF_AND_MARKED = (NEW_KEY_LABEL + "an empty label keeps Create key off with its reason; a click marks the field and "
+                  "sends nothing")
+TRIED = (NEW_KEY_LABEL + "leaving the label empty marks it too; a label turns Create key on, clears the error and is "
+         "sent")
+EDIT_FREE = NEW_KEY_LABEL + "an edit of a key that has no label is not held back"
+
+
+@mutation(KEY_FORM, 'const labelMissing = computed(() => !props.editing && form.label.trim() === "");',
+          "const labelMissing = computed(() => false);", expect=OFF_AND_MARKED)
+@mutation(KEY_FORM, "  if (labelMissing.value) {\n    labelTried.value = true;\n    return;",
+          "  if (false) {\n    labelTried.value = true;\n    return;", expect=OFF_AND_MARKED)
+@mutation(KEY_FORM, "const labelError = computed(() => labelMissing.value && labelTried.value);",
+          "const labelError = computed(() => labelMissing.value);", expect=OFF_AND_MARKED)
+@mutation(KEY_FORM, ':aria-describedby="labelMissing ? \'key-create-why\' : undefined"',
+          ':aria-describedby="undefined"', expect=OFF_AND_MARKED)
+@mutation(KEY_FORM, '@blur="labelTried = true"', '@blur="labelTried = labelTried"', expect=TRIED)
+@mutation(KEY_FORM, 'form.label.trim() === ""', 'form.label === ""', expect=TRIED)
+@mutation(KEY_FORM, '!props.editing && form.label', 'form.label', expect=EDIT_FREE)
+@pytest.mark.web_unit
+def test_a_new_key_needs_a_label_and_an_edit_is_never_held_back():
+    vitest(KEYS_VIEW_SPEC)
+
+
 # ---- Keys: the Copy buttons ------------------------------------------------------------------------------------
 @mutation(NEW_KEY, "copyText(props.rawKey, () => field.value, abort.signal)",
           'copyText("", () => field.value, abort.signal)',

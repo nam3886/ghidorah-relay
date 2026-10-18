@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import type { ApiKey, KeyBody } from "@/api/keys";
 import type { CatalogModel } from "@/api/shell";
 import { IconAlertCircle, IconClose } from "@/components/shared/icons";
@@ -21,11 +21,27 @@ const flagged = (name: CreateError["field"]): boolean => props.error?.field === 
 
 const form = reactive<KeyForm>(keyForm([], null));
 
+// A new key needs a label (B-States): until it has one, Create key stays off with its reason, and a try (a click, Enter,
+// leaving the field empty) marks the field and says so. A key that already has no label stays valid: its edit is not
+// held back. A label of spaces is no label.
+const labelMissing = computed(() => !props.editing && form.label.trim() === "");
+const labelTried = ref(false);
+const labelError = computed(() => labelMissing.value && labelTried.value);
+function send(): void {
+  if (labelMissing.value) {
+    labelTried.value = true;
+    return;
+  }
+  emit("submit", keyBody(form));
+}
+
 // Each opening starts from the key being edited (or a new one) and the catalog as it is now.
 watch(
   () => open.value,
   (isOpen) => {
-    if (isOpen) Object.assign(form, keyForm(props.models, props.editing));
+    if (!isOpen) return;
+    Object.assign(form, keyForm(props.models, props.editing));
+    labelTried.value = false;
   },
   { immediate: true },
 );
@@ -61,7 +77,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
       </div>
     </template>
 
-    <form class="kd__form" @submit.prevent="emit('submit', keyBody(form))">
+    <form class="kd__form" @submit.prevent="send">
       <p v-if="props.error" class="kd__error" role="alert"><IconAlertCircle :size="18" />{{ props.error.text }}</p>
 
       <div class="kd__field">
@@ -70,14 +86,20 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
           id="key-label"
           v-model="form.label"
           class="kd__input"
-          :class="{ 'is-error': flagged('label') }"
-          :aria-invalid="flagged('label') || undefined"
+          :class="{ 'is-error': flagged('label') || labelError }"
+          :aria-invalid="flagged('label') || labelError || undefined"
+          :aria-describedby="labelError ? 'key-label-error' : undefined"
           maxlength="100"
+          placeholder="Partner D"
           aria-label="Label"
+          @blur="labelTried = true"
         />
-        <p class="kd__help">
+        <p v-if="labelError" id="key-label-error" class="kd__field-error">
+          <IconAlertCircle :size="14" />A label is required.
+        </p>
+        <p v-else class="kd__help">
           Up to 100 characters.<template v-if="props.editing">
-            Key <span class="kd__mono">{{ props.editing.prefix }}</span></template
+            Key <span class="kla-mono">{{ props.editing.prefix }}</span></template
           >
         </p>
       </div>
@@ -112,7 +134,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
         >
           <label v-for="m in props.models" :key="m.id" class="kd__model">
             <input v-model="form.models" type="checkbox" class="kd__check" :value="m.id" :disabled="form.any" />
-            <span class="kd__mono kd__model-id">{{ m.id }}</span>
+            <span class="kla-mono kd__model-id">{{ m.id }}</span>
             <span class="kd__spacer" />
             <span class="kd__model-hint">{{ modelHint(m) }}</span>
           </label>
@@ -168,14 +190,20 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
     <template #footer>
       <div class="kd__foot">
         <button type="button" class="kla-btn" @click="open = false">Cancel</button>
-        <button
-          type="button"
-          class="kla-btn kla-btn--primary"
-          :disabled="props.busy"
-          @click="emit('submit', keyBody(form))"
-        >
-          {{ props.editing ? "Save" : "Create key" }}
-        </button>
+        <span class="kd__create">
+          <span v-if="labelMissing" id="key-create-why" role="tooltip" class="kd__tip">Fill in the label first</span>
+          <button
+            type="button"
+            class="kla-btn kla-btn--primary"
+            :class="{ 'is-new': !props.editing }"
+            :disabled="props.busy"
+            :aria-disabled="labelMissing || undefined"
+            :aria-describedby="labelMissing ? 'key-create-why' : undefined"
+            @click="send"
+          >
+            {{ props.editing ? "Save" : "Create key" }}
+          </button>
+        </span>
       </div>
     </template>
   </el-dialog>
@@ -339,9 +367,6 @@ html:root .key-dialog.el-dialog {
   padding: 0 4px;
   border-bottom: 1px solid var(--rl-line);
 }
-.key-dialog .kd__mono {
-  font-family: var(--rl-mono);
-}
 .key-dialog .kd__model-id {
   font-size: 13px;
 }
@@ -401,10 +426,49 @@ html:root .key-dialog.el-dialog {
 }
 .key-dialog .kd__foot .kla-btn {
   padding: 0 16px;
-  line-height: normal;
 }
 .key-dialog .kd__foot .kla-btn--primary {
   padding: 0 18px;
+}
+/* B-States' form validation: Create key padded 0 16, its reason above it while the label is empty, on hover or focus;
+   the error line under the field in the bad colour */
+.key-dialog .kd__foot .kla-btn--primary.is-new {
+  padding: 0 16px;
+}
+.key-dialog .kd__create {
+  position: relative;
+  display: inline-flex;
+}
+.key-dialog .kd__tip {
+  position: absolute;
+  right: 0;
+  bottom: 44px;
+  visibility: hidden;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--rl-fg);
+  color: var(--rl-surface);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
+  pointer-events: none;
+}
+.key-dialog .kd__create:hover .kd__tip,
+.key-dialog .kd__create:focus-within .kd__tip {
+  visibility: visible;
+}
+.key-dialog .kd__field-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--rl-bad);
+}
+.key-dialog .kd__field-error svg {
+  flex: none;
 }
 @media (max-width: 767px) {
   .key-dialog.el-dialog {

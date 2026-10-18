@@ -218,7 +218,7 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
         <template #cell-label="{ row }">
           <div class="k-label" :class="{ 'is-off': !row.enabled }">{{ row.label || "(no label)" }}</div>
           <div class="k-prefix">
-            <span class="k-prefix__text k-mono">{{ row.prefix }}</span>
+            <span class="k-prefix__text kla-mono">{{ row.prefix }}</span>
             <button
               v-if="row.prefix"
               type="button"
@@ -230,7 +230,7 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
               <IconCopy :size="12" />
             </button>
           </div>
-          <span v-if="isTablet" class="k-models-line k-mono">{{
+          <span v-if="isTablet" class="k-models-line kla-mono">{{
             row.models.includes("*") ? "any model" : row.models.join(", ")
           }}</span>
         </template>
@@ -241,7 +241,7 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
         </template>
         <template #cell-models="{ row }">
           <span v-if="row.models.includes('*')" class="k-tag">any model</span>
-          <div v-else class="k-models k-mono">
+          <div v-else class="k-models kla-mono">
             <span v-for="m in row.models" :key="m">{{ m }}</span>
           </div>
         </template>
@@ -307,7 +307,7 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
               />
             </div>
             <div class="p-key__prefix">
-              <span class="k-mono">{{ row.prefix }}</span>
+              <span class="kla-mono">{{ row.prefix }}</span>
               <button
                 v-if="row.prefix"
                 type="button"
@@ -322,7 +322,7 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
             <div class="p-key__models">
               <span class="p-key__models-word">Models</span>
               <span v-if="row.models.includes('*')" class="k-tag k-tag--phone">any model</span>
-              <span v-else class="k-mono p-key__models-list">{{ modelsText(row) }}</span>
+              <span v-else class="kla-mono p-key__models-list">{{ modelsText(row) }}</span>
             </div>
             <WalletLines v-if="row.wallets.length" :wallets="row.wallets" />
             <div class="p-key__foot">
@@ -490,10 +490,6 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
   width: 28px;
   height: 28px;
 }
-/* ids and model names in the mono face, with its own figures (the canvas sets tabular figures on counts only) */
-.k-mono {
-  font-family: var(--rl-mono);
-}
 .k-models-line {
   display: block;
   font-size: 11px;
@@ -521,10 +517,12 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
   font-size: 12px;
   line-height: 18px;
 }
+/* the counts and dates take tabular figures, as the canvas's `num` cells do */
 .k-num {
   display: block;
   font-size: 13px;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 /* a block, so its own size sets the line (an inline run in the 14 px cell sits a pixel lower than drawn) */
 .k-created {
@@ -532,11 +530,13 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
   font-size: 12px;
   color: var(--rl-muted);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 /* tablet: the counts on one line that may wrap, the date under them */
 .k-unfinished {
   display: block;
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 .k-created--under {
   display: block;
@@ -562,10 +562,6 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
   padding: 14px 16px;
   font-size: 13px;
   color: var(--rl-muted);
-}
-/* the canvas's buttons keep the browser's line height */
-.kla-btn {
-  line-height: normal;
 }
 .k-empty-new {
   padding: 0 14px;

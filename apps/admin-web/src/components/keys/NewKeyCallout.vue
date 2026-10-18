@@ -130,10 +130,9 @@ async function copy(): Promise<void> {
   display: flex;
   gap: 8px;
 }
-/* as drawn: Copy padded 0 14 like Dismiss, both with the browser's line height */
+/* as drawn: Copy padded 0 14 like Dismiss */
 .callout__btn {
   padding: 0 14px;
-  line-height: normal;
 }
 @media (max-width: 1279px) {
   .callout__field {

@@ -4,11 +4,12 @@ its states the canvas does not draw, and the page with data shaped like the live
 `test_keys_matches_the_canvas_element_by_element`: one comparison per check and theme. The whole B-, T- and P-Keys
 boards (the one-time key callout of Partner D, its row tinted, Partner B disabled), the callout after Copy (the board's
 own Copied state, reached by clicking on both sides), the Edit dialog of B-KeyForm (the dialog only: the board's page
-behind the scrim is a mock), and the keys states that B-States draws (the empty list and the delete confirm). A state
-card of B-States is widened to the app's width first. Each comparison writes, into `<run>/element-diff/`,
+behind the scrim is a mock), and the keys states that B-States draws (the empty list, the delete confirm, and the New
+key form refusing an empty label: its field, its tooltip and the disabled Create key). A state card of B-States is
+widened to the app's width first. Each comparison writes, into `<run>/element-diff/`,
 `<name>-<theme>.md` (the table) and `<name>-<theme>.side.png` (canvas | app | pixel diff), and fails while the table
 holds a difference, an element missing on one side, or a text that differs and is not live data. A dialog must also sit
-where the board draws it in the window.
+where the board draws it in the window, and the tooltip where it is drawn against its button.
 
 `test_keys_undrawn_states_are_photographed`: hovers, focus, the New key dialog at every width, a refused create, the
 list loading and failing, the empty list on a tablet and a phone, the toast after a delete (D125: drawn from the nearest
@@ -16,10 +17,7 @@ drawn pattern), viewport photos in both themes.
 
 `test_keys_with_live_like_data_fits`: keys shaped like the live box's (no label and an 11-character prefix, short
 labels, any model, unlimited wallets) plus one key with every long value, at 1440, 768 and 390 in both themes: nothing
-is cut off and the page never scrolls sideways.
-
-`test_the_drawn_label_check_is_photographed`: the B-States card of the New key form refusing an empty label, which the
-app does not do (an open question), photographed from the canvas."""
+is cut off and the page never scrolls sideways."""
 
 import re
 from dataclasses import dataclass
@@ -50,6 +48,7 @@ ROOT_BOX_JS = ("s => { const r = document.querySelector(s).getBoundingClientRect
 class KeyCheck(Check):
     canvas_click: str | None = None     # clicked on the canvas board first: a state its own logic draws (Copied)
     same_place: bool = False            # the root must also sit where the board draws it in the window (a dialog)
+    anchor: tuple = ()                  # (canvas, app) selectors of an element the root must sit against as drawn
 
 
 def _keys(board, drive, seed=keys_seed):
@@ -91,11 +90,29 @@ def delete_partner_b(page, live, data):
     expect(page.locator(".rl-confirm")).to_be_visible(timeout=TIMEOUT_MS)
 
 
+def label_required(page, live, data):
+    """New key with no label: a click on Create key marks the field; the pointer stays on it, so its reason shows."""
+    page.get_by_role("button", name="New key").first.click()
+    box = page.get_by_role("dialog", name="New API key")
+    expect(box).to_be_visible(timeout=TIMEOUT_MS)
+    # aria-disabled, not disabled: the click reaches the button (Playwright waits for "enabled" unless forced)
+    box.get_by_role("button", name="Create key").click(force=True)
+    expect(box.get_by_text("A label is required.")).to_be_visible(timeout=TIMEOUT_MS)
+    box.get_by_role("button", name="Create key").hover()
+    expect(box.get_by_role("tooltip")).to_be_visible(timeout=TIMEOUT_MS)
+
+
+DRAWN_CREATE, APP_CREATE = 'button[aria-describedby="fvTip"]', 'button[aria-describedby="key-create-why"]'
 STATE_CHECKS = [
     KeyCheck("state-empty", _keys(STATES, no_keys, no_keys_seed), 'section[aria-label="API keys, empty"]',
              ".keys-card", DESKTOP, widen=True),
     KeyCheck("state-confirm-delete", _keys(STATES, delete_partner_b), '[role="dialog"][aria-labelledby="cfDel"]',
              ".rl-confirm", DESKTOP, widen=True),
+    KeyCheck("state-label-field", _keys(STATES, label_required), "div:has(> #fvLabel)",
+             ".key-dialog .kd__field:has(#key-label)", DESKTOP, widen=True),
+    KeyCheck("state-label-tip", _keys(STATES, label_required), "#fvTip", "#key-create-why", DESKTOP,
+             anchor=(DRAWN_CREATE, APP_CREATE)),
+    KeyCheck("state-label-create", _keys(STATES, label_required), DRAWN_CREATE, APP_CREATE, DESKTOP),
 ]
 CHECKS = [*BOARD_CHECKS, COPIED, FORM, *STATE_CHECKS]
 
@@ -111,6 +128,7 @@ def test_keys_matches_the_canvas_element_by_element(app, db, live, renderer, dif
         mine = extract(page, app_root)
         app_png = _png(page, app_root)
         app_box = page.evaluate(ROOT_BOX_JS, app_root, isolated_context=False) if check.same_place else None
+        app_place = _against(page, app_root, check.anchor[1]) if check.anchor else None
     renderer.open(check.state.board, dark, board_w, board_h)
     if check.canvas_click:
         renderer.page.click(check.canvas_click)
@@ -122,6 +140,7 @@ def test_keys_matches_the_canvas_element_by_element(app, db, live, renderer, dif
     theirs = extract(renderer.page, canvas_root)
     ref_png = _png(renderer.page, canvas_root)
     canvas_box = renderer.page.evaluate(ROOT_BOX_JS, canvas_root, isolated_context=False) if check.same_place else None
+    canvas_place = _against(renderer.page, canvas_root, check.anchor[0]) if check.anchor else None
     pixels = compare(diff_page, ref_png, app_png)
 
     theirs["texts"] = [t for t in theirs["texts"] if t["text"] not in check.accepted]
@@ -132,14 +151,17 @@ def test_keys_matches_the_canvas_element_by_element(app, db, live, renderer, dif
     if check.same_place and any(abs(c - a) > EDGE_PX for c, a in zip(canvas_box, app_box, strict=True)):
         misplaced = "the dialog is at %s in the window, the board draws it at %s" % (
             [round(v, 1) for v in app_box], [round(v, 1) for v in canvas_box])
+    if check.anchor and any(abs(c - a) > EDGE_PX for c, a in zip(canvas_place, app_place, strict=True)):
+        misplaced = "against its anchor (left, top, right, bottom) it sits at %s, the board draws %s" % (
+            [round(v, 1) for v in app_place], [round(v, 1) for v in canvas_place])
     out = run_dir / "element-diff"
     out.mkdir(parents=True, exist_ok=True)
     stem = "%s-%s" % (check.name, theme)
     notes = ("Canvas %s%s, app %s at %dx%d. Pixel diff of the compared part: %.3f %% mismatch + %.3f %% anti-aliased."
              % (check.state.board, " " + check.canvas_root if check.canvas_root else "", check.app_root or "page",
                 width, height, pixels.percent, pixels.aa_percent))
-    if check.same_place:
-        notes += " Place in the window: %s." % (misplaced or "as drawn")
+    if check.same_place or check.anchor:
+        notes += " Place: %s." % (misplaced or "as drawn")
     (out / (stem + ".md")).write_text(markdown(res, "%s, %s" % (check.name, theme), notes), encoding="utf-8")
     (out / (stem + ".side.png")).write_bytes(side_by_side(diff_page, ref_png, app_png, pixels.png))
     print("ELEMENTS %s %s: %d differences, %d canvas only, %d app only, %d data; pixels %.3f %% + %.3f %%" % (
@@ -147,6 +169,12 @@ def test_keys_matches_the_canvas_element_by_element(app, db, live, renderer, dif
         pixels.percent, pixels.aa_percent))
     assert res.failures == 0, "%s %s: %d element differences, see %s.md" % (check.name, theme, res.failures, stem)
     assert misplaced is None, misplaced
+
+
+def _against(page, root: str, anchor: str) -> list:
+    """The root's left, top, right and bottom edges less the anchor's."""
+    r, a = (page.evaluate(ROOT_BOX_JS, sel, isolated_context=False) for sel in (root, anchor))
+    return [r[0] - a[0], r[1] - a[1], r[0] + r[2] - a[0] - a[2], r[1] + r[3] - a[1] - a[3]]
 
 
 # ---- states the canvas does not draw: photographed for the side-by-side with their nearest drawn pattern ------------
@@ -229,6 +257,7 @@ UNDRAWN = [
     ("focus-switch", focus_switch, keys_seed, (DESKTOP,)),
     ("new-key-dialog", new_key_dialog, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
     ("refused-create", refused_create, keys_seed, (DESKTOP, PHONE_VIEW)),
+    ("label-required", label_required, keys_seed, (DESKTOP, PHONE_VIEW)),
     ("load-error", load_fails, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
     ("loading", load_held, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
     ("empty", no_keys, no_keys_seed, (TABLET, PHONE_VIEW)),
@@ -308,21 +337,3 @@ def test_keys_with_live_like_data_fits(app, db, live, run_dir, width, theme):
         missing = [v for v in LIVE_VALUES if v not in shown]
         assert not missing, "live-shaped values not drawn as one text: %r" % missing
 
-
-# ---- drawn, with no app counterpart yet: photographed for the question it raises ----------------------------------
-# B-States draws the New key form refusing an empty label (a red field, "A label is required.", Create key disabled
-# with the tooltip "Fill in the label first"). The app creates a key without a label; whether to build it is open.
-VALIDATION_CARD_JS = """() => {
-  const card = document.getElementById('fvLabel').parentElement.parentElement;
-  card.setAttribute('data-element-diff', '1');
-}"""
-
-
-@pytest.mark.parametrize("theme", THEMES)
-def test_the_drawn_label_check_is_photographed(renderer, run_dir, theme):
-    board_w, board_h = BOARDS[STATES]
-    renderer.open(STATES, theme == "dark", board_w, board_h)
-    renderer.page.evaluate(VALIDATION_CARD_JS)
-    out = run_dir / "element-diff"
-    out.mkdir(parents=True, exist_ok=True)
-    (out / ("drawn-label-check-%s.png" % theme)).write_bytes(_png(renderer.page, '[data-element-diff="1"]'))

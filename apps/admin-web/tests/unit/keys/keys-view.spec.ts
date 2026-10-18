@@ -55,11 +55,20 @@ async function open() {
 const buttonOf = (text: string) =>
   [...document.body.querySelectorAll("button")].find((b) => b.textContent?.trim() === text)!;
 
+// Opens the New key form and types a label (a new key needs one).
+async function openNewKey(label = "Partner E") {
+  buttonOf("New key").click();
+  await settle();
+  const field = document.body.querySelector<HTMLInputElement>("#key-label")!;
+  field.value = label;
+  field.dispatchEvent(new Event("input"));
+  await settle();
+}
+
 // Creates a key through the form and leaves the one-time callout on screen.
 async function createOne() {
   const w = await open();
-  buttonOf("New key").click();
-  await settle();
+  await openNewKey();
   buttonOf("Create key").click();
   await settle();
   return w;
@@ -241,8 +250,7 @@ describe("the number fields of the key form", () => {
 
   it("max unfinished: an empty box sends null, a 0 sends 0 (unlimited), a number sends the number", async () => {
     await open();
-    buttonOf("New key").click();
-    await settle();
+    await openNewKey();
     expect(max().value).toBe("");
     await type(max(), "0");
     buttonOf("Create key").click();
@@ -252,8 +260,7 @@ describe("the number fields of the key form", () => {
 
   it("clearing the field goes back to the default (null)", async () => {
     await open();
-    buttonOf("New key").click();
-    await settle();
+    await openNewKey();
     await type(max(), "5");
     await type(max(), "");
     expect(max().value).toBe("");
@@ -267,7 +274,7 @@ describe("the one-time key", () => {
   it("is shown after create in a read-only field and sent nowhere else", async () => {
     await createOne();
     expect(keys.createKey).toHaveBeenCalledWith({
-      label: "",
+      label: "Partner E",
       models: ["*"],
       max_unfinished: null,
       wallets: expect.any(Array),
@@ -305,8 +312,7 @@ describe("the one-time key", () => {
     let answer!: (v: Awaited<ReturnType<typeof keys.createKey>>) => void;
     vi.mocked(keys.createKey).mockReturnValue(new Promise((r) => (answer = r)));
     await open();
-    buttonOf("New key").click();
-    await settle();
+    await openNewKey();
     buttonOf("Create key").click();
     await settle();
     useAuthStore(pinia).signOut();
@@ -330,8 +336,7 @@ describe("the one-time key", () => {
       new ApiError(422, { error: { code: "input.invalid", message: `bad ${RAW}`, param: `label.${RAW}` } }),
     );
     await open();
-    buttonOf("New key").click();
-    await settle();
+    await openNewKey();
     buttonOf("Create key").click();
     await settle();
     const dialog = document.body.querySelector(".el-dialog")!;
@@ -346,8 +351,7 @@ describe("the one-time key", () => {
   it("a failed create with an unknown code or a network error shows the fixed fallback text", async () => {
     vi.mocked(keys.createKey).mockRejectedValueOnce(new ApiError(500, { error: { code: "x.y", message: RAW } }));
     await open();
-    buttonOf("New key").click();
-    await settle();
+    await openNewKey();
     buttonOf("Create key").click();
     await settle();
     expect(document.body.querySelector(".kd__error")!.textContent!.trim()).toBe(
@@ -624,6 +628,65 @@ describe("the key form as the design draws it", () => {
     );
     expect(rows).toEqual(["m1video · Model One", "m2image · m2"]);
     expect(document.body.querySelector(".kd__model-hint")!.textContent).toBe("video · Model One");
+  });
+});
+
+describe("the label of a new key", () => {
+  const label = () => document.body.querySelector<HTMLInputElement>("#key-label")!;
+  const create = () => buttonOf("Create key");
+  const described = (el: Element) => document.getElementById(el.getAttribute("aria-describedby") ?? "");
+  const type = async (value: string) => {
+    label().value = value;
+    label().dispatchEvent(new Event("input"));
+    await settle();
+  };
+
+  it("an empty label keeps Create key off with its reason; a click marks the field and sends nothing", async () => {
+    await open();
+    buttonOf("New key").click();
+    await settle();
+    expect(create().getAttribute("aria-disabled")).toBe("true");
+    expect(described(create())!.getAttribute("role")).toBe("tooltip");
+    expect(described(create())!.textContent).toBe("Fill in the label first");
+    // nothing is red before a try
+    expect(document.body.textContent).not.toContain("A label is required.");
+    expect(label().getAttribute("aria-invalid")).toBeNull();
+    create().click();
+    await settle();
+    expect(keys.createKey).not.toHaveBeenCalled();
+    expect(label().getAttribute("aria-invalid")).toBe("true");
+    expect(label().classList).toContain("is-error");
+    expect(described(label())!.textContent!.trim()).toBe("A label is required.");
+  });
+
+  it("leaving the label empty marks it too; a label turns Create key on, clears the error and is sent", async () => {
+    await open();
+    buttonOf("New key").click();
+    await settle();
+    label().dispatchEvent(new Event("blur"));
+    await settle();
+    expect(document.body.textContent).toContain("A label is required.");
+    await type("   ");
+    expect(create().getAttribute("aria-disabled")).toBe("true");
+    await type("Partner E");
+    expect(create().hasAttribute("aria-disabled")).toBe(false);
+    expect(create().hasAttribute("aria-describedby")).toBe(false);
+    expect(document.body.textContent).not.toContain("A label is required.");
+    create().click();
+    await settle();
+    expect(keys.createKey).toHaveBeenCalledWith(expect.objectContaining({ label: "Partner E" }));
+  });
+
+  it("an edit of a key that has no label is not held back", async () => {
+    list.mockResolvedValue({ items: [key({ label: "", prefix: "rk_none" })] });
+    const w = await open();
+    await w.find('button[aria-label="Edit key rk_none"]').trigger("click");
+    await settle();
+    expect(buttonOf("Save").hasAttribute("aria-disabled")).toBe(false);
+    buttonOf("Save").click();
+    await settle();
+    expect(keys.patchKey).toHaveBeenCalledWith("k1", expect.objectContaining({ label: "" }));
+    expect(document.body.textContent).not.toContain("A label is required.");
   });
 });
 

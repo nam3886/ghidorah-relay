@@ -131,6 +131,7 @@ def test_a_failed_create_shows_fixed_text_and_never_what_the_server_said(app, ap
                else r.continue_())
     page.get_by_role("button", name="New key").first.click()
     box = page.get_by_role("dialog")
+    box.get_by_label("Label", exact=True).fill("customer one")     # a new key needs a label before it is sent
     box.get_by_role("button", name="Create key").click()
     expect(box).to_contain_text("Some of the values are not accepted. Check the highlighted field.")
     assert key_places(page, fake) == []
