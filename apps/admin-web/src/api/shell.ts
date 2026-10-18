@@ -17,6 +17,8 @@ export const getMe = (noRedirect = false): Promise<{ username: string }> => requ
 
 export interface CatalogModel {
   id: string;
+  // The product name shown to people; the server sends the id when a model has none.
+  name?: string;
   owned_by: string;
   [key: string]: unknown;
 }
