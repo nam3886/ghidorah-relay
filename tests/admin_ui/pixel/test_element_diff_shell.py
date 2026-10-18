@@ -504,15 +504,24 @@ WEBKIT_JS = """() => {
   sheet.replaceSync('* { scrollbar-color: auto !important; }');
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
 }"""
+# The room the scrollbars take, [the vertical bar's width, the horizontal bar's height]: for the page, what the window
+# loses; for an element, what its box loses past its borders.
 BARS_JS = """(sel) => {
   const el = document.querySelector(sel);
   const s = getComputedStyle(el);
   const r = el.getBoundingClientRect();
+  const page = el === document.documentElement;
+  const gutter = page ? [innerWidth - el.clientWidth, innerHeight - el.clientHeight]
+    : [el.offsetWidth - el.clientWidth - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth),
+       el.offsetHeight - el.clientHeight - parseFloat(s.borderTopWidth) - parseFloat(s.borderBottomWidth)];
   return {color: s.scrollbarColor, sideways: el.scrollWidth - el.clientWidth, down: el.scrollHeight - el.clientHeight,
-          bar: [el.offsetWidth - el.clientWidth, el.offsetHeight - el.clientHeight],
-          box: [r.left, r.top, r.width, r.height].map(Math.round),
+          gutter: gutter.map(Math.round), box: [r.left, r.top, r.width, r.height].map(Math.round),
           lineStrong: getComputedStyle(document.documentElement).getPropertyValue('--rl-line-strong').trim()};
 }"""
+# Chrome's bar for scrollbar-color and the Safari fallback both take 15 px, so turning one into the other moves nothing;
+# the header's tab row takes none in either
+GUTTERS = {"page": [15, 0], "table-card": [0, 15], "drawer": [15, 0], "list": [15, 0], "tabs-768": [0, 0],
+           "tabs-390": [0, 0]}
 PART_JS = """(sel) => {
   const r = document.querySelector(sel).getBoundingClientRect();
   const x = Math.max(0, Math.floor(r.left)), y = Math.max(0, Math.floor(r.top));
@@ -535,9 +544,12 @@ def test_the_scrollbars_are_photographed(app, chrome_with_bars, db, live, run_di
         if not scene.startswith("tabs"):
             assert bars["sideways"] > 0 or bars["down"] > 0, "%s does not scroll: %r" % (scroller, bars)
         assert bars["color"] == _hex_rgb(bars["lineStrong"]) + " rgba(0, 0, 0, 0)", bars
+        assert bars["gutter"] == GUTTERS[scene], "scrollbar-color: %r" % bars
         if fallback:
             page.evaluate(WEBKIT_JS, isolated_context=False)
             page.wait_for_timeout(100)
+            bars = page.evaluate(BARS_JS, scroller, isolated_context=False)
+            assert bars["gutter"] == GUTTERS[scene], "the Safari fallback: %r" % bars
         out = run_dir / "scrollbars"
         out.mkdir(parents=True, exist_ok=True)
         # a viewport shot clipped to the part: an element shot leaves the scrollbars out

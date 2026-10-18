@@ -531,43 +531,65 @@ describe("the shell", () => {
     expect(wrapper.find('[role="menu"]').exists()).toBe(false);
   });
 
-  it("opens a popup with its left edge on its trigger, right-aligned when it would pass the window's right edge", async () => {
-    // happy-dom lays nothing out: the trigger's left edge and the popup's width are given here, the window is 1024 wide
-    let triggerLeft = 0;
+  // happy-dom lays nothing out: the trigger's box and the popup's size are given here; the window is 1024 x 768
+  const layOut = (trigger: () => DOMRect, popup: { width: number; height: number }) => {
     const rect = Element.prototype.getBoundingClientRect;
-    const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth");
+    const sizes = ["offsetWidth", "offsetHeight"].map(
+      (k) => [k, Object.getOwnPropertyDescriptor(HTMLElement.prototype, k)] as const,
+    );
     Element.prototype.getBoundingClientRect = function (this: Element) {
-      const left = this.classList.contains("pop") ? triggerLeft : 0;
-      return new DOMRect(left, 0, 0, 0);
+      return this.classList.contains("pop") ? trigger() : new DOMRect(0, 0, 0, 0);
     };
-    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
-      configurable: true,
-      get(this: HTMLElement) {
-        return this.classList.contains("menu") ? 200 : 0;
+    for (const key of ["offsetWidth", "offsetHeight"] as const) {
+      Object.defineProperty(HTMLElement.prototype, key, {
+        configurable: true,
+        get(this: HTMLElement) {
+          return this.classList.contains("menu") ? popup[key === "offsetWidth" ? "width" : "height"] : 0;
+        },
+      });
+    }
+    return () => {
+      Element.prototype.getBoundingClientRect = rect;
+      for (const [key, size] of sizes) if (size) Object.defineProperty(HTMLElement.prototype, key, size);
+    };
+  };
+  const placed = (wrapper: VueWrapper) => {
+    const style = (wrapper.find(".menu").element as HTMLElement).style;
+    return { left: style.left, top: style.top, maxHeight: style.maxHeight };
+  };
+
+  it("places an open popup by the popup rule, relative to its trigger, and again when the window is resized", async () => {
+    let triggerLeft = 0;
+    let height = 80;
+    const restore = layOut(() => new DOMRect(triggerLeft, 10, 0, 34), {
+      width: 200,
+      get height() {
+        return height;
       },
     });
     try {
       const { wrapper } = await open("/jobs");
-      const place = async (which: string, left: number) => {
+      const opened = async (which: string, left: number) => {
         triggerLeft = left;
         await wrapper.find(`[data-testid="${which}"]`).trigger("click");
         await flushPromises();
-        return wrapper.find(".menu").classes().includes("menu--end");
+        return placed(wrapper);
       };
-      expect(window.innerWidth).toBe(1024);
-      // 824 + 200 = 1024 still fits: drawn, left edge on the trigger
-      expect(await place("provider-filter", 824)).toBe(false);
+      expect([window.innerWidth, window.innerHeight]).toEqual([1024, 768]);
+      // drawn: the left edge on the trigger's, 6 px under it
+      expect(await opened("provider-filter", 800)).toEqual({ left: "0px", top: "40px", maxHeight: "" });
       await wrapper.find('[data-testid="provider-filter"]').trigger("click");
-      expect(await place("provider-filter", 825)).toBe(true);
-      expect(await place("account-menu", 900)).toBe(true);
-      // the window grows while the menu is open: it is placed again
+      // 900 + 200 passes the window: its right edge on the trigger's
+      expect((await opened("provider-filter", 900)).left).toBe("-200px");
+      expect((await opened("account-menu", 900)).left).toBe("-200px");
+      // the window changes while the menu is open: placed again; too high for the room below, it is cut to it
       triggerLeft = 100;
+      height = 900;
       window.dispatchEvent(new Event("resize"));
       await flushPromises();
-      expect(wrapper.find(".menu").classes()).not.toContain("menu--end");
+      expect(placed(wrapper)).toEqual({ left: "0px", top: "40px", maxHeight: `${768 - 8 - 50}px` });
     } finally {
-      Element.prototype.getBoundingClientRect = rect;
-      if (width) Object.defineProperty(HTMLElement.prototype, "offsetWidth", width);
+      restore();
     }
   });
 
@@ -579,34 +601,23 @@ describe("the shell", () => {
       addEventListener: () => undefined,
       removeEventListener: () => undefined,
     }));
-    // the trigger is 100 px wide and the list 200: it ends at the trigger while the trigger's right edge is 200 or more
+    // the trigger is 100 px wide and the list 200
     let triggerLeft = 0;
-    const rect = Element.prototype.getBoundingClientRect;
-    const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth");
-    Element.prototype.getBoundingClientRect = function (this: Element) {
-      return new DOMRect(this.classList.contains("pop") ? triggerLeft : 0, 0, 100, 0);
-    };
-    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
-      configurable: true,
-      get(this: HTMLElement) {
-        return this.classList.contains("menu") ? 200 : 0;
-      },
-    });
+    const restore = layOut(() => new DOMRect(triggerLeft, 10, 100, 44), { width: 200, height: 190 });
     try {
       const { wrapper } = await open("/jobs");
       const trigger = wrapper.find('[data-testid="provider-filter"]');
-      triggerLeft = 100;
+      triggerLeft = 150;
       await trigger.trigger("click");
       await flushPromises();
-      expect(wrapper.find('[role="listbox"]').classes()).toContain("menu--end");
+      expect(placed(wrapper).left).toBe("-100px");
       await trigger.trigger("click");
-      triggerLeft = 99;
+      triggerLeft = 40;
       await trigger.trigger("click");
       await flushPromises();
-      expect(wrapper.find('[role="listbox"]').classes()).not.toContain("menu--end");
+      expect(placed(wrapper).left).toBe("0px");
     } finally {
-      Element.prototype.getBoundingClientRect = rect;
-      if (width) Object.defineProperty(HTMLElement.prototype, "offsetWidth", width);
+      restore();
     }
   });
 

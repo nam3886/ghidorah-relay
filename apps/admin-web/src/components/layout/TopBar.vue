@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import BrandLogo from "@/components/layout/BrandLogo.vue";
 import { IconCheck, IconChevronDown, IconFileText, IconLogOut, IconMoon } from "@/components/shared/icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
+import { placePopup, type PopupAlign } from "@/lib/popup-place";
 import { useBusy } from "@/composables/use-busy";
 import { TABS } from "@/router";
 import { useAuthStore } from "@/stores/auth";
@@ -64,27 +65,36 @@ const accountWrap = ref<HTMLElement | null>(null);
 const wrapOf = (which: "provider" | "account") => (which === "provider" ? providerWrap.value : accountWrap.value);
 const ITEMS = '[role="option"], [role="menuitem"]';
 
-// Where an open popup sits, by FilterSelect's rule: aligned to one edge of its trigger, `start` (its left edge on the
-// trigger's) or `end` (its right edge on the trigger's), and on the other edge when the drawn one would pass the window.
-// Both popups start at the trigger, as drawn, except the Provider list on a phone, which the canvas ends at it. The
-// account trigger is at the right of the header, so its menu ends at the trigger at every width. Placed again when the
-// window is resized.
-type Align = "start" | "end";
-const align = computed<Record<"provider" | "account", Align>>(() => ({
+// Where an open popup sits: the app's popup rule (lib/popup-place.ts), from the trigger edge each popup is drawn on.
+// Both start at the trigger, as drawn, except the Provider list on a phone, which the canvas ends at it; the account
+// trigger is at the right of the header, so the rule ends its menu at the trigger at every width. The popup is first
+// measured at its own size, then placed inside the window (written relative to its trigger); again on a resize.
+const align = computed<Record<"provider" | "account", PopupAlign>>(() => ({
   provider: isPhone.value ? "end" : "start",
   account: "start",
 }));
-function side(drawn: Align, trigger: DOMRect, width: number): Align {
-  if (drawn === "start") return trigger.left + width > window.innerWidth ? "end" : "start";
-  return trigger.right - width < 0 ? "start" : "end";
-}
-const atEnd = ref(false);
-function placePopup(): void {
+const popupStyle = ref<Record<string, string>>({});
+async function placeOpenPopup(): Promise<void> {
   const which = open.value;
   const wrap = which ? wrapOf(which) : null;
-  const popup = wrap?.querySelector<HTMLElement>('[role="listbox"], [role="menu"]');
-  if (!which || !wrap || !popup) return;
-  atEnd.value = side(align.value[which], wrap.getBoundingClientRect(), popup.offsetWidth) === "end";
+  if (!which || !wrap) return;
+  popupStyle.value = {};
+  await nextTick();
+  const popup = wrap.querySelector<HTMLElement>('[role="listbox"], [role="menu"]');
+  if (!popup) return;
+  const at = wrap.getBoundingClientRect();
+  const html = document.documentElement;
+  const view = { width: html.clientWidth || window.innerWidth, height: html.clientHeight || window.innerHeight };
+  const place = placePopup(at, { width: popup.offsetWidth, height: popup.offsetHeight }, view, align.value[which]);
+  popupStyle.value = {
+    left: `${place.left - at.left}px`,
+    top: `${place.top - at.top}px`,
+    ...(place.maxWidth === undefined ? {} : { maxWidth: `${place.maxWidth}px` }),
+    ...(place.maxHeight === undefined ? {} : { maxHeight: `${place.maxHeight}px` }),
+  };
+}
+function onResize(): void {
+  void placeOpenPopup();
 }
 
 // The keyboard moves into the popup when it opens: the chosen option, else the first item. Arrow keys, Home and End
@@ -94,8 +104,7 @@ async function toggle(which: "provider" | "account"): Promise<void> {
   const opening = open.value !== which;
   open.value = opening ? which : null;
   if (!opening) return;
-  await nextTick();
-  placePopup();
+  await placeOpenPopup();
   await nextTick();
   const items = [...(wrapOf(which)?.querySelectorAll<HTMLElement>(ITEMS) ?? [])];
   (items.find((el) => el.getAttribute("aria-selected") === "true") ?? items[0])?.focus();
@@ -138,12 +147,12 @@ function onKeydown(event: KeyboardEvent): void {
 onMounted(() => {
   document.addEventListener("pointerdown", onPointerDown);
   document.addEventListener("keydown", onKeydown);
-  window.addEventListener("resize", placePopup);
+  window.addEventListener("resize", onResize);
 });
 onBeforeUnmount(() => {
   document.removeEventListener("pointerdown", onPointerDown);
   document.removeEventListener("keydown", onKeydown);
-  window.removeEventListener("resize", placePopup);
+  window.removeEventListener("resize", onResize);
 });
 
 async function signOut(): Promise<void> {
@@ -227,7 +236,7 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
           <div
             v-if="open === 'provider'"
             class="menu menu--provider"
-            :class="{ 'menu--end': atEnd }"
+            :style="popupStyle"
             role="listbox"
             aria-label="Provider"
             @keydown="onPopupKey"
@@ -279,7 +288,7 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
           <div
             v-if="open === 'account'"
             class="menu menu--account"
-            :class="{ 'menu--end': atEnd }"
+            :style="popupStyle"
             role="menu"
             aria-label="Account"
             @keydown="onPopupKey"
@@ -494,21 +503,19 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
 }
 
 /* Popovers. */
+/* placed by the popup rule once measured; this is where it is measured, under the trigger's left edge */
 .menu {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   z-index: 2;
+  overflow-y: auto;
   box-sizing: border-box;
   padding: 6px;
   border: 1px solid var(--rl-line);
   border-radius: 12px;
   background: var(--rl-surface);
   box-shadow: var(--rl-shadow-pop);
-}
-.menu--end {
-  left: auto;
-  right: 0;
 }
 .menu--account {
   width: 200px;

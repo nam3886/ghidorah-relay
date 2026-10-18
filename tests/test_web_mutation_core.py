@@ -586,28 +586,53 @@ def test_the_current_tab_stays_in_view():
     vitest("tests/unit/app-shell.spec.ts")
 
 
-PLACE = SHELL_FAILED + ("opens a popup with its left edge on its trigger, right-aligned when it would pass the "
-                        "window's right edge")
+PLACE = SHELL_FAILED + ("places an open popup by the popup rule, relative to its trigger, and again when the window "
+                        "is resized")
 PHONE_END = SHELL_FAILED + ("on a phone draws the Provider list with its right edge on the trigger, as drawn, and with "
                             "its left edge on it when that would pass the window's left edge")
 TAB_ROW = SHELL_FAILED + ("hides the scrollbar of the header's tab row only: the row keeps the drawn height and still "
                           "scrolls")
 
 
-@mutation(TOP_BAR, 'return trigger.left + width > window.innerWidth ? "end" : "start";', 'return "start";',
+@mutation(TOP_BAR, '  window.addEventListener("resize", onResize);\n', "", expect=PLACE)
+@mutation(TOP_BAR, 'class="menu menu--account"\n            :style="popupStyle"', 'class="menu menu--account"',
           expect=PLACE)
-@mutation(TOP_BAR, "trigger.left + width > window.innerWidth", "trigger.left + width >= window.innerWidth",
-          expect=PLACE)
-@mutation(TOP_BAR, '  window.addEventListener("resize", placePopup);\n', "", expect=PLACE)
-@mutation(TOP_BAR, 'class="menu menu--account"\n            :class="{ \'menu--end\': atEnd }"',
-          'class="menu menu--account"', expect=PLACE)
-@mutation(TOP_BAR, 'class="menu menu--provider"\n            :class="{ \'menu--end\': atEnd }"',
-          'class="menu menu--provider"', expect=PLACE)
+@mutation(TOP_BAR, "    top: `${place.top - at.top}px`,", "    top: `${place.top}px`,", expect=PLACE)
+@mutation(TOP_BAR, "    left: `${place.left - at.left}px`,", "    left: `${place.left}px`,", expect=PLACE)
+@mutation(TOP_BAR, "{ maxHeight: `${place.maxHeight}px` }", "{}", expect=PLACE)
 @mutation(TOP_BAR, 'provider: isPhone.value ? "end" : "start",', 'provider: "start",', expect=PHONE_END)
-@mutation(TOP_BAR, 'return trigger.right - width < 0 ? "start" : "end";', 'return "end";', expect=PHONE_END)
 @mutation(TOP_BAR, "  scrollbar-width: none;\n}", "}", expect=TAB_ROW)
 @mutation(TOP_BAR, ".topbar__nav::-webkit-scrollbar {\n  display: none;",
           ".topbar__nav::-webkit-scrollbar {\n  height: 4px;", expect=TAB_ROW)
 @pytest.mark.web_unit
 def test_the_top_bar_popups_and_tab_row_follow_the_rulings():
     vitest("tests/unit/app-shell.spec.ts")
+
+
+# ---- page-shell: the popup rule (lib/popup-place.ts) -----------------------------------------------------------------
+POPUP_PLACE = f"{SRC}/lib/popup-place.ts"
+RULE = "FAILED tests/unit/popup-place.spec.ts > the popup rule > "
+
+
+@mutation(POPUP_PLACE, 'if (align === "start" && left + width > view.width) left = trigger.right - width;', "",
+          expect=RULE + "ends at the trigger's right edge when starting there would pass the window's right edge")
+@mutation(POPUP_PLACE, 'if (align === "end" && left < 0) left = trigger.left;', "",
+          expect=RULE + "ends at the trigger's right edge when drawn so, and starts there when ending would pass the "
+                        "left edge")
+@mutation(POPUP_PLACE, "left = Math.min(Math.max(left, POPUP_MARGIN), view.width - POPUP_MARGIN - width);", "",
+          expect=RULE + "keeps the popup inside the window by the margin, in a 320 px window")
+@mutation(POPUP_PLACE, "Math.min(popup.width, view.width - 2 * POPUP_MARGIN)", "popup.width",
+          expect=RULE + "keeps the popup inside the window by the margin, in a 320 px window")
+@mutation(POPUP_PLACE, "  if (width < popup.width) place.maxWidth = width;\n", "",
+          expect=RULE + "keeps the popup inside the window by the margin, in a 320 px window")
+@mutation(POPUP_PLACE, "if (popup.height <= roomAbove)", "if (false)",
+          expect=RULE + "opens above the trigger when it would pass the bottom and fits above")
+@mutation(POPUP_PLACE, "return { ...place, maxHeight: Math.max(0, roomBelow) };", "return place;",
+          expect=RULE + "in a short window, on the side with more room, cut to it so it scrolls inside")
+@mutation(POPUP_PLACE, "if (roomBelow >= roomAbove)", "if (true)",
+          expect=RULE + "in a short window, on the side with more room, cut to it so it scrolls inside")
+@mutation(POPUP_PLACE, "export const POPUP_GAP = 6;", "export const POPUP_GAP = 4;",
+          expect=RULE + "starts at the trigger's left edge, under it, when that fits")
+@pytest.mark.web_unit
+def test_the_popup_rule_keeps_every_popup_inside_the_window():
+    vitest("tests/unit/popup-place.spec.ts")
