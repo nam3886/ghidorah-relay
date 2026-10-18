@@ -61,6 +61,9 @@ def test_the_account_edit_sends_changed_fields_only():
 @mutation(ACCOUNTS, 'error.value = loadFailedText(err, errorText(err), "the accounts");',
           "error.value = loadFailedText(err, errorText(err));",
           expect=LIST + "an empty list says so and offers Import; a failed read shows the error with Retry")
+@mutation(DESKTOP, '<span class="sub clip" :title="accountSub(a)">', '<span class="sub clip">',
+          expect=LIST + "a long account, status or asleep line keeps its whole text as its title, where it ends in "
+                        "an ellipsis")
 @pytest.mark.web_unit
 def test_the_accounts_view_keeps_its_rules():
     vitest(ACCOUNTS_VIEW_SPEC)
@@ -337,12 +340,20 @@ FIELD = SRC + "/components/shared/FilterSelect.vue"
 FIELD_SPEC = "tests/unit/shared/filter-select-field.spec.ts"
 DRAWN = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > appearance none: the page's chevron for the "
          "arrow, no chip on a phone, and the list under the box")
+IN_DIALOG = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > in a dialog: Escape closes the open list "
+             "only > ")
 PROVIDER = (IMPORT_SPEC + "the Provider field is the drawn select: another provider picked from its list is the one "
             "sent")
 
 
 @mutation(IMPORT, 'appearance="none"', 'appearance="auto"', expect=PROVIDER)
 @mutation(IMPORT, "@update:model-value=\"(v) => (provider = String(v))\"", "", expect=PROVIDER)
+@mutation(FIELD, '        @pointerdown="onListPress"\n', "",
+          expect=IN_DIALOG + "a press on the list's padding keeps the focus on the select, and Escape still leaves the "
+                             "dialog open")
+@mutation(FIELD, "  if (x < el.clientWidth && y < el.clientHeight) event.preventDefault();",
+          "  event.preventDefault();",
+          expect=IN_DIALOG + "a press in the list's scrollbar gutter is left alone, so the scrollbar can be dragged")
 @mutation(FIELD, '<IconChevronDown v-if="drawn"', '<IconChevronDown v-if="false"', expect=DRAWN)
 @mutation(FIELD, "field.value && !drawn.value && !props.block", "field.value && !props.block", expect=DRAWN)
 @mutation(FIELD, '"is-tall": isTablet.value && !drawn.value,', '"is-tall": isTablet.value,', expect=DRAWN)

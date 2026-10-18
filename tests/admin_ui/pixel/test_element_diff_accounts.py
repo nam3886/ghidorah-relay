@@ -496,8 +496,19 @@ LIVE_NAMES = ("Trang", "Minh Tuan", "Lan Nguyen", "Hoang Phuc", "Duc Anh Tran", 
 LIVE_LABELS = tuple("d%02d-%02d" % (7 + n // 3, 11 + n) for n in range(len(LIVE_NAMES)))
 LONG_LABEL, LONG_NAME = "acct-n11-00007919", "Nguyen Thi Thanh Huong Collective"
 LONG_ERROR = "dola.content_refused_by_the_safety_review: the page said the account must verify its phone number first"
-# a text may be cut only where the canvas draws an ellipsis: the Last error cell
-ELLIPSIS = re.compile(r"\berr\b")
+# a text may be cut only where it ends in an ellipsis: the Last error cell, and the Account, Status and Asleep lines
+# capped at the canvas's widest line of their column
+ELLIPSIS = re.compile(r"\b(err|clip)\b")
+# at 1440 the board's card shows Proxy whole and the start of Last error (the table scrolls sideways past them, D123)
+SEEN_JS = """() => {
+  const card = document.querySelector('.acct-scroll').getBoundingClientRect();
+  const th = (name) => [...document.querySelectorAll('thead th')].find((t) => t.textContent.trim() === name)
+    .getBoundingClientRect();
+  return {proxy: th('Proxy').right <= card.right, lastError: th('Last error').left < card.right};
+}"""
+# a capped line that ends in an ellipsis carries its whole text as its title
+UNTITLED_JS = """() => [...document.querySelectorAll('.clip')]
+  .filter((e) => e.scrollWidth > e.clientWidth && e.title !== e.textContent.trim()).map((e) => e.textContent.trim())"""
 
 
 def live_like_accounts_seed(db, live):
@@ -543,6 +554,11 @@ def test_accounts_with_live_like_data_fits(app, db, live, run_dir, width, theme)
             page.screenshot(full_page=True, animations="disabled", caret="hide"))
         sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
         assert sideways <= 0, "the page scrolls sideways by %d px" % sideways
+        if width == 1440:
+            seen = page.evaluate(SEEN_JS, isolated_context=False)
+            assert seen == {"proxy": True, "lastError": True}, "the card hides columns B-Accounts shows: %r" % seen
+        untitled = page.evaluate(UNTITLED_JS, isolated_context=False)
+        assert not untitled, "lines cut without their whole text as the title: %r" % untitled
         # the desktop card scrolls sideways by design (D123): what lies past its edge is reached by scrolling, so the
         # card is opened up before the check; a text cut inside its own cell is still cut
         page.evaluate("document.querySelectorAll('.acct-scroll, .list-card')"
@@ -551,7 +567,10 @@ def test_accounts_with_live_like_data_fits(app, db, live, run_dir, width, theme)
         clipped = [t for t in items["texts"] if t["clipped"] and not ELLIPSIS.search(t.get("cls", ""))]
         assert not clipped, "texts cut off where the canvas draws them whole: %r" % [
             (t["text"], t["cls"], t["rect"], t["full"]) for t in clipped]
+        # a live value is never cut where nothing caps it (a line capped at the canvas's column ends in an ellipsis,
+        # its whole text as its title: checked above)
         live_values = set(LIVE_LABELS) | set(LIVE_NAMES)
-        cut = [t["text"] for t in items["texts"] if t["clipped"] and set(t["text"].split(" · ")) & live_values]
+        cut = [t["text"] for t in items["texts"] if t["clipped"] and set(t["text"].split(" · ")) & live_values
+               and not ELLIPSIS.search(t.get("cls", ""))]
         assert not cut, "live-shaped values cut off: %r" % cut
 

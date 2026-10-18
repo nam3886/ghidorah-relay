@@ -74,17 +74,17 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
       </tbody>
       <tbody v-else>
         <tr v-for="a in rows" :key="a.id" class="acct-row" :class="{ 'is-dead': a.state === 'dead' }">
-          <td class="first two-line nowrap">
-            <span class="label">{{ a.label }}</span>
-            <span class="sub">{{ accountSub(a) }}</span>
+          <td class="first two-line nowrap cap-account">
+            <span class="label clip" :title="a.label">{{ a.label }}</span>
+            <span class="sub clip" :title="accountSub(a)">{{ accountSub(a) }}</span>
           </td>
-          <td class="two-line nowrap">
+          <td class="two-line nowrap cap-status">
             <!-- a space between the pills, as the canvas's markup puts one there -->
             <StatusChip :status="a.state" /><template v-if="a.in_use">{{ " " }}</template
             ><StatusChip v-if="a.in_use" status="in use" class="gap-chip" />
-            <span class="status-note" :title="fmtTime(a.last_checked_ms)"
+            <span class="status-note clip" :title="fmtTime(a.last_checked_ms)"
               ><template v-if="statusReason(a)"
-                ><span class="mono bad">{{ statusReason(a) }}</span> · </template
+                ><span class="mono bad clip" :title="statusReason(a)!">{{ statusReason(a) }}</span> · </template
               >Checked {{ ago(a.last_checked_ms) }}</span
             >
           </td>
@@ -98,10 +98,12 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
             </template>
             <span v-else class="faint">—</span>
           </td>
-          <td class="two-line nowrap">
+          <td class="two-line nowrap cap-asleep">
             <template v-if="asleepInfo(a)">
-              <span class="tnum asleep">{{ asleepLine(asleepInfo(a)!) }}</span>
-              <span v-if="asleepInfo(a)!.why" class="mono why">{{ asleepInfo(a)!.why }}</span>
+              <span class="tnum asleep clip" :title="asleepLine(asleepInfo(a)!)">{{ asleepLine(asleepInfo(a)!) }}</span>
+              <span v-if="asleepInfo(a)!.why" class="mono why clip" :title="asleepInfo(a)!.why ?? undefined">{{
+                asleepInfo(a)!.why
+              }}</span>
             </template>
             <span v-else class="faint">—</span>
           </td>
@@ -224,6 +226,34 @@ td.last {
 .label {
   display: block;
   font-weight: 600;
+}
+/* A long value never widens its column past the canvas's (Jobs' rule, design-deviations 17): the Account, Status and
+   Asleep lines end in "…" within the widest line B-Accounts draws in that column at 1440 (195.22, 226.63 and
+   156.70 px), the full text as their title; Proxy and Last error stay where the board shows them. */
+.clip {
+  max-width: var(--cap);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cap-account {
+  --cap: 195.25px;
+}
+.cap-status {
+  --cap: 226.75px;
+}
+.cap-asleep {
+  --cap: 156.75px;
+}
+/* in the status line the dead reason gives way first, so "· Checked … ago" stays whole: a row of the reason and the
+   rest of the line on one baseline, as the inline line sets them (`pre` keeps the space before the dot) */
+.status-note.clip {
+  display: flex;
+  align-items: baseline;
+  white-space: pre;
+}
+.status-note .clip {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 .sub {
   display: block;

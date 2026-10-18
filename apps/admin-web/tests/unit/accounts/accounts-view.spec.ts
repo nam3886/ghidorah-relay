@@ -187,6 +187,32 @@ describe("the list", () => {
     expect(table[2]!.text()).toContain("login failed");
   });
 
+  it("a long account, status or asleep line keeps its whole text as its title, where it ends in an ellipsis", async () => {
+    const owner = "Nguyen Thi Thanh Huong Collective";
+    const reason = "account.dead_session_after_password_change";
+    const why = "dola.likeness_refused_by_the_review";
+    list.mockResolvedValue(
+      page([
+        account({
+          id: "a1",
+          label: "acct-n11-00007919",
+          display_name: owner,
+          state: "dead",
+          state_reason: reason,
+          cooldown_until_ms: Date.now() + 3_600_000,
+          cooldown_reason: why,
+        }),
+      ]),
+    );
+    const w = await open();
+    const titled = (cls: string) => rows(w)[0]!.find(`.${cls}.clip`).attributes("title");
+    expect(titled("label")).toBe("acct-n11-00007919");
+    expect(titled("sub")).toContain(owner);
+    expect(rows(w)[0]!.find(".status-note .bad").attributes("title")).toBe(reason);
+    expect(titled("asleep")).toContain("asleep until");
+    expect(titled("why")).toBe(why);
+  });
+
   it("a dead account's row is tinted, and a disabled account reads disabled", async () => {
     list.mockResolvedValue(
       page([

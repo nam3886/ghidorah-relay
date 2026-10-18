@@ -149,6 +149,19 @@ function close(): void {
   cancelAnimationFrame(frame);
 }
 
+// A press in the list keeps the focus on the trigger, so the trigger's keydown is the only one that sees a key while the
+// list is open: an option, and the padding around the options too (a press there used to move the focus off the
+// trigger, and the next Escape went on to a dialog around the select and closed it). A press in the scrollbar gutter
+// (past the content box: clientWidth and clientHeight leave the scrollbar out) is left alone, so a long list can still
+// be dragged by its scrollbar; wheel and touch scrolling do not go through a press.
+function onListPress(event: PointerEvent): void {
+  const el = event.currentTarget as HTMLElement;
+  const box = el.getBoundingClientRect();
+  const x = event.clientX - box.left - el.clientLeft;
+  const y = event.clientY - box.top - el.clientTop;
+  if (x < el.clientWidth && y < el.clientHeight) event.preventDefault();
+}
+
 function choose(index: number): void {
   const option = props.options[index];
   close();
@@ -344,6 +357,7 @@ function setRoot(el: unknown): void {
           minWidth: `${place.minWidth}px`,
           zIndex: listZ,
         }"
+        @pointerdown="onListPress"
       >
         <div
           v-for="(o, i) in props.options"
@@ -353,7 +367,6 @@ function setRoot(el: unknown): void {
           class="filter-list__item"
           :class="{ 'is-selected': o.value === props.modelValue, 'is-active': i === active }"
           :aria-selected="o.value === props.modelValue"
-          @pointerdown.prevent
           @pointermove="
             active = i;
             byKeyboard = false;

@@ -189,6 +189,43 @@ describe("the field variant of FilterSelect", () => {
       expect(document.activeElement).toBe(box);
     });
 
+    // the list is 200 x 120 at (100, 50) with its scrollbar in the last 10 px: its content box ends at x = 190
+    function sized(list: HTMLElement) {
+      list.getBoundingClientRect = () =>
+        ({ left: 100, top: 50, right: 300, bottom: 170, width: 200, height: 120, x: 100, y: 50 }) as DOMRect;
+      Object.defineProperty(list, "clientWidth", { value: 190 });
+      Object.defineProperty(list, "clientHeight", { value: 120 });
+      return list;
+    }
+    const press = (el: Element, x: number, y: number) => {
+      const event = new PointerEvent("pointerdown", { clientX: x, clientY: y, bubbles: true, cancelable: true });
+      el.dispatchEvent(event);
+      return event;
+    };
+
+    it("a press on the list's padding keeps the focus on the select, and Escape still leaves the dialog open", async () => {
+      const box = await opened();
+      box.focus();
+      box.click();
+      await nextTick();
+      const list = sized(listbox() as HTMLElement);
+      expect(press(list, 103, 53).defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(box);
+      escape(box);
+      await flushPromises();
+      expect(listbox()).toBeNull();
+      expect(closing.value).toBe(0);
+    });
+
+    it("a press in the list's scrollbar gutter is left alone, so the scrollbar can be dragged", async () => {
+      const box = await opened();
+      box.click();
+      await nextTick();
+      const list = sized(listbox() as HTMLElement);
+      expect(press(list, 295, 100).defaultPrevented).toBe(false);
+      expect(press(list, 185, 100).defaultPrevented).toBe(true);
+    });
+
     it("a closed select: Escape goes on to the dialog, which closes", async () => {
       const box = await opened();
       box.focus();
