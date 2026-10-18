@@ -7,7 +7,7 @@ import { IconCopy } from "@/components/shared/icons";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { notify } from "@/lib/notify";
 import "./lane-controls.css";
-import { dateClock, isServerError, thousands } from "./log-window";
+import { dateClock, thousands } from "./log-window";
 
 // One logged request in the right-hand drawer: the facts as a plain ledger, then the redacted request and the answer,
 // each with Copy. The job id is a link: it asks the view to close this drawer and open the job. Everything the server
@@ -61,8 +61,8 @@ async function copy(which: "request" | "answer"): Promise<void> {
   <DetailDrawer v-model="open" :title="title" testid="request-drawer" back-label="Back to Request logs">
     <template v-if="log" #chips>
       <div class="rd__chips">
-        <StatusChip :status="log.status_code" />
-        <span class="rd__route kla-mono">{{ log.route }}</span>
+        <StatusChip :status="log.status_code" class="rd__pill" />
+        <span class="rd__route">{{ log.route }}</span>
       </div>
     </template>
     <template v-if="log">
@@ -92,12 +92,11 @@ async function copy(which: "request" | "answer"): Promise<void> {
           </dd>
           <dd v-else>no job</dd>
         </div>
+        <!-- red on any error, a client error too (the canvas's 422): the list keeps red for a server error only -->
         <div v-if="log.error_code" class="rd__row">
           <dt>Error</dt>
           <span class="rd__leader" aria-hidden="true" />
-          <dd class="kla-mono rd__bad" :class="{ 'is-muted': !isServerError(log.status_code) }">
-            {{ log.error_code }}
-          </dd>
+          <dd class="kla-mono rd__bad">{{ log.error_code }}</dd>
         </div>
         <div class="rd__row">
           <dt>Duration</dt>
@@ -143,16 +142,22 @@ async function copy(which: "request" | "answer"): Promise<void> {
   gap: 8px;
   padding-bottom: 16px;
 }
+.rd__pill {
+  font-variant-numeric: tabular-nums;
+}
+/* mono without tabular figures, as drawn */
 .rd__route {
+  font-family: var(--rl-mono);
   font-size: 12px;
   color: var(--rl-fg);
   overflow-wrap: anywhere;
 }
+/* the drawer's body spaces its blocks (20) */
 .rd__ledger {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin: 0 0 20px;
+  margin: 0;
   font-size: 13px;
 }
 .rd__row {
@@ -178,28 +183,31 @@ async function copy(which: "request" | "answer"): Promise<void> {
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
 }
-.rd__bad {
+.rd__row dd.rd__bad {
   color: var(--rl-bad);
 }
-.rd__bad.is-muted {
-  color: var(--rl-muted);
-}
+/* a plain link, as drawn: the link colour, underlined, on the line of the row; the hover colour in light (the canvas's
+   `a:hover`), none in dark */
 .rd__link {
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--rl-link, var(--rl-primary));
   font-size: 13px;
+  line-height: inherit;
+  text-decoration: underline;
   cursor: pointer;
 }
-.rd__link:hover {
-  text-decoration: underline;
+html:not(.dark) .rd__link:hover {
+  color: var(--rl-primary-hover);
 }
 .rd__block {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 20px;
+}
+.rd__block-head .kla-btn--tiny {
+  line-height: normal;
 }
 .rd__block-head {
   display: flex;
@@ -227,6 +235,10 @@ async function copy(which: "request" | "answer"): Promise<void> {
 /* a phone: every action has a 44 px hit area (the Copy buttons are drawn that high; the job link keeps its look and
    gets the height from padding that negative margins give back) */
 @media (max-width: 767px) {
+  /* the sheet's own chip row ends 4 px above its hairline: 16 in all, as on the desktop */
+  .rd__chips {
+    padding-bottom: 12px;
+  }
   .rd__block-head .kla-btn--tiny {
     height: 44px;
     padding: 0 12px;

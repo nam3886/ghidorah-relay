@@ -142,12 +142,16 @@
 .kla-control--tall {
   height: 36px;
 }
+/* `input[type]` outranks the theme's `input[type="date"]:focus-visible { outline: none }`: the canvas rings every
+   field */
+input[type].kla-control:focus-visible,
 .kla-control:focus-visible {
   outline: 2px solid var(--rl-focus);
   outline-offset: 2px;
 }
+/* the dark colour scheme already draws the calendar glyph light, as the canvas does: the theme's invert would dim it */
 html.dark .kla-control[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.8);
+  filter: none;
 }
 
 /* the phone filter: a rounded label wrapper holding the word and a borderless control */

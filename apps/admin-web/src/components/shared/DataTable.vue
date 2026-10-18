@@ -104,6 +104,12 @@ const skeletonCols = computed(() =>
     ? visibleColumns.value.filter((c) => props.skeletonColumns!.includes(c.key))
     : visibleColumns.value,
 );
+// the bar a skeleton cell draws: the column's own, else by position (a time first, a title second, a net last, pills)
+type Bar = NonNullable<Column["skeleton"]>;
+function barOf(c: Column, ci: number): Bar {
+  if (c.skeleton) return c.skeleton;
+  return ci === 0 ? "time" : ci === 1 ? "title" : ci === skeletonCols.value.length - 1 ? "net" : "pill";
+}
 const columnCount = computed(() => (props.selectable ? 1 : 0) + visibleColumns.value.length + (slots.actions ? 1 : 0));
 const hasDays = computed(() => props.rows.some(isDayRow));
 const span = computed(
@@ -320,12 +326,12 @@ function onListKey(row: T, event: KeyboardEvent) {
       <tbody>
         <tr v-for="r in props.skeletonRows" :key="r">
           <td v-for="(c, ci) in skeletonCols" :key="c.key" :class="{ 'is-right': c.align === 'right' }">
-            <i v-if="ci === 0" class="skel skel--time" />
-            <template v-else-if="ci === 1">
+            <i v-if="barOf(c, ci) === 'time'" class="skel skel--time" />
+            <template v-else-if="barOf(c, ci) === 'title' || barOf(c, ci) === 'text'">
               <i :class="`skel skel--title-${(r - 1) % 5}`" />
-              <i class="skel skel--sub" />
+              <i v-if="barOf(c, ci) === 'title'" class="skel skel--sub" />
             </template>
-            <i v-else-if="ci === skeletonCols.length - 1" class="skel skel--net" />
+            <i v-else-if="barOf(c, ci) === 'net'" class="skel skel--net" />
             <i v-else :class="`skel skel--pill-${(r - 1) % 5}`" />
           </td>
         </tr>

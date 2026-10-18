@@ -73,7 +73,15 @@ describe("ListPager", () => {
     w.unmount();
   });
 
-  it("only the last page is wide, and only with three digits: page 100 in the middle stays 32", () => {
+  it("draws the Request logs state exactly: 1 2 3 … 97, the two-digit last page as wide as 133", () => {
+    const w = pager({ total: 4812, limit: 50 });
+    expect(numbers(w)).toEqual(["1", "2", "3", "97"]);
+    const classes = w.findAll("button.number").map((b) => b.classes().includes("is-wide"));
+    expect(classes).toEqual([false, false, false, true]);
+    w.unmount();
+  });
+
+  it("only the last page is wide, and only with two digits or more: page 100 in the middle stays 32", () => {
     const wideOf = (w: ReturnType<typeof pager>) =>
       w.findAll("button.number").map((b) => `${b.text()}:${b.classes().includes("is-wide")}`);
     const middle = pager({ offset: 990, total: 1330, limit: 10 });

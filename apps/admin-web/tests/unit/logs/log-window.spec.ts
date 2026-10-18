@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { ApiError } from "@/api/client";
 import {
   clockTime,
   dateClock,
@@ -6,6 +7,7 @@ import {
   dayStart,
   isLogStatus,
   isServerError,
+  loadFailedText,
   logQuery,
   PAGE_SIZE,
   STATUS_OPTIONS,
@@ -175,5 +177,20 @@ describe("the day headers", () => {
     expect(dayNote(1)).toBe("1 request shown");
     expect(dayNote(5, 4761)).toBe("4,761 requests shown");
     expect(dayNote(1, 2)).toBe("2 requests shown");
+  });
+});
+
+describe("a failed load", () => {
+  it("is worded as the drawn error: what failed, then what the relay answered", () => {
+    const err = new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } });
+    expect(loadFailedText(err, "bad gateway")).toBe(
+      "Could not load the request logs: the relay answered 502 (bad gateway).",
+    );
+  });
+
+  it("with no answer from the relay, the app's own words follow, lower-cased", () => {
+    expect(loadFailedText(new TypeError("x"), "No connection to the relay")).toBe(
+      "Could not load the request logs: no connection to the relay.",
+    );
   });
 });

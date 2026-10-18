@@ -106,6 +106,10 @@ function typed(): void {
 .lf__row {
   display: contents;
 }
+/* the canvas's labels keep the page's 20 px line; its buttons carry no line height of their own */
+.lf .kla-field__label {
+  line-height: 20px;
+}
 .lf__search {
   flex: 1 1 260px;
   min-width: 200px;
@@ -128,11 +132,14 @@ function typed(): void {
 .lf__submit {
   height: 34px;
   padding: 0 16px;
+  line-height: normal;
 }
 
-/* tablet: the search on its own row, then Status, From, To and the button in one row */
+/* tablet: the search on its own row, then Status, From, To and the button in one row. One column that does not wrap:
+   a wrapping column would size itself to its widest row (the phone's chips) and push the card sideways */
 .lf--tablet {
   flex-direction: column;
+  flex-wrap: nowrap;
   align-items: stretch;
 }
 .lf--tablet .lf__search,
@@ -166,6 +173,7 @@ function typed(): void {
 /* phone: the search, then a row of three chips that scrolls sideways */
 .lf--phone {
   flex-direction: column;
+  flex-wrap: nowrap;
   align-items: stretch;
   gap: 10px;
   padding: 12px 0;
@@ -187,5 +195,10 @@ function typed(): void {
   gap: 8px;
   padding: 0 12px;
   overflow-x: auto;
+}
+/* the chip's own select and date field: the browser's padding and corners, as drawn */
+.lf--phone .kla-chip-field .kla-control {
+  padding: revert;
+  border-radius: revert;
 }
 </style>

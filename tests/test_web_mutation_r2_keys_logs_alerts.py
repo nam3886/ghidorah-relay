@@ -360,8 +360,8 @@ def test_the_logs_view_marks_exceptions_only_and_hands_a_job_to_its_drawer():
           expect=LOGS_DRAWER + "each Copy copies its own body and says Copied")
 @mutation(LOG_DRAWER, "copied.value = which;", "copied.value = null;",
           expect=LOGS_DRAWER + "each Copy copies its own body and says Copied")
-@mutation(LOG_DRAWER, "'is-muted': !isServerError(log.status_code)", "'is-muted': isServerError(log.status_code)",
-          expect=LOGS_DRAWER + "an error code is red on a server error and muted on a client error")
+@mutation(LOG_DRAWER, '<dd class="kla-mono rd__bad">', '<dd class="kla-mono">',
+          expect=LOGS_DRAWER + "an error code is red on a server error and on a client error alike")
 @mutation(LOG_DRAWER, 'v-if="log.error_code" class="rd__row"', 'v-if="true" class="rd__row"',
           expect=LOGS_DRAWER + "a request with no error has no Error line")
 @mutation(LOG_DRAWER, "<dd v-else>no job</dd>", "<dd v-else>none</dd>",
@@ -581,3 +581,41 @@ def test_a_day_header_uses_the_servers_day_total():
 @pytest.mark.web_unit
 def test_the_alert_detail_names_the_job_and_the_key():
     vitest(ALERTS_VIEW_SPEC)
+
+
+# ---- Request logs: the drawn error wording and the empty list under a filter ---------------------------------------
+FAILED_LOAD = f"FAILED {WINDOW_SPEC} > a failed load > "
+EMPTY_FILTERED = ("an empty list under a filter says so; Clear filters clears every filter and searches from the "
+                  "first page")
+
+
+@mutation(WINDOW, "`Could not load the request logs: ${why}.`", "why",
+          expect=FAILED_LOAD + "is worded as the drawn error: what failed, then what the relay answered")
+@mutation(WINDOW, "err instanceof ApiError\n      ?", "false\n      ?",
+          expect=FAILED_LOAD + "is worded as the drawn error: what failed, then what the relay answered")
+@mutation(WINDOW, "said.charAt(0).toLowerCase() + said.slice(1)", "said",
+          expect=FAILED_LOAD + "with no answer from the relay, the app's own words follow, lower-cased")
+@pytest.mark.web_unit
+def test_a_failed_logs_load_is_worded_as_drawn():
+    vitest(WINDOW_SPEC)
+
+
+@mutation(LOGS, "error.value = loadFailedText(err, errorText(err));", "error.value = errorText(err);",
+          expect=LOGS_LIST + "a failed load says what failed and what the relay answered")
+@mutation(LOGS, 'filters.q.trim() || filters.status !== "all" || filters.from', "filters.q.trim() || filters.from",
+          expect=LOGS_LIST + EMPTY_FILTERED)
+@mutation(LOGS, 'filters.q.trim() || filters.status !== "all"', 'filters.q.trim() || filters.status !== "x"',
+          expect=LOGS_LIST + "an empty list with no filter says there are no requests yet, and offers nothing")
+@mutation(LOGS, 'const SKELETON_COLUMNS = ["time", "status", "route", "duration"];',
+          'const SKELETON_COLUMNS = ["time", "status", "route", "key", "duration"];',
+          expect=LOGS_LIST + "the loading skeleton draws four columns")
+@mutation(LOGS, 'skeleton: "pill" as const', 'skeleton: "text" as const',
+          expect=LOGS_LIST + "the loading skeleton draws four columns")
+@mutation(LOGS, 'const PHONE_SKELETON_COLUMNS = ["time", "status", "route"];',
+          'const PHONE_SKELETON_COLUMNS = ["time", "status", "route", "duration"];',
+          expect=LOGS_LIST + "a phone's loading skeleton leaves the duration out")
+@mutation(LOGS, "  filters.reset();\n  search();", "  search();", expect=LOGS_LIST + EMPTY_FILTERED)
+@mutation(LOGS, "  filters.reset();\n  search();", "  filters.reset();", expect=LOGS_LIST + EMPTY_FILTERED)
+@pytest.mark.web_unit
+def test_the_logs_list_words_its_failure_and_its_empty_list_as_drawn():
+    vitest(LOGS_VIEW_SPEC)

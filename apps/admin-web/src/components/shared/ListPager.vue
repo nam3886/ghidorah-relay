@@ -85,7 +85,7 @@ function goto(page: number): void {
             v-else
             type="button"
             class="pager__page number"
-            :class="{ 'is-active': slot === currentPage, 'is-wide': slot === pageCount && String(slot).length >= 3 }"
+            :class="{ 'is-active': slot === currentPage, 'is-wide': slot === pageCount && String(slot).length >= 2 }"
             :aria-current="slot === currentPage ? 'page' : undefined"
             @click="goto(slot)"
           >

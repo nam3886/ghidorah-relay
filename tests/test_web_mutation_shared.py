@@ -54,6 +54,10 @@ def test_a_copy_pending_at_unmount_does_nothing():
           expect="the skeleton draws the columns asked for")
 @mutation(TABLE, "`skel skel--title-${(r - 1) % 5}`", "`skel skel--title-${r % 5}`",
           expect="the skeleton draws the columns asked for")
+# Request logs: a column names its skeleton bar
+@mutation(TABLE, "if (c.skeleton) return c.skeleton;", "", expect="a column may name its skeleton bar")
+@mutation(TABLE, "<i v-if=\"barOf(c, ci) === 'title'\" class=\"skel skel--sub\" />", '<i class="skel skel--sub" />',
+          expect="a column may name its skeleton bar")
 @mutation(TABLE, '<button type="button" class="data-table__retry"', '<button type="button" class="el-button"',
           expect="Retry is the drawn danger outline button")
 @pytest.mark.web_unit
@@ -106,8 +110,8 @@ PAGER_SPEC = "tests/unit/shared/list-pager.spec.ts"
 @mutation(PAGER, "|| page === currentPage.value", "", expect="the current page emits nothing")
 @mutation(PAGER, "slot === pageCount && String(slot)", "String(slot)",
           expect="only the last page is wide")
-@mutation(PAGER, "String(slot).length >= 3", "String(slot).length >= 4",
-          expect="draws the Jobs state exactly: 1 2 3 … 133")
+@mutation(PAGER, "String(slot).length >= 2", "String(slot).length >= 3",
+          expect="draws the Request logs state exactly: 1 2 3 … 97")
 @mutation(PAGER, "'is-active': slot === currentPage", "'is-active': false",
           expect="shows 'Showing a-b of total' and one numbered page per limit")
 @mutation(PAGER, "Number(v)", "v", expect="a size change emits size with the number and never a move")

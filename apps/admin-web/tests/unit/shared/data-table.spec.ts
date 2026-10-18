@@ -119,6 +119,28 @@ describe("DataTable states", () => {
     expect(all.findAll(".data-table__skeleton tbody tr")[0]!.find(".skel--title-0").exists()).toBe(true);
   });
 
+  it("a column may name its skeleton bar; the others keep theirs by position", async () => {
+    const four = [
+      { key: "time", label: "Time" },
+      { key: "status", label: "Status", skeleton: "pill" as const },
+      { key: "route", label: "Route", skeleton: "title" as const },
+      { key: "key", label: "Key", skeleton: "text" as const },
+      { key: "ms", label: "Duration", align: "right" as const },
+    ];
+    const w = await table({ columns: four, rows: [], loading: true });
+    const bars = w
+      .findAll(".data-table__skeleton tbody tr")[0]!
+      .findAll("td")
+      .map((td) => td.findAll("i").map((i) => i.classes()[1]));
+    expect(bars).toEqual([
+      ["skel--time"],
+      ["skel--pill-0"],
+      ["skel--title-0", "skel--sub"],
+      ["skel--title-0"],
+      ["skel--net"],
+    ]);
+  });
+
   it("Retry is the drawn danger outline button, not an Element Plus one", async () => {
     const w = await table({ error: "x" });
     const retry = w.find('[role="alert"] button');

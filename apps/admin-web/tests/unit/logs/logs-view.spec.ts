@@ -2,6 +2,7 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
+import { ApiError } from "@/api/client";
 import * as logs from "@/api/logs";
 import type { LogRow } from "@/api/logs";
 import { dayAfter, dayStart, viewerZone } from "@/components/logs/log-window";
@@ -229,6 +230,62 @@ describe("the list", () => {
   it("the first load asks for 50 rows, all statuses, no dates", async () => {
     await open();
     expect(lastQuery()).toEqual({ limit: 50, offset: 0, status: "all", tz: viewerZone() });
+  });
+
+  it("a failed load says what failed and what the relay answered", async () => {
+    list.mockRejectedValue(new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } }));
+    const { w } = await open();
+    expect(w.find('[role="alert"]').text()).toContain(
+      "Could not load the request logs: the relay answered 502 (bad gateway).",
+    );
+  });
+
+  it("the loading skeleton draws four columns: the time, the status pill, the route over its job, the duration", async () => {
+    list.mockReturnValue(new Promise(() => undefined));
+    const { w } = await open();
+    const skeleton = w.find(".data-table__skeleton");
+    expect(skeleton.findAll("th").map((th) => th.text())).toEqual(["Time", "Status", "Route", "Duration"]);
+    const bars = skeleton
+      .findAll("tbody tr")[0]!
+      .findAll("td")
+      .map((td) => td.findAll("i").map((i) => i.classes()[1]));
+    expect(bars).toEqual([["skel--time"], ["skel--pill-0"], ["skel--title-0", "skel--sub"], ["skel--net"]]);
+  });
+
+  it("a phone's loading skeleton leaves the duration out", async () => {
+    showAt(390);
+    list.mockReturnValue(new Promise(() => undefined));
+    const { w } = await open();
+    const skeleton = w.find(".data-table__skeleton");
+    expect(skeleton.findAll("th").map((th) => th.text())).toEqual(["Time", "Status", "Route"]);
+    expect(skeleton.find("tbody tr").findAll("td")[2]!.find(".skel--sub").exists()).toBe(true);
+  });
+
+  it("an empty list with no filter says there are no requests yet, and offers nothing", async () => {
+    list.mockResolvedValue({ items: [], total: 0 });
+    const { w } = await open();
+    expect(w.find(".data-table__empty").text()).toBe("No requests yet.");
+    expect(w.find(".logs-clear-filters").exists()).toBe(false);
+  });
+
+  it("an empty list under a filter says so; Clear filters clears every filter and searches from the first page", async () => {
+    const { w } = await open();
+    list.mockResolvedValue({ items: [], total: 0 });
+    // a status alone is a filter
+    await w.find<HTMLSelectElement>('select[aria-label="Status"]').setValue("error");
+    await settle();
+    expect(w.find(".data-table__empty").text()).toContain("No requests match these filters.");
+    expect(w.find(".logs-clear-filters").exists()).toBe(true);
+    await w.find<HTMLInputElement>('input[aria-label="Search"]').setValue("nothing");
+    await setDay(w, "From", "2026-10-01");
+    list.mockResolvedValue({ items: [row()], total: 1 });
+    await w.find(".logs-clear-filters").trigger("click");
+    await settle();
+    expect(lastQuery()).toEqual({ limit: 50, offset: 0, status: "all", tz: viewerZone() });
+    expect(w.find<HTMLInputElement>('input[aria-label="Search"]').element.value).toBe("");
+    expect(w.find<HTMLSelectElement>('select[aria-label="Status"]').element.value).toBe("all");
+    expect(picker(w, "From").element.value).toBe("");
+    expect(w.findAll("tbody tr:not(.is-day)")).toHaveLength(1);
   });
 });
 
@@ -646,13 +703,15 @@ describe("the request drawer, in detail", () => {
   };
   const writeText = vi.fn(async (_text: string) => undefined);
 
-  it("an error code is red on a server error and muted on a client error", async () => {
+  it("an error code is red on a server error and on a client error alike, as drawn for a 422", async () => {
+    const errorLine = (drawer: Element) =>
+      [...drawer.querySelectorAll(".rd__row")].find((r) => r.querySelector("dt")?.textContent === "Error")!;
     const bad = await openDrawer(detail({ status_code: 502, error_code: "account.dead_session" }));
-    expect(bad.querySelector(".rd__bad")!.classList.contains("is-muted")).toBe(false);
+    expect(errorLine(bad).querySelector("dd")!.className).toBe("kla-mono rd__bad");
     wrapper!.unmount();
     wrapper = null;
-    const quiet = await openDrawer(detail({ status_code: 422, error_code: "dola.content_refused" }));
-    expect(quiet.querySelector(".rd__bad")!.classList.contains("is-muted")).toBe(true);
+    const client = await openDrawer(detail({ status_code: 422, error_code: "dola.content_refused" }));
+    expect(errorLine(client).querySelector("dd")!.className).toBe("kla-mono rd__bad");
   });
 
   it("a request with no error has no Error line", async () => {

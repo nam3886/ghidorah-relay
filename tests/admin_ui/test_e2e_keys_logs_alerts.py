@@ -272,8 +272,28 @@ def test_the_filters_search_detail_refresh_and_clear(app, app_session, db):
     expect(page.locator(".el-message-box")).to_contain_text("Jobs, the ledger and alerts are kept.")
     page.locator(".el-message-box").get_by_role("button", name="Clear logs").click()
     expect(page.get_by_text("Cleared 3 rows")).to_be_visible()
-    expect(page.get_by_text("No log rows")).to_be_visible()
+    expect(page.get_by_text("No requests yet.")).to_be_visible()
     assert db.one("SELECT count(*) FROM request_logs")[0] == 0 and db.one("SELECT count(*) FROM jobs")[0] == 1
+
+
+def test_an_empty_filtered_list_offers_clear_filters_and_a_failed_load_says_what_the_relay_answered(
+        app, app_session, db):
+    page = app_session
+    k = new_key(db)
+    log(db, k, "POST /v1/video/generations", 200)
+    open_tab(page, "Request logs")
+    expect(rows(page)).to_have_count(1)
+    pick(page, "Status", "Failed before a job")
+    expect(page.get_by_text("No requests match these filters.")).to_be_visible()
+    page.get_by_role("button", name="Clear filters").click()
+    expect(rows(page)).to_have_count(1)
+    expect(page.get_by_label("Status", exact=True)).to_have_value("all")
+    page.route(re.compile(r"/admin/logs\?"), lambda route: route.fulfill(
+        status=502, content_type="application/json",
+        body='{"error": {"code": "upstream.bad_gateway", "message": "bad gateway"}}'))
+    page.get_by_role("button", name="Search", exact=True).click()
+    expect(page.get_by_role("alert")).to_contain_text(
+        "Could not load the request logs: the relay answered 502 (bad gateway).")
 
 
 def test_the_date_window_is_the_viewers_midnights_and_ends_at_the_start_of_the_day_after_to(app, app_session, db):

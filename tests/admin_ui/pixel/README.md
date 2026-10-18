@@ -14,6 +14,7 @@ design tool's runtime is used.
 | `pixel_report.py` | `<run>/<name>-<theme>.{ref,app,diff}.png`, `.json`, and `report.md` / `report.html` (worst first) |
 | `test_pixel.py` | the browser tests; every entry's `gate` is enforced (35 % ceiling by default); the gate itself is self-tested |
 | `element_diff.py` | element by element: every visible text run and painted box of the canvas paired with the app's (by text, signature, then position) and compared (box edges over 0.5 px, font, colour, background, border, radius, padding, opacity); a markdown table per comparison and a canvas / app / diff PNG side by side |
+| `test_element_diff_logs.py` | the Request logs page the same way: B/T/P-Logs, the request drawer, the Clear logs confirm and the error card of B-States; the list with live-shaped data at 1440, 768 and 390; the undrawn states photographed |
 | `test_element_diff.py` | the Jobs page through `element_diff.py`: the B/T/P-Jobs boards and the Jobs states of B-States (a state card is widened to the app's width first); fails while a table holds a difference that is not live data. Also the Jobs list with data shaped like the live box, at 1440, 768 and 390 |
 
 Run (on the box, narrowed; the images land in `shots/pixel/` of the tree folder, never in git):

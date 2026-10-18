@@ -8,11 +8,17 @@
   vertical-align: top;
   margin-top: min(240px, 30vh);
   width: min(440px, 100%);
+  /* Element Plus caps the box at its own 420 px */
+  max-width: none;
   padding: 20px 20px 16px;
   border-radius: 16px;
   border: 1px solid var(--rl-line);
   background: var(--rl-surface);
   box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
+}
+/* the box keeps its hairline in dark too (the theme gives other dark overlays a stronger edge) */
+html:root .rl-confirm.el-message-box {
+  border-color: var(--rl-line);
 }
 .rl-confirm .el-message-box__header {
   padding: 0;
@@ -47,7 +53,13 @@
   gap: 8px;
   padding: 20px 0 0;
 }
-.rl-confirm .el-message-box__btns .el-button {
+/* `html:root` outranks skin.css's buttons (padding 0 14); the canvas's buttons carry no line height of their own */
+html:root .rl-confirm .el-message-box__btns .el-button {
   margin: 0;
   padding: 0 16px;
+  line-height: normal;
+}
+/* the destructive button is a plain fill, no border */
+html:root .rl-confirm .el-message-box__btns .el-button--danger {
+  border: 0;
 }
