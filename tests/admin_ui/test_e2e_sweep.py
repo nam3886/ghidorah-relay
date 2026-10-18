@@ -5,12 +5,26 @@ on either channel fails the sweep, at every width. What it opens is listed per r
 (`STATES`) and run in the order of `MODULES`; a control that cannot be found fails the step (nothing is caught), and
 `finish()` fails when a listed state was not reached, so a renamed button cannot silently shrink the sweep.
 
-With RELAY_SCREENSHOTS_DIR set, every opened state is also saved as a full-page `<width>-<theme>-<route>-<state>.png`
-for the design review; with it unset nothing is written. The names of all passes are the exact cross-product of
-widths x themes x states, and two states with one name fail the sweep."""
+With RELAY_SCREENSHOTS_DIR set, every opened state is also saved as `<width>-<theme>-<route>-<state>.png` for the design
+review; with it unset nothing is written. The names of all passes are the exact cross-product of widths x themes x
+states, and two states with one name fail the sweep.
+
+A shot is the viewport, what a user sees at that width, and the window never changes size. A full-page shot cannot be
+taken safely. Chromium paints below the viewport only with `captureBeyondViewport`, which Patchright's `full_page`
+sends, and that capture now and then flashes the window to 1x1 for about 100 ms. The app turns phone for that moment,
+and drops what only a wider layout holds (the ticked Jobs row: the next step found no Regenerate…).
+
+Measured on the box (18/10):
+- In the sweep, about 1 full-page shot in 20 flashed; 4 of 12 passes failed on a loaded box.
+- 80 direct CDP captures flashed 35 times at 1280 and 13 times at 768.
+- Viewport shots: no resize at all.
+
+Growing the viewport to the page's height moves centred overlays and fixed bars to places no user sees. The lower parts
+of tall pages are covered by the pixel suite, the element diffs and the live-like photos."""
 
 import os
 import signal
+import struct
 import threading
 import time
 from contextlib import contextmanager
@@ -131,7 +145,7 @@ class Sweep:
             return None
         path = Path(folder) / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        self.page.screenshot(path=str(path), full_page=True)
+        self.page.screenshot(path=str(path))     # the viewport only, never `full_page`: see the module docstring
         return path
 
     def finish(self):
@@ -302,3 +316,21 @@ def test_screenshots_are_saved_only_when_a_folder_is_given(app, app_page, tmp_pa
     files = [p.name for p in (tmp_path / "shots").iterdir()]
     assert files == ["1280-light-login-form.png"], files
     assert (tmp_path / "shots" / files[0]).stat().st_size > 1000
+
+
+def test_a_shot_is_the_viewport_and_never_resizes_the_window(app, app_page, tmp_path, monkeypatch):
+    page = app_page
+    page.set_viewport_size({"width": 1280, "height": 200})
+    page.goto(app.url + "#/login")
+    expect(page.get_by_role("button", name="Sign in")).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollHeight") > 200, "the page must be taller than the viewport"
+    page.evaluate("window.__sizes = []; addEventListener('resize', () => __sizes.push([innerWidth, innerHeight]))",
+                  isolated_context=False)
+    monkeypatch.setenv(SHOTS_ENV, str(tmp_path))
+    path = Sweep(page, "light").shot("login", "form")
+    settle(page)                                   # a resize the shot caused is dispatched by now
+    # a full-page capture fires a resize at every shot (now and then at 1x1); a viewport shot never does
+    assert page.evaluate("window.__sizes", isolated_context=False) == [], "the window changed size during the shot"
+    assert page.viewport_size == {"width": 1280, "height": 200}
+    dpr = page.evaluate("devicePixelRatio")
+    assert struct.unpack(">II", path.read_bytes()[16:24]) == (1280 * dpr, 200 * dpr), "the viewport, not the page"
