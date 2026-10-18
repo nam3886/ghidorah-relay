@@ -1,23 +1,22 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { AlertDetail, BillingItem, UnclearItem } from "@/api/alerts";
-import DataTable from "@/components/shared/DataTable.vue";
 import LedgerList, { type LedgerItem } from "@/components/shared/LedgerList.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
-import { fmtTime } from "@/lib/format";
 import { useUiStore } from "@/stores/ui";
 import "@/components/logs/lane-controls.css";
+import "./alert-buttons.css";
 import {
   alertTime,
+  alertTitle,
   groupFacts,
-  groupTitle,
   isEmptyWording,
   ONE_CUSTOMER_NOTE,
   oneCustomer,
   outcomesText,
   outcomeStatus,
-  REPLY_NOTE,
+  replyNote,
   ROW_LIMIT,
 } from "./alerts-model";
 
@@ -25,7 +24,7 @@ import {
 // on a phone): its facts, the rows of the group and, for an unclear wording, how the jobs ended. Acknowledge sends
 // the group as shown (the parent reads `newest_id` from it). A job opens the shared job drawer through the ui store.
 // `writing`: a write is in flight, nothing can be clicked; `locked`: a view is loading, so only Close (which asks for
-// another view) works.
+// another view) works. The markup is the canvas's (B-, T-, P-Alerts): plain tables, as wide as their content.
 const props = defineProps<{ detail: AlertDetail; writing: boolean; locked: boolean }>();
 const emit = defineEmits<{ ack: [detail: AlertDetail]; close: [] }>();
 
@@ -38,33 +37,13 @@ const facts = computed<LedgerItem[]>(() =>
   groupFacts(props.detail).map((f) => ({ label: f.label, value: f.value, tone: f.tone, mono: true })),
 );
 
-const unclearColumns = computed(() => [
-  { key: "at", label: "Seen", width: 150 },
-  { key: "text", label: "Stored reply", minWidth: 240 },
-  { key: "job", label: "Job", minWidth: 150 },
-  { key: "outcome", label: "Outcome", minWidth: 170 },
-  { key: "account", label: isTablet.value ? "Account · key" : "Account", width: isTablet.value ? 140 : 110 },
-  { key: "key", label: "Key", width: 110 },
-  { key: "ack", label: "Acknowledged", minWidth: 150 },
-]);
-const UNCLEAR_TABLET = ["at", "job", "outcome", "account"];
-const billingColumns = [
-  { key: "at", label: "When", width: 150 },
-  { key: "alert", label: "Alert", width: 100 },
-  { key: "wallet", label: "Wallet", minWidth: 140 },
-  { key: "amount", label: "Amount", align: "right" as const, width: 100 },
-  { key: "used_day", label: "Used today", align: "right" as const, width: 110 },
-  { key: "used_total", label: "Used total", align: "right" as const, width: 110 },
-  { key: "detail", label: "Detail", minWidth: 160 },
-  { key: "ack", label: "Acknowledged", minWidth: 150 },
-];
-
 const acked = (i: { acknowledged_ms: number | null; acknowledged_by: string | null }): string =>
-  `${i.acknowledged_by}, ${fmtTime(i.acknowledged_ms)}`;
+  `${i.acknowledged_by}, ${alertTime(i.acknowledged_ms)}`;
 // the job's title, else its short id; the key's label, else its short id
 const jobName = (r: { job_id: string; job_title: string | null }): string => r.job_title || r.job_id.slice(0, 8);
 const keyName = (r: { key_id?: string; key_label: string | null }): string =>
   r.key_label || r.key_id?.slice(0, 8) || "—";
+const account = (r: UnclearItem): string => (r.account_label === null ? "—" : r.account_label);
 </script>
 
 <template>
@@ -74,10 +53,10 @@ const keyName = (r: { key_id?: string; key_label: string | null }): string =>
     id="alertDetail"
     class="ad-phone"
     role="region"
-    aria-label="Alert detail"
+    aria-labelledby="alertDetailTitle"
     data-testid="alert-detail"
   >
-    <h3 class="ad-phone__title" data-testid="alert-detail-title">
+    <h3 id="alertDetailTitle" class="ad-phone__title" data-testid="alert-detail-title">
       {{ unclear ? "Group summary and reply rows" : "Group summary and rows" }}
     </h3>
     <LedgerList class="ad-phone__ledger" :items="facts" />
@@ -87,31 +66,30 @@ const keyName = (r: { key_id?: string; key_label: string | null }): string =>
     </p>
     <ul v-if="unclear" class="ad-phone__rows">
       <li v-for="r in unclearRows" :key="r.id">
-        <div class="ad-phone__row1">
-          <span class="ad-time kla-mono">{{ alertTime(r.at_ms) }}</span>
+        <span class="ad-phone__row1">
+          <span class="ad-time">{{ alertTime(r.at_ms) }}</span>
           <StatusChip :status="outcomeStatus(r.job_status)" />
-        </div>
+        </span>
         <button type="button" class="ad-job" @click="ui.openJob(r.job_id)">{{ jobName(r) }}</button>
-        <span v-if="r.job_error_code" class="ad-code kla-mono">{{ r.job_error_code }}</span>
-        <div class="ad-muted">
-          <span class="kla-mono ad-fg">{{ r.account_label === null ? "—" : r.account_label }}</span> ·
-          {{ keyName(r) }}
-          <template v-if="r.acknowledged_ms !== null"> · {{ acked(r) }}</template>
-        </div>
+        <span v-if="r.job_error_code" class="ad-code">{{ r.job_error_code }}</span>
+        <span class="ad-muted"
+          ><span class="ad-acct">{{ account(r) }}</span> · {{ keyName(r)
+          }}<template v-if="r.acknowledged_ms !== null"> · {{ acked(r) }}</template></span
+        >
       </li>
     </ul>
     <ul v-else class="ad-phone__rows">
       <li v-for="r in billingRows" :key="r.id">
-        <div class="ad-phone__row1">
-          <span class="ad-time kla-mono">{{ alertTime(r.at_ms) }}</span>
+        <span class="ad-phone__row1">
+          <span class="ad-time">{{ alertTime(r.at_ms) }}</span>
           <StatusChip :status="r.alert" tone="bad" />
-        </div>
-        <div class="ad-muted">{{ r.provider }} / {{ r.kind }}</div>
-        <div class="ad-muted kla-mono">
-          amount {{ r.amount }} · today {{ r.used_day }} · total {{ r.used_total
-          }}<template v-if="r.detail"> · {{ r.detail }}</template>
-        </div>
-        <div v-if="r.acknowledged_ms !== null" class="ad-muted">{{ acked(r) }}</div>
+        </span>
+        <span class="ad-muted">{{ r.provider }} / {{ r.kind }}</span>
+        <span class="ad-muted ad-mono"
+          >amount {{ r.amount }} · today {{ r.used_day }} · total {{ r.used_total
+          }}<template v-if="r.detail"> · {{ r.detail }}</template></span
+        >
+        <span v-if="r.acknowledged_ms !== null" class="ad-muted">{{ acked(r) }}</span>
       </li>
     </ul>
     <p v-if="unclear && detail.outcomes" class="ad-foot" data-testid="alert-outcomes">{{ outcomesText(detail) }}</p>
@@ -121,8 +99,7 @@ const keyName = (r: { key_id?: string; key_label: string | null }): string =>
     <button
       v-if="detail.open_count > 0"
       type="button"
-      class="kla-btn kla-btn--primary ad-phone__ack"
-      :aria-disabled="locked"
+      class="al-primary ad-phone__ack"
       :disabled="locked"
       @click="emit('ack', detail)"
     >
@@ -135,88 +112,173 @@ const keyName = (r: { key_id?: string; key_label: string | null }): string =>
     v-else
     id="alertDetail"
     class="kla-card ad"
+    :class="{ 'is-tablet': isTablet }"
     role="region"
-    aria-label="Alert detail"
+    aria-labelledby="alertDetailTitle"
     data-testid="alert-detail"
   >
-    <header class="ad__head" :class="{ 'is-tablet': isTablet }">
+    <div class="ad__head">
       <div class="ad__left">
         <div class="ad__titlerow">
-          <h2 class="ad__title" data-testid="alert-detail-title">{{ groupTitle(detail) }}</h2>
+          <h2 id="alertDetailTitle" class="ad__title" data-testid="alert-detail-title">{{ alertTitle(detail) }}</h2>
           <StatusChip :status="detail.severity" />
         </div>
-        <p v-if="unclear" class="ad__sentence">{{ REPLY_NOTE }}</p>
+        <span v-if="unclear" class="ad__sentence">{{ replyNote(detail.media) }}</span>
         <p v-if="oneCustomer(detail)" class="ad-note">{{ ONE_CUSTOMER_NOTE }}</p>
       </div>
       <div class="ad__buttons">
-        <button type="button" class="kla-btn" :disabled="writing" @click="emit('close')">Close</button>
+        <button type="button" class="al-btn ad__close" :disabled="writing" @click="emit('close')">Close</button>
         <button
           v-if="detail.open_count > 0"
           type="button"
-          class="kla-btn kla-btn--primary"
+          class="al-primary ad__ack"
           :disabled="locked"
           @click="emit('ack', detail)"
         >
           Acknowledge
         </button>
       </div>
-    </header>
-
-    <div class="ad__panel" :class="{ 'is-tablet': isTablet }">
-      <LedgerList v-for="f in facts" :key="f.label" :items="[f]" />
     </div>
+
+    <LedgerList class="ad__panel" :items="facts" />
     <p v-if="isEmptyWording(detail)" class="ad-failure ad-failure--card" role="alert" data-testid="alert-read-failure">
       The provider's API gave no reply text, so there is no wording to read: this is an API read failure.
     </p>
 
-    <DataTable
-      v-if="unclear"
-      class="ad__table"
-      :columns="unclearColumns"
-      :rows="unclearRows"
-      :tablet-columns="UNCLEAR_TABLET"
-      empty-text="No rows"
-    >
-      <template #cell-at="{ row }"
-        ><span class="ad-time kla-mono">{{ alertTime(row.at_ms) }}</span></template
-      >
-      <template #cell-text="{ row }"
-        ><span class="ad-reply">{{ row.text === "" ? "(no text)" : row.text }}</span></template
-      >
-      <template #cell-job="{ row }">
-        <template v-if="row.job_id">
-          <button type="button" class="ad-job" @click="ui.openJob(row.job_id)">{{ jobName(row) }}</button>
-          <span class="ad-jobid kla-mono">{{ row.job_id.slice(0, 8) }}</span>
-        </template>
-      </template>
-      <template #cell-outcome="{ row }">
-        <StatusChip :status="outcomeStatus(row.job_status)" />
-        <span v-if="row.job_error_code" class="ad-code kla-mono">{{ row.job_error_code }}</span>
-      </template>
-      <template #cell-account="{ row }">
-        <span class="kla-mono ad-acct">{{ row.account_label === null ? "—" : row.account_label }}</span>
-        <span v-if="isTablet" class="ad-key">{{ keyName(row) }}</span>
-      </template>
-      <template #cell-key="{ row }"
-        ><span class="ad-key">{{ keyName(row) }}</span></template
-      >
-      <template #cell-ack="{ row }">
-        <span v-if="row.acknowledged_ms === null" class="ad-faint">not yet</span>
-        <template v-else>{{ acked(row) }}</template>
-      </template>
-    </DataTable>
-    <DataTable v-else class="ad__table" :columns="billingColumns" :rows="billingRows" empty-text="No rows">
-      <template #cell-at="{ row }"
-        ><span class="ad-time kla-mono">{{ alertTime(row.at_ms) }}</span></template
-      >
-      <template #cell-alert="{ row }"><StatusChip :status="row.alert" tone="bad" /></template>
-      <template #cell-wallet="{ row }">{{ row.provider }} / {{ row.kind }}</template>
-      <template #cell-detail="{ row }">{{ row.detail === null ? "—" : row.detail }}</template>
-      <template #cell-ack="{ row }">
-        <span v-if="row.acknowledged_ms === null" class="ad-faint">not yet</span>
-        <template v-else>{{ acked(row) }}</template>
-      </template>
-    </DataTable>
+    <!-- the reply rows: desktop seven columns in a scrolling box of 1040 px at least, tablet four -->
+    <template v-if="unclear">
+      <div v-if="!isTablet" class="ad__scroll">
+        <table class="ad__table">
+          <caption class="ad-caption">
+            Unclear-reply rows of this group
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col" class="is-first">Seen</th>
+              <th scope="col">Stored reply</th>
+              <th scope="col">Job</th>
+              <th scope="col">Outcome</th>
+              <th scope="col">Account</th>
+              <th scope="col">Key</th>
+              <th scope="col" class="is-last">Acknowledged</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in unclearRows" :key="r.id" class="ad-row">
+              <td class="ad-seen">{{ alertTime(r.at_ms) }}</td>
+              <td class="ad-reply">
+                <span class="ad-reply__text">{{ r.text === "" ? "(no text)" : r.text }}</span>
+              </td>
+              <td class="ad-jobcell">
+                <button type="button" class="ad-job" @click="ui.openJob(r.job_id)">{{ jobName(r) }}</button>
+                <span class="ad-jobid">{{ r.job_id.slice(0, 8) }}</span>
+              </td>
+              <td class="ad-outcome">
+                <StatusChip :status="outcomeStatus(r.job_status)" />
+                <span v-if="r.job_error_code" class="ad-code">{{ r.job_error_code }}</span>
+              </td>
+              <td class="ad-acct">{{ account(r) }}</td>
+              <td class="ad-key">{{ keyName(r) }}</td>
+              <td class="ad-ack">{{ r.acknowledged_ms === null ? "not yet" : acked(r) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <table v-else class="ad__table">
+        <caption class="ad-caption">
+          Unclear-reply rows of this group
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" class="is-first">Seen</th>
+            <th scope="col">Job</th>
+            <th scope="col">Outcome</th>
+            <th scope="col" class="is-last">Account · key</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in unclearRows" :key="r.id" class="ad-row">
+            <td class="ad-seen">{{ alertTime(r.at_ms) }}</td>
+            <td class="ad-jobcell">
+              <button type="button" class="ad-job" @click="ui.openJob(r.job_id)">{{ jobName(r) }}</button>
+              <span class="ad-jobid">{{ r.job_id.slice(0, 8) }}</span>
+            </td>
+            <td class="ad-outcome">
+              <StatusChip :status="outcomeStatus(r.job_status)" />
+              <span v-if="r.job_error_code" class="ad-code">{{ r.job_error_code }}</span>
+            </td>
+            <td class="ad-acctkey">
+              <span class="ad-acct">{{ account(r) }}</span>
+              <span class="ad-key">{{ keyName(r) }}</span>
+              <span v-if="r.acknowledged_ms !== null" class="ad-acked">{{ acked(r) }}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
+
+    <!-- the rows of a billing group (not drawn: the reply table's frame, with the billing list's facts) -->
+    <template v-else>
+      <div v-if="!isTablet" class="ad__scroll">
+        <table class="ad__table">
+          <caption class="ad-caption">
+            Rows of this group
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col" class="is-first">When</th>
+              <th scope="col">Alert</th>
+              <th scope="col">Wallet</th>
+              <th scope="col" class="is-right">Amount</th>
+              <th scope="col" class="is-right">Used today</th>
+              <th scope="col" class="is-right">Used total</th>
+              <th scope="col">Detail</th>
+              <th scope="col" class="is-last">Acknowledged</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in billingRows" :key="r.id" class="ad-row">
+              <td class="ad-seen">{{ alertTime(r.at_ms) }}</td>
+              <td class="ad-outcome"><StatusChip :status="r.alert" tone="bad" /></td>
+              <td class="ad-key">{{ r.provider }} / {{ r.kind }}</td>
+              <td class="ad-num">{{ r.amount }}</td>
+              <td class="ad-num">{{ r.used_day }}</td>
+              <td class="ad-num">{{ r.used_total }}</td>
+              <td class="ad-detail">{{ r.detail === null ? "—" : r.detail }}</td>
+              <td class="ad-ack">{{ r.acknowledged_ms === null ? "not yet" : acked(r) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <table v-else class="ad__table">
+        <caption class="ad-caption">
+          Rows of this group
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" class="is-first">When</th>
+            <th scope="col">Alert</th>
+            <th scope="col">Wallet</th>
+            <th scope="col" class="is-last">Acknowledged</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in billingRows" :key="r.id" class="ad-row">
+            <td class="ad-seen">{{ alertTime(r.at_ms) }}</td>
+            <td class="ad-outcome">
+              <StatusChip :status="r.alert" tone="bad" />
+              <span v-if="r.detail" class="ad-code">{{ r.detail }}</span>
+            </td>
+            <td class="ad-acctkey">
+              <span class="ad-key">{{ r.provider }} / {{ r.kind }}</span>
+              <span class="ad-acct">amount {{ r.amount }} · today {{ r.used_day }} · total {{ r.used_total }}</span>
+            </td>
+            <td class="ad-ack">{{ r.acknowledged_ms === null ? "not yet" : acked(r) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
+    <p v-if="!detail.items.length" class="ad-none">No rows</p>
 
     <p v-if="unclear && detail.outcomes" class="ad__foot" data-testid="alert-outcomes">{{ outcomesText(detail) }}</p>
     <p v-if="detail.items.length >= ROW_LIMIT" class="ad__foot" data-testid="alert-detail-more">
@@ -226,6 +288,7 @@ const keyName = (r: { key_id?: string; key_label: string | null }): string =>
 </template>
 
 <style scoped>
+/* every value below is the canvas's own (B-, T-, P-Alerts; specs/alerts.md 4 to 6) */
 .ad__head {
   display: flex;
   flex-wrap: wrap;
@@ -234,14 +297,10 @@ const keyName = (r: { key_id?: string; key_label: string | null }): string =>
   gap: 12px;
   padding: 18px 20px 14px;
 }
-.ad__head.is-tablet {
-  padding: 18px 16px 14px;
-}
 .ad__left {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex: 1 1 320px;
   min-width: 0;
 }
 .ad__titlerow {
@@ -258,7 +317,6 @@ const keyName = (r: { key_id?: string; key_label: string | null }): string =>
   overflow-wrap: anywhere;
 }
 .ad__sentence {
-  margin: 0;
   color: var(--rl-muted);
 }
 .ad__buttons {
@@ -266,8 +324,15 @@ const keyName = (r: { key_id?: string; key_label: string | null }): string =>
   align-items: center;
   gap: 8px;
 }
-.ad__panel {
-  display: grid;
+.ad__close {
+  height: 36px;
+  padding: 0 14px;
+}
+.ad__ack {
+  height: 36px;
+  padding: 0 16px;
+}
+.ad .ad__panel {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 6px 40px;
   margin: 0 20px 16px;
@@ -275,34 +340,142 @@ const keyName = (r: { key_id?: string; key_label: string | null }): string =>
   border-radius: 12px;
   background: var(--rl-raised);
 }
-.ad__panel.is-tablet {
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 32px;
-  margin: 0 16px 16px;
+.ad-caption {
+  position: absolute;
+  left: -9999px;
 }
-.ad__table {
+.ad__scroll {
+  overflow-x: auto;
   border-top: 1px solid var(--rl-line);
 }
-.ad__table :deep(.el-table) {
+.ad__table {
+  width: 100%;
   min-width: 1040px;
+  border-collapse: separate;
+  border-spacing: 0;
 }
-.ad__table.is-tablet :deep(.el-table) {
-  min-width: 0;
+.ad__table thead tr {
+  text-align: left;
+  font-size: 12px;
+  color: var(--rl-muted);
 }
-.ad__table :deep(td.el-table__cell) {
-  padding: 8px 0;
+.ad__table th {
+  height: 38px;
+  padding: 0 12px;
+  background: var(--rl-raised);
+  font-weight: 500;
 }
-.ad__table :deep(td.el-table__cell:first-child .cell),
-.ad__table :deep(th.el-table__cell:first-child .cell) {
-  padding-left: 20px;
+.ad__table th.is-first {
+  padding: 0 12px 0 20px;
 }
-.ad__table.is-tablet :deep(td.el-table__cell:first-child .cell),
-.ad__table.is-tablet :deep(th.el-table__cell:first-child .cell) {
-  padding-left: 16px;
+.ad__table th.is-last {
+  padding: 0 20px 0 12px;
 }
-.ad__table :deep(td.el-table__cell:last-child .cell),
-.ad__table :deep(th.el-table__cell:last-child .cell) {
-  padding-right: 20px;
+.ad__table th.is-right {
+  text-align: right;
+}
+.ad__table td {
+  padding: 0 12px;
+  border-bottom: 1px solid var(--rl-line);
+}
+.ad-row:hover td {
+  background: var(--rl-raised);
+}
+.ad__table .ad-seen {
+  height: 56px;
+  padding: 0 12px 0 20px;
+  font-family: var(--rl-mono);
+  font-size: 12px;
+  color: var(--rl-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ad__table .ad-reply {
+  max-width: 300px;
+  font-size: 13px;
+}
+.ad-reply__text {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ad__table .ad-jobcell {
+  max-width: 260px;
+  padding: 8px 12px;
+}
+.ad-job {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--rl-fg);
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+/* in dark the canvas's `.th-dark a` outranks `.title-link`: the link colour, primary on hover */
+html.dark .ad-job {
+  color: var(--rl-link);
+}
+html.dark .ad-job:hover {
+  color: var(--rl-primary);
+}
+.ad-job:hover {
+  color: var(--rl-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ad-jobid {
+  font-family: var(--rl-mono);
+  font-size: 12px;
+  color: var(--rl-faint);
+}
+.ad__table .ad-outcome {
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+.ad-code {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--rl-mono);
+  font-size: 11px;
+  color: var(--rl-muted);
+}
+.ad__table .ad-acct {
+  font-family: var(--rl-mono);
+  font-size: 12px;
+}
+.ad__table .ad-key {
+  font-size: 13px;
+  white-space: nowrap;
+}
+.ad__table .ad-num {
+  text-align: right;
+  font-family: var(--rl-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.ad__table .ad-detail {
+  font-size: 13px;
+  color: var(--rl-muted);
+}
+.ad__table .ad-ack {
+  padding: 0 20px 0 12px;
+  font-size: 13px;
+  color: var(--rl-faint);
+}
+.ad-none {
+  margin: 0;
+  padding: 44px 16px 52px;
+  border-top: 1px solid var(--rl-line);
+  text-align: center;
+  color: var(--rl-muted);
 }
 .ad__foot {
   margin: 0;
@@ -310,9 +483,6 @@ const keyName = (r: { key_id?: string; key_label: string | null }): string =>
   border-top: 1px solid var(--rl-line);
   font-size: 13px;
   color: var(--rl-muted);
-}
-.is-tablet ~ .ad__foot {
-  padding: 14px 16px;
 }
 .ad-note {
   margin: 0;
@@ -326,60 +496,79 @@ const keyName = (r: { key_id?: string; key_label: string | null }): string =>
   background: var(--rl-bad-bg);
   font-size: 13px;
 }
-.ad-time {
-  font-size: 12px;
-  color: var(--rl-muted);
-  white-space: nowrap;
+
+/* tablet: the head and the panel 16 px in, a two-column panel, the four-column table top-aligned */
+.is-tablet .ad__head {
+  padding: 18px 16px 14px;
 }
-.ad-reply {
-  display: block;
-  max-width: 300px;
-  font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.is-tablet .ad__left {
+  flex: 1 1 320px;
 }
-.ad-job {
-  display: block;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--rl-fg);
-  font: inherit;
-  font-family: var(--rl-mono);
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
+.ad.is-tablet .ad__panel {
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 32px;
+  margin: 0 16px 16px;
 }
-.ad-job:hover {
-  color: var(--rl-primary);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.is-tablet .ad-failure {
+  margin: 0 16px 16px;
 }
-.ad-jobid {
-  display: block;
-  font-size: 12px;
-  color: var(--rl-faint);
+.is-tablet .ad__table {
+  min-width: 0;
+  border-top: 1px solid var(--rl-line);
 }
-.ad-code {
-  display: block;
-  margin-top: 3px;
-  font-size: 11px;
-  color: var(--rl-muted);
+.is-tablet .ad__table th {
+  padding: 0 8px;
+}
+.is-tablet .ad__table th.is-first {
+  padding: 0 8px 0 16px;
+}
+.is-tablet .ad__table th.is-last {
+  padding: 0 16px 0 8px;
+}
+.is-tablet .ad__table td {
+  vertical-align: top;
+}
+.is-tablet .ad__table .ad-seen {
+  height: auto;
+  padding: 12px 8px 12px 16px;
+}
+.is-tablet .ad__table .ad-jobcell {
+  max-width: none;
+  padding: 10px 8px;
+}
+.is-tablet .ad-job {
+  white-space: normal;
+}
+.is-tablet .ad__table .ad-outcome {
+  padding: 8px;
+  white-space: normal;
+}
+.is-tablet .ad-code {
   overflow-wrap: anywhere;
 }
-.ad-acct {
+.is-tablet .ad__table .ad-acctkey {
+  padding: 10px 16px 10px 8px;
+  white-space: nowrap;
+}
+.is-tablet .ad-acctkey .ad-acct {
   display: block;
+  font-family: var(--rl-mono);
   font-size: 12px;
 }
-.ad-key {
-  display: block;
+.is-tablet .ad-acctkey .ad-key {
   font-size: 13px;
   color: var(--rl-muted);
 }
-.ad-faint {
+.ad-acked {
+  display: block;
   font-size: 13px;
   color: var(--rl-faint);
+}
+.is-tablet .ad__table .ad-ack {
+  padding: 10px 16px 10px 8px;
+}
+.is-tablet .ad__foot {
+  padding: 14px 16px;
 }
 
 /* phone */
@@ -396,13 +585,20 @@ const keyName = (r: { key_id?: string; key_label: string | null }): string =>
   line-height: 22px;
   font-weight: 600;
 }
-.ad-phone__ledger {
+.ad-phone .ad-phone__ledger {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
   padding: 12px 14px;
   border-radius: 12px;
   background: var(--rl-raised);
 }
 .ad-phone__ledger :deep(.ledger__row) {
   min-height: 22px;
+}
+.ad-phone .ad-failure {
+  margin: 0;
 }
 .ad-phone__rows {
   margin: 0;
@@ -423,19 +619,33 @@ const keyName = (r: { key_id?: string; key_label: string | null }): string =>
   justify-content: space-between;
   gap: 10px;
 }
+.ad-time {
+  font-family: var(--rl-mono);
+  font-size: 12px;
+  color: var(--rl-muted);
+  font-variant-numeric: tabular-nums;
+}
 .ad-phone__rows .ad-job {
   display: flex;
   align-items: center;
+  max-width: none;
   min-height: 44px;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 500;
+  white-space: normal;
+}
+.ad-phone__rows .ad-code {
+  margin-top: 0;
 }
 .ad-muted {
   font-size: 13px;
   color: var(--rl-muted);
 }
-.ad-fg {
+.ad-mono {
+  font-family: var(--rl-mono);
+  font-size: 12px;
+}
+.ad-phone__rows .ad-acct {
+  font-family: var(--rl-mono);
+  font-size: 12px;
   color: var(--rl-fg);
 }
 .ad-foot {

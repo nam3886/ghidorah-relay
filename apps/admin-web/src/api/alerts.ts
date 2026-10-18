@@ -15,6 +15,10 @@ export interface AlertGroup {
   open_count: number;
   keys: number;
   newest_id: number;
+  // an unclear group's newest stored reply (cut at 200 characters); null for a billing group
+  reply?: string | null;
+  // a billing group's key: its label, else its prefix; null for an unclear group
+  key_label?: string | null;
 }
 
 export interface UnclearItem {
@@ -54,6 +58,8 @@ export interface AlertDetail extends AlertGroup {
   // unclear_reply groups only
   outcomes?: { done: number; failed: number; open: number };
   failed_codes?: Record<string, number>;
+  // the one media type of all the group's jobs (video, image); null when they are mixed
+  media?: string | null;
 }
 
 export interface GroupRef {
