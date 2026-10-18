@@ -585,10 +585,19 @@ def test_the_global_rules_follow_the_canvas():
 @mutation(TOP_BAR, "watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(\" \")], "
                    "revealCurrent);",
           "watch(() => route.name, revealCurrent);", expect=REVEAL)
-@mutation(TOP_BAR, "  void revealCurrent();\n", "", expect=REVEAL)
-@mutation(TOP_BAR, "  void document.fonts?.ready.then(revealCurrent);\n", "",
+@mutation(TOP_BAR, "onMounted(() => {\n  void revealCurrent();\n", "onMounted(() => {\n", expect=REVEAL)
+@mutation(TOP_BAR, "    if (unmounted || userMovedTabs) return;\n    void revealCurrent();\n", "",
           expect=BAR_FAILED + "brings the current tab into view again once the web fonts have loaded, as they change "
                               "every tab's width")
+@mutation(TOP_BAR, "if (unmounted || userMovedTabs) return;", "if (unmounted) return;",
+          expect=BAR_FAILED + "leaves the tab strip where the user put it when they moved it before the web fonts "
+                              "loaded")
+@mutation(TOP_BAR, '        @wheel.passive="onTabsMoved"\n', "",
+          expect=BAR_FAILED + "leaves the tab strip where the user put it when they moved it before the web fonts "
+                              "loaded")
+# No marker on the `unmounted` guard: Vue clears the strip's template ref on unmount, so without the guard the late
+# reveal still finds no strip and scrolls nothing (the mutant is equivalent). "does nothing when the bar is gone before
+# the web fonts load" holds the outcome.
 @mutation(TOP_BAR, "current.scrollIntoView({ block: \"nearest\", inline: \"nearest\" });", "void current;",
           expect=REVEAL)
 @pytest.mark.web_unit

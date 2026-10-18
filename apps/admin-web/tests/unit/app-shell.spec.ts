@@ -813,13 +813,56 @@ describe("the top bar", () => {
     };
     const loaded = fontsLoadLater();
     try {
-      await open("/test");
+      const { wrapper } = await open("/test");
       const before = shown.length;
       expect(shown.at(-1)).toBe("Test");
+      // the strip scrolling by itself (our own reveal) is not the user moving it
+      await wrapper.find("nav").trigger("scroll");
       loaded();
       await flushPromises();
       expect(shown).toHaveLength(before + 1);
       expect(shown.at(-1)).toBe("Test");
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+      delete (document as { fonts?: unknown }).fonts;
+    }
+  });
+
+  it("leaves the tab strip where the user put it when they moved it before the web fonts loaded", async () => {
+    const shown: string[] = [];
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      shown.push(this.textContent?.trim() ?? "");
+    };
+    const loaded = fontsLoadLater();
+    try {
+      const { wrapper } = await open("/test");
+      const before = shown.length;
+      await wrapper.find("nav").trigger("wheel");
+      loaded();
+      await flushPromises();
+      expect(shown).toHaveLength(before);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+      delete (document as { fonts?: unknown }).fonts;
+    }
+  });
+
+  it("does nothing when the bar is gone before the web fonts load", async () => {
+    const shown: string[] = [];
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      shown.push(this.textContent?.trim() ?? "");
+    };
+    const loaded = fontsLoadLater();
+    try {
+      const { wrapper: bar } = await open("/test");
+      const before = shown.length;
+      bar.unmount();
+      wrapper = null;
+      loaded();
+      await flushPromises();
+      expect(shown).toHaveLength(before);
     } finally {
       HTMLElement.prototype.scrollIntoView = original;
       delete (document as { fonts?: unknown }).fonts;
