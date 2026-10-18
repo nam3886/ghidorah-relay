@@ -444,10 +444,10 @@ def test_the_field_select_is_the_canvas_select_drawn_by_us():
     vitest(FIELD_SPEC)
 
 
-@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '  "views/FramesView.vue",\n];', "];",
+@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '  "views/TestView.vue",\n];', "];",
           expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
-@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '  "views/FramesView.vue",\n];',
-          '  "views/FramesView.vue",\n  "views/AlertsView.vue",\n];',
+@mutation("apps/admin-web/tests/unit/no-native-select.spec.ts", '  "views/TestView.vue",\n];',
+          '  "views/TestView.vue",\n  "views/AlertsView.vue",\n];',
           expect=NO_SELECT + "every file still to convert still has one: a converted file leaves the list")
 @mutation(ALERTS_VIEW, '<span v-if="!isPhone" class="gt__spacer" />', '<select v-if="!isPhone" class="gt__spacer" />',
           expect=NO_SELECT + "no source file draws a native select but the ones still to convert")
