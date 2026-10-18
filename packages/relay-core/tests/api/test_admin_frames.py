@@ -2,6 +2,7 @@
 lock, apply to all and the preview. Every write records the admin session's user; a refusal stores nothing."""
 
 import asyncio
+import dataclasses
 
 from apikit import ADMIN_USER, run_app
 from doorkit import error_of
@@ -20,6 +21,7 @@ BASE = "/admin/frames/" + PROVIDER
 DEFAULT_VIDEO, DEFAULT_IMAGE = FAKE_FRAMES.defaults["video"], FAKE_FRAMES.defaults["image"]
 CORE = frames.CORE_FRAME
 A, B, C = "fake-a-video", "fake-b-video", "fake-c-video"
+SHOWN = "shown = {m.id: m.display_name or m.id for m in spec.catalog()}"
 
 
 class Three(FakeSpec):
@@ -79,6 +81,27 @@ def test_the_list_shows_every_model_with_its_default_source_lock_and_whether_the
     later = {k["kind"]: k for k in after.json()["kinds"]}["video"]
     assert later["shipped_differs"] is True, "shipped_differs is always false"
     assert later["models"][1]["locked"] is True and later["models"][1]["lock"]["created_by"] == ADMIN_USER
+
+
+class Named(Three):
+    """Three, with a product name for model A only."""
+
+    def catalog(self):
+        return [dataclasses.replace(m, display_name="Model A") if m.id == A else m for m in super().catalog()]
+
+
+@mutation(ROUTES, SHOWN, "shown = {m.id: m.id for m in spec.catalog()}", expect="the display name")
+@mutation(ROUTES, SHOWN, "shown = {m.id: m.display_name for m in spec.catalog()}", expect="the id stands in")
+def test_the_list_names_each_model_with_its_display_name_or_its_id(db):
+    seed(db)
+
+    async def scenario(env):
+        return await go(env, "GET", "/frames?provider=" + PROVIDER)
+
+    kinds = {k["kind"]: k for k in run_app(db, scenario, spec=Named(frames=FAKE_FRAMES)).json()["kinds"]}
+    names = [(m["model"], m["name"]) for k in ("video", "image") for m in kinds[k]["models"]]
+    assert names[0] == (A, "Model A"), "the display name: %s" % names
+    assert names[1:] == [(B, B), (C, C), ("fake-image", "fake-image")], "the id stands in: %s" % names
 
 
 def test_an_unknown_provider_a_provider_without_frames_and_a_missing_provider_are_refused(db):

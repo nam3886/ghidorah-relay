@@ -48,7 +48,8 @@ tolerated; one with content is refused). The native door takes `model`, `prompt`
 ## Model names
 
 - Video: `seedance-2.5`, `seedance-2.0`, `seedance-1.0`. Image: `seedream-4.5`, `seedream-5.0-pro`. `GET /v1/models` lists what
-  your key may use, with limits and prices in points.
+  your key may use, with limits and prices in points, and the display `name` of each model ("Dreamina Seedance 2.5"; the
+  id when a model has none). Send the id, never the name.
 - Video durations: 2.5 takes 5, 10, 20, 25, 30 s; 2.0 takes 5, 10, 15 s; 1.0 takes 5, 10 s. Ratios: 1:1, 3:4, 4:3, 9:16, 16:9,
   21:9. Image ratios: 1:1, 2:3, 3:4, 4:3, 9:16, 16:9.
 - **Native door:** send the model name alone, and `duration` and `ratio` as fields (image `style` as a field). A name that carries
@@ -85,7 +86,9 @@ A video can take **about an hour** to render (28 to 56 minutes measured). An ima
 
 A job can fail long after it was accepted: dola may refuse it (copyright, safety, a question instead of an order) or render
 nothing. This usually comes within about an hour; at the latest about 3 hours 30 minutes after acceptance (the render deadline, 2 hours
-30 minutes by default, plus one final read that can take up to an hour). A failed job is **refunded** to the key's wallet, once: `refunded: true` in its status. Poll for it; do not assume
+30 minutes by default, plus one final read that can take up to an hour). A failed job is **refunded** to the key's wallet, once: `refunded: true` in its status. `points` in the status is what the
+job's charge took (its price, taken when it was made; a re-check after a refund charges it again, never twice). On a
+refunded job, `points` is the amount that was refunded. Net for a client is therefore `refunded ? 0 : points`. Poll for it; do not assume
 that a `queued` or `running` job will succeed.
 
 ## Errors
@@ -113,7 +116,7 @@ curl -s http://192.168.18.227:8100/v1/video/generations \
 # {"id": "<job id>", "status": "queued", "queue_position": 1, "warnings": []}
 
 curl -s http://192.168.18.227:8100/v1/video/generations/<job id> -H "Authorization: Bearer rk-..."
-# {"status": "done", "result_urls": ["http://192.168.18.227:8100/m/<token>"], "refunded": false, ...}
+# {"status": "done", "result_urls": ["http://192.168.18.227:8100/m/<token>"], "refunded": false, "points": 2, ...}
 ```
 
 OpenAI door (name suffixes allowed here). If the answer says `still rendering`, poll the native video route with `job_id`.

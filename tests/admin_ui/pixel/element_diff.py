@@ -6,7 +6,9 @@ so this compares what the eye compares: every visible thing that holds text or d
 `extract(page, root, region)` runs in a page (the canvas render or the app) and lists, relative to the `root` element:
 - text runs: each element's own text (its direct text nodes), with the box of the glyphs (a Range, trimmed of spaces,
   clipped by every ancestor that hides overflow), font family, size, weight, line height, letter spacing, transform,
-  colour, decoration and the effective opacity;
+  colour, decoration, the effective opacity, and how the glyphs are rendered (`RENDERING`: font smoothing, text
+  rendering, synthesis, feature and variation settings, optical sizing, kerning; computed even where this Chrome draws
+  them alike, as Linux does font smoothing: a Mac does not);
 - boxes: each element that paints something (a border, a background that differs from what is under it, a shadow,
   an outline), and every svg, img and input, with its border box, background, borders, radius, padding, shadow,
   outline, opacity and a signature (aria-label, title, its text, or an svg's shapes); an input also with its margin
@@ -28,7 +30,17 @@ import base64
 import math
 from dataclasses import dataclass, field
 
-EXTRACT_JS = r"""({root, region}) => {
+# The computed properties of how glyphs are drawn, compared on every text run: the boards set none of them, and some
+# (font smoothing) change the pixels only on another system, where the owner looks. Only properties this Chrome
+# supports: an unsupported one computes to "" on both sides and would compare equal for ever, so extract() refuses it
+# (Firefox's -moz-osx-font-smoothing is left out for that reason; the theme spec still bans it in the stylesheets).
+RENDERING = ("-webkit-font-smoothing", "text-rendering", "font-synthesis", "font-feature-settings",
+             "font-variation-settings", "font-optical-sizing", "font-kerning")
+
+EXTRACT_JS = r"""({root, region, rendering}) => {
+  const unsupported = rendering.filter((p) => !CSS.supports(p, "initial"));
+  if (unsupported.length) return {error: "this browser does not support " + unsupported.join(", ") +
+    ": compared, they would read \"\" on both sides and never differ"};
   const rootEl = root ? document.querySelector(root) : document.documentElement;
   if (!rootEl) return {error: "no element matches " + root};
   const rr = rootEl.getBoundingClientRect();
@@ -138,7 +150,8 @@ EXTRACT_JS = r"""({root, region}) => {
             style: {family: firstFamily(s.fontFamily), size: s.fontSize, weight: s.fontWeight,
                     lineHeight: s.lineHeight, letterSpacing: s.letterSpacing, transform: s.textTransform,
                     color: s.color, decoration: s.textDecorationLine, numeric: s.fontVariantNumeric,
-                    opacity: String(Math.round(op * 100) / 100)}});
+                    opacity: String(Math.round(op * 100) / 100),
+                    ...Object.fromEntries(rendering.map((p) => [p, s.getPropertyValue(p)]))}});
         }
       }
     }
@@ -211,9 +224,9 @@ class Result:
         return len(self.differences) + len(self.canvas_only) + len(self.app_only)
 
 
-def extract(page, root: str | None = None, region: tuple | None = None) -> dict:
-    got = page.evaluate(EXTRACT_JS, {"root": root, "region": list(region) if region else None},
-                        isolated_context=False)
+def extract(page, root: str | None = None, region: tuple | None = None, rendering: tuple = RENDERING) -> dict:
+    got = page.evaluate(EXTRACT_JS, {"root": root, "region": list(region) if region else None,
+                                     "rendering": list(rendering)}, isolated_context=False)
     if "error" in got:
         raise AssertionError(got["error"])
     return got

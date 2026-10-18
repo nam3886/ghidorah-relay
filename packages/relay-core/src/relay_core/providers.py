@@ -357,6 +357,7 @@ class ModelSpec:
     aliases: tuple[str, ...] = ()
     limits: Mapping[str, Any] = field(default_factory=dict)
     prices: Mapping[str, int] = field(default_factory=dict)
+    display_name: str = ""             # the product name shown to people; empty: the catalog shows the id
 
     def names(self) -> tuple[str, ...]:
         return (self.id, *self.aliases)

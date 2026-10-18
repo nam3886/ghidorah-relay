@@ -117,6 +117,7 @@ async def _effective(conn, spec: ProviderSpec, kind: str, model: str) -> frames.
 async def list_frames(request: Request, provider: str, pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
     spec = spec_of(request.app.state.registry, provider)
     rules = _rules(spec)
+    shown = {m.id: m.display_name or m.id for m in spec.catalog()}
     kinds = []
     async with tx(pool) as conn:
         for kind in sorted({m.media_type for m in spec.catalog()} & set(frames.KINDS)):
@@ -128,8 +129,8 @@ async def list_frames(request: Request, provider: str, pool: AsyncConnectionPool
                 own = own if own is not None and own.text is not None else None
                 effective = await frames.effective(conn, provider, kind, model)
                 lock = locks.get(model)
-                models.append({"model": model, "source": "own" if own else "default", "own": _v(own),
-                               "effective": _v(None if effective is None else effective.version),
+                models.append({"model": model, "name": shown[model], "source": "own" if own else "default",
+                               "own": _v(own), "effective": _v(None if effective is None else effective.version),
                                "locked": bool(lock and lock.locked), "lock": _l(lock)})
             shipped = rules.defaults.get(kind)
             kinds.append({"kind": kind, "default": _v(default), "shipped": shipped,
