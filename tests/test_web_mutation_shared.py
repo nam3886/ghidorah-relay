@@ -489,10 +489,23 @@ CONFIRM_BOX = f"{SHARED}/confirm-dialog.css"
 
 
 @mutation(CONFIRM_TS, "showClose: false,", "showClose: true,", expect="draws no close X")
-@mutation(CONFIRM_BOX, "vertical-align: top;\n  margin-top: min(240px, 30vh);",
-          "vertical-align: middle;\n  margin-top: min(240px, 30vh);", expect="the confirm box sits 240 px from the top")
-@mutation(CONFIRM_BOX, "margin-top: min(240px, 30vh);", "margin-top: 0;",
+@mutation(CONFIRM_BOX, "vertical-align: top;\n  margin-top: calc(min(240px, 30vh) - 16px);",
+          "vertical-align: middle;\n  margin-top: calc(min(240px, 30vh) - 16px);",
           expect="the confirm box sits 240 px from the top")
+@mutation(CONFIRM_BOX, "margin-top: calc(min(240px, 30vh) - 16px);", "margin-top: min(240px, 30vh);",
+          expect="the confirm box sits 240 px from the top")
+# page-drawer: the confirm's 440 cap and its buttons (B-JobFailed, B-States), the picture viewer's skin
+@mutation(CONFIRM_BOX, "--el-messagebox-width: 440px;", "--el-messagebox-width: 420px;",
+          expect="the confirm box sits 240 px from the top")
+@mutation(CONFIRM_BOX, "  padding: 0 16px;\n  line-height: normal;", "  padding: 0 14px;\n  line-height: normal;",
+          expect="padded 0 16 in the browser")
+@mutation(CONFIRM_BOX, "el-button--danger {\n  border: 0;", "el-button--danger {\n  border: 1px solid;",
+          expect="the destructive one has no edge")
+@mutation(SKIN, "  opacity: 1;\n  background: var(--rl-scrim);", "  opacity: 0.5;\n  background: #000;",
+          expect="the picture viewer is the scrim with buttons on the menu surface")
+@mutation(SKIN, "  opacity: 1;\n  border: 1px solid var(--rl-line);\n  background: var(--rl-surface);",
+          "  opacity: 0.8;\n  border: 1px solid var(--rl-line);\n  background: #303133;",
+          expect="the picture viewer is the scrim with buttons on the menu surface")
 @mutation(LEDGER, "line-height: 20px;", "line-height: 18px;", expect="a ledger line is 20 px high")
 @pytest.mark.web_unit
 def test_the_confirm_box_sits_where_the_canvas_puts_it_and_the_ledger_line_is_20_px():

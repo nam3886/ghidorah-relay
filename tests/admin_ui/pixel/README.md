@@ -15,6 +15,8 @@ design tool's runtime is used.
 | `test_pixel.py` | the browser tests; every entry's `gate` is enforced (35 % ceiling by default); the gate itself is self-tested |
 | `element_diff.py` | element by element: every visible text run and painted box of the canvas paired with the app's (by text, signature, then position) and compared (box edges over 0.5 px, font, colour, background, border, radius, padding, opacity); a markdown table per comparison and a canvas / app / diff PNG side by side |
 | `test_element_diff.py` | the Jobs page through `element_diff.py`: the B/T/P-Jobs boards and the Jobs states of B-States (a state card is widened to the app's width first); fails while a table holds a difference that is not live data. Also the Jobs list with data shaped like the live box, at 1440, 768 and 390 |
+| `test_element_diff_drawer.py` | the job drawer through `element_diff.py` (its own `DrawerCheck`, which adds `canvas_drive`, `opaque`, `skip` and `place`): each of B-JobDetail, B-JobFailed, T-JobDetail and P-JobDetail on each of its three tabs (the tab picked on both sides), the Regenerate confirm, the broken thumbnail; the drawers the canvas does not draw, hover, focus, copy, loading, a failed read, the popover, the focus given back, and live-shaped data, photographed and guarded |
+| `pixel_drawer.py` | the drawer boards' jobs planted through the database (frame versions, the webhook, the key prefix included), the drive that opens a drawer on a tab, the undrawn statuses and the live-shaped jobs. Every stored image is one fixed transparent 2×3 PNG (`PICTURE`): a tile shows the app's loaded thumbnail with its own colour through it, so the element diff compares the tile's box and leaves its inside as data, and the pixel diff only counts the canvas's placeholder icon and size; `picture=False` stores a broken file instead (the canvas's placeholder, compared whole) |
 
 Run (on the box, narrowed; the images land in `shots/pixel/` of the tree folder, never in git):
 
@@ -68,7 +70,12 @@ scripts/box.sh --tree <folder> -- env RELAY_SCREENSHOTS_DIR=shots scripts/check-
 scripts/box.sh --tree <folder> -- env RELAY_SCREENSHOTS_DIR=shots scripts/check-in-container.sh "tests/admin_ui/pixel/test_element_diff.py::test_jobs_matches_the_canvas_element_by_element[B-Jobs-light]"
 ```
 
-Another page reuses it with its own `Check` list (canvas root, app root, viewport, live data texts).
+Another page reuses it with its own `Check` list (canvas root, app root, viewport, live data texts), in a file of its
+own (`test_element_diff_<page>.py`). The drawer's `DrawerCheck` (test_element_diff_drawer.py) can also drive the board (`canvas_drive`: pick a tab, close a drawn confirm, take out what an accepted deviation does not build,
+last, as a click re-renders the board), name boxes whose inside is data (`opaque`: a thumbnail), leave out sections an
+accepted deviation adds (`skip`), and demand that roots or a scrim sit at one place in the viewport with one fill and
+shadow (`place`, `element_diff.place_of`): the tables place everything relative to the compared root. Boxes the tool
+pairs by their place must also carry the same accessible name (`label`). The compared root's own fill always counts.
 
 `check-in-container.sh` takes node ids only (no `-k`). The run prints `PIXEL <name> <theme>: <pct> %`; the images and
 `report.md` are in `shots/pixel/` (`<name>-<theme>.{ref,app,diff}.png`; the diff shows matches faded, anti-aliasing
