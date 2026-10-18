@@ -9,8 +9,6 @@ import { describe, expect, it } from "vitest";
 const STILL_TO_CONVERT = [
   "components/logs/LogsFilterForm.vue",
   "components/accounts/ImportDialog.vue",
-  "views/TestView.vue",
-  "views/FramesView.vue",
 ];
 
 const SRC = join(process.cwd(), "src");

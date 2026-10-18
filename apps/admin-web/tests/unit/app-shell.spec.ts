@@ -243,9 +243,11 @@ describe("the shell", () => {
     notify.success("fine");
     await flushPromises();
     const toasts = [...document.body.querySelectorAll(".el-message")];
-    expect(toasts.map((t) => t.querySelector(".el-message__content")?.textContent)).toEqual(["boom", "fine"]);
-    expect(toasts[0]?.querySelector(".el-message__closeBtn")).not.toBeNull();
-    expect(toasts[1]?.querySelector(".el-message__closeBtn")).toBeNull();
+    expect(toasts.map((t) => t.querySelector(".rl-toast__text")?.textContent)).toEqual(["boom", "fine"]);
+    // the merged one counts its repeats in the drawn pill; only the error has the drawn X
+    expect(toasts.map((t) => t.querySelector(".rl-toast__count")?.textContent ?? "")).toEqual(["×2", ""]);
+    expect(toasts[0]?.querySelector('button[aria-label="Close message"]')).not.toBeNull();
+    expect(toasts[1]?.querySelector('button[aria-label="Close message"]')).toBeNull();
     notify.clear();
   });
 
@@ -972,6 +974,21 @@ describe("the login page", () => {
     expect(reveal.attributes("aria-pressed")).toBe("true");
     await reveal.trigger("click");
     expect(pass.attributes("type")).toBe("password");
+  });
+
+  it("says Signing in… on a disabled button while the answer is on its way", async () => {
+    let answer: (value: { token: string; expires_at: number }) => void = () => undefined;
+    vi.mocked(shell.login).mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    const login = await mountLogin();
+    await login.find('input[name="username"]').setValue("owner");
+    await login.find('input[name="password"]').setValue("secret");
+    await login.find("form").trigger("submit");
+    const button = login.find('button[type="submit"]');
+    expect(button.text()).toBe("Signing in…");
+    expect(button.attributes("disabled")).toBeDefined();
+    answer({ token: "tok", expires_at: 1 });
+    await flushPromises();
+    expect(login.find('button[type="submit"]').text()).toBe("Sign in");
   });
 
   it("has its own theme toggle and the LAN-only footer, and no shell", async () => {

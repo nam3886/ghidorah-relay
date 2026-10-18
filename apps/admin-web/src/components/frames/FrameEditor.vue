@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import HintTip from "@/components/shared/HintTip.vue";
+import { IconAlertCircle } from "@/components/shared/icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import {
   appliedLine,
@@ -64,10 +65,16 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
         :placeholder="FRAME_SHAPE"
         :readonly="frames.controlsOff"
         class="editor__text"
+        :class="{ 'is-invalid': frames.refusal }"
+        :aria-invalid="frames.refusal ? 'true' : undefined"
+        :aria-describedby="frames.refusal ? 'frame-refusal' : undefined"
         @input="frames.setDraft(($event.target as HTMLTextAreaElement).value)"
       />
+      <!-- a refused write, drawn as the field error of B-States (12.8): under the box it is about -->
+      <span v-if="frames.refusal" id="frame-refusal" class="editor__alert" role="alert"
+        ><IconAlertCircle :size="14" />{{ frames.refusal }}</span
+      >
     </div>
-    <p v-if="frames.refusal" class="editor__alert" role="alert">{{ frames.refusal }}</p>
 
     <div class="editor__buttons">
       <button type="button" class="btn btn--primary" :disabled="!frames.canSave" @click="frames.save">Save</button>
@@ -124,7 +131,7 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
       </template>
     </div>
 
-    <div class="editor__section">
+    <div class="editor__section editor__section--history">
       <!-- the canvas draws no lock history line: the whole history of the lock is the heading's tooltip -->
       <h3>
         <HintTip
@@ -154,7 +161,10 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
       </ol>
     </div>
   </section>
-  <p v-else-if="frames.data" class="editor__empty">Pick a model or a default to edit its frame.</p>
+  <!-- nothing open: the drawn empty card (12.6) -->
+  <section v-else-if="frames.data" class="editor editor--empty" aria-label="Frame editor">
+    <p>Pick a model or a default to edit its frame.</p>
+  </section>
 </template>
 
 <style scoped>
@@ -272,15 +282,18 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
   padding: 0 12px;
   font: inherit;
   font-size: 14px;
+  line-height: normal;
 }
 .editor__text:read-only {
   color: var(--rl-muted);
 }
+.editor__text.is-invalid {
+  border-color: var(--rl-bad);
+}
 .editor__alert {
-  margin: 0;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: var(--rl-bad-bg);
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--rl-bad);
   font-size: 12px;
   line-height: 16px;
@@ -306,6 +319,7 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
   color: var(--rl-fg);
   font: inherit;
   font-size: 13px;
+  line-height: normal;
   cursor: pointer;
 }
 .btn:hover:not(:disabled) {
@@ -337,6 +351,10 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
   gap: 10px;
   padding-top: 16px;
   border-top: 1px solid var(--rl-line);
+}
+/* the history is a plain block: its heading's own 4 px margin is the only space above the list */
+.editor__section--history {
+  display: block;
 }
 .editor__preview {
   padding: 12px 14px;
@@ -379,10 +397,14 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
   padding: 0 10px;
   background: transparent;
 }
-.editor__empty {
+.editor.editor--empty {
+  display: block;
+  padding: 44px 24px 52px;
+  text-align: center;
+}
+.editor--empty p {
   margin: 0;
   color: var(--rl-muted);
-  font-size: 13px;
 }
 
 @media (min-width: 768px) and (max-width: 1279px) {
@@ -410,9 +432,11 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
   .editor__buttons {
     flex-direction: column;
   }
+  /* the drawn phone buttons set no padding: the browser's 1px 6px */
   .editor__buttons .btn {
     width: 100%;
     height: 44px;
+    padding: 1px 6px;
     font-size: 14px;
   }
   .editor__input {

@@ -10,6 +10,9 @@ export const DEFAULT_TARGET = "default";
 export const PROMPT_MARKER = "{{client_prompt}}";
 export const TRACKING_MARKER = "{{tracking_code}}";
 
+// "Video": a kind as its section heading writes it
+export const kindTitle = (kind: string): string => kind.charAt(0).toUpperCase() + kind.slice(1);
+
 // "v7": the version as the tables and the history draw it. No version at all is said so.
 export const versionTag = (v: FrameVersion | null | undefined): string => (v ? `v${v.id}` : "no version");
 

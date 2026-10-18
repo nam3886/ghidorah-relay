@@ -20,7 +20,7 @@ defineProps<{ id: string; title: string; note?: string; snug?: boolean }>();
   border: 1px solid var(--rl-line);
   border-radius: 16px;
   overflow: hidden;
-  scroll-margin-top: 16px;
+  scroll-margin-top: var(--settings-anchor, 16px);
 }
 .card__head {
   padding: 16px 16px 14px;
