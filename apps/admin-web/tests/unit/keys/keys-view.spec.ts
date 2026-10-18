@@ -606,6 +606,16 @@ describe("the key form as the design draws it", () => {
     expect(field('input[aria-label="vibes video per day"]').value).toBe("20");
   });
 
+  it("each wallet's Mode is named after its wallet and keeps the visible word", async () => {
+    await editShop();
+    const modes = [...document.body.querySelectorAll<HTMLElement>('.key-dialog [role="combobox"]')];
+    expect(modes.map((m) => m.getAttribute("aria-label"))).toEqual(["dola image Mode", "vibes video Mode"]);
+    expect(modes.some((m) => m.hasAttribute("aria-labelledby"))).toBe(false);
+    modes[1]!.click();
+    await settle();
+    expect(document.body.querySelector('[role="listbox"]')!.getAttribute("aria-label")).toBe("vibes video Mode");
+  });
+
   it("the model boxes are off while Any model is ticked and on once it is cleared", async () => {
     await editShop({ models: ["*"] });
     const boxes = () => [

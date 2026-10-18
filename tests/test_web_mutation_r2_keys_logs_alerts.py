@@ -353,6 +353,18 @@ def test_a_wallet_mode_is_chosen_in_the_design_select_of_its_group():
     vitest(KEYS_VIEW_SPEC)
 
 
+SHARED_SELECT = SRC + "/components/shared/FilterSelect.vue"
+MODE_NAMED = FORM + "each wallet's Mode is named after its wallet and keeps the visible word"
+
+
+@mutation(KEY_FORM, ':aria-label="`${w.provider} ${w.kind} Mode`"', "", expect=MODE_NAMED)
+@mutation(SHARED_SELECT, '"aria-label": props.ariaLabel,', '"aria-label": props.label ? undefined : props.ariaLabel,',
+          expect=MODE_NAMED)
+@pytest.mark.web_unit
+def test_each_wallet_mode_is_named_after_its_wallet():
+    vitest(KEYS_VIEW_SPEC)
+
+
 # ---- Keys: the Copy buttons ------------------------------------------------------------------------------------
 @mutation(NEW_KEY, "copyText(props.rawKey, () => field.value, abort.signal)",
           'copyText("", () => field.value, abort.signal)',

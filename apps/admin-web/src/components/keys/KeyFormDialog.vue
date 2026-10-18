@@ -162,6 +162,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
             class="kd__mode"
             variant="field"
             label="Mode"
+            :aria-label="`${w.provider} ${w.kind} Mode`"
             :model-value="w.mode"
             :options="MODE_OPTIONS"
             @update:model-value="(v) => (w.mode = v as WalletMode)"
