@@ -408,6 +408,8 @@ CLEARED = (f"FAILED {LOGS_VIEW_SPEC} > filters > emptying a typed day and pressi
            "store holds an empty text")
 ENTER = (f"FAILED {LOGS_VIEW_SPEC} > filters > a day typed and confirmed with Enter sends the same window as a chosen "
          "one")
+PICKED = (f"FAILED {LOGS_VIEW_SPEC} > filters > a day picked from the open panel replaces the one held and searches "
+          "for exactly that day")
 NO_DATE = "FAILED tests/unit/no-native-date.spec.ts > no native date > no source file draws a native date input"
 SIZE = (f"FAILED {LOGS_VIEW_SPEC} > paging and refresh > a page size from the pager is asked for and starts "
         "again at the first page")
@@ -419,6 +421,10 @@ SIZE = (f"FAILED {LOGS_VIEW_SPEC} > paging and refresh > a page size from the pa
           '          popper-class="rl-date-popper"\n          @change="emit(\'search\')"\n        />\n'
           '      </component>\n      <component',
           '          popper-class="rl-date-popper"\n        />\n      </component>\n      <component', expect=ENTER)
+@mutation(LOG_FILTERS,
+          '          popper-class="rl-date-popper"\n          @change="emit(\'search\')"\n        />\n'
+          '      </component>\n      <button',
+          '          popper-class="rl-date-popper"\n        />\n      </component>\n      <button', expect=PICKED)
 @mutation(LOG_FILTERS, '(filters.from = v ?? "")', "(filters.from = v as string)", expect=CLEARED)
 @mutation(LOG_FILTERS, '          id="logs-from"\n', '          id="logs-from"\n          type="date"\n',
           expect=NO_DATE)

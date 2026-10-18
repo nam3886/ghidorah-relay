@@ -579,11 +579,14 @@ onMounted(async () => {
 .key__more {
   display: contents;
 }
+/* beside the buttons the note is as high as they are and centred in that height, so its line sits on their centre
+   line (the canvas centres it in the whole row, label included, which puts it about 6 px higher) */
 .key__note {
   flex: 1 1 240px;
-  align-self: center;
-  margin-inline: auto;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  align-self: flex-end;
+  height: 36px;
   font-size: 12px;
   color: var(--rl-faint);
 }
@@ -863,6 +866,7 @@ onMounted(async () => {
   }
   .key__note {
     flex: 1 1 100%;
+    height: auto;
   }
   .grid {
     flex-direction: column;
@@ -975,6 +979,7 @@ onMounted(async () => {
   .key__note {
     flex: none;
     align-self: auto;
+    height: auto;
   }
   .grid {
     flex-direction: column;

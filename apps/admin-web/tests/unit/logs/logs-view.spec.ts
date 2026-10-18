@@ -377,16 +377,24 @@ describe("filters", () => {
     expect(useLogsFilters(pinia).from).toBe("");
   });
 
-  it("a day picked from the open panel is sent as that day", async () => {
+  it("a day picked from the open panel replaces the one held and searches for exactly that day", async () => {
     const { w } = await open();
-    await picker(w, "From").trigger("focus");
+    await setDay(w, "To", "2026-10-05");
+    expect(lastQuery().until_ms).toBe(dayAfter("2026-10-05"));
+    // the panel opens on the month of the held day: the 20th of that month, not a day of a neighbouring month
+    await picker(w, "To").trigger("mousedown");
     await settle();
-    const cells = [...document.body.querySelectorAll<HTMLElement>(".el-date-table td.available")];
-    const first = cells.find((td) => td.textContent?.trim() === "1")!;
-    first.click();
+    // each picker has its own panel; the To panel is the one whose chosen cell is the 5th
+    const panel = document.body
+      .querySelector<HTMLElement>(".el-date-table td.current")!
+      .closest<HTMLElement>(".el-picker-panel")!;
+    const cells = [...panel.querySelectorAll<HTMLElement>(".el-date-table td.available")].filter(
+      (td) => !td.classList.contains("prev-month") && !td.classList.contains("next-month"),
+    );
+    cells.find((td) => td.textContent?.trim() === "20")!.click();
     await settle();
-    expect(picker(w, "From").element.value).toMatch(/^\d{4}-\d{2}-01$/);
-    expect(lastQuery().since_ms).toBe(dayStart(picker(w, "From").element.value));
+    expect(picker(w, "To").element.value).toBe("2026-10-20");
+    expect(lastQuery().until_ms).toBe(dayAfter("2026-10-20"));
   });
 
   it("the day text never becomes a Date in the app: the window is the viewer's own midnights, even 14 hours ahead of UTC", async () => {

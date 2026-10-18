@@ -146,7 +146,7 @@ GATES: dict[str, float] = {
     "B-Login": 1.04,
     "B-Logs": 1.37,
     "B-Settings": 1.08,
-    "B-Test": 1.12,
+    "B-Test": 1.14,
     "P-Accounts": 1.04,
     "P-Alerts": 1.31,
     "P-Frames": 1.46,
@@ -157,7 +157,7 @@ GATES: dict[str, float] = {
     "P-Login": 1.16,
     "P-Logs": 1.24,
     "P-Settings": 1.25,
-    "P-Test": 1.43,
+    "P-Test": 1.30,
     "T-Accounts": 1.03,
     "T-Alerts": 1.07,
     "T-Frames": 1.17,
@@ -167,7 +167,7 @@ GATES: dict[str, float] = {
     "T-Keys": 8.41,
     "T-Logs": 1.28,
     "T-Settings": 1.06,
-    "T-Test": 1.19,
+    "T-Test": 1.07,
 }
 
 ENTRIES: list[Entry] = [

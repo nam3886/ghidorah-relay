@@ -41,9 +41,9 @@ def board_state(page, live, data):
 # and specs/test.md with U+2019 ("use U+2019 everywhere"): the app writes the curly one.
 TEST = Entry("B-Test", "#/test", seed=key_page_seed, now=NOW, drive=board_state, user=BOARD_USER)
 BOARD_DATA = ("e17c55b2",)
-# Owner deviation 29: the key note is centred in the space after the buttons (the boards draw it at the start of that
-# space). It is set aside from the pairing under both spellings of the apostrophe, and `test_the_key_note_is_centred`
-# holds its place.
+# Owner deviation 29: the key note's line sits on the buttons' centre line (the canvas centres it in the whole row,
+# label included, about 6 px higher); its left edge is the canvas's. It is set aside from the pairing under both
+# spellings of the apostrophe, and `test_the_key_note_sits_on_the_buttons_centre_line...` holds its place.
 NOTE = "The key lives only in this tab’s session storage."
 BOARD_CHECKS = [Check(board, replace(TEST, board=board), data=BOARD_DATA,
                       accepted=(NOTE, NOTE.replace("’", "'")), accepted_app=(NOTE,))
@@ -458,21 +458,30 @@ def test_test_undrawn_states_are_photographed(app, db, live, run_dir, state, act
 
 NOTE_JS = """() => {
   const note = document.querySelector('.key__note');
-  const box = note.getBoundingClientRect();
   const range = document.createRange();
   range.selectNodeContents(note);
   const text = range.getBoundingClientRect();
-  return {align: getComputedStyle(note).textAlign, box: [box.left, box.width], text: [text.left, text.width]};
+  const button = [...document.querySelectorAll('.key button')].find((b) => b.textContent.trim() === 'Load models');
+  const last = [...document.querySelectorAll('.key button')].at(-1).getBoundingClientRect();
+  const b = button.getBoundingClientRect();
+  const section = document.querySelector('section.key');
+  const pad = parseFloat(getComputedStyle(section).paddingLeft);
+  return {text: [text.left, text.top + text.height / 2], button: [b.top, b.top + b.height / 2, b.bottom],
+          lastRight: last.right, sectionLeft: section.getBoundingClientRect().left + 1 + pad};
 }"""
 
 
 @pytest.mark.parametrize("width", (1440, 768, 390))
-def test_the_key_note_is_centred(app, db, live, width):
-    """The note's text sits in the middle of its own box at every width (the box spans the free space of the row)."""
+def test_the_key_note_sits_on_the_buttons_centre_line_and_starts_where_the_canvas_starts_it(app, db, live, width):
+    """Beside the buttons the note's line is level with theirs (the canvas's sits about 6 px higher); its left edge is
+    the start of the space after the last button (12 px gap). Wrapped under them, it starts at the card's edge."""
     entry = Entry("B-Test", "#/test", seed=key_page_seed, now=NOW, drive=board_state, user=BOARD_USER)
     with opened(app, db, live, entry, False, width, 900) as page:
         got = page.evaluate(NOTE_JS, isolated_context=False)
-        assert got["align"] == "center", got
-        box_mid = got["box"][0] + got["box"][1] / 2
-        text_mid = got["text"][0] + got["text"][1] / 2
-        assert abs(box_mid - text_mid) <= 1, got
+        x, y = got["text"]
+        if got["button"][0] <= y <= got["button"][2]:       # they share a row
+            assert abs(y - got["button"][1]) <= 0.5, got
+            assert abs(x - (got["lastRight"] + 12)) <= 0.5, got
+        else:
+            assert width < 1280, got
+            assert abs(x - got["sectionLeft"]) <= 1, got

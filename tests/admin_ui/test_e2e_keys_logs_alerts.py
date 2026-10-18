@@ -361,11 +361,16 @@ def test_the_date_window_is_the_viewers_midnights_and_ends_at_the_start_of_the_d
     field.locator(".clear-icon").click()
     expect(rows(page)).to_have_count(3)
     assert start.input_value() == ""
-    # a day picked from the open panel is that day
-    end.click()
-    page.locator(".el-picker-panel:visible .el-date-table td.available").filter(has_text=re.compile(r"^15$")).click()
+    # a day picked from the open panel replaces the one held: From 14 holds three rows, then the 15th picked leaves two
+    start.click()
+    start.fill("2026-10-14")
+    start.press("Enter")
     expect(rows(page)).to_have_count(3)
-    assert end.input_value() == "2026-10-15"
+    start.click()
+    page.locator(".el-picker-panel:visible .el-date-table td.available:not(.prev-month):not(.next-month)").filter(
+        has_text=re.compile(r"^15$")).click()
+    expect(rows(page)).to_have_count(2)
+    assert start.input_value() == "2026-10-15"
     assert timedelta(hours=1) <= after - day <= timedelta(hours=25)
 
 
