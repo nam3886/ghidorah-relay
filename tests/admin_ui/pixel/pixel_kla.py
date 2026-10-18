@@ -4,6 +4,7 @@ Built from specs/sample-data.md sections 5 to 7. Where the canvas shows figures 
 4,812, a group of 6 rows with 4 listed, the ids of requests) the seed plants what a row can be and the diff report
 explains the rest."""
 
+import dataclasses
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -11,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from accountkit import new_account
 from jobkit import key as new_key
 from patchright.sync_api import expect
+from pixel_lane7 import use_the_boards_models
 from pixel_manifest import TIMEOUT_MS, Entry
 from pixel_seed import (
     ACCOUNTS,
@@ -100,8 +102,26 @@ def set_key(db, key_id, label, prefix, enabled, models, video, image, created) -
                        "'adjust', %s, current_date - %s)", key_id, PROVIDER, kind, amount, day_offset)
 
 
+# The display names B-KeyForm draws for the boards' five models; the catalog sends them as `name`, as the server does.
+BOARD_MODEL_NAMES = {"seedance_v2.5": "Dreamina Seedance 2.5", "seedance_v2.0": "Seedance 2.0 Fast",
+                     "seedance_v1.0": "Seedance 1.0", "seedream-4.5": "Seedream 4.5",
+                     "seedream-5.0-pro": "Seedream 5.0 Pro"}
+
+
+def name_the_boards_models(live) -> None:
+    """The live server's catalog (the boards' models, see use_the_boards_models) with the boards' display names."""
+    spec = live.env.registry.spec(PROVIDER)
+    plain = spec.catalog
+    spec.catalog = lambda: [dataclasses.replace(m, display_name=BOARD_MODEL_NAMES.get(m.id, "")) for m in plain()]
+
+
 def keys_seed(db, live):
-    """Five of the six keys of the board; Partner D is made by the drive (its one-time key is the callout)."""
+    """Five of the six keys of the board; Partner D is made by the drive (its one-time key is the callout). The
+    boards' user (the top bar reads "admin") and the boards' five models with their names (the Edit dialog lists
+    them)."""
+    board_user(live)
+    use_the_boards_models(live, frames=False)
+    name_the_boards_models(live)
     keys = [new_key(db, wallets=WALLETS) for _ in KEY_ROWS]
     top_bar(db, live, keys, UNFINISHED)
     for key_id, (label, prefix, enabled, models, video, image, jobs, created) in zip(keys, KEY_ROWS, strict=True):
@@ -137,6 +157,7 @@ def make_partner_d(page, data) -> None:
     # the one-time key is random: show the board's text instead (a mask for the diff, nothing else changes)
     page.evaluate("t => { document.querySelector('[data-testid=\"new-key\"] input').value = t; }", CALLOUT_KEY,
                   isolated_context=False)
+    page.mouse.move(0, 0)               # no row is hovered: the boards draw none (the switch was the last click)
 
 
 def keys_callout(page, live, data) -> None:
@@ -299,10 +320,10 @@ def alerts_detail(page, live, data) -> None:
 
 # ---- the entries -----------------------------------------------------------------------------------------------------
 KLA = [
-    Entry("B-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout),
-    Entry("T-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout),
-    Entry("P-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout),
-    Entry("B-KeyForm", "#/keys", seed=keys_seed, now=NOW, drive=keys_edit),
+    Entry("B-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout, user=BOARD_USER),
+    Entry("T-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout, user=BOARD_USER),
+    Entry("P-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout, user=BOARD_USER),
+    Entry("B-KeyForm", "#/keys", seed=keys_seed, now=NOW, drive=keys_edit, user=BOARD_USER),
     Entry("B-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_filters),
     Entry("T-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_filters),
     Entry("P-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_menu),

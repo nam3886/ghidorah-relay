@@ -1,6 +1,7 @@
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { nextTick } from "vue";
+import { ElDialog } from "element-plus";
+import { defineComponent, h, nextTick, ref } from "vue";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
 
 // The field variant of FilterSelect: the canvas's labelled select (B/T/P-Alerts toolbar) drawn as our own control.
@@ -149,5 +150,94 @@ describe("the field variant of FilterSelect", () => {
     expect(w.find("label").text()).toBe("Status");
     wrapper!.unmount();
     expect(field().classes()).not.toContain("is-block");
+  });
+});
+
+// The field inside an Element Plus dialog (the key form's Mode): the list opens over the dialog, and the dialog leaves
+// the list its keys and clicks.
+describe("the field inside a dialog", () => {
+  const value = ref<string | number>("open");
+  const visible = ref(true);
+  function inDialog() {
+    value.value = "open";
+    visible.value = true;
+    wrapper = mount(
+      defineComponent({
+        setup: () => () =>
+          h(
+            ElDialog,
+            { modelValue: visible.value, "onUpdate:modelValue": (v: boolean) => (visible.value = v), title: "Form" },
+            () =>
+              h(FilterSelect, {
+                modelValue: value.value,
+                "onUpdate:modelValue": (v: string | number) => (value.value = v),
+                options: OPTIONS,
+                variant: "field",
+                label: "Mode",
+              }),
+          ),
+      }),
+      { attachTo: document.body },
+    );
+  }
+  const settle = async () => {
+    await nextTick();
+    await nextTick();
+  };
+  const button = () => document.querySelector<HTMLButtonElement>('[role="combobox"]')!;
+  const press = (key: string) =>
+    button().dispatchEvent(new KeyboardEvent("keydown", { key, code: key, bubbles: true, cancelable: true }));
+
+  it("the list sits above an open dialog", async () => {
+    inDialog();
+    await settle();
+    button().click();
+    await settle();
+    const overlay = document.querySelector<HTMLElement>(".el-overlay")!;
+    expect(Number((listbox() as HTMLElement).style.zIndex)).toBeGreaterThan(Number(overlay.style.zIndex));
+  });
+
+  it("Escape closes only the list: the dialog stays open and the focus is back on the trigger", async () => {
+    inDialog();
+    await settle();
+    button().focus();
+    press("ArrowDown");
+    await settle();
+    expect(listbox()).not.toBeNull();
+    press("Escape");
+    await settle();
+    expect(listbox()).toBeNull();
+    expect(visible.value).toBe(true);
+    expect(document.querySelector(".el-dialog")).not.toBeNull();
+    expect(document.activeElement).toBe(button());
+  });
+
+  it("the dialog's focus trap leaves the keyboard to it: the arrows and Enter pick an option", async () => {
+    inDialog();
+    await settle();
+    button().focus();
+    press("ArrowDown");
+    await settle();
+    press("ArrowDown");
+    press("Enter");
+    await settle();
+    expect(value.value).toBe("acknowledged");
+    expect(listbox()).toBeNull();
+    expect(visible.value).toBe(true);
+    expect(document.activeElement).toBe(button());
+  });
+
+  it("a click on an option picks it and leaves the dialog open", async () => {
+    inDialog();
+    await settle();
+    button().click();
+    await settle();
+    [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find((o) => o.textContent?.trim() === "All")!
+      .click();
+    await settle();
+    expect(value.value).toBe("all");
+    expect(visible.value).toBe(true);
+    expect(document.querySelector(".el-dialog")).not.toBeNull();
   });
 });

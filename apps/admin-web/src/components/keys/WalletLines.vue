@@ -4,7 +4,7 @@ import { computed } from "vue";
 import { sortedWallets, usageLabel, usagePercent, walletText } from "./key-model";
 
 // The wallets of one key as ledger lines: the kind, a dotted leader and the value; a limit wallet adds two bars (left =
-// today, right = in total). `compact` is the tablet and phone form (smaller value, lines may wrap). The server lists
+// today, right = in total). `compact` is the tablet form (smaller value, lines may wrap). The server lists
 // wallets by name; the page lists a provider's video wallet first.
 const props = defineProps<{ wallets: Wallet[]; compact?: boolean }>();
 const ordered = computed(() => sortedWallets(props.wallets));
@@ -58,9 +58,11 @@ const ordered = computed(() => sortedWallets(props.wallets));
 }
 .wallet__leader {
   flex: 1;
-  min-width: 8px;
   border-bottom: 1px dotted var(--rl-line-strong);
   transform: translateY(-3px);
+}
+.is-compact .wallet__leader {
+  min-width: 8px;
 }
 .wallet__value {
   font-family: var(--rl-mono);
