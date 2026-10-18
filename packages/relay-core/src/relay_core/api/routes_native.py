@@ -88,13 +88,15 @@ async def create_image(request: Request, key: ApiKey = Depends(require_key), gat
 @router.get("/v1/video/generations/{job_id}")
 async def video_status(job_id: str, request: Request, key: ApiKey = Depends(require_key),
                        gate: Gate = Depends(get_gate)):
-    return await job_status(gate.pool, public_base(request), key.id, job_id, media_type="video")
+    return await job_status(gate.pool, public_base(request), key.id, job_id, media_type="video", estimate=True,
+                            registry=gate.registry)
 
 
 @router.get("/v1/images/generations/{job_id}")
 async def image_status(job_id: str, request: Request, key: ApiKey = Depends(require_key),
                        gate: Gate = Depends(get_gate)):
-    return await job_status(gate.pool, public_base(request), key.id, job_id, media_type="image")
+    return await job_status(gate.pool, public_base(request), key.id, job_id, media_type="image", estimate=True,
+                            registry=gate.registry)
 
 
 # ---- content: the job's output files through the API (contracts 8, 9) ----------------------------------------------

@@ -23,6 +23,7 @@ import re
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import Request
@@ -30,6 +31,7 @@ from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from relay_core import billing, errors, frames, keys, net
+from relay_core.api import progress
 from relay_core.api.errors_http import ApiError, field_param, validation_code
 from relay_core.jobs.create import (
     FrameUnusable,
@@ -503,14 +505,19 @@ _STATUS = ("SELECT j.status, j.error_code, j.model, j.params, j.title, j.warning
            "THEN (array_agg(l.amount ORDER BY l.id DESC) FILTER (WHERE l.entry = 'charge'))[1] "
            "ELSE sum(CASE l.entry WHEN 'charge' THEN l.amount ELSE -l.amount END) END "
            "FROM ledger l WHERE l.job_id = j.id AND l.entry IN ('charge', 'refund')), 0) "
+           ", COALESCE(j.render_since, j.sent_at), "
+           "GREATEST(EXTRACT(EPOCH FROM clock_timestamp() - COALESCE(j.render_since, j.sent_at)), 0)::float8 "
            "FROM jobs j WHERE j.id = %s AND j.key_id = %s")
 
 
 async def job_status(pool: AsyncConnectionPool, base_url: str, key_id, job_id: str, *,
-                     media_type: str | None = None) -> dict:
+                     media_type: str | None = None, estimate: bool = False,
+                     registry: ProviderRegistry | None = None) -> dict:
     """The status body of a job the key owns (contracts 8). 404 `resource.not_found` for any other job, a malformed
     id, or (when given) a job of the other media type. `error` is the rule's message of the job's code, masked
-    for a non-public code: never engine or upstream text."""
+    for a non-public code: never engine or upstream text. The last three keys are estimates (`api/progress.py`):
+    only a caller that passes `estimate` and the `registry` may cost a read, and a read that fails costs the answer
+    nothing."""
     try:
         wanted = uuid.UUID(job_id)
     except ValueError:
@@ -519,7 +526,7 @@ async def job_status(pool: AsyncConnectionPool, base_url: str, key_id, job_id: s
         row = await (await conn.execute(_STATUS, (wanted, key_id))).fetchone()
         if row is None or (media_type is not None and row[8] != media_type):
             raise ApiError("resource.not_found")
-        status, code, model, params, title, warnings, created, finished, kind, refunded, points = row
+        status, code, model, params, title, warnings, created, finished, kind, refunded, points, clock, elapsed = row
         outputs = await (await conn.execute(
             "SELECT share_token FROM job_media WHERE job_id = %s AND role = 'output' AND share_token IS NOT NULL "
             "ORDER BY idx", (wanted,))).fetchall() if status == "done" else []
@@ -528,6 +535,9 @@ async def job_status(pool: AsyncConnectionPool, base_url: str, key_id, job_id: s
             "AND j.status = 'queued' AND j.pool IS NOT DISTINCT FROM me.pool "
             "AND (j.created_at, j.id) <= (me.created_at, me.id)", (wanted,))).fetchone())[0] \
             if status == "queued" else None
+    expected = None
+    if estimate and status == "waiting" and clock is not None:
+        expected = await _expected(pool, registry, model, params.get("duration"), wanted)
     public, stage = _PUBLIC_STATUS[status]
     urls = ["%s/m/%s" % (base_url, token) for (token,) in outputs]
     shown_code, message = errors.shown(code or errors.INTERNAL) if status == "failed" else (None, None)
@@ -537,7 +547,26 @@ async def job_status(pool: AsyncConnectionPool, base_url: str, key_id, job_id: s
             "points": points, "model": model, "duration": params.get("duration"), "ratio": params.get("ratio"),
             "n": params.get("n"), "style": params.get("style"), "title": title, "warnings": warnings,
             "queue_position": position, "created_at": created.isoformat(),
-            "finished_at": finished.isoformat() if finished else None}
+            "finished_at": finished.isoformat() if finished else None,
+            "progress": progress.progress_of(status, elapsed, expected.seconds if expected else None),
+            "render_started_at": _iso(progress.render_started(status, clock)),
+            "estimated_finish_at": _iso(progress.finish_of(status, clock, elapsed, expected))}
+
+
+def _iso(moment: datetime | None) -> str | None:
+    return moment.isoformat() if moment else None
+
+
+async def _expected(pool: AsyncConnectionPool, registry: ProviderRegistry | None, model: str, duration,
+                    job_id) -> progress.Expected | None:
+    """The expected render time of this job's shape, or None (the answer then shows the stage only). Never raises."""
+    try:
+        spec, base = resolve_model(registry, model)     # type: ignore[arg-type]  # None only if a caller forgot it
+        shape = progress.shape_of(spec, base, duration)
+    except Exception as exc:     # a model gone from the catalog, a catalog that fails, a caller without a registry
+        log.warning("render estimate shape failed: %s", type(exc).__name__)
+        return None
+    return await progress.expected_for(pool, shape, job_id)
 
 
 async def job_state(pool: AsyncConnectionPool, job_id) -> tuple[str, str | None] | None:

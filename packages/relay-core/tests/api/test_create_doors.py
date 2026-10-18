@@ -34,7 +34,8 @@ VIDEO_PATH, IMAGE_PATH, CHAT_PATH = "/v1/video/generations", "/v1/images/generat
 GEMINI_PATH = "/v1beta/models/fake-video:generateContent"
 ERROR_KEYS = {"code", "message", "type", "param"}
 STATUS_KEYS = {"id", "status", "stage", "result_urls", "images", "error", "error_code", "refunded", "points", "model",
-               "duration", "ratio", "n", "style", "title", "warnings", "queue_position", "created_at", "finished_at"}
+               "duration", "ratio", "n", "style", "title", "warnings", "queue_position", "created_at", "finished_at",
+               "progress", "render_started_at", "estimated_finish_at"}
 POINTS_OF_FAILED = "THEN (array_agg(l.amount ORDER BY l.id DESC) FILTER (WHERE l.entry = 'charge'))[1] "
 POINTS_NET = "ELSE sum(CASE l.entry WHEN 'charge' THEN l.amount ELSE -l.amount END) END "
 POINTS_READ = "FROM ledger l WHERE l.job_id = j.id AND l.entry IN ('charge', 'refund')), 0) "
