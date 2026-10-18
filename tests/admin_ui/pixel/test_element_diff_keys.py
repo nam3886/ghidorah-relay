@@ -25,7 +25,7 @@ from datetime import datetime, timedelta, timezone
 
 import pixel_manifest  # before pixel_kla: the two import each other, and the manifest must load first
 import pytest
-from element_diff import EDGE_PX, diff, extract, markdown, side_by_side
+from element_diff import EDGE_PX, diff, extract, markdown, popup_place, side_by_side
 from jobkit import key as new_key
 from patchright.sync_api import expect
 from pixel_capture import opened, shoot
@@ -33,6 +33,7 @@ from pixel_diff import compare
 from pixel_kla import keys_callout, keys_edit, keys_seed, set_key
 from pixel_seed import BOARD_USER, NOW, PROVIDER, WALLETS, board_user
 from test_element_diff import BOARDS, THEMES, WIDEN_JS, Check, _png, _root
+from test_element_diff_alerts import FIELD_RECTS_JS, FIELDS, SELECT_MISMATCH_PCT, _drawn_inside_a_field, select_pixels
 
 pytestmark = pytest.mark.browser
 
@@ -49,6 +50,7 @@ class KeyCheck(Check):
     canvas_click: str | None = None     # clicked on the canvas board first: a state its own logic draws (Copied)
     same_place: bool = False            # the root must also sit where the board draws it in the window (a dialog)
     anchor: tuple = ()                  # (canvas, app) selectors of an element the root must sit against as drawn
+    fields: bool = False                # FilterSelect fields against the canvas's native selects (see SELECT_VALUES_JS)
 
 
 def _keys(board, drive, seed=keys_seed):
@@ -71,8 +73,16 @@ BOARD_CHECKS = [KeyCheck(board, _keys(board, keys_callout)) for board in ("B-Key
 COPIED = KeyCheck("B-Keys-copied", _keys("B-Keys", copied), 'section[role="status"]', '[data-testid="new-key"]',
                   canvas_click='section[role="status"] button.solid')
 
-# The model rows read `<kind> · <display name>` as drawn (D129): the harness's catalog sends the boards' names.
-FORM = KeyCheck("B-KeyForm", _keys("B-KeyForm", keys_edit), '[role="dialog"]', ".key-dialog", same_place=True)
+# The model rows read `<kind> · <display name>` as drawn (D129): the harness's catalog sends the boards' names. The
+# Mode selects are native on the canvas and FilterSelect fields in the app: to the tool a select is one box (the browser
+# paints its value and arrow inside it), so what a field draws inside its box is set aside in the table and compared as
+# pixels instead, field by field (`select-B-KeyForm-<theme>-<n>.side.png`), as Alerts does. Our renderer leaves a
+# select on its first option (it writes `value` as an attribute, which a select ignores): the board's own values are
+# put in first (video limit, image unlimited).
+FORM = KeyCheck("B-KeyForm", _keys("B-KeyForm", keys_edit), '[role="dialog"]', ".key-dialog", same_place=True,
+                fields=True)
+SELECT_VALUES_JS = ("() => { for (const s of document.querySelectorAll('select[value]')) "
+                    "s.value = s.getAttribute('value'); }")
 
 
 # ---- the states of B-States --------------------------------------------------------------------------------------
@@ -102,7 +112,37 @@ def label_required(page, live, data):
     expect(box.get_by_role("tooltip")).to_be_visible(timeout=TIMEOUT_MS)
 
 
+def _open_mode(page, wallet: str = "dola video") -> None:
+    page.get_by_role("group", name=wallet, exact=True).get_by_role("combobox", name="Mode").click()
+    expect(page.get_by_role("listbox")).to_be_visible(timeout=TIMEOUT_MS)
+
+
+def mode_list(page, live, data):
+    """The Edit dialog with the video wallet's Mode list open (its second option, limit, chosen)."""
+    keys_edit(page, live, data)
+    _open_mode(page)
+
+
+def new_mode_list(page, live, data):
+    """The New key form with the video wallet's Mode list open: its first option, closed, chosen, as the drawn list."""
+    page.get_by_role("button", name="New key").first.click()
+    expect(page.get_by_role("dialog", name="New API key")).to_be_visible(timeout=TIMEOUT_MS)
+    _open_mode(page)
+
+
 DRAWN_CREATE, APP_CREATE = 'button[aria-describedby="fvTip"]', 'button[aria-describedby="key-create-why"]'
+# The open Mode list against the drawn Provider list (B-States 1440): its four options and the word "Provider" are that
+# list's data, the three modes this one's; the list's height follows the number of options. It hangs 6 px under its
+# field (the field's box: on a phone the chip is the box), and it is on top: the element at its centre is the list (the
+# tables cannot see one layer under another, a dialog over the list).
+LISTBOX_DATA = ("All", "dola", "vibes", "meta", "Provider")
+MODE_WORDS = ("closed", "limit", "unlimited")
+OPEN_LIST = ('[role="listbox"]', ".filter-field.is-open")
+ON_TOP_JS = """sel => {
+  const el = document.querySelector(sel), r = el.getBoundingClientRect();
+  const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  return Boolean(top && el.contains(top));
+}"""
 STATE_CHECKS = [
     KeyCheck("state-empty", _keys(STATES, no_keys, no_keys_seed), 'section[aria-label="API keys, empty"]',
              ".keys-card", DESKTOP, widen=True),
@@ -113,6 +153,9 @@ STATE_CHECKS = [
     KeyCheck("state-label-tip", _keys(STATES, label_required), "#fvTip", "#key-create-why", DESKTOP,
              anchor=(DRAWN_CREATE, APP_CREATE)),
     KeyCheck("state-label-create", _keys(STATES, label_required), DRAWN_CREATE, APP_CREATE, DESKTOP),
+    KeyCheck("state-mode-list", _keys(STATES, new_mode_list), '[role="listbox"][aria-label="Provider"]@0',
+             '[role="listbox"]',
+             DESKTOP, data=LISTBOX_DATA, data_app=MODE_WORDS, loose={"listbox": "h"}, popup=OPEN_LIST),
 ]
 CHECKS = [*BOARD_CHECKS, COPIED, FORM, *STATE_CHECKS]
 
@@ -129,10 +172,20 @@ def test_keys_matches_the_canvas_element_by_element(app, db, live, renderer, dif
         app_png = _png(page, app_root)
         app_box = page.evaluate(ROOT_BOX_JS, app_root, isolated_context=False) if check.same_place else None
         app_place = _against(page, app_root, check.anchor[1]) if check.anchor else None
+        misplaced_list = popup_place(page, *check.popup) if check.popup else None
+        if check.popup and not page.evaluate(ON_TOP_JS, check.popup[0], isolated_context=False):
+            misplaced_list = "the open list is under another layer (the element at its centre is not the list)"
+        field_pngs = []
+        if check.fields:
+            rects = page.evaluate(FIELD_RECTS_JS, [app_root, FIELDS], isolated_context=False)
+            mine = _drawn_inside_a_field(mine, rects)
+            field_pngs = [loc.screenshot(animations="disabled", caret="hide") for loc in page.locator(FIELDS).all()]
     renderer.open(check.state.board, dark, board_w, board_h)
     if check.canvas_click:
         renderer.page.click(check.canvas_click)
         renderer.settle()
+    if check.fields:
+        renderer.page.evaluate(SELECT_VALUES_JS, isolated_context=False)
     canvas_root = _root(renderer.page, check.canvas_root)
     if check.widen:
         renderer.page.evaluate(WIDEN_JS, [canvas_root, mine["width"]], isolated_context=False)
@@ -142,6 +195,14 @@ def test_keys_matches_the_canvas_element_by_element(app, db, live, renderer, dif
     canvas_box = renderer.page.evaluate(ROOT_BOX_JS, canvas_root, isolated_context=False) if check.same_place else None
     canvas_place = _against(renderer.page, canvas_root, check.anchor[0]) if check.anchor else None
     pixels = compare(diff_page, ref_png, app_png)
+    out = run_dir / "element-diff"
+    out.mkdir(parents=True, exist_ok=True)
+    stem = "%s-%s" % (check.name, theme)
+    selects = []
+    if check.fields:
+        canvas_pngs = [loc.screenshot(animations="disabled", caret="hide")
+                       for loc in renderer.page.locator(canvas_root + " select").all()]
+        selects = select_pixels(field_pngs, canvas_pngs, diff_page, out, stem)
 
     theirs["texts"] = [t for t in theirs["texts"] if t["text"] not in check.accepted]
     mine["texts"] = [t for t in mine["texts"] if t["text"] not in check.accepted_app]
@@ -154,14 +215,16 @@ def test_keys_matches_the_canvas_element_by_element(app, db, live, renderer, dif
     if check.anchor and any(abs(c - a) > EDGE_PX for c, a in zip(canvas_place, app_place, strict=True)):
         misplaced = "against its anchor (left, top, right, bottom) it sits at %s, the board draws %s" % (
             [round(v, 1) for v in app_place], [round(v, 1) for v in canvas_place])
-    out = run_dir / "element-diff"
-    out.mkdir(parents=True, exist_ok=True)
-    stem = "%s-%s" % (check.name, theme)
     notes = ("Canvas %s%s, app %s at %dx%d. Pixel diff of the compared part: %.3f %% mismatch + %.3f %% anti-aliased."
              % (check.state.board, " " + check.canvas_root if check.canvas_root else "", check.app_root or "page",
                 width, height, pixels.percent, pixels.aa_percent))
     if check.same_place or check.anchor:
         notes += " Place: %s." % (misplaced or "as drawn")
+    if check.popup:
+        notes += " Open list against its field: %s." % (misplaced_list or "6 px clear")
+    if check.fields:
+        notes += " Fields against the native selects (pixels of each crop): %s." % ", ".join(
+            "%.3f %% + %.3f %%" % f for f in selects)
     (out / (stem + ".md")).write_text(markdown(res, "%s, %s" % (check.name, theme), notes), encoding="utf-8")
     (out / (stem + ".side.png")).write_bytes(side_by_side(diff_page, ref_png, app_png, pixels.png))
     print("ELEMENTS %s %s: %d differences, %d canvas only, %d app only, %d data; pixels %.3f %% + %.3f %%" % (
@@ -169,6 +232,11 @@ def test_keys_matches_the_canvas_element_by_element(app, db, live, renderer, dif
         pixels.percent, pixels.aa_percent))
     assert res.failures == 0, "%s %s: %d element differences, see %s.md" % (check.name, theme, res.failures, stem)
     assert misplaced is None, misplaced
+    assert misplaced_list is None, misplaced_list
+    if check.fields:
+        assert len(selects) == 2, "the video and image Mode fields against the two native selects: %r" % selects
+        off = [(n, f) for n, f in enumerate(selects) if f[0] > SELECT_MISMATCH_PCT]
+        assert not off, "a Mode field drawn unlike its native select (pixels of its crop): %r" % off
 
 
 def _against(page, root: str, anchor: str) -> list:
@@ -258,6 +326,7 @@ UNDRAWN = [
     ("new-key-dialog", new_key_dialog, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
     ("refused-create", refused_create, keys_seed, (DESKTOP, PHONE_VIEW)),
     ("label-required", label_required, keys_seed, (DESKTOP, PHONE_VIEW)),
+    ("mode-list", mode_list, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
     ("load-error", load_fails, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
     ("loading", load_held, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
     ("empty", no_keys, no_keys_seed, (TABLET, PHONE_VIEW)),
@@ -277,6 +346,11 @@ def test_keys_undrawn_states_are_photographed(app, db, live, run_dir, state, dri
         (out / ("undrawn-%s-%d-%s.png" % (state, size[0], theme))).write_bytes(shoot(page))
         sideways = page.evaluate("document.documentElement.scrollWidth - innerWidth", isolated_context=False)
         assert sideways <= 0, "the page scrolls sideways by %d px" % sideways
+        if page.get_by_role("listbox").count():
+            misplaced = popup_place(page, *OPEN_LIST)
+            assert misplaced is None, misplaced
+            assert page.evaluate(ON_TOP_JS, OPEN_LIST[0], isolated_context=False), (
+                "the open list is under another layer (the element at its centre is not the list)")
 
 
 # ---- data shaped like the live box -------------------------------------------------------------------------------

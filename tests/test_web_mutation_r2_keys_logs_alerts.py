@@ -340,6 +340,19 @@ def test_a_new_key_needs_a_label_and_an_edit_is_never_held_back():
     vitest(KEYS_VIEW_SPEC)
 
 
+# ---- Keys, page-keys round: a wallet's Mode is the design's select (FilterSelect's field) in the wallet's group ----
+MODE_SWITCH = (FORM + "a wallet that leaves limit mode shows empty, disabled number boxes, and a limit wallet shows "
+               "its numbers")
+
+
+@mutation(KEY_FORM, '@update:model-value="(v) => (w.mode = v as WalletMode)"', '@update:model-value="() => {}"',
+          expect=MODE_SWITCH)
+@mutation(KEY_FORM, ':aria-label="`${w.provider} ${w.kind}`"', 'aria-label="wallet"', expect=MODE_SWITCH)
+@pytest.mark.web_unit
+def test_a_wallet_mode_is_chosen_in_the_design_select_of_its_group():
+    vitest(KEYS_VIEW_SPEC)
+
+
 # ---- Keys: the Copy buttons ------------------------------------------------------------------------------------
 @mutation(NEW_KEY, "copyText(props.rawKey, () => field.value, abort.signal)",
           'copyText("", () => field.value, abort.signal)',

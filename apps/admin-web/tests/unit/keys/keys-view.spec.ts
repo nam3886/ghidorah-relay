@@ -559,10 +559,14 @@ describe("the key form as the design draws it", () => {
     return w;
   };
   const field = (selector: string) => document.body.querySelector<HTMLInputElement>(selector)!;
-  const choose = async (selector: string, value: string) => {
-    const select = document.body.querySelector<HTMLSelectElement>(selector)!;
-    select.value = value;
-    select.dispatchEvent(new Event("change"));
+  // a wallet's Mode: the field in the wallet's group, its list opened in the body
+  const chooseMode = async (wallet: string, value: string) => {
+    const group = document.body.querySelector(`[role="group"][aria-label="${wallet}"]`)!;
+    group.querySelector<HTMLButtonElement>('[role="combobox"]')!.click();
+    await settle();
+    [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find((o) => o.textContent?.trim() === value)!
+      .click();
     await settle();
   };
 
@@ -594,11 +598,11 @@ describe("the key form as the design draws it", () => {
     expect(field('input[aria-label="vibes video per day"]').value).toBe("20");
     expect(field('input[aria-label="vibes video total"]').value).toBe("200");
     expect(field('input[aria-label="vibes video per day"]').disabled).toBe(false);
-    await choose('select[aria-label="vibes video mode"]', "closed");
+    await chooseMode("vibes video", "closed");
     expect(field('input[aria-label="vibes video per day"]').value).toBe("");
     expect(field('input[aria-label="vibes video per day"]').disabled).toBe(true);
     expect(field('input[aria-label="vibes video total"]').disabled).toBe(true);
-    await choose('select[aria-label="vibes video mode"]', "limit");
+    await chooseMode("vibes video", "limit");
     expect(field('input[aria-label="vibes video per day"]').value).toBe("20");
   });
 

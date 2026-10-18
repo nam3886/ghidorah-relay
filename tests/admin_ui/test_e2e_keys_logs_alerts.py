@@ -39,6 +39,16 @@ def pick(page, select_label, option):
 
 # ---- API keys ------------------------------------------------------------------------------------------------------
 
+
+def mode(box, wallet, option):
+    """Choose a wallet's Mode in the key form (FilterSelect's field: a combobox in the wallet's group, its list opened
+    in the body)."""
+    field = box.get_by_role("group", name=wallet, exact=True).get_by_role("combobox", name="Mode")
+    field.click()
+    box.page.get_by_role("option", name=option, exact=True).click()
+    expect(field).to_contain_text(option)
+
+
 def key_places(page, raw):
     """Every place of the page the raw key could be found in, except the callout's own field."""
     found = []
@@ -65,9 +75,9 @@ def create_key(page, label="customer one"):
     page.get_by_role("button", name="New key").first.click()
     box = page.get_by_role("dialog")
     box.get_by_label("Label", exact=True).fill(label)
-    box.get_by_label("fake video mode").select_option("limit")
+    mode(box, "fake video", "limit")
     box.get_by_label("fake video per day").fill("5")
-    box.get_by_label("fake image mode").select_option("unlimited")
+    mode(box, "fake image", "unlimited")
     box.get_by_role("button", name="Create key").click()
     # the dialog has the same name; the field is the textbox
     callout = page.get_by_role("textbox", name="New API key")

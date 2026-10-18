@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
+import { useZIndex } from "element-plus";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { IconCheck, IconChevronDown } from "./icons";
 
@@ -100,9 +101,15 @@ function onOutside(event: Event): void {
   close();
 }
 
+// The open list takes Element Plus's next z-index, as its own popups do: inside a dialog (the key form's Mode) it is drawn
+// over the dialog, never under it.
+const { nextZIndex } = useZIndex();
+const listZ = ref<number>();
+
 async function show(at: number): Promise<void> {
   if (open.value) return;
   active.value = at;
+  listZ.value = nextZIndex();
   open.value = true;
   document.addEventListener("pointerdown", onOutside, true);
   await nextTick();
@@ -189,7 +196,9 @@ function onKey(event: KeyboardEvent): void {
     event.preventDefault();
     choose(active.value);
   } else if (event.key === "Escape") {
+    // the list's own Escape: a dialog around it (which closes on Escape from the document) stays open
     event.preventDefault();
+    event.stopPropagation();
     close();
   } else if (event.key === "Tab") {
     close();
@@ -309,6 +318,7 @@ function setRoot(el: unknown): void {
           left: place.left === undefined ? undefined : `${place.left}px`,
           right: place.right === undefined ? undefined : `${place.right}px`,
           minWidth: `${place.minWidth}px`,
+          zIndex: listZ,
         }"
       >
         <div

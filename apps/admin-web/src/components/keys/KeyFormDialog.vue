@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import type { ApiKey, KeyBody } from "@/api/keys";
+import type { ApiKey, KeyBody, WalletMode } from "@/api/keys";
 import type { CatalogModel } from "@/api/shell";
+import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { IconAlertCircle, IconClose } from "@/components/shared/icons";
 import "@/components/logs/lane-controls.css";
 import { type CreateError, keyBody, keyForm, type KeyForm } from "./key-model";
@@ -59,7 +60,7 @@ function usedText(provider: string, kind: string, mode: string): string {
     : `${w.used_total} used`;
 }
 
-const MODES = ["closed", "limit", "unlimited"] as const;
+const MODE_OPTIONS = (["closed", "limit", "unlimited"] as const).map((m) => ({ value: m, label: m }));
 const typed = (e: Event): string => (e.target as HTMLInputElement).value;
 // The right side of a model row, as drawn: its kind and its display name ("video · Dreamina Seedance 2.5"); the id
 // stands in for a model the catalog sent without a name.
@@ -144,17 +145,27 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
       <fieldset class="kd__set" :class="{ 'is-error': flagged('wallets') }">
         <legend class="kd__label kd__legend kd__legend--tight">Wallets</legend>
         <p class="kd__help kd__help--wallets">Limits apply in limit mode only. Per day resets at midnight.</p>
-        <div v-for="w in form.wallets" :key="`${w.provider}/${w.kind}`" class="kd__wallet" data-wallet>
+        <!-- each wallet a group named after it: its Mode, Per day and Total read in its name -->
+        <div
+          v-for="w in form.wallets"
+          :key="`${w.provider}/${w.kind}`"
+          class="kd__wallet"
+          role="group"
+          :aria-label="`${w.provider} ${w.kind}`"
+          data-wallet
+        >
           <div class="kd__wallet-name">
             <span class="kd__wallet-kind">{{ w.provider }} {{ w.kind }}</span>
             <span class="kd__help kd__used">{{ usedText(w.provider, w.kind, w.mode) }}</span>
           </div>
-          <label class="kd__mini"
-            ><span class="kd__help">Mode</span>
-            <select v-model="w.mode" class="kd__input kd__select" :aria-label="`${w.provider} ${w.kind} mode`">
-              <option v-for="m in MODES" :key="m" :value="m">{{ m }}</option>
-            </select></label
-          >
+          <FilterSelect
+            class="kd__mode"
+            variant="field"
+            label="Mode"
+            :model-value="w.mode"
+            :options="MODE_OPTIONS"
+            @update:model-value="(v) => (w.mode = v as WalletMode)"
+          />
           <label class="kd__mini"
             ><span class="kd__help">Per day</span>
             <input
@@ -403,10 +414,14 @@ html:root .key-dialog.el-dialog {
   flex-direction: column;
   gap: 4px;
 }
-.key-dialog .kd__select {
+/* the Mode select as B-KeyForm draws it: 140 wide and 36 high, the author padding 8 (the field's own value inset and
+   arrow follow from it); on a phone it is the field's chip */
+.key-dialog .kd__mode.filter-field {
+  --field-pad: 8px;
+}
+.key-dialog .kd__mode.filter-field:not(.is-chip) .filter-select.is-field {
   width: 140px;
-  padding: 0 8px;
-  font-size: 13px;
+  height: 36px;
 }
 .key-dialog .kd__input--wallet {
   width: 100px;
