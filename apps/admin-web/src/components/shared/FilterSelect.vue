@@ -215,7 +215,10 @@ function onKey(event: KeyboardEvent): void {
     event.preventDefault();
     choose(active.value);
   } else if (event.key === "Escape") {
+    // the open list takes this Escape: it goes no further, or a dialog around the select (Import accounts) closes on it
+    // too and loses what was typed; on a closed select it goes on to the dialog as before
     event.preventDefault();
+    event.stopPropagation();
     close();
   } else if (event.key === "Tab") {
     close();
@@ -322,7 +325,9 @@ function setRoot(el: unknown): void {
       <span class="filter-select__value">{{ current?.label ?? "" }}</span>
       <IconChevronDown v-if="props.chevron" class="filter-select__chevron" :size="14" :stroke="2" />
     </template>
-    <!-- inside the root so the component has one root (a class given to it lands there); drawn in the body -->
+    <!-- inside the root so the component has one root (a class given to it lands there); drawn in the body. A press
+         anywhere in it (an option, its padding) keeps the focus on the trigger: the trigger's keydown is the only one
+         that sees a key while the list is open -->
     <Teleport to="body">
       <div
         v-if="open"
@@ -340,6 +345,7 @@ function setRoot(el: unknown): void {
           minWidth: `${place.minWidth}px`,
           zIndex: layer,
         }"
+        @pointerdown.prevent
       >
         <div
           v-for="(o, i) in props.options"
@@ -349,7 +355,6 @@ function setRoot(el: unknown): void {
           class="filter-list__item"
           :class="{ 'is-selected': o.value === props.modelValue, 'is-active': i === active }"
           :aria-selected="o.value === props.modelValue"
-          @pointerdown.prevent
           @pointermove="
             active = i;
             byKeyboard = false;

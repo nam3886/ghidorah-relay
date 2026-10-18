@@ -1,7 +1,7 @@
-import { mount, type VueWrapper } from "@vue/test-utils";
+import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { nextTick } from "vue";
-import { useZIndex } from "element-plus";
+import { defineComponent, h, nextTick, ref } from "vue";
+import { ElDialog, useZIndex } from "element-plus";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
 
 // The field variant of FilterSelect: the canvas's labelled select (B/T/P-Alerts toolbar) drawn as our own control.
@@ -166,6 +166,46 @@ describe("the field variant of FilterSelect", () => {
     const layer = Number((listbox() as HTMLElement).style.zIndex);
     expect(layer).toBeGreaterThan(before);
     expect(layer).toBe(currentZIndex.value);
+  });
+
+  describe("in a dialog: Escape closes the open list only", () => {
+    // the dialog asks `beforeClose` the moment it is to close (Escape included), before any leave transition
+    const closing = ref(0);
+    const InDialog = defineComponent({
+      setup: () => () =>
+        h(ElDialog, { modelValue: true, title: "Import", beforeClose: () => closing.value++ }, () =>
+          h(FilterSelect, { modelValue: "open", options: OPTIONS, variant: "field", label: "Status" }),
+        ),
+    });
+    const escape = (el: Element) =>
+      el.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+    async function opened() {
+      closing.value = 0;
+      wrapper = mount(InDialog, { attachTo: document.body });
+      await flushPromises();
+      return document.querySelector<HTMLButtonElement>('[role="combobox"]')!;
+    }
+
+    it("an open list: Escape closes the list, the dialog stays open and the focus is on the select", async () => {
+      const box = await opened();
+      box.focus();
+      box.click();
+      await nextTick();
+      expect(listbox()).not.toBeNull();
+      escape(box);
+      await flushPromises();
+      expect(listbox()).toBeNull();
+      expect(closing.value).toBe(0);
+      expect(document.activeElement).toBe(box);
+    });
+
+    it("a closed select: Escape goes on to the dialog, which closes", async () => {
+      const box = await opened();
+      box.focus();
+      escape(box);
+      await flushPromises();
+      expect(closing.value).toBe(1);
+    });
   });
 
   it("the chip variant is unchanged: the trigger is the root, with the word inside", () => {
