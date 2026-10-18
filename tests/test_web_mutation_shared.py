@@ -560,7 +560,7 @@ HINT = f"{SHARED}/HintTip.vue"
 
 
 @mutation(HINT, 'class="hint-tip" tabindex="0"', 'class="hint-tip"', expect="draws its words in a tab stop")
-@mutation(HINT, 'popper-class="rl-tip"', 'popper-class="x-tip"', expect="is the menu-surface tooltip")
+@mutation(HINT, ": 'rl-tip'\"", ": 'x-tip'\"", expect="is the menu-surface tooltip")
 @mutation(HINT, 'effect="light"', 'effect="dark"', expect="is the menu-surface tooltip")
 @mutation(HINT, ":trigger=\"['hover', 'focus']\"", 'trigger="hover"', expect="hover and focus open it")
 @mutation(HINT, '@keydown.esc="tip?.hide()"', '@keydown.enter="tip?.hide()"',
@@ -604,8 +604,8 @@ AFTER_X = "the same error right after a click on its X is a new toast"
 @mutation(NOTIFY, "if (shown.get(key) === own) shown.delete(key);", "", expect=REPEAT)
 @mutation(NOTIFY, "if (shown.get(key) === own) shown.delete(key);", "shown.delete(key);", expect=AFTER_CLEAR)
 @mutation(NOTIFY, "      shown.clear();\n      message.closeAll();", "      message.closeAll();", expect=AFTER_CLEAR)
-@mutation(NOTIFY, "            forget(made);\n            made.handle?.close?.();", "            made.handle?.close?.();",
-          expect=AFTER_X)
+@mutation(NOTIFY, "            forget(made);\n            made.handle?.close?.();",
+          "            made.handle?.close?.();", expect=AFTER_X)
 @mutation(NOTIFY, '"aria-label": "Close message"', '"aria-label": "Close"', expect=DRAWN_BODY)
 @mutation(NOTIFY, "h(IconClose, { size: 14, stroke: 2 })", "h(IconClose, { size: 16, stroke: 2 })", expect=DRAWN_BODY)
 @pytest.mark.web_unit
