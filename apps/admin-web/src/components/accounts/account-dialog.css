@@ -15,8 +15,10 @@ html.dark .el-dialog.acct-dialog {
   font-size: 14px;
   line-height: 20px;
 }
+/* Import has an edge outside its 640 px, as drawn (642 wide in all) */
 html .el-dialog.acct-dialog--import,
 html.dark .el-dialog.acct-dialog--import {
+  box-sizing: content-box;
   border: 1px solid var(--rl-line);
 }
 html .el-dialog.acct-dialog--edit,
@@ -128,8 +130,7 @@ html.dark .el-dialog.acct-dialog--edit {
   color: var(--rl-muted);
 }
 .acct-input,
-.acct-textarea,
-.acct-select {
+.acct-textarea {
   box-sizing: border-box;
   width: 100%;
   border: 1px solid var(--rl-line-strong);
@@ -138,8 +139,7 @@ html.dark .el-dialog.acct-dialog--edit {
   color: var(--rl-fg);
   font: inherit;
 }
-.acct-input,
-.acct-select {
+.acct-input {
   height: 36px;
   padding: 0 12px;
 }
@@ -157,19 +157,21 @@ html.dark .el-dialog.acct-dialog--edit {
 .acct-textarea::placeholder {
   color: var(--rl-faint);
 }
-.acct-select-wrap {
-  position: relative;
+/* the Provider field (FilterSelect, `appearance="none"`) as B-AccountImport draws its select: the label as the other
+   fields' labels, 6 px above a box at full width, 36 high like the inputs, its value in 14 px. Three classes, so these
+   outrank the field's own scoped rules. */
+.acct-dialog .acct-provider.filter-field {
+  gap: 6px;
 }
-.acct-select {
-  padding-right: 36px;
-  appearance: none;
+.acct-dialog .acct-provider .filter-field__label {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: inherit;
+  color: inherit;
 }
-.acct-select-wrap svg {
-  position: absolute;
-  top: 11px;
-  right: 12px;
-  color: var(--rl-muted);
-  pointer-events: none;
+.acct-dialog .acct-provider .filter-select.is-field {
+  height: 36px;
+  font-size: 14px;
 }
 
 /* buttons */
@@ -180,9 +182,15 @@ html.dark .el-dialog.acct-dialog--edit {
   border-radius: 10px;
   background: transparent;
   color: var(--rl-fg);
-  font: inherit;
+  /* the page's family; the line height stays the button's own (normal), as drawn */
+  font-family: inherit;
   font-size: 13px;
   cursor: pointer;
+}
+/* Import's Cancel is a link on the canvas: its 36 px lie inside its edge (38 high) and its text line is 20 px */
+.acct-dialog--import .acct-btn:not(.acct-btn--primary) {
+  box-sizing: content-box;
+  line-height: 20px;
 }
 .acct-btn:hover {
   background: var(--rl-raised);
@@ -197,9 +205,16 @@ html.dark .el-dialog.acct-dialog--edit {
 .acct-btn--primary:hover {
   background: var(--rl-primary-hover);
 }
-.acct-btn[aria-disabled="true"] {
+.acct-btn--primary[aria-disabled="true"] {
   opacity: 0.45;
   cursor: not-allowed;
+}
+/* a secondary that waits for its command (Check proxy while it runs), as B-States draws the disabled secondary */
+.acct-btn:not(.acct-btn--primary)[aria-disabled="true"],
+.acct-btn:not(.acct-btn--primary)[aria-disabled="true"]:hover {
+  background: var(--rl-raised);
+  color: var(--rl-faint);
+  cursor: default;
 }
 .acct-btn--primary[aria-disabled="true"]:hover {
   background: var(--rl-primary);
@@ -246,16 +261,17 @@ html.dark .el-dialog.acct-dialog--edit {
     padding: 10px 16px;
     border-top: 1px solid var(--rl-line-strong);
   }
-  .acct-dialog__foot .acct-btn {
+  .acct-dialog__foot .acct-btn,
+  .acct-dialog--import .acct-dialog__foot .acct-btn:not(.acct-btn--primary) {
+    box-sizing: border-box;
     flex: 1;
     height: 44px;
     font-size: 14px;
+    line-height: normal;
   }
   .acct-input,
-  .acct-select {
+  .acct-dialog .acct-provider .filter-select.is-field,
+  .acct-dialog__body .acct-btn {
     height: 44px;
-  }
-  .acct-select-wrap svg {
-    top: 15px;
   }
 }

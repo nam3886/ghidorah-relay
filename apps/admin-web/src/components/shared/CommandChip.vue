@@ -1,6 +1,9 @@
 <script setup lang="ts">
 // The chip line under a command button (specs/shared.md section 3.1): `running…` with a spinner, `ok · 20:55:07` or
 // `error · <message>`. The control above it is the disabled secondary button; the view stacks them (column, gap 8).
+// The chip never grows past the room it is given: a long error ends in "…" and its title holds the whole text.
+import { computed } from "vue";
+
 const props = defineProps<{
   state: "running" | "ok" | "error";
   // the time of an ok result, shown in mono
@@ -8,10 +11,17 @@ const props = defineProps<{
   // the reason of an error result, plain text
   message?: string;
 }>();
+const errorText = computed(() => (props.message ? `error · ${props.message}` : "error"));
 </script>
 
 <template>
-  <span class="command-chip" :class="`is-${props.state}`" :data-state="props.state" role="status">
+  <span
+    class="command-chip"
+    :class="`is-${props.state}`"
+    :data-state="props.state"
+    role="status"
+    :title="props.state === 'error' ? errorText : undefined"
+  >
     <template v-if="props.state === 'running'">
       <span class="command-chip__spinner" aria-hidden="true"><i /></span>running…
     </template>
@@ -20,9 +30,7 @@ const props = defineProps<{
       <span v-if="props.time" class="command-chip__time">{{ props.time }}</span>
     </template>
     <template v-else>
-      <i class="command-chip__dot" aria-hidden="true" />error<template v-if="props.message">
-        · {{ props.message }}</template
-      >
+      <i class="command-chip__dot" aria-hidden="true" /><span class="command-chip__text">{{ errorText }}</span>
     </template>
   </span>
 </template>
@@ -38,6 +46,19 @@ const props = defineProps<{
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
+  box-sizing: border-box;
+}
+.command-chip > :not(.command-chip__text) {
+  flex: none;
+}
+/* only an error's words can be long: the chip stays in its room and they end in "…" */
+.is-error {
+  max-width: 100%;
+}
+.command-chip__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .is-running {
   gap: 8px;

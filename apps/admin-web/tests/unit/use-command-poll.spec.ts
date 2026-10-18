@@ -55,7 +55,7 @@ describe("useCommandPoll", () => {
     expect(get).toHaveBeenCalledTimes(3);
     expect(get).toHaveBeenCalledWith("c1");
     expect(result?.status).toBe("done");
-    expect(notify.success).toHaveBeenCalledExactlyOnceWith("Check: done");
+    expect(notify.success).toHaveBeenCalledExactlyOnceWith("Check done");
     expect(notify.error).not.toHaveBeenCalled();
     expect(notify.info).not.toHaveBeenCalled();
   });
@@ -64,7 +64,7 @@ describe("useCommandPoll", () => {
     get.mockResolvedValue(command("failed", { error: "proxy refused" }));
     const result = await useCommandPoll().poll("c1", "Wake");
     expect(result?.status).toBe("failed");
-    expect(notify.error).toHaveBeenCalledExactlyOnceWith("Wake: failed - proxy refused");
+    expect(notify.error).toHaveBeenCalledExactlyOnceWith("Wake failed: proxy refused");
     expect(notify.success).not.toHaveBeenCalled();
   });
 
@@ -72,7 +72,7 @@ describe("useCommandPoll", () => {
     get.mockResolvedValueOnce(command("failed")).mockResolvedValueOnce(command("failed", {}));
     await useCommandPoll().poll("c1", "Wake");
     await useCommandPoll().poll("c1", "Wake");
-    expect(vi.mocked(notify.error).mock.calls).toEqual([["Wake: failed"], ["Wake: failed"]]);
+    expect(vi.mocked(notify.error).mock.calls).toEqual([["Wake failed"], ["Wake failed"]]);
   });
 
   it("gives up after 90 asks with an info toast and returns null", async () => {

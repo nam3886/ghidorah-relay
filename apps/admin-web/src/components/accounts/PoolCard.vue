@@ -4,7 +4,8 @@ import { useBreakpoint } from "@/composables/use-breakpoint";
 
 // The card above the list: two ledger panels side by side (stacked on a phone). Left, the health of the accounts;
 // right, the points and checks of the provider's pool (specs/accounts.md section 2).
-defineProps<{ count: number; health: LedgerItem[]; pool: LedgerItem[]; poolTitle: string }>();
+// `count` is null until the list has been read (no "0 accounts" while it loads).
+defineProps<{ count: number | null; health: LedgerItem[]; pool: LedgerItem[]; poolTitle: string }>();
 const { isPhone, isTablet } = useBreakpoint();
 </script>
 
@@ -17,7 +18,8 @@ const { isPhone, isTablet } = useBreakpoint();
   >
     <div class="panel panel--health">
       <h2 id="pool-health-title" class="panel__title">
-        Pool health <span class="tnum count">· {{ count }} {{ count === 1 ? "account" : "accounts" }}</span>
+        Pool health
+        <span v-if="count !== null" class="tnum count">· {{ count }} {{ count === 1 ? "account" : "accounts" }}</span>
       </h2>
       <LedgerList :items="health" variant="result" />
     </div>

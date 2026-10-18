@@ -7,18 +7,24 @@ import {
   asleepInfo,
   asleepLine,
   checkSummary,
+  chipsAfterRead,
+  commandChip,
   extraError,
   healthItems,
   hhmm,
+  hhmmss,
   importBody,
-  importSummary,
+  madeLine,
   pointsFigure,
   poolItems,
+  poolsInOrder,
+  rejectedText,
   proxyCheck,
   proxyChipText,
   proxyStatus,
   proxyText,
   rowMenu,
+  statusReason,
 } from "@/components/accounts/account-model";
 
 const account = (over: Partial<Account> = {}): Account => ({
@@ -110,20 +116,45 @@ describe("importBody", () => {
   });
 });
 
-describe("importSummary", () => {
-  it("counts, with the rejected lines numbered from 1", () => {
-    expect(importSummary({ imported: [{ index: 0, id: "x", label: "l" }], rejected: [] })).toBe(
-      "Imported 1, rejected 0",
-    );
-    expect(
-      importSummary({
-        imported: [],
-        rejected: [
-          { index: 0, reason: "credential_unparseable" },
-          { index: 3, reason: "proxy_invalid" },
-        ],
-      }),
-    ).toBe("Imported 0, rejected 2 (line 1: credential_unparseable; line 4: proxy_invalid)");
+describe("command chips", () => {
+  const command = (status: string, over: object = {}) => ({ id: "c", status, result: null, ...over }) as never;
+
+  it("the end of a poll: ok with the time it finished, error with the worker's reason, running when it gave up", () => {
+    const finished = Date.UTC(2026, 9, 15, 13, 55, 7);
+    expect(commandChip(command("done", { finished_ms: finished }), 4)).toEqual({
+      state: "ok",
+      time: hhmmss(finished),
+      settled: true,
+      read: 4,
+    });
+    expect(commandChip(command("failed", { result: { error: "connect timeout after 8 s" } }), 4)).toEqual({
+      state: "error",
+      message: "connect timeout after 8 s",
+      settled: true,
+      read: 4,
+    });
+    expect(commandChip(null, 4)).toEqual({ state: "running", settled: true, read: 4 });
+  });
+
+  it("a finished chip stays through the next automatic read and goes with the one after; a running one stays", () => {
+    const chips = {
+      running: { state: "running", settled: false, read: 0 },
+      done: { state: "ok", time: "20:55:07", settled: true, read: 2 },
+    } as const;
+    expect(Object.keys(chipsAfterRead(chips, 3))).toEqual(["running", "done"]);
+    expect(Object.keys(chipsAfterRead(chips, 4))).toEqual(["running"]);
+  });
+});
+
+describe("rejectedText", () => {
+  it("says why a line was rejected in a sentence; any other code gets one fixed sentence", () => {
+    expect(rejectedText("credential_unparseable")).toBe("The line is not a cookie jar.");
+    expect(rejectedText("proxy_invalid")).toBe("The proxy is not host:port or host:port:user:pass.");
+    // any other code gets the one fixed sentence: nothing the server sends back is shown, whatever it carries
+    expect(rejectedText("something_new")).toBe("The line could not be imported.");
+    expect(rejectedText("sessionid=secret-cookie-value; csrftoken=abc")).toBe("The line could not be imported.");
+    expect(rejectedText("__proto__")).toBe("The line could not be imported.");
+    expect(rejectedText("toString")).toBe("The line could not be imported.");
   });
 });
 
@@ -170,6 +201,24 @@ describe("the text of a row", () => {
     );
     expect(accountSub(account({ display_name: null, identity: null, provider: "dola" }))).toBe("dola");
     expect(accountSub(account({ display_name: null, identity: "me@x", provider: "dola" }))).toBe("me@x · dola");
+  });
+
+  it("the video pool comes first, the others keep their order; the tablet counts are singular for one", () => {
+    const pool = (name: string) => ({ pool: name }) as Account["capacity"][number];
+    expect(poolsInOrder([pool("image"), pool("video"), pool("audio")]).map((c) => c.pool)).toEqual([
+      "video",
+      "image",
+      "audio",
+    ]);
+    expect(madeLine({ video: 31, image: 12 })).toBe("31 videos · 12 images");
+    expect(madeLine({ video: 1, image: 1 })).toBe("1 video · 1 image");
+    expect(madeLine({ video: 0, image: 0 })).toBe("0 videos · 0 images");
+  });
+
+  it("a switched-off account shows no reason under its pill; a dead one shows its reason", () => {
+    expect(statusReason({ state: "disabled", state_reason: "disabled by admin" })).toBeNull();
+    expect(statusReason({ state: "dead", state_reason: "account.dead_session" })).toBe("account.dead_session");
+    expect(statusReason({ state: "available", state_reason: null })).toBeNull();
   });
 
   it("a narrow row shows the last error only when it adds to the reason", () => {
@@ -305,9 +354,12 @@ describe("pointsFigure, ago, proxyCheck, checkSummary", () => {
   });
 
   it("check summary names the outcome, the state and the reason", () => {
-    expect(checkSummary("ok", { state: "available", state_reason: null })).toBe("Check: ok - account available");
+    // the toasts' form, "<label> done: <detail>", no " - "
+    expect(checkSummary("checked", { state: "available", state_reason: null })).toBe(
+      "Check done: checked, account available",
+    );
     expect(checkSummary(undefined, { state: "dead", state_reason: "login failed" })).toBe(
-      "Check: done - account dead (login failed)",
+      "Check done: account dead (login failed)",
     );
   });
 });

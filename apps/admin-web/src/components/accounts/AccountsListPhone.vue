@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import "./account-skeleton.css";
 import type { Account } from "@/api/accounts";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import {
@@ -6,25 +7,47 @@ import {
   ago,
   asleepInfo,
   asleepLine,
+  type ChipState,
+  chipProps,
   pointsFigure,
+  poolsInOrder,
   proxyCheck,
   proxyChipText,
   proxyText,
   type RowAction,
   rowMenu,
+  barWidth,
+  SKELETON_ROWS,
 } from "./account-model";
 import ToggleSwitch from "@/components/shared/ToggleSwitch.vue";
 import ActionMenu from "@/components/shared/ActionMenu.vue";
+import CommandChip from "@/components/shared/CommandChip.vue";
 import MiniChip from "./MiniChip.vue";
 
 // The account list below 768 px (P-Accounts): one stacked row per account. There is no Check button: Check is the
 // first item of the row menu.
-defineProps<{ rows: Account[] }>();
+defineProps<{ rows: Account[]; chips: Record<string, ChipState>; skeleton?: boolean }>();
 const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [name: RowAction, account: Account] }>();
 </script>
 
 <template>
-  <ul class="acct-list">
+  <!-- loading: the rows' own lines as flat bars (B-States loading) -->
+  <ul v-if="skeleton" class="acct-list" aria-hidden="true">
+    <li v-for="(s, n) in SKELETON_ROWS" :key="n" class="acct-item">
+      <div class="head">
+        <i class="acct-skel" :style="barWidth(s.label)" /><i
+          class="acct-skel acct-skel--pill"
+          :style="barWidth(s.pill)"
+        />
+      </div>
+      <i class="acct-skel acct-skel--sub" :style="barWidth(s.sub)" />
+      <i class="acct-skel" :style="barWidth(180)" />
+      <div class="foot">
+        <i class="acct-skel" :style="barWidth(110)" /><i class="acct-skel acct-skel--pill" :style="barWidth(36)" />
+      </div>
+    </li>
+  </ul>
+  <ul v-else class="acct-list">
     <li v-for="a in rows" :key="a.id" class="acct-item" :class="{ 'is-dead': a.state === 'dead' }">
       <div class="head">
         <span class="label">{{ a.label }}</span>
@@ -36,7 +59,7 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
       <span class="sub">{{ accountSub(a) }}</span>
       <div class="meta">
         <template v-if="a.capacity.length">
-          <span v-for="c in a.capacity" :key="c.pool" class="tnum points">
+          <span v-for="c in poolsInOrder(a.capacity)" :key="c.pool" class="tnum points">
             <span class="word">{{ c.pool }}</span
             ><span class="mono figure">{{ pointsFigure(c) }}</span>
             <MiniChip v-if="c.drift === true" tone="warn">drift</MiniChip>
@@ -71,6 +94,10 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
             @select="(key: string) => emit('action', key as RowAction, a)"
           />
         </div>
+      </div>
+      <!-- a phone's Check is in the row menu: its chip goes under that menu's trigger -->
+      <div v-if="chips[`check:${a.id}`]" class="cmd-line">
+        <CommandChip v-bind="chipProps(chips[`check:${a.id}`]!)" />
       </div>
     </li>
   </ul>
@@ -168,6 +195,12 @@ const emit = defineEmits<{ toggle: [account: Account, on: boolean]; action: [nam
 .controls {
   display: flex;
   align-items: center;
+}
+.cmd-line {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+  padding-bottom: 8px;
 }
 .spacer {
   display: block;

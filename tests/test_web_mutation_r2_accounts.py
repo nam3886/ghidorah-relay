@@ -50,13 +50,20 @@ def test_the_account_edit_sends_changed_fields_only():
           expect=AUTO + "reads the list every 10 seconds while the page is open")
 @mutation(ACCOUNTS, "if (!dialogOpen.value && ", "if (",
           expect=AUTO + "does not read the list while a dialog is open, and goes on when it closes")
-@mutation(ACCOUNTS, "await queue(start(name), `${label} ${name}`);", "void queue(start(name), `${label} ${name}`);",
+@mutation(ACCOUNTS, "await queue(start(name), `${label} ${name}`, false);",
+          "void queue(start(name), `${label} ${name}`, false);",
           expect=CHECK_ALL + "with the filter on All, goes over the providers one after another")
 @mutation(ACCOUNTS, "await patchAccount(a.id, { enabled });\n    } finally {\n      if (!disposed) await load();",
           "await patchAccount(a.id, { enabled });\n    } finally {\n      void 0;",
           expect=SWITCH_VIEW + "reads the list again when the change fails, so the switch goes back, and says why")
 @mutation(ACCOUNTS, "const ticket = latest.next();", "const ticket = 0;",
           expect=LIST + "a slow first answer that arrives after the second does not bring its rows back")
+@mutation(ACCOUNTS, 'error.value = loadFailedText(err, errorText(err), "the accounts");',
+          "error.value = loadFailedText(err, errorText(err));",
+          expect=LIST + "an empty list says so and offers Import; a failed read shows the error with Retry")
+@mutation(DESKTOP, '<span class="sub clip" :title="accountSub(a)">', '<span class="sub clip">',
+          expect=LIST + "a long account, status or asleep line keeps its whole text as its title, where it ends in "
+                        "an ellipsis")
 @pytest.mark.web_unit
 def test_the_accounts_view_keeps_its_rules():
     vitest(ACCOUNTS_VIEW_SPEC)
@@ -65,19 +72,21 @@ def test_the_accounts_view_keeps_its_rules():
 # ---- Accounts: the switch, the reason, the commands and the proxy re-check -----------------------------------------
 @mutation(DESKTOP, 'v-if="!a.in_use"', 'v-if="true"',
           expect=LIST + "draws every server string as text, and hides the switch of an account in use")
-@mutation(DESKTOP, '<template v-if="a.state_reason"', '<template v-if="false"',
+@mutation(DESKTOP, '<template v-if="statusReason(a)"', '<template v-if="false"',
           expect=LIST + "draws every server string as text, and hides the switch of an account in use")
 @mutation(ACCOUNT_MODEL, 'WAKE_LABEL = "Wake: clear cooldown and strikes"', 'WAKE_LABEL = "Clear cooldown"',
           expect=COMMANDS + "Wake queues the wake command under the label that names the cooldown and the strikes")
 @mutation(ACCOUNTS, 'else if (name === "wake") void wake(a);', 'else if (name === "wake") void check(a);',
           expect=COMMANDS + "Wake queues the wake command under the label that names the cooldown and the strikes")
-@mutation(ACCOUNTS, 'queue(recheckProxy(a.id), "Proxy check")', 'queue(recheckProxy(a.id), "Proxy")',
-          expect=COMMANDS + "Check proxy closes the dialog, queues the re-check, polls Proxy check and reads "
-                            "the list again")
+@mutation(ACCOUNTS, "runProxyCheck(() =>", "run(() =>",
+          expect=COMMANDS + "Check proxy keeps the dialog open with its chip, queues the re-check, polls Proxy check "
+                            "and reads the list again")
+@mutation(ACCOUNTS, 'queue(recheckProxy(a.id), "Proxy check", false)', 'queue(recheckProxy(a.id), "Proxy", false)',
+          expect=COMMANDS + "Check proxy keeps the dialog open with its chip, queues the re-check, polls Proxy check "
+                            "and reads the list again")
 @mutation(ACCOUNTS, 'if (out.command_id) await poll(out.command_id, "Proxy check");', "",
           expect=COMMANDS + "Save of a changed proxy polls the Proxy check the server queued, then reads the list")
-@mutation(DESKTOP, """@click="!checking.has(a.id) && emit('action', 'check', a)\"""",
-          """@click="emit('action', 'check', a)\"""",
+@mutation(ACCOUNTS, "  if (checking.value.has(a.id)) return;\n  checking.value", "  checking.value",
           expect=COMMANDS + "Check queues a check, locks that button while it runs, and says what it found")
 @pytest.mark.web_unit
 def test_the_accounts_view_commands_and_proxy_recheck():
@@ -163,11 +172,12 @@ def test_the_pool_card_figures():
                         "the provider")
 @mutation(ACCOUNTS, "(err: unknown) => ({ err })", "(err: unknown) => {\n          throw err;\n        }",
           expect=POOL + "a failed pool read does not hide the list; it shows an alert and keeps the old figures")
-@mutation(ACCOUNTS, "poolError.value = errorText(poolRead.err);", "poolError.value = null;",
+@mutation(ACCOUNTS, 'poolError.value = loadFailedText(poolRead.err, errorText(poolRead.err), "the pool figures");',
+          "poolError.value = null;",
           expect=POOL + "a failed pool read does not hide the list; it shows an alert and keeps the old figures")
 @mutation(ACCOUNTS, "v-else-if=\"isTablet\"", "v-else-if=\"false\"",
           expect=LAYOUTS + "a tablet draws five columns and no Videos made column")
-@mutation(ACCOUNTS, 'v-if="isPhone && pageCount <= 1"', 'v-if="false"',
+@mutation(ACCOUNTS, 'v-if="isPhone && pageCount <= 1 && items.length"', 'v-if="false"',
           expect=LAYOUTS + "a phone draws a list: no table, no Check button, Check first in the row menu, one "
                            "footer line")
 @pytest.mark.web_unit
@@ -215,8 +225,138 @@ def test_the_import_dialog_wipes_what_was_pasted():
           expect=AUTO + "a hidden tab does not read the list, and the tab that comes back reads at once")
 @mutation(ACCOUNTS, "if (!document.hidden) tick();", "if (document.hidden) tick();",
           expect=AUTO + "a hidden tab does not read the list, and the tab that comes back reads at once")
-@mutation(ACCOUNTS, " && !loading.value) void load();", ") void load();",
+@mutation(ACCOUNTS, " && !loading.value) void load(true);", ") void load(true);",
           expect=AUTO + "a read still in flight is never joined by a second one")
 @pytest.mark.web_unit
 def test_the_accounts_polling_is_polite():
     vitest(ACCOUNTS_VIEW_SPEC)
+
+
+# ---- page-accounts round: the delete confirm and the row menu as the canvas draws them ------------------------------
+@mutation(ACCOUNTS, "title: `Delete account ${a.label}?`", "title: \"Delete account\"",
+          expect=COMMANDS + "Delete asks first and queues the delete only after a yes")
+@mutation(MENU, "const GAP = props.variant === \"row\" ? 8 : 6;", "const GAP = 6;",
+          expect=MENU_SPEC + "a row menu sits 8 px under its trigger and a page menu 6 px, as drawn")
+@pytest.mark.web_unit
+def test_the_delete_confirm_and_the_row_menu_are_placed_as_drawn():
+    vitest(ACCOUNTS_VIEW_SPEC, PARTS_SPEC)
+
+
+@mutation(ACCOUNT_MODEL, 'a.state === "disabled" ? null : a.state_reason', "a.state_reason",
+          expect=ROW_TEXT + "a switched-off account shows no reason under its pill; a dead one shows its reason")
+@mutation(ACCOUNT_MODEL, 'Number(b.pool === "video") - Number(a.pool === "video")', "0",
+          expect=ROW_TEXT + "the video pool comes first, the others keep their order; the tablet counts are singular "
+                            "for one")
+@mutation(ACCOUNT_MODEL, '`${n} ${word}${n === 1 ? "" : "s"}`', "`${n} ${word}s`",
+          expect=ROW_TEXT + "the video pool comes first, the others keep their order; the tablet counts are singular "
+                            "for one")
+@pytest.mark.web_unit
+def test_a_switched_off_row_and_the_pool_order_read_as_drawn():
+    vitest(ACCOUNT_SPEC)
+
+
+@mutation(ACCOUNT_MODEL, "!c.settled || c.read >= read", "true",
+          expect=f"FAILED {ACCOUNT_SPEC} > command chips > a finished chip stays through the next automatic read and "
+                 "goes with the one after; a running one stays")
+@mutation(ACCOUNT_MODEL, 'if (command.status === "failed") return', "if (false) return",
+          expect=f"FAILED {ACCOUNT_SPEC} > command chips > the end of a poll: ok with the time it finished, error with "
+                 "the worker's reason, running when it gave up")
+@mutation(ACCOUNTS, "if (auto) chips.value = chipsAfterRead(chips.value, ++autoReads);", "",
+          expect=COMMANDS + "a Check's chip runs under its button, says how it ended, stays through the next automatic "
+                            "read and goes with the one after")
+@mutation(ACCOUNTS, "if (auto) chips.value =", "if (true) chips.value =",
+          expect=COMMANDS + "two quick Checks keep both results: the reads the commands make do not clear a chip")
+@mutation(DESKTOP, 'v-if="chips[`check:${a.id}`]"', 'v-if="false"',
+          expect=COMMANDS + "a Check's chip runs under its button, says how it ended, stays through the next automatic "
+                            "read and goes with the one after")
+@mutation(ACCOUNTS, "if (ended?.status !== \"failed\") ended = command;", "ended = command;",
+          expect=CHECK_ALL + "each page command has its chip under its button: running, then how the round ended (the "
+                             "first failure)")
+@mutation(SRC + "/components/accounts/EditDialog.vue", 'if (!props.account || props.proxyChip?.state === "running")',
+          "if (!props.account)",
+          expect=f"FAILED {DIALOGS_SPEC} > EditDialog > Check proxy asks the view to queue it and stays open; its chip "
+                 "takes the status line, locked while it runs")
+@mutation(ACCOUNT_MODEL, '["credential_unparseable", "The line is not a cookie jar."]',
+          '["credential_unparseable", ""]',
+          expect=f"FAILED {ACCOUNT_SPEC} > rejectedText > says why a line was rejected in a sentence; any other code "
+                 "gets one fixed sentence")
+@mutation(DESKTOP, '<tbody v-if="skeleton" aria-hidden="true">', '<tbody v-if="false" aria-hidden="true">',
+          expect=LIST + "the first read draws the list's own header over five rows of bars, and no footer count")
+@mutation(ACCOUNTS, 'v-else-if="items.length === 0 && !skeleton"', 'v-else-if="items.length === 0"',
+          expect=LIST + "the first read draws the list's own header over five rows of bars, and no footer count")
+@pytest.mark.web_unit
+def test_the_command_chips_follow_their_commands():
+    vitest(ACCOUNT_SPEC, ACCOUNTS_VIEW_SPEC, DIALOGS_SPEC)
+
+
+@mutation(SRC + "/composables/use-command-poll.ts", "`${label} failed${", "`${label}: failed${",
+          expect="FAILED tests/unit/use-command-poll.spec.ts > useCommandPoll > says just failed when the worker left "
+                 "no error text")
+@pytest.mark.web_unit
+def test_a_failed_command_reads_as_the_canvas_writes_it():
+    vitest("tests/unit/use-command-poll.spec.ts")
+
+
+@mutation(SRC + "/components/accounts/PoolCard.vue", 'v-if="count !== null"', 'v-if="true"',
+          expect=f"FAILED {PARTS_SPEC} > PoolCard > names the number of accounts once the list has been read, and "
+                 "nothing before")
+@pytest.mark.web_unit
+def test_the_pool_card_names_no_count_before_the_list_is_read():
+    vitest(PARTS_SPEC)
+
+
+# ---- page-accounts round, review fixes: one action per account at a time, Save after a running Check proxy, no
+# server text in the import result, the toasts' words ----------------------------------------------------------------
+DUPLICATE = COMMANDS + "a second click while an action runs sends nothing: Wake, Delete, the switch, the phone's Check"
+
+
+@mutation(ACCOUNTS, "  if (inFlight.has(key)) return;\n", "", expect=DUPLICATE)
+@mutation(ACCOUNTS, "  if (checking.value.has(a.id)) return;\n", "", expect=DUPLICATE)
+@mutation(ACCOUNTS, "    await proxyRuns.get(a.id);\n", "",
+          expect=COMMANDS + "Save during a running Check proxy waits for it, then sends what was typed")
+@mutation(SRC + "/components/accounts/EditDialog.vue", "[() => open.value, () => props.account?.id]",
+          "[() => open.value, () => props.account]",
+          expect=f"FAILED {DIALOGS_SPEC} > EditDialog > a new copy of the same account keeps what was typed; another "
+                 "account fills the fields again")
+@mutation(ACCOUNTS, "  if (toast) notify.info(`${label}: queued`);", "  notify.info(`${label}: queued`);",
+          expect=COMMANDS + "Check queues a check, locks that button while it runs, and says what it found")
+@mutation(ACCOUNT_MODEL, "REJECTED.get(reason) ?? REJECTED_OTHER", "REJECTED.get(reason) ?? reason",
+          expect=f"FAILED {ACCOUNT_SPEC} > rejectedText > says why a line was rejected in a sentence; any other code "
+                 "gets one fixed sentence")
+@mutation(ACCOUNT_MODEL, "`Check done: ${", "`Check: ${",
+          expect=f"FAILED {ACCOUNT_SPEC} > pointsFigure, ago, proxyCheck, checkSummary > check summary names the "
+                 "outcome, the state and the reason")
+@mutation(SRC + "/composables/use-command-poll.ts", "notify.success(`${label} done`);",
+          "notify.success(`${label}: done`);",
+          expect="FAILED tests/unit/use-command-poll.spec.ts > useCommandPoll > stops at done with a success toast, "
+                 "one second between asks")
+@pytest.mark.web_unit
+def test_review_fixes_hold():
+    vitest(ACCOUNT_SPEC, ACCOUNTS_VIEW_SPEC, DIALOGS_SPEC, "tests/unit/use-command-poll.spec.ts")
+
+
+# ---- the Provider field: FilterSelect as B-AccountImport draws its select (appearance none, the page's chevron) ------
+FIELD = SRC + "/components/shared/FilterSelect.vue"
+FIELD_SPEC = "tests/unit/shared/filter-select-field.spec.ts"
+DRAWN = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > appearance none: the page's chevron for the "
+         "arrow, no chip on a phone, and the list under the box")
+IN_DIALOG = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > in a dialog: Escape closes the open list "
+             "only > ")
+PROVIDER = (IMPORT_SPEC + "the Provider field is the drawn select: another provider picked from its list is the one "
+            "sent")
+
+
+@mutation(IMPORT, 'appearance="none"', 'appearance="auto"', expect=PROVIDER)
+@mutation(IMPORT, "@update:model-value=\"(v) => (provider = String(v))\"", "", expect=PROVIDER)
+@mutation(FIELD, '        @pointerdown="onListPress"\n', "",
+          expect=IN_DIALOG + "a press on the list's padding keeps the focus on the select, and Escape still leaves the "
+                             "dialog open")
+@mutation(FIELD, "  if (x < el.clientWidth && y < el.clientHeight) event.preventDefault();",
+          "  event.preventDefault();",
+          expect=IN_DIALOG + "a press in the list's scrollbar gutter is left alone, so the scrollbar can be dragged")
+@mutation(FIELD, '<IconChevronDown v-if="drawn"', '<IconChevronDown v-if="false"', expect=DRAWN)
+@mutation(FIELD, "field.value && !drawn.value && !props.block", "field.value && !props.block", expect=DRAWN)
+@mutation(FIELD, '"is-tall": isTablet.value && !drawn.value,', '"is-tall": isTablet.value,', expect=DRAWN)
+@pytest.mark.web_unit
+def test_the_provider_field_is_the_drawn_select():
+    vitest(DIALOGS_SPEC, FIELD_SPEC)

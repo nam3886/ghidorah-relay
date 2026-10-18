@@ -22,7 +22,6 @@ defineProps<{ tone: Tone }>();
   border-radius: 10px;
   font-size: 11px;
   font-weight: 500;
-  line-height: 16px;
   white-space: nowrap;
   color: var(--chip-fg);
   background: var(--chip-bg);

@@ -1,4 +1,4 @@
-import { mount, type VueWrapper } from "@vue/test-utils";
+import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ElDialog } from "element-plus";
 import { defineComponent, h, nextTick, ref } from "vue";
@@ -128,6 +128,111 @@ describe("the field variant of FilterSelect", () => {
     const list = listbox() as HTMLElement;
     expect(list.style.top).toBe("150px");
     expect(list.style.left).toBe("29px");
+  });
+
+  it("appearance none: the page's chevron for the arrow, no chip on a phone, and the list under the box", async () => {
+    const w = field({ appearance: "none" });
+    expect(w.classes()).toContain("is-drawn");
+    expect(
+      trigger(w)
+        .findAll("svg path")
+        .map((p) => p.attributes("d")),
+    ).toEqual(["m6 9 6 6 6-6"]);
+    expect(trigger(w).find(".filter-field__chevron").exists()).toBe(true);
+    expect(trigger(w).find(".filter-field__arrow").exists()).toBe(false);
+    wrapper!.unmount();
+    showAt(768);
+    expect(field({ appearance: "none" }).classes()).not.toContain("is-tall");
+    wrapper!.unmount();
+    showAt(390);
+    const phone = field({ appearance: "none" });
+    expect(phone.classes()).not.toContain("is-chip");
+    const rect = (top: number, bottom: number, left: number, width: number) =>
+      ({ top, bottom, left, right: left + width, width, height: bottom - top, x: left, y: top }) as DOMRect;
+    phone.element.getBoundingClientRect = () => rect(100, 170, 16, 358);
+    trigger(phone).element.getBoundingClientRect = () => rect(126, 170, 16, 358);
+    await trigger(phone).trigger("click");
+    await nextTick();
+    await nextTick();
+    expect((listbox() as HTMLElement).style.top).toBe("176px");
+  });
+
+  describe("in a dialog: Escape closes the open list only", () => {
+    // the dialog asks `beforeClose` the moment it is to close (Escape included), before any leave transition: its
+    // model turns false only after that transition, so the model alone cannot show that a close was asked for
+    const closing = ref(0);
+    const InDialog = defineComponent({
+      setup: () => () =>
+        h(ElDialog, { modelValue: true, title: "Import", beforeClose: () => closing.value++ }, () =>
+          h(FilterSelect, { modelValue: "open", options: OPTIONS, variant: "field", label: "Status" }),
+        ),
+    });
+    const escape = (el: Element) =>
+      el.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+    async function opened() {
+      closing.value = 0;
+      wrapper = mount(InDialog, { attachTo: document.body });
+      await flushPromises();
+      return document.querySelector<HTMLButtonElement>('[role="combobox"]')!;
+    }
+
+    it("an open list: Escape closes the list, the dialog stays open and the focus is on the select", async () => {
+      const box = await opened();
+      box.focus();
+      box.click();
+      await nextTick();
+      expect(listbox()).not.toBeNull();
+      escape(box);
+      await flushPromises();
+      expect(listbox()).toBeNull();
+      expect(closing.value).toBe(0);
+      expect(document.activeElement).toBe(box);
+    });
+
+    // the list is 200 x 120 at (100, 50) with its scrollbar in the last 10 px: its content box ends at x = 190
+    function sized(list: HTMLElement) {
+      list.getBoundingClientRect = () =>
+        ({ left: 100, top: 50, right: 300, bottom: 170, width: 200, height: 120, x: 100, y: 50 }) as DOMRect;
+      Object.defineProperty(list, "clientWidth", { value: 190 });
+      Object.defineProperty(list, "clientHeight", { value: 120 });
+      return list;
+    }
+    const press = (el: Element, x: number, y: number) => {
+      const event = new PointerEvent("pointerdown", { clientX: x, clientY: y, bubbles: true, cancelable: true });
+      el.dispatchEvent(event);
+      return event;
+    };
+
+    it("a press on the list's padding keeps the focus on the select, and Escape still leaves the dialog open", async () => {
+      const box = await opened();
+      box.focus();
+      box.click();
+      await nextTick();
+      const list = sized(listbox() as HTMLElement);
+      expect(press(list, 103, 53).defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(box);
+      escape(box);
+      await flushPromises();
+      expect(listbox()).toBeNull();
+      expect(closing.value).toBe(0);
+    });
+
+    it("a press in the list's scrollbar gutter is left alone, so the scrollbar can be dragged", async () => {
+      const box = await opened();
+      box.click();
+      await nextTick();
+      const list = sized(listbox() as HTMLElement);
+      expect(press(list, 295, 100).defaultPrevented).toBe(false);
+      expect(press(list, 185, 100).defaultPrevented).toBe(true);
+    });
+
+    it("a closed select: Escape goes on to the dialog, which closes", async () => {
+      const box = await opened();
+      box.focus();
+      escape(box);
+      await flushPromises();
+      expect(closing.value).toBe(1);
+    });
   });
 
   it("the chip variant is unchanged: the trigger is the root, with the word inside", () => {
