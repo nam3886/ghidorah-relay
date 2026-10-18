@@ -12,7 +12,9 @@ import {
 import PasswordForm from "@/components/settings/PasswordForm.vue";
 import SettingsTable from "@/components/settings/SettingsTable.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
-import { bootValue, loadFailedText, parseValue } from "@/components/settings/settings-value";
+import { loadFailedText } from "@/components/jobs/job-text";
+import { bootValue, parseValue } from "@/components/settings/settings-value";
+import { errorText } from "@/lib/errors";
 import SectionState from "@/components/settings/SectionState.vue";
 import "@/components/settings/settings-skeleton.css";
 import PricesTable from "@/components/settings/PricesTable.vue";
@@ -47,7 +49,8 @@ async function loadSettings(): Promise<void> {
     envOnly.value = data.env_only;
     settingsError.value = null;
   } catch (err) {
-    if (settingsLatest.isCurrent(ticket)) settingsError.value = loadFailedText("settings", err);
+    // worded as B-States draws a failed load: "Could not load the settings: the relay answered 502 (bad gateway)."
+    if (settingsLatest.isCurrent(ticket)) settingsError.value = loadFailedText(err, errorText(err), "the settings");
   } finally {
     if (settingsLatest.isCurrent(ticket)) settingsLoading.value = false;
   }
@@ -63,7 +66,9 @@ async function loadPrices(): Promise<void> {
     prices.value = data.items.map(withKey);
     pricesError.value = null;
   } catch (err) {
-    if (pricesLatest.isCurrent(ticket)) pricesError.value = loadFailedText("measured prices", err);
+    if (pricesLatest.isCurrent(ticket)) {
+      pricesError.value = loadFailedText(err, errorText(err), "the measured prices");
+    }
   } finally {
     if (pricesLatest.isCurrent(ticket)) pricesLoading.value = false;
   }

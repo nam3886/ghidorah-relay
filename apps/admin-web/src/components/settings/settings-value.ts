@@ -1,17 +1,4 @@
-import { ApiError } from "@/api/client";
 import type { SettingItem } from "@/api/settings";
-import { errorText } from "@/lib/errors";
-
-// A card's failed read, worded as B-States draws a failed load: "Could not load the settings: the relay answered 502
-// (bad gateway)." With no answer from the relay, the app's own words for the failure.
-export function loadFailedText(what: string, err: unknown): string {
-  const said = errorText(err);
-  const why =
-    err instanceof ApiError
-      ? `the relay answered ${err.status} (${said})`
-      : said.charAt(0).toLowerCase() + said.slice(1);
-  return `Could not load the ${what}: ${why}.`;
-}
 
 // The server's rule for a new password (relay_core/admin/users.py: 10 to 256 characters), checked in the form before
 // it is sent, in the words drawn under the field. Empty when the length is right; a server refusal keeps its own words.

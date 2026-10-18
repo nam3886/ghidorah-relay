@@ -498,7 +498,7 @@ def test_frames_drawn_looks():
     vitest("tests/unit/frames/frames-view.spec.ts")
 
 
-LOAD_WORDS = SETTINGS_SPEC + "setting values > word a failed read as the drawn failed load, with the relay's answer"
+LOAD_WORDS = TABLE + "shows an empty list and a failed load with Retry"
 BOOT_DASH = SETTINGS_SPEC + "setting values > show a boot-only value that is unset or empty as a dash"
 PASSWORD_RULE = SETTINGS_SPEC + "setting values > hold a new password to the server's rule, 10 to 256 characters"
 LONG_DEFAULT = SETTINGS_SPEC + "setting values > show a long default on one line, the whole value laid out in its note"
@@ -509,7 +509,8 @@ LOADING_ROWS = (SETTINGS_SPEC + "the settings page > draws the first read as the
 
 
 @mutation(PASSWORD, "fieldErrors.new_password ? 'new-password-error' : undefined", "undefined", expect=NEW_FIELD)
-@mutation(SETTING_VALUE, "`the relay answered ${err.status} (${said})`", "said", expect=LOAD_WORDS)
+@mutation(SETTINGS_VIEW, 'errorText(err), "the settings")', 'errorText(err), "the jobs")', expect=LOAD_WORDS)
+@mutation(SETTINGS_VIEW, 'errorText(err), "the measured prices")', "errorText(err))", expect=LOAD_WORDS)
 @mutation(SETTING_VALUE, ' || value === ""', "", expect=BOOT_DASH)
 @mutation(SETTING_VALUE, "if (password.length < PASSWORD_MIN)", "if (password.length < 1)", expect=PASSWORD_RULE)
 @mutation(SETTING_VALUE, "if (password.length > PASSWORD_MAX)", "if (false)", expect=PASSWORD_RULE)

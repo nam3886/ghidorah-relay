@@ -8,7 +8,6 @@ import {
   bootValue,
   fullDefault,
   isLongDefault,
-  loadFailedText,
   newPasswordProblem,
   parseValue,
   valueText,
@@ -43,16 +42,6 @@ describe("setting values", () => {
     expect(valueText({ value: false })).toBe("false");
     expect(valueText({ value: [1, 2] })).toBe("[1,2]");
     expect(valueText({ value: null })).toBe("null");
-  });
-
-  it("word a failed read as the drawn failed load, with the relay's answer", () => {
-    const answered = new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } });
-    expect(loadFailedText("settings", answered)).toBe(
-      "Could not load the settings: the relay answered 502 (bad gateway).",
-    );
-    expect(loadFailedText("measured prices", new TypeError("Failed to fetch"))).toBe(
-      "Could not load the measured prices: network error, please try again.",
-    );
   });
 
   it("hold a new password to the server's rule, 10 to 256 characters", () => {
@@ -262,8 +251,12 @@ describe("the settings table", () => {
     vi.mocked(api.getSettings).mockRejectedValueOnce(
       new ApiError(500, { error: { code: "server.error", message: "db down" } }),
     );
+    vi.mocked(api.getPrices).mockRejectedValueOnce(new TypeError("Failed to fetch"));
     await open();
-    expect(wrapper!.text()).toContain("db down");
+    // each card's failed read, worded as B-States draws a failed load
+    const alerts = wrapper!.findAll('[role="alert"]').map((a) => a.find(".state__text").text());
+    expect(alerts).toContain("Could not load the settings: the relay answered 500 (db down).");
+    expect(alerts).toContain("Could not load the measured prices: network error, please try again.");
     expect(wrapper!.text()).toContain("Retry");
   });
 });
