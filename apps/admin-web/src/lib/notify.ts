@@ -85,12 +85,16 @@ export function makeNotify(message: MessageLike) {
       made.body = () => h(ToastBody, { text, count: count.value, onDismiss: dismiss });
       shown.set(key, (entry = made));
     }
+    const own = entry;
     const handle = message({
       ...base(),
       ...options,
       type,
       message: entry.body,
-      onClose: () => shown.delete(key),
+      // a toast that closes forgets its own body only: after `clear` a new toast of the same words may hold the key
+      onClose: () => {
+        if (shown.get(key) === own) shown.delete(key);
+      },
     }) as Shown["handle"];
     entry.handle ??= handle;
     return handle;
@@ -101,7 +105,12 @@ export function makeNotify(message: MessageLike) {
     error: (text: string) =>
       toast("error", text, { icon: ErrorIcon, duration: ERROR_DURATION_MS, showClose: true }, true),
     info: (text: string) => toast("info", text, { duration: DURATION_MS }, false),
-    clear: () => message.closeAll(),
+    // A closing toast is still in Element Plus's list until it has left: forget the bodies first, so the same words shown
+    // right after (on the next page) are a new toast, not a repeat of one that is going away.
+    clear: () => {
+      shown.clear();
+      message.closeAll();
+    },
   };
 }
 

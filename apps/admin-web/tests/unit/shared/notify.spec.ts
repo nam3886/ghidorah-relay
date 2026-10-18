@@ -114,6 +114,21 @@ describe("notify", () => {
     notify.clear();
     expect(message.closeAll).toHaveBeenCalledTimes(1);
   });
+
+  it("the same words right after clear are a new toast, which the old one's late close leaves alone", () => {
+    const { message, notify } = stub();
+    notify.success("Saved");
+    const closing = lastOptions(message);
+    notify.clear();
+    // the closed toast is still leaving: the same words must not group into it
+    notify.success("Saved");
+    const fresh = lastOptions(message);
+    expect(fresh.message).not.toBe(closing.message);
+    // the old toast finishes leaving: the new one keeps its body, and a repeat still groups into it
+    (closing.onClose as () => void)();
+    notify.success("Saved");
+    expect(lastOptions(message).message).toBe(fresh.message);
+  });
 });
 
 describe("isPhoneNow", () => {

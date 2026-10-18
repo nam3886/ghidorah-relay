@@ -344,7 +344,7 @@ def test_the_table_opt_ins_day_rows_tablet_and_phone_list():
 @mutation(NOTIFY, 'placement: "bottom", offset', 'placement: "top", offset', expect="on a phone they sit bottom centre")
 @mutation(NOTIFY, "PHONE_OFFSET_PX = 72", "PHONE_OFFSET_PX = 0", expect="lifted above the bulk bar")
 @mutation(NOTIFY, "(max-width: 767.98px)", "(max-width: 10px)", expect="asks the phone edge")
-@mutation(NOTIFY, "clear: () => message.closeAll()", "clear: () => void message", expect="clear closes every toast")
+@mutation(NOTIFY, "  message.closeAll();\n    },", "  void message;\n    },", expect="clear closes every toast")
 @pytest.mark.web_unit
 def test_toasts_stack_where_the_design_puts_them():
     vitest("tests/unit/shared/notify.spec.ts")
@@ -551,11 +551,14 @@ NOTIFY_SPEC = "tests/unit/shared/notify.spec.ts"
 REPEAT = "a repeat while the toast is open is the same body"
 DRAWN_BODY = "draws the body as B-States"
 OUTRANKS = "a toast outranks Element Plus"
+AFTER_CLEAR = "the same words right after clear are a new toast"
 
 
 @mutation(NOTIFY, "entry.count.value += 1;", "", expect=REPEAT)
 @mutation(NOTIFY, "props.count > 1 ?", "props.count > 9 ?", expect=REPEAT)
-@mutation(NOTIFY, "onClose: () => shown.delete(key),", "onClose: () => undefined,", expect=REPEAT)
+@mutation(NOTIFY, "if (shown.get(key) === own) shown.delete(key);", "", expect=REPEAT)
+@mutation(NOTIFY, "if (shown.get(key) === own) shown.delete(key);", "shown.delete(key);", expect=AFTER_CLEAR)
+@mutation(NOTIFY, "      shown.clear();\n      message.closeAll();", "      message.closeAll();", expect=AFTER_CLEAR)
 @mutation(NOTIFY, '"aria-label": "Close message"', '"aria-label": "Close"', expect=DRAWN_BODY)
 @mutation(NOTIFY, "h(IconClose, { size: 14, stroke: 2 })", "h(IconClose, { size: 16, stroke: 2 })", expect=DRAWN_BODY)
 @pytest.mark.web_unit
