@@ -499,12 +499,14 @@ input[type="file"]::file-selector-button {
   }
 }
 
+/* No font smoothing, text rendering or font feature setting here: the canvas sets none, and on a Mac
+   `-webkit-font-smoothing: antialiased` draws every glyph visibly thinner than the canvas (Linux Chrome ignores it, so
+   no photo shows it; element_diff compares the computed values). */
 body {
   margin: 0;
   background: var(--rl-bg);
   color: var(--rl-fg);
   font: 14px/20px var(--rl-font);
-  -webkit-font-smoothing: antialiased;
 }
 
 /*

@@ -9,6 +9,8 @@ export type MediaKind = "image" | "video";
 
 export interface PublicModel {
   id: string;
+  // The product name shown to people; the server sends the id when a model has none.
+  name?: string;
   kind: MediaKind | string;
   owned_by: string;
   prices?: unknown;
@@ -38,6 +40,8 @@ export interface PublicJob {
   stage?: string | null;
   result_urls?: string[];
   images?: string[];
+  // The points the job charged the key; with `refunded` true they came back.
+  points?: number;
   [key: string]: unknown;
 }
 
