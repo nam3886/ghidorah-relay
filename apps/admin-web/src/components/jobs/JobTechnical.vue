@@ -1,34 +1,45 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { JobDetail } from "@/api/jobs-detail";
+import { plural } from "@/components/jobs/job-text";
 import { fmtTime } from "@/lib/format";
 
 // The Technical tab's facts as the canvas draws them: a plain two-column grid (a single list on a phone), a fact
 // whose value the server does not have is left out. The long or rarely used facts follow under "Diagnostics".
+// Worded as drawn: `dola image` (the wallet is the provider's, of one kind), `Shop A · rk_…` (label and prefix),
+// `2 credits` (an account cost of 0 is no cost: left out), `image v2` (the frame version, tagged as the Frames page
+// tags it), `200 · 1 attempt` (the answer's HTTP code; a delivery that did not go through says its state first).
 const props = defineProps<{ job: JobDetail; phone: boolean }>();
 
 type Fact = [label: string, value: string];
 const text = (v: unknown): string => (v === null || v === undefined || v === "" ? "" : String(v));
 const kept = (facts: Fact[]): Fact[] => facts.filter(([, value]) => value !== "");
+const words = (...parts: unknown[]): string => parts.map(text).filter(Boolean).join(" · ");
+
+function callback(c: JobDetail["callback"]): string {
+  if (!c.status) return "";
+  const code = /^HTTP (\d{3})/.exec(text(c.last))?.[1];
+  return words(c.status === "sent" ? "" : c.status, code, plural(c.attempts ?? 0, "attempt"));
+}
 
 const facts = computed<Fact[]>(() => {
   const j = props.job;
   return kept([
     ["Job id", text(j.id)],
     ["Provider / pool", [j.provider, j.pool].filter(Boolean).join(" / ")],
-    ["Wallet", text(j.wallet_kind)],
+    ["Wallet", j.wallet_kind ? `${j.provider} ${j.wallet_kind}` : ""],
     ...(props.phone
       ? ([
-          ["Key", text(j.key_label)],
+          ["Key", words(j.key_label?.trim(), j.key_prefix)],
           ["Account", text(j.account_label)],
         ] as Fact[])
       : []),
     ["External ref", text(j.external_ref)],
     ["Attempts / claims", `${j.attempts} / ${j.claims}`],
-    ["Account cost", text(j.account_cost)],
+    ["Account cost", j.account_cost ? plural(j.account_cost, "credit") : ""],
     ["Upstream model", text(j.upstream_model)],
-    ["Prompt frame", text(j.frame_id)],
-    ["Callback", j.callback.status ? `${j.callback.status} (${j.callback.attempts} attempts)` : ""],
+    ["Prompt frame", text(j.frame_id) && `${j.media_type} v${j.frame_id}`],
+    ["Callback", callback(j.callback)],
   ]);
 });
 

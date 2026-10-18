@@ -25,7 +25,8 @@ const messageConfig = { max: 4, grouping: true, duration: 2500 };
             </keep-alive>
           </router-view>
         </AppShell>
-        <JobDetailDrawer />
+        <!-- the phone sheet's Back names the page it goes back to: `Back to Jobs` (P-JobDetail), `Back to Alerts` -->
+        <JobDetailDrawer :back-label="`Back to ${route.meta.label ?? 'Jobs'}`" />
       </template>
     </template>
   </el-config-provider>
