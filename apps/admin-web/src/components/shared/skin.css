@@ -199,7 +199,38 @@ html:root .el-popper.rl-tip--mono {
   overflow-wrap: anywhere;
 }
 
-/* The card every list sits in (6)---------------------------------------------------------------------------------- */
+/* Picture viewer (a job's results, the Test result; not drawn, D125): the scrim over the page, and its buttons and
+   toolbar as the menu surface, a hairline, the overlay shadow and radius 10 / 12 ------------------------------------ */
+html:root .el-image-viewer__mask {
+  opacity: 1;
+  background: var(--rl-scrim);
+}
+html:root .el-image-viewer__btn {
+  opacity: 1;
+  border: 1px solid var(--rl-line);
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
+}
+html:root .el-image-viewer__close,
+html:root .el-image-viewer__prev,
+html:root .el-image-viewer__next {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  font-size: 20px;
+}
+html:root .el-image-viewer__actions {
+  padding: 0 16px;
+  border-radius: 12px;
+}
+html:root .el-image-viewer__actions__inner {
+  gap: 16px;
+  color: var(--rl-fg);
+  font-size: 20px;
+}
+
+/* The card every list sits in (6) ---------------------------------------------------------------------------------- */
 .rl-card {
   overflow: hidden;
   border: 1px solid var(--rl-line);

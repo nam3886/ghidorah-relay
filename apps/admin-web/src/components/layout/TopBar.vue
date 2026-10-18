@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import BrandLogo from "@/components/layout/BrandLogo.vue";
 import { IconCheck, IconChevronDown, IconFileText, IconLogOut, IconMoon } from "@/components/shared/icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
+import { placePopup, type PopupAlign } from "@/lib/popup-place";
 import { useBusy } from "@/composables/use-busy";
 import { TABS } from "@/router";
 import { useAuthStore } from "@/stores/auth";
@@ -64,12 +65,46 @@ const accountWrap = ref<HTMLElement | null>(null);
 const wrapOf = (which: "provider" | "account") => (which === "provider" ? providerWrap.value : accountWrap.value);
 const ITEMS = '[role="option"], [role="menuitem"]';
 
+// Where an open popup sits: the app's popup rule (lib/popup-place.ts), from the trigger edge each popup is drawn on.
+// Both start at the trigger, as drawn, except the Provider list on a phone, which the canvas ends at it; the account
+// trigger is at the right of the header, so the rule ends its menu at the trigger at every width. The popup is first
+// measured at its own size, then placed inside the window (written relative to its trigger); again on a resize.
+const align = computed<Record<"provider" | "account", PopupAlign>>(() => ({
+  provider: isPhone.value ? "end" : "start",
+  account: "start",
+}));
+const popupStyle = ref<Record<string, string>>({});
+async function placeOpenPopup(): Promise<void> {
+  const which = open.value;
+  const wrap = which ? wrapOf(which) : null;
+  if (!which || !wrap) return;
+  popupStyle.value = {};
+  await nextTick();
+  const popup = wrap.querySelector<HTMLElement>('[role="listbox"], [role="menu"]');
+  if (!popup) return;
+  const at = wrap.getBoundingClientRect();
+  const html = document.documentElement;
+  const view = { width: html.clientWidth || window.innerWidth, height: html.clientHeight || window.innerHeight };
+  const place = placePopup(at, { width: popup.offsetWidth, height: popup.offsetHeight }, view, align.value[which]);
+  popupStyle.value = {
+    left: `${place.left - at.left}px`,
+    top: `${place.top - at.top}px`,
+    ...(place.maxWidth === undefined ? {} : { maxWidth: `${place.maxWidth}px` }),
+    ...(place.maxHeight === undefined ? {} : { maxHeight: `${place.maxHeight}px` }),
+  };
+}
+function onResize(): void {
+  void placeOpenPopup();
+}
+
 // The keyboard moves into the popup when it opens: the chosen option, else the first item. Arrow keys, Home and End
-// move between items (they stop at the ends), Escape closes and gives the focus back.
+// move between items (they stop at the ends), Escape closes and gives the focus back. The popup is placed first, so
+// the focus never scrolls the page towards a popup that has not been placed yet.
 async function toggle(which: "provider" | "account"): Promise<void> {
   const opening = open.value !== which;
   open.value = opening ? which : null;
   if (!opening) return;
+  await placeOpenPopup();
   await nextTick();
   const items = [...(wrapOf(which)?.querySelectorAll<HTMLElement>(ITEMS) ?? [])];
   (items.find((el) => el.getAttribute("aria-selected") === "true") ?? items[0])?.focus();
@@ -112,10 +147,12 @@ function onKeydown(event: KeyboardEvent): void {
 onMounted(() => {
   document.addEventListener("pointerdown", onPointerDown);
   document.addEventListener("keydown", onKeydown);
+  window.addEventListener("resize", onResize);
 });
 onBeforeUnmount(() => {
   document.removeEventListener("pointerdown", onPointerDown);
   document.removeEventListener("keydown", onKeydown);
+  window.removeEventListener("resize", onResize);
 });
 
 async function signOut(): Promise<void> {
@@ -130,7 +167,8 @@ function openDocs(): void {
   window.open("/reference", "_blank", "noopener");
 }
 
-// The current tab stays in view when the tabs scroll sideways (tablet and phone).
+// The current tab stays in view when the tabs scroll sideways (tablet and phone): on a tab switch, and when a count
+// arrives or changes, as the counts widen the tabs before it (they come after the bar is drawn).
 const navEl = ref<HTMLElement | null>(null);
 async function revealCurrent(): Promise<void> {
   await nextTick();
@@ -140,7 +178,7 @@ async function revealCurrent(): Promise<void> {
   }
 }
 onMounted(revealCurrent);
-watch(() => route.name, revealCurrent);
+watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" ")], revealCurrent);
 </script>
 
 <template>
@@ -198,6 +236,7 @@ watch(() => route.name, revealCurrent);
           <div
             v-if="open === 'provider'"
             class="menu menu--provider"
+            :style="popupStyle"
             role="listbox"
             aria-label="Provider"
             @keydown="onPopupKey"
@@ -249,6 +288,7 @@ watch(() => route.name, revealCurrent);
           <div
             v-if="open === 'account'"
             class="menu menu--account"
+            :style="popupStyle"
             role="menu"
             aria-label="Account"
             @keydown="onPopupKey"
@@ -315,6 +355,12 @@ watch(() => route.name, revealCurrent);
   flex: 1 1 560px;
   min-width: 0;
   overflow-x: auto;
+  /* the tab row scrolls without a bar, as drawn (on a desktop browser narrower than the tabs a bar would add 15 px
+     under them): touch, trackpad and shift-wheel still scroll it, and the current tab is kept in view */
+  scrollbar-width: none;
+}
+.topbar__nav::-webkit-scrollbar {
+  display: none;
 }
 .tabs {
   display: flex;
@@ -350,7 +396,6 @@ watch(() => route.name, revealCurrent);
   padding: 0 6px;
   font-size: 11px;
   line-height: 16px;
-  text-align: left;
   border-radius: 8px;
   color: var(--rl-muted);
   background: var(--rl-neutral-bg);
@@ -458,10 +503,13 @@ watch(() => route.name, revealCurrent);
 }
 
 /* Popovers. */
+/* placed by the popup rule once measured; this is where it is measured, under the trigger's left edge */
 .menu {
   position: absolute;
   top: calc(100% + 6px);
+  left: 0;
   z-index: 2;
+  overflow-y: auto;
   box-sizing: border-box;
   padding: 6px;
   border: 1px solid var(--rl-line);
@@ -470,11 +518,9 @@ watch(() => route.name, revealCurrent);
   box-shadow: var(--rl-shadow-pop);
 }
 .menu--account {
-  right: 0;
   width: 200px;
 }
 .menu--provider {
-  left: 0;
   width: 180px;
 }
 .menu-item {
@@ -491,6 +537,7 @@ watch(() => route.name, revealCurrent);
   color: var(--rl-fg);
   font: inherit;
   font-size: 13px;
+  line-height: normal;
   text-align: left;
   cursor: pointer;
 }
@@ -607,10 +654,6 @@ watch(() => route.name, revealCurrent);
   height: 32px;
   border-radius: 16px;
   font-size: 13px;
-}
-.topbar--phone .menu--provider {
-  left: auto;
-  right: 0;
 }
 .topbar--phone .menu-item {
   height: 44px;

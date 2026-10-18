@@ -7,6 +7,7 @@ import {
   fmtDayClock,
   fmtTook,
   isRefunded,
+  jobParam,
   keyName,
   loadFailedText,
   newestFirst,
@@ -17,10 +18,28 @@ import {
   shortId,
 } from "@/components/jobs/job-text";
 
+describe("a job's request parameter", () => {
+  it("is the first of its names that is set, as text, and empty when none is", () => {
+    expect(jobParam({ aspect_ratio: "4:3" }, "ratio", "aspect_ratio")).toBe("4:3");
+    expect(jobParam({ ratio: "16:9", aspect_ratio: "4:3" }, "ratio", "aspect_ratio")).toBe("16:9");
+    expect(jobParam({ ratio: "", n: 4 }, "ratio", "n")).toBe("4");
+    expect(jobParam({ ratio: null }, "ratio")).toBe("");
+    expect(jobParam(null, "ratio")).toBe("");
+    expect(jobParam("2:3", "ratio")).toBe("");
+  });
+});
+
 describe("the failed load of the list", () => {
   it("says what failed and what the relay answered, as drawn", () => {
     const err = new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } });
     expect(loadFailedText(err, "bad gateway")).toBe("Could not load the jobs: the relay answered 502 (bad gateway).");
+  });
+
+  it("names what failed: the drawer's read of one job", () => {
+    const err = new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } });
+    expect(loadFailedText(err, "bad gateway", "the job")).toBe(
+      "Could not load the job: the relay answered 502 (bad gateway).",
+    );
   });
 
   it("with no answer from the relay says the app's own words", () => {
@@ -125,7 +144,8 @@ describe("drawer formats", () => {
     const at = new Date(2026, 9, 5, 9, 4, 7).getTime();
     expect(fmtClock(at)).toBe("09:04:07");
     expect(fmtDayClock(at)).toBe("05/10 09:04:07");
-    expect([fmtClock(null), fmtDayClock(undefined), fmtClock(0)]).toEqual(["-", "-", "-"]);
+    // a time that is not set is the list empty-cell dash
+    expect([fmtClock(null), fmtDayClock(undefined), fmtClock(0)]).toEqual(["—", "—", "—"]);
   });
 
   it("how long a job took reads in seconds, minutes or hours", () => {

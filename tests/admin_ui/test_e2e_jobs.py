@@ -21,6 +21,18 @@ def rows(page):
     return page.locator("tbody tr:not(.is-day), li.data-table__item")
 
 
+def settled(page, showing: str, count: int, left: list[str] | None = None) -> list[str]:
+    """The list has landed on a page, and its rows' texts: the pager says `showing`, no read is under way, it holds
+    `count` rows and (when given) its first row is not the page it `left`. The table keeps the old rows while the next
+    page loads, so the count alone can still be the old page's."""
+    expect(page.locator(".pager .pager__text").first).to_have_text(showing)
+    expect(page.locator(".data-table.is-refreshing")).to_have_count(0)
+    expect(rows(page)).to_have_count(count)
+    if left:
+        expect(rows(page).first).not_to_have_text(left[0], use_inner_text=True)
+    return rows(page).all_inner_texts()
+
+
 def tick(page, i: int) -> None:
     rows(page).nth(i).locator("label.el-checkbox").click()
 
@@ -162,26 +174,21 @@ def test_the_list_pages_forward_and_back_without_a_repeat(app, app_page, live, d
     for _ in range(25):
         db.job(k, provider="fake")
     app.sign_in(page)
-    expect(rows(page)).to_have_count(10)          # 10 a page by default
-    expect(page.locator(".pager .pager__text").first).to_have_text("Showing 1–10 of 25")
-    first_page = rows(page).all_inner_texts()
+    first_page = settled(page, "Showing 1–10 of 25", 10)          # 10 a page by default
     nxt, prev = page.locator(".pager button.btn-next"), page.locator(".pager button.btn-prev")
     expect(prev).to_have_attribute("aria-disabled", "true")
     nxt.click()
-    expect(rows(page)).to_have_count(10)
-    second_page = rows(page).all_inner_texts()
+    second_page = settled(page, "Showing 11–20 of 25", 10, left=first_page)
     assert not set(second_page) & set(first_page), "no job on both pages"
     page.locator(".pager button.number").get_by_text("3", exact=True).click()      # jump to the last page
-    expect(rows(page)).to_have_count(5)
+    third_page = settled(page, "Showing 21–25 of 25", 5, left=second_page)
     expect(nxt).to_have_attribute("aria-disabled", "true")
-    third_page = rows(page).all_inner_texts()
     assert not set(third_page) & (set(first_page) | set(second_page)), "no job on two pages"
     prev.click()
-    expect(rows(page)).to_have_count(10)
-    assert rows(page).all_inner_texts() == second_page, "the second page comes back as it was"
+    assert settled(page, "Showing 11–20 of 25", 10, left=third_page) == second_page, \
+        "the second page comes back as it was"
     page.locator(".pager button.number").get_by_text("1", exact=True).click()
-    expect(rows(page)).to_have_count(10)
-    assert rows(page).all_inner_texts() == first_page, "and so does the first"
+    assert settled(page, "Showing 1–10 of 25", 10, left=second_page) == first_page, "and so does the first"
 
 
 def test_a_bigger_page_size_shows_more_rows_and_keeps_the_ticks_across_a_reload(app, app_page, live, db):
