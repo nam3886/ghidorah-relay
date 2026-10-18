@@ -1,6 +1,5 @@
 // The date window of the Request logs: a date field is a day, and the window is [that day's midnight, the next day's
 // midnight) in the viewer's own time zone, sent as epoch milliseconds. The server reads `until` as exclusive.
-import { ApiError } from "@/api/client";
 import type { LogQuery, LogStatus } from "@/api/logs";
 
 export const PAGE_SIZE = 50;
@@ -31,16 +30,6 @@ export function dateClock(ms: number | null | undefined): string {
   if (!ms) return "—";
   const d = new Date(ms);
   return `${two(d.getDate())}/${two(d.getMonth() + 1)} ${clockTime(ms)}`;
-}
-
-// The list's failed load, in the words of the drawn Jobs error (B-States): "Could not load the request logs: the relay
-// answered 502 (bad gateway)." `said` is the app's own text for the failure; with no answer from the relay it is all.
-export function loadFailedText(err: unknown, said: string): string {
-  const why =
-    err instanceof ApiError
-      ? `the relay answered ${err.status} (${said})`
-      : said.charAt(0).toLowerCase() + said.slice(1);
-  return `Could not load the request logs: ${why}.`;
 }
 
 // The status of a request in words of the row tint: only a server error fills the row.

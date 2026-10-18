@@ -598,6 +598,9 @@ describe("the tablet", () => {
     expect(more.attributes("aria-expanded")).toBe("false");
     await more.trigger("click");
     expect(more.attributes("aria-expanded")).toBe("true");
+    // named as drawn: the menu after its button, the card it sits beside
+    expect(w.find('[role="menu"]').attributes("aria-label")).toBe("More actions");
+    expect(w.find("section.logs-card").attributes("aria-label")).toBe("Request log list");
     expect(w.findAll('[role="menuitem"]').map((i) => i.text())).toEqual(["Clear logs"]);
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await settle();

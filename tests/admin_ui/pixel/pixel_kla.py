@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 
 from accountkit import new_account
 from jobkit import key as new_key
+from patchright.sync_api import Error as PlaywrightError
 from patchright.sync_api import expect
 from pixel_manifest import TIMEOUT_MS, Entry
 from pixel_seed import (
@@ -207,12 +208,15 @@ LOGS_TOTAL, YESTERDAY_LOGS = 4812, 4761
 def canvas_totals(page, live, data) -> None:
     """Before the app loads: the list answer of the first page carries the boards' total and yesterday's total."""
     def answer(route):
-        got = route.fetch()
-        body = got.json()
-        if "offset=0" in route.request.url and body.get("total") == len(LOG_ROWS):
-            body["total"] = LOGS_TOTAL
-            body.setdefault("day_totals", {})["2026-10-14"] = YESTERDAY_LOGS
-        route.fulfill(response=got, json=body)
+        try:
+            got = route.fetch()
+            body = got.json()
+            if "offset=0" in route.request.url and body.get("total") == len(LOG_ROWS):
+                body["total"] = LOGS_TOTAL
+                body.setdefault("day_totals", {})["2026-10-14"] = YESTERDAY_LOGS
+            route.fulfill(response=got, json=body)
+        except PlaywrightError:         # the page closed while the answer was on its way
+            pass
 
     page.route(re.compile(r"/admin/logs\?"), answer)
 

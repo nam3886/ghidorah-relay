@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useRoute } from "vue-router";
 import { clearLogs, getLog, type LogDetail, listLogs, type LogRow } from "@/api/logs";
+import { loadFailedText } from "@/components/jobs/job-text";
 import PageHeader from "@/components/layout/PageHeader.vue";
 import LogDetailDrawer from "@/components/logs/LogDetailDrawer.vue";
 import LogsFilterForm from "@/components/logs/LogsFilterForm.vue";
@@ -11,7 +12,6 @@ import {
   dayNote,
   isLogStatus,
   isServerError,
-  loadFailedText,
   logQuery,
   PAGE_SIZE,
   thousands,
@@ -117,7 +117,7 @@ async function load(): Promise<void> {
     error.value = null;
   } catch (err) {
     if (!latest.isCurrent(ticket)) return;
-    error.value = loadFailedText(err, errorText(err));
+    error.value = loadFailedText(err, errorText(err), "the request logs");
   } finally {
     if (latest.isCurrent(ticket)) loading.value = false;
   }
@@ -234,7 +234,13 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
           >
             <IconMoreCircles :size="18" />
           </button>
-          <div v-if="menuOpen" class="logs-more__menu" :class="{ 'is-phone': isPhone }" role="menu">
+          <div
+            v-if="menuOpen"
+            class="logs-more__menu"
+            :class="{ 'is-phone': isPhone }"
+            role="menu"
+            aria-label="More actions"
+          >
             <button type="button" role="menuitem" class="logs-more__item" @click="clear">
               <IconTrashMenu :size="16" />Clear logs
             </button>
@@ -243,7 +249,7 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
       </template>
     </PageHeader>
 
-    <section class="kla-card logs-card" aria-label="Request logs">
+    <section class="kla-card logs-card" aria-label="Request log list">
       <LogsFilterForm @search="search" />
       <DataTable
         class="logs-table"

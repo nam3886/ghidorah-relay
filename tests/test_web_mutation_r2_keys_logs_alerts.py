@@ -584,24 +584,19 @@ def test_the_alert_detail_names_the_job_and_the_key():
 
 
 # ---- Request logs: the drawn error wording and the empty list under a filter ---------------------------------------
-FAILED_LOAD = f"FAILED {WINDOW_SPEC} > a failed load > "
 EMPTY_FILTERED = ("an empty list under a filter says so; Clear filters clears every filter and searches from the "
                   "first page")
 
 
-@mutation(WINDOW, "`Could not load the request logs: ${why}.`", "why",
-          expect=FAILED_LOAD + "is worded as the drawn error: what failed, then what the relay answered")
-@mutation(WINDOW, "err instanceof ApiError\n      ?", "false\n      ?",
-          expect=FAILED_LOAD + "is worded as the drawn error: what failed, then what the relay answered")
-@mutation(WINDOW, "said.charAt(0).toLowerCase() + said.slice(1)", "said",
-          expect=FAILED_LOAD + "with no answer from the relay, the app's own words follow, lower-cased")
-@pytest.mark.web_unit
-def test_a_failed_logs_load_is_worded_as_drawn():
-    vitest(WINDOW_SPEC)
-
-
-@mutation(LOGS, "error.value = loadFailedText(err, errorText(err));", "error.value = errorText(err);",
+@mutation(LOGS, 'error.value = loadFailedText(err, errorText(err), "the request logs");',
+          "error.value = errorText(err);",
           expect=LOGS_LIST + "a failed load says what failed and what the relay answered")
+@mutation(LOGS, 'loadFailedText(err, errorText(err), "the request logs")', "loadFailedText(err, errorText(err))",
+          expect=LOGS_LIST + "a failed load says what failed and what the relay answered")
+@mutation(LOGS, '            role="menu"\n            aria-label="More actions"', '            role="menu"',
+          expect=LOGS_TABLET + "puts Clear logs in a More menu")
+@mutation(LOGS, 'aria-label="Request log list"', 'aria-label="Request logs"',
+          expect=LOGS_TABLET + "puts Clear logs in a More menu")
 @mutation(LOGS, 'filters.q.trim() || filters.status !== "all" || filters.from', "filters.q.trim() || filters.from",
           expect=LOGS_LIST + EMPTY_FILTERED)
 @mutation(LOGS, 'filters.q.trim() || filters.status !== "all"', 'filters.q.trim() || filters.status !== "x"',

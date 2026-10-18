@@ -35,6 +35,10 @@ logs_filters = LOGS.drive
 # Live data: yesterday's note. D124: the day header says the day's total under the filters, "4,761 requests shown"; the
 # boards write "5 of 4,761 requests shown". The request ids are the database's (rq_8f2174 is a sample id).
 BOARD_DATA = ("· 5 of 4,761 requests shown",)
+# The phone rows' names carry the request ids (sample ids on the boards). The app names each row's open area, which
+# fills the row: "Open request 5".
+ROW_NAMES = tuple("Open request rq_" + rid for rid in ("8f21c4", "8f21b9", "8f21a0", "8f2187", "8f2174", "8f215e",
+                                                      "8f2149", "8e90d2", "8e90c1", "8e90a8", "8e9091", "8e907a"))
 # The request body as stored: the column is jsonb, which keeps its keys in its own order (n, model, ratio, prompt, ...),
 # not in the order the client sent them; the drawer shows what is stored.
 REQUEST_BODY = ('{ "model": "seedream-4.5", "prompt": "Close-up of a perfume bottle on white marble, hard window '
@@ -60,7 +64,7 @@ def failing(page, live, data):
 CHECKS = [
     Check("B-Logs", LOGS, data=BOARD_DATA),
     Check("T-Logs", replace(LOGS, board="T-Logs"), data=BOARD_DATA),
-    Check("P-Logs", BOARD["P-Logs"], data=BOARD_DATA, popup=MORE_MENU),
+    Check("P-Logs", BOARD["P-Logs"], data=BOARD_DATA + ROW_NAMES, popup=MORE_MENU),
     Check("B-LogDetail", BOARD["B-LogDetail"], 'aside[role="dialog"]',
           '[data-testid="request-drawer"]', data=("Request rq_8f2174", REQUEST_BODY)),
     Check("state-clear-confirm", replace(LOGS, board=STATES, drive=clear_confirm), '[aria-labelledby="cfClr"]',
