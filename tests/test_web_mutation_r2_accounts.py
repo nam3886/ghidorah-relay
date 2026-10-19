@@ -231,7 +231,7 @@ GUARD = f"FAILED {DIALOGS_SPEC} > EditDialog > the guard > "
           expect=WIPE + "a proxy typed alone asks")
 @mutation(IMPORT, 'credentials.value.trim() !== "" || proxy.value.trim() !== ""',
           'credentials.value !== "" || proxy.value !== ""',
-          expect=WIPE + "a proxy alone is a paste worth asking about; spaces alone are not")
+          expect=WIPE + "spaces alone are not worth asking about")
 @mutation(IMPORT, "discard-text=\"Discard the pasted credentials?\"", "discard-text=\"Discard?\"",
           expect=WIPE + "the X: asks, and on Discard the paste is gone when the drawer is opened again")
 @mutation(IMPORT, '    :busy="busy"\n', "",
@@ -248,12 +248,48 @@ GUARD = f"FAILED {DIALOGS_SPEC} > EditDialog > the guard > "
           expect=GUARD + "a new password alone, typed as host:port:user:pass, is a change")
 @mutation(EDIT, 'label.value = proxy.value = "";', "",
           expect=GUARD + "every close leaves nothing typed behind: a drawer closed from outside is clean and empty")
-@mutation(EDIT, '    :busy="props.busy"\n', "",
+@mutation(EDIT, '    :busy="props.saving"\n', "",
           expect=GUARD + "no close path works while a save is in flight")
 @mutation(EDIT, 'discard-text="Discard your changes to this account?"', 'discard-text="Discard?"',
           expect=GUARD + "a changed label asks what is lost, in words; Keep editing keeps the drawer and what was typed")
 @pytest.mark.web_unit
 def test_the_account_forms_are_guarded_drawers():
+    vitest(DIALOGS_SPEC)
+
+
+# ---- the drawers on the page: a command elsewhere never traps the Edit drawer, a leave of the page is guarded, focus -
+DRAWERS = f"FAILED {ACCOUNTS_VIEW_SPEC} > the Edit and Import drawers on the page > "
+FOCUS = DRAWERS + "focus after the drawer is gone > "
+LEAVE_DIRTY = DRAWERS + "a paste in Import and a change in Edit are what a leave of the page would lose"
+LEAVE_BLOCKED = DRAWERS + "an import under way blocks a leave of the page, and so does a save in flight"
+
+
+@mutation(ACCOUNTS, '      :saving="saving"\n', '      :saving="busy"\n',
+          expect=DRAWERS + "a row command that is running does not stop the Edit drawer from closing")
+@mutation(ACCOUNTS, "(importOpen.value && importDirty.value) || (editOpen.value && editDirty.value),",
+          "(editOpen.value && editDirty.value),", expect=LEAVE_DIRTY)
+@mutation(ACCOUNTS, "(importOpen.value && importDirty.value) || (editOpen.value && editDirty.value),",
+          "(importOpen.value && importDirty.value),", expect=LEAVE_DIRTY)
+@mutation(ACCOUNTS, "() => importBusy.value || saving.value,", "() => saving.value,", expect=LEAVE_BLOCKED)
+@mutation(ACCOUNTS, "() => importBusy.value || saving.value,", "() => importBusy.value,", expect=LEAVE_BLOCKED)
+@mutation(IMPORT, 'watch(busy, (b) => emit("update:busy", b));', "", expect=LEAVE_BLOCKED)
+@mutation(ACCOUNTS, " && opener.getClientRects().length) return;", ") return;",
+          expect=FOCUS + "goes to the page's Import button when the opener can no longer be seen")
+@mutation(ACCOUNTS, "if (opener?.isConnected &&", "if (false && opener?.isConnected &&",
+          expect=FOCUS + "is left to Element Plus, which gives it back to the row button, while that button can be seen")
+@pytest.mark.web_unit
+def test_the_account_drawers_on_the_page():
+    vitest(ACCOUNTS_VIEW_SPEC)
+
+
+@mutation(IMPORT, "  const body = importBody(provider.value, credentials.value, proxy.value);\n",
+          "  wipe();\n  const body = importBody(provider.value, credentials.value, proxy.value);\n",
+          expect=WIPE + "after a success both fields are empty, and the request still carried both")
+@mutation(IMPORT, "watch(open, (isOpen) => {\n  wipe();\n  if (!isOpen) return;",
+          "watch(open, (isOpen) => {\n  if (!isOpen) return;\n  wipe();",
+          expect=WIPE + "the drawer closed from outside empties both fields and the view hears that it is clean")
+@pytest.mark.web_unit
+def test_the_import_wipes_in_the_right_order():
     vitest(DIALOGS_SPEC)
 
 
