@@ -682,19 +682,43 @@ def test_the_alerts_view_drops_stale_answers_and_acknowledges_what_was_shown():
 @mutation(ALERTS, '                  :disabled="writing"\n                  :aria-label="',
           '                  :disabled="false"\n                  :aria-label="', expect=IN_FLIGHT)
 @mutation(ALERTS, ':busy="writing"', ':busy="false"', expect=IN_FLIGHT)
-@mutation(ALERTS, 'class="al-primary ad-ack" :disabled="locked"', 'class="al-primary ad-ack" :disabled="false"',
-          expect=IN_FLIGHT)
+@mutation(ALERTS, ':disabled="locked"\n          @click="acknowledge(shownDetail)"',
+          ':disabled="false"\n          @click="acknowledge(shownDetail)"', expect=IN_FLIGHT)
 @mutation(ALERTS, "writing.value = true;", "writing.value = false;", expect=IN_FLIGHT)
 @mutation(ALERTS, "writing.value = false;", "writing.value = writing.value;", expect=AFTER_FAILURE)
-@mutation(ALERTS, "  detailError.value = null;\n  void reload();", "  detailError.value = null;",
+@mutation(ALERTS, "  opened.value = null;\n  void reload();", "  opened.value = null;",
           expect=ALERT_DETAIL_SPEC + "Close reloads the list")
+@mutation(ALERTS, "  opened.value = null;\n  void reload();", "  opened.value = null;\n  detailError.value = null;\n"
+                                                                 "  void reload();",
+          expect=ALERT_DETAIL_SPEC + "a failed read stays in the drawer while it leaves, and a reopened group starts "
+                                     "from a clean drawer")
+@mutation(ALERTS, "      if (at.open && !shownDetail.value) detailError.value = err;\n", "",
+          expect=ALERT_DETAIL_SPEC + "a list read that fails while the group is asked for says so in the drawer, not "
+                                     "Loading for ever")
+@mutation(ALERTS, "  if (writing.value) return;\n  pendingJob = jobId;", "  pendingJob = jobId;",
+          expect=ALERT_DETAIL_SPEC + "a job link does nothing while an acknowledge runs: the drawer stays")
+@mutation(ALERTS, "  shownDetail.value = null;\n  detailError.value = null;\n  pendingJob = null;",
+          "  detailError.value = null;\n  pendingJob = null;",
+          expect=ALERT_DETAIL_SPEC + "opening another group at once does not show the last group's title while it "
+                                     "reads")
+@mutation(ALERTS, "  pendingJob = null;\n  asked.value", "  asked.value",
+          expect=ALERT_DETAIL_SPEC + "a job asked for and then a group opened again before the drawer left opens "
+                                     "no job")
+@mutation(ALERTS, '  document.querySelector<HTMLElement>(".app-scroll__wrap")?.focus({ preventScroll: true });', "",
+          expect=ALERT_DETAIL_SPEC + "when the group leaves the list and the drawer is closed, focus goes to the "
+                                     "page's scroll area")
+@mutation(ALERTS, ':class="rowClass({ row: g })"\n            @click="rowClick($event, g)"',
+          ':class="rowClass({ row: g })"',
+          expect=ALERT_DETAIL_SPEC + "a tablet row opens the detail on a click beside its buttons")
+@mutation(ALERTS, '\n              @click="rowClick($event, g)"', "",
+          expect=ALERT_DETAIL_SPEC + "a click on the row opens the detail; a click on its Acknowledge does not")
+@mutation(ALERTS, ":class=\"{ 'ad-ack--sheet': isPhone }\"", ":class=\"{ 'ad-ack--sheet': false }\"",
+          expect=PHONE_SHEET)
 @mutation(ALERTS, "  asked.value = { ...asked.value, open: null };\n  opened.value = null;", "  opened.value = null;",
           expect=ALERT_DETAIL_SPEC + "Close reloads the list")
 @mutation(ALERTS, "  detailError.value = view.detailError;", "  detailError.value = null;", expect=UNREADABLE)
 @mutation(ALERTS, '<p v-if="detailError" class="ad-error"', '<p v-if="false" class="ad-error"',
           expect=UNREADABLE)
-@mutation(ALERTS, "  asked.value = { ...asked.value, open: null };\n  opened.value = null;\n  detailError",
-          "  opened.value = null;\n  detailError", expect=ALERT_DETAIL_SPEC + "Close reloads the list")
 @mutation(ALERTS, "if (d) shownDetail.value = d;", "shownDetail.value = d;",
           expect=ALERT_DETAIL_SPEC + "closing keeps the last detail until the drawer is gone")
 @mutation(ALERTS, "  pendingJob = jobId;\n  closeDetail();", "  ui.openJob(jobId);\n  closeDetail();",
@@ -746,8 +770,8 @@ def test_the_alerts_view_marks_and_counts_its_groups():
 @mutation(ALERTS, '<template v-if="shownDetail" #chips><StatusChip :status="shownDetail.severity" /></template>',
           '<template v-if="shownDetail" #chips><StatusChip status="info" /></template>',
           expect=ALERT_DETAIL_SPEC + "the drawer's chip tells the group's severity")
-@mutation(ALERT_DETAIL, '                <StatusChip :status="outcomeStatus(r.job_status)" />',
-          '                <StatusChip :status="r.job_status" />',
+@mutation(ALERT_DETAIL, '              <StatusChip :status="outcomeStatus(r.job_status)" />',
+          '              <StatusChip :status="r.job_status" />',
           expect=ALERT_DESIGN + "a failed job reads refunded, a done one done, and its code sits under the chip")
 @mutation(ALERT_DETAIL, "`${i.acknowledged_by}, ${alertTime(i.acknowledged_ms)}`", "`${i.acknowledged_by}`",
           expect=ALERT_DESIGN + "an acknowledged row shows who and when instead of not yet")

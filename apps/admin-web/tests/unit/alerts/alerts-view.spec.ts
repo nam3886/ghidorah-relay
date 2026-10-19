@@ -428,6 +428,116 @@ describe("the detail", () => {
     expect(alerts.getAlertGroup).toHaveBeenCalledTimes(2);
   });
 
+  it("a list read that fails while the group is asked for says so in the drawer, not Loading for ever", async () => {
+    const w = await open();
+    list.mockRejectedValueOnce(new ApiError(500, { error: { message: "the list failed" } }));
+    await openFirst(w);
+    expect(isOpen()).toBe(true);
+    const alert = dr().find('[role="alert"]');
+    expect(alert.exists()).toBe(true);
+    expect(alert.text()).toContain("the list failed");
+    expect(dr().find('[role="status"]').exists()).toBe(false);
+  });
+
+  it("a failed read stays in the drawer while it leaves, and a reopened group starts from a clean drawer", async () => {
+    vi.mocked(alerts.getAlertGroup).mockRejectedValueOnce(new ApiError(404, { error: { message: "no such group" } }));
+    const w = await open();
+    await openFirst(w);
+    await db().find('button[aria-label="Close"]').trigger("click");
+    // leaving: the error is still what the drawer says, not a flash of Loading
+    expect(dr().find('[role="alert"]').exists()).toBe(true);
+    expect(dr().find('[role="status"]').exists()).toBe(false);
+    await settle();
+    expect(await goneAfterLeave()).toBe(true);
+    const slow = deferred<AlertDetail>();
+    vi.mocked(alerts.getAlertGroup).mockReturnValue(slow.promise);
+    await openFirst(w);
+    expect(dr().find('[role="alert"]').exists()).toBe(false);
+  });
+
+  it("opening another group at once does not show the last group's title while it reads", async () => {
+    const w = await open();
+    await openFirst(w);
+    expect(db().find('[data-testid="alert-detail-title"]').text()).toBe("Clamp on fake");
+    await db().find('button[aria-label="Close"]').trigger("click");
+    const slow = deferred<AlertDetail>();
+    vi.mocked(alerts.getAlertGroup).mockReturnValue(slow.promise);
+    await titleButtons(w)[0]!.trigger("click");
+    await settle();
+    expect(db().find('[data-testid="alert-detail-title"]').text()).not.toBe("Clamp on fake");
+    expect(dr().find('[role="status"]').exists()).toBe(true);
+  });
+
+  it("a job asked for and then a group opened again before the drawer left opens no job", async () => {
+    vi.mocked(alerts.getAlertGroup).mockResolvedValue(detail({ kind: "unclear_reply", items: [unclearItem()] }));
+    const w = await open();
+    await openFirst(w);
+    await dr()
+      .findAll("button")
+      .find((b) => b.text() === "A title")!
+      .trigger("click");
+    await titleButtons(w)[0]!.trigger("click");
+    await settle();
+    await db().find('button[aria-label="Close"]').trigger("click");
+    expect(await goneAfterLeave()).toBe(true);
+    expect(useUiStore(pinia).openJobId).toBeNull();
+  });
+
+  it("a job link does nothing while an acknowledge runs: the drawer stays", async () => {
+    vi.mocked(alerts.getAlertGroup).mockResolvedValue(detail({ kind: "unclear_reply", items: [unclearItem()] }));
+    const slow = deferred<{ acknowledged: number }>();
+    vi.mocked(alerts.acknowledgeGroup).mockReturnValue(slow.promise);
+    const w = await open();
+    await openFirst(w);
+    await detailButton("Acknowledge").trigger("click");
+    await settle();
+    await dr()
+      .findAll("button")
+      .find((b) => b.text() === "A title")!
+      .trigger("click");
+    await settle();
+    expect(await goneAfterLeave()).toBe(false);
+    expect(useUiStore(pinia).openJobId).toBeNull();
+    slow.resolve({ acknowledged: 1 });
+    await settle();
+  });
+
+  it("when the group leaves the list and the drawer is closed, focus goes to the page's scroll area", async () => {
+    const wrap = document.createElement("div");
+    wrap.className = "app-scroll__wrap";
+    wrap.tabIndex = -1;
+    document.body.append(wrap);
+    vi.mocked(alerts.acknowledgeGroup).mockResolvedValue({ acknowledged: 2 });
+    const w = await open();
+    const title = titleButtons(w)[0]!.element as HTMLElement;
+    title.focus();
+    await openFirst(w);
+    // the acknowledge empties the Open list: the opener is gone
+    list.mockResolvedValue({ items: [] });
+    vi.mocked(alerts.getAlertGroup).mockResolvedValue(detail({ open_count: 0 }));
+    await detailButton("Acknowledge").trigger("click");
+    await settle();
+    expect(title.isConnected).toBe(false);
+    await db().find('button[aria-label="Close"]').trigger("click");
+    await settle();
+    expect(await goneAfterLeave()).toBe(true);
+    expect(document.activeElement).toBe(wrap);
+  });
+
+  it("a desktop footer button is not the sheet's full-width one", async () => {
+    const w = await open();
+    await openFirst(w);
+    expect(dr().find(".detail-drawer__foot button").classes()).not.toContain("ad-ack--sheet");
+  });
+
+  it("a tablet row opens the detail on a click beside its buttons", async () => {
+    showAt(768);
+    const w = await open();
+    await w.find("tbody tr .g-kind").trigger("click");
+    await settle();
+    expect(isOpen()).toBe(true);
+  });
+
   it("shows a loading body while the read runs, then the detail; the heading never blanks", async () => {
     const slow = deferred<AlertDetail>();
     vi.mocked(alerts.getAlertGroup).mockReturnValue(slow.promise);
@@ -723,7 +833,8 @@ describe("the detail as the design draws it", () => {
     expect(rows[1]!.find("[data-tone]").text()).toBe("refunded");
     expect(rows[1]!.find("[data-tone]").attributes("data-tone")).toBe("neutral");
     expect(rows[1]!.text()).toContain("dola.likeness_refused");
-    expect(rows[0]!.text()).toContain("not yet");
+    // the compact table writes who and when only once a row is acknowledged
+    expect(rows[0]!.find(".ad-acked").exists()).toBe(false);
   });
 
   it("an acknowledged row shows who and when instead of not yet", async () => {
@@ -800,6 +911,7 @@ describe("the tablet and the phone", () => {
     expect(db().find('[data-testid="alert-detail-title"]').text()).toBe("first");
     expect(dr().find('button[aria-label="Back to Alerts"]').exists()).toBe(true);
     expect(dr().find(".detail-drawer__foot").text()).toBe("Acknowledge");
+    expect(dr().find(".detail-drawer__foot button").classes()).toContain("ad-ack--sheet");
   });
 
   it("a phone says the detail is cut at 100 rows, and only then", async () => {

@@ -69,6 +69,10 @@ PARTS = (("", "main", "main.app-main"),
 DETAIL_PARTS = (("-detail", "#alertDetail", "#alertDetail"),)
 BOARD_CHECKS = [Check(board, replace(ALERTS, board=board), data=ROWS + STRAIGHT)
                 for board in ("B-Alerts", "T-Alerts", "P-Alerts")]
+# The drawer is 620 px wide at every non-phone width and holds the compact (four-column) tables of the tablet, so the
+# desktop drawer is compared with T-Alerts's card table, not with B-Alerts's seven-column one (owner D141); the app is
+# still photographed at the desktop board's size.
+CANVAS_BOARD = {"B-Alerts": "T-Alerts"}
 # the app drawer opens on group 1; the canvas card is widened to the drawer body's width
 DETAIL_CHECKS = [Check(board, replace(ALERTS, board=board, drive=lambda page, live, data: _details(0)(page)),
                        widen=True, data=ROWS + STRAIGHT)
@@ -76,9 +80,12 @@ DETAIL_CHECKS = [Check(board, replace(ALERTS, board=board, drive=lambda page, li
 # The most each compared part may differ as pixels (mismatch + anti-aliasing, % of the part): the worst of light and
 # dark measured on the box, plus a small margin. A change that moves a box or a glyph shows here as well as in the
 # table.
-# Measured (worst of light and dark): B 0.237, T 0.014, P 0.017, both footers 0.000.
-PIXEL_GATES = {"B-Alerts": 0.30, "T-Alerts": 0.03, "P-Alerts": 0.03,
-               "B-Alerts-footer": 0.02, "T-Alerts-footer": 0.02}
+# Measured (worst of light and dark): B 0.014 (against T-Alerts's card), T 0.014, P 0.017, the footers 0.000.
+PIXEL_GATES = {"B-Alerts": 0.03, "T-Alerts": 0.03, "P-Alerts": 0.03,
+               "B-Alerts-footer": 0.02, "T-Alerts-footer": 0.02, "P-Alerts-footer": 0.02}
+# The rows and the phone's stacked filters (the `-groups` part of each board): measured over the part, worst of light
+# and dark, plus a margin.
+GROUPS_GATES = {"B-Alerts": 0.30, "T-Alerts": 0.20, "P-Alerts": 0.06}
 
 
 def _open_first(page, live, data) -> None:
@@ -95,14 +102,31 @@ CANVAS_AS_DRAWER_FOOTER = """() => {
   row.style.cssText += ';padding: 10px 24px; border-top: 1px solid var(--line-strong); background: var(--surface);'
     + ' justify-content: flex-end';
 }"""
+# On the phone the canvas's Acknowledge is the last child of the detail region, full width, 48 px, 14 px; the sheet's
+# footer holds it with 10 / 16 padding, the strong rule and the surface fill.
+CANVAS_AS_SHEET_FOOTER = """() => {
+  const button = document.querySelector('#alertDetail > button');
+  const foot = document.createElement('div');
+  foot.id = 'alertFoot';
+  button.replaceWith(foot);
+  foot.append(button);
+  // the sheet's footer is as wide as the screen: no frame of the board may clip it
+  for (let a = foot.parentElement; a && a.id !== 'dc-root'; a = a.parentElement) {
+    if (getComputedStyle(a).overflow !== 'visible') a.style.overflow = 'visible';
+  }
+  foot.style.cssText = 'display: flex; padding: 10px 16px; border-top: 1px solid var(--line-strong);'
+    + ' background: var(--surface)';
+}"""
 FOOTER_CHECKS = [Check(board + "-footer", replace(ALERTS, board=board, drive=_open_first),
-                       canvas_root="#alertDetail > div:first-child > div:last-child", app_root=".detail-drawer__foot",
-                       widen=True)
-                 for board in ("B-Alerts", "T-Alerts")]
+                       canvas_root="#alertFoot" if board == "P-Alerts"
+                       else "#alertDetail > div:first-child > div:last-child",
+                       app_root=".detail-drawer__foot", widen=True)
+                 for board in ("B-Alerts", "T-Alerts", "P-Alerts")]
 
 
 def _canvas_as_drawer_footer(page) -> None:
-    page.evaluate(CANVAS_AS_DRAWER_FOOTER, isolated_context=False)
+    page.evaluate(CANVAS_AS_SHEET_FOOTER if page.evaluate("innerWidth < 768") else CANVAS_AS_DRAWER_FOOTER,
+                  isolated_context=False)
 
 
 # On the phone the sheet's body is 358 px wide and the canvas's detail region (the board's own inset) 357. Only that
@@ -312,7 +336,7 @@ def select_pixels(page_pngs: list, canvas_pngs: list, diff_page, out, stem: str,
 
 
 def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: str, parts=None,
-              fields: list | None = None, app_hook=None, canvas_hook=None) -> list:
+              fields: list | None = None, app_hook=None, canvas_hook=None, canvas_board: str | None = None) -> list:
     """The app in the check's state and the canvas board, each opened once; then, for each part (name suffix, canvas
     root, app root), the table and the side-by-side. Returns (result, file stem) per part. With `fields` (a list),
     each FilterSelect field is also compared with its native select as pixels, and the figures land in it. The hooks
@@ -321,6 +345,8 @@ def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: 
     parts = parts or (("", check.canvas_root, check.app_root),)
     board_w, board_h = BOARDS[check.state.board]
     width, height = check.viewport or (board_w, board_h)
+    canvas_board = canvas_board or check.state.board
+    canvas_w, canvas_h = BOARDS[canvas_board]
     dark = theme == "dark"
     mine = {}
     with opened(app, db, live, check.state, dark, width, height) as page:
@@ -336,7 +362,7 @@ def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: 
         geometry = page.evaluate(FIELD_GEOMETRY_JS, FIELDS, isolated_context=False) if fields is not None else []
         if fields is not None:
             assert_chevrons(geometry)
-    renderer.open(check.state.board, dark, board_w, board_h)
+    renderer.open(canvas_board, dark, canvas_w, canvas_h)
     renderer.page.evaluate(FIELD_ENLARGE_JS, FIELD_EXTRA_PX, isolated_context=False)
     if canvas_hook:
         canvas_hook(renderer.page)
@@ -362,7 +388,7 @@ def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: 
         res.pixel_percent = pixels.total_percent
         stem = "%s-%s" % (name, theme)
         notes = ("Canvas %s %s, app %s at %dx%d. Pixel diff of the compared part: %.3f %% mismatch + %.3f %% "
-                 "anti-aliased." % (check.state.board, canvas_sel or "page", app_sel or "page", width, height,
+                 "anti-aliased." % (canvas_board, canvas_sel or "page", app_sel or "page", width, height,
                                     pixels.percent, pixels.aa_percent))
         (out / (stem + ".md")).write_text(markdown(res, "%s, %s" % (name, theme), notes), encoding="utf-8")
         (out / (stem + ".side.png")).write_bytes(side_by_side(diff_page, ref_png, app_png, pixels.png))
@@ -386,9 +412,14 @@ def failed(results) -> list:
 @pytest.mark.parametrize("check", BOARD_CHECKS, ids=lambda c: c.name)
 def test_alerts_matches_the_canvas_element_by_element(app, db, live, renderer, diff_page, run_dir, check, theme):
     fields = []
-    bad = failed(run_check(app, db, live, renderer, diff_page, run_dir, check, theme, PARTS, fields,
-                           canvas_hook=_canvas_without_detail))
+    results = run_check(app, db, live, renderer, diff_page, run_dir, check, theme, PARTS, fields,
+                        canvas_hook=_canvas_without_detail)
+    bad = failed(results)
     assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))
+    over = [(stem, res.pixel_percent) for res, stem in results if stem.startswith(check.name + "-groups")
+            and res.pixel_percent > GROUPS_GATES[check.name]]
+    assert not over, "%s: the groups differ as pixels over the gate of %s %%: %r" % (
+        theme, GROUPS_GATES[check.name], over)
     assert len(fields) == 2, "the Status and Kind fields against the two native selects: %r" % fields
     off = [(n, f) for n, f in enumerate(fields) if f[0] > SELECT_MISMATCH_PCT]
     assert not off, "a field draws its value or arrow apart from the native select (n, (mismatch %%, aa %%)): %r" % off
@@ -398,7 +429,7 @@ def test_alerts_matches_the_canvas_element_by_element(app, db, live, renderer, d
 @pytest.mark.parametrize("check", DETAIL_CHECKS, ids=lambda c: c.name)
 def test_alerts_detail_matches_the_canvas_card_in_the_drawer(app, db, live, renderer, diff_page, run_dir, check, theme):
     results = run_check(app, db, live, renderer, diff_page, run_dir, check, theme, DETAIL_PARTS,
-                        canvas_hook=_canvas_as_drawer_body,
+                        canvas_hook=_canvas_as_drawer_body, canvas_board=CANVAS_BOARD.get(check.name),
                         app_hook=_phone_root_width if check.name == "P-Alerts" else None)
     bad = failed(results)
     assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))

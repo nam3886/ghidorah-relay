@@ -628,6 +628,24 @@ def test_the_title_button_a_row_click_and_enter_open_the_drawer_and_focus_comes_
     expect(drawer).to_be_hidden()
 
 
+def test_after_an_acknowledge_empties_the_open_list_closing_the_drawer_puts_focus_on_the_scroll_area(
+        app, app_session, db):
+    page = app_session
+    alerts_page(page, db)
+    drawer = page.get_by_test_id("alert-detail")
+    title = group_row(page, "plain wording").get_by_role("button", name=re.compile(r"^Details of"))
+    title.focus()
+    page.keyboard.press("Enter")
+    expect(drawer.locator("#alertDetail")).to_be_visible()
+    drawer.get_by_role("button", name="Acknowledge").click()
+    # the Open filter drops the group: its row, and the button that opened the drawer, are gone
+    expect(groups(page)).to_have_count(4)
+    expect(drawer.get_by_role("button", name="Acknowledge")).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(drawer).to_be_hidden()
+    expect(page.get_by_role("region", name="Page content")).to_be_focused()
+
+
 def test_the_space_key_on_the_title_button_opens_the_drawer(app, app_session, db):
     page = app_session
     page.set_viewport_size({"width": 768, "height": 1024})

@@ -137,6 +137,8 @@ async function load(): Promise<void> {
     } catch (err) {
       if (!latest.isCurrent(ticket)) return;
       error.value = loadFailedText(err, errorText(err));
+      // a drawer still waiting for its group would say "Loading" for ever: it says what failed
+      if (at.open && !shownDetail.value) detailError.value = err;
       throw err;
     }
     if (!latest.isCurrent(ticket)) return;
@@ -185,12 +187,15 @@ const listState = computed(() =>
 // the opener: where focus goes back when the drawer is gone; if it is not there any more (a click on a row, no
 // button had focus) focus goes to the page's scroll area, never left on the document
 let opener: HTMLElement | null = null;
+// the job a click in the detail asked for, opened once the detail has left
+let pendingJob: string | null = null;
 
 function openGroup(g: AlertGroup) {
   if (writing.value) return;
   opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   shownDetail.value = null;
   detailError.value = null;
+  pendingJob = null;
   asked.value = { ...asked.value, open: { kind: g.kind, group: g.group } };
   void reload();
 }
@@ -199,7 +204,6 @@ function openGroup(g: AlertGroup) {
 function closeDetail() {
   asked.value = { ...asked.value, open: null };
   opened.value = null;
-  detailError.value = null;
   void reload();
 }
 
@@ -207,6 +211,7 @@ function closeDetail() {
 function detailClosed(): void {
   if (asked.value.open) return;
   shownDetail.value = null;
+  detailError.value = null;
   // a job asked for from the detail opens now, once this drawer has left the screen
   if (pendingJob) {
     const id = pendingJob;
@@ -226,9 +231,9 @@ function rowClick(event: MouseEvent, g: AlertGroup): void {
 }
 
 // a job opens in its own drawer: this one closes first and the job opens when it is gone (`detailClosed`), so the two
-// are never on the screen together
-let pendingJob: string | null = null;
+// are never on the screen together; not while a write runs (the drawer stays until it ends)
 function openJob(jobId: string): void {
+  if (writing.value) return;
   pendingJob = jobId;
   closeDetail();
 }
@@ -510,7 +515,13 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
       <AlertDetailPanel v-else-if="shownDetail" :detail="shownDetail" @open-job="openJob" />
       <p v-else class="ad-loading" role="status">Loading the group…</p>
       <template v-if="shownDetail && !detailError && shownDetail.open_count > 0" #footer>
-        <button type="button" class="al-primary ad-ack" :disabled="locked" @click="acknowledge(shownDetail)">
+        <button
+          type="button"
+          class="al-primary ad-ack"
+          :class="{ 'ad-ack--sheet': isPhone }"
+          :disabled="locked"
+          @click="acknowledge(shownDetail)"
+        >
           Acknowledge
         </button>
       </template>
@@ -929,6 +940,14 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
 .ad-ack {
   height: 36px;
   padding: 0 16px;
+}
+/* the sheet's footer button spans the footer, 48 px high with 14 px text (the phone canvas's own Acknowledge); the
+   selector outranks the shared footer's 44 px rule for every footer button */
+.detail-drawer.is-sheet .detail-drawer__foot .ad-ack--sheet {
+  flex: 1;
+  height: 48px;
+  padding: 1px 6px;
+  font-size: 14px;
 }
 .ad-loading,
 .ad-error {

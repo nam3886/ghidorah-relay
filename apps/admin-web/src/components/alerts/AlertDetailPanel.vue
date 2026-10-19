@@ -24,7 +24,10 @@ import {
 const props = defineProps<{ detail: AlertDetail }>();
 const emit = defineEmits<{ "open-job": [jobId: string] }>();
 
-const { isPhone, isTablet } = useBreakpoint();
+// The drawer is 620 px wide at every width but a phone's, so every non-phone width draws the compact tables (the four
+// columns the tablet had); the seven- and eight-column tables would run off the drawer's right edge.
+const { isPhone } = useBreakpoint();
+const isTablet = computed(() => !isPhone.value);
 const unclear = computed(() => props.detail.kind === "unclear_reply");
 const unclearRows = computed(() => props.detail.items as UnclearItem[]);
 const billingRows = computed(() => props.detail.items as BillingItem[]);
@@ -83,7 +86,7 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
     </p>
   </div>
 
-  <!-- desktop and tablet -->
+  <!-- desktop and tablet: the drawer is the same width on both -->
   <div v-else id="alertDetail" class="ad" :class="{ 'is-tablet': isTablet }">
     <p v-if="unclear" class="ad__sentence">{{ replyNote(detail.media) }}</p>
     <p v-if="oneCustomer(detail)" class="ad-note">{{ ONE_CUSTOMER_NOTE }}</p>
@@ -92,46 +95,9 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
       The provider's API gave no reply text, so there is no wording to read: this is an API read failure.
     </p>
 
-    <!-- the reply rows: desktop seven columns in a scrolling box of 1040 px at least, tablet four -->
+    <!-- the reply rows -->
     <template v-if="unclear">
-      <div v-if="!isTablet" class="ad__scroll">
-        <table class="ad__table">
-          <caption class="ad-caption">
-            Unclear-reply rows of this group
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col" class="is-first">Seen</th>
-              <th scope="col">Stored reply</th>
-              <th scope="col">Job</th>
-              <th scope="col">Outcome</th>
-              <th scope="col">Account</th>
-              <th scope="col">Key</th>
-              <th scope="col" class="is-last">Acknowledged</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in unclearRows" :key="r.id" class="ad-row">
-              <td class="ad-seen">{{ alertTime(r.at_ms) }}</td>
-              <td class="ad-reply">
-                <span class="ad-reply__text">{{ r.text === "" ? "(no text)" : r.text }}</span>
-              </td>
-              <td class="ad-jobcell">
-                <button type="button" class="ad-job" @click="emit('open-job', r.job_id)">{{ jobName(r) }}</button>
-                <span class="ad-jobid">{{ r.job_id.slice(0, 8) }}</span>
-              </td>
-              <td class="ad-outcome">
-                <StatusChip :status="outcomeStatus(r.job_status)" />
-                <span v-if="r.job_error_code" class="ad-code">{{ r.job_error_code }}</span>
-              </td>
-              <td class="ad-acct">{{ account(r) }}</td>
-              <td class="ad-key">{{ keyName(r) }}</td>
-              <td class="ad-ack">{{ r.acknowledged_ms === null ? "not yet" : acked(r) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <table v-else class="ad__table">
+      <table class="ad__table">
         <caption class="ad-caption">
           Unclear-reply rows of this group
         </caption>
@@ -166,38 +132,7 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
 
     <!-- the rows of a billing group (not drawn: the reply table's frame, with the billing list's facts) -->
     <template v-else>
-      <div v-if="!isTablet" class="ad__scroll">
-        <table class="ad__table">
-          <caption class="ad-caption">
-            Rows of this group
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col" class="is-first">When</th>
-              <th scope="col">Alert</th>
-              <th scope="col">Wallet</th>
-              <th scope="col" class="is-right">Amount</th>
-              <th scope="col" class="is-right">Used today</th>
-              <th scope="col" class="is-right">Used total</th>
-              <th scope="col">Detail</th>
-              <th scope="col" class="is-last">Acknowledged</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in billingRows" :key="r.id" class="ad-row">
-              <td class="ad-seen">{{ alertTime(r.at_ms) }}</td>
-              <td class="ad-outcome"><StatusChip :status="r.alert" tone="bad" /></td>
-              <td class="ad-key">{{ r.provider }} / {{ r.kind }}</td>
-              <td class="ad-num">{{ r.amount }}</td>
-              <td class="ad-num">{{ r.used_day }}</td>
-              <td class="ad-num">{{ r.used_total }}</td>
-              <td class="ad-detail">{{ r.detail === null ? "—" : r.detail }}</td>
-              <td class="ad-ack">{{ r.acknowledged_ms === null ? "not yet" : acked(r) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <table v-else class="ad__table">
+      <table class="ad__table">
         <caption class="ad-caption">
           Rows of this group
         </caption>
@@ -258,13 +193,8 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
   position: absolute;
   left: -9999px;
 }
-.ad__scroll {
-  overflow-x: auto;
-  border-top: 1px solid var(--rl-line);
-}
 .ad__table {
   width: 100%;
-  min-width: 1040px;
   border-collapse: separate;
   border-spacing: 0;
 }
@@ -303,16 +233,6 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
   color: var(--rl-muted);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-}
-.ad__table .ad-reply {
-  max-width: 300px;
-  font-size: 13px;
-}
-.ad-reply__text {
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .ad__table .ad-jobcell {
   max-width: 260px;
@@ -369,16 +289,6 @@ html.dark .ad-job:hover {
   font-size: 13px;
   white-space: nowrap;
 }
-.ad__table .ad-num {
-  text-align: right;
-  font-family: var(--rl-mono);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-.ad__table .ad-detail {
-  font-size: 13px;
-  color: var(--rl-muted);
-}
 .ad__table .ad-ack {
   padding: 0 16px 0 12px;
   font-size: 13px;
@@ -415,7 +325,6 @@ html.dark .ad-job:hover {
   gap: 6px 32px;
 }
 .is-tablet .ad__table {
-  min-width: 0;
   border-top: 1px solid var(--rl-line);
 }
 .is-tablet .ad__table th {
