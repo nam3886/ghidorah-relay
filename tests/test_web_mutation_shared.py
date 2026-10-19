@@ -201,6 +201,8 @@ MONEY = f"{SHARED}/MoneyCell.vue"
 DRAWER = f"{SHARED}/DetailDrawer.vue"
 DAY_ROWS = f"{SRC}/lib/day-rows.ts"
 NOTIFY = f"{SRC}/lib/notify.ts"
+NOTIFY_CSS = f"{SRC}/lib/notify.css"
+LIFT = "FAILED tests/unit/shared/notify.spec.ts > notify > a toast above a drawer footer > "
 LEDGER_SPEC = "tests/unit/shared/ledger-money-chip.spec.ts"
 
 
@@ -346,6 +348,30 @@ def test_the_table_opt_ins_day_rows_tablet_and_phone_list():
 @mutation(NOTIFY, "offset: PHONE_OFFSET_PX, grouping: true", "offset: PHONE_OFFSET_PX, grouping: false",
           expect="on a phone they sit bottom centre")
 @mutation(NOTIFY, 'placement: "bottom", offset', 'placement: "top", offset', expect="on a phone they sit bottom centre")
+@mutation(NOTIFY, "Math.max(0, height + TOAST_GAP_PX - PHONE_OFFSET_PX) : height",
+          "Math.max(0, height + TOAST_GAP_PX - PHONE_OFFSET_PX) : 0",
+          expect=LIFT + "lifts by the footer's height when a drawer opens, and is back at 0 when it closes")
+@mutation(NOTIFY, "if (!foot) return 0;", "if (false) return 0;",
+          expect=LIFT + "keeps 0 when no footer is drawn, or one lies outside the window")
+@mutation(NOTIFY, "height + TOAST_GAP_PX - PHONE_OFFSET_PX", "height - PHONE_OFFSET_PX",
+          expect=LIFT + "on a phone only what the footer needs beyond the 72 px its toasts already sit at")
+@mutation(NOTIFY, "Math.max(0, height", "Math.max(-99, height",
+          expect=LIFT + "on a phone only what the footer needs beyond the 72 px its toasts already sit at")
+@mutation(NOTIFY, "    syncToastLift();\n    const handle = message({", "    const handle = message({",
+          expect=LIFT + "lifts a toast of every kind the same way and moves none of them: "
+          + "only the page-wide lift changes")
+@mutation(NOTIFY, "if (/-leave-(active|to)/.test(e.className)) return false;", "if (false) return false;",
+          expect=LIFT + "ignores the footer of a drawer that is leaving")
+@mutation(NOTIFY, "r.top < window.innerHeight &&", "r.top < Infinity &&",
+          expect=LIFT + "keeps 0 when no footer is drawn, or one lies outside the window")
+@mutation(NOTIFY, "if (foot.getClientRects().length === 0) return false;", "",
+          expect=LIFT + "skips a hidden first footer and measures the visible second one")
+@mutation(NOTIFY, 'style.display === "none" || style.visibility === "hidden"', "false",
+          expect=LIFT + "skips a hidden first footer and measures the visible second one")
+@mutation(NOTIFY_CSS, "translate: 0 calc(var(--rl-toast-lift, 0px) * -1);", "translate: 0 0;",
+          expect=LIFT + "the slide is a translate of that lift, and it is off for a reader who asks for less motion")
+@mutation(NOTIFY_CSS, "    bottom 0.4s;\n  }\n}", "    bottom 0.4s,\n      translate 0.25s ease;\n  }\n}",
+          expect=LIFT + "the slide is a translate of that lift, and it is off for a reader who asks for less motion")
 @mutation(NOTIFY, "PHONE_OFFSET_PX = 72", "PHONE_OFFSET_PX = 0", expect="lifted above the bulk bar")
 @mutation(NOTIFY, "(max-width: 767.98px)", "(max-width: 10px)", expect="asks the phone edge")
 @mutation(NOTIFY, "  message.closeAll();\n    },", "  void message;\n    },", expect="clear closes every toast")
@@ -461,7 +487,6 @@ def test_no_native_select_is_left():
 
 SKIN = f"{SHARED}/skin.css"
 CONFIRM_CSS = f"{SHARED}/confirm-dialog.css"
-NOTIFY_CSS = f"{SRC}/lib/notify.css"
 PAGER_CSS_SPEC = "tests/unit/shared/table-pager-style.spec.ts"
 SKIN_SPEC = "tests/unit/shared/skin.spec.ts"
 
@@ -565,8 +590,10 @@ HINT = f"{SHARED}/HintTip.vue"
 @mutation(HINT, ": 'rl-tip'\"", ": 'x-tip'\"", expect="is the menu-surface tooltip")
 @mutation(HINT, 'effect="light"', 'effect="dark"', expect="is the menu-surface tooltip")
 @mutation(HINT, ":trigger=\"['hover', 'focus']\"", 'trigger="hover"', expect="hover and focus open it")
-@mutation(HINT, '@keydown.esc="tip?.hide()"', '@keydown.enter="tip?.hide()"',
+@mutation(HINT, '@keydown.esc="onEscape"', '@keydown.enter="onEscape"',
           expect="Escape on the text asks the tooltip")
+@mutation(HINT, "if (shown.value) e.stopPropagation();", "", expect="Escape of an open note goes no further")
+@mutation(HINT, "(shown = open)", "(shown = false)", expect="Escape of an open note goes no further")
 @mutation(HINT, ':show-arrow="false"', ':show-arrow="true"', expect="is the menu-surface tooltip")
 @mutation(SKIN, "  max-width: 320px;\n  padding: 8px 12px;", "  max-width: 320px;\n  padding: 4px 8px;",
           expect="is the menu surface: surface fill")

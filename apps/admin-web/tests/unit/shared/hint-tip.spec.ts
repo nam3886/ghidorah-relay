@@ -60,6 +60,37 @@ describe("HintTip", () => {
     expect(hidden).toBe(1);
   });
 
+  it("Escape of an open note goes no further, and with no note up it does", async () => {
+    const Stub = defineComponent({
+      emits: ["update:visible"],
+      setup(_, { expose, slots }) {
+        expose({ hide: () => undefined });
+        return () => slots.default?.();
+      },
+    });
+    const w = mount(HintTip, {
+      props: { text: "note" },
+      slots: { default: "words" },
+      global: { stubs: { ElTooltip: Stub } },
+      attachTo: document.body,
+    });
+    let reached = 0;
+    const count = () => (reached += 1);
+    document.addEventListener("keydown", count);
+    try {
+      const tip = w.findComponent(Stub);
+      tip.vm.$emit("update:visible", true);
+      await w.find(".hint-tip").trigger("keydown", { key: "Escape" });
+      expect(reached).toBe(0);
+      tip.vm.$emit("update:visible", false);
+      await w.find(".hint-tip").trigger("keydown", { key: "Escape" });
+      expect(reached).toBe(1);
+    } finally {
+      document.removeEventListener("keydown", count);
+      w.unmount();
+    }
+  });
+
   // happy-dom cannot open an Element Plus popper; the open-on-focus behaviour is proved in the browser tier
   // (test_e2e_settings_frames_test: the preview count takes the focus and the tooltip shows, Escape closes it).
   it("the trigger is the focusable span, hover and focus open it, and a note with markup stays a plain string", () => {

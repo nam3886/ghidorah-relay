@@ -28,6 +28,79 @@ export const isPhoneNow = (): boolean =>
   typeof window.matchMedia === "function" &&
   window.matchMedia("(max-width: 767.98px)").matches;
 
+// While a drawer's footer is on screen its buttons sit where a toast lands, so every toast that is showing, raised
+// before or after the drawer opened, is lifted above it, and comes back down when the footer goes. The lift is one
+// custom property on the page (`--rl-toast-lift`, read by notify.css as a `translate` that slides): no toast is
+// tracked or closed, and a stack of toasts keeps its order. Only a footer that is really drawn counts: a hidden one,
+// one leaving, or one outside the window must not lift a toast.
+const LIFT_PROPERTY = "--rl-toast-lift";
+const TOAST_GAP_PX = 16;
+function drawn(foot: Element): boolean {
+  if (foot.getClientRects().length === 0) return false;
+  const style = getComputedStyle(foot);
+  if (style.display === "none" || style.visibility === "hidden") return false;
+  // the drawer that is closing keeps its footer for the leave transition
+  for (let e = foot.parentElement; e; e = e.parentElement) if (/-leave-(active|to)/.test(e.className)) return false;
+  const r = foot.getBoundingClientRect();
+  return (
+    r.width > 0 &&
+    r.height > 0 &&
+    r.bottom > 0 &&
+    r.right > 0 &&
+    r.top < window.innerHeight &&
+    r.left < window.innerWidth
+  );
+}
+const drawnFooter = (): Element | undefined =>
+  typeof document === "undefined" ? undefined : [...document.querySelectorAll(".detail-drawer__foot")].find(drawn);
+
+// How far up the toasts go: the footer's height on a desktop (the default gap of Element Plus, 16 px, stays above it);
+// on a phone, where toasts already sit 72 px up, only what the footer needs beyond that (a wrapped footer).
+export function toastLift(): number {
+  const foot = drawnFooter();
+  if (!foot) return 0;
+  const height = Math.round(foot.getBoundingClientRect().height);
+  return isPhoneNow() ? Math.max(0, height + TOAST_GAP_PX - PHONE_OFFSET_PX) : height;
+}
+let measured: Element | undefined;
+let sizes: ResizeObserver | undefined;
+export function syncToastLift(): void {
+  if (typeof document === "undefined") return;
+  document.documentElement.style.setProperty(LIFT_PROPERTY, `${toastLift()}px`);
+  // a footer that changes height (a phone footer that wraps) lifts again
+  const foot = drawnFooter();
+  if (foot !== measured) {
+    if (measured) sizes?.unobserve(measured);
+    measured = foot;
+    if (foot) sizes?.observe(foot);
+  }
+}
+// Watches the page for a footer that appears, resizes or leaves; one frame of delay is plenty and joins the bursts.
+let watching = false;
+export function watchDrawerFooter(): void {
+  if (watching || typeof document === "undefined" || typeof MutationObserver === "undefined" || !document.body) return;
+  watching = true;
+  let queued = false;
+  const later = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      syncToastLift();
+    });
+  };
+  if (typeof ResizeObserver !== "undefined") sizes = new ResizeObserver(later);
+  new MutationObserver(later).observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+  window.addEventListener("resize", later);
+  later();
+}
+watchDrawerFooter();
+
 const base = () =>
   isPhoneNow()
     ? ({ placement: "bottom", offset: PHONE_OFFSET_PX, grouping: true } as const)
@@ -97,6 +170,7 @@ export function makeNotify(message: MessageLike) {
       shown.set(key, (entry = made));
     }
     const own = entry;
+    syncToastLift();
     const handle = message({
       ...base(),
       ...options,

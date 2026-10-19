@@ -17,6 +17,7 @@ import {
   resetFrame,
   rollbackFrame,
 } from "@/api/frames";
+import { askDiscard } from "@/components/shared/use-leave-guard";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
 import {
@@ -61,6 +62,9 @@ export function useFrames() {
   const providers = ref<string[]>([]);
   const listed = ref("");
   const data = shallowRef<FramesList | null>(null);
+  // The editor drawer is open. Separate from `shown` (the editor drawn): a reload that finds no such frame empties
+  // `shown` but leaves the drawer, and the draft in it, where they are. Only `edit` opens it and only `close` shuts it.
+  const open = ref(false);
   const shown = shallowRef<FrameTarget | null>(null);
   const info = shallowRef<FrameInfo | null>(null);
   const loaded = ref("");
@@ -212,8 +216,24 @@ export function useFrames() {
     if (!provider.value || !names.includes(provider.value)) {
       provider.value = names.includes(preferred) ? preferred : (names[0] ?? "");
     }
+    // the provider chosen last is kept, an open editor is not: the page always starts with its drawer shut
+    kind = target = memory.kind = memory.target = "";
     gen++;
     if (provider.value) await act(async () => void (await loadFrames()));
+  }
+
+  // Shuts the drawer and forgets the editor: answers still on their way are dropped and nothing is remembered.
+  function close(): void {
+    openTarget(provider.value, "", "");
+    open.value = false;
+    shown.value = null;
+    info.value = null;
+    loaded.value = "";
+    draft.value = "";
+    refusal.value = "";
+    warnings.value = [];
+    applied.value = null;
+    preview.value = null;
   }
 
   // Leaving the view: nothing that is still in flight may draw.
@@ -229,10 +249,18 @@ export function useFrames() {
     act(async () => {
       const at = { provider: listed.value, kind: editKind, target: editTarget };
       openTarget(at.provider, at.kind, at.target);
-      await current(
-        async () => ({ ...at, info: await getFrame(at) }),
-        (view) => drawEditor(view, null),
-      );
+      open.value = true;
+      const mine = gen;
+      try {
+        await current(
+          async () => ({ ...at, info: await getFrame(at) }),
+          (view) => drawEditor(view, null),
+        );
+      } catch (err) {
+        // the read failed (a toast says so): a drawer with nothing in it and nothing typed has no reason to stay
+        if (mine === gen && !shown.value) open.value = false;
+        throw err;
+      }
     });
 
   // ---- writes -----------------------------------------------------------------------------------------------------
@@ -252,10 +280,15 @@ export function useFrames() {
       if (done) notify.success(done.unchanged ? "Nothing changed" : "Saved: applies to jobs created from now on");
     });
 
+  // Follow and Roll back reload the editor from the server, which drops what was typed: with an unsaved draft they ask
+  // first, with the question a close asks. Keep editing leaves everything as it is.
+  const keepsDraft = async (): Promise<boolean> => draft.value !== loaded.value && !(await askDiscard());
+
   const follow = (): Promise<void> =>
     act(async () => {
       const t = shown.value;
       if (!t) return;
+      if (await keepsDraft()) return;
       const started = gen;
       const done = await changing(() =>
         guarded(async () => {
@@ -271,6 +304,7 @@ export function useFrames() {
     act(async () => {
       const t = shown.value;
       if (!t) return;
+      if (await keepsDraft()) return;
       const started = gen;
       const done = await changing(() =>
         guarded(async () => {
@@ -358,6 +392,8 @@ export function useFrames() {
     setPreviewPrompt,
     provider,
     providers,
+    open,
+    close,
     listed,
     data,
     shown,

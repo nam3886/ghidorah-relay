@@ -1,7 +1,11 @@
 import { mount } from "@vue/test-utils";
 import { defineComponent, nextTick, type VNode } from "vue";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isPhoneNow, makeNotify } from "../../../src/lib/notify";
+import { isPhoneNow, makeNotify, syncToastLift } from "../../../src/lib/notify";
+import { readFileSync } from "node:fs";
+
+// the stylesheet as written (the test runner does not hand a css import back as text)
+const css = readFileSync("src/lib/notify.css", "utf8");
 
 const PLANTED = "<img src=x onerror=alert(1)><b>x</b>";
 
@@ -50,6 +54,124 @@ describe("notify", () => {
       expect(lastOptions(message)).toMatchObject({ placement: "bottom-right", grouping: true });
       expect(lastOptions(message).offset).toBeUndefined();
     }
+  });
+
+  describe("a toast above a drawer footer", () => {
+    // happy-dom lays nothing out: each footer is given the rects and styles a browser would give it
+    type Over = { height?: number; top?: number; rects?: number; display?: string; parentClass?: string };
+    function footer(over: Over = {}) {
+      const parent = document.createElement("div");
+      parent.className = over.parentClass ?? "";
+      const foot = document.createElement("div");
+      foot.className = "detail-drawer__foot";
+      const set = (height: number) => {
+        foot.getBoundingClientRect = () =>
+          ({
+            height,
+            width: height ? 600 : 0,
+            top: over.top ?? 600,
+            bottom: (over.top ?? 600) + height,
+            left: 100,
+            right: 700,
+          }) as DOMRect;
+      };
+      set(over.height ?? 57);
+      foot.getClientRects = () => Array.from({ length: over.rects ?? 1 }) as unknown as DOMRectList;
+      if (over.display) foot.style.display = over.display;
+      parent.append(foot);
+      document.body.append(parent);
+      return { parent, foot, set };
+    }
+    const lift = () => {
+      syncToastLift();
+      return document.documentElement.style.getPropertyValue("--rl-toast-lift");
+    };
+    afterEach(() => {
+      document.body.replaceChildren();
+      syncToastLift();
+    });
+
+    it("lifts by the footer's height when a drawer opens, and is back at 0 when it closes", () => {
+      width(false);
+      expect(lift()).toBe("0px");
+      const { parent } = footer({ height: 57 });
+      expect(lift()).toBe("57px");
+      parent.remove();
+      expect(lift()).toBe("0px");
+    });
+
+    it("lifts a toast of every kind the same way and moves none of them: only the page-wide lift changes", () => {
+      const { message, notify } = stub();
+      width(false);
+      notify.success("Saved");
+      notify.error("Failed");
+      const sent = () =>
+        message.mock.calls.map((c) => JSON.stringify(c[0], (_k, v) => (typeof v === "function" ? 0 : v)));
+      const before = sent();
+      footer({ height: 57 });
+      expect(lift()).toBe("57px");
+      // the same two calls, as they were sent: nothing was changed, re-sent or closed when the footer appeared
+      expect(message).toHaveBeenCalledTimes(2);
+      expect(sent()).toEqual(before);
+      expect(before).toHaveLength(2);
+      // a toast raised with a footer drawn since the last look measures it at once, and gets no offset of its own
+      document.body.replaceChildren();
+      syncToastLift();
+      footer({ height: 65 });
+      notify.error("Failed again");
+      expect(document.documentElement.style.getPropertyValue("--rl-toast-lift")).toBe("65px");
+      expect(lastOptions(message).offset).toBeUndefined();
+    });
+
+    it("follows a footer that changes height", () => {
+      width(true);
+      const { set } = footer({ height: 60 });
+      expect(lift()).toBe("4px");
+      set(117);
+      expect(lift()).toBe("61px");
+    });
+
+    it("skips a hidden first footer and measures the visible second one", () => {
+      width(false);
+      footer({ height: 30, rects: 0 });
+      footer({ height: 57, display: "none" });
+      footer({ height: 65 });
+      expect(lift()).toBe("65px");
+    });
+
+    it("keeps 0 when no footer is drawn, or one lies outside the window", () => {
+      width(false);
+      expect(lift()).toBe("0px");
+      footer({ rects: 0 });
+      footer({ display: "none" });
+      footer({ top: 5000 });
+      expect(lift()).toBe("0px");
+    });
+
+    it("on a phone only what the footer needs beyond the 72 px its toasts already sit at", () => {
+      width(true);
+      footer({ height: 117 });
+      expect(lift()).toBe("61px");
+      document.body.replaceChildren();
+      footer({ height: 40 });
+      expect(lift()).toBe("0px");
+    });
+
+    it("ignores the footer of a drawer that is leaving", () => {
+      width(false);
+      footer({ parentClass: "el-drawer-fade-leave-active" });
+      expect(lift()).toBe("0px");
+      footer({ height: 57 });
+      expect(lift()).toBe("57px");
+    });
+
+    it("the slide is a translate of that lift, and it is off for a reader who asks for less motion", () => {
+      expect(css).toContain("translate: 0 calc(var(--rl-toast-lift, 0px) * -1);");
+      expect(css).toMatch(/translate 0\.25s ease;/);
+      const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+      expect(reduced).toContain("html .el-message");
+      expect(reduced).not.toContain("translate 0.25s");
+    });
   });
 
   it("on a phone they sit bottom centre, lifted above the bulk bar", () => {

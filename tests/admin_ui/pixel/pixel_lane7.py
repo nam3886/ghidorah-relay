@@ -115,6 +115,14 @@ def open_the_boards_frame(page) -> None:
 
 
 def frames_drive(page, live, data):
+    """The page as it opens: the list across the page and no drawer (the editor is a drawer the boards do not draw)."""
+    expect(page.locator("[data-frame-kind=video]")).to_be_visible(timeout=TIMEOUT_MS)
+    page.mouse.move(0, 0)
+    drop_the_banner(page)
+
+
+def open_the_boards_editor(page, live, data):
+    """The editor drawer of seedance_v2.5 with the board's text typed in and its preview shown, as drawn."""
     open_the_boards_frame(page)
     page.get_by_role("button", name="Preview", exact=True).click()
     expect(page.get_by_test_id("frame-preview")).to_be_visible(timeout=TIMEOUT_MS)

@@ -11,6 +11,13 @@ const props = withDefaults(defineProps<{ text: string; placement?: "top" | "bott
   mono: false,
 });
 const tip = ref<{ hide: () => void } | null>(null);
+// The note is up: its Escape is its own and goes no further, so a drawer around it stays open. With no note up the
+// Escape goes on to whatever is listening (a drawer asks to close).
+const shown = ref(false);
+function onEscape(e: KeyboardEvent): void {
+  if (shown.value) e.stopPropagation();
+  tip.value?.hide();
+}
 </script>
 
 <template>
@@ -23,8 +30,10 @@ const tip = ref<{ hide: () => void } | null>(null);
     :popper-class="props.mono ? 'rl-tip rl-tip--mono' : 'rl-tip'"
     :show-after="150"
     :show-arrow="false"
+    :visible="shown"
+    @update:visible="(open: boolean) => (shown = open)"
   >
-    <span class="hint-tip" tabindex="0" @keydown.esc="tip?.hide()"><slot /></span>
+    <span class="hint-tip" tabindex="0" @keydown.esc="onEscape"><slot /></span>
   </el-tooltip>
 </template>
 
