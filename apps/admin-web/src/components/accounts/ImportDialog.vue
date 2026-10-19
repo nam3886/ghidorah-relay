@@ -123,7 +123,7 @@ async function submit() {
       </ul>
     </div>
     <template #footer="{ close }">
-      <button type="button" class="acct-btn acct-btn--link" @click="close">Cancel</button>
+      <button type="button" class="acct-btn acct-btn--link" :disabled="busy" @click="close">Cancel</button>
       <button
         type="button"
         class="acct-btn acct-btn--primary"

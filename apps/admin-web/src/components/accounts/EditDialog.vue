@@ -114,7 +114,7 @@ function recheck() {
       >
     </div>
     <template #footer="{ close }">
-      <button type="button" class="acct-btn" @click="close">Cancel</button>
+      <button type="button" class="acct-btn" :disabled="props.saving" @click="close">Cancel</button>
       <button
         type="button"
         class="acct-btn acct-btn--primary"

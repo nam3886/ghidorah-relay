@@ -115,7 +115,9 @@
 }
 /* a secondary that waits for its command (Check proxy while it runs), as B-States draws the disabled secondary */
 .acct-btn:not(.acct-btn--primary)[aria-disabled="true"],
-.acct-btn:not(.acct-btn--primary)[aria-disabled="true"]:hover {
+.acct-btn:not(.acct-btn--primary)[aria-disabled="true"]:hover,
+.acct-btn:not(.acct-btn--primary):disabled,
+.acct-btn:not(.acct-btn--primary):disabled:hover {
   background: var(--rl-raised);
   color: var(--rl-faint);
   cursor: default;

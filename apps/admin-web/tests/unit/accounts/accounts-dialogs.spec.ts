@@ -161,6 +161,15 @@ describe("EditDialog", () => {
       expect(ask).not.toHaveBeenCalled();
     });
 
+    it("Cancel is disabled while the save is in flight, and only then", async () => {
+      const w = await mountEdit(account());
+      expect(buttonOf("Cancel").hasAttribute("disabled")).toBe(false);
+      await w.setProps({ busy: true });
+      expect(buttonOf("Cancel").hasAttribute("disabled")).toBe(false);
+      await w.setProps({ busy: false, saving: true });
+      expect(buttonOf("Cancel").hasAttribute("disabled")).toBe(true);
+    });
+
     it("a page that is busy with another command does not stop the drawer closing; Save waits", async () => {
       const w = await mountEdit(account());
       await w.setProps({ busy: true });
@@ -561,6 +570,23 @@ describe("what was pasted never outlives its use", () => {
     await flushPromises();
     expect(ask).not.toHaveBeenCalled();
     expect(isOpen(w)).toBe(false);
+  });
+
+  it("Cancel is disabled while the import runs, and enabled again after", async () => {
+    seedCatalog();
+    let release!: () => void;
+    vi.mocked(accounts.importAccounts).mockReturnValue(
+      new Promise((r) => (release = () => r({ imported: [], rejected: [] }))),
+    );
+    await mountImport();
+    expect(buttonOf("Cancel").hasAttribute("disabled")).toBe(false);
+    await fill();
+    buttonOf("Import").click();
+    await flushPromises();
+    expect(buttonOf("Cancel").hasAttribute("disabled")).toBe(true);
+    release();
+    await flushPromises();
+    expect(buttonOf("Cancel").hasAttribute("disabled")).toBe(false);
   });
 
   it("no close path works while the import runs", async () => {

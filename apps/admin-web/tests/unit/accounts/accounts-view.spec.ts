@@ -685,6 +685,9 @@ describe("the row commands and the edit dialog", () => {
     expect(inBody("Save").getAttribute("aria-disabled")).toBeNull();
     inBody("Save").click();
     await settle();
+    // a second click while the save waits sends nothing more
+    inBody("Save").click();
+    await settle();
     expect(accounts.patchAccount).not.toHaveBeenCalled();
     gate.resolve(done("r1"));
     await settle();
@@ -924,6 +927,30 @@ describe("the Edit and Import drawers on the page", () => {
     type("[aria-label=Label]", "renamed");
     await settle();
     expect(dirty()).toBe(true);
+  });
+
+  it("after the save the proxy check it queued does not lock the drawer: Edit opens again and closes", async () => {
+    vi.mocked(accounts.patchAccount).mockResolvedValue({ id: "a1", command_id: "p1" });
+    const poll = deferred<commands.CommandStatus>();
+    vi.mocked(commands.getCommand).mockReturnValue(poll.promise);
+    const w = await open();
+    const [, blocked] = leave();
+    await pick(w, "Edit");
+    type("[aria-label=Label]", "renamed");
+    await settle();
+    inDrawer("Save").click();
+    await settle();
+    expect(notify.success).toHaveBeenCalledWith("Saved");
+    expect(editOpen(w)).toBe(false);
+    // the poll is still waiting on its command
+    await pick(w, "Edit");
+    expect(editOpen(w)).toBe(true);
+    escape();
+    await settle();
+    expect(editOpen(w)).toBe(false);
+    expect(blocked()).toBe(false);
+    poll.resolve(done("p1"));
+    await settle();
   });
 
   it("an import under way blocks a leave of the page, and so does a save in flight", async () => {

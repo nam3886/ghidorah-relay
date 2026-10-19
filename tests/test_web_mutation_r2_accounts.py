@@ -252,6 +252,12 @@ GUARD = f"FAILED {DIALOGS_SPEC} > EditDialog > the guard > "
           expect=GUARD + "no close path works while a save is in flight")
 @mutation(EDIT, 'discard-text="Discard your changes to this account?"', 'discard-text="Discard?"',
           expect=GUARD + "a changed label asks what is lost, in words; Keep editing keeps the drawer and what was typed")
+@mutation(EDIT, ' :disabled="props.saving"', "",
+          expect=GUARD + "Cancel is disabled while the save is in flight, and only then")
+@mutation(EDIT, ' :disabled="props.saving"', ' :disabled="props.busy"',
+          expect=GUARD + "Cancel is disabled while the save is in flight, and only then")
+@mutation(IMPORT, ' :disabled="busy"', "",
+          expect=WIPE + "Cancel is disabled while the import runs, and enabled again after")
 @pytest.mark.web_unit
 def test_the_account_forms_are_guarded_drawers():
     vitest(DIALOGS_SPEC)
@@ -277,6 +283,12 @@ LEAVE_BLOCKED = DRAWERS + "an import under way blocks a leave of the page, and s
           expect=FOCUS + "goes to the page's Import button when the opener can no longer be seen")
 @mutation(ACCOUNTS, "if (opener?.isConnected &&", "if (false && opener?.isConnected &&",
           expect=FOCUS + "is left to Element Plus, which gives it back to the row button, while that button can be seen")
+@mutation(ACCOUNTS, "work\n  await run(async () => {\n    if (out.command_id)",
+          "work\n  await runSave(async () => {\n    if (out.command_id)",
+          expect=DRAWERS + "after the save the proxy check it queued does not lock the drawer: Edit opens again and "
+                           "closes")
+@mutation(EDIT, "@click=\"!props.busy && !props.saving && save()\"", "@click=\"!props.busy && save()\"",
+          expect=COMMANDS + "Save during a running Check proxy waits for it, then sends what was typed")
 @pytest.mark.web_unit
 def test_the_account_drawers_on_the_page():
     vitest(ACCOUNTS_VIEW_SPEC)
