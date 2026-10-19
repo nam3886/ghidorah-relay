@@ -152,6 +152,37 @@ def crop(page, png: bytes, x: float, w: float, height: float) -> bytes:
     return base64.b64decode(got)
 
 
+# The colours a field chevron may have, as the page computes them: the page ink (`--rl-fg`, the app) and `--rl-muted`
+# (the canvas native-select chevron svg).
+CHEVRON_COLOURS_JS = """() => {
+  const read = (v) => { const s = document.createElement('span'); s.style.color = v; document.body.append(s);
+                        const c = getComputedStyle(s).color; s.remove(); return c; };
+  return {ink: read('var(--rl-fg)'), muted: read('var(--rl-muted)')};
+}"""
+CHEVRON_SHAPE = "m6 9 6 6 6-6"
+
+
+def declare_chevron_ink(theirs: dict, mine: dict, colours: dict, count: int, canvas_fields: list, app_fields: list):
+    """Owner decision: a field chevron is the page ink, where the canvas draws its chevron svg muted. Exactly `count`
+    chevrons are declared on each side, each inside a select (the canvas's select box, the app's field box: the
+    rectangles given, as x, y, w, h in the compared root); their two colours are asserted exactly (the canvas muted, the
+    app the ink, as the page computes them in this theme) and the canvas's is then read as the app's. Any other count,
+    place or colour still fails."""
+    def chevrons(items):
+        return [b for b in items["boxes"] if b["kind"] == "icon" and b["sig"].endswith(CHEVRON_SHAPE)]
+
+    canvas, app = chevrons(theirs), chevrons(mine)
+    assert len(canvas) == len(app) == count, "chevrons: canvas %d, app %d, expected %d" % (len(canvas), len(app), count)
+    for item in canvas:
+        assert _inside(item, canvas_fields), "a canvas chevron outside its select: %r not in %r" % (
+            item["rect"], canvas_fields)
+        assert item["style"]["color"] == "stroke %s fill none" % colours["muted"], item["style"]["color"]
+        item["style"]["color"] = "stroke %s fill none" % colours["ink"]
+    for item in app:
+        assert _inside(item, app_fields), "an app chevron outside its field: %r in %r" % (item["rect"], app_fields)
+        assert item["style"]["color"] == "stroke %s fill none" % colours["ink"], item["style"]["color"]
+
+
 def assert_chevrons(geometry: list) -> None:
     """The arrow zone of every field by geometry: a 14 px chevron, 12 px in from the edge, in the page's ink (`--rl-fg`,
     the colour the Jobs chip's chevron inherits)."""
