@@ -57,12 +57,15 @@ describe("notify", () => {
     width(false);
     const foot = document.createElement("div");
     foot.className = "detail-drawer__foot";
-    foot.getBoundingClientRect = () => ({ height: 57 }) as DOMRect;
+    const rect = (height: number) =>
+      ({ height, width: 600, top: 600, bottom: 600 + height, left: 100, right: 700 }) as DOMRect;
+    foot.getClientRects = () => [rect(57)] as unknown as DOMRectList;
+    foot.getBoundingClientRect = () => rect(57);
     document.body.append(foot);
     try {
       notify.success("Saved");
       expect(lastOptions(message)).toMatchObject({ placement: "bottom-right", offset: 73 });
-      foot.getBoundingClientRect = () => ({ height: 65 }) as DOMRect;
+      foot.getBoundingClientRect = () => rect(65);
       notify.error("x");
       expect(lastOptions(message).offset).toBe(81);
     } finally {
@@ -70,6 +73,54 @@ describe("notify", () => {
     }
     notify.success("Saved again");
     expect(lastOptions(message).offset).toBeUndefined();
+  });
+
+  describe("which drawer footer lifts the toast", () => {
+    // happy-dom lays nothing out: each footer is given the rects and styles a browser would give it
+    function footer(over: { height?: number; top?: number; rects?: number; display?: string; parentClass?: string }) {
+      const parent = document.createElement("div");
+      parent.className = over.parentClass ?? "";
+      const foot = document.createElement("div");
+      foot.className = "detail-drawer__foot";
+      const height = over.height ?? 57;
+      const top = over.top ?? 600;
+      foot.getClientRects = () => Array.from({ length: over.rects ?? 1 }) as unknown as DOMRectList;
+      foot.getBoundingClientRect = () =>
+        ({ height, width: height ? 600 : 0, top, bottom: top + height, left: 100, right: 700 }) as DOMRect;
+      if (over.display) foot.style.display = over.display;
+      parent.append(foot);
+      document.body.append(parent);
+      return parent;
+    }
+    afterEach(() => document.body.replaceChildren());
+    const offsetOf = () => {
+      const { message, notify } = stub();
+      width(false);
+      notify.success("Saved");
+      return lastOptions(message).offset;
+    };
+
+    it("skips a hidden first footer and measures the visible second one", () => {
+      footer({ height: 30, rects: 0 });
+      footer({ height: 57, display: "none" });
+      footer({ height: 65 });
+      expect(offsetOf()).toBe(81);
+    });
+
+    it("keeps the default offset when no footer is drawn, or one lies outside the window", () => {
+      expect(offsetOf()).toBeUndefined();
+      footer({ rects: 0 });
+      footer({ display: "none" });
+      footer({ top: 5000 });
+      expect(offsetOf()).toBeUndefined();
+    });
+
+    it("ignores the footer of a drawer that is leaving", () => {
+      footer({ parentClass: "el-drawer-fade-leave-active" });
+      expect(offsetOf()).toBeUndefined();
+      footer({ height: 57 });
+      expect(offsetOf()).toBe(73);
+    });
   });
 
   it("on a phone they sit bottom centre, lifted above the bulk bar", () => {

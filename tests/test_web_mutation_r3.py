@@ -448,6 +448,7 @@ DRAWER_SPEC = FRAMES_SPEC + "the drawer > "
 LATE_READ = DRAWER_SPEC + "drops a read that lands after the drawer was closed, and does not reopen it"
 OPENS_AT_ONCE = DRAWER_SPEC + "opens at once on Edit, while the read runs, and holds the draft once it lands"
 CLOSE_FORGETS = DRAWER_SPEC + "closes the drawer and forgets the editor, the draft and what the last write said"
+RELOAD_ASKS = FRAMES_SPEC + "an action that reloads the editor over an unsaved draft > "
 STARTS_CLOSED = FRAMES_SPEC + "opening > starts closed when it comes back, whatever editor it had"
 READ_FAILED_SHUTS = DRAWER_SPEC + "shuts a drawer whose read failed and holds nothing, after the toast"
 PREVIEW_MODEL = "t.target === DEFAULT_TARGET ? kindOf(t.kind)?.models[0]?.model : t.target"
@@ -476,6 +477,12 @@ PREVIEW_MODEL = "t.target === DEFAULT_TARGET ? kindOf(t.kind)?.models[0]?.model 
 @mutation(FRAMES, 'openTarget(provider.value, "", "");\n    open.value = false;', "open.value = false;",
           expect=LATE_READ)
 @mutation(FRAMES, 'kind = target = memory.kind = memory.target = "";', "", expect=STARTS_CLOSED)
+@mutation(FRAMES, "draft.value !== loaded.value && !(await askDiscard())", "false",
+          expect=RELOAD_ASKS + "Follow the default asks first, and Keep editing leaves the draft and sends nothing")
+@mutation(FRAMES, "draft.value !== loaded.value && !(await askDiscard())", "draft.value !== loaded.value",
+          expect=RELOAD_ASKS + "Roll back asks first, and Keep editing leaves the draft and sends nothing")
+@mutation(FRAMES, "if (await keepsDraft()) return;\n\n      const started = gen;\n      const done = await changing(() =>\n        guarded(async () => {\n          await putFrame(t, null);", "const started = gen;\n      const done = await changing(() =>\n        guarded(async () => {\n          await putFrame(t, null);",
+          expect=RELOAD_ASKS + "Follow the default asks first, and Keep editing leaves the draft and sends nothing")
 @mutation(FRAMES, "open.value = true;\n      const mine = gen;", "const mine = gen;", expect=OPENS_AT_ONCE)
 @mutation(FRAMES, "    loaded.value = \"\";\n    draft.value = \"\";\n", "", expect=CLOSE_FORGETS)
 @mutation(FRAMES, "if (mine === gen && !shown.value) open.value = false;", "", expect=READ_FAILED_SHUTS)
@@ -523,6 +530,8 @@ DRAWER_VIEW = FAILED + "frames/frames-view.spec.ts > the editor drawer > "
 ASKS = DRAWER_VIEW + "asks before it closes over a typed draft, and keeps it on Keep editing"
 KEPT_ON_RELOAD = (DRAWER_VIEW + "a reload that finds no such frame keeps a drawer holding a draft, "
                   + "and says so inside")
+SCRIM = DRAWER_VIEW + ("a click on the scrim closes a clean editor, asks over a typed draft, "
+                       + "and does nothing during a write")
 NO_WAY_OUT = DRAWER_VIEW + "no way out works while a write runs"
 LEAVE = (DRAWER_VIEW + "leaving the page asks only for a typed draft in an open drawer, "
          + "and is refused during a write")
@@ -539,6 +548,7 @@ OPENS_MODEL = FRAMES_VIEW_SPEC + "opens the editor of a model: help text, Follow
 @mutation(FRAME_EDITOR, ':placeholder="FRAME_SHAPE"', "", expect=FRAME_SHAPE_SPEC)
 @mutation(FRAME_EDITOR, "props.frames.draft !== props.frames.loaded", "false", expect=ASKS)
 @mutation(FRAME_EDITOR, ':busy="frames.busy"', "", expect=NO_WAY_OUT)
+@mutation(FRAME_EDITOR, ':dirty="dirty"', ':dirty="dirty"\n    :close-on-scrim="false"', expect=SCRIM)
 @mutation(FRAME_EDITOR, "@update:model-value=\"(o: boolean) => !o && frames.close()\"",
           "@update:model-value=\"(o: boolean) => !o && undefined\"", expect=ASKS)
 @mutation(FRAME_EDITOR, ':model-value="frames.open"', ':model-value="!!frames.shown"', expect=KEPT_ON_RELOAD)

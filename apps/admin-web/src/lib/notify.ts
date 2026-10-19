@@ -29,11 +29,28 @@ export const isPhoneNow = (): boolean =>
   window.matchMedia("(max-width: 767.98px)").matches;
 
 // While a drawer's footer is on screen its buttons sit where a bottom-right toast would land: the toast goes above it
-// (the default gap of Element Plus, 16 px, over the footer as measured now).
+// (the default gap of Element Plus, 16 px, over the footer as measured now). Only a footer that is really drawn counts:
+// a closed drawer's is destroyed, but a hidden one, one leaving, or one outside the window must not lift a toast.
 const TOAST_GAP_PX = 16;
+function drawn(foot: Element): boolean {
+  if (foot.getClientRects().length === 0) return false;
+  const style = getComputedStyle(foot);
+  if (style.display === "none" || style.visibility === "hidden") return false;
+  // the drawer that is closing keeps its footer for the leave transition
+  for (let e = foot.parentElement; e; e = e.parentElement) if (/-leave-(active|to)/.test(e.className)) return false;
+  const r = foot.getBoundingClientRect();
+  return (
+    r.width > 0 &&
+    r.height > 0 &&
+    r.bottom > 0 &&
+    r.right > 0 &&
+    r.top < window.innerHeight &&
+    r.left < window.innerWidth
+  );
+}
 function aboveDrawerFooter(): { offset?: number } {
   if (typeof document === "undefined") return {};
-  const foot = document.querySelector(".detail-drawer__foot");
+  const foot = [...document.querySelectorAll(".detail-drawer__foot")].find(drawn);
   return foot ? { offset: Math.round(foot.getBoundingClientRect().height) + TOAST_GAP_PX } : {};
 }
 

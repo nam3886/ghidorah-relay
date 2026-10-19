@@ -17,6 +17,7 @@ import {
   resetFrame,
   rollbackFrame,
 } from "@/api/frames";
+import { askDiscard } from "@/components/shared/use-leave-guard";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
 import {
@@ -279,10 +280,15 @@ export function useFrames() {
       if (done) notify.success(done.unchanged ? "Nothing changed" : "Saved: applies to jobs created from now on");
     });
 
+  // Follow and Roll back reload the editor from the server, which drops what was typed: with an unsaved draft they ask
+  // first, with the question a close asks. Keep editing leaves everything as it is.
+  const keepsDraft = async (): Promise<boolean> => draft.value !== loaded.value && !(await askDiscard());
+
   const follow = (): Promise<void> =>
     act(async () => {
       const t = shown.value;
       if (!t) return;
+      if (await keepsDraft()) return;
       const started = gen;
       const done = await changing(() =>
         guarded(async () => {
@@ -298,6 +304,7 @@ export function useFrames() {
     act(async () => {
       const t = shown.value;
       if (!t) return;
+      if (await keepsDraft()) return;
       const started = gen;
       const done = await changing(() =>
         guarded(async () => {

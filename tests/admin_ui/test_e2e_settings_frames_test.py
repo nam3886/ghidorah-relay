@@ -385,6 +385,66 @@ def test_the_editor_drawer_is_named_by_its_heading_keeps_its_buttons_in_the_foot
     expect(opener).to_be_focused()
 
 
+def test_follow_the_default_and_roll_back_over_an_unsaved_draft_ask_first(app_session, db, framed):
+    page = app_session
+    older = "Older single. {{tracking_code}} {{client_prompt}}"
+    put(db, "video", "fake-video", older)
+    video, row, text, heading = frames_page(page, db, own="Newer single. {{tracking_code}} {{client_prompt}}")
+    box = page.locator(".el-message-box")
+    row.get_by_role("button", name="Edit frame for fake-video").click()
+    expect(heading).to_have_text("Editing video / fake-video")
+    before = frame_texts(db, "fake-video")
+    typed = "Typed single. {{tracking_code}} {{client_prompt}}"
+    text.fill(typed)
+    # Roll back: Keep editing changes nothing, Discard rolls back
+    roll = page.get_by_test_id("frame-history").get_by_role("button", name=re.compile("Roll back")).first
+    roll.click()
+    expect(box).to_contain_text("Discard what you typed?")
+    box.get_by_role("button", name="Keep editing").click()
+    expect(box).to_have_count(0)
+    expect(text).to_have_value(typed)
+    assert frame_texts(db, "fake-video") == before
+    roll.click()
+    box.get_by_role("button", name="Discard").click()
+    expect(text).to_have_value(older)
+    assert len(frame_texts(db, "fake-video")) == len(before) + 1
+    # Follow the default: the same question; a clean draft acts at once
+    text.fill(typed)
+    press(page, page.get_by_role("button", name="Follow the default"))
+    expect(box).to_contain_text("Discard what you typed?")
+    box.get_by_role("button", name="Keep editing").click()
+    expect(box).to_have_count(0)
+    expect(text).to_have_value(typed)
+    assert frame_texts(db, "fake-video")[-1] == older
+    page.get_by_role("button", name="Follow the default").click()
+    box.get_by_role("button", name="Discard").click()
+    expect(row.locator(".status-chip")).to_have_text("default")
+    assert frame_texts(db, "fake-video")[-1] is None
+    expect(box).to_have_count(0)
+
+
+def test_a_click_on_the_scrim_acts_like_escape(app_session, db, framed):
+    page = app_session
+    video, row, text, heading = frames_page(page, db, own="Own of A single. {{tracking_code}} {{client_prompt}}")
+    row.get_by_role("button", name="Edit frame for fake-video").click()
+    expect(heading).to_have_text("Editing video / fake-video")
+    page.mouse.click(20, 300)                                # beside the drawer: on the scrim
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    row.get_by_role("button", name="Edit frame for fake-video").click()
+    text.fill("Typed single. {{tracking_code}} {{client_prompt}}")
+    page.mouse.click(20, 300)
+    box = page.locator(".el-message-box")
+    expect(box).to_contain_text("Discard what you typed?")
+    box.get_by_role("button", name="Keep editing").click()
+    expect(box).to_have_count(0)
+    expect(text).to_have_value("Typed single. {{tracking_code}} {{client_prompt}}")
+    page.mouse.click(20, 300)
+    expect(box).to_contain_text("Discard what you typed?")
+    box.get_by_role("button", name="Discard").click()
+    expect(box).to_have_count(0)
+    expect(page.get_by_role("dialog")).to_have_count(0)
+
+
 def test_frame_text_with_markup_is_text_in_the_editor_the_history_and_the_preview(app_session, db, framed):
     page = app_session
     video, row, text, heading = frames_page(page, db)

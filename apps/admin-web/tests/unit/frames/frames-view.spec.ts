@@ -406,6 +406,36 @@ describe("the editor drawer", () => {
     ).toEqual(["Save", "Apply to all models of this kind", "Preview"]);
   });
 
+  // a click on the scrim acts as Escape does
+  const clickScrim = async () => {
+    const scrim = document.body.querySelector(".el-overlay.is-drawer")!;
+    for (const type of ["mousedown", "mouseup", "click"]) scrim.dispatchEvent(new MouseEvent(type, { bubbles: true }));
+    await flushPromises();
+  };
+
+  it("a click on the scrim closes a clean editor, asks over a typed draft, and does nothing during a write", async () => {
+    await open();
+    await edit();
+    await clickScrim();
+    expect(confirm.confirmDialog).not.toHaveBeenCalled();
+    expect(drawer().props("modelValue")).toBe(false);
+    await edit();
+    await textarea().setValue("typed");
+    vi.mocked(confirm.confirmDialog).mockResolvedValueOnce(false);
+    await clickScrim();
+    expect(confirm.confirmDialog).toHaveBeenCalledTimes(1);
+    expect(drawer().props("modelValue")).toBe(true);
+    expect(textarea().element.value).toBe("typed");
+    const slow = deferred<api.SavedFrame>();
+    vi.mocked(api.putFrame).mockReturnValue(slow.promise);
+    await button("Save").trigger("click");
+    await clickScrim();
+    expect(confirm.confirmDialog).toHaveBeenCalledTimes(1);
+    expect(drawer().props("modelValue")).toBe(true);
+    slow.resolve({ version: version(9, "typed"), unchanged: false, warnings: [] });
+    await flushPromises();
+  });
+
   it("closes at once when nothing was typed and drops the editor", async () => {
     await open();
     await edit();

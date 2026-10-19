@@ -52,7 +52,6 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
     back-label="Back to Prompt frames"
     :dirty="dirty"
     :busy="frames.busy"
-    :close-on-scrim="false"
     @update:model-value="(o: boolean) => !o && frames.close()"
     @closed="emit('closed')"
   >

@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/api/frames";
 import { ApiError } from "@/api/client";
 import { forgetFramesMemory, useFrames } from "@/components/frames/use-frames";
+import { askDiscard } from "@/components/shared/use-leave-guard";
 import { notify } from "@/lib/notify";
 import { deferred, frameInfo, framesList, version } from "./fixtures";
 
 vi.mock("@/api/frames");
 vi.mock("@/lib/notify", () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock("@/components/shared/use-leave-guard", () => ({ askDiscard: vi.fn() }));
 
 const refused = (message = "frame must hold {{client_prompt}} once", param = "text") =>
   new ApiError(422, { error: { code: "input.invalid", message, param } });
@@ -28,6 +30,7 @@ async function opened(target = "m1", text: string | null = "own1") {
 beforeEach(() => {
   forgetFramesMemory();
   vi.resetAllMocks();
+  vi.mocked(askDiscard).mockResolvedValue(true);
   vi.mocked(api.listFrames).mockImplementation(async () => framesList());
   vi.mocked(api.getFrame).mockResolvedValue(frameInfo("own1"));
 });
@@ -397,6 +400,56 @@ describe("write errors", () => {
     expect(f.refusal).not.toBe("");
     await f.save();
     expect(f.refusal).toBe("");
+  });
+});
+
+describe("an action that reloads the editor over an unsaved draft", () => {
+  const actions: [string, (f: Awaited<ReturnType<typeof opened>>) => Promise<void>, () => unknown][] = [
+    ["Follow the default", (f) => f.follow(), () => api.putFrame],
+    ["Roll back", (f) => f.rollback(4), () => api.rollbackFrame],
+  ];
+  for (const [name, run, call] of actions) {
+    it(`${name} asks first, and Keep editing leaves the draft and sends nothing`, async () => {
+      const f = await opened();
+      vi.mocked(api.putFrame).mockResolvedValue(saved());
+      vi.mocked(api.rollbackFrame).mockResolvedValue(saved());
+      f.setDraft("typed, not saved");
+      vi.mocked(askDiscard).mockResolvedValueOnce(false);
+      await run(f);
+      expect(askDiscard).toHaveBeenCalledTimes(1);
+      expect(call()).not.toHaveBeenCalled();
+      expect(f.draft).toBe("typed, not saved");
+      expect(f.busy).toBe(false);
+    });
+
+    it(`${name} performs the action on Discard, and the draft is the stored text again`, async () => {
+      const f = await opened();
+      vi.mocked(api.putFrame).mockResolvedValue(saved());
+      vi.mocked(api.rollbackFrame).mockResolvedValue(saved());
+      f.setDraft("typed, not saved");
+      await run(f);
+      expect(askDiscard).toHaveBeenCalledTimes(1);
+      expect(call()).toHaveBeenCalledTimes(1);
+      expect(f.draft).toBe(f.loaded);
+    });
+
+    it(`${name} acts at once on a clean draft`, async () => {
+      const f = await opened();
+      vi.mocked(api.putFrame).mockResolvedValue(saved());
+      vi.mocked(api.rollbackFrame).mockResolvedValue(saved());
+      await run(f);
+      expect(askDiscard).not.toHaveBeenCalled();
+      expect(call()).toHaveBeenCalledTimes(1);
+    });
+  }
+
+  it("Apply to all submits the draft on purpose and does not ask", async () => {
+    const f = await opened();
+    vi.mocked(api.applyAllFrames).mockResolvedValue({ applied: ["m2"], kept: [], unchanged: [], warnings: [] });
+    f.setDraft("typed, not saved");
+    await f.applyAll();
+    expect(askDiscard).not.toHaveBeenCalled();
+    expect(api.applyAllFrames).toHaveBeenCalledWith("flow", "video", "typed, not saved");
   });
 });
 
