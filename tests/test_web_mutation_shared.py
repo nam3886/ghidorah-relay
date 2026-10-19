@@ -201,6 +201,8 @@ MONEY = f"{SHARED}/MoneyCell.vue"
 DRAWER = f"{SHARED}/DetailDrawer.vue"
 DAY_ROWS = f"{SRC}/lib/day-rows.ts"
 NOTIFY = f"{SRC}/lib/notify.ts"
+NOTIFY_CSS = f"{SRC}/lib/notify.css"
+LIFT = "FAILED tests/unit/shared/notify.spec.ts > notify > a toast above a drawer footer > "
 LEDGER_SPEC = "tests/unit/shared/ledger-money-chip.spec.ts"
 
 
@@ -341,23 +343,34 @@ def test_the_table_opt_ins_day_rows_tablet_and_phone_list():
 @mutation(NOTIFY, "ERROR_DURATION_MS = 5000", "ERROR_DURATION_MS = 6000", expect="an error stays 5 s")
 @mutation(NOTIFY, "DURATION_MS = 2500", "DURATION_MS = 2000", expect="closes by itself after 2.5 s")
 @mutation(NOTIFY, "showClose: true", "showClose: false", expect="has a close button")
-@mutation(NOTIFY, 'placement: "bottom-right",\n        grouping: true,', 'placement: "top-right",\n        grouping: true,',
+@mutation(NOTIFY, 'placement: "bottom-right", grouping: true', 'placement: "top-right", grouping: true',
           expect="toasts stack at the bottom right")
-@mutation(NOTIFY, "clearance ?? 0), grouping: true", "clearance ?? 0), grouping: false",
+@mutation(NOTIFY, "offset: PHONE_OFFSET_PX, grouping: true", "offset: PHONE_OFFSET_PX, grouping: false",
           expect="on a phone they sit bottom centre")
 @mutation(NOTIFY, 'placement: "bottom", offset', 'placement: "top", offset', expect="on a phone they sit bottom centre")
-@mutation(NOTIFY, "getBoundingClientRect().height) + TOAST_GAP_PX", "getBoundingClientRect().height)",
-          expect="lifted by the footer's measured height plus 16")
-@mutation(NOTIFY, "TOAST_GAP_PX = 16", "TOAST_GAP_PX = 0", expect="lifted by the footer's measured height plus 16")
-@mutation(NOTIFY, "return foot ? Math.round", "return false ? Math.round", expect="lifted by the footer's measured height plus 16")
-@mutation(NOTIFY, "Math.max(PHONE_OFFSET_PX, clearance ?? 0)", "PHONE_OFFSET_PX",
-          expect="on a phone the offset is the larger of its own 72 and the wrapped footer's clearance")
-@mutation(NOTIFY, "Math.max(PHONE_OFFSET_PX, clearance ?? 0)", "clearance ?? 0",
-          expect="on a phone the offset is the larger of its own 72 and the wrapped footer's clearance")
+@mutation(NOTIFY, "Math.max(0, height + TOAST_GAP_PX - PHONE_OFFSET_PX) : height",
+          "Math.max(0, height + TOAST_GAP_PX - PHONE_OFFSET_PX) : 0",
+          expect=LIFT + "lifts by the footer's height when a drawer opens, and is back at 0 when it closes")
+@mutation(NOTIFY, "if (!foot) return 0;", "if (false) return 0;",
+          expect=LIFT + "keeps 0 when no footer is drawn, or one lies outside the window")
+@mutation(NOTIFY, "height + TOAST_GAP_PX - PHONE_OFFSET_PX", "height - PHONE_OFFSET_PX",
+          expect=LIFT + "on a phone only what the footer needs beyond the 72 px its toasts already sit at")
+@mutation(NOTIFY, "Math.max(0, height", "Math.max(-99, height",
+          expect=LIFT + "on a phone only what the footer needs beyond the 72 px its toasts already sit at")
+@mutation(NOTIFY, "    syncToastLift();\n    const handle = message({", "    const handle = message({",
+          expect=LIFT + "lifts a toast of every kind the same way and moves none of them: only the page-wide lift changes")
 @mutation(NOTIFY, "if (/-leave-(active|to)/.test(e.className)) return false;", "if (false) return false;",
-          expect="ignores the footer of a drawer that is leaving")
+          expect=LIFT + "ignores the footer of a drawer that is leaving")
 @mutation(NOTIFY, "r.top < window.innerHeight &&", "r.top < Infinity &&",
-          expect="keeps the default offset when no footer is drawn, or one lies outside the window")
+          expect=LIFT + "keeps 0 when no footer is drawn, or one lies outside the window")
+@mutation(NOTIFY, "if (foot.getClientRects().length === 0) return false;", "",
+          expect=LIFT + "skips a hidden first footer and measures the visible second one")
+@mutation(NOTIFY, 'style.display === "none" || style.visibility === "hidden"', "false",
+          expect=LIFT + "skips a hidden first footer and measures the visible second one")
+@mutation(NOTIFY_CSS, "translate: 0 calc(var(--rl-toast-lift, 0px) * -1);", "translate: 0 0;",
+          expect=LIFT + "the slide is a translate of that lift, and it is off for a reader who asks for less motion")
+@mutation(NOTIFY_CSS, "    bottom 0.4s;\n  }\n}", "    bottom 0.4s,\n      translate 0.25s ease;\n  }\n}",
+          expect=LIFT + "the slide is a translate of that lift, and it is off for a reader who asks for less motion")
 @mutation(NOTIFY, "PHONE_OFFSET_PX = 72", "PHONE_OFFSET_PX = 0", expect="lifted above the bulk bar")
 @mutation(NOTIFY, "(max-width: 767.98px)", "(max-width: 10px)", expect="asks the phone edge")
 @mutation(NOTIFY, "  message.closeAll();\n    },", "  void message;\n    },", expect="clear closes every toast")
@@ -473,7 +486,6 @@ def test_no_native_select_is_left():
 
 SKIN = f"{SHARED}/skin.css"
 CONFIRM_CSS = f"{SHARED}/confirm-dialog.css"
-NOTIFY_CSS = f"{SRC}/lib/notify.css"
 PAGER_CSS_SPEC = "tests/unit/shared/table-pager-style.spec.ts"
 SKIN_SPEC = "tests/unit/shared/skin.spec.ts"
 
