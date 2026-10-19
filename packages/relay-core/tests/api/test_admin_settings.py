@@ -89,7 +89,7 @@ def test_every_setting_says_what_it_allows_and_none_names_an_env_variable(db):
     assert items["fake.browser_slots"]["allowed"] == "1\u201330"
     assert items["fake.alert_drift_rate"]["allowed"] is None
     for i in (*items.values(), put.json(), gone.json()):
-        assert "env_name" not in i and i["source"] in ("db", "default"), i
+        assert not any(k.startswith("env") for k in i) and i["source"] in ("db", "default"), i
         assert "allowed" in i
 
 
