@@ -215,9 +215,44 @@ def test_the_switch_the_menu_and_the_import_result():
 @mutation(IMPORT, "  wipe();\n  await run(", "  await run(",
           expect=WIPE + "the fields are empty while the request is still running")
 @mutation(IMPORT, "watch(open, (isOpen) => {\n  wipe();", "watch(open, (isOpen) => {",
-          expect=WIPE + "a cancelled paste is gone when the dialog is opened again")
+          expect=WIPE + "the X: asks, and on Discard the paste is gone when the drawer is opened again")
 @pytest.mark.web_unit
 def test_the_import_dialog_wipes_what_was_pasted():
+    vitest(DIALOGS_SPEC)
+
+
+# ---- the two forms are guarded drawers: what was typed is never lost to a stray close, and nothing lingers ----------
+EDIT = SRC + "/components/accounts/EditDialog.vue"
+FRAME = SRC + "/components/accounts/AccountDialog.vue"
+GUARD = f"FAILED {DIALOGS_SPEC} > EditDialog > the guard > "
+
+
+@mutation(IMPORT, 'credentials.value.trim() !== "" || proxy.value.trim() !== ""', 'credentials.value.trim() !== ""',
+          expect=WIPE + "a proxy typed alone asks")
+@mutation(IMPORT, 'credentials.value.trim() !== "" || proxy.value.trim() !== ""',
+          'credentials.value !== "" || proxy.value !== ""',
+          expect=WIPE + "a proxy alone is a paste worth asking about; spaces alone are not")
+@mutation(IMPORT, "discard-text=\"Discard the pasted credentials?\"", "discard-text=\"Discard?\"",
+          expect=WIPE + "the X: asks, and on Discard the paste is gone when the drawer is opened again")
+@mutation(IMPORT, '    :busy="busy"\n', "",
+          expect=WIPE + "no close path works while the import runs")
+@mutation(FRAME, ':close-on-scrim="false"', ':close-on-scrim="true"',
+          expect=WIPE + "a scrim click never closes it, whatever was pasted")
+@mutation(EDIT, "label.value !== snap.value.label || proxy.value !== snap.value.proxy",
+          "label.value !== (props.account?.label ?? '') || proxy.value !== (props.account ? proxyText(props.account) : '')",
+          expect=GUARD + "a new copy of the account (the list read, the end of a Check proxy) changes nothing: not "
+                         "clean, not dirty")
+@mutation(EDIT, "label.value !== snap.value.label || proxy.value !== snap.value.proxy",
+          "label.value !== snap.value.label",
+          expect=GUARD + "a new password alone, typed as host:port:user:pass, is a change")
+@mutation(EDIT, 'label.value = proxy.value = "";', "",
+          expect=GUARD + "every close leaves nothing typed behind: a drawer closed from outside is clean and empty")
+@mutation(EDIT, '    :busy="props.busy"\n', "",
+          expect=GUARD + "no close path works while a save is in flight")
+@mutation(EDIT, 'discard-text="Discard your changes to this account?"', 'discard-text="Discard?"',
+          expect=GUARD + "a changed label asks what is lost, in words; Keep editing keeps the drawer and what was typed")
+@pytest.mark.web_unit
+def test_the_account_forms_are_guarded_drawers():
     vitest(DIALOGS_SPEC)
 
 
@@ -344,7 +379,7 @@ INK = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > the chevron i
        "chip's is, and only a disabled field turns it faint")
 FORM_FIELD = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > a form's field (block) is no chip on a "
               "phone, and the list hangs under the box")
-IN_DIALOG = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > in a dialog: Escape closes the open list "
+IN_DIALOG = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > in a drawer: Escape closes the open list "
              "only > ")
 PROVIDER = (IMPORT_SPEC + "the Provider field is the drawn select: another provider picked from its list is the one "
             "sent")

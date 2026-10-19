@@ -12,10 +12,19 @@ import { accountChanges, type ChipState, proxyStatus, proxyText } from "./accoun
 // (`proxyChip`, B-States "Command status"); without one, the result of the last check as it stands.
 const open = defineModel<boolean>({ required: true });
 const props = defineProps<{ account: Account | null; busy: boolean; proxyChip?: ChipState | null }>();
-const emit = defineEmits<{ save: [patch: AccountPatch]; recheck: [account: Account] }>();
+const emit = defineEmits<{
+  save: [patch: AccountPatch];
+  recheck: [account: Account];
+  "update:dirty": [dirty: boolean];
+  closed: [];
+}>();
 
 const label = ref("");
 const proxy = ref("");
+// What the fields held when the drawer opened. The guard compares against this copy, never against `props.account`:
+// a new copy of the account (the 10 s read, the end of a Check proxy) must not change what counts as edited.
+const snap = ref({ label: "", proxy: "" });
+const dirty = computed(() => label.value !== snap.value.label || proxy.value !== snap.value.proxy);
 
 // The fields fill when the dialog opens on an account, and only then: a read of the list while it is open (the end of
 // a Check proxy, the 10 s read) brings a new copy of the same account and must not wipe what was typed.
@@ -23,12 +32,21 @@ watch(
   [() => open.value, () => props.account?.id],
   ([isOpen]) => {
     const account = props.account;
-    if (!isOpen || !account) return;
+    if (!isOpen) {
+      // nothing typed (a new proxy password included) outlives the drawer
+      label.value = proxy.value = "";
+      snap.value = { label: "", proxy: "" };
+      return;
+    }
+    if (!account) return;
     label.value = account.label;
     proxy.value = proxyText(account);
+    snap.value = { label: label.value, proxy: proxy.value };
   },
   { immediate: true },
 );
+
+watch(dirty, (d) => emit("update:dirty", d), { immediate: true });
 
 const status = computed(() => (props.account?.proxy_host ? proxyStatus(props.account) : null));
 
@@ -49,11 +67,19 @@ function recheck() {
 </script>
 
 <template>
-  <AccountDialog v-model="open" variant="edit" :title="`Edit account — ${props.account?.label ?? ''}`">
+  <AccountDialog
+    v-model="open"
+    :title="`Edit account — ${props.account?.label ?? ''}`"
+    testid="edit-account-drawer"
+    discard-text="Discard your changes to this account?"
+    :dirty="dirty"
+    :busy="props.busy"
+    @closed="emit('closed')"
+  >
     <label class="acct-field">
       <span class="acct-field__label">Label</span>
       <input v-model="label" class="acct-input" maxlength="100" aria-label="Label" />
-      <span class="acct-field__help">Shown in the Accounts list and in job details.</span>
+      <span class="acct-field__help acct-field__help--muted">Shown in the Accounts list and in job details.</span>
     </label>
     <div class="acct-field">
       <label class="acct-field__label" for="acct-edit-proxy">Proxy</label>
@@ -80,13 +106,13 @@ function recheck() {
       <div v-else-if="status" class="status" role="status">
         <StatusChip :status="status.tone" :tone="status.tone" :label="status.text" />
       </div>
-      <span class="acct-field__help"
+      <span class="acct-field__help acct-field__help--muted"
         >Leave empty to remove the proxy. The stored password is never shown; type a new one as host:port:user:pass to
         replace it.</span
       >
     </div>
-    <template #footer>
-      <button type="button" class="acct-btn" @click="open = false">Cancel</button>
+    <template #footer="{ close }">
+      <button type="button" class="acct-btn" @click="close">Cancel</button>
       <button
         type="button"
         class="acct-btn acct-btn--primary"

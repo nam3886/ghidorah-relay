@@ -11,7 +11,7 @@ import { importBody, rejectedText } from "./account-model";
 // Import accounts: one credential per line, an optional proxy for all of them, and the result of the answer. A
 // rejected line is named by its number and reason only: the credential itself is never echoed back.
 const open = defineModel<boolean>({ required: true });
-const emit = defineEmits<{ imported: [] }>();
+const emit = defineEmits<{ imported: []; "update:dirty": [dirty: boolean]; closed: [] }>();
 
 const scope = useScopeStore();
 const { busy, run } = useBusy();
@@ -21,10 +21,13 @@ const proxy = ref("");
 const result = ref<ImportResult | null>(null);
 
 const providers = computed(() => scope.providers);
+// something pasted that a close would lose (a submitted import has been wiped, so it is clean)
+const dirty = computed(() => credentials.value.trim() !== "" || proxy.value.trim() !== "");
+watch(dirty, (d) => emit("update:dirty", d), { immediate: true });
 const providerOptions = computed(() => providers.value.map((name) => ({ value: name, label: name })));
 
-// What was pasted never outlives its use: both fields are emptied when the dialog opens and when it closes, right
-// after the payload is copied for the request, and on every failure.
+// What was pasted never outlives its use: both fields are emptied when the drawer opens and when it closes (by any
+// path, a close from outside included), right after the payload is copied for the request, and on every failure.
 function wipe(): void {
   credentials.value = "";
   proxy.value = "";
@@ -56,9 +59,14 @@ async function submit() {
 <template>
   <AccountDialog
     v-model="open"
-    variant="import"
     title="Import accounts"
+    tight
+    testid="import-drawer"
+    discard-text="Discard the pasted credentials?"
+    :dirty="dirty"
+    :busy="busy"
     subtitle="One credential per line. Lines that fail are rejected; the rest are imported."
+    @closed="emit('closed')"
   >
     <FilterSelect
       :model-value="provider"
@@ -108,8 +116,8 @@ async function submit() {
         </li>
       </ul>
     </div>
-    <template #footer>
-      <button type="button" class="acct-btn" @click="open = false">Cancel</button>
+    <template #footer="{ close }">
+      <button type="button" class="acct-btn acct-btn--link" @click="close">Cancel</button>
       <button
         type="button"
         class="acct-btn acct-btn--primary"

@@ -1,43 +1,39 @@
 <script setup lang="ts">
 import "./account-dialog.css";
-import { useBreakpoint } from "@/composables/use-breakpoint";
-import { IconArrowLeft, IconClose } from "@/components/shared/icons";
+import DetailDrawer from "@/components/shared/DetailDrawer.vue";
 
-// The frame of the Import and Edit dialogs (specs/accounts.md sections 7 and 8): a header with the title and Close,
-// the body, the footer. From 768 px a 640 px box under the scrim; below 768 px a full-screen sheet whose header has a
-// 44 px Back and whose footer stays at the bottom. The two dialogs differ as drawn: Import has an edge and a quiet
-// header, Edit has a divider under its header and no edge.
+// The frame of the Import and Edit forms: the shared right drawer (a full-screen sheet with Back on a phone), named by
+// its visible heading. The subtitle is the line under the heading. `dirty` and `busy` are the guard of the drawer: a
+// close asks first while something typed would be lost, and is inert while a write runs. A scrim click never closes.
+// The footer is given `close`, the guarded close, for Cancel.
 const open = defineModel<boolean>({ required: true });
-const props = defineProps<{ title: string; variant: "import" | "edit"; subtitle?: string }>();
-const { isPhone } = useBreakpoint();
+const props = defineProps<{
+  title: string;
+  subtitle?: string;
+  testid: string;
+  discardText: string;
+  dirty?: boolean;
+  busy?: boolean;
+  // Import's fields sit 16 px apart as drawn; Edit's 20 (the drawer's own)
+  tight?: boolean;
+}>();
+const emit = defineEmits<{ closed: [] }>();
 </script>
 
 <template>
-  <el-dialog
+  <DetailDrawer
     v-model="open"
-    :class="['acct-dialog', `acct-dialog--${props.variant}`, { 'acct-dialog--sheet': isPhone }]"
-    :show-close="false"
-    append-to-body
-    destroy-on-close
-    width="640px"
+    :title="props.title"
+    :testid="props.testid"
+    back-label="Back to Accounts"
+    :dirty="props.dirty"
+    :busy="props.busy"
+    :discard-text="props.discardText"
+    :close-on-scrim="false"
+    @closed="emit('closed')"
   >
-    <template #header="{ titleId }">
-      <div class="acct-dialog__head">
-        <button v-if="isPhone" type="button" class="acct-dialog__icon" aria-label="Close" @click="open = false">
-          <IconArrowLeft :size="20" />
-        </button>
-        <div class="acct-dialog__titles">
-          <h2 :id="titleId" class="acct-dialog__title">{{ props.title }}</h2>
-          <p v-if="props.subtitle" class="acct-dialog__sub">{{ props.subtitle }}</p>
-        </div>
-        <button v-if="!isPhone" type="button" class="acct-dialog__icon" aria-label="Close" @click="open = false">
-          <IconClose :size="18" :stroke="2" />
-        </button>
-      </div>
-    </template>
-    <div class="acct-dialog__body"><slot /></div>
-    <template #footer>
-      <div class="acct-dialog__foot"><slot name="footer" /></div>
-    </template>
-  </el-dialog>
+    <template v-if="props.subtitle" #chips>{{ props.subtitle }}</template>
+    <div class="acct-form" :class="{ 'acct-form--tight': props.tight }"><slot /></div>
+    <template #footer="{ close }"><slot name="footer" :close="close" /></template>
+  </DetailDrawer>
 </template>

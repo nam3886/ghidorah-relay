@@ -180,7 +180,8 @@ def test_edit_sends_the_changed_fields_only_and_an_emptied_proxy_as_null(app, ap
     assert len(sent) == 2
 
 
-def test_escape_closes_the_edit_account_dialog_from_a_focused_field_and_changes_nothing(app, app_session, db):
+def test_escape_from_a_focused_field_of_the_edit_account_drawer_asks_and_discarding_changes_nothing(
+        app, app_session, db):
     page = app_session
     acct = new_account(db, label="free one", checked=True)
     open_accounts(page)
@@ -189,6 +190,9 @@ def test_escape_closes_the_edit_account_dialog_from_a_focused_field_and_changes_
     label.fill("typed, never saved")
     label.focus()
     page.keyboard.press("Escape")
+    question = page.locator(".el-message-box")
+    expect(question).to_contain_text("Discard your changes to this account?")
+    question.get_by_role("button", name="Discard").click()
     expect(page.get_by_role("dialog")).to_have_count(0)
     assert db.one("SELECT label FROM accounts WHERE id = %s", acct)[0] == "free one"
 
@@ -380,7 +384,14 @@ def test_the_list_fits_the_screen_at_tablet_and_phone_widths_and_import_is_reach
     page.get_by_role("button", name="Import", exact=True).click()
     expect(page.get_by_role("dialog", name="Import accounts")).to_be_visible()
     if width == 390:
-        box = page.get_by_role("dialog", name="Import accounts").bounding_box()
+        sheet = page.get_by_role("dialog", name="Import accounts")
+        box = sheet.bounding_box()
+        for _ in range(30):                                             # a drawer slides in for a moment
+            page.wait_for_timeout(100)
+            again = sheet.bounding_box()
+            if again == box:
+                break
+            box = again
         assert box["x"] == 0 and box["width"] == width, box             # a full-screen sheet below 768 px
         expect(page.locator("tbody")).to_have_count(0)                  # a stacked list, not a table
     else:

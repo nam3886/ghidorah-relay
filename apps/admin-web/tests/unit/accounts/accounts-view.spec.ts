@@ -560,7 +560,7 @@ describe("the row commands and the edit dialog", () => {
     inBody("Check proxy").click();
     await settle();
     expect(editOpen(w)).toBe(true);
-    expect(document.body.querySelector(".acct-dialog [data-state=running]")).not.toBeNull();
+    expect(document.body.querySelector(".detail-drawer [data-state=running]")).not.toBeNull();
     // the check polls for a long time: Save stays usable meanwhile
     expect(inBody("Save").getAttribute("aria-disabled")).toBeNull();
     expect(accounts.recheckProxy).toHaveBeenCalledExactlyOnceWith("a1");
@@ -569,7 +569,7 @@ describe("the row commands and the edit dialog", () => {
     await settle();
     expect(commands.getCommand).toHaveBeenCalledWith("r1");
     expect(notify.success).toHaveBeenCalledWith("Proxy check done");
-    expect(document.body.querySelector(".acct-dialog [data-state=ok]")).not.toBeNull();
+    expect(document.body.querySelector(".detail-drawer [data-state=ok]")).not.toBeNull();
     expect(list).toHaveBeenCalledTimes(2);
   });
 
