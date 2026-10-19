@@ -138,8 +138,25 @@ def frames_page(page, db, own: str | None = None):
         page.get_by_role("dialog").get_by_role("heading", level=2)
 
 
+SETTLED_BOXES_JS = """async () => {
+  const box = (el) => { const r = el.getBoundingClientRect(); return {y: r.y, bottom: r.bottom, height: r.height}; };
+  const toast = document.querySelector('.el-message');
+  const foot = document.querySelector('.detail-drawer__foot');
+  let last = -1;
+  for (let i = 0; i < 40; i++) {                     // frames: the toast slides in, then holds still
+    const now = toast.getBoundingClientRect().bottom;
+    if (now === last) break;
+    last = now;
+    await new Promise((ok) => requestAnimationFrame(ok));
+    await new Promise((ok) => requestAnimationFrame(ok));
+  }
+  return {toast: box(toast), foot: box(foot)};
+}"""
+
+
 def press(page, button) -> None:
-    """Click a footer button. A toast from the last write is above the footer, never over its buttons."""
+    """Click a footer button and nothing more: the toast of the last write is above the footer (own assertions
+    check that), so no wait for it is needed."""
     button.click()
 
 
@@ -170,15 +187,9 @@ def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all
     press(page, save)
     expect(page.get_by_test_id("frame-warnings")).to_contain_text("asks for no single result")
     # the toast of the save sits above the footer: it covers none of its buttons
-    toast = page.locator(".el-message").first
-    expect(toast).to_be_visible()
-    foot = page.locator(".detail-drawer__foot").bounding_box()
-    for _ in range(20):                                      # the toast slides in: look until it has settled
-        shown = toast.bounding_box()
-        if shown and shown["y"] + shown["height"] <= foot["y"] + 1:
-            break
-        page.wait_for_timeout(100)
-    assert shown and shown["y"] + shown["height"] <= foot["y"] + 1, (shown, foot)
+    expect(page.locator(".el-message").first).to_be_visible()
+    boxes = page.evaluate(SETTLED_BOXES_JS, isolated_context=False)
+    assert boxes["toast"]["bottom"] <= boxes["foot"]["y"] + 1, boxes
     expect(source).to_have_text("own")
     assert frame_texts(db, "fake-video") == [first]
     expect(save).to_be_disabled()
@@ -260,6 +271,7 @@ def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all
     close_editor(page)
     row.get_by_role("checkbox").click()
     expect(row).to_contain_text(re.compile(r"locked \d\d/\d\d by"))
+    expect(page.locator(".el-message")).to_have_count(0, timeout=TIMEOUT_MS)    # a toast raised before a drawer opens stays where it was
     video.get_by_role("button", name="Edit the default").click()
     everywhere = "All single. {{tracking_code}} {{client_prompt}}"
     text.fill(everywhere)
@@ -270,6 +282,7 @@ def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all
     close_editor(page)
     row.get_by_role("checkbox").click()
     expect(row).to_contain_text(re.compile(r"unlocked \d\d/\d\d by"))
+    expect(page.locator(".el-message")).to_have_count(0, timeout=TIMEOUT_MS)
     video.get_by_role("button", name="Edit the default").click()
     expect(heading).to_have_text("Editing video / default")
     text.fill(everywhere)
@@ -383,6 +396,21 @@ def test_the_editor_drawer_is_named_by_its_heading_keeps_its_buttons_in_the_foot
     page.keyboard.press("Escape")
     expect(page.get_by_role("dialog")).to_have_count(0)
     expect(opener).to_be_focused()
+
+
+def test_on_a_phone_the_toast_after_a_save_does_not_cover_the_default_editors_footer(app_session, db, framed):
+    page = app_session
+    page.set_viewport_size({"width": 390, "height": 844})
+    video, _row, text, _heading = frames_page(page, db)
+    video.get_by_role("button", name="Edit the default").click()
+    expect(text).to_be_visible()
+    text.fill("Phone single. {{tracking_code}} {{client_prompt}}")
+    page.get_by_role("button", name="Save", exact=True).click()
+    expect(page.locator(".el-message").first).to_be_visible()
+    boxes = page.evaluate(SETTLED_BOXES_JS, isolated_context=False)
+    # the sheet footer holds three buttons and wraps to two rows (117 px at 390): the toast clears all of it
+    assert boxes["foot"]["height"] > 100, boxes
+    assert boxes["toast"]["bottom"] <= boxes["foot"]["y"] + 1, boxes
 
 
 def test_follow_the_default_and_roll_back_over_an_unsaved_draft_ask_first(app_session, db, framed):

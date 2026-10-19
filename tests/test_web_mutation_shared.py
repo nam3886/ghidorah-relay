@@ -341,15 +341,23 @@ def test_the_table_opt_ins_day_rows_tablet_and_phone_list():
 @mutation(NOTIFY, "ERROR_DURATION_MS = 5000", "ERROR_DURATION_MS = 6000", expect="an error stays 5 s")
 @mutation(NOTIFY, "DURATION_MS = 2500", "DURATION_MS = 2000", expect="closes by itself after 2.5 s")
 @mutation(NOTIFY, "showClose: true", "showClose: false", expect="has a close button")
-@mutation(NOTIFY, 'placement: "bottom-right", grouping: true', 'placement: "top-right", grouping: true',
+@mutation(NOTIFY, 'placement: "bottom-right",\n        grouping: true,', 'placement: "top-right",\n        grouping: true,',
           expect="toasts stack at the bottom right")
-@mutation(NOTIFY, "offset: PHONE_OFFSET_PX, grouping: true", "offset: PHONE_OFFSET_PX, grouping: false",
+@mutation(NOTIFY, "clearance ?? 0), grouping: true", "clearance ?? 0), grouping: false",
           expect="on a phone they sit bottom centre")
 @mutation(NOTIFY, 'placement: "bottom", offset', 'placement: "top", offset', expect="on a phone they sit bottom centre")
 @mutation(NOTIFY, "getBoundingClientRect().height) + TOAST_GAP_PX", "getBoundingClientRect().height)",
           expect="lifted by the footer's measured height plus 16")
 @mutation(NOTIFY, "TOAST_GAP_PX = 16", "TOAST_GAP_PX = 0", expect="lifted by the footer's measured height plus 16")
-@mutation(NOTIFY, "return foot ? {", "return false ? {", expect="lifted by the footer's measured height plus 16")
+@mutation(NOTIFY, "return foot ? Math.round", "return false ? Math.round", expect="lifted by the footer's measured height plus 16")
+@mutation(NOTIFY, "Math.max(PHONE_OFFSET_PX, clearance ?? 0)", "PHONE_OFFSET_PX",
+          expect="on a phone the offset is the larger of its own 72 and the wrapped footer's clearance")
+@mutation(NOTIFY, "Math.max(PHONE_OFFSET_PX, clearance ?? 0)", "clearance ?? 0",
+          expect="on a phone the offset is the larger of its own 72 and the wrapped footer's clearance")
+@mutation(NOTIFY, "if (/-leave-(active|to)/.test(e.className)) return false;", "if (false) return false;",
+          expect="ignores the footer of a drawer that is leaving")
+@mutation(NOTIFY, "r.top < window.innerHeight &&", "r.top < Infinity &&",
+          expect="keeps the default offset when no footer is drawn, or one lies outside the window")
 @mutation(NOTIFY, "PHONE_OFFSET_PX = 72", "PHONE_OFFSET_PX = 0", expect="lifted above the bulk bar")
 @mutation(NOTIFY, "(max-width: 767.98px)", "(max-width: 10px)", expect="asks the phone edge")
 @mutation(NOTIFY, "  message.closeAll();\n    },", "  void message;\n    },", expect="clear closes every toast")

@@ -48,16 +48,25 @@ function drawn(foot: Element): boolean {
     r.left < window.innerWidth
   );
 }
-function aboveDrawerFooter(): { offset?: number } {
-  if (typeof document === "undefined") return {};
+// How far a toast must sit from the bottom edge to clear the footer that is drawn, or undefined when there is none.
+function footerClearance(): number | undefined {
+  if (typeof document === "undefined") return undefined;
   const foot = [...document.querySelectorAll(".detail-drawer__foot")].find(drawn);
-  return foot ? { offset: Math.round(foot.getBoundingClientRect().height) + TOAST_GAP_PX } : {};
+  return foot ? Math.round(foot.getBoundingClientRect().height) + TOAST_GAP_PX : undefined;
 }
 
-const base = () =>
-  isPhoneNow()
-    ? ({ placement: "bottom", offset: PHONE_OFFSET_PX, grouping: true } as const)
-    : ({ placement: "bottom-right", grouping: true, ...aboveDrawerFooter() } as const);
+// A phone sheet's footer wraps to two rows when it holds three buttons: the phone offset is the larger of its own and
+// the footer's clearance.
+const base = () => {
+  const clearance = footerClearance();
+  return isPhoneNow()
+    ? ({ placement: "bottom", offset: Math.max(PHONE_OFFSET_PX, clearance ?? 0), grouping: true } as const)
+    : ({
+        placement: "bottom-right",
+        grouping: true,
+        ...(clearance === undefined ? {} : { offset: clearance }),
+      } as const);
+};
 
 // The part of ElMessage this module uses, so a spec can pass a stand-in.
 export interface MessageLike {

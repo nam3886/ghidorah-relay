@@ -115,6 +115,18 @@ describe("notify", () => {
       expect(offsetOf()).toBeUndefined();
     });
 
+    it("on a phone the offset is the larger of its own 72 and the wrapped footer's clearance", () => {
+      const { message, notify } = stub();
+      width(true);
+      footer({ height: 117 });
+      notify.success("Saved");
+      expect(lastOptions(message)).toMatchObject({ placement: "bottom", offset: 133 });
+      document.body.replaceChildren();
+      footer({ height: 40 });
+      notify.success("Saved");
+      expect(lastOptions(message).offset).toBe(72);
+    });
+
     it("ignores the footer of a drawer that is leaving", () => {
       footer({ parentClass: "el-drawer-fade-leave-active" });
       expect(offsetOf()).toBeUndefined();
