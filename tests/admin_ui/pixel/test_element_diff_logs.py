@@ -141,8 +141,23 @@ def range_picker_as_control(page, items, root) -> None:
                   "border": " / ".join(["1px solid " + color] * 4) if color else "none / none / none / none"}})
 
 
+# Owner deviation (phone filter rows): the board draws the Status and date chips in one row that scrolls sideways; the
+# app gives each its own full-width row. The canvas row is made a column whose chips stretch, the Dates chip and the
+# Status select taking the width the word leaves.
+PHONE_CHIPS_AS_ROWS_JS = """() => {
+  const cell = document.querySelector('main input[type=date]').parentElement;
+  const row = cell.parentElement;
+  if (getComputedStyle(row).overflowX !== 'auto') return;
+  row.style.flexDirection = 'column';
+  row.style.overflowX = 'visible';
+  cell.style.width = 'auto';
+  row.querySelector('select').style.flex = '1';
+}"""
+
+
 def _one_range_on_canvas(page) -> None:
     assert page.evaluate(RANGE_ON_CANVAS_JS, isolated_context=False), "the canvas has no two date inputs"
+    page.evaluate(PHONE_CHIPS_AS_ROWS_JS, isolated_context=False)
 
 
 WITH_STATUS_FIELD = ("B-Logs", "T-Logs", "P-Logs")

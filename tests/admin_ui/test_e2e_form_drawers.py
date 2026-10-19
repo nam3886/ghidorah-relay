@@ -18,7 +18,11 @@ from pixel_seed import WALLETS
 from test_admin_alert_groups import group_of, plant_unclear
 from test_e2e_keys_logs_alerts import log, open_tab, rows
 
+from relay_core.testing.mutation import mutation
+
 pytestmark = pytest.mark.browser
+
+KEY_FORM = "apps/admin-web/src/components/keys/KeyFormDialog.vue"
 
 TIMEOUT_MS = 10_000
 WIDTHS = ((1440, 900), (768, 1024))
@@ -147,6 +151,41 @@ def test_the_footer_buttons_sit_at_the_right_of_a_drawer_and_wrap_on_a_sheet(app
         assert cancel["x"] < create["x"]
 
 
+@mutation(KEY_FORM, "  padding: 0;\n  border-bottom: 1px solid var(--rl-line);",
+          "  padding: 0 4px;\n  border-bottom: 1px solid var(--rl-line);", expect="model checkboxes at")
+@pytest.mark.parametrize("width, height", [(1440, 900), (768, 1024), (390, 844)])
+def test_every_model_checkbox_shares_the_left_edge_of_the_any_model_checkbox(app, app_session, db, width, height):
+    page = app_session
+    goto_keys(app, page, width, height)
+    open_form(page)
+    page.get_by_test_id("key-drawer").locator(".kd__any input").wait_for()
+    edges = page.evaluate(
+        """() => ({
+          any: document.querySelector('.kd__any input').getBoundingClientRect().left,
+          rows: [...document.querySelectorAll('.kd__model input')].map((i) => i.getBoundingClientRect().left),
+        })""", isolated_context=False)
+    assert edges["rows"], "the catalog shows models"
+    assert all(abs(x - edges["any"]) < 0.5 for x in edges["rows"]), "model checkboxes at %r, Any model at %r" % (
+        edges["rows"], edges["any"])
+
+
+@mutation(KEY_FORM, "    flex: 1 1 0;\n", "    flex: none;\n", expect="equal widths")
+@mutation(KEY_FORM, "    border: 1px solid transparent;\n", "", expect="equal widths")
+def test_on_a_phone_cancel_and_create_key_are_two_equal_buttons_in_the_footer_row(app, app_session, db):
+    page = app_session
+    goto_keys(app, page, 390, 844)
+    box = open_form(page)
+    cancel, create = (box_of(box.get_by_role("button", name=n)) for n in ("Cancel", "Create key"))
+    foot = box_of(page.locator(".detail-drawer__foot"))
+    assert abs(cancel["y"] - create["y"]) < 0.5, "one row"
+    assert cancel["height"] == create["height"] == 44
+    assert abs(cancel["width"] - create["width"]) < 1, "equal widths: %r %r" % (cancel, create)
+    assert abs(create["x"] - (cancel["x"] + cancel["width"]) - 8) < 0.5, "an 8 px gap"
+    assert abs(cancel["x"] - (foot["x"] + 16)) < 0.5, "16 px from the left edge"
+    assert abs(create["x"] + create["width"] - (foot["x"] + 390 - 16)) < 0.5, "16 px from the right edge"
+    assert abs(cancel["y"] - (foot["y"] + 10 + 1)) < 1.5, "10 px padding under the rule"
+
+
 # ---- focus -------------------------------------------------------------------------------------------------------
 
 def test_focus_stays_in_the_drawer_and_comes_back_to_the_button_that_opened_it(app, app_session, db):
@@ -227,17 +266,25 @@ def test_a_mode_list_opens_over_the_drawer_escape_closes_only_the_list_and_a_pre
 
 # ---- closing -----------------------------------------------------------------------------------------------------
 
-def test_a_click_beside_the_drawer_never_closes_it_not_even_a_clean_one(app, app_session, db):
+def test_a_click_beside_the_drawer_is_escape_clean_it_closes_typed_it_asks(app, app_session, db):
     page = app_session
     goto_keys(app, page)
     open_form(page)
     page.mouse.click(40, 400)
-    expect(form(page)).to_be_visible()
+    expect(form(page)).to_have_count(0)
     expect(question(page)).to_have_count(0)
-    form(page).get_by_label("Label", exact=True).fill("typed")
+    box = typed_form(page)
     page.mouse.click(40, 400)
-    expect(form(page)).to_be_visible()
+    expect(question(page)).to_have_count(1)
+    expect(question(page)).to_contain_text("Discard what you typed?")
+    question(page).get_by_role("button", name="Keep editing").click()
     expect(question(page)).to_have_count(0)
+    expect(box.get_by_label("Label", exact=True)).to_have_value("half typed")
+    page.mouse.click(40, 400)
+    expect(question(page)).to_have_count(1)
+    question(page).get_by_role("button", name="Discard").click()
+    expect(form(page)).to_have_count(0)
+    assert db.one("SELECT count(*) FROM api_keys")[0] == 0
 
 
 @pytest.mark.parametrize("way", ("escape", "close", "cancel"))
@@ -308,8 +355,9 @@ def test_while_a_create_is_in_flight_every_way_out_does_nothing_and_a_good_answe
     create_clicked(page)
     expect(box.get_by_role("button", name="Create key")).to_be_disabled()
     page.keyboard.press("Escape")
-    box.get_by_role("button", name="Close", exact=True).click()
-    box.get_by_role("button", name="Cancel", exact=True).click(force=True)
+    for name in ("Close", "Cancel"):
+        expect(box.get_by_role("button", name=name, exact=True)).to_be_disabled()
+        box.get_by_role("button", name=name, exact=True).click(force=True)
     page.mouse.click(40, 400)
     page.wait_for_timeout(400)
     expect(form(page)).to_be_visible()

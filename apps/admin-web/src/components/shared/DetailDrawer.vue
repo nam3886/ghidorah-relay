@@ -18,8 +18,8 @@ import { askDiscard, cancelPending } from "./use-leave-guard";
 //  - not `dirty`: it emits `update:modelValue(false)` at once;
 //  - `dirty`: it asks "Discard what you typed?" (one box at a time, see use-leave-guard) and emits only on Discard.
 // A parent that sets the model to false itself (a save that worked) is not guarded, and a box still up is closed.
-// With none of the three props the drawer closes at once, as it always did. A form passes `closeOnScrim` false: a
-// click beside it never closes it.
+// With none of the three props the drawer closes at once, as it always did. A click beside the drawer is the same as
+// Escape (`closeOnScrim`, true unless a caller passes false).
 const props = withDefaults(
   defineProps<{
     modelValue: boolean;
@@ -101,6 +101,7 @@ watch(
           type="button"
           class="detail-drawer__icon is-back"
           :aria-label="props.backLabel"
+          :disabled="props.busy"
           @click="requestClose"
         >
           <IconArrowLeft :size="20" />
@@ -126,6 +127,7 @@ watch(
           type="button"
           class="detail-drawer__icon is-muted is-close"
           aria-label="Close"
+          :disabled="props.busy"
           @click="requestClose"
         >
           <IconClose :size="18" :stroke="2" />
@@ -217,6 +219,14 @@ watch(
 }
 .detail-drawer__icon:hover {
   background: var(--rl-raised);
+}
+/* a write is in flight: the way out is off, and says so */
+.detail-drawer__icon:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.detail-drawer__icon:disabled:hover {
+  background: transparent;
 }
 .detail-drawer__body {
   flex: 1;

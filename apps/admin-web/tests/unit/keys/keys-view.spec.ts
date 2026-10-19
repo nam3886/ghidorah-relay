@@ -789,8 +789,13 @@ describe("the key form as a drawer that guards what was typed", () => {
   const label = () => document.body.querySelector<HTMLInputElement>("#key-label")!;
   const askedWith = (message: string) => expect.objectContaining({ message });
   const confirmed = vi.mocked(confirm.confirmDialog);
+  // a press and release on the scrim itself, as a mouse does
+  const scrim = () => {
+    const el = document.body.querySelector<HTMLElement>(".el-overlay")!;
+    for (const type of ["mousedown", "mouseup", "click"]) el.dispatchEvent(new MouseEvent(type, { bubbles: true }));
+  };
 
-  it("is a right drawer named by its heading, with no scrim close", async () => {
+  it("is a right drawer named by its heading, and a click beside it is a way out like Escape", async () => {
     await open();
     buttonOf("New key").click();
     await settle();
@@ -802,8 +807,29 @@ describe("the key form as a drawer that guards what was typed", () => {
       document.body.querySelector(".el-drawer h2"),
     );
     const el = wrapper!.findComponent({ name: "ElDrawer" });
-    expect(el.props("closeOnClickModal")).toBe(false);
+    expect(el.props("closeOnClickModal")).toBe(true);
     expect(el.props("direction")).toBe("rtl");
+  });
+
+  it("a click beside a typed form asks like Escape, and beside a clean form closes it", async () => {
+    await open();
+    await openNewKey("half typed");
+    confirmed.mockResolvedValueOnce(false);
+    scrim();
+    await settle();
+    expect(confirmed).toHaveBeenCalledExactlyOnceWith(askedWith("Discard what you typed?"));
+    expect(label().value).toBe("half typed");
+    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(true);
+    confirmed.mockResolvedValueOnce(true);
+    scrim();
+    await settle();
+    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(false);
+    buttonOf("New key").click();
+    await settle();
+    scrim();
+    await settle();
+    expect(confirmed).toHaveBeenCalledTimes(2);
+    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(false);
   });
 
   it("a form nobody typed in closes at once", async () => {
@@ -882,9 +908,12 @@ describe("the key form as a drawer that guards what was typed", () => {
     await openNewKey("Slow");
     buttonOf("Create key").click();
     await settle();
+    expect(xButton().disabled).toBe(true);
+    expect(buttonOf("Cancel").disabled).toBe(true);
     xButton().click();
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
     buttonOf("Cancel").click();
+    scrim();
     await settle();
     expect(confirmed).not.toHaveBeenCalled();
     expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(true);

@@ -147,6 +147,9 @@ DRAWER = [
 # (B-Frames 2.98, T-Frames 2.61, P-Frames 4.83, worst of light and dark); each takes its measured value + 1.0. The
 # editor is compared by element instead (test_element_diff_frames_settings.py: its body at the drawer width with a
 # pixel gate of its own, and the footer).
+# P-Logs is compared down to the search field only (region 0 0 390 268): below it the app gives the Status chip and the
+# Dates chip a full-width row each, where the board draws one scrolling row, so the rest sits lower than on the board
+# and the element diff compares it (restacked canvas). Measured 0.00 in both themes, gate 0.00 + 1.0.
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
 # that gets better should have its gate lowered.
 GATES: dict[str, float] = {
@@ -171,7 +174,7 @@ GATES: dict[str, float] = {
     "P-Jobs-shell": 1.00,
     "P-Keys": 2.93,
     "P-Login": 1.16,
-    "P-Logs": 1.23,
+    "P-Logs": 1.00,
     "P-Settings": 1.25,
     "P-Test": 1.30,
     "T-Accounts": 1.03,
