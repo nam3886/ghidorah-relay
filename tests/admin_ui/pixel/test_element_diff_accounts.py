@@ -20,7 +20,15 @@ from pixel_diff import compare
 from pixel_manifest import Entry
 from pixel_seed import BOARD_USER, NOW
 from test_element_diff import BOARDS, STATES, THEMES, TIMEOUT_MS, WIDEN_JS, Check, _png, _root
-from test_element_diff_alerts import FIELD_RECTS_JS, FIELDS, SELECT_MISMATCH_PCT, _inside, select_pixels
+from test_element_diff_alerts import (
+    CHEVRON_COLOURS_JS,
+    FIELD_RECTS_JS,
+    FIELDS,
+    SELECT_MISMATCH_PCT,
+    _inside,
+    declare_chevron_ink,
+    select_pixels,
+)
 
 pytestmark = pytest.mark.browser
 
@@ -183,6 +191,7 @@ def test_accounts_matches_the_canvas_element_by_element(app, db, live, renderer,
         if check.fields:
             rects = page.evaluate(FIELD_RECTS_JS, [app_root, FIELDS], isolated_context=False)
             mine["texts"] = [t for t in mine["texts"] if not _inside(t, rects)]
+            colours = page.evaluate(CHEVRON_COLOURS_JS, isolated_context=False)
             field_pngs = [loc.screenshot(animations="disabled", caret="hide")
                           for loc in page.locator("%s %s" % (app_root, FIELDS)).all()]
         misplaced = popup_place(page, *check.popup, gap=check.popup_gap) if check.popup else None
@@ -210,6 +219,7 @@ def test_accounts_matches_the_canvas_element_by_element(app, db, live, renderer,
         canvas_pngs = [loc.screenshot(animations="disabled", caret="hide")
                        for loc in renderer.page.locator("%s select" % canvas_root).all()]
         fields = select_pixels(field_pngs, canvas_pngs, diff_page, out, stem)
+        declare_chevron_ink(theirs, mine, colours)
 
     theirs["texts"] = [t for t in theirs["texts"] if t["text"] not in check.accepted]
     mine["texts"] = [t for t in mine["texts"] if t["text"] not in check.accepted_app]
