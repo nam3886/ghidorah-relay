@@ -268,7 +268,7 @@ describe("the sub-navigation", () => {
     const links = nav.findAll("a");
     expect(links.map((a) => a.text())).toEqual(["Settings", "Boot-only values", "Measured prices", "Change password"]);
     expect(links.map((a) => a.attributes("aria-current"))).toEqual(["true", undefined, undefined, undefined]);
-    window.scrollTo = vi.fn() as typeof window.scrollTo;
+    vi.stubGlobal("scrollTo", vi.fn());
     await links[2]!.trigger("click");
     expect(wrapper!.findAll('nav[aria-label="Settings sections"] a').map((a) => a.attributes("aria-current"))).toEqual([
       undefined,
@@ -279,10 +279,14 @@ describe("the sub-navigation", () => {
   });
 
   let styleSpy: { mockRestore(): void } | null = null;
+  let wrapEl: HTMLElement | null = null;
   afterEach(() => {
     styleSpy?.mockRestore();
     styleSpy = null;
+    wrapEl?.remove();
+    wrapEl = null;
     vi.unstubAllGlobals();
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
   });
   // The card sits 700 px below the top of the viewport and keeps 16 px of scroll margin.
   function geometry(withArea: boolean): void {
@@ -304,6 +308,7 @@ describe("the sub-navigation", () => {
     wrap.scrollTo = vi.fn() as typeof wrap.scrollTo;
     document.body.appendChild(wrap);
     wrap.appendChild(wrapper!.element);
+    wrapEl = wrap;
     return wrap;
   }
   const pricesLink = () => wrapper!.findAll('nav[aria-label="Settings sections"] a')[2]!;
@@ -315,22 +320,24 @@ describe("the sub-navigation", () => {
     vi.spyOn(wrap, "getBoundingClientRect").mockReturnValue({ top: 60 } as DOMRect);
     const intoView = vi.fn();
     Element.prototype.scrollIntoView = intoView;
-    window.scrollTo = vi.fn() as typeof window.scrollTo;
+    const windowScroll = vi.fn();
+    vi.stubGlobal("scrollTo", windowScroll);
     geometry(true);
     await pricesLink().trigger("click");
     expect(wrap.scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 500 + (700 - 60 - 16) });
     expect(intoView).not.toHaveBeenCalled();
-    expect(window.scrollTo).not.toHaveBeenCalled();
+    expect(windowScroll).not.toHaveBeenCalled();
   });
 
   it("scrolls the window where the page has no scroll area of its own (a phone)", async () => {
     await open();
     const wrap = inWrap();
-    window.scrollTo = vi.fn() as typeof window.scrollTo;
+    const windowScroll = vi.fn();
+    vi.stubGlobal("scrollTo", windowScroll);
     vi.stubGlobal("scrollY", 40);
     geometry(false);
     await pricesLink().trigger("click");
-    expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 40 + (700 - 16) });
+    expect(windowScroll).toHaveBeenCalledExactlyOnceWith({ top: 40 + (700 - 16) });
     expect(wrap.scrollTo).not.toHaveBeenCalled();
   });
 });
