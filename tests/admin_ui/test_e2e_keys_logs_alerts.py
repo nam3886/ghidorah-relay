@@ -663,8 +663,24 @@ def test_the_drawer_ignores_every_way_out_while_an_acknowledge_runs(app, app_ses
     expect(drawer).to_be_visible()
     held[0].fulfill(status=200, content_type="application/json", body='{"acknowledged": 1}')
     expect(page.get_by_text("Acknowledged 1 row(s)")).to_be_visible()
-    page.keyboard.press("Escape")
+    page.mouse.click(5, 300)                                            # idle again: the scrim closes it
     expect(drawer).to_be_hidden()
+
+
+def test_on_a_phone_the_filter_chips_sit_one_per_row_at_full_width(app, app_session, db):
+    page = app_session
+    page.set_viewport_size({"width": 390, "height": 844})
+    alerts_page(page, db)
+    card = page.locator('section[aria-label="Alert groups"]')
+    chip = "xpath=ancestor::*[contains(@class, 'is-chip')][1]"
+    status = card.get_by_role("combobox", name="Status", exact=True).locator(chip)
+    kind = card.get_by_role("combobox", name="Kind", exact=True).locator(chip)
+    box, a, b = card.bounding_box(), status.bounding_box(), kind.bounding_box()
+    # 12 px of the toolbar's padding on each side of the card (1 px border)
+    for each in (a, b):
+        assert abs(each["x"] - (box["x"] + 13)) <= 1 and abs(each["width"] - (box["width"] - 26)) <= 1, (each, box)
+    assert b["y"] >= a["y"] + a["height"], "the Kind chip is not under the Status chip"
+    assert abs(b["x"] - a["x"]) <= 1
 
 
 def test_a_detail_that_cannot_be_read_keeps_the_drawer_open_with_the_error_inside(app, app_session, db):

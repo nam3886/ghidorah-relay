@@ -352,7 +352,8 @@ def alerts_all(page, live, data) -> None:
 
 # The Alerts boards draw group 1 selected with its detail card open below the list; the app opens the detail in a
 # right drawer and selects nothing, so the pixel boards compare the part above the first group row (top bar, header,
-# live conditions, filters, column header): the rows and the detail are compared by element
+# live conditions, filters, column header). On a phone the filters sit one per row where the canvas draws them side by
+# side, so the P board stops above them. The rows and the detail are compared by element
 # (test_element_diff_alerts.py, which reads the canvas without its card and its Details links).
 
 # ---- the entries -----------------------------------------------------------------------------------------------------
@@ -370,5 +371,5 @@ KLA = [
     Entry("T-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_all, user=BOARD_USER,
           region=(0, 0, 768, 514)),
     Entry("P-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_all, user=BOARD_USER,
-          region=(0, 0, 390, 567)),
+          region=(0, 0, 390, 498)),
 ]

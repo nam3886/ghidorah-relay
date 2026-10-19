@@ -138,7 +138,8 @@ DRAWER = [
 # bars, so it takes the measured value + 1.0.
 # The Alerts boards change on purpose: the detail is a right drawer and no row is drawn selected, so they are compared
 # above the first group row only (region, pixel_kla.py), and the rows and the detail by element. Measured over that
-# region (worst of light and dark, mismatch + anti-aliasing): B 0.45, T 0.40, P 1.29, each + 1.0. The gates are higher
+# region (worst of light and dark, mismatch + anti-aliasing): B 0.45, T 0.40, P 1.18, each + 1.0 (the P region stops
+# above the filters, which sit one per row on a phone where the canvas draws them side by side). The gates are higher
 # than before because the compared area is smaller (the same few pixels are a larger share of it).
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
 # that gets better should have its gate lowered.
@@ -159,7 +160,7 @@ GATES: dict[str, float] = {
     "B-Settings": 1.08,
     "B-Test": 1.14,
     "P-Accounts": 1.04,
-    "P-Alerts": 2.29,
+    "P-Alerts": 2.18,
     "P-Frames": 1.46,
     "P-JobDetail": 2.23,
     "P-Jobs": 1.02,

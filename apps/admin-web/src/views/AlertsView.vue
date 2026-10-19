@@ -659,11 +659,19 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   line-height: 36px;
 }
 .is-phone .gt {
+  flex-direction: column;
   flex-wrap: nowrap;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
-  overflow-x: auto;
   padding: 12px;
+}
+/* each filter chip takes a row, full width, its value at the start and its arrow at the end */
+.is-phone .gt :deep(.filter-field.is-chip) {
+  width: 100%;
+}
+.is-phone .gt :deep(.filter-field.is-chip .filter-select.is-field) {
+  flex: 1;
+  text-align: left;
 }
 .is-phone .gt__count {
   flex: none;

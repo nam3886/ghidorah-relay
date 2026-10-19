@@ -132,6 +132,13 @@ CANVAS_WITHOUT_DETAIL = """() => {
     // a phone block whose only button was Details has no button row now (a table cell stays)
     if (!row.children.length && row.tagName !== 'TD') row.remove();
   });
+  // Owner deviation: on a phone the filter chips sit one per row, full width (the canvas draws them side by side).
+  if (innerWidth < 768) {
+    const bar = document.querySelector('section[aria-label="Alert groups"] > div:first-child');
+    bar.style.cssText += ';flex-direction: column; align-items: stretch; overflow: visible; gap: 8px';
+    bar.querySelectorAll('label').forEach((l) => { l.style.flex = 'none'; });
+    bar.querySelectorAll('select').forEach((x) => { x.style.flex = '1'; });
+  }
   document.querySelectorAll('main tbody td, main li').forEach((el) => {
     if (el.style.background.includes('primary-soft')) el.style.background = '';
   });
