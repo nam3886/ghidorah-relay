@@ -11,7 +11,12 @@ import { importBody, rejectedText } from "./account-model";
 // Import accounts: one credential per line, an optional proxy for all of them, and the result of the answer. A
 // rejected line is named by its number and reason only: the credential itself is never echoed back.
 const open = defineModel<boolean>({ required: true });
-const emit = defineEmits<{ imported: []; "update:dirty": [dirty: boolean]; closed: [] }>();
+const emit = defineEmits<{
+  imported: [];
+  "update:dirty": [dirty: boolean];
+  "update:busy": [busy: boolean];
+  closed: [];
+}>();
 
 const scope = useScopeStore();
 const { busy, run } = useBusy();
@@ -24,6 +29,7 @@ const providers = computed(() => scope.providers);
 // something pasted that a close would lose (a submitted import has been wiped, so it is clean)
 const dirty = computed(() => credentials.value.trim() !== "" || proxy.value.trim() !== "");
 watch(dirty, (d) => emit("update:dirty", d), { immediate: true });
+watch(busy, (b) => emit("update:busy", b));
 const providerOptions = computed(() => providers.value.map((name) => ({ value: name, label: name })));
 
 // What was pasted never outlives its use: both fields are emptied when the drawer opens and when it closes (by any

@@ -57,6 +57,8 @@ const scope = useScopeStore();
 const stats = useStatsStore();
 const { isPhone, isTablet } = useBreakpoint();
 const { busy, run } = useBusy();
+// the Edit drawer's own write (the wait for a proxy check and the patch): only this makes its close paths inert
+const { busy: saving, run: runSave } = useBusy();
 // Check all and Refresh catalog poll for a long time: each locks only its own entry, as the other actions stay usable.
 const { busy: checkingAll, run: runCheckAll } = useBusy();
 const { busy: readingCatalogs, run: runReadCatalogs } = useBusy();
@@ -91,7 +93,12 @@ const confirming = ref(false);
 // something typed in an open drawer that a leave of the page would lose
 const importDirty = ref(false);
 const editDirty = ref(false);
-useRouteLeaveGuard(() => (importOpen.value && importDirty.value) || (editOpen.value && editDirty.value));
+// an import under way: its answer lists the rejected lines and must still be seen
+const importBusy = ref(false);
+useRouteLeaveGuard(
+  () => (importOpen.value && importDirty.value) || (editOpen.value && editDirty.value),
+  () => importBusy.value || saving.value,
+);
 // A dialog or a confirm box in front of the list: the auto-refresh leaves the list alone.
 const dialogOpen = computed(() => importOpen.value || editOpen.value || confirming.value);
 
@@ -288,12 +295,17 @@ function openEdit(a: Account) {
 async function saveAccount(patch: AccountPatch) {
   const a = editing.value;
   if (!a) return;
-  await run(async () => {
+  const out = await runSave(async () => {
     // a Check proxy of this account still under way ends first: its read of the list never lands after the save
     await proxyRuns.get(a.id);
-    const out = await patchAccount(a.id, patch);
+    const answer = await patchAccount(a.id, patch);
     editOpen.value = false;
     notify.success("Saved");
+    return answer;
+  });
+  if (!out) return;
+  // the drawer is gone: the proxy check the server queued and the new read of the list are the page's general work
+  await run(async () => {
     if (out.command_id) await poll(out.command_id, "Proxy check");
     if (!disposed) await load();
   });
@@ -456,6 +468,7 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
     <ImportDialog
       v-model="importOpen"
       @imported="load"
+      @update:busy="(b: boolean) => (importBusy = b)"
       @update:dirty="(d: boolean) => (importDirty = d)"
       @closed="drawerClosed"
     />
@@ -463,6 +476,7 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
       v-model="editOpen"
       :account="editing"
       :busy="busy"
+      :saving="saving"
       :proxy-chip="editing ? (chips[`proxy:${editing.id}`] ?? null) : null"
       @save="saveAccount"
       @recheck="recheck"

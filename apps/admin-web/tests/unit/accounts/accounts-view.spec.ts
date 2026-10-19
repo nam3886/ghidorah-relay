@@ -33,6 +33,18 @@ vi.mock("@/api/shell", () => ({
   getPoolStats: vi.fn(),
 }));
 vi.mock("@/components/shared/confirm-dialog", () => ({ confirmDialog: vi.fn() }));
+// the leave guard the page registers: its two predicates are read back by the tests below
+const guards = vi.hoisted(() => ({ calls: [] as [() => boolean, () => boolean][] }));
+vi.mock("@/components/shared/use-leave-guard", async (original) => {
+  const actual = await original<typeof import("@/components/shared/use-leave-guard")>();
+  return {
+    ...actual,
+    useRouteLeaveGuard: (dirty: () => boolean, blocked: () => boolean) => {
+      guards.calls.push([dirty, blocked]);
+      return actual.useRouteLeaveGuard(dirty, blocked);
+    },
+  };
+});
 vi.mock("@/lib/notify", () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn(), clear: vi.fn() } }));
 
 const PLANTED = "<img src=x onerror=window.__pwned=1><b>planted</b>";
@@ -859,5 +871,127 @@ describe("auto-refresh", () => {
     wrapper = null;
     await vi.advanceTimersByTimeAsync(30000);
     expect(list).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the Edit and Import drawers on the page", () => {
+  const done = (id: string) => ({ id, status: "done", result: null }) as unknown as commands.CommandStatus;
+  const editOpen = (w: VueWrapper) => w.findComponent(EditDialog).props("modelValue");
+  const escape = () =>
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+  const type = (selector: string, value: string) => {
+    const el = document.body.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)!;
+    el.value = value;
+    el.dispatchEvent(new Event("input"));
+  };
+  const inDrawer = (text: string) =>
+    [...document.body.querySelectorAll<HTMLElement>(".detail-drawer__foot button")].find(
+      (b) => b.textContent?.trim() === text,
+    )!;
+  const leave = () => guards.calls.at(-1)!;
+
+  it("a row command that is running does not stop the Edit drawer from closing", async () => {
+    vi.mocked(accounts.checkAccount).mockResolvedValue({ command_id: "c1" });
+    const gate = deferred<commands.CommandStatus>();
+    vi.mocked(commands.getCommand).mockReturnValue(gate.promise);
+    const w = await open();
+    await w.find("[aria-label='Check main']").trigger("click");
+    await settle();
+    await pick(w, "Edit");
+    expect(editOpen(w)).toBe(true);
+    escape();
+    await settle();
+    expect(editOpen(w)).toBe(false);
+    gate.resolve(done("c1"));
+    await settle();
+  });
+
+  it("a paste in Import and a change in Edit are what a leave of the page would lose", async () => {
+    const w = await open();
+    const [dirty] = leave();
+    expect(dirty()).toBe(false);
+    await button(w, "Import").trigger("click");
+    await settle();
+    type("textarea", "cookie-one");
+    await settle();
+    expect(dirty()).toBe(true);
+    type("textarea", "");
+    await settle();
+    expect(dirty()).toBe(false);
+    escape();
+    await settle();
+    await pick(w, "Edit");
+    type("[aria-label=Label]", "renamed");
+    await settle();
+    expect(dirty()).toBe(true);
+  });
+
+  it("an import under way blocks a leave of the page, and so does a save in flight", async () => {
+    const importing = deferred<accounts.ImportResult>();
+    vi.mocked(accounts.importAccounts).mockReturnValue(importing.promise);
+    const w = await open();
+    const [, blocked] = leave();
+    expect(blocked()).toBe(false);
+    await button(w, "Import").trigger("click");
+    await settle();
+    type("textarea", "cookie-one");
+    await settle();
+    inDrawer("Import").click();
+    await settle();
+    expect(blocked()).toBe(true);
+    importing.resolve({ imported: [], rejected: [] });
+    await settle();
+    expect(blocked()).toBe(false);
+    document.body.querySelector<HTMLElement>("button[aria-label=Close]")!.click();
+    await settle();
+
+    const saving = deferred<{ command_id: string | null }>();
+    vi.mocked(accounts.patchAccount).mockReturnValue(saving.promise as ReturnType<typeof accounts.patchAccount>);
+    await pick(w, "Edit");
+    type("[aria-label=Label]", "renamed");
+    await settle();
+    inDrawer("Save").click();
+    await settle();
+    expect(blocked()).toBe(true);
+    saving.resolve({ command_id: null });
+    await settle();
+    expect(blocked()).toBe(false);
+  });
+
+  describe("focus after the drawer is gone", () => {
+    // the drawer's leave transition does not run here: its `closed` is sent by hand, with the focus off every control
+    const gone = async (w: VueWrapper) => {
+      (document.activeElement as HTMLElement | null)?.blur();
+      w.findComponent(EditDialog).vm.$emit("closed");
+      await settle();
+    };
+    const seeable = () =>
+      vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([{}] as unknown as DOMRectList);
+    afterEach(() => vi.restoreAllMocks());
+
+    it("is left to Element Plus, which gives it back to the row button, while that button can be seen", async () => {
+      seeable();
+      const w = await open();
+      await pick(w, "Edit");
+      await gone(w);
+      expect(document.activeElement).toBe(document.body);
+    });
+
+    it("goes to the page's Import button when the opener can no longer be seen", async () => {
+      vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([] as unknown as DOMRectList);
+      const w = await open();
+      await pick(w, "Edit");
+      await gone(w);
+      expect(document.activeElement).toBe(button(w, "Import").element);
+    });
+
+    it("goes to the page's Import button when the opener was removed from the page", async () => {
+      seeable();
+      const w = await open();
+      await pick(w, "Edit");
+      w.find("[aria-label='More actions for main']").element.remove();
+      await gone(w);
+      expect(document.activeElement).toBe(button(w, "Import").element);
+    });
   });
 });

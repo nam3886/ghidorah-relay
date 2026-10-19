@@ -11,7 +11,9 @@ import { accountChanges, type ChipState, proxyStatus, proxyText } from "./accoun
 // stays open: under the proxy row the status line shows the check's chip while it runs and how it ended
 // (`proxyChip`, B-States "Command status"); without one, the result of the last check as it stands.
 const open = defineModel<boolean>({ required: true });
-const props = defineProps<{ account: Account | null; busy: boolean; proxyChip?: ChipState | null }>();
+// `busy`: the page is running some command (Save waits); `saving`: this drawer's own write is in flight (every way
+// out of it is inert)
+const props = defineProps<{ account: Account | null; busy: boolean; saving: boolean; proxyChip?: ChipState | null }>();
 const emit = defineEmits<{
   save: [patch: AccountPatch];
   recheck: [account: Account];
@@ -73,7 +75,7 @@ function recheck() {
     testid="edit-account-drawer"
     discard-text="Discard your changes to this account?"
     :dirty="dirty"
-    :busy="props.busy"
+    :busy="props.saving"
     @closed="emit('closed')"
   >
     <label class="acct-field">
@@ -116,8 +118,8 @@ function recheck() {
       <button
         type="button"
         class="acct-btn acct-btn--primary"
-        :aria-disabled="props.busy ? 'true' : undefined"
-        @click="!props.busy && save()"
+        :aria-disabled="props.busy || props.saving ? 'true' : undefined"
+        @click="!props.busy && !props.saving && save()"
       >
         Save
       </button>

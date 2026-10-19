@@ -79,7 +79,7 @@ afterEach(() => {
 describe("EditDialog", () => {
   const mountEdit = async (a: Account) => {
     wrapper = mount(EditDialog, {
-      props: { modelValue: true, account: a, busy: false, ...follow(() => wrapper!) },
+      props: { modelValue: true, account: a, busy: false, saving: false, ...follow(() => wrapper!) },
       attachTo: document.body,
     });
     await flushPromises();
@@ -146,11 +146,27 @@ describe("EditDialog", () => {
     const lastDirty = (w: VueWrapper) => w.emitted("update:dirty")!.at(-1);
 
     it("a clean form closes at once from the X, Escape and Cancel, with no question", async () => {
+      for (const path of ["x", "escape", "cancel"] as const) {
+        const w = await mountEdit(account());
+        expect(lastDirty(w), path).toEqual([false]);
+        if (path === "x") closeX().click();
+        else if (path === "escape") press("Escape");
+        else buttonOf("Cancel").click();
+        await flushPromises();
+        expect(w.emitted("update:modelValue"), path).toEqual([[false]]);
+        w.unmount();
+        wrapper = null;
+        document.body.replaceChildren();
+      }
+      expect(ask).not.toHaveBeenCalled();
+    });
+
+    it("a page that is busy with another command does not stop the drawer closing; Save waits", async () => {
       const w = await mountEdit(account());
-      expect(lastDirty(w)).toEqual([false]);
+      await w.setProps({ busy: true });
+      expect(buttonOf("Save").getAttribute("aria-disabled")).toBe("true");
       closeX().click();
       await flushPromises();
-      expect(ask).not.toHaveBeenCalled();
       expect(w.emitted("update:modelValue")).toEqual([[false]]);
     });
 
@@ -243,7 +259,7 @@ describe("EditDialog", () => {
 
     it("no close path works while a save is in flight", async () => {
       const w = await mountEdit(account());
-      await w.setProps({ busy: true });
+      await w.setProps({ saving: true });
       type(field("Label"), "renamed");
       closeX().click();
       press("Escape");
@@ -498,7 +514,7 @@ describe("what was pasted never outlives its use", () => {
     });
   }
 
-  it("a proxy alone is a paste worth asking about; spaces alone are not", async () => {
+  it("spaces alone are not worth asking about", async () => {
     seedCatalog();
     await mountImport();
     type(document.body.querySelector("textarea")!, "  \n ");
@@ -631,7 +647,7 @@ describe("the drawer frame", () => {
   afterEach(() => vi.unstubAllGlobals());
   const mountEdit = async () => {
     wrapper = mount(EditDialog, {
-      props: { modelValue: true, account: account(), busy: false },
+      props: { modelValue: true, account: account(), busy: false, saving: false },
       attachTo: document.body,
     });
     await flushPromises();
