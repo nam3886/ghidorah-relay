@@ -397,6 +397,8 @@ describe("the detail", () => {
       .findAll("button")
       .find((b) => b.text() === "A title")!
       .trigger("click");
+    // the job opens once the detail drawer has left
+    expect(await goneAfterLeave()).toBe(true);
     expect(useUiStore(pinia).openJobId).toBe("abcdef0123456789");
   });
 
@@ -485,6 +487,12 @@ describe("the detail", () => {
     expect(isOpen()).toBe(true);
   });
 
+  it("a click on the title button opens the detail once: the row does not open it a second time", async () => {
+    const w = await open();
+    await openFirst(w);
+    expect(alerts.getAlertGroup).toHaveBeenCalledTimes(1);
+  });
+
   it("a phone block opens the detail on a click beside its buttons", async () => {
     showAt(390);
     const w = await open();
@@ -493,7 +501,7 @@ describe("the detail", () => {
     expect(isOpen()).toBe(true);
   });
 
-  it("opening a job closes this drawer first", async () => {
+  it("opening a job closes this drawer first and opens the job once it is gone", async () => {
     vi.mocked(alerts.getAlertGroup).mockResolvedValue(detail({ kind: "unclear_reply", items: [unclearItem()] }));
     const w = await open();
     await openFirst(w);
@@ -501,9 +509,10 @@ describe("the detail", () => {
       .findAll("button")
       .find((b) => b.text() === "A title")!
       .trigger("click");
-    await settle();
-    expect(useUiStore(pinia).openJobId).toBe("abcdef0123456789");
+    // the drawer is leaving: the job does not open on top of it
+    expect(useUiStore(pinia).openJobId).toBeNull();
     expect(await goneAfterLeave()).toBe(true);
+    expect(useUiStore(pinia).openJobId).toBe("abcdef0123456789");
   });
 
   it("an unlabelled key is named by the prefix the API sends", async () => {

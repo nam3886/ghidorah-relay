@@ -207,6 +207,13 @@ function closeDetail() {
 function detailClosed(): void {
   if (asked.value.open) return;
   shownDetail.value = null;
+  // a job asked for from the detail opens now, once this drawer has left the screen
+  if (pendingJob) {
+    const id = pendingJob;
+    pendingJob = null;
+    ui.openJob(id);
+    return;
+  }
   if (ui.openJobId) return;
   if (opener?.isConnected && opener !== document.body) return;
   document.querySelector<HTMLElement>(".app-scroll__wrap")?.focus({ preventScroll: true });
@@ -218,10 +225,12 @@ function rowClick(event: MouseEvent, g: AlertGroup): void {
   openGroup(g);
 }
 
-// a job opens in its own drawer: this one goes first, so two never stack
+// a job opens in its own drawer: this one closes first and the job opens when it is gone (`detailClosed`), so the two
+// are never on the screen together
+let pendingJob: string | null = null;
 function openJob(jobId: string): void {
+  pendingJob = jobId;
   closeDetail();
-  ui.openJob(jobId);
 }
 
 const detailHeading = computed(() => (shownDetail.value ? alertTitle(shownDetail.value) : "Alert details"));

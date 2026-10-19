@@ -502,6 +502,19 @@ def close_detail(page):
     expect(drawer).to_be_hidden()
 
 
+# Watches the page for the two drawers' bodies at once (a body exists from the drawer's opening until it has left).
+OVERLAP_WATCH_JS = """() => {
+  window.__overlap = false;
+  window.__jobOpened = false;
+  new MutationObserver(() => {
+    const alert = document.querySelector('[data-testid="alert-detail"] .detail-drawer__body');
+    const job = document.querySelector('[data-testid="job-drawer"] .detail-drawer__body');
+    if (job) window.__jobOpened = true;
+    if (alert && job) window.__overlap = true;
+  }).observe(document.body, {childList: true, subtree: true});
+}"""
+
+
 def alerts_page(page, db):
     keys = alerts_planted(db)
     open_tab(page, "Alerts")
@@ -552,10 +565,14 @@ def test_the_detail_shows_outcomes_and_opens_a_job_and_acknowledge_sends_what_it
         "1 delivered after the reply, 1 refunded, 1 still open.")
     expect(detail.locator("tbody tr")).to_have_count(3)
     assert_hostile_wording_is_text(page)
+    page.evaluate(OVERLAP_WATCH_JS, isolated_context=False)
     detail.locator("tbody tr", has_text="render.deadline").get_by_role("button").click()
-    # the job opens in its own drawer and this one goes first: never two at once
+    # the job opens in its own drawer and this one goes first: never two at once, not even while this one leaves
     expect(detail).to_be_hidden()
     expect(page.get_by_role("dialog")).to_have_count(1)
+    assert page.evaluate("window.__jobOpened", isolated_context=False), "the job drawer never opened"
+    assert not page.evaluate("window.__overlap", isolated_context=False), \
+        "the job drawer opened while the alert drawer was still on the screen"
     page.get_by_role("dialog").get_by_role("button", name="Close").first.click()
     expect(page.get_by_role("dialog")).to_have_count(0)
     open_group(page, "which style?")
@@ -609,6 +626,21 @@ def test_the_title_button_a_row_click_and_enter_open_the_drawer_and_focus_comes_
     group_row(page, "plain wording").get_by_role("button", name="Acknowledge").click()
     expect(page.get_by_text("Acknowledged 1 row(s)")).to_be_visible()
     expect(drawer).to_be_hidden()
+
+
+def test_the_space_key_on_the_title_button_opens_the_drawer(app, app_session, db):
+    page = app_session
+    page.set_viewport_size({"width": 768, "height": 1024})
+    alerts_page(page, db)
+    drawer = page.get_by_test_id("alert-detail")
+    title = group_row(page, "plain wording").get_by_role("button", name=re.compile(r"^Details of"))
+    title.focus()
+    page.keyboard.press("Space")
+    expect(drawer).to_be_visible()
+    expect(drawer.locator("#alertDetail")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(drawer).to_be_hidden()
+    expect(title).to_be_focused()
 
 
 def test_the_drawer_ignores_every_way_out_while_an_acknowledge_runs(app, app_session, db):

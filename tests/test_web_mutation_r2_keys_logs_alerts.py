@@ -697,10 +697,13 @@ def test_the_alerts_view_drops_stale_answers_and_acknowledges_what_was_shown():
           "  opened.value = null;\n  detailError", expect=ALERT_DETAIL_SPEC + "Close reloads the list")
 @mutation(ALERTS, "if (d) shownDetail.value = d;", "shownDetail.value = d;",
           expect=ALERT_DETAIL_SPEC + "closing keeps the last detail until the drawer is gone")
-@mutation(ALERTS, "  closeDetail();\n  ui.openJob(jobId);", "  ui.openJob(jobId);",
-          expect=ALERT_DETAIL_SPEC + "opening a job closes this drawer first")
+@mutation(ALERTS, "  pendingJob = jobId;\n  closeDetail();", "  ui.openJob(jobId);\n  closeDetail();",
+          expect=ALERT_DETAIL_SPEC + "opening a job closes this drawer first and opens the job once it is gone")
+@mutation(ALERTS, "    ui.openJob(id);\n    return;", "    return;",
+          expect=ALERT_DETAIL_SPEC + "opening a job closes this drawer first and opens the job once it is gone")
 @mutation(ALERTS, '?.closest("button, a")) return;', '?.closest("button, a") && false) return;',
-          expect=ALERT_DETAIL_SPEC + "a click on the row opens the detail; a click on its Acknowledge does not")
+          expect=ALERT_DETAIL_SPEC + "a click on the title button opens the detail once: the row does not open it a "
+                                     "second time")
 @mutation(ALERTS, "  if (writing.value) return;\n  opener =", "  opener =",
           expect=IN_FLIGHT)
 @mutation(ALERTS, "\n                  :aria-label=\"`Details of ${alertTitle(g)}`\"",

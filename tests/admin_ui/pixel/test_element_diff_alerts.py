@@ -70,12 +70,57 @@ DETAIL_PARTS = (("-detail", "#alertDetail", "#alertDetail"),)
 BOARD_CHECKS = [Check(board, replace(ALERTS, board=board), data=ROWS + STRAIGHT)
                 for board in ("B-Alerts", "T-Alerts", "P-Alerts")]
 # the app drawer opens on group 1; the canvas card is widened to the drawer body's width
-# On the phone the sheet's body is 358 px wide and the canvas's detail region (the board's own inset) 357: every box
-# of the region is one pixel off in width (the chips, the ledger, the rows) and nothing else differs, so the width axis
-# is not compared there (the pixel diff of the region is under 0.02 %).
 DETAIL_CHECKS = [Check(board, replace(ALERTS, board=board, drive=lambda page, live, data: _details(0)(page)),
-                       widen=True, data=ROWS + STRAIGHT, loose={"*": "w"} if board == "P-Alerts" else {})
+                       widen=True, data=ROWS + STRAIGHT)
                  for board in ("B-Alerts", "T-Alerts", "P-Alerts")]
+# The most each compared part may differ as pixels (mismatch + anti-aliasing, % of the part): the worst of light and
+# dark measured on the box, plus a small margin. A change that moves a box or a glyph shows here as well as in the
+# table.
+# Measured (worst of light and dark): B 0.237, T 0.014, P 0.017, both footers 0.000.
+PIXEL_GATES = {"B-Alerts": 0.30, "T-Alerts": 0.03, "P-Alerts": 0.03,
+               "B-Alerts-footer": 0.02, "T-Alerts-footer": 0.02}
+
+
+def _open_first(page, live, data) -> None:
+    _details(0)(page)
+
+
+# The footer: the canvas's Acknowledge sits in the card's head beside Close; the drawer's footer holds Acknowledge
+# alone, right-aligned, with the shared footer's padding (10 24), strong rule and surface fill. The canvas button row
+# is read as that footer: Close removed, those three numbers and the right alignment set (the button itself, its size,
+# font, colour and radius, is compared as drawn), widened to the drawer's width.
+CANVAS_AS_DRAWER_FOOTER = """() => {
+  const row = document.querySelector('#alertDetail > div:first-child > div:last-child');
+  row.querySelector('button.ghost').remove();
+  row.style.cssText += ';padding: 10px 24px; border-top: 1px solid var(--line-strong); background: var(--surface);'
+    + ' justify-content: flex-end';
+}"""
+FOOTER_CHECKS = [Check(board + "-footer", replace(ALERTS, board=board, drive=_open_first),
+                       canvas_root="#alertDetail > div:first-child > div:last-child", app_root=".detail-drawer__foot",
+                       widen=True)
+                 for board in ("B-Alerts", "T-Alerts")]
+
+
+def _canvas_as_drawer_footer(page) -> None:
+    page.evaluate(CANVAS_AS_DRAWER_FOOTER, isolated_context=False)
+
+
+# On the phone the sheet's body is 358 px wide and the canvas's detail region (the board's own inset) 357. Only that
+# one pixel is normalised: an app box that runs to the root's right edge is read one pixel narrower (the ledger, the
+# rows, the chips at the end of a row); every other box and every text is compared as it is. How many boxes it touched
+# is asserted, so a layout that stops matching the documented case does not slip through.
+PHONE_ROOT_WIDTH_PX = 1
+
+
+def _phone_root_width(page, items, app_root) -> None:
+    edge = items["width"]
+    touched = 0
+    for box in items["boxes"]:
+        x, y, w, h = box["rect"]
+        if w > PHONE_ROOT_WIDTH_PX and abs(x + w - edge) <= 0.6:
+            box["rect"] = [x, y, w - PHONE_ROOT_WIDTH_PX, h]
+            touched += 1
+    assert 1 <= touched <= 20, "the phone root-width normalisation touched %d boxes" % touched
 
 # The canvas without what the app moved into the drawer: the detail card and the Details links (a link to the card).
 # Group 1 was drawn selected (its detail open): with no detail open the app selects nothing.
@@ -307,6 +352,7 @@ def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: 
         items["boxes"] = [b for b in items["boxes"] if b["sig"] not in check.accepted_app]
         name = check.name + suffix
         res = diff(name, theirs, items, data=check.data, data_app=check.data_app, loose=check.loose)
+        res.pixel_percent = pixels.total_percent
         stem = "%s-%s" % (name, theme)
         notes = ("Canvas %s %s, app %s at %dx%d. Pixel diff of the compared part: %.3f %% mismatch + %.3f %% "
                  "anti-aliased." % (check.state.board, canvas_sel or "page", app_sel or "page", width, height,
@@ -344,9 +390,23 @@ def test_alerts_matches_the_canvas_element_by_element(app, db, live, renderer, d
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("check", DETAIL_CHECKS, ids=lambda c: c.name)
 def test_alerts_detail_matches_the_canvas_card_in_the_drawer(app, db, live, renderer, diff_page, run_dir, check, theme):
-    bad = failed(run_check(app, db, live, renderer, diff_page, run_dir, check, theme, DETAIL_PARTS,
-                           canvas_hook=_canvas_as_drawer_body))
+    results = run_check(app, db, live, renderer, diff_page, run_dir, check, theme, DETAIL_PARTS,
+                        canvas_hook=_canvas_as_drawer_body,
+                        app_hook=_phone_root_width if check.name == "P-Alerts" else None)
+    bad = failed(results)
     assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))
+    over = [(stem, res.pixel_percent) for res, stem in results if res.pixel_percent > PIXEL_GATES[check.name]]
+    assert not over, "%s: pixel difference over its gate of %s %%: %r" % (theme, PIXEL_GATES[check.name], over)
+
+
+@pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize("check", FOOTER_CHECKS, ids=lambda c: c.name)
+def test_alerts_drawer_footer_matches_the_canvas_acknowledge(app, db, live, renderer, diff_page, run_dir, check, theme):
+    results = run_check(app, db, live, renderer, diff_page, run_dir, check, theme, canvas_hook=_canvas_as_drawer_footer)
+    bad = failed(results)
+    assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))
+    over = [(stem, res.pixel_percent) for res, stem in results if res.pixel_percent > PIXEL_GATES[check.name]]
+    assert not over, "%s: pixel difference over its gate of %s %%: %r" % (theme, PIXEL_GATES[check.name], over)
 
 
 # ---- states the canvas does not draw: photographed at the three widths, beside their nearest drawn pattern -----------
