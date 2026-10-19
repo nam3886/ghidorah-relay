@@ -49,7 +49,12 @@ const catalog = shallowRef<CatalogModel[]>([]);
 const formError = ref<CreateError | null>(null);
 // something typed in the open form that a leave would lose
 const formDirty = ref(false);
-useRouteLeaveGuard(() => formOpen.value && formDirty.value);
+// a create in flight keeps the page: its one-time key must still be shown
+const creating = ref(false);
+useRouteLeaveGuard(
+  () => formOpen.value && formDirty.value,
+  () => creating.value,
+);
 
 // The raw key of a key just created. It lives only here: not in a store, not in storage, not in the address, not in a
 // log. It goes on Dismiss, when the operator leaves the tab (this view unmounts) and on sign-out. The id and the label
@@ -114,6 +119,7 @@ void load();
 
 // The catalog (one read, shared) feeds the model list and the wallet rows of the form.
 async function openForm(key: ApiKey | null) {
+  opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   await run(async () => {
     catalog.value = await scope.loadCatalog();
     editing.value = key;
@@ -124,6 +130,7 @@ async function openForm(key: ApiKey | null) {
 
 async function submit(body: KeyBody) {
   const key = editing.value;
+  creating.value = key === null;
   await run(async () => {
     formError.value = null;
     if (key) {
@@ -135,7 +142,9 @@ async function submit(body: KeyBody) {
       try {
         const out = await createKey(body);
         created = { key: out.key, id: out.id, label: out.label, prefix: out.prefix };
+        creating.value = false;
       } catch (err) {
+        creating.value = false;
         // Shown from a fixed table, never from the server's message (see createError): inside the form while it is
         // open, as a toast when the form is already gone (the operator left the page meanwhile).
         const shown = createError(err);
@@ -183,15 +192,19 @@ async function remove(k: ApiKey) {
 
 // The drawer is gone and Element Plus has sent focus back to the button that opened it. After a create the banner
 // takes it instead; and when that button no longer exists (an edited row is drawn again by the reload) focus goes to
-// the page's primary button, so it is never left on the document.
+// the page's primary button, else to the page's scroll area, so it is never left on the document.
+let opener: HTMLElement | null = null;
 const newKeyButton = useTemplateRef<HTMLButtonElement>("newKey");
 function formClosed(): void {
   if (revealBanner) {
     revealBanner = false;
     callout.value?.reveal();
-  } else if (!document.activeElement || document.activeElement === document.body) {
-    newKeyButton.value?.focus();
+    return;
   }
+  if (opener?.isConnected && opener !== document.body) return;
+  const primary = newKeyButton.value;
+  if (primary && !primary.disabled) primary.focus();
+  else document.querySelector<HTMLElement>(".app-scroll__wrap")?.focus({ preventScroll: true });
 }
 
 // every wallet's highest use among all the keys loaded: what an unlimited wallet's relative bar counts as full

@@ -592,7 +592,8 @@ describe("the key form as the design draws it", () => {
     expect(dialog.querySelector("h2")!.textContent).toBe("Edit API key — shop");
     // the drawer is named by its visible heading
     const named = document.body.querySelector('[role="dialog"]')!;
-    expect(named.getAttribute("aria-label")).toBe(dialog.querySelector("h2")!.textContent);
+    expect(named.hasAttribute("aria-label")).toBe(false);
+    expect(document.getElementById(named.getAttribute("aria-labelledby")!)).toBe(dialog.querySelector("h2"));
     expect(dialog.textContent).toContain("3 used today · 14 total");
     expect(dialog.textContent).toContain("9 used");
     expect(dialog.textContent).toContain("Limits apply in limit mode only. Per day resets at midnight.");
@@ -795,8 +796,10 @@ describe("the key form as a drawer that guards what was typed", () => {
     await settle();
     expect(drawer()).not.toBeNull();
     expect(document.body.querySelector(".el-dialog")).toBeNull();
-    expect(document.body.querySelector('[role="dialog"]')!.getAttribute("aria-label")).toBe(
-      document.body.querySelector(".el-drawer h2")!.textContent,
+    const named = document.body.querySelector('[role="dialog"]')!;
+    expect(named.hasAttribute("aria-label")).toBe(false);
+    expect(document.getElementById(named.getAttribute("aria-labelledby")!)).toBe(
+      document.body.querySelector(".el-drawer h2"),
     );
     const el = wrapper!.findComponent({ name: "ElDrawer" });
     expect(el.props("closeOnClickModal")).toBe(false);
@@ -917,6 +920,18 @@ describe("the key form as a drawer that guards what was typed", () => {
     expect(notify.error).not.toHaveBeenCalled();
   });
 
+  it("while a create is in flight a reload or a closed tab is warned about, though nothing was typed", async () => {
+    vi.mocked(keys.createKey).mockReturnValue(new Promise(() => undefined));
+    await open();
+    buttonOf("New key").click();
+    await settle();
+    buttonOf("Create key").click();
+    await settle();
+    const e = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(true);
+  });
+
   it("a good save brings the banner into view and puts focus in its field once the drawer is gone", async () => {
     await createOne(true);
     await new Promise((r) => setTimeout(r, 600));
@@ -926,7 +941,9 @@ describe("the key form as a drawer that guards what was typed", () => {
   it("focus goes to the page's primary button when the button that opened the form is gone", async () => {
     vi.mocked(keys.patchKey).mockResolvedValue(key());
     const w = await open(true);
-    await w.find('button[aria-label="Edit key shop"]').trigger("click");
+    const edit = w.find('button[aria-label="Edit key shop"]');
+    (edit.element as HTMLElement).focus();
+    await edit.trigger("click");
     await settle();
     // the save reads the list again, and the key (with its Edit button) is no longer in it
     list.mockResolvedValue({ items: [] });

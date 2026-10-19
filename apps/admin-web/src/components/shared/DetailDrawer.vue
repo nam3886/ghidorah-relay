@@ -8,7 +8,8 @@ import { askDiscard, cancelPending } from "./use-leave-guard";
 // The one right-hand drawer of every detail (job, request, alert...), drawn as specs/shared.md section 8: a 620 px
 // panel with the scrim over the whole page; a full-screen sheet on a phone (8.1: a Back button, the title as h1, a
 // theme toggle, no scrim). The body is destroyed on close, so nothing of a closed detail lingers (its state, timers,
-// media). The dialog's accessible name is `title`. Slots: `chips` (status chip and one line of context under the
+// media). The dialog is named by its visible heading (aria-labelledby the h1/h2: `heading`, else `title`). Slots:
+// `chips` (status chip and one line of context under the
 // title), `tabs` (a tab row under the header), default (the scrolling body) and `footer` (sticky at the bottom; it is
 // given `close`, the guarded close, for a Cancel button).
 //
@@ -24,7 +25,7 @@ const props = withDefaults(
     modelValue: boolean;
     title: string;
     testid?: string;
-    // the visible heading; the accessible name stays `title`
+    // the visible heading (the dialog's name); `title` shows when it is not given
     heading?: string;
     // the phone sheet's Back button names where it goes: `Back to Jobs`
     backLabel?: string;
@@ -81,7 +82,6 @@ watch(
     :class="{ 'is-sheet': isPhone }"
     direction="rtl"
     :size="isPhone ? '100%' : '620px'"
-    :title="props.title"
     :show-close="false"
     :with-header="true"
     :data-testid="props.testid"
@@ -91,7 +91,7 @@ watch(
     append-to-body
     @closed="emit('closed')"
   >
-    <template #header>
+    <template #header="{ titleId }">
       <div class="detail-drawer__head">
         <button
           v-if="isPhone"
@@ -102,7 +102,7 @@ watch(
         >
           <IconArrowLeft :size="20" />
         </button>
-        <component :is="isPhone ? 'h1' : 'h2'" class="detail-drawer__title">{{
+        <component :is="isPhone ? 'h1' : 'h2'" :id="titleId" class="detail-drawer__title">{{
           props.heading ?? props.title
         }}</component>
         <button

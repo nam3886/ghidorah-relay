@@ -303,8 +303,7 @@ def test_the_key_form_shows_what_the_design_shows():
           expect=DESIGN + "an empty list draws its card with the heading API keys; a list with keys has no heading")
 @mutation(NEW_KEY, ':aria-label="`New API key for ${label}`"', 'aria-label="New API key"',
           expect=DESIGN + "the callout names the new key, and its row is the one tinted")
-@mutation(DRAWER, ':title="props.title"', ':title="props.heading ?? \'x\'"',
-          expect=GUARDED + "is a right drawer named by its heading, with no scrim close")
+@mutation(DRAWER, ':id="titleId"', '', expect=GUARDED + "is a right drawer named by its heading, with no scrim close")
 @mutation(KEYS, 'align: isTablet.value ? ("left" as const) : ("right" as const),', 'align: "right" as const,',
           expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
                               "unfinished cells")
@@ -366,10 +365,15 @@ def test_the_label_of_a_key_is_optional_and_a_key_without_one_is_named_by_its_pr
 @mutation(KEY_FORM, ':busy="props.busy"\n    :close-on-scrim', ':close-on-scrim',
           expect=GUARDED + "while the create is in flight no way out works, and a good answer closes the drawer "
                            "without a question")
-@mutation(KEYS, "useRouteLeaveGuard(() => formOpen.value && formDirty.value);", "useRouteLeaveGuard(() => false);",
+@mutation(KEYS, "  () => formOpen.value && formDirty.value,\n", "  () => false,\n",
           expect=GUARDED + "a reload or a closed tab is warned about while the form holds typing, and not after")
 @mutation(KEYS, "        else if (!signedOut) notify.error(shown.text);\n", "",
           expect=GUARDED + "a create that fails after the form is gone is a toast, not a lost error")
+@mutation(KEYS, "  if (opener?.isConnected && opener !== document.body) return;\n", "  return;\n",
+          expect=GUARDED + "focus goes to the page's primary button when the button that opened the form is gone")
+@mutation(KEYS, "  () => creating.value,\n", "  () => false,\n",
+          expect=GUARDED + "while a create is in flight a reload or a closed tab is warned about, though nothing was "
+                           "typed")
 @mutation(KEYS, "    callout.value?.reveal();\n", "",
           expect=GUARDED + "a good save brings the banner into view and puts focus in its field")
 @pytest.mark.web_unit
@@ -396,19 +400,24 @@ def test_the_key_form_drawer_guards_what_was_typed_and_says_so_when_a_create_fai
                                "closes like the X")
 @mutation(DRAWER, '<slot name="footer" :close="requestClose" />', '<slot name="footer" :close="() => {}" />',
           expect=CLOSE_GUARD + "the footer's close asks like the X")
+@mutation(DRAWER, ':before-close="() => void requestClose()"', ':before-close="(done: () => void) => done()"',
+          expect=CLOSE_GUARD + "Escape alone and a scrim click alone cannot close a dirty drawer without the question")
 @pytest.mark.web_unit
 def test_the_drawer_asks_before_it_loses_typing_and_does_nothing_while_a_write_runs():
     vitest(DRAWER_SPEC)
 
 
+@mutation(LEAVE_GUARD, "    if (isBlocked()) return false;\n", "",
+          expect=LEAVE + "while a write is in flight the page is not left, with no question, clean or dirty")
+@mutation(LEAVE_GUARD, "    () => isDirty() || isBlocked(),", "    () => isDirty(),",
+          expect=LEAVE + "a reload is warned about while a write is in flight, though nothing is dirty")
 @mutation(LEAVE_GUARD, "  if (pending) return pending;\n", "",
           expect=ASKED + "while a box is up every further ask is the same promise and no second box opens")
 @mutation(LEAVE_GUARD, "  keep?.();\n", "",
           expect=ASKED + "cancelPending closes the box as keep even though the box's own promise never settles")
 @mutation(LEAVE_GUARD, "  ElMessageBox.close();\n", "",
           expect=ASKED + "cancelPending closes the box as keep even though the box's own promise never settles")
-@mutation(LEAVE_GUARD, "  onBeforeRouteLeave(async () => !isDirty() || (await askDiscard()));",
-          "  onBeforeRouteLeave(async () => true);",
+@mutation(LEAVE_GUARD, "    return !isDirty() || (await askDiscard());", "    return true;",
           expect=LEAVE + "a dirty form asks; keep stays, discard leaves")
 @mutation(LEAVE_GUARD, "      if (dirty) window.addEventListener", "      if (false) window.addEventListener",
           expect=LEAVE + "a reload or a closed tab is warned about while dirty, and only then")

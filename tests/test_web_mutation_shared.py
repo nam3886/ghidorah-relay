@@ -241,7 +241,7 @@ def test_the_status_chip_shows_its_step_and_is_a_pill():
 @mutation(DRAWER, "destroy-on-close", ':destroy-on-close="false"', expect="destroys its content on close")
 @mutation(DRAWER, "'100%' : '620px'", "'620px' : '620px'", expect="a full-screen sheet on a phone")
 @mutation(DRAWER, 'direction="rtl"', 'direction="ltr"', expect="slides in from the right")
-@mutation(DRAWER, ':title="props.title"', 'title=""', expect="is a dialog named by its title")
+@mutation(DRAWER, ':id="titleId"', "", expect="is a dialog named by its visible heading")
 @mutation(DRAWER, 'aria-label="Close"', 'aria-label="Shut"', expect="the close button is named Close")
 @mutation(DRAWER, 'v-if="$slots.chips"', 'v-if="true"', expect="none of those regions exist")
 @mutation(DRAWER, 'v-if="$slots.tabs"', 'v-if="true"', expect="none of those regions exist")

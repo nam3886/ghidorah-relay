@@ -166,19 +166,31 @@ def test_focus_stays_in_the_drawer_and_comes_back_to_the_button_that_opened_it(a
     expect(new_key_button(page)).to_be_focused()
 
 
-def test_focus_goes_to_a_stable_place_when_the_row_that_opened_the_form_was_drawn_again(app, app_session, db):
+def test_focus_goes_to_the_new_key_button_when_the_row_that_opened_the_form_is_gone(app, app_session, db):
     page = app_session
     key = new_key(db)
     db.run("UPDATE api_keys SET label = 'plain', key_prefix = 'rk-plain' WHERE id = %s", key)
     goto_keys(app, page)
     rows(page).filter(has_text="rk-plain").get_by_role("button", name="Edit").click()
     expect(form(page)).to_be_visible()
+    # the list the save reads again no longer holds the key, so the button that opened the form is gone
+    page.route("**/admin/keys", lambda r: r.fulfill(status=200, content_type="application/json", body='{"items": []}')
+               if r.request.method == "GET" else r.continue_())
     form(page).get_by_role("button", name="Save").click()
     expect(form(page)).to_have_count(0)
-    page.wait_for_function("document.activeElement && document.activeElement !== document.body",
-                           timeout=TIMEOUT_MS)
-    assert page.evaluate("Boolean(document.activeElement.closest('main'))", isolated_context=False), (
-        "focus is back in the page")
+    expect(page.get_by_text("No API keys yet.")).to_be_visible()
+    expect(new_key_button(page)).to_be_focused()
+
+
+def test_the_drawer_is_named_by_its_heading_for_the_screen_reader(app, app_session, db):
+    page = app_session
+    goto_keys(app, page)
+    open_form(page)
+    drawer = page.get_by_test_id("key-drawer")
+    assert drawer.get_attribute("aria-label") is None
+    target = drawer.get_attribute("aria-labelledby")
+    assert page.locator("[id='%s']" % target).inner_text() == "New API key"
+    expect(page.get_by_role("dialog", name="New API key", exact=True)).to_be_visible()
 
 
 # ---- a select inside the drawer ----------------------------------------------------------------------------------
@@ -566,20 +578,27 @@ def test_a_closed_wallet_draws_no_bar_and_a_busy_key_elsewhere_is_not_a_subset(a
     assert rows(page).filter(has_text="rk-only").locator(".wallet__fill").first.evaluate(FILL_SHARE_JS) == 100
 
 
-# ---- a create that fails after the form is gone -----------------------------------------------------------------
+# ---- a create in flight keeps the page -------------------------------------------------------------------------
 
-def test_a_create_that_fails_after_the_operator_left_the_tab_is_a_toast(app, app_session, db):
+def test_a_create_in_flight_is_not_abandoned_by_browser_back_and_its_key_is_still_shown(app, app_session, db):
     page = app_session
-    goto_keys(app, page)
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.goto(app.url + "#/jobs")
+    open_tab(page, "API keys")
     held = held_creates(page)
-    typed_form(page, "doomed")
+    typed_form(page, "in flight")
     create_clicked(page)
     expect(form(page).get_by_role("button", name="Create key")).to_be_disabled()
-    # leaving with typing in the form asks first; the operator goes anyway, and the create fails after that
-    page.evaluate("location.hash = '#/jobs'", isolated_context=False)
-    question(page).get_by_role("button", name="Discard").click()
-    expect(page.get_by_role("heading", name="Jobs", level=1)).to_be_visible()
-    held[0].fulfill(status=422, content_type="application/json",
-                    body='{"error": {"code": "input.invalid", "message": "x", "param": "label"}}')
-    expect(page.locator(".el-message")).to_contain_text("Some of the values are not accepted")
-    page.problems.clear()                                       # the 422 is a console line
+    assert page.evaluate("(() => { const e = new Event('beforeunload', {cancelable: true}); "
+                         "window.dispatchEvent(e); return e.defaultPrevented; })()", isolated_context=False)
+    page.go_back()
+    page.wait_for_timeout(600)
+    expect(question(page)).to_have_count(0)                       # refused without a question
+    expect(page).to_have_url(re.compile(r"#/keys$"))
+    expect(form(page)).to_be_visible()
+    assert len(held) == 1
+    held[0].continue_()
+    callout = page.get_by_role("textbox", name="New API key")
+    expect(callout).to_be_visible()
+    assert callout.input_value().startswith("rk-")
+    assert db.one("SELECT count(*) FROM api_keys")[0] == 1

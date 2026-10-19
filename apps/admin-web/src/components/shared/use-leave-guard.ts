@@ -41,14 +41,19 @@ export function cancelPending(): void {
 }
 
 // Leaving the page (a route change, a reload, closing the tab) while `isDirty()` is true asks first, with the same box.
-export function useRouteLeaveGuard(isDirty: () => boolean): void {
-  onBeforeRouteLeave(async () => !isDirty() || (await askDiscard()));
+// While `isBlocked()` is true (a write is in flight whose answer must still be seen) a route change is refused without
+// a question, and a reload or a closed tab is warned about.
+export function useRouteLeaveGuard(isDirty: () => boolean, isBlocked: () => boolean = () => false): void {
+  onBeforeRouteLeave(async () => {
+    if (isBlocked()) return false;
+    return !isDirty() || (await askDiscard());
+  });
   const warn = (e: BeforeUnloadEvent): void => {
     e.preventDefault();
     e.returnValue = "";
   };
   const stop = watch(
-    isDirty,
+    () => isDirty() || isBlocked(),
     (dirty) => {
       if (dirty) window.addEventListener("beforeunload", warn);
       else window.removeEventListener("beforeunload", warn);

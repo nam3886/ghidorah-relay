@@ -133,9 +133,11 @@ def test_the_drawer_shows_its_tabs_copies_the_prompt_and_renames(app, app_page, 
     app.sign_in(page)
     open_row(page, job)
     panel = drawer(page)
-    expect(panel).to_have_attribute("aria-label", "Job %s" % str(job)[:8])
     for section in ("conclusion", "summary", "actions", "prompt"):
         expect(panel.locator("[data-section=%s]" % section)).to_be_visible()
+    # the dialog is named by its visible heading (read once the job is loaded: the heading is its title)
+    heading = panel.get_by_role("heading", level=2).inner_text()
+    expect(page.get_by_role("dialog", name=heading, exact=True)).to_be_visible()
     expect(panel.locator("[data-section=conclusion]")).to_contain_text("Failed · render.deadline — too slow")
     expect(panel.locator("[data-section=prompt] p")).to_have_text("a cat on a roof")
     marker = db.one("SELECT marker FROM jobs WHERE id = %s", job)[0]

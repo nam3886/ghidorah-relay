@@ -33,12 +33,20 @@ async function drawer(
 }
 
 const dialog = () => document.body.querySelector<HTMLElement>("[role='dialog']");
+// the dialog's accessible name as a browser computes it here: no aria-label, the text of the element it is labelled by
+const nameOf = (el: HTMLElement | null): string | null => {
+  if (!el || el.hasAttribute("aria-label")) return null;
+  const by = el.getAttribute("aria-labelledby");
+  return by ? (document.getElementById(by)?.textContent ?? null) : null;
+};
+const heading = () => document.body.querySelector("h1, h2");
 
 describe("DetailDrawer", () => {
-  it("is a dialog named by its title, with the fixed test id", async () => {
+  it("is a dialog named by its visible heading, with the fixed test id", async () => {
     await drawer();
     expect(dialog()).not.toBeNull();
-    expect(dialog()!.getAttribute("aria-label")).toBe("Job 3b9e1f0a");
+    expect(nameOf(dialog())).toBe("Job 3b9e1f0a");
+    expect(nameOf(dialog())).toBe(heading()!.textContent);
     expect(document.body.querySelector("[data-testid='job-drawer']")).not.toBeNull();
     expect(document.body.querySelector("h2")!.textContent).toBe("Job 3b9e1f0a");
   });
@@ -55,6 +63,17 @@ describe("DetailDrawer", () => {
     }));
     const phone = await drawer();
     expect(phone.findComponent({ name: "ElDrawer" }).props("size")).toBe("100%");
+  });
+
+  it("on a phone the name is the visible h1", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: /max-width:\s*767/.test(q),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    await drawer({ heading: "Portrait, soft window light" });
+    expect(heading()!.tagName).toBe("H1");
+    expect(nameOf(dialog())).toBe("Portrait, soft window light");
   });
 
   it("a phone sheet has a Back button named by backLabel, the title as h1 and a theme toggle; a desktop drawer has none of them", async () => {
@@ -135,10 +154,11 @@ describe("DetailDrawer", () => {
     expect(document.body.querySelector(".detail-drawer__foot")).toBeNull();
   });
 
-  it("heading is the visible h2 text when given, the name stays the title; without it the title shows", async () => {
+  it("heading is the visible h2 text when given and is the name too; without it the title shows", async () => {
     await drawer({ heading: "Portrait, soft window light" });
     expect(document.body.querySelector("h2")!.textContent).toBe("Portrait, soft window light");
-    expect(dialog()!.getAttribute("aria-label")).toBe("Job 3b9e1f0a");
+    expect(nameOf(dialog())).toBe("Portrait, soft window light");
+    expect(nameOf(dialog())).toBe(heading()!.textContent);
     document.body.replaceChildren();
     await drawer();
     expect(document.body.querySelector("h2")!.textContent).toBe("Job 3b9e1f0a");
@@ -148,7 +168,7 @@ describe("DetailDrawer", () => {
     await drawer({ title: PLANTED });
     expect(document.body.querySelector("h2 img")).toBeNull();
     expect(document.body.querySelector("h2")!.textContent).toBe(PLANTED);
-    expect(dialog()!.getAttribute("aria-label")).toBe(PLANTED);
+    expect(nameOf(dialog())).toBe(PLANTED);
   });
 });
 
@@ -211,6 +231,22 @@ describe("DetailDrawer close guard", () => {
     answer(true);
     await flushPromises();
     expect(w.emitted("update:modelValue")).toEqual([[false]]);
+  });
+
+  it("Escape alone and a scrim click alone cannot close a dirty drawer without the question", async () => {
+    const w = await drawer({ dirty: true, closeOnScrim: true });
+    press("Escape");
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(1);
+    answer(false);
+    await flushPromises();
+    scrim();
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(2);
+    expect(w.emitted("update:modelValue")).toBeUndefined();
+    // and the drawer is still the one shown: nothing hid it behind the question's back
+    expect(w.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(true);
+    expect(document.body.querySelector<HTMLElement>(".detail-drawer")!.style.display).not.toBe("none");
   });
 
   it("the footer's close asks like the X", async () => {

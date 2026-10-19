@@ -69,10 +69,14 @@ describe("askDiscard", () => {
 
 describe("useRouteLeaveGuard", () => {
   const dirty = ref(false);
+  const blocked = ref(false);
   async function pages() {
     const Guarded = defineComponent({
       setup() {
-        useRouteLeaveGuard(() => dirty.value);
+        useRouteLeaveGuard(
+          () => dirty.value,
+          () => blocked.value,
+        );
         return () => h("p", "form");
       },
     });
@@ -91,6 +95,40 @@ describe("useRouteLeaveGuard", () => {
   }
   beforeEach(() => {
     dirty.value = false;
+    blocked.value = false;
+  });
+
+  it("while a write is in flight the page is not left, with no question, clean or dirty", async () => {
+    const { router, w } = await pages();
+    blocked.value = true;
+    await router.push("/other");
+    expect(router.currentRoute.value.path).toBe("/form");
+    dirty.value = true;
+    await router.push("/other");
+    expect(router.currentRoute.value.path).toBe("/form");
+    expect(ask).not.toHaveBeenCalled();
+    blocked.value = false;
+    dirty.value = false;
+    await router.push("/other");
+    expect(router.currentRoute.value.path).toBe("/other");
+    w.unmount();
+  });
+
+  it("a reload is warned about while a write is in flight, though nothing is dirty", async () => {
+    const { w } = await pages();
+    const warned = () => {
+      const e = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    expect(warned()).toBe(false);
+    blocked.value = true;
+    await flushPromises();
+    expect(warned()).toBe(true);
+    blocked.value = false;
+    await flushPromises();
+    expect(warned()).toBe(false);
+    w.unmount();
   });
 
   it("a clean form leaves without asking", async () => {

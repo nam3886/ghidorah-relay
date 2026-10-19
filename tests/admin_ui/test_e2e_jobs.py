@@ -118,7 +118,7 @@ def test_the_list_shows_its_columns_and_a_row_opens_the_detail_but_its_tick_box_
     expect(page.locator(".jobs__count")).to_have_text("1 selected")
     expect(drawer(page)).to_be_hidden()
     row.locator("td").nth(2).click()
-    expect(page.get_by_role("dialog", name="Job " + str(job)[:8])).to_be_visible()
+    expect(page.get_by_test_id("job-drawer")).to_be_visible()
 
 
 @pytest.mark.fabricated_rows("plants a submitting job with no lease row and a failed job with no error code",
