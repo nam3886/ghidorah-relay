@@ -540,6 +540,7 @@ KEPT_ON_RELOAD = (DRAWER_VIEW + "a reload that finds no such frame keeps a drawe
                   + "and says so inside")
 SCRIM = DRAWER_VIEW + ("a click on the scrim closes a clean editor, asks over a typed draft, "
                        + "and does nothing during a write")
+FOCUS_VIEW = DRAWER_VIEW + "focus after the drawer is gone > "
 NO_WAY_OUT = DRAWER_VIEW + "no way out works while a write runs"
 LEAVE = (DRAWER_VIEW + "leaving the page asks only for a typed draft in an open drawer, "
          + "and is refused during a write")
@@ -555,6 +556,10 @@ OPENS_MODEL = FRAMES_VIEW_SPEC + "opens the editor of a model: help text, Follow
 @mutation(FRAME_EDITOR, 'v-if="frames.shown.target === DEFAULT_TARGET"', 'v-if="true"', expect=OPENS_MODEL)
 @mutation(FRAME_EDITOR, ':placeholder="FRAME_SHAPE"', "", expect=FRAME_SHAPE_SPEC)
 @mutation(FRAME_EDITOR, "props.frames.draft !== props.frames.loaded", "false", expect=ASKS)
+@mutation(FRAMES_VIEW, "if (opener?.isConnected && opener !== document.body) return;", "if (true) return;",
+          expect=FOCUS_VIEW + "goes to the page's scroll area when the button that opened the editor is gone")
+@mutation(FRAMES_VIEW, "if (opener?.isConnected && opener !== document.body) return;", "if (false) return;",
+          expect=FOCUS_VIEW + "is left alone while the button that opened the editor is still on the page")
 @mutation(FRAME_EDITOR, ':busy="frames.busy"', "", expect=NO_WAY_OUT)
 @mutation(FRAME_EDITOR, ':dirty="dirty"', ':dirty="dirty"\n    :close-on-scrim="false"', expect=SCRIM)
 @mutation(FRAME_EDITOR, "@update:model-value=\"(o: boolean) => !o && frames.close()\"",

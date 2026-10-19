@@ -24,9 +24,13 @@ vi.mock("@/lib/notify", () => ({ notify: { success: vi.fn(), error: vi.fn(), inf
 const PLANTED = "<img src=x onerror=window.__pwned=1><b>planted</b>";
 
 let wrapper: VueWrapper | null = null;
-async function open() {
+// `leaves`: the drawer's own leave transition runs (stubbed to nothing by default), and `closed` follows it
+async function open(leaves = false) {
   setActivePinia(createPinia());
-  wrapper = mount(FramesView, { global: { plugins: [] }, attachTo: document.body });
+  wrapper = mount(FramesView, {
+    global: { plugins: [], stubs: leaves ? { transition: false } : {} },
+    attachTo: document.body,
+  });
   await flushPromises();
   return wrapper;
 }
@@ -434,6 +438,45 @@ describe("the editor drawer", () => {
     expect(drawer().props("modelValue")).toBe(true);
     slow.resolve({ version: version(9, "typed"), unchanged: false, warnings: [] });
     await flushPromises();
+  });
+
+  describe("focus after the drawer is gone", () => {
+    const scrollArea = () => {
+      const wrap = document.createElement("div");
+      wrap.className = "app-scroll__wrap";
+      wrap.tabIndex = -1;
+      document.body.append(wrap);
+      return wrap;
+    };
+    const openFrom = async () => {
+      const wrap = scrollArea();
+      await open(true);
+      const opener = document.body.querySelector<HTMLElement>('button[aria-label="Edit frame for m1"]')!;
+      opener.focus();
+      opener.click();
+      await flushPromises();
+      return { wrap, opener };
+    };
+    const closeIt = async () => {
+      document.body.querySelector<HTMLElement>('button[aria-label="Close"]')!.click();
+      await flushPromises();
+      await new Promise((ok) => setTimeout(ok, 0));
+      await flushPromises();
+    };
+
+    it("goes to the page's scroll area when the button that opened the editor is gone", async () => {
+      const { wrap, opener } = await openFrom();
+      opener.remove();
+      await closeIt();
+      expect(document.activeElement).toBe(wrap);
+    });
+
+    it("is left alone while the button that opened the editor is still on the page", async () => {
+      const { wrap, opener } = await openFrom();
+      await closeIt();
+      expect(opener.isConnected).toBe(true);
+      expect(document.activeElement).not.toBe(wrap);
+    });
   });
 
   it("closes at once when nothing was typed and drops the editor", async () => {
