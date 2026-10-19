@@ -241,7 +241,7 @@ def test_the_status_chip_shows_its_step_and_is_a_pill():
 @mutation(DRAWER, "destroy-on-close", ':destroy-on-close="false"', expect="destroys its content on close")
 @mutation(DRAWER, "'100%' : '620px'", "'620px' : '620px'", expect="a full-screen sheet on a phone")
 @mutation(DRAWER, 'direction="rtl"', 'direction="ltr"', expect="slides in from the right")
-@mutation(DRAWER, ':title="props.title"', 'title=""', expect="is a dialog named by its title")
+@mutation(DRAWER, ':id="titleId"', "", expect="is a dialog named by its visible heading")
 @mutation(DRAWER, 'aria-label="Close"', 'aria-label="Shut"', expect="the close button is named Close")
 @mutation(DRAWER, 'v-if="$slots.chips"', 'v-if="true"', expect="none of those regions exist")
 @mutation(DRAWER, 'v-if="$slots.tabs"', 'v-if="true"', expect="none of those regions exist")
@@ -637,7 +637,7 @@ def test_the_field_select_can_be_a_form_field():
 
 
 # ---- page-keys: the field inside a dialog (the key form's Mode): over the dialog, its own Escape ------------------
-@mutation(FILTER, "  listZ.value = nextZIndex();\n", "", expect="the list sits above an open dialog")
+@mutation(FILTER, "  listZ.value = nextZIndex();\n", "", expect="the list sits above an open drawer")
 @mutation(FILTER, "    event.stopPropagation();\n    close();", "    close();", expect="Escape closes only the list")
 @pytest.mark.web_unit
 def test_the_field_opens_over_a_dialog_and_keeps_its_escape():

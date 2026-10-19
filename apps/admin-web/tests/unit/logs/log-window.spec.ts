@@ -6,6 +6,7 @@ import {
   dayStart,
   isLogStatus,
   isServerError,
+  logKey,
   logQuery,
   PAGE_SIZE,
   STATUS_OPTIONS,
@@ -175,5 +176,15 @@ describe("the day headers", () => {
     expect(dayNote(1)).toBe("1 request shown");
     expect(dayNote(5, 4761)).toBe("4,761 requests shown");
     expect(dayNote(1, 2)).toBe("2 requests shown");
+  });
+});
+
+describe("logKey", () => {
+  it("names a request's key by its label, else its prefix (a label of spaces is no label), a dash for none", () => {
+    const row = (key_label: string | null) => ({ key_id: "0123456789", key_label, key_prefix: "rk_1" });
+    expect(logKey(row("main"))).toBe("main");
+    expect(logKey(row(""))).toBe("rk_1");
+    expect(logKey(row("   "))).toBe("rk_1");
+    expect(logKey({ key_id: null, key_label: null, key_prefix: null })).toBe("—");
   });
 });

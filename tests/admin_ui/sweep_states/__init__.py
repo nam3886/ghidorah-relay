@@ -8,6 +8,7 @@ Elements are found by role and name: a dialog or drawer by its accessible name (
 (`open_select`), a tab by its name (`tab`)."""
 
 import os
+import re
 
 from patchright.sync_api import expect
 
@@ -79,8 +80,9 @@ def expect_dialog(page, name):
 
 
 def close_dialog(page, name):
-    """Close the dialog or drawer with this name by its own Close button, and wait until it is gone."""
-    dialog(page, name).get_by_role("button", name="Close").last.click()
+    """Close the dialog or drawer with this name by its own button (Close; Back on a phone sheet), and wait until it
+    is gone. A form that was typed in asks first: this closes a clean one."""
+    dialog(page, name).get_by_role("button", name=re.compile(r"^(Close|Back)")).last.click()
     expect(dialog(page, name)).to_have_count(0)
 
 

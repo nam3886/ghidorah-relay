@@ -128,6 +128,14 @@ DRAWER = [
 # Each board holds its own measured gate: the worst of its light and dark mismatch + anti-aliasing on the box after the
 # consolidation round (the Jobs boards and their shell: after the Jobs page round; the Accounts boards: after the
 # Accounts page round, 18/10), plus 1.0 point (17/10).
+# B-KeyForm has no entry and no gate: the key form is a right drawer now, not the board's 640 px dialog, so the board is
+# still drawn by the renderer (test_every_board_renders_in_both_themes) but compared by element instead
+# (test_element_diff_keys.py: the form body at the drawer's width, with a pixel gate of its own, and the footer).
+# The Keys boards were measured again after the copy-prefix buttons went and the wallet columns were re-fitted to the
+# canvas without them: T-Keys 4.72 (gate 8.41) and P-Keys 1.93 (gate 7.96) are better and are lowered. B-Keys is 3.07
+# (gate 3.07, which was measured 2.07 + 1.0): the board changes on purpose, since the page no longer has the copy
+# buttons and draws relative bars for unlimited wallets, and the board still draws the copy buttons and no relative
+# bars, so it takes the measured value + 1.0.
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
 # that gets better should have its gate lowered.
 GATES: dict[str, float] = {
@@ -140,8 +148,7 @@ GATES: dict[str, float] = {
     "B-JobFailed": 1.32,
     "B-Jobs": 1.14,
     "B-Jobs-shell": 1.00,
-    "B-KeyForm": 10.21,
-    "B-Keys": 3.07,
+    "B-Keys": 4.08,
     "B-LogDetail": 4.08,
     "B-Login": 1.04,
     "B-Logs": 1.39,
@@ -153,7 +160,7 @@ GATES: dict[str, float] = {
     "P-JobDetail": 2.23,
     "P-Jobs": 1.02,
     "P-Jobs-shell": 1.00,
-    "P-Keys": 7.96,
+    "P-Keys": 2.93,
     "P-Login": 1.16,
     "P-Logs": 1.23,
     "P-Settings": 1.25,
@@ -164,7 +171,7 @@ GATES: dict[str, float] = {
     "T-JobDetail": 1.37,
     "T-Jobs": 1.23,
     "T-Jobs-shell": 1.00,
-    "T-Keys": 8.41,
+    "T-Keys": 5.73,
     "T-Logs": 1.32,
     "T-Settings": 1.06,
     "T-Test": 1.07,

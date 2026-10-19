@@ -176,10 +176,13 @@ describe("opening", () => {
     expect(body().find("[data-section]").exists()).toBe(false);
   });
 
-  it("reads the job that was opened and names the drawer by its first 8 characters", async () => {
+  it("reads the job that was opened and names the drawer by its heading", async () => {
     await show();
     expect(getJob).toHaveBeenCalledWith(A);
-    expect(body().find("[role=dialog]").attributes("aria-label")).toBe("Job aaaaaaaa");
+    // the drawer is named by its visible heading (the job's title), not by its short id
+    const named = body().find("[role=dialog]");
+    expect(named.attributes("aria-label")).toBeUndefined();
+    expect(document.getElementById(named.attributes("aria-labelledby")!)!.textContent).toBe(body().find("h2").text());
   });
 
   // The three heading tests need DetailDrawer's `heading` prop (the visible h2), which F2 adds.
@@ -291,7 +294,8 @@ describe("opening", () => {
     await flushPromises();
     slow(detail({ id: A, title: "first" }));
     await flushPromises();
-    expect(body().find("[role=dialog]").attributes("aria-label")).toBe("Job bbbbbbbb");
+    const named = body().find("[role=dialog]");
+    expect(document.getElementById(named.attributes("aria-labelledby")!)!.textContent).toBe("second");
     await goTo("Technical");
     expect((body().find("[data-section=title] input").element as HTMLInputElement).value).toBe("second");
   });

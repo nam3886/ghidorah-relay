@@ -3,17 +3,24 @@ its states the canvas does not draw, and the page with data shaped like the live
 
 `test_keys_matches_the_canvas_element_by_element`: one comparison per check and theme. The whole B-, T- and P-Keys
 boards (the one-time key callout of Partner D, its row tinted, Partner B disabled), the callout after Copy (the board's
-own Copied state, reached by clicking on both sides), the Edit dialog of B-KeyForm (the dialog only: the board's page
-behind the scrim is a mock), and the keys states that B-States draws (the empty list, the delete confirm, and the New
-key form refusing an empty label: its field, its tooltip and the disabled Create key). A state card of B-States is
-widened to the app's width first. Each comparison writes, into `<run>/element-diff/`,
-`<name>-<theme>.md` (the table) and `<name>-<theme>.side.png` (canvas | app | pixel diff), and fails while the table
-holds a difference, an element missing on one side, or a text that differs and is not live data. A dialog must also sit
-where the board draws it in the window, and the tooltip where it is drawn against its button.
+own Copied state, reached by clicking on both sides), the key form of B-KeyForm (the board is a 640 px dialog, the app
+a 620 px drawer: the BODY of the dialog is compared with the drawer's body at the drawer's width, and the footer row
+with the drawer's footer at 1440 and 768; the frame, the header and the scrim are not compared), and the keys states
+that B-States draws (the empty list, the delete confirm and the open Mode list). A state card of B-States is widened to
+the app's width first. Each comparison writes, into `<run>/element-diff/`, `<name>-<theme>.md` (the table) and
+`<name>-<theme>.side.png` (canvas | app | pixel diff), and fails while the table holds a difference, an element
+missing on one side, or a text that differs and is not live data. The tooltip of a drawn state must also sit where it
+is drawn against its button.
 
-`test_keys_undrawn_states_are_photographed`: hovers, focus, the New key dialog at every width, a refused create, the
-list loading and failing, the empty list on a tablet and a phone, the toast after a delete (D125: drawn from the nearest
-drawn pattern), viewport photos in both themes.
+Declared deviations set aside before the tables are read (each is a numbered row in design-deviations.md): the canvas's
+copy-prefix buttons are removed from the canvas page (the app has none) and the app's relative wallet bars are removed
+from the app page (the canvas draws no bar for an unlimited wallet); the form's footer is compared but for its own
+padding, rule colour and fill (the drawer's footer is the shared one: 10 px padding, strong rule, surface fill), which
+are set on the canvas footer before it is read.
+
+`test_keys_undrawn_states_are_photographed`: hovers, focus, the New key drawer at every width, its discard question, a
+refused create, the list loading and failing, the empty list on a tablet and a phone, the toast after a delete (D125:
+drawn from the nearest drawn pattern), viewport photos in both themes.
 
 `test_keys_with_live_like_data_fits`: keys shaped like the live box's (no label and an 11-character prefix, short
 labels, any model, unlimited wallets) plus one key with every long value, at 1440, 768 and 390 in both themes: nothing
@@ -39,6 +46,8 @@ pytestmark = pytest.mark.browser
 
 TIMEOUT_MS = 10_000
 STATES = "B-States"
+# the form body in pixels at the drawer's width (0.04 % measured, worst of light and dark, + 1.0 as every gate)
+FORM_BODY_GATE = 1.04
 DESKTOP, TABLET = (1440, 1000), (768, 1320)
 PHONE_VIEW = (390, 844)          # a phone window for the photos (the board is drawn 2280 tall)
 ROOT_BOX_JS = ("s => { const r = document.querySelector(s).getBoundingClientRect(); "
@@ -49,6 +58,11 @@ ROOT_BOX_JS = ("s => { const r = document.querySelector(s).getBoundingClientRect
 class KeyCheck(Check):
     canvas_click: str | None = None     # clicked on the canvas board first: a state its own logic draws (Copied)
     same_place: bool = False            # the root must also sit where the board draws it in the window (a dialog)
+    drop_canvas: str = ""               # removed from the canvas page before it is read (a part the app does not have)
+    fix_canvas: str = ""                # JS run on the canvas root before it is read: a declared deviation
+    drop_app: str = ""                  # removed from the app page before it is read (a part the canvas does not draw)
+    gate: float | None = None           # the most mismatch + anti-aliasing (%) the compared part may have in pixels
+    same_height: bool = False           # the canvas part is given the app part's height (one fills its drawer, one not)
     anchor: tuple = ()                  # (canvas, app) selectors of an element the root must sit against as drawn
     fields: bool = False                # FilterSelect fields against the canvas's native selects (see SELECT_VALUES_JS)
 
@@ -69,18 +83,52 @@ def copied(page, live, data):
     page.mouse.move(0, 0)
 
 
-BOARD_CHECKS = [KeyCheck(board, _keys(board, keys_callout)) for board in ("B-Keys", "T-Keys", "P-Keys")]
+# The canvas draws a copy-prefix button under every label and the app has none (owner D134 c); the canvas draws no bar
+# for an unlimited wallet and the app draws the relative one (owner D135). Both parts are removed from the page that has
+# them, so the rest of the board is compared as before.
+COPY_PREFIX = 'button[aria-label^="Copy key prefix"]'
+RELATIVE_BARS = ".wallet__bars:has(.wallet__fill--relative)"
+BOARD_CHECKS = [KeyCheck(board, _keys(board, keys_callout), drop_canvas=COPY_PREFIX, drop_app=RELATIVE_BARS)
+                for board in ("B-Keys", "T-Keys", "P-Keys")]
 COPIED = KeyCheck("B-Keys-copied", _keys("B-Keys", copied), 'section[role="status"]', '[data-testid="new-key"]',
                   canvas_click='section[role="status"] button.solid')
 
 # The model rows read `<kind> · <display name>` as drawn (D129): the harness's catalog sends the boards' names. The
 # Mode selects are native on the canvas and FilterSelect fields in the app: to the tool a select is one box (the browser
 # paints its value and arrow inside it), so what a field draws inside its box is set aside in the table and compared as
-# pixels instead, field by field (`select-B-KeyForm-<theme>-<n>.side.png`), as Alerts does. Our renderer leaves a
+# pixels instead, field by field (`select-<name>-<theme>-<n>.side.png`), as Alerts does. Our renderer leaves a
 # select on its first option (it writes `value` as an attribute, which a select ignores): the board's own values are
 # put in first (video limit, image unlimited).
-FORM = KeyCheck("B-KeyForm", _keys("B-KeyForm", keys_edit), '[role="dialog"]', ".key-dialog", same_place=True,
-                fields=True)
+#
+# The board draws a 640 px dialog (header, body, footer: the three divs under `[role="dialog"]`); the app a 620 px
+# drawer. The body is the dialog's second div against the drawer's body, the canvas part resized to the drawer's width
+# (it narrows as well as widens), and the footer the third div against the drawer's footer, on every axis but the
+# vertical one. Nothing signed off draws a drawer footer, so the footer is compared at 1440 and at 768.
+FORM_BODY = KeyCheck("B-KeyForm-body", _keys("B-KeyForm", keys_edit), '[role="dialog"] > div@1', ".detail-drawer__body",
+                     widen=True, fields=True, same_height=True, gate=FORM_BODY_GATE)
+# The drawer's footer is the shared one of every drawer: padding 10 24 where the dialog's is 16 24, a rule in the strong
+# line colour where the dialog's is the plain one, and the surface fill the sticky footer needs. Those three numbers are
+# the declared deviation and are set on the canvas footer before it is read; its buttons (size, font, colour, gap, where
+# they sit) are compared as drawn.
+FOOTER_AS_DRAWER = """root => {
+  const el = document.querySelector(root);
+  el.style.padding = '10px 24px';
+  el.style.borderTopColor = 'var(--line-strong)';
+  el.style.background = 'var(--surface)';
+}"""
+FORM_FOOTER = KeyCheck("B-KeyForm-footer", _keys("B-KeyForm", keys_edit), '[role="dialog"] > div@2',
+                       ".detail-drawer__foot", widen=True, fix_canvas=FOOTER_AS_DRAWER)
+FORM_FOOTER_TABLET = KeyCheck("B-KeyForm-footer-768", _keys("B-KeyForm", keys_edit), '[role="dialog"] > div@2',
+                              ".detail-drawer__foot", (768, 960), widen=True, fix_canvas=FOOTER_AS_DRAWER)
+# The drawer's body fills the drawer from header to footer; the dialog's body is as tall as its fields. The part that is
+# compared in pixels is as tall as the app's, so the empty rest of the drawer is not counted as a difference.
+HEIGHT_JS = """([sel, height]) => {
+  const el = document.querySelector(sel);
+  el.style.boxSizing = 'border-box';
+  el.style.flex = 'none';
+  el.style.height = height + 'px';
+}"""
+DROP_JS = "sel => document.querySelectorAll(sel).forEach((el) => el.remove())"
 SELECT_VALUES_JS = ("() => { for (const s of document.querySelectorAll('select[value]')) "
                     "s.value = s.getAttribute('value'); }")
 
@@ -98,18 +146,6 @@ def no_keys(page, live, data):
 def delete_partner_b(page, live, data):
     page.get_by_role("button", name="Delete key Partner B").click()
     expect(page.locator(".rl-confirm")).to_be_visible(timeout=TIMEOUT_MS)
-
-
-def label_required(page, live, data):
-    """New key with no label: a click on Create key marks the field; the pointer stays on it, so its reason shows."""
-    page.get_by_role("button", name="New key").first.click()
-    box = page.get_by_role("dialog", name="New API key")
-    expect(box).to_be_visible(timeout=TIMEOUT_MS)
-    # aria-disabled, not disabled: the click reaches the button (Playwright waits for "enabled" unless forced)
-    box.get_by_role("button", name="Create key").click(force=True)
-    expect(box.get_by_text("A label is required.")).to_be_visible(timeout=TIMEOUT_MS)
-    box.get_by_role("button", name="Create key").hover()
-    expect(box.get_by_role("tooltip")).to_be_visible(timeout=TIMEOUT_MS)
 
 
 def _open_mode(page, wallet: str = "dola video") -> None:
@@ -130,7 +166,6 @@ def new_mode_list(page, live, data):
     _open_mode(page)
 
 
-DRAWN_CREATE, APP_CREATE = 'button[aria-describedby="fvTip"]', 'button[aria-describedby="key-create-why"]'
 # The open Mode list against the drawn Provider list (B-States 1440): its four options and the word "Provider" are that
 # list's data, the three modes this one's; the list's height follows the number of options. It hangs 6 px under its
 # field (the field's box: on a phone the chip is the box), and it is on top: the element at its centre is the list (the
@@ -148,16 +183,11 @@ STATE_CHECKS = [
              ".keys-card", DESKTOP, widen=True),
     KeyCheck("state-confirm-delete", _keys(STATES, delete_partner_b), '[role="dialog"][aria-labelledby="cfDel"]',
              ".rl-confirm", DESKTOP, widen=True),
-    KeyCheck("state-label-field", _keys(STATES, label_required), "div:has(> #fvLabel)",
-             ".key-dialog .kd__field:has(#key-label)", DESKTOP, widen=True),
-    KeyCheck("state-label-tip", _keys(STATES, label_required), "#fvTip", "#key-create-why", DESKTOP,
-             anchor=(DRAWN_CREATE, APP_CREATE)),
-    KeyCheck("state-label-create", _keys(STATES, label_required), DRAWN_CREATE, APP_CREATE, DESKTOP),
     KeyCheck("state-mode-list", _keys(STATES, new_mode_list), '[role="listbox"][aria-label="Provider"]@0',
              '[role="listbox"]',
              DESKTOP, data=LISTBOX_DATA, data_app=MODE_WORDS, loose={"listbox": "h"}, popup=OPEN_LIST),
 ]
-CHECKS = [*BOARD_CHECKS, COPIED, FORM, *STATE_CHECKS]
+CHECKS = [*BOARD_CHECKS, COPIED, FORM_BODY, FORM_FOOTER, FORM_FOOTER_TABLET, *STATE_CHECKS]
 
 
 @pytest.mark.parametrize("theme", THEMES)
@@ -167,6 +197,8 @@ def test_keys_matches_the_canvas_element_by_element(app, db, live, renderer, dif
     width, height = check.viewport or (board_w, board_h)
     dark = theme == "dark"
     with opened(app, db, live, check.state, dark, width, height) as page:
+        if check.drop_app:
+            page.evaluate(DROP_JS, check.drop_app, isolated_context=False)
         app_root = _root(page, check.app_root)
         mine = extract(page, app_root)
         app_png = _png(page, app_root)
@@ -186,10 +218,16 @@ def test_keys_matches_the_canvas_element_by_element(app, db, live, renderer, dif
         renderer.settle()
     if check.fields:
         renderer.page.evaluate(SELECT_VALUES_JS, isolated_context=False)
+    if check.drop_canvas:
+        renderer.page.evaluate(DROP_JS, check.drop_canvas, isolated_context=False)
     canvas_root = _root(renderer.page, check.canvas_root)
+    if check.fix_canvas:
+        renderer.page.evaluate(check.fix_canvas, canvas_root, isolated_context=False)
     if check.widen:
         renderer.page.evaluate(WIDEN_JS, [canvas_root, mine["width"]], isolated_context=False)
         renderer.settle()
+    if check.same_height:
+        renderer.page.evaluate(HEIGHT_JS, [canvas_root, mine["height"]], isolated_context=False)
     theirs = extract(renderer.page, canvas_root)
     ref_png = _png(renderer.page, canvas_root)
     canvas_box = renderer.page.evaluate(ROOT_BOX_JS, canvas_root, isolated_context=False) if check.same_place else None
@@ -233,6 +271,10 @@ def test_keys_matches_the_canvas_element_by_element(app, db, live, renderer, dif
     assert res.failures == 0, "%s %s: %d element differences, see %s.md" % (check.name, theme, res.failures, stem)
     assert misplaced is None, misplaced
     assert misplaced_list is None, misplaced_list
+    if check.gate is not None:
+        got = pixels.percent + pixels.aa_percent
+        assert got <= check.gate, "%s %s: %.3f %% of the compared part differs in pixels, the gate is %.2f %%" % (
+            check.name, theme, got, check.gate)
     if check.fields:
         assert len(selects) == 2, "the video and image Mode fields against the two native selects: %r" % selects
         off = [(n, f) for n, f in enumerate(selects) if f[0] > SELECT_MISMATCH_PCT]
@@ -279,8 +321,16 @@ def new_key_dialog(page, live, data):
     expect(page.get_by_role("dialog", name="New API key")).to_be_visible(timeout=TIMEOUT_MS)
 
 
+def discard_confirm(page, live, data):
+    """Something typed, then Escape: the centred question over the drawer."""
+    new_key_dialog(page, live, data)
+    page.get_by_role("dialog").get_by_label("Label", exact=True).fill("Partner E")
+    page.keyboard.press("Escape")
+    expect(page.locator(".el-message-box")).to_be_visible(timeout=TIMEOUT_MS)
+
+
 def refused_create(page, live, data):
-    """The server refuses the label: the dialog says so from its fixed table and outlines the field."""
+    """The server refuses the label: the drawer says so from its fixed table and outlines the field."""
     def answer(route):
         if route.request.method != "POST":
             route.continue_()
@@ -321,11 +371,10 @@ UNDRAWN = [
     ("hover-row", hover_row, keys_seed, (DESKTOP,)),
     ("hover-delete", _hover("Delete key Shop B"), keys_seed, (DESKTOP, PHONE_VIEW)),
     ("hover-edit", _hover("Edit key Shop B"), keys_seed, (DESKTOP,)),
-    ("hover-copy-prefix", _hover("Copy key prefix of Shop B"), keys_seed, (DESKTOP,)),
     ("focus-switch", focus_switch, keys_seed, (DESKTOP,)),
     ("new-key-dialog", new_key_dialog, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
     ("refused-create", refused_create, keys_seed, (DESKTOP, PHONE_VIEW)),
-    ("label-required", label_required, keys_seed, (DESKTOP, PHONE_VIEW)),
+    ("discard-confirm", discard_confirm, keys_seed, (DESKTOP, PHONE_VIEW)),
     ("mode-list", mode_list, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
     ("load-error", load_fails, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
     ("loading", load_held, keys_seed, (DESKTOP, TABLET, PHONE_VIEW)),
@@ -372,7 +421,7 @@ LIVE_KEYS = (
     (LONG_LABEL, "rk-longestx", True, FIVE_MODELS, ("limit", 2500, 99999, 1234, 87654),
      ("limit", 900, 50000, 899, 49999), 8765, 0, datetime(2026, 1, 3, 12, tzinfo=SAIGON)),
 )
-LIVE_VALUES = ("rk-q7mfz2kd", "rk-hwpaxnkd", "rk-a_bq_xmz", "k7a-team2", "m2c-shop1", "(no label)")
+LIVE_VALUES = ("rk-q7mfz2kd", "rk-hwpaxnkd", "rk-a_bq_xmz", "k7a-team2", "m2c-shop1")
 
 
 def live_like_keys_seed(db, live):

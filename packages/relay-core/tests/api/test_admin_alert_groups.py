@@ -513,3 +513,21 @@ def test_the_reply_text_is_on_no_public_surface(db):
                 "SELECT m::text FROM job_media m", "SELECT c::text FROM commands c"):
         assert all(MARKER not in str(r[0]) for r in db.all(sql)), "the reply text reached %s" % sql
 
+
+
+def test_a_key_made_with_a_label_of_spaces_is_named_by_its_prefix_in_the_alerts(db):
+    async def make_key(env):
+        r = await env.client.post("/admin/keys", json={"label": "   "}, headers=await env.admin_headers())
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    made = run_app(db, make_key)
+    plant_unclear(db, uuid.UUID(made["id"]), "Words under a key made with spaces")
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        return await env.client.get(detail_url("unclear_reply", group_of("Words under a key made with spaces")),
+                                    headers=h)
+
+    [row] = run_app(db, scenario).json()["items"]
+    assert made["prefix"] and row["key_label"] == made["prefix"], "named by its prefix: %r" % row["key_label"]

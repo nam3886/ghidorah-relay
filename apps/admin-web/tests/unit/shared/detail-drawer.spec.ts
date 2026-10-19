@@ -1,10 +1,16 @@
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h, ref } from "vue";
+import * as confirm from "../../../src/components/shared/confirm-dialog";
 import DetailDrawer from "../../../src/components/shared/DetailDrawer.vue";
+import { cancelPending } from "../../../src/components/shared/use-leave-guard";
+
+vi.mock("../../../src/components/shared/confirm-dialog", () => ({ confirmDialog: vi.fn() }));
+const ask = vi.mocked(confirm.confirmDialog);
 
 const mounted: VueWrapper[] = [];
 afterEach(() => {
+  cancelPending();
   while (mounted.length) mounted.pop()!.unmount();
   vi.unstubAllGlobals();
   document.body.replaceChildren();
@@ -27,12 +33,20 @@ async function drawer(
 }
 
 const dialog = () => document.body.querySelector<HTMLElement>("[role='dialog']");
+// the dialog's accessible name as a browser computes it here: no aria-label, the text of the element it is labelled by
+const nameOf = (el: HTMLElement | null): string | null => {
+  if (!el || el.hasAttribute("aria-label")) return null;
+  const by = el.getAttribute("aria-labelledby");
+  return by ? (document.getElementById(by)?.textContent ?? null) : null;
+};
+const heading = () => document.body.querySelector("h1, h2");
 
 describe("DetailDrawer", () => {
-  it("is a dialog named by its title, with the fixed test id", async () => {
+  it("is a dialog named by its visible heading, with the fixed test id", async () => {
     await drawer();
     expect(dialog()).not.toBeNull();
-    expect(dialog()!.getAttribute("aria-label")).toBe("Job 3b9e1f0a");
+    expect(nameOf(dialog())).toBe("Job 3b9e1f0a");
+    expect(nameOf(dialog())).toBe(heading()!.textContent);
     expect(document.body.querySelector("[data-testid='job-drawer']")).not.toBeNull();
     expect(document.body.querySelector("h2")!.textContent).toBe("Job 3b9e1f0a");
   });
@@ -49,6 +63,17 @@ describe("DetailDrawer", () => {
     }));
     const phone = await drawer();
     expect(phone.findComponent({ name: "ElDrawer" }).props("size")).toBe("100%");
+  });
+
+  it("on a phone the name is the visible h1", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: /max-width:\s*767/.test(q),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    await drawer({ heading: "Portrait, soft window light" });
+    expect(heading()!.tagName).toBe("H1");
+    expect(nameOf(dialog())).toBe("Portrait, soft window light");
   });
 
   it("a phone sheet has a Back button named by backLabel, the title as h1 and a theme toggle; a desktop drawer has none of them", async () => {
@@ -129,10 +154,11 @@ describe("DetailDrawer", () => {
     expect(document.body.querySelector(".detail-drawer__foot")).toBeNull();
   });
 
-  it("heading is the visible h2 text when given, the name stays the title; without it the title shows", async () => {
+  it("heading is the visible h2 text when given and is the name too; without it the title shows", async () => {
     await drawer({ heading: "Portrait, soft window light" });
     expect(document.body.querySelector("h2")!.textContent).toBe("Portrait, soft window light");
-    expect(dialog()!.getAttribute("aria-label")).toBe("Job 3b9e1f0a");
+    expect(nameOf(dialog())).toBe("Portrait, soft window light");
+    expect(nameOf(dialog())).toBe(heading()!.textContent);
     document.body.replaceChildren();
     await drawer();
     expect(document.body.querySelector("h2")!.textContent).toBe("Job 3b9e1f0a");
@@ -142,6 +168,160 @@ describe("DetailDrawer", () => {
     await drawer({ title: PLANTED });
     expect(document.body.querySelector("h2 img")).toBeNull();
     expect(document.body.querySelector("h2")!.textContent).toBe(PLANTED);
-    expect(dialog()!.getAttribute("aria-label")).toBe(PLANTED);
+    expect(nameOf(dialog())).toBe(PLANTED);
+  });
+});
+
+const CANCEL_FOOTER = "<template #footer='{ close }'><button id='cancel' @click='close'>Cancel</button></template>";
+
+describe("DetailDrawer close guard", () => {
+  // the box the test answers by hand (true = Discard)
+  let answer: (discard: boolean) => void = () => undefined;
+  beforeEach(() => {
+    ask.mockReset();
+    ask.mockImplementation(() => new Promise<boolean>((resolve) => (answer = resolve)));
+  });
+  const press = (key: string) =>
+    document.dispatchEvent(new KeyboardEvent("keydown", { key, code: key, bubbles: true, cancelable: true }));
+  // a press and release on the scrim itself, as a mouse does
+  const scrim = () => {
+    const el = document.body.querySelector<HTMLElement>(".el-overlay")!;
+    for (const type of ["mousedown", "mouseup", "click"]) el.dispatchEvent(new MouseEvent(type, { bubbles: true }));
+  };
+  const closeButton = () => document.body.querySelector<HTMLButtonElement>("button[aria-label='Close']")!;
+  const phone = () =>
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: /max-width:\s*767/.test(q),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+
+  it("with nothing declared every way to close goes at once, as before", async () => {
+    const w = await drawer();
+    closeButton().click();
+    press("Escape");
+    await flushPromises();
+    expect(ask).not.toHaveBeenCalled();
+    expect(w.emitted("update:modelValue")).toEqual([[false], [false]]);
+  });
+
+  it("a dirty drawer asks once with its own wording, and closes only on Discard", async () => {
+    const w = await drawer({ dirty: true, discardText: "Throw away the key?" });
+    closeButton().click();
+    await flushPromises();
+    expect(ask).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: "Throw away the key?" }));
+    answer(false);
+    await flushPromises();
+    expect(w.emitted("update:modelValue")).toBeUndefined();
+    closeButton().click();
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(2);
+    answer(true);
+    await flushPromises();
+    expect(w.emitted("update:modelValue")).toEqual([[false]]);
+  });
+
+  it("Escape, the X and the footer's close all ask, and three of them while the box is up make one box", async () => {
+    const w = await drawer({ dirty: true }, { default: "<p>body</p>", footer: CANCEL_FOOTER });
+    press("Escape");
+    closeButton().click();
+    document.getElementById("cancel")!.click();
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(1);
+    answer(true);
+    await flushPromises();
+    expect(w.emitted("update:modelValue")).toEqual([[false]]);
+  });
+
+  it("Escape alone and a scrim click alone cannot close a dirty drawer without the question", async () => {
+    const w = await drawer({ dirty: true, closeOnScrim: true });
+    press("Escape");
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(1);
+    answer(false);
+    await flushPromises();
+    scrim();
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(2);
+    expect(w.emitted("update:modelValue")).toBeUndefined();
+    // and the drawer is still the one shown: nothing hid it behind the question's back
+    expect(w.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(true);
+    expect(document.body.querySelector<HTMLElement>(".detail-drawer")!.style.display).not.toBe("none");
+  });
+
+  it("the footer's close asks like the X", async () => {
+    const w = await drawer({ dirty: true }, { default: "<p>body</p>", footer: CANCEL_FOOTER });
+    document.getElementById("cancel")!.click();
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(1);
+    answer(true);
+    await flushPromises();
+    expect(w.emitted("update:modelValue")).toEqual([[false]]);
+  });
+
+  it("the phone's Back asks like the X", async () => {
+    phone();
+    const w = await drawer({ dirty: true, backLabel: "Back to API keys" });
+    document.body.querySelector<HTMLButtonElement>("button[aria-label='Back to API keys']")!.click();
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(1);
+    answer(true);
+    await flushPromises();
+    expect(w.emitted("update:modelValue")).toEqual([[false]]);
+  });
+
+  it("a busy drawer ignores X, Escape, the footer's close and the scrim, clean or dirty", async () => {
+    for (const dirty of [false, true]) {
+      document.body.replaceChildren();
+      const w = await drawer({ busy: true, dirty }, { default: "<p>body</p>", footer: CANCEL_FOOTER });
+      closeButton().click();
+      press("Escape");
+      document.getElementById("cancel")!.click();
+      scrim();
+      await flushPromises();
+      expect(ask).not.toHaveBeenCalled();
+      expect(w.emitted("update:modelValue")).toBeUndefined();
+    }
+  });
+
+  it("a busy phone sheet ignores Back too", async () => {
+    phone();
+    const w = await drawer({ busy: true, backLabel: "Back" });
+    document.body.querySelector<HTMLButtonElement>("button[aria-label='Back']")!.click();
+    await flushPromises();
+    expect(w.emitted("update:modelValue")).toBeUndefined();
+  });
+
+  it("closeOnScrim false: a click beside the drawer never closes or asks; by default it closes like the X", async () => {
+    const form = await drawer({ closeOnScrim: false, dirty: true });
+    scrim();
+    await flushPromises();
+    expect(ask).not.toHaveBeenCalled();
+    expect(form.emitted("update:modelValue")).toBeUndefined();
+    expect(form.findComponent({ name: "ElDrawer" }).props("closeOnClickModal")).toBe(false);
+    document.body.replaceChildren();
+    const detail = await drawer();
+    expect(detail.findComponent({ name: "ElDrawer" }).props("closeOnClickModal")).toBe(true);
+    scrim();
+    await flushPromises();
+    expect(detail.emitted("update:modelValue")).toEqual([[false]]);
+  });
+
+  it("when the parent closes the drawer under a pending box, the box goes as keep and nothing is emitted", async () => {
+    const close = vi.spyOn(ElMessageBox, "close").mockImplementation(() => undefined);
+    const w = await drawer({ dirty: true });
+    closeButton().click();
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(1);
+    await w.setProps({ modelValue: false });
+    await flushPromises();
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(w.emitted("update:modelValue")).toBeUndefined();
+    // the latch is free: the next close asks again
+    await w.setProps({ modelValue: true });
+    await flushPromises();
+    closeButton().click();
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(2);
   });
 });

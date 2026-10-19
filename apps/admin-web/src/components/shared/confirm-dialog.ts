@@ -7,6 +7,9 @@ export interface ConfirmOptions {
   cancelText?: string;
   // a destructive action: the confirm button is red
   danger?: boolean;
+  // Element Plus closes a box when the address hash changes (as "close"); a question about leaving the page must
+  // outlive the hash change of a browser Back, so it passes false
+  closeOnHashChange?: boolean;
 }
 
 // The part of ElMessageBox this helper uses, so a spec can pass a stand-in.
@@ -22,6 +25,7 @@ export async function confirmDialog(options: ConfirmOptions, box: MessageBoxLike
       confirmButtonText: options.confirmText ?? "Confirm",
       cancelButtonText: options.cancelText ?? "Cancel",
       customClass: "rl-confirm",
+      closeOnHashChange: options.closeOnHashChange ?? true,
       // the canvas draws no close X: Cancel, Esc and the backdrop are the ways out
       showClose: false,
       type: options.danger ? "warning" : "info",

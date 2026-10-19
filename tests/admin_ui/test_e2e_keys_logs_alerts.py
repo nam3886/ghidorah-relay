@@ -151,7 +151,7 @@ def test_a_failed_create_shows_fixed_text_and_never_what_the_server_said(app, ap
                else r.continue_())
     page.get_by_role("button", name="New key").first.click()
     box = page.get_by_role("dialog")
-    box.get_by_label("Label", exact=True).fill("customer one")     # a new key needs a label before it is sent
+    box.get_by_label("Label", exact=True).fill("customer one")
     box.get_by_role("button", name="Create key").click()
     expect(box).to_contain_text("Some of the values are not accepted. Check the highlighted field.")
     assert key_places(page, fake) == []
@@ -212,7 +212,7 @@ def test_edit_disable_and_delete_with_and_without_jobs(app, app_session, db):
     assert db.one("SELECT enabled FROM api_keys WHERE id = %s", used)[0] is False
 
 
-def test_escape_closes_the_edit_key_dialog_from_a_focused_field_and_changes_nothing(app, app_session, db):
+def test_escape_on_a_typed_edit_key_form_asks_first_and_discarding_changes_nothing(app, app_session, db):
     page = app_session
     key = new_key(db)
     db.run("UPDATE api_keys SET label = 'plain', key_prefix = 'rk-plain' WHERE id = %s", key)
@@ -223,19 +223,33 @@ def test_escape_closes_the_edit_key_dialog_from_a_focused_field_and_changes_noth
     label.fill("typed, never saved")
     label.focus()
     page.keyboard.press("Escape")
+    ask = page.locator(".el-message-box")
+    expect(ask).to_contain_text("Discard what you typed?")
+    ask.get_by_role("button", name="Discard").click()
     expect(page.get_by_role("dialog")).to_have_count(0)
     assert db.one("SELECT label FROM api_keys WHERE id = %s", key)[0] == "plain"
 
 
-def test_the_key_prefix_copy_button_copies_the_prefix_only(app, app_session, db):
+def test_escape_on_an_edit_key_form_nobody_typed_in_closes_it_without_asking(app, app_session, db):
     page = app_session
     key = new_key(db)
     db.run("UPDATE api_keys SET label = 'plain', key_prefix = 'rk-plain' WHERE id = %s", key)
     open_tab(page, "API keys")
-    copy = rows(page).filter(has_text="rk-plain").get_by_role("button", name="Copy key prefix of plain")
-    copy.click()
-    expect(page.get_by_role("alert")).to_have_count(0)               # a copy that worked says nothing
-    assert page.evaluate("navigator.clipboard.readText()") == "rk-plain"
+    rows(page).filter(has_text="rk-plain").get_by_role("button", name="Edit").click()
+    expect(page.get_by_role("dialog")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    expect(page.locator(".el-message-box")).to_have_count(0)
+
+
+def test_no_row_has_a_copy_prefix_button_and_the_prefix_is_still_there(app, app_session, db):
+    page = app_session
+    key = new_key(db)
+    db.run("UPDATE api_keys SET label = 'plain', key_prefix = 'rk-plain' WHERE id = %s", key)
+    open_tab(page, "API keys")
+    expect(rows(page).filter(has_text="rk-plain")).to_have_count(1)
+    expect(page.get_by_role("button", name=re.compile("^Copy key prefix"))).to_have_count(0)
+    expect(page.locator('[title="Copy key prefix"]')).to_have_count(0)
 
 
 def test_a_key_label_with_markup_is_shown_as_text(app, app_session, db):
