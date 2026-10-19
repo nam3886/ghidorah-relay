@@ -1,10 +1,11 @@
 <script setup lang="ts">
 // Prompt frames: the text relay sends is the customer's prompt inside one admin-written frame per model, or per kind
 // (the default). All the state and the race rules are in components/frames/use-frames.ts.
-import { computed, onBeforeUnmount, onMounted } from "vue";
+import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 import FrameEditor from "@/components/frames/FrameEditor.vue";
 import FrameKindSection from "@/components/frames/FrameKindSection.vue";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
+import { useRouteLeaveGuard } from "@/components/shared/use-leave-guard";
 import { NO_FRAMES_TEXT } from "@/components/frames/frames-model";
 import { forgetFramesMemory, useFrames } from "@/components/frames/use-frames";
 import { errorText } from "@/lib/errors";
@@ -15,6 +16,28 @@ import { useScopeStore } from "@/stores/scope";
 const frames = useFrames();
 const scope = useScopeStore();
 const offSignOut = useAuthStore().onSignOut(forgetFramesMemory);
+
+// Leaving the page (or closing the tab) with an unsaved frame in the open drawer asks first; a write in flight keeps
+// the page.
+useRouteLeaveGuard(
+  () => frames.open && frames.draft !== frames.loaded,
+  () => frames.busy,
+);
+
+// The drawer is gone and Element Plus has sent focus back to the button that opened it. When that button no longer
+// exists (a reload drew the rows again) focus goes to the page's scroll area, so it is never left on the document.
+let opener: HTMLElement | null = null;
+watch(
+  () => frames.open,
+  (isOpen) => {
+    if (isOpen) opener = document.activeElement as HTMLElement | null;
+  },
+  { flush: "sync" },
+);
+function editorClosed(): void {
+  if (opener?.isConnected && opener !== document.body) return;
+  document.querySelector<HTMLElement>(".app-scroll__wrap")?.focus({ preventScroll: true });
+}
 
 // The provider select is this view's own state. The global filter only decides where it starts, when valid.
 onMounted(async () => {
@@ -64,12 +87,10 @@ const onProvider = (name: string | number): void => void frames.openProvider(Str
     <section v-if="frames.noFrames" class="frames__none" aria-label="Prompt frames, none">
       <p>{{ NO_FRAMES_TEXT }}</p>
     </section>
-    <div class="frames__body">
-      <div class="frames__kinds">
-        <FrameKindSection v-for="k in kinds" :key="k.kind" :frames="frames" :kind="k" />
-      </div>
-      <FrameEditor :frames="frames" />
+    <div class="frames__kinds">
+      <FrameKindSection v-for="k in kinds" :key="k.kind" :frames="frames" :kind="k" />
     </div>
+    <FrameEditor :frames="frames" @closed="editorClosed" />
   </section>
 </template>
 
@@ -120,15 +141,7 @@ const onProvider = (name: string | number): void => void frames.openProvider(Str
   cursor: default;
 }
 
-.frames__body {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 20px;
-}
 .frames__kinds {
-  flex: 1 1 560px;
-  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -142,15 +155,6 @@ const onProvider = (name: string | number): void => void frames.openProvider(Str
   }
   .frames__subtitle {
     margin-top: 2px;
-  }
-  .frames__body,
-  .frames__kinds {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    width: 100%;
-  }
-  .frames__kinds {
-    flex: none;
   }
 }
 @media (max-width: 767px) {
@@ -178,15 +182,8 @@ const onProvider = (name: string | number): void => void frames.openProvider(Str
   .frames {
     gap: 16px;
   }
-  .frames__body,
   .frames__kinds {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    width: 100%;
     gap: 16px;
-  }
-  .frames__kinds {
-    flex: none;
   }
 }
 </style>

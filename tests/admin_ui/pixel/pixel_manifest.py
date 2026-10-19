@@ -136,6 +136,11 @@ DRAWER = [
 # (gate 3.07, which was measured 2.07 + 1.0): the board changes on purpose, since the page no longer has the copy
 # buttons and draws relative bars for unlimited wallets, and the board still draws the copy buttons and no relative
 # bars, so it takes the measured value + 1.0.
+# The Frames boards were measured again after the editor became a right drawer the boards do not draw: the page now
+# opens with its list across the page and no drawer, so the boards (which draw the editor column) differ more by design
+# (B-Frames 2.98, T-Frames 2.61, P-Frames 4.83, worst of light and dark); each takes its measured value + 1.0. The editor
+# is compared by element instead (test_element_diff_frames_settings.py: its body at the drawer width with a pixel gate
+# of its own, and the footer).
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
 # that gets better should have its gate lowered.
 GATES: dict[str, float] = {
@@ -143,7 +148,7 @@ GATES: dict[str, float] = {
     "B-AccountImport": 4.45,
     "B-Accounts": 1.02,
     "B-Alerts": 1.17,
-    "B-Frames": 1.17,
+    "B-Frames": 3.98,
     "B-JobDetail": 1.40,
     "B-JobFailed": 1.32,
     "B-Jobs": 1.14,
@@ -156,7 +161,7 @@ GATES: dict[str, float] = {
     "B-Test": 1.14,
     "P-Accounts": 1.04,
     "P-Alerts": 1.31,
-    "P-Frames": 1.46,
+    "P-Frames": 5.83,
     "P-JobDetail": 2.23,
     "P-Jobs": 1.02,
     "P-Jobs-shell": 1.00,
@@ -167,7 +172,7 @@ GATES: dict[str, float] = {
     "P-Test": 1.30,
     "T-Accounts": 1.03,
     "T-Alerts": 1.07,
-    "T-Frames": 1.17,
+    "T-Frames": 3.61,
     "T-JobDetail": 1.37,
     "T-Jobs": 1.23,
     "T-Jobs-shell": 1.00,

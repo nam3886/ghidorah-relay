@@ -346,6 +346,10 @@ def test_the_table_opt_ins_day_rows_tablet_and_phone_list():
 @mutation(NOTIFY, "offset: PHONE_OFFSET_PX, grouping: true", "offset: PHONE_OFFSET_PX, grouping: false",
           expect="on a phone they sit bottom centre")
 @mutation(NOTIFY, 'placement: "bottom", offset', 'placement: "top", offset', expect="on a phone they sit bottom centre")
+@mutation(NOTIFY, "getBoundingClientRect().height) + TOAST_GAP_PX", "getBoundingClientRect().height)",
+          expect="lifted by the footer's measured height plus 16")
+@mutation(NOTIFY, "TOAST_GAP_PX = 16", "TOAST_GAP_PX = 0", expect="lifted by the footer's measured height plus 16")
+@mutation(NOTIFY, "return foot ? {", "return false ? {", expect="lifted by the footer's measured height plus 16")
 @mutation(NOTIFY, "PHONE_OFFSET_PX = 72", "PHONE_OFFSET_PX = 0", expect="lifted above the bulk bar")
 @mutation(NOTIFY, "(max-width: 767.98px)", "(max-width: 10px)", expect="asks the phone edge")
 @mutation(NOTIFY, "  message.closeAll();\n    },", "  void message;\n    },", expect="clear closes every toast")
@@ -565,8 +569,10 @@ HINT = f"{SHARED}/HintTip.vue"
 @mutation(HINT, ": 'rl-tip'\"", ": 'x-tip'\"", expect="is the menu-surface tooltip")
 @mutation(HINT, 'effect="light"', 'effect="dark"', expect="is the menu-surface tooltip")
 @mutation(HINT, ":trigger=\"['hover', 'focus']\"", 'trigger="hover"', expect="hover and focus open it")
-@mutation(HINT, '@keydown.esc="tip?.hide()"', '@keydown.enter="tip?.hide()"',
+@mutation(HINT, '@keydown.esc="onEscape"', '@keydown.enter="onEscape"',
           expect="Escape on the text asks the tooltip")
+@mutation(HINT, "if (shown.value) e.stopPropagation();", "", expect="Escape of an open note goes no further")
+@mutation(HINT, "(shown = open)", "(shown = false)", expect="Escape of an open note goes no further")
 @mutation(HINT, ':show-arrow="false"', ':show-arrow="true"', expect="is the menu-surface tooltip")
 @mutation(SKIN, "  max-width: 320px;\n  padding: 8px 12px;", "  max-width: 320px;\n  padding: 4px 8px;",
           expect="is the menu surface: surface fill")

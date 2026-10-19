@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import DetailDrawer from "@/components/shared/DetailDrawer.vue";
 import HintTip from "@/components/shared/HintTip.vue";
 import { IconAlertCircle } from "@/components/shared/icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
@@ -15,10 +16,13 @@ import {
 } from "./frames-model";
 import type { FramesController } from "./use-frames";
 
-// The editor of one frame: the text, Save / Follow the default / Apply to all, a preview of the draft, and the history
-// with Roll back. Every frame text is shown as text. While a load or a write is in flight the draft is read-only and
+// The editor of one frame, in a right drawer: the text, a preview of the draft and the history with Roll back in the
+// body; Save / Follow the default / Apply to all / Preview in the footer. The drawer is open while `frames.open` is
+// (also while the read runs, and when the read found no such frame: a reload never drops the draft). A close with an
+// unsaved change asks first. Every frame text is shown as text. While a load or a write is in flight the draft is read-only and
 // every control is off (the controller decides, see use-frames.ts).
 const props = defineProps<{ frames: FramesController }>();
+const emit = defineEmits<{ closed: [] }>();
 const { isPhone } = useBreakpoint();
 
 // The empty box shows the shape of a frame. Built from the markers, so no template holds a double brace.
@@ -32,51 +36,127 @@ const source = computed(() => {
   if (!v) return null;
   return { tone: own ? "info" : "neutral", text: `${own ? "own" : "default"} · ${versionTag(v)}` };
 });
+const heading = computed(() =>
+  props.frames.shown ? `Editing ${props.frames.shown.kind} / ${props.frames.shown.target}` : "Edit frame",
+);
+const dirty = computed(() => props.frames.draft !== props.frames.loaded);
 const currentId = computed(() => props.frames.info?.current?.id ?? null);
 </script>
 
 <template>
-  <section v-if="frames.shown && frames.info" class="editor frame-editor" aria-labelledby="frame-editor-title">
-    <div class="editor__title">
-      <h2 id="frame-editor-title">
-        Editing <span class="editor__mono">{{ frames.shown.kind }} / {{ frames.shown.target }}</span>
-      </h2>
-      <span v-if="source" class="pill" :class="`pill--${source.tone}`"
-        ><i class="dot" aria-hidden="true" />{{ source.text }}</span
-      >
-    </div>
-    <p class="editor__hint">
-      One line, at most 1,000 characters. It must contain <code>{{ PROMPT_MARKER }}</code> and
-      <code>{{ TRACKING_MARKER }}</code> exactly once each.
-    </p>
-    <p v-if="frames.shownModel && frames.shownModel.source === 'default'" class="editor__hint">
-      This model follows the default. Saving gives it its own frame; until then a change to the default reaches it.
-    </p>
+  <DetailDrawer
+    :model-value="frames.open"
+    title="Edit frame"
+    :heading="heading"
+    testid="frame-drawer"
+    back-label="Back to Prompt frames"
+    :dirty="dirty"
+    :busy="frames.busy"
+    :close-on-scrim="false"
+    @update:model-value="(o: boolean) => !o && frames.close()"
+    @closed="emit('closed')"
+  >
+    <template v-if="source && frames.shown && frames.info" #chips>
+      <span class="pill" :class="`pill--${source.tone}`"><i class="dot" aria-hidden="true" />{{ source.text }}</span>
+    </template>
+    <div v-if="frames.shown && frames.info" class="frame-editor">
+      <p class="editor__hint">
+        One line, at most 1,000 characters. It must contain <code>{{ PROMPT_MARKER }}</code> and
+        <code>{{ TRACKING_MARKER }}</code> exactly once each.
+      </p>
+      <p v-if="frames.shownModel && frames.shownModel.source === 'default'" class="editor__hint">
+        This model follows the default. Saving gives it its own frame; until then a change to the default reaches it.
+      </p>
 
-    <div class="editor__field">
-      <div class="editor__label-row">
-        <label for="frame-text">Frame text</label>
-        <span class="editor__count">{{ frames.draft.length.toLocaleString("en-US") }} / 1,000</span>
+      <div class="editor__field">
+        <div class="editor__label-row">
+          <label for="frame-text">Frame text</label>
+          <span class="editor__count">{{ frames.draft.length.toLocaleString("en-US") }} / 1,000</span>
+        </div>
+        <textarea
+          id="frame-text"
+          :value="frames.draft"
+          :rows="isPhone ? 7 : 5"
+          :placeholder="FRAME_SHAPE"
+          :readonly="frames.controlsOff"
+          class="editor__text"
+          :class="{ 'is-invalid': frames.refusal }"
+          :aria-invalid="frames.refusal ? 'true' : undefined"
+          :aria-describedby="frames.refusal ? 'frame-refusal' : undefined"
+          @input="frames.setDraft(($event.target as HTMLTextAreaElement).value)"
+        />
+        <!-- a refused write, drawn as the field error of B-States (12.8): under the box it is about -->
+        <span v-if="frames.refusal" id="frame-refusal" class="editor__alert" role="alert"
+          ><IconAlertCircle :size="14" />{{ frames.refusal }}</span
+        >
       </div>
-      <textarea
-        id="frame-text"
-        :value="frames.draft"
-        :rows="isPhone ? 7 : 5"
-        :placeholder="FRAME_SHAPE"
-        :readonly="frames.controlsOff"
-        class="editor__text"
-        :class="{ 'is-invalid': frames.refusal }"
-        :aria-invalid="frames.refusal ? 'true' : undefined"
-        :aria-describedby="frames.refusal ? 'frame-refusal' : undefined"
-        @input="frames.setDraft(($event.target as HTMLTextAreaElement).value)"
-      />
-      <!-- a refused write, drawn as the field error of B-States (12.8): under the box it is about -->
-      <span v-if="frames.refusal" id="frame-refusal" class="editor__alert" role="alert"
-        ><IconAlertCircle :size="14" />{{ frames.refusal }}</span
-      >
-    </div>
+      <p v-if="frames.warnings.length" class="editor__note" role="status" data-testid="frame-warnings">
+        {{ frames.warnings.join(" ") }}
+      </p>
+      <p v-if="frames.applied" class="editor__note" role="status" data-testid="frame-applied">
+        {{ appliedLine(frames.applied) }}
+      </p>
 
-    <div class="editor__buttons">
+      <div class="editor__section">
+        <div class="editor__field">
+          <label for="frame-sample">Sample prompt</label>
+          <input
+            id="frame-sample"
+            type="text"
+            class="editor__input"
+            :value="frames.previewPrompt"
+            :disabled="frames.controlsOff"
+            @input="frames.setPreviewPrompt(($event.target as HTMLInputElement).value)"
+          />
+        </div>
+        <template v-if="frames.preview">
+          <div class="editor__label-row">
+            <span class="editor__strong">Preview</span>
+            <!-- the canvas draws the count alone: what the preview was made with is its tooltip -->
+            <span class="editor__count"
+              ><HintTip :text="`Shown with the sample tracking code (${frames.preview.source} frame).`"
+                >{{ frames.preview.length }} characters</HintTip
+              ></span
+            >
+          </div>
+          <div class="editor__preview" data-testid="frame-preview">{{ frames.preview.text }}</div>
+        </template>
+      </div>
+
+      <div class="editor__section editor__section--history">
+        <!-- the canvas draws no lock history line: the whole history of the lock is the heading's tooltip -->
+        <h3>
+          <HintTip
+            v-if="frames.shownModel && frames.info.lock_history?.length"
+            :text="lockHistoryLine(frames.info.lock_history)"
+            >History</HintTip
+          >
+          <template v-else>History</template>
+        </h3>
+        <p v-if="!frames.info.history.length" class="editor__note">No versions yet</p>
+        <ol v-else class="editor__history" data-testid="frame-history">
+          <li v-for="v in newestFirst(frames.info.history)" :key="v.id" :data-version="v.id">
+            <span class="editor__version">{{ versionTag(v) }}</span>
+            <span v-if="v.id === currentId" class="pill pill--ok"><i class="dot" aria-hidden="true" />current</span>
+            <span class="editor__when">{{ shortStamp(v.created_ms) }}</span>
+            <button
+              v-if="v.id !== currentId"
+              type="button"
+              class="btn btn--roll"
+              :aria-label="`Roll back to version ${v.id}`"
+              :disabled="frames.controlsOff"
+              @click="frames.rollback(v.id)"
+            >
+              Roll back to this
+            </button>
+          </li>
+        </ol>
+      </div>
+    </div>
+    <p v-else class="editor__note" role="status" data-testid="frame-missing">
+      {{ frames.loading ? "Loading the frame..." : "This frame is not listed any more. Close this and pick another." }}
+    </p>
+    <template v-if="frames.shown && frames.info" #footer>
       <button type="button" class="btn btn--primary" :disabled="!frames.canSave" @click="frames.save">Save</button>
       <button
         v-if="frames.shownModel && frames.shownModel.source === 'own'"
@@ -97,109 +177,21 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
         Apply to all models of this kind
       </button>
       <button type="button" class="btn" :disabled="frames.controlsOff" @click="frames.previewNow">Preview</button>
-    </div>
-    <p v-if="frames.warnings.length" class="editor__note" role="status" data-testid="frame-warnings">
-      {{ frames.warnings.join(" ") }}
-    </p>
-    <p v-if="frames.applied" class="editor__note" role="status" data-testid="frame-applied">
-      {{ appliedLine(frames.applied) }}
-    </p>
-
-    <div class="editor__section">
-      <div class="editor__field">
-        <label for="frame-sample">Sample prompt</label>
-        <input
-          id="frame-sample"
-          type="text"
-          class="editor__input"
-          :value="frames.previewPrompt"
-          :disabled="frames.controlsOff"
-          @input="frames.setPreviewPrompt(($event.target as HTMLInputElement).value)"
-        />
-      </div>
-      <template v-if="frames.preview">
-        <div class="editor__label-row">
-          <span class="editor__strong">Preview</span>
-          <!-- the canvas draws the count alone: what the preview was made with is its tooltip -->
-          <span class="editor__count"
-            ><HintTip :text="`Shown with the sample tracking code (${frames.preview.source} frame).`"
-              >{{ frames.preview.length }} characters</HintTip
-            ></span
-          >
-        </div>
-        <div class="editor__preview" data-testid="frame-preview">{{ frames.preview.text }}</div>
-      </template>
-    </div>
-
-    <div class="editor__section editor__section--history">
-      <!-- the canvas draws no lock history line: the whole history of the lock is the heading's tooltip -->
-      <h3>
-        <HintTip
-          v-if="frames.shownModel && frames.info.lock_history?.length"
-          :text="lockHistoryLine(frames.info.lock_history)"
-          >History</HintTip
-        >
-        <template v-else>History</template>
-      </h3>
-      <p v-if="!frames.info.history.length" class="editor__note">No versions yet</p>
-      <ol v-else class="editor__history" data-testid="frame-history">
-        <li v-for="v in newestFirst(frames.info.history)" :key="v.id" :data-version="v.id">
-          <span class="editor__version">{{ versionTag(v) }}</span>
-          <span v-if="v.id === currentId" class="pill pill--ok"><i class="dot" aria-hidden="true" />current</span>
-          <span class="editor__when">{{ shortStamp(v.created_ms) }}</span>
-          <button
-            v-if="v.id !== currentId"
-            type="button"
-            class="btn btn--roll"
-            :aria-label="`Roll back to version ${v.id}`"
-            :disabled="frames.controlsOff"
-            @click="frames.rollback(v.id)"
-          >
-            Roll back to this
-          </button>
-        </li>
-      </ol>
-    </div>
-  </section>
-  <!-- nothing open: the drawn empty card (12.6) -->
-  <section v-else-if="frames.data" class="editor editor--empty" aria-label="Frame editor">
-    <p>Pick a model or a default to edit its frame.</p>
-  </section>
+    </template>
+  </DetailDrawer>
 </template>
 
 <style scoped>
-.editor {
-  flex: 1 1 480px;
-  min-width: 0;
-  box-sizing: border-box;
+.frame-editor {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 20px;
-  background: var(--rl-surface);
-  border: 1px solid var(--rl-line);
-  border-radius: 16px;
 }
-.editor__title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-}
-.editor h2,
-.editor h3 {
-  margin: 0;
+.frame-editor h3 {
+  margin: 0 0 4px;
   font-size: 15px;
   line-height: 22px;
   font-weight: 600;
-}
-.editor h3 {
-  margin-bottom: 4px;
-}
-.editor__mono {
-  font-family: var(--rl-mono);
-  font-weight: 500;
-  overflow-wrap: anywhere;
 }
 .pill {
   display: inline-flex;
@@ -304,11 +296,6 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
   line-height: 16px;
   color: var(--rl-muted);
 }
-.editor__buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 .btn {
   box-sizing: border-box;
   height: 36px;
@@ -397,21 +384,7 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
   padding: 0 10px;
   background: transparent;
 }
-.editor.editor--empty {
-  display: block;
-  padding: 44px 24px 52px;
-  text-align: center;
-}
-.editor--empty p {
-  margin: 0;
-  color: var(--rl-muted);
-}
-
 @media (min-width: 768px) and (max-width: 1279px) {
-  .editor {
-    flex: none;
-    width: 100%;
-  }
   .editor__history li {
     min-height: 48px;
   }
@@ -421,23 +394,8 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
   }
 }
 @media (max-width: 767px) {
-  .editor {
-    flex: none;
-    width: 100%;
-    padding: 16px;
-  }
   .editor__text {
     min-height: 0;
-  }
-  .editor__buttons {
-    flex-direction: column;
-  }
-  /* the drawn phone buttons set no padding: the browser's 1px 6px */
-  .editor__buttons .btn {
-    width: 100%;
-    height: 44px;
-    padding: 1px 6px;
-    font-size: 14px;
   }
   .editor__input {
     height: 44px;

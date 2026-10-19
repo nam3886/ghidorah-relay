@@ -57,12 +57,17 @@ describe("opening", () => {
     expect(again.provider).toBe("other");
   });
 
-  it("reopens the editor it had when it comes back", async () => {
+  it("starts closed when it comes back, whatever editor it had", async () => {
     const f = await opened("m2", null);
     expect(f.shown).toEqual({ provider: "flow", kind: "video", target: "m2" });
+    expect(f.open).toBe(true);
+    vi.mocked(api.getFrame).mockClear();
     const again = useFrames();
     await again.init(["flow"], "flow");
-    expect(again.shown).toEqual({ provider: "flow", kind: "video", target: "m2" });
+    expect(again.open).toBe(false);
+    expect(again.shown).toBeNull();
+    expect(again.data?.kinds).toHaveLength(2);
+    expect(api.getFrame).not.toHaveBeenCalled();
   });
 
   it("loads the table and no editor until one is opened", async () => {
@@ -105,6 +110,90 @@ describe("opening", () => {
     const g = await opened("m2", null);
     expect(g.draft).toBe("effective text");
     expect(g.canSave).toBe(false);
+  });
+});
+
+describe("the drawer", () => {
+  it("opens at once on Edit, while the read runs, and holds the draft once it lands", async () => {
+    const f = useFrames();
+    await f.init(["flow"], "flow");
+    expect(f.open).toBe(false);
+    const slow = deferred<api.FrameInfo>();
+    vi.mocked(api.getFrame).mockReturnValue(slow.promise);
+    const reading = f.edit("video", "m1");
+    expect(f.open).toBe(true);
+    expect(f.shown).toBeNull();
+    slow.resolve(frameInfo("own1"));
+    await reading;
+    expect(f.open).toBe(true);
+    expect(f.draft).toBe("own1");
+  });
+
+  it("stays open, with its draft, when a reload finds no such frame any more", async () => {
+    const f = await opened("m1", "own1");
+    f.setDraft("typed, not saved");
+    vi.mocked(api.listFrames).mockImplementation(async () => ({ ...framesList(), kinds: [] }));
+    vi.mocked(api.lockFrame).mockResolvedValue({});
+    await f.setLock("video", "m1", true);
+    expect(f.shown).toBeNull();
+    expect(f.open).toBe(true);
+    expect(f.draft).toBe("typed, not saved");
+    expect(f.loaded).toBe("own1");
+  });
+
+  it("closes the drawer and forgets the editor, the draft and what the last write said", async () => {
+    const f = await opened("m1", "own1");
+    f.setDraft("typed");
+    f.close();
+    expect(f.open).toBe(false);
+    expect(f.shown).toBeNull();
+    expect(f.info).toBeNull();
+    expect(f.draft).toBe("");
+    expect(f.loaded).toBe("");
+    expect(f.refusal).toBe("");
+    expect(f.warnings).toEqual([]);
+    expect(f.preview).toBeNull();
+    // the provider stays, the target does not
+    expect(f.provider).toBe("flow");
+    const again = useFrames();
+    await again.init(["flow"], "flow");
+    expect(again.shown).toBeNull();
+  });
+
+  it("drops a read that lands after the drawer was closed, and does not reopen it", async () => {
+    const f = useFrames();
+    await f.init(["flow"], "flow");
+    const slow = deferred<api.FrameInfo>();
+    vi.mocked(api.getFrame).mockReturnValue(slow.promise);
+    const reading = f.edit("video", "m1");
+    f.close();
+    slow.resolve(frameInfo("own1"));
+    await reading;
+    expect(f.open).toBe(false);
+    expect(f.shown).toBeNull();
+    expect(f.draft).toBe("");
+  });
+
+  it("shuts a drawer whose read failed and holds nothing, after the toast", async () => {
+    const f = useFrames();
+    await f.init(["flow"], "flow");
+    vi.mocked(api.getFrame).mockRejectedValue(new ApiError(500, { error: { code: "server.error", message: "no" } }));
+    await f.edit("video", "m1");
+    expect(notify.error).toHaveBeenCalledWith("no");
+    expect(f.open).toBe(false);
+  });
+
+  it("stays open after Save and after Roll back: the reload redraws it", async () => {
+    const f = await opened();
+    f.setDraft("x");
+    vi.mocked(api.putFrame).mockResolvedValue(saved());
+    await f.save();
+    expect(f.open).toBe(true);
+    expect(f.shown?.target).toBe("m1");
+    vi.mocked(api.rollbackFrame).mockResolvedValue(saved());
+    await f.rollback(4);
+    expect(f.open).toBe(true);
+    expect(f.shown?.target).toBe("m1");
   });
 });
 

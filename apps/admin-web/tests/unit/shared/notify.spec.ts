@@ -52,6 +52,26 @@ describe("notify", () => {
     }
   });
 
+  it("above a drawer footer on screen the toast is lifted by the footer's measured height plus 16", () => {
+    const { message, notify } = stub();
+    width(false);
+    const foot = document.createElement("div");
+    foot.className = "detail-drawer__foot";
+    foot.getBoundingClientRect = () => ({ height: 57 }) as DOMRect;
+    document.body.append(foot);
+    try {
+      notify.success("Saved");
+      expect(lastOptions(message)).toMatchObject({ placement: "bottom-right", offset: 73 });
+      foot.getBoundingClientRect = () => ({ height: 65 }) as DOMRect;
+      notify.error("x");
+      expect(lastOptions(message).offset).toBe(81);
+    } finally {
+      foot.remove();
+    }
+    notify.success("Saved again");
+    expect(lastOptions(message).offset).toBeUndefined();
+  });
+
   it("on a phone they sit bottom centre, lifted above the bulk bar", () => {
     const { message, notify } = stub();
     width(true);

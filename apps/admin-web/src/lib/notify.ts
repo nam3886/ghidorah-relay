@@ -28,10 +28,19 @@ export const isPhoneNow = (): boolean =>
   typeof window.matchMedia === "function" &&
   window.matchMedia("(max-width: 767.98px)").matches;
 
+// While a drawer's footer is on screen its buttons sit where a bottom-right toast would land: the toast goes above it
+// (the default gap of Element Plus, 16 px, over the footer as measured now).
+const TOAST_GAP_PX = 16;
+function aboveDrawerFooter(): { offset?: number } {
+  if (typeof document === "undefined") return {};
+  const foot = document.querySelector(".detail-drawer__foot");
+  return foot ? { offset: Math.round(foot.getBoundingClientRect().height) + TOAST_GAP_PX } : {};
+}
+
 const base = () =>
   isPhoneNow()
     ? ({ placement: "bottom", offset: PHONE_OFFSET_PX, grouping: true } as const)
-    : ({ placement: "bottom-right", grouping: true } as const);
+    : ({ placement: "bottom-right", grouping: true, ...aboveDrawerFooter() } as const);
 
 // The part of ElMessage this module uses, so a spec can pass a stand-in.
 export interface MessageLike {
