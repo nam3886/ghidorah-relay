@@ -258,7 +258,7 @@ STRIP_ON_CREATE = "no label\n        return value.strip()"
 STRIP_ON_PATCH = "        return None if value is None else value.strip()"
 
 
-@mutation(ROUTES, STRIP_ON_CREATE, "        return value", expect="a label of spaces is stored as it came")
+@mutation(ROUTES, STRIP_ON_CREATE, "no label\n        return value", expect="a label of spaces is stored as it came")
 @mutation(ROUTES, STRIP_ON_PATCH, "        return value", expect="a patch to spaces is stored as it came")
 def test_a_label_is_stored_without_its_edges_and_a_label_of_spaces_is_no_label(db):
     async def scenario(env):

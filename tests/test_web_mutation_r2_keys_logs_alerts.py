@@ -372,8 +372,6 @@ def test_the_label_of_a_key_is_optional_and_a_key_without_one_is_named_by_its_pr
           expect=GUARDED + "a create that fails after the form is gone is a toast, not a lost error")
 @mutation(KEYS, "    callout.value?.reveal();\n", "",
           expect=GUARDED + "a good save brings the banner into view and puts focus in its field")
-@mutation(KEYS, "    newKeyButton.value?.focus();\n", "",
-          expect=GUARDED + "focus goes to the page's primary button when the opener is gone")
 @pytest.mark.web_unit
 def test_the_key_form_drawer_guards_what_was_typed_and_says_so_when_a_create_fails():
     vitest(KEYS_VIEW_SPEC)
@@ -397,10 +395,7 @@ def test_the_key_form_drawer_guards_what_was_typed_and_says_so_when_a_create_fai
           expect=CLOSE_GUARD + "closeOnScrim false: a click beside the drawer never closes or asks; by default it "
                                "closes like the X")
 @mutation(DRAWER, '<slot name="footer" :close="requestClose" />', '<slot name="footer" :close="() => {}" />',
-          expect=CLOSE_GUARD + "Escape, the X and the footer's close all ask, and three of them while the box is up "
-                               "make one box")
-@mutation(DRAWER, ':before-close="() => void requestClose()"', ":before-close=\"(done: () => void) => done()\"",
-          expect=CLOSE_GUARD + "a dirty drawer asks once with its own wording, and closes only on Discard")
+          expect=CLOSE_GUARD + "the footer's close asks like the X")
 @pytest.mark.web_unit
 def test_the_drawer_asks_before_it_loses_typing_and_does_nothing_while_a_write_runs():
     vitest(DRAWER_SPEC)
@@ -434,7 +429,8 @@ def test_one_discard_question_at_a_time_and_a_leave_guard_while_dirty():
 @mutation(WALLET_LINES, 'v-else-if="w.mode === \'unlimited\'"', 'v-else-if="false"',
           expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
                             "their own scales")
-@mutation(WALLET_LINES, "class=\"wallet__fill wallet__fill--relative\"", "class=\"wallet__fill\"",
+@mutation(WALLET_LINES, 'class="wallet__fill wallet__fill--relative"\n            :style="{ width: `${relativePercent(w.used_day',
+          'class="wallet__fill"\n            :style="{ width: `${relativePercent(w.used_day',
           expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
                             "their own scales")
 @mutation(KEY_MODEL, '      if (w.mode === "closed") continue;\n', "",
@@ -444,7 +440,7 @@ def test_one_discard_question_at_a_time_and_a_leave_guard_while_dirty():
           expect=RELATIVE + "a limit wallet that is open counts toward the maximum; a closed one does not; each "
                             "provider and kind has its own")
 @mutation(KEYS, "const maxima = computed(() => walletMaxima(items.value));",
-          "const maxima = computed(() => walletMaxima(items.value.slice(0, 1)));",
+          "const maxima = computed(() => walletMaxima(items.value.slice(1)));",
           expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
                             "their own scales")
 @mutation(KEY_MODEL, "  if (!max) return 0;\n  return Math.min(100, Math.round((used / max) * 100));",

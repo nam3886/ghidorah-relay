@@ -213,6 +213,16 @@ describe("DetailDrawer close guard", () => {
     expect(w.emitted("update:modelValue")).toEqual([[false]]);
   });
 
+  it("the footer's close asks like the X", async () => {
+    const w = await drawer({ dirty: true }, { default: "<p>body</p>", footer: CANCEL_FOOTER });
+    document.getElementById("cancel")!.click();
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(1);
+    answer(true);
+    await flushPromises();
+    expect(w.emitted("update:modelValue")).toEqual([[false]]);
+  });
+
   it("the phone's Back asks like the X", async () => {
     phone();
     const w = await drawer({ dirty: true, backLabel: "Back to API keys" });

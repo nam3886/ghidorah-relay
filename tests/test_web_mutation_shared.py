@@ -637,7 +637,7 @@ def test_the_field_select_can_be_a_form_field():
 
 
 # ---- page-keys: the field inside a dialog (the key form's Mode): over the dialog, its own Escape ------------------
-@mutation(FILTER, "  listZ.value = nextZIndex();\n", "", expect="the list sits above an open dialog")
+@mutation(FILTER, "  listZ.value = nextZIndex();\n", "", expect="the list sits above an open drawer")
 @mutation(FILTER, "    event.stopPropagation();\n    close();", "    close();", expect="Escape closes only the list")
 @pytest.mark.web_unit
 def test_the_field_opens_over_a_dialog_and_keeps_its_escape():
