@@ -412,6 +412,9 @@ SIZE = (f"FAILED {LOGS_VIEW_SPEC} > paging and refresh > a page size from the pa
         "again at the first page")
 
 
+ONE_ENDED_FROM = FILTERS + "a saved range with only From is cleared at both ends before the first search"
+ONE_ENDED_TO = FILTERS + "a saved range with only To is cleared at both ends before the first search"
+LOGS_FILTERS_STORE = SRC + "/components/logs/logs-filters.ts"
 QUICK = FILTERS + "the quick option "
 TODAY = QUICK + "Today searches from 2026-03-01 to 2026-03-01"
 YESTERDAY = QUICK + "Yesterday searches from 2026-02-28 to 2026-02-28"
@@ -419,6 +422,10 @@ LAST_7 = QUICK + "Last 7 days searches from 2026-02-23 to 2026-03-01"
 LAST_30 = QUICK + "Last 30 days searches from 2026-01-31 to 2026-03-01"
 
 
+@mutation(LOGS, "filters.keepRangeWhole();\n", "", expect=ONE_ENDED_FROM)
+@mutation(LOGS_FILTERS_STORE, '      to.value = "";\n', "", expect=ONE_ENDED_TO)
+@mutation(LOGS_FILTERS_STORE, "if (!from.value || !to.value) {", "if (!from.value && !to.value) {",
+          expect=ONE_ENDED_FROM)
 @mutation(LOG_FILTERS, 'filters.from = v?.[0] ?? "";', 'filters.from = v?.[1] ?? "";', expect=RANGE)
 @mutation(LOG_FILTERS, 'filters.to = v?.[1] ?? "";', "filters.to = v?.[1] as string;", expect=CLEARED)
 @mutation(LOG_FILTERS,

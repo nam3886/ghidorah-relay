@@ -450,6 +450,22 @@ describe("filters", () => {
     }
   });
 
+  it.each([
+    ["only From", "2026-10-01", ""],
+    ["only To", "", "2026-10-15"],
+  ])("a saved range with %s is cleared at both ends before the first search", async (_, from, to) => {
+    useLogsFilters(pinia).from = from;
+    useLogsFilters(pinia).to = to;
+    const { w } = await open();
+    expect(picker(w, "From").element.value).toBe("");
+    expect(picker(w, "To").element.value).toBe("");
+    expect(useLogsFilters(pinia).from).toBe("");
+    expect(useLogsFilters(pinia).to).toBe("");
+    // the very first search, not only the last one, carries no date bound
+    expect(list.mock.calls[0]![0].since_ms).toBeUndefined();
+    expect(list.mock.calls[0]![0].until_ms).toBeUndefined();
+  });
+
   it("the quick options are listed in the order Today, Yesterday, Last 7 days, Last 30 days", async () => {
     const { w } = await open();
     await openPanel(w);

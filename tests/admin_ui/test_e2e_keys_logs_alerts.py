@@ -16,6 +16,8 @@ from pixel_capture import sideways
 from test_admin_alert_groups import group_of, plant_unclear, stamp
 from test_admin_alerts import plant
 
+from relay_core.testing.mutation import mutation
+
 pytestmark = pytest.mark.browser
 
 HOSTILE_REPLY = 'Which style? <img src=x onerror="window.__pwned=1">'
@@ -375,6 +377,44 @@ def test_the_date_window_is_the_viewers_midnights_and_ends_at_the_start_of_the_d
     expect(rows(page)).to_have_count(4)
     assert (start.input_value(), end.input_value()) == ("", "")
     assert timedelta(hours=1) <= after - day <= timedelta(hours=25)
+
+
+RANGE_CSS = "apps/admin-web/src/components/logs/logs-date-field.css"
+RANGE_GEOMETRY_JS = """() => {
+  const rect = (e) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
+  const editor = document.querySelector('.lf__date .el-date-editor');
+  const inputs = [...editor.querySelectorAll('input')];
+  return {editor: rect(editor), inputs: inputs.map(rect), names: inputs.map((i) => i.getAttribute('aria-label')),
+          separator: rect(editor.querySelector('.el-range-separator')),
+          icon: rect(editor.querySelector('.el-range__icon'))};
+}"""
+
+
+@pytest.mark.parametrize("width", (1440, 768, 390))
+@mutation(RANGE_CSS, ".lf__date .el-date-editor .el-range-separator {",
+          ".lf__date .el-date-editor .el-range-input:last-of-type {\n  display: none;\n}\n"
+          ".lf__date .el-date-editor .el-range-separator {", expect="the range picker's inner layout")
+def test_the_range_picker_holds_two_named_inputs_a_dash_between_them_and_its_icon_inside_one_box(
+        app, app_session, width):
+    """The two outer fields of the canvas are one box here, so the inside is held by geometry: From then To, side by
+    side without overlap, the dash between them, and the calendar icon at the end where the browser draws its own."""
+    page = app_session
+    page.set_viewport_size({"width": width, "height": 844})
+    open_tab(page, "Request logs")
+    expect(page.get_by_label("From", exact=True)).to_have_count(1)
+    expect(page.get_by_label("To", exact=True)).to_have_count(1)
+    got = page.evaluate(RANGE_GEOMETRY_JS, isolated_context=False)
+    first, second = got["inputs"]
+    box = got["editor"]
+    why = "the range picker's inner layout at %d: %r" % (width, got)
+    assert got["names"] == ["From", "To"], why
+    assert first[2] - first[0] > 20 and second[2] - second[0] > 20, why              # both are there, with room
+    assert first[0] < second[0] and first[2] <= second[0] + 0.5, why                  # From then To, no overlap
+    assert all(i[0] >= box[0] - 0.5 and i[2] <= box[2] + 0.5 for i in (first, second)), why
+    sep = got["separator"]
+    assert sep[2] - sep[0] > 0 and sep[0] >= first[2] - 0.5 and sep[2] <= second[0] + 0.5, why   # the dash between
+    icon = got["icon"]
+    assert icon[0] >= second[2] - 0.5 and icon[2] <= box[2] + 0.5, why                # the icon at the end, inside
 
 
 def test_log_text_with_markup_is_shown_as_text(app, app_session, db):
