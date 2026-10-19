@@ -28,7 +28,8 @@ ELEMENT_WIDTH = {
     "test_pixel.py": 4,                     # the canvas renderer's own page
     "test_e2e_accounts.py": 2,              # the table card's own sideways scroll
     "test_e2e_jobs.py": 1,
-    "test_e2e_shell.py": 1,                 # elements wider than the page, named in a failure message
+    "test_e2e_settings_nav_scroll.py": 1,   # the scrollbar root's own range
+    "test_e2e_shell.py": 1,                # elements wider than the page, named in a failure message
     "test_element_diff_alerts.py": 2,       # each table box scrolled to its start and end
     "test_element_diff_accounts.py": 2,
     "test_element_diff_drawer.py": 1,

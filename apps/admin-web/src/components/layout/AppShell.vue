@@ -148,8 +148,8 @@ defineExpose({ focusPage });
 .app-shell .app-scroll__wrap:focus {
   outline: none;
 }
-/* positioned, so an out-of-flow element of a page (the Settings screen-reader line) belongs to the scroll area; else its
-   containing block is the clipping root, which would get a scroll range of its own that scripts can move */
+/* positioned, so an out-of-flow element of a page (the Settings screen-reader line) belongs to the scroll area; else
+   its containing block is the clipping root, which would get a scroll range of its own that scripts can move */
 .app-shell .app-scroll__view {
   position: relative;
   display: flex;

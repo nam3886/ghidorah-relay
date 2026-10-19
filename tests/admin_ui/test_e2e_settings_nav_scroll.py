@@ -68,7 +68,7 @@ def open_settings(app, page, width: int, height: int) -> None:
           expect="the scrollbar root has a scroll range")
 def test_the_scrollbar_root_has_no_scroll_range(app, app_session, width, height):
     page = app_session
-    for route in ("settings", "jobs", "accounts", "keys"):
+    for route in ("settings", "jobs", "accounts", "keys", "alerts", "test"):
         page.set_viewport_size({"width": width, "height": height})
         page.goto(app.url + "#/" + route)
         page.wait_for_load_state("networkidle")

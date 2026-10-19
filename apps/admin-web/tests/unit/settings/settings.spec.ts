@@ -278,29 +278,22 @@ describe("the sub-navigation", () => {
     ]);
   });
 
-  let styleSpy: { mockRestore(): void } | null = null;
   let wrapEl: HTMLElement | null = null;
   afterEach(() => {
-    styleSpy?.mockRestore();
-    styleSpy = null;
     wrapEl?.remove();
     wrapEl = null;
-    vi.unstubAllGlobals();
-    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
   });
   // The card sits 700 px below the top of the viewport and keeps 16 px of scroll margin.
   function geometry(withArea: boolean): void {
     const card = document.getElementById("prices")!;
     vi.spyOn(card, "getBoundingClientRect").mockReturnValue({ top: 700 } as DOMRect);
     const real = window.getComputedStyle.bind(window);
-    styleSpy = vi
-      .spyOn(window, "getComputedStyle")
-      .mockImplementation(((el: Element) =>
-        el === card
-          ? { scrollMarginTop: "16px" }
-          : el.classList.contains("app-scroll__wrap")
-            ? { overflowY: withArea ? "auto" : "visible" }
-            : real(el)) as typeof window.getComputedStyle);
+    vi.spyOn(window, "getComputedStyle").mockImplementation(((el: Element) =>
+      el === card
+        ? { scrollMarginTop: "16px" }
+        : el.classList.contains("app-scroll__wrap")
+          ? { overflowY: withArea ? "auto" : "visible" }
+          : real(el)) as typeof window.getComputedStyle);
   }
   function inWrap(): HTMLElement {
     const wrap = document.createElement("div");
@@ -318,8 +311,7 @@ describe("the sub-navigation", () => {
     const wrap = inWrap();
     wrap.scrollTop = 500;
     vi.spyOn(wrap, "getBoundingClientRect").mockReturnValue({ top: 60 } as DOMRect);
-    const intoView = vi.fn();
-    Element.prototype.scrollIntoView = intoView;
+    const intoView = vi.spyOn(Element.prototype, "scrollIntoView");
     const windowScroll = vi.fn();
     vi.stubGlobal("scrollTo", windowScroll);
     geometry(true);
