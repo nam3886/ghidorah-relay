@@ -481,8 +481,16 @@ PREVIEW_MODEL = "t.target === DEFAULT_TARGET ? kindOf(t.kind)?.models[0]?.model 
           expect=RELOAD_ASKS + "Follow the default asks first, and Keep editing leaves the draft and sends nothing")
 @mutation(FRAMES, "draft.value !== loaded.value && !(await askDiscard())", "draft.value !== loaded.value",
           expect=RELOAD_ASKS + "Roll back asks first, and Keep editing leaves the draft and sends nothing")
-@mutation(FRAMES, "if (await keepsDraft()) return;\n\n      const started = gen;\n      const done = await changing(() =>\n        guarded(async () => {\n          await putFrame(t, null);", "const started = gen;\n      const done = await changing(() =>\n        guarded(async () => {\n          await putFrame(t, null);",
+@mutation(FRAMES, "if (await keepsDraft()) return;\n      const started = gen;\n      const done = await changing(() =>\n"
+          "        guarded(async () => {\n          await putFrame(t, null);",
+          "const started = gen;\n      const done = await changing(() =>\n        guarded(async () => {\n"
+          "          await putFrame(t, null);",
           expect=RELOAD_ASKS + "Follow the default asks first, and Keep editing leaves the draft and sends nothing")
+@mutation(FRAMES, "if (await keepsDraft()) return;\n      const started = gen;\n      const done = await changing(() =>\n"
+          "        guarded(async () => {\n          const answer = await rollbackFrame",
+          "const started = gen;\n      const done = await changing(() =>\n        guarded(async () => {\n"
+          "          const answer = await rollbackFrame",
+          expect=RELOAD_ASKS + "Roll back asks first, and Keep editing leaves the draft and sends nothing")
 @mutation(FRAMES, "open.value = true;\n      const mine = gen;", "const mine = gen;", expect=OPENS_AT_ONCE)
 @mutation(FRAMES, "    loaded.value = \"\";\n    draft.value = \"\";\n", "", expect=CLOSE_FORGETS)
 @mutation(FRAMES, "if (mine === gen && !shown.value) open.value = false;", "", expect=READ_FAILED_SHUTS)
