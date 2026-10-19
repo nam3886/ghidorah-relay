@@ -42,9 +42,11 @@ export function cancelPending(): void {
 
 // Leaving the page (a route change, a reload, closing the tab) while `isDirty()` is true asks first, with the same box.
 // While `isBlocked()` is true (a write is in flight whose answer must still be seen) a route change is refused without
-// a question, and a reload or a closed tab is warned about.
+// a question, and a reload or a closed tab is warned about. A leave to the login page is never refused: both ways there
+// (a 401 and Sign out) have already cleared the session, so the page could keep nothing anyway.
 export function useRouteLeaveGuard(isDirty: () => boolean, isBlocked: () => boolean = () => false): void {
-  onBeforeRouteLeave(async () => {
+  onBeforeRouteLeave(async (to) => {
+    if (to.name === "login") return true;
     if (isBlocked()) return false;
     return !isDirty() || (await askDiscard());
   });

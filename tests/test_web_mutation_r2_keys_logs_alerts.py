@@ -407,6 +407,8 @@ def test_the_drawer_asks_before_it_loses_typing_and_does_nothing_while_a_write_r
     vitest(DRAWER_SPEC)
 
 
+@mutation(LEAVE_GUARD, '    if (to.name === "login") return true;\n', "",
+          expect=LEAVE + "a leave to the login page is never refused, blocked or dirty, and asks nothing")
 @mutation(LEAVE_GUARD, "    if (isBlocked()) return false;\n", "",
           expect=LEAVE + "while a write is in flight the page is not left, with no question, clean or dirty")
 @mutation(LEAVE_GUARD, "    () => isDirty() || isBlocked(),", "    () => isDirty(),",
