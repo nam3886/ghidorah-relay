@@ -46,7 +46,11 @@ export function cancelPending(): void {
 // (a 401 and Sign out) have already cleared the session, so the page could keep nothing anyway.
 export function useRouteLeaveGuard(isDirty: () => boolean, isBlocked: () => boolean = () => false): void {
   onBeforeRouteLeave(async (to) => {
-    if (to.name === "login") return true;
+    if (to.name === "login") {
+      // a discard question still up would stay over the login page
+      cancelPending();
+      return true;
+    }
     if (isBlocked()) return false;
     return !isDirty() || (await askDiscard());
   });

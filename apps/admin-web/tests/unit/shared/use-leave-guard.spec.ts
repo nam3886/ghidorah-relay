@@ -109,6 +109,16 @@ describe("useRouteLeaveGuard", () => {
     w.unmount();
   });
 
+  it("a leave to the login page closes a discard question that is still up, as keep", async () => {
+    const { router, w } = await pages();
+    const asked = askDiscard();
+    expect(ask).toHaveBeenCalledTimes(1);
+    await router.replace({ name: "login" });
+    expect(router.currentRoute.value.path).toBe("/login");
+    expect(await asked).toBe(false);
+    w.unmount();
+  });
+
   it("while a write is in flight the page is not left, with no question, clean or dirty", async () => {
     const { router, w } = await pages();
     blocked.value = true;
