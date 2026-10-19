@@ -104,12 +104,13 @@ def test_an_expired_session_is_refused_and_the_sweep_purges_it(db):
 @mutation(AUTH, 'settings.get("session_ttl_s")', "86400", expect="3600")
 def test_the_session_lifetime_comes_from_session_ttl_s(db):
     async def scenario(env):
+        await env.settings.set("session_ttl_s", 3600)
         await make_user(env)
         r = await login(env)
         left = datetime.fromisoformat(r.json()["expires_at"]) - datetime.now(UTC)
-        assert timedelta(seconds=3500) < left <= timedelta(seconds=3600), left   # session_ttl_s = 3600 from the env
+        assert timedelta(seconds=3500) < left <= timedelta(seconds=3600), left   # session_ttl_s = 3600 stored
 
-    run_app(db, scenario, env={"SESSION_TTL_S": "3600"})
+    run_app(db, scenario)
 
 
 @mutation(AUTH, "if count >= LOGIN_MAX_FAILS:", "if False:", expect="auth.too_many_attempts")

@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import pytest
 
 from relay_core import providers as pv
+from relay_core.settings import Spec
 from relay_core.testing.mutation import mutation
 
 SRC = "packages/relay-core/src/relay_core/providers.py"
@@ -142,6 +143,34 @@ def test_a_spec_must_declare_the_settings_the_core_reads():
     with pytest.raises(pv.RegistryError, match="one.browser_slots"):
         pv.ProviderRegistry().register(Stub("one", bare=True, caps=caps(execution="browser"),
                                             settings_keys=("one.claims_enabled", "one.render_deadline_s")))
+
+
+class SlotsStub(Stub):
+    """A browser provider whose browser_slots spec carries the given bounds."""
+
+    def __init__(self, **bounds):
+        super().__init__("one", caps=caps(execution=bounds.pop("execution", "browser")))
+        self.bounds = bounds
+
+    def settings(self):
+        return {**super().settings(), "one.browser_slots": Spec("one.browser_slots", int, 2, "slots", **self.bounds)}
+
+
+@mutation(SRC, "if low is None or low < 1 or high is None:", "if False:", expect="DID NOT RAISE")
+def test_a_browser_provider_must_bound_its_slots_between_one_and_a_maximum():
+    with pytest.raises(pv.RegistryError, match="one.browser_slots must declare min >= 1 and a max"):
+        pv.ProviderRegistry().register(SlotsStub())
+    with pytest.raises(pv.RegistryError, match="min >= 1 and a max"):
+        pv.ProviderRegistry().register(SlotsStub(min=1))
+    with pytest.raises(pv.RegistryError, match="min >= 1 and a max"):
+        pv.ProviderRegistry().register(SlotsStub(max=12))
+    with pytest.raises(pv.RegistryError, match="min >= 1 and a max"):
+        pv.ProviderRegistry().register(SlotsStub(min=0, max=12))
+    pv.ProviderRegistry().register(SlotsStub(min=1, max=12))
+
+
+def test_an_http_provider_needs_no_slot_bounds():
+    pv.ProviderRegistry().register(SlotsStub(execution="http"))
 
 
 # ---- prompt frames in the registry check (contracts 5.1) -------------------------------------------------------

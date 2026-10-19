@@ -506,6 +506,16 @@ class RunCtx(Protocol):
 
 
 @dataclass(frozen=True)
+class FixedLimit:
+    """A limit that is code, not a setting: `value` is the constant itself, `reason` says in one line why it is that
+    number. The admin Fixed limits card lists them; `unit` is shown after a number."""
+    name: str
+    value: Any
+    reason: str
+    unit: str = ""
+
+
+@dataclass(frozen=True)
 class RateAlert:
     """A drift alert a provider declares: `setting` (one of its own, a rate from 0 to 1) is the share of the last 24 h
     jobs, at least five of them, that ended with the error code `code` (`source` "error_code") or carry the warning
@@ -523,6 +533,7 @@ class ProviderSpec(Protocol):
     caps: Caps
     max_prompt_chars: int                        # the longest prompt a customer may send, in characters
     rate_alerts: tuple[RateAlert, ...] = ()      # a spec without the attribute declares none (read with getattr)
+    limits: tuple[FixedLimit, ...] = ()          # fixed limits it adds to the Fixed limits card (read with getattr)
 
     def catalog(self) -> list[ModelSpec]: ...
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan: ...
@@ -571,6 +582,11 @@ def _problems(spec: ProviderSpec) -> list[str]:
     missing = [spec.name + "." + n for n in needed if spec.name + "." + n not in keys]
     if missing:                      # the core reads these on every tick; a missing one breaks the loops at run time
         bad.append("%s: settings the core reads are not declared: %s" % (spec.name, ", ".join(missing)))
+    if spec.caps.execution == "browser" and spec.name + ".browser_slots" in keys:
+        slots = spec.settings()[spec.name + ".browser_slots"]     # its bound is what keeps a browser worker in memory
+        low, high = getattr(slots, "min", None), getattr(slots, "max", None)
+        if low is None or low < 1 or high is None:
+            bad.append("%s.browser_slots must declare min >= 1 and a max" % spec.name)
     for pool in spec.caps.pools:
         if pool.budget_setting is not None and pool.budget_setting not in keys:
             bad.append("%s: pool %s names the budget setting %s, which the spec does not declare"

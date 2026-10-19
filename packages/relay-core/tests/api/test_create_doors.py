@@ -221,6 +221,7 @@ def test_max_unfinished_null_uses_the_default_and_zero_is_unlimited(db):
         return [(await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)) for _ in range(n)]
 
     async def scenario(env):
+        await env.settings.set("max_unfinished_default", 2)
         null_key, zero_key, three_key = await env.new_key(), await env.new_key(), await env.new_key()
         db.run("UPDATE api_keys SET max_unfinished = 0 WHERE id = %s", zero_key.id)
         db.run("UPDATE api_keys SET max_unfinished = 3 WHERE id = %s", three_key.id)
@@ -232,16 +233,17 @@ def test_max_unfinished_null_uses_the_default_and_zero_is_unlimited(db):
         rs = await create_n(env, three_key, 4)
         assert [r.status_code for r in rs] == [200, 200, 200, 429], "the key's own value wins over the default"
 
-    run_app(db, scenario, env={"MAX_UNFINISHED_DEFAULT": "2"})
+    run_app(db, scenario)
 
 
 def test_a_default_of_zero_is_unlimited_too(db):
     async def scenario(env):
+        await env.settings.set("max_unfinished_default", 0)
         key = await env.new_key()
         for _ in range(4):
             assert (await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)).status_code == 200
 
-    run_app(db, scenario, env={"MAX_UNFINISHED_DEFAULT": "0"})
+    run_app(db, scenario)
 
 
 @mutation(DOORS, "(IdempotencyConflict, TooManyQueued, billing.BillingError) as refused",

@@ -32,6 +32,7 @@ class Purpose(StrEnum):
 
 RECONCILE_SHARE = 2
 OTHER_SHARE = 1             # check and command together
+RAMP_PERIOD_S = 60.0        # after an abnormal restart the submit share doubles each period
 _GROUP = {Purpose.SUBMIT: "submit", Purpose.RECONCILE: "reconcile", Purpose.CHECK: "other",
           Purpose.COMMAND: "other"}
 
@@ -74,7 +75,8 @@ class Token:
 
 
 class BrowserBudget:
-    def __init__(self, slots: int, *, clock: Callable[[], float] = time.monotonic, ramp_period_s: float = 60.0):
+    def __init__(self, slots: int, *, clock: Callable[[], float] = time.monotonic,
+                 ramp_period_s: float = RAMP_PERIOD_S):
         if slots < 0:
             raise ValueError("slots must be >= 0")
         self._size, self._clock, self._period = slots, clock, ramp_period_s

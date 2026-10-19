@@ -411,7 +411,7 @@ def live_settings_body() -> dict:
     specs = {**REGISTRY.specs, **DOLA}
     items = [{"key": k, "type": s.type.__name__, "value": LIVE_STORED.get(k, s.default),
               "source": "db" if k in LIVE_STORED else "default", "default": s.default, "description": s.description,
-              "env_name": s.env_name, "read_only": False} for k, s in sorted(specs.items())]
+              "allowed": s.allowed, "read_only": False} for k, s in sorted(specs.items())]
     env = (("BILLING_TZ", "UTC"), ("PUBLIC_BASE_URL", "https://relay.example.test"), ("TRUSTED_PROXIES", ""))
     return {"items": items, "env_only": [{"name": n, "value": v, "read_only": True} for n, v in env]}
 

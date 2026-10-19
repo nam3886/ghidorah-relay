@@ -104,7 +104,7 @@ class Env:
 
 @contextlib.asynccontextmanager
 async def serving(db, *, routers=(), admin_routers=(), peer_ip: str = PEER_IP, trusted_proxies: str = "",
-                  public_base_url: str | None = None, env: dict[str, str] | None = None,
+                  public_base_url: str | None = None,
                   raise_app_exceptions: bool = False, spec: FakeSpec | None = None) -> AsyncIterator[Env]:
     store = await shared_store()
     pool = await open_pool(db.api_dsn, max_size=8, name="relay-api-test")
@@ -113,8 +113,7 @@ async def serving(db, *, routers=(), admin_routers=(), peer_ip: str = PEER_IP, t
     try:
         spec = spec or FakeSpec()
         # as `relay serve` builds it: the core settings plus every registered provider's own
-        settings = Settings(pool, db.api_dsn, registry=Registry(*REGISTRY.specs.values(), *spec.settings().values()),
-                            env=env or {})
+        settings = Settings(pool, db.api_dsn, registry=Registry(*REGISTRY.specs.values(), *spec.settings().values()))
         await settings.reload()
         registry = ProviderRegistry()
         registry.register(spec)

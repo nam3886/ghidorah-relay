@@ -1,5 +1,5 @@
 """Admin settings (contracts 10; I19): where each value comes from, a refused value leaves the stored one alone, a
-delete restores the env value or the default, and the boot-only values are listed read-only and never writable."""
+delete restores the default, and the boot-only values are listed read-only and never writable."""
 
 from apikit import ADMIN_USER, run_app
 
@@ -12,6 +12,8 @@ WRITER = "by=request.state.admin_user.username"
 NO_WRITER = "by=None"
 KEY_CHECK = "    _known(settings, key)\n    try:"
 NO_KEY_CHECK = "    try:"
+ALLOWED = '"allowed": spec.allowed'
+NO_ALLOWED = '"allowed": None'
 KEY = "log_retention_days"
 
 
@@ -39,7 +41,7 @@ def test_the_list_says_where_each_value_comes_from_and_a_delete_restores_the_def
     out = run_app(db, scenario)
     start = item(out["start"], KEY)
     assert (start["value"], start["source"], start["default"], start["type"]) == (30, "default", 30, "int")
-    assert start["description"] and start["env_name"] == "LOG_RETENTION_DAYS" and start["read_only"] is False
+    assert start["description"] and start["read_only"] is False
     assert {i["key"] for i in out["start"].json()["items"]} >= {KEY, "session_ttl_s", "max_unfinished_default"}
     assert out["put"].json()["value"] == 7
     assert item(out["after_put"], KEY)["value"] == 7 and item(out["after_put"], KEY)["source"] == "db", (
@@ -50,7 +52,9 @@ def test_the_list_says_where_each_value_comes_from_and_a_delete_restores_the_def
     assert db.one("SELECT count(*) FROM settings_kv")[0] == 0
 
 
-def test_an_env_value_is_shown_as_env_a_put_overrides_it_and_a_delete_brings_it_back(db):
+def test_an_environment_twin_is_ignored_and_a_put_and_a_delete_move_between_db_and_default(db, monkeypatch):
+    monkeypatch.setenv("LOG_RETENTION_DAYS", "12")
+
     async def scenario(env):
         h = await env.admin_headers()
         get = lambda: env.client.get("/admin/settings", headers=h)  # noqa: E731
@@ -61,10 +65,51 @@ def test_an_env_value_is_shown_as_env_a_put_overrides_it_and_a_delete_brings_it_
         out.append(item(await get(), KEY))
         return out
 
-    env_only, overridden, back = run_app(db, scenario, env={"LOG_RETENTION_DAYS": "12"})
-    assert (env_only["value"], env_only["source"], env_only["default"]) == (12, "env", 30)
+    twin, overridden, back = run_app(db, scenario)
+    assert (twin["value"], twin["source"], twin["default"]) == (30, "default", 30)
     assert (overridden["value"], overridden["source"]) == (9, "db")
-    assert (back["value"], back["source"]) == (12, "env")
+    assert (back["value"], back["source"]) == (30, "default")
+
+
+@mutation(ROUTES, ALLOWED, NO_ALLOWED, expect="allowed")
+def test_every_setting_says_what_it_allows_and_none_names_an_env_variable(db):
+    async def scenario(env):
+        h = await env.admin_headers()
+        listing = await env.client.get("/admin/settings", headers=h)
+        put = await env.client.put("/admin/settings/" + KEY, json={"value": 7}, headers=h)
+        gone = await env.client.delete("/admin/settings/" + KEY, headers=h)
+        return listing, put, gone
+
+    listing, put, gone = run_app(db, scenario)
+    items = {i["key"]: i for i in listing.json()["items"]}
+    assert items[KEY]["allowed"] == "at least 1", "allowed"
+    assert items["unsent_deadline_s"]["allowed"] == "at least 60"
+    assert items["media_orphan_sweep"]["allowed"] == "true or false"
+    assert items["filename_pattern"]["allowed"] == "not empty"
+    assert items["fake.browser_slots"]["allowed"] == "1\u201330"
+    assert items["fake.alert_drift_rate"]["allowed"] is None
+    for i in (*items.values(), put.json(), gone.json()):
+        assert "env_name" not in i and i["source"] in ("db", "default"), i
+        assert "allowed" in i
+
+
+def test_the_list_carries_the_fixed_limits_core_first_then_each_provider(db):
+    async def scenario(env):
+        h = await env.admin_headers()
+        return await env.client.get("/admin/settings", headers=h)
+
+    fixed = run_app(db, scenario).json()["fixed"]
+    assert all(set(f) == {"group", "name", "value", "reason"} for f in fixed)
+    assert all(f["value"] and f["reason"] for f in fixed)
+    groups = [f["group"] for f in fixed]
+    assert groups[0] == "core" and groups[-1] == "fake"
+    assert groups == sorted(groups, key=lambda g: g != "core"), "core rows come first"
+    rows = {(f["group"], f["name"]): f["value"] for f in fixed}
+    assert rows[("core", "jobs.engine.MAX_INFLIGHT")] == "32 jobs"
+    assert rows[("core", "leases.LEASE_TTL_S")] == "60 s"
+    assert rows[("fake", "caps.max_attempts")] == "3 attempts"
+    assert rows[("fake", "max_prompt_chars")] == "1000 chars"
+    assert rows[("fake", "fake.demo_bound")] == "7 items"
 
 
 @mutation(ROUTES, WRITER, NO_WRITER, expect="updated_by")

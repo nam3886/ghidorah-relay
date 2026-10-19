@@ -22,6 +22,7 @@ from relay_core.providers import (
     CreateRequest,
     Dead,
     Done,
+    FixedLimit,
     FrameRules,
     Health,
     InputError,
@@ -69,6 +70,7 @@ class FakeSpec:
             pools=(PoolSpec("video", "UTC", name + ".video_budget"), PoolSpec("image", "UTC")),
             account_slots=account_slots, max_attempts=max_attempts, suspect_threshold=3,
             strike_effect=Dead("error_threshold"), has_poll=True, has_reconcile=has_reconcile)
+        self.limits = (FixedLimit(name + ".demo_bound", 7, "A bound of the fake provider, for tests.", "items"),)
         self.rate_alerts = (RateAlert(name + ".alert_drift_rate", name + ".drift_demo", "warning"),
                             RateAlert(name + ".alert_deadline_rate", "render.deadline", "error_code"))
 
@@ -101,7 +103,8 @@ class FakeSpec:
                 n + ".render_deadline_s": Spec(n + ".render_deadline_s", int, 9000, "Render deadline."),
                 n + ".alert_drift_rate": Spec(n + ".alert_drift_rate", float, 0.5, "Drift alert (warning)."),
                 n + ".alert_deadline_rate": Spec(n + ".alert_deadline_rate", float, 0.5, "Drift alert (deadline)."),
-                n + ".browser_slots": Spec(n + ".browser_slots", int, 4, "Browser sessions at once (browser only).")}
+                n + ".browser_slots": Spec(n + ".browser_slots", int, 4, "Browser sessions at once (browser only).",
+                                             min=1, max=30)}
 
     def parse_credential(self, raw: bytes) -> ParsedCredential:
         return ParsedCredential(blob=raw, hint="fake")

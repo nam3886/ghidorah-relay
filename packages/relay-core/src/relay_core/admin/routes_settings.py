@@ -1,9 +1,10 @@
 """Admin: live settings (contracts 10).
 
-The list shows each registered key with its value, where the value comes from (`db`, `env` or `default`), its default
-and its description. A put validates before it writes (a refused value leaves the stored one as it was); a delete
-restores the env value or the default. The boot-only values (an upstream URL, the billing timezone, the proxy list...)
-are configuration of the deployment: they are listed read-only under `env_only` and a put or delete of one is refused.
+The list shows each registered key with its value, where the value comes from (`db` or `default`), its default, its
+description and the values it allows. A put validates before it writes (a refused value leaves the stored one as it
+was); a delete restores the default. The list also carries `fixed`, the limits that are code and not settings. The
+boot-only values (an upstream URL, the billing timezone, the proxy list...) are configuration of the deployment: they
+are listed read-only under `env_only` and a put or delete of one is refused.
 """
 
 from typing import Any
@@ -15,6 +16,7 @@ from relay_core.admin.routes_common import Strict
 from relay_core.api.deps import get_pool, get_settings
 from relay_core.api.errors_http import ApiError
 from relay_core.db import tx
+from relay_core.limits import fixed_limits
 from relay_core.settings import Settings, SettingsError
 
 router = APIRouter()
@@ -27,7 +29,7 @@ class SettingPut(Strict):
 def _item(settings: Settings, key: str) -> dict:
     spec = settings.specs()[key]
     return {"key": key, "type": spec.type.__name__, "value": settings.get(key), "source": settings.source(key),
-            "default": spec.default, "description": spec.description, "env_name": spec.env_name, "read_only": False}
+            "default": spec.default, "description": spec.description, "allowed": spec.allowed, "read_only": False}
 
 
 def _known(settings: Settings, key: str) -> None:
@@ -49,7 +51,8 @@ async def list_settings(request: Request, pool: AsyncConnectionPool = Depends(ge
         {"name": "PUBLIC_BASE_URL", "value": state.public_base_url, "read_only": True},
         {"name": "TRUSTED_PROXIES", "value": ",".join(str(n) for n in state.trusted_proxies), "read_only": True},
     ]
-    return {"items": [_item(settings, k) for k in sorted(settings.specs())], "env_only": env_only}
+    return {"items": [_item(settings, k) for k in sorted(settings.specs())], "env_only": env_only,
+            "fixed": fixed_limits(state.registry)}
 
 
 @router.put("/settings/{key}")
