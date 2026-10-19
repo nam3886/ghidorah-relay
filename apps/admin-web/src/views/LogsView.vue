@@ -129,6 +129,7 @@ function applyRouteStatus(): void {
   const status = route.query.status;
   if (isLogStatus(status)) filters.status = status;
 }
+filters.keepRangeWhole();
 applyRouteStatus();
 watch(
   () => route.query.status,

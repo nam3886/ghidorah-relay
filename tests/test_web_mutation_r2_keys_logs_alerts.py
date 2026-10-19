@@ -400,34 +400,50 @@ def test_clear_logs_asks_first_and_the_more_menu_opens_and_closes():
     vitest(LOGS_VIEW_SPEC)
 
 
-# ---- Request logs: the date fields, the page size and the filters -----------------------------------------------
-RANGE = (f"FAILED {LOGS_VIEW_SPEC} > filters > From and To send the half-open window of the viewer's own "
-         "midnights, and search at once")
-ALONE = f"FAILED {LOGS_VIEW_SPEC} > filters > From alone sets since only; To alone sets until only"
-CLEARED = (f"FAILED {LOGS_VIEW_SPEC} > filters > emptying a typed day and pressing Enter clears it: no since, and the "
-           "store holds an empty text")
-ENTER = (f"FAILED {LOGS_VIEW_SPEC} > filters > a day typed and confirmed with Enter sends the same window as a chosen "
-         "one")
-PICKED = (f"FAILED {LOGS_VIEW_SPEC} > filters > a day picked from the open panel replaces the one held and searches "
-          "for exactly that day")
+# ---- Request logs: the date range, the page size and the filters ------------------------------------------------
+FILTERS = f"FAILED {LOGS_VIEW_SPEC} > filters > "
+RANGE = FILTERS + "a range sends the half-open window of the viewer's own midnights, and searches at once"
+CLEARED = (FILTERS + "emptying both inputs and leaving them clears the range: no window, and the store holds empty "
+           "texts")
+PICKED = FILTERS + "a range picked from the open panel replaces the one held and searches once, for exactly those days"
+ORDER = FILTERS + "the quick options are listed in the order Today, Yesterday, Last 7 days, Last 30 days"
 NO_DATE = "FAILED tests/unit/no-native-date.spec.ts > no native date > no source file draws a native date input"
 SIZE = (f"FAILED {LOGS_VIEW_SPEC} > paging and refresh > a page size from the pager is asked for and starts "
         "again at the first page")
 
 
-@mutation(LOG_FILTERS, 'v-model="from"', 'v-model="to"', expect=RANGE)
-@mutation(LOG_FILTERS, 'v-model="to"', 'v-model="from"', expect=ALONE)
+ONE_ENDED_FROM = FILTERS + "a saved range with only From is cleared at both ends before the first search"
+ONE_ENDED_TO = FILTERS + "a saved range with only To is cleared at both ends before the first search"
+LOGS_FILTERS_STORE = SRC + "/components/logs/logs-filters.ts"
+QUICK = FILTERS + "the quick option "
+TODAY = QUICK + "Today searches from 2026-03-01 to 2026-03-01"
+YESTERDAY = QUICK + "Yesterday searches from 2026-02-28 to 2026-02-28"
+LAST_7 = QUICK + "Last 7 days searches from 2026-02-23 to 2026-03-01"
+LAST_30 = QUICK + "Last 30 days searches from 2026-01-31 to 2026-03-01"
+
+
+@mutation(LOGS, "filters.keepRangeWhole();\n", "", expect=ONE_ENDED_FROM)
+@mutation(LOGS_FILTERS_STORE, '      to.value = "";\n', "", expect=ONE_ENDED_TO)
+@mutation(LOGS_FILTERS_STORE, "if (!from.value || !to.value) {", "if (!from.value && !to.value) {",
+          expect=ONE_ENDED_FROM)
+@mutation(LOG_FILTERS, 'filters.from = v?.[0] ?? "";', 'filters.from = v?.[1] ?? "";', expect=RANGE)
+@mutation(LOG_FILTERS, 'filters.to = v?.[1] ?? "";', "filters.to = v?.[1] as string;", expect=CLEARED)
 @mutation(LOG_FILTERS,
-          '          popper-class="rl-date-popper"\n          @change="emit(\'search\')"\n        />\n'
-          '      </component>\n      <component',
-          '          popper-class="rl-date-popper"\n        />\n      </component>\n      <component', expect=ENTER)
-@mutation(LOG_FILTERS,
-          '          popper-class="rl-date-popper"\n          @change="emit(\'search\')"\n        />\n'
-          '      </component>\n      <button',
-          '          popper-class="rl-date-popper"\n        />\n      </component>\n      <button', expect=PICKED)
-@mutation(LOG_FILTERS, '(filters.from = v ?? "")', "(filters.from = v as string)", expect=CLEARED)
-@mutation(LOG_FILTERS, '          id="logs-from"\n', '          id="logs-from"\n          type="date"\n',
-          expect=NO_DATE)
+          '          popper-class="rl-date-popper rl-range-popper"\n          @change="emit(\'search\')"\n',
+          '          popper-class="rl-date-popper rl-range-popper"\n', expect=PICKED)
+@mutation(LOG_FILTERS, 'setAttribute("aria-label", "From");', 'setAttribute("aria-label", "X");', expect=RANGE)
+@mutation(LOG_FILTERS, '          type="daterange"\n', '          type="date"\n', expect=NO_DATE)
+@mutation(WINDOW, "[daysAgo(0), daysAgo(0)] },", "[daysAgo(0), daysAgo(1)] },",
+          expect=TODAY)
+@mutation(WINDOW, "[daysAgo(1), daysAgo(1)] },", "[daysAgo(2), daysAgo(1)] },",
+          expect=YESTERDAY)
+@mutation(WINDOW, "[daysAgo(6), daysAgo(0)] },", "[daysAgo(7), daysAgo(0)] },",
+          expect=LAST_7)
+@mutation(WINDOW, "[daysAgo(29), daysAgo(0)] },", "[daysAgo(30), daysAgo(0)] },",
+          expect=LAST_30)
+@mutation(WINDOW, "now.getDate() - n)", "now.getDate() + n)",
+          expect=YESTERDAY)
+@mutation(WINDOW, '{ text: "Today",', '{ text: "Todai",', expect=ORDER)
 @mutation(LOGS, "scope.provider, offset.value, limit.value)", "scope.provider, offset.value)", expect=SIZE)
 @mutation(LOGS, "            limit = s;\n            search();", "            limit = s;\n            void load();",
           expect=SIZE)

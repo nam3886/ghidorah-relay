@@ -340,6 +340,8 @@ FIELD = SRC + "/components/shared/FilterSelect.vue"
 FIELD_SPEC = "tests/unit/shared/filter-select-field.spec.ts"
 DRAWN = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > the field draws the page's chevron, 14 px, on a "
          "desktop, a tablet and a phone chip")
+INK = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > the chevron is drawn in the page's ink, as the Jobs "
+       "chip's is, and only a disabled field turns it faint")
 FORM_FIELD = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > a form's field (block) is no chip on a "
               "phone, and the list hangs under the box")
 IN_DIALOG = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > in a dialog: Escape closes the open list "
@@ -355,6 +357,8 @@ PROVIDER = (IMPORT_SPEC + "the Provider field is the drawn select: another provi
 @mutation(FIELD, "  if (x < el.clientWidth && y < el.clientHeight) event.preventDefault();",
           "  event.preventDefault();",
           expect=IN_DIALOG + "a press in the list's scrollbar gutter is left alone, so the scrollbar can be dragged")
+@mutation(FIELD, "  right: 11px;\n  color: var(--rl-fg);", "  right: 11px;\n  color: var(--rl-muted);", expect=INK)
+@mutation(FIELD, "chevron {\n  color: var(--rl-faint);", "chevron {\n  color: var(--rl-muted);", expect=INK)
 @mutation(FIELD, '<IconChevronDown class="filter-field__chevron"',
           '<IconChevronDown v-if="false" class="filter-field__chevron"', expect=DRAWN)
 @mutation(FIELD, "field.value && !props.block && isPhone.value", "field.value && isPhone.value", expect=FORM_FIELD)

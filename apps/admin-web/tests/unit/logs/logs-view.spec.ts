@@ -72,18 +72,32 @@ async function chooseStatus(w: VueWrapper, word: string): Promise<void> {
   [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.trim() === word)!.click();
   await settle();
 }
-// The two day pickers, From then To: the text input inside each.
+// The range picker's two inputs, From then To.
 const picker = (w: VueWrapper, which: "From" | "To") => w.find<HTMLInputElement>(`input[aria-label="${which}"]`);
-// What the operator does with a day field: clicks into it (the panel opens), types or clears a day and presses Enter. The
-// picker reports the change when the panel closes, against the value it had when it opened.
-const setDay = async (w: VueWrapper, which: "From" | "To", day: string | null) => {
-  await picker(w, which).trigger("focus");
+// What the operator does with the range: clicks into it (the panel opens), types the two days and presses Enter. The picker reports the change when the panel closes, against the range it had when it opened.
+const setRange = async (w: VueWrapper, from: string, to: string) => {
+  await picker(w, "From").trigger("focus");
   await settle();
-  await picker(w, which).setValue(day ?? "");
+  await picker(w, "From").setValue(from);
+  await picker(w, "To").setValue(to);
   await settle();
-  await picker(w, which).trigger("keydown", { code: "Enter", key: "Enter" });
+  await picker(w, "To").trigger("keydown", { code: "Enter", key: "Enter" });
   await settle();
 };
+// Opens the panel as a click does (press, then focus) and waits for it to be there.
+const openPanel = async (w: VueWrapper) => {
+  await picker(w, "From").trigger("mousedown");
+  await picker(w, "From").trigger("focus");
+  await settle();
+  await settle();
+};
+const rangePanel = () => document.body.querySelector<HTMLElement>(".el-date-range-picker")!;
+// A day of the month the left panel shows (not a day of a neighbouring month).
+const leftDay = (day: string) =>
+  [...rangePanel().querySelectorAll<HTMLElement>(".is-left .el-date-table td.available")].find(
+    (td) =>
+      !td.classList.contains("prev-month") && !td.classList.contains("next-month") && td.textContent?.trim() === day,
+  )!;
 
 // happy-dom answers matchMedia for a 1024 px window (a tablet): each spec says which width it wants (desktop by default).
 function showAt(width: number): void {
@@ -322,7 +336,7 @@ describe("the list", () => {
     expect(w.find(".data-table__empty").text()).toContain("No requests match these filters.");
     expect(w.find(".logs-clear-filters").exists()).toBe(true);
     await w.find<HTMLInputElement>('input[aria-label="Search"]').setValue("nothing");
-    await setDay(w, "From", "2026-10-01");
+    await setRange(w, "2026-10-01", "2026-10-02");
     list.mockResolvedValue({ items: [row()], total: 1 });
     await w.find(".logs-clear-filters").trigger("click");
     await settle();
@@ -330,15 +344,15 @@ describe("the list", () => {
     expect(w.find<HTMLInputElement>('input[aria-label="Search"]').element.value).toBe("");
     expect(statusShown(w)).toBe("All");
     expect(picker(w, "From").element.value).toBe("");
+    expect(picker(w, "To").element.value).toBe("");
     expect(w.findAll("tbody tr:not(.is-day)")).toHaveLength(1);
   });
 });
 
 describe("filters", () => {
-  it("From and To send the half-open window of the viewer's own midnights, and search at once", async () => {
+  it("a range sends the half-open window of the viewer's own midnights, and searches at once", async () => {
     const { w } = await open();
-    await setDay(w, "From", "2026-10-01");
-    await setDay(w, "To", "2026-10-15");
+    await setRange(w, "2026-10-01", "2026-10-15");
     expect(lastQuery()).toEqual({
       limit: 50,
       tz: viewerZone(),
@@ -350,55 +364,117 @@ describe("filters", () => {
     expect(lastQuery().until_ms).toBeGreaterThan(dayStart("2026-10-15") + 23 * 3600 * 1000);
   });
 
-  it("a day typed and confirmed with Enter sends the same window as a chosen one", async () => {
+  it("a range typed and confirmed with Enter shows in both inputs and sends the same window as a chosen one", async () => {
     const { w } = await open();
-    await setDay(w, "From", "2026-10-01");
+    await setRange(w, "2026-10-01", "2026-10-15");
     expect(picker(w, "From").element.value).toBe("2026-10-01");
+    expect(picker(w, "To").element.value).toBe("2026-10-15");
     expect(lastQuery().since_ms).toBe(dayStart("2026-10-01"));
-    await setDay(w, "To", "2026-10-15");
     expect(lastQuery().until_ms).toBe(dayAfter("2026-10-15"));
   });
 
-  it("a day typed and left with the focus (blur) is applied", async () => {
+  it("a range typed and left with the focus (blur) is applied", async () => {
     const { w } = await open();
     await picker(w, "From").trigger("focus");
     await picker(w, "From").setValue("2026-10-01");
+    await picker(w, "To").setValue("2026-10-15");
     await settle();
-    await picker(w, "From").trigger("blur");
+    await picker(w, "To").trigger("blur");
     await settle();
     expect(lastQuery().since_ms).toBe(dayStart("2026-10-01"));
+    expect(lastQuery().until_ms).toBe(dayAfter("2026-10-15"));
   });
 
-  it("emptying a typed day and pressing Enter clears it: no since, and the store holds an empty text", async () => {
+  it("emptying both inputs and leaving them clears the range: no window, and the store holds empty texts", async () => {
     const { w } = await open();
-    await setDay(w, "From", "2026-10-01");
-    await setDay(w, "From", "");
+    await setRange(w, "2026-10-01", "2026-10-15");
+    await picker(w, "From").trigger("focus");
+    await picker(w, "From").setValue("");
+    await picker(w, "To").setValue("");
+    await settle();
+    await picker(w, "To").trigger("blur");
+    await settle();
     expect(lastQuery().since_ms).toBeUndefined();
+    expect(lastQuery().until_ms).toBeUndefined();
     expect(useLogsFilters(pinia).from).toBe("");
+    expect(useLogsFilters(pinia).to).toBe("");
   });
 
-  it("a day picked from the open panel replaces the one held and searches for exactly that day", async () => {
-    // the held day is in the store before the view mounts, so only the pick can make the search that follows
-    useLogsFilters(pinia).to = "2026-10-05";
+  it("a range picked from the open panel replaces the one held and searches once, for exactly those days", async () => {
+    // the held range is in the store before the view mounts, so only the pick can make the search that follows
+    useLogsFilters(pinia).from = "2026-10-05";
+    useLogsFilters(pinia).to = "2026-10-10";
     const { w } = await open();
-    expect(picker(w, "To").element.value).toBe("2026-10-05");
-    expect(lastQuery().until_ms).toBe(dayAfter("2026-10-05"));
-    // the panel opens on the month of the held day: the 20th of that month, not a day of a neighbouring month
-    await picker(w, "To").trigger("mousedown");
-    await picker(w, "To").trigger("focus");
+    expect(picker(w, "From").element.value).toBe("2026-10-05");
+    expect(lastQuery().since_ms).toBe(dayStart("2026-10-05"));
+    expect(lastQuery().until_ms).toBe(dayAfter("2026-10-10"));
+    await openPanel(w);
+    const calls = list.mock.calls.length;
+    leftDay("12").click();
     await settle();
+    expect(list.mock.calls.length).toBe(calls); // one end alone is not a range yet
+    leftDay("20").click();
     await settle();
-    // each picker has its own panel; the To panel is the one whose chosen cell is the 5th
-    const panel = document.body
-      .querySelector<HTMLElement>(".el-date-table td.current")!
-      .closest<HTMLElement>(".el-picker-panel")!;
-    const cells = [...panel.querySelectorAll<HTMLElement>(".el-date-table td.available")].filter(
-      (td) => !td.classList.contains("prev-month") && !td.classList.contains("next-month"),
-    );
-    cells.find((td) => td.textContent?.trim() === "20")!.click();
-    await settle();
+    expect(picker(w, "From").element.value).toBe("2026-10-12");
     expect(picker(w, "To").element.value).toBe("2026-10-20");
+    expect(list.mock.calls.length).toBe(calls + 1);
+    expect(lastQuery().since_ms).toBe(dayStart("2026-10-12"));
     expect(lastQuery().until_ms).toBe(dayAfter("2026-10-20"));
+  });
+
+  // The clock is the one thing faked, so a quick option is worked out from a known day: 1 March 2026 is where a month
+  // end falls inside "Last 30 days" and "Last 7 days".
+  it.each([
+    ["Today", "2026-03-01", "2026-03-01"],
+    ["Yesterday", "2026-02-28", "2026-02-28"],
+    ["Last 7 days", "2026-02-23", "2026-03-01"],
+    ["Last 30 days", "2026-01-31", "2026-03-01"],
+  ])("the quick option %s searches from %s to %s", async (text, first, last) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 2, 1, 12, 0, 0));
+    try {
+      const { w } = await open();
+      await openPanel(w);
+      const calls = list.mock.calls.length;
+      [...rangePanel().querySelectorAll<HTMLElement>(".el-picker-panel__shortcut")]
+        .find((b) => b.textContent?.trim() === text)!
+        .click();
+      await settle();
+      expect(list.mock.calls.length).toBe(calls + 1);
+      expect(picker(w, "From").element.value).toBe(first);
+      expect(picker(w, "To").element.value).toBe(last);
+      expect(lastQuery().since_ms).toBe(dayStart(first));
+      expect(lastQuery().until_ms).toBe(dayAfter(last));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    ["only From", "2026-10-01", ""],
+    ["only To", "", "2026-10-15"],
+  ])("a saved range with %s is cleared at both ends before the first search", async (_, from, to) => {
+    useLogsFilters(pinia).from = from;
+    useLogsFilters(pinia).to = to;
+    const { w } = await open();
+    expect(picker(w, "From").element.value).toBe("");
+    expect(picker(w, "To").element.value).toBe("");
+    expect(useLogsFilters(pinia).from).toBe("");
+    expect(useLogsFilters(pinia).to).toBe("");
+    // the very first search, not only the last one, carries no date bound
+    expect(list.mock.calls[0]![0].since_ms).toBeUndefined();
+    expect(list.mock.calls[0]![0].until_ms).toBeUndefined();
+  });
+
+  it("the quick options are listed in the order Today, Yesterday, Last 7 days, Last 30 days", async () => {
+    const { w } = await open();
+    await openPanel(w);
+    expect([...rangePanel().querySelectorAll(".el-picker-panel__shortcut")].map((b) => b.textContent?.trim())).toEqual([
+      "Today",
+      "Yesterday",
+      "Last 7 days",
+      "Last 30 days",
+    ]);
   });
 
   it("the day text never becomes a Date in the app: the window is the viewer's own midnights, even 14 hours ahead of UTC", async () => {
@@ -406,25 +482,13 @@ describe("filters", () => {
     process.env.TZ = "Pacific/Kiritimati";
     try {
       const { w } = await open();
-      await setDay(w, "From", "2026-10-01");
-      await setDay(w, "To", "2026-10-01");
+      await setRange(w, "2026-10-01", "2026-10-01");
       expect(lastQuery().since_ms).toBe(Date.UTC(2026, 9, 1) - 14 * 3600 * 1000);
       expect(lastQuery().until_ms).toBe(Date.UTC(2026, 9, 2) - 14 * 3600 * 1000);
     } finally {
       if (zone === undefined) delete process.env.TZ;
       else process.env.TZ = zone;
     }
-  });
-
-  it("From alone sets since only; To alone sets until only", async () => {
-    const { w } = await open();
-    await setDay(w, "From", "2026-10-01");
-    expect(lastQuery().since_ms).toBe(dayStart("2026-10-01"));
-    expect(lastQuery().until_ms).toBeUndefined();
-    await setDay(w, "From", null);
-    await setDay(w, "To", "2026-10-15");
-    expect(lastQuery().since_ms).toBeUndefined();
-    expect(lastQuery().until_ms).toBe(dayAfter("2026-10-15"));
   });
 
   it("the search text is trimmed and Enter searches", async () => {
@@ -457,7 +521,7 @@ describe("filters", () => {
   it("the filters survive leaving and coming back; the page starts at the first", async () => {
     const { w } = await open();
     await w.find<HTMLInputElement>('input[aria-label="Search"]').setValue("keep me");
-    await setDay(w, "From", "2026-10-01");
+    await setRange(w, "2026-10-01", "2026-10-02");
     await button(w, "Next").trigger("click");
     await settle();
     expect(lastQuery().offset).toBe(50);
@@ -466,7 +530,7 @@ describe("filters", () => {
     const again = await open();
     expect(lastQuery()).toMatchObject({ offset: 0, q: "keep me", since_ms: dayStart("2026-10-01") });
     expect(picker(again.w, "From").element.value).toBe("2026-10-01");
-    expect(picker(again.w, "To").element.value).toBe("");
+    expect(picker(again.w, "To").element.value).toBe("2026-10-02");
   });
 });
 
@@ -479,16 +543,6 @@ describe("paging and refresh", () => {
     w.findComponent({ name: "ListPager" }).vm.$emit("size", 100);
     await settle();
     expect(lastQuery()).toMatchObject({ limit: 100, offset: 0 });
-  });
-
-  it("clearing both day pickers drops both ends of the window", async () => {
-    const { w } = await open();
-    await setDay(w, "From", "2026-10-01");
-    await setDay(w, "To", "2026-10-15");
-    await setDay(w, "From", null);
-    await setDay(w, "To", null);
-    expect(lastQuery().since_ms).toBeUndefined();
-    expect(lastQuery().until_ms).toBeUndefined();
   });
 
   it("Search goes back to the first page; there is no Refresh and no Updated line", async () => {
