@@ -143,14 +143,10 @@ defineExpose({ focusPage });
 .app-shell .app-scroll .el-scrollbar__thumb {
   border-radius: 8px;
 }
-/* the wrap takes focus by script after a tab change: no ring for a mouse click, the app's focus ring (inset, so the
-   scroller's own clip does not cut it) when the keyboard moved the focus */
-.app-shell .app-scroll__wrap:focus:not(:focus-visible) {
+/* the app moves focus here by script on load and on a tab change, so the keys scroll the page; Chrome counts that as
+   :focus-visible, and the page area draws no ring in any focus state (the global ring stays for controls) */
+.app-shell .app-scroll__wrap:focus {
   outline: none;
-}
-.app-shell .app-scroll__wrap:focus-visible {
-  outline: 2px solid var(--rl-focus);
-  outline-offset: -2px;
 }
 .app-shell .app-scroll__view {
   display: flex;

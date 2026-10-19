@@ -167,21 +167,28 @@ RING_JS = """() => { const w = document.querySelector('.app-scroll__wrap'), s = 
           width: s.outlineWidth, offset: s.outlineOffset}; }"""
 
 
-@mutation(SHELL, "  outline-offset: -2px;\n", "  outline-offset: 2px;\n", expect="a keyboard focus draws the ring")
-def test_the_scroll_area_draws_a_focus_ring_for_the_keyboard_and_not_for_the_mouse(app, app_session):
-    page = app_session
-    go(app, page, "settings", 1440)
-    tab = page.get_by_role("tab", name="Accounts", exact=True)
-    tab.click()                                               # a mouse click: the area takes focus, no ring
-    expect(page.get_by_role("heading", name="Accounts", exact=True)).to_be_visible()
-    got = page.evaluate(RING_JS, isolated_context=False)
-    assert got["focused"] and not got["visible"] and got["style"] == "none", "a mouse click draws no ring: %r" % got
-    page.get_by_role("tab", name="Settings", exact=True).focus()
-    page.keyboard.press("Enter")                              # the keyboard moved the page: the ring shows, inset
+def no_ring(page, how: str) -> None:
     page.wait_for_function("() => document.activeElement.classList.contains('app-scroll__wrap')", timeout=TIMEOUT_MS)
     got = page.evaluate(RING_JS, isolated_context=False)
-    assert got["visible"] and got["style"] == "solid" and got["width"] == "2px" and got["offset"] == "-2px", (
-        "a keyboard focus draws the ring: %r" % got)
+    assert got["focused"] and (got["style"] == "none" or got["width"] == "0px"), (
+        "the page area never draws a focus ring, %s: %r" % (how, got))
+
+
+@mutation(SHELL, ".app-shell .app-scroll__wrap:focus {\n  outline: none;",
+          ".app-shell .app-scroll__wrap:focus:not(:focus-visible) {\n  outline: none;",
+          expect="the page area never draws a focus ring")
+def test_the_page_area_never_draws_a_focus_ring(app, app_session):
+    """Focus is moved to the area by script on load and on a tab change, and Chrome counts that as keyboard focus."""
+    page = app_session
+    go(app, page, "settings", 1440)
+    no_ring(page, "after load")
+    page.get_by_role("tab", name="Accounts", exact=True).click()
+    expect(page.get_by_role("heading", name="Accounts", exact=True)).to_be_visible()
+    no_ring(page, "after a mouse click on a tab")
+    page.get_by_role("tab", name="Settings", exact=True).focus()
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("tab", name="Settings", exact=True)).to_have_attribute("aria-selected", "true")
+    no_ring(page, "after Enter on a tab")
 
 
 # ---- Settings anchors and the sticky navigation ------------------------------------------------------------------

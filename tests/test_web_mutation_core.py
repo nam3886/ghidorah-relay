@@ -430,11 +430,12 @@ AREA_FAILED = "FAILED tests/unit/app-shell.spec.ts > the page scroll area > "
           expect=AREA_FAILED + "names the focusable wrap as the page content region")
 @mutation(SHELL_VUE, '  wrap?.setAttribute("aria-label", "Page content");\n', "",
           expect=AREA_FAILED + "names the focusable wrap as the page content region")
-@mutation(SHELL_VUE, "  outline-offset: -2px;\n", "  outline-offset: 2px;\n",
-          expect=AREA_FAILED + "draws the focus ring for the keyboard only, inset")
-@mutation(SHELL_VUE, ".app-shell .app-scroll__wrap:focus:not(:focus-visible) {\n  outline: none;",
-          ".app-shell .app-scroll__wrap:focus:not(:focus-visible) {\n  outline: 2px solid red;",
-          expect=AREA_FAILED + "draws the focus ring for the keyboard only, inset")
+@mutation(SHELL_VUE, ".app-shell .app-scroll__wrap:focus {\n  outline: none;",
+          ".app-shell .app-scroll__wrap:focus:not(:focus-visible) {\n  outline: none;",
+          expect=AREA_FAILED + "draws no focus ring in any focus state")
+@mutation(SHELL_VUE, ".app-shell .app-scroll__wrap:focus {\n  outline: none;",
+          ".app-shell .app-scroll__wrap:focus {\n  outline: 2px solid red;",
+          expect=AREA_FAILED + "draws no focus ring in any focus state")
 @pytest.mark.web_unit
 def test_the_page_scroll_area():
     vitest("tests/unit/app-shell.spec.ts")

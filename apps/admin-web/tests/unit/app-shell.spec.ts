@@ -1195,10 +1195,10 @@ describe("the page scroll area", () => {
     expect(wrapper.find(".app-scroll").attributes("role")).toBeUndefined();
   });
 
-  it("draws the focus ring for the keyboard only, inset", () => {
+  it("draws no focus ring in any focus state", () => {
     const source = readFileSync(join(process.cwd(), "src/components/layout/AppShell.vue"), "utf8");
-    expect(source).toContain(".app-shell .app-scroll__wrap:focus:not(:focus-visible) {\n  outline: none;");
-    expect(source).toMatch(/__wrap:focus-visible \{\s*outline: 2px solid var\(--rl-focus\);\s*outline-offset: -2px;/);
+    expect(source).toContain(".app-shell .app-scroll__wrap:focus {\n  outline: none;");
+    expect(source).not.toMatch(/__wrap:focus-visible/);
   });
 
   it("does not take focus from a field in the page", async () => {
