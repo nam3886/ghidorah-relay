@@ -146,7 +146,7 @@ def test_focus_stays_in_the_import_drawer_and_comes_back_to_the_button_that_open
     expect(header_import(page)).to_be_focused()
 
 
-def test_focus_goes_to_the_import_button_when_the_row_menu_item_that_opened_edit_is_gone(app, app_session, db):
+def test_focus_comes_back_to_the_row_button_that_opened_the_edit_menu(app, app_session, db):
     page = app_session
     new_account(db, label="free one", checked=True)
     goto_accounts(app, page)
@@ -156,7 +156,23 @@ def test_focus_goes_to_the_import_button_when_the_row_menu_item_that_opened_edit
         assert active_in_drawer(page), "focus left the drawer"
     page.keyboard.press("Escape")
     expect(drawer(page)).to_have_count(0)
-    # the menu item that opened the drawer went with its menu: focus lands on the page's primary button
+    expect(rows(page).filter(has_text="free one").get_by_role("button", name=re.compile(r"^More actions for "))
+           ).to_be_focused()
+
+
+def test_focus_goes_to_the_import_button_when_the_row_that_opened_edit_is_gone(app, app_session, db):
+    page = app_session
+    new_account(db, label="free one", checked=True)
+    goto_accounts(app, page)
+    box = open_edit(page, "free one")
+    # the list the save reads again holds no account, so the button that opened the drawer is gone
+    page.route(re.compile(r"/admin/accounts\?"), lambda r: r.fulfill(
+        status=200, content_type="application/json", body='{"items": [], "total": 0}')
+        if r.request.method == "GET" else r.continue_())
+    box.get_by_label("Label", exact=True).fill("renamed")
+    box.get_by_role("button", name="Save", exact=True).click()
+    expect(drawer(page)).to_have_count(0)
+    expect(page.locator("tbody tr")).to_have_count(0)
     expect(header_import(page)).to_be_focused()
 
 
@@ -175,26 +191,31 @@ def test_escape_with_the_provider_list_open_closes_only_the_list(app, app_sessio
 
 # ---- the close guard ---------------------------------------------------------------------------------------------
 
-def test_a_click_beside_either_drawer_never_closes_it_not_even_a_clean_one(app, app_session, db):
+def test_a_click_beside_either_drawer_acts_as_escape(app, app_session, db):
     page = app_session
     new_account(db, label="free one", checked=True)
     goto_accounts(app, page)
     open_import(page)
-    page.mouse.click(40, 400)
-    expect(drawer(page)).to_be_visible()
+    page.mouse.click(40, 400)                       # clean: it closes
+    expect(drawer(page)).to_have_count(0)
     expect(question(page)).to_have_count(0)
-    drawer(page).get_by_label("Credentials").fill(PASTE)
-    page.mouse.click(40, 400)
-    expect(drawer(page)).to_be_visible()
+    open_import(page).get_by_label("Credentials").fill(PASTE)
+    page.mouse.click(40, 400)                       # pasted: it asks, and Keep editing keeps the paste
+    expect(question(page)).to_contain_text("Discard the pasted credentials?")
+    question(page).get_by_role("button", name="Keep editing").click()
     expect(question(page)).to_have_count(0)
     expect(drawer(page).get_by_label("Credentials")).to_have_value(PASTE)
-    drawer(page).get_by_label("Credentials").fill("")
-    drawer(page).get_by_role("button", name="Close").click()
+    page.mouse.click(40, 400)
+    expect(question(page)).to_have_count(1)
+    question(page).get_by_role("button", name="Discard").click()
     expect(drawer(page)).to_have_count(0)
     open_edit(page, "free one")
     page.mouse.click(40, 400)
-    expect(drawer(page)).to_be_visible()
+    expect(drawer(page)).to_have_count(0)
     expect(question(page)).to_have_count(0)
+    open_edit(page, "free one").get_by_label("Label", exact=True).fill("typed")
+    page.mouse.click(40, 400)
+    expect(question(page)).to_contain_text("Discard your changes to this account?")
 
 
 @pytest.mark.parametrize("way", ("escape", "close", "cancel"))

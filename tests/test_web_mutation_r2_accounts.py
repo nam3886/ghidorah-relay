@@ -236,8 +236,9 @@ GUARD = f"FAILED {DIALOGS_SPEC} > EditDialog > the guard > "
           expect=WIPE + "the X: asks, and on Discard the paste is gone when the drawer is opened again")
 @mutation(IMPORT, '    :busy="busy"\n', "",
           expect=WIPE + "no close path works while the import runs")
-@mutation(FRAME, ':close-on-scrim="false"', ':close-on-scrim="true"',
-          expect=WIPE + "a scrim click never closes it, whatever was pasted")
+@mutation(FRAME, ':dirty="props.dirty"', ':dirty="false"',
+          expect=WIPE + "a click outside acts as Escape: a clean drawer closes, a pasted one asks, a running import "
+                        "does nothing")
 @mutation(EDIT, "label.value !== snap.value.label || proxy.value !== snap.value.proxy",
           "label.value !== (props.account?.label ?? '') || proxy.value !== (props.account ? proxyText(props.account) : '')",
           expect=GUARD + "a new copy of the account (the list read, the end of a Check proxy) changes nothing: not "

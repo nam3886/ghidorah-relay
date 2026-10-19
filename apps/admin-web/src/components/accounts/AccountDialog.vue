@@ -4,7 +4,7 @@ import DetailDrawer from "@/components/shared/DetailDrawer.vue";
 
 // The frame of the Import and Edit forms: the shared right drawer (a full-screen sheet with Back on a phone), named by
 // its visible heading. The subtitle is the line under the heading. `dirty` and `busy` are the guard of the drawer: a
-// close asks first while something typed would be lost, and is inert while a write runs. A scrim click never closes.
+// close asks first while something typed would be lost, and is inert while a write runs. A click outside acts as Escape.
 // The footer is given `close`, the guarded close, for Cancel.
 const open = defineModel<boolean>({ required: true });
 const props = defineProps<{
@@ -29,7 +29,6 @@ const emit = defineEmits<{ closed: [] }>();
     :dirty="props.dirty"
     :busy="props.busy"
     :discard-text="props.discardText"
-    :close-on-scrim="false"
     @closed="emit('closed')"
   >
     <template v-if="props.subtitle" #chips>{{ props.subtitle }}</template>

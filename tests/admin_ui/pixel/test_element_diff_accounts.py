@@ -83,7 +83,8 @@ EDIT_ENTRY = replace(LIST, board="B-AccountEdit", drive=open_edit)
 BODY, FOOT = '[role="dialog"] > div@1', '[role="dialog"] > div@2'
 # a closed drawer keeps its (empty) footer in the page: each form is found by its own drawer
 IMPORT_DRAWER, EDIT_DRAWER = "[data-testid=import-drawer] ", "[data-testid=edit-account-drawer] "
-IMPORT_BODY_GATE, EDIT_BODY_GATE = 99.0, 99.0     # measured on the box (worst of light and dark) + 1.0
+# the forms in pixels at the drawer width (0.30 and 0.01 % measured, worst of light and dark, + 1.0 as every gate)
+IMPORT_BODY_GATE, EDIT_BODY_GATE = 1.31, 1.02
 DIALOG_CHECKS = [
     Look("B-AccountImport-body", IMPORT_ENTRY, BODY, IMPORT_DRAWER + ".detail-drawer__body",
          accepted=("cookie-jar-n11-11 …",), data=("The jar has no session cookie.",),

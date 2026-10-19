@@ -562,12 +562,38 @@ describe("what was pasted never outlives its use", () => {
     expect(isOpen(w)).toBe(true);
   });
 
-  it("a scrim click never closes it, whatever was pasted", async () => {
-    seedCatalog();
-    const w = await mountImport();
-    await fill();
+  const scrim = () => {
     const el = document.body.querySelector<HTMLElement>(".el-overlay")!;
     for (const type of ["mousedown", "mouseup", "click"]) el.dispatchEvent(new MouseEvent(type, { bubbles: true }));
+  };
+
+  it("a click outside acts as Escape: a clean drawer closes, a pasted one asks, a running import does nothing", async () => {
+    seedCatalog();
+    let w = await mountImport();
+    scrim();
+    await flushPromises();
+    expect(ask).not.toHaveBeenCalled();
+    expect(isOpen(w)).toBe(false);
+    await w.setProps({ modelValue: true });
+    await fill();
+    ask.mockResolvedValue(false);
+    scrim();
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(isOpen(w)).toBe(true);
+    ask.mockResolvedValue(true);
+    scrim();
+    await flushPromises();
+    expect(isOpen(w)).toBe(false);
+    w.unmount();
+    document.body.replaceChildren();
+    vi.mocked(accounts.importAccounts).mockReturnValue(new Promise(() => undefined));
+    ask.mockClear();
+    w = await mountImport();
+    await fill();
+    buttonOf("Import").click();
+    await flushPromises();
+    scrim();
     await flushPromises();
     expect(ask).not.toHaveBeenCalled();
     expect(isOpen(w)).toBe(true);
