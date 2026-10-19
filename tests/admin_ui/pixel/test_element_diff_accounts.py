@@ -5,7 +5,8 @@
 BODY of the dialog is compared with the drawer's body at the drawer's width and the footer row with the drawer's footer
 at 1440 and 768; the frame, the header and the scrim are not compared), the page More menu the T- and P-boards draw
 open, and the row More menu B-States draws. The drawer's footer is the shared one of every drawer (10 px padding, strong
-rule, surface fill): those three numbers are set on the canvas footer before it is read. A state the canvas draws after a click (an open menu) is
+rule, surface fill): those three numbers are set on the canvas footer before it is read. A state the canvas draws
+after a click (an open menu) is
 clicked on the board too (`canvas_drive`). Each comparison writes `<name>-<theme>.md` and `.side.png` into
 `<run>/element-diff/` and fails while its table holds a difference that is not live data."""
 
@@ -70,7 +71,8 @@ BOARD_CHECKS = [Look(board, replace(LIST, board=board), redraw=POINTS_UNKNOWN)
 # `[role="dialog"]`) and the app a 620 px right drawer. The body is the dialog's second div against the drawer's body,
 # the canvas part resized to the drawer's width and given its height (the drawer's body fills it from the header to the
 # footer, the dialog's body is as tall as its fields); the footer is the third div against the drawer's footer, on every
-# axis but the vertical one, at 1440 and 768. Not compared (design-deviations): the frame and its width (640/642 -> 620),
+# axis but the vertical one, at 1440 and 768. Not compared (design-deviations): the frame and its width
+# (640/642 -> 620),
 # the header (Import's quiet one, Edit's with a divider, the X, the icon), the sentence under Import's title (it sits in
 # the drawer's header), the scrim and the position.
 # The rejected line of the import result names no credential (design-deviations 5): the canvas's jar token is left out,

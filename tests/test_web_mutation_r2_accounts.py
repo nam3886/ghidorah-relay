@@ -240,7 +240,8 @@ GUARD = f"FAILED {DIALOGS_SPEC} > EditDialog > the guard > "
           expect=WIPE + "a click outside acts as Escape: a clean drawer closes, a pasted one asks, a running import "
                         "does nothing")
 @mutation(EDIT, "label.value !== snap.value.label || proxy.value !== snap.value.proxy",
-          "label.value !== (props.account?.label ?? '') || proxy.value !== (props.account ? proxyText(props.account) : '')",
+          "label.value !== (props.account?.label ?? '') || "
+          "proxy.value !== (props.account ? proxyText(props.account) : '')",
           expect=GUARD + "a new copy of the account (the list read, the end of a Check proxy) changes nothing: not "
                          "clean, not dirty")
 @mutation(EDIT, "label.value !== snap.value.label || proxy.value !== snap.value.proxy",
@@ -251,7 +252,8 @@ GUARD = f"FAILED {DIALOGS_SPEC} > EditDialog > the guard > "
 @mutation(EDIT, '    :busy="props.saving"\n', "",
           expect=GUARD + "no close path works while a save is in flight")
 @mutation(EDIT, 'discard-text="Discard your changes to this account?"', 'discard-text="Discard?"',
-          expect=GUARD + "a changed label asks what is lost, in words; Keep editing keeps the drawer and what was typed")
+          expect=GUARD + "a changed label asks what is lost, in words; Keep editing keeps the drawer and "
+                         "what was typed")
 @mutation(EDIT, ' :disabled="props.saving"', "",
           expect=GUARD + "Cancel is disabled while the save is in flight, and only then")
 @mutation(EDIT, ' :disabled="props.saving"', ' :disabled="props.busy"',
@@ -282,7 +284,8 @@ LEAVE_BLOCKED = DRAWERS + "an import under way blocks a leave of the page, and s
 @mutation(ACCOUNTS, " && opener.getClientRects().length) return;", ") return;",
           expect=FOCUS + "goes to the page's Import button when the opener can no longer be seen")
 @mutation(ACCOUNTS, "if (opener?.isConnected &&", "if (false && opener?.isConnected &&",
-          expect=FOCUS + "is left to Element Plus, which gives it back to the row button, while that button can be seen")
+          expect=FOCUS + "is left to Element Plus, which gives it back to the row button, while that button "
+                         "can be seen")
 @mutation(ACCOUNTS, "work\n  await run(async () => {\n    if (out.command_id)",
           "work\n  await runSave(async () => {\n    if (out.command_id)",
           expect=DRAWERS + "after the save the proxy check it queued does not lock the drawer: Edit opens again and "
