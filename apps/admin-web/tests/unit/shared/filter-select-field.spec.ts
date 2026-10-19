@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ElDialog, ElDrawer } from "element-plus";
+import { ElDrawer } from "element-plus";
 import { defineComponent, h, nextTick, ref } from "vue";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
 
@@ -179,13 +179,13 @@ describe("the field variant of FilterSelect", () => {
     expect((listbox() as HTMLElement).style.top).toBe("176px");
   });
 
-  describe("in a dialog: Escape closes the open list only", () => {
-    // the dialog asks `beforeClose` the moment it is to close (Escape included), before any leave transition: its
+  describe("in a drawer: Escape closes the open list only", () => {
+    // the drawer asks `beforeClose` the moment it is to close (Escape included), before any leave transition: its
     // model turns false only after that transition, so the model alone cannot show that a close was asked for
     const closing = ref(0);
     const InDialog = defineComponent({
       setup: () => () =>
-        h(ElDialog, { modelValue: true, title: "Import", beforeClose: () => closing.value++ }, () =>
+        h(ElDrawer, { modelValue: true, title: "Import", beforeClose: () => closing.value++ }, () =>
           h(FilterSelect, { modelValue: "open", options: OPTIONS, variant: "field", label: "Status" }),
         ),
     });

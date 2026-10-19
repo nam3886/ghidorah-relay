@@ -85,6 +85,7 @@ describe("useRouteLeaveGuard", () => {
       routes: [
         { path: "/form", component: Guarded },
         { path: "/other", component: { render: () => h("p", "other") } },
+        { path: "/login", name: "login", component: { render: () => h("p", "login") } },
       ],
     });
     await router.push("/form");
@@ -96,6 +97,26 @@ describe("useRouteLeaveGuard", () => {
   beforeEach(() => {
     dirty.value = false;
     blocked.value = false;
+  });
+
+  it("a leave to the login page is never refused, blocked or dirty, and asks nothing", async () => {
+    const { router, w } = await pages();
+    blocked.value = true;
+    dirty.value = true;
+    await router.replace({ name: "login" });
+    expect(router.currentRoute.value.path).toBe("/login");
+    expect(ask).not.toHaveBeenCalled();
+    w.unmount();
+  });
+
+  it("a leave to the login page closes a discard question that is still up, as keep", async () => {
+    const { router, w } = await pages();
+    const asked = askDiscard();
+    expect(ask).toHaveBeenCalledTimes(1);
+    await router.replace({ name: "login" });
+    expect(router.currentRoute.value.path).toBe("/login");
+    expect(await asked).toBe(false);
+    w.unmount();
   });
 
   it("while a write is in flight the page is not left, with no question, clean or dirty", async () => {

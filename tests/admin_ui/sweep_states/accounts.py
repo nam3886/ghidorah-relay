@@ -1,5 +1,5 @@
-"""The Accounts tab: skeleton, rows, the row More menu, the edit and import dialogs, a delete confirm, the import
-toast."""
+"""The Accounts tab: skeleton, rows, the row More menu, the edit and import drawers, their discard questions, a delete
+confirm, the import toast."""
 
 import re
 
@@ -10,7 +10,8 @@ from . import cancel_box, close_dialog, dialog, dismiss_box, expect_dialog, skel
 ROUTE = "accounts"
 STATES = [
     ("accounts", "loading-skeleton"), ("accounts", "list"), ("accounts", "more-menu"), ("accounts", "edit-dialog"),
-    ("accounts", "delete-confirm"), ("accounts", "import-dialog"), ("accounts", "import-toast"),
+    ("accounts", "edit-dialog-discard-confirm"), ("accounts", "delete-confirm"), ("accounts", "import-dialog"),
+    ("accounts", "import-toast"), ("accounts", "import-dialog-discard-confirm"),
 ]
 
 ROW = "tbody tr, [aria-label='Account list'] li"      # a table row from 768 px, a list row on a phone
@@ -40,6 +41,15 @@ def run(page, app, live, sw, data):
     sw.step("accounts", "edit-dialog", edit_dialog)
     close_dialog(page, "Edit account")
 
+    def edit_discard_confirm():
+        more_menu("Edit")
+        edit = expect_dialog(page, "Edit account")
+        edit.get_by_label("Label").fill("typed, not saved")
+        page.keyboard.press("Escape")
+        expect(cancel_box(page)).to_contain_text("Discard your changes to this account?")
+    sw.step("accounts", "edit-dialog-discard-confirm", edit_discard_confirm, after=lambda: (
+        dismiss_box(page, "Discard"), expect(dialog(page, "Edit account")).to_have_count(0)))
+
     def delete_confirm():
         more_menu("Delete")
         expect(cancel_box(page)).to_be_visible()
@@ -54,4 +64,11 @@ def run(page, app, live, sw, data):
         dialog(page, "Import accounts").get_by_role("button", name="Import", exact=True).click()
         expect(page.locator(".el-message--error, .el-message--warning").first).to_be_visible()
     sw.step("accounts", "import-toast", import_toast)
-    close_dialog(page, "Import accounts")
+
+    def import_discard_confirm():
+        imp = dialog(page, "Import accounts")
+        imp.get_by_label("Credentials").fill("pasted, not sent")
+        page.keyboard.press("Escape")
+        expect(cancel_box(page)).to_contain_text("Discard the pasted credentials?")
+    sw.step("accounts", "import-dialog-discard-confirm", import_discard_confirm, after=lambda: (
+        dismiss_box(page, "Discard"), expect(dialog(page, "Import accounts")).to_have_count(0)))

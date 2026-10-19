@@ -93,14 +93,12 @@ LANE7 = [
 LANE7 = [replace(e, user=BOARD_USER) if e.board.endswith("-Test") else e for e in LANE7]
 
 # ---- accounts (lane 5)---------------------------------------------------------------------------------------------
-from pixel_accounts import accounts_seed, open_edit, open_import, phone_ready  # noqa: E402
+from pixel_accounts import accounts_seed, phone_ready  # noqa: E402
 
 ACCOUNTS_BOARDS = [
     Entry("B-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready, user=BOARD_USER),
     Entry("T-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready, user=BOARD_USER),
     Entry("P-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready, user=BOARD_USER),
-    Entry("B-AccountImport", "#/accounts", seed=accounts_seed, now=NOW, drive=open_import, user=BOARD_USER),
-    Entry("B-AccountEdit", "#/accounts", seed=accounts_seed, now=NOW, drive=open_edit, user=BOARD_USER),
 ]
 
 from pixel_kla import KLA  # noqa: E402  (lane 6: keys, request logs, alerts; imports Entry from here)
@@ -136,11 +134,12 @@ DRAWER = [
 # (gate 3.07, which was measured 2.07 + 1.0): the board changes on purpose, since the page no longer has the copy
 # buttons and draws relative bars for unlimited wallets, and the board still draws the copy buttons and no relative
 # bars, so it takes the measured value + 1.0.
+# B-AccountImport and B-AccountEdit have no entry and no gate either: Import accounts and Edit account are right drawers
+# now, not the 640 px dialogs of the boards; the boards are still drawn by the renderer but compared by element instead
+# (test_element_diff_accounts.py: each form's body at the drawer's width, with a pixel gate of its own, and the footer).
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
 # that gets better should have its gate lowered.
 GATES: dict[str, float] = {
-    "B-AccountEdit": 4.04,
-    "B-AccountImport": 4.45,
     "B-Accounts": 1.02,
     "B-Alerts": 1.17,
     "B-Frames": 1.17,
