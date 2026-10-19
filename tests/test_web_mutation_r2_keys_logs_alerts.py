@@ -429,7 +429,8 @@ def test_one_discard_question_at_a_time_and_a_leave_guard_while_dirty():
 @mutation(WALLET_LINES, 'v-else-if="w.mode === \'unlimited\'"', 'v-else-if="false"',
           expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
                             "their own scales")
-@mutation(WALLET_LINES, 'class="wallet__fill wallet__fill--relative"\n            :style="{ width: `${relativePercent(w.used_day',
+@mutation(WALLET_LINES,
+          'class="wallet__fill wallet__fill--relative"\n            :style="{ width: `${relativePercent(w.used_day',
           'class="wallet__fill"\n            :style="{ width: `${relativePercent(w.used_day',
           expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
                             "their own scales")
