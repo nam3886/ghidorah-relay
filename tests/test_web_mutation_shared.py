@@ -358,7 +358,8 @@ def test_the_table_opt_ins_day_rows_tablet_and_phone_list():
 @mutation(NOTIFY, "Math.max(0, height", "Math.max(-99, height",
           expect=LIFT + "on a phone only what the footer needs beyond the 72 px its toasts already sit at")
 @mutation(NOTIFY, "    syncToastLift();\n    const handle = message({", "    const handle = message({",
-          expect=LIFT + "lifts a toast of every kind the same way and moves none of them: only the page-wide lift changes")
+          expect=LIFT + "lifts a toast of every kind the same way and moves none of them: "
+          + "only the page-wide lift changes")
 @mutation(NOTIFY, "if (/-leave-(active|to)/.test(e.className)) return false;", "if (false) return false;",
           expect=LIFT + "ignores the footer of a drawer that is leaving")
 @mutation(NOTIFY, "r.top < window.innerHeight &&", "r.top < Infinity &&",

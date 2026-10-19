@@ -105,11 +105,14 @@ describe("notify", () => {
       width(false);
       notify.success("Saved");
       notify.error("Failed");
-      const before = message.mock.calls.map((c) => JSON.stringify(c[0], (_k, v) => (typeof v === "function" ? 0 : v)));
+      const sent = () =>
+        message.mock.calls.map((c) => JSON.stringify(c[0], (_k, v) => (typeof v === "function" ? 0 : v)));
+      const before = sent();
       footer({ height: 57 });
       expect(lift()).toBe("57px");
+      // the same two calls, as they were sent: nothing was changed, re-sent or closed when the footer appeared
       expect(message).toHaveBeenCalledTimes(2);
-      expect(lastOptions(message).offset).toBeUndefined();
+      expect(sent()).toEqual(before);
       expect(before).toHaveLength(2);
       // a toast raised with a footer drawn since the last look measures it at once, and gets no offset of its own
       document.body.replaceChildren();

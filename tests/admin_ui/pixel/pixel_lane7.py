@@ -122,7 +122,7 @@ def frames_drive(page, live, data):
 
 
 def open_the_boards_editor(page, live, data):
-    """The editor drawer of seedance_v2.5 with the board's text typed in and its preview shown, as the board draws it."""
+    """The editor drawer of seedance_v2.5 with the board's text typed in and its preview shown, as drawn."""
     open_the_boards_frame(page)
     page.get_by_role("button", name="Preview", exact=True).click()
     expect(page.get_by_test_id("frame-preview")).to_be_visible(timeout=TIMEOUT_MS)

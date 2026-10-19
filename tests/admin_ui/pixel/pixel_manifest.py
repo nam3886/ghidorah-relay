@@ -138,9 +138,9 @@ DRAWER = [
 # bars, so it takes the measured value + 1.0.
 # The Frames boards were measured again after the editor became a right drawer the boards do not draw: the page now
 # opens with its list across the page and no drawer, so the boards (which draw the editor column) differ more by design
-# (B-Frames 2.98, T-Frames 2.61, P-Frames 4.83, worst of light and dark); each takes its measured value + 1.0. The editor
-# is compared by element instead (test_element_diff_frames_settings.py: its body at the drawer width with a pixel gate
-# of its own, and the footer).
+# (B-Frames 2.98, T-Frames 2.61, P-Frames 4.83, worst of light and dark); each takes its measured value + 1.0. The
+# editor is compared by element instead (test_element_diff_frames_settings.py: its body at the drawer width with a
+# pixel gate of its own, and the footer).
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
 # that gets better should have its gate lowered.
 GATES: dict[str, float] = {

@@ -11,12 +11,14 @@ import uuid
 import pytest
 from accountkit import new_account
 from jobkit import key as new_key
+from patchright.sync_api import TimeoutError as PlaywrightTimeout
 from patchright.sync_api import expect
 from pixel_capture import sideways
 from test_admin_prices import fabricated, priced
 from test_frame_plan import put
 
 from relay_core.testing.fake_provider import FAKE_FRAMES
+from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
 
@@ -408,6 +410,30 @@ TOAST_AND_FOOTER_JS = """() => {
 }"""
 
 
+GAP_JS = """([lo, hi]) => {
+  const t = document.querySelector('.el-message'), f = document.querySelector('.detail-drawer__foot');
+  if (!t || !f) return false;
+  const gap = f.getBoundingClientRect().top - t.getBoundingClientRect().bottom;
+  return gap >= lo && gap <= hi;
+}"""
+
+
+def toast_settles_above_footer(page, what: str) -> dict:
+    """Wait until the toast sits 16 px (+-2) above the footer: the slide has settled. Then read both boxes."""
+    try:
+        page.wait_for_function(GAP_JS, arg=[14, 18], timeout=3000)
+    except PlaywrightTimeout as err:
+        raise AssertionError("the toast did not " + what) from err
+    boxes = page.evaluate(SETTLED_BOXES_JS, isolated_context=False)
+    gap = boxes["foot"]["y"] - boxes["toast"]["bottom"]
+    assert 14 <= gap <= 18, ("the gap above the footer", gap, boxes)
+    return boxes
+
+
+WATCH = "apps/admin-web/src/lib/notify.ts"
+
+
+@mutation(WATCH, "watchDrawerFooter();\n\nconst base", "const base", expect="the toast did not slide above the footer")
 @pytest.mark.parametrize(("width", "height", "default_gap"), [(1440, 900, 16), (390, 844, 72)])
 def test_a_toast_showing_when_a_drawer_opens_slides_above_its_footer_and_back_when_it_closes(
         app_session, db, framed, width, height, default_gap):
@@ -425,16 +451,10 @@ def test_a_toast_showing_when_a_drawer_opens_slides_above_its_footer_and_back_wh
       const t = document.querySelector('.el-message');
       return t && Math.abs(innerHeight - t.getBoundingClientRect().bottom - gap) <= 6;
     }""", arg=default_gap, timeout=3000)
-    low = page.evaluate(TOAST_AND_FOOTER_JS, isolated_context=False)
     # the drawer opens while the toast is showing: the toast slides above the footer, none closes early
     video.get_by_role("button", name="Edit the default").click()
     expect(page.get_by_role("dialog")).to_be_visible()
-    page.wait_for_function("""() => {
-      const t = document.querySelector('.el-message'), f = document.querySelector('.detail-drawer__foot');
-      return t && f && t.getBoundingClientRect().bottom <= f.getBoundingClientRect().top + 1;
-    }""", timeout=3000)
-    lifted = page.evaluate(TOAST_AND_FOOTER_JS, isolated_context=False)
-    assert lifted["toast"] <= lifted["footTop"] + 1, lifted
+    toast_settles_above_footer(page, "slide above the footer")
     # the drawer closes: the toast comes back down to its default place
     close_editor(page)
     page.wait_for_function("""(gap) => {
@@ -442,8 +462,28 @@ def test_a_toast_showing_when_a_drawer_opens_slides_above_its_footer_and_back_wh
       return t && Math.abs(innerHeight - t.getBoundingClientRect().bottom - gap) <= 6;
     }""", arg=default_gap, timeout=3000)
     back = page.evaluate(TOAST_AND_FOOTER_JS, isolated_context=False)
-    print("TOAST-BOXES", width, "low", low, "lifted", lifted, "back", back)
     assert back["footTop"] is None and abs(back["fromBottom"] - default_gap) <= 6, back
+
+
+@mutation(WATCH, "if (foot) sizes?.observe(foot);", "", expect="the toast did not follow the footer that grew")
+def test_a_toast_follows_a_drawer_footer_that_grows(app_session, db, framed):
+    page = app_session
+    video, _row, text, _heading = frames_page(page, db)
+    video.get_by_role("button", name="Edit the default").click()
+    expect(text).to_be_visible()
+    text.fill("Grow single. {{tracking_code}} {{client_prompt}}")
+    page.route(re.compile(r"/admin/frames/fake/video/default$"), lambda route: route.fulfill(
+        status=500, content_type="application/json",
+        body='{"error": {"code": "server.error", "message": "save failed"}}')
+        if route.request.method == "PUT" else route.continue_())
+    page.get_by_role("button", name="Save", exact=True).click()
+    expect(page.locator(".el-message--error")).to_be_visible()
+    page.problems.clear()                                    # the 500 is a console line
+    before = toast_settles_above_footer(page, "slide above the footer")
+    # the footer grows by script (a CSSOM write, as a wrapping footer would): the toast follows it
+    page.evaluate("document.querySelector('.detail-drawer__foot').style.minHeight = '160px'", isolated_context=False)
+    after = toast_settles_above_footer(page, "follow the footer that grew")
+    assert after["foot"]["height"] > before["foot"]["height"] + 40, (before, after)
 
 
 def test_on_a_phone_the_toast_after_a_save_does_not_cover_the_default_editors_footer(app_session, db, framed):
