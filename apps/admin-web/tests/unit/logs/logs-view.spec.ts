@@ -378,11 +378,15 @@ describe("filters", () => {
   });
 
   it("a day picked from the open panel replaces the one held and searches for exactly that day", async () => {
+    // the held day is in the store before the view mounts, so only the pick can make the search that follows
+    useLogsFilters(pinia).to = "2026-10-05";
     const { w } = await open();
-    await setDay(w, "To", "2026-10-05");
+    expect(picker(w, "To").element.value).toBe("2026-10-05");
     expect(lastQuery().until_ms).toBe(dayAfter("2026-10-05"));
     // the panel opens on the month of the held day: the 20th of that month, not a day of a neighbouring month
     await picker(w, "To").trigger("mousedown");
+    await picker(w, "To").trigger("focus");
+    await settle();
     await settle();
     // each picker has its own panel; the To panel is the one whose chosen cell is the 5th
     const panel = document.body

@@ -602,13 +602,17 @@ def _hex_rgb(value: str) -> str:
     return "rgb(%d, %d, %d)" % tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
 
-@pytest.mark.parametrize("fallback", (False, True), ids=("scrollbar-color", "webkit"))
-@pytest.mark.parametrize("theme", THEMES)
-@pytest.mark.parametrize(("scene", "entry", "view", "scroller", "part"), SCENES, ids=[s[0] for s in SCENES])
+# Every scene in both themes, with and without scrollbar-color; the page's bar is Element Plus's own div, which has no
+# webkit fallback, so that combination is not generated.
+SCROLLBAR_CASES = [(*scene, theme, fallback) for scene in SCENES for theme in THEMES for fallback in (False, True)
+                   if not (scene[0] == "page" and fallback)]
+
+
+@pytest.mark.parametrize(("scene", "entry", "view", "scroller", "part", "theme", "fallback"), SCROLLBAR_CASES,
+                         ids=["%s-%s-%s" % (c[0], c[5], "webkit" if c[6] else "scrollbar-color")
+                              for c in SCROLLBAR_CASES])
 def test_the_scrollbars_are_photographed(app, chrome_with_bars, db, live, run_dir, scene, entry, view, scroller, part,
                                          theme, fallback):
-    if scene == "page" and fallback:
-        pytest.skip("the page's bar is Element Plus's own div: it has no webkit fallback")
     with opened(type(app)(chrome_with_bars, live), db, live, entry, theme == "dark", *view) as page:
         bars = page.evaluate(BARS_JS, scroller, isolated_context=False)
         if not scene.startswith("tabs"):
