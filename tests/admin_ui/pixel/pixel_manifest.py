@@ -132,7 +132,8 @@ DRAWER = [
 # still drawn by the renderer (test_every_board_renders_in_both_themes) but compared by element instead
 # (test_element_diff_keys.py: the form body at the drawer's width, with a pixel gate of its own, and the footer).
 # The Keys boards were measured again after the copy-prefix buttons went and the wallet columns were re-fitted to the
-# canvas without them: T-Keys 4.72 (gate 8.41), P-Keys 1.93 (7.96) are better and are lowered; B-Keys 3.07 (was 2.07 when
+# canvas without them: T-Keys 4.72 (gate 8.41), P-Keys 1.93 (7.96) are better and are lowered;
+# B-Keys 3.07 (2.07 when
 # its gate was set) is worse: the whole board is still compared with the canvas as drawn (its copy buttons, its columns
 # fitted to them, no bar for an unlimited wallet), so it takes the measured value + 1.0.
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
