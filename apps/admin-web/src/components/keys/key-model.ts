@@ -18,11 +18,42 @@ export function usagePercent(used: number, limit: number | null): number {
   return Math.min(100, Math.round((used / limit) * 100));
 }
 
+// The width of a relative bar (an unlimited wallet): the rounded share of the busiest key's use, 0 when nobody used
+// any, never past 100.
+export function relativePercent(used: number, max: number): number {
+  if (!max) return 0;
+  return Math.min(100, Math.round((used / max) * 100));
+}
+
+// The highest use of each wallet (`provider/kind`) among the keys that have it open (limit or unlimited), today and in
+// total: what a relative bar counts as full.
+export type WalletMaxima = ReadonlyMap<string, { day: number; total: number }>;
+export function walletMaxima(keys: readonly Pick<ApiKey, "wallets">[]): WalletMaxima {
+  const out = new Map<string, { day: number; total: number }>();
+  for (const k of keys) {
+    for (const w of k.wallets) {
+      if (w.mode === "closed") continue;
+      const id = `${w.provider}/${w.kind}`;
+      const at = out.get(id) ?? { day: 0, total: 0 };
+      out.set(id, { day: Math.max(at.day, w.used_day), total: Math.max(at.total, w.used_total) });
+    }
+  }
+  return out;
+}
+
+// What a key is called wherever a person reads it: its label, else its prefix (a label of spaces is no label).
+export const keyName = (k: Pick<ApiKey, "label" | "prefix">): string => k.label.trim() || k.prefix;
+
 // The spoken form of the two bars of a limit wallet.
 export function usageLabel(w: Wallet): string {
   const day = w.day_limit === null ? `${w.used_day} today` : `${w.used_day} of ${w.day_limit} today`;
   const total = w.total_limit === null ? `${w.used_total} in total` : `${w.used_total} of ${w.total_limit} in total`;
   return `Used ${day}, ${total}`;
+}
+
+// The spoken form of the two bars of an unlimited wallet.
+export function relativeLabel(w: Wallet): string {
+  return `Used ${w.used_day} today, ${w.used_total} in total; the bars show the share of the busiest key's use`;
 }
 
 // `03/09/2026`; a key made today shows the hour instead of the year: `15/10 20:54`. Local time.
@@ -127,7 +158,7 @@ function walletBody(row: WalletRow): WalletBody {
 // `max unfinished`: empty = the default (null), 0 = unlimited. Any model overrides the list with `*`.
 export function keyBody(form: KeyForm): KeyBody {
   return {
-    label: form.label,
+    label: form.label.trim(),
     models: form.any ? ["*"] : [...form.models],
     max_unfinished: form.maxUnfinished === "" ? null : Number(form.maxUnfinished),
     wallets: form.wallets.map(walletBody),

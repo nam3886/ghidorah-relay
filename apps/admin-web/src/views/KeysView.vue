@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef } from "vue";
+import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef } from "vue";
 import { type ApiKey, createKey, deleteKey, type KeyBody, listKeys, patchKey, setKeyEnabled } from "@/api/keys";
 import type { CatalogModel } from "@/api/shell";
 import PageHeader from "@/components/layout/PageHeader.vue";
@@ -12,15 +12,17 @@ import {
   type CreateError,
   createError,
   deleteToast,
+  keyName,
   loadFailedText,
   unfinishedText,
+  walletMaxima,
 } from "@/components/keys/key-model";
 import "@/components/logs/lane-controls.css";
-import { copyText } from "@/components/shared/clipboard";
 import DataTable from "@/components/shared/DataTable.vue";
-import { IconCopy, IconPencil, IconPlus, IconTrash } from "@/components/shared/icons";
+import { IconPencil, IconPlus, IconTrash } from "@/components/shared/icons";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { useRouteLeaveGuard } from "@/components/shared/use-leave-guard";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useBusy } from "@/composables/use-busy";
 import { useLatest } from "@/composables/use-latest";
@@ -45,6 +47,9 @@ const formOpen = ref(false);
 const editing = shallowRef<ApiKey | null>(null);
 const catalog = shallowRef<CatalogModel[]>([]);
 const formError = ref<CreateError | null>(null);
+// something typed in the open form that a leave would lose
+const formDirty = ref(false);
+useRouteLeaveGuard(() => formOpen.value && formDirty.value);
 
 // The raw key of a key just created. It lives only here: not in a store, not in storage, not in the address, not in a
 // log. It goes on Dismiss, when the operator leaves the tab (this view unmounts) and on sign-out. The id and the label
@@ -52,10 +57,17 @@ const formError = ref<CreateError | null>(null);
 const rawKey = ref<string | null>(null);
 const createdId = ref<string | null>(null);
 const createdLabel = ref("");
+const callout = useTemplateRef<InstanceType<typeof NewKeyCallout>>("callout");
+// set by a create that worked: once the drawer is gone the banner is brought into view and its field takes focus
+// (focus would otherwise go back to New key)
+let revealBanner = false;
 // `disposed`: the operator left or signed out, so a create that is still in flight must not bring the key back.
+// `signedOut`: the session is gone, which says so itself: a create that fails after it adds no toast.
 let disposed = false;
+let signedOut = false;
 const forgetSignOut = auth.onSignOut(() => {
   disposed = true;
+  signedOut = true;
   rawKey.value = null;
   createdId.value = null;
 });
@@ -117,20 +129,25 @@ async function submit(body: KeyBody) {
     if (key) {
       await patchKey(key.id, body);
     } else {
-      // Only the key text, its id and its label are kept from the answer; the rest is the list row the reload brings.
-      let created: { key: string; id: string; label: string };
+      // Only the key text, its id, its prefix and its label are kept from the answer; the rest is the list row the
+      // reload brings.
+      let created: { key: string; id: string; label: string; prefix: string };
       try {
         const out = await createKey(body);
-        created = { key: out.key, id: out.id, label: out.label };
+        created = { key: out.key, id: out.id, label: out.label, prefix: out.prefix };
       } catch (err) {
-        // Shown from a fixed table, never from the server's message (see createError); no toast either.
-        if (!disposed) formError.value = createError(err);
+        // Shown from a fixed table, never from the server's message (see createError): inside the form while it is
+        // open, as a toast when the form is already gone (the operator left the page meanwhile).
+        const shown = createError(err);
+        if (formOpen.value && !disposed) formError.value = shown;
+        else if (!signedOut) notify.error(shown.text);
         return;
       }
       if (!disposed) {
         rawKey.value = created.key;
         createdId.value = created.id;
-        createdLabel.value = created.label || body.label;
+        createdLabel.value = keyName(created);
+        revealBanner = true;
       }
     }
     formOpen.value = false;
@@ -151,7 +168,7 @@ async function toggle(k: ApiKey, enabled: boolean) {
 
 async function remove(k: ApiKey) {
   const ok = await confirmDialog({
-    title: `Delete key ${k.label || k.prefix}?`,
+    title: `Delete key ${keyName(k)}?`,
     message: "A key that has jobs is only disabled.",
     confirmText: "Delete",
     danger: true,
@@ -164,12 +181,21 @@ async function remove(k: ApiKey) {
   });
 }
 
-async function copyPrefix(k: ApiKey) {
-  const outcome = await copyText(k.prefix);
-  if (outcome === "select" || outcome === "failed") notify.error("Could not copy: select the text and copy it by hand");
+// The drawer is gone and Element Plus has sent focus back to the button that opened it. After a create the banner
+// takes it instead; and when that button no longer exists (an edited row is drawn again by the reload) focus goes to
+// the page's primary button, so it is never left on the document.
+const newKeyButton = useTemplateRef<HTMLButtonElement>("newKey");
+function formClosed(): void {
+  if (revealBanner) {
+    revealBanner = false;
+    callout.value?.reveal();
+  } else if (!document.activeElement || document.activeElement === document.body) {
+    newKeyButton.value?.focus();
+  }
 }
 
-const labelOf = (k: ApiKey): string => k.label || k.prefix;
+// every wallet's highest use among all the keys loaded: what an unlimited wallet's relative bar counts as full
+const maxima = computed(() => walletMaxima(items.value));
 // the switch says what a click does
 const switchTitle = (enabled: boolean): string => (enabled ? "Disable key" : "Enable key");
 const rowClass = ({ row }: { row: ApiKey }): string => (row.id === createdId.value ? "key-new" : "");
@@ -186,13 +212,25 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
       subtitle="Who may call the relay, which models they may use and how much each wallet may spend."
     >
       <template #actions>
-        <button type="button" class="kla-btn kla-btn--primary kla-btn--fit" :disabled="busy" @click="openForm(null)">
+        <button
+          ref="newKey"
+          type="button"
+          class="kla-btn kla-btn--primary kla-btn--fit"
+          :disabled="busy"
+          @click="openForm(null)"
+        >
           <IconPlus :size="isPhone ? 16 : 15" :stroke="2" />New key
         </button>
       </template>
     </PageHeader>
 
-    <NewKeyCallout v-if="rawKey !== null" :raw-key="rawKey" :label="createdLabel" @dismiss="rawKey = null" />
+    <NewKeyCallout
+      v-if="rawKey !== null"
+      ref="callout"
+      :raw-key="rawKey"
+      :label="createdLabel"
+      @dismiss="rawKey = null"
+    />
 
     <section class="kla-card keys-card" aria-label="API key list">
       <div v-if="emptyList || error" class="keys-card__head" :class="{ 'is-error': error }">
@@ -216,20 +254,13 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
           </button>
         </template>
         <template #cell-label="{ row }">
-          <div class="k-label" :class="{ 'is-off': !row.enabled }">{{ row.label || "(no label)" }}</div>
-          <div class="k-prefix">
-            <span class="k-prefix__text kla-mono">{{ row.prefix }}</span>
-            <button
-              v-if="row.prefix"
-              type="button"
-              class="kla-icon-btn k-copy"
-              title="Copy key prefix"
-              :aria-label="`Copy key prefix of ${labelOf(row)}`"
-              @click="copyPrefix(row)"
-            >
-              <IconCopy :size="12" />
-            </button>
-          </div>
+          <template v-if="row.label.trim()">
+            <div class="k-label" :class="{ 'is-off': !row.enabled }">{{ row.label.trim() }}</div>
+            <div class="k-prefix">
+              <span class="k-prefix__text kla-mono">{{ row.prefix }}</span>
+            </div>
+          </template>
+          <div v-else class="k-label k-label--prefix kla-mono">{{ row.prefix }}</div>
           <span v-if="isTablet" class="k-models-line kla-mono">{{
             row.models.includes("*") ? "any model" : row.models.join(", ")
           }}</span>
@@ -246,7 +277,7 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
           </div>
         </template>
         <template #cell-wallets="{ row }">
-          <WalletLines v-if="row.wallets.length" :wallets="row.wallets" :compact="isTablet" />
+          <WalletLines v-if="row.wallets.length" :wallets="row.wallets" :compact="isTablet" :maxima="maxima" />
           <template v-else>-</template>
         </template>
         <template #cell-unfinished="{ row }">
@@ -267,14 +298,14 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
             <ToggleSwitch
               :model-value="row.enabled"
               :title="switchTitle(row.enabled)"
-              :label="`Enable key ${labelOf(row)}`"
+              :label="`Enable key ${keyName(row)}`"
               @change="(v: boolean) => toggle(row, v)"
             />
             <button
               type="button"
               class="kla-icon-btn"
               title="Edit key"
-              :aria-label="`Edit key ${labelOf(row)}`"
+              :aria-label="`Edit key ${keyName(row)}`"
               :disabled="busy"
               @click="openForm(row)"
             >
@@ -284,7 +315,7 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
               type="button"
               class="kla-icon-btn kla-icon-btn--bad k-delete"
               title="Delete key"
-              :aria-label="`Delete key ${labelOf(row)}`"
+              :aria-label="`Delete key ${keyName(row)}`"
               @click="remove(row)"
             >
               <IconTrash :size="16" />
@@ -296,35 +327,29 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
         <template #row="{ row }">
           <div class="p-key">
             <div class="p-key__line">
-              <span class="p-key__label" :class="{ 'is-off': !row.enabled }">{{ row.label || "(no label)" }}</span>
+              <span
+                class="p-key__label"
+                :class="{ 'is-off': !row.enabled, 'is-prefix': !row.label.trim(), 'kla-mono': !row.label.trim() }"
+                >{{ keyName(row) }}</span
+              >
               <StatusChip v-if="!row.enabled" status="disabled" />
               <span v-else class="p-key__enabled">enabled</span>
               <ToggleSwitch
                 :model-value="row.enabled"
                 :title="switchTitle(row.enabled)"
-                :label="`Enable key ${labelOf(row)}`"
+                :label="`Enable key ${keyName(row)}`"
                 @change="(v: boolean) => toggle(row, v)"
               />
             </div>
-            <div class="p-key__prefix">
+            <div v-if="row.label.trim()" class="p-key__prefix">
               <span class="kla-mono">{{ row.prefix }}</span>
-              <button
-                v-if="row.prefix"
-                type="button"
-                class="kla-icon-btn kla-icon-btn--lg p-key__copy"
-                title="Copy key prefix"
-                :aria-label="`Copy key prefix of ${labelOf(row)}`"
-                @click="copyPrefix(row)"
-              >
-                <IconCopy :size="14" />
-              </button>
             </div>
             <div class="p-key__models">
               <span class="p-key__models-word">Models</span>
               <span v-if="row.models.includes('*')" class="k-tag k-tag--phone">any model</span>
               <span v-else class="kla-mono p-key__models-list">{{ modelsText(row) }}</span>
             </div>
-            <WalletLines v-if="row.wallets.length" :wallets="row.wallets" />
+            <WalletLines v-if="row.wallets.length" :wallets="row.wallets" :maxima="maxima" />
             <div class="p-key__foot">
               <span class="p-key__facts"
                 >Unfinished <span class="kla-mono p-key__fg">{{ unfinishedText(row) }}</span> ·
@@ -336,7 +361,7 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
                   type="button"
                   class="kla-icon-btn kla-icon-btn--lg"
                   title="Edit key"
-                  :aria-label="`Edit key ${labelOf(row)}`"
+                  :aria-label="`Edit key ${keyName(row)}`"
                   :disabled="busy"
                   @click="openForm(row)"
                 >
@@ -346,7 +371,7 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
                   type="button"
                   class="kla-icon-btn kla-icon-btn--lg kla-icon-btn--bad k-delete"
                   title="Delete key"
-                  :aria-label="`Delete key ${labelOf(row)}`"
+                  :aria-label="`Delete key ${keyName(row)}`"
                   @click="remove(row)"
                 >
                   <IconTrash :size="18" />
@@ -368,6 +393,8 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
       :busy="busy"
       :error="formError"
       @submit="submit"
+      @update:dirty="(d: boolean) => (formDirty = d)"
+      @closed="formClosed"
     />
   </section>
 </template>
@@ -412,32 +439,33 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
 .keys-table :deep(td.data-table__actions) {
   padding: 10px 0;
 }
-/* The canvas lays the desktop table out by its content (the browser's auto layout); at 1440 the columns come to 165.7,
-   118.7, 154.2, 358.9, 138.9, 91.7, 114.3 and 159.6 of the 1302 px table. Element Plus lays out fixed columns, so each
+/* The canvas lays the desktop table out by its content (the browser's auto layout); at 1440, without its copy-prefix
+   buttons (this page has none), the columns come to 138.0, 121.6, 157.9, 367.6, 142.3, 94.0, 117.1 and 163.5 of the
+   1302 px table. Element Plus lays out fixed columns, so each
    takes the same share of the table's width. The tablet table is fixed in the canvas too: Label takes what is left. */
 .keys-table:not(.is-tablet) :deep(col:nth-child(1)) {
-  width: 12.7266%;
+  width: 10.5967%;
 }
 .keys-table:not(.is-tablet) :deep(col:nth-child(2)) {
-  width: 9.1167%;
+  width: 9.3414%;
 }
 .keys-table:not(.is-tablet) :deep(col:nth-child(3)) {
-  width: 11.8433%;
+  width: 12.1304%;
 }
 .keys-table:not(.is-tablet) :deep(col:nth-child(4)) {
-  width: 27.5653%;
+  width: 28.2342%;
 }
 .keys-table:not(.is-tablet) :deep(col:nth-child(5)) {
-  width: 10.6682%;
+  width: 10.9279%;
 }
 .keys-table:not(.is-tablet) :deep(col:nth-child(6)) {
-  width: 7.043%;
+  width: 7.2221%;
 }
 .keys-table:not(.is-tablet) :deep(col:nth-child(7)) {
-  width: 8.7788%;
+  width: 8.9934%;
 }
 .keys-table:not(.is-tablet) :deep(col:nth-child(8)) {
-  width: 12.2581%;
+  width: 12.554%;
 }
 .keys-table.is-tablet :deep(col:nth-child(1)) {
   width: auto;
@@ -467,6 +495,12 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
 .k-label.is-off {
   color: var(--rl-muted);
 }
+/* a key with no label: its prefix, muted and in mono */
+.k-label--prefix {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--rl-muted);
+}
 .k-prefix {
   display: inline-flex;
   align-items: center;
@@ -476,19 +510,6 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
 .k-prefix__text {
   font-size: 12px;
   color: var(--rl-faint);
-}
-/* it may give up width when the label cell is narrow (the tablet), as the canvas's flex item does; the canvas leaves
-   it the browser's padding (1 6), which sets how much it gives up */
-.k-copy {
-  flex: 0 1 auto;
-  padding: 1px 6px;
-  width: 24px;
-  height: 24px;
-  border-radius: 8px;
-}
-.is-tablet .k-copy {
-  width: 28px;
-  height: 28px;
 }
 .k-models-line {
   display: block;
@@ -652,8 +673,10 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
   font-size: 12px;
   color: var(--rl-muted);
 }
-.p-key__copy {
-  margin: -12px 0;
+.p-key__label.is-prefix {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--rl-muted);
 }
 .p-key__models {
   display: flex;

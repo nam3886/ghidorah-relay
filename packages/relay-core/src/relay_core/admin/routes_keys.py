@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends
 from psycopg_pool import AsyncConnectionPool
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from relay_core import keys
 from relay_core.admin.routes_common import Strict, ms
@@ -61,6 +61,12 @@ class KeyCreate(Strict):
     max_unfinished: int | None = Field(default=None, ge=0)
     wallets: list[WalletIn] = Field(default_factory=list, max_length=100)
 
+    @field_validator("label")
+    @classmethod
+    def _strip_label(cls, value: str) -> str:
+        # the 100-character limit is counted before this strip; a label of spaces is no label
+        return value.strip()
+
 
 class KeyPatch(Strict):
     """Only the fields present change. `max_unfinished: null` goes back to the default."""
@@ -69,6 +75,12 @@ class KeyPatch(Strict):
     models: list[str] | None = Field(default=None, min_length=1, max_length=200)
     max_unfinished: int | None = Field(default=None, ge=0)
     wallets: list[WalletIn] | None = Field(default=None, max_length=100)
+
+    @field_validator("label")
+    @classmethod
+    def _strip_label(cls, value: str | None) -> str | None:
+        # `None` (not sent) stays None: the route refuses an explicit null
+        return None if value is None else value.strip()
 
 
 def declared_pairs(registry: ProviderRegistry) -> list[tuple[str, str]]:

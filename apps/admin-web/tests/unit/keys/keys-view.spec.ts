@@ -47,32 +47,42 @@ async function settle() {
   await flushPromises();
   await flushPromises();
 }
-async function open() {
-  wrapper = mount(KeysView, { global: { plugins: [pinia] }, attachTo: document.body });
+// `leaves`: the drawer's own leave transition runs (it is stubbed to nothing by default, and `closed` follows it)
+async function open(leaves = false) {
+  wrapper = mount(KeysView, {
+    global: { plugins: [pinia], stubs: leaves ? { transition: false } : {} },
+    attachTo: document.body,
+  });
   await settle();
   return wrapper;
 }
 const buttonOf = (text: string) =>
   [...document.body.querySelectorAll("button")].find((b) => b.textContent?.trim() === text)!;
 
-// Opens the New key form and types a label (a new key needs one).
+// Opens the New key form and types a label.
 async function openNewKey(label = "Partner E") {
   buttonOf("New key").click();
   await settle();
+  await typeLabel(label);
+}
+async function typeLabel(value: string) {
   const field = document.body.querySelector<HTMLInputElement>("#key-label")!;
-  field.value = label;
+  field.value = value;
   field.dispatchEvent(new Event("input"));
   await settle();
 }
 
 // Creates a key through the form and leaves the one-time callout on screen.
-async function createOne() {
-  const w = await open();
+async function createOne(leaves = false) {
+  const w = await open(leaves);
   await openNewKey();
   buttonOf("Create key").click();
   await settle();
   return w;
 }
+// The page as markup (attributes included), to prove the key is in no attribute or text node.
+const markupOf = (el: Element | null): string => (el ? new XMLSerializer().serializeToString(el) : "");
+const pageMarkup = (): string => markupOf(document.body);
 const callout = () => document.body.querySelector<HTMLInputElement>('[data-testid="new-key"] input');
 
 // Everything a page can hold the key in besides the callout's own field.
@@ -291,6 +301,15 @@ describe("the one-time key", () => {
     await settle();
     expect(callout()).toBeNull();
     expect(whereTheKeyIs()).toEqual([]);
+    expect(pageMarkup()).not.toContain(RAW);
+  });
+
+  it("is never in the form drawer, which is closed by the time the key shows", async () => {
+    await createOne();
+    expect(markupOf(document.body.querySelector(".el-drawer"))).not.toContain(RAW);
+    expect(pageMarkup()).not.toContain(RAW);
+    // the serialiser sees the page: the callout is in it, with the key only as a property of its field
+    expect(pageMarkup()).toContain("Key created for");
   });
 
   it("is gone when the view is left", async () => {
@@ -339,7 +358,7 @@ describe("the one-time key", () => {
     await openNewKey();
     buttonOf("Create key").click();
     await settle();
-    const dialog = document.body.querySelector(".el-dialog")!;
+    const dialog = document.body.querySelector(".el-drawer")!;
     expect(dialog.textContent).toContain("Some of the values are not accepted. Check the highlighted field.");
     expect(dialog.querySelector("#key-label.is-error")).not.toBeNull();
     expect(whereTheKeyIs()).toEqual([]);
@@ -389,21 +408,17 @@ describe("Copy", () => {
   const copyIn = (root: ParentNode) =>
     [...root.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Copy");
 
-  const prefixCopy = (root: ParentNode) => root.querySelector<HTMLButtonElement>('button[title="Copy key prefix"]');
-
-  it("the prefix in a row has a Copy that copies the prefix and nothing else", async () => {
+  it.each([1440, 768, 390])("no row has a Copy-prefix button at %i px", async (width) => {
+    showAt(width);
+    list.mockResolvedValue({ items: [key(), key({ id: "k2", label: "", prefix: "rk_none" })] });
     const w = await open();
-    const button = prefixCopy(w.find("tbody").element)!;
-    expect(button.getAttribute("aria-label")).toBe("Copy key prefix of shop");
-    button.click();
-    await settle();
-    expect(writeText).toHaveBeenCalledExactlyOnceWith("rk_abcd");
-  });
-
-  it("a key without a prefix has no Copy in its row", async () => {
-    list.mockResolvedValue({ items: [key({ prefix: "" })] });
-    const w = await open();
-    expect(prefixCopy(w.find("tbody").element)).toBeNull();
+    expect(document.body.querySelector('button[title="Copy key prefix"]')).toBeNull();
+    const names = [...document.body.querySelectorAll("button")].map((b) => b.getAttribute("aria-label") ?? "");
+    expect(names.some((n) => n.startsWith("Copy key prefix"))).toBe(false);
+    // the prefix itself is still text
+    expect(document.body.textContent).toContain("rk_abcd");
+    w.unmount();
+    wrapper = null;
   });
 
   it("the one-time callout has a Copy that copies the raw key", async () => {
@@ -447,7 +462,7 @@ describe("the page as the design draws it", () => {
     );
   });
 
-  it("a limit wallet draws two bars of the rounded share used, with a spoken label; other modes draw none", async () => {
+  it("a limit wallet draws two bars of the rounded share used, with a spoken label; a closed wallet draws none", async () => {
     list.mockResolvedValue({
       items: [
         key({
@@ -461,9 +476,10 @@ describe("the page as the design draws it", () => {
     });
     const w = await open();
     const bars = w.findAll('tbody [role="img"]');
-    expect(bars).toHaveLength(1);
+    expect(bars).toHaveLength(2);
     expect(bars[0]!.attributes("aria-label")).toBe("Used 3 of 20 today, 14 of 200 in total");
     expect(bars[0]!.findAll(".wallet__fill").map((f) => (f.element as HTMLElement).style.width)).toEqual(["15%", "7%"]);
+    expect(bars[0]!.find(".wallet__fill--relative").exists()).toBe(false);
     const lines = w.findAll('tbody [data-testid="wallet-line"]').map((l) => l.text());
     expect(lines[0]).toContain("dola video");
     expect(lines[0]).toContain("day 3/20 · total 14/200");
@@ -572,13 +588,11 @@ describe("the key form as the design draws it", () => {
 
   it("an edit names the key in its title and tells what each wallet has used", async () => {
     await editShop();
-    const dialog = document.body.querySelector(".el-dialog")!;
+    const dialog = document.body.querySelector(".el-drawer")!;
     expect(dialog.querySelector("h2")!.textContent).toBe("Edit API key — shop");
-    // the dialog is named by its heading, as drawn (aria-labelledby, no aria-label of its own)
+    // the drawer is named by its visible heading
     const named = document.body.querySelector('[role="dialog"]')!;
-    expect(dialog.querySelector("h2")!.id).not.toBe("");
-    expect(named.getAttribute("aria-labelledby")).toBe(dialog.querySelector("h2")!.id);
-    expect(named.hasAttribute("aria-label")).toBe(false);
+    expect(named.getAttribute("aria-label")).toBe(dialog.querySelector("h2")!.textContent);
     expect(dialog.textContent).toContain("3 used today · 14 total");
     expect(dialog.textContent).toContain("9 used");
     expect(dialog.textContent).toContain("Limits apply in limit mode only. Per day resets at midnight.");
@@ -588,7 +602,7 @@ describe("the key form as the design draws it", () => {
     await open();
     buttonOf("New key").click();
     await settle();
-    const dialog = document.body.querySelector(".el-dialog")!;
+    const dialog = document.body.querySelector(".el-drawer")!;
     expect(dialog.querySelector("h2")!.textContent).toBe("New API key");
     expect(dialog.textContent).not.toContain("used");
   });
@@ -645,62 +659,361 @@ describe("the key form as the design draws it", () => {
   });
 });
 
-describe("the label of a new key", () => {
+describe("the label of a key is optional", () => {
   const label = () => document.body.querySelector<HTMLInputElement>("#key-label")!;
   const create = () => buttonOf("Create key");
-  const described = (el: Element) => document.getElementById(el.getAttribute("aria-describedby") ?? "");
-  const type = async (value: string) => {
-    label().value = value;
+
+  it("Create key is on with an empty label, says nothing of a missing label and creates a key", async () => {
+    await open();
+    buttonOf("New key").click();
+    await settle();
+    expect(create().hasAttribute("aria-disabled")).toBe(false);
+    expect(create().hasAttribute("aria-describedby")).toBe(false);
+    label().dispatchEvent(new Event("blur"));
+    await settle();
+    expect(document.body.textContent).not.toContain("A label is required");
+    expect(document.body.textContent).not.toContain("Fill in the label first");
+    expect(label().getAttribute("aria-invalid")).toBeNull();
+    create().click();
+    await settle();
+    expect(keys.createKey).toHaveBeenCalledWith(expect.objectContaining({ label: "" }));
+  });
+
+  it("a label of spaces is sent as no label, and a padded one without its edges", async () => {
+    await open();
+    await openNewKey("   ");
+    create().click();
+    await settle();
+    expect(keys.createKey).toHaveBeenLastCalledWith(expect.objectContaining({ label: "" }));
+    buttonOf("Dismiss").click();
+    await settle();
+    await openNewKey("  Partner E ");
+    create().click();
+    await settle();
+    expect(keys.createKey).toHaveBeenLastCalledWith(expect.objectContaining({ label: "Partner E" }));
+  });
+
+  it("the banner of a key made with no label names it by its prefix, never 'Key created for .'", async () => {
+    vi.mocked(keys.createKey).mockResolvedValue({ ...key({ id: "k2", label: "", prefix: "rk_new1" }), key: RAW });
+    await open();
+    await openNewKey("");
+    create().click();
+    await settle();
+    const banner = document.body.querySelector('[data-testid="new-key"]')!;
+    expect(banner.textContent).toContain("Key created for rk_new1.");
+    expect(banner.textContent).not.toContain("Key created for .");
+    expect(banner.querySelector("input")!.getAttribute("aria-label")).toBe("New API key for rk_new1");
+    // a label of spaces in the answer reads the same
+    buttonOf("Dismiss").click();
+    await settle();
+    vi.mocked(keys.createKey).mockResolvedValue({ ...key({ id: "k3", label: "   ", prefix: "rk_new2" }), key: RAW });
+    await openNewKey("");
+    create().click();
+    await settle();
+    expect(document.body.querySelector('[data-testid="new-key"]')!.textContent).toContain("Key created for rk_new2.");
+  });
+
+  it("an edit can clear a label: the patch sends an empty one", async () => {
+    vi.mocked(keys.patchKey).mockResolvedValue(key());
+    const w = await open();
+    await w.find('button[aria-label="Edit key shop"]').trigger("click");
+    await settle();
+    expect(label().value).toBe("shop");
+    await typeLabel("");
+    buttonOf("Save").click();
+    await settle();
+    expect(keys.patchKey).toHaveBeenCalledWith("k1", expect.objectContaining({ label: "" }));
+  });
+
+  it("an edit of a key that has no label is not held back, and is titled by its prefix", async () => {
+    list.mockResolvedValue({ items: [key({ label: "  ", prefix: "rk_none" })] });
+    const w = await open();
+    await w.find('button[aria-label="Edit key rk_none"]').trigger("click");
+    await settle();
+    expect(document.body.querySelector(".el-drawer h2")!.textContent).toBe("Edit API key — rk_none");
+    buttonOf("Save").click();
+    await settle();
+    expect(keys.patchKey).toHaveBeenCalledWith("k1", expect.objectContaining({ label: "" }));
+  });
+});
+
+describe("a key with no label in the list", () => {
+  it.each([
+    ["empty", ""],
+    ["spaces", "   "],
+  ])(
+    "a label that is %s shows the prefix, muted and in mono, with no (no label) and no second prefix line",
+    async (_n, label) => {
+      list.mockResolvedValue({ items: [key({ label, prefix: "rk_none" })] });
+      const w = await open();
+      const cell = w.find("tbody tr .k-label");
+      expect(cell.text()).toBe("rk_none");
+      expect(cell.classes()).toEqual(expect.arrayContaining(["k-label--prefix", "kla-mono"]));
+      expect(w.find("tbody tr .k-prefix").exists()).toBe(false);
+      expect(document.body.textContent).not.toContain("(no label)");
+      expect(w.find('tbody button[aria-label="Edit key rk_none"]').exists()).toBe(true);
+      expect(w.find('tbody [role="switch"]').attributes("aria-label")).toBe("Enable key rk_none");
+    },
+  );
+
+  it("a labelled key shows its label with the prefix under it", async () => {
+    const w = await open();
+    expect(w.find("tbody tr .k-label").text()).toBe("shop");
+    expect(w.find("tbody tr .k-prefix").text()).toBe("rk_abcd");
+  });
+
+  it("the phone block shows the prefix once, as the name", async () => {
+    showAt(390);
+    list.mockResolvedValue({ items: [key({ label: " ", prefix: "rk_none" })] });
+    const w = await open();
+    const block = w.find(".p-key");
+    expect(block.find(".p-key__label").text()).toBe("rk_none");
+    expect(block.find(".p-key__label").classes()).toContain("kla-mono");
+    expect(block.find(".p-key__prefix").exists()).toBe(false);
+  });
+
+  it("the delete question names it by its prefix", async () => {
+    list.mockResolvedValue({ items: [key({ label: "  ", prefix: "rk_none" })] });
+    vi.mocked(confirm.confirmDialog).mockResolvedValue(false);
+    const w = await open();
+    await w.find('tbody button[aria-label="Delete key rk_none"]').trigger("click");
+    await settle();
+    expect(confirm.confirmDialog).toHaveBeenCalledWith(expect.objectContaining({ title: "Delete key rk_none?" }));
+  });
+});
+
+describe("the key form as a drawer that guards what was typed", () => {
+  const drawer = () => document.body.querySelector(".el-drawer");
+  const xButton = () => document.body.querySelector<HTMLButtonElement>(".el-drawer button[aria-label='Close']")!;
+  const label = () => document.body.querySelector<HTMLInputElement>("#key-label")!;
+  const askedWith = (message: string) => expect.objectContaining({ message });
+  const confirmed = vi.mocked(confirm.confirmDialog);
+
+  it("is a right drawer named by its heading, with no scrim close", async () => {
+    await open();
+    buttonOf("New key").click();
+    await settle();
+    expect(drawer()).not.toBeNull();
+    expect(document.body.querySelector(".el-dialog")).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')!.getAttribute("aria-label")).toBe(
+      document.body.querySelector(".el-drawer h2")!.textContent,
+    );
+    const el = wrapper!.findComponent({ name: "ElDrawer" });
+    expect(el.props("closeOnClickModal")).toBe(false);
+    expect(el.props("direction")).toBe("rtl");
+  });
+
+  it("a form nobody typed in closes at once", async () => {
+    await open();
+    buttonOf("New key").click();
+    await settle();
+    xButton().click();
+    await settle();
+    expect(confirmed).not.toHaveBeenCalled();
+    await new Promise((r) => setTimeout(r, 400));
+    expect(drawer()?.getAttribute("style") ?? "").not.toContain("display: block");
+    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(false);
+  });
+
+  it("a typed form asks; Keep editing keeps what was typed; Discard closes and the next form is empty", async () => {
+    await open();
+    await openNewKey("half typed");
+    confirmed.mockResolvedValueOnce(false);
+    xButton().click();
+    await settle();
+    expect(confirmed).toHaveBeenCalledExactlyOnceWith(askedWith("Discard what you typed?"));
+    expect(label().value).toBe("half typed");
+    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(true);
+    confirmed.mockResolvedValueOnce(true);
+    xButton().click();
+    await settle();
+    expect(confirmed).toHaveBeenCalledTimes(2);
+    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(false);
+    expect(keys.createKey).not.toHaveBeenCalled();
+    buttonOf("New key").click();
+    await settle();
+    expect(label().value).toBe("");
+    // and a form that was only opened again is clean
+    xButton().click();
+    await settle();
+    expect(confirmed).toHaveBeenCalledTimes(2);
+  });
+
+  it("a form edited and put back as it was is clean", async () => {
+    await open();
+    await openNewKey("abc");
+    await typeLabelBack();
+    xButton().click();
+    await settle();
+    expect(confirmed).not.toHaveBeenCalled();
+  });
+  const typeLabelBack = async () => {
+    label().value = "";
     label().dispatchEvent(new Event("input"));
     await settle();
   };
 
-  it("an empty label keeps Create key off with its reason; a click marks the field and sends nothing", async () => {
-    await open();
-    buttonOf("New key").click();
-    await settle();
-    expect(create().getAttribute("aria-disabled")).toBe("true");
-    expect(described(create())!.getAttribute("role")).toBe("tooltip");
-    expect(described(create())!.textContent).toBe("Fill in the label first");
-    // nothing is red before a try
-    expect(document.body.textContent).not.toContain("A label is required.");
-    expect(label().getAttribute("aria-invalid")).toBeNull();
-    create().click();
-    await settle();
-    expect(keys.createKey).not.toHaveBeenCalled();
-    expect(label().getAttribute("aria-invalid")).toBe("true");
-    expect(label().classList).toContain("is-error");
-    expect(described(label())!.textContent!.trim()).toBe("A label is required.");
-  });
-
-  it("leaving the label empty marks it too; a label turns Create key on, clears the error and is sent", async () => {
-    await open();
-    buttonOf("New key").click();
-    await settle();
-    label().dispatchEvent(new Event("blur"));
-    await settle();
-    expect(document.body.textContent).toContain("A label is required.");
-    await type("   ");
-    expect(create().getAttribute("aria-disabled")).toBe("true");
-    await type("Partner E");
-    expect(create().hasAttribute("aria-disabled")).toBe(false);
-    expect(create().hasAttribute("aria-describedby")).toBe(false);
-    expect(document.body.textContent).not.toContain("A label is required.");
-    create().click();
-    await settle();
-    expect(keys.createKey).toHaveBeenCalledWith(expect.objectContaining({ label: "Partner E" }));
-  });
-
-  it("an edit of a key that has no label is not held back", async () => {
-    list.mockResolvedValue({ items: [key({ label: "", prefix: "rk_none" })] });
+  it("an edit is dirty once a field changes, not before", async () => {
+    vi.mocked(keys.patchKey).mockResolvedValue(key());
     const w = await open();
-    await w.find('button[aria-label="Edit key rk_none"]').trigger("click");
+    await w.find('button[aria-label="Edit key shop"]').trigger("click");
     await settle();
-    expect(buttonOf("Save").hasAttribute("aria-disabled")).toBe(false);
+    xButton().click();
+    await settle();
+    expect(confirmed).not.toHaveBeenCalled();
+    await w.find('button[aria-label="Edit key shop"]').trigger("click");
+    await settle();
+    label().value = "shop 2";
+    label().dispatchEvent(new Event("input"));
+    await settle();
+    confirmed.mockResolvedValueOnce(false);
+    xButton().click();
+    await settle();
+    expect(confirmed).toHaveBeenCalledTimes(1);
+  });
+
+  it("while the create is in flight no way out works, and a good answer closes the drawer without a question", async () => {
+    let answer!: (v: Awaited<ReturnType<typeof keys.createKey>>) => void;
+    vi.mocked(keys.createKey).mockReturnValue(new Promise((r) => (answer = r)));
+    await open();
+    await openNewKey("Slow");
+    buttonOf("Create key").click();
+    await settle();
+    xButton().click();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+    buttonOf("Cancel").click();
+    await settle();
+    expect(confirmed).not.toHaveBeenCalled();
+    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(true);
+    answer({ ...key({ id: "k2" }), key: RAW });
+    await settle();
+    expect(confirmed).not.toHaveBeenCalled();
+    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(false);
+    expect(callout()!.value).toBe(RAW);
+  });
+
+  it("a create that fails after the form is gone is a toast, not a lost error", async () => {
+    let fail!: (e: unknown) => void;
+    vi.mocked(keys.createKey).mockReturnValue(new Promise((_r, reject) => (fail = reject)));
+    const w = await open();
+    await openNewKey("Gone");
+    buttonOf("Create key").click();
+    await settle();
+    (w.vm as unknown as { formOpen: boolean }).formOpen = false;
+    fail(new ApiError(422, { error: { code: "input.invalid", message: "x", param: "label" } }));
+    await settle();
+    expect(notify.error).toHaveBeenCalledExactlyOnceWith(
+      "Some of the values are not accepted. Check the highlighted field.",
+    );
+  });
+
+  it("a failed create with the form open stays inside the form and sends no toast", async () => {
+    vi.mocked(keys.createKey).mockRejectedValue(new TypeError("down"));
+    await open();
+    await openNewKey();
+    buttonOf("Create key").click();
+    await settle();
+    expect(document.body.querySelector(".kd__error")!.textContent!.trim()).toBe("Network error, please try again.");
+    expect(notify.error).not.toHaveBeenCalled();
+  });
+
+  it("a good save brings the banner into view and puts focus in its field once the drawer is gone", async () => {
+    await createOne(true);
+    await new Promise((r) => setTimeout(r, 600));
+    expect(document.activeElement).toBe(callout());
+  });
+
+  it("focus goes to the page's primary button when the button that opened the form is gone", async () => {
+    vi.mocked(keys.patchKey).mockResolvedValue(key());
+    const w = await open(true);
+    await w.find('button[aria-label="Edit key shop"]').trigger("click");
+    await settle();
+    // the save reads the list again, and the key (with its Edit button) is no longer in it
+    list.mockResolvedValue({ items: [] });
     buttonOf("Save").click();
     await settle();
-    expect(keys.patchKey).toHaveBeenCalledWith("k1", expect.objectContaining({ label: "" }));
-    expect(document.body.textContent).not.toContain("A label is required.");
+    await new Promise((r) => setTimeout(r, 600));
+    expect(document.activeElement).toBe(buttonOf("New key"));
+  });
+
+  it("a reload or a closed tab is warned about while the form holds typing, and not after", async () => {
+    const warned = () => {
+      const e = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    await open();
+    expect(warned()).toBe(false);
+    await openNewKey("typing");
+    expect(warned()).toBe(true);
+    confirmed.mockResolvedValueOnce(true);
+    xButton().click();
+    await settle();
+    expect(warned()).toBe(false);
+  });
+});
+
+describe("the relative bars of an unlimited wallet", () => {
+  const unlimited = (over: Partial<keys.Wallet> = {}) =>
+    limitWallet({ mode: "unlimited", day_limit: null, total_limit: null, ...over });
+  const fills = (el: { findAll: (s: string) => { element: Element }[] }) =>
+    el.findAll(".wallet__fill").map((f) => (f.element as HTMLElement).style.width);
+
+  it("the busiest key of the wallet is full, the others proportional, today and in total on their own scales", async () => {
+    list.mockResolvedValue({
+      items: [
+        key({ id: "a", label: "a", wallets: [unlimited({ used_day: 10, used_total: 40 })] }),
+        key({ id: "b", label: "b", wallets: [unlimited({ used_day: 5, used_total: 10 })] }),
+        key({ id: "c", label: "c", wallets: [unlimited({ used_day: 0, used_total: 0 })] }),
+      ],
+    });
+    const w = await open();
+    const [a, b, c] = w.findAll("tbody tr");
+    expect(fills(a!)).toEqual(["100%", "100%"]);
+    expect(fills(b!)).toEqual(["50%", "25%"]);
+    expect(fills(c!)).toEqual(["0%", "0%"]);
+    for (const row of [a!, b!, c!]) {
+      expect(row.findAll(".wallet__fill--relative")).toHaveLength(2);
+    }
+    expect(a!.find('[role="img"]').attributes("aria-label")).toBe(
+      "Used 10 today, 40 in total; the bars show the share of the busiest key's use",
+    );
+  });
+
+  it("a limit wallet that is open counts toward the maximum; a closed one does not; each provider and kind has its own", async () => {
+    list.mockResolvedValue({
+      items: [
+        key({ id: "a", label: "a", wallets: [unlimited({ used_day: 4, used_total: 8 })] }),
+        key({
+          id: "b",
+          label: "b",
+          wallets: [limitWallet({ used_day: 16, used_total: 32, day_limit: 100, total_limit: 1000 })],
+        }),
+        key({
+          id: "c",
+          label: "c",
+          wallets: [limitWallet({ mode: "closed", used_day: 999, used_total: 999, day_limit: 0, total_limit: null })],
+        }),
+        key({ id: "d", label: "d", wallets: [unlimited({ kind: "image", used_day: 2, used_total: 2 })] }),
+      ],
+    });
+    const w = await open();
+    const [a, b, c, d] = w.findAll("tbody tr");
+    expect(fills(a!)).toEqual(["25%", "25%"]);
+    // the limit wallet keeps its own bars (share of its limit) and is not a relative bar
+    expect(fills(b!)).toEqual(["16%", "3%"]);
+    expect(b!.find(".wallet__fill--relative").exists()).toBe(false);
+    expect(c!.find('[role="img"]').exists()).toBe(false);
+    expect(fills(d!)).toEqual(["100%", "100%"]);
+  });
+
+  it("phone blocks draw them too", async () => {
+    showAt(390);
+    list.mockResolvedValue({
+      items: [key({ wallets: [unlimited({ used_day: 3, used_total: 14 })] })],
+    });
+    const w = await open();
+    expect(fills(w.find(".p-key"))).toEqual(["100%", "100%"]);
   });
 });
 

@@ -3,11 +3,13 @@ import { computed, reactive, ref, watch } from "vue";
 import type { ApiKey, KeyBody, WalletMode } from "@/api/keys";
 import type { CatalogModel } from "@/api/shell";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
-import { IconAlertCircle, IconClose } from "@/components/shared/icons";
+import DetailDrawer from "@/components/shared/DetailDrawer.vue";
+import { IconAlertCircle } from "@/components/shared/icons";
 import "@/components/logs/lane-controls.css";
 import { type CreateError, keyBody, keyForm, type KeyForm } from "./key-model";
 
-// Create or edit a key. The dialog only asks: it builds the body from what was typed and the view sends it.
+// Create or edit a key, in a right drawer. The form only asks: it builds the body from what was typed and the view
+// sends it. `dirty` (something typed since it opened) is what the drawer's close guard and the view's leave guard read.
 const open = defineModel<boolean>({ required: true });
 // `error`: why a create failed, already reduced to fixed text and a field name (see createError).
 const props = defineProps<{
@@ -16,39 +18,35 @@ const props = defineProps<{
   busy: boolean;
   error: CreateError | null;
 }>();
-const emit = defineEmits<{ submit: [body: KeyBody] }>();
+const emit = defineEmits<{ submit: [body: KeyBody]; "update:dirty": [dirty: boolean]; closed: [] }>();
 // The highlighted field draws its edge in the bad colour; the text itself is one line above the form.
 const flagged = (name: CreateError["field"]): boolean => props.error?.field === name;
 
 const form = reactive<KeyForm>(keyForm([], null));
 
-// A new key needs a label (B-States): until it has one, Create key stays off with its reason, and a try (a click, Enter,
-// leaving the field empty) marks the field and says so. A key that already has no label stays valid: its edit is not
-// held back. A label of spaces is no label.
-const labelMissing = computed(() => !props.editing && form.label.trim() === "");
-const labelTried = ref(false);
-const labelError = computed(() => labelMissing.value && labelTried.value);
+// The label is optional: a key with none is named by its prefix (a label of spaces is no label, the server strips it).
 function send(): void {
-  if (labelMissing.value) {
-    labelTried.value = true;
-    return;
-  }
   emit("submit", keyBody(form));
 }
+
+// What the form held when it opened: the drawer asks before it closes only when the form no longer equals it.
+const baseline = ref(JSON.stringify(form));
+const dirty = computed(() => JSON.stringify(form) !== baseline.value);
+watch(dirty, (d) => emit("update:dirty", d), { immediate: true });
 
 // Each opening starts from the key being edited (or a new one) and the catalog as it is now.
 watch(
   () => open.value,
   (isOpen) => {
-    if (!isOpen) return;
-    Object.assign(form, keyForm(props.models, props.editing));
-    labelTried.value = false;
+    // a closed form holds nothing that a close or a leave could lose
+    if (isOpen) Object.assign(form, keyForm(props.models, props.editing));
+    baseline.value = JSON.stringify(form);
   },
   { immediate: true },
 );
 
 const title = computed(() =>
-  props.editing ? `Edit API key — ${props.editing.label || props.editing.prefix}` : "New API key",
+  props.editing ? `Edit API key — ${props.editing.label.trim() || props.editing.prefix}` : "New API key",
 );
 
 // What a wallet has used so far, from the key being edited ("3 used today · 14 total", "9 used"); nothing for a new key.
@@ -68,17 +66,17 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
 </script>
 
 <template>
-  <el-dialog v-model="open" class="key-dialog" :show-close="false" width="min(640px, 94vw)">
-    <template #header="{ titleId }">
-      <div class="kd__head">
-        <h2 :id="titleId" class="kd__title">{{ title }}</h2>
-        <button type="button" class="kla-icon-btn kd__close" aria-label="Close" @click="open = false">
-          <IconClose :size="18" :stroke="2" />
-        </button>
-      </div>
-    </template>
-
-    <form class="kd__form" @submit.prevent="send">
+  <DetailDrawer
+    v-model="open"
+    :title="title"
+    testid="key-drawer"
+    back-label="Back to API keys"
+    :dirty="dirty"
+    :busy="props.busy"
+    :close-on-scrim="false"
+    @closed="emit('closed')"
+  >
+    <form class="kd__form key-dialog" @submit.prevent="send">
       <p v-if="props.error" class="kd__error" role="alert"><IconAlertCircle :size="18" />{{ props.error.text }}</p>
 
       <div class="kd__field">
@@ -87,18 +85,13 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
           id="key-label"
           v-model="form.label"
           class="kd__input"
-          :class="{ 'is-error': flagged('label') || labelError }"
-          :aria-invalid="flagged('label') || labelError || undefined"
-          :aria-describedby="labelError ? 'key-label-error' : undefined"
+          :class="{ 'is-error': flagged('label') }"
+          :aria-invalid="flagged('label') || undefined"
           maxlength="100"
           placeholder="Partner D"
           aria-label="Label"
-          @blur="labelTried = true"
         />
-        <p v-if="labelError" id="key-label-error" class="kd__field-error">
-          <IconAlertCircle :size="14" />A label is required.
-        </p>
-        <p v-else class="kd__help">
+        <p class="kd__help">
           Up to 100 characters.<template v-if="props.editing">
             Key <span class="kla-mono">{{ props.editing.prefix }}</span></template
           >
@@ -199,77 +192,24 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
       </fieldset>
     </form>
 
-    <template #footer>
-      <div class="kd__foot">
-        <button type="button" class="kla-btn" @click="open = false">Cancel</button>
-        <span class="kd__create">
-          <span v-if="labelMissing" id="key-create-why" role="tooltip" class="kd__tip">Fill in the label first</span>
-          <button
-            type="button"
-            class="kla-btn kla-btn--primary"
-            :class="{ 'is-new': !props.editing }"
-            :disabled="props.busy"
-            :aria-disabled="labelMissing || undefined"
-            :aria-describedby="labelMissing ? 'key-create-why' : undefined"
-            @click="send"
-          >
-            {{ props.editing ? "Save" : "Create key" }}
-          </button>
-        </span>
-      </div>
+    <template #footer="{ close }">
+      <button type="button" class="kla-btn" @click="close">Cancel</button>
+      <button
+        type="button"
+        class="kla-btn kla-btn--primary"
+        :class="{ 'is-new': !props.editing }"
+        :disabled="props.busy"
+        @click="send"
+      >
+        {{ props.editing ? "Save" : "Create key" }}
+      </button>
     </template>
-  </el-dialog>
+  </DetailDrawer>
 </template>
 
-<!-- not scoped: the dialog is teleported to <body>, and its chrome is Element Plus's own markup -->
+<!-- not scoped: the drawer is teleported to <body> -->
 <style>
-.key-dialog.el-dialog {
-  --el-dialog-padding-primary: 0px;
-  --el-dialog-margin-top: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: 16px;
-  max-height: calc(100% - 64px);
-  display: flex;
-  flex-direction: column;
-}
-/* no edge in either theme, as drawn (the dark theme gives every other dialog one) */
-html:root .key-dialog.el-dialog {
-  border: 0;
-}
-.key-dialog .el-dialog__header {
-  margin: 0;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--rl-line);
-}
-.key-dialog .el-dialog__body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 20px 24px;
-}
-.key-dialog .el-dialog__footer {
-  padding: 16px 24px;
-  border-top: 1px solid var(--rl-line);
-}
-.key-dialog .kd__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.key-dialog .kd__title {
-  margin: 0;
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-.key-dialog .kd__close {
-  width: 36px;
-  height: 36px;
-}
-.key-dialog .kd__form {
+.key-dialog.kd__form {
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -415,11 +355,7 @@ html:root .key-dialog.el-dialog {
   flex-direction: column;
   gap: 4px;
 }
-/* the Mode select as B-KeyForm draws it: 140 wide and 36 high, the author padding 8 (the field's own value inset and
-   arrow follow from it); on a phone it is the field's chip */
-.key-dialog .kd__mode.filter-field {
-  --field-pad: 8px;
-}
+/* the Mode select as B-KeyForm draws it: 140 wide and 36 high; on a phone it is the field chip */
 .key-dialog .kd__mode.filter-field:not(.is-chip) .filter-select.is-field {
   width: 140px;
   height: 36px;
@@ -435,73 +371,14 @@ html:root .key-dialog.el-dialog {
   color: var(--rl-faint);
   opacity: 0.7;
 }
-.key-dialog .kd__foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-.key-dialog .kd__foot .kla-btn {
+/* Cancel and Save as B-KeyForm draws them (padding 0 16 and 0 18); Create key is 0 16, as B-States draws it */
+.detail-drawer__foot .kla-btn {
   padding: 0 16px;
 }
-.key-dialog .kd__foot .kla-btn--primary {
+.detail-drawer__foot .kla-btn--primary {
   padding: 0 18px;
 }
-/* B-States' form validation: Create key padded 0 16, its reason above it while the label is empty, on hover or focus;
-   the error line under the field in the bad colour */
-.key-dialog .kd__foot .kla-btn--primary.is-new {
+.detail-drawer__foot .kla-btn--primary.is-new {
   padding: 0 16px;
-}
-.key-dialog .kd__create {
-  position: relative;
-  display: inline-flex;
-}
-.key-dialog .kd__tip {
-  position: absolute;
-  right: 0;
-  bottom: 44px;
-  visibility: hidden;
-  padding: 6px 10px;
-  border-radius: 8px;
-  background: var(--rl-fg);
-  color: var(--rl-surface);
-  font-size: 12px;
-  line-height: 16px;
-  white-space: nowrap;
-  box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
-  pointer-events: none;
-}
-.key-dialog .kd__create:hover .kd__tip,
-.key-dialog .kd__create:focus-within .kd__tip {
-  visibility: visible;
-}
-.key-dialog .kd__field-error {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  font-size: 12px;
-  line-height: 16px;
-  color: var(--rl-bad);
-}
-.key-dialog .kd__field-error svg {
-  flex: none;
-}
-@media (max-width: 767px) {
-  .key-dialog.el-dialog {
-    border-radius: 0;
-  }
-  .key-dialog .el-dialog__header {
-    padding: 12px 12px 12px 16px;
-  }
-  .key-dialog .kd__close {
-    width: 44px;
-    height: 44px;
-  }
-  .key-dialog .el-dialog__body {
-    padding: 16px;
-  }
-  .key-dialog .el-dialog__footer {
-    padding: 12px 16px;
-  }
 }
 </style>

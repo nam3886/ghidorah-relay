@@ -15,6 +15,8 @@ LOGS = SRC + "/views/LogsView.vue"
 NEW_KEY = SRC + "/components/keys/NewKeyCallout.vue"
 KEY_FORM = SRC + "/components/keys/KeyFormDialog.vue"
 KEY_SWITCH = SRC + "/components/shared/ToggleSwitch.vue"
+DRAWER = SRC + "/components/shared/DetailDrawer.vue"
+LEAVE_GUARD = SRC + "/components/shared/use-leave-guard.ts"
 WALLET_LINES = SRC + "/components/keys/WalletLines.vue"
 ALERTS_MODEL = SRC + "/components/alerts/alerts-model.ts"
 ALERT_DETAIL = SRC + "/components/alerts/AlertDetailPanel.vue"
@@ -41,6 +43,25 @@ CREATED = f"FAILED {KEY_SPEC} > createdText > "
 ONE_TIME = f"FAILED {KEYS_VIEW_SPEC} > the one-time key > "
 KEYS_LIST = f"FAILED {KEYS_VIEW_SPEC} > the list > "
 DESIGN = f"FAILED {KEYS_VIEW_SPEC} > the page as the design draws it > "
+GUARDED = f"FAILED {KEYS_VIEW_SPEC} > the key form as a drawer that guards what was typed > "
+OPTIONAL = f"FAILED {KEYS_VIEW_SPEC} > the label of a key is optional > "
+UNNAMED = f"FAILED {KEYS_VIEW_SPEC} > a key with no label in the list > "
+UNNAMED_SPACES = (UNNAMED + "a label that is spaces shows the prefix, muted and in mono, with no (no label) and no "
+                  "second prefix line")
+UNNAMED_EMPTY = (UNNAMED + "a label that is empty shows the prefix, muted and in mono, with no (no label) and no "
+                 "second prefix line")
+RELATIVE = f"FAILED {KEYS_VIEW_SPEC} > the relative bars of an unlimited wallet > "
+LIMIT_BARS = (DESIGN + "a limit wallet draws two bars of the rounded share used, with a spoken label; a closed "
+              "wallet draws none")
+KEY_NAME = ("FAILED tests/unit/keys/key-model.spec.ts > keyName > is the label without its edges, else the prefix (a "
+            "label of spaces is no label)")
+REL_ZERO = ("FAILED tests/unit/keys/key-model.spec.ts > relativePercent > is 0 when nobody used any, 0 for no use, and "
+            "never more than 100")
+DRAWER_SPEC = "tests/unit/shared/detail-drawer.spec.ts"
+GUARD_SPEC = "tests/unit/shared/use-leave-guard.spec.ts"
+CLOSE_GUARD = f"FAILED {DRAWER_SPEC} > DetailDrawer close guard > "
+ASKED = f"FAILED {GUARD_SPEC} > askDiscard > "
+LEAVE = f"FAILED {GUARD_SPEC} > useRouteLeaveGuard > "
 FORM = f"FAILED {KEYS_VIEW_SPEC} > the key form as the design draws it > "
 KEYS_SMALL = f"FAILED {KEYS_VIEW_SPEC} > the tablet and the phone > "
 GUARD = f"FAILED {ALERTS_VIEW_SPEC} > the generation guard > "
@@ -192,8 +213,8 @@ def test_the_raw_key_lives_only_until_dismissed_left_or_signed_out():
     vitest(KEYS_VIEW_SPEC)
 
 
-@mutation(KEYS, "if (!disposed) formError.value = createError(err);",
-          "if (!disposed) formError.value = { text: (err as Error).message, field: null };",
+@mutation(KEYS, "const shown = createError(err);",
+          "const shown: CreateError = { text: (err as Error).message, field: null };",
           expect=f"FAILED {KEYS_VIEW_SPEC} > the one-time key > a failed create shows fixed text and the field, "
                  "never the server's message or param")
 @pytest.mark.web_unit
@@ -202,13 +223,13 @@ def test_the_keys_view_shows_a_failed_create_from_fixed_text():
 
 
 # ---- Keys: the list, the callout, the switch, the bars, the form ------------------------------------------------
-@mutation(KEYS, "createdLabel.value = created.label || body.label;", "createdLabel.value = body.label;",
-          expect=DESIGN + "the callout names the new key, and its row is the one tinted")
+@mutation(KEYS, "createdLabel.value = keyName(created);", "createdLabel.value = body.label;",
+          expect=OPTIONAL + "the banner of a key made with no label names it by its prefix, never 'Key created for .'")
 @mutation(KEYS, "row.id === createdId.value", "row.id !== createdId.value",
           expect=DESIGN + "the callout names the new key, and its row is the one tinted")
 @mutation(NEW_KEY, "<strong>Key created for {{ label }}.</strong>", "<strong>Key created.</strong>",
           expect=DESIGN + "the callout names the new key, and its row is the one tinted")
-@mutation(KEYS, "title: `Delete key ${k.label || k.prefix}?`,", 'title: "Delete key",',
+@mutation(KEYS, "title: `Delete key ${keyName(k)}?`,", 'title: "Delete key",',
           expect=KEYS_LIST + "delete says whether the key went or was only disabled")
 @mutation(KEYS, 'message: "A key that has jobs is only disabled.",', 'message: "Delete it.",',
           expect=KEYS_LIST + "delete says whether the key went or was only disabled")
@@ -225,12 +246,9 @@ def test_the_keys_view_shows_a_failed_create_from_fixed_text():
           "<span v-if=\"false\" class=\"k-tag\">any model</span>",
           expect=KEYS_LIST + "an enabled key is plain text, a disabled key is the only one with a chip, and 'any "
                              "model' is neutral")
-@mutation(WALLET_LINES, 'v-if="w.mode === \'limit\'"', 'v-if="true"',
-          expect=DESIGN + "a limit wallet draws two bars of the rounded share used, with a spoken label; other "
-                          "modes draw none")
+@mutation(WALLET_LINES, 'v-if="w.mode === \'limit\'"', 'v-if="true"', expect=LIMIT_BARS)
 @mutation(WALLET_LINES, "usagePercent(w.used_day, w.day_limit)", "usagePercent(w.used_total, w.day_limit)",
-          expect=DESIGN + "a limit wallet draws two bars of the rounded share used, with a spoken label; other "
-                          "modes draw none")
+          expect=LIMIT_BARS)
 @pytest.mark.web_unit
 def test_the_keys_view_draws_the_callout_the_switch_the_bars_and_the_delete_confirm():
     vitest(KEYS_VIEW_SPEC)
@@ -264,7 +282,7 @@ def test_the_keys_view_folds_for_a_tablet_and_a_phone():
           expect=FORM + "the model boxes are off while Any model is ticked and on once it is cleared")
 @mutation(KEY_FORM, ':aria-disabled="form.any"', ':aria-disabled="false"',
           expect=FORM + "the model boxes are off while Any model is ticked and on once it is cleared")
-@mutation(KEY_FORM, "`Edit API key — ${props.editing.label || props.editing.prefix}`", '"Edit API key"',
+@mutation(KEY_FORM, "`Edit API key — ${props.editing.label.trim() || props.editing.prefix}`", '"Edit API key"',
           expect=FORM + "an edit names the key in its title and tells what each wallet has used")
 @mutation(KEY_FORM, "`${w.used_day} used today · ${w.used_total} total`", "`${w.used_total} total`",
           expect=FORM + "an edit names the key in its title and tells what each wallet has used")
@@ -285,16 +303,17 @@ def test_the_key_form_shows_what_the_design_shows():
           expect=DESIGN + "an empty list draws its card with the heading API keys; a list with keys has no heading")
 @mutation(NEW_KEY, ':aria-label="`New API key for ${label}`"', 'aria-label="New API key"',
           expect=DESIGN + "the callout names the new key, and its row is the one tinted")
-@mutation(KEY_FORM, '<h2 :id="titleId" class="kd__title">', '<h2 class="kd__title">',
-          expect=FORM + "an edit names the key in its title and tells what each wallet has used")
+@mutation(DRAWER, ':title="props.title"', ':title="props.heading ?? \'x\'"',
+          expect=GUARDED + "is a right drawer named by its heading, with no scrim close")
 @mutation(KEYS, 'align: isTablet.value ? ("left" as const) : ("right" as const),', 'align: "right" as const,',
           expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
                               "unfinished cells")
-@mutation(KEYS, ':wallets="row.wallets" :compact="isTablet" />', ':wallets="row.wallets" />',
+@mutation(KEYS, ':wallets="row.wallets" :compact="isTablet" :maxima="maxima" />',
+          ':wallets="row.wallets" :maxima="maxima" />',
           expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
                               "unfinished cells")
-@mutation(KEYS, '<WalletLines v-if="row.wallets.length" :wallets="row.wallets" />',
-          '<WalletLines v-if="row.wallets.length" :wallets="row.wallets" compact />',
+@mutation(KEYS, '<WalletLines v-if="row.wallets.length" :wallets="row.wallets" :maxima="maxima" />',
+          '<WalletLines v-if="row.wallets.length" :wallets="row.wallets" :maxima="maxima" compact />',
           expect=KEYS_SMALL + "a phone lists each key as a block with its models, wallets, counts and the two row "
                               "buttons")
 @mutation(KEYS, "error.value = loadFailedText(err, errorText(err));", "error.value = errorText(err);",
@@ -315,29 +334,128 @@ def test_a_failed_keys_list_is_worded_as_drawn():
     vitest(KEY_SPEC)
 
 
-# ---- Keys, page-keys round: a new key needs a label (B-States form validation); an edit is never held back ------
-NEW_KEY_LABEL = f"FAILED {KEYS_VIEW_SPEC} > the label of a new key > "
-OFF_AND_MARKED = (NEW_KEY_LABEL + "an empty label keeps Create key off with its reason; a click marks the field and "
-                  "sends nothing")
-TRIED = (NEW_KEY_LABEL + "leaving the label empty marks it too; a label turns Create key on, clears the error and is "
-         "sent")
-EDIT_FREE = NEW_KEY_LABEL + "an edit of a key that has no label is not held back"
-
-
-@mutation(KEY_FORM, 'const labelMissing = computed(() => !props.editing && form.label.trim() === "");',
-          "const labelMissing = computed(() => false);", expect=OFF_AND_MARKED)
-@mutation(KEY_FORM, "  if (labelMissing.value) {\n    labelTried.value = true;\n    return;",
-          "  if (false) {\n    labelTried.value = true;\n    return;", expect=OFF_AND_MARKED)
-@mutation(KEY_FORM, "const labelError = computed(() => labelMissing.value && labelTried.value);",
-          "const labelError = computed(() => labelMissing.value);", expect=OFF_AND_MARKED)
-@mutation(KEY_FORM, ':aria-describedby="labelMissing ? \'key-create-why\' : undefined"',
-          ':aria-describedby="undefined"', expect=OFF_AND_MARKED)
-@mutation(KEY_FORM, '@blur="labelTried = true"', '@blur="labelTried = labelTried"', expect=TRIED)
-@mutation(KEY_FORM, 'form.label.trim() === ""', 'form.label === ""', expect=TRIED)
-@mutation(KEY_FORM, '!props.editing && form.label', 'form.label', expect=EDIT_FREE)
+# ---- Keys: the label is optional; a key without one is named by its prefix ----------------------------------------
+@mutation(KEY_FORM, 'function send(): void {\n  emit("submit", keyBody(form));',
+          'function send(): void {\n  if (!props.editing && form.label.trim() === "") return;\n'
+          '  emit("submit", keyBody(form));',
+          expect=OPTIONAL + "Create key is on with an empty label, says nothing of a missing label and creates a key")
+@mutation(KEY_MODEL, "label: form.label.trim(),", "label: form.label,",
+          expect=OPTIONAL + "a label of spaces is sent as no label, and a padded one without its edges")
+@mutation(KEY_MODEL, '(k: Pick<ApiKey, "label" | "prefix">): string => k.label.trim() || k.prefix;',
+          '(k: Pick<ApiKey, "label" | "prefix">): string => k.label || k.prefix;',
+          expect=KEY_NAME)
+@mutation(KEYS, '<template v-if="row.label.trim()">', '<template v-if="row.label">',
+          expect=UNNAMED_SPACES)
+@mutation(KEYS, '<div v-else class="k-label k-label--prefix kla-mono">{{ row.prefix }}</div>',
+          '<div v-else class="k-label k-label--prefix">(no label)</div>',
+          expect=UNNAMED_EMPTY)
+@mutation(KEYS, '<span class="k-prefix__text kla-mono">{{ row.prefix }}</span>',
+          '<span class="k-prefix__text kla-mono">{{ row.prefix }}</span>'
+          '<button type="button" title="Copy key prefix" aria-label="Copy key prefix of x">c</button>',
+          expect=f"FAILED {KEYS_VIEW_SPEC} > Copy > no row has a Copy-prefix button at 1440 px")
 @pytest.mark.web_unit
-def test_a_new_key_needs_a_label_and_an_edit_is_never_held_back():
+def test_the_label_of_a_key_is_optional_and_a_key_without_one_is_named_by_its_prefix():
+    vitest(KEYS_VIEW_SPEC, KEY_SPEC)
+
+
+# ---- Keys: the form is a drawer that guards what was typed -------------------------------------------------------
+@mutation(KEY_FORM, "    baseline.value = JSON.stringify(form);\n  },", '    baseline.value = "";\n  },',
+          expect=GUARDED + "an edit is dirty once a field changes, not before")
+@mutation(KEY_FORM, ':close-on-scrim="false"', ':close-on-scrim="true"',
+          expect=GUARDED + "is a right drawer named by its heading, with no scrim close")
+@mutation(KEY_FORM, ':busy="props.busy"\n    :close-on-scrim', ':close-on-scrim',
+          expect=GUARDED + "while the create is in flight no way out works, and a good answer closes the drawer "
+                           "without a question")
+@mutation(KEYS, "useRouteLeaveGuard(() => formOpen.value && formDirty.value);", "useRouteLeaveGuard(() => false);",
+          expect=GUARDED + "a reload or a closed tab is warned about while the form holds typing, and not after")
+@mutation(KEYS, "        else if (!signedOut) notify.error(shown.text);\n", "",
+          expect=GUARDED + "a create that fails after the form is gone is a toast, not a lost error")
+@mutation(KEYS, "    callout.value?.reveal();\n", "",
+          expect=GUARDED + "a good save brings the banner into view and puts focus in its field")
+@mutation(KEYS, "    newKeyButton.value?.focus();\n", "",
+          expect=GUARDED + "focus goes to the page's primary button when the opener is gone")
+@pytest.mark.web_unit
+def test_the_key_form_drawer_guards_what_was_typed_and_says_so_when_a_create_fails():
     vitest(KEYS_VIEW_SPEC)
+
+
+@mutation(DRAWER, "  if (props.busy || asking) return;\n  if (props.dirty) {",
+          "  if (asking) return;\n  if (props.dirty) {",
+          expect=CLOSE_GUARD + "a busy drawer ignores X, Escape, the footer's close and the scrim, clean or dirty")
+@mutation(DRAWER, "  if (props.busy || asking) return;", "  if (props.busy) return;",
+          expect=CLOSE_GUARD + "Escape, the X and the footer's close all ask, and three of them while the box is up "
+                               "make one box")
+@mutation(DRAWER, "  if (props.dirty) {\n    asking = true;", "  if (false) {\n    asking = true;",
+          expect=CLOSE_GUARD + "a dirty drawer asks once with its own wording, and closes only on Discard")
+@mutation(DRAWER, "      if (!(await askDiscard(props.discardText))) return;",
+          "      await askDiscard(props.discardText);",
+          expect=CLOSE_GUARD + "a dirty drawer asks once with its own wording, and closes only on Discard")
+@mutation(DRAWER, "    if (!open) cancelPending();", "    if (!open) return;",
+          expect=CLOSE_GUARD + "when the parent closes the drawer under a pending box, the box goes as keep and "
+                               "nothing is emitted")
+@mutation(DRAWER, ':close-on-click-modal="props.closeOnScrim"', ':close-on-click-modal="true"',
+          expect=CLOSE_GUARD + "closeOnScrim false: a click beside the drawer never closes or asks; by default it "
+                               "closes like the X")
+@mutation(DRAWER, '<slot name="footer" :close="requestClose" />', '<slot name="footer" :close="() => {}" />',
+          expect=CLOSE_GUARD + "Escape, the X and the footer's close all ask, and three of them while the box is up "
+                               "make one box")
+@mutation(DRAWER, ':before-close="() => void requestClose()"', ":before-close=\"(done: () => void) => done()\"",
+          expect=CLOSE_GUARD + "a dirty drawer asks once with its own wording, and closes only on Discard")
+@pytest.mark.web_unit
+def test_the_drawer_asks_before_it_loses_typing_and_does_nothing_while_a_write_runs():
+    vitest(DRAWER_SPEC)
+
+
+@mutation(LEAVE_GUARD, "  if (pending) return pending;\n", "",
+          expect=ASKED + "while a box is up every further ask is the same promise and no second box opens")
+@mutation(LEAVE_GUARD, "  keep?.();\n", "",
+          expect=ASKED + "cancelPending closes the box as keep even though the box's own promise never settles")
+@mutation(LEAVE_GUARD, "  ElMessageBox.close();\n", "",
+          expect=ASKED + "cancelPending closes the box as keep even though the box's own promise never settles")
+@mutation(LEAVE_GUARD, "  onBeforeRouteLeave(async () => !isDirty() || (await askDiscard()));",
+          "  onBeforeRouteLeave(async () => true);",
+          expect=LEAVE + "a dirty form asks; keep stays, discard leaves")
+@mutation(LEAVE_GUARD, "      if (dirty) window.addEventListener", "      if (false) window.addEventListener",
+          expect=LEAVE + "a reload or a closed tab is warned about while dirty, and only then")
+@mutation(LEAVE_GUARD, "    window.removeEventListener(\"beforeunload\", warn);\n  });",
+          "  });", expect=LEAVE + "a reload or a closed tab is warned about while dirty, and only then")
+@pytest.mark.web_unit
+def test_one_discard_question_at_a_time_and_a_leave_guard_while_dirty():
+    vitest(GUARD_SPEC)
+
+
+# ---- Keys: the relative bars of an unlimited wallet ---------------------------------------------------------------
+@mutation(WALLET_LINES, "relativePercent(w.used_day, peak(w).day)", "relativePercent(w.used_day, peak(w).total)",
+          expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
+                            "their own scales")
+@mutation(WALLET_LINES, "relativePercent(w.used_total, peak(w).total)", "relativePercent(w.used_total, peak(w).day)",
+          expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
+                            "their own scales")
+@mutation(WALLET_LINES, 'v-else-if="w.mode === \'unlimited\'"', 'v-else-if="false"',
+          expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
+                            "their own scales")
+@mutation(WALLET_LINES, "class=\"wallet__fill wallet__fill--relative\"", "class=\"wallet__fill\"",
+          expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
+                            "their own scales")
+@mutation(KEY_MODEL, '      if (w.mode === "closed") continue;\n', "",
+          expect=RELATIVE + "a limit wallet that is open counts toward the maximum; a closed one does not; each "
+                            "provider and kind has its own")
+@mutation(KEY_MODEL, "      const id = `${w.provider}/${w.kind}`;", "      const id = w.provider;",
+          expect=RELATIVE + "a limit wallet that is open counts toward the maximum; a closed one does not; each "
+                            "provider and kind has its own")
+@mutation(KEYS, "const maxima = computed(() => walletMaxima(items.value));",
+          "const maxima = computed(() => walletMaxima(items.value.slice(0, 1)));",
+          expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
+                            "their own scales")
+@mutation(KEY_MODEL, "  if (!max) return 0;\n  return Math.min(100, Math.round((used / max) * 100));",
+          "  return Math.min(100, Math.round((used / max) * 100));",
+          expect=REL_ZERO)
+@mutation(KEY_MODEL, "return Math.min(100, Math.round((used / max) * 100));",
+          "return Math.round((used / max) * 100);",
+          expect=REL_ZERO)
+@pytest.mark.web_unit
+def test_an_unlimited_wallet_draws_a_bar_as_a_share_of_the_busiest_key():
+    vitest(KEYS_VIEW_SPEC, KEY_SPEC)
 
 
 # ---- Keys, page-keys round: a wallet's Mode is the design's select (FilterSelect's field) in the wallet's group ----
@@ -371,8 +489,6 @@ def test_each_wallet_mode_is_named_after_its_wallet():
           expect=COPY + "the one-time callout has a Copy that copies the raw key")
 @mutation(NEW_KEY, "copied.value = true;", "copied.value = false;",
           expect=COPY + "the Copy of the callout says Copied afterwards")
-@mutation(KEYS, "await copyText(k.prefix);", "await copyText(k.label);",
-          expect=COPY + "the prefix in a row has a Copy that copies the prefix and nothing else")
 @pytest.mark.web_unit
 def test_the_keys_view_copy_buttons_copy_the_right_text():
     vitest(KEYS_VIEW_SPEC)

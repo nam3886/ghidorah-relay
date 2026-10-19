@@ -1,13 +1,24 @@
 <script setup lang="ts">
+import { watch } from "vue";
 import { IconArrowLeft, IconClose, IconMoon } from "./icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useUiStore } from "@/stores/ui";
+import { askDiscard, cancelPending } from "./use-leave-guard";
 
 // The one right-hand drawer of every detail (job, request, alert...), drawn as specs/shared.md section 8: a 620 px
 // panel with the scrim over the whole page; a full-screen sheet on a phone (8.1: a Back button, the title as h1, a
 // theme toggle, no scrim). The body is destroyed on close, so nothing of a closed detail lingers (its state, timers,
 // media). The dialog's accessible name is `title`. Slots: `chips` (status chip and one line of context under the
-// title), `tabs` (a tab row under the header), default (the scrolling body) and `footer` (sticky at the bottom).
+// title), `tabs` (a tab row under the header), default (the scrolling body) and `footer` (sticky at the bottom; it is
+// given `close`, the guarded close, for a Cancel button).
+//
+// Closing. The X, Back, Escape, the scrim and the footer's `close` all go through one `requestClose`:
+//  - `busy` (a write is in flight): nothing happens, whatever the path;
+//  - not `dirty`: it emits `update:modelValue(false)` at once;
+//  - `dirty`: it asks "Discard what you typed?" (one box at a time, see use-leave-guard) and emits only on Discard.
+// A parent that sets the model to false itself (a save that worked) is not guarded, and a box still up is closed.
+// With none of the three props the drawer closes at once, as it always did. A form passes `closeOnScrim` false: a
+// click beside it never closes it.
 const props = withDefaults(
   defineProps<{
     modelValue: boolean;
@@ -17,13 +28,50 @@ const props = withDefaults(
     heading?: string;
     // the phone sheet's Back button names where it goes: `Back to Jobs`
     backLabel?: string;
+    // something was typed that a close would lose
+    dirty?: boolean;
+    // a write is in flight: every way to close is inert
+    busy?: boolean;
+    // what the discard box says
+    discardText?: string;
+    closeOnScrim?: boolean;
   }>(),
-  { testid: undefined, heading: undefined, backLabel: "Back" },
+  {
+    testid: undefined,
+    heading: undefined,
+    backLabel: "Back",
+    dirty: false,
+    busy: false,
+    discardText: "Discard what you typed?",
+    closeOnScrim: true,
+  },
 );
 const emit = defineEmits<{ "update:modelValue": [open: boolean]; closed: [] }>();
 const { isPhone } = useBreakpoint();
 // looked up at the click: the store exists in the app, and a desktop drawer never needs it
 const toggleTheme = (): void => useUiStore().toggleTheme();
+
+// the box this drawer put up is still open: a second way to close (X, then Escape) has nothing more to add
+let asking = false;
+async function requestClose(): Promise<void> {
+  if (props.busy || asking) return;
+  if (props.dirty) {
+    asking = true;
+    try {
+      if (!(await askDiscard(props.discardText))) return;
+    } finally {
+      asking = false;
+    }
+  }
+  emit("update:modelValue", false);
+}
+// the parent closed the drawer (a save that worked) while the box was up: the box goes, as "keep"
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (!open) cancelPending();
+  },
+);
 </script>
 
 <template>
@@ -37,9 +85,10 @@ const toggleTheme = (): void => useUiStore().toggleTheme();
     :show-close="false"
     :with-header="true"
     :data-testid="props.testid"
+    :close-on-click-modal="props.closeOnScrim"
+    :before-close="() => void requestClose()"
     destroy-on-close
     append-to-body
-    @update:model-value="(open: boolean) => emit('update:modelValue', open)"
     @closed="emit('closed')"
   >
     <template #header>
@@ -49,7 +98,7 @@ const toggleTheme = (): void => useUiStore().toggleTheme();
           type="button"
           class="detail-drawer__icon is-back"
           :aria-label="props.backLabel"
-          @click="emit('update:modelValue', false)"
+          @click="requestClose"
         >
           <IconArrowLeft :size="20" />
         </button>
@@ -70,7 +119,7 @@ const toggleTheme = (): void => useUiStore().toggleTheme();
           type="button"
           class="detail-drawer__icon is-muted is-close"
           aria-label="Close"
-          @click="emit('update:modelValue', false)"
+          @click="requestClose"
         >
           <IconClose :size="18" :stroke="2" />
         </button>
@@ -80,7 +129,7 @@ const toggleTheme = (): void => useUiStore().toggleTheme();
     </template>
     <div class="detail-drawer__body"><slot /></div>
     <template v-if="$slots.footer" #footer>
-      <div class="detail-drawer__foot"><slot name="footer" /></div>
+      <div class="detail-drawer__foot"><slot name="footer" :close="requestClose" /></div>
     </template>
   </el-drawer>
 </template>
@@ -180,6 +229,11 @@ const toggleTheme = (): void => useUiStore().toggleTheme();
   border-top: 1px solid var(--rl-line-strong);
 }
 
+/* buttons sit at the right of a desktop drawer */
+.detail-drawer:not(.is-sheet) .detail-drawer__foot {
+  justify-content: flex-end;
+}
+
 /* the phone sheet: the whole screen on the surface colour, no scrim, no shadow */
 .detail-drawer.is-sheet.el-drawer {
   box-shadow: none;
@@ -230,8 +284,15 @@ const toggleTheme = (): void => useUiStore().toggleTheme();
   z-index: 5;
   padding: 10px 16px;
 }
+.detail-drawer.is-sheet .detail-drawer__foot {
+  flex-wrap: wrap;
+}
 .detail-drawer.is-sheet .detail-drawer__foot .el-button {
-  height: 44px;
   padding: 0 14px;
+}
+/* every footer button, whatever its class (el-button, kla-btn, acct-btn...), is 44 px high on the sheet */
+.detail-drawer.is-sheet .detail-drawer__foot button {
+  min-height: 44px;
+  height: 44px;
 }
 </style>

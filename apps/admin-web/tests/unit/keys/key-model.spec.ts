@@ -9,11 +9,15 @@ import {
   keyBody,
   keyForm,
   type KeyForm,
+  keyName,
   loadFailedText,
+  relativeLabel,
+  relativePercent,
   sortedWallets,
   unfinishedText,
   usageLabel,
   usagePercent,
+  walletMaxima,
   walletPairs,
   walletText,
 } from "@/components/keys/key-model";
@@ -291,5 +295,65 @@ describe("the order of the wallets", () => {
     expect(sortedWallets(list)).not.toBe(list);
     expect(list.map((w) => w.kind)).toEqual(["image", "video"]);
     expect(compareWallets(at("dola", "video"), at("dola", "video"))).toBe(0);
+  });
+});
+
+describe("relativePercent", () => {
+  it("is the rounded share of the busiest key", () => {
+    expect(relativePercent(10, 10)).toBe(100);
+    expect(relativePercent(5, 10)).toBe(50);
+    expect(relativePercent(1, 3)).toBe(33);
+    expect(relativePercent(2, 3)).toBe(67);
+  });
+  it("is 0 when nobody used any, 0 for no use, and never more than 100", () => {
+    expect(relativePercent(0, 0)).toBe(0);
+    expect(relativePercent(5, 0)).toBe(0);
+    expect(relativePercent(0, 40)).toBe(0);
+    expect(relativePercent(50, 40)).toBe(100);
+  });
+});
+
+describe("walletMaxima", () => {
+  const keyOf = (...wallets: Wallet[]) => ({ wallets });
+  it("is the highest use per provider and kind among the keys that have the wallet open", () => {
+    const out = walletMaxima([
+      keyOf(
+        wallet({ mode: "unlimited", used_day: 4, used_total: 9 }),
+        wallet({ kind: "image", mode: "limit", used_day: 7 }),
+      ),
+      keyOf(wallet({ mode: "limit", used_day: 2, used_total: 30 })),
+      keyOf(wallet({ mode: "closed", used_day: 500, used_total: 500 })),
+    ]);
+    expect(out.get("fake/video")).toEqual({ day: 4, total: 30 });
+    expect(out.get("fake/image")).toEqual({ day: 7, total: 0 });
+    expect(out.has("other/video")).toBe(false);
+  });
+  it("has nothing for no keys or only closed wallets", () => {
+    expect(walletMaxima([]).size).toBe(0);
+    expect(walletMaxima([keyOf(wallet({ mode: "closed" }))]).size).toBe(0);
+  });
+});
+
+describe("relativeLabel", () => {
+  it("says what the bars are a share of", () => {
+    expect(relativeLabel(wallet({ mode: "unlimited", used_day: 12, used_total: 40 }))).toBe(
+      "Used 12 today, 40 in total; the bars show the share of the busiest key\x27s use",
+    );
+  });
+});
+
+describe("keyName", () => {
+  it("is the label without its edges, else the prefix (a label of spaces is no label)", () => {
+    expect(keyName({ label: " shop ", prefix: "rk_a" })).toBe("shop");
+    expect(keyName({ label: "", prefix: "rk_a" })).toBe("rk_a");
+    expect(keyName({ label: "   ", prefix: "rk_a" })).toBe("rk_a");
+  });
+});
+
+describe("keyBody label", () => {
+  it("sends the label without its edges, and an empty one for a label of spaces", () => {
+    expect(keyBody(form({ label: "  shop " })).label).toBe("shop");
+    expect(keyBody(form({ label: "   " })).label).toBe("");
+    expect(keyBody(form({ label: "" })).label).toBe("");
   });
 });

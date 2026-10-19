@@ -8,12 +8,19 @@ import "@/components/logs/lane-controls.css";
 
 // The raw key of a key just created, shown once. The view holds it in its own local state and passes it here: this
 // component keeps nothing of its own, so Dismiss (the view clearing it) removes the key from the page. `label` is the
-// name the operator gave the key.
+// name the operator gave the key, or its prefix when it has none.
 const props = defineProps<{ rawKey: string; label: string }>();
 const emit = defineEmits<{ dismiss: []; copied: [outcome: CopyOutcome] }>();
 const { isPhone } = useBreakpoint();
 
+const root = ref<HTMLElement | null>(null);
 const field = ref<HTMLInputElement | null>(null);
+// Brings the banner into view and puts the cursor in its field (the view calls it once the form drawer is gone).
+function reveal(): void {
+  root.value?.scrollIntoView?.({ block: "nearest" });
+  field.value?.focus({ preventScroll: true });
+}
+defineExpose({ reveal });
 // The key goes into the field as its value property, never as a `value` attribute: nothing of it is then part of the
 // page's HTML (a `:value` binding writes the attribute too).
 watchEffect(
@@ -46,7 +53,7 @@ async function copy(): Promise<void> {
 </script>
 
 <template>
-  <section class="callout" role="status" aria-label="One-time key" data-testid="new-key">
+  <section ref="root" class="callout" role="status" aria-label="One-time key" data-testid="new-key">
     <div class="callout__head">
       <span class="callout__icon"><IconCheck :size="18" :stroke="2" /></span>
       <p class="callout__text">

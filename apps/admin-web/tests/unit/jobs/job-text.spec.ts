@@ -107,6 +107,7 @@ describe("key names", () => {
   it("is the label, else the prefix, else the first 8 characters of the id", () => {
     expect(keyName({ id: "0123456789", label: "main", prefix: "rk_1" })).toBe("main");
     expect(keyName({ id: "0123456789", label: "", prefix: "rk_1" })).toBe("rk_1");
+    expect(keyName({ id: "0123456789", label: "   ", prefix: "rk_1" })).toBe("rk_1");
     expect(keyName({ id: "0123456789", label: "   ", prefix: " " })).toBe("01234567");
     expect(keyName({ id: "0123456789" })).toBe("01234567");
   });

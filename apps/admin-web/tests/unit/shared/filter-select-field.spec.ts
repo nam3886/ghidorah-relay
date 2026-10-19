@@ -1,6 +1,6 @@
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ElDialog } from "element-plus";
+import { ElDialog, ElDrawer } from "element-plus";
 import { defineComponent, h, nextTick, ref } from "vue";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
 
@@ -280,19 +280,19 @@ describe("the field variant of FilterSelect", () => {
   });
 });
 
-// The field inside an Element Plus dialog (the key form's Mode): the list opens over the dialog, and the dialog leaves
+// The field inside an Element Plus drawer (the key form's Mode): the list opens over the drawer, and the drawer leaves
 // the list its keys and clicks.
-describe("the field inside a dialog", () => {
+describe("the field inside a drawer", () => {
   const value = ref<string | number>("open");
   const visible = ref(true);
-  function inDialog() {
+  function inDrawer() {
     value.value = "open";
     visible.value = true;
     wrapper = mount(
       defineComponent({
         setup: () => () =>
           h(
-            ElDialog,
+            ElDrawer,
             { modelValue: visible.value, "onUpdate:modelValue": (v: boolean) => (visible.value = v), title: "Form" },
             () =>
               h(FilterSelect, {
@@ -315,8 +315,8 @@ describe("the field inside a dialog", () => {
   const press = (key: string) =>
     button().dispatchEvent(new KeyboardEvent("keydown", { key, code: key, bubbles: true, cancelable: true }));
 
-  it("the list sits above an open dialog", async () => {
-    inDialog();
+  it("the list sits above an open drawer", async () => {
+    inDrawer();
     await settle();
     button().click();
     await settle();
@@ -324,8 +324,8 @@ describe("the field inside a dialog", () => {
     expect(Number((listbox() as HTMLElement).style.zIndex)).toBeGreaterThan(Number(overlay.style.zIndex));
   });
 
-  it("Escape closes only the list: the dialog stays open and the focus is back on the trigger", async () => {
-    inDialog();
+  it("Escape closes only the list: the drawer stays open and the focus is back on the trigger", async () => {
+    inDrawer();
     await settle();
     button().focus();
     press("ArrowDown");
@@ -335,12 +335,12 @@ describe("the field inside a dialog", () => {
     await settle();
     expect(listbox()).toBeNull();
     expect(visible.value).toBe(true);
-    expect(document.querySelector(".el-dialog")).not.toBeNull();
+    expect(document.querySelector(".el-drawer")).not.toBeNull();
     expect(document.activeElement).toBe(button());
   });
 
-  it("the dialog's focus trap leaves the keyboard to it: the arrows and Enter pick an option", async () => {
-    inDialog();
+  it("the drawer's focus trap leaves the keyboard to it: the arrows and Enter pick an option", async () => {
+    inDrawer();
     await settle();
     button().focus();
     press("ArrowDown");
@@ -354,8 +354,8 @@ describe("the field inside a dialog", () => {
     expect(document.activeElement).toBe(button());
   });
 
-  it("a click on an option picks it and leaves the dialog open", async () => {
-    inDialog();
+  it("a click on an option picks it and leaves the drawer open", async () => {
+    inDrawer();
     await settle();
     button().click();
     await settle();
@@ -365,6 +365,6 @@ describe("the field inside a dialog", () => {
     await settle();
     expect(value.value).toBe("all");
     expect(visible.value).toBe(true);
-    expect(document.querySelector(".el-dialog")).not.toBeNull();
+    expect(document.querySelector(".el-drawer")).not.toBeNull();
   });
 });

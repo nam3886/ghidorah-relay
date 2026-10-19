@@ -19,6 +19,19 @@ describe("confirmDialog", () => {
     await expect(confirmDialog({ title: "t", message: "m" }, box(failure))).rejects.toBe(failure);
   });
 
+  it("closes on a hash change by default, and stays when asked to", async () => {
+    const asked = box("resolve");
+    await confirmDialog({ title: "t", message: "m" }, asked);
+    expect(
+      (asked.confirm.mock.calls[0] as unknown as [string, string, Record<string, unknown>])[2].closeOnHashChange,
+    ).toBe(true);
+    const stays = box("resolve");
+    await confirmDialog({ title: "t", message: "m", closeOnHashChange: false }, stays);
+    expect(
+      (stays.confirm.mock.calls[0] as unknown as [string, string, Record<string, unknown>])[2].closeOnHashChange,
+    ).toBe(false);
+  });
+
   it("passes the text as plain text and never turns HTML on", async () => {
     const b = box("resolve");
     const html = "<img src=x onerror=alert(1)>";

@@ -1,13 +1,24 @@
 <script setup lang="ts">
 import type { Wallet } from "@/api/keys";
 import { computed } from "vue";
-import { sortedWallets, usageLabel, usagePercent, walletText } from "./key-model";
+import {
+  relativeLabel,
+  relativePercent,
+  sortedWallets,
+  usageLabel,
+  usagePercent,
+  walletText,
+  type WalletMaxima,
+} from "./key-model";
 
 // The wallets of one key as ledger lines: the kind, a dotted leader and the value; a limit wallet adds two bars (left =
-// today, right = in total). `compact` is the tablet form (smaller value, lines may wrap). The server lists
-// wallets by name; the page lists a provider's video wallet first.
-const props = defineProps<{ wallets: Wallet[]; compact?: boolean }>();
+// today, right = in total). An unlimited wallet draws the same two bars, lighter, as a share of the busiest key's use of
+// that wallet (`maxima`, from every key the page loaded); a closed wallet draws none. `compact` is the tablet form
+// (smaller value, lines may wrap). The server lists wallets by name; the page lists a provider's video wallet first.
+const props = defineProps<{ wallets: Wallet[]; compact?: boolean; maxima?: WalletMaxima }>();
 const ordered = computed(() => sortedWallets(props.wallets));
+const NONE = { day: 0, total: 0 };
+const peak = (w: Wallet) => props.maxima?.get(`${w.provider}/${w.kind}`) ?? NONE;
 </script>
 
 <template>
@@ -24,6 +35,18 @@ const ordered = computed(() => sortedWallets(props.wallets));
         /></span>
         <span class="wallet__bar"
           ><span class="wallet__fill" :style="{ width: `${usagePercent(w.used_total, w.total_limit)}%` }"
+        /></span>
+      </div>
+      <div v-else-if="w.mode === 'unlimited'" class="wallet__bars" role="img" :aria-label="relativeLabel(w)">
+        <span class="wallet__bar"
+          ><span
+            class="wallet__fill wallet__fill--relative"
+            :style="{ width: `${relativePercent(w.used_day, peak(w).day)}%` }"
+        /></span>
+        <span class="wallet__bar"
+          ><span
+            class="wallet__fill wallet__fill--relative"
+            :style="{ width: `${relativePercent(w.used_total, peak(w).total)}%` }"
         /></span>
       </div>
     </div>
@@ -92,5 +115,9 @@ const ordered = computed(() => sortedWallets(props.wallets));
   height: 4px;
   border-radius: 2px;
   background: var(--rl-primary);
+}
+/* a share of the busiest key, not of a limit: the same colour at half strength */
+.wallet__fill--relative {
+  opacity: 0.45;
 }
 </style>
