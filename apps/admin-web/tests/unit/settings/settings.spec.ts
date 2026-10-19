@@ -268,8 +268,7 @@ describe("the sub-navigation", () => {
     const links = nav.findAll("a");
     expect(links.map((a) => a.text())).toEqual(["Settings", "Boot-only values", "Measured prices", "Change password"]);
     expect(links.map((a) => a.attributes("aria-current"))).toEqual(["true", undefined, undefined, undefined]);
-    const scroll = vi.fn();
-    Element.prototype.scrollIntoView = scroll;
+    window.scrollTo = vi.fn() as typeof window.scrollTo;
     await links[2]!.trigger("click");
     expect(wrapper!.findAll('nav[aria-label="Settings sections"] a').map((a) => a.attributes("aria-current"))).toEqual([
       undefined,
@@ -277,7 +276,62 @@ describe("the sub-navigation", () => {
       "true",
       undefined,
     ]);
-    expect(scroll).toHaveBeenCalledTimes(1);
+  });
+
+  let styleSpy: { mockRestore(): void } | null = null;
+  afterEach(() => {
+    styleSpy?.mockRestore();
+    styleSpy = null;
+    vi.unstubAllGlobals();
+  });
+  // The card sits 700 px below the top of the viewport and keeps 16 px of scroll margin.
+  function geometry(withArea: boolean): void {
+    const card = document.getElementById("prices")!;
+    vi.spyOn(card, "getBoundingClientRect").mockReturnValue({ top: 700 } as DOMRect);
+    const real = window.getComputedStyle.bind(window);
+    styleSpy = vi
+      .spyOn(window, "getComputedStyle")
+      .mockImplementation(((el: Element) =>
+        el === card
+          ? { scrollMarginTop: "16px" }
+          : el.classList.contains("app-scroll__wrap")
+            ? { overflowY: withArea ? "auto" : "visible" }
+            : real(el)) as typeof window.getComputedStyle);
+  }
+  function inWrap(): HTMLElement {
+    const wrap = document.createElement("div");
+    wrap.className = "app-scroll__wrap";
+    wrap.scrollTo = vi.fn() as typeof wrap.scrollTo;
+    document.body.appendChild(wrap);
+    wrap.appendChild(wrapper!.element);
+    return wrap;
+  }
+  const pricesLink = () => wrapper!.findAll('nav[aria-label="Settings sections"] a')[2]!;
+
+  it("scrolls the page's scroll area to the card minus the anchor, and nothing else", async () => {
+    await open();
+    const wrap = inWrap();
+    wrap.scrollTop = 500;
+    vi.spyOn(wrap, "getBoundingClientRect").mockReturnValue({ top: 60 } as DOMRect);
+    const intoView = vi.fn();
+    Element.prototype.scrollIntoView = intoView;
+    window.scrollTo = vi.fn() as typeof window.scrollTo;
+    geometry(true);
+    await pricesLink().trigger("click");
+    expect(wrap.scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 500 + (700 - 60 - 16) });
+    expect(intoView).not.toHaveBeenCalled();
+    expect(window.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("scrolls the window where the page has no scroll area of its own (a phone)", async () => {
+    await open();
+    const wrap = inWrap();
+    window.scrollTo = vi.fn() as typeof window.scrollTo;
+    vi.stubGlobal("scrollY", 40);
+    geometry(false);
+    await pricesLink().trigger("click");
+    expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 40 + (700 - 16) });
+    expect(wrap.scrollTo).not.toHaveBeenCalled();
   });
 });
 
