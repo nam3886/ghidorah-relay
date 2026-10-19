@@ -218,8 +218,9 @@ def test_accounts_matches_the_canvas_element_by_element(app, db, live, renderer,
     if check.fields:
         canvas_pngs = [loc.screenshot(animations="disabled", caret="hide")
                        for loc in renderer.page.locator("%s select" % canvas_root).all()]
+        canvas_rects = renderer.page.evaluate(FIELD_RECTS_JS, [canvas_root, "select"], isolated_context=False)
         fields = select_pixels(field_pngs, canvas_pngs, diff_page, out, stem)
-        declare_chevron_ink(theirs, mine, colours)
+        declare_chevron_ink(theirs, mine, colours, 1, canvas_rects, rects)
 
     theirs["texts"] = [t for t in theirs["texts"] if t["text"] not in check.accepted]
     mine["texts"] = [t for t in mine["texts"] if t["text"] not in check.accepted_app]
