@@ -447,6 +447,10 @@ describe("the detail", () => {
     // leaving: the error is still what the drawer says, not a flash of Loading
     expect(dr().find('[role="alert"]').exists()).toBe(true);
     expect(dr().find('[role="status"]').exists()).toBe(false);
+    // the close's own reload answers while the drawer is still leaving: it asks for no group and changes nothing
+    for (let i = 0; i < 12; i++) await Promise.resolve();
+    expect(dr().find('[role="alert"]').exists()).toBe(true);
+    expect(dr().find('[role="status"]').exists()).toBe(false);
     await settle();
     expect(await goneAfterLeave()).toBe(true);
     const slow = deferred<AlertDetail>();
@@ -491,15 +495,37 @@ describe("the detail", () => {
     await openFirst(w);
     await detailButton("Acknowledge").trigger("click");
     await settle();
-    await dr()
+    const jobLink = dr()
       .findAll("button")
-      .find((b) => b.text() === "A title")!
-      .trigger("click");
+      .find((b) => b.text() === "A title")!;
+    expect(jobLink.attributes("disabled")).toBeDefined();
+    // the button is off, and the view refuses the request as well
+    w.findComponent({ name: "AlertDetailPanel" }).vm.$emit("open-job", "abcdef0123456789");
     await settle();
     expect(await goneAfterLeave()).toBe(false);
     expect(useUiStore(pinia).openJobId).toBeNull();
     slow.resolve({ acknowledged: 1 });
     await settle();
+  });
+
+  it("a phone's job links are off while an acknowledge runs, and on again after", async () => {
+    showAt(390);
+    vi.mocked(alerts.getAlertGroup).mockResolvedValue(detail({ kind: "unclear_reply", items: [unclearItem()] }));
+    const slow = deferred<{ acknowledged: number }>();
+    vi.mocked(alerts.acknowledgeGroup).mockReturnValue(slow.promise);
+    const w = await open();
+    await openFirst(w);
+    const link = () =>
+      dr()
+        .findAll("button")
+        .find((b) => b.text() === "A title")!;
+    expect(link().attributes("disabled")).toBeUndefined();
+    await detailButton("Acknowledge").trigger("click");
+    await settle();
+    expect(link().attributes("disabled")).toBeDefined();
+    slow.resolve({ acknowledged: 1 });
+    await settle();
+    expect(link().attributes("disabled")).toBeUndefined();
   });
 
   it("when the group leaves the list and the drawer is closed, focus goes to the page's scroll area", async () => {

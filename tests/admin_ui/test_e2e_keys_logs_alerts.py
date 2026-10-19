@@ -675,7 +675,7 @@ def test_the_drawer_ignores_every_way_out_while_an_acknowledge_runs(app, app_ses
         page.wait_for_timeout(20)
     assert held, "the acknowledge was not sent"
     page.keyboard.press("Escape")
-    drawer.get_by_role("button", name="Close").click()
+    drawer.get_by_role("button", name="Close").click(force=True)    # inert (or natively disabled) while it writes
     page.mouse.click(5, 300)                                            # the scrim
     page.wait_for_timeout(500)
     expect(drawer).to_be_visible()

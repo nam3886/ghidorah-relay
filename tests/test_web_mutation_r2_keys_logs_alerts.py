@@ -627,7 +627,7 @@ def test_the_request_drawer_shows_its_bodies_and_facts_as_text():
 # ---- the Alerts generation guard and the acknowledge ------------------------------------------------------------
 @mutation(ALERTS, "const ticket = latest.next();", "const ticket = 0;",
           expect=GUARD + "a slow first answer that arrives after the second is dropped")
-@mutation(ALERTS, "    if (!latest.isCurrent(ticket)) return;\n    draw(view);", "    draw(view);",
+@mutation(ALERTS, "    if (!latest.isCurrent(ticket)) return;\n    draw(view, at);", "    draw(view, at);",
           expect=GUARD + "a slow first answer that arrives after the second is dropped")
 @mutation(ALERTS, "      if (!latest.isCurrent(ticket)) return;\n"
                   "      error.value = loadFailedText(err, errorText(err));",
@@ -695,6 +695,17 @@ def test_the_alerts_view_drops_stale_answers_and_acknowledges_what_was_shown():
 @mutation(ALERTS, "      if (at.open && !shownDetail.value) detailError.value = err;\n", "",
           expect=ALERT_DETAIL_SPEC + "a list read that fails while the group is asked for says so in the drawer, not "
                                      "Loading for ever")
+@mutation(ALERTS, "  if (at.open) detailError.value = view.detailError;", "  detailError.value = view.detailError;",
+          expect=ALERT_DETAIL_SPEC + "a failed read stays in the drawer while it leaves, and a reopened group starts "
+                                     "from a clean drawer")
+@mutation(ALERTS, ':detail="shownDetail" :writing="writing"', ':detail="shownDetail" :writing="false"',
+          expect=ALERT_DETAIL_SPEC + "a job link does nothing while an acknowledge runs: the drawer stays")
+@mutation(ALERT_DETAIL, '\n        <button type="button" class="ad-job" :disabled="props.writing"',
+          '\n        <button type="button" class="ad-job" :disabled="false"',
+          expect=ALERT_DETAIL_SPEC + "a phone's job links are off while an acknowledge runs, and on again after")
+@mutation(ALERT_DETAIL, '\n              <button type="button" class="ad-job" :disabled="props.writing"',
+          '\n              <button type="button" class="ad-job" :disabled="false"',
+          expect=ALERT_DETAIL_SPEC + "a job link does nothing while an acknowledge runs: the drawer stays")
 @mutation(ALERTS, "  if (writing.value) return;\n  pendingJob = jobId;", "  pendingJob = jobId;",
           expect=ALERT_DETAIL_SPEC + "a job link does nothing while an acknowledge runs: the drawer stays")
 @mutation(ALERTS, "  shownDetail.value = null;\n  detailError.value = null;\n  pendingJob = null;",
@@ -716,7 +727,8 @@ def test_the_alerts_view_drops_stale_answers_and_acknowledges_what_was_shown():
           expect=PHONE_SHEET)
 @mutation(ALERTS, "  asked.value = { ...asked.value, open: null };\n  opened.value = null;", "  opened.value = null;",
           expect=ALERT_DETAIL_SPEC + "Close reloads the list")
-@mutation(ALERTS, "  detailError.value = view.detailError;", "  detailError.value = null;", expect=UNREADABLE)
+@mutation(ALERTS, "if (at.open) detailError.value = view.detailError;", "if (at.open) detailError.value = null;",
+          expect=UNREADABLE)
 @mutation(ALERTS, '<p v-if="detailError" class="ad-error"', '<p v-if="false" class="ad-error"',
           expect=UNREADABLE)
 @mutation(ALERTS, "if (d) shownDetail.value = d;", "shownDetail.value = d;",

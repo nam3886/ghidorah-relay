@@ -113,13 +113,14 @@ async function read(at: AlertAsk): Promise<View> {
   return { groups: list.items, live: stat.alerts, opened: detail, detailError };
 }
 
-function draw(view: View): void {
+function draw(view: View, at: AlertAsk): void {
   groups.value = view.groups;
   live.value = view.live;
   opened.value = view.opened;
   error.value = null;
   updatedAt.value = Date.now();
-  detailError.value = view.detailError;
+  // the close's own reload asks for no group: it must not wipe the error of a drawer that is leaving
+  if (at.open) detailError.value = view.detailError;
 }
 watch(opened, (d) => {
   if (d) shownDetail.value = d;
@@ -142,7 +143,7 @@ async function load(): Promise<void> {
       throw err;
     }
     if (!latest.isCurrent(ticket)) return;
-    draw(view);
+    draw(view, at);
   } finally {
     loading.value--;
   }
@@ -512,7 +513,7 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
       <p v-if="detailError" class="ad-error" role="alert" data-testid="alert-detail-error">
         {{ errorText(detailError) }}
       </p>
-      <AlertDetailPanel v-else-if="shownDetail" :detail="shownDetail" @open-job="openJob" />
+      <AlertDetailPanel v-else-if="shownDetail" :detail="shownDetail" :writing="writing" @open-job="openJob" />
       <p v-else class="ad-loading" role="status">Loading the group…</p>
       <template v-if="shownDetail && !detailError && shownDetail.open_count > 0" #footer>
         <button

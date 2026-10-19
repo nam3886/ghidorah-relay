@@ -84,7 +84,7 @@ DETAIL_CHECKS = [Check(board, replace(ALERTS, board=board, drive=lambda page, li
 PIXEL_GATES = {"B-Alerts": 0.03, "T-Alerts": 0.03, "P-Alerts": 0.03,
                "B-Alerts-footer": 0.02, "T-Alerts-footer": 0.02, "P-Alerts-footer": 0.02}
 # The rows and the phone's stacked filters (the `-groups` part of each board): measured over the part, worst of light
-# and dark, plus a margin.
+# and dark, plus a margin. Measured: B 0.23, T 0.13, P 0.03.
 GROUPS_GATES = {"B-Alerts": 0.30, "T-Alerts": 0.20, "P-Alerts": 0.06}
 
 
@@ -618,10 +618,8 @@ LONG_KEY = "Partner Collective Southeast Asia, wholesale"
 TITLES = ("Cat on a sofa, sunset light", "Logo reveal, purple smoke", "Portrait, soft light", "Lantern festival")
 # the live-shaped values: always drawn whole, at every width
 LIVE_VALUES = ("k7a-team2", "m2c-shop1", "rk-q7mfz2kd", "d07-12", LIVE_TITLE, LIVE_CODE)
-# the texts drawn to end in an ellipsis: the stored reply and the job title of the desktop reply table
-ELLIPSIS = re.compile(r"\bad-reply__text\b|\bad-job\b")
 # every table box that scrolls sideways (desktop) to its start or its end; returns by how much each one overflows
-SCROLL_TO_END_JS = """(end) => [...document.querySelectorAll('.g-scroll, .ad__scroll')].map((box) => {
+SCROLL_TO_END_JS = """(end) => [...document.querySelectorAll('.g-scroll')].map((box) => {
   box.scrollLeft = end ? box.scrollWidth : 0;
   return Math.round(box.scrollWidth - box.clientWidth);
 })"""
@@ -703,7 +701,7 @@ def test_alerts_with_live_like_data_fits(app, db, live, run_dir, view, nth, them
                              for t in extract(page, root)["texts"] if t["clipped"]})
             print("LIVE-LIKE %s %s %d: table boxes scrolling sideways by %s px" % (view, theme, width, ends[0]))
             cut = ends[1] & ends[3]
-            clipped = sorted(t for t in cut if not ELLIPSIS.search(t[1]))
+            clipped = sorted(cut)
             assert not clipped, "%d: texts cut off where the canvas draws them whole: %r" % (width, clipped)
             live_cut = sorted(text for text, _cls in cut if any(v in text for v in LIVE_VALUES))
             assert not live_cut, "%d: live-shaped values cut off: %r" % (width, live_cut)

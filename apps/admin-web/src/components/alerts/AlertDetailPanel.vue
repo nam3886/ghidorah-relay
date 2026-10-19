@@ -21,13 +21,13 @@ import {
 // The body of the open group's drawer: its facts, the rows of the group and, for an unclear wording, how the jobs
 // ended. The drawer owns the title, the severity chip and Acknowledge (its footer); a job asks the parent to open it.
 // The markup is the canvas's (B-, T-, P-Alerts): plain tables, as wide as their content; a list on a phone.
-const props = defineProps<{ detail: AlertDetail }>();
+const props = defineProps<{ detail: AlertDetail; writing: boolean }>();
 const emit = defineEmits<{ "open-job": [jobId: string] }>();
 
 // The drawer is 620 px wide at every width but a phone's, so every non-phone width draws the compact tables (the four
 // columns the tablet had); the seven- and eight-column tables would run off the drawer's right edge.
 const { isPhone } = useBreakpoint();
-const isTablet = computed(() => !isPhone.value);
+const compact = computed(() => !isPhone.value);
 const unclear = computed(() => props.detail.kind === "unclear_reply");
 const unclearRows = computed(() => props.detail.items as UnclearItem[]);
 const billingRows = computed(() => props.detail.items as BillingItem[]);
@@ -58,7 +58,9 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
           <span class="ad-time">{{ alertTime(r.at_ms) }}</span>
           <StatusChip :status="outcomeStatus(r.job_status)" />
         </span>
-        <button type="button" class="ad-job" @click="emit('open-job', r.job_id)">{{ jobName(r) }}</button>
+        <button type="button" class="ad-job" :disabled="props.writing" @click="emit('open-job', r.job_id)">
+          {{ jobName(r) }}
+        </button>
         <span v-if="r.job_error_code" class="ad-code">{{ r.job_error_code }}</span>
         <span class="ad-muted"
           ><span class="ad-acct">{{ account(r) }}</span> · {{ keyName(r)
@@ -87,7 +89,7 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
   </div>
 
   <!-- desktop and tablet: the drawer is the same width on both -->
-  <div v-else id="alertDetail" class="ad" :class="{ 'is-tablet': isTablet }">
+  <div v-else id="alertDetail" class="ad" :class="{ 'is-compact': compact }">
     <p v-if="unclear" class="ad__sentence">{{ replyNote(detail.media) }}</p>
     <p v-if="oneCustomer(detail)" class="ad-note">{{ ONE_CUSTOMER_NOTE }}</p>
     <LedgerList class="ad__panel" :items="facts" />
@@ -113,7 +115,9 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
           <tr v-for="r in unclearRows" :key="r.id" class="ad-row">
             <td class="ad-seen">{{ alertTime(r.at_ms) }}</td>
             <td class="ad-jobcell">
-              <button type="button" class="ad-job" @click="emit('open-job', r.job_id)">{{ jobName(r) }}</button>
+              <button type="button" class="ad-job" :disabled="props.writing" @click="emit('open-job', r.job_id)">
+                {{ jobName(r) }}
+              </button>
               <span class="ad-jobid">{{ r.job_id.slice(0, 8) }}</span>
             </td>
             <td class="ad-outcome">
@@ -320,53 +324,53 @@ html.dark .ad-job:hover {
 }
 
 /* tablet: a two-column panel, the four-column table top-aligned */
-.ad.is-tablet .ad__panel {
+.ad.is-compact .ad__panel {
   grid-template-columns: 1fr 1fr;
   gap: 6px 32px;
 }
-.is-tablet .ad__table {
+.is-compact .ad__table {
   border-top: 1px solid var(--rl-line);
 }
-.is-tablet .ad__table th {
+.is-compact .ad__table th {
   padding: 0 8px;
 }
-.is-tablet .ad__table th.is-first {
+.is-compact .ad__table th.is-first {
   padding: 0 8px 0 16px;
 }
-.is-tablet .ad__table th.is-last {
+.is-compact .ad__table th.is-last {
   padding: 0 16px 0 8px;
 }
-.is-tablet .ad__table td {
+.is-compact .ad__table td {
   vertical-align: top;
 }
-.is-tablet .ad__table .ad-seen {
+.is-compact .ad__table .ad-seen {
   height: auto;
   padding: 12px 8px 12px 16px;
 }
-.is-tablet .ad__table .ad-jobcell {
+.is-compact .ad__table .ad-jobcell {
   max-width: none;
   padding: 10px 8px;
 }
-.is-tablet .ad-job {
+.is-compact .ad-job {
   white-space: normal;
 }
-.is-tablet .ad__table .ad-outcome {
+.is-compact .ad__table .ad-outcome {
   padding: 8px;
   white-space: normal;
 }
-.is-tablet .ad-code {
+.is-compact .ad-code {
   overflow-wrap: anywhere;
 }
-.is-tablet .ad__table .ad-acctkey {
+.is-compact .ad__table .ad-acctkey {
   padding: 10px 16px 10px 8px;
   white-space: nowrap;
 }
-.is-tablet .ad-acctkey .ad-acct {
+.is-compact .ad-acctkey .ad-acct {
   display: block;
   font-family: var(--rl-mono);
   font-size: 12px;
 }
-.is-tablet .ad-acctkey .ad-key {
+.is-compact .ad-acctkey .ad-key {
   font-size: 13px;
   color: var(--rl-muted);
 }
@@ -375,7 +379,7 @@ html.dark .ad-job:hover {
   font-size: 13px;
   color: var(--rl-faint);
 }
-.is-tablet .ad__table .ad-ack {
+.is-compact .ad__table .ad-ack {
   padding: 10px 16px 10px 8px;
 }
 
