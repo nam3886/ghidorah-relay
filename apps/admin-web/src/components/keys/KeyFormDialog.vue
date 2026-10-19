@@ -370,22 +370,22 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
   color: var(--rl-faint);
   opacity: 0.7;
 }
-/* Cancel and Save as B-KeyForm draws them (padding 0 16 and 0 18); Create key is 0 16, as B-States draws it */
-.detail-drawer__foot .kla-btn {
+/* only the key drawer's footer: Cancel and Save as B-KeyForm draws them (padding 0 16 and 0 18); Create key is 0 16, as B-States draws it */
+.detail-drawer:has(.key-dialog) .detail-drawer__foot .kla-btn {
   padding: 0 16px;
 }
-.detail-drawer__foot .kla-btn--primary {
+.detail-drawer:has(.key-dialog) .detail-drawer__foot .kla-btn--primary {
   padding: 0 18px;
 }
-.detail-drawer__foot .kla-btn--primary.is-new {
+.detail-drawer:has(.key-dialog) .detail-drawer__foot .kla-btn--primary.is-new {
   padding: 0 16px;
 }
 
 /* a phone: Cancel and the primary share the footer row as two equal 44 px buttons, as the Accounts import footer draws them */
 @media (max-width: 767px) {
-  .detail-drawer__foot .kla-btn,
-  .detail-drawer__foot .kla-btn--primary,
-  .detail-drawer__foot .kla-btn--primary.is-new {
+  .detail-drawer:has(.key-dialog) .detail-drawer__foot .kla-btn,
+  .detail-drawer:has(.key-dialog) .detail-drawer__foot .kla-btn--primary,
+  .detail-drawer:has(.key-dialog) .detail-drawer__foot .kla-btn--primary.is-new {
     box-sizing: border-box;
     flex: 1 1 0;
     min-width: 0;
@@ -395,7 +395,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
     line-height: normal;
   }
   /* the primary has no edge: a transparent one makes both buttons the same size to the flex algorithm */
-  .detail-drawer__foot .kla-btn--primary {
+  .detail-drawer:has(.key-dialog) .detail-drawer__foot .kla-btn--primary {
     border: 1px solid transparent;
   }
 }

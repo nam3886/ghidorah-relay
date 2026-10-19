@@ -18,7 +18,11 @@ from pixel_seed import WALLETS
 from test_admin_alert_groups import group_of, plant_unclear
 from test_e2e_keys_logs_alerts import log, open_tab, rows
 
+from relay_core.testing.mutation import mutation
+
 pytestmark = pytest.mark.browser
+
+KEY_FORM = "apps/admin-web/src/components/keys/KeyFormDialog.vue"
 
 TIMEOUT_MS = 10_000
 WIDTHS = ((1440, 900), (768, 1024))
@@ -147,6 +151,8 @@ def test_the_footer_buttons_sit_at_the_right_of_a_drawer_and_wrap_on_a_sheet(app
         assert cancel["x"] < create["x"]
 
 
+@mutation(KEY_FORM, "  padding: 0;\n  border-bottom: 1px solid var(--rl-line);",
+          "  padding: 0 4px;\n  border-bottom: 1px solid var(--rl-line);", expect="model checkboxes at")
 @pytest.mark.parametrize("width, height", [(1440, 900), (768, 1024), (390, 844)])
 def test_every_model_checkbox_shares_the_left_edge_of_the_any_model_checkbox(app, app_session, db, width, height):
     page = app_session
@@ -163,6 +169,8 @@ def test_every_model_checkbox_shares_the_left_edge_of_the_any_model_checkbox(app
         edges["rows"], edges["any"])
 
 
+@mutation(KEY_FORM, "    flex: 1 1 0;\n", "    flex: none;\n", expect="equal widths")
+@mutation(KEY_FORM, "    border: 1px solid transparent;\n", "", expect="equal widths")
 def test_on_a_phone_cancel_and_create_key_are_two_equal_buttons_in_the_footer_row(app, app_session, db):
     page = app_session
     goto_keys(app, page, 390, 844)

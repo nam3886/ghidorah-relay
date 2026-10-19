@@ -57,10 +57,13 @@
   width: 100%;
 }
 
-/* the phone chip draws the edge itself: the field inside it is borderless and 40 high */
+/* the phone chip draws the edge itself: the field inside it is borderless, 40 high and takes the width the word
+   leaves of the chip's full-width row */
 .kla-chip-field .el-date-editor.el-range-editor {
   --lf-date-height: 40px;
-  width: 232px;
+  flex: 1;
+  width: auto;
+  min-width: 0;
   padding: 0 4px;
   border-radius: 0;
   background: transparent;
@@ -69,13 +72,6 @@
 .kla-chip-field .el-date-editor.el-range-editor:hover,
 .kla-chip-field .el-date-editor.el-range-editor.is-active {
   box-shadow: none !important;
-}
-
-/* the phone's Dates chip is a full-width row: the field takes what the word leaves */
-.lf--phone .kla-chip-field .el-date-editor.el-range-editor {
-  flex: 1;
-  width: auto;
-  min-width: 0;
 }
 
 /* the open panel: the page's surface, edge and ink in both themes (the dark variables come with `html.dark`) */

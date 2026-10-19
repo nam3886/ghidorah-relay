@@ -438,14 +438,18 @@ CHIPS_JS = """() => {
   return {form: rect(form), status: rect(form.querySelector('.lf__status')),
           dates: rect(form.querySelector('.lf__date')),
           editor: rect(form.querySelector('.lf__date .el-date-editor')),
+          select: rect(form.querySelector('.lf__status .filter-select')),
           search: rect(form.querySelector('.lf__search'))};
 }"""
 
 
 @mutation(LOGS_FILTER_FORM, "  flex-direction: column;\n  gap: 8px;\n  padding: 0 12px;\n",
-          "  gap: 8px;\n  padding: 0 12px;\n", expect="phone")
+          "  gap: 8px;\n  padding: 0 12px;\n", expect="Status spans the row")
 @mutation(RANGE_CSS, "  flex: 1;\n  width: auto;\n  min-width: 0;\n",
-          "  flex: none;\n  width: 232px;\n  min-width: 0;\n", expect="phone")
+          "  flex: none;\n  width: 232px;\n  min-width: 0;\n", expect="the date field fills its chip")
+@mutation(LOGS_FILTER_FORM, ".lf__status :deep(.filter-select.is-field) {\n  flex: 1;\n}",
+          ".lf__status :deep(.filter-select.is-field) {\n  flex: none;\n}",
+          expect="the Status select fills its chip")
 @pytest.mark.parametrize("width", (1440, 768, 390))
 def test_on_a_phone_the_status_chip_and_the_dates_chip_each_take_a_full_width_row(app, app_session, width):
     page = app_session
@@ -462,6 +466,7 @@ def test_on_a_phone_the_status_chip_and_the_dates_chip_each_take_a_full_width_ro
     assert abs(status[0] - left) < 0.5 and abs(status[2] - right) < 0.5, "Status spans the row: " + why
     assert abs(dates[0] - left) < 0.5 and abs(dates[2] - right) < 0.5, "Dates spans the row: " + why
     assert status[3] <= dates[1] and abs(dates[1] - status[3] - 8) < 0.5, "Dates is the next row, 8 px under: " + why
+    assert abs(got["select"][2] - (status[2] - 7)) <= 1, "the Status select fills its chip: " + why
     assert dates[2] - got["editor"][2] < 12, "the date field fills its chip: " + why
     assert got["search"][3] < status[1], "the search is above both: " + why
 

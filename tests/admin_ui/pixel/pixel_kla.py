@@ -364,7 +364,8 @@ KLA = [
     Entry("P-Keys", "#/keys", seed=keys_seed, now=NOW, drive=keys_callout, user=BOARD_USER),
     Entry("B-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_filters, prepare=canvas_totals, user=BOARD_USER),
     Entry("T-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_filters, prepare=canvas_totals, user=BOARD_USER),
-    Entry("P-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_menu, prepare=canvas_totals, user=BOARD_USER),
+    Entry("P-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_menu, prepare=canvas_totals, user=BOARD_USER,
+          region=(0, 0, 390, 268)),   # down to the search field: the chips below sit in rows of their own
     Entry("B-LogDetail", "#/logs", seed=logs_seed, now=NOW, drive=logs_drawer, prepare=canvas_totals,
           user=BOARD_USER),
     Entry("B-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_detail, user=BOARD_USER),

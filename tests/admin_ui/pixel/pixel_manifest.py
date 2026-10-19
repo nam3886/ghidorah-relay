@@ -136,9 +136,9 @@ DRAWER = [
 # (gate 3.07, which was measured 2.07 + 1.0): the board changes on purpose, since the page no longer has the copy
 # buttons and draws relative bars for unlimited wallets, and the board still draws the copy buttons and no relative
 # bars, so it takes the measured value + 1.0.
-# P-Logs is 8.28 (gate 9.28, measured + 1.0): the app gives the Status chip and the Dates chip a full-width row each
-# below 768, where the board draws one row that scrolls sideways, so everything under the filters sits lower than on
-# the board; the board changes on purpose.
+# P-Logs is compared down to the search field only (region 0 0 390 268): below it the app gives the Status chip and the
+# Dates chip a full-width row each, where the board draws one scrolling row, so the rest sits lower than on the board
+# and the element diff compares it (restacked canvas). Measured 0.00 in both themes, gate 0.00 + 1.0.
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
 # that gets better should have its gate lowered.
 GATES: dict[str, float] = {
@@ -165,7 +165,7 @@ GATES: dict[str, float] = {
     "P-Jobs-shell": 1.00,
     "P-Keys": 2.93,
     "P-Login": 1.16,
-    "P-Logs": 9.28,
+    "P-Logs": 1.00,
     "P-Settings": 1.25,
     "P-Test": 1.30,
     "T-Accounts": 1.03,
