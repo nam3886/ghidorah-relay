@@ -1,6 +1,6 @@
 /*
- * The buttons of the Alerts page as B-, T- and P-Alerts draw them (specs/alerts.md): the secondary (`.ghost`) box, the
- * Details link drawn as a ghost button, and the primary Acknowledge. 13 px, the browser's own line height; the
+ * The buttons of the Alerts page as B-, T- and P-Alerts draw them (specs/alerts.md): the secondary (`.ghost`) box and the
+ * primary Acknowledge. 13 px, the browser's own line height; the
  * sizes are set where each one is used.
  */
 .al-btn {
@@ -20,23 +20,6 @@
   background: var(--rl-raised);
   color: var(--rl-faint);
   cursor: default;
-}
-/* Details: a link in a ghost box (no border, no fill until hovered), in the link colour */
-.al-link {
-  border: 0;
-  background: transparent;
-  color: var(--rl-link);
-  line-height: 20px;
-}
-.al-link:hover {
-  color: var(--rl-primary-hover);
-}
-html.dark .al-link:hover {
-  color: var(--rl-link);
-}
-.al-link:disabled {
-  background: transparent;
-  color: var(--rl-faint);
 }
 .al-primary {
   box-sizing: border-box;

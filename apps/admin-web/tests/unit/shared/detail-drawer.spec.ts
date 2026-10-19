@@ -164,6 +164,14 @@ describe("DetailDrawer", () => {
     expect(document.body.querySelector("h2")!.textContent).toBe("Job 3b9e1f0a");
   });
 
+  it("the heading carries headingTestid when it is given and no test id otherwise", async () => {
+    await drawer({ headingTestid: "the-heading" });
+    expect(heading()!.getAttribute("data-testid")).toBe("the-heading");
+    document.body.replaceChildren();
+    await drawer();
+    expect(heading()!.hasAttribute("data-testid")).toBe(false);
+  });
+
   it("a title with markup is text, in the heading and in the name", async () => {
     await drawer({ title: PLANTED });
     expect(document.body.querySelector("h2 img")).toBeNull();

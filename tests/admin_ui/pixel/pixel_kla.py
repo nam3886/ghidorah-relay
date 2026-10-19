@@ -350,12 +350,11 @@ def alerts_all(page, live, data) -> None:
     expect(page.get_by_text("4 groups")).to_be_visible(timeout=TIMEOUT_MS)
 
 
-def alerts_detail(page, live, data) -> None:
-    alerts_all(page, live, data)
-    page.get_by_role("button", name="Details of").first.click()
-    expect(page.get_by_test_id("alert-detail")).to_be_visible(timeout=TIMEOUT_MS)
-    page.mouse.move(0, 0)       # the boards draw nothing hovered: not the row, not its Details
-
+# The Alerts boards draw group 1 selected with its detail card open below the list; the app opens the detail in a
+# right drawer and selects nothing, so the pixel boards compare the part above the first group row (top bar, header,
+# live conditions, filters, column header). On a phone the filters sit one per row where the canvas draws them side by
+# side, so the P board stops above them. The rows and the detail are compared by element
+# (test_element_diff_alerts.py, which reads the canvas without its card and its Details links).
 
 # ---- the entries -----------------------------------------------------------------------------------------------------
 KLA = [
@@ -367,7 +366,10 @@ KLA = [
     Entry("P-Logs", "#/logs", seed=logs_seed, now=NOW, drive=logs_menu, prepare=canvas_totals, user=BOARD_USER),
     Entry("B-LogDetail", "#/logs", seed=logs_seed, now=NOW, drive=logs_drawer, prepare=canvas_totals,
           user=BOARD_USER),
-    Entry("B-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_detail, user=BOARD_USER),
-    Entry("T-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_detail, user=BOARD_USER),
-    Entry("P-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_detail, user=BOARD_USER),
+    Entry("B-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_all, user=BOARD_USER,
+          region=(0, 0, 1440, 456)),
+    Entry("T-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_all, user=BOARD_USER,
+          region=(0, 0, 768, 514)),
+    Entry("P-Alerts", "#/alerts", seed=alerts_seed, now=NOW, drive=alerts_all, user=BOARD_USER,
+          region=(0, 0, 390, 498)),
 ]

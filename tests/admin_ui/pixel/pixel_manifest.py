@@ -137,11 +137,16 @@ DRAWER = [
 # B-AccountImport and B-AccountEdit have no entry and no gate either: Import accounts and Edit account are right drawers
 # now, not the 640 px dialogs of the boards; the boards are still drawn by the renderer but compared by element instead
 # (test_element_diff_accounts.py: each form's body at the drawer's width, with a pixel gate of its own, and the footer).
+# The Alerts boards change on purpose: the detail is a right drawer and no row is drawn selected, so they are compared
+# above the first group row only (region, pixel_kla.py), and the rows and the detail by element. Measured over that
+# region (worst of light and dark, mismatch + anti-aliasing): B 0.45, T 0.40, P 1.18, each + 1.0 (the P region stops
+# above the filters, which sit one per row on a phone where the canvas draws them side by side). The gates are higher
+# than before because the compared area is smaller (the same few pixels are a larger share of it).
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
 # that gets better should have its gate lowered.
 GATES: dict[str, float] = {
     "B-Accounts": 1.02,
-    "B-Alerts": 1.17,
+    "B-Alerts": 1.45,
     "B-Frames": 1.17,
     "B-JobDetail": 1.40,
     "B-JobFailed": 1.32,
@@ -154,7 +159,7 @@ GATES: dict[str, float] = {
     "B-Settings": 1.08,
     "B-Test": 1.14,
     "P-Accounts": 1.04,
-    "P-Alerts": 1.31,
+    "P-Alerts": 2.18,
     "P-Frames": 1.46,
     "P-JobDetail": 2.23,
     "P-Jobs": 1.02,
@@ -165,7 +170,7 @@ GATES: dict[str, float] = {
     "P-Settings": 1.25,
     "P-Test": 1.30,
     "T-Accounts": 1.03,
-    "T-Alerts": 1.07,
+    "T-Alerts": 1.40,
     "T-Frames": 1.17,
     "T-JobDetail": 1.37,
     "T-Jobs": 1.23,

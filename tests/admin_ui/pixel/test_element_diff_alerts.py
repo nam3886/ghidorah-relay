@@ -1,15 +1,21 @@
 """The Alerts page against the canvas, element by element (element_diff.py), as test_element_diff.py does for Jobs.
 
 `test_alerts_matches_the_canvas_element_by_element`: the B-, T- and P-Alerts boards in both themes, with the status
-filter on All and group 1's detail open (pixel_kla.py). The page below the top bar (the top bar and the tab strip are
-page-shell's, TopBar.vue) is compared whole, and each card on its own too, so a difference in one card does not move
-the pairs of the next. Each comparison writes `<name>-<theme>.md` and `<name>-<theme>.side.png` into
+filter on All (pixel_kla.py). The detail is a right drawer in the app (owner deviation: no inline detail, no Details
+button), so the canvas is read without its detail card and its Details links. The page below the top bar (the top bar
+and the tab strip are page-shell's, TopBar.vue) is compared whole, and each card on its own too, so a difference in one
+card does not move the pairs of the next. Each comparison writes `<name>-<theme>.md` and `<name>-<theme>.side.png` into
 `<run>/element-diff/` and fails while its table holds a difference that is not live data.
 
 Live data on the boards: the canvas counts six rows in group 1 and lists four of them; no database holds both (the
 detail lists every row of the group), so the seed plants the four listed rows and the row count reads 4 where the
 boards write 6. B-Alerts writes a straight apostrophe in three sentences that T- and P-Alerts write with the curly one,
 as the app and specs/alerts.md 4 do.
+
+`test_alerts_detail_matches_the_canvas_card_in_the_drawer`: the same boards with group 1's drawer open: the canvas's
+`#alertDetail` card against the app's `#alertDetail` (the drawer's body, at the drawer's inner width), with the canvas
+card read as a drawer body (its head with the title and Close / Acknowledge, its frame and its inner margins are the
+drawer's: CANVAS_AS_DRAWER_BODY). The drawer's footer is the shared footer's own.
 
 `test_alerts_undrawn_states_are_photographed`: the states the canvas does not draw (D125: the nearest drawn pattern),
 each photographed at 1440, 768 and 390 in both themes from one page (the viewport is resized), into
@@ -59,10 +65,144 @@ STRAIGHT = ("Dola replied “Sorry, I can't create that video”",
 PARTS = (("", "main", "main.app-main"),
          ("-head", "main > div:first-child", ".page-header"),
          ("-live", 'section[aria-labelledby="liveTitle"]', 'section[aria-label="Live conditions"]'),
-         ("-groups", 'section[aria-label="Alert groups"]', 'section[aria-label="Alert groups"]'),
-         ("-detail", "#alertDetail", "#alertDetail"))
+         ("-groups", 'section[aria-label="Alert groups"]', 'section[aria-label="Alert groups"]'))
+DETAIL_PARTS = (("-detail", "#alertDetail", "#alertDetail"),)
 BOARD_CHECKS = [Check(board, replace(ALERTS, board=board), data=ROWS + STRAIGHT)
                 for board in ("B-Alerts", "T-Alerts", "P-Alerts")]
+# The drawer is 620 px wide at every non-phone width and holds the compact (four-column) tables of the tablet, so the
+# desktop drawer is compared with T-Alerts's card table, not with B-Alerts's seven-column one (owner D141); the app is
+# still photographed at the desktop board's size.
+CANVAS_BOARD = {"B-Alerts": "T-Alerts"}
+# the app drawer opens on group 1; the canvas card is widened to the drawer body's width
+DETAIL_CHECKS = [Check(board, replace(ALERTS, board=board, drive=lambda page, live, data: _details(0)(page)),
+                       widen=True, data=ROWS + STRAIGHT)
+                 for board in ("B-Alerts", "T-Alerts", "P-Alerts")]
+# The most each compared part may differ as pixels (mismatch + anti-aliasing, % of the part): the worst of light and
+# dark measured on the box, plus a small margin. A change that moves a box or a glyph shows here as well as in the
+# table.
+# Measured (worst of light and dark): B 0.014 (against T-Alerts's card), T 0.014, P 0.017, the footers 0.000.
+PIXEL_GATES = {"B-Alerts": 0.03, "T-Alerts": 0.03, "P-Alerts": 0.03,
+               "B-Alerts-footer": 0.02, "T-Alerts-footer": 0.02, "P-Alerts-footer": 0.02}
+# The rows and the phone's stacked filters (the `-groups` part of each board): measured over the part, worst of light
+# and dark, plus a margin. Measured: B 0.23, T 0.13, P 0.03.
+GROUPS_GATES = {"B-Alerts": 0.30, "T-Alerts": 0.20, "P-Alerts": 0.06}
+
+
+def _open_first(page, live, data) -> None:
+    _details(0)(page)
+
+
+# The footer: the canvas's Acknowledge sits in the card's head beside Close; the drawer's footer holds Acknowledge
+# alone, right-aligned, with the shared footer's padding (10 24), strong rule and surface fill. The canvas button row
+# is read as that footer: Close removed, those three numbers and the right alignment set (the button itself, its size,
+# font, colour and radius, is compared as drawn), widened to the drawer's width.
+CANVAS_AS_DRAWER_FOOTER = """() => {
+  const row = document.querySelector('#alertDetail > div:first-child > div:last-child');
+  row.querySelector('button.ghost').remove();
+  row.style.cssText += ';padding: 10px 24px; border-top: 1px solid var(--line-strong); background: var(--surface);'
+    + ' justify-content: flex-end';
+}"""
+# On the phone the canvas's Acknowledge is the last child of the detail region, full width, 48 px, 14 px; the sheet's
+# footer holds it with 10 / 16 padding, the strong rule and the surface fill.
+CANVAS_AS_SHEET_FOOTER = """() => {
+  const button = document.querySelector('#alertDetail > button');
+  const foot = document.createElement('div');
+  foot.id = 'alertFoot';
+  button.replaceWith(foot);
+  foot.append(button);
+  // the sheet's footer is as wide as the screen: no frame of the board may clip it
+  for (let a = foot.parentElement; a && a.id !== 'dc-root'; a = a.parentElement) {
+    if (getComputedStyle(a).overflow !== 'visible') a.style.overflow = 'visible';
+  }
+  foot.style.cssText = 'display: flex; padding: 10px 16px; border-top: 1px solid var(--line-strong);'
+    + ' background: var(--surface)';
+}"""
+FOOTER_CHECKS = [Check(board + "-footer", replace(ALERTS, board=board, drive=_open_first),
+                       canvas_root="#alertFoot" if board == "P-Alerts"
+                       else "#alertDetail > div:first-child > div:last-child",
+                       app_root=".detail-drawer__foot", widen=True)
+                 for board in ("B-Alerts", "T-Alerts", "P-Alerts")]
+
+
+def _canvas_as_drawer_footer(page) -> None:
+    page.evaluate(CANVAS_AS_SHEET_FOOTER if page.evaluate("innerWidth < 768") else CANVAS_AS_DRAWER_FOOTER,
+                  isolated_context=False)
+
+
+# On the phone the sheet's body is 358 px wide and the canvas's detail region (the board's own inset) 357. Only that
+# one pixel is normalised: an app box that runs to the root's right edge is read one pixel narrower (the ledger, the
+# rows, the chips at the end of a row); every other box and every text is compared as it is. How many boxes it touched
+# is asserted, so a layout that stops matching the documented case does not slip through.
+PHONE_ROOT_WIDTH_PX = 1
+
+
+def _phone_root_width(page, items, app_root) -> None:
+    edge = items["width"]
+    touched = 0
+    for box in items["boxes"]:
+        x, y, w, h = box["rect"]
+        if w > PHONE_ROOT_WIDTH_PX and abs(x + w - edge) <= 0.6:
+            box["rect"] = [x, y, w - PHONE_ROOT_WIDTH_PX, h]
+            touched += 1
+    assert 1 <= touched <= 20, "the phone root-width normalisation touched %d boxes" % touched
+
+# The canvas without what the app moved into the drawer: the detail card and the Details links (a link to the card).
+# Group 1 was drawn selected (its detail open): with no detail open the app selects nothing.
+CANVAS_WITHOUT_DETAIL = """() => {
+  document.querySelector('#alertDetail').remove();
+  document.querySelectorAll('main a[href="#alertDetail"]').forEach((a) => {
+    const row = a.parentElement;
+    a.remove();
+    // a phone block whose only button was Details has no button row now (a table cell stays)
+    if (!row.children.length && row.tagName !== 'TD') row.remove();
+  });
+  // Owner deviation: on a phone the filter chips sit one per row, full width (the canvas draws them side by side).
+  if (innerWidth < 768) {
+    const bar = document.querySelector('section[aria-label="Alert groups"] > div:first-child');
+    bar.style.cssText += ';flex-direction: column; align-items: stretch; overflow: visible; gap: 8px';
+    bar.querySelectorAll('label').forEach((l) => { l.style.flex = 'none'; });
+    bar.querySelectorAll('select').forEach((x) => { x.style.flex = '1'; });
+  }
+  document.querySelectorAll('main tbody td, main li').forEach((el) => {
+    if (el.style.background.includes('primary-soft')) el.style.background = '';
+  });
+}"""
+# The canvas card read as the body of a drawer. The drawer owns the title and the severity chip, Close and Acknowledge
+# (its header and footer), the frame, and the body's 24 px (16 on a phone) around everything: the card loses its head
+# (title row and buttons), its frame and its inner margins, and the table's first and last cells sit 16 px in where
+# the card had 20. The pieces are 16 px apart, as the app's body lays them out.
+CANVAS_AS_DRAWER_BODY = """() => {
+  const card = document.querySelector('#alertDetail');
+  const phone = card.tagName === 'DIV';
+  card.style.cssText += ';border: 0; border-radius: 0; background: none; overflow: visible; padding: 0';
+  card.style.display = 'flex';
+  card.style.flexDirection = 'column';
+  card.style.gap = phone ? '14px' : '16px';
+  if (phone) {
+    card.querySelector('h3').remove();
+    card.querySelector(':scope > button').remove();
+  } else {
+    const head = card.firstElementChild;
+    head.firstElementChild.firstElementChild.remove();
+    head.lastElementChild.remove();
+    head.style.padding = '0';
+  }
+  card.querySelectorAll('dl').forEach((dl) => { dl.style.margin = '0'; });
+  card.querySelectorAll(':scope > p').forEach((p) => { p.style.padding = '0'; p.style.border = '0'; });
+  card.querySelectorAll('tr').forEach((tr) => {
+    const first = tr.firstElementChild, last = tr.lastElementChild;
+    if (parseFloat(getComputedStyle(first).paddingLeft) === 20) first.style.paddingLeft = '16px';
+    if (parseFloat(getComputedStyle(last).paddingRight) === 20) last.style.paddingRight = '16px';
+  });
+}"""
+
+
+def _canvas_without_detail(page) -> None:
+    page.evaluate(CANVAS_WITHOUT_DETAIL, isolated_context=False)
+
+
+def _canvas_as_drawer_body(page) -> None:
+    page.evaluate(CANVAS_AS_DRAWER_BODY, isolated_context=False)
 
 
 # The canvas draws its filters as native selects: to the tool a select is one box (the browser paints its value and
@@ -227,7 +367,7 @@ def select_pixels(page_pngs: list, canvas_pngs: list, diff_page, out, stem: str,
 
 
 def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: str, parts=None,
-              fields: list | None = None, app_hook=None, canvas_hook=None) -> list:
+              fields: list | None = None, app_hook=None, canvas_hook=None, canvas_board: str | None = None) -> list:
     """The app in the check's state and the canvas board, each opened once; then, for each part (name suffix, canvas
     root, app root), the table and the side-by-side. Returns (result, file stem) per part. With `fields` (a list),
     each FilterSelect field is also compared with its native select as pixels, and the figures land in it. The hooks
@@ -236,6 +376,8 @@ def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: 
     parts = parts or (("", check.canvas_root, check.app_root),)
     board_w, board_h = BOARDS[check.state.board]
     width, height = check.viewport or (board_w, board_h)
+    canvas_board = canvas_board or check.state.board
+    canvas_w, canvas_h = BOARDS[canvas_board]
     dark = theme == "dark"
     mine = {}
     with opened(app, db, live, check.state, dark, width, height) as page:
@@ -251,7 +393,7 @@ def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: 
         geometry = page.evaluate(FIELD_GEOMETRY_JS, FIELDS, isolated_context=False) if fields is not None else []
         if fields is not None:
             assert_chevrons(geometry)
-    renderer.open(check.state.board, dark, board_w, board_h)
+    renderer.open(canvas_board, dark, canvas_w, canvas_h)
     renderer.page.evaluate(FIELD_ENLARGE_JS, FIELD_EXTRA_PX, isolated_context=False)
     if canvas_hook:
         canvas_hook(renderer.page)
@@ -274,9 +416,10 @@ def run_check(app, db, live, renderer, diff_page, run_dir, check: Check, theme: 
         items["boxes"] = [b for b in items["boxes"] if b["sig"] not in check.accepted_app]
         name = check.name + suffix
         res = diff(name, theirs, items, data=check.data, data_app=check.data_app, loose=check.loose)
+        res.pixel_percent = pixels.total_percent
         stem = "%s-%s" % (name, theme)
         notes = ("Canvas %s %s, app %s at %dx%d. Pixel diff of the compared part: %.3f %% mismatch + %.3f %% "
-                 "anti-aliased." % (check.state.board, canvas_sel or "page", app_sel or "page", width, height,
+                 "anti-aliased." % (canvas_board, canvas_sel or "page", app_sel or "page", width, height,
                                     pixels.percent, pixels.aa_percent))
         (out / (stem + ".md")).write_text(markdown(res, "%s, %s" % (name, theme), notes), encoding="utf-8")
         (out / (stem + ".side.png")).write_bytes(side_by_side(diff_page, ref_png, app_png, pixels.png))
@@ -300,11 +443,39 @@ def failed(results) -> list:
 @pytest.mark.parametrize("check", BOARD_CHECKS, ids=lambda c: c.name)
 def test_alerts_matches_the_canvas_element_by_element(app, db, live, renderer, diff_page, run_dir, check, theme):
     fields = []
-    bad = failed(run_check(app, db, live, renderer, diff_page, run_dir, check, theme, PARTS, fields))
+    results = run_check(app, db, live, renderer, diff_page, run_dir, check, theme, PARTS, fields,
+                        canvas_hook=_canvas_without_detail)
+    bad = failed(results)
     assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))
+    over = [(stem, res.pixel_percent) for res, stem in results if stem.startswith(check.name + "-groups")
+            and res.pixel_percent > GROUPS_GATES[check.name]]
+    assert not over, "%s: the groups differ as pixels over the gate of %s %%: %r" % (
+        theme, GROUPS_GATES[check.name], over)
     assert len(fields) == 2, "the Status and Kind fields against the two native selects: %r" % fields
     off = [(n, f) for n, f in enumerate(fields) if f[0] > SELECT_MISMATCH_PCT]
     assert not off, "a field draws its value or arrow apart from the native select (n, (mismatch %%, aa %%)): %r" % off
+
+
+@pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize("check", DETAIL_CHECKS, ids=lambda c: c.name)
+def test_alerts_detail_matches_the_canvas_card_in_the_drawer(app, db, live, renderer, diff_page, run_dir, check, theme):
+    results = run_check(app, db, live, renderer, diff_page, run_dir, check, theme, DETAIL_PARTS,
+                        canvas_hook=_canvas_as_drawer_body, canvas_board=CANVAS_BOARD.get(check.name),
+                        app_hook=_phone_root_width if check.name == "P-Alerts" else None)
+    bad = failed(results)
+    assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))
+    over = [(stem, res.pixel_percent) for res, stem in results if res.pixel_percent > PIXEL_GATES[check.name]]
+    assert not over, "%s: pixel difference over its gate of %s %%: %r" % (theme, PIXEL_GATES[check.name], over)
+
+
+@pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize("check", FOOTER_CHECKS, ids=lambda c: c.name)
+def test_alerts_drawer_footer_matches_the_canvas_acknowledge(app, db, live, renderer, diff_page, run_dir, check, theme):
+    results = run_check(app, db, live, renderer, diff_page, run_dir, check, theme, canvas_hook=_canvas_as_drawer_footer)
+    bad = failed(results)
+    assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))
+    over = [(stem, res.pixel_percent) for res, stem in results if res.pixel_percent > PIXEL_GATES[check.name]]
+    assert not over, "%s: pixel difference over its gate of %s %%: %r" % (theme, PIXEL_GATES[check.name], over)
 
 
 # ---- states the canvas does not draw: photographed at the three widths, beside their nearest drawn pattern -----------
@@ -337,6 +508,16 @@ def _details(n):
         expect(page.get_by_test_id("alert-detail")).to_be_visible(timeout=TIMEOUT_MS)
         page.mouse.move(0, 0)
     return act
+
+
+def _drawer_error(page):
+    _all(page)
+    page.route(re.compile(r"/admin/alerts/groups/[^?]+\?"), lambda route: route.fulfill(
+        status=500, content_type="application/json",
+        body='{"error": {"code": "server.error", "message": "the group could not be read"}}'))
+    page.get_by_role("button", name="Details of").first.click()
+    expect(page.get_by_test_id("alert-detail").get_by_role("alert")).to_be_visible(timeout=TIMEOUT_MS)
+    page.mouse.move(0, 0)
 
 
 def _as_it_opens(page):
@@ -423,7 +604,9 @@ UNDRAWN = [
     ("refreshing", _refreshing, None, False),            # B-States refreshing: the rows at 60 %
     ("billing-detail", _details(1), None, False),        # a clamp group: the reply table's frame, the billing facts
     ("acknowledged-detail", _details(3), None, False),   # nothing open: no Acknowledge, the rows say who and when
-    ("hover-details", _all, _hover(lambda p: p.get_by_role("button", name="Details of")), False),
+    ("hover-title", _all, _hover(lambda p: p.get_by_role("button", name="Details of")), False),
+    ("drawer-open", _details(0), None, False),           # the right drawer (a sheet with Back on a phone)
+    ("drawer-error", _drawer_error, None, False),        # a failed read keeps the drawer open with the error inside
     ("hover-acknowledge", _all, _hover(lambda p: p.get_by_role("button", name="Acknowledge", exact=True)), False),
     ("hover-row", _all, _hover(_row), False),            # .trow:hover td raised
     ("focus-select", _focus_status, _focus_status, False),
@@ -466,10 +649,8 @@ LONG_KEY = "Partner Collective Southeast Asia, wholesale"
 TITLES = ("Cat on a sofa, sunset light", "Logo reveal, purple smoke", "Portrait, soft light", "Lantern festival")
 # the live-shaped values: always drawn whole, at every width
 LIVE_VALUES = ("k7a-team2", "m2c-shop1", "rk-q7mfz2kd", "d07-12", LIVE_TITLE, LIVE_CODE)
-# the texts drawn to end in an ellipsis: the stored reply and the job title of the desktop reply table
-ELLIPSIS = re.compile(r"\bad-reply__text\b|\bad-job\b")
 # every table box that scrolls sideways (desktop) to its start or its end; returns by how much each one overflows
-SCROLL_TO_END_JS = """(end) => [...document.querySelectorAll('.g-scroll, .ad__scroll')].map((box) => {
+SCROLL_TO_END_JS = """(end) => [...document.querySelectorAll('.g-scroll')].map((box) => {
   box.scrollLeft = end ? box.scrollWidth : 0;
   return Math.round(box.scrollWidth - box.clientWidth);
 })"""
@@ -547,10 +728,11 @@ def test_alerts_with_live_like_data_fits(app, db, live, run_dir, view, nth, them
             ends = []
             for end in (False, True):
                 ends.append(page.evaluate(SCROLL_TO_END_JS, end, isolated_context=False))
-                ends.append({(t["text"], t["cls"]) for t in extract(page, "main.app-main")["texts"] if t["clipped"]})
+                ends.append({(t["text"], t["cls"]) for root in ("main.app-main", "#alertDetail")
+                             for t in extract(page, root)["texts"] if t["clipped"]})
             print("LIVE-LIKE %s %s %d: table boxes scrolling sideways by %s px" % (view, theme, width, ends[0]))
             cut = ends[1] & ends[3]
-            clipped = sorted(t for t in cut if not ELLIPSIS.search(t[1]))
+            clipped = sorted(cut)
             assert not clipped, "%d: texts cut off where the canvas draws them whole: %r" % (width, clipped)
             live_cut = sorted(text for text, _cls in cut if any(v in text for v in LIVE_VALUES))
             assert not live_cut, "%d: live-shaped values cut off: %r" % (width, live_cut)

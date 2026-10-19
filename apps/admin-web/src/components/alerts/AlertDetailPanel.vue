@@ -4,12 +4,10 @@ import type { AlertDetail, BillingItem, UnclearItem } from "@/api/alerts";
 import LedgerList, { type LedgerItem } from "@/components/shared/LedgerList.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
-import { useUiStore } from "@/stores/ui";
 import "@/components/logs/lane-controls.css";
 import "./alert-buttons.css";
 import {
   alertTime,
-  alertTitle,
   groupFacts,
   isEmptyWording,
   ONE_CUSTOMER_NOTE,
@@ -20,16 +18,16 @@ import {
   ROW_LIMIT,
 } from "./alerts-model";
 
-// The open group, drawn inline under the group list (a card on a desktop and a tablet, a region between the group items
-// on a phone): its facts, the rows of the group and, for an unclear wording, how the jobs ended. Acknowledge sends
-// the group as shown (the parent reads `newest_id` from it). A job opens the shared job drawer through the ui store.
-// `writing`: a write is in flight, nothing can be clicked; `locked`: a view is loading, so only Close (which asks for
-// another view) works. The markup is the canvas's (B-, T-, P-Alerts): plain tables, as wide as their content.
-const props = defineProps<{ detail: AlertDetail; writing: boolean; locked: boolean }>();
-const emit = defineEmits<{ ack: [detail: AlertDetail]; close: [] }>();
+// The body of the open group's drawer: its facts, the rows of the group and, for an unclear wording, how the jobs
+// ended. The drawer owns the title, the severity chip and Acknowledge (its footer); a job asks the parent to open it.
+// The markup is the canvas's (B-, T-, P-Alerts): plain tables, as wide as their content; a list on a phone.
+const props = defineProps<{ detail: AlertDetail; writing: boolean }>();
+const emit = defineEmits<{ "open-job": [jobId: string] }>();
 
-const ui = useUiStore();
-const { isPhone, isTablet } = useBreakpoint();
+// The drawer is 620 px wide at every width but a phone's, so every non-phone width draws the compact tables (the four
+// columns the tablet had); the seven- and eight-column tables would run off the drawer's right edge.
+const { isPhone } = useBreakpoint();
+const compact = computed(() => !isPhone.value);
 const unclear = computed(() => props.detail.kind === "unclear_reply");
 const unclearRows = computed(() => props.detail.items as UnclearItem[]);
 const billingRows = computed(() => props.detail.items as BillingItem[]);
@@ -47,18 +45,8 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
 </script>
 
 <template>
-  <!-- phone: a region between the group items -->
-  <div
-    v-if="isPhone"
-    id="alertDetail"
-    class="ad-phone"
-    role="region"
-    aria-labelledby="alertDetailTitle"
-    data-testid="alert-detail"
-  >
-    <h3 id="alertDetailTitle" class="ad-phone__title" data-testid="alert-detail-title">
-      {{ unclear ? "Group summary and reply rows" : "Group summary and rows" }}
-    </h3>
+  <!-- phone: the sheet's body -->
+  <div v-if="isPhone" id="alertDetail" class="ad-phone">
     <LedgerList class="ad-phone__ledger" :items="facts" />
     <p v-if="oneCustomer(detail)" class="ad-note">{{ ONE_CUSTOMER_NOTE }}</p>
     <p v-if="isEmptyWording(detail)" class="ad-failure" role="alert" data-testid="alert-read-failure">
@@ -70,7 +58,9 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
           <span class="ad-time">{{ alertTime(r.at_ms) }}</span>
           <StatusChip :status="outcomeStatus(r.job_status)" />
         </span>
-        <button type="button" class="ad-job" @click="ui.openJob(r.job_id)">{{ jobName(r) }}</button>
+        <button type="button" class="ad-job" :disabled="props.writing" @click="emit('open-job', r.job_id)">
+          {{ jobName(r) }}
+        </button>
         <span v-if="r.job_error_code" class="ad-code">{{ r.job_error_code }}</span>
         <span class="ad-muted"
           ><span class="ad-acct">{{ account(r) }}</span> · {{ keyName(r)
@@ -96,95 +86,20 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
     <p v-if="detail.items.length >= ROW_LIMIT" class="ad-foot" data-testid="alert-detail-more">
       Showing the newest {{ ROW_LIMIT }} rows; older rows are not listed.
     </p>
-    <button
-      v-if="detail.open_count > 0"
-      type="button"
-      class="al-primary ad-phone__ack"
-      :disabled="locked"
-      @click="emit('ack', detail)"
-    >
-      Acknowledge
-    </button>
   </div>
 
-  <!-- desktop and tablet: a card -->
-  <section
-    v-else
-    id="alertDetail"
-    class="kla-card ad"
-    :class="{ 'is-tablet': isTablet }"
-    role="region"
-    aria-labelledby="alertDetailTitle"
-    data-testid="alert-detail"
-  >
-    <div class="ad__head">
-      <div class="ad__left">
-        <div class="ad__titlerow">
-          <h2 id="alertDetailTitle" class="ad__title" data-testid="alert-detail-title">{{ alertTitle(detail) }}</h2>
-          <StatusChip :status="detail.severity" />
-        </div>
-        <span v-if="unclear" class="ad__sentence">{{ replyNote(detail.media) }}</span>
-        <p v-if="oneCustomer(detail)" class="ad-note">{{ ONE_CUSTOMER_NOTE }}</p>
-      </div>
-      <div class="ad__buttons">
-        <button type="button" class="al-btn ad__close" :disabled="writing" @click="emit('close')">Close</button>
-        <button
-          v-if="detail.open_count > 0"
-          type="button"
-          class="al-primary ad__ack"
-          :disabled="locked"
-          @click="emit('ack', detail)"
-        >
-          Acknowledge
-        </button>
-      </div>
-    </div>
-
+  <!-- desktop and tablet: the drawer is the same width on both -->
+  <div v-else id="alertDetail" class="ad" :class="{ 'is-compact': compact }">
+    <p v-if="unclear" class="ad__sentence">{{ replyNote(detail.media) }}</p>
+    <p v-if="oneCustomer(detail)" class="ad-note">{{ ONE_CUSTOMER_NOTE }}</p>
     <LedgerList class="ad__panel" :items="facts" />
     <p v-if="isEmptyWording(detail)" class="ad-failure ad-failure--card" role="alert" data-testid="alert-read-failure">
       The provider's API gave no reply text, so there is no wording to read: this is an API read failure.
     </p>
 
-    <!-- the reply rows: desktop seven columns in a scrolling box of 1040 px at least, tablet four -->
+    <!-- the reply rows -->
     <template v-if="unclear">
-      <div v-if="!isTablet" class="ad__scroll">
-        <table class="ad__table">
-          <caption class="ad-caption">
-            Unclear-reply rows of this group
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col" class="is-first">Seen</th>
-              <th scope="col">Stored reply</th>
-              <th scope="col">Job</th>
-              <th scope="col">Outcome</th>
-              <th scope="col">Account</th>
-              <th scope="col">Key</th>
-              <th scope="col" class="is-last">Acknowledged</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in unclearRows" :key="r.id" class="ad-row">
-              <td class="ad-seen">{{ alertTime(r.at_ms) }}</td>
-              <td class="ad-reply">
-                <span class="ad-reply__text">{{ r.text === "" ? "(no text)" : r.text }}</span>
-              </td>
-              <td class="ad-jobcell">
-                <button type="button" class="ad-job" @click="ui.openJob(r.job_id)">{{ jobName(r) }}</button>
-                <span class="ad-jobid">{{ r.job_id.slice(0, 8) }}</span>
-              </td>
-              <td class="ad-outcome">
-                <StatusChip :status="outcomeStatus(r.job_status)" />
-                <span v-if="r.job_error_code" class="ad-code">{{ r.job_error_code }}</span>
-              </td>
-              <td class="ad-acct">{{ account(r) }}</td>
-              <td class="ad-key">{{ keyName(r) }}</td>
-              <td class="ad-ack">{{ r.acknowledged_ms === null ? "not yet" : acked(r) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <table v-else class="ad__table">
+      <table class="ad__table">
         <caption class="ad-caption">
           Unclear-reply rows of this group
         </caption>
@@ -200,7 +115,9 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
           <tr v-for="r in unclearRows" :key="r.id" class="ad-row">
             <td class="ad-seen">{{ alertTime(r.at_ms) }}</td>
             <td class="ad-jobcell">
-              <button type="button" class="ad-job" @click="ui.openJob(r.job_id)">{{ jobName(r) }}</button>
+              <button type="button" class="ad-job" :disabled="props.writing" @click="emit('open-job', r.job_id)">
+                {{ jobName(r) }}
+              </button>
               <span class="ad-jobid">{{ r.job_id.slice(0, 8) }}</span>
             </td>
             <td class="ad-outcome">
@@ -219,38 +136,7 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
 
     <!-- the rows of a billing group (not drawn: the reply table's frame, with the billing list's facts) -->
     <template v-else>
-      <div v-if="!isTablet" class="ad__scroll">
-        <table class="ad__table">
-          <caption class="ad-caption">
-            Rows of this group
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col" class="is-first">When</th>
-              <th scope="col">Alert</th>
-              <th scope="col">Wallet</th>
-              <th scope="col" class="is-right">Amount</th>
-              <th scope="col" class="is-right">Used today</th>
-              <th scope="col" class="is-right">Used total</th>
-              <th scope="col">Detail</th>
-              <th scope="col" class="is-last">Acknowledged</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in billingRows" :key="r.id" class="ad-row">
-              <td class="ad-seen">{{ alertTime(r.at_ms) }}</td>
-              <td class="ad-outcome"><StatusChip :status="r.alert" tone="bad" /></td>
-              <td class="ad-key">{{ r.provider }} / {{ r.kind }}</td>
-              <td class="ad-num">{{ r.amount }}</td>
-              <td class="ad-num">{{ r.used_day }}</td>
-              <td class="ad-num">{{ r.used_total }}</td>
-              <td class="ad-detail">{{ r.detail === null ? "—" : r.detail }}</td>
-              <td class="ad-ack">{{ r.acknowledged_ms === null ? "not yet" : acked(r) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <table v-else class="ad__table">
+      <table class="ad__table">
         <caption class="ad-caption">
           Rows of this group
         </caption>
@@ -284,58 +170,25 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
     <p v-if="detail.items.length >= ROW_LIMIT" class="ad__foot" data-testid="alert-detail-more">
       Showing the newest {{ ROW_LIMIT }} rows; older rows are not listed.
     </p>
-  </section>
+  </div>
 </template>
 
 <style scoped>
 /* every value below is the canvas's own (B-, T-, P-Alerts; specs/alerts.md 4 to 6) */
-.ad__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 18px 20px 14px;
-}
-.ad__left {
+.ad {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-.ad__titlerow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-.ad__title {
-  margin: 0;
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
+  gap: 16px;
 }
 .ad__sentence {
+  margin: 0;
   color: var(--rl-muted);
 }
-.ad__buttons {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.ad__close {
-  height: 36px;
-  padding: 0 14px;
-}
-.ad__ack {
-  height: 36px;
-  padding: 0 16px;
-}
 .ad .ad__panel {
+  flex: none;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 6px 40px;
-  margin: 0 20px 16px;
+  margin: 0;
   padding: 14px 16px;
   border-radius: 12px;
   background: var(--rl-raised);
@@ -344,13 +197,8 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
   position: absolute;
   left: -9999px;
 }
-.ad__scroll {
-  overflow-x: auto;
-  border-top: 1px solid var(--rl-line);
-}
 .ad__table {
   width: 100%;
-  min-width: 1040px;
   border-collapse: separate;
   border-spacing: 0;
 }
@@ -366,10 +214,10 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
   font-weight: 500;
 }
 .ad__table th.is-first {
-  padding: 0 12px 0 20px;
+  padding: 0 12px 0 16px;
 }
 .ad__table th.is-last {
-  padding: 0 20px 0 12px;
+  padding: 0 16px 0 12px;
 }
 .ad__table th.is-right {
   text-align: right;
@@ -383,22 +231,12 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
 }
 .ad__table .ad-seen {
   height: 56px;
-  padding: 0 12px 0 20px;
+  padding: 0 12px 0 16px;
   font-family: var(--rl-mono);
   font-size: 12px;
   color: var(--rl-muted);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-}
-.ad__table .ad-reply {
-  max-width: 300px;
-  font-size: 13px;
-}
-.ad-reply__text {
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .ad__table .ad-jobcell {
   max-width: 260px;
@@ -455,18 +293,8 @@ html.dark .ad-job:hover {
   font-size: 13px;
   white-space: nowrap;
 }
-.ad__table .ad-num {
-  text-align: right;
-  font-family: var(--rl-mono);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-.ad__table .ad-detail {
-  font-size: 13px;
-  color: var(--rl-muted);
-}
 .ad__table .ad-ack {
-  padding: 0 20px 0 12px;
+  padding: 0 16px 0 12px;
   font-size: 13px;
   color: var(--rl-faint);
 }
@@ -479,8 +307,6 @@ html.dark .ad-job:hover {
 }
 .ad__foot {
   margin: 0;
-  padding: 14px 20px;
-  border-top: 1px solid var(--rl-line);
   font-size: 13px;
   color: var(--rl-muted);
 }
@@ -490,72 +316,61 @@ html.dark .ad-job:hover {
   color: var(--rl-muted);
 }
 .ad-failure {
-  margin: 0 20px 16px;
+  margin: 0;
   padding: 10px 14px;
   border-radius: 12px;
   background: var(--rl-bad-bg);
   font-size: 13px;
 }
 
-/* tablet: the head and the panel 16 px in, a two-column panel, the four-column table top-aligned */
-.is-tablet .ad__head {
-  padding: 18px 16px 14px;
-}
-.is-tablet .ad__left {
-  flex: 1 1 320px;
-}
-.ad.is-tablet .ad__panel {
+/* tablet: a two-column panel, the four-column table top-aligned */
+.ad.is-compact .ad__panel {
   grid-template-columns: 1fr 1fr;
   gap: 6px 32px;
-  margin: 0 16px 16px;
 }
-.is-tablet .ad-failure {
-  margin: 0 16px 16px;
-}
-.is-tablet .ad__table {
-  min-width: 0;
+.is-compact .ad__table {
   border-top: 1px solid var(--rl-line);
 }
-.is-tablet .ad__table th {
+.is-compact .ad__table th {
   padding: 0 8px;
 }
-.is-tablet .ad__table th.is-first {
+.is-compact .ad__table th.is-first {
   padding: 0 8px 0 16px;
 }
-.is-tablet .ad__table th.is-last {
+.is-compact .ad__table th.is-last {
   padding: 0 16px 0 8px;
 }
-.is-tablet .ad__table td {
+.is-compact .ad__table td {
   vertical-align: top;
 }
-.is-tablet .ad__table .ad-seen {
+.is-compact .ad__table .ad-seen {
   height: auto;
   padding: 12px 8px 12px 16px;
 }
-.is-tablet .ad__table .ad-jobcell {
+.is-compact .ad__table .ad-jobcell {
   max-width: none;
   padding: 10px 8px;
 }
-.is-tablet .ad-job {
+.is-compact .ad-job {
   white-space: normal;
 }
-.is-tablet .ad__table .ad-outcome {
+.is-compact .ad__table .ad-outcome {
   padding: 8px;
   white-space: normal;
 }
-.is-tablet .ad-code {
+.is-compact .ad-code {
   overflow-wrap: anywhere;
 }
-.is-tablet .ad__table .ad-acctkey {
+.is-compact .ad__table .ad-acctkey {
   padding: 10px 16px 10px 8px;
   white-space: nowrap;
 }
-.is-tablet .ad-acctkey .ad-acct {
+.is-compact .ad-acctkey .ad-acct {
   display: block;
   font-family: var(--rl-mono);
   font-size: 12px;
 }
-.is-tablet .ad-acctkey .ad-key {
+.is-compact .ad-acctkey .ad-key {
   font-size: 13px;
   color: var(--rl-muted);
 }
@@ -564,11 +379,8 @@ html.dark .ad-job:hover {
   font-size: 13px;
   color: var(--rl-faint);
 }
-.is-tablet .ad__table .ad-ack {
+.is-compact .ad__table .ad-ack {
   padding: 10px 16px 10px 8px;
-}
-.is-tablet .ad__foot {
-  padding: 14px 16px;
 }
 
 /* phone */
@@ -576,14 +388,6 @@ html.dark .ad-job:hover {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 16px;
-  border-top: 1px solid var(--rl-line);
-}
-.ad-phone__title {
-  margin: 0;
-  font-size: 15px;
-  line-height: 22px;
-  font-weight: 600;
 }
 .ad-phone .ad-phone__ledger {
   display: flex;
@@ -652,10 +456,5 @@ html.dark .ad-job:hover {
   margin: 0;
   font-size: 13px;
   color: var(--rl-muted);
-}
-.ad-phone__ack {
-  width: 100%;
-  height: 48px;
-  font-size: 14px;
 }
 </style>
