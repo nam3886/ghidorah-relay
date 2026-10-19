@@ -73,7 +73,6 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
     back-label="Back to API keys"
     :dirty="dirty"
     :busy="props.busy"
-    :close-on-scrim="false"
     @closed="emit('closed')"
   >
     <form class="kd__form key-dialog" @submit.prevent="send">
@@ -316,7 +315,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
   align-items: center;
   gap: 10px;
   min-height: 40px;
-  padding: 0 4px;
+  padding: 0;
   border-bottom: 1px solid var(--rl-line);
 }
 .key-dialog .kd__model-id {
@@ -380,5 +379,24 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
 }
 .detail-drawer__foot .kla-btn--primary.is-new {
   padding: 0 16px;
+}
+
+/* a phone: Cancel and the primary share the footer row as two equal 44 px buttons, as the Accounts import footer draws them */
+@media (max-width: 767px) {
+  .detail-drawer__foot .kla-btn,
+  .detail-drawer__foot .kla-btn--primary,
+  .detail-drawer__foot .kla-btn--primary.is-new {
+    box-sizing: border-box;
+    flex: 1 1 0;
+    min-width: 0;
+    height: 44px;
+    padding: 0;
+    font-size: 14px;
+    line-height: normal;
+  }
+  /* the primary has no edge: a transparent one makes both buttons the same size to the flex algorithm */
+  .detail-drawer__foot .kla-btn--primary {
+    border: 1px solid transparent;
+  }
 }
 </style>

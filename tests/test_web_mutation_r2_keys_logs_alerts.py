@@ -303,7 +303,9 @@ def test_the_key_form_shows_what_the_design_shows():
           expect=DESIGN + "an empty list draws its card with the heading API keys; a list with keys has no heading")
 @mutation(NEW_KEY, ':aria-label="`New API key for ${label}`"', 'aria-label="New API key"',
           expect=DESIGN + "the callout names the new key, and its row is the one tinted")
-@mutation(DRAWER, ':id="titleId"', '', expect=GUARDED + "is a right drawer named by its heading, with no scrim close")
+@mutation(DRAWER, ':id="titleId"', '',
+          expect=GUARDED + "is a right drawer named by its heading, and "
+                           "a click beside it is a way out like Escape")
 @mutation(KEYS, 'align: isTablet.value ? ("left" as const) : ("right" as const),', 'align: "right" as const,',
           expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
                               "unfinished cells")
@@ -360,9 +362,9 @@ def test_the_label_of_a_key_is_optional_and_a_key_without_one_is_named_by_its_pr
 # ---- Keys: the form is a drawer that guards what was typed -------------------------------------------------------
 @mutation(KEY_FORM, "    baseline.value = JSON.stringify(form);\n  },", '    baseline.value = "";\n  },',
           expect=GUARDED + "an edit is dirty once a field changes, not before")
-@mutation(KEY_FORM, ':close-on-scrim="false"', ':close-on-scrim="true"',
-          expect=GUARDED + "is a right drawer named by its heading, with no scrim close")
-@mutation(KEY_FORM, ':busy="props.busy"\n    :close-on-scrim', ':close-on-scrim',
+@mutation(KEY_FORM, ':busy="props.busy"\n    @closed', ':busy="props.busy"\n    :close-on-scrim="false"\n    @closed',
+          expect=GUARDED + "is a right drawer named by its heading, and a click beside it is a way out like Escape")
+@mutation(KEY_FORM, ':busy="props.busy"\n    @closed', '@closed',
           expect=GUARDED + "while the create is in flight no way out works, and a good answer closes the drawer "
                            "without a question")
 @mutation(KEYS, "  () => formOpen.value && formDirty.value,\n", "  () => false,\n",
@@ -395,6 +397,9 @@ def test_the_key_form_drawer_guards_what_was_typed_and_says_so_when_a_create_fai
 @mutation(DRAWER, "    if (!open) cancelPending();", "    if (!open) return;",
           expect=CLOSE_GUARD + "when the parent closes the drawer under a pending box, the box goes as keep and "
                                "nothing is emitted")
+@mutation(DRAWER, "    closeOnScrim: true,\n", "    closeOnScrim: false,\n",
+          expect=CLOSE_GUARD + "a scrim click is Escape: a clean drawer closes, a dirty one asks, Keep editing keeps "
+                               "and Discard closes")
 @mutation(DRAWER, ':close-on-click-modal="props.closeOnScrim"', ':close-on-click-modal="true"',
           expect=CLOSE_GUARD + "closeOnScrim false: a click beside the drawer never closes or asks; by default it "
                                "closes like the X")
@@ -528,7 +533,7 @@ RANGE = FILTERS + "a range sends the half-open window of the viewer's own midnig
 CLEARED = (FILTERS + "emptying both inputs and leaving them clears the range: no window, and the store holds empty "
            "texts")
 PICKED = FILTERS + "a range picked from the open panel replaces the one held and searches once, for exactly those days"
-ORDER = FILTERS + "the quick options are listed in the order Today, Yesterday, Last 7 days, Last 30 days"
+QUICK_ORDER = FILTERS + "the quick options are listed in the order Today, Yesterday, Last 7 days, Last 30 days"
 NO_DATE = "FAILED tests/unit/no-native-date.spec.ts > no native date > no source file draws a native date input"
 SIZE = (f"FAILED {LOGS_VIEW_SPEC} > paging and refresh > a page size from the pager is asked for and starts "
         "again at the first page")
@@ -565,7 +570,7 @@ LAST_30 = QUICK + "Last 30 days searches from 2026-01-31 to 2026-03-01"
           expect=LAST_30)
 @mutation(WINDOW, "now.getDate() - n)", "now.getDate() + n)",
           expect=YESTERDAY)
-@mutation(WINDOW, '{ text: "Today",', '{ text: "Todai",', expect=ORDER)
+@mutation(WINDOW, '{ text: "Today",', '{ text: "Todai",', expect=QUICK_ORDER)
 @mutation(LOGS, "scope.provider, offset.value, limit.value)", "scope.provider, offset.value)", expect=SIZE)
 @mutation(LOGS, "            limit = s;\n            search();", "            limit = s;\n            void load();",
           expect=SIZE)
