@@ -82,8 +82,12 @@ ALERT_FILTERS = (f"FAILED {ALERTS_VIEW_SPEC} > the filters > send the Status and
 ALERT_DETAIL_SPEC = f"FAILED {ALERTS_VIEW_SPEC} > the detail > "
 ALERT_DESIGN = f"FAILED {ALERTS_VIEW_SPEC} > the detail as the design draws it > "
 ALERT_SMALL = f"FAILED {ALERTS_VIEW_SPEC} > the tablet and the phone > "
-IN_FLIGHT = (f"FAILED {ALERTS_VIEW_SPEC} > acknowledge > while an acknowledge is in flight, the selects, Details, "
-             "Close and both Acknowledge buttons are off")
+IN_FLIGHT = (f"FAILED {ALERTS_VIEW_SPEC} > acknowledge > while an acknowledge is in flight, the selects, the titles "
+             "and both Acknowledge buttons are off, and X and Escape are inert")
+UNREADABLE = (ALERT_DETAIL_SPEC + "a detail that cannot be read keeps the drawer open with the error inside, and the "
+              "list stays whole")
+PHONE_SHEET = (ALERT_SMALL + "a phone opens the detail as a sheet, with the group's title as its heading and "
+               "Acknowledge in its footer")
 AFTER_FAILURE = f"FAILED {ALERTS_VIEW_SPEC} > acknowledge > after a failed acknowledge every control is on again"
 ONE_CUSTOMER = f"FAILED {ALERTS_MODEL_SPEC} > oneCustomer > "
 EMPTY_WORDING = f"FAILED {ALERTS_MODEL_SPEC} > the empty-wording group > "
@@ -402,6 +406,9 @@ def test_the_key_form_drawer_guards_what_was_typed_and_says_so_when_a_create_fai
           expect=CLOSE_GUARD + "the footer's close asks like the X")
 @mutation(DRAWER, ':before-close="() => void requestClose()"', ':before-close="(done: () => void) => done()"',
           expect=CLOSE_GUARD + "Escape alone and a scrim click alone cannot close a dirty drawer without the question")
+@mutation(DRAWER, ':data-testid="props.headingTestid"', "",
+          expect=f"FAILED {DRAWER_SPEC} > DetailDrawer > the heading carries headingTestid when it is given and no "
+                 "test id otherwise")
 @pytest.mark.web_unit
 def test_the_drawer_asks_before_it_loses_typing_and_does_nothing_while_a_write_runs():
     vitest(DRAWER_SPEC)
@@ -674,20 +681,34 @@ def test_the_alerts_view_drops_stale_answers_and_acknowledges_what_was_shown():
           expect=IN_FLIGHT)
 @mutation(ALERTS, '                  :disabled="writing"\n                  :aria-label="',
           '                  :disabled="false"\n                  :aria-label="', expect=IN_FLIGHT)
-@mutation(ALERT_DETAIL, '<button type="button" class="al-btn ad__close" :disabled="writing" @click="emit(\'close\')">',
-          '<button type="button" class="al-btn ad__close" :disabled="false" @click="emit(\'close\')">',
+@mutation(ALERTS, ':busy="writing"', ':busy="false"', expect=IN_FLIGHT)
+@mutation(ALERTS, 'class="al-primary ad-ack" :disabled="locked"', 'class="al-primary ad-ack" :disabled="false"',
           expect=IN_FLIGHT)
-@mutation(ALERT_DETAIL, 'class="al-primary ad__ack"\n          :disabled="locked"',
-          'class="al-primary ad__ack"\n          :disabled="false"', expect=IN_FLIGHT)
 @mutation(ALERTS, "writing.value = true;", "writing.value = false;", expect=IN_FLIGHT)
 @mutation(ALERTS, "writing.value = false;", "writing.value = writing.value;", expect=AFTER_FAILURE)
-@mutation(ALERTS, "  opened.value = null;\n  void reload();", "  opened.value = null;",
+@mutation(ALERTS, "  detailError.value = null;\n  void reload();", "  detailError.value = null;",
           expect=ALERT_DETAIL_SPEC + "Close reloads the list")
 @mutation(ALERTS, "  asked.value = { ...asked.value, open: null };\n  opened.value = null;", "  opened.value = null;",
           expect=ALERT_DETAIL_SPEC + "Close reloads the list")
-@mutation(ALERTS, "    asked.value = { ...asked.value, open: null };\n    notify.error(errorText(view.detailError));",
-          "    notify.error(errorText(view.detailError));",
-          expect=ALERT_DETAIL_SPEC + "a detail that cannot be read is closed with a toast and the list stays whole")
+@mutation(ALERTS, "  detailError.value = view.detailError;", "  detailError.value = null;", expect=UNREADABLE)
+@mutation(ALERTS, '<p v-if="detailError" class="ad-error"', '<p v-if="false" class="ad-error"',
+          expect=UNREADABLE)
+@mutation(ALERTS, "  asked.value = { ...asked.value, open: null };\n  opened.value = null;\n  detailError",
+          "  opened.value = null;\n  detailError", expect=ALERT_DETAIL_SPEC + "Close reloads the list")
+@mutation(ALERTS, "if (d) shownDetail.value = d;", "shownDetail.value = d;",
+          expect=ALERT_DETAIL_SPEC + "closing keeps the last detail until the drawer is gone")
+@mutation(ALERTS, "  closeDetail();\n  ui.openJob(jobId);", "  ui.openJob(jobId);",
+          expect=ALERT_DETAIL_SPEC + "opening a job closes this drawer first")
+@mutation(ALERTS, '?.closest("button, a")) return;', '?.closest("button, a") && false) return;',
+          expect=ALERT_DETAIL_SPEC + "a click on the row opens the detail; a click on its Acknowledge does not")
+@mutation(ALERTS, "  if (writing.value) return;\n  opener =", "  opener =",
+          expect=IN_FLIGHT)
+@mutation(ALERTS, "\n                  :aria-label=\"`Details of ${alertTitle(g)}`\"",
+          "\n                  :aria-label=\"`Open ${alertTitle(g)}`\"",
+          expect=ALERT_DETAIL_SPEC + "the title is a button named Details of ..., with no aria-expanded anywhere")
+@mutation(ALERTS, "'is-selected': isOpened(g) }\"\n            @click=\"rowClick($event, g)\"",
+          "'is-selected': isOpened(g) }\"",
+          expect=ALERT_DETAIL_SPEC + "a phone block opens the detail on a click beside its buttons")
 @mutation(ALERTS, "if (failure) notify.error(", "if (false) notify.error(",
           expect=ACK + "an acknowledge whose reload fails says both")
 @mutation(ALERTS, "failure = err;", "failure = null;", expect=ACK + "an acknowledge whose reload fails says both")
@@ -718,19 +739,19 @@ def test_the_alerts_view_marks_and_counts_its_groups():
     vitest(ALERTS_VIEW_SPEC)
 
 
-@mutation(ALERT_DETAIL, 'unclear ? "Group summary and reply rows" : "Group summary and rows"',
-          'unclear ? "Group summary and rows" : "Group summary and reply rows"',
-          expect=ALERT_SMALL + "a phone opens the detail right under its group and closes it from the "
-                               "Acknowledge-less region")
+@mutation(ALERTS, 'back-label="Back to Alerts"', 'back-label="Back"', expect=PHONE_SHEET)
+@mutation(ALERTS, '<template v-if="shownDetail" #chips><StatusChip :status="shownDetail.severity" /></template>',
+          '<template v-if="shownDetail" #chips><StatusChip status="info" /></template>',
+          expect=ALERT_DETAIL_SPEC + "the drawer's chip tells the group's severity")
 @mutation(ALERT_DETAIL, '                <StatusChip :status="outcomeStatus(r.job_status)" />',
           '                <StatusChip :status="r.job_status" />',
           expect=ALERT_DESIGN + "a failed job reads refunded, a done one done, and its code sits under the chip")
 @mutation(ALERT_DETAIL, "`${i.acknowledged_by}, ${alertTime(i.acknowledged_ms)}`", "`${i.acknowledged_by}`",
           expect=ALERT_DESIGN + "an acknowledged row shows who and when instead of not yet")
-@mutation(ALERT_DETAIL, '<span v-if="unclear" class="ad__sentence">', '<span v-if="true" class="ad__sentence">',
+@mutation(ALERT_DETAIL, '<p v-if="unclear" class="ad__sentence">', '<p v-if="true" class="ad__sentence">',
           expect=ALERT_DESIGN + "a billing group has no reply sentence and no delivered line")
-@mutation(ALERT_DETAIL, 'v-if="detail.open_count > 0"\n          type="button"',
-          'v-if="true"\n          type="button"',
+@mutation(ALERTS, 'v-if="shownDetail && !detailError && shownDetail.open_count > 0"',
+          'v-if="shownDetail && !detailError"',
           expect=ALERT_DESIGN + "an opened group with nothing open has no Acknowledge in its detail")
 @mutation(ALERTS, 'class="is-right">Open / Rows</th>', 'class="is-right">Open</th>',
           expect=ALERT_SMALL + "a tablet shows Severity, Alert and Open / Rows, with the kind, provider and span "
@@ -921,20 +942,12 @@ def test_the_alert_names_and_live_words_are_the_canvas_words():
 @mutation(ALERTS, '<span class="live__kind">{{ liveWord(a.kind) }}:</span>',
           '<span class="live__kind">{{ a.kind }}:</span>',
           expect=ALERT_LISTS + "asks for the open groups, 200 of them, with the live conditions beside")
-@mutation(ALERTS, '                <span class="g-title">{{ alertTitle(g) }}</span>',
-          '                <span class="g-title">{{ g.title }}</span>',
+@mutation(ALERTS, "\n                  {{ alertTitle(g) }}", "\n                  {{ g.title }}",
           expect=NAMED + "the list and the detail name a reply group by its newest reply, a billing group by its "
                          "wallet and key")
-@mutation(ALERT_DETAIL, 'data-testid="alert-detail-title">{{ alertTitle(detail) }}</h2>',
-          'data-testid="alert-detail-title">{{ detail.title }}</h2>',
+@mutation(ALERTS, "? alertTitle(shownDetail.value) :", "? shownDetail.value.title :",
           expect=NAMED + "the list and the detail name a reply group by its newest reply, a billing group by its "
                          "wallet and key")
-@mutation(ALERTS, "groupRows.value : groupRows.value.slice(0, openedAt.value + 1)", "groupRows.value : groupRows.value",
-          expect=ALERT_SMALL + "a phone opens the detail right under its group and closes it from the "
-                               "Acknowledge-less region")
-@mutation(ALERTS, "openedAt.value < 0 ? [] : groupRows.value.slice(openedAt.value + 1)", "[]",
-          expect=ALERT_SMALL + "a phone opens the detail right under its group and closes it from the "
-                               "Acknowledge-less region")
 @mutation(ALERTS_MODEL, "return `Could not load the alerts: ${why}.`;", "return said;",
           expect=GUARD + "the failed list is worded as the canvas words one: who answered what")
 @mutation(ALERTS_MODEL, "? `the relay answered ${err.status} (${said})`", "? said",
@@ -942,5 +955,5 @@ def test_the_alert_names_and_live_words_are_the_canvas_words():
 @mutation(ALERTS_MODEL, ": said.charAt(0).toLowerCase() + said.slice(1);", ": said;",
           expect=GUARD + "the failed list is worded as the canvas words one: who answered what")
 @pytest.mark.web_unit
-def test_the_alerts_view_writes_the_canvas_names_and_puts_the_phone_detail_under_its_group():
+def test_the_alerts_view_writes_the_canvas_names_and_opens_the_detail_in_a_drawer():
     vitest(ALERTS_VIEW_SPEC)

@@ -136,13 +136,17 @@ DRAWER = [
 # (gate 3.07, which was measured 2.07 + 1.0): the board changes on purpose, since the page no longer has the copy
 # buttons and draws relative bars for unlimited wallets, and the board still draws the copy buttons and no relative
 # bars, so it takes the measured value + 1.0.
+# The Alerts boards change on purpose: the detail is a right drawer and no row is drawn selected, so they are compared
+# above the first group row only (region, pixel_kla.py), and the rows and the detail by element. Measured over that
+# region (worst of light and dark, mismatch + anti-aliasing): B 0.45, T 0.40, P 1.29, each + 1.0. The gates are higher
+# than before because the compared area is smaller (the same few pixels are a larger share of it).
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
 # that gets better should have its gate lowered.
 GATES: dict[str, float] = {
     "B-AccountEdit": 4.04,
     "B-AccountImport": 4.45,
     "B-Accounts": 1.02,
-    "B-Alerts": 1.17,
+    "B-Alerts": 1.45,
     "B-Frames": 1.17,
     "B-JobDetail": 1.40,
     "B-JobFailed": 1.32,
@@ -155,7 +159,7 @@ GATES: dict[str, float] = {
     "B-Settings": 1.08,
     "B-Test": 1.14,
     "P-Accounts": 1.04,
-    "P-Alerts": 1.31,
+    "P-Alerts": 2.29,
     "P-Frames": 1.46,
     "P-JobDetail": 2.23,
     "P-Jobs": 1.02,
@@ -166,7 +170,7 @@ GATES: dict[str, float] = {
     "P-Settings": 1.25,
     "P-Test": 1.30,
     "T-Accounts": 1.03,
-    "T-Alerts": 1.07,
+    "T-Alerts": 1.40,
     "T-Frames": 1.17,
     "T-JobDetail": 1.37,
     "T-Jobs": 1.23,

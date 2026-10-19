@@ -1,15 +1,21 @@
 """The Alerts page against the canvas, element by element (element_diff.py), as test_element_diff.py does for Jobs.
 
 `test_alerts_matches_the_canvas_element_by_element`: the B-, T- and P-Alerts boards in both themes, with the status
-filter on All and group 1's detail open (pixel_kla.py). The page below the top bar (the top bar and the tab strip are
-page-shell's, TopBar.vue) is compared whole, and each card on its own too, so a difference in one card does not move
-the pairs of the next. Each comparison writes `<name>-<theme>.md` and `<name>-<theme>.side.png` into
+filter on All (pixel_kla.py). The detail is a right drawer in the app (owner deviation: no inline detail, no Details
+button), so the canvas is read without its detail card and its Details links. The page below the top bar (the top bar
+and the tab strip are page-shell's, TopBar.vue) is compared whole, and each card on its own too, so a difference in one
+card does not move the pairs of the next. Each comparison writes `<name>-<theme>.md` and `<name>-<theme>.side.png` into
 `<run>/element-diff/` and fails while its table holds a difference that is not live data.
 
 Live data on the boards: the canvas counts six rows in group 1 and lists four of them; no database holds both (the
 detail lists every row of the group), so the seed plants the four listed rows and the row count reads 4 where the
 boards write 6. B-Alerts writes a straight apostrophe in three sentences that T- and P-Alerts write with the curly one,
 as the app and specs/alerts.md 4 do.
+
+`test_alerts_detail_matches_the_canvas_card_in_the_drawer`: the same boards with group 1's drawer open: the canvas's
+`#alertDetail` card against the app's `#alertDetail` (the drawer's body, at the drawer's inner width), with the canvas
+card read as a drawer body (its head with the title and Close / Acknowledge, its frame and its inner margins are the
+drawer's: CANVAS_AS_DRAWER_BODY). The drawer's footer is the shared footer's own.
 
 `test_alerts_undrawn_states_are_photographed`: the states the canvas does not draw (D125: the nearest drawn pattern),
 each photographed at 1440, 768 and 390 in both themes from one page (the viewport is resized), into
@@ -59,10 +65,68 @@ STRAIGHT = ("Dola replied “Sorry, I can't create that video”",
 PARTS = (("", "main", "main.app-main"),
          ("-head", "main > div:first-child", ".page-header"),
          ("-live", 'section[aria-labelledby="liveTitle"]', 'section[aria-label="Live conditions"]'),
-         ("-groups", 'section[aria-label="Alert groups"]', 'section[aria-label="Alert groups"]'),
-         ("-detail", "#alertDetail", "#alertDetail"))
+         ("-groups", 'section[aria-label="Alert groups"]', 'section[aria-label="Alert groups"]'))
+DETAIL_PARTS = (("-detail", "#alertDetail", "#alertDetail"),)
 BOARD_CHECKS = [Check(board, replace(ALERTS, board=board), data=ROWS + STRAIGHT)
                 for board in ("B-Alerts", "T-Alerts", "P-Alerts")]
+# the app drawer opens on group 1; the canvas card is widened to the drawer body's width
+# On the phone the sheet's body is 358 px wide and the canvas's detail region (the board's own inset) 357: every box
+# of the region is one pixel off in width (the chips, the ledger, the rows) and nothing else differs, so the width axis
+# is not compared there (the pixel diff of the region is under 0.02 %).
+DETAIL_CHECKS = [Check(board, replace(ALERTS, board=board, drive=lambda page, live, data: _details(0)(page)),
+                       widen=True, data=ROWS + STRAIGHT, loose={"*": "w"} if board == "P-Alerts" else {})
+                 for board in ("B-Alerts", "T-Alerts", "P-Alerts")]
+
+# The canvas without what the app moved into the drawer: the detail card and the Details links (a link to the card).
+# Group 1 was drawn selected (its detail open): with no detail open the app selects nothing.
+CANVAS_WITHOUT_DETAIL = """() => {
+  document.querySelector('#alertDetail').remove();
+  document.querySelectorAll('main a[href="#alertDetail"]').forEach((a) => {
+    const row = a.parentElement;
+    a.remove();
+    // a phone block whose only button was Details has no button row now (a table cell stays)
+    if (!row.children.length && row.tagName !== 'TD') row.remove();
+  });
+  document.querySelectorAll('main tbody td, main li').forEach((el) => {
+    if (el.style.background.includes('primary-soft')) el.style.background = '';
+  });
+}"""
+# The canvas card read as the body of a drawer. The drawer owns the title and the severity chip, Close and Acknowledge
+# (its header and footer), the frame, and the body's 24 px (16 on a phone) around everything: the card loses its head
+# (title row and buttons), its frame and its inner margins, and the table's first and last cells sit 16 px in where
+# the card had 20. The pieces are 16 px apart, as the app's body lays them out.
+CANVAS_AS_DRAWER_BODY = """() => {
+  const card = document.querySelector('#alertDetail');
+  const phone = card.tagName === 'DIV';
+  card.style.cssText += ';border: 0; border-radius: 0; background: none; overflow: visible; padding: 0';
+  card.style.display = 'flex';
+  card.style.flexDirection = 'column';
+  card.style.gap = phone ? '14px' : '16px';
+  if (phone) {
+    card.querySelector('h3').remove();
+    card.querySelector(':scope > button').remove();
+  } else {
+    const head = card.firstElementChild;
+    head.firstElementChild.firstElementChild.remove();
+    head.lastElementChild.remove();
+    head.style.padding = '0';
+  }
+  card.querySelectorAll('dl').forEach((dl) => { dl.style.margin = '0'; });
+  card.querySelectorAll(':scope > p').forEach((p) => { p.style.padding = '0'; p.style.border = '0'; });
+  card.querySelectorAll('tr').forEach((tr) => {
+    const first = tr.firstElementChild, last = tr.lastElementChild;
+    if (parseFloat(getComputedStyle(first).paddingLeft) === 20) first.style.paddingLeft = '16px';
+    if (parseFloat(getComputedStyle(last).paddingRight) === 20) last.style.paddingRight = '16px';
+  });
+}"""
+
+
+def _canvas_without_detail(page) -> None:
+    page.evaluate(CANVAS_WITHOUT_DETAIL, isolated_context=False)
+
+
+def _canvas_as_drawer_body(page) -> None:
+    page.evaluate(CANVAS_AS_DRAWER_BODY, isolated_context=False)
 
 
 # The canvas draws its filters as native selects: to the tool a select is one box (the browser paints its value and
@@ -269,11 +333,20 @@ def failed(results) -> list:
 @pytest.mark.parametrize("check", BOARD_CHECKS, ids=lambda c: c.name)
 def test_alerts_matches_the_canvas_element_by_element(app, db, live, renderer, diff_page, run_dir, check, theme):
     fields = []
-    bad = failed(run_check(app, db, live, renderer, diff_page, run_dir, check, theme, PARTS, fields))
+    bad = failed(run_check(app, db, live, renderer, diff_page, run_dir, check, theme, PARTS, fields,
+                           canvas_hook=_canvas_without_detail))
     assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))
     assert len(fields) == 2, "the Status and Kind fields against the two native selects: %r" % fields
     off = [(n, f) for n, f in enumerate(fields) if f[0] > SELECT_MISMATCH_PCT]
     assert not off, "a field draws its value or arrow apart from the native select (n, (mismatch %%, aa %%)): %r" % off
+
+
+@pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize("check", DETAIL_CHECKS, ids=lambda c: c.name)
+def test_alerts_detail_matches_the_canvas_card_in_the_drawer(app, db, live, renderer, diff_page, run_dir, check, theme):
+    bad = failed(run_check(app, db, live, renderer, diff_page, run_dir, check, theme, DETAIL_PARTS,
+                           canvas_hook=_canvas_as_drawer_body))
+    assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))
 
 
 # ---- states the canvas does not draw: photographed at the three widths, beside their nearest drawn pattern -----------
@@ -306,6 +379,16 @@ def _details(n):
         expect(page.get_by_test_id("alert-detail")).to_be_visible(timeout=TIMEOUT_MS)
         page.mouse.move(0, 0)
     return act
+
+
+def _drawer_error(page):
+    _all(page)
+    page.route(re.compile(r"/admin/alerts/groups/[^?]+\?"), lambda route: route.fulfill(
+        status=500, content_type="application/json",
+        body='{"error": {"code": "server.error", "message": "the group could not be read"}}'))
+    page.get_by_role("button", name="Details of").first.click()
+    expect(page.get_by_test_id("alert-detail").get_by_role("alert")).to_be_visible(timeout=TIMEOUT_MS)
+    page.mouse.move(0, 0)
 
 
 def _as_it_opens(page):
@@ -392,7 +475,9 @@ UNDRAWN = [
     ("refreshing", _refreshing, None, False),            # B-States refreshing: the rows at 60 %
     ("billing-detail", _details(1), None, False),        # a clamp group: the reply table's frame, the billing facts
     ("acknowledged-detail", _details(3), None, False),   # nothing open: no Acknowledge, the rows say who and when
-    ("hover-details", _all, _hover(lambda p: p.get_by_role("button", name="Details of")), False),
+    ("hover-title", _all, _hover(lambda p: p.get_by_role("button", name="Details of")), False),
+    ("drawer-open", _details(0), None, False),           # the right drawer (a sheet with Back on a phone)
+    ("drawer-error", _drawer_error, None, False),        # a failed read keeps the drawer open with the error inside
     ("hover-acknowledge", _all, _hover(lambda p: p.get_by_role("button", name="Acknowledge", exact=True)), False),
     ("hover-row", _all, _hover(_row), False),            # .trow:hover td raised
     ("focus-select", _focus_status, _focus_status, False),
@@ -516,7 +601,8 @@ def test_alerts_with_live_like_data_fits(app, db, live, run_dir, view, nth, them
             ends = []
             for end in (False, True):
                 ends.append(page.evaluate(SCROLL_TO_END_JS, end, isolated_context=False))
-                ends.append({(t["text"], t["cls"]) for t in extract(page, "main.app-main")["texts"] if t["clipped"]})
+                ends.append({(t["text"], t["cls"]) for root in ("main.app-main", "#alertDetail")
+                             for t in extract(page, root)["texts"] if t["clipped"]})
             print("LIVE-LIKE %s %s %d: table boxes scrolling sideways by %s px" % (view, theme, width, ends[0]))
             cut = ends[1] & ends[3]
             clipped = sorted(t for t in cut if not ELLIPSIS.search(t[1]))

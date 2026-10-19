@@ -27,6 +27,8 @@ const props = withDefaults(
     testid?: string;
     // the visible heading (the dialog's name); `title` shows when it is not given
     heading?: string;
+    // test id of the visible heading element
+    headingTestid?: string;
     // the phone sheet's Back button names where it goes: `Back to Jobs`
     backLabel?: string;
     // something was typed that a close would lose
@@ -40,6 +42,7 @@ const props = withDefaults(
   {
     testid: undefined,
     heading: undefined,
+    headingTestid: undefined,
     backLabel: "Back",
     dirty: false,
     busy: false,
@@ -102,9 +105,13 @@ watch(
         >
           <IconArrowLeft :size="20" />
         </button>
-        <component :is="isPhone ? 'h1' : 'h2'" :id="titleId" class="detail-drawer__title">{{
-          props.heading ?? props.title
-        }}</component>
+        <component
+          :is="isPhone ? 'h1' : 'h2'"
+          :id="titleId"
+          class="detail-drawer__title"
+          :data-testid="props.headingTestid"
+          >{{ props.heading ?? props.title }}</component
+        >
         <button
           v-if="isPhone"
           type="button"
