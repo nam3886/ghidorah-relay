@@ -450,7 +450,10 @@ function setRoot(el: unknown): void {
   position: absolute;
   top: calc(50% - 7px);
   right: 11px;
-  color: var(--rl-muted);
+  color: var(--rl-fg);
+}
+.filter-select.is-field:disabled .filter-field__chevron {
+  color: var(--rl-faint);
 }
 .filter-select.is-field:disabled {
   background: var(--rl-raised);

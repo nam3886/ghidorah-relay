@@ -66,6 +66,20 @@ export function dayAfter(value: string): number {
   return new Date(y, m, d + 1).getTime();
 }
 
+// The calendar day `n` days before `now`, at local midnight: built from the calendar date (not "- n x 24 hours"), so a
+// clock change or a month end cannot move it.
+export function daysAgo(n: number, now: Date = new Date()): Date {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - n);
+}
+
+// The quick options of the range picker, in the order they are listed: each is [first day, last day], both inclusive.
+export const RANGE_SHORTCUTS: ReadonlyArray<{ text: string; value: () => [Date, Date] }> = [
+  { text: "Today", value: () => [daysAgo(0), daysAgo(0)] },
+  { text: "Yesterday", value: () => [daysAgo(1), daysAgo(1)] },
+  { text: "Last 7 days", value: () => [daysAgo(6), daysAgo(0)] },
+  { text: "Last 30 days", value: () => [daysAgo(29), daysAgo(0)] },
+];
+
 export function isLogStatus(value: unknown): value is LogStatus {
   return typeof value === "string" && (LOG_STATUSES as readonly string[]).includes(value);
 }

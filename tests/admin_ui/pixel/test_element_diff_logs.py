@@ -62,14 +62,31 @@ def failing(page, live, data):
     expect(page.locator("[data-state=error]")).to_be_visible(timeout=TIMEOUT_MS)
 
 
-# Owner deviation 28: the day fields are Element Plus date pickers, not the browser's date inputs. The picker draws its
-# edge as an inset shadow on a wrapper and its text in an input of its own, so to the tool the control is the wrapper:
-# its box, radius and edge (read from the shadow, which must be the 1 px line colour the canvas's border is) stand
-# in for the input's, and the calendar icon, which the canvas's indicator is not, is set aside. The date text is not
-# compared
-# (the canvas shows the browser's locale format, the picker `YYYY-MM-DD`; a unit and a browser test hold the text). On a
-# phone the picker needs room for its text and icon, so the canvas's chip date is widened to the app's width.
-DATE_WRAPPERS_JS = """(root) => {
+# Owner deviation 28 (day range): the canvas draws two date inputs, From and To; the app has ONE Element Plus range
+# picker, labelled Dates, with a text input on each side of a dash. The canvas is changed to what the owner chose before
+# it is read: the second field is removed and the first becomes one field as wide as both fields and the gap between
+# them (so the span is measured on the canvas, not set by the app), labelled Dates. The picker draws its edge as an
+# inset shadow on its own wrapper and its text in two inputs, so to the tool the control is the wrapper: its box,
+# radius and edge (read from the shadow, which must be the 1 px line colour the canvas's border is) stand in for the
+# input's, and what the picker draws inside (the dash, the icons, the two inputs) is set aside. The date text is not
+# compared (the canvas shows the browser's locale format, the picker `YYYY-MM-DD`; unit and browser tests hold it).
+RANGE_ON_CANVAS_JS = """() => {
+  const inputs = [...document.querySelectorAll('main input[type=date]')];
+  if (inputs.length !== 2) return false;
+  const [a, b] = inputs;
+  const cell = a.parentElement, other = b.parentElement;
+  const first = cell.getBoundingClientRect(), second = other.getBoundingClientRect();
+  const span = second.right - first.left;
+  const word = cell.querySelector('label, span');
+  word.textContent = 'Dates';
+  other.remove();
+  cell.style.boxSizing = 'border-box';
+  cell.style.flex = 'none';
+  cell.style.width = span + 'px';
+  if (cell.tagName === 'LABEL') { a.style.flex = '1'; a.style.width = 'auto'; } else { a.style.width = '100%'; }
+  return true;
+}"""
+RANGE_EDITOR_JS = """(root) => {
   const rootEl = root ? document.querySelector(root) : document.documentElement;
   const rr = rootEl.getBoundingClientRect();
   const r1 = (n) => Math.round(n * 10) / 10;
@@ -85,52 +102,47 @@ DATE_WRAPPERS_JS = """(root) => {
     return [r1(c.l - rr.left), r1(c.t - rr.top), r1(c.r - c.l), r1(c.b - c.t)];
   };
   return [...rootEl.querySelectorAll('.el-date-editor')].map((ed) => {
-    const w = ed.querySelector('.el-input__wrapper'), s = getComputedStyle(w);
+    const s = getComputedStyle(ed);
     let under = ed.parentElement;
     const clear = 'rgba(0, 0, 0, 0)';
     while (under.parentElement && getComputedStyle(under).backgroundColor === clear) under = under.parentElement;
-    return {editor: rect(ed), rect: rect(w), shadow: s.boxShadow, background: s.backgroundColor,
+    return {rect: rect(ed), shadow: s.boxShadow, background: s.backgroundColor,
             under: getComputedStyle(under).backgroundColor,
             radius: ["TopLeft", "TopRight", "BottomRight", "BottomLeft"].map((d) => s["border" + d + "Radius"])
               .join(" ")};
   });
 }"""
-DATE_CHIP_WIDTH_JS = """(width) => window.innerWidth <= 767 &&
-  document.querySelectorAll('label > input[type=date]').forEach((i) => {
-  i.style.boxSizing = 'border-box'; i.style.flex = 'none'; i.style.width = width + 'px'; })"""
-DATE_CHIP_WIDTH_PX = 116
 EDGE = re.compile(r"^(rgb\([^)]*\)) 0px 0px 0px 1px inset$")
 
 
-def _inside_rect(box, rect) -> bool:
-    x, y, w, h = box["rect"]
+def _inside_rect(item, rect) -> bool:
+    x, y, w, h = item["rect"]
     rx, ry, rw, rh = rect
     return x >= rx - 0.5 and y >= ry - 0.5 and x + w <= rx + rw + 0.5 and y + h <= ry + rh + 0.5
 
 
-def date_pickers_as_controls(page, items, root) -> None:
-    pickers = sorted(page.evaluate(DATE_WRAPPERS_JS, root, isolated_context=False), key=lambda p: p["rect"][0])
+def range_picker_as_control(page, items, root) -> None:
+    editors = page.evaluate(RANGE_EDITOR_JS, root, isolated_context=False)
+    assert len(editors) == 1, "one range picker: %r" % editors
+    editor = editors[0]
     controls = [b for b in items["boxes"] if b["kind"] == "control" and b["sig"].startswith("input text")]
-    # a phone's row of chips scrolls: a picker out of view has no control in the items
-    assert len(pickers) == 2 and controls, "the From and To pickers: %r %r" % (pickers, controls)
-    items["boxes"] = [b for b in items["boxes"] if b in controls or not any(_inside_rect(b, p["editor"])
-                                                                            for p in pickers)]
-    for control in controls:
-        x, y, w, h = control["full"]
-        picker = next(p for p in pickers if p["editor"][0] - 1 <= x + w / 2 <= p["editor"][0] + p["editor"][2] + 1)
-        edge = EDGE.match(picker["shadow"])
-        color = edge.group(1) if edge else None
-        control["rect"] = control["full"] = picker["rect"]
-        control["sig"] = "input date "           # the canvas's name for it: a date input with no label
-        control["style"] = {**control["style"], "radius": picker["radius"],
-                            # the tool lists a fill only where it differs from what lies under the box
-                            "background": "none" if picker["background"] in (picker["under"], "rgba(0, 0, 0, 0)")
-                            else picker["background"],
-                            "border": " / ".join(["1px solid " + color] * 4) if color else "none / none / none / none"}
+    assert controls, "the range picker's inputs: %r" % items["boxes"]
+    template = controls[0]
+    items["boxes"] = [b for b in items["boxes"] if not _inside_rect(b, editor["rect"])]
+    items["texts"] = [t for t in items["texts"] if not _inside_rect(t, editor["rect"])]
+    edge = EDGE.match(editor["shadow"])
+    color = edge.group(1) if edge else None
+    items["boxes"].append({
+        **template, "rect": editor["rect"], "full": editor["rect"], "sig": "input date ",
+        "style": {**template["style"], "radius": editor["radius"],
+                  # the tool lists a fill only where it differs from what lies under the box
+                  "background": "none" if editor["background"] in (editor["under"], "rgba(0, 0, 0, 0)")
+                  else editor["background"],
+                  "border": " / ".join(["1px solid " + color] * 4) if color else "none / none / none / none"}})
 
 
-def _chip_dates(page) -> None:
-    page.evaluate(DATE_CHIP_WIDTH_JS, DATE_CHIP_WIDTH_PX, isolated_context=False)
+def _one_range_on_canvas(page) -> None:
+    assert page.evaluate(RANGE_ON_CANVAS_JS, isolated_context=False), "the canvas has no two date inputs"
 
 
 WITH_STATUS_FIELD = ("B-Logs", "T-Logs", "P-Logs")
@@ -158,7 +170,7 @@ def test_logs_matches_the_canvas_element_by_element(app, db, live, renderer, dif
     # its fields (the box in the tables, what the field draws inside it as pixels of the select's crop).
     fields = []
     bad = failed(run_check(app, db, live, renderer, diff_page, run_dir, check, theme, fields=fields,
-                           app_hook=date_pickers_as_controls, canvas_hook=_chip_dates))
+                           app_hook=range_picker_as_control, canvas_hook=_one_range_on_canvas))
     assert not bad, "%s %s: element differences in %s" % (check.name, theme, ", ".join(bad))
     assert len(fields) == 1, "the Status field against the native select: %r" % fields
     assert fields[0][0] <= SELECT_MISMATCH_PCT, "the Status field draws apart from the native select: %r" % fields

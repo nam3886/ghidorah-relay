@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { LogStatus } from "@/api/logs";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { IconSearch } from "@/components/shared/icons";
@@ -7,10 +7,10 @@ import { useBreakpoint } from "@/composables/use-breakpoint";
 import "./lane-controls.css";
 import "./logs-date-field.css";
 import { useLogsFilters } from "./logs-filters";
-import { STATUS_OPTIONS } from "./log-window";
+import { RANGE_SHORTCUTS, STATUS_OPTIONS } from "./log-window";
 
 // The filters of the Request logs, drawn as the canvas draws them: the Status select (FilterSelect's field variant, our
-// own control drawn as the canvas's select) and Element Plus date pickers. A choice in Status or a date asks for a new
+// own control drawn as the canvas's select) and one Element Plus date range picker. A choice in Status or a range asks for a new
 // search at once; the search text goes with the Search button or Enter (on a phone there is no button, so the text
 // goes after a short pause in typing).
 const emit = defineEmits<{ search: [] }>();
@@ -21,10 +21,26 @@ const TYPING_PAUSE_MS = 350;
 let timer: ReturnType<typeof setTimeout> | undefined;
 onBeforeUnmount(() => clearTimeout(timer));
 
-// The day fields keep the store's `YYYY-MM-DD` text as it is (the picker's `value-format`): never a Date, so the time
-// zone cannot move a day. The picker reports `null` when cleared; the store holds "" then.
-const from = computed({ get: () => filters.from ?? "", set: (v: string | null) => (filters.from = v ?? "") });
-const to = computed({ get: () => filters.to ?? "", set: (v: string | null) => (filters.to = v ?? "") });
+// The range keeps the store's two `YYYY-MM-DD` texts as they are (the picker's `value-format`): never a Date, so the time
+// zone cannot move a day. The picker reports `null` when cleared; the store holds "" for both then.
+const range = computed<[string, string] | null>({
+  get: () => (filters.from && filters.to ? ([filters.from, filters.to] as [string, string]) : null),
+  set: (v: [string, string] | null) => {
+    filters.from = v?.[0] ?? "";
+    filters.to = v?.[1] ?? "";
+  },
+});
+const shortcuts = RANGE_SHORTCUTS.map((s) => ({ text: s.text, value: s.value }));
+
+// The picker gives both of its inputs the same attributes, so each is named here: From and To, as the two fields were.
+const dates = ref<HTMLElement>();
+function nameInputs(): void {
+  const inputs = dates.value?.querySelectorAll("input");
+  inputs?.[0]?.setAttribute("aria-label", "From");
+  inputs?.[1]?.setAttribute("aria-label", "To");
+}
+onMounted(nameInputs);
+watch(isPhone, () => void nextTick(nameInputs));
 
 // the field's options (a list of its own: the shared words are read-only)
 const STATUS_CHOICES = STATUS_OPTIONS.map((o) => ({ ...o }));
@@ -75,35 +91,27 @@ function typed(): void {
         :options="STATUS_CHOICES"
         @update:model-value="pickStatus"
       />
-      <component :is="isPhone ? 'label' : 'div'" class="lf__date" :class="isPhone ? 'kla-chip-field' : 'kla-field'">
+      <component
+        :is="isPhone ? 'label' : 'div'"
+        ref="dates"
+        class="lf__date"
+        :class="isPhone ? 'kla-chip-field' : 'kla-field'"
+      >
         <component :is="isPhone ? 'span' : 'label'" :class="isPhone ? '' : 'kla-field__label'" for="logs-from"
-          >From</component
+          >Dates</component
         >
         <el-date-picker
-          id="logs-from"
-          v-model="from"
+          v-model="range"
+          type="daterange"
+          :id="['logs-from', 'logs-to']"
           value-format="YYYY-MM-DD"
           format="YYYY-MM-DD"
-          placeholder="YYYY-MM-DD"
+          range-separator="–"
+          start-placeholder="From"
+          end-placeholder="To"
+          :shortcuts="shortcuts"
           clearable
-          aria-label="From"
-          popper-class="rl-date-popper"
-          @change="emit('search')"
-        />
-      </component>
-      <component :is="isPhone ? 'label' : 'div'" class="lf__date" :class="isPhone ? 'kla-chip-field' : 'kla-field'">
-        <component :is="isPhone ? 'span' : 'label'" :class="isPhone ? '' : 'kla-field__label'" for="logs-to"
-          >To</component
-        >
-        <el-date-picker
-          id="logs-to"
-          v-model="to"
-          value-format="YYYY-MM-DD"
-          format="YYYY-MM-DD"
-          placeholder="YYYY-MM-DD"
-          clearable
-          aria-label="To"
-          popper-class="rl-date-popper"
+          popper-class="rl-date-popper rl-range-popper"
           @change="emit('search')"
         />
       </component>
@@ -180,7 +188,7 @@ function typed(): void {
   width: 100%;
 }
 .lf--tablet .lf__date {
-  flex: 1;
+  flex: 2.0714;
 }
 .lf--tablet .lf__submit {
   flex: none;

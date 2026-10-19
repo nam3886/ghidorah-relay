@@ -114,8 +114,7 @@ SELECT_MISMATCH_PCT = 0.5
 # field is 7 px wider, and its value starts 2 px earlier. The deviation is declared once, here, as exact numbers:
 # each canvas select gets 7 px more padding at its end before it is read (so the row it sits in lays out as the app's
 # does and the boxes are compared at the declared offset, nothing else is loosened), the value text is compared 2 px
-# earlier, and the arrow zone is not compared as pixels but asserted by its geometry (14 px, 12 px in, the label's
-# colour).
+# earlier, and the arrow zone is not compared as pixels but asserted by its geometry (14 px, 12 px in, the page's ink).
 FIELD_EXTRA_PX = 7
 FIELD_TEXT_SHIFT_PX = 2
 FIELD_CORNER_PX = 6          # the rounded corner and its edge are left out of the crops: they are boxes, compared above
@@ -133,7 +132,7 @@ FIELD_GEOMETRY_JS = """(sel) => [...document.querySelectorAll(sel)].map((t) => {
   return {chip: !!chip, width: box.width, height: box.height, chevron: svg.width,
           gap: edge.right - svg.right,
           color: getComputedStyle(t.querySelector('.filter-field__chevron')).color,
-          label: getComputedStyle(field.querySelector('.filter-field__label')).color};
+          ink: getComputedStyle(document.body).color};
 })"""
 CROP_JS = r"""async ({png, x, y, w, h}) => {
   const bitmap = await createImageBitmap(await (await fetch("data:image/png;base64," + png)).blob());
@@ -154,9 +153,10 @@ def crop(page, png: bytes, x: float, w: float, height: float) -> bytes:
 
 
 def assert_chevrons(geometry: list) -> None:
-    """The arrow zone of every field by geometry: a 14 px chevron, 12 px in from the edge, in the label's colour."""
-    bad = [g for g in geometry if abs(g["chevron"] - 14) > 0.5 or abs(g["gap"] - 12) > 0.5 or g["color"] != g["label"]]
-    assert geometry and not bad, "a field's chevron is not 14 px, 12 px in, in the label colour: %r" % (bad or geometry)
+    """The arrow zone of every field by geometry: a 14 px chevron, 12 px in from the edge, in the page's ink (`--rl-fg`,
+    the colour the Jobs chip's chevron inherits)."""
+    bad = [g for g in geometry if abs(g["chevron"] - 14) > 0.5 or abs(g["gap"] - 12) > 0.5 or g["color"] != g["ink"]]
+    assert geometry and not bad, "a field's chevron is not 14 px, 12 px in, in the page's ink: %r" % (bad or geometry)
 
 
 def _inside(item, rects) -> bool:

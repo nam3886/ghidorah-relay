@@ -332,46 +332,48 @@ def test_the_date_window_is_the_viewers_midnights_and_ends_at_the_start_of_the_d
     log(db, k, "POST /next-day", at_ms=ms(after))
     open_tab(page, "Request logs")
     expect(rows(page)).to_have_count(4)
-    # two day pickers, each usable alone: a day typed into one and confirmed with Enter searches at once
+    # one range picker: both days typed and confirmed with Enter search at once
     start = page.get_by_label("From", exact=True)
+    end = page.get_by_label("To", exact=True)
     start.click()                                            # the panel opens; the change is told when it closes
     start.fill("2026-10-15")
-    start.press("Enter")
-    expect(rows(page)).to_have_count(3)                      # From alone
-    assert start.input_value() == "2026-10-15"
-    start.click()
-    start.fill("")
-    start.press("Enter")
-    expect(rows(page)).to_have_count(4)
-    end = page.get_by_label("To", exact=True)
-    end.click()
     end.fill("2026-10-15")
     end.press("Enter")
-    expect(rows(page)).to_have_count(3)                      # To alone: everything before the next day
-    # a day typed and left by Tab (the blur of the keyboard) is applied too
-    start.click()
-    start.fill("2026-10-15")
-    start.press("Tab")
-    expect(rows(page)).to_have_count(2)
+    expect(rows(page)).to_have_count(2)                      # the 15th: from its first moment to its last
+    assert (start.input_value(), end.input_value()) == ("2026-10-15", "2026-10-15")
     expect(rows(page).filter(has_text="/start-of-day")).to_have_count(1)
     expect(rows(page).filter(has_text="/last-moment")).to_have_count(1)
-    # the clear icon of the field empties it and searches again
-    field = page.locator(".lf__date", has=start)
-    page.mouse.move(0, 0)                                    # a hover that starts: the icon shows on entering
-    start.hover()
-    field.locator(".clear-icon").click()
-    expect(rows(page)).to_have_count(3)
-    assert start.input_value() == ""
-    # a day picked from the open panel replaces the one held: From 14 holds three rows, then the 15th picked leaves two
+    # a range typed and left by Tab (the blur of the keyboard) is applied too
     start.click()
     start.fill("2026-10-14")
-    start.press("Enter")
-    expect(rows(page)).to_have_count(3)
+    end.fill("2026-10-15")
+    end.press("Tab")
+    expect(rows(page)).to_have_count(3)                      # the 14th adds the row a second before the 15th
+    # the quick options count from the page's own day: with the clock on the 16th, Today is the 16th, Yesterday the 15th
+    page.clock.set_fixed_time(datetime(2026, 10, 16, 12, 0, tzinfo=zone))
     start.click()
-    page.locator(".el-picker-panel:visible .el-date-table td.available:not(.prev-month):not(.next-month)").filter(
-        has_text=re.compile(r"^15$")).click()
+    page.get_by_role("button", name="Today", exact=True).click()
+    expect(rows(page)).to_have_count(1)
+    expect(rows(page).filter(has_text="/next-day")).to_have_count(1)
+    assert (start.input_value(), end.input_value()) == ("2026-10-16", "2026-10-16")
+    start.click()
+    page.get_by_role("button", name="Yesterday", exact=True).click()
     expect(rows(page)).to_have_count(2)
-    assert start.input_value() == "2026-10-15"
+    assert (start.input_value(), end.input_value()) == ("2026-10-15", "2026-10-15")
+    # a range picked from the open panel replaces the one held: 14 then 15 of the month the panel shows
+    start.click()
+    left = page.locator(
+        ".el-picker-panel:visible .is-left .el-date-table td.available:not(.prev-month):not(.next-month)")
+    left.filter(has_text=re.compile(r"^14$")).click()
+    left.filter(has_text=re.compile(r"^15$")).click()
+    expect(rows(page)).to_have_count(3)
+    assert (start.input_value(), end.input_value()) == ("2026-10-14", "2026-10-15")
+    # the clear icon empties both ends and searches again
+    page.mouse.move(0, 0)                                    # a hover that starts: the icon shows on entering
+    start.hover()
+    page.locator(".lf__date .el-range__close-icon").click()
+    expect(rows(page)).to_have_count(4)
+    assert (start.input_value(), end.input_value()) == ("", "")
     assert timedelta(hours=1) <= after - day <= timedelta(hours=25)
 
 

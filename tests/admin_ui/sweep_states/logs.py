@@ -1,45 +1,47 @@
-"""The Request logs tab: skeleton, rows, the date fields, the request drawer and the clear confirm."""
+"""The Request logs tab: skeleton, rows, the date range, the request drawer and the clear confirm."""
 
 import re
 
 from patchright.sync_api import expect
+from pixel_capture import sideways
 
 from . import cancel_box, dialog, dismiss_box, expect_dialog, ready, skeleton_step
 
 ROUTE = "logs"
 STATES = [
-    ("logs", "loading-skeleton"), ("logs", "list"), ("logs", "date-fields"), ("logs", "date-picker-day"),
-    ("logs", "date-picker-year"), ("logs", "date-picker-month"), ("logs", "request-drawer"), ("logs", "clear-confirm"),
+    ("logs", "loading-skeleton"), ("logs", "list"), ("logs", "date-fields"), ("logs", "date-range-open"),
+    ("logs", "request-drawer"), ("logs", "clear-confirm"),
 ]
 DETAIL = "Request"                       # the drawer is titled "Request <id>"
 OPEN_REQUEST = re.compile(r"Open (details of )?request")    # the chevron of a table row, the row of the phone list
 
 
-def day(page, label, text):
-    """Type (or empty) a day and confirm with Enter: the picker reports a change when its panel closes."""
-    field = page.get_by_label(label, exact=True)
-    field.click()
-    field.fill(text)
-    field.press("Enter")
+def days(page, first, last):
+    """Type a range (or empty both ends) and confirm with Enter: the picker reports a change when its panel closes."""
+    start, end = page.get_by_label("From", exact=True), page.get_by_label("To", exact=True)
+    start.click()
+    start.fill(first)
+    end.fill(last)
+    end.press("Enter")
 
 
 PANEL = ".el-picker-panel:visible"
 
 
-def day_pane(page):
-    """Open the From picker on its day pane."""
+def range_pane(page):
+    """Open the range picker on its two months (side by side, or stacked on a phone) with the quick options."""
     page.get_by_label("From", exact=True).click()
-    expect(page.locator(PANEL).locator(".el-date-table")).to_be_visible()
+    expect(page.locator(PANEL).locator(".el-date-range-picker__content.is-left .el-date-table")).to_be_visible()
+    expect(page.locator(PANEL).locator(".el-date-range-picker__content.is-right .el-date-table")).to_be_visible()
+    expect(page.locator(PANEL).get_by_role("button", name="Last 30 days", exact=True)).to_be_visible()
 
 
-def year_pane(page):
-    page.locator(PANEL).locator(".el-date-picker__header-label").first.click()       # the year label
-    expect(page.locator(PANEL).locator(".el-year-table")).to_be_visible()
-
-
-def month_pane(page):
-    page.locator(PANEL).locator(".el-year-table td.available").first.click()         # a year lands on the months
-    expect(page.locator(PANEL).locator(".el-month-table")).to_be_visible()
+def inside_the_window(page):
+    """The panel, and so the page, fits the window: nothing sideways, the panel's edges inside the viewport."""
+    box = page.locator(PANEL).bounding_box()
+    width = page.evaluate("innerWidth")
+    assert box["x"] >= 0 and box["x"] + box["width"] <= width, "the panel leaves the window: %r in %r" % (box, width)
+    assert sideways(page) <= 1, "the page scrolls sideways"
 
 
 def close_panel(page):
@@ -50,11 +52,9 @@ def close_panel(page):
 def run(page, app, live, sw, data):
     skeleton_step(sw, "logs", re.compile(r"/admin/logs"))
     sw.step("logs", "list", lambda: ready(page))
-    sw.step("logs", "date-fields", lambda: [day(page, "From", "2026-10-01"), day(page, "To", "2026-10-31"),
-                                            day(page, "From", ""), day(page, "To", "")])
-    sw.step("logs", "date-picker-day", lambda: day_pane(page))
-    sw.step("logs", "date-picker-year", lambda: year_pane(page))
-    sw.step("logs", "date-picker-month", lambda: month_pane(page), after=lambda: close_panel(page))
+    sw.step("logs", "date-fields", lambda: days(page, "2026-10-01", "2026-10-31"))
+    sw.step("logs", "date-range-open", lambda: (range_pane(page), inside_the_window(page)),
+            after=lambda: close_panel(page))
 
     def log_detail():
         page.get_by_role("button", name=OPEN_REQUEST).first.click()

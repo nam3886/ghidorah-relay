@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ElDialog } from "element-plus";
@@ -152,6 +154,15 @@ describe("the field variant of FilterSelect", () => {
     const chip = field();
     expect(chip.classes()).toContain("is-chip");
     expect(trigger(chip).find(".filter-field__chevron").exists()).toBe(true);
+  });
+
+  it("the chevron is drawn in the page's ink, as the Jobs chip's is, and only a disabled field turns it faint", () => {
+    const css = readFileSync(join(process.cwd(), "src/components/shared/FilterSelect.vue"), "utf8");
+    const rule = (selector: string) =>
+      css.match(new RegExp(selector.replace(/[.:]/g, "\\$&") + "\\s*\\{([^}]*)\\}"))?.[1] ?? "";
+    expect(rule(".filter-field__chevron")).toContain("color: var(--rl-fg);");
+    expect(rule(".filter-field.is-chip .filter-field__chevron")).not.toContain("color");
+    expect(rule(".filter-select.is-field:disabled .filter-field__chevron")).toContain("color: var(--rl-faint);");
   });
 
   it("a form's field (block) is no chip on a phone, and the list hangs under the box", async () => {
