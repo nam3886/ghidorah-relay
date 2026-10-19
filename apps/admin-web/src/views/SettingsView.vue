@@ -107,9 +107,19 @@ const SECTIONS = [
 const current = ref<string>("settings");
 // the boot-only list while the first read runs: its rows as bars (the B-States loading pattern)
 const BOOT_SKELETON = ["88px", "120px", "72px", "104px"];
+// Scrolls the page's own scroll area (the window on a phone) and nothing else: scrollIntoView would also scroll the
+// overflow-hidden ancestors once a card cannot reach the top, shifting and clipping the layout. The area clamps the
+// target, so a card too near the end just scrolls as far as it can.
 function go(id: string): void {
   current.value = id;
-  document.getElementById(id)?.scrollIntoView({ block: "start" });
+  const card = document.getElementById(id);
+  if (!card) return;
+  const wrap = card.closest<HTMLElement>(".app-scroll__wrap");
+  const area = wrap && getComputedStyle(wrap).overflowY !== "visible" ? wrap : null;
+  const anchor = parseFloat(getComputedStyle(card).scrollMarginTop) || 0;
+  const offset = card.getBoundingClientRect().top - (area ? area.getBoundingClientRect().top : 0) - anchor;
+  if (area) area.scrollTo({ top: area.scrollTop + offset });
+  else window.scrollTo({ top: window.scrollY + offset });
 }
 </script>
 

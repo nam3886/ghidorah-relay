@@ -380,6 +380,10 @@ RESET_RULE = (TABLE + "Reset is on for a stored value or an edit, "
               + "and off for a value that is only the environment or default")
 NAV_MOVES = (SETTINGS_SPEC + "the sub-navigation > lists the four sections in order, marks the first as current "
              + "and moves the mark on a click")
+NAV_AREA = (SETTINGS_SPEC + "the sub-navigation > scrolls the page's scroll area to the card minus the anchor, "
+            + "and nothing else")
+NAV_WINDOW = (SETTINGS_SPEC + "the sub-navigation > scrolls the window where the page has no scroll area of its own "
+              + "(a phone)")
 PRICES_SPEC = SETTINGS_SPEC + "measured prices > "
 PRICES_FIGURES = PRICES_SPEC + "shows duration as Ns or -, flags a disagreement and shows 0 for none"
 PASSWORD_SPEC = SETTINGS_SPEC + "change password > "
@@ -395,6 +399,12 @@ BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
 @mutation(SETTINGS_TABLE, "drafts[item.key] !== valueText(item)", "true", expect=DIRTY)
 @mutation(SETTINGS_TABLE, 'item.source === "db" || edited(item)', "edited(item)", expect=RESET_RULE)
 @mutation(SETTINGS_VIEW, "current.value = id;", "", expect=NAV_MOVES)
+@mutation(SETTINGS_VIEW, "if (area) area.scrollTo({ top: area.scrollTop + offset });",
+          'if (area) card.scrollIntoView({ block: "start" });', expect=NAV_AREA)
+@mutation(SETTINGS_VIEW, "else window.scrollTo({ top: window.scrollY + offset });",
+          'else card.scrollIntoView({ block: "start" });', expect=NAV_WINDOW)
+@mutation(SETTINGS_VIEW, "- (area ? area.getBoundingClientRect().top : 0) - anchor;",
+          "- (area ? area.getBoundingClientRect().top : 0);", expect=NAV_AREA)
 @mutation(PRICES, 'const NONE = "—";', 'const NONE = "-";', expect=PRICES_FIGURES)
 @mutation(PRICES, ': "0"', ': "none"', expect=PRICES_FIGURES)
 @mutation(SETTINGS_VIEW, "await putSetting(key, parseValue(text));", "await putSetting(key, text);", expect=SAVE_SENDS)
