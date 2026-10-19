@@ -192,7 +192,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
     </form>
 
     <template #footer="{ close }">
-      <button type="button" class="kla-btn" @click="close">Cancel</button>
+      <button type="button" class="kla-btn" :disabled="props.busy" @click="close">Cancel</button>
       <button
         type="button"
         class="kla-btn kla-btn--primary"

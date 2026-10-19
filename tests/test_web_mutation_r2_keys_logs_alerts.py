@@ -364,6 +364,9 @@ def test_the_label_of_a_key_is_optional_and_a_key_without_one_is_named_by_its_pr
           expect=GUARDED + "an edit is dirty once a field changes, not before")
 @mutation(KEY_FORM, ':busy="props.busy"\n    @closed', ':busy="props.busy"\n    :close-on-scrim="false"\n    @closed',
           expect=GUARDED + "is a right drawer named by its heading, and a click beside it is a way out like Escape")
+@mutation(KEY_FORM, 'class="kla-btn" :disabled="props.busy" @click="close"', 'class="kla-btn" @click="close"',
+          expect=GUARDED + "while the create is in flight no way out works, and a good answer closes the drawer "
+                           "without a question")
 @mutation(KEY_FORM, ':busy="props.busy"\n    @closed', '@closed',
           expect=GUARDED + "while the create is in flight no way out works, and a good answer closes the drawer "
                            "without a question")
@@ -397,6 +400,12 @@ def test_the_key_form_drawer_guards_what_was_typed_and_says_so_when_a_create_fai
 @mutation(DRAWER, "    if (!open) cancelPending();", "    if (!open) return;",
           expect=CLOSE_GUARD + "when the parent closes the drawer under a pending box, the box goes as keep and "
                                "nothing is emitted")
+@mutation(DRAWER, '          aria-label="Close"\n          :disabled="props.busy"\n', '          aria-label="Close"\n',
+          expect=CLOSE_GUARD + "while busy the X is natively disabled, and enabled again when the write ends")
+@mutation(DRAWER, '          :aria-label="props.backLabel"\n          :disabled="props.busy"\n',
+          '          :aria-label="props.backLabel"\n',
+          expect=CLOSE_GUARD + "while busy the phone's Back is natively disabled, and enabled again when the write "
+                               "ends")
 @mutation(DRAWER, "    closeOnScrim: true,\n", "    closeOnScrim: false,\n",
           expect=CLOSE_GUARD + "a scrim click is Escape: a clean drawer closes, a dirty one asks, Keep editing keeps "
                                "and Discard closes")

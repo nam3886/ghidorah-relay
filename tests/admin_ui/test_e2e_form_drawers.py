@@ -347,8 +347,9 @@ def test_while_a_create_is_in_flight_every_way_out_does_nothing_and_a_good_answe
     create_clicked(page)
     expect(box.get_by_role("button", name="Create key")).to_be_disabled()
     page.keyboard.press("Escape")
-    box.get_by_role("button", name="Close", exact=True).click()
-    box.get_by_role("button", name="Cancel", exact=True).click(force=True)
+    for name in ("Close", "Cancel"):
+        expect(box.get_by_role("button", name=name, exact=True)).to_be_disabled()
+        box.get_by_role("button", name=name, exact=True).click(force=True)
     page.mouse.click(40, 400)
     page.wait_for_timeout(400)
     expect(form(page)).to_be_visible()

@@ -98,6 +98,7 @@ watch(
           type="button"
           class="detail-drawer__icon is-back"
           :aria-label="props.backLabel"
+          :disabled="props.busy"
           @click="requestClose"
         >
           <IconArrowLeft :size="20" />
@@ -119,6 +120,7 @@ watch(
           type="button"
           class="detail-drawer__icon is-muted is-close"
           aria-label="Close"
+          :disabled="props.busy"
           @click="requestClose"
         >
           <IconClose :size="18" :stroke="2" />
@@ -210,6 +212,14 @@ watch(
 }
 .detail-drawer__icon:hover {
   background: var(--rl-raised);
+}
+/* a write is in flight: the way out is off, and says so */
+.detail-drawer__icon:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.detail-drawer__icon:disabled:hover {
+  background: transparent;
 }
 .detail-drawer__body {
   flex: 1;

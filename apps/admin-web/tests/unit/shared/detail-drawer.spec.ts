@@ -306,6 +306,22 @@ describe("DetailDrawer close guard", () => {
     }
   });
 
+  it("while busy the X is natively disabled, and enabled again when the write ends", async () => {
+    const w = await drawer({ busy: true });
+    expect(closeButton().disabled).toBe(true);
+    await w.setProps({ busy: false });
+    expect(closeButton().disabled).toBe(false);
+  });
+
+  it("while busy the phone's Back is natively disabled, and enabled again when the write ends", async () => {
+    phone();
+    const w = await drawer({ busy: true, backLabel: "Back" });
+    const back = () => document.body.querySelector<HTMLButtonElement>("button[aria-label='Back']")!;
+    expect(back().disabled).toBe(true);
+    await w.setProps({ busy: false });
+    expect(back().disabled).toBe(false);
+  });
+
   it("a busy phone sheet ignores Back too", async () => {
     phone();
     const w = await drawer({ busy: true, backLabel: "Back" });

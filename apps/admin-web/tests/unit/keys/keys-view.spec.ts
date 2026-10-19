@@ -907,6 +907,8 @@ describe("the key form as a drawer that guards what was typed", () => {
     await openNewKey("Slow");
     buttonOf("Create key").click();
     await settle();
+    expect(xButton().disabled).toBe(true);
+    expect(buttonOf("Cancel").disabled).toBe(true);
     xButton().click();
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
     buttonOf("Cancel").click();
