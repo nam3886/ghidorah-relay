@@ -9,7 +9,8 @@ from . import skeleton_step
 ROUTE = "settings"
 STATES = [
     ("settings", "loading-skeleton"), ("settings", "list"), ("settings", "edited-row"), ("settings", "saved-toast"),
-    ("settings", "error-toast"), ("settings", "password-form"),
+    ("settings", "error-toast"), ("settings", "password-form"), ("settings", "fixed-limits"),
+    ("settings", "containers"),
 ]
 
 
@@ -30,3 +31,11 @@ def run(page, app, live, sw, data):
         expect(page.locator(".el-message--error").first).to_be_visible()
     sw.step("settings", "error-toast", error_toast)
     sw.step("settings", "password-form", lambda: expect(page.get_by_label("Current password")).to_be_visible())
+
+    def show_card(card: str, link: str, text: str):
+        def go():
+            page.locator(".snav").get_by_role("link", name=link).click()
+            expect(page.locator("#%s" % card).get_by_text(text).first).to_be_visible()
+        return go
+    sw.step("settings", "fixed-limits", show_card("limits", "Fixed limits", "jobs.engine.MAX_INFLIGHT"))
+    sw.step("settings", "containers", show_card("containers", "Containers", "this process, read at start"))

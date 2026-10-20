@@ -4,9 +4,11 @@ import { request } from "@/api/client";
 export interface SettingItem {
   key: string;
   value: unknown;
-  source: "db" | "env" | "default" | string;
+  source: "db" | "default";
   default: unknown;
   description: string;
+  // What the value may be, in words ("at least 60", "1–12", "true or false"); null when anything of its type goes.
+  allowed: string | null;
 }
 
 export interface EnvOnlyItem {
@@ -14,9 +16,36 @@ export interface EnvOnlyItem {
   value: string | null;
 }
 
+// A limit that is code, not a setting. `group` is "core" or a provider's name; the server orders them.
+export interface FixedLimit {
+  group: string;
+  name: string;
+  value: string;
+  reason: string;
+}
+
+// One service's container limits, as text. The four texts are null when a worker has not reported (an older version);
+// "unreadable" and "no limit" come from the server. `boot` are the variables a worker started with (never a secret).
+export interface ContainerRow {
+  service: string;
+  provider: string | null;
+  this_process: boolean;
+  reported: boolean;
+  stale: boolean;
+  cpus: string | null;
+  memory: string | null;
+  pids: string | null;
+  shm: string | null;
+  boot: Record<string, string | null> | null;
+  reported_ms: number;
+  started_ms: number;
+}
+
 export interface SettingsList {
   items: SettingItem[];
   env_only: EnvOnlyItem[];
+  fixed: FixedLimit[];
+  containers: ContainerRow[];
 }
 
 export interface PriceRow {

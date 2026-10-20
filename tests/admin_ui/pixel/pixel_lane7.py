@@ -159,9 +159,12 @@ SHORT_PASSWORD = "short-pw!"                # one character under the server's 1
 def board_settings_body() -> dict:
     return {
         "items": [{"key": k, "type": "int", "value": v, "source": s, "default": d, "description": text,
-                   "env_name": k.upper().replace(".", "_"), "read_only": False}
+                   "allowed": None, "read_only": False}
                   for k, text, v, s, d in BOARD_SETTINGS],
         "env_only": [{"name": n, "value": v, "read_only": True} for n, v in BOARD_BOOT],
+        # the boards draw neither card: empty, so each reads "None" at a height that no later constant moves
+        "fixed": [],
+        "containers": [],
     }
 
 

@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
 import {
+  type ContainerRow,
   deleteSetting,
   type EnvOnlyItem,
+  type FixedLimit,
   getPrices,
   getSettings,
   type PriceRow,
   putSetting,
   type SettingItem,
 } from "@/api/settings";
+import ContainerLimits from "@/components/settings/ContainerLimits.vue";
+import FixedLimits from "@/components/settings/FixedLimits.vue";
 import PasswordForm from "@/components/settings/PasswordForm.vue";
 import SettingsTable from "@/components/settings/SettingsTable.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
@@ -16,6 +20,7 @@ import { loadFailedText } from "@/components/jobs/job-text";
 import { bootValue, parseValue } from "@/components/settings/settings-value";
 import { errorText } from "@/lib/errors";
 import SectionState from "@/components/settings/SectionState.vue";
+import "@/components/settings/settings-leader.css";
 import "@/components/settings/settings-skeleton.css";
 import PricesTable from "@/components/settings/PricesTable.vue";
 import SettingsCard from "@/components/settings/SettingsCard.vue";
@@ -30,6 +35,8 @@ const { busy, run } = useBusy();
 
 const items = ref<SettingItem[]>([]);
 const envOnly = ref<EnvOnlyItem[]>([]);
+const fixed = ref<FixedLimit[]>([]);
+const containers = ref<ContainerRow[]>([]);
 type KeyedPrice = PriceRow & { id: string };
 const prices = ref<KeyedPrice[]>([]);
 const settingsLoading = ref(false);
@@ -47,6 +54,8 @@ async function loadSettings(): Promise<void> {
     if (!settingsLatest.isCurrent(ticket)) return;
     items.value = data.items;
     envOnly.value = data.env_only;
+    fixed.value = data.fixed;
+    containers.value = data.containers;
     settingsError.value = null;
   } catch (err) {
     // worded as B-States draws a failed load: "Could not load the settings: the relay answered 502 (bad gateway)."
@@ -103,6 +112,8 @@ const SECTIONS = [
   { id: "boot", label: "Boot-only values" },
   { id: "prices", label: "Measured prices" },
   { id: "password", label: "Change password" },
+  { id: "limits", label: "Fixed limits" },
+  { id: "containers", label: "Containers" },
 ] as const;
 const current = ref<string>("settings");
 // the boot-only list while the first read runs: its rows as bars (the B-States loading pattern)
@@ -151,7 +162,7 @@ function go(id: string): void {
         <SettingsCard
           id="settings"
           title="Settings"
-          note="A saved value is kept in the database and wins over the environment. Reset returns to the environment value, or the default."
+          note="A saved value is kept in the database. Reset returns to the default."
         >
           <SettingsTable
             :items="items"
@@ -177,17 +188,17 @@ function go(id: string): void {
             empty-text="None"
             @retry="loadSettings"
           />
-          <dl v-if="!settingsError && !envOnly.length && settingsLoading" class="boot" aria-hidden="true">
-            <div v-for="w in BOOT_SKELETON" :key="w" class="boot__row">
+          <dl v-if="!settingsError && !envOnly.length && settingsLoading" class="set-leader" aria-hidden="true">
+            <div v-for="w in BOOT_SKELETON" :key="w" class="set-leader__row">
               <i class="set-skel" :style="{ width: w }" />
-              <span class="boot__leader" />
+              <span class="set-leader__line" />
               <i class="set-skel" :style="{ width: '96px' }" />
             </div>
           </dl>
-          <dl v-else-if="!settingsError && envOnly.length" class="boot" aria-label="Boot-only values">
-            <div v-for="row in envOnly" :key="row.name" class="boot__row">
+          <dl v-else-if="!settingsError && envOnly.length" class="set-leader" aria-label="Boot-only values">
+            <div v-for="row in envOnly" :key="row.name" class="set-leader__row">
               <dt>{{ row.name }}</dt>
-              <span class="boot__leader" aria-hidden="true" />
+              <span class="set-leader__line" aria-hidden="true" />
               <dd class="num">{{ bootValue(row.value) }}</dd>
             </div>
           </dl>
@@ -202,6 +213,24 @@ function go(id: string): void {
         </SettingsCard>
 
         <PasswordForm />
+
+        <SettingsCard
+          id="limits"
+          title="Fixed limits"
+          note="Constants in the code that shape behaviour. They change only with a new release."
+          snug
+        >
+          <FixedLimits :rows="fixed" :loading="settingsLoading" :error="settingsError" @retry="loadSettings" />
+        </SettingsCard>
+
+        <SettingsCard
+          id="containers"
+          title="Containers"
+          note="Each relay service's own limits, read from its cgroup when it started. A worker that stopped cleanly is not listed."
+          snug
+        >
+          <ContainerLimits :rows="containers" :loading="settingsLoading" :error="settingsError" @retry="loadSettings" />
+        </SettingsCard>
       </div>
     </div>
   </section>
@@ -273,40 +302,6 @@ function go(id: string): void {
   background: var(--rl-primary-soft);
   color: var(--rl-fg);
   font-weight: 600;
-}
-
-.boot {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 14px 20px 18px;
-  background: var(--rl-raised);
-  font-size: 13px;
-}
-.boot__row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.boot dt {
-  font-family: var(--rl-mono);
-  font-size: 12px;
-  color: var(--rl-muted);
-  white-space: nowrap;
-}
-.boot__leader {
-  flex: 1;
-  min-width: 16px;
-  border-bottom: 1px dotted var(--rl-line-strong);
-  transform: translateY(-4px);
-}
-.boot dd {
-  margin: 0;
-  font-family: var(--rl-mono);
-  font-weight: 500;
-  text-align: right;
-  overflow-wrap: anywhere;
 }
 
 @media (min-width: 768px) and (max-width: 1279px) {
@@ -418,25 +413,6 @@ function go(id: string): void {
   .snav a.is-current {
     border-color: var(--rl-primary);
     background: var(--rl-primary-soft);
-  }
-  .boot {
-    gap: 12px;
-    padding: 14px 16px 18px;
-  }
-  .boot__row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 2px;
-  }
-  .boot dt {
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-  .boot__leader {
-    display: none;
-  }
-  .boot dd {
-    text-align: left;
   }
 }
 </style>

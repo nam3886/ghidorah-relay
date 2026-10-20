@@ -70,6 +70,7 @@ const SKELETON = [
         <div>
           <div class="key">{{ row.key }}</div>
           <div class="description">{{ row.description }}</div>
+          <div v-if="row.allowed" class="allowed">Allowed: {{ row.allowed }}</div>
         </div>
         <div class="list__value">
           <input
@@ -143,6 +144,7 @@ const SKELETON = [
             <td class="first">
               <span class="key">{{ row.key }}</span>
               <span class="description">{{ row.description }}</span>
+              <span v-if="row.allowed" class="allowed">Allowed: {{ row.allowed }}</span>
             </td>
             <td class="value">
               <input
@@ -267,6 +269,16 @@ const SKELETON = [
   color: var(--rl-muted);
 }
 .is-phone .description {
+  line-height: 18px;
+}
+/* what the value may be: one muted line under the description, wrapping inside its column and never cut */
+.allowed {
+  display: block;
+  font-size: 12px;
+  color: var(--rl-muted);
+  overflow-wrap: anywhere;
+}
+.is-phone .allowed {
   line-height: 18px;
 }
 .table td.value {

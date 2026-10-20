@@ -1,0 +1,70 @@
+/* The leader list of the Settings cards: a name, a dotted leader and a value on one line (the boot-only card draws it; the
+   Fixed limits and Containers cards use it too). Global and keyed by `set-leader`, like the skeleton. On a phone the
+   pair stacks and the leader goes. */
+.set-leader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 20px 18px;
+  background: var(--rl-raised);
+  font-size: 13px;
+}
+.set-leader__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.set-leader dt {
+  font-family: var(--rl-mono);
+  font-size: 12px;
+  color: var(--rl-muted);
+  white-space: nowrap;
+}
+.set-leader__line {
+  flex: 1;
+  min-width: 16px;
+  border-bottom: 1px dotted var(--rl-line-strong);
+  transform: translateY(-4px);
+}
+.set-leader dd {
+  margin: 0;
+  font-family: var(--rl-mono);
+  font-weight: 500;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+/* a row with a reason: the reason is one muted line under the pair, wrapping */
+.set-leader__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.set-leader dd.set-leader__why {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  text-align: left;
+  color: var(--rl-muted);
+}
+@media (max-width: 767px) {
+  .set-leader {
+    gap: 12px;
+    padding: 14px 16px 18px;
+  }
+  .set-leader__row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+  .set-leader dt {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .set-leader__line {
+    display: none;
+  }
+  .set-leader dd {
+    text-align: left;
+  }
+}

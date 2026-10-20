@@ -107,6 +107,8 @@ def sideways(page) -> int:
 TALL_TOLERANCE_PX = 8
 TALL_PAGES: dict[str, tuple[int, str]] = {
     "B-LogDetail": (128, "a drawer over the Logs list: the rows behind the scrim run past the board's height"),
+    "B-Settings": (159, "two cards the canvas does not draw follow Change password"),
+    "T-Settings": (304, "two cards the canvas does not draw follow Change password"),
 }
 
 

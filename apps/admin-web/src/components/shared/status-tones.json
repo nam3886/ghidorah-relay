@@ -27,7 +27,7 @@
   "no job": { "tone": "neutral", "label": "no job" },
   "auth": { "tone": "neutral", "label": "auth" },
   "db": { "tone": "neutral", "label": "db" },
-  "env": { "tone": "neutral", "label": "env" },
   "default": { "tone": "neutral", "label": "default" },
+  "stale": { "tone": "warn", "label": "stale" },
   "own": { "tone": "neutral", "label": "own" }
 }

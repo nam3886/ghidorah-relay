@@ -41,7 +41,7 @@ describe("the tones", () => {
     ["refunded", "neutral"],
     ["any model", "neutral"],
     ["db", "neutral"],
-    ["env", "neutral"],
+    ["stale", "warn"],
     ["own", "neutral"],
     ["default", "neutral"],
   ])("%s is %s", (status, tone) => {

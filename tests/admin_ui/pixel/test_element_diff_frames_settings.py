@@ -13,6 +13,7 @@ compared by their accessible name: the font, colour, alignment and figures of th
 import base64
 import json
 import re
+import time
 from dataclasses import dataclass
 
 import pytest
@@ -44,6 +45,23 @@ EDITOR_DATA = ("Create exactly one cinematic video for this request, no on-scree
                "natural.", "203 characters")
 # Settings: the password rule's number, the board's sample 12 against the server's 10 (design-deviations)
 SETTINGS_DATA, SETTINGS_DATA_APP = ("At least 12 characters",), ("At least 10 characters",)
+# Settings: what the page has that the boards do not draw (declared deviations). The canvas's card note names the
+# environment, which is no longer a layer; the page's note says what Reset does now. After Change password the page
+# adds two cards with their sub-navigation entries: their titles, notes and the "None" an empty card reads.
+SETTINGS_NOTE = ("A saved value is kept in the database and wins over the environment. Reset returns to the "
+                 "environment value, or the default.")
+SETTINGS_NOTE_APP = "A saved value is kept in the database. Reset returns to the default."
+# The note is a sentence of another length: a different number of lines moves everything under it, so the canvas's
+# sentence is replaced by the page's before it is read (the words are the declared deviation, the layout is compared).
+NOTE_AS_APP = """root => {
+  const old = %s, now = %s;
+  for (const el of document.querySelectorAll(root + ' p')) if (el.textContent.trim() === old) el.textContent = now;
+}""" % (json.dumps(SETTINGS_NOTE), json.dumps(SETTINGS_NOTE_APP))
+SETTINGS_ACCEPTED_APP = (
+    "Fixed limits", "Fixed limits*", "Containers", "Containers*", "None",
+    "Constants in the code that shape behaviour. They change only with a new release.",
+    "Each relay service's own limits, read from its cgroup when it started. A worker that stopped cleanly is not "
+    "listed.")
 FRAMES = Entry("B-Frames", "#/frames", seed=frames_seed, now=NOW, drive=frames_drive, user=BOARD_USER)
 SETTINGS = Entry("B-Settings", "#/settings", seed=settings_seed, now=NOW, drive=settings_drive, user=BOARD_USER)
 
@@ -85,9 +103,11 @@ class FrameCheck(Check):
     canvas_drop: tuple = ()     # canvas boxes set aside before the pairing (a signature, "prefix*" or "role:<role>")
 
 
-def _board(entry: Entry, board: str, data: tuple, data_app: tuple = ()) -> Check:
-    return Check(board, Entry(board, entry.route, seed=entry.seed, now=entry.now, drive=entry.drive, user=entry.user),
-                 "main", "main", data=data, data_app=data_app)
+def _board(entry: Entry, board: str, data: tuple, data_app: tuple = (), accepted: tuple = (),
+           accepted_app: tuple = (), fix_canvas: str = "") -> Check:
+    return FrameCheck(board, Entry(board, entry.route, seed=entry.seed, now=entry.now, drive=entry.drive,
+                                   user=entry.user), "main", "main", data=data, data_app=data_app, accepted=accepted,
+                      accepted_app=accepted_app, fix_canvas=fix_canvas)
 
 
 def _list(board: str) -> FrameCheck:
@@ -112,7 +132,8 @@ FRAMES_CHECKS = [*(_list(b) for b in ("B-Frames", "T-Frames", "P-Frames")),
                  *(_editor(b, body=True) for b in ("B-Frames", "T-Frames", "P-Frames")),
                  *(_editor(b, body=False) for b in ("B-Frames", "T-Frames"))]
 BOARD_CHECKS = FRAMES_CHECKS + [
-    _board(SETTINGS, b, SETTINGS_DATA, SETTINGS_DATA_APP) for b in ("B-Settings", "T-Settings", "P-Settings")]
+    _board(SETTINGS, b, SETTINGS_DATA, SETTINGS_DATA_APP, (), SETTINGS_ACCEPTED_APP, NOTE_AS_APP)
+    for b in ("B-Settings", "T-Settings", "P-Settings")]
 
 
 # ---- the states of B-States --------------------------------------------------------------------------------------
@@ -492,7 +513,34 @@ def live_settings_body() -> dict:
               "source": "db" if k in LIVE_STORED else "default", "default": s.default, "description": s.description,
               "allowed": s.allowed, "read_only": False} for k, s in sorted(specs.items())]
     env = (("BILLING_TZ", "UTC"), ("PUBLIC_BASE_URL", "https://relay.example.test"), ("TRUSTED_PROXIES", ""))
-    return {"items": items, "env_only": [{"name": n, "value": v, "read_only": True} for n, v in env]}
+    return {"items": items, "env_only": [{"name": n, "value": v, "read_only": True} for n, v in env],
+            "fixed": live_fixed_limits(), "containers": live_containers()}
+
+
+def live_fixed_limits() -> list[dict]:
+    """The card's rows as the live api serves them: the core's, every provider's Caps rows and dola's own."""
+    from relay_core.limits import fixed_limits
+    from relay_core.providers import ProviderRegistry
+    from relay_dola.spec import SPEC
+
+    registry = ProviderRegistry()
+    registry.register(SPEC)
+    return fixed_limits(registry)
+
+
+def live_containers() -> list[dict]:
+    """Box-shaped: the api at 1.5 CPUs, 2 GiB, 512 pids and 64 MiB of /dev/shm, and worker-dola at 8, 12 GiB, 2048 and
+    1 GiB that reported a minute ago, with its boot knobs."""
+    now = int(time.time() * 1000)
+    boot = {"WORKER_GRACE_S": "720", "WORKER_ID": "worker-dola", "RELAY_PROFILE_ROOT": "/profiles",
+            "RELAY_CHROME_PATH": "/opt/chrome-154/chrome", "RELAY_BROWSER_HEADLESS": None}
+    return [
+        {"service": "api", "provider": None, "this_process": True, "reported": True, "stale": False, "cpus": "1.5",
+         "memory": "2 GiB", "pids": "512", "shm": "64 MiB", "boot": None, "reported_ms": now - 3_600_000,
+         "started_ms": now - 3_600_000},
+        {"service": "worker-dola", "provider": "dola", "this_process": False, "reported": True, "stale": False,
+         "cpus": "8", "memory": "12 GiB", "pids": "2048", "shm": "1 GiB", "boot": boot, "reported_ms": now - 60_000,
+         "started_ms": now - 7_200_000}]
 
 
 LIVE_PRICES = {"items": [{"provider": "dola", "model": "seedance_v2.5-fast-hd", "duration": 5, "charged": 2, "jobs": 5,
@@ -536,7 +584,7 @@ LIVE_LIKE = [("frames", Entry("B-Frames", "#/frames", seed=live_frames_seed, now
                                 user=BOARD_USER))]
 LIVE_WIDTHS = (1440, 768, 390)
 # the sub-navigation pills of a phone are a strip that scrolls sideways: P-Settings draws the third one cut at the edge
-SUBNAV = ("Settings", "Boot-only values", "Measured prices", "Change password")
+SUBNAV = ("Settings", "Boot-only values", "Measured prices", "Change password", "Fixed limits", "Containers")
 
 
 @pytest.mark.parametrize("theme", THEMES)

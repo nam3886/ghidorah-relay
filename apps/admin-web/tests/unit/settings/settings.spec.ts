@@ -68,8 +68,22 @@ describe("setting values", () => {
 });
 
 const items = (): api.SettingItem[] => [
-  { key: "session_ttl_s", value: 3600, source: "db", default: 1800, description: "How long a session lasts" },
-  { key: "billing_label", value: "relay", source: "default", default: "relay", description: "A label" },
+  {
+    key: "session_ttl_s",
+    value: 3600,
+    source: "db",
+    default: 1800,
+    description: "How long a session lasts",
+    allowed: "at least 60",
+  },
+  {
+    key: "billing_label",
+    value: "relay",
+    source: "default",
+    default: "relay",
+    description: "A label",
+    allowed: null,
+  },
 ];
 const priceRows = (): api.PriceRow[] => [
   {
@@ -121,6 +135,8 @@ beforeEach(() => {
       { name: "BILLING_TZ", value: "Asia/Saigon" },
       { name: "PUBLIC_BASE_URL", value: null },
     ],
+    fixed: [],
+    containers: [],
   }));
   vi.mocked(api.getPrices).mockImplementation(async () => ({ items: priceRows() }));
 });
@@ -243,7 +259,7 @@ describe("the settings table", () => {
   });
 
   it("shows an empty list and a failed load with Retry", async () => {
-    vi.mocked(api.getSettings).mockResolvedValueOnce({ items: [], env_only: [] });
+    vi.mocked(api.getSettings).mockResolvedValueOnce({ items: [], env_only: [], fixed: [], containers: [] });
     await open();
     expect(wrapper!.text()).toContain("No settings");
     expect(wrapper!.text()).toContain("None");
@@ -262,18 +278,34 @@ describe("the settings table", () => {
 });
 
 describe("the sub-navigation", () => {
-  it("lists the four sections in order, marks the first as current and moves the mark on a click", async () => {
+  it("lists the six sections in order, marks the first as current and moves the mark on a click", async () => {
     await open();
     const nav = wrapper!.find('nav[aria-label="Settings sections"]');
     const links = nav.findAll("a");
-    expect(links.map((a) => a.text())).toEqual(["Settings", "Boot-only values", "Measured prices", "Change password"]);
-    expect(links.map((a) => a.attributes("aria-current"))).toEqual(["true", undefined, undefined, undefined]);
+    expect(links.map((a) => a.text())).toEqual([
+      "Settings",
+      "Boot-only values",
+      "Measured prices",
+      "Change password",
+      "Fixed limits",
+      "Containers",
+    ]);
+    expect(links.map((a) => a.attributes("aria-current"))).toEqual([
+      "true",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
     vi.stubGlobal("scrollTo", vi.fn());
     await links[2]!.trigger("click");
     expect(wrapper!.findAll('nav[aria-label="Settings sections"] a').map((a) => a.attributes("aria-current"))).toEqual([
       undefined,
       undefined,
       "true",
+      undefined,
+      undefined,
       undefined,
     ]);
   });
