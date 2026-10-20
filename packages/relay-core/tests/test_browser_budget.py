@@ -6,7 +6,7 @@ import random
 
 import pytest
 
-from relay_core.budget import BrowserBudget, Purpose, ceiling_from_env, effective_slots
+from relay_core.budget import BrowserBudget, Purpose
 from relay_core.testing.mutation import mutation
 
 B = "packages/relay-core/src/relay_core/budget.py"
@@ -140,11 +140,3 @@ def test_a_cancelled_waiter_leaks_nothing_and_a_double_release_is_harmless():
         assert b.try_acquire(S) is not None
 
     asyncio.run(scenario())
-
-
-def test_the_env_ceiling_caps_the_live_setting_and_must_be_set():
-    assert effective_slots(10, 6) == 6 and effective_slots(2, 6) == 2 and effective_slots(-1, 6) == 0
-    assert ceiling_from_env("abc", {"ABC_BROWSER_SLOTS_MAX": "8"}) == 8
-    for env in ({}, {"ABC_BROWSER_SLOTS_MAX": "x"}, {"ABC_BROWSER_SLOTS_MAX": "0"}):
-        with pytest.raises(ValueError, match="ABC_BROWSER_SLOTS_MAX"):
-            ceiling_from_env("abc", env)

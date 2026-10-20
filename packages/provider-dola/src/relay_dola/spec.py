@@ -126,7 +126,7 @@ _SETTINGS = dict((
     _setting("alert_content_refused_rate", float, 0.5,
              "Drift alert: share of the last 24 h submits refused for content.", min=0.0, max=1.0),
     _setting("browser_slots", int, 4,
-             "Browser sessions at once (live; capped by the environment ceiling). Lowering retires idle slots.",
+             "Browser sessions at once (live). Lowering retires idle slots.",
              min=BROWSER_SLOTS_MIN, max=BROWSER_SLOTS_MAX),
 ))
 

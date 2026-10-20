@@ -12,7 +12,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core.admin.routes_common import Strict
+from relay_core import cgroup
+from relay_core.admin.routes_common import Strict, ms
 from relay_core.api.deps import get_pool, get_settings
 from relay_core.api.errors_http import ApiError
 from relay_core.db import tx
@@ -20,6 +21,23 @@ from relay_core.limits import fixed_limits
 from relay_core.settings import Settings, SettingsError
 
 router = APIRouter()
+
+WORKER_ROWS = "SELECT worker_id, provider, started_at, at, limits FROM worker_heartbeats ORDER BY worker_id"
+
+
+def _containers(state: Any, workers: list) -> list[dict]:
+    """The api's own container limits, then one row per worker heartbeat row. A worker that stopped cleanly has no row;
+    one that predates the limits has NULL and shows as not reported."""
+    rows = [{"service": "api", "provider": None, "this_process": True, "reported": True,
+             **cgroup.describe(state.container), "boot": None, "reported_ms": state.started_ms,
+             "started_ms": state.started_ms}]
+    for worker_id, provider, started_at, at, limits in workers:
+        reported = limits is not None
+        texts = cgroup.describe(limits) if reported else dict.fromkeys(("cpus", "memory", "pids", "shm"))
+        rows.append({"service": worker_id, "provider": provider, "this_process": False, "reported": reported,
+                     **texts, "boot": limits.get("boot") if reported else None, "reported_ms": ms(at),
+                     "started_ms": ms(started_at)})
+    return rows
 
 
 class SettingPut(Strict):
@@ -45,6 +63,7 @@ async def list_settings(request: Request, pool: AsyncConnectionPool = Depends(ge
                         settings: Settings = Depends(get_settings)) -> dict:
     async with tx(pool) as conn:
         pin = await (await conn.execute("SELECT tz FROM billing_pin")).fetchone()
+        workers = await (await conn.execute(WORKER_ROWS)).fetchall()
     state = request.app.state
     env_only = [
         {"name": "BILLING_TZ", "value": pin[0] if pin else None, "read_only": True},
@@ -52,7 +71,7 @@ async def list_settings(request: Request, pool: AsyncConnectionPool = Depends(ge
         {"name": "TRUSTED_PROXIES", "value": ",".join(str(n) for n in state.trusted_proxies), "read_only": True},
     ]
     return {"items": [_item(settings, k) for k in sorted(settings.specs())], "env_only": env_only,
-            "fixed": fixed_limits(state.registry)}
+            "fixed": fixed_limits(state.registry), "containers": _containers(state, workers)}
 
 
 @router.put("/settings/{key}")

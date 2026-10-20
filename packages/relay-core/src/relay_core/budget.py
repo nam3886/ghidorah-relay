@@ -1,7 +1,7 @@
 """The browser semaphore (contracts 3, 6.1, D20; invariant I28): one per browser worker, for every browser purpose.
 
 A browser opens only with a `Token` from this object; `open_session` refuses to launch without one. The size is the
-live setting `<p>.browser_slots` capped by the env ceiling `<PROVIDER>_BROWSER_SLOTS_MAX`. Lowering it retires idle
+live setting `<p>.browser_slots`, bounded by the provider's spec. Lowering it retires idle
 slots only: tokens in use are never revoked, and nothing new is granted until enough of them come back.
 
 Shares (so submits cannot starve the rest, and the rest cannot starve submits):
@@ -19,7 +19,7 @@ after moving it so waiters blocked by the ramp are looked at again.
 
 import asyncio
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from enum import StrEnum
 
 
@@ -35,25 +35,6 @@ OTHER_SHARE = 1             # check and command together
 RAMP_PERIOD_S = 60.0        # after an abnormal restart the submit share doubles each period
 _GROUP = {Purpose.SUBMIT: "submit", Purpose.RECONCILE: "reconcile", Purpose.CHECK: "other",
           Purpose.COMMAND: "other"}
-
-
-def effective_slots(setting: int, ceiling: int) -> int:
-    """The live `<p>.browser_slots` value capped by the env ceiling."""
-    return max(0, min(setting, ceiling))
-
-
-def ceiling_from_env(provider: str, env: Mapping[str, str]) -> int:
-    """`<PROVIDER>_BROWSER_SLOTS_MAX`: required, because it is sized to the container's memory."""
-    name = provider.upper() + "_BROWSER_SLOTS_MAX"
-    try:
-        value = int(env[name])
-    except KeyError:
-        raise ValueError("%s is not set" % name) from None
-    except ValueError:
-        raise ValueError("%s must be an integer" % name) from None
-    if value < 1:
-        raise ValueError("%s must be at least 1" % name)
-    return value
 
 
 class Token:

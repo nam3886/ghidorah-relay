@@ -1,6 +1,8 @@
 """Admin settings (contracts 10; I19): where each value comes from, a refused value leaves the stored one alone, a
 delete restores the default, and the boot-only values are listed read-only and never writable."""
 
+import json
+
 from apikit import ADMIN_USER, run_app
 
 from relay_core.testing.mutation import mutation
@@ -14,6 +16,11 @@ KEY_CHECK = "    _known(settings, key)\n    try:"
 NO_KEY_CHECK = "    try:"
 FIXED = '"fixed": fixed_limits(state.registry)'
 NO_FIXED = '"fixed": []'
+WORKER_QUERY = "FROM worker_heartbeats ORDER BY worker_id"
+NO_WORKERS = "FROM worker_heartbeats WHERE false ORDER BY worker_id"
+API_CONTAINER = {"read": True, "cpus": 1.5, "memory_bytes": 12 * 1024**3, "pids": 2048, "shm_bytes": 64 * 1024**2}
+WORKER_CONTAINER = {"read": True, "cpus": 8.0, "memory_bytes": 12 * 1024**3, "pids": None, "shm_bytes": 1024**3,
+                    "boot": {"WORKER_ID": "w-new", "RELAY_PROFILE_ROOT": "/profiles"}}
 ALLOWED = '"allowed": spec.allowed'
 NO_ALLOWED = '"allowed": None'
 KEY = "log_retention_days"
@@ -114,6 +121,50 @@ def test_the_list_carries_the_fixed_limits_core_first_then_each_provider(db):
     assert rows[("fake", "caps.max_attempts")] == "3 attempts"
     assert rows[("fake", "max_prompt_chars")] == "1000 chars"
     assert rows[("fake", "fake.demo_bound")] == "7 items"
+
+
+@mutation(ROUTES, WORKER_QUERY, NO_WORKERS, expect="['api']")
+def test_containers_list_the_api_then_each_worker_and_mark_an_older_worker_as_not_reported(db):
+    db.run("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at, limits) VALUES "
+           "('w-new', 'fake', now() - interval '1 hour', now() - interval '5 seconds', %s::jsonb)",
+           json.dumps(WORKER_CONTAINER))
+    db.run("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at) VALUES "
+           "('w-old', 'fake', now() - interval '2 hours', now() - interval '3 seconds')")
+
+    async def scenario(env):
+        env.app.state.container = API_CONTAINER
+        h = await env.admin_headers()
+        return (await env.client.get("/admin/settings", headers=h)).json()["containers"]
+
+    rows = run_app(db, scenario)
+    assert [r["service"] for r in rows] == ["api", "w-new", "w-old"], [r["service"] for r in rows]
+    api, new, old = rows
+    assert api["reported_ms"] == api["started_ms"] > 0
+    assert {k: v for k, v in api.items() if not k.endswith("_ms")} == {
+        "service": "api", "provider": None, "this_process": True, "reported": True, "cpus": "1.5", "memory": "12 GiB",
+        "pids": "2048", "shm": "64 MiB", "boot": None}
+    assert {k: v for k, v in new.items() if not k.endswith("_ms")} == {
+        "service": "w-new", "provider": "fake", "this_process": False, "reported": True, "cpus": "8",
+        "memory": "12 GiB", "pids": "no limit", "shm": "1 GiB", "boot": WORKER_CONTAINER["boot"]}
+    assert {k: v for k, v in old.items() if not k.endswith("_ms")} == {
+        "service": "w-old", "provider": "fake", "this_process": False, "reported": False, "cpus": None,
+        "memory": None, "pids": None, "shm": None, "boot": None}
+    for r, name in ((new, "w-new"), (old, "w-old")):
+        at_ms, started_ms = db.one("SELECT floor(extract(epoch FROM at) * 1000)::bigint, "
+                                   "floor(extract(epoch FROM started_at) * 1000)::bigint FROM worker_heartbeats "
+                                   "WHERE worker_id = %s", name)
+        assert abs(r["reported_ms"] - at_ms) <= 1 and abs(r["started_ms"] - started_ms) <= 1, name
+
+
+def test_a_process_that_cannot_read_its_cgroup_shows_every_limit_as_unreadable(db):
+    async def scenario(env):
+        env.app.state.container = {"read": False, "cpus": None, "memory_bytes": None, "pids": None,
+                                   "shm_bytes": None}
+        h = await env.admin_headers()
+        return (await env.client.get("/admin/settings", headers=h)).json()["containers"]
+
+    (api,) = run_app(db, scenario)
+    assert (api["cpus"], api["memory"], api["pids"], api["shm"]) == ("unreadable",) * 4 and api["reported"] is True
 
 
 @mutation(ROUTES, WRITER, NO_WRITER, expect="updated_by")

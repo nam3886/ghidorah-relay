@@ -67,7 +67,8 @@ NOT_SHOWN = {
              "relay_dola.catalog.DURATIONS_BY_MODEL", "relay_dola.catalog.VALID_DURATIONS"),
     **excuse("the default of the dola.prices setting, which the page already shows",
              "relay_dola.catalog.DEFAULT_PRICES"),
-    **excuse("a unit size used to print a value", "limits.MIB", "limits.KIB"),
+    **excuse("a unit size used to print a value", "limits.MIB", "limits.KIB", "cgroup.GIB", "cgroup.MIB",
+             "cgroup.KIB"),
 }
 
 
