@@ -7,11 +7,10 @@ once. Only pure modules are imported (no provider engine, no browser package), b
 """
 
 from collections.abc import Mapping
-from datetime import timedelta
 from types import ModuleType
 from typing import Any
 
-from relay_core import budget, frames, leases, storage
+from relay_core import budget, frames, leases
 from relay_core.admin import auth, router, routes_accounts, routes_jobs, routes_stats, users
 from relay_core.api import doors, facade_common, progress, runners
 from relay_core.jobs import (
@@ -92,7 +91,6 @@ CORE: tuple[FixedLimit, ...] = (
     _c(titles, "MAX_AGE_S", "a job older than this is no longer titled", "s"),
     _c(titles, "SWEEP_EVERY_S", "the title sweep runs this often", "s"),
     _c(create, "INPUT_LINK_TTL_S", "a link to an uploaded input image works this long", "s"),
-    _c(storage, "INPUT_LINK_TTL", "a share link of a stored input file expires after this long (outputs never)"),
     _c(sweeps, "ALERT_EVERY_H", "the same billing drift raises a new alert at most this often", "h"),
     # ---- webhooks and api loops -------------------------------------------------------------------------------
     _c(webhooks, "MAX_ATTEMPTS", "deliveries of one webhook before it is final", "attempts"),
@@ -145,7 +143,7 @@ def _number(v: Any) -> str:
 
 def _bytes(n: int) -> str:
     if n >= MIB:
-        return "%g MiB" % round(n / MIB, 2)
+        return ("%g MiB" if n % MIB == 0 else "\u2248 %g MiB") % round(n / MIB, 2)
     if n % KIB == 0:
         return "%d KiB" % (n // KIB)
     return "%d bytes" % n
@@ -163,8 +161,6 @@ def value_text(value: Any, unit: str = "") -> str:
     `recover 600 s, ...`. A string is shown as it is (`no limit`, `never`)."""
     if isinstance(value, str):
         return value
-    if isinstance(value, timedelta):
-        return _number(value.total_seconds()) + " s"
     if unit == "bytes":
         return _bytes(value)
     tail = " " + unit if unit else ""

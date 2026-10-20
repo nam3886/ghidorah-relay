@@ -43,6 +43,8 @@ NOT_SHOWN = {
              "api.progress.FALLBACK_S", "api.progress.BUCKET_S", "api.progress.GUARD_TIMEOUT_S",
              "api.progress.SLOW_READ_S", "api.progress.PIN_MAX"),
     **excuse("a storage format: the length of the indexed head of a stored API key", "keys.LOOKUP_LEN"),
+    **excuse("used only by share_expiry, which no running path calls; the live TTL is jobs.create.INPUT_LINK_TTL_S",
+             "storage.INPUT_LINK_TTL"),
     **excuse("plumbing: a connection, a loop tick, a batch size or a shutdown detail that no admin decision depends on",
              "api.facade_common.HEARTBEAT_S", "api.facade_common.POLL_S", "api.runners.STOP_WAIT_S",
              "db.migrate.LOCK_KEY", "db.pool.TX_HOLD_S", "db.pool.GETCONN_TIMEOUT_S", "jobs.checks.TIMEOUT_SHARE",
@@ -65,7 +67,7 @@ NOT_SHOWN = {
              "relay_dola.catalog.DURATIONS_BY_MODEL", "relay_dola.catalog.VALID_DURATIONS"),
     **excuse("the default of the dola.prices setting, which the page already shows",
              "relay_dola.catalog.DEFAULT_PRICES"),
-    **excuse("a unit size the registry itself uses to print a value", "limits.MIB", "limits.KIB"),
+    **excuse("a unit size used to print a value", "limits.MIB", "limits.KIB"),
 }
 
 

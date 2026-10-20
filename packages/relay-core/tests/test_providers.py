@@ -166,9 +166,11 @@ def test_a_browser_provider_must_bound_its_slots_between_one_and_a_maximum():
     pv.ProviderRegistry().register(SlotsStub(min=1, max=12))
 
 
-def test_the_slot_setting_must_be_an_int_with_a_finite_whole_maximum():
+@mutation(SRC, "math.isfinite(v)", "True", expect="OverflowError")
+def test_the_slot_setting_must_be_an_int_with_whole_finite_bounds():
     for bad in (SlotsStub(kind=float, default=2.0, min=1, max=12), SlotsStub(min=1, max=math.inf),
-                SlotsStub(min=1, max=12.5), SlotsStub(min=1, max=math.nan)):
+                SlotsStub(min=1, max=12.5), SlotsStub(min=1, max=math.nan), SlotsStub(min=1.5, max=12),
+                SlotsStub(min=True, max=12), SlotsStub(min=1, max=True)):
         with pytest.raises(pv.RegistryError, match="finite whole max"):
             pv.ProviderRegistry().register(bad)
     pv.ProviderRegistry().register(SlotsStub(min=1, max=12.0))

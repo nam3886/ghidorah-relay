@@ -568,11 +568,16 @@ class RegistryError(ValueError):
     """A spec that cannot be registered: a duplicate name, a duplicate model id or alias, a malformed spec."""
 
 
+def _whole(v: Any) -> bool:
+    return isinstance(v, int | float) and not isinstance(v, bool) and math.isfinite(v) and v == int(v)
+
+
 def _bounded_slots(slots: Any) -> bool:
-    """An `int` setting with `min >= 1` and a finite whole `max`. Read with getattr: a test stub holds plain objects."""
-    low, high = getattr(slots, "min", None), getattr(slots, "max", None)
-    return (getattr(slots, "type", None) is int and isinstance(low, int | float) and low >= 1
-            and isinstance(high, int | float) and math.isfinite(high) and high == int(high))
+    """An `int` setting with a whole `min >= 1` and a finite whole `max`. Read with getattr: a test stub holds plain
+    objects."""
+    low: Any = getattr(slots, "min", None)
+    high: Any = getattr(slots, "max", None)
+    return getattr(slots, "type", None) is int and _whole(low) and low >= 1 and _whole(high)
 
 
 def _problems(spec: ProviderSpec) -> list[str]:

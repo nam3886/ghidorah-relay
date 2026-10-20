@@ -3,7 +3,6 @@
 
 import inspect
 import re
-from datetime import timedelta
 
 from relay_core import budget
 from relay_core.jobs import engine, reaper, titles
@@ -57,8 +56,7 @@ def test_the_value_text_carries_the_unit():
     assert value_text(0.5) == "0.5"
     assert value_text(12 * 1024 * 1024, "bytes") == "12 MiB"
     assert value_text(16 * 1024, "bytes") == "16 KiB"
-    assert value_text(40_270_336, "bytes") == "38.4 MiB"
-    assert value_text(timedelta(days=7)) == "604800 s"
+    assert value_text(40_270_336, "bytes") == "\u2248 38.4 MiB"
     assert value_text(1000, "bytes") == "1000 bytes"
     assert value_text((30, 300), "s") == "30, 300 s"
     assert value_text({"recover": 600, "check": 180}, "s") == "recover 600 s, check 180 s"
