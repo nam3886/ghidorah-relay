@@ -378,7 +378,7 @@ SCOPE = (SETTINGS_SPEC
          + "measured prices > follows the global provider filter and reloads only the prices when it changes")
 RESET_RULE = (TABLE + "Reset is on for a stored value or an edit, "
               + "and off for a value that is only the environment or default")
-NAV_MOVES = (SETTINGS_SPEC + "the sub-navigation > lists the four sections in order, marks the first as current "
+NAV_MOVES = (SETTINGS_SPEC + "the sub-navigation > lists the six sections in order, marks the first as current "
              + "and moves the mark on a click")
 NAV_AREA = (SETTINGS_SPEC + "the sub-navigation > scrolls the page's scroll area to the card minus the anchor, "
             + "and nothing else")
