@@ -468,7 +468,7 @@ fails when any other page or `/ui/` file carries the looser one.
   shows an "Allowed:" line with the range or rule from the registry. The Fixed limits card lists the code constants of
   `fixed` (`FixedLimits.vue`). The Containers card (`ContainerLimits.vue`) shows one block per service: the api,
   stamped "this process, read at start" (its limits are read when the api starts), then each worker, stamped
-  "reported <ago>" (its last heartbeat). A row past the stale window gets a `stale` chip. A worker image older than
+  "seen <ago>" (its last heartbeat). A row past the stale window gets a `stale` chip. A worker image older than
   the limits shows "Not reported by this worker version". A limit that could not be read says "unreadable", which is
   not the same as "no limit". A worker that stopped cleanly removes its heartbeat row and is not listed.
 - **Alerts:** the "Alerts" tab lists every stored alert kind (billing `clamp` and `drift`, unclear provider replies) from
