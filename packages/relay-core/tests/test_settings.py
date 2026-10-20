@@ -35,6 +35,10 @@ MAX_REFUSED = 'raise SettingsError("%s: must be at most %g" % (self.key, self.ma
 BETWEEN_REFUSED = 'raise SettingsError("%s: must be between %g and %g" % (self.key, self.min, self.max))'
 RULE_CHECKED = "self.rule.check(value)"
 RANGE_TEXT = 'parts.append("%g\\u2013%g" % (self.min, self.max))'
+BOOL_TEXT = 'parts.append("true or false")'
+BOOL_TEXT_OTHER = 'parts.append("yes or no")'
+MAX_TEXT = 'parts.append("at most %g" % self.max)'
+MAX_TEXT_OTHER = 'parts.append("up to %g" % self.max)'
 RANGE_TEXT_HYPHEN = 'parts.append("%g-%g" % (self.min, self.max))'
 
 
@@ -243,6 +247,11 @@ def test_a_rule_refuses_what_a_range_cannot_say_and_its_message_is_kept():
         s.validate(-2)
 
 
+def test_the_bounds_are_keyword_only():
+    with pytest.raises(TypeError):
+        Spec("k", int, 1, "d", 1)  # type: ignore[misc]
+
+
 def test_the_type_is_checked_before_any_bound():
     with pytest.raises(SettingsError, match="must be int, not bool"):
         Spec("k", int, 1, "d", min=0, max=5).validate(True)
@@ -251,6 +260,8 @@ def test_the_type_is_checked_before_any_bound():
 
 
 @mutation(S, RANGE_TEXT, RANGE_TEXT_HYPHEN, expect="'1-12' ==")
+@mutation(S, BOOL_TEXT, BOOL_TEXT_OTHER, expect="assert 'yes or no' ==")
+@mutation(S, MAX_TEXT, MAX_TEXT_OTHER, expect="assert 'up to 9' ==")
 def test_allowed_is_the_text_of_the_same_bounds():
     assert Spec("k", bool, True, "d").allowed == "true or false"
     assert Spec("k", int, 1, "d", min=1, max=12).allowed == "1\u201312"

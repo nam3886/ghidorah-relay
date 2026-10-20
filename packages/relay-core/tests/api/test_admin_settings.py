@@ -12,6 +12,8 @@ WRITER = "by=request.state.admin_user.username"
 NO_WRITER = "by=None"
 KEY_CHECK = "    _known(settings, key)\n    try:"
 NO_KEY_CHECK = "    try:"
+FIXED = '"fixed": fixed_limits(state.registry)'
+NO_FIXED = '"fixed": []'
 ALLOWED = '"allowed": spec.allowed'
 NO_ALLOWED = '"allowed": None'
 KEY = "log_retention_days"
@@ -71,7 +73,7 @@ def test_an_environment_twin_is_ignored_and_a_put_and_a_delete_move_between_db_a
     assert (back["value"], back["source"]) == (30, "default")
 
 
-@mutation(ROUTES, ALLOWED, NO_ALLOWED, expect="allowed")
+@mutation(ROUTES, ALLOWED, NO_ALLOWED, expect="assert None == 'at least 1'")
 def test_every_setting_says_what_it_allows_and_none_names_an_env_variable(db):
     async def scenario(env):
         h = await env.admin_headers()
@@ -93,12 +95,14 @@ def test_every_setting_says_what_it_allows_and_none_names_an_env_variable(db):
         assert "allowed" in i
 
 
+@mutation(ROUTES, FIXED, NO_FIXED, expect="where 0 = len([])")
 def test_the_list_carries_the_fixed_limits_core_first_then_each_provider(db):
     async def scenario(env):
         h = await env.admin_headers()
         return await env.client.get("/admin/settings", headers=h)
 
     fixed = run_app(db, scenario).json()["fixed"]
+    assert len(fixed) > 50
     assert all(set(f) == {"group", "name", "value", "reason"} for f in fixed)
     assert all(f["value"] and f["reason"] for f in fixed)
     groups = [f["group"] for f in fixed]

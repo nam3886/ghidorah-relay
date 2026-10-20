@@ -7,10 +7,11 @@ once. Only pure modules are imported (no provider engine, no browser package), b
 """
 
 from collections.abc import Mapping
+from datetime import timedelta
 from types import ModuleType
 from typing import Any
 
-from relay_core import budget, frames, leases
+from relay_core import budget, frames, leases, storage
 from relay_core.admin import auth, router, routes_accounts, routes_jobs, routes_stats, users
 from relay_core.api import doors, facade_common, progress, runners
 from relay_core.jobs import (
@@ -40,13 +41,15 @@ def _c(module: ModuleType, const: str, reason: str, unit: str = "") -> FixedLimi
 
 CORE: tuple[FixedLimit, ...] = (
     # ---- browser capacity -------------------------------------------------------------------------------------
-    _c(budget, "RECONCILE_SHARE", "browser slots always kept for final reconciles", "slots"),
-    _c(budget, "OTHER_SHARE", "browser slots always kept for account checks and commands together", "slots"),
+    _c(budget, "RECONCILE_SHARE", "the most browser slots all reconciles may hold at once", "slots"),
+    _c(budget, "OTHER_SHARE", "the most browser slots account checks and commands may hold together", "slots"),
     _c(budget, "RAMP_PERIOD_S", "after an abnormal restart the submit share starts at half and doubles each "
        "healthy period", "s"),
     _c(engine, "MAX_INFLIGHT", "submits one worker runs at once", "jobs"),
     _c(poller, "MAX_INFLIGHT", "polls one worker runs at once", "jobs"),
     _c(engine, "MAX_ERRORS", "unexpected errors in a row before a worker stops and exits", "errors"),
+    _c(commands, "MAX_TASKS", "commands one worker runs at once", "commands"),
+    _c(checks, "MAX_TASKS", "account checks one worker runs at once", "checks"),
     _c(users, "HASH_CONCURRENCY", "password hashes at once: argon2id holds 64 MiB per call", "hashes"),
     # ---- leases and heartbeats --------------------------------------------------------------------------------
     _c(leases, "HEARTBEAT_S", "a lease holder renews its lease this often", "s"),
@@ -63,7 +66,8 @@ CORE: tuple[FixedLimit, ...] = (
     _c(reaper, "COMMAND_STALL_MARGIN_S", "room for a command to record its own outcome before it counts as stalled",
        "s"),
     _c(worker, "DRIFT_CHECK_S", "pool counters are compared with their charges, and corrected, this often", "s"),
-    _c(routes_stats, "HEARTBEAT_STALE_S", "a worker beats every 15 s: four missed beats show it stale", "s"),
+    _c(routes_stats, "HEARTBEAT_STALE_S", "a worker silent for %g beats of %g s shows stale"
+       % (routes_stats.HEARTBEAT_STALE_S / engine.BEAT_S, engine.BEAT_S), "s"),
     # ---- job timing -------------------------------------------------------------------------------------------
     _c(apply, "FIRST_POLL_S", "an accepted job is first polled this long after", "s"),
     _c(apply, "UNKNOWN_FIRST_S", "the first reconcile of an unknown job; it doubles up to the next limit", "s"),
@@ -88,6 +92,7 @@ CORE: tuple[FixedLimit, ...] = (
     _c(titles, "MAX_AGE_S", "a job older than this is no longer titled", "s"),
     _c(titles, "SWEEP_EVERY_S", "the title sweep runs this often", "s"),
     _c(create, "INPUT_LINK_TTL_S", "a link to an uploaded input image works this long", "s"),
+    _c(storage, "INPUT_LINK_TTL", "a share link of a stored input file expires after this long (outputs never)"),
     _c(sweeps, "ALERT_EVERY_H", "the same billing drift raises a new alert at most this often", "h"),
     # ---- webhooks and api loops -------------------------------------------------------------------------------
     _c(webhooks, "MAX_ATTEMPTS", "deliveries of one webhook before it is final", "attempts"),
@@ -112,7 +117,8 @@ CORE: tuple[FixedLimit, ...] = (
     _c(progress, "WINDOW", "the newest finished jobs of a shape the progress median is taken over", "jobs"),
     _c(progress, "MIN_SAMPLES", "below this the median is not trusted and a fixed fallback is used", "jobs"),
     _c(progress, "AGE_DAYS", "a finished job older than this is not a progress sample", "days"),
-    _c(progress, "SAMPLE_MAX_S", "the render deadline: a longer sample is an outlier", "s"),
+    _c(progress, "SAMPLE_MAX_S", "a longer finished job is no progress sample; it copies the default render deadline, "
+       "not the live setting", "s"),
     _c(progress, "TTL_S", "an estimate is kept this long before it is read again", "s"),
     # ---- admin ------------------------------------------------------------------------------------------------
     _c(auth, "LOGIN_MAX_FAILS", "failed logins one IP may make in the window", "logins"),
@@ -138,8 +144,8 @@ def _number(v: Any) -> str:
 
 
 def _bytes(n: int) -> str:
-    if n % MIB == 0:
-        return "%d MiB" % (n // MIB)
+    if n >= MIB:
+        return "%g MiB" % round(n / MIB, 2)
     if n % KIB == 0:
         return "%d KiB" % (n // KIB)
     return "%d bytes" % n
@@ -157,6 +163,8 @@ def value_text(value: Any, unit: str = "") -> str:
     `recover 600 s, ...`. A string is shown as it is (`no limit`, `never`)."""
     if isinstance(value, str):
         return value
+    if isinstance(value, timedelta):
+        return _number(value.total_seconds()) + " s"
     if unit == "bytes":
         return _bytes(value)
     tail = " " + unit if unit else ""

@@ -1,12 +1,12 @@
 """The fixed-limits registry: every row reads the constant the code runs with, a provider's rows come from its
 `Caps` and its own `limits`, and the text the admin reads is the value with its unit."""
 
-import importlib
 import inspect
 import re
+from datetime import timedelta
 
 from relay_core import budget
-from relay_core.jobs import engine, reaper
+from relay_core.jobs import engine, reaper, titles
 from relay_core.jobs.worker import Worker
 from relay_core.limits import CORE, caps_limits, fixed_limits, value_text
 from relay_core.providers import ProviderRegistry
@@ -24,12 +24,11 @@ def registry(*specs) -> ProviderRegistry:
     return r
 
 
-def test_every_core_row_is_the_live_constant_with_a_reason_and_a_unique_name():
+def test_every_core_row_has_a_reason_a_constant_name_and_is_listed_once():
     names = [f.name for f in CORE]
     assert len(names) == len(set(names)), "a constant is listed once"
     for f in CORE:
-        module, const = f.name.rsplit(".", 1)
-        assert getattr(importlib.import_module("relay_core." + module), const) == f.value, f.name
+        const = f.name.rsplit(".", 1)[1]
         assert re.fullmatch(r"[A-Z][A-Z0-9_]*", const), f.name
         assert f.reason.strip() and "\n" not in f.reason, f.name
         assert not isinstance(f.value, bool), f.name
@@ -48,6 +47,8 @@ def test_the_reaper_waits_three_beats_and_the_worker_defaults_are_the_constants_
     params = inspect.signature(Worker.__init__).parameters
     assert params["beat_s"].default == engine.BEAT_S
     assert params["reaper_interval_s"].default == reaper.INTERVAL_S
+    assert params["max_errors"].default == engine.MAX_ERRORS
+    assert params["housekeeping_s"].default == titles.SWEEP_EVERY_S
     assert inspect.signature(budget.BrowserBudget.__init__).parameters["ramp_period_s"].default == budget.RAMP_PERIOD_S
 
 
@@ -56,6 +57,8 @@ def test_the_value_text_carries_the_unit():
     assert value_text(0.5) == "0.5"
     assert value_text(12 * 1024 * 1024, "bytes") == "12 MiB"
     assert value_text(16 * 1024, "bytes") == "16 KiB"
+    assert value_text(40_270_336, "bytes") == "38.4 MiB"
+    assert value_text(timedelta(days=7)) == "604800 s"
     assert value_text(1000, "bytes") == "1000 bytes"
     assert value_text((30, 300), "s") == "30, 300 s"
     assert value_text({"recover": 600, "check": 180}, "s") == "recover 600 s, check 180 s"
@@ -80,7 +83,7 @@ def test_a_provider_with_frames_lists_the_longest_text_it_is_sent():
     assert rows["frames.max_sent_chars"] == FAKE_FRAMES.max_sent_chars
 
 
-@mutation(LIMITS, PROVIDER_ROWS, "()", expect="fake.demo_bound")
+@mutation(LIMITS, PROVIDER_ROWS, "()", expect="no alpha rows: []")
 def test_the_fixed_limits_hold_the_core_first_then_each_provider_with_its_own_rows():
     out = fixed_limits(registry(FakeSpec("zeta"), FakeSpec("alpha")))
     groups = [row["group"] for row in out]
@@ -89,7 +92,7 @@ def test_the_fixed_limits_hold_the_core_first_then_each_provider_with_its_own_ro
     assert all(set(row) == {"group", "name", "value", "reason"} for row in out)
     own = [row for row in out if row["group"] == "alpha" and row["name"].startswith("alpha.")]
     assert own == [{"group": "alpha", "name": "alpha.demo_bound", "value": "7 items",
-                    "reason": "A bound of the fake provider, for tests."}], "fake.demo_bound"
+                    "reason": "A bound of the fake provider, for tests."}], "no alpha rows: %s" % own
     assert {"group": "core", "name": "jobs.engine.MAX_INFLIGHT", "value": "32 jobs",
             "reason": "submits one worker runs at once"} in out
 

@@ -110,7 +110,7 @@ def test_an_invalid_price_value_never_reaches_the_running_table():
 
 
 # ---- CFG08: browser slots --------------------------------------------------------------------------------------------
-@mutation(CONSTANTS_FILE, SLOTS, SLOTS_99, expect="== (1, 12")
+@mutation(CONSTANTS_FILE, SLOTS, SLOTS_99, expect="(1, 99,")
 def test_browser_slot_values_stay_inside_the_container_size():
     s = spec_of("dola.browser_slots")
     assert s.default == 4 and s.validate(1) == 1 and s.validate(8) == 8 and s.validate(12) == 12

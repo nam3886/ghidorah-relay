@@ -1,11 +1,14 @@
-"""No numeric limit hides from the admin: every module-level number of the core and of the dola pure modules is either
-on the Fixed limits card or excused here with a reason. Add a constant and this fails until it is listed
-(`relay_core.limits` or the provider's `limits`) or excused. The dola `engine` package and the browser kit are not
-scanned: they are not pure modules, and `relay serve` may not import them."""
+"""Every module-level numeric constant of the core and of the dola pure modules is either on the Fixed limits card or
+excused here with a reason. "Numeric" is an int, a float, a timedelta, or a non-empty tuple, list, set or dict of them;
+"module-level" is an UPPER_CASE name assigned at the top of a module. A literal default of a parameter, a class
+attribute and a private name are not seen, so such a limit must be given a named constant to be guarded. The dola
+`engine` package and the browser kit are not scanned: they are not pure modules, and `relay serve` may not import
+them."""
 
 import ast
 import importlib
 import pkgutil
+from datetime import timedelta
 from pathlib import Path
 
 import relay_core
@@ -51,7 +54,7 @@ NOT_SHOWN = {
     **excuse("a code, not a bound",
              "api.request_log.CLIENT_CLOSED", "jobs.worker.EXIT_OK", "jobs.worker.EXIT_FAILED",
              "jobs.worker.EXIT_REFUSED"),
-    **excuse("set from the environment (WORKER_GRACE_S) and reported by the worker, so not fixed",
+    **excuse("set from the environment (WORKER_GRACE_S), so not fixed",
              "jobs.worker.DEFAULT_GRACE_S"),
     **excuse("shown through the provider's Caps rows, which the core builds from the spec",
              "relay_dola.constants.PROXY_REST_S", "relay_dola.constants.CHECK_INTERVAL_S",
@@ -69,7 +72,7 @@ NOT_SHOWN = {
 def numeric(value) -> bool:
     if isinstance(value, bool):
         return False
-    if isinstance(value, int | float):
+    if isinstance(value, int | float | timedelta):
         return True
     if isinstance(value, tuple | list | set | frozenset):
         return bool(value) and all(numeric(v) for v in value)
@@ -115,7 +118,7 @@ def listed() -> dict[str, object]:
 
 
 @mutation(LIMITS, MAX_INFLIGHT_ROW, "", expect="jobs.engine.MAX_INFLIGHT")
-def test_every_numeric_constant_is_on_the_card_or_excused_with_a_reason():
+def test_every_module_level_numeric_constant_is_on_the_card_or_excused_with_a_reason():
     shown, found = listed(), numeric_constants()
     unlisted = sorted(n for n in found if n not in shown and n not in NOT_SHOWN)
     assert not unlisted, "list these in relay_core.limits (or the provider's limits) or excuse them: %s" % unlisted

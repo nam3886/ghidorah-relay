@@ -16,7 +16,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass
 from typing import Any
 
 import psycopg
@@ -58,6 +58,7 @@ class Spec:
     type: type
     default: Any
     description: str
+    _: KW_ONLY
     min: float | None = None
     max: float | None = None
     rule: Rule | None = None

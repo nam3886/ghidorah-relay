@@ -49,13 +49,14 @@ from relay_core.db import open_pool, tx
 from relay_core.jobs.apply import STARTUP_GRACE_S, StartupGrace
 from relay_core.jobs.checks import Checks, Env
 from relay_core.jobs.commands import CommandLoop
-from relay_core.jobs.engine import BEAT_S, ClaimLoop
+from relay_core.jobs.engine import BEAT_S, MAX_ERRORS, ClaimLoop
 from relay_core.jobs.evidence import job_sink
 from relay_core.jobs.fetcher import Fetcher
 from relay_core.jobs.poller import Poller
 from relay_core.jobs.reaper import INTERVAL_S, Reaper
 from relay_core.jobs.reconcile import Reconciler
 from relay_core.jobs.runctx import EvidenceSink, load_account_view
+from relay_core.jobs.titles import SWEEP_EVERY_S
 from relay_core.providers import AccountView, ProviderEngine, ProviderRegistry, ProviderSpec
 from relay_core.settings import REGISTRY, Registry, Settings
 from relay_core.storage import ObjectStore
@@ -80,10 +81,10 @@ class Worker:
     def __init__(self, db: AsyncConnectionPool, spec: ProviderSpec, engine: ProviderEngine, settings: Any, *,
                  owner: str, load_account: LoadAccount, store: ObjectStore, budget: BrowserBudget | None = None,
                  browser_ceiling: int | None = None, evidence_sink: EvidenceSink | None = None,
-                 grace_s: float | None = DEFAULT_GRACE_S, billing_tz: str | None = None, max_errors: int = 5,
+                 grace_s: float | None = DEFAULT_GRACE_S, billing_tz: str | None = None, max_errors: int = MAX_ERRORS,
                  tick_s: float = 1.0, lease_ttl_s: float = leases.LEASE_TTL_S,
                  lease_beat_s: float = leases.HEARTBEAT_S, beat_s: float = BEAT_S,
-                 reaper_interval_s: float = INTERVAL_S, housekeeping_s: float = 60.0,
+                 reaper_interval_s: float = INTERVAL_S, housekeeping_s: float = SWEEP_EVERY_S,
                  drift_check_s: float = DRIFT_CHECK_S, worker_id: str | None = None,
                  startup_grace_s: float = STARTUP_GRACE_S):
         self.db, self.spec, self.owner, self.grace_s, self.billing_tz = db, spec, owner, grace_s, billing_tz

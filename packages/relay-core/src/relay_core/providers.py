@@ -8,6 +8,7 @@ This module is also the one core module that may name providers (the registry); 
 """
 
 import importlib
+import math
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
@@ -567,6 +568,13 @@ class RegistryError(ValueError):
     """A spec that cannot be registered: a duplicate name, a duplicate model id or alias, a malformed spec."""
 
 
+def _bounded_slots(slots: Any) -> bool:
+    """An `int` setting with `min >= 1` and a finite whole `max`. Read with getattr: a test stub holds plain objects."""
+    low, high = getattr(slots, "min", None), getattr(slots, "max", None)
+    return (getattr(slots, "type", None) is int and isinstance(low, int | float) and low >= 1
+            and isinstance(high, int | float) and math.isfinite(high) and high == int(high))
+
+
 def _problems(spec: ProviderSpec) -> list[str]:
     bad = []
     if not _NAME.fullmatch(spec.name):
@@ -584,9 +592,14 @@ def _problems(spec: ProviderSpec) -> list[str]:
         bad.append("%s: settings the core reads are not declared: %s" % (spec.name, ", ".join(missing)))
     if spec.caps.execution == "browser" and spec.name + ".browser_slots" in keys:
         slots = spec.settings()[spec.name + ".browser_slots"]     # its bound is what keeps a browser worker in memory
-        low, high = getattr(slots, "min", None), getattr(slots, "max", None)
-        if low is None or low < 1 or high is None:
-            bad.append("%s.browser_slots must declare min >= 1 and a max" % spec.name)
+        if not _bounded_slots(slots):
+            bad.append("%s.browser_slots must be an int setting that declares min >= 1 and a finite whole max"
+                       % spec.name)
+        else:
+            try:
+                slots.validate(slots.default)          # a bad default is a refusal here, not a traceback at start
+            except ValueError as e:
+                bad.append("%s.browser_slots default: %s" % (spec.name, e))
     for pool in spec.caps.pools:
         if pool.budget_setting is not None and pool.budget_setting not in keys:
             bad.append("%s: pool %s names the budget setting %s, which the spec does not declare"

@@ -1,6 +1,7 @@
 """The protocol types and the registry (contracts section 5.1-5.3): validation at construction, and a catalog whose
 model ids and aliases are unique across providers."""
 
+import math
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -148,25 +149,35 @@ def test_a_spec_must_declare_the_settings_the_core_reads():
 class SlotsStub(Stub):
     """A browser provider whose browser_slots spec carries the given bounds."""
 
-    def __init__(self, **bounds):
+    def __init__(self, *, kind=int, default=2, **bounds):
         super().__init__("one", caps=caps(execution=bounds.pop("execution", "browser")))
-        self.bounds = bounds
+        self.kind, self.default, self.bounds = kind, default, bounds
 
     def settings(self):
-        return {**super().settings(), "one.browser_slots": Spec("one.browser_slots", int, 2, "slots", **self.bounds)}
+        return {**super().settings(),
+                "one.browser_slots": Spec("one.browser_slots", self.kind, self.default, "slots", **self.bounds)}
 
 
-@mutation(SRC, "if low is None or low < 1 or high is None:", "if False:", expect="DID NOT RAISE")
+@mutation(SRC, "if not _bounded_slots(slots):", "if False:", expect="DID NOT RAISE")
 def test_a_browser_provider_must_bound_its_slots_between_one_and_a_maximum():
-    with pytest.raises(pv.RegistryError, match="one.browser_slots must declare min >= 1 and a max"):
-        pv.ProviderRegistry().register(SlotsStub())
-    with pytest.raises(pv.RegistryError, match="min >= 1 and a max"):
-        pv.ProviderRegistry().register(SlotsStub(min=1))
-    with pytest.raises(pv.RegistryError, match="min >= 1 and a max"):
-        pv.ProviderRegistry().register(SlotsStub(max=12))
-    with pytest.raises(pv.RegistryError, match="min >= 1 and a max"):
-        pv.ProviderRegistry().register(SlotsStub(min=0, max=12))
+    for bounds in ({}, {"min": 1}, {"max": 12}, {"min": 0, "max": 12}):
+        with pytest.raises(pv.RegistryError, match="one.browser_slots must be an int setting that declares min >= 1"):
+            pv.ProviderRegistry().register(SlotsStub(**bounds))
     pv.ProviderRegistry().register(SlotsStub(min=1, max=12))
+
+
+def test_the_slot_setting_must_be_an_int_with_a_finite_whole_maximum():
+    for bad in (SlotsStub(kind=float, default=2.0, min=1, max=12), SlotsStub(min=1, max=math.inf),
+                SlotsStub(min=1, max=12.5), SlotsStub(min=1, max=math.nan)):
+        with pytest.raises(pv.RegistryError, match="finite whole max"):
+            pv.ProviderRegistry().register(bad)
+    pv.ProviderRegistry().register(SlotsStub(min=1, max=12.0))
+
+
+@mutation(SRC, "slots.validate(slots.default)", "pass", expect="DID NOT RAISE")
+def test_a_slot_default_outside_its_own_bounds_is_a_refusal_not_a_traceback():
+    with pytest.raises(pv.RegistryError, match=r"one.browser_slots default: .*between 1 and 12"):
+        pv.ProviderRegistry().register(SlotsStub(default=50, min=1, max=12))
 
 
 def test_an_http_provider_needs_no_slot_bounds():

@@ -62,6 +62,7 @@ _PICK = 5
 # repeatable), and the leased kinds (recover skips an output the job already has by upstream id and removes the
 # objects of a run that did not commit; the snapshot and title writers are upserts; a probe and a list only read).
 MAX_DEADLOCK_ATTEMPTS = 3
+MAX_TASKS = 2               # commands one worker runs at once
 _RETRYABLE = (pgerrors.DeadlockDetected, pgerrors.SerializationFailure)
 
 
@@ -447,7 +448,7 @@ class CommandLoop:
     """Runs queued commands as tasks (at most `max_tasks`), and every `housekeeping_s` queues the catalog refresh and
     runs the title sweep and starts due account checks."""
 
-    def __init__(self, env: Env, *, max_tasks: int = 2, housekeeping_s: float = titles.SWEEP_EVERY_S,
+    def __init__(self, env: Env, *, max_tasks: int = MAX_TASKS, housekeeping_s: float = titles.SWEEP_EVERY_S,
                  checks: Checks | None = None):
         self.env, self.max_tasks, self.housekeeping_s = env, max_tasks, housekeeping_s
         self.checks = checks if checks is not None else Checks(env)
