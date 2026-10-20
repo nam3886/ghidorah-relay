@@ -164,6 +164,14 @@ describe("DetailDrawer", () => {
     expect(document.body.querySelector("h2")!.textContent).toBe("Job 3b9e1f0a");
   });
 
+  it("the heading carries headingTestid when it is given and no test id otherwise", async () => {
+    await drawer({ headingTestid: "the-heading" });
+    expect(heading()!.getAttribute("data-testid")).toBe("the-heading");
+    document.body.replaceChildren();
+    await drawer();
+    expect(heading()!.hasAttribute("data-testid")).toBe(false);
+  });
+
   it("a title with markup is text, in the heading and in the name", async () => {
     await drawer({ title: PLANTED });
     expect(document.body.querySelector("h2 img")).toBeNull();
@@ -249,6 +257,28 @@ describe("DetailDrawer close guard", () => {
     expect(document.body.querySelector<HTMLElement>(".detail-drawer")!.style.display).not.toBe("none");
   });
 
+  it("a scrim click is Escape: a clean drawer closes, a dirty one asks, Keep editing keeps and Discard closes", async () => {
+    const clean = await drawer();
+    scrim();
+    await flushPromises();
+    expect(ask).not.toHaveBeenCalled();
+    expect(clean.emitted("update:modelValue")).toEqual([[false]]);
+    document.body.replaceChildren();
+    const dirty = await drawer({ dirty: true });
+    scrim();
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(1);
+    answer(false);
+    await flushPromises();
+    expect(dirty.emitted("update:modelValue")).toBeUndefined();
+    scrim();
+    await flushPromises();
+    expect(ask).toHaveBeenCalledTimes(2);
+    answer(true);
+    await flushPromises();
+    expect(dirty.emitted("update:modelValue")).toEqual([[false]]);
+  });
+
   it("the footer's close asks like the X", async () => {
     const w = await drawer({ dirty: true }, { default: "<p>body</p>", footer: CANCEL_FOOTER });
     document.getElementById("cancel")!.click();
@@ -282,6 +312,22 @@ describe("DetailDrawer close guard", () => {
       expect(ask).not.toHaveBeenCalled();
       expect(w.emitted("update:modelValue")).toBeUndefined();
     }
+  });
+
+  it("while busy the X is natively disabled, and enabled again when the write ends", async () => {
+    const w = await drawer({ busy: true });
+    expect(closeButton().disabled).toBe(true);
+    await w.setProps({ busy: false });
+    expect(closeButton().disabled).toBe(false);
+  });
+
+  it("while busy the phone's Back is natively disabled, and enabled again when the write ends", async () => {
+    phone();
+    const w = await drawer({ busy: true, backLabel: "Back" });
+    const back = () => document.body.querySelector<HTMLButtonElement>("button[aria-label='Back']")!;
+    expect(back().disabled).toBe(true);
+    await w.setProps({ busy: false });
+    expect(back().disabled).toBe(false);
   });
 
   it("a busy phone sheet ignores Back too", async () => {

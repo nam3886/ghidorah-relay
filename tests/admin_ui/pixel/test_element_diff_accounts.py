@@ -1,8 +1,12 @@
 """The Accounts page against the canvas, element by element (element_diff.py), as test_element_diff.py does for Jobs.
 
-`test_accounts_matches_the_canvas_element_by_element`: the whole B-, T- and P-Accounts boards, the two dialogs
-(B-AccountImport, B-AccountEdit: the dialog only, the page behind the scrim is a mock), the page More menu the T- and
-P-boards draw open, and the row More menu B-States draws. A state the canvas draws after a click (an open menu) is
+`test_accounts_matches_the_canvas_element_by_element`: the whole B-, T- and P-Accounts boards, the two forms
+(B-AccountImport, B-AccountEdit: the boards draw a 640 px dialog over a mock page, the app a 620 px right drawer, so the
+BODY of the dialog is compared with the drawer's body at the drawer's width and the footer row with the drawer's footer
+at 1440 and 768; the frame, the header and the scrim are not compared), the page More menu the T- and P-boards draw
+open, and the row More menu B-States draws. The drawer's footer is the shared one of every drawer (10 px padding, strong
+rule, surface fill): those three numbers are set on the canvas footer before it is read. A state the canvas draws
+after a click (an open menu) is
 clicked on the board too (`canvas_drive`). Each comparison writes `<name>-<theme>.md` and `.side.png` into
 `<run>/element-diff/` and fails while its table holds a difference that is not live data."""
 
@@ -29,6 +33,7 @@ from test_element_diff_alerts import (
     declare_chevron_ink,
     select_pixels,
 )
+from test_element_diff_keys import FOOTER_AS_DRAWER, HEIGHT_JS
 
 pytestmark = pytest.mark.browser
 
@@ -39,6 +44,9 @@ class Look(Check):
     popup_gap: float = 6                    # px between the open popup and its trigger, as drawn
     redraw: tuple = ()                      # (board text, redrawn text, deviation #): a canvas redraw still pending
     fields: bool = False                    # FilterSelect fields drawn by the canvas as native selects (see below)
+    fix_canvas: str = ""                    # JS run on the canvas root before it is read: a declared deviation
+    same_height: bool = False               # the canvas part is given the app part's height (one fills its drawer)
+    gate: float | None = None               # the most mismatch + anti-aliasing (%) the compared part may have in pixels
 
 
 # The board text a ruling has sent back to the designer: the reference is patched to the redrawn value, and every table
@@ -59,18 +67,41 @@ LIST = Entry("B-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phon
 BOARD_CHECKS = [Look(board, replace(LIST, board=board), redraw=POINTS_UNKNOWN)
                 for board in ("B-Accounts", "T-Accounts", "P-Accounts")]
 
-# The dialogs: the board draws the dialog over a mock page; the dialog alone is compared. The rejected line of the
-# import result names no credential (design-deviations 5): the canvas's jar token is left out, and the sentence is the
-# one for the server's reason where the canvas writes its sample sentence.
+# The forms: the board draws a 640 px dialog over a mock page (header, body, footer: the three divs under
+# `[role="dialog"]`) and the app a 620 px right drawer. The body is the dialog's second div against the drawer's body,
+# the canvas part resized to the drawer's width and given its height (the drawer's body fills it from the header to the
+# footer, the dialog's body is as tall as its fields); the footer is the third div against the drawer's footer, on every
+# axis but the vertical one, at 1440 and 768. Not compared (design-deviations): the frame and its width
+# (640/642 -> 620),
+# the header (Import's quiet one, Edit's with a divider, the X, the icon), the sentence under Import's title (it sits in
+# the drawer's header), the scrim and the position.
+# The rejected line of the import result names no credential (design-deviations 5): the canvas's jar token is left out,
+# and the sentence is the one for the server's reason where the canvas writes its sample sentence.
 # The Provider select is a native select on the canvas (`appearance: none`, its chevron an svg beside it) and the
 # app's FilterSelect field: the boxes, the label and the chevron are compared in the table; the value the browser
 # paints inside the select, out of the DOM's reach, is compared as pixels of the two boxes (`select-<check>-0`).
+IMPORT_ENTRY = replace(LIST, board="B-AccountImport", drive=open_import)
+EDIT_ENTRY = replace(LIST, board="B-AccountEdit", drive=open_edit)
+BODY, FOOT = '[role="dialog"] > div@1', '[role="dialog"] > div@2'
+# a closed drawer keeps its (empty) footer in the page: each form is found by its own drawer
+IMPORT_DRAWER, EDIT_DRAWER = "[data-testid=import-drawer] ", "[data-testid=edit-account-drawer] "
+# the forms in pixels at the drawer width (0.30 and 0.01 % measured, worst of light and dark, + 1.0 as every gate)
+IMPORT_BODY_GATE, EDIT_BODY_GATE = 1.31, 1.02
 DIALOG_CHECKS = [
-    Look("B-AccountImport", replace(LIST, board="B-AccountImport", drive=open_import), '[role="dialog"]',
-         ".el-dialog.acct-dialog", accepted=("cookie-jar-n11-11 …",), data=("The jar has no session cookie.",),
-         data_app=("The line is not a cookie jar.",), fields=True),
-    Look("B-AccountEdit", replace(LIST, board="B-AccountEdit", drive=open_edit), '[role="dialog"]',
-         ".el-dialog.acct-dialog"),
+    Look("B-AccountImport-body", IMPORT_ENTRY, BODY, IMPORT_DRAWER + ".detail-drawer__body",
+         accepted=("cookie-jar-n11-11 …",), data=("The jar has no session cookie.",),
+         data_app=("The line is not a cookie jar.",), fields=True, widen=True, same_height=True,
+         gate=IMPORT_BODY_GATE),
+    Look("B-AccountImport-footer", IMPORT_ENTRY, FOOT, IMPORT_DRAWER + ".detail-drawer__foot", widen=True,
+         fix_canvas=FOOTER_AS_DRAWER),
+    Look("B-AccountImport-footer-768", IMPORT_ENTRY, FOOT, IMPORT_DRAWER + ".detail-drawer__foot", (768, 960),
+         widen=True, fix_canvas=FOOTER_AS_DRAWER),
+    Look("B-AccountEdit-body", EDIT_ENTRY, BODY, EDIT_DRAWER + ".detail-drawer__body", widen=True,
+         same_height=True, gate=EDIT_BODY_GATE),
+    Look("B-AccountEdit-footer", EDIT_ENTRY, FOOT, EDIT_DRAWER + ".detail-drawer__foot", widen=True,
+         fix_canvas=FOOTER_AS_DRAWER),
+    Look("B-AccountEdit-footer-768", EDIT_ENTRY, FOOT, EDIT_DRAWER + ".detail-drawer__foot", (768, 960),
+         widen=True, fix_canvas=FOOTER_AS_DRAWER),
 ]
 
 
@@ -205,9 +236,13 @@ def test_accounts_matches_the_canvas_element_by_element(app, db, live, renderer,
             board_text, check.state.board, row)
         renderer.settle()
     canvas_root = _root(renderer.page, check.canvas_root)
+    if check.fix_canvas:
+        renderer.page.evaluate(check.fix_canvas, canvas_root, isolated_context=False)
     if check.widen:
         renderer.page.evaluate(WIDEN_JS, [canvas_root, mine["width"]], isolated_context=False)
         renderer.settle()
+    if check.same_height:
+        renderer.page.evaluate(HEIGHT_JS, [canvas_root, mine["height"]], isolated_context=False)
     theirs = extract(renderer.page, canvas_root)
     ref_png = _png(renderer.page, canvas_root)
     pixels = compare(diff_page, ref_png, app_png)
@@ -242,6 +277,10 @@ def test_accounts_matches_the_canvas_element_by_element(app, db, live, renderer,
         check.name, theme, len(res.differences), len(res.canvas_only), len(res.app_only), len(res.data),
         pixels.percent, pixels.aa_percent))
     assert res.failures == 0, "%s %s: %d element differences, see %s.md" % (check.name, theme, res.failures, stem)
+    if check.gate is not None:
+        got = pixels.percent + pixels.aa_percent
+        assert got <= check.gate, "%s %s: %.3f %% of the compared part differs in pixels, the gate is %.2f %%" % (
+            check.name, theme, got, check.gate)
     if check.fields:
         assert len(fields) == 1, "the Provider field against the native select: %r" % fields
         assert fields[0][0] <= SELECT_MISMATCH_PCT, "the field draws its value apart from the select: %r" % fields

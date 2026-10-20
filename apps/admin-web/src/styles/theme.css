@@ -218,7 +218,6 @@ html.dark:root {
   --el-border-radius-small: 8px;
   --el-border-radius-round: 12px;
   --el-card-border-radius: 16px;
-  --el-dialog-border-radius: 16px;
   --el-tag-border-radius: 12px;
 
   /* layers and text */
@@ -379,13 +378,11 @@ html .el-textarea.is-disabled {
 html .el-drawer {
   box-shadow: var(--rl-shadow-drawer);
 }
-html .el-dialog,
 html .el-message-box,
 html .el-message,
 html .el-popper.is-light {
   box-shadow: var(--rl-shadow-pop);
 }
-html.dark .el-dialog,
 html.dark .el-message-box {
   border: 1px solid var(--rl-line-strong);
 }
@@ -461,15 +458,8 @@ input[type="file"]::file-selector-button {
   overflow-wrap: anywhere;
 }
 
-/* Phone (below 768 px): dialogs are full-screen sheets, form labels sit on top of their field. */
+/* Phone (below 768 px): form labels sit on top of their field. */
 @media (max-width: 767px) {
-  .el-dialog {
-    --el-dialog-width: 100vw;
-    width: 100vw !important;
-    min-height: 100dvh;
-    margin: 0 !important;
-    border-radius: 0;
-  }
   .el-form-item {
     display: block;
   }

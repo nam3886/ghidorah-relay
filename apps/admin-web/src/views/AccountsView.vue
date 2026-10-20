@@ -40,6 +40,7 @@ import { loadFailedText } from "@/components/jobs/job-text";
 import { IconAlertCircle, IconPlus } from "@/components/shared/icons";
 import ListPager from "@/components/shared/ListPager.vue";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { useRouteLeaveGuard } from "@/components/shared/use-leave-guard";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useBusy } from "@/composables/use-busy";
 import { useCommandPoll } from "@/composables/use-command-poll";
@@ -56,6 +57,8 @@ const scope = useScopeStore();
 const stats = useStatsStore();
 const { isPhone, isTablet } = useBreakpoint();
 const { busy, run } = useBusy();
+// the Edit drawer's own write (the wait for a proxy check and the patch): only this makes its close paths inert
+const { busy: saving, run: runSave } = useBusy();
 // Check all and Refresh catalog poll for a long time: each locks only its own entry, as the other actions stay usable.
 const { busy: checkingAll, run: runCheckAll } = useBusy();
 const { busy: readingCatalogs, run: runReadCatalogs } = useBusy();
@@ -87,6 +90,15 @@ const editOpen = ref(false);
 const editingId = ref<string | null>(null);
 const editing = computed(() => items.value.find((a) => a.id === editingId.value) ?? null);
 const confirming = ref(false);
+// something typed in an open drawer that a leave of the page would lose
+const importDirty = ref(false);
+const editDirty = ref(false);
+// an import under way: its answer lists the rejected lines and must still be seen
+const importBusy = ref(false);
+useRouteLeaveGuard(
+  () => (importOpen.value && importDirty.value) || (editOpen.value && editDirty.value),
+  () => importBusy.value || saving.value,
+);
 // A dialog or a confirm box in front of the list: the auto-refresh leaves the list alone.
 const dialogOpen = computed(() => importOpen.value || editOpen.value || confirming.value);
 
@@ -254,7 +266,28 @@ const remove = (a: Account) =>
     if (ok) await run(() => queue(deleteAccount(a.id), "Delete"));
   });
 
+// The drawer is gone and Element Plus has sent focus back to the control that opened it. The list reads itself again,
+// so that control (a row menu item) may no longer exist: then focus goes to the primary button of the page, else to
+// its scroll area, so it is never left on the document.
+let opener: HTMLElement | null = null;
+const rememberOpener = (): void => {
+  opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+};
+function drawerClosed(): void {
+  // a menu item is hidden, not removed, when its menu closes: it counts only while it can be seen
+  if (opener?.isConnected && opener !== document.body && opener.getClientRects().length) return;
+  const primary = document.querySelector<HTMLButtonElement>(".accounts-view button.primary");
+  if (primary && !primary.disabled) primary.focus();
+  else document.querySelector<HTMLElement>(".app-scroll__wrap")?.focus({ preventScroll: true });
+}
+
+function openImport() {
+  rememberOpener();
+  importOpen.value = true;
+}
+
 function openEdit(a: Account) {
+  rememberOpener();
   editingId.value = a.id;
   editOpen.value = true;
 }
@@ -262,12 +295,17 @@ function openEdit(a: Account) {
 async function saveAccount(patch: AccountPatch) {
   const a = editing.value;
   if (!a) return;
-  await run(async () => {
+  const out = await runSave(async () => {
     // a Check proxy of this account still under way ends first: its read of the list never lands after the save
     await proxyRuns.get(a.id);
-    const out = await patchAccount(a.id, patch);
+    const answer = await patchAccount(a.id, patch);
     editOpen.value = false;
     notify.success("Saved");
+    return answer;
+  });
+  if (!out) return;
+  // the drawer is gone: the proxy check the server queued and the new read of the list are the page's general work
+  await run(async () => {
     if (out.command_id) await poll(out.command_id, "Proxy check");
     if (!disposed) await load();
   });
@@ -350,7 +388,7 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
       :reading-catalogs="readingCatalogs"
       :check-all-chip="chips.checkAll ?? null"
       :refresh-chip="chips.refreshCatalog ?? null"
-      @import="importOpen = true"
+      @import="openImport"
       @check-all="checkEvery"
       @refresh-catalog="readCatalogs"
     />
@@ -371,9 +409,7 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
       </div>
       <div v-else-if="items.length === 0 && !skeleton" class="state-empty" data-state="empty">
         <p>No accounts yet.</p>
-        <button type="button" class="primary" @click="importOpen = true">
-          <IconPlus :size="15" :stroke="2" />Import
-        </button>
+        <button type="button" class="primary" @click="openImport"><IconPlus :size="15" :stroke="2" />Import</button>
       </div>
       <!-- the first read draws the list's own header with flat bars in its columns (the B-States loading pattern) -->
       <div v-else :class="{ 'is-refreshing': refreshing }" :data-state="skeleton ? 'loading' : 'ready'">
@@ -429,14 +465,23 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
       />
     </section>
 
-    <ImportDialog v-model="importOpen" @imported="load" />
+    <ImportDialog
+      v-model="importOpen"
+      @imported="load"
+      @update:busy="(b: boolean) => (importBusy = b)"
+      @update:dirty="(d: boolean) => (importDirty = d)"
+      @closed="drawerClosed"
+    />
     <EditDialog
       v-model="editOpen"
       :account="editing"
       :busy="busy"
+      :saving="saving"
       :proxy-chip="editing ? (chips[`proxy:${editing.id}`] ?? null) : null"
       @save="saveAccount"
       @recheck="recheck"
+      @update:dirty="(d: boolean) => (editDirty = d)"
+      @closed="drawerClosed"
     />
   </section>
 </template>

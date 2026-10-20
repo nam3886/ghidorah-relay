@@ -431,6 +431,46 @@ def test_the_range_picker_holds_two_named_inputs_a_dash_between_them_and_its_ico
     assert icon[0] >= second[2] - 0.5 and icon[2] <= box[2] + 0.5, why                # the icon at the end, inside
 
 
+LOGS_FILTER_FORM = "apps/admin-web/src/components/logs/LogsFilterForm.vue"
+CHIPS_JS = """() => {
+  const rect = (e) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
+  const form = document.querySelector('.lf');
+  return {form: rect(form), status: rect(form.querySelector('.lf__status')),
+          dates: rect(form.querySelector('.lf__date')),
+          editor: rect(form.querySelector('.lf__date .el-date-editor')),
+          select: rect(form.querySelector('.lf__status .filter-select')),
+          search: rect(form.querySelector('.lf__search'))};
+}"""
+
+
+@mutation(LOGS_FILTER_FORM, "  flex-direction: column;\n  gap: 8px;\n  padding: 0 12px;\n",
+          "  gap: 8px;\n  padding: 0 12px;\n", expect="Status spans the row")
+@mutation(RANGE_CSS, "  flex: 1;\n  width: auto;\n  min-width: 0;\n",
+          "  flex: none;\n  width: 232px;\n  min-width: 0;\n", expect="the date field fills its chip")
+@mutation(LOGS_FILTER_FORM, ".lf__status :deep(.filter-select.is-field) {\n  flex: 1;\n}",
+          ".lf__status :deep(.filter-select.is-field) {\n  flex: none;\n}",
+          expect="the Status select fills its chip")
+@pytest.mark.parametrize("width", (1440, 768, 390))
+def test_on_a_phone_the_status_chip_and_the_dates_chip_each_take_a_full_width_row(app, app_session, width):
+    page = app_session
+    page.set_viewport_size({"width": width, "height": 844})
+    open_tab(page, "Request logs")
+    expect(page.get_by_label("From", exact=True)).to_have_count(1)
+    got = page.evaluate(CHIPS_JS, isolated_context=False)
+    status, dates = got["status"], got["dates"]
+    why = "filter rows at %d: %r" % (width, got)
+    if width > 390:
+        assert abs(status[1] - dates[1]) < 40 and status[2] <= dates[0] + 0.5, "side by side above a phone: " + why
+        return
+    left, right = got["form"][0] + 12, got["form"][2] - 12
+    assert abs(status[0] - left) < 0.5 and abs(status[2] - right) < 0.5, "Status spans the row: " + why
+    assert abs(dates[0] - left) < 0.5 and abs(dates[2] - right) < 0.5, "Dates spans the row: " + why
+    assert status[3] <= dates[1] and abs(dates[1] - status[3] - 8) < 0.5, "Dates is the next row, 8 px under: " + why
+    assert abs(got["select"][2] - (status[2] - 7)) <= 1, "the Status select fills its chip: " + why
+    assert dates[2] - got["editor"][2] < 12, "the date field fills its chip: " + why
+    assert got["search"][3] < status[1], "the search is above both: " + why
+
+
 def test_log_text_with_markup_is_shown_as_text(app, app_session, db):
     page = app_session
     k = new_key(db)
@@ -487,6 +527,34 @@ def choose(page, label, option):
     expect(field).to_contain_text(option)
 
 
+def open_group(page, text):
+    """Open a group's detail drawer by its title button."""
+    group_row(page, text).get_by_role("button", name=re.compile(r"^Details of")).click()
+    drawer = page.get_by_test_id("alert-detail")
+    expect(drawer).to_be_visible()
+    # the drawer opens at once with a loading body: wait for the group itself
+    expect(drawer.locator("#alertDetail")).to_be_visible()
+
+
+def close_detail(page):
+    drawer = page.get_by_test_id("alert-detail")
+    drawer.get_by_role("button", name="Close").click()
+    expect(drawer).to_be_hidden()
+
+
+# Watches the page for the two drawers' bodies at once (a body exists from the drawer's opening until it has left).
+OVERLAP_WATCH_JS = """() => {
+  window.__overlap = false;
+  window.__jobOpened = false;
+  new MutationObserver(() => {
+    const alert = document.querySelector('[data-testid="alert-detail"] .detail-drawer__body');
+    const job = document.querySelector('[data-testid="job-drawer"] .detail-drawer__body');
+    if (job) window.__jobOpened = true;
+    if (alert && job) window.__overlap = true;
+  }).observe(document.body, {childList: true, subtree: true});
+}"""
+
+
 def alerts_page(page, db):
     keys = alerts_planted(db)
     open_tab(page, "Alerts")
@@ -530,16 +598,24 @@ def test_the_detail_shows_outcomes_and_opens_a_job_and_acknowledge_sends_what_it
     hostile, plain = group_of(HOSTILE_REPLY), group_of(PLAIN_REPLY)
     posted = []
     page.on("request", lambda r: posted.append(r) if r.method == "POST" and "/acknowledge" in r.url else None)
-    group_row(page, "which style?").get_by_role("button", name="Details").click()
+    open_group(page, "which style?")
     detail = page.get_by_test_id("alert-detail")
     expect(page.get_by_test_id("alert-detail-title")).to_contain_text("<img src=x")
     expect(page.get_by_test_id("alert-outcomes")).to_contain_text(
         "1 delivered after the reply, 1 refunded, 1 still open.")
     expect(detail.locator("tbody tr")).to_have_count(3)
     assert_hostile_wording_is_text(page)
+    page.evaluate(OVERLAP_WATCH_JS, isolated_context=False)
     detail.locator("tbody tr", has_text="render.deadline").get_by_role("button").click()
-    expect(page.get_by_role("dialog")).to_be_visible()
+    # the job opens in its own drawer and this one goes first: never two at once, not even while this one leaves
+    expect(detail).to_be_hidden()
+    expect(page.get_by_role("dialog")).to_have_count(1)
+    assert page.evaluate("window.__jobOpened", isolated_context=False), "the job drawer never opened"
+    assert not page.evaluate("window.__overlap", isolated_context=False), \
+        "the job drawer opened while the alert drawer was still on the screen"
     page.get_by_role("dialog").get_by_role("button", name="Close").first.click()
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    open_group(page, "which style?")
     # acknowledge from the detail sends the newest row it showed; a row that arrives later keeps the group open
     seen = max(alert_rows(db, hostile))
     late = plant_unclear(db, k1, HOSTILE_REPLY)
@@ -550,17 +626,150 @@ def test_the_detail_shows_outcomes_and_opens_a_job_and_acknowledge_sends_what_it
         "a row that arrived after the page loaded must leave the group open"
     expect(detail.locator("tbody tr")).to_have_count(4)
     # the empty wording is an API read failure; a billing group lists its rows; an acknowledge from the list
-    group_row(page, "API read failure").get_by_role("button", name="Details").click()
+    close_detail(page)
+    open_group(page, "API read failure")
     expect(page.get_by_test_id("alert-read-failure")).to_be_visible()
-    group_row(page, "clamp").get_by_role("button", name="Details").click()
+    close_detail(page)
+    open_group(page, "clamp")
     expect(detail.locator("tbody tr")).to_have_count(1)
-    detail.get_by_role("button", name="Close").click()
-    expect(detail).to_have_count(0)
+    close_detail(page)
     group_row(page, "plain wording").get_by_role("button", name="Acknowledge").click()
     expect(groups(page)).to_have_count(4)
     assert posted[1].post_data_json == {"through_id": max(alert_rows(db, plain))}
+    assert len(posted) == 2, "one write for the drawer's Acknowledge and one for the row's"
     # the Alerts tab counts the open groups (the banner is on Jobs only)
     expect(page.get_by_role("tab", name=re.compile(r"^Alerts")).first).to_contain_text("4")
+
+
+def test_the_title_button_a_row_click_and_enter_open_the_drawer_and_focus_comes_back(app, app_session, db):
+    page = app_session
+    alerts_page(page, db)
+    drawer = page.get_by_test_id("alert-detail")
+    title = group_row(page, "plain wording").get_by_role("button", name=re.compile(r"^Details of"))
+    # the keyboard: Enter on the title, Escape, and focus is back on that very button
+    title.focus()
+    page.keyboard.press("Enter")
+    expect(drawer).to_be_visible()
+    expect(page.get_by_role("dialog")).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(drawer).to_be_hidden()
+    expect(title).to_be_focused()
+    # a click beside the buttons of the row: nothing had focus, so focus falls to the page's scroll area
+    group_row(page, "plain wording").locator(".g-kind").click()
+    expect(drawer).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(drawer).to_be_hidden()
+    expect(page.get_by_role("region", name="Page content")).to_be_focused()
+    # a click on the row's own Acknowledge opens nothing
+    page.route(re.compile(r"/acknowledge$"), lambda r: r.fulfill(
+        status=200, content_type="application/json", body='{"acknowledged": 1}'))
+    group_row(page, "plain wording").get_by_role("button", name="Acknowledge").click()
+    expect(page.get_by_text("Acknowledged 1 row(s)")).to_be_visible()
+    expect(drawer).to_be_hidden()
+
+
+def test_after_an_acknowledge_empties_the_open_list_closing_the_drawer_puts_focus_on_the_scroll_area(
+        app, app_session, db):
+    page = app_session
+    alerts_page(page, db)
+    drawer = page.get_by_test_id("alert-detail")
+    title = group_row(page, "plain wording").get_by_role("button", name=re.compile(r"^Details of"))
+    title.focus()
+    page.keyboard.press("Enter")
+    expect(drawer.locator("#alertDetail")).to_be_visible()
+    drawer.get_by_role("button", name="Acknowledge").click()
+    # the Open filter drops the group: its row, and the button that opened the drawer, are gone
+    expect(groups(page)).to_have_count(4)
+    expect(drawer.get_by_role("button", name="Acknowledge")).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(drawer).to_be_hidden()
+    expect(page.get_by_role("region", name="Page content")).to_be_focused()
+
+
+def test_the_space_key_on_the_title_button_opens_the_drawer(app, app_session, db):
+    page = app_session
+    page.set_viewport_size({"width": 768, "height": 1024})
+    alerts_page(page, db)
+    drawer = page.get_by_test_id("alert-detail")
+    title = group_row(page, "plain wording").get_by_role("button", name=re.compile(r"^Details of"))
+    title.focus()
+    page.keyboard.press("Space")
+    expect(drawer).to_be_visible()
+    expect(drawer.locator("#alertDetail")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(drawer).to_be_hidden()
+    expect(title).to_be_focused()
+
+
+def test_the_drawer_ignores_every_way_out_while_an_acknowledge_runs(app, app_session, db):
+    page = app_session
+    alerts_page(page, db)
+    held = []
+    page.route(re.compile(r"/acknowledge$"), lambda r: held.append(r))
+    open_group(page, "plain wording")
+    drawer = page.get_by_test_id("alert-detail")
+    drawer.get_by_role("button", name="Acknowledge").click()
+    for _ in range(100):
+        if held:
+            break
+        page.wait_for_timeout(20)
+    assert held, "the acknowledge was not sent"
+    page.keyboard.press("Escape")
+    drawer.get_by_role("button", name="Close").click(force=True)    # inert (or natively disabled) while it writes
+    page.mouse.click(5, 300)                                            # the scrim
+    page.wait_for_timeout(500)
+    expect(drawer).to_be_visible()
+    held[0].fulfill(status=200, content_type="application/json", body='{"acknowledged": 1}')
+    expect(page.get_by_text("Acknowledged 1 row(s)")).to_be_visible()
+    page.mouse.click(5, 300)                                            # idle again: the scrim closes it
+    expect(drawer).to_be_hidden()
+
+
+def test_on_a_phone_the_filter_chips_sit_one_per_row_at_full_width(app, app_session, db):
+    page = app_session
+    page.set_viewport_size({"width": 390, "height": 844})
+    alerts_page(page, db)
+    card = page.locator('section[aria-label="Alert groups"]')
+    chip = "xpath=ancestor::*[contains(@class, 'is-chip')][1]"
+    status = card.get_by_role("combobox", name="Status", exact=True).locator(chip)
+    kind = card.get_by_role("combobox", name="Kind", exact=True).locator(chip)
+    box, a, b = card.bounding_box(), status.bounding_box(), kind.bounding_box()
+    # 12 px of the toolbar's padding on each side of the card (1 px border)
+    for each in (a, b):
+        assert abs(each["x"] - (box["x"] + 13)) <= 1 and abs(each["width"] - (box["width"] - 26)) <= 1, (each, box)
+    assert b["y"] >= a["y"] + a["height"], "the Kind chip is not under the Status chip"
+    assert abs(b["x"] - a["x"]) <= 1
+
+
+def test_a_detail_that_cannot_be_read_keeps_the_drawer_open_with_the_error_inside(app, app_session, db):
+    page = app_session
+    alerts_page(page, db)
+    page.route(re.compile(r"/admin/alerts/groups/[^?]+\?"), lambda r: r.fulfill(
+        status=500, content_type="application/json",
+        body='{"error": {"code": "server.error", "message": "the group could not be read"}}'))
+    group_row(page, "plain wording").get_by_role("button", name=re.compile(r"^Details of")).click()
+    drawer = page.get_by_test_id("alert-detail")
+    expect(drawer.get_by_role("alert")).to_contain_text("the group could not be read")
+    expect(groups(page)).to_have_count(5)
+    close_detail(page)
+
+
+@pytest.mark.parametrize("width, height", [(1440, 900), (768, 1024), (390, 844)])
+def test_the_detail_drawer_works_from_the_keyboard_at_every_width(app, app_session, db, width, height):
+    page = app_session
+    page.set_viewport_size({"width": width, "height": height})
+    alerts_page(page, db)
+    drawer = page.get_by_test_id("alert-detail")
+    page.get_by_role("button", name=re.compile(r"^Details of")).first.focus()
+    page.keyboard.press("Enter")
+    expect(drawer).to_be_visible()
+    expect(drawer.get_by_role("button", name="Acknowledge")).to_be_visible()
+    if width < 768:
+        drawer.get_by_role("button", name="Back to Alerts").click()
+    else:
+        page.keyboard.press("Escape")
+    expect(drawer).to_be_hidden()
+    assert sideways(page) <= 1, "the page scrolls sideways"
 
 
 def test_a_slow_answer_for_an_older_view_does_not_replace_the_newer_one(app, app_session, db):

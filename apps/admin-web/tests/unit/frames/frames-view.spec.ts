@@ -1,9 +1,11 @@
-import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
+import { DOMWrapper, flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/api/client";
 import * as api from "@/api/frames";
 import * as shell from "@/api/shell";
+import * as confirm from "@/components/shared/confirm-dialog";
+import { useRouteLeaveGuard } from "@/components/shared/use-leave-guard";
 import { forgetFramesMemory } from "@/components/frames/use-frames";
 import HintTip from "@/components/shared/HintTip.vue";
 import FramesView from "@/views/FramesView.vue";
@@ -11,24 +13,37 @@ import { deferred, frameInfo, framesList, version } from "./fixtures";
 
 vi.mock("@/api/frames");
 vi.mock("@/api/shell", () => ({ getModels: vi.fn() }));
+vi.mock("@/components/shared/confirm-dialog", () => ({ confirmDialog: vi.fn() }));
+vi.mock("@/components/shared/use-leave-guard", async (original) => ({
+  ...(await original<typeof import("@/components/shared/use-leave-guard")>()),
+  useRouteLeaveGuard: vi.fn(),
+}));
 vi.mock("@/lib/notify", () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 // The text of a hostile frame: if it ever became markup, the image would run its handler.
 const PLANTED = "<img src=x onerror=window.__pwned=1><b>planted</b>";
 
 let wrapper: VueWrapper | null = null;
-async function open() {
+// `leaves`: the drawer's own leave transition runs (stubbed to nothing by default), and `closed` follows it
+async function open(leaves = false) {
   setActivePinia(createPinia());
-  wrapper = mount(FramesView, { global: { plugins: [] }, attachTo: document.body });
+  wrapper = mount(FramesView, {
+    global: { plugins: [], stubs: leaves ? { transition: false } : {} },
+    attachTo: document.body,
+  });
   await flushPromises();
   return wrapper;
 }
+// the editor is a drawer teleported to <body>: the whole page is looked at, not only the view's own root
+const page = () => new DOMWrapper(document.body);
 const buttons = (name: string) =>
-  wrapper!.findAll("button").filter((b) => b.text() === name || b.attributes("aria-label") === name);
+  page()
+    .findAll("button")
+    .filter((b) => b.text() === name || b.attributes("aria-label") === name);
 const button = (name: string) => buttons(name)[0]!;
-const textarea = () => wrapper!.find("textarea");
+const textarea = () => page().find("textarea");
 // the drawn select: a combobox button named by its label word
-const providerSelect = () => wrapper!.find('button[role="combobox"]');
+const providerSelect = () => page().find('button[role="combobox"]');
 
 beforeEach(() => {
   forgetFramesMemory();
@@ -61,18 +76,22 @@ describe("the lock history note", () => {
   it("a model with a lock history has the History heading as a focusable note with the whole history; one without has none", async () => {
     vi.mocked(api.getFrame).mockImplementation(async () => frameInfo("own1", { lock_history: [lock(true)] }));
     await open();
-    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
-    const heading = wrapper!.findAll("h3").find((h) => h.text() === "History")!;
+    const heading = page()
+      .findAll("h3")
+      .find((h) => h.text() === "History")!;
     const tip = heading.findComponent(HintTip);
     expect(tip.exists()).toBe(true);
     expect(tip.props("text")).toMatch(/^Lock history: locked by owner /);
     expect(tip.find("span").attributes("tabindex")).toBe("0");
     expect(heading.attributes("title")).toBeUndefined();
     vi.mocked(api.getFrame).mockImplementation(async () => frameInfo("own1", { lock_history: [] }));
-    await wrapper!.find('button[aria-label="Edit frame for m2"]').trigger("click");
+    await page().find('button[aria-label="Edit frame for m2"]').trigger("click");
     await flushPromises();
-    const plain = wrapper!.findAll("h3").find((h) => h.text() === "History")!;
+    const plain = page()
+      .findAll("h3")
+      .find((h) => h.text() === "History")!;
     expect(plain.findComponent(HintTip).exists()).toBe(false);
   });
 });
@@ -80,7 +99,7 @@ describe("the lock history note", () => {
 describe("the view", () => {
   it("draws a section per kind with the default line, the shipped-differs flag and the model table", async () => {
     await open();
-    const sections = wrapper!.findAll("[data-frame-kind]");
+    const sections = page().findAll("[data-frame-kind]");
     expect(sections.map((s) => s.attributes("data-frame-kind"))).toEqual(["video", "image"]);
     const video = sections[0]!;
     expect(video.text()).toContain("Default: v1");
@@ -94,7 +113,8 @@ describe("the view", () => {
     expect(sections[1]!.text()).toContain("Default: no version");
     expect(sections[1]!.text()).toContain("No models");
     expect(sections[1]!.text()).not.toContain("Reset to the shipped default");
-    expect(wrapper!.text()).toContain("Pick a model or a default to edit its frame.");
+    expect(page().text()).not.toContain("Pick a model or a default");
+    expect(page().find(".frame-editor").exists()).toBe(false);
   });
 
   it("draws video before image whatever order the server lists them in", async () => {
@@ -103,10 +123,11 @@ describe("the view", () => {
       return { ...list, kinds: [...list.kinds].reverse() };
     });
     await open();
-    expect(wrapper!.findAll("[data-frame-kind]").map((s) => s.attributes("data-frame-kind"))).toEqual([
-      "video",
-      "image",
-    ]);
+    expect(
+      page()
+        .findAll("[data-frame-kind]")
+        .map((s) => s.attributes("data-frame-kind")),
+    ).toEqual(["video", "image"]);
   });
 
   it("says a provider without frames has none: the core frame applies", async () => {
@@ -114,16 +135,16 @@ describe("the view", () => {
       new ApiError(404, { error: { code: "resource.not_found", message: "x" } }),
     );
     await open();
-    expect(wrapper!.text()).toContain("This provider has no prompt frames: the core frame applies.");
-    expect(wrapper!.findAll("[data-frame-kind]")).toHaveLength(0);
+    expect(page().text()).toContain("This provider has no prompt frames: the core frame applies.");
+    expect(page().findAll("[data-frame-kind]")).toHaveLength(0);
   });
 
   it("opens the editor of a model: help text, Follow only for an own frame, no Apply to all", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
-    const editor = wrapper!.find(".frame-editor");
-    expect(editor.find("h2").text()).toBe("Editing video / m1");
+    const editor = page().find(".frame-editor");
+    expect(page().find(".detail-drawer__title").text()).toBe("Editing video / m1");
     expect(editor.text()).toContain("{{client_prompt}}");
     expect(editor.text()).toContain("{{tracking_code}}");
     expect(editor.text()).toContain("at most 1,000 characters");
@@ -149,19 +170,19 @@ describe("the view", () => {
       return list;
     });
     await open();
-    const cell = wrapper!.find('input[aria-label="Keep own frame of m1"]').element.closest("td")!;
+    const cell = page().find('input[aria-label="Keep own frame of m1"]').element.closest("td")!;
     expect(cell.textContent).toContain("Keep own");
     expect(cell.textContent).toContain("locked 14/10 by admin");
-    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     expect(textarea().attributes("placeholder")).toBe("{{client_prompt}} ... {{tracking_code}}");
   });
 
   it("a model that follows the default has the note, no Follow button, and the default's text in the box", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit frame for m2"]').trigger("click");
+    await page().find('button[aria-label="Edit frame for m2"]').trigger("click");
     await flushPromises();
-    expect(wrapper!.find(".frame-editor").text()).toContain("This model follows the default.");
+    expect(page().find(".frame-editor").text()).toContain("This model follows the default.");
     expect(buttons("Follow the default")).toHaveLength(0);
     expect(textarea().element.value).toBe("effective text");
   });
@@ -170,14 +191,14 @@ describe("the view", () => {
     await open();
     await button("Edit the default").trigger("click");
     await flushPromises();
-    expect(wrapper!.find(".frame-editor h2").text()).toBe("Editing video / default");
+    expect(page().find(".detail-drawer__title").text()).toBe("Editing video / default");
     expect(buttons("Apply to all models of this kind")).toHaveLength(1);
     expect(buttons("Follow the default")).toHaveLength(0);
   });
 
   it("Save is disabled until the draft differs from the loaded text", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     expect(button("Save").attributes("disabled")).toBeDefined();
     await textarea().setValue("own1 changed");
@@ -188,7 +209,7 @@ describe("the view", () => {
 
   it("shows a refused save beside the editor as an alert with the field", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     await textarea().setValue("no placeholders");
     vi.mocked(api.putFrame).mockRejectedValue(
@@ -198,7 +219,7 @@ describe("the view", () => {
     );
     await button("Save").trigger("click");
     await flushPromises();
-    const alert = wrapper!.find('.frame-editor [role="alert"]');
+    const alert = page().find('.frame-editor [role="alert"]');
     expect(alert.text()).toBe("the frame needs the customer prompt (text)");
     expect(textarea().element.value).toBe("no placeholders");
     // drawn as a field error: the box it is about is marked invalid and described by it
@@ -209,7 +230,7 @@ describe("the view", () => {
 
   it("marks no box invalid while nothing was refused", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     expect(textarea().attributes("aria-invalid")).toBeUndefined();
     expect(textarea().attributes("aria-describedby")).toBeUndefined();
@@ -218,12 +239,16 @@ describe("the view", () => {
 
   it("titles each kind's section as drawn: Video, Image", async () => {
     await open();
-    expect(wrapper!.findAll("section[data-frame-kind] h2").map((h) => h.text())).toEqual(["Video", "Image"]);
+    expect(
+      page()
+        .findAll("section[data-frame-kind] h2")
+        .map((h) => h.text()),
+    ).toEqual(["Video", "Image"]);
   });
 
   it("shows save warnings, the preview and the history as text", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     await textarea().setValue("changed");
     vi.mocked(api.putFrame).mockResolvedValue({
@@ -234,7 +259,7 @@ describe("the view", () => {
     vi.mocked(api.getFrame).mockResolvedValue(frameInfo("changed"));
     await button("Save").trigger("click");
     await flushPromises();
-    expect(wrapper!.find('[data-testid="frame-warnings"]').text()).toBe("No tracking code.");
+    expect(page().find('[data-testid="frame-warnings"]').text()).toBe("No tracking code.");
     vi.mocked(api.previewFrame).mockResolvedValue({
       text: "RENDERED",
       length: 8,
@@ -244,20 +269,21 @@ describe("the view", () => {
     });
     await button("Preview").trigger("click");
     await flushPromises();
-    expect(wrapper!.find('[data-testid="frame-preview"]').text()).toBe("RENDERED");
-    expect(wrapper!.text()).toContain("8 characters");
+    expect(page().find('[data-testid="frame-preview"]').text()).toBe("RENDERED");
+    expect(page().text()).toContain("8 characters");
     // the note is a HintTip (focusable, on the menu surface), not a native title
     const hints = wrapper!.findAllComponents(HintTip);
     expect(hints.map((h) => h.props("text"))).toContain("Shown with the sample tracking code (draft frame).");
     expect(
-      wrapper!.find('[data-testid="frame-preview"]').element.previousElementSibling!.querySelector("[title]"),
+      page().find('[data-testid="frame-preview"]').element.previousElementSibling!.querySelector("[title]"),
     ).toBeNull();
-    expect(wrapper!.findAll('[data-testid="frame-history"] li')).toHaveLength(2);
+    expect(page().findAll('[data-testid="frame-history"] li')).toHaveLength(2);
     // the history runs newest first
-    expect(wrapper!.findAll('[data-testid="frame-history"] li').map((li) => li.attributes("data-version"))).toEqual([
-      "5",
-      "4",
-    ]);
+    expect(
+      page()
+        .findAll('[data-testid="frame-history"] li')
+        .map((li) => li.attributes("data-version")),
+    ).toEqual(["5", "4"]);
   });
 
   it("frame text with markup is text: in the box, the history, the preview and the warnings", async () => {
@@ -274,32 +300,32 @@ describe("the view", () => {
       warnings: [PLANTED],
     });
     await open();
-    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     await button("Preview").trigger("click");
     await flushPromises();
     expect(textarea().element.value).toBe(PLANTED);
-    expect(wrapper!.find('[data-testid="frame-preview"]').text()).toBe(PLANTED);
-    expect(wrapper!.find('[data-testid="frame-warnings"]').text()).toBe(PLANTED);
-    expect(wrapper!.find("img").exists()).toBe(false);
-    expect(wrapper!.find("b").exists()).toBe(false);
+    expect(page().find('[data-testid="frame-preview"]').text()).toBe(PLANTED);
+    expect(page().find('[data-testid="frame-warnings"]').text()).toBe(PLANTED);
+    expect(page().find("img").exists()).toBe(false);
+    expect(page().find("b").exists()).toBe(false);
   });
 
   it("during a load: Save and the other controls are off, the box is read-only, Edit and the provider stay on", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     await textarea().setValue("typed");
     const slow = deferred<api.FrameInfo>();
     vi.mocked(api.getFrame).mockReturnValue(slow.promise);
-    await wrapper!.find('button[aria-label="Edit frame for m2"]').trigger("click");
+    await page().find('button[aria-label="Edit frame for m2"]').trigger("click");
     expect(textarea().attributes("readonly")).toBeDefined();
     expect(button("Save").attributes("disabled")).toBeDefined();
     expect(button("Follow the default").attributes("disabled")).toBeDefined();
     expect(button("Preview").attributes("disabled")).toBeDefined();
     expect(button("Reset to the shipped default").attributes("disabled")).toBeDefined();
-    expect(wrapper!.find('input[type="checkbox"]').attributes("disabled")).toBeDefined();
-    expect(wrapper!.find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeUndefined();
+    expect(page().find('input[type="checkbox"]').attributes("disabled")).toBeDefined();
+    expect(page().find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeUndefined();
     expect(button("Edit the default").attributes("disabled")).toBeUndefined();
     expect(providerSelect().attributes("disabled")).toBeUndefined();
     slow.resolve(frameInfo(null));
@@ -309,18 +335,234 @@ describe("the view", () => {
 
   it("during a write: everything is off, Edit buttons and the provider select too", async () => {
     await open();
-    await wrapper!.find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
     await textarea().setValue("typed");
     const slow = deferred<api.SavedFrame>();
     vi.mocked(api.putFrame).mockReturnValue(slow.promise);
     await button("Save").trigger("click");
     expect(textarea().attributes("readonly")).toBeDefined();
-    expect(wrapper!.find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeDefined();
+    expect(page().find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeDefined();
     expect(button("Edit the default").attributes("disabled")).toBeDefined();
     expect(providerSelect().attributes("disabled")).toBeDefined();
     slow.resolve({ version: version(9, "typed"), unchanged: false, warnings: [] });
     await flushPromises();
-    expect(wrapper!.find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeUndefined();
+    expect(page().find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeUndefined();
+  });
+});
+
+describe("the editor drawer", () => {
+  const drawer = () => wrapper!.findComponent({ name: "ElDrawer" });
+  const edit = async (model = "m1") => {
+    await page().find(`button[aria-label="Edit frame for ${model}"]`).trigger("click");
+    await flushPromises();
+  };
+
+  it("opens with no drawer, even when the last visit left an editor open", async () => {
+    await open();
+    await edit();
+    expect(drawer().props("modelValue")).toBe(true);
+    wrapper!.unmount();
+    document.body.replaceChildren();
+    await open();
+    expect(drawer().props("modelValue")).toBe(false);
+    expect(page().find(".frame-editor").exists()).toBe(false);
+    // the provider that was chosen stays
+    expect(providerSelect().text()).toContain("flow");
+  });
+
+  it("a row's Edit and Edit the default each open it, named by its heading", async () => {
+    await open();
+    await edit("m2");
+    const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(document.getElementById(dialog.getAttribute("aria-labelledby")!)?.textContent).toBe("Editing video / m2");
+    await button("Edit the default").trigger("click");
+    await flushPromises();
+    expect(page().find(".detail-drawer__title").text()).toBe("Editing video / default");
+  });
+
+  it("opens at once on Edit and says it is loading while the read runs", async () => {
+    await open();
+    const slow = deferred<api.FrameInfo>();
+    vi.mocked(api.getFrame).mockReturnValue(slow.promise);
+    await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
+    expect(drawer().props("modelValue")).toBe(true);
+    expect(page().find('[data-testid="frame-missing"]').text()).toContain("Loading");
+    expect(page().find(".frame-editor").exists()).toBe(false);
+    slow.resolve(frameInfo("own1"));
+    await flushPromises();
+    expect(page().find(".frame-editor").exists()).toBe(true);
+  });
+
+  it("holds Save, Follow, Apply to all and Preview in the footer, not in the body", async () => {
+    await open();
+    await edit();
+    const foot = page().find(".detail-drawer__foot");
+    expect(foot.findAll("button").map((b) => b.text())).toEqual(["Save", "Follow the default", "Preview"]);
+    expect(page().find(".detail-drawer__body").find("button.btn--primary").exists()).toBe(false);
+    await button("Edit the default").trigger("click");
+    await flushPromises();
+    expect(
+      page()
+        .find(".detail-drawer__foot")
+        .findAll("button")
+        .map((b) => b.text()),
+    ).toEqual(["Save", "Apply to all models of this kind", "Preview"]);
+  });
+
+  // a click on the scrim acts as Escape does
+  const clickScrim = async () => {
+    const scrim = document.body.querySelector(".el-overlay.is-drawer")!;
+    for (const type of ["mousedown", "mouseup", "click"]) scrim.dispatchEvent(new MouseEvent(type, { bubbles: true }));
+    await flushPromises();
+  };
+
+  it("a click on the scrim closes a clean editor, asks over a typed draft, and does nothing during a write", async () => {
+    await open();
+    await edit();
+    await clickScrim();
+    expect(confirm.confirmDialog).not.toHaveBeenCalled();
+    expect(drawer().props("modelValue")).toBe(false);
+    await edit();
+    await textarea().setValue("typed");
+    vi.mocked(confirm.confirmDialog).mockResolvedValueOnce(false);
+    await clickScrim();
+    expect(confirm.confirmDialog).toHaveBeenCalledTimes(1);
+    expect(drawer().props("modelValue")).toBe(true);
+    expect(textarea().element.value).toBe("typed");
+    const slow = deferred<api.SavedFrame>();
+    vi.mocked(api.putFrame).mockReturnValue(slow.promise);
+    await button("Save").trigger("click");
+    await clickScrim();
+    expect(confirm.confirmDialog).toHaveBeenCalledTimes(1);
+    expect(drawer().props("modelValue")).toBe(true);
+    slow.resolve({ version: version(9, "typed"), unchanged: false, warnings: [] });
+    await flushPromises();
+  });
+
+  describe("focus after the drawer is gone", () => {
+    const scrollArea = () => {
+      const wrap = document.createElement("div");
+      wrap.className = "app-scroll__wrap";
+      wrap.tabIndex = -1;
+      document.body.append(wrap);
+      return wrap;
+    };
+    const openFrom = async () => {
+      const wrap = scrollArea();
+      await open(true);
+      const opener = document.body.querySelector<HTMLElement>('button[aria-label="Edit frame for m1"]')!;
+      opener.focus();
+      opener.click();
+      await flushPromises();
+      return { wrap, opener };
+    };
+    const closeIt = async () => {
+      document.body.querySelector<HTMLElement>('button[aria-label="Close"]')!.click();
+      await flushPromises();
+      await new Promise((ok) => setTimeout(ok, 0));
+      await flushPromises();
+    };
+
+    it("goes to the page's scroll area when the button that opened the editor is gone", async () => {
+      const { wrap, opener } = await openFrom();
+      opener.remove();
+      await closeIt();
+      expect(document.activeElement).toBe(wrap);
+    });
+
+    it("is left alone while the button that opened the editor is still on the page", async () => {
+      const { wrap, opener } = await openFrom();
+      await closeIt();
+      expect(opener.isConnected).toBe(true);
+      expect(document.activeElement).not.toBe(wrap);
+    });
+  });
+
+  it("closes at once when nothing was typed and drops the editor", async () => {
+    await open();
+    await edit();
+    await page().find('button[aria-label="Close"]').trigger("click");
+    await flushPromises();
+    expect(confirm.confirmDialog).not.toHaveBeenCalled();
+    expect(drawer().props("modelValue")).toBe(false);
+    expect(page().find(".frame-editor").exists()).toBe(false);
+  });
+
+  it("asks before it closes over a typed draft, and keeps it on Keep editing", async () => {
+    await open();
+    await edit();
+    await textarea().setValue("typed");
+    vi.mocked(confirm.confirmDialog).mockResolvedValueOnce(false);
+    await page().find('button[aria-label="Close"]').trigger("click");
+    await flushPromises();
+    expect(confirm.confirmDialog).toHaveBeenCalledTimes(1);
+    expect(drawer().props("modelValue")).toBe(true);
+    expect(textarea().element.value).toBe("typed");
+    vi.mocked(confirm.confirmDialog).mockResolvedValueOnce(true);
+    await page().find('button[aria-label="Close"]').trigger("click");
+    await flushPromises();
+    expect(drawer().props("modelValue")).toBe(false);
+  });
+
+  it("a reload that finds no such frame keeps a drawer holding a draft, and says so inside", async () => {
+    await open();
+    await edit();
+    await textarea().setValue("typed");
+    vi.mocked(api.listFrames).mockImplementation(async () => ({ ...framesList(), kinds: [] }));
+    vi.mocked(api.lockFrame).mockResolvedValue({});
+    await page().find('input[aria-label="Keep own frame of m1"]').setValue(true);
+    await flushPromises();
+    expect(drawer().props("modelValue")).toBe(true);
+    expect(page().find('[data-testid="frame-missing"]').text()).toContain("not listed any more");
+  });
+
+  it("Save keeps the drawer open and redraws its history", async () => {
+    await open();
+    await edit();
+    await textarea().setValue("changed");
+    vi.mocked(api.putFrame).mockResolvedValue({ version: version(9, "changed"), unchanged: false, warnings: [] });
+    vi.mocked(api.getFrame).mockResolvedValue({
+      current: version(9, "changed"),
+      effective: version(9, "changed"),
+      history: [version(9, "changed"), version(5, "own1"), version(4, "older")],
+    });
+    await button("Save").trigger("click");
+    await flushPromises();
+    expect(drawer().props("modelValue")).toBe(true);
+    expect(page().findAll('[data-testid="frame-history"] li')).toHaveLength(3);
+  });
+
+  it("no way out works while a write runs", async () => {
+    await open();
+    await edit();
+    await textarea().setValue("changed");
+    const slow = deferred<api.SavedFrame>();
+    vi.mocked(api.putFrame).mockReturnValue(slow.promise);
+    await button("Save").trigger("click");
+    await page().find('button[aria-label="Close"]').trigger("click");
+    await flushPromises();
+    expect(confirm.confirmDialog).not.toHaveBeenCalled();
+    expect(drawer().props("modelValue")).toBe(true);
+    slow.resolve({ version: version(9, "changed"), unchanged: false, warnings: [] });
+    await flushPromises();
+  });
+
+  it("leaving the page asks only for a typed draft in an open drawer, and is refused during a write", async () => {
+    await open();
+    const [isDirty, isBlocked] = vi.mocked(useRouteLeaveGuard).mock.calls[0]!;
+    expect(isDirty()).toBe(false);
+    await edit();
+    expect(isDirty()).toBe(false);
+    await textarea().setValue("typed");
+    expect(isDirty()).toBe(true);
+    const slow = deferred<api.SavedFrame>();
+    vi.mocked(api.putFrame).mockReturnValue(slow.promise);
+    expect(isBlocked?.()).toBe(false);
+    await button("Save").trigger("click");
+    expect(isBlocked?.()).toBe(true);
+    slow.resolve({ version: version(9, "typed"), unchanged: false, warnings: [] });
+    await flushPromises();
+    expect(isBlocked?.()).toBe(false);
   });
 });

@@ -1,109 +1,13 @@
-/* The Import and Edit dialogs. The box is teleported to <body>, so these rules are global and keyed by the
-   `acct-dialog` classes. The shared pieces (fields, buttons) carry the `acct-` prefix and are used by both dialogs. */
-html .el-dialog.acct-dialog,
-html.dark .el-dialog.acct-dialog {
-  --el-dialog-padding-primary: 0;
+/* The fields and buttons of the Import and Edit forms, which sit in the shared right drawer (DetailDrawer). The
+   shared pieces carry the `acct-` prefix and are used by both forms. The drawer is teleported to <body>, so these
+   rules are global. */
+.acct-form {
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
-  width: min(640px, 94vw);
-  margin: 56px auto 24px;
-  padding: 0;
-  border-radius: 16px;
-  background: var(--rl-surface);
-  color: var(--rl-fg);
-  font-size: 14px;
-  line-height: 20px;
-}
-/* Import has an edge outside its 640 px, as drawn (642 wide in all) */
-html .el-dialog.acct-dialog--import,
-html.dark .el-dialog.acct-dialog--import {
-  box-sizing: content-box;
-  border: 1px solid var(--rl-line);
-}
-html .el-dialog.acct-dialog--edit,
-html.dark .el-dialog.acct-dialog--edit {
-  max-height: calc(100vh - 64px);
-  margin-top: 32px;
-  margin-bottom: 32px;
-  border: 0;
-  overflow: hidden;
-}
-.acct-dialog .el-dialog__header {
-  padding: 0;
-  margin: 0;
-}
-.acct-dialog .el-dialog__body {
-  flex: 1;
-  min-height: 0;
-  padding: 0;
-  overflow-y: auto;
-  color: var(--rl-fg);
-}
-.acct-dialog .el-dialog__footer {
-  padding: 0;
-}
-.acct-dialog__head {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 20px 24px 0;
-}
-.acct-dialog--edit .acct-dialog__head {
-  align-items: center;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--rl-line);
-}
-.acct-dialog__titles {
-  flex: 1;
-  min-width: 0;
-}
-.acct-dialog__title {
-  margin: 0;
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 600;
-}
-.acct-dialog__sub {
-  margin: 2px 0 0;
-  color: var(--rl-muted);
-  font-size: 13px;
-}
-.acct-dialog__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--rl-muted);
-  cursor: pointer;
-}
-.acct-dialog__icon:hover {
-  background: var(--rl-raised);
-}
-.acct-dialog__body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 20px 24px;
-}
-.acct-dialog--edit .acct-dialog__body {
   gap: 20px;
 }
-.acct-dialog__foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 14px 24px;
-  border-top: 1px solid var(--rl-line);
-}
-.acct-dialog--edit .acct-dialog__foot {
-  padding: 16px 24px;
+.acct-form--tight {
+  gap: 16px;
 }
 
 /* fields */
@@ -126,7 +30,7 @@ html.dark .el-dialog.acct-dialog--edit {
   color: var(--rl-faint);
   font-size: 12px;
 }
-.acct-dialog--edit .acct-field__help {
+.acct-field__help--muted {
   color: var(--rl-muted);
 }
 .acct-input,
@@ -160,16 +64,16 @@ html.dark .el-dialog.acct-dialog--edit {
 /* the Provider field (FilterSelect, `block`) as B-AccountImport draws its select: the label as the other
    fields' labels, 6 px above a box at full width, 36 high like the inputs, its value in 14 px. Three classes, so these
    outrank the field's own scoped rules. */
-.acct-dialog .acct-provider.filter-field {
+.detail-drawer .acct-provider.filter-field {
   gap: 6px;
 }
-.acct-dialog .acct-provider .filter-field__label {
+.detail-drawer .acct-provider .filter-field__label {
   font-size: 13px;
   font-weight: 500;
   line-height: inherit;
   color: inherit;
 }
-.acct-dialog .acct-provider .filter-select.is-field {
+.detail-drawer .acct-provider .filter-select.is-field {
   height: 36px;
   font-size: 14px;
 }
@@ -188,7 +92,7 @@ html.dark .el-dialog.acct-dialog--edit {
   cursor: pointer;
 }
 /* Import's Cancel is a link on the canvas: its 36 px lie inside its edge (38 high) and its text line is 20 px */
-.acct-dialog--import .acct-btn:not(.acct-btn--primary) {
+.acct-btn--link {
   box-sizing: content-box;
   line-height: 20px;
 }
@@ -211,7 +115,9 @@ html.dark .el-dialog.acct-dialog--edit {
 }
 /* a secondary that waits for its command (Check proxy while it runs), as B-States draws the disabled secondary */
 .acct-btn:not(.acct-btn--primary)[aria-disabled="true"],
-.acct-btn:not(.acct-btn--primary)[aria-disabled="true"]:hover {
+.acct-btn:not(.acct-btn--primary)[aria-disabled="true"]:hover,
+.acct-btn:not(.acct-btn--primary):disabled,
+.acct-btn:not(.acct-btn--primary):disabled:hover {
   background: var(--rl-raised);
   color: var(--rl-faint);
   cursor: default;
@@ -220,58 +126,25 @@ html.dark .el-dialog.acct-dialog--edit {
   background: var(--rl-primary);
 }
 
-/* below 768 px: a full-screen sheet with a sticky footer */
+/* mixed heights in one footer row (Import: the 38 px link and the 36 px button) sit at the top, as drawn */
+.detail-drawer__foot .acct-btn {
+  align-self: flex-start;
+}
+
+/* the phone sheet: footer buttons share the row, inputs and in-form buttons are 44 px (the footer's height comes from
+   the drawer) */
 @media (max-width: 767px) {
-  html .el-dialog.acct-dialog,
-  html.dark .el-dialog.acct-dialog {
-    width: 100vw !important;
-    max-height: none;
-    min-height: 100dvh;
-    margin: 0 !important;
-    border: 0;
-    border-radius: 0;
-  }
-  .acct-dialog__head,
-  .acct-dialog--edit .acct-dialog__head {
-    align-items: center;
-    gap: 4px;
-    padding: 4px 8px 4px 4px;
-    border-bottom: 1px solid var(--rl-line);
-  }
-  .acct-dialog__title {
-    font-size: 18px;
-    line-height: 26px;
-  }
-  .acct-dialog__icon {
-    width: 44px;
-    height: 44px;
-  }
-  .acct-dialog__body {
-    padding: 16px;
-  }
-  .acct-dialog .el-dialog__footer {
-    position: sticky;
-    bottom: 0;
-    z-index: 5;
-    background: var(--rl-surface);
-  }
-  .acct-dialog__foot,
-  .acct-dialog--edit .acct-dialog__foot {
-    gap: 8px;
-    padding: 10px 16px;
-    border-top: 1px solid var(--rl-line-strong);
-  }
-  .acct-dialog__foot .acct-btn,
-  .acct-dialog--import .acct-dialog__foot .acct-btn:not(.acct-btn--primary) {
-    box-sizing: border-box;
+  .detail-drawer .detail-drawer__foot .acct-btn {
     flex: 1;
-    height: 44px;
     font-size: 14px;
     line-height: normal;
   }
+  .detail-drawer .acct-btn--link {
+    box-sizing: border-box;
+  }
   .acct-input,
-  .acct-dialog .acct-provider .filter-select.is-field,
-  .acct-dialog__body .acct-btn {
+  .detail-drawer .acct-provider .filter-select.is-field,
+  .detail-drawer__body .acct-btn {
     height: 44px;
   }
 }

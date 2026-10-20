@@ -106,8 +106,6 @@ def sideways(page) -> int:
 # Each with the overflow in px that was reviewed: the page may not grow or shrink by more than TALL_TOLERANCE_PX.
 TALL_TOLERANCE_PX = 8
 TALL_PAGES: dict[str, tuple[int, str]] = {
-    "B-AccountEdit": (219, "a dialog over the Accounts list: the rows behind the scrim run past the board's height"),
-    "B-AccountImport": (159, "a dialog over the Accounts list: the rows behind the scrim run past the board's height"),
     "B-LogDetail": (128, "a drawer over the Logs list: the rows behind the scrim run past the board's height"),
 }
 

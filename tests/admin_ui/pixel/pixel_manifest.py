@@ -93,14 +93,12 @@ LANE7 = [
 LANE7 = [replace(e, user=BOARD_USER) if e.board.endswith("-Test") else e for e in LANE7]
 
 # ---- accounts (lane 5)---------------------------------------------------------------------------------------------
-from pixel_accounts import accounts_seed, open_edit, open_import, phone_ready  # noqa: E402
+from pixel_accounts import accounts_seed, phone_ready  # noqa: E402
 
 ACCOUNTS_BOARDS = [
     Entry("B-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready, user=BOARD_USER),
     Entry("T-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready, user=BOARD_USER),
     Entry("P-Accounts", "#/accounts", seed=accounts_seed, now=NOW, drive=phone_ready, user=BOARD_USER),
-    Entry("B-AccountImport", "#/accounts", seed=accounts_seed, now=NOW, drive=open_import, user=BOARD_USER),
-    Entry("B-AccountEdit", "#/accounts", seed=accounts_seed, now=NOW, drive=open_edit, user=BOARD_USER),
 ]
 
 from pixel_kla import KLA  # noqa: E402  (lane 6: keys, request logs, alerts; imports Entry from here)
@@ -136,14 +134,28 @@ DRAWER = [
 # (gate 3.07, which was measured 2.07 + 1.0): the board changes on purpose, since the page no longer has the copy
 # buttons and draws relative bars for unlimited wallets, and the board still draws the copy buttons and no relative
 # bars, so it takes the measured value + 1.0.
+# B-AccountImport and B-AccountEdit have no entry and no gate either: Import accounts and Edit account are right drawers
+# now, not the 640 px dialogs of the boards; the boards are still drawn by the renderer but compared by element instead
+# (test_element_diff_accounts.py: each form's body at the drawer's width, with a pixel gate of its own, and the footer).
+# The Alerts boards change on purpose: the detail is a right drawer and no row is drawn selected, so they are compared
+# above the first group row only (region, pixel_kla.py), and the rows and the detail by element. Measured over that
+# region (worst of light and dark, mismatch + anti-aliasing): B 0.45, T 0.40, P 1.18, each + 1.0 (the P region stops
+# above the filters, which sit one per row on a phone where the canvas draws them side by side). The gates are higher
+# than before because the compared area is smaller (the same few pixels are a larger share of it).
+# The Frames boards were measured again after the editor became a right drawer the boards do not draw: the page now
+# opens with its list across the page and no drawer, so the boards (which draw the editor column) differ more by design
+# (B-Frames 2.98, T-Frames 2.61, P-Frames 4.83, worst of light and dark); each takes its measured value + 1.0. The
+# editor is compared by element instead (test_element_diff_frames_settings.py: its body at the drawer width with a
+# pixel gate of its own, and the footer).
+# P-Logs is compared down to the search field only (region 0 0 390 268): below it the app gives the Status chip and the
+# Dates chip a full-width row each, where the board draws one scrolling row, so the rest sits lower than on the board
+# and the element diff compares it (restacked canvas). Measured 0.00 in both themes, gate 0.00 + 1.0.
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
 # that gets better should have its gate lowered.
 GATES: dict[str, float] = {
-    "B-AccountEdit": 4.04,
-    "B-AccountImport": 4.45,
     "B-Accounts": 1.02,
-    "B-Alerts": 1.17,
-    "B-Frames": 1.17,
+    "B-Alerts": 1.45,
+    "B-Frames": 3.98,
     "B-JobDetail": 1.40,
     "B-JobFailed": 1.32,
     "B-Jobs": 1.14,
@@ -155,19 +167,19 @@ GATES: dict[str, float] = {
     "B-Settings": 1.08,
     "B-Test": 1.14,
     "P-Accounts": 1.04,
-    "P-Alerts": 1.31,
-    "P-Frames": 1.46,
+    "P-Alerts": 2.18,
+    "P-Frames": 5.83,
     "P-JobDetail": 2.23,
     "P-Jobs": 1.02,
     "P-Jobs-shell": 1.00,
     "P-Keys": 2.93,
     "P-Login": 1.16,
-    "P-Logs": 1.23,
+    "P-Logs": 1.00,
     "P-Settings": 1.25,
     "P-Test": 1.30,
     "T-Accounts": 1.03,
-    "T-Alerts": 1.07,
-    "T-Frames": 1.17,
+    "T-Alerts": 1.40,
+    "T-Frames": 3.61,
     "T-JobDetail": 1.37,
     "T-Jobs": 1.23,
     "T-Jobs-shell": 1.00,

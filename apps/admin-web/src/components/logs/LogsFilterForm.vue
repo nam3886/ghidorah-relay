@@ -195,7 +195,7 @@ function typed(): void {
   height: 36px;
 }
 
-/* phone: the search, then a row of three chips that scrolls sideways */
+/* phone: the search, then the Status chip and the Dates chip, each on its own full-width row */
 .lf--phone {
   flex-direction: column;
   flex-wrap: nowrap;
@@ -217,8 +217,12 @@ function typed(): void {
 }
 .lf--phone .lf__row {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   padding: 0 12px;
-  overflow-x: auto;
+}
+/* the select fills its chip, so its chevron sits at the chip's right edge */
+.lf--phone .lf__status :deep(.filter-select.is-field) {
+  flex: 1;
 }
 </style>

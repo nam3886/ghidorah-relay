@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef } from "vue";
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { acknowledgeGroup, type AlertDetail, type AlertGroup, getAlertGroup, listAlertGroups } from "@/api/alerts";
 import { getStats, type LiveAlert } from "@/api/shell";
 import PageHeader from "@/components/layout/PageHeader.vue";
@@ -19,6 +19,7 @@ import {
 } from "@/components/alerts/alerts-model";
 import "@/components/alerts/alert-buttons.css";
 import "@/components/logs/lane-controls.css";
+import DetailDrawer from "@/components/shared/DetailDrawer.vue";
 import DataTable from "@/components/shared/DataTable.vue";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { IconRefresh } from "@/components/shared/icons";
@@ -29,6 +30,7 @@ import { useLatest } from "@/composables/use-latest";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
 import { useStatsStore } from "@/stores/stats";
+import { useUiStore } from "@/stores/ui";
 
 // Alerts: every stored alert kind grouped by the hub API, with an acknowledge per group, and beside them the live
 // conditions the dashboard computes (no acknowledge: they clear themselves). The groups ignore the provider filter.
@@ -39,9 +41,12 @@ import { useStatsStore } from "@/stores/stats";
 // load takes the next ticket, and an answer or a failure counts only if no later load started since it was asked.
 //
 // The group list is drawn as the canvas draws it: a plain table (its columns as wide as their content, which an
-// Element Plus table cannot do) on a desktop and a tablet, a list of blocks on a phone with the open detail right
-// under its group. The loading, error and empty states are the shared table's (B-States).
+// Element Plus table cannot do) on a desktop and a tablet, a list of blocks on a phone. A group's detail opens in a
+// right drawer (a sheet on a phone): the title button, a click on the row or block, or Enter on the title opens it.
+// The drawer is shown while a detail is asked for (`asked.open`), reads while it loads and keeps the error of a read
+// that failed. The loading, error and empty states of the list are the shared table's (B-States).
 const stats = useStatsStore();
+const ui = useUiStore();
 const { run } = useBusy();
 const latest = useLatest();
 const { isPhone, isTablet } = useBreakpoint();
@@ -50,6 +55,9 @@ const asked = ref<AlertAsk>({ status: "open", kind: "", open: null });
 const groups = shallowRef<AlertGroup[]>([]);
 const live = shallowRef<LiveAlert[]>([]);
 const opened = shallowRef<AlertDetail | null>(null);
+// the last detail that was read: the drawer keeps drawing it while it slides out, and never gets a null
+const shownDetail = shallowRef<AlertDetail | null>(null);
+const detailError = shallowRef<unknown>(null);
 const error = ref<string | null>(null);
 const updatedAt = ref<number | null>(null);
 const loading = ref(0);
@@ -105,18 +113,18 @@ async function read(at: AlertAsk): Promise<View> {
   return { groups: list.items, live: stat.alerts, opened: detail, detailError };
 }
 
-function draw(view: View): void {
+function draw(view: View, at: AlertAsk): void {
   groups.value = view.groups;
   live.value = view.live;
   opened.value = view.opened;
   error.value = null;
   updatedAt.value = Date.now();
-  if (view.detailError) {
-    // the detail could not be read: leave it closed, so the list is whole and there is nothing to be stuck on
-    asked.value = { ...asked.value, open: null };
-    notify.error(errorText(view.detailError));
-  }
+  // the close's own reload asks for no group: it must not wipe the error of a drawer that is leaving
+  if (at.open) detailError.value = view.detailError;
 }
+watch(opened, (d) => {
+  if (d) shownDetail.value = d;
+});
 
 // Throws the failure of the newest load; a dropped (stale) answer or failure returns quietly.
 async function load(): Promise<void> {
@@ -130,10 +138,12 @@ async function load(): Promise<void> {
     } catch (err) {
       if (!latest.isCurrent(ticket)) return;
       error.value = loadFailedText(err, errorText(err));
+      // a drawer still waiting for its group would say "Loading" for ever: it says what failed
+      if (at.open && !shownDetail.value) detailError.value = err;
       throw err;
     }
     if (!latest.isCurrent(ticket)) return;
-    draw(view);
+    draw(view, at);
   } finally {
     loading.value--;
   }
@@ -174,12 +184,19 @@ const rowClass = ({ row }: { row: GroupRow }): string =>
 const listState = computed(() =>
   error.value ? "error" : groups.value.length ? (loading.value > 0 ? "refreshing" : "ready") : "other",
 );
-// The phone list breaks after the opened group: its detail region sits between it and the next group, as drawn.
-const openedAt = computed(() => (opened.value ? groupRows.value.findIndex((g) => isOpened(g)) : -1));
-const phoneHead = computed(() => (openedAt.value < 0 ? groupRows.value : groupRows.value.slice(0, openedAt.value + 1)));
-const phoneTail = computed(() => (openedAt.value < 0 ? [] : groupRows.value.slice(openedAt.value + 1)));
+
+// the opener: where focus goes back when the drawer is gone; if it is not there any more (a click on a row, no
+// button had focus) focus goes to the page's scroll area, never left on the document
+let opener: HTMLElement | null = null;
+// the job a click in the detail asked for, opened once the detail has left
+let pendingJob: string | null = null;
 
 function openGroup(g: AlertGroup) {
+  if (writing.value) return;
+  opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  shownDetail.value = null;
+  detailError.value = null;
+  pendingJob = null;
   asked.value = { ...asked.value, open: { kind: g.kind, group: g.group } };
   void reload();
 }
@@ -190,6 +207,39 @@ function closeDetail() {
   opened.value = null;
   void reload();
 }
+
+// the detail is gone; a group opened again meanwhile keeps what it has
+function detailClosed(): void {
+  if (asked.value.open) return;
+  shownDetail.value = null;
+  detailError.value = null;
+  // a job asked for from the detail opens now, once this drawer has left the screen
+  if (pendingJob) {
+    const id = pendingJob;
+    pendingJob = null;
+    ui.openJob(id);
+    return;
+  }
+  if (ui.openJobId) return;
+  if (opener?.isConnected && opener !== document.body) return;
+  document.querySelector<HTMLElement>(".app-scroll__wrap")?.focus({ preventScroll: true });
+}
+
+// a click on the row or block opens it, unless the click was on a button or a link of its own
+function rowClick(event: MouseEvent, g: AlertGroup): void {
+  if ((event.target as HTMLElement | null)?.closest("button, a")) return;
+  openGroup(g);
+}
+
+// a job opens in its own drawer: this one closes first and the job opens when it is gone (`detailClosed`), so the two
+// are never on the screen together; not while a write runs (the drawer stays until it ends)
+function openJob(jobId: string): void {
+  if (writing.value) return;
+  pendingJob = jobId;
+  closeDetail();
+}
+
+const detailHeading = computed(() => (shownDetail.value ? alertTitle(shownDetail.value) : "Alert details"));
 
 // `g` is the group as it was drawn, from the list or from the open detail: its newest row is the one the operator saw.
 async function acknowledge(g: AlertGroup) {
@@ -293,13 +343,23 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
       <div v-else-if="isPhone" class="p-lists" :data-state="listState">
         <ul class="p-list">
           <li
-            v-for="g in phoneHead"
+            v-for="g in groupRows"
             :key="g.id"
             class="p-group"
             :class="{ 'a-dim': g.open_count === 0, 'is-selected': isOpened(g) }"
+            @click="rowClick($event, g)"
           >
             <StatusChip :status="g.severity" class="p-group__pill" />
-            <span class="p-group__title">{{ alertTitle(g) }}</span>
+            <button
+              type="button"
+              class="p-group__title g-open-btn"
+              aria-haspopup="dialog"
+              :disabled="writing"
+              :aria-label="`Details of ${alertTitle(g)}`"
+              @click="openGroup(g)"
+            >
+              {{ alertTitle(g) }}
+            </button>
             <span class="p-group__kind">{{ g.kind }}</span>
             <span v-if="oneCustomer(g)" class="p-group__note">{{ ONE_CUSTOMER_NOTE }}</span>
             <span class="p-group__range">first {{ alertTime(g.first_ms) }} → last {{ alertTime(g.last_ms) }}</span>
@@ -309,73 +369,8 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
               ><span class="p-group__open" :class="{ 'is-faint': g.open_count === 0 }">open {{ g.open_count }}</span
               ><span aria-hidden="true">·</span><span>keys {{ g.keys }}</span></span
             >
-            <span class="p-group__actions">
-              <button
-                type="button"
-                class="al-btn al-link p-group__btn"
-                :aria-expanded="isOpened(g)"
-                :disabled="writing"
-                :aria-label="`Details of ${alertTitle(g)}`"
-                @click="openGroup(g)"
-              >
-                Details
-              </button>
-              <button
-                v-if="g.open_count > 0"
-                type="button"
-                class="al-btn p-group__btn"
-                :disabled="locked"
-                @click="acknowledge(g)"
-              >
-                Acknowledge
-              </button>
-            </span>
-          </li>
-        </ul>
-        <AlertDetailPanel
-          v-if="opened && openedAt >= 0"
-          :detail="opened"
-          :writing="writing"
-          :locked="locked"
-          @ack="acknowledge"
-          @close="closeDetail"
-        />
-        <ul v-if="phoneTail.length" class="p-list">
-          <li
-            v-for="g in phoneTail"
-            :key="g.id"
-            class="p-group"
-            :class="{ 'a-dim': g.open_count === 0, 'is-selected': isOpened(g) }"
-          >
-            <StatusChip :status="g.severity" class="p-group__pill" />
-            <span class="p-group__title">{{ alertTitle(g) }}</span>
-            <span class="p-group__kind">{{ g.kind }}</span>
-            <span v-if="oneCustomer(g)" class="p-group__note">{{ ONE_CUSTOMER_NOTE }}</span>
-            <span class="p-group__range">first {{ alertTime(g.first_ms) }} → last {{ alertTime(g.last_ms) }}</span>
-            <span class="p-group__counts"
-              ><span>rows {{ g.count }}</span
-              ><span aria-hidden="true">·</span
-              ><span class="p-group__open" :class="{ 'is-faint': g.open_count === 0 }">open {{ g.open_count }}</span
-              ><span aria-hidden="true">·</span><span>keys {{ g.keys }}</span></span
-            >
-            <span class="p-group__actions">
-              <button
-                type="button"
-                class="al-btn al-link p-group__btn"
-                :aria-expanded="isOpened(g)"
-                :disabled="writing"
-                :aria-label="`Details of ${alertTitle(g)}`"
-                @click="openGroup(g)"
-              >
-                Details
-              </button>
-              <button
-                v-if="g.open_count > 0"
-                type="button"
-                class="al-btn p-group__btn"
-                :disabled="locked"
-                @click="acknowledge(g)"
-              >
+            <span v-if="g.open_count > 0" class="p-group__actions">
+              <button type="button" class="al-btn p-group__btn" :disabled="locked" @click="acknowledge(g)">
                 Acknowledge
               </button>
             </span>
@@ -397,10 +392,25 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
           </tr>
         </thead>
         <tbody>
-          <tr v-for="g in groupRows" :key="g.id" class="g-row" :class="rowClass({ row: g })">
+          <tr
+            v-for="g in groupRows"
+            :key="g.id"
+            class="g-row"
+            :class="rowClass({ row: g })"
+            @click="rowClick($event, g)"
+          >
             <td class="g-sev"><StatusChip :status="g.severity" /></td>
             <td class="g-alert">
-              <span class="g-title">{{ alertTitle(g) }}</span>
+              <button
+                type="button"
+                class="g-title g-open-btn"
+                aria-haspopup="dialog"
+                :disabled="writing"
+                :aria-label="`Details of ${alertTitle(g)}`"
+                @click="openGroup(g)"
+              >
+                {{ alertTitle(g) }}
+              </button>
               <span class="g-kind">{{ g.kind }} · {{ g.provider }}</span>
               <span class="g-range">{{ alertTime(g.first_ms) }} → {{ alertTime(g.last_ms) }}</span>
               <span v-if="oneCustomer(g)" class="g-note">{{ ONE_CUSTOMER_NOTE }}</span>
@@ -411,15 +421,6 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
             </td>
             <td class="g-actions">
               <button
-                type="button"
-                class="al-btn al-link g-details"
-                :aria-expanded="isOpened(g)"
-                :disabled="writing"
-                :aria-label="`Details of ${alertTitle(g)}`"
-                @click="openGroup(g)"
-              >
-                Details</button
-              >&#32;<button
                 v-if="g.open_count > 0"
                 type="button"
                 class="al-btn g-ack"
@@ -450,10 +451,25 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
             </tr>
           </thead>
           <tbody>
-            <tr v-for="g in groupRows" :key="g.id" class="g-row" :class="rowClass({ row: g })">
+            <tr
+              v-for="g in groupRows"
+              :key="g.id"
+              class="g-row"
+              :class="rowClass({ row: g })"
+              @click="rowClick($event, g)"
+            >
               <td class="g-sev"><StatusChip :status="g.severity" /></td>
               <td class="g-alert">
-                <span class="g-title">{{ alertTitle(g) }}</span>
+                <button
+                  type="button"
+                  class="g-title g-open-btn"
+                  aria-haspopup="dialog"
+                  :disabled="writing"
+                  :aria-label="`Details of ${alertTitle(g)}`"
+                  @click="openGroup(g)"
+                >
+                  {{ alertTitle(g) }}
+                </button>
                 <span class="g-kind">{{ g.kind }}</span>
                 <span v-if="oneCustomer(g)" class="g-note">{{ ONE_CUSTOMER_NOTE }}</span>
               </td>
@@ -465,15 +481,6 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
               <td class="g-num">{{ g.keys }}</td>
               <td class="g-actions">
                 <button
-                  type="button"
-                  class="al-btn al-link g-details"
-                  :aria-expanded="isOpened(g)"
-                  :disabled="writing"
-                  :aria-label="`Details of ${alertTitle(g)}`"
-                  @click="openGroup(g)"
-                >
-                  Details</button
-                >&#32;<button
                   v-if="g.open_count > 0"
                   type="button"
                   class="al-btn g-ack"
@@ -492,14 +499,34 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
       </p>
     </section>
 
-    <AlertDetailPanel
-      v-if="opened && !isPhone"
-      :detail="opened"
-      :writing="writing"
-      :locked="locked"
-      @ack="acknowledge"
-      @close="closeDetail"
-    />
+    <DetailDrawer
+      :model-value="!!asked.open"
+      :title="detailHeading"
+      testid="alert-detail"
+      heading-testid="alert-detail-title"
+      back-label="Back to Alerts"
+      :busy="writing"
+      @update:model-value="(o) => !o && closeDetail()"
+      @closed="detailClosed"
+    >
+      <template v-if="shownDetail" #chips><StatusChip :status="shownDetail.severity" /></template>
+      <p v-if="detailError" class="ad-error" role="alert" data-testid="alert-detail-error">
+        {{ errorText(detailError) }}
+      </p>
+      <AlertDetailPanel v-else-if="shownDetail" :detail="shownDetail" :writing="writing" @open-job="openJob" />
+      <p v-else class="ad-loading" role="status">Loading the group…</p>
+      <template v-if="shownDetail && !detailError && shownDetail.open_count > 0" #footer>
+        <button
+          type="button"
+          class="al-primary ad-ack"
+          :class="{ 'ad-ack--sheet': isPhone }"
+          :disabled="locked"
+          @click="acknowledge(shownDetail)"
+        >
+          Acknowledge
+        </button>
+      </template>
+    </DetailDrawer>
   </section>
 </template>
 
@@ -644,11 +671,19 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   line-height: 36px;
 }
 .is-phone .gt {
+  flex-direction: column;
   flex-wrap: nowrap;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
-  overflow-x: auto;
   padding: 12px;
+}
+/* each filter chip takes a row, full width, its value at the start and its arrow at the end */
+.is-phone .gt :deep(.filter-field.is-chip) {
+  width: 100%;
+}
+.is-phone .gt :deep(.filter-field.is-chip .filter-select.is-field) {
+  flex: 1;
+  text-align: left;
 }
 .is-phone .gt__count {
   flex: none;
@@ -759,13 +794,6 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   padding: 0 16px 0 12px;
   text-align: right;
   white-space: nowrap;
-}
-.g-details {
-  display: inline-flex;
-  align-items: center;
-  height: 32px;
-  padding: 0 10px;
-  line-height: 20px;
 }
 .g-ack {
   height: 32px;
@@ -886,18 +914,52 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   height: 44px;
   font-size: 14px;
 }
-/* the canvas draws Details as a link of 44 px plus its border (46 high), Acknowledge as a 44 px button */
-.p-group__btn.al-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: content-box;
+
+/* the title is a button that opens the detail drawer; a click on the rest of a row or block does too */
+.g-open-btn {
   padding: 0;
-  border: 1px solid var(--rl-line-strong);
-  background: var(--rl-surface);
-  line-height: 20px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
 }
-.p-group__btn.al-link:hover {
-  background: var(--rl-raised);
+.g-open-btn:hover:not(:disabled) {
+  color: var(--rl-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.g-open-btn:disabled {
+  cursor: default;
+}
+.g-row,
+.p-group {
+  cursor: pointer;
+}
+.ad-ack {
+  height: 36px;
+  padding: 0 16px;
+}
+/* the sheet's footer button spans the footer, 48 px high with 14 px text (the phone canvas's own Acknowledge); the
+   selector outranks the shared footer's 44 px rule for every footer button */
+.detail-drawer.is-sheet .detail-drawer__foot .ad-ack--sheet {
+  flex: 1;
+  height: 48px;
+  padding: 1px 6px;
+  font-size: 14px;
+}
+.ad-loading,
+.ad-error {
+  margin: 0;
+  color: var(--rl-muted);
+}
+.ad-error {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--rl-bad-bg);
+  color: var(--rl-fg);
+  font-size: 13px;
 }
 </style>

@@ -93,3 +93,25 @@ html .el-message .el-message__closeBtn {
 .rl-toast__close:hover {
   background: var(--rl-raised);
 }
+
+/* A toast showing while a drawer footer is on screen slides up above it and back down when the footer goes: notify.ts
+   sets --rl-toast-lift on the page. `translate` is its own property, so it neither replaces Element Plus's transform
+   (its enter and leave) nor its offset; the stack of toasts moves as one. */
+html .el-message {
+  translate: 0 calc(var(--rl-toast-lift, 0px) * -1);
+  transition:
+    opacity var(--el-transition-duration),
+    transform 0.4s,
+    top 0.4s,
+    bottom 0.4s,
+    translate 0.25s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  html .el-message {
+    transition:
+      opacity var(--el-transition-duration),
+      transform 0.4s,
+      top 0.4s,
+      bottom 0.4s;
+  }
+}

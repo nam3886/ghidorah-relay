@@ -104,8 +104,12 @@ COPIED = KeyCheck("B-Keys-copied", _keys("B-Keys", copied), 'section[role="statu
 # drawer. The body is the dialog's second div against the drawer's body, the canvas part resized to the drawer's width
 # (it narrows as well as widens), and the footer the third div against the drawer's footer, on every axis but the
 # vertical one. Nothing signed off draws a drawer footer, so the footer is compared at 1440 and at 768.
+# Owner deviation: every model row's checkbox shares the left edge of the Any model checkbox. The canvas indents the
+# rows by 4 px (padding 0 4px); that padding is removed on the canvas before it is read.
+MODEL_ROWS_FLUSH = """root => document.querySelectorAll(root + ' [aria-label="Pick models"] > label')
+  .forEach((row) => { row.style.paddingLeft = '0'; row.style.paddingRight = '0'; })"""
 FORM_BODY = KeyCheck("B-KeyForm-body", _keys("B-KeyForm", keys_edit), '[role="dialog"] > div@1', ".detail-drawer__body",
-                     widen=True, fields=True, same_height=True, gate=FORM_BODY_GATE)
+                     widen=True, fields=True, same_height=True, gate=FORM_BODY_GATE, fix_canvas=MODEL_ROWS_FLUSH)
 # The drawer's footer is the shared one of every drawer: padding 10 24 where the dialog's is 16 24, a rule in the strong
 # line colour where the dialog's is the plain one, and the surface fill the sticky footer needs. Those three numbers are
 # the declared deviation and are set on the canvas footer before it is read; its buttons (size, font, colour, gap, where

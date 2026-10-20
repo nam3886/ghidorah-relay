@@ -2,7 +2,10 @@
 (test_element_diff.py, whose `Check` this reuses).
 
 `test_frames_settings_match_the_canvas_element_by_element`: the page under the shell (`main`) of B-, T- and P-Frames
-and B-, T- and P-Settings, light and dark, and the states of B-States these pages use. Each comparison writes the
+and B-, T- and P-Settings, light and dark, and the states of B-States these pages use. The Frames editor is a right
+drawer in the app and a column in the boards: the list is compared with the board's editor column taken out (the list
+runs across the page), the editor's body with the board's editor card at the drawer's width (its own title row and
+buttons set aside), and the buttons with the drawer's footer at 1440 and 768. Each comparison writes the
 table and the side-by-side into `<run>/element-diff/` and fails while the table holds a difference that is not live
 data. The text inside a form control is no text run of the tables (a control is one box), so the controls are also
 compared by their accessible name: the font, colour, alignment and figures of the value they show."""
@@ -20,6 +23,7 @@ from pixel_diff import compare
 from pixel_lane7 import (
     frames_drive,
     frames_seed,
+    open_the_boards_editor,
     open_the_boards_frame,
     settings_drive,
     settings_seed,
@@ -34,8 +38,8 @@ pytestmark = pytest.mark.browser
 # ---- the boards --------------------------------------------------------------------------------------------------
 # Live data on the Frames boards (pixel_lane7.py says why): the version tags of the defaults and of the models that
 # follow them, and the preview (the server's sample tracking code, so its length too).
-FRAMES_DATA = ("v3", "v2", "v1",
-               "Create exactly one cinematic video for this request, no on-screen text, no watermark, no follow-up "
+FRAMES_DATA = ("v3", "v2", "v1")
+EDITOR_DATA = ("Create exactly one cinematic video for this request, no on-screen text, no watermark, no follow-up "
                "questions. Request: a cat on a sofa Reference: rq-3b9e1f0a Keep the camera steady and the light "
                "natural.", "203 characters")
 # Settings: the password rule's number, the board's sample 12 against the server's 10 (design-deviations)
@@ -44,12 +48,70 @@ FRAMES = Entry("B-Frames", "#/frames", seed=frames_seed, now=NOW, drive=frames_d
 SETTINGS = Entry("B-Settings", "#/settings", seed=settings_seed, now=NOW, drive=settings_drive, user=BOARD_USER)
 
 
+# The board's editor card (title row, hint, field, buttons, preview block, history) and its parts by place.
+EDITOR_CARD = 'section[aria-labelledby="edTitle"]'
+EDITOR_TITLE_ROW = EDITOR_CARD + " > div:nth-child(1)"
+EDITOR_BUTTONS = EDITOR_CARD + " > div:nth-child(4)"
+# The editor's own title row (the heading and the source pill) is the drawer's header and chip, and its buttons are the
+# drawer's footer: the body is compared without them. The card is plain content in the drawer: no border, padding or
+# radius of its own.
+CARD_AS_BODY = """root => {
+  const el = document.querySelector(root);
+  el.style.border = '0';
+  el.style.padding = '0';
+  el.style.borderRadius = '0';
+}"""
+# The board marks the row whose editor is open; the page has no open-editor row (the editor is a drawer over it)
+ROW_MARK_OFF = """root => document.querySelectorAll(root + ' [style*="primary-soft"]').forEach(
+  (el) => { el.style.background = 'transparent'; })"""
+# The drawer's footer is the shared one: padding 10 24, a strong rule above, the surface fill, the buttons at the right.
+BUTTONS_AS_FOOTER = """root => {
+  const el = document.querySelector(root);
+  el.style.padding = '10px 24px';
+  el.style.borderTop = '1px solid var(--line-strong)';
+  el.style.background = 'var(--surface)';
+  el.style.justifyContent = 'flex-end';
+}"""
+# the editor body in pixels at the drawer's width: 0.68 measured on the box (worst of light and dark), + 1.0
+EDITOR_BODY_GATE = 1.69
+
+
+@dataclass(frozen=True)
+class FrameCheck(Check):
+    cut_canvas: str = ""        # removed from the canvas page before it is read: what the drawer holds elsewhere
+    fix_canvas: str = ""        # JS run on the canvas root before it is read: a declared deviation
+    same_height: bool = False   # the canvas part is given the app part's height
+    gate: float | None = None   # most mismatch + anti-aliasing (%) the compared part may have in pixels
+    canvas_drop: tuple = ()     # canvas boxes set aside before the pairing (a signature, "prefix*" or "role:<role>")
+
+
 def _board(entry: Entry, board: str, data: tuple, data_app: tuple = ()) -> Check:
     return Check(board, Entry(board, entry.route, seed=entry.seed, now=entry.now, drive=entry.drive, user=entry.user),
                  "main", "main", data=data, data_app=data_app)
 
 
-BOARD_CHECKS = [_board(FRAMES, b, FRAMES_DATA) for b in ("B-Frames", "T-Frames", "P-Frames")] + [
+def _list(board: str) -> FrameCheck:
+    entry = Entry(board, FRAMES.route, seed=FRAMES.seed, now=FRAMES.now, drive=frames_drive, user=FRAMES.user)
+    return FrameCheck(board + "-list", entry, "main", "main", data=FRAMES_DATA, cut_canvas=EDITOR_CARD,
+                      fix_canvas=ROW_MARK_OFF)
+
+
+def _editor(board: str, *, body: bool) -> FrameCheck:
+    entry = Entry(board, FRAMES.route, seed=FRAMES.seed, now=FRAMES.now, drive=open_the_boards_editor,
+                  user=FRAMES.user)
+    if body:
+        return FrameCheck(board + "-editor", entry, EDITOR_CARD, ".detail-drawer__body .frame-editor", widen=True,
+                          data=EDITOR_DATA, cut_canvas=EDITOR_TITLE_ROW + ", " + EDITOR_BUTTONS,
+                          fix_canvas=CARD_AS_BODY, same_height=True, gate=EDITOR_BODY_GATE,
+                          canvas_drop=("One line, at most 1,000 characters*",))
+    return FrameCheck(board + "-footer", entry, EDITOR_BUTTONS, ".detail-drawer__foot", widen=True,
+                      fix_canvas=BUTTONS_AS_FOOTER)
+
+
+FRAMES_CHECKS = [*(_list(b) for b in ("B-Frames", "T-Frames", "P-Frames")),
+                 *(_editor(b, body=True) for b in ("B-Frames", "T-Frames", "P-Frames")),
+                 *(_editor(b, body=False) for b in ("B-Frames", "T-Frames"))]
+BOARD_CHECKS = FRAMES_CHECKS + [
     _board(SETTINGS, b, SETTINGS_DATA, SETTINGS_DATA_APP) for b in ("B-Settings", "T-Settings", "P-Settings")]
 
 
@@ -66,6 +128,15 @@ class StateCheck(Check):
 
 
 TIMEOUT_MS = 10_000
+# the drawer's body fills the drawer from header to footer, the card is as tall as its content: the part compared in
+# pixels is as tall as the app's, so the empty rest is not counted
+HEIGHT_JS = """([sel, height]) => {
+  const el = document.querySelector(sel);
+  el.style.boxSizing = 'border-box';
+  el.style.flex = 'none';
+  el.style.height = height + 'px';
+}"""
+DROP_JS = "sel => document.querySelectorAll(sel).forEach((el) => el.remove())"
 STATES = "B-States"
 DESKTOP, TABLET, PHONE = (1440, 1000), (768, 1000), (390, 900)
 OPEN_LIST = ('[role="listbox"]', '[role="combobox"][aria-expanded="true"]')
@@ -195,11 +266,6 @@ STATE_CHECKS = [
     StateCheck("frames-refusal", _frames_state(frame_refused), "#fvErr", "#frame-refusal", DESKTOP,
                data=("A label is required.",), data_app=FRAME_REFUSED,
                same_style=(("#fvLabel", "#frame-text", ("border-top-color", "border-top-width", "border-radius")),)),
-    StateCheck("frames-editor-empty", _frames_state(frames_ready),
-               'section[aria-label="Result, empty"] p', ".editor--empty p", DESKTOP,
-               data=("No models loaded. Enter an API key above and press Load models.",), loose={"*": "wh"},
-               same_style=(('section[aria-label="Result, empty"] > div:last-child', ".editor--empty",
-                            EMPTY_PADDING[:5]),)),
     StateCheck("settings-saved-toast", _settings_state(setting_saved), '[role="status"]@0', ".el-message", DESKTOP),
     # the toast is as wide as its text, which is data: what sits right of the text (the X) moves with it, so the X and
     # the toast's padding are compared by their style instead of their place
@@ -343,15 +409,23 @@ def test_frames_settings_match_the_canvas_element_by_element(app, db, live, rend
         misplaced = popup_place(page, *check.popup) if check.popup else None
     renderer.open(check.state.board, dark, board_w, board_h)
     theirs_styles = [styles_of(renderer.page, canvas_sel, props) for canvas_sel, _a, props in same_style]
+    if getattr(check, "cut_canvas", ""):
+        renderer.page.evaluate(DROP_JS, check.cut_canvas, isolated_context=False)
     canvas_root = _root(renderer.page, check.canvas_root)
+    if getattr(check, "fix_canvas", ""):
+        renderer.page.evaluate(check.fix_canvas, canvas_root, isolated_context=False)
     if check.widen:
         renderer.page.evaluate(WIDEN_JS, [canvas_root, mine["width"]], isolated_context=False)
         renderer.settle()
+    if getattr(check, "same_height", False):
+        renderer.page.evaluate(HEIGHT_JS, [canvas_root, mine["height"]], isolated_context=False)
     theirs = extract(renderer.page, canvas_root)
     theirs_controls = controls(renderer.page, canvas_root)
     ref_png = _png(renderer.page, canvas_root)
     if check.app_root == "main" and mine["height"] > theirs["height"]:
         app_png = crop_to(diff_page, app_png, theirs["height"])
+    elif check.app_root == "main" and theirs["height"] > mine["height"]:
+        ref_png = crop_to(diff_page, ref_png, mine["height"])
     pixels = compare(diff_page, ref_png, app_png)
 
     theirs["texts"] = [t for t in theirs["texts"] if t["text"] not in check.accepted]
@@ -382,6 +456,11 @@ def test_frames_settings_match_the_canvas_element_by_element(app, db, live, rend
     assert res.failures == 0 and not control_rows, "%s %s: %d element differences, %d control, see %s.md" % (
         check.name, theme, res.failures, len(control_rows), stem)
     assert misplaced is None, misplaced
+    gate = getattr(check, "gate", None)
+    if gate is not None:
+        got = pixels.percent + pixels.aa_percent
+        assert got <= gate, "%s %s: %.3f %% of the compared part differs in pixels, the gate is %.2f %%" % (
+            check.name, theme, got, gate)
 
 
 def test_the_controls_are_compared_by_their_value_font(diff_page):
@@ -577,7 +656,6 @@ UNDRAWN = [
     ("frames-unlocked", _frames(unlocked), ALL_WIDTHS[:1]),
     ("frames-row-hover", _frames(frames_row_hover), ALL_WIDTHS[:1]),
     ("frames-refusal", _frames(frame_refused), ALL_WIDTHS),
-    ("frames-editor-empty", _frames(frames_ready), ALL_WIDTHS),
     ("frames-no-frames", _frames(no_frames, no_frames_seed), ALL_WIDTHS),
     ("frames-saved-toast", _frames(frame_saved), ALL_WIDTHS[2:]),
     ("frames-provider-list", _frames(provider_open), ALL_WIDTHS),
