@@ -442,6 +442,7 @@ def test_serve_sizes_a_browser_budget_from_the_stored_setting_with_no_ceiling_va
     monkeypatch.setattr(worker_module, "Worker", Recorder)
     env = env_for(db, BILLING_TZ="UTC", WORKER_GRACE_S="9", RELAY_CHROME_PATH="/opt/chrome", WORKER_ID="w-boot")
     assert not [name for name in env if name.endswith("_BROWSER_SLOTS_MAX")], "premise: no ceiling variable"
+    secrets = {n: env[n] for n in ("MINIO_SECRET_KEY", "CREDENTIAL_SEAL_PRIVATE_KEY", "DATABASE_URL")}
     code = asyncio.run(serve(FakeSpec(execution="browser"), lambda s, st: FakeEngine(), env, install_signals=False))
     assert code == 0
     assert seen["size"] == 3, "the budget size is the stored setting: %r" % seen
@@ -449,7 +450,9 @@ def test_serve_sizes_a_browser_budget_from_the_stored_setting_with_no_ceiling_va
     assert boot == {"WORKER_GRACE_S": "9", "WORKER_ID": "w-boot", "RELAY_PROFILE_ROOT": None,
                     "RELAY_CHROME_PATH": "/opt/chrome", "RELAY_BROWSER_HEADLESS": None}
     assert {"read", "cpus", "memory_bytes", "pids", "shm_bytes"} <= set(seen["container"])
-    assert "unused-in-test" not in repr(seen["container"]), "a secret must never be reported"
+    for name, value in secrets.items():       # read before `serve` took the private key out of the environment
+        assert value not in repr(seen["container"]), "%s must never be reported" % name
+    assert len(secrets["MINIO_SECRET_KEY"]) >= 8, "premise: the probe is a real value of the environment"
 
 
 def test_serve_runs_a_worker_from_the_environment_until_sigterm(db):

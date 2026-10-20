@@ -737,6 +737,8 @@ CONTAINER = {"read": True, "cpus": 1.5, "memory_bytes": 12 * 1024**3, "pids": 20
 
 
 @mutation(E, LIMITS_INSERT, LIMITS_NULL_INSERT, expect="assert None == {")
+@mutation("packages/relay-core/src/relay_core/db/migrations/0019_worker_limits.sql", "ADD COLUMN limits jsonb",
+          "ADD COLUMN limits_x jsonb", expect='column "limits" of relation "worker_heartbeats" does not exist')
 def test_a_fresh_heartbeat_row_carries_the_container_limits(db):
     async def scenario(p):
         await make_loop(p, container=CONTAINER).beat()

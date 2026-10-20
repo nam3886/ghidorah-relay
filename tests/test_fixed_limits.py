@@ -42,6 +42,8 @@ NOT_SHOWN = {
              "api.progress.WAIT_FLOOR", "api.progress.WAIT_CAP", "api.progress.FETCH", "api.progress.DONE",
              "api.progress.FALLBACK_S", "api.progress.BUCKET_S", "api.progress.GUARD_TIMEOUT_S",
              "api.progress.SLOW_READ_S", "api.progress.PIN_MAX"),
+    **excuse("a bound of the admin Containers list: how far back it looks and how many rows it holds",
+             "admin.routes_settings.LOOKBACK_S", "admin.routes_settings.MAX_WORKER_ROWS"),
     **excuse("a storage format: the length of the indexed head of a stored API key", "keys.LOOKUP_LEN"),
     **excuse("used only by share_expiry, which no running path calls; the live TTL is jobs.create.INPUT_LINK_TTL_S",
              "storage.INPUT_LINK_TTL"),

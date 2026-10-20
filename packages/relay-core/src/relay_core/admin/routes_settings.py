@@ -14,6 +14,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from relay_core import cgroup
 from relay_core.admin.routes_common import Strict, ms
+from relay_core.admin.routes_stats import HEARTBEAT_STALE_S
 from relay_core.api.deps import get_pool, get_settings
 from relay_core.api.errors_http import ApiError
 from relay_core.db import tx
@@ -22,21 +23,27 @@ from relay_core.settings import Settings, SettingsError
 
 router = APIRouter()
 
-WORKER_ROWS = "SELECT worker_id, provider, started_at, at, limits FROM worker_heartbeats ORDER BY worker_id"
+LOOKBACK_S = 24 * 3600      # a worker silent for longer than the stale threshold plus this is not listed
+MAX_WORKER_ROWS = 50
+WORKER_ROWS = (
+    "SELECT worker_id, provider, started_at, at, limits, extract(epoch FROM clock_timestamp() - at) "
+    "FROM worker_heartbeats WHERE at > clock_timestamp() - make_interval(secs => %s) "
+    "ORDER BY at DESC, worker_id LIMIT %s")
 
 
 def _containers(state: Any, workers: list) -> list[dict]:
-    """The api's own container limits, then one row per worker heartbeat row. A worker that stopped cleanly has no row;
-    one that predates the limits has NULL and shows as not reported."""
+    """The api's own container limits, then the workers that beat recently, newest first (at most MAX_WORKER_ROWS).
+    A worker that stopped cleanly has no row; one that predates the limits has NULL and shows as not reported. `stale`
+    is read on the server's clock against HEARTBEAT_STALE_S, as the admin stats do."""
     rows = [{"service": "api", "provider": None, "this_process": True, "reported": True,
-             **cgroup.describe(state.container), "boot": None, "reported_ms": state.started_ms,
-             "started_ms": state.started_ms}]
-    for worker_id, provider, started_at, at, limits in workers:
-        reported = limits is not None
+             **cgroup.describe(state.container), "boot": None, "stale": False,
+             "reported_ms": state.started_ms, "started_ms": state.started_ms}]
+    for worker_id, provider, started_at, at, limits, age_s in workers:
+        reported = isinstance(limits, dict)
         texts = cgroup.describe(limits) if reported else dict.fromkeys(("cpus", "memory", "pids", "shm"))
         rows.append({"service": worker_id, "provider": provider, "this_process": False, "reported": reported,
-                     **texts, "boot": limits.get("boot") if reported else None, "reported_ms": ms(at),
-                     "started_ms": ms(started_at)})
+                     **texts, "boot": limits.get("boot") if reported else None,
+                     "stale": age_s > HEARTBEAT_STALE_S, "reported_ms": ms(at), "started_ms": ms(started_at)})
     return rows
 
 
@@ -63,7 +70,8 @@ async def list_settings(request: Request, pool: AsyncConnectionPool = Depends(ge
                         settings: Settings = Depends(get_settings)) -> dict:
     async with tx(pool) as conn:
         pin = await (await conn.execute("SELECT tz FROM billing_pin")).fetchone()
-        workers = await (await conn.execute(WORKER_ROWS)).fetchall()
+        workers = await (await conn.execute(WORKER_ROWS, (HEARTBEAT_STALE_S + LOOKBACK_S, MAX_WORKER_ROWS))
+                         ).fetchall()
     state = request.app.state
     env_only = [
         {"name": "BILLING_TZ", "value": pin[0] if pin else None, "read_only": True},

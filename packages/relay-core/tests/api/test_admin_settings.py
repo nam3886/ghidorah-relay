@@ -16,8 +16,8 @@ KEY_CHECK = "    _known(settings, key)\n    try:"
 NO_KEY_CHECK = "    try:"
 FIXED = '"fixed": fixed_limits(state.registry)'
 NO_FIXED = '"fixed": []'
-WORKER_QUERY = "FROM worker_heartbeats ORDER BY worker_id"
-NO_WORKERS = "FROM worker_heartbeats WHERE false ORDER BY worker_id"
+WORKER_QUERY = "ORDER BY at DESC, worker_id LIMIT %s"
+NO_WORKERS = "AND false ORDER BY at DESC, worker_id LIMIT %s"
 API_CONTAINER = {"read": True, "cpus": 1.5, "memory_bytes": 12 * 1024**3, "pids": 2048, "shm_bytes": 64 * 1024**2}
 WORKER_CONTAINER = {"read": True, "cpus": 8.0, "memory_bytes": 12 * 1024**3, "pids": None, "shm_bytes": 1024**3,
                     "boot": {"WORKER_ID": "w-new", "RELAY_PROFILE_ROOT": "/profiles"}}
@@ -124,12 +124,14 @@ def test_the_list_carries_the_fixed_limits_core_first_then_each_provider(db):
 
 
 @mutation(ROUTES, WORKER_QUERY, NO_WORKERS, expect="['api']")
-def test_containers_list_the_api_then_each_worker_and_mark_an_older_worker_as_not_reported(db):
+def test_containers_list_the_api_then_the_recent_workers_newest_first_and_mark_the_silent_ones_stale(db):
     db.run("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at, limits) VALUES "
            "('w-new', 'fake', now() - interval '1 hour', now() - interval '5 seconds', %s::jsonb)",
            json.dumps(WORKER_CONTAINER))
     db.run("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at) VALUES "
            "('w-old', 'fake', now() - interval '2 hours', now() - interval '3 seconds')")
+    db.run("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at, limits) VALUES "
+           "('w-gone', 'fake', now() - interval '3 hours', now() - interval '10 minutes', '5'::jsonb)")
 
     async def scenario(env):
         env.app.state.container = API_CONTAINER
@@ -137,23 +139,80 @@ def test_containers_list_the_api_then_each_worker_and_mark_an_older_worker_as_no
         return (await env.client.get("/admin/settings", headers=h)).json()["containers"]
 
     rows = run_app(db, scenario)
-    assert [r["service"] for r in rows] == ["api", "w-new", "w-old"], [r["service"] for r in rows]
-    api, new, old = rows
+    assert [r["service"] for r in rows] == ["api", "w-old", "w-new", "w-gone"], [r["service"] for r in rows]
+    api, old, new, gone = rows
     assert api["reported_ms"] == api["started_ms"] > 0
     assert {k: v for k, v in api.items() if not k.endswith("_ms")} == {
         "service": "api", "provider": None, "this_process": True, "reported": True, "cpus": "1.5", "memory": "12 GiB",
-        "pids": "2048", "shm": "64 MiB", "boot": None}
+        "pids": "2048", "shm": "64 MiB", "boot": None, "stale": False}
     assert {k: v for k, v in new.items() if not k.endswith("_ms")} == {
         "service": "w-new", "provider": "fake", "this_process": False, "reported": True, "cpus": "8",
-        "memory": "12 GiB", "pids": "no limit", "shm": "1 GiB", "boot": WORKER_CONTAINER["boot"]}
+        "memory": "12 GiB", "pids": "no limit", "shm": "1 GiB", "boot": WORKER_CONTAINER["boot"], "stale": False}
     assert {k: v for k, v in old.items() if not k.endswith("_ms")} == {
         "service": "w-old", "provider": "fake", "this_process": False, "reported": False, "cpus": None,
-        "memory": None, "pids": None, "shm": None, "boot": None}
+        "memory": None, "pids": None, "shm": None, "boot": None, "stale": False}
+    assert (gone["stale"], gone["reported"], gone["boot"]) == (True, False, None), "a limits value that is no object"
     for r, name in ((new, "w-new"), (old, "w-old")):
         at_ms, started_ms = db.one("SELECT floor(extract(epoch FROM at) * 1000)::bigint, "
                                    "floor(extract(epoch FROM started_at) * 1000)::bigint FROM worker_heartbeats "
                                    "WHERE worker_id = %s", name)
         assert abs(r["reported_ms"] - at_ms) <= 1 and abs(r["started_ms"] - started_ms) <= 1, name
+
+
+@mutation(ROUTES, "MAX_WORKER_ROWS = 50", "MAX_WORKER_ROWS = 500", expect="assert 61 == 51")
+def test_a_crowd_of_heartbeat_rows_is_cut_at_the_hard_limit_keeping_the_newest(db):
+    db.run("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at) "
+           "SELECT 'w-' || g, 'fake', now() - interval '1 day', now() - make_interval(secs => g) "
+           "FROM generate_series(1, 60) g")
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        return (await env.client.get("/admin/settings", headers=h)).json()["containers"]
+
+    names = [r["service"] for r in run_app(db, scenario)]
+    assert len(names) == 51, "assert %d == 51" % len(names)
+    assert names[1] == "w-1" and names[-1] == "w-50", "newest first, the hard limit keeps the newest"
+
+
+@mutation(ROUTES, "FROM worker_heartbeats WHERE at > clock_timestamp() - make_interval(secs => %s) ",
+          "FROM worker_heartbeats WHERE %s > 0 ", expect="assert 'w-ancient' not in")
+def test_a_heartbeat_row_older_than_the_look_back_is_not_listed(db):
+    db.run("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at) VALUES "
+           "('w-recent', 'fake', now(), now() - interval '1 hour'), "
+           "('w-ancient', 'fake', now() - interval '9 days', now() - interval '3 days')")
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        return (await env.client.get("/admin/settings", headers=h)).json()["containers"]
+
+    names = [r["service"] for r in run_app(db, scenario)]
+    assert "w-ancient" not in names, "assert 'w-ancient' not in %r" % names
+    assert names == ["api", "w-recent"], "a worker silent for an hour is still listed, as stale"
+
+
+@mutation(ROUTES, '"stale": age_s > HEARTBEAT_STALE_S', '"stale": False', expect="[False, False, False] ==")
+def test_the_stale_flag_is_set_on_the_server_clock_for_a_silent_worker(db):
+    db.run("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at) VALUES "
+           "('w-fresh', 'fake', now(), now()), ('w-silent', 'fake', now(), now() - interval '2 minutes')")
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        return (await env.client.get("/admin/settings", headers=h)).json()["containers"]
+
+    flags = {r["service"]: r["stale"] for r in run_app(db, scenario)}
+    assert [flags["api"], flags["w-fresh"], flags["w-silent"]] == [False, False, True]
+
+
+def test_create_app_keeps_the_container_record_it_is_given_and_reads_its_own_when_none_is():
+    from relay_core import cgroup
+    from relay_core.api.app import create_app
+    from relay_core.providers import ProviderRegistry
+
+    given = create_app(pool=None, settings=None, store=None, registry=ProviderRegistry(),  # type: ignore[arg-type]
+                       container=API_CONTAINER)
+    assert given.state.container == API_CONTAINER and given.state.container is not API_CONTAINER
+    own = create_app(pool=None, settings=None, store=None, registry=ProviderRegistry())  # type: ignore[arg-type]
+    assert set(own.state.container) == set(cgroup.own_limits()) and own.state.started_ms > 0
 
 
 def test_a_process_that_cannot_read_its_cgroup_shows_every_limit_as_unreadable(db):

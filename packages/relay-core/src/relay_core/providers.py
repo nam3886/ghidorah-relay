@@ -598,7 +598,7 @@ def _problems(spec: ProviderSpec) -> list[str]:
     if spec.caps.execution == "browser" and spec.name + ".browser_slots" in keys:
         slots = spec.settings()[spec.name + ".browser_slots"]     # its bound is what keeps a browser worker in memory
         if not _bounded_slots(slots):
-            bad.append("%s.browser_slots must be an int setting that declares min >= 1 and a finite whole max"
+            bad.append("%s.browser_slots must be an int setting that declares a whole min >= 1 and a finite whole max"
                        % spec.name)
         else:
             try:

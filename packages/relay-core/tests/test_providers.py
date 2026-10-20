@@ -161,7 +161,7 @@ class SlotsStub(Stub):
 @mutation(SRC, "if not _bounded_slots(slots):", "if False:", expect="DID NOT RAISE")
 def test_a_browser_provider_must_bound_its_slots_between_one_and_a_maximum():
     for bounds in ({}, {"min": 1}, {"max": 12}, {"min": 0, "max": 12}):
-        with pytest.raises(pv.RegistryError, match="one.browser_slots must be an int setting that declares min >= 1"):
+        with pytest.raises(pv.RegistryError, match="one.browser_slots must be an int setting .* a whole min >= 1"):
             pv.ProviderRegistry().register(SlotsStub(**bounds))
     pv.ProviderRegistry().register(SlotsStub(min=1, max=12))
 
