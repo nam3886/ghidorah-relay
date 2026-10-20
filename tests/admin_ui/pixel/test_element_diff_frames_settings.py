@@ -22,6 +22,8 @@ from patchright.sync_api import expect
 from pixel_capture import full_photo, opened, shoot, sideways
 from pixel_diff import compare
 from pixel_lane7 import (
+    SETTINGS_NOTE,
+    SETTINGS_NOTE_APP,
     frames_drive,
     frames_seed,
     open_the_boards_editor,
@@ -48,14 +50,17 @@ SETTINGS_DATA, SETTINGS_DATA_APP = ("At least 12 characters",), ("At least 10 ch
 # Settings: what the page has that the boards do not draw (declared deviations). The canvas's card note names the
 # environment, which is no longer a layer; the page's note says what Reset does now. After Change password the page
 # adds two cards with their sub-navigation entries: their titles, notes and the "None" an empty card reads.
-SETTINGS_NOTE = ("A saved value is kept in the database and wins over the environment. Reset returns to the "
-                 "environment value, or the default.")
-SETTINGS_NOTE_APP = "A saved value is kept in the database. Reset returns to the default."
 # The note is a sentence of another length: a different number of lines moves everything under it, so the canvas's
 # sentence is replaced by the page's before it is read (the words are the declared deviation, the layout is compared).
+# The board's sample row names the source `env`, which the page cannot show (db or default): the canvas chip reads
+# `default`, as the page's row does (the row's stored value equals its default).
 NOTE_AS_APP = """root => {
   const old = %s, now = %s;
   for (const el of document.querySelectorAll(root + ' p')) if (el.textContent.trim() === old) el.textContent = now;
+  const walk = document.createTreeWalker(document.querySelector(root), NodeFilter.SHOW_TEXT);
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    if (/^\\s*env(\\s|$)/.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace('env', 'default');
+  }
 }""" % (json.dumps(SETTINGS_NOTE), json.dumps(SETTINGS_NOTE_APP))
 SETTINGS_ACCEPTED_APP = (
     "Fixed limits", "Fixed limits*", "Containers", "Containers*", "None",

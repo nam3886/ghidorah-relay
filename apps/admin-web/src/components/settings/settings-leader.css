@@ -34,13 +34,16 @@
   text-align: right;
   overflow-wrap: anywhere;
 }
-/* a row with a reason: the reason is one muted line under the pair, wrapping */
+/* a row with a reason: the name, the leader and the value are one line, and the reason wraps onto its own line under
+   them (one flex row that wraps, so a dl keeps its dt and dd as direct children of one div) */
 .set-leader__item {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
 }
 .set-leader dd.set-leader__why {
+  flex: 0 0 100%;
   font-family: inherit;
   font-size: 12px;
   font-weight: 400;
@@ -52,8 +55,10 @@
     gap: 12px;
     padding: 14px 16px 18px;
   }
-  .set-leader__row {
+  .set-leader__row,
+  .set-leader__item {
     flex-direction: column;
+    flex-wrap: nowrap;
     align-items: stretch;
     gap: 2px;
   }

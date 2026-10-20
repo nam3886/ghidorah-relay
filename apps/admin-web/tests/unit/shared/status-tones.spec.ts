@@ -12,6 +12,10 @@ describe("the registry data", () => {
     }
   });
 
+  it("has no env entry: the environment is no longer a layer of a setting", () => {
+    expect(STATUS_TONES).not.toHaveProperty("env");
+  });
+
   it("shows a readable label and falls back to the word itself", () => {
     expect(labelOf("unclear_reply")).toBe("unclear reply");
     expect(labelOf("something-new")).toBe("something-new");

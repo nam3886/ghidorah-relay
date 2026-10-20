@@ -93,7 +93,7 @@ def test_the_containers_card_lists_the_api_with_four_readable_limits(app, app_se
 def test_a_reporting_worker_shows_its_limits_and_one_from_an_older_version_says_not_reported(app, app_session, db,
                                                                                                width, height):
     db.run("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at, limits) VALUES "
-           "('w-limits', 'fake', now() - interval '1 hour', now() - interval '2 minutes', %s::jsonb)",
+           "('w-limits', 'fake', now() - interval '1 hour', now() - interval '20 seconds', %s::jsonb)",
            json.dumps(WORKER_LIMITS))
     db.run("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at) VALUES "
            "('w-older', 'fake', now() - interval '2 hours', now() - interval '30 seconds')")
@@ -101,10 +101,14 @@ def test_a_reporting_worker_shows_its_limits_and_one_from_an_older_version_says_
     open_settings(app, page, width, height)
     worker = page.locator('#containers [data-service="w-limits"]')
     expect(worker).to_be_visible()
-    for text in ("8", "12 GiB", "2048", "1 GiB", "/profiles"):
-        expect(worker.locator("dd", has_text=text).first).to_be_visible()
-    expect(worker).to_contain_text("reported 2 min ago")
+    for label, text in (("CPUs", "8"), ("Memory", "12 GiB"), ("PIDs", "2048"), ("Shared memory (/dev/shm)", "1 GiB"),
+                        ("RELAY_PROFILE_ROOT", "/profiles")):
+        value = worker.locator("div.set-leader__row", has=page.get_by_text(label, exact=True)).locator("dd")
+        expect(value).to_have_text(text)
+    expect(worker).to_contain_text("seen just now")
+    expect(worker.locator(".status-chip")).to_have_count(0)
     older = page.locator('#containers [data-service="w-older"]')
     expect(older).to_contain_text("Not reported by this worker version")
+    expect(older).to_contain_text("seen just now")
     assert older.locator("dl").count() == 0
     assert sideways(page) <= 0, "the page scrolls sideways"

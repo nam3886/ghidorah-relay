@@ -74,6 +74,20 @@ const containers = (): api.ContainerRow[] => [
     reported_ms: NOW - 600_000,
     started_ms: NOW - 9000_000,
   },
+  {
+    service: "worker-odd",
+    provider: "dola",
+    this_process: false,
+    reported: true,
+    stale: false,
+    cpus: "no limit",
+    memory: "unreadable",
+    pids: "2048",
+    shm: "64 MiB",
+    boot: null,
+    reported_ms: NOW - 30_000,
+    started_ms: NOW - 3600_000,
+  },
 ];
 
 let wrapper: VueWrapper | null = null;
@@ -170,7 +184,8 @@ describe("the containers card", () => {
     expect(api_.text()).toContain("1.5");
     expect(api_.text()).toContain("512");
     const worker = wrapper.find('[data-service="worker-dola"]');
-    expect(worker.text()).toContain("reported 2 min ago");
+    expect(worker.text()).toContain("seen 2 min ago");
+    expect(worker.text()).not.toContain("reported");
     expect(worker.find(".containers__when").attributes("title")).toMatch(/20\/10\/2026/);
     expect(worker.findAll("dd").map((d) => d.text())).toEqual(["8", "12 GiB", "2048", "1 GiB", "worker-dola", "-"]);
     expect(worker.findAll("dt").map((d) => d.text())).toEqual([
@@ -189,7 +204,35 @@ describe("the containers card", () => {
     expect(old.text()).toContain("Not reported by this worker version");
     expect(old.find("dl").exists()).toBe(false);
     expect(old.text()).toContain("stale");
-    expect(wrapper.find('[data-service="worker-dola"]').text()).not.toContain("stale");
+    expect(old.text()).toContain("seen 10 min ago");
+  });
+
+  it("marks only a silent worker stale: a fresh one and the api carry no chip", () => {
+    wrapper = mount(ContainerLimits, { props: { rows: containers(), loading: false, error: null } });
+    const stale = wrapper
+      .findAll(".containers__block")
+      .map((b) => [b.attributes("data-service"), b.find(".status-chip").exists()]);
+    expect(stale).toEqual([
+      ["api", false],
+      ["worker-dola", false],
+      ["worker-old", true],
+      ["worker-odd", false],
+    ]);
+  });
+
+  it("shows an unreadable limit and a limit that is not set as the server's exact words", () => {
+    wrapper = mount(ContainerLimits, { props: { rows: containers(), loading: false, error: null } });
+    const odd = wrapper.find('[data-service="worker-odd"]');
+    const value = (label: string) =>
+      odd
+        .findAll(".set-leader__row")
+        .find((r) => r.find("dt").text() === label)!
+        .find("dd")
+        .text();
+    expect(value("CPUs")).toBe("no limit");
+    expect(value("Memory")).toBe("unreadable");
+    expect(value("PIDs")).toBe("2048");
+    expect(value("Shared memory (/dev/shm)")).toBe("64 MiB");
   });
 
   it("reads None when empty and shows the error with Retry", async () => {

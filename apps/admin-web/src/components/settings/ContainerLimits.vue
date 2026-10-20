@@ -33,16 +33,19 @@ const SKELETON = ["96px", "72px", "64px", "128px"];
       </div>
     </dl>
     <template v-else-if="!error && rows.length">
-      <section v-for="row in rows" :key="row.service" class="containers__block" :data-service="row.service">
+      <section
+        v-for="row in rows"
+        :key="`${row.this_process}:${row.service}`"
+        class="containers__block"
+        :data-service="row.service"
+      >
         <div class="containers__head">
           <h3 class="containers__name">{{ row.service }}</h3>
           <StatusChip v-if="row.stale" status="stale" label="stale" tone="warn" />
           <span v-if="row.this_process" class="containers__when" :title="fmtTime(row.reported_ms)"
             >this process, read at start {{ fmtTime(row.started_ms) }}</span
           >
-          <span v-else class="containers__when" :title="fmtTime(row.reported_ms)"
-            >reported {{ ago(row.reported_ms) }}</span
-          >
+          <span v-else class="containers__when" :title="fmtTime(row.reported_ms)">seen {{ ago(row.reported_ms) }}</span>
         </div>
         <p v-if="!row.reported" class="containers__none">Not reported by this worker version</p>
         <dl v-else class="set-leader" :aria-label="`Container limits of ${row.service}`">

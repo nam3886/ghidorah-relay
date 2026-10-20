@@ -140,7 +140,7 @@ BOARD_SETTINGS = (
     ("fake.render_deadline_s", "Render deadline.", 900, "default", 900),
     ("dola.max_wait_s", "Longest wait for one dola render before the job is marked unknown.", 4500, "db", 3600),
     ("dola.poll_interval_s", "Pause between checks of a running render.", 5, "default", 5),
-    ("jobs.reaper_interval_s", "How often stuck jobs are looked for.", 60, "env", 120),
+    ("jobs.reaper_interval_s", "How often stuck jobs are looked for.", 120, "default", 120),
     ("jobs.max_attempts", "Tries on another account before a job fails.", 3, "db", 2),
     ("alerts.keep_days", "Days an acknowledged alert row is kept.", 30, "default", 30),
 )
@@ -197,6 +197,17 @@ def settings_seed(db, live):
     return shell_seed(db, live)
 
 
+# The card note: the canvas's sentence names the environment, which is no longer a layer; the page says what a saved
+# value and Reset do now. The element diff puts the page's sentence into the canvas; the pixel photo puts the canvas's
+# back into the page (a note of another length moves everything under it).
+SETTINGS_NOTE = ("A saved value is kept in the database and wins over the environment. Reset returns to the "
+                 "environment value, or the default.")
+SETTINGS_NOTE_APP = "A saved value is kept in the database. Reset returns to the default."
+CANVAS_NOTE_JS = """([now, old]) => {
+  for (const el of document.querySelectorAll('#settings p')) if (el.textContent.trim() === now) el.textContent = old;
+}"""
+
+
 def settings_drive(page, live, data):
     """The boards' state: one value typed over its stored one (the row is edited), and the password form refused on
     the new password. The board's rule is sample data (12); the form holds the server's, 10, so a 9-character new
@@ -210,6 +221,13 @@ def settings_drive(page, live, data):
     expect(page.locator("#password").get_by_role("alert")).to_be_visible(timeout=TIMEOUT_MS)
     page.mouse.move(0, 0)
     drop_the_banner(page)
+
+
+def settings_pixel_drive(page, live, data):
+    """`settings_drive`, then the canvas's own note sentence in the card, so the pixel photo compares the layout and not
+    the declared change of words (the element diff's entry keeps the page's sentence and changes the canvas instead)."""
+    settings_drive(page, live, data)
+    page.evaluate(CANVAS_NOTE_JS, [SETTINGS_NOTE_APP, SETTINGS_NOTE], isolated_context=False)
 
 
 # ---- Test -----------------------------------------------------------------------------------------------------------

@@ -15,7 +15,7 @@ SHELL = "apps/admin-web/src/components/layout/AppShell.vue"
 SETTINGS = "apps/admin-web/src/views/SettingsView.vue"
 TIMEOUT_MS = 10_000
 SECTIONS = (("Settings", "settings"), ("Boot-only values", "boot"), ("Measured prices", "prices"),
-            ("Change password", "password"))
+            ("Change password", "password"), ("Fixed limits", "limits"), ("Containers", "containers"))
 
 # What every ancestor of the card except the page scroll area (and the window) has scrolled.
 MOVED_JS = """(id) => {

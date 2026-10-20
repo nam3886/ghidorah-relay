@@ -40,11 +40,9 @@ const SKELETON = ["120px", "168px", "96px", "144px"];
         <h3 class="limits__name">{{ g.name }}</h3>
         <dl class="set-leader" :aria-label="`Fixed limits of ${g.name}`">
           <div v-for="row in g.rows" :key="row.name" class="set-leader__item">
-            <div class="set-leader__row">
-              <dt>{{ row.name }}</dt>
-              <span class="set-leader__line" aria-hidden="true" />
-              <dd class="num">{{ row.value }}</dd>
-            </div>
+            <dt>{{ row.name }}</dt>
+            <span class="set-leader__line" aria-hidden="true" />
+            <dd class="num">{{ row.value }}</dd>
             <dd class="set-leader__why">{{ row.reason }}</dd>
           </div>
         </dl>
