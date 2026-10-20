@@ -53,14 +53,21 @@ SETTINGS_DATA, SETTINGS_DATA_APP = ("At least 12 characters",), ("At least 10 ch
 # The note is a sentence of another length: a different number of lines moves everything under it, so the canvas's
 # sentence is replaced by the page's before it is read (the words are the declared deviation, the layout is compared).
 # The board's sample row names the source `env`, which the page cannot show (db or default): the canvas chip reads
-# `default`, as the page's row does (the row's stored value equals its default).
+# `default`, as the page's row does. The row's stored value is the fixture's 120 (the default), where the canvas draws
+# 60: a value in a text box, which the element diff compares by font and place, not by its text. Exactly one canvas
+# text may be rewritten: a board that draws two `env` rows, or none, fails here instead of passing unnoticed.
 NOTE_AS_APP = """root => {
   const old = %s, now = %s;
   for (const el of document.querySelectorAll(root + ' p')) if (el.textContent.trim() === old) el.textContent = now;
   const walk = document.createTreeWalker(document.querySelector(root), NodeFilter.SHOW_TEXT);
+  let rewritten = 0;
   for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-    if (/^\\s*env(\\s|$)/.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace('env', 'default');
+    if (/^\\s*env(\\s|$)/.test(n.nodeValue)) {
+      n.nodeValue = n.nodeValue.replace('env', 'default');
+      rewritten += 1;
+    }
   }
+  if (rewritten !== 1) throw new Error('the canvas has ' + rewritten + ' env texts, not the one sample row');
 }""" % (json.dumps(SETTINGS_NOTE), json.dumps(SETTINGS_NOTE_APP))
 SETTINGS_ACCEPTED_APP = (
     "Fixed limits", "Fixed limits*", "Containers", "Containers*", "None",

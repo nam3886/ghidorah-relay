@@ -160,9 +160,10 @@ DRAWER = [
 # P-Logs is compared down to the search field only (region 0 0 390 268): below it the app gives the Status chip and the
 # Dates chip a full-width row each, where the board draws one scrolling row, so the rest sits lower than on the board
 # and the element diff compares it (restacked canvas). Measured 0.00 in both themes, gate 0.00 + 1.0.
-# Settings (worst of light and dark, mismatch + anti-aliasing, each + 1.0): B 0.57, T 0.42, P 0.28. The photo of the
-# page has the canvas note sentence put back (settings_pixel_drive); P is compared down to the end of Change password
-# (region); the two cards after it are compared by the element diff and the live-like fit test.
+# Settings keep their gates (B 1.08, T 1.06, P 1.25): the measured values (worst of light and dark, mismatch +
+# anti-aliasing: B 0.57, T 0.42, P 0.28) pass them, so none is loosened. The photo of the page has the canvas note
+# sentence put back (settings_pixel_drive); P is compared down to the end of Change password (region); the two cards
+# after it are compared by the element diff and the live-like fit test.
 # CEILING_PCT stays only the default of a new entry; a board that gets worse than its gate is a regression, and one
 # that gets better should have its gate lowered.
 GATES: dict[str, float] = {
@@ -177,7 +178,7 @@ GATES: dict[str, float] = {
     "B-LogDetail": 4.08,
     "B-Login": 1.04,
     "B-Logs": 1.39,
-    "B-Settings": 1.57,
+    "B-Settings": 1.08,
     "B-Test": 1.14,
     "P-Accounts": 1.04,
     "P-Alerts": 2.18,
@@ -188,7 +189,7 @@ GATES: dict[str, float] = {
     "P-Keys": 2.93,
     "P-Login": 1.16,
     "P-Logs": 1.00,
-    "P-Settings": 1.28,
+    "P-Settings": 1.25,
     "P-Test": 1.30,
     "T-Accounts": 1.03,
     "T-Alerts": 1.40,
@@ -198,7 +199,7 @@ GATES: dict[str, float] = {
     "T-Jobs-shell": 1.00,
     "T-Keys": 5.73,
     "T-Logs": 1.32,
-    "T-Settings": 1.43,
+    "T-Settings": 1.06,
     "T-Test": 1.07,
 }
 
