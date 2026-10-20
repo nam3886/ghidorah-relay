@@ -417,8 +417,15 @@ token sent as the `X-Admin-Session` header (no cookie).
   are 400. Password hashing runs at most 2 at a time.
 - Routes: accounts (list, import, edit, screenshot), keys, jobs (list with a cursor or an `offset` (0 to 1 000 000, else 400 `input.invalid`; not both, an empty `cursor=` counts as given; `total` = jobs matching the filters; `created_from_ms` inclusive and `created_to_ms` exclusive bound `created_at`, from < to, applied to the page and `total`; `tz=<IANA zone>` adds `day_totals`, `{"YYYY-MM-DD": n}` for each local day on the page, n = every job of that day matching the same filters and window; an unknown zone is 400 `input.invalid`; without `tz` the answer has no such field), detail, rename, debug, recheck,
   regenerate, media proxies), stats (`GET /admin/stats` the cards; `GET /admin/stats/hourly?provider=` the last 24 UTC hours, zero-filled, oldest first, each `{hour_ms, delivered, failed, in_progress}` counting jobs by the hour they were submitted; `GET /admin/stats/pool?provider=` the Accounts pool panel: per pool `{pool, left, budget, unknown, drift}` over the `available` accounts only (dead and disabled are not counted; a pool with no budget has every account unknown), plus `proxy_failed` and `last_full_check_ms`, the newest finished Check all), settings (read, write, reset; `BILLING_TZ`, `PUBLIC_BASE_URL` and `TRUSTED_PROXIES` are
-  listed read-only because they are boot-time env), alerts (list, acknowledge), `GET /admin/models`. Times are epoch
+  listed read-only because they are boot-time env; see the next bullet), alerts (list, acknowledge), `GET /admin/models`. Times are epoch
   milliseconds (`*_ms`).
+- **Settings** (`admin/routes_settings.py`): a live setting is the stored database value, else its default. No
+  environment variable sets one, and a variable named like a setting is ignored (precedence in `relay_core/settings.py`).
+  Each item carries `allowed`, the range or rule the value must meet. The answer also carries `fixed` (the code
+  constants that shape behaviour, each with a reason; the list is `relay_core/limits.py` and each provider's `LIMITS`)
+  and `containers` (the api's and each recently reporting worker's CPU, memory, PID and `/dev/shm` limits, read from
+  its cgroup at start, and when each was reported). An item no longer names an environment variable. The boot-only list
+  (`env_only`) is unchanged.
 - **Account actions are commands.** Delete, wake, check, proxy re-check, Check all, catalog refresh, job recover and
   fetch-title answer 202 `{command_id}`; the provider's worker runs them (see "What an operator must know").
   `GET /admin/commands/{id}` shows status and result. Editing the proxy or enabling an account that holds a live
@@ -456,6 +463,14 @@ fails when any other page or `/ui/` file carries the looser one.
   "Apply to all models of this kind" (on a default) lists what was applied, kept (locked) and unchanged. A save applies
   only to jobs created after it. A job's detail, section Technical, shows the frame version the job used and the exact
   text sent (`GET /admin/jobs/{id}` adds `frame_id` and `sent_text`). Frame texts and sent texts render as text.
+- **Settings:** the "Settings" page has six sub-navigation entries (settings, boot-only values, measured prices,
+  change password, fixed limits, containers); the source is `apps/admin-web/src/views/SettingsView.vue`. Each setting
+  shows an "Allowed:" line with the range or rule from the registry. The Fixed limits card lists the code constants of
+  `fixed` (`FixedLimits.vue`). The Containers card (`ContainerLimits.vue`) shows one block per service: the api,
+  stamped "this process, read at start" (its limits are read when the api starts), then each worker, stamped
+  "seen <ago>" (its last heartbeat). A row past the stale window gets a `stale` chip. A worker image older than
+  the limits shows "Not reported by this worker version". A limit that could not be read says "unreadable", which is
+  not the same as "no limit". A worker that stopped cleanly removes its heartbeat row and is not listed.
 - **Alerts:** the "Alerts" tab lists every stored alert kind (billing `clamp` and `drift`, unclear provider replies) from
   `GET /admin/alerts/groups`, filtered by open / acknowledged / all and by kind, with the live conditions beside them
   (computed now, nothing to acknowledge). A group shows its severity, title, first and last seen, rows, open rows and
@@ -515,6 +530,11 @@ Environment (read at boot; the full list is in the per-service env files):
 | `WORKER_ID` | default `worker-<provider>`. Names the heartbeat row, so it must be **unique per worker process** and contain **no `/`** (else exit 2). Two processes sharing an id share one row. Each boot appends its own `/<suffix>` to form the lease owner |
 | `WORKER_GRACE_S` | default 720. One deadline for the whole stop; keep it below the compose `stop_grace_period` (780 s) so Docker never kills first |
 
+At start the worker reads its container limits from its own cgroup (v2: `cpu.max`, `memory.max`, `pids.max`, plus the
+`/dev/shm` size) and the five boot knobs named in `BOOT_NAMES` (`relay_core/cgroup.py`; no other variable is ever
+copied, so a secret cannot be reported). It writes both with its heartbeat row (`worker_heartbeats.limits`, migration
+`0019_worker_limits.sql`). A `docker update` shows only after a restart.
+
 Start: the worker refuses (exit 2) when `BILLING_TZ` differs from the value pinned by `relay migrate`.
 
 Exit codes: 0 clean stop; 1 after 5 consecutive unexpected errors in the claim loop, or a loop that died; 2 refused
@@ -551,9 +571,9 @@ Drives dola.com in Chrome, one browser session per claimed job. Sources: `packag
 
 - **Env file** `deploy/worker-dola.env` (gitignored), copied from `deploy/worker-dola.env.example`. Keys, names only:
   `DATABASE_URL`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION`,
-  `CREDENTIAL_SEAL_PRIVATE_KEY`, `BILLING_TZ`, `DOLA_BROWSER_SLOTS_MAX`, `RELAY_PROFILE_ROOT`. `DOLA_BROWSER_SLOTS_MAX` is
-  required: the ceiling for the live setting `dola.browser_slots`, sized to the machine's memory (the dola spec accepts 1 to
-  30 for the setting). In the compose stack `compose.yml` sets `RELAY_PROFILE_ROOT=/profiles` and the slot ceiling (4) itself.
+  `CREDENTIAL_SEAL_PRIVATE_KEY`, `BILLING_TZ`, `RELAY_PROFILE_ROOT`. The number of browser sessions is not an
+  environment variable: it is the live setting `dola.browser_slots`. In the compose stack `compose.yml` sets
+  `RELAY_PROFILE_ROOT=/profiles` itself.
 - **Chrome** on the Mac (history, D95: relay runs on the box now, whose image holds the same pinned build): the pinned Chrome for Testing 154.0.8037.92 through `RELAY_CHROME_PATH` (see "Google Chrome"),
   not the installed Google Chrome. Set `RELAY_PROFILE_ROOT` too, or the profile cache is not kept.
 - **Accounts and proxies live outside the repo**, in `~/relay-secrets/` (the Mac, mode 0600 files; copied to the box once at intake, see "The secret tools"). They are imported
@@ -575,7 +595,9 @@ Registered by `spec.py`; read and written on the admin Settings page, live.
 | `dola.alert_duration_mismatch_rate` | drift alert: share of the last 24 h jobs delivered with the wrong length (0 to 1) | 0.2 |
 | `dola.alert_watermark_only_rate` | drift alert: share of the last 24 h jobs that failed as watermark-only (0 to 1) | 0.2 |
 | `dola.alert_content_refused_rate` | drift alert: share of the last 24 h submits refused for content (0 to 1) | 0.5 |
-| `dola.browser_slots` | browser sessions at once, capped by `DOLA_BROWSER_SLOTS_MAX`; lowering retires idle slots | 8 |
+| `dola.browser_slots` | browser sessions at once, 1 to 12 (code constants `BROWSER_SLOTS_MIN`, `BROWSER_SLOTS_MAX` in `relay_dola/constants.py`, sized to the dola container: 8 CPUs, 12 GiB); lowering retires idle slots | 4 |
+
+The range or rule of every setting is shown on the Settings page.
 
 There is no setting for image templates or for extra reply phrases. Image templates are not creation parameters: a
 request with `options.template` or `options.template_category` is refused 400 (no charge); a UI reads the template
@@ -743,6 +765,12 @@ into, inspects beyond metadata, or prunes anything foreign; relay removes only w
    (`docker exec relay-worker-dola-1 /opt/google/chrome/chrome --version`: 154.0.8037.92), not by the log: the worker logs
    nothing at the default level while it is idle. The worker has no HTTP port; its health is that heartbeat row.
    Then `relay provider resume dola` when the accounts are imported (drain also stops account checks).
+5. `migrate` runs before a new worker: the worker writes `worker_heartbeats.limits`, and before migration 0019 its
+   first heartbeat fails.
+6. A worker image older than the settings change must not start under this compose file: it still needs
+   `DOLA_BROWSER_SLOTS_MAX`, which the compose file no longer sets.
+7. After the new `worker-dola` reports on the Containers card, delete `DOLA_BROWSER_SLOTS_MAX` from `deploy/.env`.
+8. Rollback to an older worker puts that line back and uses that commit's compose file.
 
 A one-off `docker run` of a deployed image (keygen, admin create-user, a smoke test) inherits the compose labels
 `com.docker.compose.project=relay` and `...service=<service>` from the image, so `docker compose -p relay ps/stop/down` and
@@ -778,9 +806,11 @@ service with real CPU load (Chrome on four slots), so it keeps 8; Postgres, MinI
 day and one uvicorn process, so they were lowered: 8 + 2 + 1.5 + 1.5 = 13, and 13 + 12 = 25 fits. The load test can move
 any of them through a deploy recorded in the go-live log.
 
-`worker-dola` also gets `RELAY_PROFILE_ROOT=/profiles` and `DOLA_BROWSER_SLOTS_MAX` (4 unless `deploy/.env` says
-otherwise; the box's `deploy/.env` says 8, see "Slot values and the load test") from `compose.yml` itself, so a cold profile directory or a missing slot count cannot come from a forgotten line in
-the env file; `api` stops with a 30 s grace and `worker-dola` with 780 s.
+`worker-dola` also gets `RELAY_PROFILE_ROOT=/profiles` from `compose.yml` itself, so a cold profile directory cannot
+come from a forgotten line in the env file; `api` stops with a 30 s grace and `worker-dola` with 780 s.
+
+The Settings page's Containers card shows each relay service's limits as read inside the container. It is the check
+after a deploy that changes them.
 
 **Box-wide abort threshold.** At the first breach the step in progress stops: run `relay provider drain dola`, then a
 graceful stop of `worker-dola`, then report. Nothing foreign is touched. A breach is any one of:
@@ -834,6 +864,9 @@ docker compose -p relay -f deploy/compose.yml --profile dola up -d --no-build --
 
 The graceful stop (780 s) drains what is in flight; check that no job is `submitting` first. Without `-f` compose finds no
 file in `~/relay-deploy` and changes nothing.
+
+Note (19/10): the env ceiling was removed. `dola.browser_slots` (stored 6 on the box) is now the only slot knob,
+bounded 1 to 12; the `DOLA_BROWSER_SLOTS_MAX` line in `deploy/.env` was deleted at the deploy of `<commit>`.
 
 ### Live windows
 
@@ -952,7 +985,7 @@ Order matters: `restore_mark` writes whole tables and a running worker would cla
   database deadlock or serialization failure is re-queued, a bounded number of times; other errors fail it.
 - **Browser shares stay reserved (D45):** reconcile up to 2 and check plus command 1, even when idle, so the submit
   share is `slots - 3` and never below 1. Up to 4 slots therefore give exactly one submit at a time; concurrent
-  submits start at 5 slots. More submit slots mean a higher `<p>.browser_slots`, within the env ceiling.
+  submits start at 5 slots. More submit slots mean a higher `<p>.browser_slots`, within the 1 to 12 the provider allows.
 - **A late render is read once more before it fails.**
   - A job past `<provider>.render_deadline_s` fails only after one read that started after the deadline and that the
     provider answered: a poll that said "not ready", or a reconcile that found nothing. A read that failed does not
