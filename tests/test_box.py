@@ -161,6 +161,7 @@ def test_a_tree_with_a_real_env_file_is_refused_before_anything_is_sent(tmp_path
 
 @mutation(BOX, "rsync -a --delete -e", "rsync -a -e", expect="rsync did not delete what the Mac deleted")
 @mutation(BOX, "EXCLUDES=(.git .venv __pycache__", "EXCLUDES=(.git __pycache__", expect="the exclude list lost")
+@mutation(BOX, "/.worktrees /plans /.claude /CLAUDE.md)", "/.worktrees)", expect="the exclude list lost")
 def test_the_sync_deletes_what_is_gone_and_leaves_out_git_venv_caches_and_env_files(tmp_path):
     box = Box(tmp_path)
     run = box.run("--", "true")
@@ -168,7 +169,8 @@ def test_the_sync_deletes_what_is_gone_and_leaves_out_git_venv_caches_and_env_fi
     rsync = next(line for line in box.calls().splitlines() if line.startswith("RSYNC: "))
     assert " --delete " in rsync, "rsync did not delete what the Mac deleted: " + rsync
     for pattern in (".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".mutate.lock",
-                    "deploy/.env", "deploy/*.env", "._*", ".DS_Store", "node_modules"):
+                    "deploy/.env", "deploy/*.env", "._*", ".DS_Store", "node_modules",
+                    "/.worktrees", "/plans", "/.claude", "/CLAUDE.md"):
         assert "--exclude=%s " % pattern in rsync, "the exclude list lost %s: %s" % (pattern, rsync)
     assert rsync.endswith("%s/ phuongnam@192.168.18.227:relay-runs/proj/" % box.tree), rsync
     assert "relay-secrets" not in box.calls()
@@ -225,16 +227,29 @@ def fingerprint(box: Box) -> str:
 @mutation(BOX, 'fnmatch.fnmatch(rel, "deploy/*.env")', 'fnmatch.fnmatch(rel, "deploy/*.envX")',
           expect="an excluded file changed the fingerprint")
 @mutation(BOX, 'name.startswith("._")', 'name.startswith("._X")', expect="an excluded file changed the fingerprint")
+@mutation(BOX, 'SKIP_TOP = {".worktrees", "plans", ".claude", "CLAUDE.md"}',
+          'SKIP_TOP = {".worktrees", "plans", ".claude"}',
+          expect="an excluded file changed the fingerprint")
+@mutation(BOX, " and not (d == root and x in SKIP_TOP)", "", expect="an excluded file changed the fingerprint")
+@mutation(BOX, "or rel in SKIP_TOP)", "or name in SKIP_TOP)", expect="a nested plans or CLAUDE.md was left out")
+@mutation(BOX, "not (d == root and x in SKIP_TOP)", "not (x in SKIP_TOP)",
+          expect="a nested plans or CLAUDE.md was left out")
 def test_the_fingerprint_ignores_what_the_sync_leaves_out_and_sees_everything_else(tmp_path):
     box = Box(tmp_path)
     base = fingerprint(box)
     for rel in (".venv/lib/x.py", "__pycache__/m.pyc", "sub/.pytest_cache/n", ".ruff_cache/r", ".mutate.lock",
                 "deploy/.env", "deploy/local.env", "._a.txt", ".DS_Store", "sub/.git",
-                "node_modules/x/y.js", "apps/web/node_modules/p.js"):
+                "node_modules/x/y.js", "apps/web/node_modules/p.js",
+                ".worktrees/t/a.py", "plans/p/plan.md", ".claude/settings.local.json", "CLAUDE.md"):
         path = box.tree / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("noise\n", encoding="utf-8")
     assert fingerprint(box) == base, "an excluded file changed the fingerprint (a .git file included)"
+    for rel in ("apps/plans/p.md", "apps/CLAUDE.md"):
+        before = fingerprint(box)
+        (box.tree / rel).parent.mkdir(parents=True, exist_ok=True)
+        (box.tree / rel).write_text("seen\n", encoding="utf-8")
+        assert fingerprint(box) != before, "a nested plans or CLAUDE.md was left out: " + rel
 
 
 @mutation(BOX, "os.stat(path).st_mode & 0o111 != 0", "0", expect="the executable bit")

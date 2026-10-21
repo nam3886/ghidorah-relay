@@ -9,3 +9,6 @@ deploy/*.env
 .DS_Store
 .mutate.lock
 node_modules/
+.worktrees/
+plans/
+.claude/

@@ -46,7 +46,8 @@ RUNS="relay-runs"                      # relative to the box user's home
 LIVE_MARKER="relay-deploy/live-window" # relative to the box user's home; present while a live window is open
 GATE_CPUS="${RELAY_GATE_CPUS:-0-11}"   # the host cores a run may use (a taskset list)
 GATE_CAP="${RELAY_GATE_CAP:-auto}"
-EXCLUDES=(.git .venv __pycache__ .pytest_cache .ruff_cache .mypy_cache .mutate.lock deploy/.env 'deploy/*.env' '._*' .DS_Store node_modules)
+EXCLUDES=(.git .venv __pycache__ .pytest_cache .ruff_cache .mypy_cache .mutate.lock deploy/.env 'deploy/*.env' '._*' .DS_Store node_modules
+          /.worktrees /plans /.claude /CLAUDE.md) # a leading / matches at the top of the tree only
 
 die() { echo "box.sh: $1" >&2; exit "${2:-2}"; }
 [[ "$GATE_CPUS" =~ ^[0-9]+([-,][0-9]+)*$ ]] || die "RELAY_GATE_CPUS is a taskset list such as 0-11 or 0,2,4: '$GATE_CPUS'"
@@ -140,10 +141,11 @@ echo "$p $(starttime "$p")" > "$n.pid"
 FP_PY='
 import fnmatch, hashlib, os, sys
 SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", "node_modules"}
+SKIP_TOP = {".worktrees", "plans", ".claude", "CLAUDE.md"}
 root = sys.argv[1]
 def skipped(rel, name):
     return (name in (".git", ".DS_Store", ".mutate.lock") or name.startswith("._")
-            or fnmatch.fnmatch(rel, "deploy/*.env"))
+            or fnmatch.fnmatch(rel, "deploy/*.env") or rel in SKIP_TOP)
 def digest(path):
     if os.path.islink(path):
         return "link:" + os.readlink(path)
@@ -154,7 +156,7 @@ def digest(path):
     return "%s:%d" % (h.hexdigest(), os.stat(path).st_mode & 0o111 != 0)
 rows = []
 for d, dirs, files in os.walk(root):
-    dirs[:] = sorted(x for x in dirs if x not in SKIP_DIRS)
+    dirs[:] = sorted(x for x in dirs if x not in SKIP_DIRS and not (d == root and x in SKIP_TOP))
     names = list(files) + [x for x in dirs if os.path.islink(os.path.join(d, x))]
     for name in names:
         path = os.path.join(d, name)
