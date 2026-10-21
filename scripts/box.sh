@@ -47,7 +47,7 @@ LIVE_MARKER="relay-deploy/live-window" # relative to the box user's home; presen
 GATE_CPUS="${RELAY_GATE_CPUS:-0-11}"   # the host cores a run may use (a taskset list)
 GATE_CAP="${RELAY_GATE_CAP:-auto}"
 EXCLUDES=(.git .venv __pycache__ .pytest_cache .ruff_cache .mypy_cache .mutate.lock deploy/.env 'deploy/*.env' '._*' .DS_Store node_modules
-          /.worktrees /plans /.claude /CLAUDE.md) # a leading / matches at the top of the tree only
+          /.worktrees /plans /.claude /CLAUDE.md /.codegraph) # a leading / matches at the top of the tree only
 
 die() { echo "box.sh: $1" >&2; exit "${2:-2}"; }
 [[ "$GATE_CPUS" =~ ^[0-9]+([-,][0-9]+)*$ ]] || die "RELAY_GATE_CPUS is a taskset list such as 0-11 or 0,2,4: '$GATE_CPUS'"
@@ -141,7 +141,7 @@ echo "$p $(starttime "$p")" > "$n.pid"
 FP_PY='
 import fnmatch, hashlib, os, sys
 SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", "node_modules"}
-SKIP_TOP = {".worktrees", "plans", ".claude", "CLAUDE.md"}
+SKIP_TOP = {".worktrees", "plans", ".claude", "CLAUDE.md", ".codegraph"}
 root = sys.argv[1]
 def skipped(rel, name):
     return (name in (".git", ".DS_Store", ".mutate.lock") or name.startswith("._")
