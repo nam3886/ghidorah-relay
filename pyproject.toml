@@ -2,7 +2,7 @@
 name = "relay-workspace"
 version = "0.0.0"
 requires-python = ">=3.13,<3.14"
-description = "Workspace root: one API for dola, vibes and meta (contracts: c2tool/plans/260930-1635-relay-platform)"
+description = "Workspace root: one API for dola, vibes and meta (contracts: plans/260930-1635-relay-platform)"
 dependencies = [
     "relay-core",
     "relay-browser",

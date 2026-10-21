@@ -2,7 +2,7 @@
 
 One API for dola, vibes and meta. It replaces dola2api_v4, vibesai2api_v2 and meta2api.
 
-The authority is `../plans/260930-1635-relay-platform/contracts.md`. The phase files there say what gets built next.
+The authority is `plans/260930-1635-relay-platform/contracts.md`. The phase files there say what gets built next.
 
 ## Develop
 
