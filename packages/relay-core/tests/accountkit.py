@@ -75,10 +75,10 @@ def make_env(p, engine: KitEngine | None = None, *, spec: KitSpec | None = None,
     async def load_account(account_id) -> AccountView:
         async with tx(p) as conn:
             row = await (await conn.execute(
-                "SELECT label, proxy_host, proxy_port, provider_state FROM accounts WHERE id = %s",
+                "SELECT label, proxy_host, proxy_port, provider_state, credential_gen FROM accounts WHERE id = %s",
                 (account_id,))).fetchone()
         proxy = Proxy(row[1], row[2]) if row[1] else None
-        return AccountView(str(account_id), row[0] or "", b"credential", 1, proxy, row[3], {})
+        return AccountView(str(account_id), row[0] or "", b"credential", row[4], proxy, row[3], {})
 
     return Env(db=p, spec=spec, engine=engine or KitEngine(), settings=settings or FakeSettings(spec), owner=owner,
                keeper=keeper, load_account=load_account, store=store, budget=budget, **kw)

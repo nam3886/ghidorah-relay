@@ -175,7 +175,7 @@ async def due_accounts(db: AsyncConnectionPool, provider: str, limit: int) -> li
 @dataclass(frozen=True)
 class CheckResult:
     outcome: str          # checked | unknown | signed_out | proxy_bad | failed | merged | busy | no_token | skipped
-    #                       | lease_lost
+    #                       | lease_lost | superseded
     detail: str = ""
     account_id: Any = None   # the surviving account after a merge
 
@@ -185,6 +185,7 @@ class _Report:
     health: Health | None = None
     proxy: ProxyVerdict | None = None
     error: str | None = None
+    credential_gen: int | None = None    # the credential the engine read; None when it never got that far
 
 
 async def check_account(env: Env, account_id, *, command_id=None) -> CheckResult:
@@ -257,6 +258,7 @@ async def _run(env: Env, account_id, lease_id: int, token: Token | None) -> _Rep
     try:
         async with asyncio.timeout(env.check_hard_s * TIMEOUT_SHARE):
             view = await env.load_account(account_id)
+            report.credential_gen = view.credential_gen
             if env.caps.has_probe_proxy and view.proxy is not None:
                 report.proxy = await env.engine.probe_proxy(view.proxy)
             if report.proxy is None or report.proxy.ok:
@@ -279,9 +281,11 @@ async def _apply_report(env: Env, account_id, lease_id: int, report: _Report, co
     screenshot upload, must not turn a recorded check into `lease_lost`)."""
     health = report.health
     if health is not None and health.identity:
-        twin = await _twin(env, account_id, health.identity)
-        if twin is not None:
-            await remove_shots(env, account_id)       # objects first: the delete below runs in a transaction
+        twin, gen = await _twin(env, account_id, health.identity)
+        # objects first: the delete below runs in a transaction. Not for a report on a credential a merge has replaced
+        # (`_apply` refuses it): its shots are the account's current ones.
+        if twin is not None and report.credential_gen in (None, gen):
+            await remove_shots(env, account_id)
     await failpoints.hit("check.recording")
     settle()
     try:
@@ -313,8 +317,10 @@ async def _twin_in(conn: AsyncConnection, account_id, identity: str):
 
 
 async def _twin(env: Env, account_id, identity: str):
+    """The twin, and the account's credential generation now (None when the account is gone)."""
     async with tx(env.db) as conn:
-        return await _twin_in(conn, account_id, identity)
+        gen = await (await conn.execute("SELECT credential_gen FROM accounts WHERE id = %s", (account_id,))).fetchone()
+        return await _twin_in(conn, account_id, identity), gen and gen[0]
 
 
 async def _store_shot(env: Env, account_id, data: bytes) -> None:
@@ -356,11 +362,18 @@ async def _apply(env: Env, account_id, lease_id: int, report: _Report, command_i
         # cycle can form). Capacity rows are created or locked after that, in any order.
         twin = await _twin_in(conn, account_id, health.identity) if merging else None
         ids = [account_id] if twin is None else [account_id, twin]
-        rows = await (await conn.execute("SELECT id FROM accounts WHERE id = ANY(%s) ORDER BY id "
+        rows = await (await conn.execute("SELECT id, credential_gen FROM accounts WHERE id = ANY(%s) ORDER BY id "
                                          "FOR NO KEY UPDATE", (ids,))).fetchall()
         await failpoints.hit("check.apply.accounts_locked")
-        if (account_id,) not in rows:
+        gens = dict(rows)
+        if account_id not in gens:
             return CheckResult("skipped", "the account is gone"), []
+        if report.credential_gen is not None and gens[account_id] != report.credential_gen:
+            # a merge moved another credential into this row while the engine read the old one: what it saw says
+            # nothing about the row now (an old signed-out jar must not kill a fresh one). Nothing is written: the
+            # merge already made the next check due now, and the account did not fail
+            await leases.release(conn, lease_id)
+            return CheckResult("superseded", "a merge replaced the credential; a new check is due now"), []
         if report.error is not None:
             await _fail(conn, env, account_id, report.error)
             await leases.release(conn, lease_id)

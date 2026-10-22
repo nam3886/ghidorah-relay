@@ -257,11 +257,11 @@ def test_the_check_that_ends_an_account_reports_signed_out_to_the_admin_and_no_o
     assert one.outcome == "unknown" and row(db, fresh)[:3] == ("available", None, 1)
 
 
-COMMAND_OUTCOMES = 'in ("checked", "unknown", "merged", "proxy_bad", "signed_out"):'
+COMMAND_OUTCOMES = 'in ("checked", "unknown", "merged", "proxy_bad", "signed_out", "superseded"):'
 COMMANDS = "packages/relay-core/src/relay_core/jobs/commands.py"
 
 
-@mutation(COMMANDS, COMMAND_OUTCOMES, 'in ("checked", "unknown", "merged", "proxy_bad"):',
+@mutation(COMMANDS, COMMAND_OUTCOMES, 'in ("checked", "unknown", "merged", "proxy_bad", "superseded"):',
           expect="the admin's check command failed for a signed_out result")
 def test_the_check_command_returns_a_signed_out_result_to_the_admin(db):
     a = new_account(db, checked=True, due_s=-1)

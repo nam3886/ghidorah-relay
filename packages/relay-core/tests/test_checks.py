@@ -554,13 +554,20 @@ def twin_pair(db):
           expect="deadlock detected")
 def test_two_checks_that_find_each_other_as_twins_do_not_deadlock_and_leave_one_survivor(db):
     """Each check merges into the other. Both lock the account rows of BOTH accounts in id order, so one waits for the
-    other; the loser then sees its twin gone and fails for a retry."""
+    other; the loser then finds its own row holding the winner's credential and records nothing (superseded)."""
     a, b = twin_pair(db)
 
     async def scenario(p):
         engine = KitEngine()
         engine.health_by_account = {str(a): Health("alive", identity="b@x"), str(b): Health("alive", identity="a@x")}
         env = make_env(p, engine)
+        entered = []
+
+        async def both_reading(ctx):                   # both hold their lease and read their own credential first:
+            entered.append(ctx)                        # a check that starts after the merge reads the moved one
+            while len(entered) < 2:
+                await asyncio.sleep(0.01)
+        engine.on_check = both_reading
 
         async def both_locked():                       # each has taken its account locks and waits for the other
             await asyncio.sleep(1.5)
@@ -572,8 +579,70 @@ def test_two_checks_that_find_each_other_as_twins_do_not_deadlock_and_leave_one_
 
     results = worker(db, scenario)
     assert not [r for r in results if isinstance(r, BaseException)], "deadlock detected: %r" % (results,)
-    assert sorted(r.outcome for r in results) == ["failed", "merged"]
+    assert sorted(r.outcome for r in results) == ["merged", "superseded"]
     assert db.one("SELECT count(*) FROM accounts")[0] == 1 and db.one("SELECT count(*) FROM leases")[0] == 0
+
+
+def stale_check_beside_a_merge(db, store, old, new, cmd, stale: Health):
+    """The old account is checked with its old jar (the engine answers `stale`) while a new import of the same
+    identity merges into it: the old check records only after the merge committed."""
+    async def scenario(p):
+        engine = KitEngine()
+        engine.health_by_account = {str(old): stale, str(new): Health("alive", identity="who@x")}
+        env = make_env(p, engine, store=store, retry_s=300)
+        merged = asyncio.Event()
+
+        async def old_waits_for_the_merge(ctx):
+            if ctx.account.id == str(old):
+                await merged.wait()
+        engine.on_check = old_waits_for_the_merge
+
+        async def merge():
+            try:
+                return await check_account(env, new, command_id=cmd)
+            finally:
+                merged.set()
+        return await asyncio.gather(check_account(env, old), merge())
+
+    stale_result, merging = worker(db, scenario)
+    assert merging.outcome == "merged"
+    return stale_result
+
+
+SUPERSEDED = '            await leases.release(conn, lease_id)\n            return CheckResult("superseded"'
+
+
+@mutation(CHECKS, "if report.credential_gen is not None and gens[account_id] != report.credential_gen:", "if False:",
+          expect="a check of the old credential wrote over the merged one")
+@mutation(CHECKS, SUPERSEDED, '            await _fail(conn, env, account_id, "stale")\n' + SUPERSEDED,
+          expect="the stale check moved the merge's recheck")
+def test_a_check_that_read_a_credential_a_merge_replaced_records_nothing_and_leaves_the_recheck_due(db, store):
+    """The old check's result is about a credential the row no longer holds: it must not kill the fresh one, and it
+    must not push back the recheck the merge made due now, nor leave an error behind."""
+    old, new, cmd, other, shot = merge_setup(db, store)
+    result = stale_check_beside_a_merge(db, store, old, new, cmd, Health("signed_out"))
+    row = account_row(db, old)
+    assert (row["state"], row["credential_gen"], bytes(row["credential_enc"])) == ("available", 2, b"new-cred"), \
+        "a check of the old credential wrote over the merged one: %r" % row["state"]
+    assert result.outcome == "superseded"
+    assert db.one("SELECT check_due_at <= clock_timestamp() FROM accounts WHERE id = %s", old) == (True,), \
+        "the stale check moved the merge's recheck"
+    assert row["last_error"] is None
+    assert db.one("SELECT count(*) FROM leases")[0] == 0
+
+
+@mutation(CHECKS, "if twin is not None and report.credential_gen in (None, gen):", "if twin is not None:",
+          expect="the stale check removed the account's screenshot")
+def test_a_check_whose_credential_a_merge_replaced_leaves_the_accounts_screenshot_alone(db, store):
+    """The old jar reports an identity a third account has: a twin, whose merge would first remove this account's
+    screenshot objects. The report is refused (the credential changed), so the screenshot stays."""
+    old, new, cmd, other, shot = merge_setup(db, store)
+    new_account(db, identity="y@x", checked=True)
+    kept = put_shot(db, store, old)
+    result = stale_check_beside_a_merge(db, store, old, new, cmd, Health("alive", identity="y@x"))
+    assert result.outcome == "superseded"
+    assert keys(store) == [kept], "the stale check removed the account's screenshot: %r" % keys(store)
+    assert db.one("SELECT object_key FROM account_shots WHERE account_id = %s", old) == (kept,)
 
 
 @mutation(CHECKS, "if merging and await _twin_in(conn, account_id, health.identity) != twin:", "if False:",
@@ -670,11 +739,12 @@ REST_FIXED = "until = datetime.now(UTC) + timedelta(seconds=env.caps.proxy_rest_
 REST_FIXED_MUTATED = "until = datetime.now(UTC) + timedelta(seconds=1800)"
 INTERVAL = "return self.caps.check_interval_s if self.check_every_s is None else self.check_every_s"
 INTERVAL_FIXED = "return 3600.0"
-ACCOUNT_LOCK = '        rows = await (await conn.execute("SELECT id FROM accounts WHERE id = ANY(%s) ORDER BY id "\n'
+ACCOUNT_LOCK = ('        rows = await (await conn.execute("SELECT id, credential_gen FROM accounts WHERE id = ANY(%s) '
+                'ORDER BY id "\n')
 CAPACITY_FIRST = ('        await conn.execute("SELECT 1 FROM account_capacity WHERE account_id = ANY(%s) '
                   'ORDER BY account_id, pool FOR UPDATE", (ids,))\n'
-                  '        rows = await (await conn.execute("SELECT id FROM accounts WHERE id = ANY(%s) '
-                  'ORDER BY id "\n')
+                  '        rows = await (await conn.execute("SELECT id, credential_gen FROM accounts '
+                  'WHERE id = ANY(%s) ORDER BY id "\n')
 NO_ACCOUNT_LOCK = '"FOR NO KEY UPDATE", (ids,))).fetchall()'
 
 
