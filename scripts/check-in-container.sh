@@ -27,6 +27,8 @@
 # The tests run the committed admin bundle: the script refuses to start when apps/admin-web's sources are not the ones
 # the bundle was built from (scripts/web_src_hash.py against apps/admin-web/.bundle-stamp, written by `web.sh build`).
 # Without arguments nothing changes: the whole tier, which scripts/check.sh --full runs.
+# Workers: BROWSER_TIER_JOBS=N on the command line runs the tests on N xdist workers in the container, a file per worker
+# (scripts/browser-tier.sh; default min(8, CPUs / 3), 1 = serial), whole tier or narrowed alike.
 #
 # Screenshots: with RELAY_SCREENSHOTS_DIR=PATH set on the command line (`scripts/box.sh --tree NAME --
 # RELAY_SCREENSHOTS_DIR=shots scripts/check-in-container.sh tests/admin_ui/test_e2e_sweep.py`) the container gets that
@@ -86,7 +88,9 @@ else
 fi
 
 rc=0
-box "DIR=$DIR PROJECT=$PROJECT IMAGE=$IMAGE RUNNER=$RUNNER LABEL=$LABEL TOKEN=$TOKEN SHOTS=${shots_dest:+1} TIER_ARGS=$(printf %q "$tier_args") bash -s" <<'REMOTE' || rc=$?
+jobs=${BROWSER_TIER_JOBS:-}            # xdist workers in the container (scripts/browser-tier.sh); empty = its default
+[[ "$jobs" =~ ^[0-9]*$ ]] || { echo "check-in-container.sh: BROWSER_TIER_JOBS is a number: '$jobs'" >&2; exit 2; }
+box "DIR=$DIR PROJECT=$PROJECT IMAGE=$IMAGE RUNNER=$RUNNER LABEL=$LABEL TOKEN=$TOKEN SHOTS=${shots_dest:+1} JOBS=$jobs TIER_ARGS=$(printf %q "$tier_args") bash -s" <<'REMOTE' || rc=$?
 set -euo pipefail
 cd "$DIR"
 shots=()
@@ -104,8 +108,12 @@ docker compose -p "$PROJECT" -f deploy/compose.check.yml up -d --wait --quiet-pu
 # The image's entrypoint is `tini -- xvfb-exec`, so the command below runs on the virtual screen.
 # The whole tree is mounted read-only (tests, fixtures, scripts); its sources go first on PYTHONPATH. Each test gets a
 # short tmp_path (scripts/short_tmp_plugin.py: Chrome's socket path must stay under 108 bytes).
+# The xdist workers (JOBS, browser-tier.sh) cut their databases from one template: sessions that migrate at once race
+# on the cluster-wide roles (packages/relay-core/tests/pgtemplate.py). Each worker runs its own Chrome: a larger /dev/shm.
 envargs=(); while IFS= read -r line; do envargs+=(-e "$line"); done < <(scripts/browser-image.sh env)
-docker run --rm --name "$RUNNER" --label "$LABEL" --network "${PROJECT}_default" --shm-size=1g ${RELAY_GATE_CPUSET:+--cpuset-cpus "$RELAY_GATE_CPUSET"} \
+envargs+=(-e "RELAY_TEST_PG_TEMPLATE=relay_tpl_${TOKEN//-/_}")
+[ -z "$JOBS" ] || envargs+=(-e "BROWSER_TIER_JOBS=$JOBS")
+docker run --rm --name "$RUNNER" --label "$LABEL" --network "${PROJECT}_default" --shm-size=4g ${RELAY_GATE_CPUSET:+--cpuset-cpus "$RELAY_GATE_CPUSET"} \
   -e PYTHONDONTWRITEBYTECODE=1 "${envargs[@]}" \
   -e PYTHONPATH="$(cd "$DIR" && printf '/work/%s:' packages/*/src apps/*/src)/work/scripts" \
   -v "$DIR:/work:ro" ${shots[@]+"${shots[@]}"} -w /work \

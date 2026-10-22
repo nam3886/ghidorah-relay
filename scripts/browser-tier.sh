@@ -10,6 +10,13 @@ set -euo pipefail
 PYTEST=${PYTEST:-pytest}
 LOG=${TIER_LOG:-/tmp/tier.log}
 skip=--ignore=tests/browser/test_graceful_stop.py
+# BROWSER_TIER_JOBS=N runs the tests on N xdist workers, a file per worker (its module-scope Chrome stays one), each
+# worker with its own database (cut from RELAY_TEST_PG_TEMPLATE) and its own live servers; 1 is the serial run. The
+# default leaves most of a shared host free: min(8, CPUs / 3), at least 1.
+cpus=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN)
+jobs=${BROWSER_TIER_JOBS:-$(( cpus / 3 < 8 ? cpus / 3 : 8 ))}
+[[ "$jobs" =~ ^[0-9]+$ ]] || { echo "browser tier: BROWSER_TIER_JOBS is a number: '$jobs'" >&2; exit 2; }
+xdist=(); [ "$jobs" -le 1 ] || xdist=(-n "$jobs" --dist loadfile)
 
 # The number of tests `pytest "$@"` selects. addopts holds -q, so --collect-only -q prints "file: N" lines.
 count() {
@@ -26,7 +33,7 @@ if [ $# -gt 0 ]; then
   selected=$(count -m browser "$@") || exit 1
   [ "$selected" -gt 0 ] || { echo "browser tier: FAILED, no browser test selected by: $*" >&2; exit 1; }
   echo "browser tier: PARTIAL (narrowed): $selected test(s) selected by: $*"
-  $PYTEST -m browser "$@" $skip -p short_tmp_plugin -p hang_guard_plugin -p no:cacheprovider -vv | tee "$LOG"
+  $PYTEST -m browser "$@" $skip -p short_tmp_plugin -p hang_guard_plugin -p no:cacheprovider ${xdist[@]+"${xdist[@]}"} -vv | tee "$LOG"
   passed=$(grep -c " PASSED" "$LOG" || true)
   [ "$passed" = "$selected" ] \
     || { echo "browser tier: FAILED, $passed passed of $selected selected (a skip or a failure)" >&2; exit 1; }
@@ -42,8 +49,9 @@ echo "browser tier: $mac test(s) of the Mac tier (browser and not box) + $only b
 [ "$every" = "$((mac + only))" ] \
   || { echo "browser tier: FAILED, -m browser selects $every test(s), the two parts add up to $((mac + only))" >&2; exit 1; }
 
-# pipefail: pytest's status survives tee. -vv nets to one -v with addopts' -q: a line per test.
-$PYTEST -m browser $skip -p short_tmp_plugin -p hang_guard_plugin -p no:cacheprovider -vv | tee "$LOG"
+# pipefail: pytest's status survives tee. -vv nets to one -v with addopts' -q: a line per test (with xdist too:
+# "[gwN] [ p%] PASSED node").
+$PYTEST -m browser $skip -p short_tmp_plugin -p hang_guard_plugin -p no:cacheprovider ${xdist[@]+"${xdist[@]}"} -vv | tee "$LOG"
 passed=$(grep -c " PASSED" "$LOG" || true)
 [ "$passed" = "$((mac + only))" ] \
   || { echo "browser tier: FAILED, $passed passed of $((mac + only)) selected (a skip or a failure)" >&2; exit 1; }

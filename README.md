@@ -94,7 +94,7 @@ See [docs/operations.md](docs/operations.md) for the full deploy order, drain mo
 |---|---|
 | `scripts/check.sh` | Lint (ruff), type checks (mypy) and every non-browser test against throwaway Postgres and MinIO |
 | `scripts/check.sh <paths>` | The same, limited to the given tests |
-| `scripts/check-in-container.sh <paths> [-k EXPR]` | Browser tests (admin end-to-end, Chrome sessions) in the browser image; `-k` picks one page's tests; refuses a stale admin bundle (run `web.sh build`) |
+| `scripts/check-in-container.sh <paths> [-k EXPR]` | Browser tests (admin end-to-end, Chrome sessions) in the browser image; `-k` picks one page's tests; refuses a stale admin bundle (run `web.sh build`); `BROWSER_TIER_JOBS=N` xdist workers (default min(8, CPUs/3), 1 = serial) |
 | `scripts/web.sh check` | Admin web app: type check, ESLint, Prettier and Vitest |
 | `scripts/web.sh test <spec...>` | Only the given Vitest spec files (no build, types or lint), for fast iteration |
 | `scripts/web.sh build` | Build the admin web app into `relay_core/admin/static/app/` |

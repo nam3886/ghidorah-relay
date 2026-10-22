@@ -573,7 +573,12 @@ OVERLAP_WATCH_JS = """() => {
 def alerts_page(page, db):
     keys = alerts_planted(db)
     open_tab(page, "Alerts")
-    expect(groups(page)).to_have_count(5)
+    # The layout of the viewport the test set: on a phone the groups are the phone list. Counting table rows there
+    # passed only while the page had not yet seen its new width (the table is drawn first, then the list replaces it).
+    if page.viewport_size["width"] < 768:
+        expect(page.locator('section[aria-label="Alert groups"] .p-group')).to_have_count(5)
+    else:
+        expect(groups(page)).to_have_count(5)
     return keys
 
 

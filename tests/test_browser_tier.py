@@ -317,3 +317,35 @@ def test_a_hang_in_a_body_a_setup_or_a_teardown_fails_with_its_node_id_and_the_r
     for node in ("test_hang.py::test_body", "test_hang.py::test_setup", "test_hang.py::test_teardown"):
         assert node + ": no result" in out, "%s did not fail with its node id: %s" % (node, out)
     assert "time.sleep" in out, "the traceback does not show where it hung: " + out
+
+
+@mutation(TIER, 'xdist=(-n "$jobs" --dist loadfile)', "xdist=()", expect="the tier did not run on the workers")
+@mutation(TIER, '[ "$jobs" -le 1 ] || xdist=', '[ "$jobs" -le 0 ] || xdist=', expect="one worker is not the serial run")
+def test_browser_tier_jobs_runs_the_whole_and_the_narrowed_tier_on_xdist_workers_a_file_per_worker(tmp_path):
+    log = tmp_path / "args.log"
+    whole = tier(tmp_path, BROWSER_TIER_JOBS=4, FAKE_ARGS_LOG=log)
+    narrowed = tier(tmp_path, "tests/admin_ui/test_e2e_jobs.py", BROWSER_TIER_JOBS=4, FAKE_ARGS_LOG=log, **NARROW_ENV)
+    assert whole.returncode == 0 and narrowed.returncode == 0, whole.stderr + narrowed.stderr
+    runs = log.read_text().splitlines()
+    assert len(runs) == 2 and all("-n 4 --dist loadfile" in r for r in runs), \
+        "the tier did not run on the workers: %r" % runs
+    log.unlink()
+    serial = tier(tmp_path, BROWSER_TIER_JOBS=1, FAKE_ARGS_LOG=log)
+    assert serial.returncode == 0 and "-n " not in log.read_text(), \
+        "one worker is not the serial run: " + log.read_text()
+    bad = tier(tmp_path, BROWSER_TIER_JOBS="x")
+    assert bad.returncode == 2 and "BROWSER_TIER_JOBS is a number" in bad.stderr, bad.stderr
+
+
+@mutation(IN_CONTAINER, '[ -z "$JOBS" ] || envargs+=', "true || envargs+=", expect="BROWSER_TIER_JOBS did not reach")
+@mutation(IN_CONTAINER, 'envargs+=(-e "RELAY_TEST_PG_TEMPLATE=', 'envargs+=(-e "RELAY_TEST_PG_TEMPLATX=',
+          expect="the tier's workers do not share a template")
+def test_the_tier_container_gets_the_worker_count_and_one_database_template_for_its_workers(tmp_path):
+    run, runs = container_run(tmp_path, "tests/a.py", BROWSER_TIER_JOBS=3)
+    assert run.returncode == 0, run.stdout + run.stderr
+    args = runs[0]["args"]
+    assert "BROWSER_TIER_JOBS=3" in args, "BROWSER_TIER_JOBS did not reach the container: %r" % args
+    assert any(a.startswith("RELAY_TEST_PG_TEMPLATE=relay_tpl_") for a in args), \
+        "the tier's workers do not share a template: %r" % args
+    run, runs = container_run(tmp_path / "d", "tests/a.py")
+    assert not any(a.startswith("BROWSER_TIER_JOBS") for a in runs[0]["args"]), "unset must leave the tier's default"

@@ -293,6 +293,10 @@ scripts/box.sh --clear dev1                                   # stop the run tha
   package, so a mutated migration gets its own). The check Postgres runs with `max_connections=500` and durability off.
   The browser tests of the mutation stage (`@pytest.mark.browser` and every test of `relay-browser`) run in the browser
   image (`MUTATE_BROWSER_IMAGE`, `scripts/browser-image.sh`) on a queue of their own (`MUTATE_BROWSER_JOBS`, 3).
+  The browser tier runs on `BROWSER_TIER_JOBS` xdist workers inside its container (default min(8, CPUs/3); `--dist
+  loadfile`, one database per worker cut from the run's template, one Chrome per worker); `BROWSER_TIER_JOBS=1` is the
+  serial tier. Its tests that are not about sign-in start signed in (`app_session`: a session row and its token in
+  sessionStorage, no login form); the sign-in tests use `app.sign_in`, the real form.
 - **One whole-tree gate.** `check.sh --full` with no `MUTATE_ONLY` and no test path takes `~/relay-runs/gate.lock`; a
   second one is refused at once (exit 75), whatever folder it runs in. The command may be wrapped (`bash -c '... ./scripts/check.sh --full 2>&1 | ts'`):
   `box.sh` reads each argument as shell words and ignores what follows the first operator after `check.sh`. Narrowed runs are not locked.

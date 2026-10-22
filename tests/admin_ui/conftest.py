@@ -6,6 +6,7 @@ import asyncio
 import importlib.util
 import json
 import re
+import secrets
 import sys
 import threading
 from pathlib import Path
@@ -242,10 +243,30 @@ def sign_out_app(page) -> None:
     page.get_by_role("menuitem", name="Sign out").click()
 
 
+def planted_session(page, live, db) -> None:
+    """Signed in without the login form: a session row for the admin user and its token in the page's sessionStorage,
+    the state the login view leaves behind (stores/auth.ts, lib/session.ts), then the Jobs route. No argon2 check and
+    no form, so a test that is not about sign-in does not pay for one; the tests of sign-in itself use `app.sign_in`."""
+    from patchright.sync_api import expect
+
+    from relay_core.admin.auth import hash_token
+    token = secrets.token_urlsafe(32)
+    db.run("INSERT INTO admin_sessions (token_hash, user_id, expires_at) "
+           "SELECT %s, id, clock_timestamp() + interval '1 day' FROM admin_users WHERE username = %s",
+           hash_token(token), live.user)
+    page.goto("/healthz")                       # any page of the origin: sessionStorage is per origin and per tab
+    page.evaluate("([t, u]) => { sessionStorage.setItem('relay_admin_token', t); "
+                  "sessionStorage.setItem('relay_admin_user', u); }", [token, live.user])
+    page.goto(APP_URL + "#/jobs")
+    expect(page).to_have_url(re.compile(r"#/jobs$"), timeout=SIGN_IN_TIMEOUT_MS)
+    # The dashboard is drawn, as after the form.
+    expect(page.get_by_role("banner")).to_be_visible(timeout=SIGN_IN_TIMEOUT_MS)
+
+
 @pytest.fixture
-def app_session(app_page, live):
-    """`app_page`, signed in and on the Jobs route."""
-    sign_in_app(app_page, live)
+def app_session(app_page, live, db):
+    """`app_page`, signed in (a planted session, `planted_session`) and on the Jobs route."""
+    planted_session(app_page, live, db)
     return app_page
 
 

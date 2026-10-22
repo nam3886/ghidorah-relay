@@ -415,7 +415,7 @@ def test_results_show_from_share_links_download_and_open_through_the_proxy_once_
     image = panel.locator("[data-section=results] img")
     expect(image).to_have_count(1)
     assert image.get_attribute("src") == "/m/" + token
-    page.wait_for_function("document.querySelector('[data-testid=job-drawer] img').naturalWidth === 1")
+    page.wait_for_function("() => document.querySelector('[data-testid=job-drawer] img').naturalWidth === 1")
     expect(panel.locator("[data-section=results]").get_by_role("button", name="Open", exact=True)).to_have_count(0)
     with page.expect_download() as download:
         panel.get_by_role("button", name="Download", exact=True).click()

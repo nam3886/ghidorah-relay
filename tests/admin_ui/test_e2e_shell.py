@@ -445,7 +445,8 @@ def test_the_api_docs_item_opens_the_reference_in_a_new_tab(app_session):
 
 def test_the_fonts_load_from_this_origin_as_files_and_the_body_uses_them(app_session):
     page = app_session
-    page.wait_for_function("document.fonts.check('600 14px \"Be Vietnam Pro\"')")
+    # A function, not a bare expression: patchright evals a bare one on every poll, and the page's CSP refuses eval
+    page.wait_for_function("() => document.fonts.check('600 14px \"Be Vietnam Pro\"')")
     assert page.evaluate("getComputedStyle(document.body).fontFamily").startswith('"Be Vietnam Pro"')
     sources = page.evaluate("performance.getEntriesByType('resource').map(e => e.name).filter(n => /woff2?$/.test(n))")
     assert sources, "no font file was requested"
