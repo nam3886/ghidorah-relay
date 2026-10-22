@@ -566,3 +566,82 @@ describe("the editor drawer", () => {
     expect(isBlocked?.()).toBe(false);
   });
 });
+
+describe("a model row", () => {
+  const heading = () => {
+    const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]');
+    return dialog ? document.getElementById(dialog.getAttribute("aria-labelledby")!)?.textContent : undefined;
+  };
+  const row = (model: string) =>
+    page()
+      .findAll("tbody tr")
+      .find((tr) => tr.find(".kind__model").text().startsWith(model))!;
+  const usePhone = (on: boolean) =>
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: on && /max-width:\s*767/.test(q),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("has no Edit column: the table heads end at Keep own", async () => {
+    await open();
+    const video = page().find('[data-frame-kind="video"]');
+    expect(video.findAll("thead th").map((th) => th.text())).toEqual(["Model", "Effective version", "Keep own"]);
+    expect(buttons("Edit")).toHaveLength(0);
+  });
+
+  it("opens the model's editor on a click anywhere in its row", async () => {
+    await open();
+    await row("m1").find(".kind__effective-cell").trigger("click");
+    await flushPromises();
+    expect(heading()).toBe("Editing video / m1");
+  });
+
+  it("names the model as the row's keyboard opener: a button reading the model, labelled Edit frame for it", async () => {
+    await open();
+    const opener = row("m1").find('button[aria-label="Edit frame for m1"]');
+    expect(opener.text()).toBe("m1");
+    await opener.trigger("click");
+    await flushPromises();
+    expect(heading()).toBe("Editing video / m1");
+  });
+
+  it("toggles the lock and opens nothing on a click on Keep own", async () => {
+    vi.mocked(api.lockFrame).mockResolvedValue({});
+    await open();
+    const box = row("m1").find('input[type="checkbox"]');
+    await box.trigger("click");
+    await box.trigger("change");
+    await flushPromises();
+    expect(api.lockFrame).toHaveBeenCalled();
+    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(false);
+  });
+
+  it("opens nothing on a row click while a write runs", async () => {
+    await open();
+    await row("m1").trigger("click");
+    await flushPromises();
+    await textarea().setValue("typed");
+    const slow = deferred<api.SavedFrame>();
+    vi.mocked(api.putFrame).mockReturnValue(slow.promise);
+    await button("Save").trigger("click");
+    await row("m2").trigger("click");
+    await flushPromises();
+    expect(heading()).toBe("Editing video / m1");
+    slow.resolve({ version: version(9, "typed"), unchanged: false, warnings: [] });
+    await flushPromises();
+  });
+
+  it("on a phone opens the editor on a tap on the model's block, which has no Edit button", async () => {
+    usePhone(true);
+    await open();
+    const block = page()
+      .findAll(".kind__list li")
+      .find((li) => li.find(".kind__model").text().startsWith("m1"))!;
+    expect(block.findAll("button").filter((b) => b.text() === "Edit")).toHaveLength(0);
+    await block.find(".kind__effective").trigger("click");
+    await flushPromises();
+    expect(heading()).toBe("Editing video / m1");
+  });
+});

@@ -94,6 +94,19 @@ CARD_AS_BODY = """root => {
 # The board marks the row whose editor is open; the page has no open-editor row (the editor is a drawer over it)
 ROW_MARK_OFF = """root => document.querySelectorAll(root + ' [style*="primary-soft"]').forEach(
   (el) => { el.style.background = 'transparent'; })"""
+# Declared deviation (row 62): a model row opens its editor itself, so the canvas loses its Edit column (the table) or
+# its Edit button (the phone block), and Keep own becomes the last column with the table's 16 px right padding.
+EDIT_COLUMN_OFF = """root => {
+  document.querySelectorAll(root + ' [aria-label^="Edit frame for"]').forEach((button) => {
+    const cell = button.closest('td');
+    (cell || button).remove();
+  });
+  document.querySelectorAll(root + ' th').forEach((th) => { if (th.textContent.trim() === 'Edit') th.remove(); });
+  document.querySelectorAll(root + ' table tr').forEach((tr) => {
+    const last = tr.lastElementChild;
+    if (last) last.style.paddingRight = '16px';
+  });
+}"""
 # The drawer's footer is the shared one: padding 10 24, a strong rule above, the surface fill, the buttons at the right.
 BUTTONS_AS_FOOTER = """root => {
   const el = document.querySelector(root);
@@ -125,7 +138,7 @@ def _board(entry: Entry, board: str, data: tuple, data_app: tuple = (), accepted
 def _list(board: str) -> FrameCheck:
     entry = Entry(board, FRAMES.route, seed=FRAMES.seed, now=FRAMES.now, drive=frames_drive, user=FRAMES.user)
     return FrameCheck(board + "-list", entry, "main", "main", data=FRAMES_DATA, cut_canvas=EDITOR_CARD,
-                      fix_canvas=ROW_MARK_OFF)
+                      fix_canvas="root => { (%s)(root); (%s)(root); }" % (ROW_MARK_OFF, EDIT_COLUMN_OFF))
 
 
 def _editor(board: str, *, body: bool) -> FrameCheck:
