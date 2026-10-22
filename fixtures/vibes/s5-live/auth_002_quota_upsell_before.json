@@ -1,0 +1,15 @@
+{
+ "t": 2.85,
+ "elapsed_s": 0.64,
+ "step": "quota_upsell_before",
+ "method": "GET",
+ "path": "/api/quota/upsell",
+ "request": null,
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "upsell": null
+ }
+}

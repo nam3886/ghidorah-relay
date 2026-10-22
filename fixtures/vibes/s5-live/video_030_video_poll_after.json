@@ -1,0 +1,70 @@
+{
+ "t": 154.35,
+ "elapsed_s": 1.49,
+ "step": "video_poll_after",
+ "method": "GET",
+ "path": "/api/generation-batches/3fbc9c32-3f9d-47d1-aa43-377c9bf65697",
+ "request": null,
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "batch": {
+   "id": "3fbc9c32-3f9d-47d1-aa43-377c9bf65697",
+   "userId": "<user.id>",
+   "projectId": null,
+   "type": "videos",
+   "prompt": "a small wooden sailboat drifting on a calm sea at sunset",
+   "timestamp": "2026-10-22T17:49:22.000Z",
+   "isComplete": false,
+   "hasError": false,
+   "error": null,
+   "canRetry": true,
+   "config": {
+    "resolution": "480p",
+    "videoModel": "midjen-short"
+   },
+   "systemPrompt": null,
+   "promptModel": null,
+   "imageModel": null,
+   "videoModel": null,
+   "bulkGenId": null,
+   "generationStartTime": "2026-10-22T17:49:23.000Z",
+   "generationEndTime": "2026-10-22T17:49:23.000Z",
+   "creationContext": "legacy",
+   "createdAt": "2026-10-22T17:49:23.000Z",
+   "updatedAt": "2026-10-22T17:49:38.000Z",
+   "content": [
+    {
+     "id": "3fbc9c32-3f9d-47d1-aa43-377c9bf65697-content-0",
+     "userId": "<user.id>",
+     "batchId": "3fbc9c32-3f9d-47d1-aa43-377c9bf65697",
+     "originProjectId": null,
+     "type": "videos",
+     "isLoading": true,
+     "isFavorited": false,
+     "data": "{\"videoGenEntId\": \"1346969491840450\", \"requestId\": \"www-<user.id>-3d2b287f-9ecd-4a81-bf2e-d9095d395e51\", \"imageEntId\": \"1346969485173784\"}",
+     "imageUrl": "https://scontent-ord5-1.xx.fbcdn.net/o1/v/t6/f2/m421/AQMea4WBFHJp-3Fx3W-nPQvfMR9S8Plcm5sMfBMNXpLhVChqf70Ua5qHBUkHikzGXiqiBKcGr7vMYncFj0o0dcQBI6RtexczGkdTQWPjTOHFmXnR1j9LOWcEqFGhfvYCkvmAoQWPMhBhMyE-y2AStY4V1_Mvcg.jpeg?<redacted-query>",
+     "imageHandle": null,
+     "videoUrl": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t0/f2/m251/AQOGI9FfI-_Fk5YvfgdWjCV-5t_GF5HgyPMye6D7m9wzAicmFoR_fS72dMqkuQiEGhJOLrVwGmmVsA_dXX-rgR_Q0mCfLLwlXTJK2oq_nVtR-Jg4aRT4aMAZtYGZICFM.mp4?<redacted-query>",
+     "videoHandle": null,
+     "mediaEntId": "1346969491840450",
+     "prompt": "a small wooden sailboat drifting on a calm sea at sunset",
+     "imagePrompt": "a small wooden sailboat drifting on a calm sea at sunset",
+     "videoPrompt": "a small wooden sailboat drifting on a calm sea at sunset",
+     "structuredOutput": null,
+     "srefValues": null,
+     "sourceContentItemIds": null,
+     "hasUploadedAncestor": false,
+     "error": null,
+     "canRetry": false,
+     "orderIndex": 0,
+     "createdAt": "2026-10-22T17:49:23.000Z",
+     "updatedAt": "2026-10-22T17:49:39.000Z"
+    }
+   ],
+   "needsPolling": true
+  }
+ }
+}

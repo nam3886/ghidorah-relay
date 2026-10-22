@@ -1,0 +1,14 @@
+[
+ {
+  "t": 0.0,
+  "elapsed_s": 2.85,
+  "step": "auth_me",
+  "status": 200
+ },
+ {
+  "t": 2.85,
+  "elapsed_s": 0.64,
+  "step": "quota_upsell_before",
+  "status": 200
+ }
+]

@@ -1,0 +1,69 @@
+{
+ "t": 2.45,
+ "elapsed_s": 4.31,
+ "step": "image_get_empty_batch",
+ "method": "GET",
+ "path": "/api/generation-batches/41f2e78f-e089-45d3-838f-92953c15c8b0",
+ "request": null,
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "batch": {
+   "id": "41f2e78f-e089-45d3-838f-92953c15c8b0",
+   "userId": "<user.id>",
+   "projectId": null,
+   "type": "images",
+   "prompt": "a watercolor painting of a lighthouse on a cliff at sunrise",
+   "timestamp": "2026-10-22T17:48:43.000Z",
+   "isComplete": false,
+   "hasError": false,
+   "error": null,
+   "canRetry": true,
+   "config": {
+    "imageModel": "midjen-base"
+   },
+   "systemPrompt": null,
+   "promptModel": null,
+   "imageModel": null,
+   "videoModel": null,
+   "bulkGenId": null,
+   "generationStartTime": "2026-10-22T17:48:44.000Z",
+   "generationEndTime": "2026-10-22T17:48:44.000Z",
+   "creationContext": "legacy",
+   "createdAt": "2026-10-22T17:48:44.000Z",
+   "updatedAt": "2026-10-22T17:48:44.000Z",
+   "content": [
+    {
+     "id": "41f2e78f-e089-45d3-838f-92953c15c8b0-content-0",
+     "userId": "<user.id>",
+     "batchId": "41f2e78f-e089-45d3-838f-92953c15c8b0",
+     "originProjectId": null,
+     "type": "images",
+     "isLoading": true,
+     "isFavorited": false,
+     "data": null,
+     "imageUrl": null,
+     "imageHandle": null,
+     "videoUrl": null,
+     "videoHandle": null,
+     "mediaEntId": null,
+     "prompt": null,
+     "imagePrompt": null,
+     "videoPrompt": null,
+     "structuredOutput": null,
+     "srefValues": null,
+     "sourceContentItemIds": null,
+     "hasUploadedAncestor": false,
+     "error": null,
+     "canRetry": true,
+     "orderIndex": 0,
+     "createdAt": "2026-10-22T17:48:44.000Z",
+     "updatedAt": "2026-10-22T17:48:44.000Z"
+    }
+   ],
+   "needsPolling": false
+  }
+ }
+}

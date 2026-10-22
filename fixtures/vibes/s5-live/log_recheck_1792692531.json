@@ -1,0 +1,20 @@
+[
+ {
+  "t": 0.0,
+  "elapsed_s": 7.88,
+  "step": "recheck_batch",
+  "status": 200
+ },
+ {
+  "t": 7.88,
+  "elapsed_s": 5.16,
+  "step": "recheck_download",
+  "status": 200
+ },
+ {
+  "t": 17.57,
+  "elapsed_s": 1.32,
+  "step": "quota_upsell_after",
+  "status": 200
+ }
+]

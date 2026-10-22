@@ -1,0 +1,15 @@
+{
+ "t": 40.46,
+ "elapsed_s": 3.19,
+ "step": "video_poll_after",
+ "method": "GET",
+ "path": "/api/generation-batches/3fbc9c32-3f9d-47d1-aa43-377c9bf65697",
+ "request": null,
+ "status": 500,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "error": "Failed to fetch generation batch"
+ }
+}

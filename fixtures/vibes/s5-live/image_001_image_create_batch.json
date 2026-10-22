@@ -1,0 +1,32 @@
+{
+ "t": 0.0,
+ "elapsed_s": 2.45,
+ "step": "image_create_batch",
+ "method": "POST",
+ "path": "/api/generation-batches",
+ "request": {
+  "id": "41f2e78f-e089-45d3-838f-92953c15c8b0",
+  "type": "images",
+  "prompt": "a watercolor painting of a lighthouse on a cliff at sunrise",
+  "timestamp": 1792691322682,
+  "isComplete": false,
+  "config": {
+   "imageModel": "midjen-base"
+  },
+  "content": [
+   {
+    "id": "41f2e78f-e089-45d3-838f-92953c15c8b0-content-0",
+    "type": "image",
+    "isLoading": true
+   }
+  ]
+ },
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "batch": null,
+  "id": "41f2e78f-e089-45d3-838f-92953c15c8b0"
+ }
+}

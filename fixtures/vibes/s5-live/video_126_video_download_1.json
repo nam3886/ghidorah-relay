@@ -1,0 +1,18 @@
+{
+ "t": 746.62,
+ "elapsed_s": 0.26,
+ "step": "video_download_1",
+ "method": "GET",
+ "path": "/api/download/video?id=x",
+ "request": null,
+ "status": 403,
+ "headers": {
+  "Content-Type": "text/html; charset=utf-8",
+  "Retry-After": "30",
+  "X-Vercel-Mitigated": "challenge"
+ },
+ "body": {
+  "_binary_bytes": 34242,
+  "_head_hex": "3c21444f43545950452068746d6c3e3c"
+ }
+}

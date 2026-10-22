@@ -1,0 +1,114 @@
+{
+ "t": 6.76,
+ "elapsed_s": 7.8,
+ "step": "image_generate",
+ "method": "POST",
+ "path": "/api/generate/images",
+ "request": {
+  "batchId": "41f2e78f-e089-45d3-838f-92953c15c8b0",
+  "inputs": [
+   {
+    "type": "variation",
+    "image_prompt": "a watercolor painting of a lighthouse on a cliff at sunrise",
+    "original_prompt": "a watercolor painting of a lighthouse on a cliff at sunrise",
+    "config": {}
+   }
+  ],
+  "config": {
+   "imageModel": "midjen-base"
+  },
+  "mg_request_id": "www-ded1adb3-39ef-438d-b1c6-3befbb14a7e7"
+ },
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "success": true,
+  "data": [
+   {
+    "url": "https://scontent-iad6-1.xx.fbcdn.net/o1/v/t0/f2/m340/AQMtn3vaZW0ZVlismL61eaGwVjcrn83P2_7oYtu_pqkchQrQnDmqcBoc_z0ZTMokKrBgyJ_rGIEIvNdjlsZEparzmTM5-iP0eMdDVQUp6VykQYD1-XK_2dDYu5epbii6vJMcTweMp7tI-30wuSJYaGeoNTc-Ow.jpeg?<redacted-query>",
+    "prompt": "a watercolor painting of a lighthouse on a cliff at sunrise",
+    "originalPrompt": "a watercolor painting of a lighthouse on a cliff at sunrise",
+    "srefValues": "",
+    "orefValues": "",
+    "config": {
+     "imageModel": "midjen-base"
+    },
+    "imageEntId": "1346968518507214",
+    "dimensions": {
+     "width": 720,
+     "height": 1280
+    }
+   }
+  ],
+  "updatedBatch": {
+   "id": "41f2e78f-e089-45d3-838f-92953c15c8b0",
+   "userId": "<user.id>",
+   "projectId": null,
+   "type": "images",
+   "prompt": "a watercolor painting of a lighthouse on a cliff at sunrise",
+   "timestamp": "2026-10-22T17:48:43.000Z",
+   "isComplete": true,
+   "hasError": false,
+   "error": null,
+   "canRetry": true,
+   "config": {
+    "imageModel": "midjen-base"
+   },
+   "systemPrompt": null,
+   "promptModel": null,
+   "imageModel": "midjen-base",
+   "videoModel": null,
+   "bulkGenId": null,
+   "generationStartTime": "2026-10-22T17:48:44.000Z",
+   "generationEndTime": "2026-10-22T17:48:56.000Z",
+   "creationContext": "legacy",
+   "createdAt": "2026-10-22T17:48:44.000Z",
+   "updatedAt": "2026-10-22T17:48:56.000Z",
+   "content": [
+    {
+     "id": "41f2e78f-e089-45d3-838f-92953c15c8b0-content-0",
+     "userId": "<user.id>",
+     "batchId": "41f2e78f-e089-45d3-838f-92953c15c8b0",
+     "originProjectId": null,
+     "type": "images",
+     "isLoading": false,
+     "isFavorited": false,
+     "data": {
+      "requestId": "www-ded1adb3-39ef-438d-b1c6-3befbb14a7e7",
+      "imageEntId": "1346968518507214"
+     },
+     "imageUrl": "https://scontent-iad6-1.xx.fbcdn.net/o1/v/t0/f2/m340/AQMtn3vaZW0ZVlismL61eaGwVjcrn83P2_7oYtu_pqkchQrQnDmqcBoc_z0ZTMokKrBgyJ_rGIEIvNdjlsZEparzmTM5-iP0eMdDVQUp6VykQYD1-XK_2dDYu5epbii6vJMcTweMp7tI-30wuSJYaGeoNTc-Ow.jpeg?<redacted-query>",
+     "imageHandle": null,
+     "videoUrl": null,
+     "videoHandle": null,
+     "mediaEntId": "1346968518507214",
+     "prompt": "a watercolor painting of a lighthouse on a cliff at sunrise",
+     "imagePrompt": "a watercolor painting of a lighthouse on a cliff at sunrise",
+     "videoPrompt": null,
+     "structuredOutput": {
+      "config": {
+       "imageModel": "midjen-base"
+      },
+      "metadata": {
+       "dimensions": {
+        "width": 720,
+        "height": 1280
+       },
+       "aspectRatio": "9:16"
+      }
+     },
+     "srefValues": "",
+     "sourceContentItemIds": null,
+     "hasUploadedAncestor": false,
+     "error": null,
+     "canRetry": false,
+     "orderIndex": 0,
+     "createdAt": "2026-10-22T17:48:44.000Z",
+     "updatedAt": "2026-10-22T17:48:56.000Z"
+    }
+   ]
+  }
+ }
+}

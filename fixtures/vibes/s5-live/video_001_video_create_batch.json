@@ -1,0 +1,33 @@
+{
+ "t": 0.0,
+ "elapsed_s": 1.7,
+ "step": "video_create_batch",
+ "method": "POST",
+ "path": "/api/generation-batches",
+ "request": {
+  "id": "3fbc9c32-3f9d-47d1-aa43-377c9bf65697",
+  "type": "videos",
+  "prompt": "a small wooden sailboat drifting on a calm sea at sunset",
+  "timestamp": 1792691361991,
+  "isComplete": false,
+  "config": {
+   "videoModel": "midjen-short",
+   "resolution": "480p"
+  },
+  "content": [
+   {
+    "id": "3fbc9c32-3f9d-47d1-aa43-377c9bf65697-content-0",
+    "type": "video",
+    "isLoading": true
+   }
+  ]
+ },
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "batch": null,
+  "id": "3fbc9c32-3f9d-47d1-aa43-377c9bf65697"
+ }
+}

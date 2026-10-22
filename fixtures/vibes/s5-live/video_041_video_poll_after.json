@@ -1,0 +1,19 @@
+{
+ "t": 223.86,
+ "elapsed_s": 1.56,
+ "step": "video_poll_after",
+ "method": "GET",
+ "path": "/api/generation-batches/3fbc9c32-3f9d-47d1-aa43-377c9bf65697",
+ "request": null,
+ "status": 403,
+ "headers": {
+  "Content-Type": "text/html; charset=utf-8",
+  "Retry-After": "30",
+  "X-Vercel-Mitigated": "challenge"
+ },
+ "body": {
+  "_html_omitted": true,
+  "title": "Vercel Security Checkpoint",
+  "length": 4000
+ }
+}

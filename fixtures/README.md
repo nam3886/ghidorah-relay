@@ -105,3 +105,67 @@ Redacted captures of one live run per scenario (signed CDN query values replaced
 - `meta/spike-261023/load-acc2/cookies_after.json`
 - `meta/spike-261023/load-acc2/http.json`
 - `meta/spike-261023/load-acc2/loaded.state.json`
+
+## vibes.ai live run (23/10/2026)
+
+Redacted calls of one image job and one video job; `vibes/s5-live/README.md` describes them and `packages/provider-vibes/FINDINGS.md` sums them up.
+
+- `vibes/s5-live/auth_001_auth_me.json`
+- `vibes/s5-live/auth_002_quota_upsell_before.json`
+- `vibes/s5-live/image_001_image_create_batch.json`
+- `vibes/s5-live/image_002_image_get_empty_batch.json`
+- `vibes/s5-live/image_003_image_generate.json`
+- `vibes/s5-live/image_004_image_get_batch_after.json`
+- `vibes/s5-live/image_005_image_download_png.json`
+- `vibes/s5-live/log_auth_1792691308.json`
+- `vibes/s5-live/log_image_1792691322.json`
+- `vibes/s5-live/log_recheck_1792692531.json`
+- `vibes/s5-live/log_video_1792691361.json`
+- `vibes/s5-live/recheck_001_recheck_batch.json`
+- `vibes/s5-live/recheck_002_recheck_download.json`
+- `vibes/s5-live/recheck_003_quota_upsell_after.json`
+- `vibes/s5-live/video_001_video_create_batch.json`
+- `vibes/s5-live/video_002_video_get_empty_batch.json`
+- `vibes/s5-live/video_003_video_poll_during_post.json`
+- `vibes/s5-live/video_004_video_poll_during_post.json`
+- `vibes/s5-live/video_005_video_poll_during_post.json`
+- `vibes/s5-live/video_006_video_poll_during_post.json`
+- `vibes/s5-live/video_007_video_generate.json`
+- `vibes/s5-live/video_008_video_poll_during_post.json`
+- `vibes/s5-live/video_009_video_poll_after.json`
+- `vibes/s5-live/video_010_video_poll_after.json`
+- `vibes/s5-live/video_011_video_poll_after.json`
+- `vibes/s5-live/video_012_video_poll_after.json`
+- `vibes/s5-live/video_013_video_poll_after.json`
+- `vibes/s5-live/video_014_video_poll_after.json`
+- `vibes/s5-live/video_015_video_poll_after.json`
+- `vibes/s5-live/video_016_video_poll_after.json`
+- `vibes/s5-live/video_017_video_poll_after.json`
+- `vibes/s5-live/video_018_video_poll_after.json`
+- `vibes/s5-live/video_019_video_poll_after.json`
+- `vibes/s5-live/video_020_video_poll_after.json`
+- `vibes/s5-live/video_021_video_poll_after.json`
+- `vibes/s5-live/video_022_video_poll_after.json`
+- `vibes/s5-live/video_023_video_poll_after.json`
+- `vibes/s5-live/video_024_video_poll_after.json`
+- `vibes/s5-live/video_025_video_poll_after.json`
+- `vibes/s5-live/video_026_video_poll_after.json`
+- `vibes/s5-live/video_027_video_poll_after.json`
+- `vibes/s5-live/video_028_video_poll_after.json`
+- `vibes/s5-live/video_029_video_poll_after.json`
+- `vibes/s5-live/video_030_video_poll_after.json`
+- `vibes/s5-live/video_031_video_poll_after.json`
+- `vibes/s5-live/video_032_video_poll_after.json`
+- `vibes/s5-live/video_033_video_poll_after.json`
+- `vibes/s5-live/video_034_video_poll_after.json`
+- `vibes/s5-live/video_035_video_poll_after.json`
+- `vibes/s5-live/video_036_video_poll_after.json`
+- `vibes/s5-live/video_037_video_poll_after.json`
+- `vibes/s5-live/video_038_video_poll_after.json`
+- `vibes/s5-live/video_039_video_poll_after.json`
+- `vibes/s5-live/video_040_video_poll_after.json`
+- `vibes/s5-live/video_041_video_poll_after.json`
+- `vibes/s5-live/video_124_video_poll_after.json`
+- `vibes/s5-live/video_125_video_download_0.json`
+- `vibes/s5-live/video_126_video_download_1.json`
+- `vibes/s5-live/video_timeline.json`

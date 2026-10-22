@@ -1,0 +1,44 @@
+{
+ "t": 4.47,
+ "elapsed_s": 13.16,
+ "step": "video_generate",
+ "method": "POST",
+ "path": "/api/generate/videos",
+ "request": {
+  "batchId": "3fbc9c32-3f9d-47d1-aa43-377c9bf65697",
+  "inputs": [
+   {
+    "type": "prompt",
+    "value": "a small wooden sailboat drifting on a calm sea at sunset",
+    "original_prompt": "a small wooden sailboat drifting on a calm sea at sunset",
+    "config": {}
+   }
+  ],
+  "config": {
+   "videoModel": "midjen-short",
+   "resolution": "480p"
+  },
+  "mg_request_id": "www-bd7918f1-2afb-490d-8a5c-ab4a27d4dcea"
+ },
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "success": true,
+  "batchId": "3fbc9c32-3f9d-47d1-aa43-377c9bf65697",
+  "videoGenEntIds": [
+   "1346969491840450"
+  ],
+  "needsPolling": true,
+  "hasPartialErrors": false,
+  "items": [
+   {
+    "id": "3fbc9c32-3f9d-47d1-aa43-377c9bf65697-content-0-1792691379451",
+    "imageUrl": "https://scontent-iad3-1.xx.fbcdn.net/o1/v/t0/f2/m340/AQMea4WBFHJp-3Fx3W-nPQvfMR9S8Plcm5sMfBMNXpLhVChqf70Ua5qHBUkHikzGXiqiBKcGr7vMYncFj0o0dcQBI6RtexczGkdTQWPjTOHFmXnR1j9LOWcEqFGhfvYCkvmAoQWPMhBhMyE-y2AStY4V1_Mvcg.jpeg?<redacted-query>",
+    "isLoading": true,
+    "error": null
+   }
+  ]
+ }
+}

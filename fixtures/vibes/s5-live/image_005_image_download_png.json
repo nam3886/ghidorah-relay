@@ -1,0 +1,16 @@
+{
+ "t": 15.38,
+ "elapsed_s": 1.5,
+ "step": "image_download_png",
+ "method": "GET",
+ "path": "/api/download/png?id=x",
+ "request": null,
+ "status": 200,
+ "headers": {
+  "Content-Type": "image/png"
+ },
+ "body": {
+  "_binary_bytes": 2669526,
+  "_head_hex": "89504e470d0a1a0a0000000d49484452"
+ }
+}

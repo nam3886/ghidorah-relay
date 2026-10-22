@@ -1,0 +1,37 @@
+{
+ "t": 0.0,
+ "elapsed_s": 2.85,
+ "step": "auth_me",
+ "method": "GET",
+ "path": "/api/auth/me",
+ "request": null,
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "user": {
+   "id": "<user.id>",
+   "username": "<user.username>",
+   "accountStatus": "ACTIVE",
+   "roles": [],
+   "createdAt": "2026-10-22T17:41:25.000Z",
+   "updatedAt": "2026-10-22T17:41:25.000Z",
+   "abraUserId": "<user.abraUserId>",
+   "sessionId": "<user.sessionId>",
+   "kadabraProfile": {
+    "id": "<kadabra.id>",
+    "userId": "<user.id>",
+    "kadabraUserId": "<user.abraUserId>",
+    "incognitoAccess": "NONE",
+    "kadabraProfileId": "<kadabra.kadabraProfileId>",
+    "kadabraProfileUsername": "<user.username>",
+    "kadabraProfilePictureURL": "https://<fbcdn-host>/<profile-picture-path>?<redacted-query>",
+    "createdAt": "2026-10-22T17:41:25.000Z",
+    "updatedAt": "2026-10-22T17:41:25.000Z",
+    "syncedAt": null,
+    "dataSyncedAt": "2026-10-22T17:41:25.000Z"
+   }
+  }
+ }
+}

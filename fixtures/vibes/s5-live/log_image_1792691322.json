@@ -1,0 +1,32 @@
+[
+ {
+  "t": 0.0,
+  "elapsed_s": 2.45,
+  "step": "image_create_batch",
+  "status": 200
+ },
+ {
+  "t": 2.45,
+  "elapsed_s": 4.31,
+  "step": "image_get_empty_batch",
+  "status": 200
+ },
+ {
+  "t": 6.76,
+  "elapsed_s": 7.8,
+  "step": "image_generate",
+  "status": 200
+ },
+ {
+  "t": 14.56,
+  "elapsed_s": 0.82,
+  "step": "image_get_batch_after",
+  "status": 200
+ },
+ {
+  "t": 15.38,
+  "elapsed_s": 1.5,
+  "step": "image_download_png",
+  "status": 200
+ }
+]
