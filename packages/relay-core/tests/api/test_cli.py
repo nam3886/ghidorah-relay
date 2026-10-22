@@ -465,7 +465,10 @@ def test_restore_mark_marks_unknown_prints_the_count_and_refuses_a_naive_or_bad_
 
 
 # ---- e2e -----------------------------------------------------------------------------------------------------------
-def test_e2e_refuses_a_provider_that_has_no_e2e_run_yet(capsys):
+def test_e2e_refuses_a_provider_that_has_no_e2e_run_yet(monkeypatch, capsys):
+    # Every provider has its run now: stand in an e2e module without one.
+    monkeypatch.setitem(sys.modules, "relay_vibes.e2e", SimpleNamespace())
+    monkeypatch.setattr(cli, "load_e2e", lambda provider: None)
     assert cli.main(["e2e", "--provider", "vibes"]) == 2
     assert "no e2e run" in err(capsys)
 
