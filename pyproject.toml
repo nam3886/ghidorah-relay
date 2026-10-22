@@ -2,7 +2,7 @@
 name = "relay-workspace"
 version = "0.0.0"
 requires-python = ">=3.13,<3.14"
-description = "Workspace root: one API for dola, vibes and meta (contracts: plans/260930-1635-relay-platform)"
+description = "Ghidorah Relay workspace: one API for AI image and video generation"
 dependencies = [
     "relay-core",
     "relay-browser",
@@ -47,7 +47,7 @@ known-local-folder = ["guards"]
 testpaths = ["tests", "packages", "apps"]
 addopts = "-q --strict-markers"
 markers = [
-    "browser: needs Google Chrome; runs in the --full gate: on the Mac with --local (D60), else in scripts/check-in-container.sh on the box (D33)",
+    "browser: needs Google Chrome; runs in the browser image through scripts/check-in-container.sh",
     "web_unit: runs Vitest specs of apps/admin-web in the web image (tests/webunit.py); only scripts/mutate.py runs these, by node id",
     "box: proves the box image (Linux Chrome .deb, Xvfb, entry script); runs only in scripts/check-in-container.sh",
 ]

@@ -1,39 +1,115 @@
-# relay
+# Ghidorah Relay
 
-One API for dola, vibes and meta. It replaces dola2api_v4, vibesai2api_v2 and meta2api.
+One HTTP API for AI image and video generation. Relay takes jobs from API clients, runs them on provider accounts
+(dola, vibes, meta) through headless Chrome sessions, bills each API key per job, and stores the results.
 
-The authority is `plans/260930-1635-relay-platform/contracts.md`. The phase files there say what gets built next.
+- **OpenAI- and Gemini-compatible endpoints**: `/v1/chat/completions`, `/v1/images/generations`,
+  `/v1/video/generations`, `/v1beta/models/{model}:generateContent` and their status, content and model routes.
+- **Per-key wallets** with day limits, refunds on provider failures, and an allow-list of models.
+- **An account pool per provider** with health checks, cooldowns, proxies and capacity tracking.
+- **An admin web app** (`/manage`) for jobs, accounts, API keys, request logs, alerts, prompt frames and settings.
+- **API reference** at `/reference` (OpenAPI at `/openapi.json`), liveness at `/healthz`.
 
-## Develop
+## Architecture
 
-```bash
-uv sync --all-packages
-./scripts/check.sh                  # the commit gate: ruff + mypy (providers.py) + browser-less tests against throwaway Postgres 16 and MinIO (own compose project, ephemeral ports per run)
-./scripts/check.sh --full           # phase gate: + every @mutation (scripts/mutate.py) + the 200-seed soak (scripts/soak.py) + the browser tier on the box
-./scripts/check.sh --full --local   # the same without the box: the browser tier is skipped, and the output says so
-./scripts/check.sh --soak --seed 13 --verbose   # replay one soak seed (its own database and bucket); never prints CHECK: GREEN
+```
+clients ──HTTP──▶ api (relay serve) ──▶ Postgres (jobs, keys, wallets, accounts, settings)
+                     │                 └▶ MinIO (images, videos)
+                     └─ /manage admin app
+workers (relay worker --provider X) ──▶ claim jobs ──▶ Chrome session on a provider account ──▶ fetch results
 ```
 
-`check.sh` needs Docker and ffmpeg; it needs no Chrome. Commit only after the last line reads `CHECK: GREEN`.
-`--full` (without `--local`) also needs ssh to the box (`RELAY_BOX`), where the `browser` image runs the Chrome tests on
-a virtual display (Xvfb, started by `deploy/xvfb-exec`). Use `--local` for a phase that changes no browser code.
+The api never opens a browser. Each provider has its own worker process; workers claim jobs from Postgres, submit them
+in Chrome, poll and fetch the outputs, and settle the charge or the refund.
 
-A run that covered less than the gate ends `CHECK: PARTIAL (reason)` and is not a commit gate: `MUTATE_ONLY="test_x"`
-(mutate only those tests or files), `SOAK_SEEDS` under 200 (`0` skips the soak), or any pytest argument
-(`./scripts/check.sh tests -q`). Every `@mutation` marker carries `expect=`; the details are under Gates in
-`docs/operations.md`. Pinned images, the Chrome version and the off-box copies are in the same file.
+## Repository layout
 
-The repo is local only: it has no remote, and nothing is pushed until the owner asks.
-
-## Layout
-
-| Path | What |
+| Path | Contents |
 |---|---|
-| `packages/relay-core` | keys, wallets, jobs, account pools, API, admin, media; no browser and no provider imports. Built through phase 2: `db/` (migrations 0001-0011, `relay migrate`), billing, keys, settings, errors, redact, storage, crypto, net, txguard, and `jobs/` (claim loop, poller, fetcher, reconciler, reaper, command runner, `worker.py`, `ops.py`) |
-| `packages/relay-browser` | the only package that may import patchright |
-| `packages/provider-{dola,vibes,meta}` | pure modules (the API imports them) and `engine/` + `e2e.py` (worker only) |
-| `apps/relay` | the `relay` command. Wired: `worker --provider X`, `migrate`. `serve`, `admin` and `e2e` print "not built yet" (exit 2); `restore-mark` and `provider drain|resume` do not exist yet (phase 3) |
-| `deploy/` | Dockerfile (`http`, `browser`), `compose.yml` for the box (per-service env files; profiles `app`, `dola`, `vibes`, `meta`; every command needs `GIT_SHA`), `compose.check.yml` for the checks |
-| `fixtures/` | redacted captures made by `scripts/redact-fixtures.py` |
-| `scripts/` | `check.sh` (+ `check-verdict.sh`), `check-in-container.sh`, `soak.py` (seeded chaos workload), `restore-images.sh` (pinned images from the off-box tarballs), `mutate.py` (runs every `@mutation` marker in a private copy of the tree; `--only PATTERN`, one run at a time), `redact-fixtures.py` |
-| `tests/` | the guards (import boundaries, no `.route(`, launch only in `open_session`, English identifiers, no `_demo(`, no provider name or provider code in the core outside its registry module, no task started inside a `tx()` block), the deploy isolation test, and the `browser` tier |
+| `packages/relay-core` | Keys, wallets, jobs, account pools, the public and admin API, media storage, migrations. No browser and no provider code. |
+| `packages/relay-browser` | Chrome session handling (the only package that drives a browser). |
+| `packages/provider-dola`, `provider-vibes`, `provider-meta` | One package per provider: request specs, reply classification, and the worker engine. |
+| `apps/relay` | The `relay` command-line tool. |
+| `apps/admin-web` | The admin web app (Vue 3, Element Plus, Vite). Its build is committed under `packages/relay-core/src/relay_core/admin/static/app/`. |
+| `deploy/` | Dockerfile, `compose.yml` for production, `compose.check.yml` for test runs, env file templates. |
+| `fixtures/` | Redacted provider captures used by the tests. |
+| `scripts/` | Checks, mutation testing, the soak test, remote test runs, fixture redaction. |
+| `tests/` | Repository guards, admin end-to-end tests and browser tests. Package tests live in `packages/*/tests`. |
+| `docs/` | Operations runbook, error codes, client migration guide. |
+
+## Requirements
+
+- Python 3.13 and [uv](https://docs.astral.sh/uv/)
+- Docker (tests use throwaway Postgres 16 and MinIO containers; the admin web app builds in a container)
+- ffmpeg
+- SSH access to the build and test host for browser tests and admin web checks (`scripts/box.sh`, `scripts/web.sh`)
+
+## Getting started
+
+```bash
+uv sync --all-packages     # install every workspace package
+uv run relay --help        # the command-line tool
+```
+
+Run the services with Docker Compose. Copy each `deploy/<service>.env.example` to `deploy/<service>.env`, fill in the
+values, then:
+
+```bash
+cd deploy
+export GIT_SHA=$(git rev-parse --short HEAD)
+docker compose -p relay up -d                                   # Postgres and MinIO
+docker compose -p relay --profile app run --rm migrate          # roles and migrations
+docker compose -p relay --profile app up -d api                 # the API and the admin app
+docker compose -p relay --profile dola up -d worker-dola        # a provider worker
+```
+
+Create the first admin user and an API key:
+
+```bash
+docker compose -p relay --profile app run --rm api relay admin create-user <name>
+docker compose -p relay --profile app run --rm api relay key create --label <label> --wallet dola:video=10
+```
+
+See [docs/operations.md](docs/operations.md) for the full deploy order, drain mode and rollback.
+
+## Command-line tool
+
+| Command | Purpose |
+|---|---|
+| `relay serve` | Run the public and admin API |
+| `relay worker --provider <name>` | Run the worker of one provider |
+| `relay migrate` | Apply the SQL migrations |
+| `relay admin create-user <name>` | Create an admin user (password read from the terminal) |
+| `relay keygen` | Generate a credential key pair |
+| `relay key create` / `relay key disable <id>` | Create or disable an API key |
+| `relay provider drain <name>` / `resume <name>` | Stop or restart claiming new jobs for a provider |
+| `relay jobs restore-mark --dump-time <iso>` | Mark jobs after a database restore |
+| `relay e2e --provider <name>` | Live end-to-end run against a provider |
+
+## Testing
+
+| Command | What it runs |
+|---|---|
+| `scripts/check.sh` | Lint (ruff), type checks (mypy) and every non-browser test against throwaway Postgres and MinIO |
+| `scripts/check.sh <paths>` | The same, limited to the given tests |
+| `scripts/check-in-container.sh <paths>` | Browser tests (admin end-to-end, Chrome sessions) in the browser image |
+| `scripts/web.sh check` | Admin web app: type check, ESLint, Prettier and Vitest |
+| `scripts/web.sh build` | Build the admin web app into `relay_core/admin/static/app/` |
+| `scripts/check.sh --full` | The full gate: all of the above, every mutation marker and the 200-seed soak test |
+
+Tests and builds run on the test host through `scripts/box.sh` (for example
+`scripts/box.sh --tree <folder> -- scripts/check.sh`). A full run ends with `CHECK: GREEN`; a narrowed run ends with
+`CHECK: PARTIAL`. Every `@mutation` marker on a test must make that test fail when its code change is applied
+(`scripts/mutate.py`).
+
+## Documentation
+
+- [docs/operations.md](docs/operations.md): configuration, deploy, drain mode, rollback, gates and the browser setup
+- [docs/error-codes.md](docs/error-codes.md): every error code the API returns (generated)
+- [docs/client-migration.md](docs/client-migration.md): moving an existing client to this API
+
+## Contributing
+
+- One branch per change, merged into `main` after its checks pass.
+- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/).
+- Never commit secrets: env files under `deploy/` are ignored, and fixtures are redacted.
