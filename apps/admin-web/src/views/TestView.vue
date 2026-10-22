@@ -6,9 +6,20 @@
 import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from "vue";
 import { getOptions, type PublicModel, type Template } from "@/api/test";
 import TestImages from "@/components/test/TestImages.vue";
+import FilterSelect from "@/components/shared/FilterSelect.vue";
 import TestResult from "@/components/test/TestResult.vue";
+import {
+  capital,
+  defaultRatioOf,
+  durationsOf,
+  durationsPhrase,
+  ratiosOf,
+  titleOf,
+  walletRows,
+} from "@/components/test/test-models";
 import { useGenerate } from "@/components/test/use-generate";
 import { useTestSession } from "@/components/test/use-test-session";
+import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useLatest } from "@/composables/use-latest";
 import { notify } from "@/lib/notify";
 import {
@@ -23,7 +34,17 @@ import {
   saveFiles,
   type StoredFile,
 } from "@/lib/test-files";
-import { blobToDataUri, buildBody, clearSavedForm, emptyForm, optionLabel, readForm, saveForm } from "@/lib/test-form";
+import {
+  blobToDataUri,
+  buildBody,
+  clearSavedForm,
+  emptyForm,
+  type FormField,
+  optionLabel,
+  optionValue,
+  readForm,
+  saveForm,
+} from "@/lib/test-form";
 import { useAuthStore } from "@/stores/auth";
 
 const auth = useAuthStore();
@@ -32,6 +53,7 @@ const session = useTestSession();
 const generate = useGenerate(session);
 const { typedKey, models, points, status } = session;
 const { submitting, job, jobKind } = generate;
+const { isPhone, isTablet } = useBreakpoint();
 
 const initial = readForm();
 const form = reactive(initial.form);
@@ -41,28 +63,63 @@ const files = shallowRef<StoredFile[]>([]);
 const note = ref("");
 const chosen = shallowRef<PublicModel | null>(null);
 const ratios = ref<string[]>([]);
-const styles = ref<string[]>([]);
+// A style is sent by the value the provider takes ("oil_painting") and shown by its label.
+const styles = ref<Array<{ value: string; label: string }>>([]);
 const templates = shallowRef<Template[]>([]);
 const pickLatest = useLatest();
 
 // The form is written on every input (the fields call this), never anything but the form: not the API key.
 const persist = () => void (formFailed.value = !saveForm(form));
 const shownNote = computed(() => note.value || (formFailed.value ? NOT_SAVED_NOTE : ""));
+// A select or a number box does not go through v-model (which would turn a number box's text into a number).
+function setField(name: FormField, value: string): void {
+  form[name] = value;
+  persist();
+}
 
 const groups = computed(() => {
   const byKind = new Map<string, PublicModel[]>();
   for (const m of models.value) byKind.set(m.kind, [...(byKind.get(m.kind) ?? []), m]);
-  return [...byKind.keys()].sort().map((kind) => ({ kind, models: byKind.get(kind) ?? [] }));
+  // video first, as drawn
+  return [...byKind.keys()]
+    .sort((a, b) => Number(b === "video") - Number(a === "video") || a.localeCompare(b))
+    .map((kind) => ({ kind, models: byKind.get(kind) ?? [] }));
 });
-const modelInfo = computed(() => {
-  const m = chosen.value;
-  return m ? `${m.kind} · ${m.owned_by} · price ${JSON.stringify(m.prices)} · limits ${JSON.stringify(m.limits)}` : "";
+const durations = computed(() => durationsOf(chosen.value));
+// The heading's second line: `<kind> · ` then the lengths the model takes ("5, 10, 20, 25 or 30 s"), or its owner.
+const infoTail = computed(() => durationsPhrase(durations.value) || chosen.value?.owned_by || "");
+const wallet = computed(() => walletRows(points.value));
+// A saved value the list no longer has stays selectable, so choosing a model never silently changes the form.
+const withSaved = (list: string[], saved: string): string[] =>
+  saved && !list.includes(saved) ? [...list, saved] : list;
+const durationChoices = computed(() => withSaved(durations.value.map(String), form.duration));
+// The model's own ratios when it names them (dola's options hold its image ratios, offered for every model), else the
+// provider's options. The form never keeps a ratio the model does not take (see pick).
+const ratioChoices = computed(() => {
+  const own = ratiosOf(chosen.value);
+  return own.length ? own : withSaved(ratios.value, form.ratio);
 });
+const styleChoices = computed(() =>
+  form.style && !styles.value.some((s) => s.value === form.style)
+    ? [...styles.value, { value: form.style, label: form.style }]
+    : styles.value,
+);
+// The selects' lists, "Default" (nothing sent) first.
+const DEFAULT_OPTION = { value: "", label: "Default" };
+const durationOptions = computed(() => [
+  DEFAULT_OPTION,
+  ...durationChoices.value.map((d) => ({ value: d, label: `${d} s` })),
+]);
+const ratioOptions = computed(() => [DEFAULT_OPTION, ...ratioChoices.value.map((r) => ({ value: r, label: r }))]);
+const styleOptions = computed(() => [DEFAULT_OPTION, ...styleChoices.value]);
 
 async function pick(model: PublicModel): Promise<void> {
   const ticket = pickLatest.next();
   chosen.value = model;
   form.model = model.id;
+  // a ratio the model does not take is never sent: its own default (or none) takes its place
+  const own = ratiosOf(model);
+  if (own.length && form.ratio && !own.includes(form.ratio)) form.ratio = defaultRatioOf(model);
   persist();
   ratios.value = [];
   styles.value = [];
@@ -70,8 +127,10 @@ async function pick(model: PublicModel): Promise<void> {
   try {
     const extras = await session.call((key) => getOptions(key, model.owned_by));
     if (!pickLatest.isCurrent(ticket)) return;
-    ratios.value = (extras.ratios ?? []).map(optionLabel).filter(Boolean);
-    styles.value = (extras.styles ?? []).map(optionLabel).filter(Boolean);
+    ratios.value = (extras.ratios ?? []).map(optionValue).filter(Boolean);
+    styles.value = (extras.styles ?? [])
+      .map((o) => ({ value: optionValue(o), label: optionLabel(o) }))
+      .filter((s) => s.value);
     templates.value = extras.templates ?? [];
   } catch {
     /* the options are a convenience: the model can be used without them */
@@ -170,261 +229,865 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="test-tab">
-    <div class="test-tab__key">
-      <el-form inline label-position="left" @submit.prevent>
-        <el-form-item label="API key">
-          <el-input
-            v-model="typedKey"
-            type="password"
-            autocomplete="off"
-            placeholder="rk-..."
-            spellcheck="false"
-            class="test-tab__key-input"
-            @keyup.enter="loadModels"
-          />
-        </el-form-item>
-        <el-button type="primary" :loading="loadingModels" @click="loadModels">Load models</el-button>
-        <el-button @click="session.forget">Forget key</el-button>
-        <el-button class="test-tab__clear" title="Reset the form and the attached images" @click="clearForm"
-          >Clear form</el-button
-        >
-      </el-form>
-      <p class="test-tab__hint">
-        The key is kept for this browser tab only (session storage): it is forgotten when the tab closes and never saved
-        anywhere else. The model, the options, the prompt and the attached images are saved in this browser until you
-        press Clear form.
-      </p>
+  <section class="test-tab" :class="{ 'is-tablet': isTablet, 'is-phone': isPhone }">
+    <div>
+      <h1 class="test-tab__title">Test</h1>
+      <p class="test-tab__subtitle">Send a real generation through the API with a key you paste here.</p>
     </div>
 
-    <div class="test-tab__grid">
-      <aside class="test-tab__models">
-        <el-empty
-          v-if="!groups.length"
-          class="test-tab__empty"
-          :image-size="64"
-          description="No models loaded. Enter an API key above and press Load models."
-          data-testid="test-models-empty"
+    <section class="key" aria-label="API key">
+      <div class="key__field">
+        <label for="test-api-key">API key</label>
+        <input
+          id="test-api-key"
+          v-model="typedKey"
+          type="password"
+          autocomplete="off"
+          placeholder="rk-..."
+          spellcheck="false"
+          @keyup.enter="loadModels"
         />
-        <div v-for="g in groups" :key="g.kind" class="test-tab__group">
-          <div class="test-tab__group-title">{{ g.kind }}</div>
-          <button
-            v-for="m in g.models"
-            :key="m.id"
-            type="button"
-            class="test-tab__model"
-            :class="{ 'is-active': chosen?.id === m.id }"
-            :aria-pressed="chosen?.id === m.id"
-            @click="pick(m)"
+      </div>
+      <button
+        type="button"
+        class="btn btn--primary key__load"
+        :aria-busy="loadingModels"
+        :class="{ 'is-busy': loadingModels }"
+        @click="loadModels"
+      >
+        Load models
+      </button>
+      <div class="key__more">
+        <button type="button" class="btn btn--secondary" @click="session.reset">Forget key</button>
+        <button
+          type="button"
+          class="btn btn--text test-tab__clear"
+          title="Reset the form and the attached images"
+          @click="clearForm"
+        >
+          Clear form
+        </button>
+      </div>
+      <span class="key__note">The key lives only in this tab’s session storage.</span>
+    </section>
+
+    <div class="grid">
+      <section class="models" aria-label="Models" data-testid="test-models">
+        <p v-if="!groups.length" class="models__empty" data-testid="test-models-empty">No models loaded.</p>
+        <!-- the phone draws one row of every model, the scroller itself is the group -->
+        <div
+          class="models__scroll"
+          :role="isPhone && groups.length ? 'group' : undefined"
+          :aria-label="isPhone && groups.length ? 'Models' : undefined"
+        >
+          <div
+            v-for="g in groups"
+            :key="g.kind"
+            :role="isPhone ? undefined : 'group'"
+            :aria-label="isPhone ? undefined : `${capital(g.kind)} models`"
+            class="models__group"
           >
-            <span>{{ m.id }}</span>
-            <span class="test-tab__owner">{{ m.owned_by }}</span>
-          </button>
+            <h2>{{ capital(g.kind) }}</h2>
+            <button
+              v-for="m in g.models"
+              :key="m.id"
+              type="button"
+              class="model"
+              :class="{ 'is-active': chosen?.id === m.id }"
+              :aria-pressed="chosen?.id === m.id"
+              data-testid="test-model"
+              @click="pick(m)"
+            >
+              <span class="model__main">
+                <span class="model__title">{{ titleOf(m) }}</span>
+                <!-- the tablet writes the owner on the id line, as one text -->
+                <span v-if="titleOf(m) !== m.id" class="model__id">{{
+                  isTablet ? `${m.id} · ${m.owned_by}` : m.id
+                }}</span>
+                <span class="model__kind">{{ capital(m.kind) }} · {{ m.owned_by }}</span>
+              </span>
+              <span class="model__owner">{{ m.owned_by }}</span>
+            </button>
+          </div>
         </div>
         <details v-if="points" class="test-tab__points-box">
-          <summary>Wallet limits</summary>
-          <pre class="test-tab__points" aria-label="Points">{{ points }}</pre>
+          <summary>
+            Wallet limits
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </summary>
+          <dl v-if="wallet" class="wallet">
+            <div v-for="w in wallet" :key="w.label" class="wallet__row">
+              <dt>{{ w.label }}</dt>
+              <span class="wallet__leader" aria-hidden="true" />
+              <dd>{{ w.value }}</dd>
+            </div>
+          </dl>
+          <pre v-else class="test-tab__points" aria-label="Points">{{ points }}</pre>
         </details>
-      </aside>
-
-      <section class="test-tab__form">
-        <h3>{{ chosen?.id ?? "Pick a model" }}</h3>
-        <p class="test-tab__hint">{{ modelInfo }}</p>
-        <div v-if="templates.length" class="test-tab__templates">
-          <div class="test-tab__hint">Templates (click to use the prompt)</div>
-          <button v-for="(t, i) in templates" :key="i" type="button" @click="applyTemplate(t)">
-            {{ t.show_value || t.prompt }}
-          </button>
-        </div>
-        <el-form label-position="top" @submit.prevent>
-          <el-form-item label="Prompt">
-            <el-input v-model="form.prompt" type="textarea" :rows="8" @input="persist" />
-          </el-form-item>
-          <div class="test-tab__row">
-            <el-form-item label="Duration (s, video)">
-              <el-input v-model="form.duration" inputmode="numeric" placeholder="optional" @input="persist" />
-            </el-form-item>
-            <el-form-item label="Ratio">
-              <el-input v-model="form.ratio" list="test-ratio-list" placeholder="16:9" @input="persist" />
-              <datalist id="test-ratio-list">
-                <option v-for="r in ratios" :key="r" :value="r" />
-              </datalist>
-            </el-form-item>
-            <el-form-item label="Count (n)">
-              <el-input v-model="form.count" inputmode="numeric" placeholder="optional" @input="persist" />
-            </el-form-item>
-            <el-form-item label="Style (image)">
-              <el-input v-model="form.style" list="test-style-list" placeholder="optional" @input="persist" />
-              <datalist id="test-style-list">
-                <option v-for="s in styles" :key="s" :value="s" />
-              </datalist>
-            </el-form-item>
-          </div>
-          <el-form-item label="Reference image URLs (https, one per line)">
-            <el-input v-model="form.images" type="textarea" :rows="2" @input="persist" />
-          </el-form-item>
-          <TestImages :files="files" :note="shownNote" @add="onAdd" @remove="onRemove" />
-          <el-form-item label="Title" class="test-tab__title">
-            <el-input v-model="form.title" @input="persist" />
-          </el-form-item>
-          <el-form-item label="Extra options (JSON object, optional)">
-            <el-input v-model="form.options" type="textarea" :rows="2" @input="persist" />
-          </el-form-item>
-        </el-form>
-        <el-button type="primary" class="test-tab__generate" :disabled="!chosen || submitting" @click="generateNow"
-          >Generate</el-button
-        >
       </section>
 
-      <TestResult :status="status" :job="job" :kind="jobKind" />
+      <section class="form" aria-labelledby="test-form-title">
+        <div>
+          <h2 id="test-form-title">{{ chosen ? titleOf(chosen) : "Pick a model" }}</h2>
+          <p v-if="chosen" class="form__info">
+            {{ chosen.kind }} · <span class="num">{{ infoTail }}</span>
+          </p>
+        </div>
+        <div v-if="templates.length" class="chips" role="group" aria-label="Prompt templates">
+          <!-- the whole template in the shared hint look (HintTip's), on the chip itself: no second tab stop -->
+          <el-tooltip
+            v-for="(t, i) in templates"
+            :key="i"
+            :content="t.show_value || t.prompt"
+            placement="top"
+            effect="light"
+            :trigger="['hover', 'focus']"
+            popper-class="rl-tip test-chip-tip"
+            :show-after="150"
+            :show-arrow="false"
+          >
+            <button type="button" class="chip" @click="applyTemplate(t)">
+              {{ t.show_value || t.prompt }}
+            </button>
+          </el-tooltip>
+        </div>
+
+        <div class="field">
+          <label for="test-prompt">Prompt</label>
+          <textarea
+            id="test-prompt"
+            v-model="form.prompt"
+            :rows="isPhone ? 9 : isTablet ? 7 : 8"
+            class="control control--text"
+            @input="persist"
+          />
+        </div>
+
+        <div class="trio">
+          <!-- the design's selects, drawn by us (FilterSelect's field); a model that names no list of lengths has no
+               Duration at all, and none is sent -->
+          <FilterSelect
+            v-if="durations.length"
+            class="field"
+            variant="field"
+            block
+            label="Duration"
+            :model-value="form.duration"
+            :options="durationOptions"
+            @update:model-value="setField('duration', String($event))"
+          />
+          <FilterSelect
+            v-if="ratios.length || ratiosOf(chosen).length"
+            class="field"
+            variant="field"
+            block
+            label="Ratio"
+            :model-value="form.ratio"
+            :options="ratioOptions"
+            @update:model-value="setField('ratio', String($event))"
+          />
+          <div v-else class="field">
+            <label for="test-ratio">Ratio</label>
+            <input id="test-ratio" v-model="form.ratio" class="control" placeholder="16:9" @input="persist" />
+          </div>
+          <div class="field">
+            <label for="test-count">Count</label>
+            <input
+              id="test-count"
+              class="control control--num"
+              type="number"
+              min="1"
+              placeholder="1"
+              :value="form.count"
+              @input="setField('count', ($event.target as HTMLInputElement).value)"
+            />
+          </div>
+          <template v-if="chosen?.kind === 'image'">
+            <FilterSelect
+              v-if="styles.length"
+              class="field"
+              variant="field"
+              block
+              label="Style"
+              :model-value="form.style"
+              :options="styleOptions"
+              @update:model-value="setField('style', String($event))"
+            />
+            <div v-else class="field">
+              <label for="test-style">Style</label>
+              <input id="test-style" v-model="form.style" class="control" placeholder="optional" @input="persist" />
+            </div>
+          </template>
+        </div>
+
+        <div class="field">
+          <label for="test-refs">Reference image URLs <span class="field__hint">· one per line</span></label>
+          <textarea
+            id="test-refs"
+            v-model="form.images"
+            rows="2"
+            placeholder="https://..."
+            class="control control--text control--mono control--refs"
+            @input="persist"
+          />
+        </div>
+
+        <TestImages :files="files" :note="shownNote" @add="onAdd" @remove="onRemove" />
+
+        <div class="field">
+          <label for="test-title">Title</label>
+          <input id="test-title" v-model="form.title" type="text" class="control" @input="persist" />
+        </div>
+
+        <div class="field">
+          <label for="test-extra">Extra options (JSON)</label>
+          <textarea
+            id="test-extra"
+            v-model="form.options"
+            rows="3"
+            class="control control--text control--mono"
+            @input="persist"
+          />
+        </div>
+
+        <button
+          type="button"
+          class="btn btn--primary form__generate"
+          :disabled="!chosen || submitting"
+          @click="generateNow"
+        >
+          Generate
+        </button>
+      </section>
+
+      <TestResult :status="status" :job="job" :kind="jobKind" :loaded="models.length > 0" />
     </div>
   </section>
 </template>
 
 <style scoped>
 .test-tab {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
-.test-tab__key,
-.test-tab__form {
+.test-tab__title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.test-tab__subtitle {
+  margin: 4px 0 0;
+  color: var(--rl-muted);
+}
+
+/* buttons */
+.btn {
+  box-sizing: border-box;
+  height: 36px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font: inherit;
+  font-size: 13px;
+  line-height: normal;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) {
+  background: var(--rl-raised);
+}
+.btn--primary {
+  padding: 0 16px;
+  border: 0;
+  background: var(--rl-primary);
+  color: #ffffff;
+  font-weight: 600;
+}
+.btn--primary:hover:not(:disabled) {
+  background: var(--rl-primary-hover);
+}
+.btn--primary:disabled {
+  background: var(--rl-primary);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn.is-busy {
+  opacity: 0.7;
+  cursor: progress;
+}
+.btn--secondary {
+  padding: 0 14px;
+}
+.btn--text {
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--rl-bad);
+}
+
+/* key card */
+.key {
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--rl-surface);
+  border: 1px solid var(--rl-line);
+  border-radius: 16px;
+}
+.key__field {
+  flex: 1 1 320px;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.key__field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--rl-muted);
+}
+.key__field input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font: inherit;
+  font-size: 14px;
+}
+.key__more {
+  display: contents;
+}
+/* beside the buttons the note is as high as they are and centred in that height, so its line sits on their centre
+   line (the canvas centres it in the whole row, label included, which puts it about 6 px higher) */
+.key__note {
+  flex: 1 1 240px;
+  display: flex;
+  align-items: center;
+  align-self: flex-end;
+  height: 36px;
+  font-size: 12px;
+  color: var(--rl-faint);
+}
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+/* models */
+.models {
+  flex: 1 1 260px;
+  max-width: 320px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   padding: 16px;
   background: var(--rl-surface);
   border: 1px solid var(--rl-line);
-  border-radius: var(--el-border-radius-base, 6px);
+  border-radius: 16px;
 }
-.test-tab__key-input {
-  width: 320px;
-  max-width: 100%;
-}
-/* on a phone the key field takes the full row and the buttons wrap below it, so the box never outgrows the page */
-.test-tab__key :deep(.el-form-item) {
-  max-width: 100%;
-  margin-right: 0;
-}
-.test-tab__key :deep(.el-form-item__content) {
-  min-width: 0;
-}
-.test-tab__hint {
+.models__empty {
   margin: 0;
-  color: var(--rl-muted);
-  font-size: 12px;
-}
-.test-tab__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-@media (max-width: 1100px) {
-  .test-tab__grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.test-tab__models {
-  min-width: 0;
-}
-.test-tab__group {
-  margin-bottom: 12px;
-}
-.test-tab__group-title {
-  padding: 8px 12px;
   font-size: 13px;
-  font-weight: 600;
-  background: var(--rl-surface-2);
-  border: 1px solid var(--rl-line);
-  border-radius: var(--el-border-radius-base, 6px) var(--el-border-radius-base, 6px) 0 0;
+  color: var(--rl-muted);
 }
-.test-tab__model {
+.models__scroll {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 16px;
+}
+.models__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.models__group h2 {
+  margin: 0 0 2px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rl-muted);
+}
+.model {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
   color: var(--rl-fg);
   font: inherit;
+  line-height: normal;
   text-align: left;
-  background: var(--rl-surface);
-  border: 1px solid var(--rl-line);
-  border-top: 0;
   cursor: pointer;
 }
-.test-tab__model:hover {
-  background: var(--rl-surface-2);
+.model:hover {
+  background: var(--rl-raised);
 }
-.test-tab__model.is-active {
-  font-weight: 600;
-  background: var(--rl-surface-2);
+.model.is-active {
+  border-color: var(--rl-primary);
+  background: var(--rl-primary-soft);
 }
-.test-tab__owner {
+.model__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.model__title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.model__id {
+  font-family: var(--rl-mono);
+  font-size: 12px;
+  color: var(--rl-faint);
+}
+.model__kind {
+  display: none;
+  font-size: 12px;
   color: var(--rl-muted);
 }
-/* the model column keeps its place while nothing is loaded, so the three columns do not jump when models arrive */
-.test-tab__empty {
-  border: 1px dashed var(--rl-line-strong);
-  border-radius: var(--el-border-radius-base, 6px);
-}
-/* a reset is not the main action: neutral until the pointer is on it */
-.test-tab__clear {
-  --el-button-hover-text-color: var(--rl-bad);
-  --el-button-hover-border-color: var(--rl-bad);
-  --el-button-hover-bg-color: var(--rl-bad-bg);
+.model__owner {
+  font-size: 12px;
+  color: var(--rl-muted);
 }
 .test-tab__points-box {
-  color: var(--rl-muted);
-  font-size: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rl-line);
 }
 .test-tab__points-box summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 500;
+  list-style: none;
   cursor: pointer;
 }
-.test-tab__points {
-  margin: 4px 0 0;
+.test-tab__points-box summary::-webkit-details-marker {
+  display: none;
+}
+.test-tab__points-box summary svg {
   color: var(--rl-muted);
+}
+.wallet {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+.wallet__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.wallet dt {
+  color: var(--rl-muted);
+  white-space: nowrap;
+}
+.wallet__leader {
+  flex: 1;
+  border-bottom: 1px dotted var(--rl-line-strong);
+  transform: translateY(-4px);
+}
+.wallet dd {
+  margin: 0;
+  font-family: var(--rl-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.test-tab__points {
+  margin: 10px 0 0;
   font-size: 12px;
+  color: var(--rl-muted);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.test-tab__form {
+
+/* form */
+.form {
+  flex: 2 1 460px;
   min-width: 0;
-}
-.test-tab__form h3 {
-  margin: 0 0 4px;
-  font-size: 16px;
-}
-.test-tab__templates {
-  display: grid;
-  max-height: 10rem;
-  margin: 8px 0;
-  overflow-y: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  background: var(--rl-surface);
   border: 1px solid var(--rl-line);
-  border-radius: var(--el-border-radius-base, 6px);
+  border-radius: 16px;
 }
-.test-tab__templates button {
-  padding: 6px 12px;
+.form h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.form__info {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--rl-muted);
+}
+/* A provider's template is often its whole prompt (hundreds of characters, dozens of them): one line each, ending in
+   "…" (a click puts the whole text in the prompt box), and at most three rows of chips before the block scrolls. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: calc(3 * var(--chip-h) + 16px);
+  overflow-y: auto;
+  --chip-h: 28px;
+}
+.chip {
+  max-width: 240px;
+  height: var(--chip-h);
+  padding: 0 12px;
+  overflow: hidden;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 14px;
+  background: var(--rl-surface);
   color: var(--rl-fg);
   font: inherit;
   font-size: 12px;
-  text-align: left;
-  background: transparent;
-  border: 0;
-  border-bottom: 1px solid var(--rl-line);
+  line-height: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
-.test-tab__row {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0 12px;
+.chip:hover {
+  background: var(--rl-raised);
 }
-@media (max-width: 700px) {
-  .test-tab__row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+/* a template can run to thousands of characters: its hint scrolls past a few lines */
+:global(.el-popper.test-chip-tip) {
+  max-height: 240px;
+  overflow-y: auto;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--rl-muted);
+}
+.field__hint {
+  font-weight: 400;
+  color: var(--rl-faint);
+}
+.control {
+  box-sizing: border-box;
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font: inherit;
+  font-size: 14px;
+}
+.control--num {
+  font-variant-numeric: tabular-nums;
+}
+.control--text {
+  height: auto;
+  padding: 10px 12px;
+  line-height: 20px;
+  resize: vertical;
+}
+.control--mono {
+  padding: 8px 12px;
+  font-family: var(--rl-mono);
+  font-size: 13px;
+}
+/* the reference box takes the font's own line height (the prompt and the JSON box are 20) */
+.control--refs {
+  line-height: normal;
+}
+.trio {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.trio .field {
+  flex: 1 1 120px;
+}
+/* a button the design gives no padding keeps the browser's own, 1 px 6 px */
+.form__generate {
+  width: 100%;
+  height: 40px;
+  padding: 1px 6px;
+  font-size: 14px;
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .test-tab__title {
+    font-size: 24px;
+    line-height: 32px;
+    letter-spacing: -0.012em;
+  }
+  .test-tab__subtitle {
+    margin-top: 2px;
+  }
+  .key__field {
+    flex: 1 1 300px;
+  }
+  .key__note {
+    flex: 1 1 100%;
+    height: auto;
+  }
+  .grid {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+  .models {
+    flex: none;
+    max-width: none;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+  .models__scroll {
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+    overflow-x: auto;
+    padding: 4px 0;
+  }
+  .models__group {
+    flex: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+  .models__group h2 {
+    margin: 0 4px 0 0;
+  }
+  .model {
+    flex: none;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    width: auto;
+    min-height: 52px;
+    padding: 6px 12px;
+    border-color: var(--rl-line-strong);
+    white-space: nowrap;
+  }
+  .model__owner {
+    display: none;
+  }
+  /* the tablet and the phone draw the texts straight in the button */
+  .model__main {
+    display: contents;
+  }
+  .test-tab__points-box summary {
+    min-height: 28px;
+  }
+  .wallet {
+    max-width: 420px;
+  }
+  .form {
+    flex: none;
+    width: 100%;
+  }
+  .chips {
+    --chip-h: 32px;
+  }
+  .chip {
+    border-radius: 16px;
+  }
+  .form__generate {
+    height: 44px;
   }
 }
-.test-tab__title {
-  margin-top: 12px;
-}
-.test-tab__generate {
-  width: 100%;
+
+@media (max-width: 767px) {
+  .test-tab {
+    gap: 16px;
+  }
+  .test-tab__title {
+    font-size: 22px;
+    line-height: 30px;
+    letter-spacing: -0.01em;
+  }
+  .test-tab__subtitle {
+    margin-top: 2px;
+  }
+  .key {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    padding: 16px;
+  }
+  .key__field {
+    flex: none;
+    max-width: none;
+  }
+  .key__field input {
+    height: 44px;
+  }
+  .key__load {
+    width: 100%;
+    height: 44px;
+    padding: 1px 6px;
+    font-size: 14px;
+  }
+  .key__more {
+    display: flex;
+    gap: 8px;
+  }
+  .key__more .btn {
+    flex: 1;
+    height: 44px;
+    padding: 1px 6px;
+    border: 1px solid var(--rl-line-strong);
+    font-size: 14px;
+  }
+  .key__note {
+    flex: none;
+    align-self: auto;
+    height: auto;
+  }
+  .grid {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .models {
+    flex: none;
+    max-width: none;
+    gap: 4px;
+    padding: 12px 0 4px;
+    overflow: hidden;
+  }
+  .models__empty {
+    padding: 0 16px 8px;
+  }
+  .models__scroll {
+    flex-direction: row;
+    gap: 8px;
+    padding: 0 16px 8px;
+    overflow-x: auto;
+  }
+  .models__group {
+    display: contents;
+  }
+  .models__group h2 {
+    display: none;
+  }
+  .model {
+    flex: none;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 1px;
+    width: 172px;
+    min-height: 64px;
+    padding: 8px 12px;
+    border-color: var(--rl-line-strong);
+    border-radius: 12px;
+    background: var(--rl-surface);
+  }
+  .model__main {
+    display: contents;
+  }
+  .model__title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .model__id {
+    white-space: nowrap;
+  }
+  .model__owner {
+    display: none;
+  }
+  .model__kind {
+    display: block;
+  }
+  .test-tab__points-box {
+    padding: 0 16px;
+  }
+  .test-tab__points-box summary {
+    min-height: 44px;
+  }
+  .wallet {
+    margin: 0 0 12px;
+  }
+  .form {
+    flex: none;
+    width: 100%;
+    padding: 16px;
+  }
+  .chips {
+    flex-wrap: nowrap;
+    max-height: none;
+    margin: 0 -16px;
+    padding: 0 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    --chip-h: 44px;
+  }
+  .chip {
+    flex: none;
+    padding: 0 16px;
+    border-radius: 22px;
+    font-size: 13px;
+  }
+  /* three fields of the form, each 16 px from the next */
+  .trio {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .trio .field {
+    flex: none;
+  }
+  .control {
+    height: 44px;
+  }
+  .control--text {
+    height: auto;
+  }
+  .control--mono {
+    padding: 10px 12px;
+  }
+  .form__generate {
+    height: 48px;
+    font-size: 15px;
+  }
 }
 </style>

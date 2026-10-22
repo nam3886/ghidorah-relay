@@ -98,18 +98,24 @@ def test_the_api_gets_a_stop_grace_for_requests_in_flight():
 
 
 @mutation(COMPOSE_FILE, "RELAY_PROFILE_ROOT: /profiles", "RELAY_PROFILE_ROOT: /tmp", expect="profile root")
-@mutation(COMPOSE_FILE, "${DOLA_BROWSER_SLOTS_MAX:-4}", "${DOLA_BROWSER_SLOTS_MAX:-9}", expect="starts at 4")
-def test_the_dola_worker_keeps_warm_profiles_on_its_volume_and_starts_at_four_slots():
+@mutation(COMPOSE_FILE, "RELAY_PROFILE_ROOT: /profiles",
+          "RELAY_PROFILE_ROOT: /profiles\n      DOLA_BROWSER_SLOTS_MAX: 4",
+          expect="['DOLA_BROWSER_SLOTS_MAX']")
+def test_the_dola_worker_keeps_warm_profiles_on_its_volume_and_no_service_names_a_slot_ceiling():
     env = COMPOSE["worker-dola"]["environment"]
     assert env["RELAY_PROFILE_ROOT"] == "/profiles", "profile root"
     assert "profiles-dola:/profiles" in COMPOSE["worker-dola"]["volumes"]
-    assert env["DOLA_BROWSER_SLOTS_MAX"] == "${DOLA_BROWSER_SLOTS_MAX:-4}", "starts at 4"
+    # the number of browser slots is the live setting dola.browser_slots: no variable sets or caps it
+    named = [n for svc in COMPOSE.values() for n in guards._service_env_names(svc) if n.endswith("_BROWSER_SLOTS_MAX")]
+    named += [n for ex in DEPLOY.glob("*.env.example") for n in guards._declared_names(ex)
+              if n.endswith("_BROWSER_SLOTS_MAX")]
+    assert not named, named
 
 
 def test_the_templates_list_port_and_the_profile_root_by_name():
     assert "PORT" in guards._declared_names(DEPLOY / "api.env.example")
     names = guards._declared_names(DEPLOY / "worker-dola.env.example")
-    assert {"RELAY_PROFILE_ROOT", "DOLA_BROWSER_SLOTS_MAX"} <= names
+    assert "RELAY_PROFILE_ROOT" in names
 
 
 def test_dockerfile_configuration_for_stop_and_chrome():

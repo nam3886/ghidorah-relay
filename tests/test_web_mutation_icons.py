@@ -1,0 +1,40 @@
+"""Mutation markers of the local icon components (scripts/mutate.py runs these, no rebuild)."""
+
+import pytest
+from webunit import vitest
+
+from relay_core.testing.mutation import mutation
+
+SHAPES = "apps/admin-web/src/components/shared/icons/icon-shapes.ts"
+DEFINE = "apps/admin-web/src/components/shared/icons/define-icon.ts"
+SPEC = "tests/unit/shared/icons.spec.ts"
+ALL_ICONS = "has exactly the canvas icons"
+
+
+# page-drawer: the picture viewer's glyphs, drawn from the canvas's own
+@mutation(SHAPES, 'zoomIn: { nodes: [c(11, 11, 7), p("m20 20-3.5-3.5"), p("M11 8v6M8 11h6")] }',
+          'zoomIn: { nodes: [c(11, 11, 7), p("m20 20-3.5-3.5"), p("M8 11h6")] }', expect=ALL_ICONS)
+@mutation(SHAPES, 'rotateLeft: { nodes: [p("M3 12a9 9 0 1 0 2.64-6.36"), p("M3 3v6h6")] }',
+          'rotateLeft: { nodes: [p("M3 12a9 9 0 1 1 2.64-6.36"), p("M3 3v6h6")] }', expect=ALL_ICONS)
+@mutation(SHAPES, 'moon: { nodes: [p("M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z")] }',
+          'moon: { nodes: [p("M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.9z")] }', expect="has exactly the canvas icons")
+@mutation(SHAPES, 'play: { nodes: [p("M8 5.5v13l11-6.5z")], fill: "solid" }',
+          'play: { nodes: [p("M8 5.5v13l11-6.5z")] }', expect="fills the play triangles and nothing else")
+@mutation(SHAPES, 'alertCircleJoined: { nodes: [c(12, 12, 9), p("M12 8v5M12 16.5h.01")] }',
+          'alertCircleJoined: { nodes: [c(12, 12, 9), p("M12 8v5"), p("M12 16.5h.01")] }',
+          expect="draws the failed-banner alert with the bar and the dot in one path")
+@mutation(SHAPES, 'fill: "solid", noStroke: true }', 'fill: "solid" }',
+          expect="draws the P-JobDetail one with no stroke")
+@mutation(DEFINE, 'stroke: stroked ? "currentColor" : "none",', 'stroke: "currentColor",',
+          expect="draws the P-JobDetail one with no stroke")
+@mutation(DEFINE, 'stroke: stroked ? "currentColor" : "none",', 'stroke: "#000000",', expect="draws on the 24 box")
+@mutation(DEFINE, '"stroke-linejoin": "round",', '"stroke-linejoin": "miter",', expect=ALL_ICONS)
+@mutation(DEFINE, 'focusable: "false",', 'focusable: "true",', expect=ALL_ICONS)
+@mutation(DEFINE, '"aria-hidden": "true",', '"aria-hidden": "false",', expect=ALL_ICONS)
+@mutation(DEFINE, '"stroke-linecap": "round",', '"stroke-linecap": "butt",', expect=ALL_ICONS)
+@mutation(DEFINE, "stroke: { type: Number as PropType<number>, default: 1.8 },",
+          "stroke: { type: Number as PropType<number>, default: 2 },", expect="draws on the 24 box")
+@mutation(DEFINE, "width: props.size,", "width: 16,", expect="takes its size and stroke from the props")
+@pytest.mark.web_unit
+def test_the_icons_keep_the_canvas_shapes_and_stroke():
+    vitest(SPEC)

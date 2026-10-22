@@ -425,6 +425,36 @@ def test_a_boot_owner_is_the_worker_id_and_one_suffix_and_a_plain_id_is_accepted
     assert owner.rpartition("/")[0] == "dola-eu" and len(owner.rpartition("/")[2]) == 8
 
 
+@mutation(W, 'BrowserBudget(settings.get(spec.name + ".browser_slots"))', "BrowserBudget(1)",
+          expect="the budget size is the stored setting: {'size': 1")
+def test_serve_sizes_a_browser_budget_from_the_stored_setting_with_no_ceiling_variable(db, monkeypatch):
+    db.pin("UTC")
+    db.run("INSERT INTO settings_kv (key, value) VALUES ('fake.browser_slots', '3'::jsonb)")
+    seen = {}
+
+    class Recorder:
+        def __init__(self, pool, spec, engine, settings, **kw):
+            seen.update(size=kw["budget"].size, container=kw["container"])
+
+        async def run(self, *, install_signals):
+            return 0
+
+    monkeypatch.setattr(worker_module, "Worker", Recorder)
+    env = env_for(db, BILLING_TZ="UTC", WORKER_GRACE_S="9", RELAY_CHROME_PATH="/opt/chrome", WORKER_ID="w-boot")
+    assert not [name for name in env if name.endswith("_BROWSER_SLOTS_MAX")], "premise: no ceiling variable"
+    secrets = {n: env[n] for n in ("MINIO_SECRET_KEY", "CREDENTIAL_SEAL_PRIVATE_KEY", "DATABASE_URL")}
+    code = asyncio.run(serve(FakeSpec(execution="browser"), lambda s, st: FakeEngine(), env, install_signals=False))
+    assert code == 0
+    assert seen["size"] == 3, "the budget size is the stored setting: %r" % seen
+    boot = seen["container"]["boot"]
+    assert boot == {"WORKER_GRACE_S": "9", "WORKER_ID": "w-boot", "RELAY_PROFILE_ROOT": None,
+                    "RELAY_CHROME_PATH": "/opt/chrome", "RELAY_BROWSER_HEADLESS": None}
+    assert {"read", "cpus", "memory_bytes", "pids", "shm_bytes"} <= set(seen["container"])
+    for name, value in secrets.items():       # read before `serve` took the private key out of the environment
+        assert value not in repr(seen["container"]), "%s must never be reported" % name
+    assert len(secrets["MINIO_SECRET_KEY"]) >= 8, "premise: the probe is a real value of the environment"
+
+
 def test_serve_runs_a_worker_from_the_environment_until_sigterm(db):
     db.pin("UTC")
 

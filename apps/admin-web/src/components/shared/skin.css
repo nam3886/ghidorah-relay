@@ -1,0 +1,239 @@
+/* The shared skin: Element Plus pieces drawn exactly as the canvas draws them (specs/shared.md sections 2, 6.4, 11, 12.8
+   and 12a). Global on purpose: buttons, checkboxes, tooltips and menu popups are Element Plus's own elements, some of
+   them teleported to <body>. `html:root` outranks Element Plus's own rules and the theme sheet, whatever order the
+   on-demand component styles end up in. Every colour is a token; the white is the literal white of the canvas. */
+
+/* Buttons ------------------------------------------------------------------------------------------------------ */
+html:root .el-button {
+  font-family: inherit;
+}
+html:root .el-button:not(.el-button--small, .el-button--large) {
+  --el-button-size: var(--el-component-size);
+  height: var(--el-button-size);
+  padding: 0 14px;
+  gap: 6px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 400;
+}
+html:root .el-button + .el-button {
+  margin-left: 0;
+}
+html:root .el-button > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* secondary: surface, a strong hairline, raised on hover */
+html:root
+  .el-button:not(.el-button--primary, .el-button--danger, .el-button--success, .el-button--warning, .el-button--info) {
+  --el-button-bg-color: var(--rl-surface);
+  --el-button-border-color: var(--rl-line-strong);
+  --el-button-text-color: var(--rl-fg);
+  --el-button-hover-bg-color: var(--rl-raised);
+  --el-button-hover-border-color: var(--rl-line-strong);
+  --el-button-hover-text-color: var(--rl-fg);
+  --el-button-active-bg-color: var(--rl-raised);
+  --el-button-active-border-color: var(--rl-line-strong);
+  --el-button-active-text-color: var(--rl-fg);
+}
+/* a text button has no box at all: raised on hover */
+html:root .el-button.is-text:not(.is-disabled) {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-hover-bg-color: var(--rl-raised);
+  --el-button-hover-border-color: transparent;
+  padding: 0 12px;
+}
+/* primary: purple, white text, 600 */
+html:root .el-button--primary:not(.is-plain, .is-text, .is-link) {
+  --el-button-bg-color: var(--rl-primary);
+  --el-button-border-color: var(--rl-primary);
+  --el-button-text-color: #ffffff;
+  padding: 0 16px;
+  font-weight: 600;
+}
+/* danger outline: the red hairline and red text, and nothing changes on hover (the canvas draws no hover) */
+html:root .el-button--danger.is-plain {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: var(--rl-bad);
+  --el-button-text-color: var(--rl-bad);
+  --el-button-hover-bg-color: transparent;
+  --el-button-hover-border-color: var(--rl-bad);
+  --el-button-hover-text-color: var(--rl-bad);
+  --el-button-active-bg-color: transparent;
+  --el-button-active-border-color: var(--rl-bad);
+  --el-button-active-text-color: var(--rl-bad);
+}
+html:root .el-button--danger.is-text:not(.is-disabled) {
+  --el-button-text-color: var(--rl-bad);
+  --el-button-hover-text-color: var(--rl-bad);
+}
+/* solid destructive (the confirm button): the solid red fill, white, 600, no hover drawn */
+html:root .el-button--danger:not(.is-plain, .is-text, .is-link) {
+  --el-button-hover-bg-color: var(--rl-bad-solid);
+  --el-button-hover-border-color: var(--rl-bad-solid);
+  --el-button-active-bg-color: var(--rl-bad-solid);
+  --el-button-active-border-color: var(--rl-bad-solid);
+  padding: 0 16px;
+  font-weight: 600;
+}
+/* disabled secondary: the raised fill, faint text, a plain arrow. Disabled primary: the same purple at 45 % */
+html:root
+  .el-button.is-disabled:not(
+    .el-button--primary,
+    .el-button--danger,
+    .el-button--success,
+    .el-button--warning,
+    .el-button--info
+  ),
+html:root
+  .el-button.is-disabled:not(
+    .el-button--primary,
+    .el-button--danger,
+    .el-button--success,
+    .el-button--warning,
+    .el-button--info
+  ):hover {
+  --el-button-disabled-bg-color: var(--rl-raised);
+  --el-button-disabled-border-color: var(--rl-line-strong);
+  --el-button-disabled-text-color: var(--rl-faint);
+  cursor: default;
+}
+html:root .el-button--primary.is-disabled,
+html:root .el-button--primary.is-disabled:hover {
+  --el-button-disabled-bg-color: var(--rl-primary);
+  --el-button-disabled-border-color: var(--rl-primary);
+  --el-button-disabled-text-color: #ffffff;
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+@media (max-width: 767.98px) {
+  html:root .el-button--primary:not(.is-plain, .is-text, .is-link) {
+    font-size: 14px;
+  }
+}
+
+/* Checkbox: the canvas draws the browser's own box, 15 px with the accent colour and the browser's own margin
+   (20 px, no margin, on a phone). Element Plus keeps its real input hidden and paints a span over it: here the real
+   input is shown, as it is, and the span is not. The table's selection is wired to that same input either way (its
+   model and change are Element Plus's; DataTable takes the select-all box's mixed state off, as the canvas has none). */
+html:root .el-checkbox {
+  height: auto;
+}
+html:root .el-checkbox__inner {
+  display: none;
+}
+html:root .el-checkbox__original {
+  position: static;
+  z-index: auto;
+  width: 15px;
+  height: 15px;
+  margin: 3px 3px 3px 4px;
+  opacity: 1;
+  accent-color: var(--rl-primary);
+  cursor: pointer;
+}
+/* Element Plus's table sheet zeroes a checkbox's margin (`.el-table tr input[type=checkbox]`): the canvas keeps the
+   browser's */
+html:root .el-table tr .el-checkbox__original {
+  margin: 3px 3px 3px 4px;
+}
+html:root .el-checkbox__original:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
+}
+@media (max-width: 767.98px) {
+  html:root .el-checkbox__original,
+  html:root .el-table tr .el-checkbox__original {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+  }
+}
+
+/* Input borders are --rl-line-strong (D118) --------------------------------- */
+html:root .el-input,
+html:root .el-textarea {
+  --el-input-border-color: var(--rl-line-strong);
+  --el-input-hover-border-color: var(--rl-line-strong);
+}
+html:root .el-select__wrapper {
+  box-shadow: 0 0 0 1px var(--rl-line-strong) inset;
+}
+html:root .el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--rl-line-strong) inset;
+}
+
+/* Tooltip: inverted, the canvas draws the foreground colour as the fill (12.8) -------------------------------------- */
+html:root .el-popper.is-dark {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--rl-fg);
+  color: var(--rl-surface);
+  font-size: 12px;
+  line-height: 16px;
+  box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
+}
+html:root .el-popper.is-dark .el-popper__arrow::before {
+  border: 0;
+  background: var(--rl-fg);
+}
+/* A note on a piece of text (HintTip, D125): the menu surface, the 12 px type of the tooltip, never wider than 320 */
+html:root .el-popper.rl-tip {
+  max-width: 320px;
+  padding: 8px 12px;
+  border: 1px solid var(--rl-line);
+  border-radius: 12px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font-size: 12px;
+  line-height: 16px;
+  box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
+}
+/* a value as the note (HintTip `mono`): the mono font, its own line breaks kept, a long word broken anywhere */
+html:root .el-popper.rl-tip--mono {
+  font-family: var(--rl-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Picture viewer (a job's results, the Test result; not drawn, D125): the scrim over the page, and its buttons and
+   toolbar as the menu surface, a hairline, the overlay shadow and radius 10 / 12 ------------------------------------ */
+html:root .el-image-viewer__mask {
+  opacity: 1;
+  background: var(--rl-scrim);
+}
+html:root .el-image-viewer__btn {
+  opacity: 1;
+  border: 1px solid var(--rl-line);
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
+}
+html:root .el-image-viewer__close,
+html:root .el-image-viewer__prev,
+html:root .el-image-viewer__next {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  font-size: 20px;
+}
+html:root .el-image-viewer__actions {
+  padding: 0 16px;
+  border-radius: 12px;
+}
+html:root .el-image-viewer__actions__inner {
+  gap: 16px;
+  color: var(--rl-fg);
+  font-size: 20px;
+}
+
+/* The card every list sits in (6) ---------------------------------------------------------------------------------- */
+.rl-card {
+  overflow: hidden;
+  border: 1px solid var(--rl-line);
+  border-radius: 16px;
+  background: var(--rl-surface);
+}

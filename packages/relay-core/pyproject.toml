@@ -12,6 +12,8 @@ dependencies = [
     "uvicorn>=0.32",
     "argon2-cffi>=23.1",
     "urllib3>=2",                # storage.py catches its errors directly
+    "tzdata>=2024.1",            # zoneinfo falls back to it: the image has no system tz database, and a browser zone
+                                 # such as Asia/Saigon (a legacy alias) must resolve on every platform
 ]
 
 [build-system]

@@ -28,7 +28,7 @@ export interface Account {
   proxy_ok: boolean | null;
   proxy_checked_ms: number | null;
   strikes: number;
-  cooldown_ms: number | null;
+  cooldown_until_ms: number | null;
   cooldown_reason: string | null;
   last_error: string | null;
   last_used_ms: number | null;

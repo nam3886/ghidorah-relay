@@ -45,6 +45,7 @@ from relay_core.storage import ObjectStore
 log = logging.getLogger(__name__)
 
 RETRY_S = 300.0              # next attempt after an unreadable result, a failure or a bad proxy
+MAX_TASKS = 4               # account checks one worker runs at once
 TIMEOUT_SHARE = 0.8          # the task timeout is this share of the lease bound: the failure is still recorded
 SHOT_NAME = "debug/0.png"
 TIME_LIMIT = "the check ran past its time limit"
@@ -455,7 +456,7 @@ async def _merge(conn: AsyncConnection, new_id, old_id, lease_id: int, health: H
 class Checks:
     """Starts due checks as tasks, at most `max_tasks` at once. Drain mode starts none (7.7)."""
 
-    def __init__(self, env: Env, *, max_tasks: int = 4):
+    def __init__(self, env: Env, *, max_tasks: int = MAX_TASKS):
         self.env, self.max_tasks = env, max_tasks
         self._tasks: dict[uuid.UUID, asyncio.Task] = {}
 

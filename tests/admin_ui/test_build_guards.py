@@ -53,11 +53,11 @@ def test_every_allow_list_entry_is_used_and_has_a_reason():
           expect="a longer URL was excused")
 @mutation(LIB, 'https://element-plus\\.org/en-US', 'https://[a-z.-]+/en-US',
           expect="a link that is not a documentation page was excused")
-@mutation(LIB, '|["\'`]data:[a-z]+/"""', '"""', expect="data: URL not found")
-@mutation(LIB, 'DATA_URL = re.compile(r"""url\\(\\s*["\']?data:[^)]*\\)|', 'DATA_URL = re.compile(r"""',
-          expect="the tick mask is not found as a data: URL")
-@mutation(LIB, 'return text if len(text) <= 100 else', 'return text if len(text) <= 10000 else',
-          expect="the allowed data: image was reported")
+@mutation(LIB, '|["\'`]data:(?:[a-z]+/|[;,])"""', '"""', expect="data: URL not found")
+@mutation(LIB, '(?:[a-z]+/|[;,])""", re.I)', '(?:[a-z]+/)""", re.I)', expect="a data: URL with no media type")
+@mutation(LIB, '(?:[a-z]+/|[;,])""", re.I)', '(?:[a-z]+/|[;,])""")', expect="a data: URL in capitals")
+@mutation(LIB, 'CSS_DATA = re.compile(r"data:")', 'CSS_DATA = re.compile(r"dataX:")',
+          expect="data: URL not found")
 def test_the_scanner_finds_each_forbidden_thing_in_planted_files_and_skips_what_is_allowed(monkeypatch):
     planted = {
         "a.js": ('fetch("https://cdn.example.com/x.js"); el.innerHTML = \'<img onerror="x()">\'; '
@@ -71,15 +71,19 @@ def test_the_scanner_finds_each_forbidden_thing_in_planted_files_and_skips_what_
                      ("b.js", "source-map comment"), ("c.html", "style attribute"), ("c.html", "remote URL"),
                      ("d.css", "remote URL")]:
         assert expected in seen, "%s not found in %s: %s" % (expected[1], expected[0], sorted(seen))
-    # a data: URL: any image other than the one allowed tick mask is found, in a stylesheet and in a script string
+    # a data: URL in a stylesheet or in a script string is found; a stylesheet may hold no data: at all
     other = {"e.css": 'a{background:url("data:image/png;base64,AAAA")}', "f.js": 'img.src = "data:image/gif;base64,R0"'}
-    assert {(n, c) for n, c, _ in scan(other)} == {("e.css", "data: URL"), ("f.js", "data: URL")}, \
-        "data: URL not found"
-    # the allowed tick mask, as the dist holds it, is excused (negative control for the check above)
-    tick = next((t for _, c, t in findings(dist_files()) if c == "data: URL" and t.startswith("url(")), None)
-    assert tick, "the tick mask is not found as a data: URL"
-    assert scan({"x.css": "a{mask:%s 0 0/100%% no-repeat}" % tick}) == [], "the allowed data: image was reported"
-    assert scan({"x.css": "a{mask:%s}" % tick.replace("%3E", "%3F", 1)}) != [], "a changed image was excused"
+    assert {(n, c) for n, c, _ in scan(other)} == {("e.css", "data: URL"), ("e.css", "data: in CSS"),
+                                                   ("f.js", "data: URL")}, "data: URL not found"
+    assert {(n, c) for n, c, _ in scan({"g.css": "a{mask:url(data:image/svg+xml,%3Csvg%3E)}"})} >= {
+        ("g.css", "data: in CSS")}, "data: in CSS not found"
+    assert scan({"h.css": 'a::after{content:"data:x"}'}) != [], "data: in CSS not found"
+    assert scan({"h.js": 'const hint = "data:"'}) == [], "a bare data: in a script was reported"
+    # every form of the scheme in a script string: media type, parameter only, nothing, base64, other case, other quote
+    for form in ('"data:,payload"', "'data:;base64,AAAA'", "`data:text/plain,hi`", '"data:text/plain;charset=utf-8,hi"',
+                 '"data:image/png;base64,AAAA"'):
+        assert scan({"i.js": "const u = %s" % form}) != [], "a data: URL with no media type or another form: " + form
+    assert scan({"j.js": 'const u = "DATA:,x"'}) != [], "a data: URL in capitals"
     # negative control: clean files and an allowed finding produce nothing
     assert scan({"ok.js": 'const ns = "x"; el.className = "a b";', "ok.css": "a { color: red }"}) == []
     monkeypatch.setitem(webguards.ALLOWED, ("remote URL", "http://www.w3.org/2000/svg"),
@@ -97,6 +101,46 @@ def test_the_scanner_finds_each_forbidden_thing_in_planted_files_and_skips_what_
     assert scan({"d.js": "fetch(%s)" % doc}) != [], "a link outside a string was excused"
     assert scan({"e.js": 'u="%s/more"' % doc}) != [], "a longer URL was excused"
     assert scan({"f.js": 'u="%s and more"' % doc}) != [], "a longer URL was excused"
+
+
+def test_the_fonts_are_hashed_woff2_files_of_the_dist_and_none_is_vendored_or_inlined():
+    names = webguards.font_files()
+    assert webguards.missing_fonts(names) == [], "missing font files of the dist: %s" % webguards.missing_fonts(names)
+    assert webguards.vendored_fonts() == [], "font files vendored in public/: %s" % webguards.vendored_fonts()
+    css = "".join(text for name, text in dist_files().items() if name.endswith(".css"))
+    for family in ("Be Vietnam Pro", "IBM Plex Mono"):
+        assert family in css, "no @font-face for %s in the built css" % family
+
+
+@mutation(LIB, '(400, 500, 600, 700)', '(400, 500, 600)', expect="font check: the full set passes")
+@mutation(LIB, '("latin", "vietnamese"), (400, 500))', '("latin",), (400, 500))',
+          expect="font check: the full set passes")
+@mutation(LIB, "-normal-[A-Za-z0-9_-]+", "-[a-z]+-[A-Za-z0-9_-]+", expect="font check: only the normal style counts")
+@mutation(LIB, "if not any(pattern.match(name) for name in names):", "if False:",
+          expect="font check: a missing file is reported")
+@mutation(LIB, 'p.suffix.lower() in FONT_SUFFIXES', 'False', expect="font check: a vendored font is found")
+def test_the_font_check_finds_what_is_missing_and_what_is_vendored(tmp_path, monkeypatch):
+    def file(family, subset, weight, style="normal", ext="woff2"):
+        return "assets/%s-%s-%d-%s-AbC123_-.%s" % (family, subset, weight, style, ext)
+
+    full = [file(f, s, w) for f, (subsets, weights) in webguards.FONTS.items() for s in subsets for w in weights]
+    assert len(full) == 12 and webguards.missing_fonts(full) == [], "font check: the full set passes"
+    assert len(webguards.missing_fonts([])) == 12, "font check: a missing file is reported"
+    assert webguards.missing_fonts([n for n in full if "ibm-plex-mono-vietnamese-500" not in n]) == [
+        "ibm-plex-mono vietnamese 500"], "font check: every subset is required"
+    assert webguards.missing_fonts([n for n in full if "be-vietnam-pro-latin-700" not in n]) == [
+        "be-vietnam-pro latin 700"], "font check: every weight is required"
+    italic = [n.replace("-normal-", "-italic-") if "be-vietnam-pro-latin-400" in n else n for n in full]
+    assert webguards.missing_fonts(italic) == ["be-vietnam-pro latin 400"], "font check: only the normal style counts"
+    assert webguards.missing_fonts([n.replace(".woff2", ".woff") for n in full]) != [], "font check: only woff2 counts"
+    public = tmp_path / "public"
+    (public / "brand").mkdir(parents=True)
+    (public / "brand" / "logo.svg").write_text("<svg/>")
+    monkeypatch.setattr(webguards, "PUBLIC", public)
+    assert webguards.vendored_fonts() == []
+    (public / "fonts").mkdir()
+    (public / "fonts" / "Inter.woff2").write_bytes(b"x")
+    assert webguards.vendored_fonts() == ["Inter.woff2"], "font check: a vendored font is found"
 
 
 def test_the_entry_page_has_a_title_a_language_a_viewport_and_only_references_files_of_the_dist():

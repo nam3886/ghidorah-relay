@@ -1,16 +1,53 @@
 import { describe, expect, it } from "vitest";
+import { ApiError } from "@/api/client";
 import {
-  alertType,
   eventTone,
+  fmtBytes,
+  fmtClock,
+  fmtDayClock,
+  fmtTook,
   isRefunded,
+  jobParam,
   keyName,
+  loadFailedText,
   newestFirst,
+  plural,
   progressStep,
   recheckToast,
   regenerateToast,
   shortId,
-  timelineType,
 } from "@/components/jobs/job-text";
+
+describe("a job's request parameter", () => {
+  it("is the first of its names that is set, as text, and empty when none is", () => {
+    expect(jobParam({ aspect_ratio: "4:3" }, "ratio", "aspect_ratio")).toBe("4:3");
+    expect(jobParam({ ratio: "16:9", aspect_ratio: "4:3" }, "ratio", "aspect_ratio")).toBe("16:9");
+    expect(jobParam({ ratio: "", n: 4 }, "ratio", "n")).toBe("4");
+    expect(jobParam({ ratio: null }, "ratio")).toBe("");
+    expect(jobParam(null, "ratio")).toBe("");
+    expect(jobParam("2:3", "ratio")).toBe("");
+  });
+});
+
+describe("the failed load of the list", () => {
+  it("says what failed and what the relay answered, as drawn", () => {
+    const err = new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } });
+    expect(loadFailedText(err, "bad gateway")).toBe("Could not load the jobs: the relay answered 502 (bad gateway).");
+  });
+
+  it("names what failed: the drawer's read of one job", () => {
+    const err = new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } });
+    expect(loadFailedText(err, "bad gateway", "the job")).toBe(
+      "Could not load the job: the relay answered 502 (bad gateway).",
+    );
+  });
+
+  it("with no answer from the relay says the app's own words", () => {
+    expect(loadFailedText(new TypeError("Failed to fetch"), "Network error, please try again")).toBe(
+      "Could not load the jobs: network error, please try again.",
+    );
+  });
+});
 
 describe("job text", () => {
   it("the id is its first 8 characters", () => {
@@ -70,6 +107,7 @@ describe("key names", () => {
   it("is the label, else the prefix, else the first 8 characters of the id", () => {
     expect(keyName({ id: "0123456789", label: "main", prefix: "rk_1" })).toBe("main");
     expect(keyName({ id: "0123456789", label: "", prefix: "rk_1" })).toBe("rk_1");
+    expect(keyName({ id: "0123456789", label: "   ", prefix: "rk_1" })).toBe("rk_1");
     expect(keyName({ id: "0123456789", label: "   ", prefix: " " })).toBe("01234567");
     expect(keyName({ id: "0123456789" })).toBe("01234567");
   });
@@ -96,20 +134,36 @@ describe("timeline", () => {
     expect(eventTone(ev(1, 1, "unheard-of", "unheard-of"))).toBe("neutral");
   });
 
-  it("maps a tone to the Element Plus types of the alert and of the timeline item", () => {
-    expect(["ok", "bad", "warn", "info", "neutral"].map((t) => alertType(t as never))).toEqual([
-      "success",
-      "error",
-      "warning",
-      "warning",
-      "info",
+  it("a refund is ok and an accepted job is info, whatever their source says", () => {
+    expect(eventTone(ev(1, 1, "refund", "failed"))).toBe("ok");
+    expect(eventTone(ev(1, 1, "accepted", "failed"))).toBe("info");
+  });
+});
+
+describe("drawer formats", () => {
+  it("a clock is hh:mm:ss in local time, a day clock adds dd/mm, a missing time is a dash", () => {
+    const at = new Date(2026, 9, 5, 9, 4, 7).getTime();
+    expect(fmtClock(at)).toBe("09:04:07");
+    expect(fmtDayClock(at)).toBe("05/10 09:04:07");
+    // a time that is not set is the list empty-cell dash
+    expect([fmtClock(null), fmtDayClock(undefined), fmtClock(0)]).toEqual(["—", "—", "—"]);
+  });
+
+  it("how long a job took reads in seconds, minutes or hours", () => {
+    expect([0, 35_000, 95_000, 252_000, 3_720_000].map(fmtTook)).toEqual([
+      "0 s",
+      "35 s",
+      "1 min 35 s",
+      "4 min 12 s",
+      "1 h 2 min",
     ]);
-    expect(["ok", "bad", "warn", "info", "neutral"].map((t) => timelineType(t as never))).toEqual([
-      "success",
-      "danger",
-      "warning",
-      "primary",
-      "info",
-    ]);
+  });
+
+  it("a size reads in bytes, KB or MB, powers of 1000", () => {
+    expect([120, 999, 1000, 5000, 18_400_000].map(fmtBytes)).toEqual(["120 B", "999 B", "1.0 KB", "5.0 KB", "18.4 MB"]);
+  });
+
+  it("a count takes an s except for one", () => {
+    expect([plural(1, "point"), plural(0, "point"), plural(4, "image")]).toEqual(["1 point", "0 points", "4 images"]);
   });
 });

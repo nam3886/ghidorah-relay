@@ -61,7 +61,15 @@ async function startNew(): Promise<void> {
 
 <template>
   <span class="regenerate">
-    <el-button :disabled="props.disabled || busy" :loading="busy" @click="start">{{ props.label }}</el-button>
+    <el-button
+      class="regenerate__go"
+      aria-haspopup="dialog"
+      :disabled="props.disabled || busy"
+      :loading="busy"
+      @click="start"
+    >
+      <slot name="icon" />{{ props.label }}
+    </el-button>
     <el-button v-if="kept && !busy" link type="warning" @click="startNew">Start a new regenerate</el-button>
   </span>
 </template>
@@ -71,5 +79,39 @@ async function startNew(): Promise<void> {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+/* the canvas's danger outline: 34 high in a toolbar, 36 where a drawer sets --regenerate-height */
+.regenerate__go.el-button {
+  height: var(--regenerate-height, 34px);
+  padding: 0 var(--regenerate-pad, 12px);
+  border: 1px solid var(--rl-bad);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--rl-bad);
+  font-size: 13px;
+  font-weight: 400;
+  /* a plain button on the canvas: the browser's own line height, not Element Plus's 1 */
+  line-height: normal;
+}
+.regenerate__go.el-button:hover,
+.regenerate__go.el-button:focus-visible {
+  border-color: var(--rl-bad);
+  background: transparent;
+  color: var(--rl-bad);
+}
+/* the confirm is open: the button keeps its look (the board draws it so), only the spinner is left out */
+.regenerate__go.el-button.is-loading {
+  opacity: 1;
+}
+.regenerate__go.el-button :deep(.el-icon.is-loading) {
+  display: none;
+}
+.regenerate__go.el-button.is-disabled {
+  opacity: 0.5;
+}
+.regenerate__go.el-button :deep(span) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 </style>

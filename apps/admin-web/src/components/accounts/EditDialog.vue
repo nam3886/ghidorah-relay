@@ -1,29 +1,56 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import type { Account, AccountPatch } from "@/api/accounts";
+import CommandChip from "@/components/shared/CommandChip.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
-import { fmtTime } from "@/lib/format";
-import { accountChanges, ago, pointsFigure, proxyText } from "./account-model";
+import AccountDialog from "./AccountDialog.vue";
+import { accountChanges, type ChipState, proxyStatus, proxyText } from "./account-model";
 
 // Edit one account: label and proxy. The dialog only asks; the view sends. `save` carries the changed fields only
-// (nothing changed just closes the dialog); `recheck` asks for the proxy to be probed again. Above the form the
-// account's facts are read-only.
+// (nothing changed just closes the dialog); `recheck` asks for the stored proxy to be probed again, and the dialog
+// stays open: under the proxy row the status line shows the check's chip while it runs and how it ended
+// (`proxyChip`, B-States "Command status"); without one, the result of the last check as it stands.
 const open = defineModel<boolean>({ required: true });
-const props = defineProps<{ account: Account | null; busy: boolean }>();
-const emit = defineEmits<{ save: [patch: AccountPatch]; recheck: [account: Account] }>();
+// `busy`: the page is running some command (Save waits); `saving`: this drawer's own write is in flight (every way
+// out of it is inert)
+const props = defineProps<{ account: Account | null; busy: boolean; saving: boolean; proxyChip?: ChipState | null }>();
+const emit = defineEmits<{
+  save: [patch: AccountPatch];
+  recheck: [account: Account];
+  "update:dirty": [dirty: boolean];
+  closed: [];
+}>();
 
 const label = ref("");
 const proxy = ref("");
+// What the fields held when the drawer opened. The guard compares against this copy, never against `props.account`:
+// a new copy of the account (the 10 s read, the end of a Check proxy) must not change what counts as edited.
+const snap = ref({ label: "", proxy: "" });
+const dirty = computed(() => label.value !== snap.value.label || proxy.value !== snap.value.proxy);
 
+// The fields fill when the dialog opens on an account, and only then: a read of the list while it is open (the end of
+// a Check proxy, the 10 s read) brings a new copy of the same account and must not wipe what was typed.
 watch(
-  () => [open.value, props.account] as const,
-  ([isOpen, account]) => {
-    if (!isOpen || !account) return;
+  [() => open.value, () => props.account?.id],
+  ([isOpen]) => {
+    const account = props.account;
+    if (!isOpen) {
+      // nothing typed (a new proxy password included) outlives the drawer
+      label.value = proxy.value = "";
+      snap.value = { label: "", proxy: "" };
+      return;
+    }
+    if (!account) return;
     label.value = account.label;
     proxy.value = proxyText(account);
+    snap.value = { label: label.value, proxy: proxy.value };
   },
   { immediate: true },
 );
+
+watch(dirty, (d) => emit("update:dirty", d), { immediate: true });
+
+const status = computed(() => (props.account?.proxy_host ? proxyStatus(props.account) : null));
 
 function save() {
   if (!props.account) return;
@@ -36,47 +63,89 @@ function save() {
 }
 
 function recheck() {
-  if (!props.account) return;
-  open.value = false;
+  if (!props.account || props.proxyChip?.state === "running") return;
   emit("recheck", props.account);
 }
 </script>
 
 <template>
-  <el-dialog v-model="open" title="Edit account" width="min(560px, 94vw)">
-    <el-descriptions v-if="account" :column="2" border class="facts" aria-label="Account details">
-      <el-descriptions-item label="Provider">{{ account.provider }}</el-descriptions-item>
-      <el-descriptions-item label="State"><StatusChip :status="account.state" /></el-descriptions-item>
-      <el-descriptions-item label="Identity" :span="2">{{
-        account.display_name || account.identity || "-"
-      }}</el-descriptions-item>
-      <el-descriptions-item label="Checked">{{ ago(account.last_checked_ms) }}</el-descriptions-item>
-      <el-descriptions-item label="Last used">{{ fmtTime(account.last_used_ms) }}</el-descriptions-item>
-      <el-descriptions-item label="Videos / images"
-        >{{ account.made.video }} / {{ account.made.image }}</el-descriptions-item
+  <AccountDialog
+    v-model="open"
+    :title="`Edit account — ${props.account?.label ?? ''}`"
+    testid="edit-account-drawer"
+    discard-text="Discard your changes to this account?"
+    :dirty="dirty"
+    :busy="props.saving"
+    @closed="emit('closed')"
+  >
+    <label class="acct-field">
+      <span class="acct-field__label">Label</span>
+      <input v-model="label" class="acct-input" maxlength="100" aria-label="Label" />
+      <span class="acct-field__help acct-field__help--muted">Shown in the Accounts list and in job details.</span>
+    </label>
+    <div class="acct-field">
+      <label class="acct-field__label" for="acct-edit-proxy">Proxy</label>
+      <div class="proxy-row">
+        <input
+          id="acct-edit-proxy"
+          v-model="proxy"
+          class="acct-input acct-input--mono proxy-input"
+          autocomplete="off"
+          aria-label="Proxy"
+        />
+        <button
+          type="button"
+          class="acct-btn check"
+          :aria-disabled="props.proxyChip?.state === 'running' ? 'true' : undefined"
+          @click="recheck"
+        >
+          Check proxy
+        </button>
+      </div>
+      <div v-if="props.proxyChip" class="status">
+        <CommandChip :state="props.proxyChip.state" :time="props.proxyChip.time" :message="props.proxyChip.message" />
+      </div>
+      <div v-else-if="status" class="status" role="status">
+        <StatusChip :status="status.tone" :tone="status.tone" :label="status.text" />
+      </div>
+      <span class="acct-field__help acct-field__help--muted"
+        >Leave empty to remove the proxy. The stored password is never shown; type a new one as host:port:user:pass to
+        replace it.</span
       >
-      <el-descriptions-item label="Strikes">{{ account.strikes }}</el-descriptions-item>
-      <el-descriptions-item v-if="account.capacity.length" label="Points" :span="2">
-        <div v-for="c in account.capacity" :key="c.pool">{{ c.pool }}: {{ pointsFigure(c) }}</div>
-      </el-descriptions-item>
-    </el-descriptions>
-    <el-form label-position="top" @submit.prevent="save">
-      <el-form-item label="Label">
-        <el-input v-model="label" aria-label="Label" />
-      </el-form-item>
-      <el-form-item label="Proxy (empty removes it; the old password is never shown)">
-        <el-input v-model="proxy" autocomplete="off" aria-label="Proxy" />
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="recheck">Re-check proxy</el-button>
-      <el-button type="primary" :loading="props.busy" @click="save">Save</el-button>
+    </div>
+    <template #footer="{ close }">
+      <button type="button" class="acct-btn" :disabled="props.saving" @click="close">Cancel</button>
+      <button
+        type="button"
+        class="acct-btn acct-btn--primary"
+        :aria-disabled="props.busy || props.saving ? 'true' : undefined"
+        @click="!props.busy && !props.saving && save()"
+      >
+        Save
+      </button>
     </template>
-  </el-dialog>
+  </AccountDialog>
 </template>
 
 <style scoped>
-.facts {
-  margin-bottom: 16px;
+.proxy-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.proxy-input {
+  flex: 1 1 260px;
+  min-width: 0;
+  width: auto;
+}
+.check {
+  padding: 0 14px;
+}
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 </style>

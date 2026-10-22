@@ -19,5 +19,14 @@ export const useLogsFilters = defineStore("logs-filters", () => {
   }
   useAuthStore().onSignOut(reset);
 
-  return { q, status, from, to, reset };
+  // The range picker needs both ends: a saved state with only one would leave the field empty while the search still
+  // sent a bound, a filter nobody can see. Both ends are cleared then.
+  function keepRangeWhole(): void {
+    if (!from.value || !to.value) {
+      from.value = "";
+      to.value = "";
+    }
+  }
+
+  return { q, status, from, to, reset, keepRangeWhole };
 });

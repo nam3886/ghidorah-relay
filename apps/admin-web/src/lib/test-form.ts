@@ -1,6 +1,7 @@
 // The Test tab's form: what is kept in localStorage (relay_test_form), and the request body built from it. The typed
 // API key is NOT part of the form and never reaches localStorage (it lives in sessionStorage, see test-key.ts).
 import type { PublicModel } from "@/api/test";
+import { durationsOf } from "@/components/test/test-models";
 
 export const FORM_KEY = "relay_test_form";
 export const FIELDS = ["prompt", "duration", "ratio", "count", "style", "images", "title", "options"] as const;
@@ -68,12 +69,21 @@ export function optionLabel(option: Record<string, unknown>): string {
   return "";
 }
 
-// The generation request. Duration is for video, style for image; a field left empty is not sent. `images` are the
+// What the request carries for a provider option (a ratio or a style): its `value` ("16:9", "oil_painting") when it has
+// one, which is all the provider takes; else its label. dola labels a ratio with a sentence around the value and a
+// style in words, and refuses either. A ratio is also shown by its value, as drawn; a style by its label.
+export function optionValue(option: Record<string, unknown>): string {
+  return typeof option.value === "string" && option.value ? option.value : optionLabel(option);
+}
+
+// The generation request. Duration is for a video that names a list of lengths (the form shows no Duration for any
+// other model, so a value saved earlier is not sent), style for image; a field left empty is not sent. `images` are the
 // https URLs (one per line) followed by the attached files as data URIs. Options must be JSON: invalid text throws a
 // SyntaxError, which the tab shows in its status line.
 export function buildBody(model: PublicModel, form: FormFields, dataUris: string[]): Record<string, unknown> {
   const body: Record<string, unknown> = { model: model.id, prompt: form.prompt };
-  if (model.kind === "video" && form.duration.trim()) body.duration = Number(form.duration);
+  if (model.kind === "video" && durationsOf(model).length && form.duration.trim())
+    body.duration = Number(form.duration);
   const ratio = form.ratio.trim();
   if (ratio) body.ratio = ratio;
   if (form.count.trim()) body.n = Number(form.count);

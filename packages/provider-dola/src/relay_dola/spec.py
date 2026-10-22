@@ -10,6 +10,7 @@ from relay_core.providers import (
     Completion,
     CreateRequest,
     Dead,
+    FixedLimit,
     FrameRules,
     InputError,
     ModelSpec,
@@ -19,7 +20,7 @@ from relay_core.providers import (
     RateAlert,
     Warning,
 )
-from relay_core.settings import Spec
+from relay_core.settings import Rule, Spec
 from relay_dola import catalog as C
 from relay_dola import errors as codes
 from relay_dola.classify import no_result_cause, order_accepted
@@ -31,6 +32,7 @@ from relay_dola.constants import (
     CHECK_INTERVAL_S,
     FRAME_MAX_SENT_CHARS,
     IMAGE_ACCOUNT_COST,
+    LIMITS,
     MAX_ATTEMPTS,
     MAX_REFERENCE_IMAGES,
     PROMPT_MAX_CHARS,
@@ -41,6 +43,7 @@ from relay_dola.constants import (
     SUBMIT_TIMEOUT_VIDEO_S,
     SUSPECT_THRESHOLD,
 )
+from relay_dola.credential import MAX_COOKIES
 from relay_dola.credential import parse_credential as _parse_credential
 
 log = logging.getLogger(__name__)
@@ -81,24 +84,7 @@ def _refuse(code: str, detail: str = "", param: str | None = None) -> InputError
     return err
 
 
-# ---- settings validators (the core's Spec.check raises ValueError for a value of the right type that is out) ----
-def _at_least(n: int):
-    def check(v) -> None:
-        if v < n:
-            raise ValueError("must be at least %d" % n)
-    return check
-
-
-def _rate(v: float) -> None:
-    if not 0.0 <= v <= 1.0:
-        raise ValueError("must be between 0 and 1")
-
-
-def _slots(v: int) -> None:
-    if not BROWSER_SLOTS_MIN <= v <= BROWSER_SLOTS_MAX:
-        raise ValueError("must be between %d and %d" % (BROWSER_SLOTS_MIN, BROWSER_SLOTS_MAX))
-
-
+# ---- settings: bounds are structured on the core Spec (min, max, rule), so one text drives the check and the page ----
 def _prices(v: dict) -> None:
     """The price table is the way customers are charged: name the exact fault."""
     for tier, price in v.items():
@@ -110,35 +96,38 @@ def _prices(v: dict) -> None:
             raise ValueError("the price for %s is negative" % tier)
 
 
-def _setting(key: str, kind: type, default: Any, description: str, check=None) -> tuple[str, Spec]:
+PRICES_RULE = Rule("each tier: a non-empty name and a whole number of points, 0 or more", _prices)
+
+
+def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any) -> tuple[str, Spec]:
     full = "%s.%s" % (PROVIDER, key)
-    return full, Spec(full, kind, default, description, check)
+    return full, Spec(full, kind, default, description, **bounds)
 
 
 _SETTINGS = dict((
     _setting("claims_enabled", bool, True, "Drain mode off: when false dola claims no new job."),
     _setting("render_deadline_s", int, 9000,
              "Seconds to wait for dola to render one submission before giving up on it (the new UI promises up to 2 "
-             "hours).", _at_least(60)),
+             "hours).", min=60),
     _setting("prices", dict, dict(C.DEFAULT_PRICES),
              "Points charged per generation, keyed '<model>@<N>s' for video and '<model>' for image. A tier missing "
-             "here is charged the fallback (video 3, image 1) with a warning.", _prices),
+             "here is charged the fallback (video 3, image 1) with a warning.", rule=PRICES_RULE),
     _setting("video_budget", int, 4, "Video points each dola account gets per day (dola reports its own number and "
-             "that wins).", _at_least(1)),
+             "that wins).", min=1),
     _setting("image_budget", int, 40, "Image jobs each dola account may take per day (measured about 40; dola never "
-             "reports it).", _at_least(1)),
+             "reports it).", min=1),
     _setting("master_quality", bool, True,
              "Deliver the H.264 master (720p, about 12 Mbps, no watermark) instead of the light HEVC rendition; falls "
              "back to the rendition when the master cannot be fetched."),
     _setting("alert_duration_mismatch_rate", float, 0.2,
-             "Drift alert: share of the last 24 h jobs delivered with the wrong length.", _rate),
+             "Drift alert: share of the last 24 h jobs delivered with the wrong length.", min=0.0, max=1.0),
     _setting("alert_watermark_only_rate", float, 0.2,
-             "Drift alert: share of the last 24 h jobs that failed as watermark-only.", _rate),
+             "Drift alert: share of the last 24 h jobs that failed as watermark-only.", min=0.0, max=1.0),
     _setting("alert_content_refused_rate", float, 0.5,
-             "Drift alert: share of the last 24 h submits refused for content.", _rate),
-    _setting("browser_slots", int, 8,
-             "Browser sessions at once (live; capped by the environment ceiling). Lowering retires idle slots.",
-             _slots),
+             "Drift alert: share of the last 24 h submits refused for content.", min=0.0, max=1.0),
+    _setting("browser_slots", int, 4,
+             "Browser sessions at once (live). Lowering retires idle slots.",
+             min=BROWSER_SLOTS_MIN, max=BROWSER_SLOTS_MAX),
 ))
 
 
@@ -152,6 +141,12 @@ class DolaSpec:
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
         strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=True, titles=True,
         catalog_refresh_s=CATALOG_REFRESH_S, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)
+    limits = LIMITS + (
+        FixedLimit("relay_dola.catalog.MODEL_2_0_MAX_SECONDS", C.MODEL_2_0_MAX_SECONDS,
+                   "dola always cuts a 2.0 video to this length, so no longer one is offered", "s"),
+        FixedLimit("relay_dola.credential.MAX_COOKIES", MAX_COOKIES,
+                   "a real dola jar holds about 20; a longer list is not a cookie export", "cookies"),
+    )
     rate_alerts = (
         RateAlert("dola.alert_duration_mismatch_rate", codes.WARN_DURATION_DRIFT, "warning"),
         RateAlert("dola.alert_watermark_only_rate", codes.RENDER_WATERMARKED_ONLY, "error_code"),

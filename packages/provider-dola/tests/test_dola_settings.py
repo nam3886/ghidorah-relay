@@ -1,8 +1,11 @@
 """dola's live settings and their validators (contracts 5.4.1; coverage CFG07, CFG08, PRICE00, RUN00)."""
 
+import importlib
+
 import pytest
 from kit_a import settings
 
+from relay_core.limits import caps_limits, fixed_limits
 from relay_core.providers import ProviderRegistry
 from relay_core.settings import Registry, SettingsError, is_boot_only
 from relay_core.testing.mutation import mutation
@@ -11,6 +14,7 @@ from relay_dola.spec import SPEC
 
 CONSTANTS_FILE = "packages/provider-dola/src/relay_dola/constants.py"
 SPEC_FILE = "packages/provider-dola/src/relay_dola/spec.py"
+CORE_SETTINGS = "packages/relay-core/src/relay_core/settings.py"
 
 LIVE_KEYS = {
     "dola.claims_enabled", "dola.render_deadline_s", "dola.prices",
@@ -19,7 +23,7 @@ LIVE_KEYS = {
     "dola.alert_content_refused_rate", "dola.browser_slots"}
 
 
-SLOTS = "BROWSER_SLOTS_MIN, BROWSER_SLOTS_MAX = 1, 30"
+SLOTS = "BROWSER_SLOTS_MIN, BROWSER_SLOTS_MAX = 1, 12"
 SLOTS_99 = "BROWSER_SLOTS_MIN, BROWSER_SLOTS_MAX = 1, 99"
 
 
@@ -86,14 +90,13 @@ def test_a_negative_price_is_refused():
     assert spec_of("dola.prices").validate({"seedance_v2.5@30s": 0}) == {"seedance_v2.5@30s": 0}
 
 
-def test_prices_come_from_the_environment_as_json_and_a_bad_one_is_refused():
+@mutation(CORE_SETTINGS, "self.rule.check(value)", "None", expect="DID NOT RAISE")
+def test_the_price_rule_is_what_refuses_a_bad_table_and_its_text_says_so():
     s = spec_of("dola.prices")
-    assert s.env_name == "DOLA_PRICES"
-    assert s.from_env('{"seedance_v2.5@30s": 3}') == {"seedance_v2.5@30s": 3}
-    with pytest.raises(SettingsError):
-        s.from_env('{"seedance_v2.5@30s": -3}')
-    with pytest.raises(SettingsError):
-        s.from_env("not json")
+    assert s.allowed == "each tier: a non-empty name and a whole number of points, 0 or more"
+    assert s.validate({"seedance_v2.5@30s": 3}) == {"seedance_v2.5@30s": 3}
+    with pytest.raises(SettingsError, match="negative"):
+        s.validate({"seedance_v2.5@30s": -3})
 
 
 def test_an_invalid_price_value_never_reaches_the_running_table():
@@ -107,12 +110,13 @@ def test_an_invalid_price_value_never_reaches_the_running_table():
 
 
 # ---- CFG08: browser slots --------------------------------------------------------------------------------------------
-@mutation(CONSTANTS_FILE, SLOTS, SLOTS_99, expect="did not match")
-def test_browser_slot_values_stay_inside_the_measured_range():
+@mutation(CONSTANTS_FILE, SLOTS, SLOTS_99, expect="(1, 99,")
+def test_browser_slot_values_stay_inside_the_container_size():
     s = spec_of("dola.browser_slots")
-    assert s.default == 8 and s.validate(1) == 1 and s.validate(25) == 25 and s.validate(30) == 30
-    for bad in (0, 31, -1):
-        with pytest.raises(SettingsError, match="between 1 and 30"):
+    assert s.default == 4 and s.validate(1) == 1 and s.validate(8) == 8 and s.validate(12) == 12
+    assert (s.min, s.max, s.allowed) == (1, 12, "1\u201312")
+    for bad in (0, 13, -1, 30):
+        with pytest.raises(SettingsError, match="between 1 and 12"):
             s.validate(bad)
     for bad in (True, 8.0, "8"):
         with pytest.raises(SettingsError, match="must be int"):
@@ -123,7 +127,6 @@ def test_browser_slot_values_stay_inside_the_measured_range():
 
 
 
-@mutation(SPEC_FILE, "if not 0.0 <= v <= 1.0:", "if False:", expect="DID NOT RAISE")
 def test_the_alert_rates_are_between_zero_and_one():
     for key in ("dola.alert_duration_mismatch_rate", "dola.alert_watermark_only_rate",
                 "dola.alert_content_refused_rate"):
@@ -134,14 +137,16 @@ def test_the_alert_rates_are_between_zero_and_one():
                 s.validate(bad)
         with pytest.raises(SettingsError, match="must be float"):
             s.validate(1)
+        assert s.allowed == "0\u20131"
 
 
 def test_the_deadline_and_the_budgets_are_positive_whole_numbers():
     for key, floor in (("dola.render_deadline_s", 60), ("dola.video_budget", 1), ("dola.image_budget", 1)):
         s = spec_of(key)
         assert s.validate(floor) == floor
-        with pytest.raises(SettingsError, match="at least"):
+        with pytest.raises(SettingsError, match="at least %d" % floor):
             s.validate(floor - 1)
+        assert s.allowed == "at least %d" % floor
         with pytest.raises(SettingsError, match="must be int"):
             s.validate(True)
     assert spec_of("dola.master_quality").validate(False) is False
@@ -157,3 +162,42 @@ def test_the_settings_a_worker_reloads_each_tick_exist_with_the_core_names():
         assert pool.budget_setting in keys, pool
     assert [(p.name, p.tz, p.budget_setting) for p in SPEC.caps.pools] == [
         ("video", "UTC", "dola.video_budget"), ("image", "UTC", "dola.image_budget")]
+
+
+# ---- what the admin sees: allowed text and fixed limits -------------------------------------------------------------
+def test_every_dola_setting_states_what_it_allows():
+    assert {k: s.allowed for k, s in SPEC.settings().items()} == {
+        "dola.claims_enabled": "true or false", "dola.master_quality": "true or false",
+        "dola.render_deadline_s": "at least 60", "dola.video_budget": "at least 1", "dola.image_budget": "at least 1",
+        "dola.prices": "each tier: a non-empty name and a whole number of points, 0 or more",
+        "dola.alert_duration_mismatch_rate": "0\u20131", "dola.alert_watermark_only_rate": "0\u20131",
+        "dola.alert_content_refused_rate": "0\u20131", "dola.browser_slots": "1\u201312"}
+
+
+def test_the_fixed_limits_name_only_constants_of_the_pure_modules_and_equal_them():
+    assert SPEC.limits, "dola declares its fixed limits"
+    names = [f.name for f in SPEC.limits]
+    assert len(names) == len(set(names))
+    for f in SPEC.limits:
+        module, const = f.name.rsplit(".", 1)
+        assert module in ("relay_dola.constants", "relay_dola.catalog", "relay_dola.credential"), f.name
+        assert getattr(importlib.import_module(module), const) == f.value, f.name
+        assert f.reason.strip(), f.name
+    # a number Caps already shows is shown once, by the core
+    shown_by_caps = {"PROXY_REST_S", "CHECK_INTERVAL_S", "CATALOG_REFRESH_S", "MAX_ATTEMPTS", "SUSPECT_THRESHOLD",
+                     "PROMPT_MAX_CHARS", "FRAME_MAX_SENT_CHARS"}
+    assert not shown_by_caps & {n.rsplit(".", 1)[1] for n in names}
+
+
+def test_the_caps_rows_of_dola_are_its_declared_numbers():
+    rows = {f.name: f.value for f in caps_limits(SPEC)}
+    assert rows == {
+        "caps.account_slots": 1, "caps.max_attempts": 3, "caps.suspect_threshold": 3, "caps.proxy_rest_s": 1800,
+        "caps.check_interval_s": 21600, "caps.catalog_refresh_s": 3600, "max_prompt_chars": 200_000,
+        "frames.max_sent_chars": 200_000}
+    registry = ProviderRegistry()
+    registry.register(SPEC)
+    listed = {(r["group"], r["name"]): r["value"] for r in fixed_limits(registry)}
+    assert listed[("dola", "caps.proxy_rest_s")] == "1800 s"
+    assert listed[("dola", "relay_dola.constants.BROWSER_SLOTS_MAX")] == "12 sessions"
+    assert listed[("dola", "relay_dola.credential.MAX_COOKIES")] == "200 cookies"

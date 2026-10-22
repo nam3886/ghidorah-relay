@@ -8,6 +8,7 @@ This module is also the one core module that may name providers (the registry); 
 """
 
 import importlib
+import math
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
@@ -357,6 +358,7 @@ class ModelSpec:
     aliases: tuple[str, ...] = ()
     limits: Mapping[str, Any] = field(default_factory=dict)
     prices: Mapping[str, int] = field(default_factory=dict)
+    display_name: str = ""             # the product name shown to people; empty: the catalog shows the id
 
     def names(self) -> tuple[str, ...]:
         return (self.id, *self.aliases)
@@ -505,6 +507,16 @@ class RunCtx(Protocol):
 
 
 @dataclass(frozen=True)
+class FixedLimit:
+    """A limit that is code, not a setting: `value` is the constant itself, `reason` says in one line why it is that
+    number. The admin Fixed limits card lists them; `unit` is shown after a number."""
+    name: str
+    value: Any
+    reason: str
+    unit: str = ""
+
+
+@dataclass(frozen=True)
 class RateAlert:
     """A drift alert a provider declares: `setting` (one of its own, a rate from 0 to 1) is the share of the last 24 h
     jobs, at least five of them, that ended with the error code `code` (`source` "error_code") or carry the warning
@@ -522,6 +534,7 @@ class ProviderSpec(Protocol):
     caps: Caps
     max_prompt_chars: int                        # the longest prompt a customer may send, in characters
     rate_alerts: tuple[RateAlert, ...] = ()      # a spec without the attribute declares none (read with getattr)
+    limits: tuple[FixedLimit, ...] = ()          # fixed limits it adds to the Fixed limits card (read with getattr)
 
     def catalog(self) -> list[ModelSpec]: ...
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan: ...
@@ -555,6 +568,18 @@ class RegistryError(ValueError):
     """A spec that cannot be registered: a duplicate name, a duplicate model id or alias, a malformed spec."""
 
 
+def _whole(v: Any) -> bool:
+    return isinstance(v, int | float) and not isinstance(v, bool) and math.isfinite(v) and v == int(v)
+
+
+def _bounded_slots(slots: Any) -> bool:
+    """An `int` setting with a whole `min >= 1` and a finite whole `max`. Read with getattr: a test stub holds plain
+    objects."""
+    low: Any = getattr(slots, "min", None)
+    high: Any = getattr(slots, "max", None)
+    return getattr(slots, "type", None) is int and _whole(low) and low >= 1 and _whole(high)
+
+
 def _problems(spec: ProviderSpec) -> list[str]:
     bad = []
     if not _NAME.fullmatch(spec.name):
@@ -570,6 +595,16 @@ def _problems(spec: ProviderSpec) -> list[str]:
     missing = [spec.name + "." + n for n in needed if spec.name + "." + n not in keys]
     if missing:                      # the core reads these on every tick; a missing one breaks the loops at run time
         bad.append("%s: settings the core reads are not declared: %s" % (spec.name, ", ".join(missing)))
+    if spec.caps.execution == "browser" and spec.name + ".browser_slots" in keys:
+        slots = spec.settings()[spec.name + ".browser_slots"]     # its bound is what keeps a browser worker in memory
+        if not _bounded_slots(slots):
+            bad.append("%s.browser_slots must be an int setting that declares a whole min >= 1 and a finite whole max"
+                       % spec.name)
+        else:
+            try:
+                slots.validate(slots.default)          # a bad default is a refusal here, not a traceback at start
+            except ValueError as e:
+                bad.append("%s.browser_slots default: %s" % (spec.name, e))
     for pool in spec.caps.pools:
         if pool.budget_setting is not None and pool.budget_setting not in keys:
             bad.append("%s: pool %s names the budget setting %s, which the spec does not declare"

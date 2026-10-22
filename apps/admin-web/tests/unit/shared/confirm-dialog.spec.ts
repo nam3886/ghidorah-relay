@@ -19,6 +19,19 @@ describe("confirmDialog", () => {
     await expect(confirmDialog({ title: "t", message: "m" }, box(failure))).rejects.toBe(failure);
   });
 
+  it("closes on a hash change by default, and stays when asked to", async () => {
+    const asked = box("resolve");
+    await confirmDialog({ title: "t", message: "m" }, asked);
+    expect(
+      (asked.confirm.mock.calls[0] as unknown as [string, string, Record<string, unknown>])[2].closeOnHashChange,
+    ).toBe(true);
+    const stays = box("resolve");
+    await confirmDialog({ title: "t", message: "m", closeOnHashChange: false }, stays);
+    expect(
+      (stays.confirm.mock.calls[0] as unknown as [string, string, Record<string, unknown>])[2].closeOnHashChange,
+    ).toBe(false);
+  });
+
   it("passes the text as plain text and never turns HTML on", async () => {
     const b = box("resolve");
     const html = "<img src=x onerror=alert(1)>";
@@ -29,6 +42,22 @@ describe("confirmDialog", () => {
     expect(options.dangerouslyUseHTMLString).toBeFalsy();
     expect(options.confirmButtonText).toBe("Clear logs");
     expect(options.cancelButtonText).toBe("Cancel");
+  });
+
+  it("every box carries the confirm class that draws the title, the muted sentence and the solid destructive button", async () => {
+    for (const danger of [true, false]) {
+      const b = box("resolve");
+      await confirmDialog({ title: "t", message: "m", danger }, b);
+      expect((b.confirm.mock.calls[0] as unknown[])[2]).toMatchObject({ customClass: "rl-confirm" });
+    }
+  });
+
+  it("draws no close X: the box is asked not to show one, for a destructive and a plain confirm", async () => {
+    for (const danger of [true, false]) {
+      const b = box("resolve");
+      await confirmDialog({ title: "t", message: "m", danger }, b);
+      expect((b.confirm.mock.calls[0] as unknown[])[2]).toMatchObject({ showClose: false });
+    }
   });
 
   it("marks a destructive confirm red and a plain one not", async () => {

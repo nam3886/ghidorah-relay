@@ -1,0 +1,183 @@
+/*
+ * Controls the canvas draws as plain native ones (specs/keys.md, logs.md, alerts.md): buttons, selects, date and
+ * search fields, the card. Keys, Request logs and Alerts share them. Colours are the C2 tokens only.
+ */
+.kla-card {
+  background: var(--rl-surface);
+  border: 1px solid var(--rl-line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.kla-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font: inherit;
+  font-size: 13px;
+  /* the browser's own, as the canvas's buttons keep it */
+  line-height: normal;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.kla-btn:hover {
+  background: var(--rl-raised);
+}
+.kla-btn[aria-disabled="true"],
+.kla-btn:disabled {
+  background: var(--rl-raised);
+  color: var(--rl-faint);
+  cursor: default;
+}
+.kla-btn--primary {
+  padding: 0 16px;
+  border: 0;
+  background: var(--rl-primary);
+  color: #ffffff;
+  font-weight: 600;
+}
+.kla-btn--primary:hover {
+  background: var(--rl-primary-hover);
+}
+.kla-btn--primary[aria-disabled="true"],
+.kla-btn--primary:disabled {
+  background: var(--rl-primary);
+  color: #ffffff;
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.kla-btn--danger {
+  border-color: var(--rl-bad);
+  background: transparent;
+  color: var(--rl-bad);
+}
+.kla-btn--danger:hover {
+  background: transparent;
+}
+.kla-btn--ghost {
+  background: transparent;
+}
+.kla-btn--tiny {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 12px;
+}
+.kla-btn--small {
+  height: 32px;
+  padding: 0 10px;
+}
+.kla-btn--link {
+  border: 0;
+  background: transparent;
+  color: var(--rl-link, var(--rl-primary));
+}
+
+/* the same button, 44 px high on a phone */
+@media (max-width: 767px) {
+  .kla-btn--fit {
+    height: 44px;
+    font-size: 14px;
+  }
+}
+
+.kla-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--rl-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.kla-icon-btn:hover {
+  background: var(--rl-raised);
+}
+.kla-icon-btn--bad {
+  color: var(--rl-bad);
+}
+.kla-icon-btn--lg {
+  width: 44px;
+  height: 44px;
+}
+
+/* a labelled native field: label above, control under */
+.kla-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.kla-field__label {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--rl-muted);
+}
+.kla-control {
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font: inherit;
+  font-size: 13px;
+}
+.kla-control--tall {
+  height: 36px;
+}
+/* `input[type]` outranks the theme's `input[type="date"]:focus-visible { outline: none }`: the canvas rings every
+   field */
+input[type].kla-control:focus-visible,
+.kla-control:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
+}
+/* the dark colour scheme already draws the calendar glyph light, as the canvas does: the theme's invert would dim it */
+html.dark .kla-control[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+}
+
+/* the phone filter: a rounded label wrapper holding the word and a borderless control */
+.kla-chip-field {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: 44px;
+  padding: 0 6px 0 12px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  font-size: 13px;
+  color: var(--rl-muted);
+}
+.kla-chip-field .kla-control {
+  height: 40px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+}
+
+/* ids and names in the mono face with its own figures; a count adds tabular figures where the canvas sets them */
+.kla-mono {
+  font-family: var(--rl-mono);
+}

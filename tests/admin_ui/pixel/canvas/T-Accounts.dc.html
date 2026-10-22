@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ghidorah admin, direction B, tablet: Accounts</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.th-light{--bg:#F7F5FB;--surface:#FFFFFF;--raised:#F3EFFA;--line:#ECE6F3;--line-strong:#DDD5E8;--control:#85758F;--text:#171321;--muted:#655A75;--faint:#76698A;--brand:#8B5CF6;--primary:#7C3AED;--primary-hover:#6D28D9;--primary-soft:#EDE9FE;--focus:#7C3AED;--ok:#047857;--ok-bg:#E2F4EC;--warn:#92400E;--warn-bg:#FDF1DF;--bad:#BE123C;--bad-bg:#FDE7EC;--info:#6D28D9;--info-bg:#EFE9FD;--neutral:#655A75;--neutral-bg:#F1EEF5;--topbar:#FFFFFF;--scrim:rgba(23,19,33,.42);--logo-dark:none;--logo-light:block;color-scheme:light}
+.th-dark{--bg:#0E0B16;--surface:#171222;--raised:#211A30;--line:#2A2140;--line-strong:#3E3356;--control:#82738F;--text:#F5F3FF;--muted:#B9AEC9;--faint:#8E82A3;--brand:#8B5CF6;--primary:#7C3AED;--primary-hover:#6D28D9;--primary-soft:#2E1D4B;--focus:#A78BFA;--ok:#34D399;--ok-bg:rgba(52,211,153,.13);--warn:#FBBF24;--warn-bg:rgba(251,191,36,.13);--bad:#FB7185;--bad-bg:rgba(251,113,133,.14);--info:#C4B5FD;--info-bg:rgba(139,92,246,.2);--neutral:#B9AEC9;--neutral-bg:rgba(185,174,201,.12);--topbar:#130E1F;--scrim:rgba(5,3,10,.6);--logo-dark:block;--logo-light:none;color-scheme:dark}
+a{color:var(--primary)}a:hover{color:var(--primary-hover)}
+.th-dark a{color:#C4B5FD}
+.gd ::selection{background:var(--primary-soft)}
+.gd button,.gd input,.gd a{font-family:inherit}
+.gd button:focus-visible,.gd a:focus-visible,.gd input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.tab:hover{color:var(--text)}
+.trow:hover td{background:var(--raised)}
+.ghost:hover{background:var(--raised)}
+.solid:hover{background:var(--primary-hover)}
+.logo-on-light{display:var(--logo-light)}
+.logo-on-dark{display:var(--logo-dark)}
+</style>
+</helmet>
+<div class="gd {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: 'Be Vietnam Pro', system-ui, sans-serif; font-size: 14px; line-height: 20px;">
+
+<header style="background: var(--topbar); border-bottom: 1px solid var(--line);">
+  <div style="display: flex; align-items: center; gap: 8px; height: 60px; padding: 0 16px 0 24px; box-sizing: border-box;">
+    <a href="#" aria-label="Ghidorah admin home" style="display: flex; align-items: center; flex: 1; min-width: 0; text-decoration: none;">
+      <img class="logo-on-light" src="/_blob/d0a9f70a76dc022b6bc0d943aea30824" alt="Ghidorah" style="height: 26px; width: auto;">
+      <img class="logo-on-dark" src="/_blob/4ddd6de2d45e1d36a76b14b677eae5e2" alt="Ghidorah" style="height: 26px; width: auto;">
+    </a>
+    <button type="button" aria-haspopup="listbox" style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 13px; cursor: pointer;">
+      <span style="color: var(--muted);">Provider</span> All
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <button class="ghost" type="button" aria-label="Switch theme" onClick="{{toggleTheme}}" style="width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line-strong); background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+    <button type="button" aria-haspopup="menu" aria-label="Account menu, admin" style="width: 40px; height: 40px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+      <span style="width: 30px; height: 30px; border-radius: 15px; background: var(--primary-soft); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">A</span>
+    </button>
+  </div>
+  <nav aria-label="Main" style="overflow-x: auto; border-top: 1px solid var(--line);">
+    <ul style="list-style: none; margin: 0; padding: 0 14px; display: flex; gap: 4px; white-space: nowrap;">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="8">
+        <li>
+          <a class="tab" href="{{t.href}}" aria-current="{{t.current}}" style="display: flex; align-items: center; gap: 6px; height: 48px; padding: 0 10px; box-sizing: border-box; text-decoration: none; font-size: 14px; font-weight: {{t.weight}}; color: {{t.color}}; border-bottom: 2px solid {{t.underline}};">
+            {{t.label}}
+            <sc-if value="{{t.count}}" hint-placeholder-val="{{ false }}"><span class="num" style="font-size: 11px; line-height: 16px; padding: 0 6px; border-radius: 8px; background: {{t.countBg}}; color: {{t.countColor}};">{{t.count}}</span></sc-if>
+          </a>
+        </li>
+      </sc-for>
+    </ul>
+  </nav>
+</header>
+
+<main style="padding: 24px 24px 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px;">
+
+  <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+    <div style="min-width: 0;">
+      <h1 style="margin: 0; font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.012em;">Accounts</h1>
+      <p style="margin: 2px 0 0; color: var(--muted);">The dola account pool: health, points, cooldowns and proxies.</p>
+      <span class="num" style="display: block; margin-top: 4px; font-size: 12px; color: var(--faint);">Updated 20:55:02 · auto every 10 s</span>
+    </div>
+    <div style="position: relative; display: flex; align-items: center; gap: 8px; flex: none;">
+      <button class="ghost" type="button" aria-haspopup="menu" aria-expanded="{{menuOpen}}" aria-label="More actions: Check all, Refresh catalog" onClick="{{toggleMenu}}" style="width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01"/></svg>
+      </button>
+      <a class="solid" href="B-AccountImport.dc.html" style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; border-radius: 10px; background: var(--primary); color: #FFFFFF; font-size: 13px; font-weight: 600; text-decoration: none;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Import</a>
+      <sc-if value="{{menuOpen}}" hint-placeholder-val="{{ false }}">
+        <div role="menu" aria-label="More actions" style="position: absolute; top: 42px; right: 0; z-index: 2; width: 200px; padding: 6px; box-sizing: border-box; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: 0 12px 32px rgba(10,6,20,.18);">
+          <button class="ghost" type="button" role="menuitem" style="display: flex; align-items: center; gap: 8px; width: 100%; height: 40px; padding: 0 10px; border-radius: 8px; border: 0; background: transparent; color: var(--text); font-size: 13px; text-align: left; cursor: pointer;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Check all</button>
+          <button class="ghost" type="button" role="menuitem" style="display: flex; align-items: center; gap: 8px; width: 100%; height: 40px; padding: 0 10px; border-radius: 8px; border: 0; background: transparent; color: var(--text); font-size: 13px; text-align: left; cursor: pointer;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Refresh catalog</button>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+
+  <section aria-labelledby="poolTitle" style="display: flex; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;">
+    <div style="flex: 1 1 300px; min-width: 0; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px;">
+      <h2 id="poolTitle" style="margin: 0; font-size: 15px; font-weight: 600;">Pool health <span class="num" style="font-weight: 400; color: var(--muted);">· 9 accounts</span></h2>
+      <dl style="margin: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
+        <sc-for list="{{ledger}}" as="l" hint-placeholder-count="5">
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <dt style="color: var(--muted); white-space: nowrap;">{{l.k}}</dt>
+            <span aria-hidden="true" style="flex: 1; border-bottom: 1px dotted var(--line-strong); transform: translateY(-4px);"></span>
+            <dd class="num" style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-weight: 500; color: {{l.color}};">{{l.v}}</dd>
+          </div>
+        </sc-for>
+      </dl>
+    </div>
+    <div style="flex: 1 1 300px; min-width: 0; padding: 16px 20px; background: var(--raised); display: flex; flex-direction: column; gap: 10px;">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 600;">dola pool</h2>
+      <dl style="margin: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
+        <sc-for list="{{pool}}" as="p" hint-placeholder-count="5">
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <dt style="color: var(--muted); white-space: nowrap;">{{p.k}}</dt>
+            <span aria-hidden="true" style="flex: 1; border-bottom: 1px dotted var(--line-strong); transform: translateY(-4px);"></span>
+            <dd class="num" style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-weight: 500; color: {{p.color}};">{{p.v}}</dd>
+          </div>
+        </sc-for>
+      </dl>
+    </div>
+  </section>
+
+  <section aria-label="Account list" style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;">
+    <table style="width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0;">
+      <thead>
+        <tr style="text-align: left; font-size: 12px; color: var(--muted);">
+          <th scope="col" style="padding: 0 8px 0 16px; height: 38px; font-weight: 500; background: var(--raised);">Account</th>
+          <th scope="col" style="width: 138px; padding: 0 8px; font-weight: 500; background: var(--raised);">Status</th>
+          <th scope="col" style="width: 104px; padding: 0 8px; font-weight: 500; background: var(--raised);">Points</th>
+          <th scope="col" style="width: 84px; padding: 0 8px; font-weight: 500; background: var(--raised);">Asleep</th>
+          <th scope="col" style="width: 156px; padding: 0 12px 0 8px; font-weight: 500; background: var(--raised); text-align: right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <sc-for list="{{rows}}" as="r" hint-placeholder-count="9">
+          <tr class="trow">
+            <td style="padding: 10px 8px 10px 16px; border-bottom: 1px solid var(--line); background: {{r.rowBg}}; vertical-align: top;">
+              <span style="display: block; font-weight: 600;">{{r.label}}</span>
+              <span style="display: block; font-size: 12px; color: var(--muted);">{{r.sub}}</span>
+              <sc-if value="{{r.hasProxy}}" hint-placeholder-val="{{ true }}">
+                <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 4px;">
+                  <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; line-height: 16px;">{{r.proxy}}</span>
+                  <span style="display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; background: var(--{{r.ptone}}-bg); color: var(--{{r.ptone}}); font-size: 11px; font-weight: 500;"><span style="width: 5px; height: 5px; border-radius: 3px; background: var(--{{r.ptone}});"></span>{{r.pcheck}}</span>
+                </span>
+              </sc-if>
+              <sc-if value="{{r.noProxy}}" hint-placeholder-val="{{ false }}"><span style="display: block; margin-top: 4px; font-size: 12px; color: var(--faint);">direct, no proxy</span></sc-if>
+            </td>
+            <td style="padding: 10px 8px; border-bottom: 1px solid var(--line); background: {{r.rowBg}}; vertical-align: top;">
+              <span style="display: flex; flex-wrap: wrap; gap: 4px;">
+                <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--{{r.tone}}-bg); color: var(--{{r.tone}}); font-size: 12px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 3px; background: var(--{{r.tone}});"></span>{{r.status}}</span>
+                <sc-if value="{{r.inUse}}" hint-placeholder-val="{{ false }}"><span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--info-bg); color: var(--info); font-size: 12px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 3px; background: var(--info);"></span>in use</span></sc-if>
+              </span>
+              <sc-if value="{{r.reason}}" hint-placeholder-val="{{ false }}"><span style="display: block; margin-top: 3px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; line-height: 16px; color: var(--bad); word-break: break-word;">{{r.reason}}</span></sc-if>
+              <span style="display: block; margin-top: 3px; font-size: 11px; line-height: 16px; color: var(--faint);">{{r.checked}}</span>
+              <sc-if value="{{r.errLine}}" hint-placeholder-val="{{ false }}"><span style="display: block; margin-top: 3px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; line-height: 16px; color: var(--bad); word-break: break-word;">{{r.errLine}}</span></sc-if>
+            </td>
+            <td class="num" style="padding: 10px 8px; border-bottom: 1px solid var(--line); background: {{r.rowBg}}; vertical-align: top;">
+              <span style="display: block;"><span style="color: var(--muted); font-size: 12px;">video</span> <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">{{r.points}}</span></span>
+              <sc-if value="{{r.drift}}" hint-placeholder-val="{{ false }}"><span style="margin-top: 3px; display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; background: var(--warn-bg); color: var(--warn); font-size: 11px; font-weight: 500;"><span style="width: 5px; height: 5px; border-radius: 3px; background: var(--warn);"></span>drift</span></sc-if>
+              <span style="display: block; margin-top: 3px; font-size: 12px; line-height: 16px; color: var(--muted);">{{r.videos}} videos · {{r.images}} images</span>
+            </td>
+            <td style="padding: 10px 8px; border-bottom: 1px solid var(--line); background: {{r.rowBg}}; vertical-align: top;">
+              <sc-if value="{{r.asleep}}" hint-placeholder-val="{{ false }}">
+                <span class="num" style="display: block; font-size: 13px; color: var(--warn); font-weight: 500;">{{r.asleep}}</span>
+                <span style="display: block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--faint);">{{r.asleepWhy}}</span>
+              </sc-if>
+              <sc-if value="{{r.awake}}" hint-placeholder-val="{{ true }}"><span style="color: var(--faint);">—</span></sc-if>
+            </td>
+            <td style="padding: 10px 12px 10px 8px; border-bottom: 1px solid var(--line); background: {{r.rowBg}}; vertical-align: top;">
+              <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px;">
+                <sc-if value="{{r.canToggle}}" hint-placeholder-val="{{ true }}">
+                  <button type="button" role="switch" aria-checked="{{r.on}}" aria-label="Enable {{r.label}}" onClick="{{r.toggle}}" style="width: 44px; height: 32px; padding: 0; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer;"><span style="position: relative; display: block; width: 34px; height: 20px; border-radius: 10px; background: {{r.swBg}};"><span style="position: absolute; top: 2px; left: {{r.swPos}}px; width: 16px; height: 16px; border-radius: 8px; background: #FFFFFF;"></span></span></button>
+                </sc-if>
+                <sc-if value="{{r.inUse}}" hint-placeholder-val="{{ false }}"><span style="display: block; width: 44px;"></span></sc-if>
+                <button class="ghost" type="button" aria-label="Check {{r.label}}" style="height: 32px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line-strong); background: transparent; color: var(--text); font-size: 13px; cursor: pointer;">Check</button>
+                <button class="ghost" type="button" aria-haspopup="menu" aria-label="More actions for {{r.label}}" style="width: 32px; height: 32px; border-radius: 10px; border: 0; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5h.01M12 12h.01M12 19h.01"/></svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </sc-for>
+      </tbody>
+    </table>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line);">
+      <span class="num" style="font-size: 13px; color: var(--muted);">Showing 1–9 of 9</span>
+      <div style="display: flex; align-items: center; gap: 4px;">
+        <button type="button" aria-haspopup="listbox" style="height: 32px; padding: 0 10px; margin-right: 8px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-size: 13px;">50 / page</button>
+        <button type="button" aria-label="Previous page" aria-disabled="true" style="height: 32px; padding: 0 10px; border-radius: 10px; border: 0; background: transparent; color: var(--faint); font-size: 13px;">Previous</button>
+        <button type="button" class="num" aria-current="page" style="min-width: 32px; height: 32px; border-radius: 10px; border: 0; background: var(--primary); color: #FFFFFF; font-weight: 600;">1</button>
+        <button type="button" aria-label="Next page" aria-disabled="true" style="height: 32px; padding: 0 10px; border-radius: 10px; border: 0; background: transparent; color: var(--faint); font-size: 13px;">Next</button>
+      </div>
+    </div>
+  </section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":768,"height":1420}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { dark: null, off: {}, menu: false };
+  }
+  renderVals() {
+    const dark = this.state.dark === null ? (this.props.dark ?? false) : this.state.dark;
+    const off = this.state.off;
+    const tabNames = [['Jobs', '4'], ['Accounts', '7/8', true], ['API keys'], ['Request logs'], ['Alerts', '1', false, true], ['Prompt frames'], ['Settings'], ['Test']];
+    const tabs = tabNames.map(([label, count, current, warn]) => ({
+      label, href: '#', current: current ? 'page' : 'false', count: count || '',
+      weight: current ? '600' : '500', color: current ? 'var(--text)' : 'var(--muted)',
+      underline: current ? 'var(--primary)' : 'transparent',
+      countBg: current ? 'var(--primary)' : (warn ? 'var(--warn-bg)' : 'var(--neutral-bg)'),
+      countColor: current ? '#FFFFFF' : (warn ? 'var(--warn)' : 'var(--muted)')
+    }));
+    const base = { tone: 'ok', status: 'available', inUse: false, reason: '', drift: false, asleep: '', asleepWhy: '', hasProxy: true, ptone: 'ok', pcheck: 'ok · 4 min ago', err: '—', canToggle: true };
+    const data = [
+      { label: 'acct-n11-00', name: 'Demo User H', composer: 'composer v2', checked: 'Checked 3 min ago', points: '24 / 30', videos: 31, images: 12, proxy: '10.0.0.10:8000' },
+      { label: 'acct-n11-01', name: 'Demo User B', composer: 'composer v2', checked: 'Checked 3 min ago', points: '30 / 30', videos: 58, images: 22, proxy: '10.0.0.10:8000' },
+      { label: 'acct-n11-02', name: 'Demo User C', composer: 'composer v1', checked: 'Checked 6 min ago', points: '14 / 30', videos: 47, images: 15, proxy: '10.0.0.11:8000', inUse: true, canToggle: false },
+      { label: 'acct-n11-03', name: 'Demo User A', composer: '', checked: 'Checked 4 min ago', points: '18 / 30', videos: 42, images: 9, proxy: '10.0.0.11:8000' },
+      { label: 'acct-n11-04', name: 'Demo User D', composer: 'composer v2', checked: 'Checked 2 min ago', points: '? / 30', videos: 36, images: 18, proxy: '10.0.0.12:8000', inUse: true, canToggle: false, asleep: 'until 21:30', asleepWhy: 'strike', err: 'dola.likeness_refused' },
+      { label: 'acct-n11-05', name: 'Demo User E', composer: 'composer v2', checked: 'Checked 5 min ago', points: '21 / 30', videos: 27, images: 6, proxy: '10.0.0.12:8000', ptone: 'bad', pcheck: 'failed · 5 min ago', err: 'proxy check: connect timeout after 8 s' },
+      { label: 'acct-n11-06', name: 'Demo User F', composer: 'composer v2', checked: 'Checked 4 min ago', points: '27 / 30', videos: 64, images: 31, proxy: '10.0.0.13:8000', drift: true, err: 'drift: page shows 26, ledger says 27' },
+      { label: 'acct-n11-07', name: 'Demo User G', composer: '', checked: 'Checked 11 min ago', points: '9 / 30', videos: 19, images: 4, proxy: '', hasProxy: false },
+      { label: 'acct-n11-08', name: 'Demo User I', composer: 'composer v2', checked: 'Checked 1 h ago', points: '? / 30', videos: 11, images: 3, proxy: '10.0.0.13:8000', ptone: 'neutral', pcheck: 'not checked', status: 'dead', tone: 'bad', reason: 'account.dead_session', err: 'account.dead_session' }
+    ];
+    const rows = data.map((d) => {
+      const r = { ...base, ...d };
+      const isOn = !off[r.label];
+      return {
+        ...r,
+        sub: r.name + ' · dola' + (r.composer ? ' · ' + r.composer : ''),
+        rowBg: r.tone === 'bad' ? 'var(--bad-bg)' : 'transparent',
+        errLine: r.err !== '—' && r.err !== r.reason ? r.err : '',
+        awake: !r.asleep, noProxy: !r.hasProxy,
+        on: isOn, swBg: isOn ? 'var(--primary)' : 'var(--control)', swPos: isOn ? 16 : 2,
+        status: isOn || r.tone === 'bad' ? r.status : 'disabled',
+        tone: isOn || r.tone === 'bad' ? r.tone : 'neutral',
+        toggle: () => this.setState({ off: { ...this.state.off, [r.label]: isOn } })
+      };
+    });
+    return {
+      themeClass: dark ? 'th-dark' : 'th-light',
+      toggleTheme: () => this.setState({ dark: !dark }),
+      menuOpen: this.state.menu,
+      toggleMenu: () => this.setState({ menu: !this.state.menu }),
+      tabs, rows,
+      ledger: [
+        { k: 'Accounts ready', v: '7 / 8', color: 'var(--text)' },
+        { k: 'Accounts dead', v: '1', color: 'var(--bad)' },
+        { k: 'Accounts disabled', v: '0', color: 'var(--text)' },
+        { k: 'In use', v: '2', color: 'var(--text)' },
+        { k: 'Asleep', v: '1', color: 'var(--text)' }
+      ],
+      pool: [
+        { k: 'Video points left', v: '143 / 210', color: 'var(--text)' },
+        { k: 'Points unknown', v: '2 accounts', color: 'var(--text)' },
+        { k: 'Drift flagged', v: '1', color: 'var(--warn)' },
+        { k: 'Proxy checks failed', v: '1', color: 'var(--bad)' },
+        { k: 'Last full check', v: '20:48:10', color: 'var(--text)' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

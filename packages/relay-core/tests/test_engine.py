@@ -38,8 +38,10 @@ RESET = "def _ok(self) -> None:\n        self._tick_errors = self._job_errors = 
 NO_RESET = "def _ok(self) -> None:\n        pass"
 CHECKED = "if self.errors >= self.max_errors and not self.exit_code:"
 NEVER_CHECKED = "if False and not self.exit_code:"
-CEILING = "effective_slots(self.settings.get(self._slots_key), self.ceiling)"
-NO_CEILING = "self.settings.get(self._slots_key)"
+RESIZE = "self.budget.resize(self.settings.get(self._slots_key))"
+LIMITS_UPDATE = ", limits = excluded.limits"
+LIMITS_INSERT = "%(err)s, %(lim)s)"
+LIMITS_NULL_INSERT = "%(err)s, NULL)"
 SECRET = "sessionid=abcdef0123456789abcdef0123456789"
 OWN_TIMER = "timed_out=timer is not None and timer.expired())"
 ANY_TIMEOUT = "timed_out=isinstance(e, TimeoutError))"
@@ -483,34 +485,26 @@ class Peak:
         return ok()
 
 
-@mutation(E, CEILING, NO_CEILING, expect="one at a time, then two (5 - 3), tokens all given back")
-def test_a_browser_provider_runs_as_many_submits_as_its_token_share_allows_and_follows_the_live_setting(db):
-    k = key(db)
-    for _ in range(3):
-        account(db)
+@mutation(E, RESIZE, "pass", expect="assert [4, 4] == [2, 5]")
+def test_a_browser_budget_follows_the_live_slot_setting_at_every_tick(db):
     spec = FakeSpec("fake", execution="browser", account_slots=1)
 
     async def scenario(p):
-        settings = FakeSettings(spec, fake__browser_slots=4)        # submit share = 4 - 3 = 1
-        budget = BrowserBudget(settings.get("fake.browser_slots"))
-        peak, engine = Peak(), FakeEngine()
-        engine.script_submit("*", sent(peak))
-        loop = make_loop(p, engine, spec=spec, settings=settings, budget=budget, browser_ceiling=5)
-        first = [(await create(p, k, "a%d" % i, completion="hold")).job_id for i in range(3)]
-        async with running(loop):
-            await until(lambda: all(job_status(db, j) == "fetching" for j in first), what="three serial runs")
-            narrow = peak.peak
-            settings.set("fake.browser_slots", 99)          # the live setting is capped by the env ceiling: 5
-            peak.peak = 0
-            more = [(await create(p, k, "b%d" % i, completion="hold")).job_id for i in range(3)]
-            await until(lambda: all(job_status(db, j) == "fetching" for j in more), what="the wider runs")
-        return narrow, peak.peak, budget.size, budget.busy
+        settings = FakeSettings(spec, fake__browser_slots=2)
+        budget = BrowserBudget(4)
+        loop = make_loop(p, spec=spec, settings=settings, budget=budget)
+        sizes = []
+        await loop.tick()
+        sizes.append(budget.size)
+        settings.set("fake.browser_slots", 5)
+        await loop.tick()
+        sizes.append(budget.size)
+        return sizes
 
-    narrow, wide, size, busy = run(db, scenario)
-    assert (narrow, wide, size, busy) == (1, 2, 5, 0), "one at a time, then two (5 - 3), tokens all given back"
+    assert run(db, scenario) == [2, 5]
 
 
-def test_a_browser_provider_needs_a_budget_and_a_ceiling(db):
+def test_a_browser_provider_needs_a_budget(db):
     async def scenario(p):
         with pytest.raises(ValueError, match="budget"):
             make_loop(p, spec=FakeSpec("fake", execution="browser"))
@@ -547,7 +541,7 @@ def test_a_restart_after_an_abnormal_exit_starts_the_budget_on_a_ramp_and_a_clea
     async def scenario(p):
         budget = BrowserBudget(8)
         wide = FakeSettings(spec, fake__browser_slots=8)
-        loop = make_loop(p, spec=spec, settings=wide, budget=budget, browser_ceiling=8)
+        loop = make_loop(p, spec=spec, settings=wide, budget=budget)
         full = budget.submit_cap()
         db.run("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at) "      # an earlier run that
                "VALUES ('w1', 'fake', now(), now() - interval '1 hour')")                   # never cleaned up
@@ -556,7 +550,7 @@ def test_a_restart_after_an_abnormal_exit_starts_the_budget_on_a_ramp_and_a_clea
                         what="the new run to write its row")
             ramped = budget.submit_cap()
         fresh = BrowserBudget(8)
-        async with running(make_loop(p, spec=spec, settings=wide, budget=fresh, browser_ceiling=8)):
+        async with running(make_loop(p, spec=spec, settings=wide, budget=fresh)):
             await asyncio.sleep(0.1)
         return full, ramped, fresh.submit_cap()
 
@@ -736,3 +730,33 @@ def test_when_the_lease_is_gone_the_submit_is_cancelled_the_result_is_dropped_an
     job_id, errors = run(db, scenario)
     assert row(db, job_id, "status, external_ref") == ("submitting", None), "nothing written: the reaper decides"
     assert errors == 0
+
+
+CONTAINER = {"read": True, "cpus": 1.5, "memory_bytes": 12 * 1024**3, "pids": 2048, "shm_bytes": 1024**3,
+             "boot": {"WORKER_ID": "w1"}}
+
+
+@mutation(E, LIMITS_INSERT, LIMITS_NULL_INSERT, expect="assert None == {")
+@mutation("packages/relay-core/src/relay_core/db/migrations/0019_worker_limits.sql", "ADD COLUMN limits jsonb",
+          "ADD COLUMN limits_x jsonb", expect='column "limits" of relation "worker_heartbeats" does not exist')
+def test_a_fresh_heartbeat_row_carries_the_container_limits(db):
+    async def scenario(p):
+        await make_loop(p, container=CONTAINER).beat()
+
+    run(db, scenario)
+    assert db.one("SELECT limits FROM worker_heartbeats WHERE worker_id = 'w1'")[0] == CONTAINER
+    db.run("DELETE FROM worker_heartbeats")
+
+
+@mutation(E, LIMITS_UPDATE, "", expect="assert None == {")
+def test_a_row_left_by_an_older_worker_gets_its_limits_at_the_next_beat(db):
+    db.run("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at) VALUES ('w1', 'fake', now(), now())")
+    assert db.one("SELECT limits FROM worker_heartbeats")[0] is None, "premise: an older worker wrote no limits"
+
+    async def scenario(p):
+        await make_loop(p, container=CONTAINER).beat()
+
+    run(db, scenario)
+    assert db.one("SELECT limits FROM worker_heartbeats WHERE worker_id = 'w1'")[0] == CONTAINER
+    db.run("DELETE FROM worker_heartbeats")
+

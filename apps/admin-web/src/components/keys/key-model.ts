@@ -3,15 +3,78 @@ import { ApiError } from "@/api/client";
 import type { ApiKey, KeyBody, Wallet, WalletBody, WalletMode } from "@/api/keys";
 import type { CatalogModel } from "@/api/shell";
 
-export const PAGE_SIZE = 10;
-
-// `closed`, `unlimited (N used)`, or `day used/limit, total used/limit` for the limits that are set.
+// `closed`, `unlimited (N used)`, or `day used/limit · total used/limit` for the limits that are set.
 export function walletText(w: Wallet): string {
   if (w.mode === "closed") return "closed";
   if (w.mode === "unlimited") return `unlimited (${w.used_total} used)`;
   const day = w.day_limit === null ? "" : `day ${w.used_day}/${w.day_limit}`;
   const total = w.total_limit === null ? "" : `total ${w.used_total}/${w.total_limit}`;
-  return [day, total].filter(Boolean).join(", ");
+  return [day, total].filter(Boolean).join(" · ");
+}
+
+// The width of a usage bar: the rounded share of the limit used, 0 without a limit, never past 100.
+export function usagePercent(used: number, limit: number | null): number {
+  if (!limit) return 0;
+  return Math.min(100, Math.round((used / limit) * 100));
+}
+
+// The width of a relative bar (an unlimited wallet): the rounded share of the busiest key's use, 0 when nobody used
+// any, never past 100.
+export function relativePercent(used: number, max: number): number {
+  if (!max) return 0;
+  return Math.min(100, Math.round((used / max) * 100));
+}
+
+// The highest use of each wallet (`provider/kind`) among the keys that have it open (limit or unlimited), today and in
+// total: what a relative bar counts as full.
+export type WalletMaxima = ReadonlyMap<string, { day: number; total: number }>;
+export function walletMaxima(keys: readonly Pick<ApiKey, "wallets">[]): WalletMaxima {
+  const out = new Map<string, { day: number; total: number }>();
+  for (const k of keys) {
+    for (const w of k.wallets) {
+      if (w.mode === "closed") continue;
+      const id = `${w.provider}/${w.kind}`;
+      const at = out.get(id) ?? { day: 0, total: 0 };
+      out.set(id, { day: Math.max(at.day, w.used_day), total: Math.max(at.total, w.used_total) });
+    }
+  }
+  return out;
+}
+
+// What a key is called wherever a person reads it: its label, else its prefix (a label of spaces is no label).
+export const keyName = (k: Pick<ApiKey, "label" | "prefix">): string => k.label.trim() || k.prefix;
+
+// The spoken form of the two bars of a limit wallet.
+export function usageLabel(w: Wallet): string {
+  const day = w.day_limit === null ? `${w.used_day} today` : `${w.used_day} of ${w.day_limit} today`;
+  const total = w.total_limit === null ? `${w.used_total} in total` : `${w.used_total} of ${w.total_limit} in total`;
+  return `Used ${day}, ${total}`;
+}
+
+// The spoken form of the two bars of an unlimited wallet.
+export function relativeLabel(w: Wallet): string {
+  return `Used ${w.used_day} today, ${w.used_total} in total; the bars show the share of the busiest key's use`;
+}
+
+// `03/09/2026`; a key made today shows the hour instead of the year: `15/10 20:54`. Local time.
+export function createdText(ms: number | null, now: number = Date.now()): string {
+  if (!ms) return "-";
+  const d = new Date(ms);
+  const two = (n: number): string => String(n).padStart(2, "0");
+  const date = `${two(d.getDate())}/${two(d.getMonth() + 1)}`;
+  if (d.toDateString() === new Date(now).toDateString()) return `${date} ${two(d.getHours())}:${two(d.getMinutes())}`;
+  return `${date}/${d.getFullYear()}`;
+}
+
+// The list's failed load, worded as the canvas words a failed list (B-States): "Could not load the API keys: the relay
+// answered 502 (bad gateway)." `said` is the app's own text for the failure (errorText); with no answer from the relay
+// it is all there is to say.
+export function loadFailedText(err: unknown, said: string): string {
+  const why =
+    err instanceof ApiError
+      ? `the relay answered ${err.status} (${said})`
+      : said.charAt(0).toLowerCase() + said.slice(1);
+  return `Could not load the API keys: ${why}.`;
 }
 
 export function unfinishedText(k: Pick<ApiKey, "unfinished" | "max_unfinished_effective">): string {
@@ -37,11 +100,28 @@ export interface KeyForm {
 
 const SEP = "\u0000";
 
+// Wallets are listed by provider, and a provider's video wallet comes before its image wallet (as the design draws
+// them); any other kind follows, by name.
+const KIND_ORDER = ["video", "image"];
+const kindRank = (kind: string): number => {
+  const at = KIND_ORDER.indexOf(kind);
+  return at === -1 ? KIND_ORDER.length : at;
+};
+export function compareWallets(a: { provider: string; kind: string }, b: { provider: string; kind: string }): number {
+  if (a.provider !== b.provider) return a.provider < b.provider ? -1 : 1;
+  const rank = kindRank(a.kind) - kindRank(b.kind);
+  if (rank !== 0) return rank;
+  return a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0;
+}
+export const sortedWallets = <T extends { provider: string; kind: string }>(wallets: readonly T[]): T[] =>
+  [...wallets].sort(compareWallets);
+
 // One wallet per distinct (provider, kind) of the catalog, in a stable order.
 export function walletPairs(models: CatalogModel[]): [string, string][] {
   const seen = new Set<string>();
   for (const m of models) seen.add(`${m.owned_by}${SEP}${String(m.kind)}`);
-  return [...seen].sort().map((s) => s.split(SEP) as [string, string]);
+  const pairs = [...seen].map((s) => s.split(SEP) as [string, string]);
+  return pairs.sort(([ap, ak], [bp, bk]) => compareWallets({ provider: ap, kind: ak }, { provider: bp, kind: bk }));
 }
 
 // The form of a new key (null) or of an existing one. A wallet the key does not have yet starts closed.
@@ -78,7 +158,7 @@ function walletBody(row: WalletRow): WalletBody {
 // `max unfinished`: empty = the default (null), 0 = unlimited. Any model overrides the list with `*`.
 export function keyBody(form: KeyForm): KeyBody {
   return {
-    label: form.label,
+    label: form.label.trim(),
     models: form.any ? ["*"] : [...form.models],
     max_unfinished: form.maxUnfinished === "" ? null : Number(form.maxUnfinished),
     wallets: form.wallets.map(walletBody),

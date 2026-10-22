@@ -1,0 +1,62 @@
+/* The confirm box (specs/shared.md section 9, the B-States layout): a question as the title, one muted sentence, Cancel
+   on the left and, for a destructive action, a solid --rl-bad-solid button on the right. A class in a same-origin
+   stylesheet (the CSP blocks style attributes). The box is teleported to <body>, so these rules are global and keyed
+   by the custom class. The buttons take their look from skin.css. */
+/* the canvas puts the box 240 px from the top of the page, not in the middle (B-JobFailed); Element Plus centres it
+   with an inline-block line of the page's height, so the box aligns to the top of that line instead, under the 16 px
+   padding of Element Plus's wrapper. `html:root` outranks Element Plus's 420 px cap and the dark theme's strong edge
+   on every message box (theme.css): the confirm keeps the drawn hairline in both themes. */
+html:root .rl-confirm.el-message-box {
+  --el-messagebox-width: 440px;
+  vertical-align: top;
+  margin-top: calc(min(240px, 30vh) - 16px);
+  width: min(440px, 100%);
+  padding: 20px 20px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--rl-line);
+  background: var(--rl-surface);
+  box-shadow: var(--rl-shadow-pop, 0 12px 32px rgb(10 6 20 / 18%));
+}
+.rl-confirm .el-message-box__header {
+  padding: 0;
+}
+.rl-confirm .el-message-box__headerbtn,
+.rl-confirm .el-message-box__status {
+  display: none;
+}
+.rl-confirm .el-message-box__title {
+  color: var(--rl-fg);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+.rl-confirm .el-message-box__content {
+  padding: 6px 0 0;
+}
+.rl-confirm .el-message-box__status + .el-message-box__message {
+  padding-left: 0;
+}
+.rl-confirm .el-message-box__message {
+  color: var(--rl-muted);
+  font-size: 14px;
+  line-height: 20px;
+}
+.rl-confirm .el-message-box__message p {
+  margin: 0;
+  line-height: 20px;
+}
+.rl-confirm .el-message-box__btns {
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 20px 0 0;
+}
+/* both buttons as drawn: 36 high, padding 0 16, the browser's line height (outranking skin.css's 0 14); the solid
+   destructive one has no edge */
+html:root .rl-confirm .el-message-box__btns .el-button {
+  margin: 0;
+  padding: 0 16px;
+  line-height: normal;
+}
+html:root .rl-confirm .el-message-box__btns .el-button--danger {
+  border: 0;
+}

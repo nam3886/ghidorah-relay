@@ -42,20 +42,21 @@ from psycopg.errors import LockNotAvailable
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core import crypto, leases
+from relay_core import cgroup, crypto, leases
 from relay_core.billing import BillingTzMismatch, verify_billing_tz
-from relay_core.budget import BrowserBudget, ceiling_from_env, effective_slots
+from relay_core.budget import BrowserBudget
 from relay_core.db import open_pool, tx
 from relay_core.jobs.apply import STARTUP_GRACE_S, StartupGrace
 from relay_core.jobs.checks import Checks, Env
 from relay_core.jobs.commands import CommandLoop
-from relay_core.jobs.engine import ClaimLoop
+from relay_core.jobs.engine import BEAT_S, MAX_ERRORS, ClaimLoop
 from relay_core.jobs.evidence import job_sink
 from relay_core.jobs.fetcher import Fetcher
 from relay_core.jobs.poller import Poller
-from relay_core.jobs.reaper import Reaper
+from relay_core.jobs.reaper import INTERVAL_S, Reaper
 from relay_core.jobs.reconcile import Reconciler
 from relay_core.jobs.runctx import EvidenceSink, load_account_view
+from relay_core.jobs.titles import SWEEP_EVERY_S
 from relay_core.providers import AccountView, ProviderEngine, ProviderRegistry, ProviderSpec
 from relay_core.settings import REGISTRY, Registry, Settings
 from relay_core.storage import ObjectStore
@@ -79,11 +80,12 @@ _FAIL_RUNNING = ("UPDATE commands SET status = 'failed', finished_at = clock_tim
 class Worker:
     def __init__(self, db: AsyncConnectionPool, spec: ProviderSpec, engine: ProviderEngine, settings: Any, *,
                  owner: str, load_account: LoadAccount, store: ObjectStore, budget: BrowserBudget | None = None,
-                 browser_ceiling: int | None = None, evidence_sink: EvidenceSink | None = None,
-                 grace_s: float | None = DEFAULT_GRACE_S, billing_tz: str | None = None, max_errors: int = 5,
+                 container: Mapping[str, Any] | None = None, evidence_sink: EvidenceSink | None = None,
+                 grace_s: float | None = DEFAULT_GRACE_S, billing_tz: str | None = None, max_errors: int = MAX_ERRORS,
                  tick_s: float = 1.0, lease_ttl_s: float = leases.LEASE_TTL_S,
-                 lease_beat_s: float = leases.HEARTBEAT_S, beat_s: float = 15.0, reaper_interval_s: float = 30.0,
-                 housekeeping_s: float = 60.0, drift_check_s: float = DRIFT_CHECK_S, worker_id: str | None = None,
+                 lease_beat_s: float = leases.HEARTBEAT_S, beat_s: float = BEAT_S,
+                 reaper_interval_s: float = INTERVAL_S, housekeeping_s: float = SWEEP_EVERY_S,
+                 drift_check_s: float = DRIFT_CHECK_S, worker_id: str | None = None,
                  startup_grace_s: float = STARTUP_GRACE_S):
         self.db, self.spec, self.owner, self.grace_s, self.billing_tz = db, spec, owner, grace_s, billing_tz
         self.tick_s, self._housekeeping_s = tick_s, housekeeping_s
@@ -93,7 +95,7 @@ class Worker:
         self.keeper = leases.LeaseKeeper(db, owner, ttl_s=lease_ttl_s, heartbeat_s=lease_beat_s)
         self.claims = ClaimLoop(
             db, spec, engine, settings, owner=owner, load_account=lambda claim: load_account(claim.account_id),
-            budget=budget, browser_ceiling=browser_ceiling, evidence_sink=evidence_sink, tick_s=tick_s,
+            budget=budget, container=container, evidence_sink=evidence_sink, tick_s=tick_s,
             lease_ttl_s=lease_ttl_s, lease_beat_s=lease_beat_s, beat_s=beat_s, max_errors=max_errors,
             grace_s=grace_s, worker_id=worker_id)
         self.poller = Poller(db, spec, engine, settings, budget=budget, tick_s=tick_s, **common) \
@@ -272,7 +274,8 @@ def provider_settings(spec: ProviderSpec) -> Registry:
 async def serve(spec: ProviderSpec, build_engine: Callable[[ProviderSpec, Settings], ProviderEngine],
                 env: Mapping[str, str] = os.environ, *, install_signals: bool = True) -> int:
     """Everything a worker process needs, from the environment: DSN, the private keys of the credential seal, the
-    object store, the browser ceiling of a browser provider and the stop grace. Returns the exit code. `WORKER_ID`
+    object store and the stop grace; a browser provider's size is its `<p>.browser_slots` setting. The worker also reads
+    its own container limits once and reports them with its boot knobs. Returns the exit code. `WORKER_ID`
     must be unique per worker process and contain no "/" (exit 2 otherwise)."""
     dsn = env.get("DATABASE_URL", "")
     if not dsn:
@@ -287,27 +290,27 @@ async def serve(spec: ProviderSpec, build_engine: Callable[[ProviderSpec, Settin
                 source.pop(crypto.PRIVATE_KEY_VAR, None)
         store = ObjectStore.from_env(env)
         browser = spec.caps.execution == "browser"
-        ceiling = ceiling_from_env(spec.name, env) if browser else None
         grace_s = float(env.get("WORKER_GRACE_S") or DEFAULT_GRACE_S)
         worker_id = check_worker_id(env.get("WORKER_ID") or "worker-" + spec.name)
+        container = {**cgroup.own_limits(), "boot": cgroup.boot_knobs(env)}
         ProviderRegistry().register(spec)        # a spec that does not declare the settings the core reads is refused
     except Exception as e:                       # a missing or malformed variable: refuse before any connection
         log.critical("the worker cannot start: %s", e)
         return EXIT_REFUSED
     db = await open_pool(dsn, name="worker-" + spec.name)
-    settings = Settings(db, dsn, registry=provider_settings(spec), env=env)
+    settings = Settings(db, dsn, registry=provider_settings(spec))
     try:
         await settings.start()
         budget = None
         if browser:
-            budget = BrowserBudget(effective_slots(settings.get(spec.name + ".browser_slots"), ceiling))
+            budget = BrowserBudget(settings.get(spec.name + ".browser_slots"))
 
         async def load_account(account_id) -> AccountView:
             return await load_account_view(db, account_id, keys)
 
         worker = Worker(db, spec, build_engine(spec, settings), settings, worker_id=worker_id,
                         owner=boot_owner(worker_id), load_account=load_account, store=store,
-                        budget=budget, browser_ceiling=ceiling, evidence_sink=job_sink(db, store),
+                        budget=budget, container=container, evidence_sink=job_sink(db, store),
                         grace_s=grace_s, billing_tz=env.get("BILLING_TZ"))
         return await worker.run(install_signals=install_signals)
     finally:

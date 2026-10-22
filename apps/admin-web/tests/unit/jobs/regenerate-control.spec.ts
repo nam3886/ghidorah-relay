@@ -54,6 +54,17 @@ function deferred() {
 }
 
 describe("regenerate control", () => {
+  it("says it opens a dialog, and shows the icon slot before the label", () => {
+    const w = mount(RegenerateControl, {
+      props: { action: "job:j1", label: "Regenerate", confirm: CONFIRM, perform: () => Promise.resolve() },
+      slots: { icon: '<i class="probe-icon" />' },
+      attachTo: document.body,
+    });
+    mounted.push(w);
+    expect(main(w).attributes("aria-haspopup")).toBe("dialog");
+    expect(main(w).find(".probe-icon").exists()).toBe(true);
+  });
+
   it("asks first with the text it was given, and Cancel sends nothing", async () => {
     const perform = vi.fn(() => Promise.resolve());
     vi.mocked(confirmDialog).mockResolvedValueOnce(false);

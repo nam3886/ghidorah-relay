@@ -2,8 +2,9 @@
 
 FastAPI's own schema lists every route (admin included) and cannot see the create bodies, which the doors parse by
 hand so that an unknown field is always `input.invalid`. `public_schema(app)` starts from FastAPI's schema, drops the
-admin paths and the schemas only they used, declares the four request bodies explicitly, the error bodies, the
-security schemes, a tag and an English description per operation. The result is served at `/openapi.json`.
+admin paths and the schemas only they used, declares the four request bodies explicitly, the typed answers of the
+four native job calls (documentation only: `api/schemas.py`), the error bodies, the security schemes, a tag and an
+English description per operation. The result is served at `/openapi.json`.
 """
 
 import copy
@@ -15,6 +16,7 @@ from pydantic import BaseModel
 from relay_core.api.routes_gemini import GenerateBody
 from relay_core.api.routes_native import ImageBody, VideoBody
 from relay_core.api.routes_openai import ChatBody
+from relay_core.api.schemas import JobCreated, JobStatus
 
 ADMIN_PREFIX = "/admin"
 _REF = "#/components/schemas/"
@@ -43,11 +45,28 @@ _BODIES: dict[tuple[str, str], type[BaseModel]] = {
        for pre in ("/v1beta", "") for verb in ("generateContent", "streamGenerateContent")},
 }
 
+# answers the handlers return as plain dicts: (method, path) -> the model that documents the 200 answer
+_RESPONSES: dict[tuple[str, str], type[BaseModel]] = {
+    ("post", "/v1/video/generations"): JobCreated,
+    ("post", "/v1/images/generations"): JobCreated,
+    ("get", "/v1/video/generations/{job_id}"): JobStatus,
+    ("get", "/v1/images/generations/{job_id}"): JobStatus,
+}
+
+_POLL_TEXT = "Poll every 10 to 30 seconds until status is done or failed. progress, render_started_at and " \
+             "estimated_finish_at are estimates from recent render times of this model and length, not the " \
+             "provider's own report."
+_RENDERS = "Rendering continues after the call returns; poll the status call."
+
 _DOCS: dict[tuple[str, str], tuple[str, str]] = {
-    ("post", "/v1/video/generations"): ("Native", "Create a video job. Charged at creation; returns the job id."),
-    ("get", "/v1/video/generations/{job_id}"): ("Native", "Read a video job (only the key that created it)."),
-    ("post", "/v1/images/generations"): ("Native", "Create an image job. Charged at creation; returns the job id."),
-    ("get", "/v1/images/generations/{job_id}"): ("Native", "Read an image job (only the key that created it)."),
+    ("post", "/v1/video/generations"): (
+        "Native", "Create a video job. Charged at creation; returns the job id. " + _RENDERS),
+    ("get", "/v1/video/generations/{job_id}"): (
+        "Native", "Read a video job (only the key that created it). " + _POLL_TEXT),
+    ("post", "/v1/images/generations"): (
+        "Native", "Create an image job. Charged at creation; returns the job id. " + _RENDERS),
+    ("get", "/v1/images/generations/{job_id}"): (
+        "Native", "Read an image job (only the key that created it). " + _POLL_TEXT),
     ("get", "/v1/video/generations/{job_id}/content"): (
         "Native", "Download the job's first video (only the key that created it). Supports Range."),
     ("get", "/v1/video/generations/{job_id}/content/{idx}"): (
@@ -64,7 +83,7 @@ _DOCS: dict[tuple[str, str], tuple[str, str]] = {
     ("get", "/v1beta/models/{model}"): ("Catalog", "One model in the Gemini shape."),
     ("get", "/models/{model}"): ("Catalog", "One model in the Gemini shape."),
     ("get", "/v1/providers/{provider}/options"): ("Catalog", "Options a provider offers for creation requests."),
-    ("get", "/v1/points"): ("Account", "This key's remaining limits per provider and kind, and its unfinished jobs."),
+    ("get", "/v1/points"): ("Usage", "This key's remaining limits per provider and kind, and its unfinished jobs."),
     ("get", "/m/{token}"): ("Media", "Download an output or input file by its share token. Supports Range."),
     ("get", "/healthz"): ("Service", "Liveness probe."),
 }
@@ -110,7 +129,7 @@ def public_schema(app: FastAPI) -> dict:
     comps = schema.setdefault("components", {})
     schemas = comps.setdefault("schemas", {})
     schemas["Error"], schemas["GeminiError"] = copy.deepcopy(_ERROR), copy.deepcopy(_GEMINI_ERROR)
-    for model in set(_BODIES.values()):
+    for model in set(_BODIES.values()) | set(_RESPONSES.values()):
         body = model.model_json_schema(ref_template=_REF + "{model}")
         schemas.update(body.pop("$defs", {}))
         schemas[model.__name__] = body
@@ -125,6 +144,9 @@ def public_schema(app: FastAPI) -> dict:
                     "schema": {"$ref": _REF + _BODIES[(method, path)].__name__}}}}
             gemini = path.startswith(("/v1beta", "/models"))
             op.setdefault("responses", {}).pop("422", None)       # a bad request is a 400 with the error envelope
+            if (method, path) in _RESPONSES:
+                op["responses"]["200"] = {"description": "The job", "content": {"application/json": {
+                    "schema": {"$ref": _REF + _RESPONSES[(method, path)].__name__}}}}
             op["responses"]["default"] = {
                 "description": "Error", "content": {"application/json": {"schema": {
                     "$ref": _REF + ("GeminiError" if gemini else "Error")}}}}

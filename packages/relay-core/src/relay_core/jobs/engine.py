@@ -20,13 +20,14 @@ import asyncio
 import contextlib
 import logging
 import signal
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from typing import Any
 
+from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
 from relay_core import pool
-from relay_core.budget import BrowserBudget, Purpose, Token, effective_slots
+from relay_core.budget import BrowserBudget, Purpose, Token
 from relay_core.db import tx
 from relay_core.jobs import store
 from relay_core.jobs.claim import Claim
@@ -53,15 +54,15 @@ class ClaimLoop:
 
     def __init__(self, db: AsyncConnectionPool, spec: ProviderSpec, engine: ProviderEngine, settings: Any, *,
                  owner: str, load_account: LoadAccount, budget: BrowserBudget | None = None,
-                 browser_ceiling: int | None = None, evidence_sink: EvidenceSink | None = None,
+                 container: Mapping[str, Any] | None = None, evidence_sink: EvidenceSink | None = None,
                  tick_s: float = TICK_S, lease_ttl_s: float = LEASE_TTL_S, lease_beat_s: float = HEARTBEAT_S,
                  beat_s: float = BEAT_S, lag_check_s: float = LAG_CHECK_S, lag_warn_s: float = LAG_WARN_S,
                  max_errors: int = MAX_ERRORS, max_inflight: int = MAX_INFLIGHT, grace_s: float | None = None,
                  worker_id: str | None = None):
-        if spec.caps.execution == "browser" and (budget is None or browser_ceiling is None):
-            raise ValueError("a browser provider needs a budget and its env ceiling")
+        if spec.caps.execution == "browser" and budget is None:
+            raise ValueError("a browser provider needs a budget")
         self.db, self.spec, self.caps, self.engine, self.settings = db, spec, spec.caps, engine, settings
-        self.owner, self.load_account, self.budget, self.ceiling = owner, load_account, budget, browser_ceiling
+        self.owner, self.load_account, self.budget, self.container = owner, load_account, budget, container
         self.worker_id = worker_id or owner     # the stable name of the heartbeat row; `owner` is per boot
         self._evidence_sink = evidence_sink
         self.tick_s, self.lease_ttl_s, self.beat_s = tick_s, lease_ttl_s, beat_s
@@ -125,7 +126,7 @@ class ClaimLoop:
         """One pass: follow the live slot setting (D20), then claim until nothing more can run. Returns the number
         of jobs started. A drained provider claims nothing."""
         if self.budget is not None:
-            self.budget.resize(effective_slots(self.settings.get(self._slots_key), self.ceiling))
+            self.budget.resize(self.settings.get(self._slots_key))
         started = 0
         while not self.stopping and len(self._inflight) < self.max_inflight:
             claim = await self._claim()
@@ -250,11 +251,12 @@ class ClaimLoop:
         async with tx(self.db) as conn:
             await conn.execute(
                 "INSERT INTO worker_heartbeats (worker_id, provider, started_at, at, loop_lag_ms, slots_busy, "
-                "consecutive_errors) VALUES (%(w)s, %(p)s, clock_timestamp(), clock_timestamp(), %(lag)s, %(busy)s, "
-                "%(err)s) ON CONFLICT (worker_id) DO UPDATE SET at = clock_timestamp(), "
+                "consecutive_errors, limits) VALUES (%(w)s, %(p)s, clock_timestamp(), clock_timestamp(), %(lag)s, "
+                "%(busy)s, %(err)s, %(lim)s) ON CONFLICT (worker_id) DO UPDATE SET at = clock_timestamp(), "
                 "loop_lag_ms = excluded.loop_lag_ms, slots_busy = excluded.slots_busy, "
-                "consecutive_errors = excluded.consecutive_errors",
-                {"w": self.worker_id, "p": self.spec.name, "lag": lag_ms, "busy": busy, "err": self.errors})
+                "consecutive_errors = excluded.consecutive_errors, limits = excluded.limits",
+                {"w": self.worker_id, "p": self.spec.name, "lag": lag_ms, "busy": busy, "err": self.errors,
+                 "lim": None if self.container is None else Jsonb(self.container)})
 
     async def _beats(self) -> None:
         while True:

@@ -310,7 +310,7 @@ class World:
                  slots: int):
         self.pool, self.api_pool, self.rng, self.engine, self.objects = pool, api_pool, rng, engine, objects
         self.spec = FakeSpec(PROVIDER, execution="browser" if browser else "http", account_slots=slots)
-        self.settings = FakeSettings(self.spec, fake__render_deadline_s=9000)
+        self.settings = FakeSettings(self.spec, fake__render_deadline_s=9000, fake__browser_slots=SLOTS)
         self.budget = BrowserBudget(SLOTS) if browser else None
         self.hook_rng = random.Random(rng.random())
         self.stopping = asyncio.Event()
@@ -326,7 +326,7 @@ class World:
     # ---- the loops, with short timings -------------------------------------------------------------------------
     def new_claim_loop(self) -> ClaimLoop:
         return ClaimLoop(self.pool, self.spec, self.engine, self.settings, owner="w1", load_account=claim_account,
-                         budget=self.budget, browser_ceiling=SLOTS if self.budget else None, tick_s=0.04,
+                         budget=self.budget, tick_s=0.04,
                          lease_ttl_s=0.6, lease_beat_s=0.1, beat_s=0.2, lag_check_s=0.2, lag_warn_s=60,
                          max_errors=10**9, grace_s=0.05)
 

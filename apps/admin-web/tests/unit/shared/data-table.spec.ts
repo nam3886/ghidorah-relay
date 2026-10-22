@@ -60,8 +60,8 @@ describe("DataTable states", () => {
     const w = await table({ rows: [], loading: true });
     expect(w.attributes("data-state")).toBe("loading");
     expect(w.attributes("aria-busy")).toBe("true");
-    expect(w.find(".el-skeleton").exists()).toBe(true);
-    expect(w.find("table").exists()).toBe(false);
+    expect(w.find(".data-table__skeleton").exists()).toBe(true);
+    expect(w.find(".el-table").exists()).toBe(false);
   });
 
   it("refreshing keeps the old rows and marks the table dimmed and busy", async () => {
@@ -70,7 +70,7 @@ describe("DataTable states", () => {
     expect(w.classes()).toContain("is-refreshing");
     expect(w.attributes("aria-busy")).toBe("true");
     expect(w.text()).toContain("alpha");
-    expect(w.find(".el-skeleton").exists()).toBe(false);
+    expect(w.find(".data-table__skeleton").exists()).toBe(false);
   });
 
   it("not loading: not busy, not dimmed", async () => {
@@ -105,6 +105,47 @@ describe("DataTable states", () => {
 
   it("the default empty text", async () => {
     expect((await table({ rows: [] })).text()).toContain("Nothing here yet");
+  });
+
+  it("the skeleton draws the columns asked for; the first row's title bar is the drawn 62 %", async () => {
+    const three = [...columns, { key: "net", label: "Net points", align: "right" as const }];
+    const w = await table({ columns: three, rows: [], loading: true, skeletonColumns: ["name", "net"] });
+    const skeleton = w.find(".data-table__skeleton");
+    expect(skeleton.classes()).toContain("is-drawn");
+    expect(skeleton.findAll("th").map((th) => th.text())).toEqual(["Name", "Net points"]);
+    const all = await table({ columns: three, rows: [], loading: true });
+    expect(all.find(".data-table__skeleton").classes()).not.toContain("is-drawn");
+    expect(all.findAll(".data-table__skeleton th")).toHaveLength(3);
+    expect(all.findAll(".data-table__skeleton tbody tr")[0]!.find(".skel--title-0").exists()).toBe(true);
+  });
+
+  it("a column may name its skeleton bar; the others keep theirs by position", async () => {
+    const four = [
+      { key: "time", label: "Time" },
+      { key: "status", label: "Status", skeleton: "pill" as const },
+      { key: "route", label: "Route", skeleton: "title" as const },
+      { key: "key", label: "Key", skeleton: "text" as const },
+      { key: "ms", label: "Duration", align: "right" as const },
+    ];
+    const w = await table({ columns: four, rows: [], loading: true });
+    const bars = w
+      .findAll(".data-table__skeleton tbody tr")[0]!
+      .findAll("td")
+      .map((td) => td.findAll("i").map((i) => i.classes()[1]));
+    expect(bars).toEqual([
+      ["skel--time"],
+      ["skel--pill-0"],
+      ["skel--title-0", "skel--sub"],
+      ["skel--title-0"],
+      ["skel--net"],
+    ]);
+  });
+
+  it("Retry is the drawn danger outline button, not an Element Plus one", async () => {
+    const w = await table({ error: "x" });
+    const retry = w.find('[role="alert"] button');
+    expect(retry.classes()).toEqual(["data-table__retry"]);
+    expect(retry.attributes("type")).toBe("button");
   });
 });
 

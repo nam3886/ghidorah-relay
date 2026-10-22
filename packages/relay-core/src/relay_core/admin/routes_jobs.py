@@ -11,7 +11,9 @@ import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import psycopg
 from fastapi import APIRouter, Depends, Request, Response
 from psycopg_pool import AsyncConnectionPool
 from pydantic import Field
@@ -62,6 +64,27 @@ _LIST_TAIL = (
     " AND (%(at)s::timestamptz IS NULL OR (j.created_at, j.id) < (%(at)s::timestamptz, %(cid)s::uuid)) "
     "ORDER BY j.created_at DESC, j.id DESC LIMIT %(limit)s OFFSET %(offset)s")
 _COUNT = "SELECT count(*) FROM jobs j WHERE " + _FILTERS
+# Per local day, under the list's own filters and window plus the earliest..latest day of the page, so the planner
+# still has a plain created_at range on jobs_created_at_idx. The day bounds are local midnights in `tz`.
+_DAY_TOTALS = ("SELECT (j.created_at AT TIME ZONE %(tz)s)::date, count(*) FROM jobs j WHERE " + _FILTERS)
+_DAY_RANGE = (" AND j.created_at >= (%(day_first)s::date)::timestamp AT TIME ZONE %(tz)s"
+              " AND j.created_at < ((%(day_last)s::date + 1)::timestamp AT TIME ZONE %(tz)s) GROUP BY 1")
+
+
+def _zone(name: str) -> ZoneInfo:
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError, OSError):      # ValueError: a malformed key such as "../x"
+        raise ApiError("input.invalid", "tz") from None
+
+
+async def day_rows(conn, sql: str, params: dict) -> list:
+    """Run a day-totals query. Python's tzdata and Postgres's own zone database can differ: a zone Python accepted and
+    Postgres does not know (SQLSTATE 22023) is the caller's bad `tz`, not a server error. Other errors surface."""
+    try:
+        return await (await conn.execute(sql, params)).fetchall()
+    except psycopg.errors.InvalidParameterValue:
+        raise ApiError("input.invalid", "tz") from None
 
 
 def _window_sql(window: dict[str, datetime | None]) -> str:
@@ -71,7 +94,7 @@ _DETAIL = (
     "SELECT j.id, j.provider, j.key_id, k.label, j.operation, j.media_type, j.model, j.title, j.status, "
     "j.error_code, j.price, j.account_id, a.label, j.external_ref, j.created_at, j.finished_at, j.prompt, j.marker, "
     "j.params, j.completion, j.wallet_kind, j.pool, j.account_cost, j.attempts, j.claims, j.sent_at, j.render_since, "
-    "j.upstream_price, j.upstream_model, j.error, j.warnings, j.callback_status, j.callback_attempts, "
+    "j.upstream_price, j.upstream_model, j.error, j.warnings, j.callback_status, j.callback_attempts, k.key_prefix, "
     "j.callback_last, j.updated_at, j.provider_state, j.frame_id, j.sent_text "
     "FROM jobs j LEFT JOIN api_keys k ON k.id = j.key_id LEFT JOIN accounts a ON a.id = j.account_id WHERE j.id = %s")
 _SUMMARY = ("id", "provider", "key_id", "key_label", "operation", "media_type", "model", "title", "status",
@@ -132,12 +155,13 @@ def _window_bound(value: int | None, param: str) -> datetime | None:
 @router.get("/jobs")
 async def list_jobs(status: str | None = None, provider: str | None = None, key_id: uuid.UUID | None = None,
                     limit: int = 50, cursor: str | None = None, offset: int | None = None,
-                    created_from_ms: int | None = None, created_to_ms: int | None = None,
+                    created_from_ms: int | None = None, created_to_ms: int | None = None, tz: str | None = None,
                     pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
     """Newest first. `next_cursor` is None on the last page; pass it back as `cursor` for the next one. `offset`
     (>= 0) pages by position instead and cannot be combined with `cursor`. `created_from_ms` (inclusive) and
     `created_to_ms` (exclusive) bound `created_at`, epoch ms, from < to. `total` counts the jobs that match the
-    same filters, read in the same transaction as the page."""
+    same filters, read in the same transaction as the page. With `tz` (an IANA zone) the answer also holds
+    `day_totals`: for each local day (`YYYY-MM-DD`) on the page, the jobs of that day matching the same filters."""
     if not 1 <= limit <= MAX_PAGE:
         raise ApiError("input.invalid", "limit")
     if offset is not None and (not 0 <= offset <= MAX_OFFSET or cursor is not None):
@@ -146,20 +170,30 @@ async def list_jobs(status: str | None = None, provider: str | None = None, key_
               "to": _window_bound(created_to_ms, "created_to_ms")}
     if window["from"] is not None and window["to"] is not None and window["from"] >= window["to"]:
         raise ApiError("input.invalid", "created_to_ms")
+    zone = None if tz is None else _zone(tz)
     at, cid = _cursor(cursor) if cursor is not None else (None, None)
     bounds = _window_sql(window)
     given = {k: v for k, v in window.items() if v is not None}
     args = {"status": status, "provider": provider, "key": key_id, **given}
+    day_totals: dict[str, int] = {}
     async with tx(pool) as conn:
         rows = await (await conn.execute(_LIST_HEAD + bounds + _LIST_TAIL, {
             **args, "at": at, "cid": cid, "limit": limit + 1, "offset": offset or 0})).fetchall()
         total = (await (await conn.execute(_COUNT + bounds, args)).fetchone())[0]
-    page = rows[:limit]
+        page = rows[:limit]
+        if zone is not None and page:
+            days = [r[14].astimezone(zone).date() for r in page]
+            found = await day_rows(conn, _DAY_TOTALS + bounds + _DAY_RANGE, {
+                **args, "tz": tz, "day_first": min(days), "day_last": max(days)})
+            day_totals = {d.isoformat(): n for d, n in sorted(found)}
     more = len(rows) > limit
-    return {"items": [{**_summary(r[:16]), "outputs": r[16], "inputs": r[17], "net_charged": r[18],
-                       "model_substituted": r[19]} for r in page],
-            "total": total,
-            "next_cursor": _cursor_text(page[-1][14], page[-1][0]) if more else None}
+    out = {"items": [{**_summary(r[:16]), "outputs": r[16], "inputs": r[17], "net_charged": r[18],
+                      "model_substituted": r[19]} for r in page],
+           "total": total,
+           "next_cursor": _cursor_text(page[-1][14], page[-1][0]) if more else None}
+    if zone is not None:
+        out["day_totals"] = day_totals
+    return out
 
 
 @router.get("/jobs/{job_id}")
@@ -177,10 +211,11 @@ async def job_detail(job_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_
             "ORDER BY role, idx", (job_id,))).fetchall()
     item = _summary(row[:16])
     (prompt, marker, params, completion, wallet_kind, pool_name, account_cost, attempts, claims, sent_at, render_since,
-     upstream_price, upstream_model, error, warnings, callback_status, callback_attempts, callback_last, updated_at,
-     state, frame_id, sent_text) = row[16:]
+     upstream_price, upstream_model, error, warnings, callback_status, callback_attempts, key_prefix, callback_last,
+     updated_at, state, frame_id, sent_text) = row[16:]
     item.update({
-        "prompt": prompt, "marker": marker, "params": params, "completion": completion, "wallet_kind": wallet_kind,
+        "key_prefix": key_prefix, "prompt": prompt, "marker": marker, "params": params, "completion": completion,
+        "wallet_kind": wallet_kind,
         "pool": pool_name, "account_cost": account_cost, "attempts": attempts, "claims": claims,
         "sent_ms": ms(sent_at), "render_since_ms": ms(render_since), "updated_ms": ms(updated_at),
         "upstream_price": upstream_price, "upstream_model": upstream_model, "error": error, "warnings": warnings,

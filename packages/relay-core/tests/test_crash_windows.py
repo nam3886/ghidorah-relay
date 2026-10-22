@@ -339,7 +339,7 @@ def test_unknown_jobs_checks_and_full_submit_slots_never_exceed_the_browser_sema
             due(db, j)
         for i in range(6):
             await create(p, k, "q%d" % i, completion="hold")                           # and six more wait to be sent
-        loop = make_loop(p, engine, spec=spec, budget=budget, browser_ceiling=4)
+        loop = make_loop(p, engine, spec=spec, budget=budget)
         recon = reconciler(p, engine, spec=spec, budget=budget)
         checks = Checks(make_env(p, engine, spec=spec, budget=budget))
         stop, busiest = asyncio.Event(), 0

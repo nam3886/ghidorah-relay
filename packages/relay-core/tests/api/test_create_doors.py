@@ -2,8 +2,10 @@
 input check happens before the charge, and the status of a job is the one shape of the contract."""
 
 import base64
+import uuid
 
 import httpx
+import psycopg
 from apikit import request_logs, run_app
 from doorkit import (
     IMAGE,
@@ -31,8 +33,12 @@ NATIVE = "packages/relay-core/src/relay_core/api/routes_native.py"
 VIDEO_PATH, IMAGE_PATH, CHAT_PATH = "/v1/video/generations", "/v1/images/generations", "/v1/chat/completions"
 GEMINI_PATH = "/v1beta/models/fake-video:generateContent"
 ERROR_KEYS = {"code", "message", "type", "param"}
-STATUS_KEYS = {"id", "status", "stage", "result_urls", "images", "error", "error_code", "refunded", "model", "duration",
-               "ratio", "n", "style", "title", "warnings", "queue_position", "created_at", "finished_at"}
+STATUS_KEYS = {"id", "status", "stage", "result_urls", "images", "error", "error_code", "refunded", "points", "model",
+               "duration", "ratio", "n", "style", "title", "warnings", "queue_position", "created_at", "finished_at",
+               "progress", "render_started_at", "estimated_finish_at"}
+POINTS_OF_FAILED = "THEN (array_agg(l.amount ORDER BY l.id DESC) FILTER (WHERE l.entry = 'charge'))[1] "
+POINTS_NET = "ELSE sum(CASE l.entry WHEN 'charge' THEN l.amount ELSE -l.amount END) END "
+POINTS_READ = "FROM ledger l WHERE l.job_id = j.id AND l.entry IN ('charge', 'refund')), 0) "
 
 
 def video(**kw) -> dict:
@@ -215,6 +221,7 @@ def test_max_unfinished_null_uses_the_default_and_zero_is_unlimited(db):
         return [(await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)) for _ in range(n)]
 
     async def scenario(env):
+        await env.settings.set("max_unfinished_default", 2)
         null_key, zero_key, three_key = await env.new_key(), await env.new_key(), await env.new_key()
         db.run("UPDATE api_keys SET max_unfinished = 0 WHERE id = %s", zero_key.id)
         db.run("UPDATE api_keys SET max_unfinished = 3 WHERE id = %s", three_key.id)
@@ -226,16 +233,17 @@ def test_max_unfinished_null_uses_the_default_and_zero_is_unlimited(db):
         rs = await create_n(env, three_key, 4)
         assert [r.status_code for r in rs] == [200, 200, 200, 429], "the key's own value wins over the default"
 
-    run_app(db, scenario, env={"MAX_UNFINISHED_DEFAULT": "2"})
+    run_app(db, scenario)
 
 
 def test_a_default_of_zero_is_unlimited_too(db):
     async def scenario(env):
+        await env.settings.set("max_unfinished_default", 0)
         key = await env.new_key()
         for _ in range(4):
             assert (await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)).status_code == 200
 
-    run_app(db, scenario, env={"MAX_UNFINISHED_DEFAULT": "0"})
+    run_app(db, scenario)
 
 
 @mutation(DOORS, "(IdempotencyConflict, TooManyQueued, billing.BillingError) as refused",
@@ -578,9 +586,83 @@ def test_status_has_the_contract_fields_and_none_of_the_v4_compatibility_ones(db
         assert (body["status"], body["stage"], body["queue_position"], body["title"], body["model"]) == (
             "queued", None, 2, "t", VIDEO)
         assert (body["result_urls"], body["images"], body["error"], body["error_code"], body["refunded"],
-                body["finished_at"]) == ([], [], None, None, False, None)
+                body["points"], body["finished_at"]) == ([], [], None, None, False, 10, None)
 
     run_app(db, scenario)
+
+
+@mutation(DOORS, '"points": points,', '"points": 0,', expect="charged when it was made")
+@mutation(DOORS, POINTS_OF_FAILED, "THEN sum(CASE l.entry WHEN 'charge' THEN l.amount ELSE -l.amount END) ",
+          expect="the charge its refund gave back")
+@mutation(DOORS, POINTS_NET, "ELSE (array_agg(l.amount ORDER BY l.id DESC) FILTER (WHERE l.entry = 'charge'))[1] END ",
+          expect="a refused charge")
+@mutation(DOORS, POINTS_NET, "ELSE sum(l.amount) FILTER (WHERE l.entry = 'charge') END ",
+          expect="charged once more")
+@mutation(DOORS, POINTS_OF_FAILED, "THEN sum(l.amount) FILTER (WHERE l.entry = 'charge') ", expect="no double count")
+def test_status_shows_the_points_the_job_charged_the_key(db):
+    async def scenario(env):
+        key, other = await env.new_key(), await env.new_key()
+        admin = await env.admin_headers()
+
+        async def make(path=VIDEO_PATH, **body) -> str:
+            return (await env.client.post(path, json=body or video(), headers=key.headers)).json()["id"]
+
+        async def seen(job_id, path=VIDEO_PATH) -> tuple:
+            body = (await env.client.get("%s/%s" % (path, job_id), headers=key.headers)).json()
+            return body["status"], body["points"], body["refunded"]
+
+        async def recheck(job_id) -> int:
+            db.run("UPDATE jobs SET external_ref = %s WHERE id = %s", "ref-%s" % job_id, job_id)
+            r = await env.client.post("/admin/jobs/%s/recheck" % job_id, headers=admin)
+            assert r.status_code == 200, r.text
+            return r.json()["recharged"]
+
+        queued, done, failed, again, refused = [await make() for _ in range(5)]
+        image = await make(IMAGE_PATH, model=IMAGE, prompt="a", n=1)
+        free = await make(**video(options={"price": 0}))
+        assert await seen(queued) == ("queued", 10, False), "charged when it was made"
+        assert await seen(image, IMAGE_PATH) == ("queued", 1, False), "charged when it was made"
+        finish_done(db, done)
+        assert await seen(done) == ("done", 10, False), "charged when it was made"
+        await finish_failed(db, failed)
+        assert await seen(failed) == ("failed", 10, True), "a failed job shows the charge its refund gave back"
+        assert await seen(free) == ("queued", 0, False), "a free job shows 0"
+
+        # Three charge/refund cycles: failed, re-checked (charged once more), failed, re-checked, failed.
+        for expect in (("queued",), ("waiting",)):
+            await finish_failed(db, again, expect=expect)
+            assert await seen(again) == ("failed", 10, True), "the charge its refund gave back, no double count"
+            assert await recheck(again) == 10
+            assert await seen(again) == ("running", 10, False), "charged once more after the refund, not twice"
+        await finish_failed(db, again, expect=("waiting",))
+        assert await seen(again) == ("failed", 10, True), "the charge its refund gave back, no double count"
+        assert charges(db, job_id=again) == 3
+
+        await finish_failed(db, refused)                  # the re-charge is refused: the key pays nothing now
+        db.run("UPDATE key_wallets SET day_limit = 0 WHERE key_id = %s", key.id)
+        assert await recheck(refused) == 0
+        assert await seen(refused) == ("running", 0, False), "a refused charge leaves nothing to pay"
+        await finish_failed(db, refused, expect=("waiting",))       # nothing new to refund: the first refund stands
+        assert await seen(refused) == ("failed", 10, True), "the charge its refund gave back"
+
+        r = await env.client.get("%s/%s" % (VIDEO_PATH, done), headers=other.headers)
+        assert error_of(r) == (404, "resource.not_found", None), "another key's job stays unknown"
+
+    run_app(db, scenario)
+
+
+@mutation(DOORS, POINTS_READ, "FROM ledger l WHERE l.job_id::text = j.id::text "
+          "AND l.entry IN ('charge', 'refund')), 0) ", expect="served by ledger_job")
+def test_the_status_query_reads_the_ledger_through_its_job_index(db):
+    """EXPLAIN with the sequential scan switched off (the tables are nearly empty): both ledger reads of the status
+    (`refunded` and `points`) are lookups on `ledger_job`, never a ledger scan."""
+    with db.connect() as conn:
+        conn.execute("SET enable_seqscan = off")
+        plan = "\n".join(r[0] for r in psycopg.ClientCursor(conn).execute(
+            "EXPLAIN " + doors._STATUS, (uuid.uuid4(), uuid.uuid4())))
+    print("\nSTATUS PLAN\n" + plan)
+    assert "Seq Scan on ledger" not in plan and plan.count("Index Cond: (job_id = j.id)") == 2 \
+        and "ledger_job" in plan, "both ledger reads are served by ledger_job:\n" + plan
 
 
 @mutation(DOORS, "if status == \"failed\" else (None, None)", "if True else (None, None)", expect="live")

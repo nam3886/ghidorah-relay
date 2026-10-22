@@ -119,6 +119,22 @@ def test_the_catalog_lists_the_base_ids_and_registers():
     assert hit is not None and hit[1].id == "seedance-2.5"
 
 
+@mutation(CATALOG_FILE, '"seedance_v2.0": "Seedance 2.0 Fast",', '"seedance_v2.0": "Dreamina Seedance 2.0 Fast",',
+          expect="the words the design draws")
+@mutation(CATALOG_FILE, 'prices={"default": DEFAULT_PRICES[model]}, display_name=DISPLAY_NAMES[model]',
+          'prices={"default": DEFAULT_PRICES[model]}', expect="every model has a display name")
+@mutation(CATALOG_FILE, 'for d in allowed},\n            display_name=DISPLAY_NAMES[model]',
+          'for d in allowed}', expect="every model has a display name")
+def test_every_model_has_the_display_name_the_design_draws():
+    # The display names follow the admin design; dola's page labels (MODEL_LABELS) are separate on purpose: the
+    # browser clicks those, and they change when dola renames a chip.
+    names = {m.id: m.display_name for m in C.catalog()}
+    assert all(names.values()), "every model has a display name: %s" % names
+    assert names == {"seedance-2.5": "Dreamina Seedance 2.5", "seedance-2.0": "Seedance 2.0 Fast",
+                     "seedance-1.0": "Seedance 1.0", "seedream-4.5": "Seedream 4.5",
+                     "seedream-5.0-pro": "Seedream 5.0 Pro"}, "the words the design draws: %s" % names
+
+
 # ---- templates (TPL00) ----------------------------------------------------------------------------------------------
 def test_the_template_list_is_served_from_the_snapshot():
     assert [t["index"] for t in C.template_list(TEMPLATES)] == [0, 3]

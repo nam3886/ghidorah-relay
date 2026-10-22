@@ -1,16 +1,30 @@
-"""The whole-app CSP sweep of the Vue admin, in both themes, against the real app (browser tier). One signed-in session
-walks the login page, all eight tabs and the job detail, and opens every dialog, confirm box, toast, select popper,
-dropdown, date field and loading state they have, under the CSP watch of `conftest.CspWatch`: a violation on either
-channel fails the sweep. `OPENS` is the one explicit list of what it opens; a control that cannot be found fails the
-step (nothing is caught), and `finish()` fails when a listed state was not reached, so a renamed button cannot
-silently shrink the sweep.
+"""The whole-app CSP sweep of the Vue admin, at three widths in both themes, against the real app (browser tier). One
+signed-in session walks the login page, all eight tabs and the job detail, and opens every dialog, confirm box, toast,
+select popper, dropdown, date field and loading state they have, under the CSP watch of `conftest.CspWatch`: a violation
+on either channel fails the sweep, at every width. What it opens is listed per route in `sweep_states/<route>.py`
+(`STATES`) and run in the order of `MODULES`; a control that cannot be found fails the step (nothing is caught), and
+`finish()` fails when a listed state was not reached, so a renamed button cannot silently shrink the sweep.
 
-With RELAY_SCREENSHOTS_DIR set, every opened state is also saved as a full-page `<theme>-<route>-<state>.png` for the
-design review; with it unset nothing is written."""
+With RELAY_SCREENSHOTS_DIR set, every opened state is also saved as `<width>-<theme>-<route>-<state>.png` for the design
+review; with it unset nothing is written. The names of all passes are the exact cross-product of widths x themes x
+states, and two states with one name fail the sweep.
+
+A shot is the viewport, what a user sees at that width, and the window never changes size. A full-page shot cannot be
+taken safely. Chromium paints below the viewport only with `captureBeyondViewport`, which Patchright's `full_page`
+sends, and that capture now and then flashes the window to 1x1 for about 100 ms. The app turns phone for that moment,
+and drops what only a wider layout holds (the ticked Jobs row: the next step found no Regenerate…).
+
+Measured on the box (18/10):
+- In the sweep, about 1 full-page shot in 20 flashed; 4 of 12 passes failed on a loaded box.
+- 80 direct CDP captures flashed 35 times at 1280 and 13 times at 768.
+- Viewport shots: no resize at all.
+
+Growing the viewport to the page's height moves centred overlays and fixed bars to places no user sees. The lower parts
+of tall pages are covered by the pixel suite, the element diffs and the live-like photos."""
 
 import os
-import re
 import signal
+import struct
 import threading
 import time
 from contextlib import contextmanager
@@ -20,6 +34,21 @@ import pytest
 from accountkit import done_job, new_account
 from jobkit import key as new_key
 from patchright.sync_api import expect
+from sweep_states import (
+    SHOTS_ENV,
+    TIMEOUT_MS,
+    accounts,
+    alerts,
+    frames,
+    job_drawer,
+    jobs,
+    keys,
+    login,
+    logs,
+    settings,
+    shell,
+)
+from sweep_states import test as test_tab
 from test_admin_alert_groups import plant_unclear
 from test_admin_alerts import plant
 from test_admin_jobs import failed_job
@@ -29,33 +58,25 @@ from relay_core.testing.mutation import mutation
 pytestmark = pytest.mark.browser
 
 THEMES = ("light", "dark")
-SHOTS_ENV = "RELAY_SCREENSHOTS_DIR"
-TIMEOUT_MS = 10_000
-TABS = {"jobs": "Jobs", "accounts": "Accounts", "keys": "API keys", "logs": "Request logs", "alerts": "Alerts",
-        "frames": "Prompt frames", "settings": "Settings", "test": "Test"}
+WIDTHS = {1280: 800, 768: 1024, 390: 844}     # width -> height of the viewport: desktop, tablet, phone
+DEFAULT_WIDTH = 1280
+PASSES = [(width, theme) for width in WIDTHS for theme in THEMES]
 
-# Everything the sweep opens, as (route, state), in the order it opens them.
-OPENS = [
-    ("login", "form"), ("login", "busy-button"),
-    ("jobs", "loading-skeleton"), ("jobs", "list"),
-    ("jobs", "refresh-busy"), ("jobs", "status-select"),
-    ("jobs", "key-select"), ("jobs", "bulk-selected"), ("jobs", "regenerate-confirm"), ("jobs", "recheck-toast"),
-    ("jobs", "detail-loading"), ("jobs", "detail"), ("jobs", "detail-regenerate-confirm"),
-    ("accounts", "loading-skeleton"), ("accounts", "list"), ("accounts", "row-tooltip"), ("accounts", "edit-dialog"),
-    ("accounts", "delete-confirm"), ("accounts", "import-dialog"), ("accounts", "import-select"),
-    ("accounts", "import-toast"),
-    ("keys", "loading-skeleton"), ("keys", "list"), ("keys", "new-dialog"), ("keys", "wallet-select"),
-    ("keys", "one-time-callout"), ("keys", "edit-dialog"), ("keys", "delete-confirm"),
-    ("logs", "loading-skeleton"), ("logs", "list"), ("logs", "status-select"), ("logs", "date-fields"),
-    ("logs", "detail-dialog"), ("logs", "clear-confirm"),
-    ("alerts", "loading-skeleton"), ("alerts", "list"), ("alerts", "status-select"), ("alerts", "kind-select"),
-    ("alerts", "detail-panel"),
-    ("frames", "list"), ("frames", "provider-select"), ("frames", "editor"),
-    ("settings", "loading-skeleton"), ("settings", "list"), ("settings", "edited-row"), ("settings", "saved-toast"),
-    ("settings", "error-toast"), ("settings", "password-form"),
-    ("test", "form"), ("test", "load-pending"), ("test", "models-loaded"),
-    ("shell", "scope-select"), ("shell", "multiple-select-tick"),
-]
+# The route modules in the order the sweep walks them, and everything they open, as (route, state).
+MODULES = (login, jobs, job_drawer, accounts, keys, logs, alerts, frames, settings, test_tab, shell)
+OPENS = [state for module in MODULES for state in module.STATES]
+
+
+def shot_name(width, theme, route, state):
+    return "%d-%s-%s-%s.png" % (width, theme, route, state)
+
+
+def shot_names(passes, states):
+    """The file name of every state in every (width, theme) pass; two states with one name fail."""
+    names = [shot_name(width, theme, route, state) for width, theme in passes for route, state in states]
+    twice = sorted({n for n in names if names.count(n) > 1})
+    assert not twice, "two states write the same screenshot: %s" % twice
+    return names
 
 
 # True once nothing that has a finite end is still moving: every dialog, popper, toast and fade is at rest. A loop that
@@ -99,10 +120,11 @@ def hard_limit(seconds, what):
 
 
 class Sweep:
-    """Runs and records the states of one themed pass."""
+    """Runs and records the states of one pass: one width in one theme."""
 
-    def __init__(self, page, theme, expected=OPENS, limit_s=STEP_LIMIT_S):
-        self.page, self.theme, self.expected, self.done, self.limit_s = page, theme, list(expected), [], limit_s
+    def __init__(self, page, theme, expected=OPENS, limit_s=STEP_LIMIT_S, width=DEFAULT_WIDTH):
+        self.page, self.theme, self.width = page, theme, width
+        self.expected, self.done, self.limit_s, self.shots = list(expected), [], limit_s, []
 
     def step(self, route, state, action, after=None):
         with hard_limit(self.limit_s, "step %s/%s" % (route, state)):
@@ -115,92 +137,23 @@ class Sweep:
                 after()                            # what to undo once the state has been photographed
 
     def shot(self, route, state):
+        name = shot_name(self.width, self.theme, route, state)
+        assert name not in self.shots, "two states write the same screenshot: %s" % name
+        self.shots.append(name)
         folder = os.environ.get(SHOTS_ENV)
         if not folder:
             return None
-        path = Path(folder) / ("%s-%s-%s.png" % (self.theme, route, state))
+        path = Path(folder) / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        self.page.screenshot(path=str(path), full_page=True)
+        self.page.screenshot(path=str(path))     # the viewport only, never `full_page`: see the module docstring
         return path
 
     def finish(self):
         missing = [s for s in self.expected if s not in self.done]
         assert not missing, "the sweep did not open: %r" % (missing,)
-
-
-# ---- small helpers --------------------------------------------------------------------------------------------------
-
-def tab(page, route):
-    page.get_by_role("tab", name=TABS[route], exact=True).click()
-    expect(page.get_by_role("tab", name=TABS[route], exact=True)).to_have_attribute("aria-selected", "true")
-
-
-def slow(page, pattern, ms=1200):
-    """Answer the matching requests late, so a loading state can be seen."""
-    def handle(route):
-        try:
-            page.wait_for_timeout(ms)
-            route.continue_()
-        except Exception:                          # the page was closed while the answer was held back
-            pass
-    page.route(pattern, handle)
-
-
-def unslow(page, pattern):
-    page.unroute(pattern)
-
-
-def hold_ms():
-    """How long a late answer is held: long enough to photograph the skeleton when shots are wanted."""
-    return 5000 if os.environ.get(SHOTS_ENV) else 1200
-
-
-def open_skeleton(page, route, pattern):
-    """Open a tab whose list answers late and stop while the skeleton is on screen (the shot is taken then)."""
-    slow(page, pattern, hold_ms())
-    tab(page, route)
-    expect(page.locator("[data-state=loading]").first).to_be_visible()
-
-
-def release_skeleton(page, pattern):
-    """Let the held answer through: the rows replace the skeleton."""
-    expect(page.locator("[data-state=ready]").first).to_be_visible(timeout=TIMEOUT_MS * 2)
-    unslow(page, pattern)
-
-
-def skeleton_step(sw, route, pattern, before=None):
-    """The loading state of a tab, photographed while the skeleton shows, then released."""
-    def action():
-        if before:
-            before()
-        open_skeleton(sw.page, route, pattern)
-    sw.step(route, "loading-skeleton", action, after=lambda: release_skeleton(sw.page, pattern))
-
-
-def ready(page):
-    expect(page.locator("[data-state=ready]").first).to_be_visible()
-
-
-def open_select(page, scope, label):
-    scope.locator(".el-select").filter(has=page.get_by_role("combobox", name=label, exact=True)).click()
-    page.wait_for_timeout(400)                     # the popper slides in
-    expect(page.locator("li.el-select-dropdown__item:visible").first).to_be_visible()
-
-
-def close_select(page, label):
-    page.keyboard.press("Escape")
-    expect(page.get_by_role("combobox", name=label, exact=True)).to_have_attribute("aria-expanded", "false")
-
-
-def close_dialog(page):
-    page.locator(".el-dialog__headerbtn").last.click()
-    expect(page.locator(".el-dialog:visible")).to_have_count(0)
-
-
-def cancel_box(page, name="Cancel"):
-    box = page.locator(".el-message-box")
-    expect(box).to_be_visible()
-    return box
+        want = shot_names([(self.width, self.theme)], self.expected)
+        assert sorted(self.shots) == sorted(want), "not exactly the expected screenshots: %r" % (
+            sorted(set(self.shots) ^ set(want)),)
 
 
 def seed(app, db, live):
@@ -219,250 +172,21 @@ def seed(app, db, live):
     return {"key": k, "failed": failed}
 
 
-def check_multiple_select_tick(page):
-    """No view has a multiple select, but the theme overrides the tick Element Plus draws with a data: image there
-    (blocked by the CSP). Build the markup it styles and read the computed mask: it must be none."""
-    got = page.evaluate("""() => {
-        const box = document.createElement('div');
-        box.className = 'el-select-dropdown is-multiple';
-        const list = document.createElement('ul');
-        const item = document.createElement('li');
-        item.className = 'el-select-dropdown__item is-selected';
-        item.textContent = 'x';
-        list.appendChild(item);
-        box.appendChild(list);
-        document.body.appendChild(box);
-        const after = getComputedStyle(item, '::after');
-        const out = [after.maskImage, after.webkitMaskImage];
-        box.remove();
-        return out;
-    }""", isolated_context=False)
-    assert all(v in ("none", "", None) for v in got), "the tick still has a mask image: %r" % (got,)
-
-
-# ---- the sweep ------------------------------------------------------------------------------------------------------
-
-def run_sweep(page, app, live, db, sw, data):
+def run_sweep(page, app, live, sw, data):
     page.set_default_timeout(TIMEOUT_MS)
-    failed = str(data["failed"])[:8]
-
-    # login
-    def login_form():
-        page.goto(app.url + "#/login")
-        expect(page.get_by_role("button", name="Sign in")).to_be_visible()
-    sw.step("login", "form", login_form)
-
-    def login_busy():
-        slow(page, "**/admin/login", 1500)
-        page.get_by_label("Username").fill(live.user)
-        page.get_by_label("Password").fill(live.password)
-        page.get_by_role("button", name="Sign in").click()
-        expect(page.get_by_role("button", name="Signing in...")).to_be_visible()
-        expect(page).to_have_url(re.compile(r"#/jobs$"), timeout=TIMEOUT_MS * 2)
-        unslow(page, "**/admin/login")
-    sw.step("login", "busy-button", login_busy)
-
-    # jobs (the first load after sign-in is the loading state; open it again late for the skeleton)
-    skeleton_step(sw, "jobs", re.compile(r"/admin/jobs\?"), before=lambda: tab(page, "accounts"))
-    sw.step("jobs", "list", lambda: ready(page))
-
-    def refresh_busy():
-        slow(page, re.compile(r"/admin/jobs\?"))
-        page.get_by_role("button", name="Refresh", exact=True).click()
-        expect(page.get_by_role("button", name="Refresh", exact=True)).to_have_class(re.compile("is-loading"))
-        expect(page.get_by_role("button", name="Refresh", exact=True)).not_to_have_class(re.compile("is-loading"),
-                                                                                         timeout=TIMEOUT_MS * 2)
-        unslow(page, re.compile(r"/admin/jobs\?"))
-    sw.step("jobs", "refresh-busy", refresh_busy)
-
-    sw.step("jobs", "status-select", lambda: (open_select(page, page, "Status"), close_select(page, "Status")))
-    sw.step("jobs", "key-select", lambda: (open_select(page, page, "Key"), close_select(page, "Key")))
-    sw.step("jobs", "bulk-selected", lambda: (
-        page.locator("tbody tr").first.locator("label.el-checkbox").click(),
-        expect(page.locator(".jobs__count")).to_have_text("1 selected")))
-
-    def regenerate_confirm():
-        page.get_by_role("button", name="Regenerate selected").click()
-        expect(cancel_box(page)).to_contain_text("Regenerate")
-    sw.step("jobs", "regenerate-confirm", regenerate_confirm)
-    page.locator(".el-message-box").get_by_role("button", name="Cancel").click()
-    expect(page.locator(".el-message-box")).to_have_count(0)
-
-    sw.step("jobs", "recheck-toast", lambda: (
-        page.get_by_role("button", name="Re-check selected").click(),
-        expect(page.locator(".el-message").first).to_be_visible()))
-
-    def detail_loading():
-        pattern = re.compile(r"/admin/jobs/[0-9a-f-]{36}$")
-        slow(page, pattern)
-        page.locator("tbody tr").filter(has_text=failed).get_by_role("button", name="Details").click()
-        expect(page.locator(".el-dialog .el-skeleton")).to_be_visible()
-        expect(page.locator(".el-dialog [data-section=timeline]")).to_be_visible(timeout=TIMEOUT_MS * 2)
-        unslow(page, pattern)
-    sw.step("jobs", "detail-loading", detail_loading)
-    sw.step("jobs", "detail", lambda: expect(page.locator(".el-dialog [data-section=technical]")).to_be_visible())
-
-    def detail_regenerate():
-        page.locator(".el-dialog:visible").get_by_role("button", name="Regenerate", exact=True).click()
-        expect(cancel_box(page)).to_be_visible()
-    sw.step("jobs", "detail-regenerate-confirm", detail_regenerate)
-    page.locator(".el-message-box").get_by_role("button", name="Cancel").click()
-    page.locator(".el-dialog:visible").get_by_role("button", name="Close", exact=True).last.click()
-    expect(page.locator(".el-dialog:visible")).to_have_count(0)
-
-    # accounts
-    skeleton_step(sw, "accounts", re.compile(r"/admin/accounts"))
-    sw.step("accounts", "list", lambda: expect(page.locator("tbody tr").filter(has_text="alive")).to_be_visible())
-
-    alive = page.locator("tbody tr").filter(has_text="alive")
-
-    def row_tooltip():
-        alive.get_by_role("button", name="Edit", exact=True).hover()
-        expect(page.get_by_role("tooltip").filter(has_text="Edit")).to_be_visible()
-    sw.step("accounts", "row-tooltip", row_tooltip)
-
-    def edit_dialog():
-        alive.get_by_role("button", name="Edit", exact=True).click()
-        expect(page.locator(".el-dialog__title:visible")).to_have_text("Edit account")
-    sw.step("accounts", "edit-dialog", edit_dialog)
-    close_dialog(page)
-
-    def delete_confirm():
-        alive.get_by_role("button", name="Delete", exact=True).click()
-        expect(cancel_box(page)).to_be_visible()
-    sw.step("accounts", "delete-confirm", delete_confirm)
-    page.locator(".el-message-box").get_by_role("button", name="Cancel").click()
-
-    sw.step("accounts", "import-dialog", lambda: (
-        page.get_by_role("button", name="Import", exact=True).click(),
-        expect(page.locator(".el-dialog__title:visible")).to_have_text("Import accounts")))
-    sw.step("accounts", "import-select", lambda: (open_select(page, page.locator(".el-dialog:visible"), "Provider"),
-                                                  close_select(page, "Provider")))
-
-    def import_toast():
-        page.locator(".el-dialog:visible").get_by_role("button", name="Import", exact=True).click()
-        expect(page.locator(".el-message--error, .el-message--warning").first).to_be_visible()
-    sw.step("accounts", "import-toast", import_toast)
-    page.locator(".el-dialog:visible").get_by_role("button", name="Close", exact=True).last.click()
-    expect(page.locator(".el-dialog:visible")).to_have_count(0)
-
-    # keys
-    skeleton_step(sw, "keys", re.compile(r"/admin/keys"))
-    sw.step("keys", "list", lambda: ready(page))
-    sw.step("keys", "new-dialog", lambda: (
-        page.get_by_role("button", name="New key").click(),
-        expect(page.locator(".el-dialog__title:visible")).to_have_text("New API key")))
-    sw.step("keys", "wallet-select", lambda: (
-        open_select(page, page.locator(".el-dialog:visible"), "fake video mode"),
-        close_select(page, "fake video mode")))
-
-    def callout():
-        dialog = page.locator(".el-dialog:visible")
-        dialog.get_by_label("Label", exact=True).fill("sweep key")
-        dialog.get_by_role("button", name="Create").click()
-        expect(page.get_by_test_id("new-key")).to_be_visible()
-    sw.step("keys", "one-time-callout", callout)
-    page.get_by_test_id("new-key").get_by_role("button", name="Dismiss").click()
-
-    def key_edit():
-        page.locator("tbody tr").filter(has_text="sweep key").get_by_role("button", name="Edit").click()
-        expect(page.locator(".el-dialog__title:visible")).to_have_text("Edit API key")
-    sw.step("keys", "edit-dialog", key_edit)
-    close_dialog(page)
-
-    def key_delete():
-        page.locator("tbody tr").filter(has_text="sweep key").get_by_role("button", name="Delete").click()
-        expect(cancel_box(page)).to_be_visible()
-    sw.step("keys", "delete-confirm", key_delete)
-    page.locator(".el-message-box").get_by_role("button", name="Cancel").click()
-
-    # request logs
-    skeleton_step(sw, "logs", re.compile(r"/admin/logs"))
-    sw.step("logs", "list", lambda: ready(page))
-    sw.step("logs", "status-select", lambda: (open_select(page, page, "Status"), close_select(page, "Status")))
-    sw.step("logs", "date-fields", lambda: (page.get_by_label("From", exact=True).fill("2026-10-01"),
-                                            page.get_by_label("To", exact=True).fill("2026-10-31"),
-                                            page.get_by_label("From", exact=True).fill(""),
-                                            page.get_by_label("To", exact=True).fill("")))
-
-    def log_detail():
-        page.locator("tbody tr").first.get_by_role("button", name="Details").click()
-        expect(page.locator(".el-dialog__title:visible")).to_contain_text("Request")
-    sw.step("logs", "detail-dialog", log_detail)
-    page.locator(".el-dialog:visible").get_by_role("button", name="Close", exact=True).last.click()
-    expect(page.locator(".el-dialog:visible")).to_have_count(0)
-
-    def clear_confirm():
-        page.get_by_role("button", name="Clear logs").click()
-        expect(cancel_box(page)).to_be_visible()
-    sw.step("logs", "clear-confirm", clear_confirm)
-    page.locator(".el-message-box").get_by_role("button", name="Cancel").click()
-
-    # alerts
-    skeleton_step(sw, "alerts", re.compile(r"/admin/alerts/groups"))
-    sw.step("alerts", "list", lambda: ready(page))
-    sw.step("alerts", "status-select", lambda: (open_select(page, page, "Status"), close_select(page, "Status")))
-    sw.step("alerts", "kind-select", lambda: (open_select(page, page, "Kind"), close_select(page, "Kind")))
-    sw.step("alerts", "detail-panel", lambda: (
-        page.locator("tbody tr").first.get_by_role("button", name="Details").click(),
-        expect(page.get_by_test_id("alert-detail")).to_be_visible()))
-
-    # prompt frames
-    def frames_list():
-        tab(page, "frames")
-        expect(page.locator("[data-frame-kind=video]")).to_be_visible()
-    sw.step("frames", "list", frames_list)
-    sw.step("frames", "provider-select", lambda: (open_select(page, page, "Provider"), close_select(page, "Provider")))
-    sw.step("frames", "editor", lambda: (
-        page.locator("[data-frame-kind=video]").locator("tbody tr", has_text="fake-video")
-        .get_by_role("button", name="Edit fake-video").click(),
-        expect(page.get_by_label("Frame text")).to_be_visible()))
-
-    # settings
-    skeleton_step(sw, "settings", re.compile(r"/admin/settings"))
-    sw.step("settings", "list", lambda: expect(page.get_by_label("Value of log_retention_days")).to_be_visible())
-    sw.step("settings", "edited-row", lambda: (
-        page.get_by_label("Value of log_retention_days").fill("45"),
-        expect(page.locator(".settings tbody tr", has_text="log_retention_days")).to_contain_text("edited")))
-    sw.step("settings", "saved-toast", lambda: (
-        page.get_by_role("button", name="Save log_retention_days").click(),
-        expect(page.locator(".el-message--success").first).to_be_visible()))
-
-    def error_toast():
-        page.get_by_label("Value of log_retention_days").fill("not a number")
-        page.get_by_role("button", name="Save log_retention_days").click()
-        expect(page.locator(".el-message--error").first).to_be_visible()
-    sw.step("settings", "error-toast", error_toast)
-    sw.step("settings", "password-form", lambda: expect(page.get_by_label("Current password")).to_be_visible())
-
-    # the Test tab
-    sw.step("test", "form", lambda: (tab(page, "test"),
-                                     expect(page.get_by_label("API key", exact=True)).to_be_visible()))
-
-    def load_busy():
-        slow(page, "**/v1/models*")
-        page.get_by_label("API key", exact=True).fill(data["raw_key"])
-        page.get_by_role("button", name="Load models").click()
-        expect(page.locator(".test-tab__model")).to_have_count(0)     # the answer is still on its way
-    sw.step("test", "load-pending", load_busy)
-    unslow(page, "**/v1/models*")
-    sw.step("test", "models-loaded", lambda: expect(page.locator(".test-tab__model", has_text="fake-video"))
-            .to_be_visible(timeout=TIMEOUT_MS * 2))
-
-    # shell
-    sw.step("shell", "scope-select", lambda: (open_select(page, page, "Provider filter"),
-                                              close_select(page, "Provider filter")))
-    sw.step("shell", "multiple-select-tick", lambda: check_multiple_select_tick(page))
+    for module in MODULES:
+        module.run(page, app, live, sw, data)
     page.unroute_all(behavior="wait")              # no late-answer handler may outlive the page
     sw.finish()
 
 
-@pytest.mark.parametrize("color_scheme", THEMES)
-def test_every_dialog_popper_toast_and_loading_state_runs_under_the_csp_in_both_themes(
-        app, app_page, live, db, framed, color_scheme):
+@pytest.mark.parametrize("width,color_scheme", PASSES, ids=["%d-%s" % p for p in PASSES])
+def test_every_dialog_popper_toast_and_loading_state_runs_under_the_csp_at_every_width_in_both_themes(
+        app, app_page, live, db, framed, width, color_scheme):
+    app_page.set_viewport_size({"width": width, "height": WIDTHS[width]})
     data = seed(app, db, live)
     data["raw_key"] = live.call(live.env.new_key()).raw
-    run_sweep(app_page, app, live, db, Sweep(app_page, color_scheme), data)
+    run_sweep(app_page, app, live, Sweep(app_page, color_scheme, width=width), data)
     # the sweep provokes a refused save, which the browser logs as a failed load; nothing else may be in the list
     unexpected = [p for p in app_page.problems if "Failed to load resource" not in p]
     assert not unexpected, unexpected
@@ -478,6 +202,22 @@ SELF = "tests/admin_ui/test_e2e_sweep.py"
 @mutation(SELF, 'THEMES = ("light", ' '"dark")', 'THEMES = ("light",)', expect="{'light'}")
 def test_the_sweep_covers_both_themes():
     assert set(THEMES) == {"light", "dark"}
+
+
+@mutation(SELF, ", 390: " "844}", "}", expect="assert [768, 1280] == [390, 768, 1280]")
+def test_the_sweep_runs_at_desktop_tablet_and_phone_widths():
+    assert sorted(WIDTHS) == [390, 768, 1280]
+
+
+@mutation(SELF, "assert not " "twice,", "assert True or twice,", expect="DID NOT RAISE")
+def test_the_screenshot_names_are_the_exact_cross_product_of_widths_themes_and_states():
+    names = shot_names(PASSES, OPENS)
+    assert len(PASSES) == len(set(PASSES)) == len(WIDTHS) * len(THEMES)
+    assert len(names) == len(WIDTHS) * len(THEMES) * len(OPENS)
+    assert set(names) == {"%d-%s-%s-%s.png" % (w, t, r, s) for w in WIDTHS for t in THEMES for r, s in OPENS}
+    assert "390-dark-login-form.png" in names and "1280-light-shell-multiple-select-tick.png" in names
+    with pytest.raises(AssertionError, match="two states write the same screenshot"):
+        shot_names(PASSES, OPENS + [OPENS[0]])
 
 
 @mutation(SELF, "action()  # raises when " "a control is missing: nothing is caught",
@@ -508,11 +248,35 @@ def test_a_step_that_never_ends_is_stopped_by_its_hard_limit(app, app_page):
     assert ("login", "stuck") not in sw.done
 
 
-@mutation(SELF, "assert not " "missing,", "assert True or missing,", expect="DID NOT RAISE")
+@mutation(SELF, "assert not " "missing,", "assert True or missing,", expect="Regex pattern did not match")
 def test_a_state_that_was_never_reached_fails_the_sweep(app, app_page):
     sw = Sweep(app_page, "dark", expected=[("jobs", "list")])
     with pytest.raises(AssertionError, match="did not open"):
         sw.finish()
+
+
+@mutation(SELF, "assert sorted(self.shots) " "== sorted(want)", "assert True or sorted(want)",
+          expect="DID NOT RAISE")
+def test_a_state_that_was_not_listed_fails_the_sweep(app, app_page):
+    page = app_page
+    page.goto(app.url + "#/login")
+    sw = Sweep(page, "light", expected=[("login", "form")])
+    sw.step("login", "form", lambda: None)
+    sw.step("login", "extra", lambda: None)
+    with pytest.raises(AssertionError, match="not exactly the expected screenshots"):
+        sw.finish()
+
+
+@mutation(SELF, "assert name not " "in self.shots,", "assert True or name not in self.shots,",
+          expect="DID NOT RAISE")
+def test_a_second_state_with_the_same_name_fails_the_step(app, app_page, monkeypatch):
+    page = app_page
+    page.goto(app.url + "#/login")
+    monkeypatch.delenv(SHOTS_ENV, raising=False)           # the check holds with no folder as well
+    sw = Sweep(page, "light", expected=[("login", "form")])
+    sw.step("login", "form", lambda: None)
+    with pytest.raises(AssertionError, match="two states write the same screenshot"):
+        sw.step("login", "form", lambda: None)
 
 
 PROBE = """() => {
@@ -544,12 +308,30 @@ def test_a_shot_waits_for_a_running_transition_but_not_for_one_that_never_ends(a
 def test_screenshots_are_saved_only_when_a_folder_is_given(app, app_page, tmp_path, monkeypatch):
     page = app_page
     page.goto(app.url + "#/login")
-    sw = Sweep(page, "light")
     monkeypatch.delenv(SHOTS_ENV, raising=False)
-    sw.step("login", "form", lambda: None)
+    Sweep(page, "light").step("login", "form", lambda: None)
     assert not list(tmp_path.iterdir()), "nothing is written without the variable"
     monkeypatch.setenv(SHOTS_ENV, str(tmp_path / "shots"))
-    sw.step("login", "form", lambda: None)
+    Sweep(page, "light").step("login", "form", lambda: None)
     files = [p.name for p in (tmp_path / "shots").iterdir()]
-    assert files == ["light-login-form.png"], files
+    assert files == ["1280-light-login-form.png"], files
     assert (tmp_path / "shots" / files[0]).stat().st_size > 1000
+
+
+def test_a_shot_is_the_viewport_and_never_resizes_the_window(app, app_page, tmp_path, monkeypatch):
+    page = app_page
+    page.set_viewport_size({"width": 1280, "height": 200})
+    page.goto(app.url + "#/login")
+    expect(page.get_by_role("button", name="Sign in")).to_be_visible()
+    # the sign-in page is a public route outside the app shell: it scrolls the window, not the page scroll area
+    assert page.evaluate("document.documentElement.scrollHeight") > 200, "the page must be taller than the viewport"
+    page.evaluate("window.__sizes = []; addEventListener('resize', () => __sizes.push([innerWidth, innerHeight]))",
+                  isolated_context=False)
+    monkeypatch.setenv(SHOTS_ENV, str(tmp_path))
+    path = Sweep(page, "light").shot("login", "form")
+    settle(page)                                   # a resize the shot caused is dispatched by now
+    # a full-page capture fires a resize at every shot (now and then at 1x1); a viewport shot never does
+    assert page.evaluate("window.__sizes", isolated_context=False) == [], "the window changed size during the shot"
+    assert page.viewport_size == {"width": 1280, "height": 200}
+    dpr = page.evaluate("devicePixelRatio")
+    assert struct.unpack(">II", path.read_bytes()[16:24]) == (1280 * dpr, 200 * dpr), "the viewport, not the page"

@@ -1,0 +1,151 @@
+/* The Logs date range (one Element Plus date range picker) drawn as the page's own `.kla-control` box: 34 high (36 on a
+   tablet, a borderless 40 inside the phone chip), 10 px padding, a 1 px `--rl-line-strong` edge, radius 10, 13 px text
+   on `--rl-surface`. The range editor is its own wrapper and draws its edge as an inset shadow, so it is set here for
+   every state; the focus ring is the page's one 2 px outline 2 px away (`lane-controls.css`). No inline style and no
+   `data:` URL: the CSP has no `img-src` and the picker draws its icons as inline svg. The span of the field is what the
+   canvas's From and To fields take together: 148 + 12 + 148 on a desktop; a tablet fills its share of the row; the phone
+   chip is one chip with the word Dates. */
+.lf__date .el-date-editor.el-range-editor {
+  --lf-date-height: 34px;
+  box-sizing: border-box;
+  width: 308px;
+  height: var(--lf-date-height);
+  padding: 0 10px;
+  border-radius: 10px;
+  background: var(--rl-surface);
+  font-size: 13px;
+}
+.lf__date .el-date-editor.el-range-editor,
+.lf__date .el-date-editor.el-range-editor:hover,
+.lf__date .el-date-editor.el-range-editor.is-active {
+  box-shadow: 0 0 0 1px var(--rl-line-strong) inset !important;
+}
+.lf__date .el-date-editor.el-range-editor:has(.el-range-input:focus-visible) {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
+}
+.lf__date .el-date-editor .el-range-input {
+  color: var(--rl-fg);
+  font: inherit;
+  font-size: 13px;
+}
+.lf__date .el-date-editor .el-range-input::placeholder {
+  color: var(--rl-faint);
+}
+.lf__date .el-date-editor .el-range-separator {
+  flex: none;
+  padding: 0 4px;
+  color: var(--rl-muted);
+  font-size: 13px;
+}
+.lf__date .el-date-editor .el-range__icon,
+.lf__date .el-date-editor .el-range__close-icon {
+  color: var(--rl-muted);
+}
+/* the calendar sits at the end, where the browser draws its indicator; the picker puts it first, before the text */
+.lf__date .el-date-editor .el-range__icon {
+  order: 2;
+  margin-inline-start: 6px;
+}
+.lf__date .el-date-editor .el-range__close-icon {
+  order: 1;
+}
+
+/* a tablet: the field fills its share of the row, 36 high like the other fields there */
+.lf--tablet .lf__date .el-date-editor.el-range-editor {
+  --lf-date-height: 36px;
+  width: 100%;
+}
+
+/* the phone chip draws the edge itself: the field inside it is borderless, 40 high and takes the width the word
+   leaves of the chip's full-width row */
+.kla-chip-field .el-date-editor.el-range-editor {
+  --lf-date-height: 40px;
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  padding: 0 4px;
+  border-radius: 0;
+  background: transparent;
+}
+.kla-chip-field .el-date-editor.el-range-editor,
+.kla-chip-field .el-date-editor.el-range-editor:hover,
+.kla-chip-field .el-date-editor.el-range-editor.is-active {
+  box-shadow: none !important;
+}
+
+/* the open panel: the page's surface, edge and ink in both themes (the dark variables come with `html.dark`) */
+html:root .el-popper.rl-date-popper {
+  --el-bg-color-overlay: var(--rl-surface);
+  --el-text-color-regular: var(--rl-fg);
+  --el-text-color-primary: var(--rl-fg);
+  --el-text-color-placeholder: var(--rl-faint);
+  --el-border-color-light: var(--rl-line);
+  --el-datepicker-text-color: var(--rl-fg);
+  --el-datepicker-off-text-color: var(--rl-faint);
+  --el-datepicker-header-text-color: var(--rl-fg);
+  --el-datepicker-icon-color: var(--rl-muted);
+  --el-datepicker-border-color: var(--rl-line);
+  --el-datepicker-inner-border-color: var(--rl-line);
+  --el-datepicker-active-color: var(--rl-primary);
+  --el-datepicker-hover-text-color: var(--rl-primary);
+  border: 1px solid var(--rl-line);
+  border-radius: 12px;
+}
+html:root .el-popper.rl-date-popper .el-date-table td.current:not(.disabled) .el-date-table-cell__text {
+  color: var(--rl-on-primary);
+}
+html:root .el-popper.rl-date-popper .el-date-table td.in-range .el-date-table-cell {
+  background: var(--rl-primary-soft);
+}
+html:root .el-popper.rl-date-popper .el-date-table td.start-date .el-date-table-cell__text,
+html:root .el-popper.rl-date-popper .el-date-table td.end-date .el-date-table-cell__text {
+  background: var(--rl-primary);
+  color: var(--rl-on-primary);
+}
+
+/* a phone: the two months STACKED, the quick options as one row on top, all inside the window. Element Plus lays the two
+   months out as table cells of half the panel (646 px, 756 with the sidebar): here the panel is one month wide, the
+   months are blocks, and the sidebar is a row above them. */
+@media (max-width: 767.98px) {
+  html:root .el-popper.rl-range-popper {
+    max-width: calc(100vw - 16px);
+  }
+  html:root .el-popper.rl-range-popper .el-date-range-picker,
+  html:root .el-popper.rl-range-popper .el-date-range-picker.has-sidebar {
+    width: 322px;
+    max-width: calc(100vw - 18px);
+  }
+  html:root .el-popper.rl-range-popper .el-picker-panel__sidebar {
+    position: static;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 2px;
+    width: auto;
+    padding: 6px 6px;
+    overflow: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--rl-line);
+  }
+  html:root .el-popper.rl-range-popper .el-picker-panel__shortcut {
+    flex: none;
+    width: auto;
+    padding: 0 6px;
+    font-size: 12px;
+    line-height: 32px;
+  }
+  html:root .el-popper.rl-range-popper .el-picker-panel__body {
+    min-width: 0;
+    margin-left: 0;
+  }
+  html:root .el-popper.rl-range-popper .el-date-range-picker__content,
+  html:root .el-popper.rl-range-popper .el-date-range-picker__content.is-left,
+  html:root .el-popper.rl-range-popper .el-date-range-picker__content.is-right {
+    display: block;
+    width: 100%;
+    border-right: 0;
+  }
+  html:root .el-popper.rl-range-popper .el-date-range-picker__content.is-left {
+    border-bottom: 1px solid var(--rl-line);
+  }
+}

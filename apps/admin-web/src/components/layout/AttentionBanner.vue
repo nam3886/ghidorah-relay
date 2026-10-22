@@ -1,82 +1,114 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed } from "vue";
+import { groupSentence } from "@/components/alerts/alerts-model";
+import { IconAlertTriangle } from "@/components/shared/icons";
+import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useStatsStore } from "@/stores/stats";
 
-// One calm banner: the live alert conditions (they vanish by themselves) and the count of open alert groups.
-// More than two conditions fold behind one line with a count, so the banner never pushes the page down.
-const FOLD_ABOVE = 2;
+// The attention banner as drawn on Jobs (specs/shell.md section 5): one line, a bold sentence with the open alert
+// groups, one muted sentence, and the link to Alerts. Jobs renders it after its band card. The muted sentence words
+// the first open group (`Dola replied “…” to 4 jobs from 3 keys.`), as drawn even beside live conditions; with no open
+// group it is the live condition, the first one and a count of the rest, so the banner never grows. No coloured side
+// border (DESIGN section 6).
 const stats = useStatsStore();
-const router = useRouter();
+const { isPhone } = useBreakpoint();
 
 const alerts = computed(() => stats.data?.alerts ?? []);
 const visible = computed(() => alerts.value.length > 0 || stats.openGroups > 0);
-const foldable = computed(() => alerts.value.length > FOLD_ABOVE);
-const expanded = ref(false);
-const showAlerts = computed(() => !foldable.value || expanded.value);
 // 200 is the page cap of the groups call.
-const openGroupsText = computed(() => `${stats.openGroups === 200 ? "200+" : stats.openGroups} open alert group(s)`);
+const groupCount = computed(() => (stats.openGroups === 200 ? "200+" : String(stats.openGroups)));
+const headline = computed(() =>
+  stats.openGroups > 0
+    ? `${groupCount.value} open alert ${stats.openGroups === 1 ? "group" : "groups"}.`
+    : "Needs attention.",
+);
+const detail = computed(() => {
+  if (stats.firstGroup) return groupSentence(stats.firstGroup, stats.firstReply);
+  const [first, ...rest] = alerts.value;
+  if (!first) return "";
+  return rest.length ? `${first.message} (+${rest.length} more)` : first.message;
+});
 </script>
 
 <template>
-  <el-alert v-if="visible" class="attention-banner" type="warning" :closable="false" show-icon title="Needs attention">
-    <ul class="attention-list">
-      <li v-if="foldable" data-testid="fold-alerts">
-        {{ alerts.length }} live conditions
-        <el-button link class="banner-link" :aria-expanded="expanded" @click="expanded = !expanded">{{
-          expanded ? "Hide" : "Show"
-        }}</el-button>
-      </li>
-      <template v-if="showAlerts">
-        <li v-for="(alert, index) in alerts" :key="index">
-          <strong>{{ alert.kind }}</strong
-          >: {{ alert.message }}
-        </li>
-      </template>
-      <li v-if="stats.openGroups > 0" data-testid="open-groups">
-        {{ openGroupsText }}
-        <el-button link class="banner-link" @click="router.push({ name: 'alerts' })">Open the Alerts tab</el-button>
-      </li>
-    </ul>
-  </el-alert>
+  <div v-if="visible" class="attention-banner" :class="{ 'attention-banner--phone': isPhone }" role="status">
+    <div class="attention-row">
+      <IconAlertTriangle class="attention-icon" :size="18" />
+      <span class="attention-body">
+        <strong class="attention-head" data-testid="banner-headline">{{ headline }}</strong>
+        {{ " " }}
+        <span v-if="detail" class="attention-detail" data-testid="banner-detail">{{ detail }}</span>
+      </span>
+    </div>
+    <router-link class="banner-link" :to="{ name: 'alerts' }" data-testid="review-alerts">
+      Review in Alerts
+    </router-link>
+  </div>
 </template>
 
 <style scoped>
 .attention-banner {
-  align-items: flex-start;
-  margin: 12px 16px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
   padding: 12px 16px;
-  width: auto;
-  color: var(--rl-warn);
+  border-radius: 12px;
   background: var(--rl-warn-bg);
-  border: 1px solid color-mix(in srgb, var(--rl-warn) 30%, transparent);
-  border-left: 3px solid var(--rl-warn);
+  color: var(--rl-fg);
 }
-.attention-banner :deep(.el-alert__icon) {
-  margin-top: 1px;
+.attention-row {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 240px;
 }
-.attention-banner :deep(.el-alert__title) {
-  font-size: 14px;
+.attention-icon {
+  flex: none;
+  color: var(--rl-warn);
+}
+.attention-body {
+  flex: 1;
+  min-width: 0;
+}
+.attention-head {
   font-weight: 600;
-  line-height: 20px;
 }
-.attention-list {
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 13px;
-  line-height: 20px;
+.attention-detail {
+  color: var(--rl-muted);
 }
-/* A link on the warn fill takes the warn colour (the accent fails contrast there) and is underlined. */
+/* A link on the warn fill takes the warn colour (the primary fails contrast there) and is underlined. */
 .attention-banner .banner-link {
   color: var(--rl-warn);
   font-size: inherit;
   font-weight: 600;
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
-.attention-banner .banner-link:hover,
-.attention-banner .banner-link:focus-visible {
+.attention-banner .banner-link:hover {
   color: var(--rl-warn);
   opacity: 0.8;
+}
+/* Phone: the icon row, then the link on its own line with a 44 px touch height. */
+.attention-banner--phone {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 8px;
+}
+.attention-banner--phone .attention-row {
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.attention-banner--phone .attention-icon {
+  margin-top: 1px;
+}
+.attention-banner--phone .banner-link {
+  display: flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 44px;
 }
 </style>

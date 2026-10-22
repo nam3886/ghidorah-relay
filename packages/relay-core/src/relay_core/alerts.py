@@ -205,10 +205,13 @@ async def _note_not_stored(conn: AsyncConnection, job_id, state: str) -> None:
 
 # ---- the read side -----------------------------------------------------------------------------------------------
 # Every source selects the same columns, one row per group: kind, grp, severity, title, provider, first_at, last_at,
-# count, open_count, keys, newest_id.
+# count, open_count, keys, newest_id, reply (an unclear group's newest stored text, cut like the title; else NULL) and
+# key_label (a billing group's key: its label, else its prefix; else NULL).
 GROUP_COLUMNS = ("kind", "grp", "severity", "title", "provider", "first_at", "last_at", "count", "open_count", "keys",
-                 "newest_id")
+                 "newest_id", "reply", "key_label")
 RANK = "CASE severity WHEN 'error' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END"      # explicit, never the name's order
+# A key's name wherever the hub shows one (`k` is api_keys): its label, else its prefix, as the Jobs list names a key.
+KEY_NAME = "COALESCE(NULLIF(k.label, ''), k.key_prefix)"
 
 
 @dataclass(frozen=True)
@@ -222,7 +225,9 @@ BILLING = Source(BILLING_KINDS, """
     SELECT alert AS kind, key_id::text || '.' || provider || '.' || kind AS grp, 'error' AS severity,
            alert || ': ' || provider || ' ' || kind || ' wallet of key ' || key_id::text AS title, provider,
            min(at) AS first_at, max(at) AS last_at, count(*) AS count,
-           count(*) FILTER (WHERE acknowledged_at IS NULL) AS open_count, 1 AS keys, max(id) AS newest_id
+           count(*) FILTER (WHERE acknowledged_at IS NULL) AS open_count, 1 AS keys, max(id) AS newest_id,
+           NULL::text AS reply,
+           (SELECT """ + KEY_NAME + """ FROM api_keys k WHERE k.id = billing_alerts.key_id) AS key_label
       FROM billing_alerts GROUP BY alert, key_id, provider, kind""")
 
 UNCLEAR = Source((KIND_UNCLEAR,), """
@@ -231,7 +236,9 @@ UNCLEAR = Source((KIND_UNCLEAR,), """
                 ELSE left(max(u.wording), %(title_limit)s) END AS title,
            u.provider, min(u.at) AS first_at, max(u.at) AS last_at, count(*) AS count,
            count(*) FILTER (WHERE u.acknowledged_at IS NULL) AS open_count,
-           count(DISTINCT j.key_id) AS keys, max(u.id) AS newest_id
+           count(DISTINCT j.key_id) AS keys, max(u.id) AS newest_id,
+           (SELECT left(t.text, %(title_limit)s) FROM unclear_replies t WHERE t.id = max(u.id)) AS reply,
+           NULL::text AS key_label
       FROM unclear_replies u JOIN jobs j ON j.id = u.job_id GROUP BY u.group_id, u.provider""")
 
 SOURCES = (BILLING, UNCLEAR)
@@ -257,6 +264,7 @@ def group_view(row: tuple) -> dict:
     return {"kind": g["kind"], "group": g["grp"], "severity": g["severity"], "title": g["title"],
             "provider": g["provider"], "first_ms": _ms(g["first_at"]), "last_ms": _ms(g["last_at"]),
             "count": g["count"], "open_count": g["open_count"], "keys": g["keys"], "newest_id": g["newest_id"],
+            "reply": g["reply"], "key_label": g["key_label"],
             "status": "open" if g["open_count"] > 0 else "acknowledged",
             "detail": "/admin/alerts/groups/%s/%s" % (g["kind"], g["grp"])}
 
@@ -315,37 +323,52 @@ def _billing_key(group: str) -> tuple[str, str, str]:
 
 async def billing_items(conn, kind: str, group: str, limit: int, offset: int) -> list[dict]:
     key_id, provider, wallet = _billing_key(group)
+    # The key's name and the job (through the ledger row the alert points at) ride along so the page can name them;
+    # an alert with no ledger row, or a deleted key, has null names. The ledger row and the job must belong to the
+    # alert's own key: a row of another key is never named here.
     rows = await (await conn.execute(
-        "SELECT " + ", ".join(BILLING_COLUMNS) + " FROM billing_alerts WHERE alert = %s AND key_id = %s "
-        "AND provider = %s AND kind = %s ORDER BY id DESC LIMIT %s OFFSET %s",
+        "SELECT " + ", ".join("b." + c for c in BILLING_COLUMNS) + ", " + KEY_NAME + ", j.id, j.title "
+        "FROM billing_alerts b LEFT JOIN api_keys k ON k.id = b.key_id "
+        "LEFT JOIN ledger l ON l.id = b.ledger_id AND l.key_id = b.key_id "
+        "LEFT JOIN jobs j ON j.id = l.job_id AND j.key_id = b.key_id "
+        "WHERE b.alert = %s AND b.key_id = %s AND b.provider = %s AND b.kind = %s "
+        "ORDER BY b.id DESC LIMIT %s OFFSET %s",
         (kind, key_id, provider, wallet, limit, offset))).fetchall()
-    return [billing_item(r) for r in rows]
+    n = len(BILLING_COLUMNS)
+    return [{**billing_item(r[:n]), "key_label": r[n], "job_id": None if r[n + 1] is None else str(r[n + 1]),
+             "job_title": r[n + 2]} for r in rows]
 
 
 async def unclear_items(conn, group: str, limit: int, offset: int) -> list[dict]:
     rows = await (await conn.execute(
         "SELECT u.id, u.at, u.job_id, u.account_id, a.label, j.key_id, u.text, j.status, j.error_code, "
-        "u.acknowledged_at, u.acknowledged_by FROM unclear_replies u JOIN jobs j ON j.id = u.job_id "
-        "LEFT JOIN accounts a ON a.id = u.account_id WHERE u.group_id = %s ORDER BY u.id DESC LIMIT %s OFFSET %s",
+        "u.acknowledged_at, u.acknowledged_by, j.title, " + KEY_NAME + " FROM unclear_replies u "
+        "JOIN jobs j ON j.id = u.job_id "
+        "LEFT JOIN accounts a ON a.id = u.account_id LEFT JOIN api_keys k ON k.id = j.key_id "
+        "WHERE u.group_id = %s ORDER BY u.id DESC LIMIT %s OFFSET %s",
         (group, limit, offset))).fetchall()
     return [{"id": r[0], "at_ms": _ms(r[1]), "job_id": str(r[2]), "account_id": None if r[3] is None else str(r[3]),
              "account_label": r[4], "key_id": str(r[5]), "text": r[6], "job_status": r[7], "job_error_code": r[8],
-             "acknowledged_ms": None if r[9] is None else _ms(r[9]), "acknowledged_by": r[10]} for r in rows]
+             "acknowledged_ms": None if r[9] is None else _ms(r[9]), "acknowledged_by": r[10], "job_title": r[11],
+             "key_label": r[12]} for r in rows]
 
 
 async def unclear_outcomes(conn, group: str) -> dict:
     """How the group's jobs stand now, over distinct jobs: `done`, `failed` (refunded) and still open, and the
-    error codes of the failed ones. They tell the admin whether the wording was an acceptance or a refusal."""
+    error codes of the failed ones. They tell the admin whether the wording was an acceptance or a refusal.
+    `media` is the one media type of all the group's jobs (`video`, `image`), or null when they are mixed: the reply
+    is stored as that video's or that image's answer."""
     rows = await (await conn.execute(
-        "SELECT j.status, j.error_code, count(*) FROM jobs j WHERE j.id IN "
-        "(SELECT job_id FROM unclear_replies WHERE group_id = %s) GROUP BY j.status, j.error_code", (group,))
-    ).fetchall()
-    outcomes, codes = {"done": 0, "failed": 0, "open": 0}, {}
-    for status, code, n in rows:
+        "SELECT j.status, j.error_code, j.media_type, count(*) FROM jobs j WHERE j.id IN "
+        "(SELECT job_id FROM unclear_replies WHERE group_id = %s) GROUP BY j.status, j.error_code, j.media_type",
+        (group,))).fetchall()
+    outcomes, codes, media = {"done": 0, "failed": 0, "open": 0}, {}, set()
+    for status, code, kind, n in rows:
         outcomes["done" if status == "done" else "failed" if status == "failed" else "open"] += n
         if status == "failed":
             codes[code] = codes.get(code, 0) + n
-    return {"outcomes": outcomes, "failed_codes": codes}
+        media.add(kind)
+    return {"outcomes": outcomes, "failed_codes": codes, "media": media.pop() if len(media) == 1 else None}
 
 
 async def acknowledge(conn, kind: str, group: str, through_id: int, user: str) -> int:

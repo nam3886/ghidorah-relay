@@ -17,6 +17,8 @@ import uvicorn
 CORE_TESTS = Path(__file__).resolve().parents[2] / "packages" / "relay-core" / "tests"
 sys.path.insert(0, str(CORE_TESTS))
 sys.path.insert(0, str(CORE_TESTS / "api"))
+# the browser tests of this folder share the photo and scroll helpers of the pixel harness
+sys.path.insert(0, str(Path(__file__).resolve().parent / "pixel"))
 
 # The core fixtures live in a conftest of another directory; load that file once under its own name.
 _spec = importlib.util.spec_from_file_location("relay_core_tests_conftest", CORE_TESTS / "conftest.py")
@@ -227,9 +229,16 @@ def sign_in_app(page, live, username=None, password=None) -> None:
     from patchright.sync_api import expect
     page.goto(APP_URL + "#/login")
     page.get_by_label("Username").fill(username or live.user)
-    page.get_by_label("Password").fill(password or live.password)
+    page.get_by_label("Password", exact=True).fill(password or live.password)
     page.get_by_role("button", name="Sign in").click()
     expect(page).to_have_url(re.compile(r"#/jobs$"))
+
+
+def sign_out_app(page) -> None:
+    """Sign out the way a user does: open the account menu, then choose Sign out. (The menu lives in the top bar; its
+    button is named after the user.)"""
+    page.get_by_role("button", name=re.compile(r"^Account menu")).click()
+    page.get_by_role("menuitem", name="Sign out").click()
 
 
 @pytest.fixture
@@ -288,6 +297,9 @@ class App:
 
     def sign_in(self, page, username=None, password=None) -> None:
         sign_in_app(page, self._live, username, password)
+
+    def sign_out(self, page) -> None:
+        sign_out_app(page)
 
     def run(self, db, scenario):
         """Plant rows with a jobkit scenario (`failed_job(p, key, "x")` and the like) from inside a browser test."""

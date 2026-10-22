@@ -31,6 +31,8 @@ export interface JobEvent {
 }
 
 export interface JobDetail extends JobSummary {
+  // the key's display prefix: what names a key without a label
+  key_prefix: string | null;
   prompt: string;
   marker: string;
   params: unknown;

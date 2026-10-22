@@ -94,12 +94,11 @@ services:
     build: {context: .., dockerfile: deploy/Dockerfile, target: browser}
     env_file: [worker-dola.env]
     command: ["relay", "worker", "--provider", "dola"]
-    # Set here and not in worker-dola.env, so the template keeps only names and these two cannot be left out: the
-    # profiles volume is mounted at /profiles (cold profiles caused the composer re-queues and ~13 MB a load), and
-    # four browser slots is the starting count (DOLA_BROWSER_SLOTS_MAX in deploy/.env changes it).
+    # Set here and not in worker-dola.env, so the template keeps only names and it cannot be left out: the profiles
+    # volume is mounted at /profiles (cold profiles caused the composer re-queues and ~13 MB a load). The number of
+    # browser slots is the live setting dola.browser_slots, not an environment variable.
     environment:
       RELAY_PROFILE_ROOT: /profiles
-      DOLA_BROWSER_SLOTS_MAX: ${DOLA_BROWSER_SLOTS_MAX:-4}
     shm_size: 1g
     stop_grace_period: 780s   # the longest submit timeout (video 720 s) plus a minute to release leases
     volumes: ["profiles-dola:/profiles"]

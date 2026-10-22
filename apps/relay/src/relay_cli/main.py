@@ -229,7 +229,7 @@ async def serve_api(specs: list[Any], env: Mapping[str, str], *,
         raise CliError("object store is not usable at start: %s" % e) from None
 
     pool = await open_pool(dsn, max_size=API_POOL_MAX, name="relay-api")
-    settings = Settings(pool, dsn, registry=settings_registry(specs), env=env)
+    settings = Settings(pool, dsn, registry=settings_registry(specs))
     running = None
     try:
         await settings.start()
@@ -379,7 +379,7 @@ def provider_mode(specs: list[Any], provider: str, drain: bool) -> int:
                        EXIT_REFUSED)
 
     async def run(pool) -> int:
-        settings = Settings(pool, os.environ["DATABASE_URL"], registry=settings_registry(specs), env=os.environ)
+        settings = Settings(pool, os.environ["DATABASE_URL"], registry=settings_registry(specs))
         changed = await (ops.drain if drain else ops.resume)(settings, provider)
         print("%s %s%s" % ("draining" if drain else "resumed", provider, "" if changed else " (no change)"))
         return EXIT_OK

@@ -2,17 +2,30 @@ import { describe, expect, it } from "vitest";
 import type { Account } from "@/api/accounts";
 import {
   accountChanges,
+  accountSub,
   ago,
-  asleepLines,
+  asleepInfo,
+  asleepLine,
   checkSummary,
+  chipsAfterRead,
+  commandChip,
+  extraError,
+  healthItems,
+  hhmm,
+  hhmmss,
   importBody,
-  importSummary,
+  madeLine,
   pointsFigure,
-  pointsText,
+  poolItems,
+  poolsInOrder,
+  rejectedText,
   proxyCheck,
+  proxyChipText,
+  proxyStatus,
   proxyText,
+  rowMenu,
+  statusReason,
 } from "@/components/accounts/account-model";
-import { fmtTime } from "@/lib/format";
 
 const account = (over: Partial<Account> = {}): Account => ({
   id: "a1",
@@ -28,7 +41,7 @@ const account = (over: Partial<Account> = {}): Account => ({
   proxy_ok: null,
   proxy_checked_ms: null,
   strikes: 0,
-  cooldown_ms: null,
+  cooldown_until_ms: null,
   cooldown_reason: null,
   last_error: null,
   last_used_ms: null,
@@ -103,66 +116,207 @@ describe("importBody", () => {
   });
 });
 
-describe("importSummary", () => {
-  it("counts, with the rejected lines numbered from 1", () => {
-    expect(importSummary({ imported: [{ index: 0, id: "x", label: "l" }], rejected: [] })).toBe(
-      "Imported 1, rejected 0",
-    );
-    expect(
-      importSummary({
-        imported: [],
-        rejected: [
-          { index: 0, reason: "credential_unparseable" },
-          { index: 3, reason: "proxy_invalid" },
-        ],
-      }),
-    ).toBe("Imported 0, rejected 2 (line 1: credential_unparseable; line 4: proxy_invalid)");
+describe("command chips", () => {
+  const command = (status: string, over: object = {}) => ({ id: "c", status, result: null, ...over }) as never;
+
+  it("the end of a poll: ok with the time it finished, error with the worker's reason, running when it gave up", () => {
+    const finished = Date.UTC(2026, 9, 15, 13, 55, 7);
+    expect(commandChip(command("done", { finished_ms: finished }), 4)).toEqual({
+      state: "ok",
+      time: hhmmss(finished),
+      settled: true,
+      read: 4,
+    });
+    expect(commandChip(command("failed", { result: { error: "connect timeout after 8 s" } }), 4)).toEqual({
+      state: "error",
+      message: "connect timeout after 8 s",
+      settled: true,
+      read: 4,
+    });
+    expect(commandChip(null, 4)).toEqual({ state: "running", settled: true, read: 4 });
+  });
+
+  it("a finished chip stays through the next automatic read and goes with the one after; a running one stays", () => {
+    const chips = {
+      running: { state: "running", settled: false, read: 0 },
+      done: { state: "ok", time: "20:55:07", settled: true, read: 2 },
+    } as const;
+    expect(Object.keys(chipsAfterRead(chips, 3))).toEqual(["running", "done"]);
+    expect(Object.keys(chipsAfterRead(chips, 4))).toEqual(["running"]);
   });
 });
 
-describe("asleepLines", () => {
+describe("rejectedText", () => {
+  it("says why a line was rejected in a sentence; any other code gets one fixed sentence", () => {
+    expect(rejectedText("credential_unparseable")).toBe("The line is not a cookie jar.");
+    expect(rejectedText("proxy_invalid")).toBe("The proxy is not host:port or host:port:user:pass.");
+    // any other code gets the one fixed sentence: nothing the server sends back is shown, whatever it carries
+    expect(rejectedText("something_new")).toBe("The line could not be imported.");
+    expect(rejectedText("sessionid=secret-cookie-value; csrftoken=abc")).toBe("The line could not be imported.");
+    expect(rejectedText("__proto__")).toBe("The line could not be imported.");
+    expect(rejectedText("toString")).toBe("The line could not be imported.");
+  });
+});
+
+describe("asleepInfo", () => {
   const now = 1_000_000;
-  it("lists the cooldown and the resting pools that are still in the future", () => {
-    const a = account({
-      cooldown_ms: now + 5000,
-      cooldown_reason: "strike",
-      capacity: [
-        {
-          pool: "video",
-          left_n: 1,
-          left_today: 1,
-          budget: 5,
-          drift: null,
-          source: "counted",
-          day_anchor: null,
-          rest_until_ms: now + 9000,
-          rest_reason: "quota",
-        },
-        {
-          pool: "image",
-          left_n: 1,
-          left_today: 1,
-          budget: 5,
-          drift: null,
-          source: "counted",
-          day_anchor: null,
-          rest_until_ms: now - 1,
-          rest_reason: "old",
-        },
+  const rest = (until: number | null, reason: string | null) => ({
+    pool: "video",
+    left_n: 1,
+    left_today: 1,
+    budget: 5,
+    drift: null,
+    source: "counted",
+    day_anchor: null,
+    rest_until_ms: until,
+    rest_reason: reason,
+  });
+
+  it("a cooldown still ahead: the time it ends, a strike when the account has strikes, and the reason", () => {
+    const a = account({ cooldown_until_ms: now + 5000, cooldown_reason: "dola.likeness_refused", strikes: 1 });
+    expect(asleepInfo(a, now)).toEqual({ until: hhmm(now + 5000), kind: "strike", why: "dola.likeness_refused" });
+    expect(asleepInfo(account({ cooldown_until_ms: now + 5000, cooldown_reason: "x" }), now)?.kind).toBeNull();
+  });
+
+  it("with no cooldown the first pool that still rests counts, with its own reason", () => {
+    const a = account({ capacity: [rest(now - 1, "old"), rest(now + 9000, "quota")] });
+    expect(asleepInfo(a, now)).toEqual({ until: hhmm(now + 9000), kind: null, why: "quota" });
+  });
+
+  it("a time in the past, or none, is awake", () => {
+    expect(asleepInfo(account({ cooldown_until_ms: now - 1, capacity: [rest(now - 1, "old")] }), now)).toBeNull();
+    expect(asleepInfo(account(), now)).toBeNull();
+  });
+
+  it("the one-line form is `asleep until HH:MM`, plus ` · strike` for a strike nap", () => {
+    expect(asleepLine({ until: "21:30", kind: "strike", why: "r" })).toBe("asleep until 21:30 · strike");
+    expect(asleepLine({ until: "21:30", kind: null, why: null })).toBe("asleep until 21:30");
+  });
+});
+
+describe("the text of a row", () => {
+  it("the second line is name, provider and composer, with no empty piece", () => {
+    expect(accountSub(account({ display_name: "Demo User H", provider: "dola", composer: "v2" }))).toBe(
+      "Demo User H · dola · composer v2",
+    );
+    expect(accountSub(account({ display_name: null, identity: null, provider: "dola" }))).toBe("dola");
+    expect(accountSub(account({ display_name: null, identity: "me@x", provider: "dola" }))).toBe("me@x · dola");
+  });
+
+  it("the video pool comes first, the others keep their order; the tablet counts are singular for one", () => {
+    const pool = (name: string) => ({ pool: name }) as Account["capacity"][number];
+    expect(poolsInOrder([pool("image"), pool("video"), pool("audio")]).map((c) => c.pool)).toEqual([
+      "video",
+      "image",
+      "audio",
+    ]);
+    expect(madeLine({ video: 31, image: 12 })).toBe("31 videos · 12 images");
+    expect(madeLine({ video: 1, image: 1 })).toBe("1 video · 1 image");
+    expect(madeLine({ video: 0, image: 0 })).toBe("0 videos · 0 images");
+  });
+
+  it("a switched-off account shows no reason under its pill; a dead one shows its reason", () => {
+    expect(statusReason({ state: "disabled", state_reason: "disabled by admin" })).toBeNull();
+    expect(statusReason({ state: "dead", state_reason: "account.dead_session" })).toBe("account.dead_session");
+    expect(statusReason({ state: "available", state_reason: null })).toBeNull();
+  });
+
+  it("a narrow row shows the last error only when it adds to the reason", () => {
+    expect(extraError({ last_error: "e", state_reason: "e" })).toBeNull();
+    expect(extraError({ last_error: null, state_reason: "e" })).toBeNull();
+    expect(extraError({ last_error: "e", state_reason: null })).toBe("e");
+  });
+
+  it("the proxy chip says ok or failed with how long ago, and not checked alone", () => {
+    const t = 1_000_000_000_000;
+    const base = { proxy_checked_ms: t - 4 * 60_000 };
+    expect(proxyChipText(account({ ...base, proxy_ok: true }), t)).toBe("ok · 4 min ago");
+    expect(proxyChipText(account({ ...base, proxy_ok: false }), t)).toBe("failed · 4 min ago");
+    expect(proxyChipText(account({ ...base, proxy_ok: null }), t)).toBe("not checked");
+  });
+
+  it("the proxy status of the Edit dialog carries the stored reason of a failed check", () => {
+    const failed = account({ proxy_ok: false, last_error: "proxy check: connect timeout after 8 s" });
+    expect(proxyStatus(failed)).toEqual({ tone: "bad", text: "failed · connect timeout after 8 s" });
+    const t = 1_000_000_000_000;
+    expect(proxyStatus(account({ proxy_ok: false, last_error: "boom", proxy_checked_ms: t - 120_000 }), t).text).toBe(
+      "failed · 2 min ago",
+    );
+  });
+
+  it("the row menu: Shot cannot be picked without a screenshot, Delete is last and apart, a phone adds Check", () => {
+    const keys = (items: { key: string }[]) => items.map((i) => i.key);
+    expect(keys(rowMenu({ has_screenshot: true }, false))).toEqual(["shot", "wake", "edit", "delete"]);
+    expect(keys(rowMenu({ has_screenshot: true }, true))).toEqual(["check", "shot", "wake", "edit", "delete"]);
+    expect(rowMenu({ has_screenshot: false }, false)[0]).toMatchObject({ key: "shot", disabled: true });
+    expect(rowMenu({ has_screenshot: true }, false)[0]!.disabled).toBe(false);
+    const del = rowMenu({ has_screenshot: true }, false).at(-1)!;
+    expect(del).toMatchObject({ key: "delete", danger: true, separated: true });
+  });
+});
+
+describe("the pool card figures", () => {
+  const stats = { usable: 7, available: 8, dead: 1, disabled: 0 };
+
+  it("health: ready is usable / available, dead is bad only when there is one, in use and asleep are the stats'", () => {
+    expect(healthItems({ ...stats, in_use: 2, asleep: 1 })).toEqual([
+      { label: "Accounts ready", value: "7 / 8", mono: true },
+      { label: "Accounts dead", value: 1, tone: "bad", mono: true },
+      { label: "Accounts disabled", value: 0, tone: undefined, mono: true },
+      { label: "In use", value: 2, tone: undefined, mono: true },
+      { label: "Asleep", value: 1, tone: undefined, mono: true },
+    ]);
+    expect(healthItems({ ...stats, dead: 0 })[1]).toMatchObject({ value: 0, tone: undefined });
+  });
+
+  it("an old server without in use and asleep shows dashes for those two, not zeros", () => {
+    const items = healthItems(stats);
+    expect(items[3]!.value).toBe("-");
+    expect(items[4]!.value).toBe("-");
+  });
+
+  it("health without stats yet shows dashes, never zeros", () => {
+    const items = healthItems(null);
+    expect(items[0]!.value).toBe("-");
+    expect(items[1]!.value).toBe("-");
+    expect(items[2]!.value).toBe("-");
+  });
+
+  it("pool: video points left / budget, unknown, drift as a warning, failed proxies as bad, the last full check", () => {
+    const at = new Date(2026, 9, 15, 20, 48, 10).getTime();
+    const items = poolItems({
+      pools: [
+        { pool: "image", left: 0, budget: 0, unknown: 9, drift: 5 },
+        { pool: "video", left: 143, budget: 210, unknown: 2, drift: 1 },
       ],
+      proxy_failed: 1,
+      last_full_check_ms: at,
     });
-    expect(asleepLines(a, now)).toEqual([
-      `cooldown until ${fmtTime(now + 5000)} (strike)`,
-      `video rests until ${fmtTime(now + 9000)} (quota)`,
+    expect(items.map((i) => [i.label, i.value, i.tone])).toEqual([
+      ["Video points left", "143 / 210", undefined],
+      ["Points unknown", "2 accounts", undefined],
+      ["Drift flagged", 1, "warn"],
+      ["Proxy checks failed", 1, "bad"],
+      ["Last full check", "20:48:10", undefined],
     ]);
   });
 
-  it("is empty when everything is in the past", () => {
-    expect(asleepLines(account({ cooldown_ms: now - 1 }), now)).toEqual([]);
+  it("pool: one account is singular, zeros carry no colour, no full check reads never, no answer shows dashes", () => {
+    const items = poolItems({
+      pools: [{ pool: "video", left: 3, budget: 30, unknown: 1, drift: 0 }],
+      proxy_failed: 0,
+      last_full_check_ms: null,
+    });
+    expect(items[1]!.value).toBe("1 account");
+    expect(items[2]).toMatchObject({ value: 0, tone: undefined });
+    expect(items[3]).toMatchObject({ value: 0, tone: undefined });
+    expect(items[4]!.value).toBe("never");
+    expect(poolItems(null).map((i) => i.value)).toEqual(["-", "-", "-", "-", "-"]);
+    expect(poolItems({ pools: [], proxy_failed: 0, last_full_check_ms: null })[0]!.value).toBe("0 / 0");
   });
 });
 
-describe("pointsText, proxyCheck, checkSummary", () => {
+describe("pointsFigure, ago, proxyCheck, checkSummary", () => {
   const cap = (left: number | null, budget: number | null) => ({
     pool: "video",
     left_n: left,
@@ -175,10 +329,9 @@ describe("pointsText, proxyCheck, checkSummary", () => {
     rest_reason: null,
   });
   it("shows ? when the count is unknown and the budget when there is one", () => {
-    expect(pointsText(cap(3, 10))).toBe("video: 3 / 10");
-    expect(pointsText(cap(null, 10))).toBe("video: ? / 10");
-    expect(pointsText(cap(0, null))).toBe("video: 0");
     expect(pointsFigure(cap(3, 10))).toBe("3 / 10");
+    expect(pointsFigure(cap(null, 10))).toBe("? / 10");
+    expect(pointsFigure(cap(0, null))).toBe("0");
     expect(pointsFigure(cap(null, null))).toBe("?");
   });
 
@@ -201,9 +354,12 @@ describe("pointsText, proxyCheck, checkSummary", () => {
   });
 
   it("check summary names the outcome, the state and the reason", () => {
-    expect(checkSummary("ok", { state: "available", state_reason: null })).toBe("Check: ok - account available");
+    // the toasts' form, "<label> done: <detail>", no " - "
+    expect(checkSummary("checked", { state: "available", state_reason: null })).toBe(
+      "Check done: checked, account available",
+    );
     expect(checkSummary(undefined, { state: "dead", state_reason: "login failed" })).toBe(
-      "Check: done - account dead (login failed)",
+      "Check done: account dead (login failed)",
     );
   });
 });

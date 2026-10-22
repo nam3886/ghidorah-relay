@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends
 from psycopg_pool import AsyncConnectionPool
 
 from relay_core.admin.routes_common import MAX_PAGE, ms
+from relay_core.admin.routes_jobs import _zone, day_rows
 from relay_core.api.deps import get_pool
 from relay_core.api.errors_http import ApiError
 from relay_core.db import tx
@@ -23,8 +24,8 @@ router = APIRouter()
 
 MAX_QUERY = 200
 MAX_MS = 253402300799999      # 9999-12-31T23:59:59.999Z, the last moment a datetime holds
-_COLUMNS = ("id", "at", "key_id", "key_label", "provider", "route", "status_code", "job_id", "job_title",
-            "duration_ms", "error_code")
+_COLUMNS = ("id", "at", "key_id", "key_label", "key_prefix", "provider", "route", "status_code", "job_id",
+            "job_title", "duration_ms", "error_code")
 _FROM = (
     "FROM request_logs l LEFT JOIN api_keys k ON k.id = l.key_id LEFT JOIN jobs j ON j.id = l.job_id "
     "WHERE (%(provider)s::text IS NULL OR l.provider = %(provider)s) "
@@ -35,6 +36,12 @@ _FROM = (
     "ELSE TRUE END "
     "AND (%(q)s::text IS NULL OR starts_with(l.job_id::text, %(q)s) OR starts_with(j.external_ref, %(q)s) "
     "OR strpos(lower(coalesce(j.title, '')), lower(%(q)s)) > 0)")
+
+# Per local day under the list's own filters, bounded to the earliest..latest day of the page so the planner keeps a
+# plain range on request_logs_at. The day bounds are local midnights in `tz`.
+_DAY_TOTALS = "SELECT (l.at AT TIME ZONE %(tz)s)::date, count(*) "
+_DAY_RANGE = (" AND l.at >= (%(day_first)s::date)::timestamp AT TIME ZONE %(tz)s"
+              " AND l.at < ((%(day_last)s::date + 1)::timestamp AT TIME ZONE %(tz)s) GROUP BY 1")
 
 
 def _view(row: tuple) -> dict:
@@ -56,9 +63,12 @@ def _moment(value_ms: int | None, param: str) -> datetime | None:
 @router.get("/logs")
 async def list_logs(provider: str | None = None, status: Literal["all", "ok", "error", "pre_job"] = "all",
                     since_ms: int | None = None, until_ms: int | None = None, q: str | None = None,
-                    limit: int = 50, offset: int = 0, pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
+                    limit: int = 50, offset: int = 0, tz: str | None = None,
+                    pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
     """Newest first. `status` is the request's own outcome, not the job's (the Jobs tab filters by job status): `ok`
-    (< 400), `error` (>= 400) or `pre_job` (a failed request that could create a job and made none)."""
+    (< 400), `error` (>= 400) or `pre_job` (a failed request that could create a job and made none). With `tz` (an
+    IANA zone) the answer also holds `day_totals`: for each local day (`YYYY-MM-DD`) on the page, the rows of that
+    day matching the same filters."""
     if not 1 <= limit <= MAX_PAGE:
         raise ApiError("input.invalid", "limit")
     if not 0 <= offset < 2**31:
@@ -66,15 +76,26 @@ async def list_logs(provider: str | None = None, status: Literal["all", "ok", "e
     search = (q or "").strip()
     if len(search) > MAX_QUERY:
         raise ApiError("input.invalid", "q")
+    zone = None if tz is None else _zone(tz)
     params = {"provider": provider, "status": status, "since": _moment(since_ms, "since_ms"),
               "until": _moment(until_ms, "until_ms"), "q": search or None}
+    day_totals: dict[str, int] = {}
     async with tx(pool) as conn:
         total = (await (await conn.execute("SELECT count(*) " + _FROM, params)).fetchone())[0]
         rows = await (await conn.execute(
-            "SELECT l.id, l.at, l.key_id, k.label, l.provider, l.route, l.status_code, l.job_id, j.title, "
-            "l.duration_ms, l.error_code " + _FROM + " ORDER BY l.at DESC, l.id DESC LIMIT %(limit)s OFFSET %(offset)s",
+            "SELECT l.id, l.at, l.key_id, k.label, k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "
+            "j.title, l.duration_ms, l.error_code " + _FROM
+            + " ORDER BY l.at DESC, l.id DESC LIMIT %(limit)s OFFSET %(offset)s",
             {**params, "limit": limit, "offset": offset})).fetchall()
-    return {"items": [_view(r) for r in rows], "total": total}
+        if zone is not None and rows:
+            days = [r[1].astimezone(zone).date() for r in rows]
+            found = await day_rows(conn, _DAY_TOTALS + _FROM + _DAY_RANGE, {
+                **params, "tz": tz, "day_first": min(days), "day_last": max(days)})
+            day_totals = {d.isoformat(): n for d, n in sorted(found)}
+    out = {"items": [_view(r) for r in rows], "total": total}
+    if zone is not None:
+        out["day_totals"] = day_totals
+    return out
 
 
 @router.get("/logs/{log_id}")
@@ -84,13 +105,13 @@ async def log_detail(log_id: int, pool: AsyncConnectionPool = Depends(get_pool))
         raise ApiError("resource.not_found")
     async with tx(pool) as conn:
         row = await (await conn.execute(
-            "SELECT l.id, l.at, l.key_id, k.label, l.provider, l.route, l.status_code, l.job_id, j.title, "
-            "l.duration_ms, l.error_code, l.body_redacted, l.response_redacted FROM request_logs l "
+            "SELECT l.id, l.at, l.key_id, k.label, k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "
+            "j.title, l.duration_ms, l.error_code, l.body_redacted, l.response_redacted FROM request_logs l "
             "LEFT JOIN api_keys k ON k.id = l.key_id LEFT JOIN jobs j ON j.id = l.job_id WHERE l.id = %s",
             (log_id,))).fetchone()
     if row is None:
         raise ApiError("resource.not_found")
-    return {**_view(row[:11]), "request": row[11], "response": row[12]}
+    return {**_view(row[:12]), "request": row[12], "response": row[13]}
 
 
 @router.delete("/logs")

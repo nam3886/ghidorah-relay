@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
-import { getOpenAlertGroups, getStats, type Stats } from "@/api/shell";
+import type { AlertGroup } from "@/api/alerts";
+import { getNewestReply, getOpenAlertGroups, getStats, type Stats } from "@/api/shell";
 import { useLatest } from "@/composables/use-latest";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
@@ -14,8 +15,28 @@ export const useStatsStore = defineStore("stats", () => {
   const scope = useScopeStore();
   const data = shallowRef<Stats | null>(null);
   const openGroups = ref(0);
+  // the first open group (the most pressing) and, for an unclear reply, its newest reply as stored: the Jobs banner
+  // words them. The reply is read again only when the group or its newest row changes; a failed read leaves it out
+  // (the banner then quotes the group's title) and toasts nothing.
+  const firstGroup = shallowRef<AlertGroup | null>(null);
+  const firstReply = ref<string | null>(null);
   const loading = ref(false);
   const latest = useLatest();
+  // the group and newest row the reply on hand belongs to ("" when there is none)
+  let replyOf = "";
+
+  async function readReply(g: AlertGroup | null, ticket: number): Promise<void> {
+    const of = g && g.kind === "unclear_reply" ? `${g.kind}/${g.group}/${g.newest_id}` : "";
+    if (of === replyOf) return;
+    // never a reply of another group beside this group's counts, not even while the new one is read
+    firstReply.value = null;
+    replyOf = "";
+    if (!g || !of) return;
+    const reply = await getNewestReply(g).catch(() => null);
+    if (!latest.isCurrent(ticket) || !reply) return;
+    firstReply.value = reply;
+    replyOf = of;
+  }
 
   async function refresh(): Promise<void> {
     const ticket = latest.next();
@@ -25,6 +46,8 @@ export const useStatsStore = defineStore("stats", () => {
       if (!latest.isCurrent(ticket)) return;
       data.value = stats;
       openGroups.value = groups.items.length;
+      firstGroup.value = groups.items[0] ?? null;
+      await readReply(firstGroup.value, ticket);
     } catch (err) {
       if (!latest.isCurrent(ticket)) return;
       notify.error(errorText(err));
@@ -37,8 +60,11 @@ export const useStatsStore = defineStore("stats", () => {
     latest.invalidate();
     data.value = null;
     openGroups.value = 0;
+    firstGroup.value = null;
+    firstReply.value = null;
+    replyOf = "";
     loading.value = false;
   });
 
-  return { data, openGroups, loading, refresh };
+  return { data, openGroups, firstGroup, firstReply, loading, refresh };
 });

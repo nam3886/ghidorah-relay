@@ -39,7 +39,7 @@ CAPACITY_BEFORE_ACCOUNTS = (
 
 def real_settings(p, db) -> Settings:
     registry = Registry(*REGISTRY.specs.values(), *SPEC.settings().values())
-    return Settings(p, db.dsn, registry=registry, env={})
+    return Settings(p, db.dsn, registry=registry)
 
 
 def test_drain_stops_claims_and_resume_restores_them(db):

@@ -1,14 +1,18 @@
-"""The Accounts tab of the Vue admin in Chrome against the real app (browser tier): the list, import, edit, the enable
-switch, the commands the worker would run, the screenshot blob, auto-refresh and server strings as text. Every test runs
+"""The Accounts tab of the Vue admin in Chrome against the real app (browser tier): the list, the row More menu,
+import, edit, the enable switch, the commands the worker would run, the screenshot blob, auto-refresh, the pool card,
+the tablet and phone layouts and server strings as text. Every test runs
 under the CSP watch of `conftest.CspWatch`. The app is opened by `app.url` (`/manage`)."""
 
 import json
+import re
 
 import pytest
 from accountkit import new_account
 from patchright.sync_api import expect
+from pixel_capture import sideways
 
 from relay_core import crypto
+from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
 
@@ -19,21 +23,26 @@ PNG = bytes.fromhex(
 
 def open_accounts(page):
     page.get_by_role("tab", name="Accounts", exact=True).click()
-    expect(page.get_by_role("heading", name="Accounts")).to_be_visible()
+    expect(page.get_by_role("heading", name="Accounts", exact=True)).to_be_visible()
 
 
 def rows(page):
-    return page.locator(".el-table__body tbody tr")
+    return page.locator("tbody tr")
+
+
+def header_import(page):
+    """The page header's Import: an empty list offers an Import of its own once it has been read."""
+    return page.get_by_role("button", name="Import", exact=True).first
 
 
 def more(row, name):
-    """A row action: an icon button named by its tooltip (Shot, Wake, Edit, Delete)."""
-    row.get_by_role("button", name=name, exact=True).click()
+    """A row action from the row's More menu (Shot, Wake, Edit, Delete); the menu is drawn in the page body."""
+    row.get_by_role("button", name=re.compile(r"^More actions for ")).click()
+    row.page.get_by_role("menuitem", name=name, exact=True).click()
 
 
 def flip(switch):
-    """Element Plus hides the checkbox of a switch behind its track: click the checkbox itself."""
-    switch.evaluate("el => el.click()")
+    switch.click()
 
 
 @pytest.fixture
@@ -77,27 +86,67 @@ def test_import_shows_the_accepted_and_the_rejected_lines_and_sends_the_proxy_wi
         app, app_session, db, pair):
     page = app_session
     open_accounts(page)
-    page.get_by_role("button", name="Import", exact=True).click()
+    header_import(page).click()
     box = page.get_by_role("dialog")
-    box.get_by_label("Credentials (one per line)").fill("cookie-one\ncookie-two")
+    result = box.get_by_role("status", name="Result of the previous import")
+    box.get_by_label("Credentials").fill("cookie-one\ncookie-two")
     box.get_by_label("Proxy for all").fill("not a proxy")
     box.get_by_role("button", name="Import", exact=True).click()
-    expect(box.locator(".import-result")).to_have_text(
-        "Imported 0, rejected 2 (line 1: proxy_invalid; line 2: proxy_invalid)")
+    expect(result).to_contain_text("Imported 0, rejected 2")
+    expect(result).to_contain_text("line 1")
+    expect(result).to_contain_text("line 2")
+    expect(result).to_contain_text("The proxy is not host:port or host:port:user:pass.")
+    expect(result).not_to_contain_text("cookie-one")                  # a rejected credential is never echoed back
     assert db.one("SELECT count(*) FROM accounts")[0] == 0
-    box.get_by_label("Credentials (one per line)").fill("cookie-one\n\ncookie-two")
+    box.get_by_label("Credentials").fill("cookie-one\n\ncookie-two")
     box.get_by_label("Proxy for all").fill("10.1.2.3:8080:user:pw-secret")
     box.get_by_role("button", name="Import", exact=True).click()
-    expect(box.locator(".import-result")).to_have_text("Imported 2, rejected 0")
+    expect(result).to_contain_text("Imported 2, rejected 0")
     assert db.one("SELECT count(*) FROM accounts WHERE proxy_host = '10.1.2.3' AND proxy_auth_enc IS NOT NULL")[0] == 2
     box.get_by_role("button", name="Close", exact=True).click()
     expect(rows(page)).to_have_count(2)
 
 
+# a press on the list's padding (the 6 px around its options) must keep the focus on the select: in Chrome a press on
+# anything that cannot take the focus moves it off, and the next Escape then reaches the dialog, which closes with the
+# pasted lines (a synthetic event in a unit test cannot show where the browser puts the focus)
+@mutation("apps/admin-web/src/components/shared/FilterSelect.vue", '        @pointerdown="onListPress"\n', "",
+          expect="the focus stays on the select")
+def test_a_press_on_the_open_provider_list_and_escape_keep_the_import_dialog_and_its_paste(app, app_session, db):
+    page = app_session
+    open_accounts(page)
+    header_import(page).click()
+    box = page.get_by_role("dialog", name="Import accounts")
+    box.get_by_label("Credentials").fill("cookie-one\ncookie-two")
+    provider = box.get_by_role("combobox", name="Provider")
+    provider.click()
+    listbox = page.get_by_role("listbox", name="Provider")
+    expect(listbox).to_be_visible()
+    edge = listbox.bounding_box()
+    # the left padding strip at mid-height (its corners are rounded off: a press there would land on the dialog below)
+    page.mouse.click(edge["x"] + 3, edge["y"] + edge["height"] / 2)
+    expect(provider, "the focus stays on the select").to_be_focused()
+    page.keyboard.press("Escape")
+    expect(listbox).to_have_count(0)
+    expect(box, "the Import dialog stays open").to_be_visible()
+    expect(box.get_by_label("Credentials")).to_have_value("cookie-one\ncookie-two")
+    provider.click()
+    options = page.get_by_role("option")
+    pick = options.last
+    name = pick.inner_text().strip()
+    pick.click()
+    expect(listbox).to_have_count(0)
+    expect(provider).to_contain_text(name)
+    provider.click()
+    expect(page.get_by_role("option", name=name, exact=True)).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("Escape")
+    expect(box).to_be_visible()
+
+
 def test_an_empty_paste_says_so_and_sends_nothing(app, app_session, db):
     page = app_session
     open_accounts(page)
-    page.get_by_role("button", name="Import", exact=True).click()
+    header_import(page).click()
     page.get_by_role("dialog").get_by_role("button", name="Import", exact=True).click()
     expect(page.get_by_text("Paste at least one credential")).to_be_visible()
     assert db.one("SELECT count(*) FROM accounts")[0] == 0
@@ -131,7 +180,8 @@ def test_edit_sends_the_changed_fields_only_and_an_emptied_proxy_as_null(app, ap
     assert len(sent) == 2
 
 
-def test_escape_closes_the_edit_account_dialog_from_a_focused_field_and_changes_nothing(app, app_session, db):
+def test_escape_from_a_focused_field_of_the_edit_account_drawer_asks_and_discarding_changes_nothing(
+        app, app_session, db):
     page = app_session
     acct = new_account(db, label="free one", checked=True)
     open_accounts(page)
@@ -140,22 +190,28 @@ def test_escape_closes_the_edit_account_dialog_from_a_focused_field_and_changes_
     label.fill("typed, never saved")
     label.focus()
     page.keyboard.press("Escape")
+    question = page.locator(".el-message-box")
+    expect(question).to_contain_text("Discard your changes to this account?")
+    question.get_by_role("button", name="Discard").click()
     expect(page.get_by_role("dialog")).to_have_count(0)
     assert db.one("SELECT label FROM accounts WHERE id = %s", acct)[0] == "free one"
 
 
-def test_re_check_proxy_in_the_edit_dialog_queues_the_command_and_polls_it_to_the_end(app, app_session, db):
+def test_check_proxy_in_the_edit_dialog_queues_the_command_and_polls_it_to_the_end(app, app_session, db):
     page = app_session
     acct = new_account(db, label="proxied", checked=True, proxy=("10.0.0.1", 8080))
     open_accounts(page)
     more(rows(page).filter(has_text="proxied"), "Edit")
-    page.get_by_role("dialog").get_by_role("button", name="Re-check proxy").click()
-    expect(page.get_by_text("Proxy check: queued")).to_be_visible()
-    expect(page.get_by_role("dialog")).to_have_count(0)
+    page.get_by_role("dialog").get_by_role("button", name="Check proxy").click()
+    # the dialog stays open: the check's chip runs in the status line under the proxy row (B-States); with a
+    # chip there is no "queued" toast
+    expect(page.get_by_role("dialog").locator("[data-state=running]")).to_have_text("running…")
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'proxy_recheck' AND account_id = %s", acct)[0] == 1
     db.run("UPDATE commands SET status = 'done', result = '{}'::jsonb, finished_at = clock_timestamp() "
            "WHERE kind = 'proxy_recheck' AND account_id = %s", acct)
-    expect(page.get_by_text("Proxy check: done")).to_be_visible(timeout=10000)
+    expect(page.get_by_text("Proxy check done")).to_be_visible(timeout=10000)
+    expect(page.get_by_text("Proxy check: queued")).to_have_count(0)
+    expect(page.get_by_role("dialog").locator("[data-state=ok]")).to_contain_text("ok ·")
 
 
 def test_saving_a_changed_proxy_polls_the_proxy_check_the_server_queued(app, app_session, db):
@@ -170,7 +226,7 @@ def test_saving_a_changed_proxy_polls_the_proxy_check_the_server_queued(app, app
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'proxy_recheck' AND account_id = %s", acct)[0] == 1
     db.run("UPDATE commands SET status = 'done', result = '{}'::jsonb, finished_at = clock_timestamp() "
            "WHERE kind = 'proxy_recheck' AND account_id = %s", acct)
-    expect(page.get_by_text("Proxy check: done")).to_be_visible(timeout=10000)
+    expect(page.get_by_text("Proxy check done")).to_be_visible(timeout=10000)
 
 
 def test_check_wake_delete_and_the_provider_commands_queue_a_command_and_say_so(app, app_session, db):
@@ -178,20 +234,22 @@ def test_check_wake_delete_and_the_provider_commands_queue_a_command_and_say_so(
     free = new_account(db, label="free one", checked=True)
     open_accounts(page)
     row = rows(page).filter(has_text="free one")
-    page.get_by_role("button", name="Refresh catalog").click()
-    expect(page.get_by_text("Refresh catalog fake: queued")).to_be_visible()
+    page.get_by_role("button", name="Refresh catalog", exact=True).click()
+    expect(page.locator(".head [data-state=running]")).to_have_text("running…")   # its chip, no toast
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'refresh_catalog'")[0] == 1
-    page.get_by_role("button", name="Check all").click()
-    expect(page.get_by_text("Check all fake: queued")).to_be_visible()
+    page.get_by_role("button", name="Check all", exact=True).click()
+    expect(page.locator(".head [data-state=running]")).to_have_count(2)
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'check_all'")[0] == 1
-    row.get_by_role("button", name="Check", exact=True).click()
-    expect(page.get_by_text("Check: queued")).to_be_visible()
+    row.get_by_role("button", name="Check free one", exact=True).click()
+    expect(row.locator("[data-state=running]")).to_have_text("running…")   # the chip under Check (B-States)
+    expect(page.get_by_text("Check: queued")).to_have_count(0)
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'check' AND account_id = %s", free)[0] == 1
     more(row, "Wake")
     expect(page.get_by_text("Wake: clear cooldown and strikes: queued")).to_be_visible()
     more(row, "Delete")
     box = page.locator(".el-message-box")
-    expect(box).to_contain_text('Delete account "free one"? A used account cannot be deleted: disable it instead.')
+    expect(box).to_contain_text("Delete account free one?")
+    expect(box).to_contain_text("A used account cannot be deleted: disable it instead.")
     box.get_by_role("button", name="Cancel").click()
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'delete_account'")[0] == 0
     # the toast stack holds four: a fifth is dropped, so let the earlier ones go first
@@ -207,11 +265,12 @@ def test_a_check_shows_what_it_found_and_a_dead_account_shows_its_reason(app, ap
     gone = new_account(db, label="gone one", checked=True)
     db.run("UPDATE accounts SET state = 'dead', state_reason = 'signed out' WHERE id = %s", gone)
     open_accounts(page)
-    rows(page).filter(has_text="gone one").get_by_role("button", name="Check", exact=True).click()
-    expect(page.get_by_text("Check: queued")).to_be_visible()
+    row = rows(page).filter(has_text="gone one")
+    row.get_by_role("button", name="Check gone one", exact=True).click()
+    expect(row.locator("[data-state=running]")).to_have_text("running…")
     db.run("UPDATE commands SET status = 'done', result = %s::jsonb, finished_at = clock_timestamp() "
            "WHERE kind = 'check' AND account_id = %s", json.dumps({"outcome": "checked"}), gone)
-    expect(page.get_by_text("Check: checked - account dead (signed out)")).to_be_visible(timeout=10000)
+    expect(page.get_by_text("Check done: checked, account dead (signed out)")).to_be_visible(timeout=10000)
 
 
 def test_the_enable_switch_changes_the_account_and_a_refused_change_puts_it_back(app, app_session, db):
@@ -249,13 +308,20 @@ def test_shot_opens_the_screenshot_as_a_blob_in_a_new_tab_without_an_opener(app,
     open_accounts(page)
     # The new tab shows a blob: image document, which inherits the admin CSP, and Chrome's own image viewer styles it
     # inline: that is the browser's document, not ours, so the call is recorded instead of followed.
-    page.evaluate("window.open = (...args) => { window.__opened = args; return null; }", isolated_context=False)
+    # The expression ends in `true`: an expression whose value is a function is CALLED by evaluate, and that stray
+    # call (window.open(undefined)) landed in the record, so the test read it whenever it looked before the real one.
+    page.evaluate("window.__opened = []; window.open = (...args) => "
+                  "{ window.__opened.push({args, stack: new Error().stack}); return null; }; true",
+                  isolated_context=False)
     more(rows(page).filter(has_text="has shot"), "Shot")
     for _ in range(100):
-        if page.evaluate("window.__opened !== undefined", isolated_context=False):
+        if page.evaluate("window.__opened.length > 0", isolated_context=False):
             break
         page.wait_for_timeout(50)
-    url, target, features = page.evaluate("window.__opened", isolated_context=False)
+    page.wait_for_timeout(300)                                  # a second, stray call would land by now
+    calls = json.loads(page.evaluate("JSON.stringify(window.__opened)", isolated_context=False))
+    assert len(calls) == 1, "window.open was called %d times: %r" % (len(calls), calls)
+    url, target, features = calls[0]["args"]
     assert url.startswith("blob:http://127.0.0.1:") and target == "_blank" and features == "noopener"
     assert len(asked) == 1 and asked[0].endswith("/screenshot")
 
@@ -265,14 +331,113 @@ def test_auto_refresh_picks_up_new_rows_and_waits_while_a_dialog_is_open(app, ap
     new_account(db, label="first", checked=True)
     open_accounts(page)
     expect(rows(page)).to_have_count(1)
-    flip(page.get_by_role("switch", name="Auto-refresh"))
+    expect(page.get_by_text(re.compile(r"auto every 10 s"))).to_be_visible()
     page.get_by_role("button", name="Import", exact=True).click()
     new_account(db, label="late arrival", checked=True)
     page.wait_for_timeout(12000)                                # more than one period, with the dialog open
     expect(rows(page)).to_have_count(1)
     page.get_by_role("dialog").get_by_role("button", name="Close", exact=True).click()
     expect(rows(page)).to_have_count(2, timeout=15000)
-    # the switch outlives a tab switch
-    page.get_by_role("tab", name="Jobs", exact=True).click()
-    page.get_by_role("tab", name="Accounts", exact=True).click()
-    expect(page.get_by_role("switch", name="Auto-refresh")).to_be_checked()
+
+
+def test_the_pool_card_counts_the_pool_and_reads_the_points_from_the_pool_endpoint(app, app_session, db):
+    page = app_session
+    new_account(db, label="free one", checked=True)
+    gone = new_account(db, label="gone one", checked=True)
+    db.run("UPDATE accounts SET state = 'dead', state_reason = 'signed out' WHERE id = %s", gone)
+    open_accounts(page)
+    card = page.get_by_test_id("pool-card")
+    expect(card).to_contain_text("Pool health · 2 accounts")
+    expect(card.locator("dd").nth(0)).to_have_text("1 / 1")             # ready: usable / available
+    expect(card.locator("dd").nth(1)).to_have_text("1")                 # dead
+    expect(card).to_contain_text("Video points left")
+    expect(card).to_contain_text("Last full check")
+
+
+def test_the_more_menu_opens_under_its_button_and_closes_on_escape(app, app_session, db):
+    page = app_session
+    new_account(db, label="free one", checked=True)
+    open_accounts(page)
+    row = rows(page).filter(has_text="free one")
+    trigger = row.get_by_role("button", name="More actions for free one")
+    trigger.click()
+    menu = page.get_by_role("menu", name="Account actions")
+    expect(menu).to_be_visible()
+    expect(trigger).to_have_attribute("aria-expanded", "true")
+    names = [t.strip() for t in menu.get_by_role("menuitem").all_inner_texts()]
+    assert names == ["Shot", "Wake", "Edit", "Delete"], names
+    assert menu.bounding_box()["y"] >= trigger.bounding_box()["y"] + trigger.bounding_box()["height"]
+    page.keyboard.press("Escape")
+    expect(menu).to_have_count(0)
+    expect(trigger).to_have_attribute("aria-expanded", "false")
+
+
+@pytest.mark.parametrize("width", [390, 768])
+def test_the_list_fits_the_screen_at_tablet_and_phone_widths_and_import_is_reachable(app, app_page, live, db, width):
+    page = app_page
+    page.set_viewport_size({"width": width, "height": 900})
+    new_account(db, label="free one", checked=True, proxy=("10.0.0.1", 8080))
+    app.sign_in(page)
+    open_accounts(page)
+    expect(page.get_by_text("free one")).to_be_visible()
+    assert sideways(page) <= 1, "the page scrolls sideways"
+    page.get_by_role("button", name="Import", exact=True).click()
+    expect(page.get_by_role("dialog", name="Import accounts")).to_be_visible()
+    if width == 390:
+        sheet = page.get_by_role("dialog", name="Import accounts")
+        box = sheet.bounding_box()
+        for _ in range(30):                                             # a drawer slides in for a moment
+            page.wait_for_timeout(100)
+            again = sheet.bounding_box()
+            if again == box:
+                break
+            box = again
+        assert box["x"] == 0 and box["width"] == width, box             # a full-screen sheet below 768 px
+        expect(page.locator("tbody")).to_have_count(0)                  # a stacked list, not a table
+    else:
+        expect(page.locator("thead th")).to_have_count(5)
+
+
+
+
+def test_an_asleep_account_shows_until_when_and_why(app, app_session, db):
+    """The list carries `cooldown_until_ms`; the page once read `cooldown_ms` and never drew a sleeping account."""
+    page = app_session
+    acct = new_account(db, label="napping", checked=True)
+    db.run("UPDATE accounts SET cooldown_until = clock_timestamp() + interval '35 min', "
+           "cooldown_reason = 'dola.likeness_refused', strikes = 1 WHERE id = %s", acct)
+    open_accounts(page)
+    row = rows(page).filter(has_text="napping")
+    expect(row).to_contain_text("asleep until")
+    expect(row).to_contain_text("· strike")
+    expect(row).to_contain_text("dola.likeness_refused")
+
+
+CARD = "[aria-label='Account list'] .acct-scroll"
+
+
+@pytest.mark.parametrize("width", [1280, 1440])
+def test_the_desktop_table_keeps_its_width_and_the_card_scrolls_sideways_to_reach_check(
+        app, app_page, live, db, width):
+    """At 1280 the table (1280 wide) is wider than the card, which scrolls to reach Check; at 1440 the page frame is
+    wide enough for the whole table, so nothing scrolls (D123) and Check is inside the card as it stands."""
+    page = app_page
+    page.set_viewport_size({"width": width, "height": 800})
+    new_account(db, label="free one", checked=True)
+    app.sign_in(page)
+    open_accounts(page)
+    card = page.locator(CARD)
+    sizes = card.evaluate("e => [e.scrollWidth, e.clientWidth]")
+    assert sizes[0] >= 1280, sizes                                   # the table keeps its width
+    if width == 1280:
+        assert sizes[0] > sizes[1], sizes                            # inside a narrower card
+    else:
+        assert sizes[0] <= sizes[1] + 1, sizes                       # the card holds the whole table
+    card.evaluate("e => { e.scrollLeft = e.scrollWidth; }")
+    expect(page.get_by_role("button", name="Check free one", exact=True)).to_be_visible()
+    inside = page.evaluate("""css => {
+        const box = document.querySelector(css).getBoundingClientRect();
+        const b = document.querySelector("button[aria-label='Check free one']").getBoundingClientRect();
+        return b.left >= box.left - 1 && b.right <= box.right + 1;
+    }""", CARD)
+    assert inside, "Check lies inside the card once it is scrolled to the end"

@@ -57,7 +57,7 @@ def test_the_extractors_find_the_whole_sets():
     assert found["command status"] == {"queued", "running", "done", "failed"}
     assert found["alert kind"] == {"clamp", "drift", "unclear_reply"}
     assert found["alert severity"] == {"error", "warning"}
-    assert found["setting source"] == {"db", "env", "default"}
+    assert found["setting source"] == {"db", "default"}
 
 
 def test_the_registry_covers_every_status_the_backend_can_return():

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 // Prompt frames: the text relay sends is the customer's prompt inside one admin-written frame per model, or per kind
 // (the default). All the state and the race rules are in components/frames/use-frames.ts.
-import { onBeforeUnmount, onMounted } from "vue";
+import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 import FrameEditor from "@/components/frames/FrameEditor.vue";
 import FrameKindSection from "@/components/frames/FrameKindSection.vue";
+import FilterSelect from "@/components/shared/FilterSelect.vue";
+import { useRouteLeaveGuard } from "@/components/shared/use-leave-guard";
 import { NO_FRAMES_TEXT } from "@/components/frames/frames-model";
 import { forgetFramesMemory, useFrames } from "@/components/frames/use-frames";
 import { errorText } from "@/lib/errors";
@@ -14,6 +16,28 @@ import { useScopeStore } from "@/stores/scope";
 const frames = useFrames();
 const scope = useScopeStore();
 const offSignOut = useAuthStore().onSignOut(forgetFramesMemory);
+
+// Leaving the page (or closing the tab) with an unsaved frame in the open drawer asks first; a write in flight keeps
+// the page.
+useRouteLeaveGuard(
+  () => frames.open && frames.draft !== frames.loaded,
+  () => frames.busy,
+);
+
+// The drawer is gone and Element Plus has sent focus back to the button that opened it. When that button no longer
+// exists (a reload drew the rows again) focus goes to the page's scroll area, so it is never left on the document.
+let opener: HTMLElement | null = null;
+watch(
+  () => frames.open,
+  (isOpen) => {
+    if (isOpen) opener = document.activeElement as HTMLElement | null;
+  },
+  { flush: "sync" },
+);
+function editorClosed(): void {
+  if (opener?.isConnected && opener !== document.body) return;
+  document.querySelector<HTMLElement>(".app-scroll__wrap")?.focus({ preventScroll: true });
+}
 
 // The provider select is this view's own state. The global filter only decides where it starts, when valid.
 onMounted(async () => {
@@ -29,53 +53,137 @@ onBeforeUnmount(() => {
   frames.dispose();
   offSignOut();
 });
+
+// Video first, as drawn; any other kind keeps the server order after it.
+const kinds = computed(() =>
+  [...(frames.data?.kinds ?? [])].sort((a, b) => Number(b.kind === "video") - Number(a.kind === "video")),
+);
+
+const providerOptions = computed(() => frames.providers.map((name) => ({ value: name, label: name })));
+const onProvider = (name: string | number): void => void frames.openProvider(String(name));
 </script>
 
 <template>
   <section class="frames">
     <header class="frames__head">
-      <h3>Prompt frames</h3>
-      <el-select
-        :model-value="frames.provider"
-        aria-label="Provider"
+      <div class="frames__text">
+        <h1 class="frames__title">Prompt frames</h1>
+        <p class="frames__subtitle">
+          The wrapper text around each customer prompt. A save applies only to jobs created after it.
+        </p>
+      </div>
+      <!-- the drawn `Provider dola` trigger and list; `disabled` lands on its button -->
+      <FilterSelect
         class="frames__provider"
+        size="header"
+        label="Provider"
+        :model-value="frames.provider"
+        :options="providerOptions"
         :disabled="frames.opensOff"
-        @change="frames.openProvider"
-      >
-        <el-option v-for="name in frames.providers" :key="name" :label="name" :value="name" />
-      </el-select>
+        @update:model-value="onProvider"
+      />
     </header>
-    <p class="frames__note">
-      A save applies only to jobs created after it. A model with its own frame follows no default; a locked model keeps
-      its own when a default is applied to all.
-    </p>
-    <p v-if="frames.noFrames" class="frames__none">{{ NO_FRAMES_TEXT }}</p>
-    <FrameKindSection v-for="k in frames.data?.kinds ?? []" :key="k.kind" :frames="frames" :kind="k" />
-    <FrameEditor :frames="frames" />
+    <!-- a provider with no frames: the drawn empty card (12.6) -->
+    <section v-if="frames.noFrames" class="frames__none" aria-label="Prompt frames, none">
+      <p>{{ NO_FRAMES_TEXT }}</p>
+    </section>
+    <div class="frames__kinds">
+      <FrameKindSection v-for="k in kinds" :key="k.kind" :frames="frames" :kind="k" />
+    </div>
+    <FrameEditor :frames="frames" @closed="editorClosed" />
   </section>
 </template>
 
 <style scoped>
 .frames {
-  display: grid;
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 .frames__head {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: 12px;
 }
-.frames__head h3 {
+.frames__text {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+.frames__title {
   margin: 0;
-  font-size: 16px;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }
-.frames__provider {
-  width: 180px;
+.frames__subtitle {
+  margin: 4px 0 0;
+  color: var(--rl-muted);
 }
-.frames__note,
 .frames__none {
+  padding: 44px 24px 52px;
+  border: 1px solid var(--rl-line);
+  border-radius: 16px;
+  background: var(--rl-surface);
+  text-align: center;
+}
+.frames__none p {
   margin: 0;
   color: var(--rl-muted);
-  font-size: 12px;
+}
+
+/* off while a write runs: the drawn disabled secondary (the view's own rules outrank the select's) */
+.frames .frames__head .frames__provider:disabled {
+  background: var(--rl-raised);
+  color: var(--rl-faint);
+  cursor: default;
+}
+
+.frames__kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .frames__title {
+    font-size: 24px;
+    line-height: 32px;
+    letter-spacing: -0.012em;
+  }
+  .frames__subtitle {
+    margin-top: 2px;
+  }
+}
+@media (max-width: 767px) {
+  .frames__head {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+  .frames__text {
+    flex: none;
+  }
+  .frames__title {
+    font-size: 22px;
+    line-height: 30px;
+    letter-spacing: -0.01em;
+  }
+  .frames__subtitle {
+    margin-top: 2px;
+  }
+  .frames .frames__head .frames__provider {
+    align-self: flex-start;
+    height: 44px;
+    padding: 0 14px;
+  }
+  .frames {
+    gap: 16px;
+  }
+  .frames__kinds {
+    gap: 16px;
+  }
 }
 </style>

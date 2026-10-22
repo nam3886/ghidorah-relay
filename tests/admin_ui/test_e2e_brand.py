@@ -17,10 +17,10 @@ SVG_FORBIDDEN = re.compile(r"<script|<style|<image|<foreignObject|href\s*=|url\(
 ONLY_HOST = re.compile(r"https?://(?!www\.w3\.org/2000/svg)", re.I)
 
 
-def test_the_page_is_titled_ghidorah_relay_and_its_favicon_is_a_same_origin_svg(app, app_page):
+def test_the_page_is_titled_ghidorah_admin_and_its_favicon_is_a_same_origin_svg(app, app_page):
     page = app_page
     page.goto(app.url + "#/login")
-    expect(page).to_have_title("Ghidorah Relay")
+    expect(page).to_have_title("Ghidorah admin")
     href = page.locator("link[rel=icon]").get_attribute("href")
     assert href, "no favicon link"
     full = page.evaluate("h => new URL(h, location.href).href", href)
@@ -31,40 +31,35 @@ def test_the_page_is_titled_ghidorah_relay_and_its_favicon_is_a_same_origin_svg(
     assert b"<svg" in served.body()
 
 
-def test_the_login_page_has_the_logo_and_the_ghidorah_relay_heading(app, app_page):
+def test_the_login_page_has_the_logo_and_the_admin_heading(app, app_page):
     page = app_page
     page.goto(app.url + "#/login")
-    expect(page.get_by_role("heading", name="Sign in to Ghidorah Relay")).to_be_visible()
-    logo = page.get_by_alt_text("Ghidorah Relay")
+    expect(page.get_by_role("heading", name="Sign in to the admin")).to_be_visible()
+    logo = page.get_by_alt_text("Ghidorah", exact=True)
     expect(logo).to_be_visible()
     assert page.evaluate("el => el.naturalWidth", logo.element_handle()) > 0, "the logo did not load"
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
-def test_the_header_logo_is_wide_on_a_desktop_and_the_symbol_with_relay_on_a_phone(app, app_session, color_scheme):
+def test_the_header_logo_is_the_wide_one_at_every_width_26_px_high_and_24_on_a_phone(app, app_session, color_scheme):
     page = app_session
     word = "dark" if color_scheme == "dark" else "light"
-    page.set_viewport_size({"width": 1280, "height": 800})
-    full = page.locator("img.brand__full")
-    expect(full).to_be_visible()
-    assert full.bounding_box()["width"] >= 160, full.bounding_box()
-    assert "ghidorah-logo-%s" % word in full.get_attribute("src"), full.get_attribute("src")
-    assert page.evaluate("el => el.naturalWidth", full.element_handle()) > 0, "the logo did not load"
-    expect(page.locator("img.brand__symbol")).to_be_hidden()
-
-    page.set_viewport_size({"width": 375, "height": 800})
-    symbol = page.locator("img.brand__symbol")
-    expect(symbol).to_be_visible()
-    box = symbol.bounding_box()
-    assert box["height"] >= 32 and box["width"] >= 30, box
-    expect(page.locator(".brand__word")).to_have_text("Relay")
-    expect(full).to_be_hidden()
+    logo = page.get_by_role("banner").get_by_role("img", name="Ghidorah", exact=True)
+    for width, height in ((1280, 26), (768, 26), (390, 24)):
+        page.set_viewport_size({"width": width, "height": 800})
+        expect(logo).to_be_visible()
+        box = logo.bounding_box()
+        assert abs(box["height"] - height) < 0.6, (width, box)
+        assert box["width"] >= (160 if height == 26 else 148), (width, box)
+        assert "ghidorah-logo-%s" % word in logo.get_attribute("src"), logo.get_attribute("src")
+        assert page.evaluate("el => el.naturalWidth", logo.element_handle()) > 0, "the logo did not load"
+    expect(page.get_by_role("banner").get_by_text("Relay")).to_have_count(0)
     page.csp.check()
 
 
 def test_every_svg_the_app_ships_has_no_script_style_link_or_data_url():
     files = sorted(STATIC.glob("app/**/*.svg")) + sorted((PUBLIC / "brand").glob("*.svg"))
-    for prefix in ("ghidorah-favicon", "ghidorah-logo-dark", "ghidorah-logo-light", "ghidorah-symbol-purple"):
+    for prefix in ("ghidorah-favicon", "ghidorah-logo-dark", "ghidorah-logo-light"):
         shipped = [f.name for f in files]
         assert any(n.startswith(prefix) for n in shipped), "%s is not shipped: %s" % (prefix, shipped)
     for svg in files:

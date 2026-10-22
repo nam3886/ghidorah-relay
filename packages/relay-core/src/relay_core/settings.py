@@ -1,9 +1,10 @@
 """The settings registry: live, operator-editable values with a typed spec each.
 
-Precedence is DB > env > default. A value is validated before it is written, so a refused write leaves the stored
-value as it was. Keys outside the registry are refused, and deleting a stored value restores the env or the
-default. Each process keeps a cache of the stored values; `NOTIFY relay_settings` makes every process reload it, and
-a listener that loses its connection reloads everything once it is back (a notification sent meanwhile is lost).
+Precedence is DB > default: no environment variable sets a setting. A value is validated before it is written, so a
+refused write leaves the stored value as it was. Keys outside the registry are refused, and deleting a stored value
+restores the default. Each process keeps a cache of the stored values; `NOTIFY relay_settings` makes every process
+reload it, and a listener that loses its connection reloads everything once it is back (a notification sent meanwhile
+is lost).
 
 Boot-only rule: an upstream URL, host, endpoint, proxy or user agent is configuration of the deployment, not a live
 setting. A key ending in one of BOOT_ONLY_SUFFIXES can never be registered, so it can never be written to the
@@ -14,9 +15,8 @@ with `REGISTRY.register(...)` when their package loads; this module names no pro
 import asyncio
 import json
 import logging
-import os
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import KW_ONLY, dataclass
 from typing import Any
 
 import psycopg
@@ -28,7 +28,6 @@ log = logging.getLogger(__name__)
 
 NOTIFY_SQL = "SELECT pg_notify('relay_settings', %s)"
 BOOT_ONLY_SUFFIXES = ("_url", "_uri", "_host", "_hosts", "_endpoint", "_origin", "_base", "proxy", "user_agent")
-_TRUE, _FALSE = {"1", "true", "yes", "on"}, {"0", "false", "no", "off"}
 
 
 class SettingsError(ValueError):
@@ -42,42 +41,58 @@ def is_boot_only(key: str) -> bool:
 
 
 @dataclass(frozen=True)
+class Rule:
+    """A bound a range cannot say. `check` raises ValueError for a value of the right type that is out; `text` is what
+    the settings page shows as the allowed values."""
+
+    text: str
+    check: Callable[[Any], None]
+
+
+@dataclass(frozen=True)
 class Spec:
-    """`type` is exact (a bool is not an int). `check` raises ValueError for a value of the right type that is out."""
+    """`type` is exact (a bool is not an int). `min` and `max` bound a number; `rule` covers what a range cannot say.
+    The same fields drive the refusal and the `allowed` text, so the page never shows a bound the code does not hold."""
 
     key: str
     type: type
     default: Any
     description: str
-    check: Callable[[Any], None] | None = None
+    _: KW_ONLY
+    min: float | None = None
+    max: float | None = None
+    rule: Rule | None = None
 
     @property
-    def env_name(self) -> str:
-        return self.key.upper().replace(".", "_")
+    def allowed(self) -> str | None:
+        parts = []
+        if self.type is bool:
+            parts.append("true or false")
+        elif self.min is not None and self.max is not None:
+            parts.append("%g\u2013%g" % (self.min, self.max))
+        elif self.min is not None:
+            parts.append("at least %g" % self.min)
+        elif self.max is not None:
+            parts.append("at most %g" % self.max)
+        if self.rule:
+            parts.append(self.rule.text)
+        return "; ".join(parts) or None
 
     def validate(self, value: Any) -> Any:
         if type(value) is not self.type:
             raise SettingsError("%s must be %s, not %s" % (self.key, self.type.__name__, type(value).__name__))
-        if self.check:
+        if self.min is not None and self.max is not None and not self.min <= value <= self.max:
+            raise SettingsError("%s: must be between %g and %g" % (self.key, self.min, self.max))
+        if self.min is not None and value < self.min:
+            raise SettingsError("%s: must be at least %g" % (self.key, self.min))
+        if self.max is not None and value > self.max:
+            raise SettingsError("%s: must be at most %g" % (self.key, self.max))
+        if self.rule:
             try:
-                self.check(value)
+                self.rule.check(value)
             except ValueError as e:
                 raise SettingsError("%s: %s" % (self.key, e)) from None
         return value
-
-    def from_env(self, text: str) -> Any:
-        try:
-            if self.type is bool:
-                if text.lower() not in _TRUE | _FALSE:
-                    raise ValueError("not a boolean")
-                value = text.lower() in _TRUE
-            elif self.type in (list, dict):
-                value = json.loads(text)
-            else:
-                value = self.type(text)
-        except ValueError as e:
-            raise SettingsError("%s (env %s): %s" % (self.key, self.env_name, e)) from None
-        return self.validate(value)
 
 
 class Registry:
@@ -105,30 +120,22 @@ class Registry:
             raise SettingsError("%s is not a setting" % key) from None
 
 
-def _at_least(n: int) -> Callable[[int], None]:
-    def check(v: int) -> None:
-        if v < n:
-            raise ValueError("must be at least %d" % n)
-    return check
-
-
 def _filename_pattern(v: str) -> None:
     if not v.strip():
         raise ValueError("must not be empty")
 
 
 REGISTRY = Registry(
-    Spec("log_retention_days", int, 30, "Days request logs are kept.", _at_least(1)),
-    Spec("media_orphan_age_h", int, 6, "Hours before an uploaded file nobody owns is swept.", _at_least(1)),
+    Spec("log_retention_days", int, 30, "Days request logs are kept.", min=1),
+    Spec("media_orphan_age_h", int, 6, "Hours before an uploaded file nobody owns is swept.", min=1),
     Spec("media_orphan_sweep", bool, True, "Sweep uploaded files nobody owns. Off while a restore is checked."),
-    Spec("unsent_deadline_s", int, 10_800, "Seconds a job may wait unsent before it fails.", _at_least(60)),
-    Spec("session_ttl_s", int, 86_400, "Admin session lifetime in seconds.", _at_least(60)),
-    Spec("max_unfinished_default", int, 20, "Unfinished jobs a key may hold when it has no limit of its own.",
-         _at_least(0)),
-    Spec("alert_disk_free_gb", int, 10, "Alert when the media disk has less free space than this (GB).",
-         _at_least(0)),
-    Spec("alert_accounts_low", int, 3, "Alert when a provider has fewer usable accounts than this.", _at_least(0)),
-    Spec("filename_pattern", str, "{prompt}_{duration}", "Download filename template.", _filename_pattern),
+    Spec("unsent_deadline_s", int, 10_800, "Seconds a job may wait unsent before it fails.", min=60),
+    Spec("session_ttl_s", int, 86_400, "Admin session lifetime in seconds.", min=60),
+    Spec("max_unfinished_default", int, 20, "Unfinished jobs a key may hold when it has no limit of its own.", min=0),
+    Spec("alert_disk_free_gb", int, 10, "Alert when the media disk has less free space than this (GB).", min=0),
+    Spec("alert_accounts_low", int, 3, "Alert when a provider has fewer usable accounts than this.", min=0),
+    Spec("filename_pattern", str, "{prompt}_{duration}", "Download filename template.",
+         rule=Rule("not empty", _filename_pattern)),
 )
 
 
@@ -136,11 +143,8 @@ class Settings:
     """The per-process view of the registry. `start()` loads the stored values and keeps them fresh."""
 
     def __init__(self, pool: AsyncConnectionPool, dsn: str, *, registry: Registry = REGISTRY,
-                 env: Mapping[str, str] | None = None, reconnect_s: float = 1.0):
+                 reconnect_s: float = 1.0):
         self._pool, self._dsn, self._registry, self._reconnect_s = pool, dsn, registry, reconnect_s
-        env = os.environ if env is None else env
-        self._env = {s.key: s.from_env(env[s.env_name]) for s in registry.specs.values()
-                     if env.get(s.env_name) not in (None, "")}
         self._stored: dict[str, Any] = {}
         self._reload_lock = asyncio.Lock()
         self._task: asyncio.Task | None = None
@@ -152,13 +156,11 @@ class Settings:
 
     def get(self, key: str) -> Any:
         spec = self._registry.spec(key)
-        if key in self._stored:
-            return self._stored[key]
-        return self._env.get(key, spec.default)
+        return self._stored.get(key, spec.default)
 
     def source(self, key: str) -> str:
         self._registry.spec(key)
-        return "db" if key in self._stored else "env" if key in self._env else "default"
+        return "db" if key in self._stored else "default"
 
     async def set(self, key: str, value: Any, *, by: str | None = None) -> Any:
         spec = self._registry.spec(key)
@@ -168,7 +170,7 @@ class Settings:
 
     async def set_changed(self, key: str, value: Any, *, by: str | None = None) -> bool:
         """`set`, but says whether the STORED row was absent or different before the write (not whether the effective
-        value moved: the env or the default may already give the same one)."""
+        value moved: the default may already give the same one)."""
         return await self._write(key, self._registry.spec(key).validate(value), by)
 
     async def _write(self, key: str, value: Any, by: str | None) -> bool:
@@ -188,7 +190,7 @@ class Settings:
         return changed
 
     async def delete(self, key: str) -> bool:
-        """Drop the stored value: the env value or the default applies again. True when a value was stored."""
+        """Drop the stored value: the default applies again. True when a value was stored."""
         self._registry.spec(key)
         async with tx(self._pool) as conn:
             # the same lock as a write: a delete never lands between a write's read and its upsert
@@ -200,7 +202,7 @@ class Settings:
 
     async def reload(self) -> None:
         """Replace the cache with what the table holds now. A stored value that no longer validates (a spec was
-        tightened, a key was removed) is ignored with an error in the log, so the env or default applies."""
+        tightened, a key was removed) is ignored with an error in the log, so the default applies."""
         async with self._reload_lock:      # an older read must not finish after a newer one and overwrite it
             async with tx(self._pool) as conn:
                 rows = await (await conn.execute("SELECT key, value FROM settings_kv")).fetchall()

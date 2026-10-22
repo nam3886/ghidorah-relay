@@ -9,7 +9,37 @@ from pathlib import Path
 
 STATIC = Path(__file__).resolve().parents[2] / "packages/relay-core/src/relay_core/admin/static"
 APP = STATIC / "app"
+PUBLIC = Path(__file__).resolve().parents[2] / "apps/admin-web/public"
 SCANNED = (".html", ".css", ".js")
+
+# The fonts the design uses (DESIGN section 4): family -> (subsets, weights). They come from two exact-pinned fontsource
+# packages and ship as hashed woff2 files of the dist; nothing is vendored in public/ and nothing is inlined as data:.
+FONTS = {"be-vietnam-pro": (("latin", "vietnamese"), (400, 500, 600, 700)),
+         "ibm-plex-mono": (("latin", "vietnamese"), (400, 500))}
+FONT_SUFFIXES = (".woff", ".woff2", ".ttf", ".otf", ".eot")
+
+
+def font_files() -> list[str]:
+    """The woff2 files of the dist, as paths relative to it."""
+    return [p.relative_to(APP).as_posix() for p in sorted(APP.rglob("*.woff2")) if p.is_file()]
+
+
+def missing_fonts(names: list[str]) -> list[str]:
+    """The font files the design needs that `names` (dist paths) do not have: `assets/<family>-<subset>-<weight>-normal-
+    <hash>.woff2`."""
+    missing = []
+    for family, (subsets, weights) in FONTS.items():
+        for subset in subsets:
+            for weight in weights:
+                pattern = re.compile(r"^assets/%s-%s-%d-normal-[A-Za-z0-9_-]+\.woff2$" % (family, subset, weight))
+                if not any(pattern.match(name) for name in names):
+                    missing.append("%s %s %d" % (family, subset, weight))
+    return missing
+
+
+def vendored_fonts() -> list[str]:
+    """Font files under public/ (there must be none: the fonts come from the packages)."""
+    return [p.name for p in sorted(PUBLIC.rglob("*")) if p.is_file() and p.suffix.lower() in FONT_SUFFIXES]
 
 # What each check looks for. Every pattern is searched in the text of every scanned file.
 REMOTE_URL = re.compile(r"""(?:https?:)?//[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}[^\s"'`)<>]*""")
@@ -17,8 +47,13 @@ INLINE_HANDLER = re.compile(r"""[\s"'`]on[a-z]+\s*=\s*["'`]""")
 JAVASCRIPT_URL = re.compile(r"javascript:", re.I)
 SOURCE_MAP = re.compile(r"sourceMappingURL")
 STYLE_ATTRIBUTE = re.compile(r"""\sstyle\s*=\s*["']""")
-# A data: URL in a CSS url() or in a quoted string. The admin CSP has no img-src (it falls back to 'self'): blocked.
-DATA_URL = re.compile(r"""url\(\s*["']?data:[^)]*\)|["'`]data:[a-z]+/""")
+# A data: URL in a CSS url() or at the start of a quoted string, in every form the URI scheme allows: with a media type
+# (`data:text/plain,..`, `data:image/png;base64,..`), with a parameter only (`data:;base64,..`) or with none
+# (`data:,..`).
+# The admin CSP has no img-src (it falls back to 'self'): blocked.
+DATA_URL = re.compile(r"""url\(\s*["']?data:[^)]*\)|["'`]data:(?:[a-z]+/|[;,])""", re.I)
+# Any data: in a stylesheet at all: the build strips Element Plus's data: masks (vite.config.ts), so none may ship.
+CSS_DATA = re.compile(r"data:")
 CHECKS = {"remote URL": REMOTE_URL, "inline handler": INLINE_HANDLER, "javascript: URL": JAVASCRIPT_URL,
           "source-map comment": SOURCE_MAP, "style attribute": STYLE_ATTRIBUTE, "data: URL": DATA_URL}
 
@@ -36,14 +71,6 @@ ALLOWED: dict[tuple[str, str], str] = {
     ("remote URL", "http://www.w3.org/1999/xlink"): _XML_NAMESPACE + " (Vue's xlink attribute namespace)",
     ("remote URL", "http://www.w3.org/1998/Math/MathML"): _XML_NAMESPACE + " (Vue's MathML element namespace)",
     ("remote URL", "https://vuejs.org/error-reference/#runtime-${r}"): "Vue's production error message template; text",
-    ("remote URL", "https://element-plus.org/zh-CN/component/pagination.html"): (
-        "the `ref:` of el-pagination's deprecation notice for `small` (element-plus 2.14.7 pagination.mjs, the only "
-        "doc link there with a zh-CN path); the notice prints it in a development warning, and nothing requests it"),
-    # key = sha256 prefix of the whole url("data:...") text, so only this exact image is excused, not data: URLs
-    ("data: URL", "sha256:c8faacbdb989b684"): (
-        "the tick mask of a selected option in an Element Plus multiple select (`-webkit-mask` and `mask` of "
-        "`.el-select-dropdown__item.is-selected`); theme.css replaces it with a border-drawn tick, so the URL is never "
-        "requested and the CSP never sees it; only the rule text stays in the bundle"),
     ("data: URL", "`data:attachment/"): (
         "the string a Vue devtools-free file-download helper writes into a Blob reader result (data:attachment/file;); "
         "code that rewrites a string, never a request or an element source"),
@@ -68,6 +95,9 @@ def _hits(files: dict[str, str]):
                 before = text[match.start() - 1] if match.start() else ""
                 after = text[match.end()] if match.end() < len(text) else ""
                 yield name, check, match.group(0), before, after
+        if name.endswith(".css"):
+            for match in CSS_DATA.finditer(text):
+                yield name, "data: in CSS", match.group(0), "", ""
 
 
 def findings(files: dict[str, str]) -> list[tuple[str, str, str]]:

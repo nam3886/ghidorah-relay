@@ -3,42 +3,69 @@ import { computed } from "vue";
 import { labelOf, toneOf, type Tone } from "./status-tones";
 
 // `status` is looked up in the tone registry (a number is an HTTP code); `label` replaces the shown word and `tone`
-// replaces the lookup, for the rare chip whose word is not the status. The chip is an el-tag; the tone picks its type.
-const props = defineProps<{ status: string | number | null | undefined; label?: string; tone?: Tone }>();
+// replaces the lookup, for the rare chip whose word is not the status. `step` ("2/4") replaces the dot with the
+// position of a running job. The chip is a plain 24 px pill (an el-tag cannot draw the canvas pill); the tone picks
+// its colours.
+const props = defineProps<{
+  status: string | number | null | undefined;
+  label?: string;
+  tone?: Tone;
+  step?: string;
+}>();
 const resolved = computed<Tone>(() => props.tone ?? toneOf(props.status));
 const text = computed(() => props.label ?? labelOf(props.status));
-const TAG_TYPE = { ok: "success", info: "info", warn: "warning", bad: "danger", neutral: "info" } as const;
 </script>
 
 <template>
-  <el-tag
-    class="status-chip"
-    :class="`tone-${resolved}`"
-    :type="TAG_TYPE[resolved]"
-    effect="light"
-    disable-transitions
-    :data-tone="resolved"
-  >
-    <i class="dot" aria-hidden="true" />{{ text }}
-  </el-tag>
+  <span class="status-chip" :class="`tone-${resolved}`" :data-tone="resolved">
+    <span v-if="props.step" class="step">{{ props.step }}</span>
+    <i v-else class="dot" aria-hidden="true" />{{ text }}
+  </span>
 </template>
 
 <style scoped>
-/* The tag's own padding and colours stay; only the dot and the grey of "neutral" (the registry's neutral is not blue) */
-.status-chip :deep(.el-tag__content) {
+.status-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--chip-fg);
+  background: var(--chip-bg);
 }
 .dot {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
-  background: currentcolor;
+  border-radius: 3px;
+  background: var(--chip-fg);
+}
+.step {
+  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.tone-ok {
+  --chip-fg: var(--rl-ok);
+  --chip-bg: var(--rl-ok-bg);
+}
+.tone-warn {
+  --chip-fg: var(--rl-warn);
+  --chip-bg: var(--rl-warn-bg);
+}
+.tone-bad {
+  --chip-fg: var(--rl-bad);
+  --chip-bg: var(--rl-bad-bg);
+}
+.tone-info {
+  --chip-fg: var(--rl-info);
+  --chip-bg: var(--rl-info-bg);
 }
 .tone-neutral {
-  --el-tag-text-color: var(--rl-neutral);
-  --el-tag-bg-color: var(--rl-neutral-bg);
-  --el-tag-border-color: var(--rl-line);
+  --chip-fg: var(--rl-neutral);
+  --chip-bg: var(--rl-neutral-bg);
 }
 </style>

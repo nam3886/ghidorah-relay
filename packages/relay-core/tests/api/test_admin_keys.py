@@ -252,3 +252,34 @@ def test_the_admin_lists_every_model_of_every_provider_for_the_key_form(db):
     assert len(data) >= 2 and data == public.json()["data"], "every model of every provider: %r" % data
     assert all(m["prices"] is not None and "owned_by" in m for m in data)
 
+
+
+STRIP_ON_CREATE = "no label\n        return value.strip()"
+STRIP_ON_PATCH = "        return None if value is None else value.strip()"
+
+
+@mutation(ROUTES, STRIP_ON_CREATE, "no label\n        return value", expect="a label of spaces is stored as it came")
+@mutation(ROUTES, STRIP_ON_PATCH, "        return value", expect="a patch to spaces is stored as it came")
+def test_a_label_is_stored_without_its_edges_and_a_label_of_spaces_is_no_label(db):
+    async def scenario(env):
+        h = await env.admin_headers()
+        blank = await make(env, h, label="   ")
+        padded = await make(env, h, label=" a ")
+        edge = await env.client.post("/admin/keys", json={"label": " " + "x" * 100}, headers=h)
+        over = await env.client.post("/admin/keys", json={"label": "x" * 101}, headers=h)
+        # the key patched to spaces, and one patched to a padded name
+        named = await make(env, h, label="old")
+        patch = lambda body: env.client.patch("/admin/keys/%s" % named["id"], json=body, headers=h)  # noqa: E731
+        cleared = await patch({"label": "  "})
+        trimmed = await patch({"label": "  b  "})
+        return blank, padded, edge, over, cleared, trimmed, named
+
+    blank, padded, edge, over, cleared, trimmed, named = run_app(db, scenario)
+    label = lambda made: db.one("SELECT label FROM api_keys WHERE id = %s", uuid.UUID(made["id"]))[0]  # noqa: E731
+    assert blank["label"] == "" and label(blank) == "", "a label of spaces is stored as it came: %r" % label(blank)
+    assert padded["label"] == "a" and label(padded) == "a"
+    assert (edge.status_code, code_of(edge)) == (400, "input.invalid"), "the limit counts the label as sent"
+    assert (over.status_code, code_of(over)) == (400, "input.invalid")
+    assert cleared.status_code == 200 and cleared.json()["label"] == "" and trimmed.json()["label"] == "b", (
+        "a patch to spaces is stored as it came")
+    assert label(named) == "b"

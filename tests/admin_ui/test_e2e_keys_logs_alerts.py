@@ -12,8 +12,11 @@ import pytest
 from accountkit import done_job, new_account
 from jobkit import key as new_key
 from patchright.sync_api import expect
+from pixel_capture import sideways
 from test_admin_alert_groups import group_of, plant_unclear, stamp
 from test_admin_alerts import plant
+
+from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
 
@@ -23,23 +26,38 @@ PLAIN_REPLY = "Plain wording of one key"
 
 def open_tab(page, label):
     page.get_by_role("tab", name=label, exact=True).click()
-    expect(page.get_by_role("heading", name=label)).to_be_visible()
+    # the page title (an empty or failed card repeats the name in its own heading, as drawn)
+    expect(page.get_by_role("heading", name=label, level=1)).to_be_visible()
 
 
 def rows(page):
-    return page.locator(".el-table__body tbody tr")
+    """The data rows of a table: a day header row (Request logs) is not one."""
+    return page.locator(".el-table__body tbody tr:not(.is-day)")
 
 
-def pick(page, select_label, option):
-    # the whole select is the click target: its placeholder text sits over the readonly input
-    page.locator(".el-select").filter(has=page.get_by_role("combobox", name=select_label, exact=True)).click()
-    # every select keeps its own popper in the page: the open one is the visible one
-    page.wait_for_timeout(400)                       # the popper slides in and, a moment later, is where it stays
-    page.locator("li.el-select-dropdown__item:visible").get_by_text(option, exact=True).click()
-    expect(page.get_by_role("combobox", name=select_label, exact=True)).to_have_attribute("aria-expanded", "false")
+def logs_filter(page, label):
+    """A Request logs filter (FilterSelect's field: a combobox, its list opened in the body)."""
+    return page.locator('section[aria-label="Request log list"]').get_by_role("combobox", name=label, exact=True)
+
+
+def pick(page, label, option):
+    """Choose an option of a Request logs filter; the field then shows it."""
+    logs_filter(page, label).click()
+    page.get_by_role("option", name=option, exact=True).click()
+    expect(logs_filter(page, label).locator(".is-current")).to_have_text(option)
 
 
 # ---- API keys ------------------------------------------------------------------------------------------------------
+
+
+def mode(box, wallet, option):
+    """Choose a wallet's Mode in the key form (FilterSelect's field: a combobox in the wallet's group, its list opened
+    in the body)."""
+    field = box.get_by_role("group", name=wallet, exact=True).get_by_role("combobox", name="Mode")
+    field.click()
+    box.page.get_by_role("option", name=option, exact=True).click()
+    expect(field).to_contain_text(option)
+
 
 def key_places(page, raw):
     """Every place of the page the raw key could be found in, except the callout's own field."""
@@ -64,15 +82,13 @@ def key_places(page, raw):
 
 
 def create_key(page, label="customer one"):
-    page.get_by_role("button", name="New key").click()
+    page.get_by_role("button", name="New key").first.click()
     box = page.get_by_role("dialog")
     box.get_by_label("Label", exact=True).fill(label)
-    pick(page, "fake video mode", "limit")
-    per_day = box.get_by_label("fake video per day")
-    per_day.fill("5", force=True)             # Element Plus marks an empty number box aria-disabled
-    per_day.press("Tab")                      # the number field commits on blur
-    pick(page, "fake image mode", "unlimited")
-    box.get_by_role("button", name="Create").click()
+    mode(box, "fake video", "limit")
+    box.get_by_label("fake video per day").fill("5")
+    mode(box, "fake image", "unlimited")
+    box.get_by_role("button", name="Create key").click()
     # the dialog has the same name; the field is the textbox
     callout = page.get_by_role("textbox", name="New API key")
     expect(callout).to_be_visible()
@@ -87,11 +103,12 @@ def test_create_shows_the_raw_key_once_copies_it_over_plain_http_and_it_is_gone_
     page.evaluate("Object.defineProperty(window, 'isSecureContext', { value: false })", isolated_context=False)
     raw = create_key(page)
     assert raw.startswith("rk-") and db.one("SELECT count(*) FROM api_keys")[0] == 1
-    # the callout's own field (its value only: the field is an Element Plus input, so the markup holds no copy of it)
-    # is the only place: no storage, no address
+    # the callout's own field (its value only: a property of the input, so the markup holds no copy of it) is the
+    # only place: no storage, no address
     assert key_places(page, raw) == ["field"]
     assert page.content().count(raw) == 0
-    expect(page.get_by_text("Copy this key now, it is not shown again.")).to_be_visible()
+    expect(page.get_by_test_id("new-key")).to_contain_text("Key created for customer one.")
+    expect(page.get_by_test_id("new-key")).to_contain_text("Copy it now: it is shown once and not stored.")
     copy = page.get_by_test_id("new-key").get_by_role("button", name="Copy")
     copy.click()
     expect(page.get_by_test_id("new-key").get_by_role("button", name="Copied")).to_be_visible()
@@ -99,8 +116,10 @@ def test_create_shows_the_raw_key_once_copies_it_over_plain_http_and_it_is_gone_
     assert raw not in json.dumps(db.all("SELECT key_hash, key_prefix FROM api_keys")), "only the hash is stored"
     row = rows(page).first
     expect(row).to_contain_text("customer one")
-    expect(row).to_contain_text("fake video: day 0/5")
-    expect(row).to_contain_text("fake image: unlimited")
+    expect(row).to_contain_text("fake video")
+    expect(row).to_contain_text("day 0/5")
+    expect(row).to_contain_text("fake image")
+    expect(row).to_contain_text("unlimited")
     page.get_by_test_id("new-key").get_by_role("button", name="Dismiss").click()
     expect(page.get_by_test_id("new-key")).to_have_count(0)
     assert key_places(page, raw) == [], "gone after Dismiss"
@@ -115,7 +134,7 @@ def test_a_real_401_while_the_callout_is_visible_clears_the_key(app, app_session
     raw = create_key(page)
     assert page.evaluate("indexedDB.databases().then(list => list.length)") == 0
     db.run("DELETE FROM admin_sessions")                         # the session is gone on the server
-    page.get_by_role("button", name="Refresh", exact=True).click()   # the next admin call answers 401
+    rows(page).first.get_by_role("switch").click()                 # the next admin call answers 401
     expect(page).to_have_url(re.compile(r"#/login$"))
     expect(page.get_by_test_id("new-key")).to_have_count(0)
     assert key_places(page, raw) == [], "gone after a 401"
@@ -130,9 +149,10 @@ def test_a_failed_create_shows_fixed_text_and_never_what_the_server_said(app, ap
     page.route("**/admin/keys", lambda r: r.fulfill(status=422, content_type="application/json",
                                                      body=json.dumps(body)) if r.request.method == "POST"
                else r.continue_())
-    page.get_by_role("button", name="New key").click()
+    page.get_by_role("button", name="New key").first.click()
     box = page.get_by_role("dialog")
-    box.get_by_role("button", name="Create").click()
+    box.get_by_label("Label", exact=True).fill("customer one")
+    box.get_by_role("button", name="Create key").click()
     expect(box).to_contain_text("Some of the values are not accepted. Check the highlighted field.")
     assert key_places(page, fake) == []
     assert fake not in page.locator("body").inner_text()
@@ -149,7 +169,7 @@ def test_the_raw_key_is_gone_when_the_tab_is_left_and_when_the_operator_signs_ou
     expect(page.get_by_test_id("new-key")).to_have_count(0)
     assert key_places(page, raw) == []
     raw = create_key(page, "second")
-    page.get_by_role("button", name="Sign out").click()
+    app.sign_out(page)
     expect(page).to_have_url(re.compile(r"#/login$"))
     assert key_places(page, raw) == [], "gone on sign-out"
     app.sign_in(page)
@@ -176,13 +196,13 @@ def test_edit_disable_and_delete_with_and_without_jobs(app, app_session, db):
     assert sent[0]["label"] == "plain renamed" and sent[0]["models"] == ["*"]
     assert db.one("SELECT label FROM api_keys WHERE id = %s", plain)[0] == "plain renamed"
     switch = rows(page).filter(has_text="plain renamed").get_by_role("switch")
-    switch.evaluate("el => el.click()")                  # Element Plus hides the checkbox behind the track
+    switch.click()
     expect(switch).not_to_be_checked()
     assert db.one("SELECT enabled FROM api_keys WHERE id = %s", plain)[0] is False
     # delete: a key with no job goes, a key with jobs is only disabled
     rows(page).filter(has_text="plain renamed").get_by_role("button", name="Delete").click()
-    expect(page.locator(".el-message-box")).to_contain_text(
-        'Delete key "plain renamed"? A key that has jobs is only disabled.')
+    expect(page.locator(".el-message-box")).to_contain_text("Delete key plain renamed?")
+    expect(page.locator(".el-message-box")).to_contain_text("A key that has jobs is only disabled.")
     page.locator(".el-message-box").get_by_role("button", name="Delete").click()
     expect(page.get_by_text("Key deleted")).to_be_visible()
     assert db.one("SELECT count(*) FROM api_keys WHERE id = %s", plain)[0] == 0
@@ -192,7 +212,7 @@ def test_edit_disable_and_delete_with_and_without_jobs(app, app_session, db):
     assert db.one("SELECT enabled FROM api_keys WHERE id = %s", used)[0] is False
 
 
-def test_escape_closes_the_edit_key_dialog_from_a_focused_field_and_changes_nothing(app, app_session, db):
+def test_escape_on_a_typed_edit_key_form_asks_first_and_discarding_changes_nothing(app, app_session, db):
     page = app_session
     key = new_key(db)
     db.run("UPDATE api_keys SET label = 'plain', key_prefix = 'rk-plain' WHERE id = %s", key)
@@ -203,19 +223,33 @@ def test_escape_closes_the_edit_key_dialog_from_a_focused_field_and_changes_noth
     label.fill("typed, never saved")
     label.focus()
     page.keyboard.press("Escape")
+    ask = page.locator(".el-message-box")
+    expect(ask).to_contain_text("Discard what you typed?")
+    ask.get_by_role("button", name="Discard").click()
     expect(page.get_by_role("dialog")).to_have_count(0)
     assert db.one("SELECT label FROM api_keys WHERE id = %s", key)[0] == "plain"
 
 
-def test_the_key_prefix_copy_button_copies_the_prefix_only(app, app_session, db):
+def test_escape_on_an_edit_key_form_nobody_typed_in_closes_it_without_asking(app, app_session, db):
     page = app_session
     key = new_key(db)
     db.run("UPDATE api_keys SET label = 'plain', key_prefix = 'rk-plain' WHERE id = %s", key)
     open_tab(page, "API keys")
-    copy =rows(page).filter(has_text="rk-plain").get_by_role("button", name="Copy")
-    copy.click()
-    expect(rows(page).filter(has_text="rk-plain").get_by_role("button", name="Copied")).to_be_visible()
-    assert page.evaluate("navigator.clipboard.readText()") == "rk-plain"
+    rows(page).filter(has_text="rk-plain").get_by_role("button", name="Edit").click()
+    expect(page.get_by_role("dialog")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    expect(page.locator(".el-message-box")).to_have_count(0)
+
+
+def test_no_row_has_a_copy_prefix_button_and_the_prefix_is_still_there(app, app_session, db):
+    page = app_session
+    key = new_key(db)
+    db.run("UPDATE api_keys SET label = 'plain', key_prefix = 'rk-plain' WHERE id = %s", key)
+    open_tab(page, "API keys")
+    expect(rows(page).filter(has_text="rk-plain")).to_have_count(1)
+    expect(page.get_by_role("button", name=re.compile("^Copy key prefix"))).to_have_count(0)
+    expect(page.locator('[title="Copy key prefix"]')).to_have_count(0)
 
 
 def test_a_key_label_with_markup_is_shown_as_text(app, app_session, db):
@@ -237,6 +271,40 @@ def log(db, key, route, status=200, *, at_ms=None, job=None, error=None, request
            key, route, status, job, error, json.dumps(request or {}), at_ms, at_ms)
 
 
+DRAWER = "apps/admin-web/src/components/shared/DetailDrawer.vue"
+# the header's bottom padding, and how far the content of its last part (the chips, else the tab row) sits above the
+# line: the phone sheet puts the 16 px in the chip row's own padding, so that padding is not content
+HEAD_GAP_JS = """(testid) => {
+  const head = document.querySelector('[data-testid=' + testid + '] .detail-drawer__head');
+  const last = head.querySelector('.detail-drawer__tabs') || head.querySelector('.detail-drawer__chips');
+  const content = last.getBoundingClientRect().bottom - parseFloat(getComputedStyle(last).paddingBottom);
+  return {padding: parseFloat(getComputedStyle(head).paddingBottom),
+          gap: Math.round(head.getBoundingClientRect().bottom - 1 - content)};
+}"""
+
+
+@mutation(DRAWER, "  padding: 20px 24px 16px;\n  border-bottom", "  padding: 20px 24px 0;\n  border-bottom",
+          expect="16 px under the chips")
+@mutation(DRAWER, ":not(.has-tabs) .detail-drawer__chips {\n  padding-bottom: 16px;",
+          ":not(.has-tabs) .detail-drawer__chips {\n  padding-bottom: 0;", expect="16 px under the chips")
+@pytest.mark.parametrize("width", (1440, 390))
+def test_a_drawer_header_without_tabs_keeps_16_px_under_its_chips(app, app_session, db, width):
+    """16 px from the chips to the line: the header's own padding on a desktop, the chip row's on the phone sheet."""
+    page = app_session
+    page.set_viewport_size({"width": width, "height": 844})
+    k = new_key(db)
+    log(db, k, "POST /v1/video/generations", 422, error="input.invalid")
+    open_tab(page, "Request logs")
+    if width > 390:
+        rows(page).first.get_by_role("button", name="Open details of request").click()
+    else:
+        page.get_by_role("button", name=re.compile(r"^Open request")).first.click()
+    expect(page.get_by_test_id("request-drawer")).to_be_visible()
+    got = page.evaluate(HEAD_GAP_JS, "request-drawer", isolated_context=False)
+    want = {"padding": 16 if width > 390 else 0, "gap": 16}
+    assert got == want, "the header has not 16 px under the chips at %d: %r" % (width, got)
+
+
 def test_the_filters_search_detail_refresh_and_clear(app, app_session, db):
     page = app_session
     k = new_key(db)
@@ -250,15 +318,15 @@ def test_the_filters_search_detail_refresh_and_clear(app, app_session, db):
     expect(rows(page)).to_have_count(1)
     expect(rows(page).first).to_contain_text("input.invalid")
     log(db, k, "POST /v1/video/generations", 429, error="rate.limited")
-    page.get_by_role("button", name="Refresh").click()
+    page.get_by_role("button", name="Search", exact=True).click()
     expect(rows(page)).to_have_count(2)
     pick(page, "Status", "All")
     expect(rows(page)).to_have_count(3)
     page.get_by_label("Search", exact=True).fill("100%")
     page.get_by_label("Search", exact=True).press("Enter")
     expect(rows(page)).to_have_count(1)
-    rows(page).first.get_by_role("button", name="Details").click()
-    box = page.get_by_role("dialog")
+    rows(page).first.get_by_role("button", name="Open details of request").click()
+    box = page.get_by_test_id("request-drawer")
     expect(box).to_contain_text("a cat")
     box.get_by_role("button", name="Close", exact=True).click()
     # the filters are kept across a visit to another tab
@@ -270,12 +338,32 @@ def test_the_filters_search_detail_refresh_and_clear(app, app_session, db):
     page.get_by_label("Search", exact=True).press("Enter")
     expect(rows(page)).to_have_count(3)
     page.get_by_role("button", name="Clear logs").click()
-    expect(page.locator(".el-message-box")).to_contain_text(
-        "Clear every request log row? Jobs, the ledger and alerts are kept.")
+    expect(page.locator(".el-message-box")).to_contain_text("Clear every request log row?")
+    expect(page.locator(".el-message-box")).to_contain_text("Jobs, the ledger and alerts are kept.")
     page.locator(".el-message-box").get_by_role("button", name="Clear logs").click()
     expect(page.get_by_text("Cleared 3 rows")).to_be_visible()
-    expect(page.get_by_text("No log rows")).to_be_visible()
+    expect(page.get_by_text("No requests yet.")).to_be_visible()
     assert db.one("SELECT count(*) FROM request_logs")[0] == 0 and db.one("SELECT count(*) FROM jobs")[0] == 1
+
+
+def test_an_empty_filtered_list_offers_clear_filters_and_a_failed_load_says_what_the_relay_answered(
+        app, app_session, db):
+    page = app_session
+    k = new_key(db)
+    log(db, k, "POST /v1/video/generations", 200)
+    open_tab(page, "Request logs")
+    expect(rows(page)).to_have_count(1)
+    pick(page, "Status", "Failed before a job")
+    expect(page.get_by_text("No requests match these filters.")).to_be_visible()
+    page.get_by_role("button", name="Clear filters").click()
+    expect(rows(page)).to_have_count(1)
+    expect(logs_filter(page, "Status").locator(".is-current")).to_have_text("All")
+    page.route(re.compile(r"/admin/logs\?"), lambda route: route.fulfill(
+        status=502, content_type="application/json",
+        body='{"error": {"code": "upstream.bad_gateway", "message": "bad gateway"}}'))
+    page.get_by_role("button", name="Search", exact=True).click()
+    expect(page.get_by_role("alert")).to_contain_text(
+        "Could not load the request logs: the relay answered 502 (bad gateway).")
 
 
 def test_the_date_window_is_the_viewers_midnights_and_ends_at_the_start_of_the_day_after_to(app, app_session, db):
@@ -294,24 +382,127 @@ def test_the_date_window_is_the_viewers_midnights_and_ends_at_the_start_of_the_d
     log(db, k, "POST /next-day", at_ms=ms(after))
     open_tab(page, "Request logs")
     expect(rows(page)).to_have_count(4)
-    # two day pickers, each usable alone: type the day, Enter commits it
-    start = page.get_by_placeholder("From", exact=True)
+    # one range picker: both days typed and confirmed with Enter search at once
+    start = page.get_by_label("From", exact=True)
+    end = page.get_by_label("To", exact=True)
+    start.click()                                            # the panel opens; the change is told when it closes
     start.fill("2026-10-15")
-    start.press("Enter")
-    expect(rows(page)).to_have_count(3)                      # From alone
-    start.fill("")
-    start.press("Enter")
-    expect(rows(page)).to_have_count(4)
-    end = page.get_by_placeholder("To", exact=True)
     end.fill("2026-10-15")
     end.press("Enter")
-    expect(rows(page)).to_have_count(3)                      # To alone: everything before the next day
-    start.fill("2026-10-15")
-    start.press("Enter")
-    expect(rows(page)).to_have_count(2)
+    expect(rows(page)).to_have_count(2)                      # the 15th: from its first moment to its last
+    assert (start.input_value(), end.input_value()) == ("2026-10-15", "2026-10-15")
     expect(rows(page).filter(has_text="/start-of-day")).to_have_count(1)
     expect(rows(page).filter(has_text="/last-moment")).to_have_count(1)
+    # a range typed and left by Tab (the blur of the keyboard) is applied too
+    start.click()
+    start.fill("2026-10-14")
+    end.fill("2026-10-15")
+    end.press("Tab")
+    expect(rows(page)).to_have_count(3)                      # the 14th adds the row a second before the 15th
+    # the quick options count from the page's own day: with the clock on the 16th, Today is the 16th, Yesterday the 15th
+    page.clock.set_fixed_time(datetime(2026, 10, 16, 12, 0, tzinfo=zone))
+    start.click()
+    page.get_by_role("button", name="Today", exact=True).click()
+    expect(rows(page)).to_have_count(1)
+    expect(rows(page).filter(has_text="/next-day")).to_have_count(1)
+    assert (start.input_value(), end.input_value()) == ("2026-10-16", "2026-10-16")
+    start.click()
+    page.get_by_role("button", name="Yesterday", exact=True).click()
+    expect(rows(page)).to_have_count(2)
+    assert (start.input_value(), end.input_value()) == ("2026-10-15", "2026-10-15")
+    # a range picked from the open panel replaces the one held: 14 then 15 of the month the panel shows
+    start.click()
+    left = page.locator(
+        ".el-picker-panel:visible .is-left .el-date-table td.available:not(.prev-month):not(.next-month)")
+    left.filter(has_text=re.compile(r"^14$")).click()
+    left.filter(has_text=re.compile(r"^15$")).click()
+    expect(rows(page)).to_have_count(3)
+    assert (start.input_value(), end.input_value()) == ("2026-10-14", "2026-10-15")
+    # the clear icon empties both ends and searches again
+    page.mouse.move(0, 0)                                    # a hover that starts: the icon shows on entering
+    start.hover()
+    page.locator(".lf__date .el-range__close-icon").click()
+    expect(rows(page)).to_have_count(4)
+    assert (start.input_value(), end.input_value()) == ("", "")
     assert timedelta(hours=1) <= after - day <= timedelta(hours=25)
+
+
+RANGE_CSS = "apps/admin-web/src/components/logs/logs-date-field.css"
+RANGE_GEOMETRY_JS = """() => {
+  const rect = (e) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
+  const editor = document.querySelector('.lf__date .el-date-editor');
+  const inputs = [...editor.querySelectorAll('input')];
+  return {editor: rect(editor), inputs: inputs.map(rect), names: inputs.map((i) => i.getAttribute('aria-label')),
+          separator: rect(editor.querySelector('.el-range-separator')),
+          icon: rect(editor.querySelector('.el-range__icon'))};
+}"""
+
+
+@pytest.mark.parametrize("width", (1440, 768, 390))
+@mutation(RANGE_CSS, ".lf__date .el-date-editor .el-range-separator {",
+          ".lf__date .el-date-editor .el-range-input:last-of-type {\n  display: none;\n}\n"
+          ".lf__date .el-date-editor .el-range-separator {", expect="the range picker's inner layout")
+def test_the_range_picker_holds_two_named_inputs_a_dash_between_them_and_its_icon_inside_one_box(
+        app, app_session, width):
+    """The two outer fields of the canvas are one box here, so the inside is held by geometry: From then To, side by
+    side without overlap, the dash between them, and the calendar icon at the end where the browser draws its own."""
+    page = app_session
+    page.set_viewport_size({"width": width, "height": 844})
+    open_tab(page, "Request logs")
+    expect(page.get_by_label("From", exact=True)).to_have_count(1)
+    expect(page.get_by_label("To", exact=True)).to_have_count(1)
+    got = page.evaluate(RANGE_GEOMETRY_JS, isolated_context=False)
+    first, second = got["inputs"]
+    box = got["editor"]
+    why = "the range picker's inner layout at %d: %r" % (width, got)
+    assert got["names"] == ["From", "To"], why
+    assert first[2] - first[0] > 20 and second[2] - second[0] > 20, why              # both are there, with room
+    assert first[0] < second[0] and first[2] <= second[0] + 0.5, why                  # From then To, no overlap
+    assert all(i[0] >= box[0] - 0.5 and i[2] <= box[2] + 0.5 for i in (first, second)), why
+    sep = got["separator"]
+    assert sep[2] - sep[0] > 0 and sep[0] >= first[2] - 0.5 and sep[2] <= second[0] + 0.5, why   # the dash between
+    icon = got["icon"]
+    assert icon[0] >= second[2] - 0.5 and icon[2] <= box[2] + 0.5, why                # the icon at the end, inside
+
+
+LOGS_FILTER_FORM = "apps/admin-web/src/components/logs/LogsFilterForm.vue"
+CHIPS_JS = """() => {
+  const rect = (e) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
+  const form = document.querySelector('.lf');
+  return {form: rect(form), status: rect(form.querySelector('.lf__status')),
+          dates: rect(form.querySelector('.lf__date')),
+          editor: rect(form.querySelector('.lf__date .el-date-editor')),
+          select: rect(form.querySelector('.lf__status .filter-select')),
+          search: rect(form.querySelector('.lf__search'))};
+}"""
+
+
+@mutation(LOGS_FILTER_FORM, "  flex-direction: column;\n  gap: 8px;\n  padding: 0 12px;\n",
+          "  gap: 8px;\n  padding: 0 12px;\n", expect="Status spans the row")
+@mutation(RANGE_CSS, "  flex: 1;\n  width: auto;\n  min-width: 0;\n",
+          "  flex: none;\n  width: 232px;\n  min-width: 0;\n", expect="the date field fills its chip")
+@mutation(LOGS_FILTER_FORM, ".lf__status :deep(.filter-select.is-field) {\n  flex: 1;\n}",
+          ".lf__status :deep(.filter-select.is-field) {\n  flex: none;\n}",
+          expect="the Status select fills its chip")
+@pytest.mark.parametrize("width", (1440, 768, 390))
+def test_on_a_phone_the_status_chip_and_the_dates_chip_each_take_a_full_width_row(app, app_session, width):
+    page = app_session
+    page.set_viewport_size({"width": width, "height": 844})
+    open_tab(page, "Request logs")
+    expect(page.get_by_label("From", exact=True)).to_have_count(1)
+    got = page.evaluate(CHIPS_JS, isolated_context=False)
+    status, dates = got["status"], got["dates"]
+    why = "filter rows at %d: %r" % (width, got)
+    if width > 390:
+        assert abs(status[1] - dates[1]) < 40 and status[2] <= dates[0] + 0.5, "side by side above a phone: " + why
+        return
+    left, right = got["form"][0] + 12, got["form"][2] - 12
+    assert abs(status[0] - left) < 0.5 and abs(status[2] - right) < 0.5, "Status spans the row: " + why
+    assert abs(dates[0] - left) < 0.5 and abs(dates[2] - right) < 0.5, "Dates spans the row: " + why
+    assert status[3] <= dates[1] and abs(dates[1] - status[3] - 8) < 0.5, "Dates is the next row, 8 px under: " + why
+    assert abs(got["select"][2] - (status[2] - 7)) <= 1, "the Status select fills its chip: " + why
+    assert dates[2] - got["editor"][2] < 12, "the date field fills its chip: " + why
+    assert got["search"][3] < status[1], "the search is above both: " + why
 
 
 def test_log_text_with_markup_is_shown_as_text(app, app_session, db):
@@ -319,8 +510,8 @@ def test_log_text_with_markup_is_shown_as_text(app, app_session, db):
     k = new_key(db)
     log(db, k, "POST /v1/x", 422, error="input.invalid", request={"prompt": app.planted})
     open_tab(page, "Request logs")
-    rows(page).first.get_by_role("button", name="Details").click()
-    expect(page.get_by_role("dialog")).to_contain_text("<b>planted</b>")
+    rows(page).first.get_by_role("button", name="Open details of request").click()
+    expect(page.get_by_test_id("request-drawer")).to_contain_text("<b>planted</b>")
     page.wait_for_timeout(300)
     app.assert_planted_as_text(page)
 
@@ -353,14 +544,55 @@ def alerts_planted(db):
     return k1, k2
 
 
+def groups(page):
+    """The rows of the alert group table (a plain table, as the canvas draws it)."""
+    return page.locator('section[aria-label="Alert groups"] tbody tr')
+
+
 def group_row(page, text):
-    return rows(page).filter(has_text=text)
+    return groups(page).filter(has_text=text)
+
+
+def choose(page, label, option):
+    """Choose an option of an Alerts filter (FilterSelect's field: a combobox, its list opened in the body)."""
+    field = page.locator('section[aria-label="Alert groups"]').get_by_role("combobox", name=label, exact=True)
+    field.click()
+    page.get_by_role("option", name=option, exact=True).click()
+    expect(field).to_contain_text(option)
+
+
+def open_group(page, text):
+    """Open a group's detail drawer by its title button."""
+    group_row(page, text).get_by_role("button", name=re.compile(r"^Details of")).click()
+    drawer = page.get_by_test_id("alert-detail")
+    expect(drawer).to_be_visible()
+    # the drawer opens at once with a loading body: wait for the group itself
+    expect(drawer.locator("#alertDetail")).to_be_visible()
+
+
+def close_detail(page):
+    drawer = page.get_by_test_id("alert-detail")
+    drawer.get_by_role("button", name="Close").click()
+    expect(drawer).to_be_hidden()
+
+
+# Watches the page for the two drawers' bodies at once (a body exists from the drawer's opening until it has left).
+OVERLAP_WATCH_JS = """() => {
+  window.__overlap = false;
+  window.__jobOpened = false;
+  new MutationObserver(() => {
+    const alert = document.querySelector('[data-testid="alert-detail"] .detail-drawer__body');
+    const job = document.querySelector('[data-testid="job-drawer"] .detail-drawer__body');
+    if (job) window.__jobOpened = true;
+    if (alert && job) window.__overlap = true;
+  }).observe(document.body, {childList: true, subtree: true});
+}"""
 
 
 def alerts_page(page, db):
     keys = alerts_planted(db)
     open_tab(page, "Alerts")
-    expect(rows(page)).to_have_count(5)
+    expect(groups(page)).to_have_count(5)
     return keys
 
 
@@ -368,30 +600,30 @@ def test_the_lists_the_live_condition_the_filters_and_the_one_customer_mark(app,
     page = app_session
     alerts_planted(db)
     open_tab(page, "Alerts")
-    expect(rows(page)).to_have_count(5)
-    expect(page.get_by_test_id("alerts-live")).to_contain_text("accounts_low")
+    expect(groups(page)).to_have_count(5)
+    expect(page.get_by_test_id("alerts-live")).to_contain_text("pool: ")
     assert page.get_by_test_id("alerts-live").get_by_role("button").count() == 0, "nothing to acknowledge there"
     expect(page.get_by_test_id("alerts-more")).to_have_count(0)
     page.wait_for_timeout(300)                           # a script in the planted markup would have run by now
     hostile, plain = group_row(page, "which style?"), group_row(page, "plain wording")
     expect(hostile).to_contain_text("<img src=x")
-    expect(plain).to_contain_text("one customer only: may be the customer's own words")
+    expect(plain).to_contain_text("One customer only: may be the customer’s own words.")
     for other in (hostile, group_row(page, "clamp"), group_row(page, "drift"), group_row(page, "API read failure")):
-        assert "one customer only" not in other.inner_text()
+        assert "One customer only" not in other.inner_text()
     assert_hostile_wording_is_text(page)
-    # the selects are read-only inputs; a field one could type a phrase into would not be
+    # the filters are the design's own selects (no native one); there is no field to type a phrase into
+    assert page.locator("select").count() == 0, "a native select"
     assert page.locator("input:not([readonly]), textarea").count() == 0, "there is no phrase field"
-    expect(page.get_by_text("new wording is a code change")).to_be_visible()
-    pick(page, "Status", "acknowledged")
-    expect(rows(page)).to_have_count(1)
+    choose(page, "Status", "Acknowledged")
+    expect(groups(page)).to_have_count(1)
     expect(group_row(page, "seen and acknowledged")).to_be_visible()
-    pick(page, "Status", "all")
-    expect(rows(page)).to_have_count(6)
-    pick(page, "Kind", "drift")
-    expect(rows(page)).to_have_count(1)
-    pick(page, "Kind", "All kinds")
-    pick(page, "Status", "open")
-    expect(rows(page)).to_have_count(5)
+    choose(page, "Status", "All")
+    expect(groups(page)).to_have_count(6)
+    choose(page, "Kind", "drift")
+    expect(groups(page)).to_have_count(1)
+    choose(page, "Kind", "All")
+    choose(page, "Status", "Open")
+    expect(groups(page)).to_have_count(5)
 
 
 def test_the_detail_shows_outcomes_and_opens_a_job_and_acknowledge_sends_what_it_showed(app, app_session, db):
@@ -400,16 +632,24 @@ def test_the_detail_shows_outcomes_and_opens_a_job_and_acknowledge_sends_what_it
     hostile, plain = group_of(HOSTILE_REPLY), group_of(PLAIN_REPLY)
     posted = []
     page.on("request", lambda r: posted.append(r) if r.method == "POST" and "/acknowledge" in r.url else None)
-    group_row(page, "which style?").get_by_role("button", name="Details").click()
+    open_group(page, "which style?")
     detail = page.get_by_test_id("alert-detail")
     expect(page.get_by_test_id("alert-detail-title")).to_contain_text("<img src=x")
     expect(page.get_by_test_id("alert-outcomes")).to_contain_text(
-        "delivered 1, refunded 1, still open 1 (refused with: render.deadline x1)")
-    expect(detail.locator(".el-table__body tbody tr")).to_have_count(3)
+        "1 delivered after the reply, 1 refunded, 1 still open.")
+    expect(detail.locator("tbody tr")).to_have_count(3)
     assert_hostile_wording_is_text(page)
-    detail.locator(".el-table__body tbody tr", has_text="render.deadline").get_by_role("button").click()
-    expect(page.get_by_role("dialog")).to_be_visible()
+    page.evaluate(OVERLAP_WATCH_JS, isolated_context=False)
+    detail.locator("tbody tr", has_text="render.deadline").get_by_role("button").click()
+    # the job opens in its own drawer and this one goes first: never two at once, not even while this one leaves
+    expect(detail).to_be_hidden()
+    expect(page.get_by_role("dialog")).to_have_count(1)
+    assert page.evaluate("window.__jobOpened", isolated_context=False), "the job drawer never opened"
+    assert not page.evaluate("window.__overlap", isolated_context=False), \
+        "the job drawer opened while the alert drawer was still on the screen"
     page.get_by_role("dialog").get_by_role("button", name="Close").first.click()
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    open_group(page, "which style?")
     # acknowledge from the detail sends the newest row it showed; a row that arrives later keeps the group open
     seen = max(alert_rows(db, hostile))
     late = plant_unclear(db, k1, HOSTILE_REPLY)
@@ -418,18 +658,152 @@ def test_the_detail_shows_outcomes_and_opens_a_job_and_acknowledge_sends_what_it
     assert posted[0].post_data_json == {"through_id": seen}
     assert db.one("SELECT acknowledged_at FROM unclear_replies WHERE id = %s", late)[0] is None, \
         "a row that arrived after the page loaded must leave the group open"
-    expect(detail.locator(".el-table__body tbody tr")).to_have_count(4)
+    expect(detail.locator("tbody tr")).to_have_count(4)
     # the empty wording is an API read failure; a billing group lists its rows; an acknowledge from the list
-    group_row(page, "API read failure").get_by_role("button", name="Details").click()
+    close_detail(page)
+    open_group(page, "API read failure")
     expect(page.get_by_test_id("alert-read-failure")).to_be_visible()
-    group_row(page, "clamp").get_by_role("button", name="Details").click()
-    expect(detail.locator(".el-table__body tbody tr")).to_have_count(1)
-    detail.get_by_role("button", name="Close").click()
-    expect(detail).to_have_count(0)
+    close_detail(page)
+    open_group(page, "clamp")
+    expect(detail.locator("tbody tr")).to_have_count(1)
+    close_detail(page)
     group_row(page, "plain wording").get_by_role("button", name="Acknowledge").click()
-    expect(rows(page)).to_have_count(4)
+    expect(groups(page)).to_have_count(4)
     assert posted[1].post_data_json == {"through_id": max(alert_rows(db, plain))}
-    expect(page.get_by_text("4 open alert group(s)")).to_be_visible()
+    assert len(posted) == 2, "one write for the drawer's Acknowledge and one for the row's"
+    # the Alerts tab counts the open groups (the banner is on Jobs only)
+    expect(page.get_by_role("tab", name=re.compile(r"^Alerts")).first).to_contain_text("4")
+
+
+def test_the_title_button_a_row_click_and_enter_open_the_drawer_and_focus_comes_back(app, app_session, db):
+    page = app_session
+    alerts_page(page, db)
+    drawer = page.get_by_test_id("alert-detail")
+    title = group_row(page, "plain wording").get_by_role("button", name=re.compile(r"^Details of"))
+    # the keyboard: Enter on the title, Escape, and focus is back on that very button
+    title.focus()
+    page.keyboard.press("Enter")
+    expect(drawer).to_be_visible()
+    expect(page.get_by_role("dialog")).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(drawer).to_be_hidden()
+    expect(title).to_be_focused()
+    # a click beside the buttons of the row: nothing had focus, so focus falls to the page's scroll area
+    group_row(page, "plain wording").locator(".g-kind").click()
+    expect(drawer).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(drawer).to_be_hidden()
+    expect(page.get_by_role("region", name="Page content")).to_be_focused()
+    # a click on the row's own Acknowledge opens nothing
+    page.route(re.compile(r"/acknowledge$"), lambda r: r.fulfill(
+        status=200, content_type="application/json", body='{"acknowledged": 1}'))
+    group_row(page, "plain wording").get_by_role("button", name="Acknowledge").click()
+    expect(page.get_by_text("Acknowledged 1 row(s)")).to_be_visible()
+    expect(drawer).to_be_hidden()
+
+
+def test_after_an_acknowledge_empties_the_open_list_closing_the_drawer_puts_focus_on_the_scroll_area(
+        app, app_session, db):
+    page = app_session
+    alerts_page(page, db)
+    drawer = page.get_by_test_id("alert-detail")
+    title = group_row(page, "plain wording").get_by_role("button", name=re.compile(r"^Details of"))
+    title.focus()
+    page.keyboard.press("Enter")
+    expect(drawer.locator("#alertDetail")).to_be_visible()
+    drawer.get_by_role("button", name="Acknowledge").click()
+    # the Open filter drops the group: its row, and the button that opened the drawer, are gone
+    expect(groups(page)).to_have_count(4)
+    expect(drawer.get_by_role("button", name="Acknowledge")).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(drawer).to_be_hidden()
+    expect(page.get_by_role("region", name="Page content")).to_be_focused()
+
+
+def test_the_space_key_on_the_title_button_opens_the_drawer(app, app_session, db):
+    page = app_session
+    page.set_viewport_size({"width": 768, "height": 1024})
+    alerts_page(page, db)
+    drawer = page.get_by_test_id("alert-detail")
+    title = group_row(page, "plain wording").get_by_role("button", name=re.compile(r"^Details of"))
+    title.focus()
+    page.keyboard.press("Space")
+    expect(drawer).to_be_visible()
+    expect(drawer.locator("#alertDetail")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(drawer).to_be_hidden()
+    expect(title).to_be_focused()
+
+
+def test_the_drawer_ignores_every_way_out_while_an_acknowledge_runs(app, app_session, db):
+    page = app_session
+    alerts_page(page, db)
+    held = []
+    page.route(re.compile(r"/acknowledge$"), lambda r: held.append(r))
+    open_group(page, "plain wording")
+    drawer = page.get_by_test_id("alert-detail")
+    drawer.get_by_role("button", name="Acknowledge").click()
+    for _ in range(100):
+        if held:
+            break
+        page.wait_for_timeout(20)
+    assert held, "the acknowledge was not sent"
+    page.keyboard.press("Escape")
+    drawer.get_by_role("button", name="Close").click(force=True)    # inert (or natively disabled) while it writes
+    page.mouse.click(5, 300)                                            # the scrim
+    page.wait_for_timeout(500)
+    expect(drawer).to_be_visible()
+    held[0].fulfill(status=200, content_type="application/json", body='{"acknowledged": 1}')
+    expect(page.get_by_text("Acknowledged 1 row(s)")).to_be_visible()
+    page.mouse.click(5, 300)                                            # idle again: the scrim closes it
+    expect(drawer).to_be_hidden()
+
+
+def test_on_a_phone_the_filter_chips_sit_one_per_row_at_full_width(app, app_session, db):
+    page = app_session
+    page.set_viewport_size({"width": 390, "height": 844})
+    alerts_page(page, db)
+    card = page.locator('section[aria-label="Alert groups"]')
+    chip = "xpath=ancestor::*[contains(@class, 'is-chip')][1]"
+    status = card.get_by_role("combobox", name="Status", exact=True).locator(chip)
+    kind = card.get_by_role("combobox", name="Kind", exact=True).locator(chip)
+    box, a, b = card.bounding_box(), status.bounding_box(), kind.bounding_box()
+    # 12 px of the toolbar's padding on each side of the card (1 px border)
+    for each in (a, b):
+        assert abs(each["x"] - (box["x"] + 13)) <= 1 and abs(each["width"] - (box["width"] - 26)) <= 1, (each, box)
+    assert b["y"] >= a["y"] + a["height"], "the Kind chip is not under the Status chip"
+    assert abs(b["x"] - a["x"]) <= 1
+
+
+def test_a_detail_that_cannot_be_read_keeps_the_drawer_open_with_the_error_inside(app, app_session, db):
+    page = app_session
+    alerts_page(page, db)
+    page.route(re.compile(r"/admin/alerts/groups/[^?]+\?"), lambda r: r.fulfill(
+        status=500, content_type="application/json",
+        body='{"error": {"code": "server.error", "message": "the group could not be read"}}'))
+    group_row(page, "plain wording").get_by_role("button", name=re.compile(r"^Details of")).click()
+    drawer = page.get_by_test_id("alert-detail")
+    expect(drawer.get_by_role("alert")).to_contain_text("the group could not be read")
+    expect(groups(page)).to_have_count(5)
+    close_detail(page)
+
+
+@pytest.mark.parametrize("width, height", [(1440, 900), (768, 1024), (390, 844)])
+def test_the_detail_drawer_works_from_the_keyboard_at_every_width(app, app_session, db, width, height):
+    page = app_session
+    page.set_viewport_size({"width": width, "height": height})
+    alerts_page(page, db)
+    drawer = page.get_by_test_id("alert-detail")
+    page.get_by_role("button", name=re.compile(r"^Details of")).first.focus()
+    page.keyboard.press("Enter")
+    expect(drawer).to_be_visible()
+    expect(drawer.get_by_role("button", name="Acknowledge")).to_be_visible()
+    if width < 768:
+        drawer.get_by_role("button", name="Back to Alerts").click()
+    else:
+        page.keyboard.press("Escape")
+    expect(drawer).to_be_hidden()
+    assert sideways(page) <= 1, "the page scrolls sideways"
 
 
 def test_a_slow_answer_for_an_older_view_does_not_replace_the_newer_one(app, app_session, db):
@@ -450,9 +824,64 @@ def test_a_slow_answer_for_an_older_view_does_not_replace_the_newer_one(app, app
             break
         page.wait_for_timeout(20)
     assert held, "the refresh was not sent"
-    pick(page, "Status", "acknowledged")                              # the newer view
-    expect(rows(page)).to_have_count(1)
+    choose(page, "Status", "Acknowledged")                              # the newer view
+    expect(groups(page)).to_have_count(1)
     held[0].continue_()                                               # the older answer (5 open groups) arrives now
     page.wait_for_timeout(500)
-    expect(rows(page)).to_have_count(1)
+    expect(groups(page)).to_have_count(1)
     expect(group_row(page, "seen and acknowledged")).to_be_visible()
+
+
+# ---- the phone and the tablet ----------------------------------------------------------------------------------------
+
+def no_sideways_scroll(page):
+    """The page itself never scrolls sideways (a wide table scrolls inside its own box)."""
+    assert sideways(page) <= 1, "the page scrolls sideways"
+
+
+@pytest.mark.parametrize("width, height", [(390, 844), (768, 1024)])
+def test_each_screen_renders_without_a_sideways_scroll_and_its_main_action_is_reachable(
+        app, app_session, db, width, height):
+    page = app_session
+    page.set_viewport_size({"width": width, "height": height})
+    k = new_key(db)
+    db.run("UPDATE api_keys SET label = 'smoke key' WHERE id = %s", k)
+    log(db, k, "POST /v1/video/generations", 422, error="input.invalid")
+    plant_unclear(db, k, PLAIN_REPLY)
+    open_tab(page, "API keys")
+    expect(page.get_by_text("smoke key")).to_be_visible()
+    expect(page.get_by_role("button", name="New key")).to_be_visible()
+    no_sideways_scroll(page)
+    open_tab(page, "Request logs")
+    expect(page.get_by_text("input.invalid")).to_be_visible()
+    # below 1280 px the one action of the page sits in the More menu
+    page.get_by_role("button", name="More actions").click()
+    expect(page.get_by_role("menuitem", name="Clear logs")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.get_by_role("menuitem", name="Clear logs")).to_have_count(0)
+    no_sideways_scroll(page)
+    open_tab(page, "Alerts")
+    expect(page.get_by_text("plain wording")).to_be_visible()
+    expect(page.get_by_role("button", name="Refresh", exact=True)).to_be_visible()
+    page.get_by_role("button", name="Details of").first.click()
+    expect(page.get_by_test_id("alert-detail")).to_be_visible()
+    no_sideways_scroll(page)
+
+
+def test_the_phone_request_drawer_actions_are_at_least_44_px_square(app, app_session, db):
+    page = app_session
+    page.set_viewport_size({"width": 390, "height": 844})
+    k = new_key(db)
+    job = done_job(db, k)
+    log(db, k, "POST /v1/video/generations", 422, job=job, error="input.invalid", request={"prompt": "a cat"})
+    db.run("UPDATE request_logs SET response_redacted = %s::jsonb", json.dumps({"error": "no"}))
+    open_tab(page, "Request logs")
+    page.get_by_role("button", name=re.compile(r"^Open request")).first.click()
+    drawer = page.get_by_test_id("request-drawer")
+    expect(drawer).to_be_visible()
+    for target in (drawer.get_by_role("button", name="Copy Request body"),
+                   drawer.get_by_role("button", name="Copy Answer body"),
+                   drawer.locator(".rd__link")):
+        expect(target).to_be_visible()
+        box = target.bounding_box()
+        assert box["height"] >= 44 and box["width"] >= 44, box
