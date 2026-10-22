@@ -88,3 +88,41 @@ def test_format_without_a_race_reformats_every_changed_file_and_says_how_many(tm
     for rel, text in FORMATTED.items():
         assert (app / rel).read_text(encoding="utf-8") == text, "a file was not reformatted: " + rel
     assert "2 file(s) reformatted, 0 skipped" in run.stdout, run.stdout
+
+
+
+def run_web(tmp_path: Path, *args: str) -> tuple[subprocess.CompletedProcess, list[str]]:
+    """web.sh on the Mac side with a box.sh stub that records what it is asked to run."""
+    tree = planted(tmp_path, {}, {}, {})
+    (tree / "scripts" / "box.sh").write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$@" > "$TMPDIR/box.args"\n',
+                                             encoding="utf-8")
+    env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path), "TMPDIR": str(tmp_path)}
+    run = subprocess.run(["bash", str(tree / WEB), *args], cwd=tree, env=env, capture_output=True, text=True)
+    sent = tmp_path / "box.args"
+    return run, sent.read_text(encoding="utf-8").split() if sent.exists() else []
+
+
+@mutation(WEB, '${s#"$APP/"}', "$s", expect="a spec path with the app prefix was forwarded as is")
+@mutation(WEB, './scripts/web.sh "$cmd" "$@"', './scripts/web.sh "$cmd"', expect="the spec files were dropped")
+def test_test_forwards_the_spec_files_relative_to_the_app(tmp_path):
+    specs = ("apps/admin-web/tests/unit/a.spec.ts", "tests/unit/b.spec.ts")
+    run, sent = run_web(tmp_path, "--tree", "dev9", "test", *specs)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert sent[-4:] == ["./scripts/web.sh", "test", "tests/unit/a.spec.ts", "tests/unit/b.spec.ts"], \
+        "the spec files were dropped, or a spec path with the app prefix was forwarded as is: %r" % sent
+
+
+@mutation(WEB, '[ $# -gt 0 ] || die "test needs at least one spec file"', "true",
+          expect="test ran with no spec (the whole suite)")
+@mutation(WEB, '[[ "$s" =~ ^[A-Za-z0-9_][A-Za-z0-9_./-]*$ ]] ||', "true ||",
+          expect="a vitest flag was accepted as a spec")
+@mutation(WEB, '  [ $# -eq 0 ] || die "one subcommand only"', "  true", expect="extra arguments were accepted")
+def test_test_needs_a_spec_refuses_flags_and_the_other_subcommands_take_no_argument(tmp_path):
+    cases = [(("test",), "at least one spec", "test ran with no spec (the whole suite)"),
+             (("test", "--watch"), "not a spec file path", "a vitest flag was accepted as a spec"),
+             (("test", "a.ts; rm"), "not a spec file path", "a vitest flag was accepted as a spec"),
+             (("check", "tests/unit/a.spec.ts"), "one subcommand only", "extra arguments were accepted")]
+    for n, (args, text, bug) in enumerate(cases):
+        run, sent = run_web(tmp_path / str(n), *args)
+        assert run.returncode == 2 and text in run.stderr and not sent, \
+            "%s: %r was not refused: %s" % (bug, args, run.stdout + run.stderr)

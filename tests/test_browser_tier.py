@@ -23,6 +23,9 @@ args = sys.argv[1:]
 env = os.environ
 if "--collect-only" in args:
     expr = args[args.index("-m") + 1]
+    if "-k" in args:        # a filtered collection lists fewer tests
+        print("tests/a.py: " + env["FAKE_K"])
+        sys.exit(0)
     key = {{"browser and not box": "MAC", "browser and box": "ONLY", "browser": "EVERY"}}[expr]
     print("tests/a.py: " + env["FAKE_" + key])
     sys.exit(int(env.get("FAKE_COLLECT_RC_" + key, "0")))
@@ -116,10 +119,21 @@ def test_a_narrowed_run_that_selects_nothing_or_whose_tests_do_not_all_pass_fail
     assert bad.returncode != 0 and "the collection of" in bad.stderr, bad.stdout + bad.stderr
 
 
+@mutation(TIER, 'out=$($PYTEST "$@" $skip --collect-only', 'out=$($PYTEST -m browser $skip --collect-only',
+          expect="the expected count ignored the -k filter")
+def test_a_k_filter_narrows_the_expected_count_and_the_run_alike(tmp_path):
+    log = tmp_path / "args.log"
+    env = {**NARROW_ENV, "FAKE_K": 1, "FAKE_PASSED": 1, "FAKE_ARGS_LOG": log}
+    run = tier(tmp_path, "-k", "frames", "tests/a.py", **env)
+    assert run.returncode == 0 and "1 test(s) selected by: -k frames tests/a.py" in run.stdout, \
+        "the expected count ignored the -k filter: " + run.stdout + run.stderr
+    assert "-m browser -k frames tests/a.py" in log.read_text(), log.read_text()
+
+
 IN_CONTAINER = "scripts/check-in-container.sh"
 
 
-@mutation(IN_CONTAINER, 'case "$arg" in -*)', 'case "$arg" in -X*)', expect="a pytest flag was accepted")
+@mutation(IN_CONTAINER, "    -*) echo", "    -X*) echo", expect="a pytest flag was accepted")
 def test_the_container_runner_accepts_test_paths_and_node_ids_only_and_passes_them_to_the_tier():
     refused = subprocess.run(["bash", str(REPO / IN_CONTAINER), "tests/a.py", "-m", "not browser"],
                              capture_output=True, text=True, timeout=60)
@@ -148,13 +162,23 @@ sys.exit(0)
 """
 
 
-def container_run(tmp_path: Path, *args: str, **env) -> tuple[subprocess.CompletedProcess, list[dict]]:
+def container_run(tmp_path: Path, *args: str, stamp: bool | str = True,
+                  **env) -> tuple[subprocess.CompletedProcess, list[dict]]:
     """The real scripts/check-in-container.sh on the box path (RELAY_ON_BOX=1) over a small tree, with docker and uv
     replaced by fakes that record the `docker run` they are given and write a screenshot as the container would."""
     tree, bin_dir = tmp_path / "tree", tmp_path / "bin"
     (tree / "scripts").mkdir(parents=True)
     bin_dir.mkdir()
     shutil.copy(REPO / IN_CONTAINER, tree / IN_CONTAINER)
+    shutil.copy(REPO / "scripts/web_src_hash.py", tree / "scripts/web_src_hash.py")
+    (tree / "apps/admin-web/src").mkdir(parents=True)
+    (tree / "apps/admin-web/src/main.ts").write_text("export {}\n")
+    if stamp:
+        (tree / "apps/admin-web/.bundle-stamp").write_text(
+            subprocess.run([sys.executable, str(tree / "scripts/web_src_hash.py"), str(tree / "apps/admin-web")],
+                           capture_output=True, text=True).stdout)
+    if stamp == "stale":                                # the sources changed after the bundle was built
+        (tree / "apps/admin-web/src/main.ts").write_text("export const changed = 1\n")
     (tree / "scripts/browser-image.sh").write_text(
         '#!/bin/bash\n[ "$1" = build ] && echo "relay-browser-image:$2"\nexit 0\n')
     (bin_dir / "docker").write_text(FAKE_DOCKER.format(python=sys.executable), encoding="utf-8")
@@ -182,6 +206,26 @@ def test_a_whole_tier_run_hands_the_container_no_argument_so_the_tier_never_says
     assert narrowed.returncode == 0 and "browser tier: PARTIAL (narrowed)" in narrowed.stdout, narrowed.stdout
     assert runs[0]["args"][-3:] == ["bash", "tests/admin_ui/test_e2e_jobs.py", "tests/a.py::t[x y]"], \
         runs[0]["args"][-3:]
+
+
+@mutation(IN_CONTAINER, "    -k) [ -n", "    -kk) [ -n", expect="-k was refused")
+def test_a_k_expression_reaches_the_tier_in_order_and_a_k_without_one_is_refused(tmp_path):
+    run, runs = container_run(tmp_path, "tests/a.py", "-k", "frames or sweep")
+    assert run.returncode == 0 and "browser tier: PARTIAL (narrowed)" in run.stdout, "-k was refused: " + run.stderr
+    assert runs[0]["args"][-4:] == ["bash", "tests/a.py", "-k", "frames or sweep"], runs[0]["args"][-4:]
+    bare = subprocess.run(["bash", str(REPO / IN_CONTAINER), "-k"], capture_output=True, text=True, timeout=60)
+    assert bare.returncode == 2 and "-k needs an expression" in bare.stderr, bare.stderr
+
+
+@mutation(IN_CONTAINER, '" != "$(cat', '" = "$(cat', expect="a stale bundle was not refused")
+def test_a_stale_admin_bundle_is_refused_before_anything_runs_and_a_matching_one_is_not(tmp_path):
+    stale, runs = container_run(tmp_path / "s", "tests/a.py", stamp="stale")
+    assert stale.returncode == 2 and "the admin bundle is stale: run scripts/web.sh build" in stale.stderr \
+        and not runs, "a stale bundle was not refused: " + stale.stdout + stale.stderr
+    unstamped, runs = container_run(tmp_path / "u", "tests/a.py", stamp=False)
+    assert unstamped.returncode == 2 and not runs, "a bundle without a stamp was not refused"
+    fresh, runs = container_run(tmp_path / "f", "tests/a.py")
+    assert fresh.returncode == 0 and runs, "a matching bundle was refused: " + fresh.stderr
 
 
 @mutation(IN_CONTAINER, 'shots=(-e RELAY_SCREENSHOTS_DIR=/shots -v "$DIR/shots:/shots")',

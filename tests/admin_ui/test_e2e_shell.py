@@ -92,7 +92,7 @@ def test_login_wrong_password_says_so_and_the_right_one_lands_on_jobs(app, app_p
     page.get_by_label("Username").fill(live.user)
     page.get_by_label("Password", exact=True).fill("wrong password")
     page.get_by_role("button", name="Sign in").click()
-    expect(page.get_by_text(WRONG)).to_be_visible()
+    expect(page.get_by_text(WRONG)).to_be_visible(timeout=app.sign_in_timeout_ms)
     page.problems.clear()                                       # the 401 of a wrong password is a console line
     app.sign_in(page)
     assert page.evaluate("sessionStorage.getItem('relay_admin_token')"), "the token is in sessionStorage"
@@ -108,7 +108,8 @@ def test_login_shows_the_server_text_of_a_429(app, app_page, live, db):
     page.get_by_label("Username").fill(live.user)
     page.get_by_label("Password", exact=True).fill(live.password)              # even the right password is refused
     page.get_by_role("button", name="Sign in").click()
-    expect(page.get_by_text("too many failed attempts; try again later")).to_be_visible()
+    expect(page.get_by_text("too many failed attempts; try again later")).to_be_visible(
+        timeout=app.sign_in_timeout_ms)
     expect(page).to_have_url(re.compile(r"#/login$"))
     assert page.evaluate("sessionStorage.getItem('relay_admin_token')") is None
     page.problems.clear()                                       # the 429 is a console line

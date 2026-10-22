@@ -2,8 +2,12 @@
 # The admin web (apps/admin-web, Vue + Vite) on the box. Nothing here runs Node, npm or Docker on the Mac.
 #   scripts/web.sh [--tree NAME] lock     regenerate apps/admin-web/package-lock.json in the container; pull it back
 #   scripts/web.sh [--tree NAME] build    build in the container; pull back static/app/ and the two generated
-#                                         declaration files (components.d.ts, auto-imports.d.ts), ready to commit
+#                                         declaration files (components.d.ts, auto-imports.d.ts) and the source stamp
+#                                         apps/admin-web/.bundle-stamp, ready to commit (check-in-container.sh refuses
+#                                         to run when the stamp is not the hash of the sources: the bundle is stale)
 #   scripts/web.sh [--tree NAME] check    lockfile audit, `style=` grep, then vue-tsc, ESLint and Vitest in the container
+#   scripts/web.sh [--tree NAME] test SPEC...   only those Vitest spec files in the container (no build, no types, no
+#                                         ESLint), for fast iteration; SPEC is relative to apps/admin-web or to the repo
 #   scripts/web.sh [--tree NAME] verify   a fresh build must equal the committed dist and both declaration files, byte
 #                                         for byte; else it fails and names the fix (`scripts/web.sh build`, commit)
 #   scripts/web.sh [--tree NAME] format   `npm run format` (Prettier) in the container; pull back only the files it
@@ -22,6 +26,7 @@ cd "$(dirname "$0")/.."
 APP=apps/admin-web
 STATIC=packages/relay-core/src/relay_core/admin/static
 DECLS=(components.d.ts auto-imports.d.ts)
+STAMP=.bundle-stamp          # hash of the sources the dist was built from (scripts/web_src_hash.py)
 BOX="${RELAY_BOX:-phuongnam@192.168.18.227}"
 
 die() { echo "web.sh: $1" >&2; exit "${2:-2}"; }
@@ -35,14 +40,26 @@ while [ $# -gt 0 ]; do
   esac
 done
 cmd="${1:-}"
-case "$cmd" in lock | build | check | verify | format) ;; *) die "usage: scripts/web.sh [--tree NAME] lock|build|check|verify|format" ;; esac
-[ $# -eq 1 ] || die "one subcommand only"
+case "$cmd" in lock | build | check | verify | format | test) ;; *) die "usage: scripts/web.sh [--tree NAME] lock|build|check|verify|format|test SPEC..." ;; esac
+shift
+if [ "$cmd" = test ]; then
+  [ $# -gt 0 ] || die "test needs at least one spec file"
+  specs=()
+  for s in "$@"; do
+    s=${s#"$APP/"}
+    [[ "$s" =~ ^[A-Za-z0-9_][A-Za-z0-9_./-]*$ ]] || die "test: $s is not a spec file path"
+    specs+=("$s")
+  done
+  set -- "${specs[@]}"
+else
+  [ $# -eq 0 ] || die "one subcommand only"
+fi
 
 # ---- on the Mac: through box.sh, and pull back what build and lock made ---------------------------------------------
 if [ "${RELAY_ON_BOX:-}" != 1 ]; then
   boxargs=()
   [ -z "$tree" ] || boxargs+=(--tree "$tree")
-  scripts/box.sh ${boxargs[@]+"${boxargs[@]}"} -- ./scripts/web.sh "$cmd"
+  scripts/box.sh ${boxargs[@]+"${boxargs[@]}"} -- ./scripts/web.sh "$cmd" "$@"
   case "$cmd" in lock | build | format) ;; *) exit 0 ;; esac
   folder="${tree:-$(basename "$(git rev-parse --show-toplevel)")}"
   clean() { env -i HOME="$HOME" PATH="$PATH" ${SSH_AUTH_SOCK:+SSH_AUTH_SOCK="$SSH_AUTH_SOCK"} "$@"; }
@@ -84,8 +101,8 @@ PY
   else
     mkdir -p "$STATIC/app"
     pull "$STATIC/app/" "$STATIC/app/" --delete
-    for f in "${DECLS[@]}"; do pull "$APP/$f" "$APP/$f"; done
-    echo "web.sh: pulled back $STATIC/app/ and ${DECLS[*]}"
+    for f in "${DECLS[@]}" "$STAMP"; do pull "$APP/$f" "$APP/$f"; done
+    echo "web.sh: pulled back $STATIC/app/, ${DECLS[*]} and $STAMP"
   fi
   exit 0
 fi
@@ -196,6 +213,7 @@ case "$cmd" in
     dbuild web-out "type=local,dest=$scratch/out"
     rm -rf "$STATIC/app" && mkdir -p "$STATIC" && cp -R "$scratch/out/static/app" "$STATIC/app"
     for f in "${DECLS[@]}"; do cp "$scratch/out/$f" "$APP/$f"; done
+    python3 scripts/web_src_hash.py > "$APP/$STAMP"
     echo "web.sh: built $(find "$STATIC/app" -type f | wc -l) files into $STATIC/app"
     ;;
   format)
@@ -240,6 +258,15 @@ PY
     fi
     same_tree_after "$before"
     echo "web.sh check: GREEN"
+    ;;
+  test)
+    docker build -f deploy/Dockerfile --target web-test --no-cache-filter web-test --build-arg "SPECS=$*" \
+      --progress=plain . > "$scratch/test.log" 2>&1 || {
+      sed -E 's/^#[0-9]+ [0-9.]+ //' "$scratch/test.log" | tail -60 >&2
+      die "web.sh test: FAILED (the log tail is shown)" 1
+    }
+    sed -E 's/^#[0-9]+ [0-9.]+ //' "$scratch/test.log" | grep -E '^[[:space:]]*(Test Files|Tests)[[:space:]]'
+    echo "web.sh test: GREEN"
     ;;
   verify)
     before=$(tree_hash)

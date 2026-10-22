@@ -21,7 +21,11 @@
 # Narrowed run: `scripts/check-in-container.sh PATH_OR_NODE_ID...` (on the box: `scripts/box.sh --tree NAME --
 # scripts/check-in-container.sh tests/admin_ui/test_e2e_jobs.py`) runs only those browser tests, in the same image, with
 # the same token, isolation and teardown. It skips the exact-count rule and the graceful-stop test, prints
-# `browser tier: PARTIAL (narrowed)` and still fails when no test is selected or one does not pass. Flags are refused.
+# `browser tier: PARTIAL (narrowed)` and still fails when no test is selected or one does not pass. `-k EXPR` is the
+# one flag accepted (pytest's own filter, e.g. `tests/admin_ui/test_e2e_shell.py -k frames`; the expected count comes
+# from the same filtered collection); any other flag is refused.
+# The tests run the committed admin bundle: the script refuses to start when apps/admin-web's sources are not the ones
+# the bundle was built from (scripts/web_src_hash.py against apps/admin-web/.bundle-stamp, written by `web.sh build`).
 # Without arguments nothing changes: the whole tier, which scripts/check.sh --full runs.
 #
 # Screenshots: with RELAY_SCREENSHOTS_DIR=PATH set on the command line (`scripts/box.sh --tree NAME --
@@ -30,9 +34,20 @@
 # copied to PATH, relative to the folder the script runs in. Unset: nothing is mounted and nothing is copied.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-for arg in "$@"; do
-  case "$arg" in -*) echo "check-in-container.sh: only test paths or node ids are accepted, not '$arg'" >&2; exit 2 ;; esac
+args=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -k) [ -n "${2:-}" ] || { echo "check-in-container.sh: -k needs an expression" >&2; exit 2; }
+        args+=(-k "$2"); shift 2 ;;
+    -*) echo "check-in-container.sh: only test paths or node ids (and -k EXPR) are accepted, not '$1'" >&2; exit 2 ;;
+    *) args+=("$1"); shift ;;
+  esac
 done
+set -- ${args[@]+"${args[@]}"}
+if [ "$(python3 scripts/web_src_hash.py)" != "$(cat apps/admin-web/.bundle-stamp 2>/dev/null)" ]; then
+  echo "check-in-container.sh: the admin bundle is stale: run scripts/web.sh build (and commit the result)" >&2
+  exit 2
+fi
 narrowed=$#
 tier_args=; [ "$#" -eq 0 ] || tier_args=$(printf '%q ' "$@")   # printf with no argument still prints one empty one ('')
 # RELAY_SCREENSHOTS_DIR (read here, never forwarded as is): a folder the run's screenshots are copied to afterwards.

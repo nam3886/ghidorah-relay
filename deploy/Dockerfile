@@ -98,6 +98,12 @@ RUN mkdir -p /web/packages/relay-core/src/relay_core/admin/static \
     && npm run format:check && echo "WEBCHECK Prettier: all files formatted" \
     && npm run test
 
+# `web.sh test SPEC...`: only the given Vitest spec files, no build, types or lint.
+FROM web-src AS web-test
+ARG SPECS
+ENV NO_COLOR=1 FORCE_COLOR=0
+RUN npx vitest run $SPECS
+
 # `web.sh format`: Prettier over the app; the result (without node_modules) is what web.sh compares with the tree.
 FROM web-src AS web-format
 RUN npm run format && mkdir /out && tar -C /web/apps/admin-web --exclude=./node_modules -cf - . | tar -C /out -xf -

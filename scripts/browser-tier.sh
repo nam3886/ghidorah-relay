@@ -19,7 +19,8 @@ count() {
   awk -F": " '/^[^ ]+: [0-9]+$/ {n += $2} END {print n + 0}' <<< "$out"
 }
 
-# Narrowed run: `browser-tier.sh PATH_OR_NODE_ID...` runs only those browser tests. The exact-count rule of the whole
+# Narrowed run: `browser-tier.sh [-k EXPR] PATH_OR_NODE_ID...` runs only those browser tests (the same arguments reach
+# the collection that gives the expected count and the run, so a -k filter narrows both). The exact-count rule of the whole
 # tier does not apply (it is not a gate); what stays: something must be selected and every selected test must pass.
 if [ $# -gt 0 ]; then
   selected=$(count -m browser "$@") || exit 1

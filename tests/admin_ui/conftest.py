@@ -288,6 +288,7 @@ class App:
     url = APP_URL
     routes = ROUTES
     planted = PLANTED
+    sign_in_timeout_ms = SIGN_IN_TIMEOUT_MS
 
     def __init__(self, chrome, live):
         self._chrome, self._live = chrome, live
