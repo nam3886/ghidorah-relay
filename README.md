@@ -70,7 +70,9 @@ docker compose -p relay --profile app run --rm api relay admin create-user <name
 docker compose -p relay --profile app run --rm api relay key create --label <label> --wallet dola:video=10
 ```
 
-See [docs/operations.md](docs/operations.md) for the full deploy order, drain mode and rollback.
+See [docs/operations.md](docs/operations.md) for the full deploy order, drain mode and rollback. On the box,
+`scripts/deploy.sh <sha> [--workers dola]` and `scripts/rollback.sh` do the ordered deploy and the rollback from the Mac
+(docs/operations.md, "Deploy and rollback").
 
 ## Command-line tool
 

@@ -745,6 +745,43 @@ into, inspects beyond metadata, or prunes anything foreign; relay removes only w
 | Live-window marker | `~/relay-deploy/live-window` |
 | Profiles of the dola worker | the named volume `profiles-dola`, mounted at `/profiles` (`RELAY_PROFILE_ROOT`) |
 
+### Deploy and rollback
+
+Run from the Mac, in a checkout where the commit is pushed (`git fetch` first):
+
+```bash
+scripts/deploy.sh <sha> [--workers dola,meta] [--allow-migrate]
+scripts/rollback.sh [<sha>] [--workers dola,meta] [--allow-schema-mismatch]
+```
+
+`deploy.sh` does the manual steps below in order: it refuses a commit that is not an ancestor of `origin/main`, a box
+with a live window (exit 77), a busy `~/relay-runs` folder or a held `gate.lock` (exit 75), and an unreadable or equal
+deployed sha. It copies `git archive <sha>` into `~/relay-deploy-new` with the live tree's env files (`cp -p`, never
+printed) and the new `GIT_SHA`, builds `migrate`, `api` and each named worker there, runs `migrate` only when the
+migrations differ from the deployed tree's and `--allow-migrate` was given (otherwise exit 3, nothing built), then
+rotates (`~/relay-deploy` becomes `~/relay-deploy-<old sha>`; older `relay-deploy-<sha>` trees and their `relay-*`
+images go, unless a running container uses one). Then `up -d --no-deps api`, `/healthz` 200 and the admin bundle
+served. Each `--workers` provider is drained twice (the second must print "(no change)"), waited on until no job of
+it is `submitting`, restarted with `up -d --no-deps worker-<p>`, checked by a fresh heartbeat of the new process and
+Chrome's version, then resumed. Without `--workers` no worker is touched. A failing step stops the run and says where
+things stand; nothing is rotated before the build (and the migration) succeeded, and a worker whose check failed stays
+drained.
+
+Both scripts take `~/relay-runs/gate.lock` exclusive from their first box check to their end (one ssh session keeps
+it), so no `box.sh` run, gate, second deploy or rollback starts meanwhile (exit 75). Before every step on the box the
+script checks that this session is alive and still answers; if it was lost, the run stops there (exit 1) and says
+where things stand. ssh keeps the connection checked (`ServerAliveInterval=15`), and the end of a run never waits
+more than about 10 s for the session to close.
+
+`rollback.sh` makes the same box checks (live window, busy folders, the lock), swaps `~/relay-deploy` with the kept tree (the only `relay-deploy-<sha>`, or the one named), restarts the
+api and, with `--workers`, each worker as above. It refuses when the tree or its images are missing, and when the two
+trees' migrations differ unless `--allow-schema-mismatch` (exit 3): a rollback never undoes a migration, so the older
+code would run against the newer schema. It never runs `migrate`, never removes an image and never touches a volume.
+The env files come back as they were in that tree. Exit codes of both: 0 done, 1 a step failed, 2 refused, 3
+migrations, 75 box busy, 77 live window. `tests/test_deploy_sh.py` runs both against a fake box.
+
+The manual steps stay below as the reference for what the scripts do.
+
 ### Ordered deploy, with a stored drain
 
 0. **Before the first `docker compose -p relay up`** run `scripts/box.sh --status`: no folder may be busy and `gate.lock`
