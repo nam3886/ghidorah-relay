@@ -1,0 +1,17 @@
+{
+ "t": 322.63,
+ "elapsed_s": 5.15,
+ "step": "download_video",
+ "method": "GET",
+ "path": "/api/download/video?id=x",
+ "request": null,
+ "status": 200,
+ "headers": {
+  "Content-Length": "2561953",
+  "Content-Type": "video/mp4"
+ },
+ "body": {
+  "_binary_bytes": 2561953,
+  "_head_hex": "000000206674797069736f6d00000200"
+ }
+}

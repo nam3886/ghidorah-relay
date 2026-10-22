@@ -77,3 +77,14 @@ Finalizing looks **lazy, on read**. The batch's `generationEndTime` and `updated
 - Find out whether completion advances without any read, by reading only once after N minutes.
 - Find out whether the partial `videoUrl` is playable, and whether download accepts `items[].id`.
 - Find a real quota signal; `upsell` stays `null`.
+
+## S6 (2026-10-23, 01:56 GMT+7): ratio field and image-to-video
+Two more jobs, same account and proxy (`fixtures/vibes/s6-live/`):
+- `config.aspectRatio` is the ratio field. An image asked for `16:9` came back 1280x720 (the PNG download 1440x810).
+- Image to video: `POST /api/upload-image` with `{image: <data URL>}` answered `{mediaEntId, imageUrl}` in 7.9 s; the
+  generate takes them as `directPromptImageHandle: {image_ent_id, image_url, source: "upload"}` and answered
+  `success: true, needsPolling: true` in 20.2 s.
+- The video ignored `aspectRatio: "16:9"` and the square start frame: 464x832 (9:16), 5.2 s. Text-to-video with a
+  ratio is not tested.
+- Reads every 25 s met no checkpoint; `isComplete: true, isLoading: false` came on the read at 320 s.
+- Owner ruling 23/10: until a ratio is proven for video, vibes-video takes no ratio or `9:16` only; any other ratio is refused (`input.bad_ratio`), image to video included.

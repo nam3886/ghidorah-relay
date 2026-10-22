@@ -1,0 +1,92 @@
+[
+ {
+  "t": 0.44,
+  "elapsed_s": 7.94,
+  "step": "upload_image",
+  "status": 200
+ },
+ {
+  "t": 8.38,
+  "elapsed_s": 1.27,
+  "step": "create_batch",
+  "status": 200
+ },
+ {
+  "t": 9.65,
+  "elapsed_s": 20.23,
+  "step": "generate",
+  "status": 200
+ },
+ {
+  "t": 54.88,
+  "elapsed_s": 1.97,
+  "step": "poll",
+  "status": 200
+ },
+ {
+  "t": 81.85,
+  "elapsed_s": 0.83,
+  "step": "poll",
+  "status": 200
+ },
+ {
+  "t": 107.68,
+  "elapsed_s": 1.29,
+  "step": "poll",
+  "status": 200
+ },
+ {
+  "t": 133.97,
+  "elapsed_s": 2.38,
+  "step": "poll",
+  "status": 200
+ },
+ {
+  "t": 161.35,
+  "elapsed_s": 1.93,
+  "step": "poll",
+  "status": 200
+ },
+ {
+  "t": 188.28,
+  "elapsed_s": 1.51,
+  "step": "poll",
+  "status": 200
+ },
+ {
+  "t": 214.79,
+  "elapsed_s": 1.05,
+  "step": "poll",
+  "status": 200
+ },
+ {
+  "t": 240.84,
+  "elapsed_s": 1.02,
+  "step": "poll",
+  "status": 200
+ },
+ {
+  "t": 266.86,
+  "elapsed_s": 1.93,
+  "step": "poll",
+  "status": 200
+ },
+ {
+  "t": 293.79,
+  "elapsed_s": 1.44,
+  "step": "poll",
+  "status": 200
+ },
+ {
+  "t": 320.23,
+  "elapsed_s": 2.4,
+  "step": "poll",
+  "status": 200
+ },
+ {
+  "t": 322.63,
+  "elapsed_s": 5.15,
+  "step": "download_video",
+  "status": 200
+ }
+]

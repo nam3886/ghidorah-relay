@@ -1,0 +1,34 @@
+{
+ "t": 8.38,
+ "elapsed_s": 1.27,
+ "step": "create_batch",
+ "method": "POST",
+ "path": "/api/generation-batches",
+ "request": {
+  "id": "e2b1e259-b043-45ac-8a11-4e7f6b261a23",
+  "type": "videos",
+  "prompt": "the scene slowly comes alive, gentle camera push in",
+  "timestamp": 1792695401053,
+  "isComplete": false,
+  "config": {
+   "videoModel": "midjen-short",
+   "resolution": "480p",
+   "aspectRatio": "16:9"
+  },
+  "content": [
+   {
+    "id": "e2b1e259-b043-45ac-8a11-4e7f6b261a23-content-0",
+    "type": "video",
+    "isLoading": true
+   }
+  ]
+ },
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "batch": null,
+  "id": "e2b1e259-b043-45ac-8a11-4e7f6b261a23"
+ }
+}

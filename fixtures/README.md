@@ -169,3 +169,28 @@ Redacted calls of one image job and one video job; `vibes/s5-live/README.md` des
 - `vibes/s5-live/video_125_video_download_0.json`
 - `vibes/s5-live/video_126_video_download_1.json`
 - `vibes/s5-live/video_timeline.json`
+
+## vibes.ai live run S6 (23/10/2026)
+
+Redacted calls of one image job asked for 16:9 and one image-to-video job; `vibes/s6-live/README.md` describes them.
+
+- `vibes/s6-live/i2v_001_upload_image.json`
+- `vibes/s6-live/i2v_002_create_batch.json`
+- `vibes/s6-live/i2v_003_generate.json`
+- `vibes/s6-live/i2v_004_poll.json`
+- `vibes/s6-live/i2v_005_poll.json`
+- `vibes/s6-live/i2v_006_poll.json`
+- `vibes/s6-live/i2v_007_poll.json`
+- `vibes/s6-live/i2v_008_poll.json`
+- `vibes/s6-live/i2v_009_poll.json`
+- `vibes/s6-live/i2v_010_poll.json`
+- `vibes/s6-live/i2v_011_poll.json`
+- `vibes/s6-live/i2v_012_poll.json`
+- `vibes/s6-live/i2v_013_poll.json`
+- `vibes/s6-live/i2v_014_poll.json`
+- `vibes/s6-live/i2v_015_download_video.json`
+- `vibes/s6-live/log_i2v_1792695392.json`
+- `vibes/s6-live/log_t2i_1792695371.json`
+- `vibes/s6-live/t2i_001_create_batch.json`
+- `vibes/s6-live/t2i_002_generate.json`
+- `vibes/s6-live/t2i_003_download_png.json`

@@ -26,7 +26,7 @@ from relay_vibes.constants import (
     SIGNED_OUT_GAP_S,
     SIGNED_OUT_REST_S,
 )
-from relay_vibes.engine.http import client_for
+from relay_vibes.engine.http import Resting, Rests, client_for, is_checkpoint
 
 POOLS = ("video", "image")
 SIGNED_OUT_STATUSES = (401, 403)
@@ -53,11 +53,16 @@ def quota_used(body: dict) -> bool:
 
 
 async def check_account(ctx, settings, *, transport: httpx.AsyncBaseTransport | None = None,
-                        now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> Health:
-    """The state of one account. `transport` and `now` are seams for tests."""
+                        now: Callable[[], datetime] = lambda: datetime.now(UTC), rests: Rests | None = None) -> Health:
+    """The state of one account. `transport` and `now` are seams for tests; `rests` spaces the calls (the engine's)."""
     try:
-        async with client_for(ctx.account, transport) as client:
+        async with client_for(ctx.account, transport, rests) as client:
             me = await client.get(ME_PATH)
+            if is_checkpoint(me):
+                # vibes' security checkpoint says nothing about the session: no strike, a recheck after the rest
+                rest = rests.left_s(ctx.account.id) if rests is not None else 0
+                return Health("unknown", effects=(Cooldown("vibes security checkpoint", now() + timedelta(
+                    seconds=rest), recheck=True),) if rest else ())
             if me.status_code in SIGNED_OUT_STATUSES:
                 return Health("unknown", effects=doubt_effects(
                     "not signed in: vibes answered %d to the session" % me.status_code, now()))
@@ -70,8 +75,10 @@ async def check_account(ctx, settings, *, transport: httpx.AsyncBaseTransport | 
                                                                now()))
             try:
                 quota = await client.get(QUOTA_PATH)
-            except httpx.HTTPError:
+            except (httpx.HTTPError, Resting):
                 quota = None
+    except Resting as e:
+        raise RuntimeError(str(e)) from None
     except httpx.HTTPError as e:
         # the exception text may carry the proxy URL: only its kind goes out
         raise RuntimeError("vibes.ai could not be reached (%s)" % type(e).__name__) from None

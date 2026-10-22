@@ -1,0 +1,118 @@
+{
+ "t": 1.72,
+ "elapsed_s": 9.87,
+ "step": "generate",
+ "method": "POST",
+ "path": "/api/generate/images",
+ "request": {
+  "batchId": "f28b2de2-c85e-43a3-85ba-dca8069d80e5",
+  "inputs": [
+   {
+    "type": "variation",
+    "image_prompt": "a red bicycle leaning on a brick wall, photo",
+    "original_prompt": "a red bicycle leaning on a brick wall, photo",
+    "config": {}
+   }
+  ],
+  "config": {
+   "imageModel": "midjen-base",
+   "aspectRatio": "16:9"
+  },
+  "mg_request_id": "www-b78d2725-6133-4d01-92e6-3bfe33566c30"
+ },
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "success": true,
+  "data": [
+   {
+    "url": "https://scontent-ord5-1.xx.fbcdn.net/o1/v/t0/f2/m340/AQN5kDqMJ6oTfSXCxmiCGX0vT-DYzK5NOcQXuISS8ny3YNw6Bu5Tfjfjsz0oQuzL2A8T9CrtOtprBIXjCaYXdTVaK8SgbVJ0Agz23PZMKqOiaZFMeCqSF4czZcmtSTji4wZLJ77hZAvkUxiR0X6zwzX1Fy9aUQ.jpeg?<redacted-query>",
+    "prompt": "a red bicycle leaning on a brick wall, photo",
+    "originalPrompt": "a red bicycle leaning on a brick wall, photo",
+    "srefValues": "",
+    "orefValues": "",
+    "config": {
+     "imageModel": "midjen-base",
+     "aspectRatio": "16:9"
+    },
+    "imageEntId": "1347049428499123",
+    "dimensions": {
+     "width": 1280,
+     "height": 720
+    }
+   }
+  ],
+  "updatedBatch": {
+   "id": "f28b2de2-c85e-43a3-85ba-dca8069d80e5",
+   "userId": "<user.id>",
+   "projectId": null,
+   "type": "images",
+   "prompt": "a red bicycle leaning on a brick wall, photo",
+   "timestamp": "2026-10-22T18:56:12.000Z",
+   "isComplete": true,
+   "hasError": false,
+   "error": null,
+   "canRetry": true,
+   "config": {
+    "imageModel": "midjen-base",
+    "aspectRatio": "16:9"
+   },
+   "systemPrompt": null,
+   "promptModel": null,
+   "imageModel": "midjen-base",
+   "videoModel": null,
+   "bulkGenId": null,
+   "generationStartTime": "2026-10-22T18:56:12.000Z",
+   "generationEndTime": "2026-10-22T18:56:20.000Z",
+   "creationContext": "legacy",
+   "createdAt": "2026-10-22T18:56:12.000Z",
+   "updatedAt": "2026-10-22T18:56:20.000Z",
+   "content": [
+    {
+     "id": "f28b2de2-c85e-43a3-85ba-dca8069d80e5-content-0",
+     "userId": "<user.id>",
+     "batchId": "f28b2de2-c85e-43a3-85ba-dca8069d80e5",
+     "originProjectId": null,
+     "type": "images",
+     "isLoading": false,
+     "isFavorited": false,
+     "data": {
+      "requestId": "www-b78d2725-6133-4d01-92e6-3bfe33566c30",
+      "imageEntId": "1347049428499123"
+     },
+     "imageUrl": "https://scontent-ord5-1.xx.fbcdn.net/o1/v/t0/f2/m340/AQN5kDqMJ6oTfSXCxmiCGX0vT-DYzK5NOcQXuISS8ny3YNw6Bu5Tfjfjsz0oQuzL2A8T9CrtOtprBIXjCaYXdTVaK8SgbVJ0Agz23PZMKqOiaZFMeCqSF4czZcmtSTji4wZLJ77hZAvkUxiR0X6zwzX1Fy9aUQ.jpeg?<redacted-query>",
+     "imageHandle": null,
+     "videoUrl": null,
+     "videoHandle": null,
+     "mediaEntId": "1347049428499123",
+     "prompt": "a red bicycle leaning on a brick wall, photo",
+     "imagePrompt": "a red bicycle leaning on a brick wall, photo",
+     "videoPrompt": null,
+     "structuredOutput": {
+      "config": {
+       "imageModel": "midjen-base",
+       "aspectRatio": "16:9"
+      },
+      "metadata": {
+       "dimensions": {
+        "width": 1280,
+        "height": 720
+       },
+       "aspectRatio": "16:9"
+      }
+     },
+     "srefValues": "",
+     "sourceContentItemIds": null,
+     "hasUploadedAncestor": false,
+     "error": null,
+     "canRetry": false,
+     "orderIndex": 0,
+     "createdAt": "2026-10-22T18:56:13.000Z",
+     "updatedAt": "2026-10-22T18:56:20.000Z"
+    }
+   ]
+  }
+ }
+}

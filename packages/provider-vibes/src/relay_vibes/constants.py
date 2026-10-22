@@ -21,6 +21,15 @@ ME_PATH = "/api/auth/me"               # {user: {id, username, accountStatus}}; 
 QUOTA_PATH = "/api/quota/upsell"       # {upsell: null} while quota is left; a banner with `bannerStatus` when used up
 ACTIVE_STATUS = "ACTIVE"
 QUOTA_USED_BANNER = "enabled"          # `bannerStatus` (any case) of the banner shown once the quota is used up
+UPLOAD_PATH = "/api/upload-image"      # {image: data URL} -> {mediaEntId, imageUrl}: the start frame of an i2v job
+BATCHES_PATH = "/api/generation-batches"   # POST: the empty batch (its id is ours); GET /<id>: the batch read
+GENERATE_PATH = {"image": "/api/generate/images", "video": "/api/generate/videos"}   # the one paid call of a job
+# the result file by its content item id
+DOWNLOAD_PATH = {"image": "/api/download/png?id=%s", "video": "/api/download/video?id=%s"}
+OUTPUT_MIME = {"image": "image/png", "video": "video/mp4"}
+# Vercel's security checkpoint: a 403 HTML page with this header. A plain client cannot pass it; only a pause clears it.
+CHECKPOINT_HEADER = "x-vercel-mitigated"
+CHECKPOINT_VALUE = "challenge"
 
 # ---- timing ---------------------------------------------------------------------------------------------------
 API_TIMEOUT_S = 30              # one API read of the account check, over a proxy
@@ -31,6 +40,10 @@ SIGNED_OUT_GAP_S = 540          # a signed-out read less than this long after th
 #                                 shorter than the rest, so the recheck after a rest always counts
 SUBMIT_TIMEOUT_IMAGE_S = 180    # an image is drawn inside the request (about 10 s)
 SUBMIT_TIMEOUT_VIDEO_S = 120    # a video submit only starts the render (a few seconds); the render is polled
+UPLOAD_TIMEOUT_S = 60           # the start frame upload (8 s measured for a 117 kB JPEG)
+GENERATE_TIMEOUT_S = 90         # the generate POST (7.8 s image, 13-20 s video measured); no answer = unknown
+DOWNLOAD_TIMEOUT_S = 120        # one read of a result download (2.7 MB PNG, 3 MB MP4 measured)
+NETWORK_REST_S = 300            # a submit whose proxy could not reach vibes rests the account this long
 
 # ---- attempts and strikes ---------------------------------------------------------------------------------------
 MAX_ATTEMPTS = 3                # counted attempts before a job fails
@@ -58,6 +71,14 @@ LIMITS = (
                "hard bound on one image submit: vibes draws the image inside the request (about 10 s)", "s"),
     FixedLimit("relay_vibes.constants.SUBMIT_TIMEOUT_VIDEO_S", SUBMIT_TIMEOUT_VIDEO_S,
                "hard bound on one video submit: it only starts the render, which is polled afterwards", "s"),
+    FixedLimit("relay_vibes.constants.UPLOAD_TIMEOUT_S", UPLOAD_TIMEOUT_S,
+               "the start frame upload of an image-to-video job; nothing is sent yet, so a timeout is a retry", "s"),
+    FixedLimit("relay_vibes.constants.GENERATE_TIMEOUT_S", GENERATE_TIMEOUT_S,
+               "the one paid call; no answer in time makes the job unknown (reconciled, never sent again)", "s"),
+    FixedLimit("relay_vibes.constants.DOWNLOAD_TIMEOUT_S", DOWNLOAD_TIMEOUT_S,
+               "one read of a result download; a slower one is tried again by the fetcher", "s"),
+    FixedLimit("relay_vibes.constants.NETWORK_REST_S", NETWORK_REST_S,
+               "a submit whose proxy could not reach vibes rests the account this long", "s"),
     FixedLimit("relay_vibes.constants.FALLBACK_PRICE", FALLBACK_PRICE,
                "charged for a model missing from vibes.prices", "points"),
     FixedLimit("relay_vibes.constants.ACCOUNT_COST", ACCOUNT_COST,

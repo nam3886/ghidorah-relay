@@ -1,0 +1,50 @@
+{
+ "t": 9.65,
+ "elapsed_s": 20.23,
+ "step": "generate",
+ "method": "POST",
+ "path": "/api/generate/videos",
+ "request": {
+  "batchId": "e2b1e259-b043-45ac-8a11-4e7f6b261a23",
+  "inputs": [
+   {
+    "type": "prompt",
+    "value": "the scene slowly comes alive, gentle camera push in",
+    "original_prompt": "the scene slowly comes alive, gentle camera push in",
+    "config": {}
+   }
+  ],
+  "config": {
+   "videoModel": "midjen-short",
+   "resolution": "480p",
+   "aspectRatio": "16:9"
+  },
+  "mg_request_id": "www-44345715-efea-4624-909c-8147186ee43d",
+  "directPromptImageHandle": {
+   "image_ent_id": "1347049991832400",
+   "image_url": "https://scontent-iad3-1.xx.fbcdn.net/o1/v/t6/f2/m421/AQM6trkkYWxWGqbshNjG8m1lmyv9D6OoZt82vs2ruKqV9sceLYpPb2-L19Ipv8dA1yjP75kl8msZzfP0BJwMRbsf127B?<redacted-query>",
+   "source": "upload"
+  }
+ },
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "success": true,
+  "batchId": "e2b1e259-b043-45ac-8a11-4e7f6b261a23",
+  "videoGenEntIds": [
+   "1347050431832356"
+  ],
+  "needsPolling": true,
+  "hasPartialErrors": false,
+  "items": [
+   {
+    "id": "e2b1e259-b043-45ac-8a11-4e7f6b261a23-content-0-1792695422147",
+    "imageUrl": "https://scontent-ord5-1.xx.fbcdn.net/o1/v/t0/f2/m340/AQM2skP3gwZgmXH5W4HrqYb_0C91n1El9F-rXsPOWTIZMHecnuPZDd4tp9o4u-HstfpVlxJ1d4Wc0Z1th1-1v7xx1oJUGtgxEUW1If1zYXxoFdE0161qVaBSYGnsPCPJxhKbdp543zweirH7Fw0-8j1Cvm4AcQ.jpeg?<redacted-query>",
+    "isLoading": true,
+    "error": null
+   }
+  ]
+ }
+}

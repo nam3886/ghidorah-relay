@@ -70,10 +70,21 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
 
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,
-             "Drain mode off: when false vibes claims no new job. Off until vibes can submit."),
+             "Drain mode off: when false vibes claims no new job. Off until the owner turns vibes on."),
     _setting("render_deadline_s", int, 1800,
              "Seconds after the send before a vibes job that has not delivered is given up (a video takes about "
              "5 min).", min=60),
+    _setting("poll_interval_s", int, 20,
+             "Seconds between two reads of a rendering vibes job; each wait adds up to half again at random, so the "
+             "reads never come faster. vibes finishes a render only when it is read, and reads every 2-6 s brought "
+             "its security checkpoint.", min=10, max=300),
+    _setting("checkpoint_rest_s", int, 600,
+             "Seconds a vibes account makes no call at all after vibes' security checkpoint (a 403 challenge) "
+             "answered it. Its jobs keep waiting and never fail on it; the checkpoint cleared after about 7 min "
+             "without calls.", min=60, max=3600),
+    _setting("account_min_gap_s", int, 8,
+             "Minimum seconds between two calls of one vibes account, whatever they are (submit, poll, reconcile, "
+             "download, check); Vercel blocked ~45 calls in 5.5 min.", min=2, max=60),
     _setting("prices", dict, dict(C.DEFAULT_PRICES),
              "Points charged per generation, keyed by model. A model missing here is charged the fallback (1) with a "
              "warning.", rule=PRICES_RULE),
@@ -92,7 +103,7 @@ class VibesSpec:
         execution="http", wallet_kinds=("video", "image"),
         pools=(PoolSpec("video", "UTC", "vibes.video_budget"), PoolSpec("image", "UTC", "vibes.image_budget")),
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
-        strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=False, has_reconcile=False, has_probe_proxy=False,
+        strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=False,
         titles=False, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)
     limits = LIMITS + (
         FixedLimit("relay_vibes.credential.MAX_COOKIES", MAX_COOKIES,
@@ -132,7 +143,9 @@ class VibesSpec:
             raise _refuse("input.bad_duration", "vibes sets the length itself: send no duration", "duration")
         if req.ratio is not None and req.ratio not in C.RATIOS[kind]:
             allowed = ", ".join(C.RATIOS[kind])
-            raise _refuse("input.bad_ratio", "%s takes the ratios %s (or none)" % (req.model, allowed), "ratio")
+            detail = ("vibes video comes out 9:16; send no ratio or 9:16" if kind == "video"
+                      else "%s takes the ratios %s (or none)" % (req.model, allowed))
+            raise _refuse("input.bad_ratio", detail, "ratio")
         resolution = req.options.get("resolution")
         params: dict[str, Any] = {"kind": kind, "model": C.UPSTREAM[req.model], "ratio": req.ratio}
         if kind == "image":

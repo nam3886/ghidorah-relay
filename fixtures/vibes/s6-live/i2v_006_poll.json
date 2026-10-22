@@ -1,0 +1,81 @@
+{
+ "t": 107.68,
+ "elapsed_s": 1.29,
+ "step": "poll",
+ "method": "GET",
+ "path": "/api/generation-batches/e2b1e259-b043-45ac-8a11-4e7f6b261a23",
+ "request": null,
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "batch": {
+   "id": "e2b1e259-b043-45ac-8a11-4e7f6b261a23",
+   "userId": "<user.id>",
+   "projectId": null,
+   "type": "videos",
+   "prompt": "the scene slowly comes alive, gentle camera push in",
+   "timestamp": "2026-10-22T18:56:41.000Z",
+   "isComplete": false,
+   "hasError": false,
+   "error": null,
+   "canRetry": true,
+   "config": {
+    "resolution": "480p",
+    "videoModel": "midjen-short",
+    "aspectRatio": "16:9"
+   },
+   "systemPrompt": null,
+   "promptModel": null,
+   "imageModel": null,
+   "videoModel": null,
+   "bulkGenId": null,
+   "generationStartTime": "2026-10-22T18:56:41.000Z",
+   "generationEndTime": "2026-10-22T18:56:41.000Z",
+   "creationContext": "legacy",
+   "createdAt": "2026-10-22T18:56:41.000Z",
+   "updatedAt": "2026-10-22T18:57:00.000Z",
+   "content": [
+    {
+     "id": "e2b1e259-b043-45ac-8a11-4e7f6b261a23-content-0",
+     "userId": "<user.id>",
+     "batchId": "e2b1e259-b043-45ac-8a11-4e7f6b261a23",
+     "originProjectId": null,
+     "type": "videos",
+     "isLoading": true,
+     "isFavorited": false,
+     "data": "{\"videoGenEntId\": \"1347050431832356\", \"requestId\": \"www-<user.id>-b91d9690-4998-442f-b672-348bf88fef17\", \"imageEntId\": \"1347050411832358\"}",
+     "imageUrl": "https://scontent-iad3-1.xx.fbcdn.net/o1/v/t6/f2/m421/AQM2skP3gwZgmXH5W4HrqYb_0C91n1El9F-rXsPOWTIZMHecnuPZDd4tp9o4u-HstfpVlxJ1d4Wc0Z1th1-1v7xx1oJUGtgxEUW1If1zYXxoFdE0161qVaBSYGnsPCPJxhKbdp543zweirH7Fw0-8j1Cvm4AcQ.jpeg?<redacted-query>",
+     "imageHandle": null,
+     "videoUrl": "https://video-iad3-1.xx.fbcdn.net/o1/v/t2/f2/m412/AQMAIaFpeX6dhnUQpsPDXNdy34Yel6Qjv4iJgDwrLRdRkleCQwS7unpSLMBWwjryqKwhs5Y0krW24b2br_GyAg5bJxBa9AOS434RjEw.mp4?<redacted-query>",
+     "videoHandle": null,
+     "mediaEntId": "1347050431832356",
+     "prompt": "the scene slowly comes alive, gentle camera push in",
+     "imagePrompt": "the scene slowly comes alive, gentle camera push in",
+     "videoPrompt": "the scene slowly comes alive, gentle camera push in",
+     "structuredOutput": {
+      "metadata": {
+       "dimensions": {
+        "width": 1280,
+        "height": 720
+       },
+       "aspectRatio": "16:9"
+      }
+     },
+     "srefValues": null,
+     "sourceContentItemIds": null,
+     "hasUploadedAncestor": false,
+     "error": null,
+     "canRetry": false,
+     "orderIndex": 0,
+     "createdAt": "2026-10-22T18:56:41.000Z",
+     "updatedAt": "2026-10-22T18:57:02.000Z",
+     "thumbnailUrl": "https://scontent-iad6-1.xx.fbcdn.net/v/t15.5256-10/858766335_1477332087637483_8731195306648046787_n.jpg?<redacted-query>",
+     "aspectRatio": 0.55769230769231
+    }
+   ],
+   "needsPolling": true
+  }
+ }
+}

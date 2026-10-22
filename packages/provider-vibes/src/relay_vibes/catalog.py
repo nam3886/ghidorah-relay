@@ -9,8 +9,10 @@ VIDEO_MODEL = "vibes-video"
 KIND = {IMAGE_MODEL: "image", VIDEO_MODEL: "video"}
 UPSTREAM = {IMAGE_MODEL: "midjen-base", VIDEO_MODEL: "midjen-short"}     # the model names vibes' API takes
 
-# The aspect ratio is a request field, never a prompt flag. No ratio: vibes picks its own.
-RATIOS = {"image": ("1:1", "16:9", "9:16", "4:3", "3:4"), "video": ("16:9", "9:16", "1:1")}
+# The aspect ratio is a request field (`config.aspectRatio`), never a prompt flag. No ratio: vibes picks its own.
+# A video comes out 9:16 whatever is asked (S5 text-to-video, S6 image-to-video asked 16:9): only 9:16 is promised
+# until another ratio is proven.
+RATIOS = {"image": ("1:1", "16:9", "9:16", "4:3", "3:4"), "video": ("9:16",)}
 RESOLUTIONS = ("480p", "720p")        # video only, as `options.resolution`
 DEFAULT_RESOLUTION = "480p"
 

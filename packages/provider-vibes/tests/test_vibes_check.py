@@ -1,5 +1,5 @@
 """The account check over a fake HTTP transport (no network), fed vibes' recorded answers from
-fixtures/vibes/s4-capture; and the engine's unbuilt parts."""
+fixtures/vibes/s4-capture."""
 
 import asyncio
 import json
@@ -12,10 +12,8 @@ import pytest
 
 from relay_core.providers import Balance, Cooldown, Dead, Proxy, Suspect
 from relay_core.testing.mutation import mutation
-from relay_vibes.engine import build_engine
 from relay_vibes.engine.check import check_account
 from relay_vibes.engine.http import proxy_url
-from relay_vibes.spec import SPEC
 
 CHECK_FILE = "packages/provider-vibes/src/relay_vibes/engine/check.py"
 CAPTURE = Path(__file__).resolve().parents[3] / "fixtures" / "vibes" / "s4-capture" / "capture.json"
@@ -140,16 +138,3 @@ def test_the_proxy_url_quotes_the_login():
     assert proxy_url(None) is None
     assert proxy_url(Proxy("10.0.0.1", 8080)) == "http://10.0.0.1:8080"
     assert proxy_url(Proxy("10.0.0.1", 8080, "us er:p@ss:w")) == "http://us%20er:p%40ss%3Aw@10.0.0.1:8080"
-
-
-def test_submit_poll_and_fetch_are_not_built_and_no_command_runs():
-    engine = build_engine(SPEC, None)
-    with pytest.raises(NotImplementedError, match="vibes submit is not built yet"):
-        asyncio.run(engine.submit(None, None))
-    with pytest.raises(NotImplementedError, match="vibes poll is not built yet"):
-        asyncio.run(engine.poll(None, None))
-    with pytest.raises(NotImplementedError, match="vibes fetch is not built yet"):
-        engine.fetch(None, None)
-    for kind in ("titles", "recover", "refresh_catalog"):
-        with pytest.raises(ValueError, match="vibes runs no command"):
-            asyncio.run(engine.run_command(None, kind, {}))

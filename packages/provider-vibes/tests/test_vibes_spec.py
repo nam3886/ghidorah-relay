@@ -53,8 +53,8 @@ def test_the_caps_say_an_http_provider_with_a_video_and_an_image_pool():
         ("video", "UTC", "vibes.video_budget"), ("image", "UTC", "vibes.image_budget")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold) == (1, 3, 3)
     assert c.strike_effect == Dead("signed_out")
-    # poll and reconcile come with submit: until then the core starts neither loop for vibes
-    assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (False, False, False, False)
+    # a video is polled after the send, and a send whose answer was lost is reconciled from its batch
+    assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (True, True, False, False)
     assert SPEC.frames is None and SPEC.extras({}) == {}
 
 
@@ -67,6 +67,9 @@ def test_vibes_stays_drained_by_default_and_declares_the_settings_the_core_reads
     assert s["vibes.prices"].default == {"vibes-image": 1, "vibes-video": 1}
     assert s["vibes.image_budget"].default >= 1000 and s["vibes.video_budget"].default >= 1000, "not measured yet"
     assert s["vibes.render_deadline_s"].default >= 600, "a video renders for about 5 min"
+    assert (s["vibes.poll_interval_s"].default, s["vibes.poll_interval_s"].min) == (20, 10), "slower than 2-6 s"
+    assert s["vibes.checkpoint_rest_s"].default == 600 and s["vibes.checkpoint_rest_s"].min == 60
+    assert all(s[k].description for k in s)
     assert _problems(SPEC) == []
 
 
@@ -91,9 +94,16 @@ def test_the_registry_takes_vibes_beside_dola_and_meta_and_no_model_name_clashes
 
 
 # ---- error rules -----------------------------------------------------------------------------------------------------
-def test_vibes_registers_no_code_before_a_running_path_uses_one_and_a_warning_is_no_rule():
-    assert SPEC.codes() == {} and not any(code.startswith("vibes.") for code in errors.RULES)
+def test_vibes_registers_its_codes_on_load_and_a_warning_is_no_rule():
+    codes = {"vibes.http_error", "vibes.generate_refused", "vibes.render_failed"}
+    assert set(SPEC.codes()) == codes and codes <= set(errors.RULES), "the codes are registered when the package loads"
+    assert {c for c in errors.RULES if c.startswith("vibes.")} == codes and errors.violations(errors.RULES) == []
     assert vibes_errors.WARN_PRICE_FALLBACK not in errors.RULES, "a warning is not a rule"
+    for code in ("vibes.generate_refused", "vibes.render_failed"):   # the job ends now, refunded; never sent again
+        r = errors.rule(code)
+        assert (r.terminal, r.refund, r.counts_attempt, r.public) == (True, True, False, True), code
+    r = errors.rule("vibes.http_error")                               # before the send: an attempt, refunded at the end
+    assert (r.terminal, r.refund, r.counts_attempt, r.public) == (False, True, True, True)
 
 
 # ---- plan ------------------------------------------------------------------------------------------------------------
@@ -144,17 +154,30 @@ def test_an_image_request_with_an_input_image_is_refused():
 
 
 RATIO_RULE = "        if req.ratio is not None and req.ratio not in C.RATIOS[kind]:"
+CATALOG_FILE = "packages/provider-vibes/src/relay_vibes/catalog.py"
+VIDEO_RATIOS = '"video": ("9:16",)}'
 
 
 @mutation(SPEC_FILE, RATIO_RULE, "        if False:", expect="a ratio the model does not take")
+@mutation(CATALOG_FILE, VIDEO_RATIOS, '"video": ("16:9", "9:16", "1:1")}', expect="a ratio the model does not take")
 @mutation(SPEC_FILE, RATIO_RULE, '        if req.ratio is not None and req.ratio not in C.RATIOS["image"]:',
           expect="a ratio the model does not take")
 def test_each_kind_takes_only_its_own_ratios_as_a_field():
     for ratio in ("1:1", "16:9", "9:16", "4:3", "3:4"):
         assert plan(ratio=ratio).params["ratio"] == ratio
-    for ratio in ("16:9", "9:16", "1:1"):
-        assert plan("vibes-video", ratio=ratio).params["ratio"] == ratio
-    for model, ratio in (("vibes-video", "4:3"), ("vibes-video", "3:4"), ("vibes-image", "21:9"),
+    # a video comes out 9:16 whatever is asked (measured S5, S6): no other ratio is promised, for t2v or i2v
+    assert plan("vibes-video", ratio="9:16").params["ratio"] == "9:16"
+    assert plan("vibes-video", "pan", images=(IMG,), ratio="9:16").params["ratio"] == "9:16"
+    for ratio in ("16:9", "1:1", "4:3"):
+        for images in ((), (IMG,)):
+            try:
+                plan("vibes-video", "pan", images=images, ratio=ratio)
+            except InputError as e:
+                assert (e.code, e.param, e.detail) == (
+                    "input.bad_ratio", "ratio", "vibes video comes out 9:16; send no ratio or 9:16"), (ratio, e)
+            else:
+                raise AssertionError("a ratio the model does not take: vibes-video %s %s" % (ratio, images))
+    for model, ratio in (("vibes-video", "3:4"), ("vibes-image", "21:9"),
                          ("vibes-image", "16x9")):
         assert refusal(model, ratio=ratio) == ("input.bad_ratio", "ratio"), "a ratio the model does not take: %s %s" % (
             model, ratio)

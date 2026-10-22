@@ -1,0 +1,33 @@
+{
+ "t": 0.0,
+ "elapsed_s": 1.72,
+ "step": "create_batch",
+ "method": "POST",
+ "path": "/api/generation-batches",
+ "request": {
+  "id": "f28b2de2-c85e-43a3-85ba-dca8069d80e5",
+  "type": "images",
+  "prompt": "a red bicycle leaning on a brick wall, photo",
+  "timestamp": 1792695371532,
+  "isComplete": false,
+  "config": {
+   "imageModel": "midjen-base",
+   "aspectRatio": "16:9"
+  },
+  "content": [
+   {
+    "id": "f28b2de2-c85e-43a3-85ba-dca8069d80e5-content-0",
+    "type": "image",
+    "isLoading": true
+   }
+  ]
+ },
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "batch": null,
+  "id": "f28b2de2-c85e-43a3-85ba-dca8069d80e5"
+ }
+}
