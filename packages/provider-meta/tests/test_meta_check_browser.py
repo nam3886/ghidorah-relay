@@ -1,21 +1,25 @@
 """The real `check_account` in a real Chrome against small local pages that carry meta's signs: a signed-in page, a
-signed-out page, a redirect to the login URL and a page with no sign. Browser tier."""
+signed-out page, a redirect to the login URL, a page with no sign, and the captured browser checkpoint. Browser tier."""
 
 import asyncio
 import functools
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from relay_browser.session import SiteProfile
 from relay_core.budget import BrowserBudget, Purpose
-from relay_core.providers import Cooldown, Suspect
+from relay_core.providers import Cooldown, Dead, Suspect
+from relay_core.testing.fake_provider import FakeSettings
 from relay_core.testing.mutation import mutation
 from relay_meta.engine.check import check_account
+from relay_meta.spec import SPEC
 
 CHECK_FILE = "packages/provider-meta/src/relay_meta/engine/check.py"
+CHECKPOINT_DOM = Path(__file__).resolve().parents[3] / "fixtures" / "meta" / "spike-261023" / "checkpoint-acc1"
 
 PAGES = {
     "/in": '<!doctype html><title>meta</title><div><button data-testid="user-menu-button">Nam Tester</button></div>',
@@ -28,7 +32,12 @@ PAGES = {
               '\'<button data-testid="user-menu-button" aria-label="Late Name"></button>\'},700)</script>'),
     "/login": "<!doctype html><title>log in</title><p>Log in to continue</p>",
     "/blank": "<!doctype html><title>meta</title><p>Something went wrong</p>",
+    # the captured checkpoint page, and a challenge page that never passes; both are served with a 403, as meta does,
+    # on a path without "checkpoint" (that URL mark is a signed-out sign; meta's checkpoint keeps the address `/`)
+    "/vercel": (CHECKPOINT_DOM / "loaded.dom.html").read_text(),
+    "/challenge": "<!doctype html><title>Vercel Security Checkpoint</title><p>Verifying your browser</p>",
 }
+FORBIDDEN = ("/vercel", "/challenge")
 JAR = json.dumps({"cookies": [{"name": "ecto_1_sess", "value": "v-sess", "domain": ".meta.ai", "path": "/",
                                "secure": True, "httpOnly": True, "session": True}]}).encode()
 
@@ -39,6 +48,7 @@ class Account:
     credential_gen: int = 1
     proxy: object = None
     credential: bytes = JAR
+    provider_state: dict = field(default_factory=dict)
 
 
 class Pages:
@@ -62,6 +72,8 @@ class Pages:
             body = PAGES.get(path, "").encode()
             if path == "/go-login":
                 status = b"302 Found\r\nLocation: /login?next=/"
+            elif path in FORBIDDEN:
+                status = b"403 Forbidden"
             else:
                 status = b"200 OK" if path in PAGES else b"404 Not Found"
             writer.write(b"HTTP/1.1 %s\r\nContent-Type: text/html\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"
@@ -80,20 +92,20 @@ def sync(test):
     return run
 
 
-async def check(tmp_path, path: str, wait_s: float = 5):
+async def check(tmp_path, path: str, wait_s: float = 5, account: Account | None = None):
     token = BrowserBudget(1).try_acquire(Purpose.CHECK)
     site = SiteProfile(name="meta-test", host="127.0.0.1", profile_root=str(tmp_path / "profiles"))
-    ctx = SimpleNamespace(account=Account(), browser_token=token)
+    ctx = SimpleNamespace(account=account or Account(), browser_token=token)
     try:
         async with Pages() as pages:
-            return await check_account(ctx, None, site=site, url=pages.url(path), wait_s=wait_s)
+            return await check_account(ctx, FakeSettings(SPEC), site=site, url=pages.url(path), wait_s=wait_s)
     finally:
         token.release()
 
 
 @pytest.mark.browser
-@mutation(CHECK_FILE, '            return Health("alive", display_name=name or None, screenshot=shot)',
-          '            return Health("alive", screenshot=shot)', expect="the display name")
+@mutation(CHECK_FILE, 'return Health("alive", display_name=name or None, screenshot=shot,',
+          'return Health("alive", screenshot=shot,', expect="the display name")
 @sync
 async def test_a_page_that_shows_the_user_menu_is_alive_with_the_name_and_a_picture(tmp_path):
     health = await check(tmp_path, "/in")
@@ -123,3 +135,16 @@ async def test_a_page_with_no_sign_or_a_hidden_menu_is_unknown_with_no_strike(tm
         hidden,)
     blank = await check(tmp_path, "/blank", wait_s=1)
     assert blank.state == "unknown" and not blank.effects and blank.screenshot, blank.state
+
+
+@pytest.mark.browser
+@mutation(CHECK_FILE, "          title: document.title || '', failed: text.includes(failedText)};",
+          "          title: '', failed: false};", expect="the checkpoint page")
+@sync
+async def test_the_checkpoint_page_and_a_challenge_that_never_passes_rest_the_account_and_the_third_ends_it(tmp_path):
+    for path in FORBIDDEN:
+        health = await check(tmp_path, path, wait_s=1)
+        assert [type(e) for e in health.effects] == [Cooldown], "the checkpoint page %s: %r" % (path, health.effects)
+        assert health.state == "unknown" and health.state_patch == {"checkpoints": 1} and health.screenshot
+    third = await check(tmp_path, "/vercel", wait_s=1, account=Account(provider_state={"checkpoints": 2}))
+    assert Dead("checkpoint") in third.effects, third.effects

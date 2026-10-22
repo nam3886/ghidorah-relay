@@ -61,6 +61,8 @@ def test_meta_stays_drained_by_default_and_declares_the_settings_the_core_reads(
     assert s["meta.prices"].default == {"meta-image": 1, "meta-video": 1}
     for key in ("meta.image_submit_timeout_s", "meta.video_submit_timeout_s"):
         assert s[key].max == 720, "a submit timeout past the worker's stop grace"
+    rest = s["meta.checkpoint_rest_s"]
+    assert (rest.type, rest.default, rest.min) == (int, 1800, 300) and "checkpoint" in rest.description
     assert _problems(SPEC) == []
 
 
@@ -83,8 +85,10 @@ def test_the_registry_takes_meta_beside_dola_and_resolves_both_models():
 
 
 # ---- error rules -----------------------------------------------------------------------------------------------------
-def test_meta_registers_no_code_before_a_running_path_uses_one_and_a_warning_is_no_rule():
-    assert SPEC.codes() == {} and not any(code.startswith("meta.") for code in errors.RULES)
+def test_meta_registers_the_codes_its_submit_uses_and_a_warning_is_no_rule():
+    meta_codes = {code for code in errors.RULES if code.startswith("meta.")}
+    assert set(SPEC.codes()) == meta_codes == {"meta.checkpoint", "meta.ui_page_not_ready", "meta.ui_send_failed",
+                                               "meta.no_image"}
     assert meta_errors.WARN_PRICE_FALLBACK not in errors.RULES, "a warning is not a rule"
 
 

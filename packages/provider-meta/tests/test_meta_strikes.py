@@ -1,5 +1,6 @@
 """meta's signed-out reads through the real account effects of the core: one read is a strike, never a dead account;
-the third spaced read reaches meta's strike threshold and ends in its strike effect."""
+the third spaced read reaches meta's strike threshold and ends in its strike effect. A checkpoint read is a rest with no
+strike, and the third in a row ends the account as `checkpoint`."""
 
 import asyncio
 import uuid
@@ -9,7 +10,7 @@ from relay_core import pool
 from relay_core.db import open_pool, tx
 from relay_core.pool import PoolConfig
 from relay_core.testing.mutation import mutation
-from relay_meta.engine.check import signed_out_effects
+from relay_meta.engine.check import checkpoint_effects, signed_out_effects
 from relay_meta.spec import SPEC
 
 CONSTANTS = "packages/provider-meta/src/relay_meta/constants.py"
@@ -52,3 +53,25 @@ def test_one_signed_out_read_is_a_strike_and_the_third_spaced_one_ends_the_accou
 
     asyncio.run(scenario())
     assert row(db, a) == ("dead", "signed_out", 3), "threshold reached but not dead: %r" % (row(db, a),)
+
+
+def test_checkpoint_reads_rest_the_account_with_no_strike_and_the_third_in_a_row_ends_it_as_checkpoint(db):
+    a = uuid.uuid4()
+    db.run("INSERT INTO accounts (id, provider, credential_enc, state) VALUES (%s, 'meta', '\\x01', 'available')", a)
+
+    async def scenario():
+        p = await open_pool(db.dsn, max_size=2)
+        try:
+            for count in (1, 2, 3):
+                async with tx(p) as conn:
+                    await pool.apply_effects(conn, a, checkpoint_effects(datetime.now(UTC), 1800, count), SPEC.caps,
+                                             POOLS)
+                if count < 3:
+                    assert row(db, a) == ("available", None, 0), "checkpoint %d: %r" % (count, row(db, a))
+                    assert db.one("SELECT cooldown_until > now() + interval '29 minutes' FROM accounts "
+                                  "WHERE id = %s", a)[0], "the account rests"
+        finally:
+            await p.close()
+
+    asyncio.run(scenario())
+    assert row(db, a) == ("dead", "checkpoint", 0), "the third checkpoint in a row: %r" % (row(db, a),)

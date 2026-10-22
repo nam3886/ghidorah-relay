@@ -1,10 +1,11 @@
 """meta ProviderEngine: worker only, drives a browser.
 
-Only the account check is built; submit and fetch come with the next step, and no command kind exists yet."""
+Built: the account check, the image submit (held in the session) and the fetch. Video submit comes next; no command
+kind exists yet."""
 
 from relay_meta.engine import check as _check
-
-NOT_BUILT = "meta %s is not built yet"
+from relay_meta.engine import fetch as _fetch
+from relay_meta.engine import submit as _submit
 
 
 class MetaEngine:
@@ -12,10 +13,10 @@ class MetaEngine:
         self.settings = settings
 
     async def submit(self, ctx, job):
-        raise NotImplementedError(NOT_BUILT % "submit")
+        return await _submit.submit(ctx, job, self.settings)
 
     def fetch(self, ctx, out):
-        raise NotImplementedError(NOT_BUILT % "fetch")
+        return _fetch.fetch(ctx, out)
 
     async def check_account(self, ctx):
         return await _check.check_account(ctx, self.settings)

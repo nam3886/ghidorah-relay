@@ -7,6 +7,11 @@ card is visible, or meta moved the tab to a login or checkpoint URL or off meta.
 A signed-out read is never a verdict by itself (a checkpoint can pass, a page can be read mid-redirect): it is an
 `unknown` read with one spaced strike and a rest that asks for a recheck. Only the strike threshold of the caps, reached
 by separate reads, ends the account.
+
+Vercel's browser checkpoint (same URL; the page says "Failed to verify your browser") is neither signed in nor signed
+out: the browser is in doubt, not the account. It rests `meta.checkpoint_rest_s` and is checked again, with no strike.
+The reads in a row are counted in the account's `provider_state.checkpoints` (an alive read sets it back to 0); the
+`CHECKPOINTS_TO_OWNER`-th ends the account as `dead: checkpoint`, for the owner to look at.
 """
 
 import asyncio
@@ -17,10 +22,14 @@ from urllib.parse import urlsplit
 
 from relay_browser.session import SiteProfile, open_session
 from relay_browser.ui import inject_cookies
-from relay_core.providers import Cooldown, Health, Suspect
+from relay_core.providers import Cooldown, Dead, Health, Suspect
 from relay_core.redact import redact_text
 from relay_meta.constants import (
     CHECK_SIGNAL_TIMEOUT_S,
+    CHECKPOINT_DEAD_REASON,
+    CHECKPOINT_FAILED_TEXT,
+    CHECKPOINT_TITLE,
+    CHECKPOINTS_TO_OWNER,
     LOGGED_OUT_URL_MARKS,
     PAGE_LOAD_TIMEOUT_S,
     SEL_LOGGED_OUT,
@@ -34,12 +43,15 @@ from relay_meta.engine.site import META_SITE
 
 SIGNAL_POLL_S = 0.5
 
-# {menu: user menu visible, out: a signed-out sign visible, name: the menu's text or label}
-SIGNALS_JS = """([menu, outs]) => {
+# {menu: user menu visible, out: a signed-out sign visible, name: the menu's text or label, title: the page title,
+#  failed: the checkpoint's failure sentence is on the page}
+SIGNALS_JS = """([menu, outs, failedText]) => {
   const shown = e => !!e && e.getClientRects().length > 0;
   const m = document.querySelector(menu);
   const name = shown(m) ? ((m.innerText || '').trim() || (m.getAttribute('aria-label') || '').trim()) : '';
-  return {menu: shown(m), out: outs.some(s => [...document.querySelectorAll(s)].some(shown)), name};
+  const text = (document.body && document.body.innerText) || '';
+  return {menu: shown(m), out: outs.some(s => [...document.querySelectorAll(s)].some(shown)), name,
+          title: document.title || '', failed: text.includes(failedText)};
 }"""
 
 
@@ -49,9 +61,24 @@ def signed_out_effects(now: datetime) -> tuple[Suspect, Cooldown]:
             Cooldown("signed-out read, to be checked again", now + timedelta(seconds=SIGNED_OUT_REST_S), recheck=True))
 
 
+def checkpoint_rest(now: datetime, rest_s: int, why: str) -> Cooldown:
+    """A checkpoint rests the account and asks for a recheck at its end; it is never a strike."""
+    return Cooldown("browser checkpoint (%s), to be checked again" % why, now + timedelta(seconds=rest_s),
+                    recheck=True)
+
+
+def checkpoint_effects(now: datetime, rest_s: int, count: int) -> tuple:
+    """What the `count`-th checkpoint read in a row does: the rest, and from `CHECKPOINTS_TO_OWNER` on the end of the
+    account (the owner looks at it)."""
+    rest = checkpoint_rest(now, rest_s, "%d in a row" % count)
+    if count >= CHECKPOINTS_TO_OWNER:
+        return rest, Dead(CHECKPOINT_DEAD_REASON)
+    return (rest,)
+
+
 def verdict(url: str, host: str, seen: dict) -> str | None:
-    """`alive`, `signed_out`, or None while nothing is certain. Only a web URL is judged by its address: an error page
-    of the browser (a dead proxy) says nothing about the account."""
+    """`alive`, `signed_out`, `checkpoint`, or None while nothing is certain. Only a web URL is judged by its address:
+    an error page of the browser (a dead proxy) says nothing about the account."""
     parts = urlsplit(url)
     if parts.scheme in ("http", "https"):
         hostname = (parts.hostname or "").lower()
@@ -59,6 +86,8 @@ def verdict(url: str, host: str, seen: dict) -> str | None:
             return "signed_out"
         if any(mark in url for mark in LOGGED_OUT_URL_MARKS):
             return "signed_out"
+    if seen.get("failed"):
+        return "checkpoint"
     if seen.get("menu") and not seen.get("out"):
         return "alive"
     if seen.get("out") and not seen.get("menu"):
@@ -67,18 +96,20 @@ def verdict(url: str, host: str, seen: dict) -> str | None:
 
 
 async def read_signals(page, host: str, wait_s: float, clock: Callable[[], float] = time.monotonic) -> tuple[str, str]:
-    """(state, display name), polled until a verdict or `wait_s`; `unknown` when none came."""
+    """(state, display name), polled until a verdict or `wait_s`; then `checkpoint` when the page still carries the
+    checkpoint's title (its challenge did not pass), else `unknown`."""
     deadline = clock() + wait_s
     while True:
         try:
-            seen = await page.evaluate(SIGNALS_JS, [SEL_USER_MENU, list(SEL_LOGGED_OUT)])
+            seen = await page.evaluate(SIGNALS_JS, [SEL_USER_MENU, list(SEL_LOGGED_OUT), CHECKPOINT_FAILED_TEXT])
         except Exception:      # noqa: BLE001 - the page is navigating: read again
             seen = {}
-        state = verdict(page.url or "", host, seen if isinstance(seen, dict) else {})
+        seen = seen if isinstance(seen, dict) else {}
+        state = verdict(page.url or "", host, seen)
         if state is not None:
             return state, str(seen.get("name") or "") if state == "alive" else ""
         if clock() >= deadline:
-            return "unknown", ""
+            return "checkpoint" if seen.get("title") == CHECKPOINT_TITLE else "unknown", ""
         await asyncio.sleep(SIGNAL_POLL_S)
 
 
@@ -98,7 +129,11 @@ async def check_account(ctx, settings, *, open_session=open_session, site: SiteP
         except Exception:      # noqa: BLE001 - a picture is a bonus, never a reason to fail the check
             shot = None
         if state == "alive":
-            return Health("alive", display_name=name or None, screenshot=shot)
+            return Health("alive", display_name=name or None, screenshot=shot, state_patch={"checkpoints": 0})
+        if state == "checkpoint":
+            count = int(ctx.account.provider_state.get("checkpoints") or 0) + 1
+            return Health("unknown", screenshot=shot, state_patch={"checkpoints": count},
+                          effects=checkpoint_effects(now(), settings.get("meta.checkpoint_rest_s"), count))
         if state == "signed_out":
             return Health("unknown", screenshot=shot, effects=signed_out_effects(now()))
         return Health("unknown", screenshot=shot)

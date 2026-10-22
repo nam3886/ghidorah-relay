@@ -1,21 +1,24 @@
-"""The account check's verdict and the engine's unbuilt parts. No Chrome: the page is a scripted stand-in (the real page
-is read in test_meta_check_browser.py)."""
+"""The account check's verdict, the browser checkpoint and the engine's commands. No Chrome: the page is a scripted
+stand-in (the real page is read in test_meta_check_browser.py)."""
 
 import asyncio
 import contextlib
 import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from relay_core.providers import Cooldown, Dead, Suspect
+from relay_core.testing.fake_provider import FakeSettings
 from relay_core.testing.mutation import mutation
 from relay_meta.engine import build_engine
 from relay_meta.engine.check import check_account, read_signals, verdict
 from relay_meta.spec import SPEC
 
 CHECK_FILE = "packages/provider-meta/src/relay_meta/engine/check.py"
+CHECKPOINT_CAPTURE = Path(__file__).resolve().parents[3] / "fixtures" / "meta" / "spike-261023" / "checkpoint-acc1"
 HOME = "https://www.meta.ai/"
 IN = {"menu": True, "out": False, "name": "Nam"}
 OUT = {"menu": False, "out": True, "name": ""}
@@ -73,12 +76,8 @@ def test_the_read_waits_through_a_navigation_for_a_sign_and_gives_up_as_unknown(
     assert asyncio.run(read_signals(ScriptedPage([NOTHING]), "meta.ai", 0)) == ("unknown", "")
 
 
-def test_submit_and_fetch_are_not_built_and_no_command_runs():
+def test_no_command_runs():
     engine = build_engine(SPEC, None)
-    with pytest.raises(NotImplementedError, match="meta submit is not built yet"):
-        asyncio.run(engine.submit(None, None))
-    with pytest.raises(NotImplementedError, match="meta fetch is not built yet"):
-        engine.fetch(None, None)
     for kind in ("titles", "recover", "refresh_catalog", "list_conversations"):
         with pytest.raises(ValueError, match="meta runs no command"):
             asyncio.run(engine.run_command(None, kind, {}))
@@ -103,19 +102,22 @@ class FakeCookies:
         return self.jar
 
 
-def run_check(page):
+def run_check(page, checkpoints=None):
     @contextlib.asynccontextmanager
     async def fake_open(site, account, **kw):
         assert kw["purpose"] == "check"
         yield SimpleNamespace(page=page, ctx=FakeCookies())
 
-    ctx = SimpleNamespace(account=SimpleNamespace(credential=JAR), browser_token=object())
-    return asyncio.run(check_account(ctx, None, open_session=fake_open, wait_s=0, now=lambda: NOW))
+    state = {} if checkpoints is None else {"checkpoints": checkpoints}
+    ctx = SimpleNamespace(account=SimpleNamespace(credential=JAR, provider_state=state), browser_token=object())
+    settings = FakeSettings(SPEC, meta__checkpoint_rest_s=1500)
+    return asyncio.run(check_account(ctx, settings, open_session=fake_open, wait_s=0, now=lambda: NOW))
 
 
-def test_a_signed_in_page_is_alive_with_its_name_and_picture():
-    health = run_check(ScriptedPage([IN]))
+def test_a_signed_in_page_is_alive_with_its_name_and_picture_and_ends_a_checkpoint_streak():
+    health = run_check(ScriptedPage([IN]), checkpoints=2)
     assert (health.state, health.display_name, health.screenshot, health.effects) == ("alive", "Nam", b"png", ())
+    assert health.state_patch == {"checkpoints": 0}
 
 
 SIGNED_OUT_RETURN = '            return Health("unknown", screenshot=shot, effects=signed_out_effects(now()))'
@@ -139,3 +141,44 @@ def test_one_signed_out_read_is_a_spaced_strike_and_a_rest_never_a_dead_account(
 def test_no_sign_is_an_unknown_read_with_no_strike():
     health = run_check(ScriptedPage([NOTHING]))
     assert (health.state, health.effects) == ("unknown", ())
+
+
+# ---- the browser checkpoint ------------------------------------------------------------------------------------------
+CHALLENGE = {"menu": False, "out": False, "name": "", "title": "Vercel Security Checkpoint", "failed": False}
+
+
+def checkpoint_read() -> dict:
+    """What SIGNALS_JS reads on the captured checkpoint page: its title and its failure sentence."""
+    loaded = json.loads((CHECKPOINT_CAPTURE / "loaded.state.json").read_text())
+    return {"menu": loaded["signals"]["user_menu_visible"], "out": False, "name": "", "title": loaded["state"]["title"],
+            "failed": "Failed to verify your browser" in loaded["page_text"]}
+
+
+@mutation(CHECK_FILE, '    if seen.get("failed"):', "    if False:", expect="the checkpoint page")
+@mutation(CHECK_FILE, '            return "checkpoint" if seen.get("title") == CHECKPOINT_TITLE else "unknown", ""',
+          '            return "unknown", ""', expect="a challenge that never passed")
+def test_the_captured_checkpoint_page_is_a_checkpoint_and_a_challenge_that_passes_is_not():
+    read = checkpoint_read()
+    assert read["failed"] and read["title"] == "Vercel Security Checkpoint" and not read["menu"]
+    assert verdict(HOME, "meta.ai", read) == "checkpoint", "the checkpoint page is neither signed in nor signed out"
+    assert verdict(HOME, "meta.ai", CHALLENGE) is None, "a challenge still running decides nothing"
+    assert asyncio.run(read_signals(ScriptedPage([CHALLENGE, IN]), "meta.ai", 5)) == ("alive", "Nam")
+    assert asyncio.run(read_signals(ScriptedPage([CHALLENGE]), "meta.ai", 0)) == ("checkpoint", ""), (
+        "a challenge that never passed")
+
+
+@mutation(CHECK_FILE, "    if count >= CHECKPOINTS_TO_OWNER:", "    if True:", expect="a rest, not death")
+@mutation(CHECK_FILE, '            count = int(ctx.account.provider_state.get("checkpoints") or 0) + 1',
+          "            count = 1", expect="the third checkpoint")
+def test_a_checkpoint_read_rests_with_a_recheck_and_no_strike_and_the_third_in_a_row_hands_it_to_the_owner():
+    first = run_check(ScriptedPage([checkpoint_read()]))
+    rest = Cooldown("browser checkpoint (1 in a row), to be checked again", NOW + timedelta(seconds=1500),
+                    recheck=True)
+    assert first.effects == (rest,), "a rest, not death: %r" % (first.effects,)
+    assert first.state == "unknown" and first.state_patch == {"checkpoints": 1} and first.screenshot == b"png"
+    second = run_check(ScriptedPage([checkpoint_read()]), checkpoints=1)
+    assert [type(e) for e in second.effects] == [Cooldown], "a rest, not death: %r" % (second.effects,)
+    third = run_check(ScriptedPage([checkpoint_read()]), checkpoints=2)
+    assert Dead("checkpoint") in third.effects, "the third checkpoint in a row ends the account: %r" % (third.effects,)
+    assert third.state_patch == {"checkpoints": 3}
+    assert not any(isinstance(e, Suspect) for h in (first, second, third) for e in h.effects), "never a strike"

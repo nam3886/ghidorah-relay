@@ -15,6 +15,8 @@ Text→image and image→video both work. No region block.
   the URL stayed `https://www.meta.ai/`. This is neither signed in nor signed out: it needs its own state (rest the
   account, recheck later), recognised by the page title or the 403 on the document. The URL marks for `/login` and
   `checkpoint` do not catch it.
+  The 403 alone is not the sign: every cold load in the captures answers 403 first, POSTs `?challenge=` and reloads
+  with 200 a second later. The failure sentence decides at once; the title alone only when the read gives up.
 
 ## The composer
 - On a cold load the composer is a `<textarea>` placeholder for 7–12 s that ignores input (0.1 s on a warm load).
