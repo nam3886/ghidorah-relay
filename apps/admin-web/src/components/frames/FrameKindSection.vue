@@ -7,12 +7,20 @@ import type { FramesController } from "./use-frames";
 
 // One kind (image, video): its default frame and a table of its models. The default can be edited, reset to the shipped
 // text when it differs from it, and applied to every model that is not kept on its own frame. From 768 px the Source
-// column folds under the model id; below that the table becomes a list.
-defineProps<{ frames: FramesController; kind: FrameKind }>();
+// column folds under the model id; below that the table becomes a list. A click anywhere on a model's row (or its
+// phone block) opens its editor, except on Keep own; the model id is the button that does it from the keyboard.
+const props = defineProps<{ frames: FramesController; kind: FrameKind }>();
 const { isPhone, isTablet } = useBreakpoint();
 
 const selected = (frames: FramesController, kind: FrameKind, model: FrameModel): boolean =>
   frames.shown?.kind === kind.kind && frames.shown.target === model.model;
+const open = (model: string): void => {
+  if (!props.frames.opensOff) props.frames.edit(props.kind.kind, model);
+};
+// a click on a control inside the row is that control's, not the row's
+const openRow = (model: string, event: MouseEvent): void => {
+  if (!(event.target as HTMLElement | null)?.closest("button, a, input, label")) open(model);
+};
 </script>
 
 <template>
@@ -59,9 +67,22 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
     <p v-if="!kind.models.length" class="kind__empty">No models</p>
 
     <ul v-else-if="isPhone" class="kind__list">
-      <li v-for="row in kind.models" :key="row.model" :class="{ 'is-selected': selected(frames, kind, row) }">
+      <li
+        v-for="row in kind.models"
+        :key="row.model"
+        :class="{ 'is-selected': selected(frames, kind, row), 'is-open-off': frames.opensOff }"
+        @click="openRow(row.model, $event)"
+      >
         <div class="kind__line">
-          <span class="kind__model">{{ row.model }}</span>
+          <button
+            type="button"
+            class="kind__model kind__open"
+            :aria-label="`Edit frame for ${row.model}`"
+            :disabled="frames.opensOff"
+            @click="open(row.model)"
+          >
+            {{ row.model }}
+          </button>
           <StatusChip
             :status="row.source"
             :label="row.source"
@@ -84,15 +105,6 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
           </label>
         </div>
         <span v-if="lockLine(row.lock)" class="kind__lock kind__lock--phone">{{ lockLine(row.lock) }}</span>
-        <button
-          type="button"
-          class="kind__edit kind__edit--phone"
-          :aria-label="`Edit frame for ${row.model}`"
-          :disabled="frames.opensOff"
-          @click="frames.edit(kind.kind, row.model)"
-        >
-          Edit
-        </button>
       </li>
     </ul>
 
@@ -103,14 +115,26 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
             <th scope="col" class="kind__first">Model</th>
             <th v-if="!isTablet" scope="col">Source</th>
             <th scope="col" class="kind__right">Effective version</th>
-            <th scope="col">Keep own</th>
-            <th scope="col" class="kind__last">Edit</th>
+            <th scope="col" class="kind__last">Keep own</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in kind.models" :key="row.model" :class="{ 'is-selected': selected(frames, kind, row) }">
+          <tr
+            v-for="row in kind.models"
+            :key="row.model"
+            :class="{ 'is-selected': selected(frames, kind, row), 'is-open-off': frames.opensOff }"
+            @click="openRow(row.model, $event)"
+          >
             <td class="kind__first kind__model">
-              {{ row.model }}
+              <button
+                type="button"
+                class="kind__open"
+                :aria-label="`Edit frame for ${row.model}`"
+                :disabled="frames.opensOff"
+                @click="open(row.model)"
+              >
+                {{ row.model }}
+              </button>
               <span
                 v-if="isTablet"
                 class="pill pill--tablet"
@@ -122,7 +146,7 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
               <StatusChip :status="row.source" :label="row.source" :tone="row.source === 'own' ? 'info' : 'neutral'" />
             </td>
             <td class="num kind__right kind__mono kind__effective-cell">{{ versionTag(row.effective) }}</td>
-            <td class="kind__keep-cell">
+            <td class="kind__keep-cell kind__last">
               <label class="kind__keep">
                 <input
                   type="checkbox"
@@ -133,17 +157,6 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
                 />Keep own
               </label>
               <span v-if="lockLine(row.lock)" class="kind__lock">{{ lockLine(row.lock) }}</span>
-            </td>
-            <td class="kind__last">
-              <button
-                type="button"
-                class="kind__edit"
-                :aria-label="`Edit frame for ${row.model}`"
-                :disabled="frames.opensOff"
-                @click="frames.edit(kind.kind, row.model)"
-              >
-                Edit
-              </button>
             </td>
           </tr>
         </tbody>
@@ -226,8 +239,7 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
   opacity: 0.6;
   cursor: default;
 }
-.kind__edit-default,
-.kind__edit {
+.kind__edit-default {
   box-sizing: border-box;
   border: 1px solid var(--rl-line-strong);
   border-radius: 10px;
@@ -242,17 +254,10 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
   padding: 0 12px;
   background: var(--rl-surface);
 }
-.kind__edit {
-  height: 32px;
-  padding: 0 12px;
-  background: transparent;
-}
-.kind__edit-default:hover:not(:disabled),
-.kind__edit:hover:not(:disabled) {
+.kind__edit-default:hover:not(:disabled) {
   background: var(--rl-raised);
 }
-.kind__edit-default:disabled,
-.kind__edit:disabled {
+.kind__edit-default:disabled {
   cursor: default;
   color: var(--rl-faint);
 }
@@ -310,8 +315,34 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
   box-sizing: border-box;
 }
 .kind__table .kind__last {
-  padding: 0 16px 0 12px;
-  text-align: right;
+  padding-right: 16px;
+}
+/* a model's row opens its editor: it reads as clickable while it can */
+.kind__table tbody tr,
+.kind__list li {
+  cursor: pointer;
+}
+.kind__table tbody tr.is-open-off,
+.kind__list li.is-open-off {
+  cursor: default;
+}
+/* the model id is the row's opener for the keyboard: it looks like the id, not like a button */
+.kind__open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.kind__open:disabled {
+  cursor: default;
+}
+.kind__open:focus-visible {
+  outline: 2px solid var(--rl-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 .kind__table td.kind__model {
   font-family: var(--rl-mono);
@@ -321,7 +352,7 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
   font-size: 13px;
 }
 .kind__table td.kind__keep-cell {
-  padding: 8px 12px;
+  padding: 8px 16px 8px 12px;
 }
 .kind__keep {
   display: flex;
@@ -392,10 +423,6 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
 .is-tablet .kind__lock {
   margin-left: 24px;
 }
-.is-tablet .kind__edit {
-  height: 36px;
-  padding: 0 14px;
-}
 
 /* phone: a list */
 .kind__list {
@@ -450,14 +477,7 @@ const selected = (frames: FramesController, kind: FrameKind, model: FrameModel):
 .kind__lock--phone {
   margin: 0;
 }
-/* the drawn phone Edit sets no padding: the browser's 1px 6px */
-.kind__list .kind__edit--phone {
-  width: 100%;
-  height: 44px;
-  margin-top: 4px;
-  padding: 1px 6px;
-  font-size: 14px;
-}
+
 .kind__title--row2 {
   gap: 0 12px;
   width: 100%;
