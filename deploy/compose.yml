@@ -114,7 +114,10 @@ services:
     env_file: [worker-meta.env]
     command: ["relay", "worker", "--provider", "meta"]
     shm_size: 1g
-    stop_grace_period: 780s
+    stop_grace_period: 780s   # the longest submit timeout meta's settings allow (720 s) plus a minute
+    # Warm profiles on the volume, like worker-dola; the number of browser slots is the live setting meta.browser_slots.
+    environment:
+      RELAY_PROFILE_ROOT: /profiles
     volumes: ["profiles-meta:/profiles"]
     cpus: ${META_CPUS:-4}
     mem_limit: ${META_MEM_LIMIT:-6g}

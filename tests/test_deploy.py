@@ -97,14 +97,19 @@ def test_the_api_gets_a_stop_grace_for_requests_in_flight():
     assert int(COMPOSE["api"]["stop_grace_period"].rstrip("s")) >= 30, "the api stop grace"
 
 
-@mutation(COMPOSE_FILE, "RELAY_PROFILE_ROOT: /profiles", "RELAY_PROFILE_ROOT: /tmp", expect="profile root")
-@mutation(COMPOSE_FILE, "RELAY_PROFILE_ROOT: /profiles",
-          "RELAY_PROFILE_ROOT: /profiles\n      DOLA_BROWSER_SLOTS_MAX: 4",
+DOLA_ROOT = "RELAY_PROFILE_ROOT: /profiles\n    shm_size"
+META_ROOT = "RELAY_PROFILE_ROOT: /profiles\n    volumes"
+
+
+@mutation(COMPOSE_FILE, DOLA_ROOT, "RELAY_PROFILE_ROOT: /tmp\n    shm_size", expect="profile root")
+@mutation(COMPOSE_FILE, META_ROOT, "RELAY_PROFILE_ROOT: /tmp\n    volumes", expect="profile root")
+@mutation(COMPOSE_FILE, DOLA_ROOT, "RELAY_PROFILE_ROOT: /profiles\n      DOLA_BROWSER_SLOTS_MAX: 4\n    shm_size",
           expect="['DOLA_BROWSER_SLOTS_MAX']")
 def test_the_dola_worker_keeps_warm_profiles_on_its_volume_and_no_service_names_a_slot_ceiling():
-    env = COMPOSE["worker-dola"]["environment"]
-    assert env["RELAY_PROFILE_ROOT"] == "/profiles", "profile root"
-    assert "profiles-dola:/profiles" in COMPOSE["worker-dola"]["volumes"]
+    for p in ("dola", "meta"):
+        env = COMPOSE["worker-" + p]["environment"]
+        assert env["RELAY_PROFILE_ROOT"] == "/profiles", "profile root of %s" % p
+        assert "profiles-%s:/profiles" % p in COMPOSE["worker-" + p]["volumes"]
     # the number of browser slots is the live setting dola.browser_slots: no variable sets or caps it
     named = [n for svc in COMPOSE.values() for n in guards._service_env_names(svc) if n.endswith("_BROWSER_SLOTS_MAX")]
     named += [n for ex in DEPLOY.glob("*.env.example") for n in guards._declared_names(ex)
@@ -114,8 +119,8 @@ def test_the_dola_worker_keeps_warm_profiles_on_its_volume_and_no_service_names_
 
 def test_the_templates_list_port_and_the_profile_root_by_name():
     assert "PORT" in guards._declared_names(DEPLOY / "api.env.example")
-    names = guards._declared_names(DEPLOY / "worker-dola.env.example")
-    assert "RELAY_PROFILE_ROOT" in names
+    for p in ("dola", "meta"):
+        assert "RELAY_PROFILE_ROOT" in guards._declared_names(DEPLOY / ("worker-%s.env.example" % p)), p
 
 
 def test_dockerfile_configuration_for_stop_and_chrome():

@@ -1,9 +1,9 @@
-"""Every module-level numeric constant of the core and of the dola pure modules is either on the Fixed limits card or
-excused here with a reason. "Numeric" is an int, a float, a timedelta, or a non-empty tuple, list, set or dict of them;
-"module-level" is an UPPER_CASE name assigned at the top of a module. A literal default of a parameter, a class
-attribute and a private name are not seen, so such a limit must be given a named constant to be guarded. The dola
-`engine` package and the browser kit are not scanned: they are not pure modules, and `relay serve` may not import
-them."""
+"""Every module-level numeric constant of the core and of the provider pure modules (dola, meta) is either on the
+Fixed limits card or excused here with a reason. "Numeric" is an int, a float, a timedelta, or a non-empty tuple, list,
+set or dict of them; "module-level" is an UPPER_CASE name assigned at the top of a module. A literal default of a
+parameter, a class attribute and a private name are not seen, so such a limit must be given a named constant to be
+guarded. A provider's `engine` package and the browser kit are not scanned: they are not pure modules, and
+`relay serve` may not import them."""
 
 import ast
 import importlib
@@ -13,9 +13,11 @@ from pathlib import Path
 
 import relay_core
 import relay_dola
+import relay_meta
 from relay_core.limits import CORE
 from relay_core.testing.mutation import mutation
 from relay_dola.spec import SPEC as DOLA
+from relay_meta.spec import SPEC as META
 
 LIMITS = "packages/relay-core/src/relay_core/limits.py"
 MAX_INFLIGHT_ROW = '    _c(engine, "MAX_INFLIGHT", "submits one worker runs at once", "jobs"),\n'
@@ -25,7 +27,7 @@ def excuse(reason: str, *names: str) -> dict[str, str]:
     return dict.fromkeys(names, reason)
 
 
-# Names are `<module under relay_core>.<CONSTANT>` for the core and the full module path for dola.
+# Names are `<module under relay_core>.<CONSTANT>` for the core and the full module path for a provider.
 NOT_SHOWN = {
     **excuse("an admin paging or id bound: it keeps a list request cheap and says nothing about behaviour",
              "admin.routes_alert_groups.MAX_OFFSET", "admin.routes_alert_groups.MAX_ID", "admin.routes_common.MAX_PAGE",
@@ -64,11 +66,13 @@ NOT_SHOWN = {
              "relay_dola.constants.PROXY_REST_S", "relay_dola.constants.CHECK_INTERVAL_S",
              "relay_dola.constants.CATALOG_REFRESH_S", "relay_dola.constants.MAX_ATTEMPTS",
              "relay_dola.constants.SUSPECT_THRESHOLD", "relay_dola.constants.PROMPT_MAX_CHARS",
-             "relay_dola.constants.FRAME_MAX_SENT_CHARS"),
+             "relay_dola.constants.FRAME_MAX_SENT_CHARS", "relay_meta.constants.PROXY_REST_S",
+             "relay_meta.constants.CHECK_INTERVAL_S", "relay_meta.constants.MAX_ATTEMPTS",
+             "relay_meta.constants.SUSPECT_THRESHOLD", "relay_meta.constants.PROMPT_MAX_CHARS"),
     **excuse("the catalog a customer reads from GET /v1/models",
              "relay_dola.catalog.DURATIONS_BY_MODEL", "relay_dola.catalog.VALID_DURATIONS"),
-    **excuse("the default of the dola.prices setting, which the page already shows",
-             "relay_dola.catalog.DEFAULT_PRICES"),
+    **excuse("the default of the provider's prices setting, which the page already shows",
+             "relay_dola.catalog.DEFAULT_PRICES", "relay_meta.catalog.DEFAULT_PRICES"),
     **excuse("a unit size used to print a value", "limits.MIB", "limits.KIB", "cgroup.GIB", "cgroup.MIB",
              "cgroup.KIB"),
 }
@@ -100,13 +104,14 @@ def module_names(module) -> list[str]:
 
 
 def scanned_modules():
-    """(listing prefix, module) for every module of the core (not its test support) and every dola pure module."""
+    """(listing prefix, module) for every module of the core (not its test support) and every provider pure module."""
     for info in pkgutil.walk_packages(relay_core.__path__, "relay_core."):
         if not info.name.startswith("relay_core.testing"):
             yield info.name.removeprefix("relay_core."), importlib.import_module(info.name)
-    yield from ((m.__name__, m) for m in map(importlib.import_module, (
-        "relay_dola." + i.name for i in pkgutil.iter_modules(relay_dola.__path__)
-        if not i.ispkg and i.name != "e2e")))
+    for provider in (relay_dola, relay_meta):
+        yield from ((m.__name__, m) for m in map(importlib.import_module, (
+            "%s.%s" % (provider.__name__, i.name) for i in pkgutil.iter_modules(provider.__path__)
+            if not i.ispkg and i.name != "e2e")))
 
 
 def numeric_constants() -> dict[str, object]:
@@ -119,7 +124,7 @@ def numeric_constants() -> dict[str, object]:
 
 
 def listed() -> dict[str, object]:
-    return {f.name: f.value for f in (*CORE, *DOLA.limits)}
+    return {f.name: f.value for f in (*CORE, *DOLA.limits, *META.limits)}
 
 
 @mutation(LIMITS, MAX_INFLIGHT_ROW, "", expect="jobs.engine.MAX_INFLIGHT")
