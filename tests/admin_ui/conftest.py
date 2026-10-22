@@ -222,6 +222,9 @@ def app_page(chrome, live, color_scheme):
     assert not page.problems, page.problems
 
 
+SIGN_IN_TIMEOUT_MS = 30_000        # the server's argon2 check (64 MiB, 2 at once) can queue for seconds on a loaded box
+
+
 def sign_in_app(page, live, username=None, password=None) -> None:
     """Sign in through the new app's own login view and wait for the dashboard."""
     from patchright.sync_api import expect
@@ -229,7 +232,7 @@ def sign_in_app(page, live, username=None, password=None) -> None:
     page.get_by_label("Username").fill(username or live.user)
     page.get_by_label("Password", exact=True).fill(password or live.password)
     page.get_by_role("button", name="Sign in").click()
-    expect(page).to_have_url(re.compile(r"#/jobs$"))
+    expect(page).to_have_url(re.compile(r"#/jobs$"), timeout=SIGN_IN_TIMEOUT_MS)
 
 
 def sign_out_app(page) -> None:
