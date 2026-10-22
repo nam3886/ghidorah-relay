@@ -26,7 +26,7 @@ const pageChips = computed(() =>
   ].filter((c): c is { key: string; chip: ChipState } => !!c.chip),
 );
 
-const SUBTITLE = "The dola account pool: health, points, cooldowns and proxies.";
+const SUBTITLE = "Every provider's account pool: health, points, cooldowns and proxies.";
 const updatedLine = computed(() => (props.updated ? `Updated ${props.updated} · auto every 10 s` : null));
 const items = computed<MenuItem[]>(() => [
   { key: "checkAll", label: "Check all", icon: IconCheck, disabled: props.checkingAll },

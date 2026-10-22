@@ -2,17 +2,19 @@
 scripted page: no Chrome, no meta.ai, no real cookie. Each money rule has a test here and a mutation that breaks it."""
 
 import asyncio
+import base64
 import contextlib
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 import pytest
 
 from relay_core import errors
 from relay_core.net import UnsafeUrl
-from relay_core.providers import Ambiguous, Completed, Cooldown, Dead, Fail, Proxy, Retry, Success, Suspect
+from relay_core.providers import Ambiguous, Completed, Cooldown, Dead, Fail, MediaRef, Proxy, Retry, Success, Suspect
 from relay_core.testing.fake_media import MediaSite, public_resolver
 from relay_core.testing.fake_provider import FakeSettings
 from relay_core.testing.mutation import mutation
@@ -35,8 +37,12 @@ def capture(folder: str) -> SimpleNamespace:
     """One scenario of the live run: the prompt, the sign-in signals, the GraphQL calls and the final answer."""
     base = FIX / folder
     http = json.loads((base / "http.json").read_text())["http"]
-    events = [SimpleNamespace(path="/api/graphql", req=json.dumps({"doc_id": e["doc_id"], "variables": e["variables"]}),
+    events = [SimpleNamespace(kind="http", method="POST", status=200, path="/api/graphql",
+                              req=json.dumps({"doc_id": e["doc_id"], "variables": e["variables"]}),
                               body=e["body"]) for e in http if e.get("doc_id")]
+    # the image upload's requests (rupload.meta.ai), in the order the page sent them: they arrive on the file choice
+    uploads = [SimpleNamespace(kind="http", method=e["method"], status=e["status"] or 0, path=urlsplit(e["url"]).path,
+                               req="", body=e.get("body") or "") for e in http if "rupload.meta.ai" in e["url"]]
     loaded = json.loads((base / "loaded.state.json").read_text())
     signals = {"menu": loaded["signals"]["user_menu_visible"], "out": False, "name": "",
                "title": loaded["state"]["title"], "failed": "Failed to verify" in loaded.get("page_text", "")}
@@ -44,7 +50,7 @@ def capture(folder: str) -> SimpleNamespace:
     answer = final.read_text().split("<!-- composer")[0] if final.exists() else ""
     send = base / "send.json"
     prompt = json.loads(send.read_text())["prompt"] if send.exists() else ""
-    return SimpleNamespace(events=events, signals=signals, answer=answer, prompt=prompt)
+    return SimpleNamespace(events=events, uploads=uploads, signals=signals, answer=answer, prompt=prompt)
 
 
 def streaming(html: str) -> str:
@@ -59,8 +65,10 @@ def warmed_uuid(cap) -> str:
 
 # ---- a scripted page ---------------------------------------------------------------------------------------------
 class Recorder:
+    """The page's network log: the list itself, so what the page adds later (the upload) shows up."""
+
     def __init__(self, events):
-        self._events = list(events)
+        self._events = events
 
     def now(self):
         return 0.0
@@ -72,12 +80,47 @@ class Recorder:
         return next((e for e in self._events if predicate(e)), None)
 
 
+class FileInput:
+    """The composer's file input: choosing a file shows its thumbnail at once and starts the upload, whose requests
+    reach the network log only when meta answers (`page.upload_answers`)."""
+
+    def __init__(self, page):
+        self.page = page
+        self.first = self
+
+    async def count(self):
+        return self.page.file_inputs
+
+    async def set_input_files(self, payload):
+        self.page.log.append("attach")
+        self.page.chosen.append(payload)
+        if self.page.upload_answers:
+            self.page.events.extend(self.page.uploads)
+            self.page.uploaded = True
+
+
+class Attached:
+    def __init__(self, page):
+        self.page = page
+
+    async def count(self):
+        if not self.page.chosen:
+            return 0
+        shown = self.page.thumbnails
+        if isinstance(shown, list):     # one count per read, the last one repeats
+            return shown.pop(0) if len(shown) > 1 else shown[0]
+        return shown
+
+
 class Keyboard:
     def __init__(self, page):
         self.page = page
 
     async def insert_text(self, text):
         self.page.typed[self.page.focus] = self.page.typed.get(self.page.focus, "") + text
+
+    async def press(self, key):
+        self.page.log.append("key " + key)
 
 
 class Box:
@@ -103,23 +146,34 @@ class Box:
         self.page.log.append(key)
         if self.page.press_error:
             raise self.page.press_error
-        if key == "Enter" and self.page.opens is not None:
+        # meta ignores Enter while an upload is pending (FINDINGS.md): nothing is sent, the address stays
+        if key == "Enter" and self.page.opens is not None and (not self.page.chosen or self.page.uploaded):
             self.page.url = "https://www.meta.ai/prompt/" + self.page.opens
 
 
 class Page:
-    def __init__(self, log, cap, *, answers=None, hydrates=True, opens="warmed", press_error=None):
+    def __init__(self, log, cap, *, answers=None, hydrates=True, opens="warmed", press_error=None,
+                 upload_answers=True, thumbnails=1, file_inputs=1, shrunk=b"small-jpeg"):
         self.log, self.signals, self.hydrates, self.press_error = log, cap.signals, hydrates, press_error
         self.url = "https://www.meta.ai/"
         self.opens = warmed_uuid(cap) if opens == "warmed" and cap.events else (None if opens == "warmed" else opens)
         self.answers = list(answers if answers is not None else ["", streaming(cap.answer), cap.answer])
         self.typed, self.focus = {}, None
         self.keyboard = Keyboard(self)
+        self.events, self.uploads = list(cap.events), cap.uploads
+        self.upload_answers, self.thumbnails, self.file_inputs = upload_answers, thumbnails, file_inputs
+        self.chosen, self.uploaded, self.shrunk = [], False, shrunk
+        self.lands = None       # where meta sends a goto instead of its address (None: the address itself)
 
     async def goto(self, url, **kw):
-        self.log.append("goto")
+        self.log.append("goto " + url)
+        self.url = self.lands or url
 
     def locator(self, selector):
+        if selector == S.SEL_FILE_INPUT:
+            return FileInput(self)
+        if selector == S.SEL_ATTACHED:
+            return Attached(self)
         return Box(self, selector)
 
     async def evaluate(self, script, arg=None):
@@ -127,6 +181,9 @@ class Page:
             return self.signals
         if script is S.ANSWER_JS:
             return self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
+        if script is S.SHRINK_JS:
+            self.log.append("shrink")
+            return base64.b64encode(self.shrunk).decode() if self.shrunk else ""
         raise AssertionError("an unexpected script")
 
 
@@ -177,26 +234,38 @@ class Clock:
         self.t += s
 
 
-def run(page, cap, *, log=None, ctx=None, **settings):
+INPUT = b"RIFF-webp-560k"     # the input image of a video job, as the object store hands it out
+
+
+def run(page, cap, *, log=None, ctx=None, kind="image", image=(INPUT, "image/webp"), **settings):
     log = page.log if log is None else log
     ctx = ctx or Ctx(log)
 
     @contextlib.asynccontextmanager
     async def fake_open(site, account, **kw):
         assert kw["purpose"] == "submit" and kw["images"] is True
-        yield SimpleNamespace(page=page, ctx=Cookies(), recorder=Recorder(cap.events))
+        yield SimpleNamespace(page=page, ctx=Cookies(), recorder=Recorder(page.events))
+
+    async def inputs():
+        return [MediaRef(0, "inputs/job/0", image[1], len(image[0]))]
+
+    async def read_media(ref):
+        assert ref.object_key == "inputs/job/0"
+        return image[0]
 
     clock = Clock()
-    deps = S.Deps(open_session=fake_open, sleep=clock.sleep, clock=clock, now=lambda: NOW, signal_wait_s=0,
-                  composer_wait_s=1, warmup_wait_s=0, receipt_wait_s=2, tiles_grace_s=3)
-    job = SimpleNamespace(params={"kind": "image"}, sent_text="%s [7100]" % (cap.prompt or "a lighthouse"))
+    deps = S.Deps(open_session=fake_open, read_media=read_media, sleep=clock.sleep, clock=clock, now=lambda: NOW,
+                  signal_wait_s=0, composer_wait_s=1, warmup_wait_s=0, receipt_wait_s=2, tiles_grace_s=3,
+                  upload_wait_s=0, attached_wait_s=1)
+    job = SimpleNamespace(params={"kind": kind}, sent_text="%s [7100]" % (cap.prompt or "a lighthouse"),
+                          inputs=inputs)
     result = asyncio.run(S.submit(ctx, job, FakeSettings(SPEC, **settings), deps=deps))
     return result, ctx
 
 
 def sent(log) -> list[str]:
-    """The irreversible part of the log: the chat id, mark_sent and every Enter, in order."""
-    return [x for x in log if x.startswith("report_ref") or x in ("mark_sent", "Enter")]
+    """The irreversible part of the log: the image choice, the chat id, mark_sent and every Enter, in order."""
+    return [x for x in log if x.startswith("report_ref") or x in ("attach", "mark_sent", "Enter")]
 
 
 # ---- the captures, read the way the engine reads the page ---------------------------------------------------------
@@ -207,10 +276,10 @@ def test_the_captured_answers_read_as_done_with_their_final_images_and_never_a_p
     for folder, count in IMAGE_RUNS:
         cap = capture(folder)
         answer = S.read_answer(cap.answer)
-        assert answer.done and len(answer.images) == count and answer.previews == 0, (folder, answer)
-        assert all("/t39.105495-1/" in u and u.startswith("https://scontent.xx.fbcdn.net/") for u in answer.images)
+        assert answer.done and len(answer.media) == count and answer.previews == 0, (folder, answer)
+        assert all("/t39.105495-1/" in u and u.startswith("https://scontent.xx.fbcdn.net/") for u in answer.media)
         drawing = S.read_answer(streaming(cap.answer))
-        assert not drawing.done and drawing.images == () and drawing.previews == count, folder
+        assert not drawing.done and drawing.media == () and drawing.previews == count, folder
     assert S.read_answer("") == S.Answer(False, (), 0)
     assert not S.is_final_image("https://scontent.xx.fbcdn.net/v/t58.90637-1/x.webp")
     assert not S.is_final_image("https://evil.example/v/t39.105495-1/x.webp")
@@ -230,8 +299,7 @@ def test_the_conversation_id_is_the_warmed_up_one_and_the_address_after_enter_na
           '        self.sent = True\n        await box.press("Enter")\n        await self._core(self.ctx.mark_sent)\n',
           expect="mark_sent right before the one Enter")
 @mutation(SUBMIT_FILE, '        await self._core(lambda: ctx.report_ref(conversation, '
-          '{"conversation_id": conversation}))\n        await self._core(self.ctx.mark_sent)',
-          "        await self._core(self.ctx.mark_sent)", expect="the chat id before the send")
+          '{"conversation_id": conversation}))\n', "", expect="the chat id before the send")
 def test_a_signed_in_page_persists_the_chat_id_marks_sent_presses_enter_once_and_delivers_the_final_images():
     for folder, count in IMAGE_RUNS:
         cap = capture(folder)
@@ -320,7 +388,7 @@ def test_a_done_answer_with_one_final_image_and_one_preview_left_is_unknown_neve
     head, _, tail = cap.answer.rpartition("/t39.105495-1/")
     half = head + "/t58.90637-1/" + tail                    # the second tile still shows its preview
     answer = S.read_answer(half)
-    assert answer.done and len(answer.images) == 1 and answer.previews == 1
+    assert answer.done and len(answer.media) == 1 and answer.previews == 1
     page = Page([], cap, answers=[half])
     result, _ = run(page, cap)
     assert isinstance(result.job, Ambiguous), "part of the answer was delivered, the other image lost: %r" % (
@@ -356,16 +424,109 @@ def test_a_signed_out_page_is_a_strike_and_a_rest_and_sends_nothing():
 
 
 def test_the_codes_meta_uses_are_registered_with_their_rules():
-    assert set(SPEC.codes()) == {"meta.checkpoint", "meta.ui_page_not_ready", "meta.ui_send_failed", "meta.no_image"}
+    assert set(SPEC.codes()) == {"meta.checkpoint", "meta.ui_page_not_ready", "meta.ui_send_failed", "meta.no_image",
+                                 "meta.no_video"}
     assert all(errors.RULES[c] == r for c, r in SPEC.codes().items()) and errors.violations(errors.RULES) == []
     for code in ("meta.ui_page_not_ready", "meta.ui_send_failed"):
         r = errors.rule(code)
         assert (r.terminal, r.counts_attempt, r.refund, r.public) == (False, True, True, False), code
 
 
-def test_video_submit_is_not_built_yet():
-    with pytest.raises(NotImplementedError, match="meta video submit"):
-        asyncio.run(S.submit(Ctx([]), SimpleNamespace(params={"kind": "video"}, sent_text="x"), None))
+def test_a_job_of_another_kind_is_refused_before_anything_opens():
+    with pytest.raises(ValueError, match="image or a video"):
+        asyncio.run(S.submit(Ctx([]), SimpleNamespace(params={"kind": "audio"}, sent_text="x"), None))
+
+
+# ---- image to video ----------------------------------------------------------------------------------------------
+VIDEO = "i2v-acc2"
+
+
+def test_the_captured_video_answer_reads_as_done_with_its_mp4_and_the_upload_answer_is_the_post():
+    cap = capture(VIDEO)
+    answer = S.read_answer(cap.answer, "video")
+    assert answer.done and len(answer.media) == 1 and answer.previews == 0
+    assert answer.media[0].startswith("https://scontent.xx.fbcdn.net/v/t39.105495-1/") and ".mp4?" in answer.media[0]
+    assert S.read_answer(cap.answer, "image") == S.Answer(True, (), 0), "a video job's answer holds no image tile"
+    blob = cap.answer.replace(answer.media[0], "blob:https://www.meta.ai/1234")
+    assert S.read_answer(blob, "video") == S.Answer(True, (), 1), "a blob: player source is never delivered"
+    assert [S.upload_done(e) for e in cap.uploads] == [False, False, True], "GET, OPTIONS, then the POST {media_id}"
+    stalled = capture("i2v-upload-stall-acc1").uploads
+    assert stalled and not any(S.upload_done(e) for e in stalled), "the stalled POST never answered"
+
+
+def test_a_video_job_types_attaches_waits_for_the_upload_then_marks_sent_presses_enter_once_and_delivers_the_mp4():
+    cap = capture(VIDEO)
+    page = Page([], cap)
+    result, _ = run(page, cap, kind="video")
+    uuid = warmed_uuid(cap)
+    assert uuid == "6f281912-e3c0-4b47-afdc-612c73f1a2c8"
+    assert sent(page.log) == ["attach", "report_ref " + uuid, "mark_sent", "Enter"], sent(page.log)
+    assert page.chosen == [{"name": "upload.webp", "mimeType": "image/webp", "buffer": INPUT}]
+    assert "shrink" not in page.log, "a small webp goes up unchanged"
+    assert isinstance(result.job, Completed) and len(result.job.outputs) == 1, result.job
+    out = result.job.outputs[0]
+    assert (out.mime, out.idx, out.meta) == ("video/mp4", 0, {"conversation_id": uuid}) and S.is_final_video(out.ref)
+    assert result.account == (Success(),)
+    assert page.typed == {EDITABLE: "%s [7100]" % cap.prompt}
+
+
+@mutation(SUBMIT_FILE, "        if await recorder.wait_for(upload_done, self.deps.upload_wait_s, since=since) is None:",
+          "        if False:", expect="upload finished before Enter")
+def test_an_upload_meta_never_answers_sends_nothing():
+    cap = capture(VIDEO)
+    page = Page([], cap, upload_answers=False)
+    result, _ = run(page, cap, kind="video")
+    assert sent(page.log) == ["attach"], "upload finished before Enter: %s" % sent(page.log)
+    assert result.job == Retry("meta.ui_send_failed")
+
+
+def test_a_composer_without_exactly_one_attached_image_sends_nothing():
+    cap = capture(VIDEO)
+    for what, page in {"no thumbnail": Page([], cap, thumbnails=0), "two thumbnails": Page([], cap, thumbnails=2),
+                       "no file input": Page([], cap, file_inputs=0)}.items():
+        result, _ = run(page, cap, kind="video")
+        assert "mark_sent" not in page.log and "Enter" not in page.log, "%s: exactly one image: %s" % (what, page.log)
+        assert result.job == Retry("meta.ui_send_failed"), what
+
+
+@mutation(SUBMIT_FILE, "        if image is not None and (shown := await page.locator(SEL_ATTACHED).count()) != 1:",
+          "        if False:", expect="read again before the send")
+def test_a_thumbnail_dropped_or_doubled_after_the_attach_is_read_again_before_the_send_and_nothing_is_sent():
+    cap = capture(VIDEO)
+    for what, counts in (("dropped", [1, 0]), ("doubled", [1, 2])):
+        page = Page([], cap, thumbnails=counts)
+        result, _ = run(page, cap, kind="video")
+        assert "mark_sent" not in page.log and "Enter" not in page.log, (
+            "%s: read again before the send: %s" % (what, sent(page.log)))
+        assert result.job == Retry("meta.ui_send_failed"), what
+
+
+@mutation(SUBMIT_FILE, "        if len(data) <= UPLOAD_MAX_BYTES and mime in UPLOAD_AS_IS:", "        if True:",
+          expect="re-encoded")
+def test_a_large_input_is_reencoded_by_the_browser_before_meta_loads_and_one_that_cannot_be_sends_nothing():
+    cap = capture(VIDEO)
+    big = (b"P" * (S.UPLOAD_MAX_BYTES + 1), "image/png")
+    page = Page([], cap)
+    result, _ = run(page, cap, kind="video", image=big)
+    assert page.chosen == [{"name": "upload.jpg", "mimeType": "image/jpeg", "buffer": b"small-jpeg"}], (
+        "re-encoded: %r" % ([{**c, "buffer": c["buffer"][:12]} for c in page.chosen],))
+    assert page.log.index("shrink") < page.log.index("goto " + S.SITE_URL), "before meta's page loads"
+    assert isinstance(result.job, Completed)
+    page = Page([], cap, shrunk=b"")
+    result, _ = run(page, cap, kind="video", image=big)
+    assert result.job == Retry("meta.ui_send_failed") and sent(page.log) == [] and not page.chosen
+
+
+def test_a_video_that_never_finishes_is_unknown_after_one_enter_and_a_done_answer_without_one_fails_refunded():
+    cap = capture(VIDEO)
+    page = Page([], cap, answers=[streaming(cap.answer)])
+    result, _ = run(page, cap, kind="video", meta__video_submit_timeout_s=120)
+    assert isinstance(result.job, Ambiguous) and page.log.count("Enter") == 1
+    bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
+    result, _ = run(Page([], cap, answers=[bare]), cap, kind="video")
+    assert result.job == Fail("meta.no_video", "meta finished its answer with no video")
+    r = errors.rule("meta.no_video")
+    assert (r.terminal, r.refund) == (True, True)
 
 
 # ---- fetch -------------------------------------------------------------------------------------------------------
@@ -379,7 +540,7 @@ def drain(ref, site, proxy=None) -> bytes:
 
 
 def test_fetch_takes_fbcdn_links_only_and_falls_back_to_the_account_proxy():
-    ref = S.read_answer(capture("image-1-acc1").answer).images[0]
+    ref = S.read_answer(capture("image-1-acc1").answer).media[0]
     site = MediaSite(500, b"webp-bytes")
     proxy = Proxy("proxy.example", 8080, "user:p@ss")
     assert drain(ref, site, proxy) == b"webp-bytes"

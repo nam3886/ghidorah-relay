@@ -52,10 +52,22 @@ Text→image and image→video both work. No region block.
 - Upload: set the single `input[type=file]`; the upload goes GET/OPTIONS/POST to
   `rupload.meta.ai/gen_ai_document_gen_ai_tenant/<uuid>` and answers `{media_id}`; a 560 KB webp took 7.3 s.
 - **Enter is ignored while the upload is pending.** With a 5 MB PNG the upload never answered: nothing was sent and
-  nothing was charged. The engine must wait for the upload to finish (and keep input files small).
+  nothing was charged. The engine must wait for the upload to finish (and keep input files small: it re-encodes an
+  image over 1 MiB to a JPEG of at most 2048 px a side).
 - Video URL in a WebSocket frame at 38.9 s, answer done at 47.5 s. The `<video>` src is a direct https fbcdn `.mp4`
   (not `blob:`); a plain fetch got 200 and 4.7 MB on the first try (no 503 seen).
 - File: 10.0 s, 1152×768, h264 24 fps, with audio (AAC mono 24 kHz). No ask-back.
+
+## Engine smoke, 23/10 03:09–03:13 (GMT+7)
+The engine's own submit, reconcile, poll and fetch, driven on the box with stand-ins for the core (one launch each):
+- Text→image (acc2): Enter 19 s after launch, done 15 s after Enter, one 1280×1920 webp (portrait for a plain
+  prompt: the size is not always 1920×1280), 646 KB through the fetcher.
+- Image→video (acc3) from a 14 MB 2560×3840 PNG: the browser re-encoded it to a 626 KB JPEG before meta's page loaded;
+  the upload was answered 10.6 s after the file choice, the typed text survived the attach, Enter came 35 s after
+  launch and the answer was done 47 s after Enter. The MP4: 10.0 s, 768×1152 (follows the input's orientation), h264
+  24 fps, AAC mono 24 kHz, 5.8 MB, fetched direct on the first try.
+- Reconcile of that video chat (acc3, second launch): `/prompt/<uuid>` showed the signed-in thread with the DONE answer
+  and the same `.mp4` link; `Found` 21 s after launch, nothing typed or sent; the poll handed the link on.
 
 ## Not seen yet
 A signed-out page, limit or refusal text, ask-back text, video from text alone, a 503 on the first MP4 fetch.

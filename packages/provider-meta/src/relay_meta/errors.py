@@ -15,6 +15,7 @@ CHECKPOINT = "meta.checkpoint"
 UI_PAGE_NOT_READY = "meta.ui_page_not_ready"   # no sign-in sign, or the composer never hydrated: nothing was sent
 UI_SEND_FAILED = "meta.ui_send_failed"         # the prompt did not go in, or no conversation id came: nothing was sent
 NO_IMAGE = "meta.no_image"                     # meta finished its answer with no image in it
+NO_VIDEO = "meta.no_video"                     # meta finished its answer with no video in it
 
 # Warnings (not rules).
 WARN_PRICE_FALLBACK = "meta.price_fallback"
@@ -34,6 +35,8 @@ CODES: dict[str, Rule] = {r.code: r for r in (
     _ui(UI_SEND_FAILED, "the prompt could not be sent on meta's page"),
     Rule(NO_IMAGE, 422, "invalid_request_error", True, True, False, True, True,
          "meta made no image for this order; the charge is returned"),
+    Rule(NO_VIDEO, 422, "invalid_request_error", True, True, False, True, True,
+         "meta made no video for this order; the charge is returned"),
 )}
 
 # A module loaded twice (a test reloading it) keeps its first registration.

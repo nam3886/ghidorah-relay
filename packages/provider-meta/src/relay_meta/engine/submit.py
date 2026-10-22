@@ -1,14 +1,23 @@
-"""Submit for `meta-image` (text to image), held in the session until meta's answer is done.
+"""Submit for `meta-image` (text to image) and `meta-video` (one image to video), held in the session until meta's
+answer is done.
 
 One chat per job: load meta.ai (a new chat), read the sign-in state, wait for the composer to hydrate, type the core's
-`sent_text`, take the conversation id meta names before Enter, then `mark_sent`, ONE Enter, and wait in the session for
-the answer to finish (`data-streaming-state="DONE"` with `data-streaming-complete="true"`; `thinking-status` stays
-"in-progress" after done and says nothing). The images are the final fbcdn links of the answer's image tiles; the
-fetcher downloads them (fetch.py). The prompt asks for the count and the ratio; the plan takes neither.
+`sent_text`, for a video attach the one input image and wait for meta's upload answer, take the conversation id meta
+names before Enter, then `mark_sent`, ONE Enter, and wait in the session for the answer to finish
+(`data-streaming-state="DONE"` with `data-streaming-complete="true"`; `thinking-status` stays "in-progress" after done
+and says nothing). The results are the final fbcdn links of the answer: the image tiles, or the `<video>` (a direct
+https `.mp4`, never `blob:`); the fetcher downloads them (fetch.py). The prompt asks for the count and the ratio; the
+plan takes neither.
+
+The input image goes through the composer's single file input. meta ignores Enter while the upload is pending, and a
+5 MB PNG never got an answer (FINDINGS.md), so an image over `UPLOAD_MAX_BYTES` (or not a JPEG, PNG or WebP) is first
+re-encoded to a JPEG of at most `UPLOAD_MAX_SIDE` px a side by the browser itself, in memory, before meta's page loads.
 
 Money rules (each has a test and a mutation):
 - the conversation id (`warmupConversation`, the uuid of `/prompt/<uuid>`) is persisted with `report_ref` BEFORE
   `mark_sent`, so an answer lost after the send can be found again without sending anything;
+- a video is sent only once meta answered the upload (`{media_id}`) and the composer shows exactly one attached image:
+  never the motion text without its image;
 - `mark_sent` runs immediately before the single Enter, and nothing presses Enter again: after `mark_sent` the engine
   never returns `Retry`, whatever is unclear is `Ambiguous` (unknown), never a re-send;
 - only the hydrated composer (the Lexical contenteditable) is typed into, never the placeholder textarea rendered
@@ -18,6 +27,8 @@ Money rules (each has a test and a mutation):
 """
 
 import asyncio
+import base64
+import json
 import logging
 import os
 import re
@@ -43,10 +54,13 @@ from relay_meta.constants import (
     PAGE_LOAD_TIMEOUT_S,
     PREVIEW_MARK,
     SEL_ASSISTANT,
+    SEL_ATTACHED,
     SEL_COMPOSER,
+    SEL_FILE_INPUT,
     SEL_IMAGE_TILE,
     SESSION_COOKIES,
     SITE_URL,
+    UPLOAD_PATH,
 )
 from relay_meta.engine.check import checkpoint_rest, read_signals, signed_out_effects
 from relay_meta.engine.site import META_SITE
@@ -63,18 +77,45 @@ WARMUP_WAIT_S = 10.0      # `warmupConversation` came 1.2-1.5 s after the typing
 RECEIPT_WAIT_S = 15.0     # the URL became `/prompt/<uuid>` 0.1 s after Enter
 STEP_S = 0.5              # between two reads of the page
 TILES_GRACE_S = 10.0      # after DONE, how long the tiles may take to show their final links
-HOLD_MARGIN_S = 30        # the hold ends this long before the core's submit timeout (`meta.image_submit_timeout_s`)
+HOLD_MARGIN_S = 30        # the hold ends this long before the core's submit timeout (`meta.<kind>_submit_timeout_s`)
 FAULT_REST_S = 300        # a proxy failure before the send rests the account this long
+UPLOAD_WAIT_S = 60.0      # a 560 KB webp was answered in 7.3 s through a proxy; a 5 MB PNG never was
+ATTACHED_WAIT_S = 5.0     # after the upload answer, how long the composer may take to show the thumbnail
+UPLOAD_MAX_BYTES = 1 << 20    # an input image above this is re-encoded before the upload
+UPLOAD_MAX_SIDE = 2048        # ... to a JPEG at most this many pixels a side (meta's own images are 1920x1280)
+UPLOAD_AS_IS = ("image/jpeg", "image/png", "image/webp")     # sent unchanged when small enough
 
 _UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 _WARMUP_ID = re.compile(r'"conversationId"\s*:\s*"(%s)"' % _UUID)
 _CHAT_ID = re.compile(r"^%s(%s)/?$" % (re.escape(CHAT_PATH), _UUID))
 _MIMES = {".webp": "image/webp", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
+_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+KINDS = ("image", "video")
 
-# The newest assistant message, whole (its attributes and its image tiles); "" when there is none yet.
+# The newest assistant message, whole (its attributes, its image tiles, its video); "" when there is none yet.
 ANSWER_JS = """(sel) => {
   const all = document.querySelectorAll(sel);
   return all.length ? all[all.length - 1].outerHTML : '';
+}"""
+
+# [base64, mime, max bytes, max side] -> base64 of a JPEG within both, or "" when the image cannot be made that small
+# (or cannot be decoded). Runs in the browser before meta's page loads: no image library in the worker.
+SHRINK_JS = """async ([b64, mime, maxBytes, maxSide]) => {
+  const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const bmp = await createImageBitmap(new Blob([raw], {type: mime}));
+  const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+  const canvas = new OffscreenCanvas(Math.max(1, Math.round(bmp.width * scale)),
+                                     Math.max(1, Math.round(bmp.height * scale)));
+  canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  for (const q of [0.9, 0.8, 0.7, 0.6, 0.5]) {
+    const blob = await canvas.convertToBlob({type: 'image/jpeg', quality: q});
+    if (blob.size > maxBytes) continue;
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  return '';
 }"""
 
 
@@ -96,10 +137,20 @@ def chat_id(url: str) -> str | None:
     return m.group(1) if m else None
 
 
+def upload_done(ev) -> bool:
+    """meta's answer to the image upload: the `rupload.meta.ai` POST with a `media_id`."""
+    if ev.kind != "http" or ev.method != "POST" or ev.status != 200 or not ev.path.startswith(UPLOAD_PATH):
+        return False
+    try:
+        return bool(json.loads(ev.body).get("media_id"))
+    except (ValueError, AttributeError):
+        return False
+
+
 class Answer(NamedTuple):
     done: bool                 # DONE and complete
-    images: tuple[str, ...]    # the final links, in page order (one per tile)
-    previews: int              # tiles that do not show a final link (yet)
+    media: tuple[str, ...]     # the final links of the job's kind, in page order
+    previews: int              # tiles or videos of that kind that do not show a final link (yet)
 
 
 class _AnswerParser(HTMLParser):
@@ -107,6 +158,7 @@ class _AnswerParser(HTMLParser):
         super().__init__()
         self.state: tuple[str, str] | None = None
         self.tiles: list[str] = []
+        self.videos: list[str] = []
 
     def handle_starttag(self, tag, attrs) -> None:
         a = dict(attrs)
@@ -114,6 +166,8 @@ class _AnswerParser(HTMLParser):
             self.state = (a.get("data-streaming-state") or "", a.get("data-streaming-complete") or "")
         elif tag == "img" and a.get("data-testid") == SEL_IMAGE_TILE:
             self.tiles.append(a.get("src") or "")
+        elif tag == "video":
+            self.videos.append(a.get("src") or "")
 
 
 def is_final_image(url: str) -> bool:
@@ -121,17 +175,39 @@ def is_final_image(url: str) -> bool:
     return host_allowed(url, MEDIA_HOSTS, default_port_only=True) and PREVIEW_MARK not in urlsplit(url).path
 
 
-def read_answer(html: str) -> Answer:
-    """What the newest assistant message (its outerHTML) says."""
+def is_final_video(url: str) -> bool:
+    """A direct https fbcdn `.mp4` (a `blob:` source is the player's, not a link the fetcher can take)."""
+    return host_allowed(url, MEDIA_HOSTS, default_port_only=True) and urlsplit(url).path.lower().endswith(".mp4")
+
+
+def read_answer(html: str, kind: str = "image") -> Answer:
+    """What the newest assistant message (its outerHTML) says about the media of `kind`."""
     parser = _AnswerParser()
     parser.feed(html or "")
-    finals = [u for u in parser.tiles if is_final_image(u)]
-    return Answer(parser.state == ("DONE", "true"), tuple(finals), len(parser.tiles) - len(finals))
+    found, final = (parser.tiles, is_final_image) if kind == "image" else (parser.videos, is_final_video)
+    finals = [u for u in found if final(u)]
+    return Answer(parser.state == ("DONE", "true"), tuple(finals), len(found) - len(finals))
 
 
-def image_outputs(urls, conversation: str) -> tuple[Output, ...]:
-    return tuple(Output(url, _MIMES.get(os.path.splitext(urlsplit(url).path)[1].lower(), "image/webp"), i,
-                        meta={"conversation_id": conversation}) for i, url in enumerate(urls))
+def media_outputs(urls, conversation: str, kind: str = "image") -> tuple[Output, ...]:
+    def mime(url: str) -> str:
+        if kind == "video":
+            return "video/mp4"
+        return _MIMES.get(os.path.splitext(urlsplit(url).path)[1].lower(), "image/webp")
+    return tuple(Output(url, mime(url), i, meta={"conversation_id": conversation}) for i, url in enumerate(urls))
+
+
+_store = None
+
+
+async def read_input_media(ref) -> bytes:
+    """The job's input image from the object store, the store made on first use (an image job needs none). The one
+    place the engine reaches past `RunCtx` for a file, as dola's does: the protocol hands out only a `MediaRef`."""
+    global _store
+    if _store is None:
+        from relay_core.storage import ObjectStore
+        _store = ObjectStore.from_env()
+    return await _store.read(ref.object_key)
 
 
 # ---- the run -----------------------------------------------------------------------------------------------------
@@ -139,6 +215,7 @@ def image_outputs(urls, conversation: str) -> tuple[Output, ...]:
 class Deps:
     """What a run needs from outside; every field has the real default."""
     open_session: Callable = open_session
+    read_media: Callable[..., Awaitable[bytes]] = read_input_media
     sleep: Callable[[float], Awaitable] = asyncio.sleep
     clock: Callable[[], float] = time.monotonic
     now: Callable[[], datetime] = lambda: datetime.now(UTC)
@@ -147,6 +224,8 @@ class Deps:
     warmup_wait_s: float = WARMUP_WAIT_S
     receipt_wait_s: float = RECEIPT_WAIT_S
     tiles_grace_s: float = TILES_GRACE_S
+    upload_wait_s: float = UPLOAD_WAIT_S
+    attached_wait_s: float = ATTACHED_WAIT_S
 
 
 class _CoreVerdict(Exception):
@@ -164,8 +243,9 @@ def _result(job, *effects) -> SubmitResult:
 
 class _Run:
     def __init__(self, ctx, job, settings, deps: Deps):
-        if job.params.get("kind") != "image":
-            raise NotImplementedError("meta video submit is not built yet")
+        self.kind = job.params.get("kind")
+        if self.kind not in KINDS:
+            raise ValueError("a meta job is an image or a video job, not %r" % (self.kind,))
         if not job.sent_text:
             raise ValueError("the job has no sent_text: the core composes it")
         self.ctx, self.job, self.settings, self.deps = ctx, job, settings, deps
@@ -191,12 +271,38 @@ class _Run:
             raise _CoreVerdict(exc) from exc
 
     async def run(self) -> SubmitResult:
+        image = await self._input_image() if self.kind == "video" else None     # read before the browser opens
         async with self.deps.open_session(META_SITE, self.ctx.account, purpose="submit", token=self.ctx.browser_token,
                                           images=True, redact=redact_text) as session:
             self.session, self.page = session, session.page
-            return await self._order()
+            if image is not None:
+                image = await self._shrink(*image)
+                if image is None:
+                    return await self._unsent(errors.UI_SEND_FAILED, "the input image could not be made smaller than "
+                                              "%d bytes for meta's upload" % UPLOAD_MAX_BYTES)
+            return await self._order(image)
 
-    async def _order(self) -> SubmitResult:
+    async def _input_image(self) -> tuple[bytes, str]:
+        refs = await self.job.inputs()
+        if len(refs) != 1:
+            raise ValueError("a meta video animates exactly one image, the job holds %d" % len(refs))
+        return await self.deps.read_media(refs[0]), refs[0].mime
+
+    async def _shrink(self, data: bytes, mime: str) -> tuple[bytes, str] | None:
+        """The image as it is uploaded: unchanged when small enough, else a JPEG the browser re-encodes in memory (on
+        the blank page, before meta's page loads). None when it cannot be made small enough."""
+        if len(data) <= UPLOAD_MAX_BYTES and mime in UPLOAD_AS_IS:
+            return data, mime
+        b64 = await self.page.evaluate(SHRINK_JS, [base64.b64encode(data).decode(), mime, UPLOAD_MAX_BYTES,
+                                                   UPLOAD_MAX_SIDE])
+        if not b64:
+            return None
+        small = base64.b64decode(b64)
+        await self._say("the input image (%d bytes, %s) was re-encoded to a %d-byte JPEG for meta's upload"
+                        % (len(data), mime, len(small)), "submit")
+        return small, "image/jpeg"
+
+    async def _order(self, image: tuple[bytes, str] | None) -> SubmitResult:
         ctx, page = self.ctx, self.page
         await inject_cookies(self.session.ctx, ctx.account.credential, SESSION_COOKIES, SITE_URL)
         await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT_S * 1000)
@@ -220,6 +326,10 @@ class _Run:
                                       % self.deps.composer_wait_s)
         await box.click()
         await page.keyboard.insert_text(self.text)
+        if image is not None:
+            why = await self._attach(*image)
+            if why:
+                return await self._unsent(errors.UI_SEND_FAILED, why)
         if " ".join((await box.inner_text()).split()) != self.text:
             return await self._unsent(errors.UI_SEND_FAILED, "the prompt did not go into the composer as typed")
         conversation = await self._warmup_id()
@@ -227,10 +337,38 @@ class _Run:
             return await self._unsent(errors.UI_SEND_FAILED, "meta named no conversation before Enter")
         self.conversation = conversation
         await self._core(lambda: ctx.report_ref(conversation, {"conversation_id": conversation}))
+        # the thumbnail is read again right before the send: meta may have dropped or doubled it since the attach;
+        # nothing but mark_sent is awaited between this read and the one Enter
+        if image is not None and (shown := await page.locator(SEL_ATTACHED).count()) != 1:
+            return await self._unsent(errors.UI_SEND_FAILED, "just before the send the composer shows %d attached "
+                                      "images, not 1" % shown)
         await self._core(self.ctx.mark_sent)
         self.sent = True
         await box.press("Enter")
         return await self._answer()
+
+    async def _attach(self, data: bytes, mime: str) -> str:
+        """Choose the image in the composer's file input and wait until meta answered its upload AND the composer
+        shows it: meta ignores Enter while an upload is pending, so an Enter before that would send nothing (or, worse,
+        the motion text alone). "" when attached, else why not."""
+        page, recorder = self.page, self.session.recorder
+        files = page.locator(SEL_FILE_INPUT)
+        if await files.count() != 1:
+            return "the composer has no single file input"
+        since = recorder.now()
+        await files.first.set_input_files({"name": "upload" + _EXT.get(mime, ".jpg"), "mimeType": mime,
+                                           "buffer": data})
+        t0 = self.deps.clock()
+        if await recorder.wait_for(upload_done, self.deps.upload_wait_s, since=since) is None:
+            return "meta did not answer the image upload within %g s" % self.deps.upload_wait_s
+        await self._say("meta took the %d-byte image upload after %.1f s" % (len(data), self.deps.clock() - t0),
+                        "submit")
+        # give the thumbnail a moment to show; the count that decides is read right before the send (`_order`)
+        attached = self.page.locator(SEL_ATTACHED)
+        grace = self.deps.clock() + self.deps.attached_wait_s
+        while await attached.count() != 1 and self.deps.clock() < grace:
+            await self.deps.sleep(STEP_S)
+        return ""
 
     async def _warmup_id(self) -> str | None:
         """The conversation the page warmed up for this draft: the newest `warmupConversation` call."""
@@ -251,7 +389,7 @@ class _Run:
                             "submit")
             self.conversation = url_id
             await self._core(lambda: ctx.report_ref(url_id, {"conversation_id": url_id}))
-        hold_s = self.settings.get("meta.image_submit_timeout_s") - HOLD_MARGIN_S
+        hold_s = self.settings.get("meta.%s_submit_timeout_s" % self.kind) - HOLD_MARGIN_S
         answer = await self._read_answer()
         while not answer.done:
             if deps.clock() - self.started >= hold_s:
@@ -259,17 +397,18 @@ class _Run:
             await deps.sleep(STEP_S)
             answer = await self._read_answer()
         grace = deps.clock() + deps.tiles_grace_s
-        while (answer.previews or not answer.images) and deps.clock() < grace:
+        while (answer.previews or not answer.media) and deps.clock() < grace:
             await deps.sleep(STEP_S)
             answer = await self._read_answer()
         if answer.previews:
-            # a part delivery would lose the image still drawing: unknown, the conversation is read again later
-            return await self._unknown("meta's answer is done but %d of its images still show a preview"
-                                       % answer.previews)
-        if answer.images:
-            return _result(Completed(image_outputs(answer.images, self.conversation)), Success())
-        await self._say("meta finished its answer with no image", "submit")
-        return _result(Fail(errors.NO_IMAGE, "meta finished its answer with no image"))
+            # a part delivery would lose the media still drawing: unknown, the conversation is read again later
+            return await self._unknown("meta's answer is done but %d of its %ss show no final link yet"
+                                       % (answer.previews, self.kind))
+        if answer.media:
+            return _result(Completed(media_outputs(answer.media, self.conversation, self.kind)), Success())
+        why = "meta finished its answer with no %s" % self.kind
+        await self._say(why, "submit")
+        return _result(Fail(errors.NO_IMAGE if self.kind == "image" else errors.NO_VIDEO, why))
 
     async def _receipt(self) -> str | None:
         waited = 0.0
@@ -285,7 +424,7 @@ class _Run:
             html = await self.page.evaluate(ANSWER_JS, SEL_ASSISTANT)
         except Exception:      # noqa: BLE001 - the page is busy: read again
             html = ""
-        return read_answer(html if isinstance(html, str) else "")
+        return read_answer(html if isinstance(html, str) else "", self.kind)
 
     # ---- results ----
     async def _unsent(self, code: str, why: str, *effects) -> SubmitResult:

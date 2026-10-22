@@ -89,6 +89,7 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 |---|---|---|---|---|---|---|---|---|
 | `meta.checkpoint` | 503 | api_error | no | no | no | 0 | yes | the meta account met a browser checkpoint; the job is tried again |
 | `meta.no_image` | 422 | invalid_request_error | yes | yes | no | 0 | yes | meta made no image for this order; the charge is returned |
+| `meta.no_video` | 422 | invalid_request_error | yes | yes | no | 0 | yes | meta made no video for this order; the charge is returned |
 | `meta.ui_page_not_ready` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to meta) meta's page showed no sign-in sign or no ready composer |
 | `meta.ui_send_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to meta) the prompt could not be sent on meta's page |
 

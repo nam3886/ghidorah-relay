@@ -41,14 +41,14 @@ def refused(model="meta-image", prompt="a lighthouse at dawn", **kw) -> InputErr
 
 
 # ---- caps, settings, catalog -----------------------------------------------------------------------------------------
-def test_the_caps_say_a_browser_provider_with_two_pools_and_no_poll():
+def test_the_caps_say_a_browser_provider_with_two_pools_that_reconciles_and_polls_what_it_found():
     c = SPEC.caps
     assert SPEC.name == "meta" and c.execution == "browser" and c.wallet_kinds == ("image", "video")
     assert [(p.name, p.tz, p.budget_setting) for p in c.pools] == [
         ("image", "UTC", "meta.image_budget"), ("video", "UTC", "meta.video_budget")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold) == (1, 3, 3)
     assert c.strike_effect == Dead("signed_out")
-    assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (False, False, False, False)
+    assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (True, True, False, False)
     assert SPEC.frames is None and SPEC.extras({}) == {}
 
 
@@ -88,7 +88,7 @@ def test_the_registry_takes_meta_beside_dola_and_resolves_both_models():
 def test_meta_registers_the_codes_its_submit_uses_and_a_warning_is_no_rule():
     meta_codes = {code for code in errors.RULES if code.startswith("meta.")}
     assert set(SPEC.codes()) == meta_codes == {"meta.checkpoint", "meta.ui_page_not_ready", "meta.ui_send_failed",
-                                               "meta.no_image"}
+                                               "meta.no_image", "meta.no_video"}
     assert meta_errors.WARN_PRICE_FALLBACK not in errors.RULES, "a warning is not a rule"
 
 
