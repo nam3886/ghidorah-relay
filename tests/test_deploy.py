@@ -46,12 +46,13 @@ def test_every_service_has_its_own_env_file_and_services_sit_in_their_profiles()
     assert "profiles" not in COMPOSE["postgres"] and "profiles" not in COMPOSE["minio"]
 
 
-def test_images_are_named_per_commit_and_browser_workers_get_a_stop_grace():
+def test_images_are_named_per_commit_and_every_worker_gets_a_stop_grace():
     for name, svc in COMPOSE.items():
         if "build" in svc:
             assert svc["image"] == "relay-%s:${GIT_SHA:?set GIT_SHA}" % name
+    for name in ("worker-dola", "worker-meta", "worker-vibes"):
+        assert int(COMPOSE[name]["stop_grace_period"].rstrip("s")) >= 720, name
     for name in ("worker-dola", "worker-meta"):
-        assert int(COMPOSE[name]["stop_grace_period"].rstrip("s")) >= 720
         assert COMPOSE[name]["shm_size"] == "1g"
     assert "healthcheck" in COMPOSE["minio"]
 

@@ -130,6 +130,7 @@ services:
     build: {context: .., dockerfile: deploy/Dockerfile, target: http}
     env_file: [worker-vibes.env]
     command: ["relay", "worker", "--provider", "vibes"]
+    stop_grace_period: 780s   # the worker's own stop grace (720 s, WORKER_GRACE_S) plus a minute; no browser, no volume
     cpus: ${VIBES_CPUS:-1}
     mem_limit: ${VIBES_MEM_LIMIT:-1g}
     pids_limit: ${VIBES_PIDS_LIMIT:-256}
