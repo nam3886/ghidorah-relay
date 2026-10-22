@@ -1,0 +1,34 @@
+[
+ {
+  "t": -30.18,
+  "kind": "open",
+  "url": "wss://gateway.meta.ai/ws/clippy?x-dgw-appid=x&x-dgw-appversion=x&x-dgw-authtype=x&x-dgw-version=x&x-dgw-uuid=x&x-dgw-tier=x&Authorization=x&x-dgw-app-origin=x&x-dgw-app-clippy-request-id=x"
+ },
+ {
+  "t": -28.95,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1,
+   "strings": []
+  }
+ },
+ {
+  "t": 1.05,
+  "kind": "out",
+  "op": 2,
+  "data": {
+   "binary_len": 1,
+   "strings": []
+  }
+ },
+ {
+  "t": 1.36,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1,
+   "strings": []
+  }
+ }
+]

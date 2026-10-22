@@ -1,0 +1,66 @@
+[
+ {
+  "t_from_send": 0.0,
+  "url": "https://www.meta.ai/prompt/84ac1175-7ba5-4a81-8d10-1d97ec7d47a4",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": null,
+  "tiles": null,
+  "vids": [],
+  "reply_chars": 0
+ },
+ {
+  "t_from_send": 1.0,
+  "url": "https://www.meta.ai/prompt/84ac1175-7ba5-4a81-8d10-1d97ec7d47a4",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": null,
+  "tiles": null,
+  "vids": [],
+  "reply_chars": 0
+ },
+ {
+  "t_from_send": 15.1,
+  "url": "https://www.meta.ai/prompt/84ac1175-7ba5-4a81-8d10-1d97ec7d47a4",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": null,
+  "tiles": null,
+  "vids": [],
+  "reply_chars": 0
+ },
+ {
+  "t_from_send": 19.2,
+  "url": "https://www.meta.ai/prompt/84ac1175-7ba5-4a81-8d10-1d97ec7d47a4",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": null,
+  "tiles": null,
+  "vids": [],
+  "reply_chars": 0
+ },
+ {
+  "t_from_send": 23.2,
+  "url": "https://www.meta.ai/prompt/84ac1175-7ba5-4a81-8d10-1d97ec7d47a4",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": null,
+  "tiles": null,
+  "vids": [],
+  "reply_chars": 0
+ },
+ {
+  "t_from_send": 27.3,
+  "url": "https://www.meta.ai/prompt/84ac1175-7ba5-4a81-8d10-1d97ec7d47a4",
+  "stop": [],
+  "stream": null,
+  "tiles": null,
+  "vids": [],
+  "reply_chars": 0
+ }
+]

@@ -1,0 +1,302 @@
+{
+ "note": "times are seconds from Enter (or from launch when nothing was sent)",
+ "sent_prompt": "Animate this image into a short video: gentle waves",
+ "http": [
+  {
+   "t": -30.72,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 403,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 478 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -27.82,
+   "method": "POST",
+   "url": "https://www.meta.ai/<tok62>?challenge=x",
+   "status": 200,
+   "mime": "text/plain",
+   "failed": "net::ERR_ABORTED"
+  },
+  {
+   "t": -27.48,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 200,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 438846 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -26.86,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 200,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 438846 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -17.11,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "2b7fcdc841885a7263eccebaab5cfa3e",
+   "variables": {
+    "input": {
+     "logInvitationImpression": false,
+     "conversationId": null,
+     "conversationDepth": 0,
+     "agentType": "think_fast"
+    }
+   },
+   "op": [
+    "checkSbsSurveyEligibility"
+   ],
+   "body": "{\"data\": {\"checkSbsSurveyEligibility\": {\"sbsConfig\": null, \"isEligible\": false}}}"
+  },
+  {
+   "t": -11.6,
+   "method": "GET",
+   "url": "blob:https://www.meta.ai/35bb3d32-9800-4786-8933-03f860bd865a",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": -11.58,
+   "method": "GET",
+   "url": "https://rupload.meta.ai/gen_ai_document_gen_ai_tenant/079bd771-92b6-476c-8160-3f77c553bf45",
+   "status": 200,
+   "mime": "",
+   "failed": null,
+   "body": "<base64 36>"
+  },
+  {
+   "t": -11.58,
+   "method": "OPTIONS",
+   "url": "https://rupload.meta.ai/gen_ai_document_gen_ai_tenant/079bd771-92b6-476c-8160-3f77c553bf45",
+   "status": 200,
+   "mime": "",
+   "failed": null
+  },
+  {
+   "t": -11.49,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "e7f802582dbfed8e181b012e010993eb",
+   "variables": {
+    "conversationId": "6f281912-e3c0-4b47-afdc-612c73f1a2c8"
+   },
+   "op": [
+    "warmupConversation"
+   ],
+   "body": "{\"data\": {\"warmupConversation\": true}}"
+  },
+  {
+   "t": -11.49,
+   "method": "GET",
+   "url": "blob:https://www.meta.ai/62af23fb-3b04-4387-9186-aff17dc2162c",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": -8.97,
+   "method": "POST",
+   "url": "https://rupload.meta.ai/gen_ai_document_gen_ai_tenant/079bd771-92b6-476c-8160-3f77c553bf45",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "body": "{\"media_id\": \"N045fce574b6\"}"
+  },
+  {
+   "t": 0.15,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "c32bbe999c48e64e855dc63177d5153f",
+   "variables": {
+    "input": {
+     "conversationId": "6f281912-e3c0-4b47-afdc-612c73f1a2c8",
+     "mode": "think_fast"
+    }
+   },
+   "op": [
+    "updateConversationMode"
+   ],
+   "body": "{\"data\": {\"updateConversationMode\": {\"__typename\": \"ConversationModeUpdated\", \"conversationModePreference\": {\"lastSelectedMode\": \"think_fast\", \"id\": \"mode_pref:6f281912-e3c0-4b47-afdc-612c73f1a2c8\", \"conversationId\": \"6f281912-e3c0-4b47-afdc-612c73f1a2c8\"}}}}"
+  },
+  {
+   "t": 0.15,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "954e9b193487fa4af750af87906e4313",
+   "variables": {},
+   "op": [
+    "triggerHeisenbergCheck"
+   ],
+   "body": "{\"data\": {\"triggerHeisenbergCheck\": {\"triggered\": true, \"isCheckpointed\": false}}}"
+  },
+  {
+   "t": 0.19,
+   "method": "GET",
+   "url": "blob:https://www.meta.ai/35bb3d32-9800-4786-8933-03f860bd865a",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": 1.18,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "56cdeb43ef88400cd3e19fe43fb7c5d0",
+   "variables": {},
+   "op": [
+    "conversations"
+   ],
+   "body": "{\"data\": {\"conversations\": {\"edges\": [{\"node\": {\"lastSendMessageTimestampMs\": 1792690973397, \"conversationId\": \"6f281912-e3c0-4b47-afdc-612c73f1a2c8\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"6f281912-e3c0-4b47-afdc-612c73f1a2c8\", \"updatedAt\": \"2026-10-22T17:42:53.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": true, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1792690908169, \"conversationId\": \"911bb522-23ed-419e-aacb-7aaf19d00ff6\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"911bb522-23ed-419e-aacb-7aaf19d00ff6\", \"updatedAt\": \"2026-10-22T17:41:48.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1792690860239, \"conversationId\": \"80b154d8-c97b-4f35-be7b-fb7accbc3fb9\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"80b154d8-c97b-4f35-be7b-fb7accbc3fb9\", \"updatedAt\": \"2026-10-22T17:41:00.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1791818455842, \"conversationId\": \"acad4e6b-ef32-401b-b3ae-dc073c5e934c\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"acad4e6b-ef32-401b-b3ae-dc073c5e934c\", \"updatedAt\": \"2026-10-12T15:20:55.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}]}}}"
+  },
+  {
+   "t": 2.58,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "526f609db8dcba75dabaaeb170268907",
+   "variables": {
+    "id": "6f281912-e3c0-4b47-afdc-612c73f1a2c8"
+   },
+   "op": [
+    "conversation"
+   ],
+   "body": "{\"data\": {\"conversation\": {\"id\": \"6f281912-e3c0-4b47-afdc-612c73f1a2c8\", \"viewerActions\": [\"CAN_PIN\", \"DELETE\", \"CREATE_SNAPSHOT_LINK\", \"DELETE_SNAPSHOT_LINK\"], \"viewerActionsLive\": [\"CAN_PIN\", \"CREATE_SNAPSHOT_LINK\", \"DELETE\"], \"snapshotId\": null}}}"
+  },
+  {
+   "t": 42.02,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "4cb2328d7a3944246babdfdcacf71053",
+   "variables": {
+    "mediaId": "N2904188f88e"
+   },
+   "op": [
+    "mediaShareMenu"
+   ],
+   "body": "{\"data\": {\"mediaShareMenu\": {\"viewerActions\": [\"SHARE\"]}}}"
+  },
+  {
+   "t": 42.1,
+   "method": "GET",
+   "url": "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+   "status": 206,
+   "mime": "video/mp4",
+   "failed": "net::ERR_ABORTED"
+  },
+  {
+   "t": 43.97,
+   "method": "GET",
+   "url": "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+   "status": 206,
+   "mime": "video/mp4",
+   "failed": null
+  },
+  {
+   "t": 47.41,
+   "method": "GET",
+   "url": "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+   "status": 206,
+   "mime": "video/mp4",
+   "failed": "net::ERR_ABORTED"
+  },
+  {
+   "t": 47.61,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "26999e5d1366c257595b7fafa7822c31",
+   "variables": {
+    "input": {
+     "messageId": "79137535-c566-4c46-91df-8f6ca16cbef4",
+     "conversationId": "6f281912-e3c0-4b47-afdc-612c73f1a2c8",
+     "uniqueMessageId": "N2a7c436c82b",
+     "requestId": "79137535-c566-4c46-91df-8f6ca16cbef4",
+     "latencySubmitTime": 1792690972258,
+     "latencySubscriptionStart": 1792690972723,
+     "latencyFirstData": 1792690978147,
+     "latencyFirstContent": 1792691013228,
+     "latencyStreamComplete": 1792691019738,
+     "latencyRenderComplete": 1792691019858
+    }
+   },
+   "op": [
+    "saveMessageLatency"
+   ],
+   "body": "{\"data\": {\"saveMessageLatency\": {\"__typename\": \"MessageLatencySaved\", \"success\": true}}}"
+  },
+  {
+   "t": 54.43,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "02215c60d85219a6e366787a77f16c3c",
+   "variables": {
+    "conversationId": "6f281912-e3c0-4b47-afdc-612c73f1a2c8",
+    "count": 20
+   },
+   "op": [
+    "conversation"
+   ],
+   "body": "{\"data\": {\"conversation\": {\"latestBranchPath\": \"2\", \"id\": \"6f281912-e3c0-4b47-afdc-612c73f1a2c8\", \"messages\": {\"edges\": [{\"node\": {\"__typename\": \"UserMessage\", \"turnId\": \"1fd53d08-d265-497b-b6b1-64e4c75797bd\", \"promptType\": \"initial_prompt\", \"__isMessage\": \"UserMessage\", \"reaction\": null, \"repliedSelectedText\": null, \"repliedMessageId\": null, \"originalUserPrompt\": null, \"mentions\": null, \"promptChips\": null, \"canCopy\": true, \"canEditPrompt\": false, \"canSharePrompt\": true, \"branchPath\": \"1\", \"parentRequestId\": null, \"afterCommentaryIndex\": null, \"sender\": null, \"id\": \"<tok61>\", \"content\": \"<|attachment:0|> Animate this image into a short video: gentle waves\", \"createdAt\": \"2026-10-22T17:42:54.625Z\", \"conversationId\": \"6f281912-e3c0-4b47-afdc-612c73f1a2c8\", \"userContent\": \"<|attachment:0|> Animate this image into a short video: gentle waves\", \"userCreatedAt\": \"2026-10-22T17:42:54.625Z\", \"currentViewer\": {\"id\": \"<id>\"}, \"attachments\": [{\"type\": \"image/jpeg\", \"fileName\": \"upload.webp\", \"aspectRatio\": null, \"id\": \"N045fce574b6\", \"uri\": \"https://scontent-iad6-1.xx.fbcdn.net/m1/v/t0.71334-6/<tok124>?_nc_gid=x&_nc_oc=x&ccb=10-5&oh=x&oe=x&_nc_sid=x\"}]}}, {\"node\": {\"__typename\": \"AssistantMessage\", \"turnId\": \"1fd53d08-d265-497b-b6b1-64e4c75797bd\", \"streamingState\": \"DONE\", \"lastSeenMessageId\": \"N2a7c436c82b\", \"threadMessageId\": \"e.00qS4BLSXswjKaGp9BiSWxZ7E\", \"__isMessage\": \"AssistantMessage\", \"uniqueMessageId\": \"N2a7c436c82b\", \"requestId\": \"79137535-c566-4c46-91df-8f6ca16cbef4\", \"botFeedbackKind\": null, \"isUserPreferred\": null, \"hasPrivateSocialContent\": false, \"hasSocialTool\": false, \"debugPariscopeUrl\": null, \"debugFbTraceId\": null, \"error\": null, \"branchPath\": \"2\", \"externalMessageId\": \"1fd53d08-d265-497b-b6b1-64e4c75797bd\", \"id\": \"<tok66>\", \"conversationId\": \"6f281912-e3c0-4b47-afdc-612c73f1a2c8\", \"content\": \"Here's your animated lighthouse — kept in the same soft watercolor style, with gentle waves rolling in, clouds drifting, and that warm glow from the cottage windows:\\n\\n![video](container:///mnt/data/image_20261023_004331.mp4)\\n\\nI added:\\n- **rolling waves** lapping the rocks with sunset reflections shimmering\\n- subtle cloud drift across that pink-orange sky\\n- light swaying in the cliff grasses and wildflowers\\n- a soft flicker in the lantern room\\n\\nWant it slower, more dramatic waves, or with the lighthouse beam sweeping?\", \"canShareResponse\": true, \"shareResponseRequiresFriction\": false, \"images\": [], \"videos\": [], \"createdAt\": \"2026-10-22T17:43:38.832Z\", \"assistantCreatedAt\": \"2026-10-22T17:43:38.832Z\", \"comparisonContext\": null, \"canShare\": true, \"canPost\": true, \"contentRenderer\": {\"__typename\": \"UnifiedResponseContentRenderer\", \"hasReceivedUnifiedResponse\": false, \"message\": {\"streamingState\": \"DONE\", \"uniqueMessageId\": \"N2a7c436c82b\", \"id\": \"<tok66>\", \"conversationId\": \"6f281912-e3c0-4b47-afdc-612c73f1a2c8\", \"sources\": [], \"comparisonContext\": null}, \"unified_response\": {\"__typename\": \"XMSGGenAIUnifiedResponse\", \"nested_responses\": null, \"footer_sections\": null, \"response_id\": \"79137535-c566-4c46-91df-8f6ca16cbef4\", \"embedded_screens\": [{\"__typename\": \"FOAUnifiedResponseEmbeddedScreen\", \"title\": null, \"content\": [{\"__typename\": \"FOAEmbeddedScreenContentTabbed\", \"tabs\": [{\"tab_id\": \"steps\", \"tab_header\": \"Steps\", \"sections\": [], \"step_entries\": [{\"__typename\": \"GenAIStepThoughtEntry\", \"body\": \"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting clouds, and a soft glow in the lighthouse windows while keeping the painting style.\", \"sources\": null, \"artifacts\": null, \"id\": \"genai:step:79137535-c566-4c46-91df-8f6ca16cbef4:0:0:0:0\", \"header\": \"Generating gentle waves video\"}, {\"__typename\": \"GenAIStepThoughtEntry\", \"body\": \"I'm preparing a 10-second video from the input image, describing gentle waves, swaying wildflowers, drifting sunset clouds, and flickering lighthouse light in a soft watercolor style with ambient coastal audio.\", \"sources\": null, \"id\": \"genai:step:79137535-c566-4c46-91df-8f6ca16cbef4:0:0:0:1\", \"header\": \"Animating watercolor lighthouse scene\", \"artifacts\": [{\"__typename\": \"GenAIVideoPrimitive\", \"thumbnail\": null, \"video\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 1152, \"height\": 768, \"id\": \"genai:media:N2904188f88e\"}}]}]}]}]}], \"sections\": [{\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIBotThinkingStatusPrimitive\", \"auto_close_secondary_screen\": null, \"__isGenAIUXPrimitive\": \"GenAIBotThinkingStatusPrimitive\", \"is_in_progress\": false, \"icon\": \"THINKING\", \"meta_search_apps\": null, \"target_secondary_screen_id\": \"DETAILS\", \"target_secondary_screen_tab_id\": \"STEPS\", \"thought_duration_sec\": null, \"thought_text\": null, \"subagents_cot\": null, \"show_answer_now\": false, \"subtitle_detail\": null, \"subtitle_artifacts\": null, \"sources\": null, \"title\": \"<title>\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIMarkdownTextUXPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIMarkdownTextUXPrimitive\", \"inline_entities\": null, \"html_artifact_sandbox\": null, \"text\": \"Here's your animated lighthouse — kept in the same soft watercolor style, with gentle waves rolling in, clouds drifting, and that warm glow from the cottage windows:\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIVideoPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIVideoPrimitive\", \"thumbnail\": null, \"video_ent_id\": \"N2904188f88e\", \"filename\": \"image_20261023_004331.mp4\", \"video\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 1152, \"height\": 768, \"media_id\": \"N2904188f88e\", \"id\": \"genai:media:N2904188f88e\"}, \"viewerActions\": [\"SHARE\"]}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIMarkdownTextUXPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIMarkdownTextUXPrimitive\", \"inline_entities\": null, \"html_artifact_sandbox\": null, \"text\": \"I added:\\n- **rolling waves** lapping the rocks with sunset reflections shimmering\\n- subtle cloud drift across that pink-orange sky\\n- light swaying in the cliff grasses and wildflowers\\n- a soft flicker in the lantern room\\n\\nWant it slower, more dramatic waves, or with the lighthouse beam sweeping?\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIClippyFollowUpPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIClippyFollowUpPrimitive\", \"display_text\": null, \"destination\": null, \"prompt_type\": null, \"prompt_text\": \"Make a stormy night version with the lighthouse beam shining\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIClippyFollowUpPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIClippyFollowUpPrimitive\", \"display_text\": null, \"destination\": null, \"prompt_type\": null, \"prompt_text\": \"Turn this into a winter scene with snow on the rocks\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIClippyFollowUpPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIClippyFollowUpPrimitive\", \"display_text\": null, \"destination\": null, \"prompt_type\": null, \"prompt_text\": \"Change it to a bright summer morning with clear blue sky\"}}}]}}}}]}}}}"
+  },
+  {
+   "t": 56.19,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "0b2cb3a499606dfe326807a2b8b7ee20",
+   "variables": {
+    "input": {
+     "conversationId": "6f281912-e3c0-4b47-afdc-612c73f1a2c8",
+     "lastSeenMessageId": "N2a7c436c82b"
+    }
+   },
+   "op": [
+    "markConversationLastSeenMessage"
+   ],
+   "body": "{\"data\": {\"markConversationLastSeenMessage\": {\"__typename\": \"ConversationLastSeenMessageMarked\", \"success\": true, \"conversationId\": \"6f281912-e3c0-4b47-afdc-612c73f1a2c8\", \"lastSeenMessageId\": \"N2a7c436c82b\"}}}"
+  },
+  {
+   "t": 56.19,
+   "method": "GET",
+   "url": "https://scontent-iad6-1.xx.fbcdn.net/m1/v/t0.71334-6/<tok124>?_nc_gid=x&_nc_oc=x&ccb=10-5&oh=x&oe=x&_nc_sid=x",
+   "status": 200,
+   "mime": "image/jpeg",
+   "failed": null
+  }
+ ]
+}

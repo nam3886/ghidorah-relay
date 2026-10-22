@@ -1,0 +1,27 @@
+{
+ "signals": {
+  "user_menu_visible": false,
+  "signed_out_signs": [
+   [
+    "[data-testid=\"login-button\"]",
+    false
+   ],
+   [
+    "[data-testid=\"logged-out-signin-card-dismiss-button\"]",
+    false
+   ]
+  ],
+  "visible_testids": {}
+ },
+ "state": {
+  "url": "https://www.meta.ai/",
+  "title": "Vercel Security Checkpoint",
+  "stop": [],
+  "stream": null,
+  "tiles": [],
+  "vids": [],
+  "nAssist": 0,
+  "page_imgs": []
+ },
+ "page_text": "Failed to verify your browser\n\nCode 11\n\nVercel Security Checkpoint\n\n|\n\niad1::1792690530-PVOVcV3CFeLQrzrm06rvpK3austFPCXi"
+}

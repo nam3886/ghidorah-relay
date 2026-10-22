@@ -1,0 +1,87 @@
+[
+ {
+  "t_from_send": 0.0,
+  "url": "https://www.meta.ai/prompt/80b154d8-c97b-4f35-be7b-fb7accbc3fb9",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": null,
+  "tiles": [],
+  "vids": [],
+  "reply_chars": 0
+ },
+ {
+  "t_from_send": 1.0,
+  "url": "https://www.meta.ai/prompt/80b154d8-c97b-4f35-be7b-fb7accbc3fb9",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": null,
+  "tiles": [],
+  "vids": [],
+  "reply_chars": 0
+ },
+ {
+  "t_from_send": 5.1,
+  "url": "https://www.meta.ai/prompt/80b154d8-c97b-4f35-be7b-fb7accbc3fb9",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": "STREAMING/false",
+  "tiles": [],
+  "vids": [],
+  "reply_chars": 0
+ },
+ {
+  "t_from_send": 15.2,
+  "url": "https://www.meta.ai/prompt/80b154d8-c97b-4f35-be7b-fb7accbc3fb9",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": "STREAMING/false",
+  "tiles": [
+   {
+    "src": "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "alt": "gallery/image_20261023_004054.webp",
+    "w": 0,
+    "h": 0
+   }
+  ],
+  "vids": [],
+  "reply_chars": 253
+ },
+ {
+  "t_from_send": 16.2,
+  "url": "https://www.meta.ai/prompt/80b154d8-c97b-4f35-be7b-fb7accbc3fb9",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": "STREAMING/false",
+  "tiles": [
+   {
+    "src": "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "alt": "gallery/image_20261023_004054.webp",
+    "w": 1920,
+    "h": 1280
+   }
+  ],
+  "vids": [],
+  "reply_chars": 141
+ },
+ {
+  "t_from_send": 20.2,
+  "url": "https://www.meta.ai/prompt/80b154d8-c97b-4f35-be7b-fb7accbc3fb9",
+  "stop": [],
+  "stream": "DONE/true",
+  "tiles": [
+   {
+    "src": "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "alt": "gallery/image_20261023_004054.webp",
+    "w": 1920,
+    "h": 1280
+   }
+  ],
+  "vids": [],
+  "reply_chars": 321
+ }
+]

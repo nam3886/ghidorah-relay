@@ -1,0 +1,68 @@
+{
+ "signals": {
+  "user_menu_visible": true,
+  "signed_out_signs": [
+   [
+    "[data-testid=\"login-button\"]",
+    false
+   ],
+   [
+    "[data-testid=\"logged-out-signin-card-dismiss-button\"]",
+    false
+   ]
+  ],
+  "visible_testids": {
+   "new-chat-button": 1,
+   "conversation-item": 2,
+   "user-menu-button": 1,
+   "assistant-message": 1,
+   "thinking-status": 1,
+   "thinking-status-chevron": 1,
+   "subagent-cot-list": 1,
+   "ur-image-tile": 1,
+   "composer-input": 1,
+   "composer-add-attachment-button": 1,
+   "composer-mode-dropdown-button": 1,
+   "composer-dictation-button": 1,
+   "composer-send-button": 1
+  }
+ },
+ "state": {
+  "url": "https://www.meta.ai/prompt/80b154d8-c97b-4f35-be7b-fb7accbc3fb9",
+  "title": "Meta AI - Your AI Assistant for Images, Shopping and More",
+  "stop": [],
+  "stream": "DONE/true",
+  "tiles": [
+   {
+    "src": "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "alt": "gallery/image_20261023_004054.webp",
+    "w": 1920,
+    "h": 1280
+   }
+  ],
+  "vids": [],
+  "nAssist": 1,
+  "page_imgs": [
+   {
+    "src": "https://www.meta.ai/images/meta-ai-orbit-logo-gradient-3d_light.svg",
+    "w": 800,
+    "h": 800
+   },
+   {
+    "src": "https://static.xx.fbcdn.net/rsrc.php/yd/r/_tN6hYY4oeH.webp",
+    "w": 512,
+    "h": 512
+   },
+   {
+    "src": "https://www.meta.ai/images/cot_logo_static/orbit.png",
+    "w": 240,
+    "h": 240
+   },
+   {
+    "src": "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "w": 1920,
+    "h": 1280
+   }
+  ]
+ }
+}

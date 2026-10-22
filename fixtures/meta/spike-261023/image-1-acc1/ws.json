@@ -1,0 +1,1035 @@
+[
+ {
+  "t": -3.31,
+  "kind": "open",
+  "url": "wss://gateway.meta.ai/ws/clippy?x-dgw-appid=x&x-dgw-appversion=x&x-dgw-authtype=x&x-dgw-version=x&x-dgw-uuid=x&x-dgw-tier=x&Authorization=x&x-dgw-app-origin=x&x-dgw-app-clippy-request-id=x"
+ },
+ {
+  "t": -2.0,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1,
+   "strings": []
+  }
+ },
+ {
+  "t": 0.13,
+  "kind": "out",
+  "op": 2,
+  "data": {
+   "binary_len": 133,
+   "strings": [
+    "{\"x-dgw-app-x-ecto-conversation-id\": \"90308813-ac0b-4fe6-9315-d603c8ddc37b\", \"x-dgw-app-client-payload-type\": \"PROTO_INSIDE_JSON\"}"
+   ]
+  }
+ },
+ {
+  "t": 0.46,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 18,
+   "strings": [
+    "{\"code\": 200}"
+   ]
+  }
+ },
+ {
+  "t": 0.46,
+  "kind": "out",
+  "op": 2,
+  "data": {
+   "binary_len": 1406,
+   "strings": [
+    "{\"req-id\": \"7e8fed01-82ad-429b-a566-84934dc79237\", \"payload\": \"<tok599>/<tok734>==\"}"
+   ]
+  }
+ },
+ {
+  "t": 0.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 8,
+   "strings": []
+  }
+ },
+ {
+  "t": 0.83,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 129,
+   "strings": [
+    "$7e8fed01-82ad-429b-a566-84934dc79237\"$7e8fed01-82ad-429b-a566-84934dc79237*$7e8fed01-82ad-429b-a566-84934dc79237"
+   ]
+  }
+ },
+ {
+  "t": 2.41,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 126,
+   "strings": [
+    "media_subagent",
+    "\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 2.42,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 252,
+   "strings": [
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 7.25,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 811,
+   "strings": [
+    "{\"seq\":0,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.27,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 848,
+   "strings": [
+    "{\"seq\":1,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.3,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 868,
+   "strings": [
+    "{\"seq\":2,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.31,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 872,
+   "strings": [
+    "{\"seq\":3,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.32,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 896,
+   "strings": [
+    "{\"seq\":4,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.33,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 908,
+   "strings": [
+    "{\"seq\":5,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional water\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional water\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.34,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 918,
+   "strings": [
+    "{\"seq\":6,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.37,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 924,
+   "strings": [
+    "{\"seq\":7,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.38,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 928,
+   "strings": [
+    "{\"seq\":8,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.4,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 950,
+   "strings": [
+    "{\"seq\":9,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.42,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 957,
+   "strings": [
+    "{\"seq\":10,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.77,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 971,
+   "strings": [
+    "{\"seq\":11,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 973,
+   "strings": [
+    "{\"seq\":12,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset,\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.81,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 983,
+   "strings": [
+    "{\"seq\":13,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.82,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 993,
+   "strings": [
+    "{\"seq\":14,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.82,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1001,
+   "strings": [
+    "{\"seq\":15,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft was\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft was\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.83,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1007,
+   "strings": [
+    "{\"seq\":16,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.83,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1009,
+   "strings": [
+    "{\"seq\":17,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes,\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.85,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1019,
+   "strings": [
+    "{\"seq\":18,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.85,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1027,
+   "strings": [
+    "{\"seq\":19,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.86,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1029,
+   "strings": [
+    "{\"seq\":20,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky,\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.86,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1041,
+   "strings": [
+    "{\"seq\":21,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.86,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1055,
+   "strings": [
+    "{\"seq\":22,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.86,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1057,
+   "strings": [
+    "{\"seq\":23,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs,\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.86,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1071,
+   "strings": [
+    "{\"seq\":24,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.86,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1083,
+   "strings": [
+    "{\"seq\":25,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.86,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1085,
+   "strings": [
+    "{\"seq\":26,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves,\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 7.86,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1093,
+   "strings": [
+    "{\"seq\":27,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 8.64,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1099,
+   "strings": [
+    "{\"seq\":28,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and se\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and se\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 8.65,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1103,
+   "strings": [
+    "{\"seq\":29,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seag\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seag\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 8.65,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1111,
+   "strings": [
+    "{\"seq\":30,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 8.65,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1117,
+   "strings": [
+    "{\"seq\":31,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 8.65,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1133,
+   "strings": [
+    "{\"seq\":32,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 8.65,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1137,
+   "strings": [
+    "{\"seq\":33,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 8.66,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1147,
+   "strings": [
+    "{\"seq\":34,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 8.66,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1163,
+   "strings": [
+    "{\"seq\":35,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 8.66,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1179,
+   "strings": [
+    "{\"seq\":36,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 8.66,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1181,
+   "strings": [
+    "{\"seq\":37,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening.\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening.\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 8.66,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1181,
+   "strings": [
+    "{\"seq\":38,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening.\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening.\"}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 10.19,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2653,
+   "strings": [
+    "{\"seq\":39,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening.\",\"subtitle_artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"}}]}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"generated_image_512721b8abbb6523.webp\"}}]}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 10.42,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2653,
+   "strings": [
+    "{\"seq\":40,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening.\",\"subtitle_artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"}}]}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"generated_image_512721b8abbb6523.webp\"}}]}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 10.42,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 987,
+   "strings": [
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.72,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 372,
+   "strings": [
+    ".reasoning-7e8fed01-82ad-429b-a566-84934dc79237",
+    "We need\"",
+    "{\"seq\":41,\"type\":\"patch\",\"operations\":[{\"op\":\"replace\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/artifacts/0/source/source_display_name\",\"value\":\"gallery/image_20261023_002919.webp\"}]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.73,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 226,
+   "strings": [
+    ".reasoning-7e8fed01-82ad-429b-a566-84934dc79237",
+    "We need to present image.\"){\"seq\":42,\"type\":\"patch\",\"operations\":[]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.73,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 230,
+   "strings": [
+    "<tok49>",
+    "We need to present image.",
+    "\"){\"seq\":43,\"type\":\"patch\",\"operations\":[]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.73,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1371,
+   "strings": [
+    "Here's",
+    "Here's ",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":44,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/sections/1\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's\"}}}}]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.73,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1387,
+   "strings": [
+    "* your watercolor lighthouse at sunset:",
+    "/Here's your watercolor lighthouse at sunset:",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":45,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\" your watercolor lighthouse at sunset:\\n\\n!\"}]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.73,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1234,
+   "strings": [
+    "water",
+    "/Here's your watercolor lighthouse at sunset:",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R){\"seq\":46,\"type\":\"patch\",\"operations\":[]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.74,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1442,
+   "strings": [
+    ",color lighthouse at sunset](container:///mnt",
+    "aHere's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":47,\"type\":\"patch\",\"operations\":[{\"op\":\"replace\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\"Here's your watercolor lighthouse at sunset:\"}]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.74,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1337,
+   "strings": [
+    "/data/gallery/image_20261023_",
+    "~Here's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R){\"seq\":48,\"type\":\"patch\",\"operations\":[]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.74,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1889,
+   "strings": [
+    "{\"seq\":49,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your watercolor lighthouse at sunset:\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"generated_image_512721b8abbb6523.webp\"}}]}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1h"
+   ]
+  }
+ },
+ {
+  "t": 11.88,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 4141,
+   "strings": [
+    "002919.webp)",
+    "Want",
+    "Here's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_002919.webp)",
+    "Want2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":50,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your watercolor lighthouse at sunset:\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"width\":1920,\"height\":1280},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"width\":1920,\"height\":1280},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_002919.webp\"},\"image_type\":\"DEFAULT\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Want\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_002919.webp\"}}]}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.88,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1429,
+   "strings": [
+    " me to try",
+    "Here's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_002919.webp)",
+    "Want me to try2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R{{\"seq\":51,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" me to try\"}]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.91,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1461,
+   "strings": [
+    " a different mood",
+    "Here's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_002919.webp)",
+    "Want me to try a different mood2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":52,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" a different mood\"}]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.93,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1456,
+   "strings": [
+    " maybe",
+    "Here's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_002919.webp)",
+    "Want me to try a different mood ",
+    " maybe2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R{{\"seq\":53,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" ",
+    " maybe\"}]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.94,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1454,
+   "strings": [
+    " storm",
+    "Here's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_002919.webp)",
+    "Want me to try a different mood ",
+    " maybe storm2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}Rw{\"seq\":54,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" storm\"}]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.95,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1451,
+   "strings": [
+    "Here's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_002919.webp)",
+    "Want me to try a different mood ",
+    " maybe stormier2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}Rt{\"seq\":55,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\"ier\"}]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.96,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1487,
+   "strings": [
+    ", more minimal",
+    "Here's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_002919.webp)",
+    "Want me to try a different mood ",
+    " maybe stormier, more minimal2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":56,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\", more minimal\"}]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 11.98,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1508,
+   "strings": [
+    ", or with a boat",
+    "Here's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_002919.webp)",
+    "Want me to try a different mood ",
+    " maybe stormier, more minimal, or with a boat2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":57,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\", or with a boat\"}]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 12.01,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1524,
+   "strings": [
+    " in the distance",
+    "Here's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_002919.webp)",
+    "Want me to try a different mood ",
+    " maybe stormier, more minimal, or with a boat in the distance2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":58,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" in the distance\"}]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 12.15,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1971,
+   "strings": [
+    "Here's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_002919.webp)",
+    "Want me to try a different mood ",
+    " maybe stormier, more minimal, or with a boat in the distance?2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":59,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/artifacts/0/full_image/media_id\",\"value\":\"N62e6dfa6c32\"},{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/artifacts/0/preview_image/media_id\",\"value\":\"N62e6dfa6c32\"},{\"op\":\"add\",\"path\":\"/sections/2/view_model/primitive/full_image/media_id\",\"value\":\"N62e6dfa6c32\"},{\"op\":\"add\",\"path\":\"/sections/2/view_model/primitive/preview_image/media_id\",\"value\":\"N62e6dfa6c32\"},{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\"?\"}]}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1R"
+   ]
+  }
+ },
+ {
+  "t": 12.32,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 4429,
+   "strings": [
+    "Here's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_002919.webp)",
+    "Want me to try a different mood ",
+    " maybe stormier, more minimal, or with a boat in the distance?2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":60,\"type\":\"full\",\"response\":{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your watercolor lighthouse at sunset:\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N62e6dfa6c32\",\"width\":1920,\"height\":1280},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N62e6dfa6c32\",\"width\":1920,\"height\":1280},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_002919.webp\"},\"image_type\":\"DEFAULT\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Want me to try a different mood ",
+    " maybe stormier, more minimal, or with a boat in the distance?\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N62e6dfa6c32\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N62e6dfa6c32\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_002919.webp\"}}]}]}]}]}]}}\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e1@"
+   ]
+  }
+ },
+ {
+  "t": 16.24,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 5746,
+   "strings": [
+    "Here's your watercolor lighthouse at sunset:",
+    "![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_002919.webp)",
+    "Want me to try a different mood ",
+    " maybe stormier, more minimal, or with a boat in the distance?(",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+    "$GGp4JTMCd7GkosMHAG6PRKTdVbZ7bhecAQBe2",
+    "image/webp:\"gallery/image_20261023_002919.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_002919.webp\",\"snapshot_handle\":\"GGSSWTP7HQhuCBkQAE5JOSrD-gtabg1iAQBj\",\"snapshot_id\":\"zu6vtu\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "o{\"conversation\":[{\"text\":\"A watercolor painting of a lighthouse at sunset\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "!{\"response_id\":\"7e8fed01-82ad-429b-a566-84934dc79237\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your watercolor lighthouse at sunset:\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N62e6dfa6c32\",\"width\":1920,\"height\":1280},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N62e6dfa6c32\",\"width\":1920,\"height\":1280},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_002919.webp\"},\"image_type\":\"DEFAULT\",\"follow_up_pills\":[{\"prompt_text\":\"Add a sailboat on the horizon\",\"category\":\"ADD\"},{\"prompt_text\":\"Deepen the purple clouds\",\"category\":\"STYLE\"},{\"prompt_text\":\"Brighten the lighthouse beam\",\"category\":\"LIGHT\"},{\"prompt_text\":\"Add seagulls in flight\",\"category\":\"ADD\"},{\"prompt_text\":\"Enhance ocean wave texture\",\"category\":\"STYLE\"},{\"prompt_text\":\"Add a crescent moon above\",\"category\":\"ADD\"}]}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Want me to try a different mood ",
+    " maybe stormier, more minimal, or with a boat in the distance?\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"2c191bb5-610d-5a51-ae6b-7f8dae781831\",\"prompt_text\":\"Add a small sailboat on the horizon\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"1512012d-9072-533a-9d59-08733d51ee9b\",\"prompt_text\":\"Make it a night scene with stars and a brighter beacon\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"8ed62815-3621-58bf-9cd0-9f8c6cc428da\",\"prompt_text\":\"Use a looser minimal watercolor style with more white space\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing watercolor lighthouse scene\",\"body\":\"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N62e6dfa6c32\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N62e6dfa6c32\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_002919.webp\"}}]}]}]}]}]}",
+    "\"$7e8fed01-82ad-429b-a566-84934dc79237*$37556a8f-7162-48fe-bd5e-5bbbefae33e12",
+    "e.00qS45OPpi6bWQQ1NzfGPWlwmJ!",
+    "Painting a lighthouse at sunsetR",
+    "e.00qS45OPpi6bWQQ1NzfGPWlwmh"
+   ]
+  }
+ },
+ {
+  "t": 46.19,
+  "kind": "out",
+  "op": 2,
+  "data": {
+   "binary_len": 1,
+   "strings": []
+  }
+ },
+ {
+  "t": 46.51,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1,
+   "strings": []
+  }
+ }
+]

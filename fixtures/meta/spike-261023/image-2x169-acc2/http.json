@@ -1,0 +1,234 @@
+{
+ "note": "times are seconds from Enter (or from launch when nothing was sent)",
+ "sent_prompt": "Create 2 images of a red bicycle, 16:9",
+ "http": [
+  {
+   "t": -5.24,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 200,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 461076 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -3.19,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "2b7fcdc841885a7263eccebaab5cfa3e",
+   "variables": {
+    "input": {
+     "logInvitationImpression": false,
+     "conversationId": null,
+     "conversationDepth": 0,
+     "agentType": "think_fast"
+    }
+   },
+   "op": [
+    "checkSbsSurveyEligibility"
+   ],
+   "body": "{\"data\": {\"checkSbsSurveyEligibility\": {\"sbsConfig\": null, \"isEligible\": false}}}"
+  },
+  {
+   "t": -1.25,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "e7f802582dbfed8e181b012e010993eb",
+   "variables": {
+    "conversationId": "911bb522-23ed-419e-aacb-7aaf19d00ff6"
+   },
+   "op": [
+    "warmupConversation"
+   ],
+   "body": "{\"data\": {\"warmupConversation\": true}}"
+  },
+  {
+   "t": 0.1,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "c32bbe999c48e64e855dc63177d5153f",
+   "variables": {
+    "input": {
+     "conversationId": "911bb522-23ed-419e-aacb-7aaf19d00ff6",
+     "mode": "think_fast"
+    }
+   },
+   "op": [
+    "updateConversationMode"
+   ],
+   "body": "{\"data\": {\"updateConversationMode\": {\"__typename\": \"ConversationModeUpdated\", \"conversationModePreference\": {\"lastSelectedMode\": \"think_fast\", \"id\": \"mode_pref:911bb522-23ed-419e-aacb-7aaf19d00ff6\", \"conversationId\": \"911bb522-23ed-419e-aacb-7aaf19d00ff6\"}}}}"
+  },
+  {
+   "t": 0.11,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "954e9b193487fa4af750af87906e4313",
+   "variables": {},
+   "op": [
+    "triggerHeisenbergCheck"
+   ],
+   "body": "{\"data\": {\"triggerHeisenbergCheck\": {\"triggered\": true, \"isCheckpointed\": false}}}"
+  },
+  {
+   "t": 1.15,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "56cdeb43ef88400cd3e19fe43fb7c5d0",
+   "variables": {},
+   "op": [
+    "conversations"
+   ],
+   "body": "{\"data\": {\"conversations\": {\"edges\": [{\"node\": {\"lastSendMessageTimestampMs\": 1792690885907, \"conversationId\": \"911bb522-23ed-419e-aacb-7aaf19d00ff6\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"911bb522-23ed-419e-aacb-7aaf19d00ff6\", \"updatedAt\": \"2026-10-22T17:41:25.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": true, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1792690860239, \"conversationId\": \"80b154d8-c97b-4f35-be7b-fb7accbc3fb9\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"80b154d8-c97b-4f35-be7b-fb7accbc3fb9\", \"updatedAt\": \"2026-10-22T17:41:00.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1791818455842, \"conversationId\": \"acad4e6b-ef32-401b-b3ae-dc073c5e934c\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"acad4e6b-ef32-401b-b3ae-dc073c5e934c\", \"updatedAt\": \"2026-10-12T15:20:55.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}]}}}"
+  },
+  {
+   "t": 2.77,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "526f609db8dcba75dabaaeb170268907",
+   "variables": {
+    "id": "911bb522-23ed-419e-aacb-7aaf19d00ff6"
+   },
+   "op": [
+    "conversation"
+   ],
+   "body": "{\"data\": {\"conversation\": {\"id\": \"911bb522-23ed-419e-aacb-7aaf19d00ff6\", \"viewerActions\": [\"CAN_PIN\", \"DELETE\", \"CREATE_SNAPSHOT_LINK\", \"DELETE_SNAPSHOT_LINK\"], \"viewerActionsLive\": [\"CAN_PIN\", \"CREATE_SNAPSHOT_LINK\", \"DELETE\"], \"snapshotId\": null}}}"
+  },
+  {
+   "t": 15.14,
+   "method": "GET",
+   "url": "https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": 17.57,
+   "method": "GET",
+   "url": "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": 17.79,
+   "method": "GET",
+   "url": "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": 24.69,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "ecc43cc5adc3443611ed22bd8608a371",
+   "variables": {
+    "mediaId": "N5d9b844aa57"
+   },
+   "op": [
+    "mediaShareMenu"
+   ],
+   "body": "{\"data\": {\"mediaShareMenu\": {\"viewerActions\": [\"IMAGINE_USER_ACTION_ANIMATE\", \"SHARE\"]}}}"
+  },
+  {
+   "t": 24.7,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "ecc43cc5adc3443611ed22bd8608a371",
+   "variables": {
+    "mediaId": "N76e934ed34f"
+   },
+   "op": [
+    "mediaShareMenu"
+   ],
+   "body": "{\"data\": {\"mediaShareMenu\": {\"viewerActions\": [\"IMAGINE_USER_ACTION_ANIMATE\", \"SHARE\"]}}}"
+  },
+  {
+   "t": 24.77,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "26999e5d1366c257595b7fafa7822c31",
+   "variables": {
+    "input": {
+     "messageId": "f55849cc-75c5-4be0-95ff-89f0d89bd3aa",
+     "conversationId": "911bb522-23ed-419e-aacb-7aaf19d00ff6",
+     "uniqueMessageId": "Naebbeda3a1d",
+     "requestId": "f55849cc-75c5-4be0-95ff-89f0d89bd3aa",
+     "latencySubmitTime": 1792690885251,
+     "latencySubscriptionStart": 1792690885684,
+     "latencyFirstData": 1792690890180,
+     "latencyFirstContent": 1792690902801,
+     "latencyStreamComplete": 1792690909884,
+     "latencyRenderComplete": 1792690910008
+    }
+   },
+   "op": [
+    "saveMessageLatency"
+   ],
+   "body": "{\"data\": {\"saveMessageLatency\": {\"__typename\": \"MessageLatencySaved\", \"success\": true}}}"
+  },
+  {
+   "t": 29.82,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "02215c60d85219a6e366787a77f16c3c",
+   "variables": {
+    "conversationId": "911bb522-23ed-419e-aacb-7aaf19d00ff6",
+    "count": 20
+   },
+   "op": [
+    "conversation"
+   ],
+   "body": "{\"data\": {\"conversation\": {\"latestBranchPath\": \"2\", \"id\": \"911bb522-23ed-419e-aacb-7aaf19d00ff6\", \"messages\": {\"edges\": [{\"node\": {\"__typename\": \"UserMessage\", \"turnId\": \"8c42c2fb-0751-4f56-9b40-ecd297b4be5c\", \"promptType\": \"initial_prompt\", \"__isMessage\": \"UserMessage\", \"reaction\": null, \"repliedSelectedText\": null, \"repliedMessageId\": null, \"originalUserPrompt\": null, \"attachments\": null, \"mentions\": null, \"promptChips\": null, \"canCopy\": true, \"canEditPrompt\": false, \"canSharePrompt\": true, \"branchPath\": \"1\", \"parentRequestId\": null, \"afterCommentaryIndex\": null, \"sender\": null, \"id\": \"<tok61>\", \"content\": \"Create 2 images of a red bicycle, 16:9\", \"createdAt\": \"2026-10-22T17:41:28.200Z\", \"conversationId\": \"911bb522-23ed-419e-aacb-7aaf19d00ff6\", \"userContent\": \"Create 2 images of a red bicycle, 16:9\", \"userCreatedAt\": \"2026-10-22T17:41:28.200Z\", \"currentViewer\": {\"id\": \"<id>\"}}}, {\"node\": {\"__typename\": \"AssistantMessage\", \"turnId\": \"8c42c2fb-0751-4f56-9b40-ecd297b4be5c\", \"streamingState\": \"DONE\", \"lastSeenMessageId\": \"Naebbeda3a1d\", \"threadMessageId\": \"e.00qS4AZjByndH5Di50Bw2RX6Y\", \"__isMessage\": \"AssistantMessage\", \"uniqueMessageId\": \"Naebbeda3a1d\", \"requestId\": \"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\", \"botFeedbackKind\": null, \"isUserPreferred\": null, \"hasPrivateSocialContent\": false, \"hasSocialTool\": false, \"debugPariscopeUrl\": null, \"debugFbTraceId\": null, \"error\": null, \"branchPath\": \"2\", \"externalMessageId\": \"8c42c2fb-0751-4f56-9b40-ecd297b4be5c\", \"id\": \"<tok66>\", \"conversationId\": \"911bb522-23ed-419e-aacb-7aaf19d00ff6\", \"content\": \"![image](container:///mnt/data/gallery/image_20261023_004138.webp)\\n![image](container:///mnt/data/gallery/image_20261023_004139.webp)\\n\\nHere are your 2 red bicycles in 16:9 — one classic road bike on a cobblestone street, and one modern city bike with a basket.\\n\\nWant to refine them further?\", \"canShareResponse\": true, \"shareResponseRequiresFriction\": false, \"images\": [], \"videos\": [], \"createdAt\": \"2026-10-22T17:41:48.169Z\", \"assistantCreatedAt\": \"2026-10-22T17:41:48.169Z\", \"comparisonContext\": null, \"canShare\": true, \"canPost\": true, \"contentRenderer\": {\"__typename\": \"UnifiedResponseContentRenderer\", \"hasReceivedUnifiedResponse\": false, \"message\": {\"streamingState\": \"DONE\", \"uniqueMessageId\": \"Naebbeda3a1d\", \"id\": \"<tok66>\", \"conversationId\": \"911bb522-23ed-419e-aacb-7aaf19d00ff6\", \"sources\": [], \"comparisonContext\": null}, \"unified_response\": {\"__typename\": \"XMSGGenAIUnifiedResponse\", \"nested_responses\": null, \"footer_sections\": null, \"response_id\": \"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\", \"embedded_screens\": [{\"__typename\": \"FOAUnifiedResponseEmbeddedScreen\", \"title\": null, \"content\": [{\"__typename\": \"FOAEmbeddedScreenContentTabbed\", \"tabs\": [{\"tab_id\": \"steps\", \"tab_header\": \"Steps\", \"sections\": [], \"step_entries\": [{\"__typename\": \"GenAIStepThoughtEntry\", \"body\": \"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\", \"sources\": null, \"artifacts\": null, \"id\": \"genai:step:f55849cc-75c5-4be0-95ff-89f0d89bd3aa:0:0:0:0\", \"header\": \"Generating red bicycle images\"}, {\"__typename\": \"GenAIStepThoughtEntry\", \"body\": \"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and 16:9 framing before generating the image.\", \"sources\": null, \"artifacts\": null, \"id\": \"genai:step:f55849cc-75c5-4be0-95ff-89f0d89bd3aa:0:0:0:1\", \"header\": \"Designing red bicycle concept\"}, {\"__typename\": \"GenAIStepThoughtEntry\", \"body\": \"I'm building a 16:9 photoreal image of a red road bike as the central subject, set on a cobblestone street with soft daylight and blurred city background.\", \"sources\": null, \"id\": \"genai:step:f55849cc-75c5-4be0-95ff-89f0d89bd3aa:0:0:0:2\", \"header\": \"Composing photoreal bicycle scene\", \"artifacts\": [{\"__typename\": \"GenAIImagePrimitive\", \"content_hash\": null, \"follow_up_pills\": null, \"source\": {\"source_display_name\": \"gallery/image_20261023_004138.webp\", \"source_url\": null, \"source_subtitle\": null, \"source_timestamp_ms\": null, \"favicon\": null, \"source_author_media\": null, \"id\": \"genai:source:10DjSiusoZWJJSh7jF2doDhz\"}, \"preview_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 2048, \"height\": 1152, \"media_id\": \"preview:N5d9b844aa57\", \"id\": \"genai:media:preview:N5d9b844aa57\"}, \"full_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 2048, \"height\": 1152, \"media_id\": \"N5d9b844aa57\", \"id\": \"genai:media:N5d9b844aa57\"}}]}, {\"__typename\": \"GenAIStepThoughtEntry\", \"body\": \"I'm assembling a photoreal image of a sleek, modern red bicycle with a sculpted monocoque frame, leather details, and rattan basket, set in a minimalist urban courtyard with natural daylight.\", \"sources\": null, \"id\": \"genai:step:f55849cc-75c5-4be0-95ff-89f0d89bd3aa:0:0:0:3\", \"header\": \"Composing photoreal bicycle scene\", \"artifacts\": [{\"__typename\": \"GenAIImagePrimitive\", \"content_hash\": null, \"follow_up_pills\": null, \"source\": {\"source_display_name\": \"gallery/image_20261023_004139.webp\", \"source_url\": null, \"source_subtitle\": null, \"source_timestamp_ms\": null, \"favicon\": null, \"source_author_media\": null, \"id\": \"genai:source:2ZjqHIXWgFmQJ_Pbz5QCTlAb\"}, \"preview_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 2048, \"height\": 1152, \"media_id\": \"preview:N76e934ed34f\", \"id\": \"genai:media:preview:N76e934ed34f\"}, \"full_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 2048, \"height\": 1152, \"media_id\": \"N76e934ed34f\", \"id\": \"genai:media:N76e934ed34f\"}}]}]}]}]}], \"sections\": [{\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIBotThinkingStatusPrimitive\", \"auto_close_secondary_screen\": null, \"__isGenAIUXPrimitive\": \"GenAIBotThinkingStatusPrimitive\", \"is_in_progress\": false, \"icon\": \"THINKING\", \"meta_search_apps\": null, \"target_secondary_screen_id\": \"DETAILS\", \"target_secondary_screen_tab_id\": \"STEPS\", \"thought_duration_sec\": null, \"thought_text\": null, \"subagents_cot\": null, \"show_answer_now\": false, \"subtitle_detail\": null, \"subtitle_artifacts\": null, \"sources\": null, \"title\": \"<title>\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIImagePrimitive\", \"__isGenAIUXPrimitive\": \"GenAIImagePrimitive\", \"content_hash\": null, \"source\": {\"source_display_name\": \"gallery/image_20261023_004138.webp\", \"source_url\": null, \"source_subtitle\": null, \"source_timestamp_ms\": null, \"favicon\": null, \"source_author_media\": null, \"id\": \"genai:source:10DjSiusoZWJJSh7jF2doDhz\"}, \"follow_up_pills\": [{\"destination\": null, \"category\": \"ADD\", \"prompt_text\": \"Add a wicker basket upfront\"}, {\"destination\": null, \"category\": \"LIGHT\", \"prompt_text\": \"Change to a sunset glow\"}, {\"destination\": null, \"category\": \"SCENE\", \"prompt_text\": \"Place bike on a sandy beach\"}, {\"destination\": null, \"category\": \"ADD\", \"prompt_text\": \"Add a vintage leather saddle\"}, {\"destination\": null, \"category\": \"STYLE\", \"prompt_text\": \"Convert to black and white\"}, {\"destination\": null, \"category\": \"FRAME\", \"prompt_text\": \"Blur the background more\"}], \"preview_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 2048, \"height\": 1152, \"media_id\": \"preview:N5d9b844aa57\", \"id\": \"genai:media:preview:N5d9b844aa57\"}, \"full_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 2048, \"height\": 1152, \"media_id\": \"N5d9b844aa57\", \"id\": \"genai:media:N5d9b844aa57\"}, \"viewerActions\": [\"IMAGINE_USER_ACTION_ANIMATE\", \"SHARE\"]}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIImagePrimitive\", \"__isGenAIUXPrimitive\": \"GenAIImagePrimitive\", \"content_hash\": null, \"source\": {\"source_display_name\": \"gallery/image_20261023_004139.webp\", \"source_url\": null, \"source_subtitle\": null, \"source_timestamp_ms\": null, \"favicon\": null, \"source_author_media\": null, \"id\": \"genai:source:2ZjqHIXWgFmQJ_Pbz5QCTlAb\"}, \"follow_up_pills\": [{\"destination\": null, \"category\": \"ADD\", \"prompt_text\": \"Add a second red bicycle\"}, {\"destination\": null, \"category\": \"SCENE\", \"prompt_text\": \"Place the bike on a city street\"}, {\"destination\": null, \"category\": \"SCENE\", \"prompt_text\": \"Change background to sunset park\"}, {\"destination\": null, \"category\": \"STYLE\", \"prompt_text\": \"Add motion blur to the wheels\"}, {\"destination\": null, \"category\": \"LIGHT\", \"prompt_text\": \"Adjust lighting for golden hour\"}, {\"destination\": null, \"category\": \"FRAME\", \"prompt_text\": \"Crop to center the bicycle\"}], \"preview_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 2048, \"height\": 1152, \"media_id\": \"preview:N76e934ed34f\", \"id\": \"genai:media:preview:N76e934ed34f\"}, \"full_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 2048, \"height\": 1152, \"media_id\": \"N76e934ed34f\", \"id\": \"genai:media:N76e934ed34f\"}, \"viewerActions\": [\"IMAGINE_USER_ACTION_ANIMATE\", \"SHARE\"]}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIMarkdownTextUXPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIMarkdownTextUXPrimitive\", \"inline_entities\": null, \"html_artifact_sandbox\": null, \"text\": \"Here are your 2 red bicycles in 16:9 — one classic road bike on a cobblestone street, and one modern city bike with a basket.\\n\\nWant to refine them further?\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIClippyFollowUpPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIClippyFollowUpPrimitive\", \"display_text\": null, \"destination\": null, \"prompt_type\": null, \"prompt_text\": \"Change the first red road bike on cobblestones to a mountain bike style\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIClippyFollowUpPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIClippyFollowUpPrimitive\", \"display_text\": null, \"destination\": null, \"prompt_type\": null, \"prompt_text\": \"Add a rider to the second modern red bike with wicker basket\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIClippyFollowUpPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIClippyFollowUpPrimitive\", \"display_text\": null, \"destination\": null, \"prompt_type\": null, \"prompt_text\": \"Show the first red bicycle in a clean studio on white background\"}}}]}}}}]}}}}"
+  },
+  {
+   "t": 32.13,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "0b2cb3a499606dfe326807a2b8b7ee20",
+   "variables": {
+    "input": {
+     "conversationId": "911bb522-23ed-419e-aacb-7aaf19d00ff6",
+     "lastSeenMessageId": "Naebbeda3a1d"
+    }
+   },
+   "op": [
+    "markConversationLastSeenMessage"
+   ],
+   "body": "{\"data\": {\"markConversationLastSeenMessage\": {\"__typename\": \"ConversationLastSeenMessageMarked\", \"success\": true, \"conversationId\": \"911bb522-23ed-419e-aacb-7aaf19d00ff6\", \"lastSeenMessageId\": \"Naebbeda3a1d\"}}}"
+  }
+ ]
+}

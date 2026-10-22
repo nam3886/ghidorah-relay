@@ -1,0 +1,279 @@
+{
+ "note": "times are seconds from Enter (or from launch when nothing was sent)",
+ "sent_prompt": "A watercolor painting of a lighthouse at sunset",
+ "http": [
+  {
+   "t": -21.74,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 403,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 478 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -19.57,
+   "method": "POST",
+   "url": "https://www.meta.ai/<tok62>?challenge=x",
+   "status": 200,
+   "mime": "text/plain",
+   "failed": "net::ERR_ABORTED"
+  },
+  {
+   "t": -19.24,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 200,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 439789 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -18.81,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 200,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 439789 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -16.63,
+   "method": "GET",
+   "url": "https://scontent-iad6-1.xx.fbcdn.net/v/t39.30808-6/<tok48>.jpg?_nc_cat=x&ccb=1-7&_nc_sid=x&_nc_ohc=x&_nc_oc=x&_nc_zt=x&_nc_ht=x&_nc_gid=x&_nc_ss=x&oh=x&oe=x",
+   "status": 200,
+   "mime": "image/jpeg",
+   "failed": null
+  },
+  {
+   "t": -3.17,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "2b7fcdc841885a7263eccebaab5cfa3e",
+   "variables": {
+    "input": {
+     "logInvitationImpression": false,
+     "conversationId": null,
+     "conversationDepth": 0,
+     "agentType": "think_fast"
+    }
+   },
+   "op": [
+    "checkSbsSurveyEligibility"
+   ],
+   "body": "{\"data\": {\"checkSbsSurveyEligibility\": {\"sbsConfig\": null, \"isEligible\": false}}}"
+  },
+  {
+   "t": -3.17,
+   "method": "GET",
+   "url": "https://www.meta.ai/vibes/?rsid=x&_rsc=x",
+   "status": 200,
+   "mime": "text/x-component",
+   "failed": null,
+   "body_omitted": "text/x-component, 1795 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -1.46,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "e7f802582dbfed8e181b012e010993eb",
+   "variables": {
+    "conversationId": "90308813-ac0b-4fe6-9315-d603c8ddc37b"
+   },
+   "op": [
+    "warmupConversation"
+   ],
+   "body": "{\"data\": {\"warmupConversation\": true}}"
+  },
+  {
+   "t": 0.09,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "c32bbe999c48e64e855dc63177d5153f",
+   "variables": {
+    "input": {
+     "conversationId": "90308813-ac0b-4fe6-9315-d603c8ddc37b",
+     "mode": "think_fast"
+    }
+   },
+   "op": [
+    "updateConversationMode"
+   ],
+   "body": "{\"data\": {\"updateConversationMode\": {\"__typename\": \"ConversationModeUpdated\", \"conversationModePreference\": {\"lastSelectedMode\": \"think_fast\", \"id\": \"mode_pref:90308813-ac0b-4fe6-9315-d603c8ddc37b\", \"conversationId\": \"90308813-ac0b-4fe6-9315-d603c8ddc37b\"}}}}"
+  },
+  {
+   "t": 0.09,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "954e9b193487fa4af750af87906e4313",
+   "variables": {},
+   "op": [
+    "triggerHeisenbergCheck"
+   ],
+   "body": "{\"data\": {\"triggerHeisenbergCheck\": {\"triggered\": true, \"isCheckpointed\": false}}}"
+  },
+  {
+   "t": 1.14,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "56cdeb43ef88400cd3e19fe43fb7c5d0",
+   "variables": {},
+   "op": [
+    "conversations"
+   ],
+   "body": "{\"data\": {\"conversations\": {\"edges\": [{\"node\": {\"lastSendMessageTimestampMs\": 1792690151116, \"conversationId\": \"90308813-ac0b-4fe6-9315-d603c8ddc37b\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"90308813-ac0b-4fe6-9315-d603c8ddc37b\", \"updatedAt\": \"2026-10-22T17:29:11.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": true, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1782977990632, \"conversationId\": \"ce609eee-2ffe-4eee-a4a2-7e9f6c0dab8c\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"ce609eee-2ffe-4eee-a4a2-7e9f6c0dab8c\", \"updatedAt\": \"2026-07-02T07:39:50.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1782977970751, \"conversationId\": \"ce6bae63-2daf-47fc-bc42-2b7a8d8a1ca1\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"ce6bae63-2daf-47fc-bc42-2b7a8d8a1ca1\", \"updatedAt\": \"2026-07-02T07:39:30.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1782977759375, \"conversationId\": \"2d9745aa-e3d2-48ec-8462-5c974e1289be\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"2d9745aa-e3d2-48ec-8462-5c974e1289be\", \"updatedAt\": \"2026-07-02T07:35:59.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1782977671050, \"conversationId\": \"0914b0ca-3ac9-458a-a2fc-05a3201869b4\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"0914b0ca-3ac9-458a-a2fc-05a3201869b4\", \"updatedAt\": \"2026-07-02T07:34:31.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1782977417119, \"conversationId\": \"1bdefc1e-d6b1-4a73-b76d-156fd046ff4b\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"1bdefc1e-d6b1-4a73-b76d-156fd046ff4b\", \"updatedAt\": \"2026-07-02T07:30:17.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}]}}}"
+  },
+  {
+   "t": 3.16,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "526f609db8dcba75dabaaeb170268907",
+   "variables": {
+    "id": "90308813-ac0b-4fe6-9315-d603c8ddc37b"
+   },
+   "op": [
+    "conversation"
+   ],
+   "body": "{\"data\": {\"conversation\": {\"id\": \"90308813-ac0b-4fe6-9315-d603c8ddc37b\", \"viewerActions\": [\"CAN_PIN\", \"DELETE\", \"CREATE_SNAPSHOT_LINK\", \"DELETE_SNAPSHOT_LINK\"], \"snapshotId\": null, \"viewerActionsLive\": [\"CAN_PIN\", \"CREATE_SNAPSHOT_LINK\", \"DELETE\"]}}}"
+  },
+  {
+   "t": 10.2,
+   "method": "GET",
+   "url": "https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": 11.9,
+   "method": "GET",
+   "url": "https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": 12.16,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "ecc43cc5adc3443611ed22bd8608a371",
+   "variables": {
+    "mediaId": "N62e6dfa6c32"
+   },
+   "op": [
+    "mediaShareMenu"
+   ],
+   "body": "{\"data\": {\"mediaShareMenu\": {\"viewerActions\": [\"IMAGINE_USER_ACTION_ANIMATE\", \"SHARE\"]}}}"
+  },
+  {
+   "t": 16.32,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "26999e5d1366c257595b7fafa7822c31",
+   "variables": {
+    "input": {
+     "messageId": "7e8fed01-82ad-429b-a566-84934dc79237",
+     "conversationId": "90308813-ac0b-4fe6-9315-d603c8ddc37b",
+     "uniqueMessageId": "N46b866f0e7b",
+     "requestId": "7e8fed01-82ad-429b-a566-84934dc79237",
+     "latencySubmitTime": 1792690149803,
+     "latencySubscriptionStart": 1792690150243,
+     "latencyFirstData": 1792690152202,
+     "latencyFirstContent": 1792690161523,
+     "latencyStreamComplete": 1792690165984,
+     "latencyRenderComplete": 1792690166105
+    }
+   },
+   "op": [
+    "saveMessageLatency"
+   ],
+   "body": "{\"data\": {\"saveMessageLatency\": {\"__typename\": \"MessageLatencySaved\", \"success\": true}}}"
+  },
+  {
+   "t": 20.75,
+   "method": "GET",
+   "url": "https://www.meta.ai/vibes/?rsid=x&_rsc=x",
+   "status": 200,
+   "mime": "text/x-component",
+   "failed": null,
+   "body_omitted": "text/x-component, 1795 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": 21.31,
+   "method": "GET",
+   "url": "https://www.meta.ai/vibes/?rsid=x&_rsc=x",
+   "status": 200,
+   "mime": "text/x-component",
+   "failed": "net::ERR_ABORTED"
+  },
+  {
+   "t": 22.62,
+   "method": "GET",
+   "url": "https://www.meta.ai/vibes/?rsid=x&_rsc=x",
+   "status": 200,
+   "mime": "text/x-component",
+   "failed": null,
+   "body_omitted": "text/x-component, 1795 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": 23.35,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "02215c60d85219a6e366787a77f16c3c",
+   "variables": {
+    "conversationId": "90308813-ac0b-4fe6-9315-d603c8ddc37b",
+    "count": 20
+   },
+   "op": [
+    "conversation"
+   ],
+   "body": "{\"data\": {\"conversation\": {\"latestBranchPath\": \"2\", \"id\": \"90308813-ac0b-4fe6-9315-d603c8ddc37b\", \"messages\": {\"edges\": [{\"node\": {\"__typename\": \"UserMessage\", \"turnId\": \"37556a8f-7162-48fe-bd5e-5bbbefae33e1\", \"promptType\": \"initial_prompt\", \"__isMessage\": \"UserMessage\", \"reaction\": null, \"repliedSelectedText\": null, \"repliedMessageId\": null, \"originalUserPrompt\": null, \"attachments\": null, \"mentions\": null, \"promptChips\": null, \"canCopy\": true, \"canEditPrompt\": false, \"canSharePrompt\": true, \"branchPath\": \"1\", \"parentRequestId\": null, \"afterCommentaryIndex\": null, \"sender\": null, \"id\": \"<tok61>\", \"content\": \"A watercolor painting of a lighthouse at sunset\", \"createdAt\": \"2026-10-22T17:29:11.116Z\", \"conversationId\": \"90308813-ac0b-4fe6-9315-d603c8ddc37b\", \"userContent\": \"A watercolor painting of a lighthouse at sunset\", \"userCreatedAt\": \"2026-10-22T17:29:11.116Z\", \"currentViewer\": {\"id\": \"<id>\"}}}, {\"node\": {\"__typename\": \"AssistantMessage\", \"turnId\": \"37556a8f-7162-48fe-bd5e-5bbbefae33e1\", \"streamingState\": \"DONE\", \"lastSeenMessageId\": \"N46b866f0e7b\", \"threadMessageId\": \"e.00qS45OPpi6bWQQ1NzfGPWlwm\", \"__isMessage\": \"AssistantMessage\", \"uniqueMessageId\": \"N46b866f0e7b\", \"requestId\": \"7e8fed01-82ad-429b-a566-84934dc79237\", \"botFeedbackKind\": null, \"isUserPreferred\": null, \"hasPrivateSocialContent\": false, \"hasSocialTool\": false, \"debugPariscopeUrl\": null, \"debugFbTraceId\": null, \"error\": null, \"branchPath\": \"2\", \"externalMessageId\": \"37556a8f-7162-48fe-bd5e-5bbbefae33e1\", \"id\": \"<tok66>\", \"conversationId\": \"90308813-ac0b-4fe6-9315-d603c8ddc37b\", \"content\": \"Here's your watercolor lighthouse at sunset:\\n\\n![watercolor lighthouse at sunset](container:///mnt/data/gallery/image_20261023_002919.webp)\\n\\nWant me to try a different mood — maybe stormier, more minimal, or with a boat in the distance?\", \"canShareResponse\": true, \"shareResponseRequiresFriction\": false, \"images\": [], \"videos\": [], \"createdAt\": \"2026-10-22T17:29:24.982Z\", \"assistantCreatedAt\": \"2026-10-22T17:29:24.982Z\", \"comparisonContext\": null, \"canShare\": true, \"canPost\": true, \"contentRenderer\": {\"__typename\": \"UnifiedResponseContentRenderer\", \"hasReceivedUnifiedResponse\": false, \"message\": {\"streamingState\": \"DONE\", \"uniqueMessageId\": \"N46b866f0e7b\", \"id\": \"<tok66>\", \"conversationId\": \"90308813-ac0b-4fe6-9315-d603c8ddc37b\", \"sources\": [], \"comparisonContext\": null}, \"unified_response\": {\"__typename\": \"XMSGGenAIUnifiedResponse\", \"nested_responses\": null, \"footer_sections\": null, \"response_id\": \"7e8fed01-82ad-429b-a566-84934dc79237\", \"embedded_screens\": [{\"__typename\": \"FOAUnifiedResponseEmbeddedScreen\", \"title\": null, \"content\": [{\"__typename\": \"FOAEmbeddedScreenContentTabbed\", \"tabs\": [{\"tab_id\": \"steps\", \"tab_header\": \"Steps\", \"sections\": [], \"step_entries\": [{\"__typename\": \"GenAIStepThoughtEntry\", \"body\": \"I'm preparing a traditional watercolor of a lighthouse at sunset, with soft washes, warm sky, rocky cliffs, gentle waves, and seagulls to capture a calm coastal evening.\", \"sources\": null, \"id\": \"genai:step:7e8fed01-82ad-429b-a566-84934dc79237:0:0:0:0\", \"header\": \"Composing watercolor lighthouse scene\", \"artifacts\": [{\"__typename\": \"GenAIImagePrimitive\", \"content_hash\": null, \"follow_up_pills\": null, \"source\": {\"source_display_name\": \"gallery/image_20261023_002919.webp\", \"source_url\": null, \"source_subtitle\": null, \"source_timestamp_ms\": null, \"favicon\": null, \"source_author_media\": null, \"id\": \"genai:source:us0Mc809kaeng91ud6n4OOw4\"}, \"preview_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 1920, \"height\": 1280, \"media_id\": \"preview:N62e6dfa6c32\", \"id\": \"genai:media:preview:N62e6dfa6c32\"}, \"full_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 1920, \"height\": 1280, \"media_id\": \"N62e6dfa6c32\", \"id\": \"genai:media:N62e6dfa6c32\"}}]}]}]}]}], \"sections\": [{\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIBotThinkingStatusPrimitive\", \"auto_close_secondary_screen\": null, \"__isGenAIUXPrimitive\": \"GenAIBotThinkingStatusPrimitive\", \"is_in_progress\": false, \"icon\": \"THINKING\", \"meta_search_apps\": null, \"target_secondary_screen_id\": \"DETAILS\", \"target_secondary_screen_tab_id\": \"STEPS\", \"thought_duration_sec\": null, \"thought_text\": null, \"subagents_cot\": null, \"show_answer_now\": false, \"subtitle_detail\": null, \"subtitle_artifacts\": null, \"sources\": null, \"title\": \"<title>\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIMarkdownTextUXPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIMarkdownTextUXPrimitive\", \"inline_entities\": null, \"html_artifact_sandbox\": null, \"text\": \"Here's your watercolor lighthouse at sunset:\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIImagePrimitive\", \"__isGenAIUXPrimitive\": \"GenAIImagePrimitive\", \"content_hash\": null, \"source\": {\"source_display_name\": \"gallery/image_20261023_002919.webp\", \"source_url\": null, \"source_subtitle\": null, \"source_timestamp_ms\": null, \"favicon\": null, \"source_author_media\": null, \"id\": \"genai:source:us0Mc809kaeng91ud6n4OOw4\"}, \"follow_up_pills\": [{\"destination\": null, \"category\": \"ADD\", \"prompt_text\": \"Add a sailboat on the horizon\"}, {\"destination\": null, \"category\": \"STYLE\", \"prompt_text\": \"Deepen the purple clouds\"}, {\"destination\": null, \"category\": \"LIGHT\", \"prompt_text\": \"Brighten the lighthouse beam\"}, {\"destination\": null, \"category\": \"ADD\", \"prompt_text\": \"Add seagulls in flight\"}, {\"destination\": null, \"category\": \"STYLE\", \"prompt_text\": \"Enhance ocean wave texture\"}, {\"destination\": null, \"category\": \"ADD\", \"prompt_text\": \"Add a crescent moon above\"}], \"preview_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 1920, \"height\": 1280, \"media_id\": \"preview:N62e6dfa6c32\", \"id\": \"genai:media:preview:N62e6dfa6c32\"}, \"full_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 1920, \"height\": 1280, \"media_id\": \"N62e6dfa6c32\", \"id\": \"genai:media:N62e6dfa6c32\"}, \"viewerActions\": [\"IMAGINE_USER_ACTION_ANIMATE\", \"SHARE\"]}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIMarkdownTextUXPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIMarkdownTextUXPrimitive\", \"inline_entities\": null, \"html_artifact_sandbox\": null, \"text\": \"Want me to try a different mood — maybe stormier, more minimal, or with a boat in the distance?\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIClippyFollowUpPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIClippyFollowUpPrimitive\", \"display_text\": null, \"destination\": null, \"prompt_type\": null, \"prompt_text\": \"Add a small sailboat on the horizon\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIClippyFollowUpPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIClippyFollowUpPrimitive\", \"display_text\": null, \"destination\": null, \"prompt_type\": null, \"prompt_text\": \"Make it a night scene with stars and a brighter beacon\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIClippyFollowUpPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIClippyFollowUpPrimitive\", \"display_text\": null, \"destination\": null, \"prompt_type\": null, \"prompt_text\": \"Use a looser minimal watercolor style with more white space\"}}}]}}}}]}}}}"
+  },
+  {
+   "t": 25.14,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "0b2cb3a499606dfe326807a2b8b7ee20",
+   "variables": {
+    "input": {
+     "conversationId": "90308813-ac0b-4fe6-9315-d603c8ddc37b",
+     "lastSeenMessageId": "N46b866f0e7b"
+    }
+   },
+   "op": [
+    "markConversationLastSeenMessage"
+   ],
+   "body": "{\"data\": {\"markConversationLastSeenMessage\": {\"__typename\": \"ConversationLastSeenMessageMarked\", \"success\": true, \"conversationId\": \"90308813-ac0b-4fe6-9315-d603c8ddc37b\", \"lastSeenMessageId\": \"N46b866f0e7b\"}}}"
+  }
+ ]
+}

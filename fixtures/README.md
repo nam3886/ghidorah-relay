@@ -37,3 +37,71 @@ What the captures do not hold.
 - dola throttle SSE (`/chat/completion` `error_code`) and dola likeness refusal: not captured here. The SSE bodies in `dola/sse/*.txt` are reconstructed from the event names and error codes of earlier samples (not live captures); a live 710022004 body replaces them when one is measured.
 - vibes derived operations (extend, v2v, image-edit) and vibes error bodies (401, 403, 429, QUOTA, a rejected generate): not captured yet.
 - meta refusal, rate or limit text, text-only reply and logged-out page: not captured yet.
+
+## meta.ai live run (23/10/2026)
+
+Redacted captures of one live run per scenario (signed CDN query values replaced by `x`); `meta/spike-261023/README.md` describes each scenario and `packages/provider-meta/FINDINGS.md` sums them up.
+
+- `meta/s3-network/default-2.json`
+- `meta/s3-network/default.json`
+- `meta/s3-network/n4.json`
+- `meta/s3-network/n8.json`
+- `meta/spike-261023/checkpoint-acc1/cookies_after.json`
+- `meta/spike-261023/checkpoint-acc1/http.json`
+- `meta/spike-261023/checkpoint-acc1/loaded.state.json`
+- `meta/spike-261023/i2v-acc2/attach_done.state.json`
+- `meta/spike-261023/i2v-acc2/composer.json`
+- `meta/spike-261023/i2v-acc2/cookies_after.json`
+- `meta/spike-261023/i2v-acc2/file_inputs.json`
+- `meta/spike-261023/i2v-acc2/final.state.json`
+- `meta/spike-261023/i2v-acc2/http.json`
+- `meta/spike-261023/i2v-acc2/loaded.state.json`
+- `meta/spike-261023/i2v-acc2/send.json`
+- `meta/spike-261023/i2v-acc2/timeline.json`
+- `meta/spike-261023/i2v-acc2/ws.json`
+- `meta/spike-261023/i2v-upload-stall-acc1/composer.json`
+- `meta/spike-261023/i2v-upload-stall-acc1/cookies_after.json`
+- `meta/spike-261023/i2v-upload-stall-acc1/file_inputs.json`
+- `meta/spike-261023/i2v-upload-stall-acc1/http.json`
+- `meta/spike-261023/i2v-upload-stall-acc1/loaded.state.json`
+- `meta/spike-261023/i2v-upload-stall-acc1/send.json`
+- `meta/spike-261023/i2v-upload-stall-acc1/timeline.json`
+- `meta/spike-261023/i2v-upload-stall-acc1/ws.json`
+- `meta/spike-261023/image-1-acc1/composer.json`
+- `meta/spike-261023/image-1-acc1/cookies_after.json`
+- `meta/spike-261023/image-1-acc1/final.state.json`
+- `meta/spike-261023/image-1-acc1/http.json`
+- `meta/spike-261023/image-1-acc1/loaded.state.json`
+- `meta/spike-261023/image-1-acc1/send.json`
+- `meta/spike-261023/image-1-acc1/timeline.json`
+- `meta/spike-261023/image-1-acc1/ws.json`
+- `meta/spike-261023/image-1-acc2/composer.json`
+- `meta/spike-261023/image-1-acc2/cookies_after.json`
+- `meta/spike-261023/image-1-acc2/final.state.json`
+- `meta/spike-261023/image-1-acc2/http.json`
+- `meta/spike-261023/image-1-acc2/loaded.state.json`
+- `meta/spike-261023/image-1-acc2/send.json`
+- `meta/spike-261023/image-1-acc2/timeline.json`
+- `meta/spike-261023/image-1-acc2/ws.json`
+- `meta/spike-261023/image-2x169-acc1/composer.json`
+- `meta/spike-261023/image-2x169-acc1/cookies_after.json`
+- `meta/spike-261023/image-2x169-acc1/final.state.json`
+- `meta/spike-261023/image-2x169-acc1/http.json`
+- `meta/spike-261023/image-2x169-acc1/loaded.state.json`
+- `meta/spike-261023/image-2x169-acc1/send.json`
+- `meta/spike-261023/image-2x169-acc1/timeline.json`
+- `meta/spike-261023/image-2x169-acc1/ws.json`
+- `meta/spike-261023/image-2x169-acc2/composer.json`
+- `meta/spike-261023/image-2x169-acc2/cookies_after.json`
+- `meta/spike-261023/image-2x169-acc2/final.state.json`
+- `meta/spike-261023/image-2x169-acc2/http.json`
+- `meta/spike-261023/image-2x169-acc2/loaded.state.json`
+- `meta/spike-261023/image-2x169-acc2/send.json`
+- `meta/spike-261023/image-2x169-acc2/timeline.json`
+- `meta/spike-261023/image-2x169-acc2/ws.json`
+- `meta/spike-261023/load-acc1/cookies_after.json`
+- `meta/spike-261023/load-acc1/http.json`
+- `meta/spike-261023/load-acc1/loaded.state.json`
+- `meta/spike-261023/load-acc2/cookies_after.json`
+- `meta/spike-261023/load-acc2/http.json`
+- `meta/spike-261023/load-acc2/loaded.state.json`

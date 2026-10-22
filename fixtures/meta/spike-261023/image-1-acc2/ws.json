@@ -1,0 +1,687 @@
+[
+ {
+  "t": -4.01,
+  "kind": "open",
+  "url": "wss://gateway.meta.ai/ws/clippy?x-dgw-appid=x&x-dgw-appversion=x&x-dgw-authtype=x&x-dgw-version=x&x-dgw-uuid=x&x-dgw-tier=x&Authorization=x&x-dgw-app-origin=x&x-dgw-app-clippy-request-id=x"
+ },
+ {
+  "t": -2.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1,
+   "strings": []
+  }
+ },
+ {
+  "t": 0.18,
+  "kind": "out",
+  "op": 2,
+  "data": {
+   "binary_len": 133,
+   "strings": [
+    "{\"x-dgw-app-x-ecto-conversation-id\": \"80b154d8-c97b-4f35-be7b-fb7accbc3fb9\", \"x-dgw-app-client-payload-type\": \"PROTO_INSIDE_JSON\"}"
+   ]
+  }
+ },
+ {
+  "t": 0.49,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 18,
+   "strings": [
+    "{\"code\": 200}"
+   ]
+  }
+ },
+ {
+  "t": 0.49,
+  "kind": "out",
+  "op": 2,
+  "data": {
+   "binary_len": 1406,
+   "strings": [
+    "{\"req-id\": \"50dc3150-6982-406b-af1a-5c1f14a4c364\", \"payload\": \"<tok599>/EhQIh7nzq/HJvQIQh7nzq/<tok712>==\"}"
+   ]
+  }
+ },
+ {
+  "t": 0.8,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 8,
+   "strings": []
+  }
+ },
+ {
+  "t": 0.91,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 129,
+   "strings": [
+    "$50dc3150-6982-406b-af1a-5c1f14a4c364\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$50dc3150-6982-406b-af1a-5c1f14a4c364"
+   ]
+  }
+ },
+ {
+  "t": 4.5,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 126,
+   "strings": [
+    "media_subagent",
+    "\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eR"
+   ]
+  }
+ },
+ {
+  "t": 10.11,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 808,
+   "strings": [
+    "{\"seq\":0,\"type\":\"full\",\"response\":{\"response_id\":\"50dc3150-6982-406b-af1a-5c1f14a4c364\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Creating watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Creating watercolor lighthouse scene\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Creating watercolor lighthouse scene\"}]}]}]}]}}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.15,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 312,
+   "strings": [
+    "{\"seq\":1,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\"I'm\"},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"I'm\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.15,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 330,
+   "strings": [
+    "{\"seq\":2,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" preparing\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" preparing\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.15,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 314,
+   "strings": [
+    "{\"seq\":3,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.15,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 328,
+   "strings": [
+    "{\"seq\":4,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" detailed\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" detailed\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.15,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 322,
+   "strings": [
+    "{\"seq\":5,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" water\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" water\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.16,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 320,
+   "strings": [
+    "{\"seq\":6,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\"color\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"color\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.16,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 324,
+   "strings": [
+    "{\"seq\":7,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" prompt\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" prompt\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.16,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 318,
+   "strings": [
+    "{\"seq\":8,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" for\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" for\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.16,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 314,
+   "strings": [
+    "{\"seq\":9,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.17,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 950,
+   "strings": [
+    "{\"seq\":10,\"type\":\"full\",\"response\":{\"response_id\":\"50dc3150-6982-406b-af1a-5c1f14a4c364\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Creating watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Creating watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a detailed watercolor prompt for a serene\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Creating watercolor lighthouse scene\",\"body\":\"I'm preparing a detailed watercolor prompt for a serene\"}]}]}]}]}}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.17,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":11,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" coastal\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" coastal\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.19,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":12,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" sunset\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" sunset\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.19,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":13,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.21,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":14,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" with\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" with\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.22,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 315,
+   "strings": [
+    "{\"seq\":15,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.23,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":16,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" classic\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" classic\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.25,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":17,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" white\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" white\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.52,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 333,
+   "strings": [
+    "{\"seq\":18,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" lighthouse\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" lighthouse\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.52,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":19,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" on\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" on\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.53,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1064,
+   "strings": [
+    "{\"seq\":20,\"type\":\"full\",\"response\":{\"response_id\":\"50dc3150-6982-406b-af1a-5c1f14a4c364\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Creating watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Creating watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a detailed watercolor prompt for a serene coastal sunset, with a classic white lighthouse on rocky\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Creating watercolor lighthouse scene\",\"body\":\"I'm preparing a detailed watercolor prompt for a serene coastal sunset, with a classic white lighthouse on rocky\"}]}]}]}]}}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.53,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":21,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" cliffs\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" cliffs\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.53,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":22,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.53,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":23,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" soft\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" soft\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.53,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":24,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" was\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" was\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.53,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":25,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\"hes\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"hes\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.54,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":26,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.54,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":27,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" glowing\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" glowing\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.71,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":28,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" sky\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" sky\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.72,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":29,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.73,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1140,
+   "strings": [
+    "{\"seq\":30,\"type\":\"full\",\"response\":{\"response_id\":\"50dc3150-6982-406b-af1a-5c1f14a4c364\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Creating watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Creating watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a detailed watercolor prompt for a serene coastal sunset, with a classic white lighthouse on rocky cliffs, soft washes, glowing sky, and\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Creating watercolor lighthouse scene\",\"body\":\"I'm preparing a detailed watercolor prompt for a serene coastal sunset, with a classic white lighthouse on rocky cliffs, soft washes, glowing sky, and\"}]}]}]}]}}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.73,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":31,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" gentle\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" gentle\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.73,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":32,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" waves\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" waves\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.8,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":33,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" to\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" to\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.8,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":34,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" capture\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" capture\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.81,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":35,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" the\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" the\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.87,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 329,
+   "strings": [
+    "{\"seq\":36,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" tranquil\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" tranquil\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.87,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":37,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" mood\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" mood\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 10.88,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":38,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\".\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\".\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 13.11,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1748,
+   "strings": [
+    "{\"seq\":39,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/artifacts\",\"value\":[{\"__typename\":\"GenAIImagePrimitive\",\"full_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\"},\"preview_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\"},\"source\":{\"source_display_name\":\"generated_image_aaface56d3db891a.webp\",\"source_type\":\"IMAGE_GEN\"}}]},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/subtitle_artifacts\",\"value\":[{\"__typename\":\"GenAIImagePrimitive\",\"full_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\"},\"preview_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\"}}]}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 13.6,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2698,
+   "strings": [
+    "{\"seq\":40,\"type\":\"full\",\"response\":{\"response_id\":\"50dc3150-6982-406b-af1a-5c1f14a4c364\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Creating watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Creating watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a detailed watercolor prompt for a serene coastal sunset, with a classic white lighthouse on rocky cliffs, soft washes, glowing sky, and gentle waves to capture the tranquil mood.\",\"subtitle_artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"}}]}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Creating watercolor lighthouse scene\",\"body\":\"I'm preparing a detailed watercolor prompt for a serene coastal sunset, with a classic white lighthouse on rocky cliffs, soft washes, glowing sky, and gentle waves to capture the tranquil mood.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"generated_image_aaface56d3db891a.webp\"}}]}]}]}]}]}}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eh"
+   ]
+  }
+ },
+ {
+  "t": 14.54,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 363,
+   "strings": [
+    ".reasoning-50dc3150-6982-406b-af1a-5c1f14a4c364\"",
+    "{\"seq\":41,\"type\":\"patch\",\"operations\":[{\"op\":\"replace\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/artifacts/0/source/source_display_name\",\"value\":\"gallery/image_20261023_004054.webp\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eR"
+   ]
+  }
+ },
+ {
+  "t": 15.12,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 639,
+   "strings": [
+    "{\"seq\":42,\"type\":\"patch\",\"operations\":[{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/is_in_progress\",\"value\":false},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/show_answer_now\",\"value\":false},{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/title\",\"value\":\"Show thinking\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/subtitle_artifacts\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/thought_text\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eR"
+   ]
+  }
+ },
+ {
+  "t": 15.27,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1284,
+   "strings": [
+    "{\"seq\":43,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/sections/1\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"full_image\":{\"height\":1280,\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"width\":1920},\"image_type\":\"DEFAULT\",\"preview_image\":{\"height\":1280,\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"width\":1920},\"source\":{\"source_display_name\":\"gallery/image_20261023_004054.webp\",\"source_type\":\"IMAGE_GEN\"}}}}},{\"op\":\"add\",\"path\":\"/sections/2\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's\"}}}}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eR"
+   ]
+  }
+ },
+ {
+  "t": 15.8,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 256,
+   "strings": [
+    "{\"seq\":44,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\" your watercolor lighthouse at\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eR"
+   ]
+  }
+ },
+ {
+  "t": 15.81,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 246,
+   "strings": [
+    "{\"seq\":45,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\" sunset ",
+    " soft was\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eR"
+   ]
+  }
+ },
+ {
+  "t": 15.81,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 229,
+   "strings": [
+    "{\"yRw{\"seq\":46,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\"hes of\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eR"
+   ]
+  }
+ },
+ {
+  "t": 15.81,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 255,
+   "strings": [
+    "{\"seq\":47,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\" pink and gold over the water\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eR"
+   ]
+  }
+ },
+ {
+  "t": 15.81,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 255,
+   "strings": [
+    "{\"seq\":48,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\", with the light glowing warm\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eR"
+   ]
+  }
+ },
+ {
+  "t": 15.81,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 231,
+   "strings": [
+    "}\"{Ry{\"seq\":49,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\" against\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eR"
+   ]
+  }
+ },
+ {
+  "t": 15.82,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2963,
+   "strings": [
+    "{\"seq\":50,\"type\":\"full\",\"response\":{\"response_id\":\"50dc3150-6982-406b-af1a-5c1f14a4c364\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"width\":1920,\"height\":1280},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"width\":1920,\"height\":1280},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004054.webp\"},\"image_type\":\"DEFAULT\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your watercolor lighthouse at sunset ",
+    " soft washes of pink and gold over the water, with the light glowing warm against the evening sky.\\n\\nWant to refine it\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Creating watercolor lighthouse scene\",\"body\":\"I'm preparing a detailed watercolor prompt for a serene coastal sunset, with a classic white lighthouse on rocky cliffs, soft washes, glowing sky, and gentle waves to capture the tranquil mood.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004054.webp\"}}]}]}]}]}]}}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eR"
+   ]
+  }
+ },
+ {
+  "t": 15.82,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 711,
+   "strings": [
+    "{\"seq\":51,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/artifacts/0/full_image/media_id\",\"value\":\"N9193465e123\"},{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/artifacts/0/preview_image/media_id\",\"value\":\"N9193465e123\"},{\"op\":\"add\",\"path\":\"/sections/1/view_model/primitive/full_image/media_id\",\"value\":\"N9193465e123\"},{\"op\":\"add\",\"path\":\"/sections/1/view_model/primitive/preview_image/media_id\",\"value\":\"N9193465e123\"},{\"op\":\"delta\",\"path\":\"/sections/2/view_model/primitive/text\",\"value\":\" further?\"}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891eR"
+   ]
+  }
+ },
+ {
+  "t": 16.41,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 614,
+   "strings": [
+    "{\"seq\":52,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/sections/1/view_model/primitive/follow_up_pills\",\"value\":[{\"category\":\"ADD\",\"prompt_text\":\"Add seagulls in the sky\"},{\"category\":\"ADD\",\"prompt_text\":\"Add a sailboat on the horizon\"},{\"category\":\"SCENE\",\"prompt_text\":\"Add storm clouds gathering\"},{\"category\":\"LIGHT\",\"prompt_text\":\"Brighten the sunset colors\"},{\"category\":\"ADD\",\"prompt_text\":\"Add a rocky shoreline path\"},{\"category\":\"LIGHT\",\"prompt_text\":\"Add a glowing beacon light\"}]}]}\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891e@"
+   ]
+  }
+ },
+ {
+  "t": 19.93,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 4640,
+   "strings": [
+    "![image](container:///mnt/data/gallery/image_20261023_004054.webp)",
+    "Here's your watercolor lighthouse at sunset ",
+    " soft washes of pink and gold over the water, with the light glowing warm against the evening sky.",
+    "Want to refine it further?(",
+    " {\"response_id\":\"50dc3150-6982-406b-af1a-5c1f14a4c364\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N9193465e123\",\"width\":1920,\"height\":1280},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N9193465e123\",\"width\":1920,\"height\":1280},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004054.webp\"},\"image_type\":\"DEFAULT\",\"follow_up_pills\":[{\"prompt_text\":\"Add seagulls in the sky\",\"category\":\"ADD\"},{\"prompt_text\":\"Add a sailboat on the horizon\",\"category\":\"ADD\"},{\"prompt_text\":\"Add storm clouds gathering\",\"category\":\"SCENE\"},{\"prompt_text\":\"Brighten the sunset colors\",\"category\":\"LIGHT\"},{\"prompt_text\":\"Add a rocky shoreline path\",\"category\":\"ADD\"},{\"prompt_text\":\"Add a glowing beacon light\",\"category\":\"LIGHT\"}]}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your watercolor lighthouse at sunset ",
+    " soft washes of pink and gold over the water, with the light glowing warm against the evening sky.\\n\\nWant to refine it further?\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"b545c95a-c056-58bd-9875-5b12e1fbc3ff\",\"prompt_text\":\"Add a sailboat on the horizon at sunset\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"50454ed6-b0d7-51ba-95eb-5554e03fb2f2\",\"prompt_text\":\"Make it a stormy night with the lighthouse beam glowing\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"ce5f1e01-2798-56d9-ac23-9f9660afc52a\",\"prompt_text\":\"Change to a soft pastel morning light\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Creating watercolor lighthouse scene\",\"body\":\"I'm preparing a detailed watercolor prompt for a serene coastal sunset, with a classic white lighthouse on rocky cliffs, soft washes, glowing sky, and gentle waves to capture the tranquil mood.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N9193465e123\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N9193465e123\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004054.webp\"}}]}]}]}]}]}",
+    "\"$50dc3150-6982-406b-af1a-5c1f14a4c364*$8e2e9e94-02d7-4ed5-9dfe-9591816b891e2",
+    "e.00qS4AF0PMMaZLf3m8HeyZtOVJ!",
+    "Watercolor lighthouse at sunsetR",
+    "e.00qS4AF0PMMaZLf3m8HeyZtOVh"
+   ]
+  }
+ }
+]

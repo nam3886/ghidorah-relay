@@ -1,0 +1,49 @@
+{
+ "note": "times are seconds from Enter (or from launch when nothing was sent)",
+ "sent_prompt": null,
+ "http": [
+  {
+   "t": 1.34,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 403,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 478 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": 4.14,
+   "method": "POST",
+   "url": "https://www.meta.ai/<tok62>?challenge=x",
+   "status": 200,
+   "mime": "text/plain",
+   "failed": "net::ERR_ABORTED"
+  },
+  {
+   "t": 4.45,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 200,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 439891 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": 4.81,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 200,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 439891 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": 6.82,
+   "method": "GET",
+   "url": "https://scontent-iad6-1.xx.fbcdn.net/v/t39.30808-6/<tok48>.jpg?_nc_cat=x&ccb=1-7&_nc_sid=x&_nc_ohc=x&_nc_oc=x&_nc_zt=x&_nc_ht=x&_nc_gid=x&_nc_ss=x&oh=x&oe=x",
+   "status": 200,
+   "mime": "image/jpeg",
+   "failed": null
+  }
+ ]
+}

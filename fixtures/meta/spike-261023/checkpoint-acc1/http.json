@@ -1,0 +1,40 @@
+{
+ "note": "times are seconds from Enter (or from launch when nothing was sent)",
+ "sent_prompt": null,
+ "http": [
+  {
+   "t": 1.42,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 403,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 478 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": 4.21,
+   "method": "POST",
+   "url": "https://www.meta.ai/<tok62>?challenge=x",
+   "status": 200,
+   "mime": "text/plain",
+   "failed": "net::ERR_ABORTED"
+  },
+  {
+   "t": 4.84,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 403,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 31451 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": 5.63,
+   "method": "GET",
+   "url": "https://www.meta.ai/.well-known/vercel/security/static/challenge.v2.min.js",
+   "status": null,
+   "mime": null,
+   "failed": null
+  }
+ ]
+}

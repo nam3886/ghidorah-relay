@@ -1,0 +1,1766 @@
+[
+ {
+  "t": -3.77,
+  "kind": "open",
+  "url": "wss://gateway.meta.ai/ws/clippy?x-dgw-appid=x&x-dgw-appversion=x&x-dgw-authtype=x&x-dgw-version=x&x-dgw-uuid=x&x-dgw-tier=x&Authorization=x&x-dgw-app-origin=x&x-dgw-app-clippy-request-id=x"
+ },
+ {
+  "t": -1.33,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1,
+   "strings": []
+  }
+ },
+ {
+  "t": 0.11,
+  "kind": "out",
+  "op": 2,
+  "data": {
+   "binary_len": 133,
+   "strings": [
+    "{\"x-dgw-app-x-ecto-conversation-id\": \"911bb522-23ed-419e-aacb-7aaf19d00ff6\", \"x-dgw-app-client-payload-type\": \"PROTO_INSIDE_JSON\"}"
+   ]
+  }
+ },
+ {
+  "t": 0.44,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 18,
+   "strings": [
+    "{\"code\": 200}"
+   ]
+  }
+ },
+ {
+  "t": 0.44,
+  "kind": "out",
+  "op": 2,
+  "data": {
+   "binary_len": 1394,
+   "strings": [
+    "{\"req-id\": \"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\", \"payload\": \"<tok599>/EhQIh7nzq/HJvQIQh7nzq/<tok700>==\"}"
+   ]
+  }
+ },
+ {
+  "t": 0.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 8,
+   "strings": []
+  }
+ },
+ {
+  "t": 0.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 129,
+   "strings": [
+    "$f55849cc-75c5-4be0-95ff-89f0d89bd3aa\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$f55849cc-75c5-4be0-95ff-89f0d89bd3aa"
+   ]
+  }
+ },
+ {
+  "t": 4.93,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 789,
+   "strings": [
+    "{\"seq\": 0, \"type\": \"full\", \"response\": {\"response_id\": \"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\", \"sections\": [{\"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIBotThinkingStatusPrimitive\", \"title\": \"Generating red bicycle images\", \"is_in_progress\": true, \"icon\": \"THINKING\", \"target_secondary_screen_id\": \"DETAILS\", \"target_secondary_screen_tab_id\": \"STEPS\", \"thought_text\": \"Generating red bicycle images\"}}}], \"embedded_screens\": [{\"secondary_screen_id\": 1, \"content\": [{\"__typename\": \"FOAEmbeddedScreenContentTabbed\", \"tabs\": [{\"sections\": [], \"tab_header\": \"Steps\", \"id\": \"steps\", \"step_entries\": [{\"__typename\": \"GenAIStepThoughtEntry\", \"header\": \"Generating red bicycle images\"}]}]}]}]}}",
+    "\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 4.96,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 312,
+   "strings": [
+    "{\"seq\":1,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\"I'm\"},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"I'm\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 4.97,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 330,
+   "strings": [
+    "{\"seq\":2,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" preparing\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" preparing\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 4.98,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 318,
+   "strings": [
+    "{\"seq\":3,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" two\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" two\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 4.98,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 312,
+   "strings": [
+    "{\"seq\":4,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" \"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" \"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.56,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 314,
+   "strings": [
+    "{\"seq\":5,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\"16\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"16\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.56,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 312,
+   "strings": [
+    "{\"seq\":6,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\":\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\":\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.56,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 312,
+   "strings": [
+    "{\"seq\":7,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\"9\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"9\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.56,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 324,
+   "strings": [
+    "{\"seq\":8,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" images\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" images\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.57,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 316,
+   "strings": [
+    "{\"seq\":9,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" of\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" of\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.57,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 887,
+   "strings": [
+    "{\"seq\":10,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Generating red bicycle images\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Generating red bicycle images\",\"subtitle_detail\":\"I'm preparing two 16:9 images of a\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a\"}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.57,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":11,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" red\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" red\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.57,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":12,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" bicycle\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" bicycle\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.57,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":13,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.57,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":14,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" setting\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" setting\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.58,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":15,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" up\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" up\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.58,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 329,
+   "strings": [
+    "{\"seq\":16,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" parallel\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" parallel\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.58,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 335,
+   "strings": [
+    "{\"seq\":17,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" generations\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" generations\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.59,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":18,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" with\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" with\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.59,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":19,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" varied\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" varied\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.59,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1027,
+   "strings": [
+    "{\"seq\":20,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Generating red bicycle images\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Generating red bicycle images\",\"subtitle_detail\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions\"}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.59,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":21,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" to\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" to\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.59,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":22,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" match\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" match\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.59,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":23,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" the\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" the\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.6,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":24,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" request\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" request\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 5.6,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":25,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\".\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\".\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.5,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 588,
+   "strings": [
+    "{\"seq\":26,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1\",\"value\":{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\"}},{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/thought_text\",\"value\":\"Designing red bicycle concept\"},{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/title\",\"value\":\"Designing red bicycle concept\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.51,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":27,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\"I'm\"},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"I'm\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.51,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":28,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" shaping\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" shaping\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.51,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 315,
+   "strings": [
+    "{\"seq\":29,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.51,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1069,
+   "strings": [
+    "{\"seq\":30,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Designing red bicycle concept\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Designing red bicycle concept\",\"subtitle_detail\":\"I'm shaping a red\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red\"}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.51,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":31,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" bicycle\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" bicycle\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.51,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":32,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" in\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" in\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.51,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 315,
+   "strings": [
+    "{\"seq\":33,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.52,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 329,
+   "strings": [
+    "{\"seq\":34,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" distinct\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" distinct\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.52,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 329,
+   "strings": [
+    "{\"seq\":35,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" artistic\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" artistic\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.52,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":36,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" style\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" style\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.52,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":37,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.52,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 331,
+   "strings": [
+    "{\"seq\":38,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" exploring\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" exploring\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.52,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":39,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" options\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" options\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.52,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1191,
+   "strings": [
+    "{\"seq\":40,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Designing red bicycle concept\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Designing red bicycle concept\",\"subtitle_detail\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like\"}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.52,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":41,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" Art\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" Art\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.53,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 379,
+   "strings": [
+    "{\"seq\":42,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" Nouveau, minimalist, or cyberpunk\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" Nouveau, minimalist, or cyberpunk\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.53,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":43,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" to\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" to\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.53,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":44,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" define\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" define\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.53,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":45,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" the\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" the\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.53,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":46,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" look\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" look\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.53,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":47,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.54,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 335,
+   "strings": [
+    "{\"seq\":48,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" composition\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" composition\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.57,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":49,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.58,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1341,
+   "strings": [
+    "{\"seq\":50,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Designing red bicycle concept\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Designing red bicycle concept\",\"subtitle_detail\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and\"}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.58,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":51,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" \"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" \"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.58,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 315,
+   "strings": [
+    "{\"seq\":52,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\"16\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"16\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.58,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":53,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\":\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\":\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.58,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":54,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\"9\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"9\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.59,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":55,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" framing\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" framing\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.59,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":56,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" before\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" before\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.59,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 333,
+   "strings": [
+    "{\"seq\":57,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" generating\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" generating\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.59,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":58,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" the\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" the\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.59,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":59,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" image\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" image\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 7.79,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1425,
+   "strings": [
+    "{\"seq\":60,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Designing red bicycle concept\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Designing red bicycle concept\",\"subtitle_detail\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and 16:9 framing before generating the image.\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and 16:9 framing before generating the image.\"}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.33,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 600,
+   "strings": [
+    "{\"seq\":61,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2\",\"value\":{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\"}},{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/thought_text\",\"value\":\"Composing photoreal bicycle scene\"},{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/title\",\"value\":\"Composing photoreal bicycle scene\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.34,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":62,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\"I'm\"},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"I'm\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.34,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 329,
+   "strings": [
+    "{\"seq\":63,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" building\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" building\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.34,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 315,
+   "strings": [
+    "{\"seq\":64,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.34,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":65,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" \"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" \"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.64,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 315,
+   "strings": [
+    "{\"seq\":66,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\"16\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"16\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.65,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":67,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\":\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\":\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.65,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":68,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\"9\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"9\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.65,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":69,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" phot\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" phot\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.71,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1390,
+   "strings": [
+    "{\"seq\":70,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing photoreal bicycle scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing photoreal bicycle scene\",\"subtitle_detail\":\"I'm building a 16:9 photoreal\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and 16:9 framing before generating the image.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm building a 16:9 photoreal\"}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.72,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":71,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" image\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" image\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.72,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":72,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" of\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" of\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.77,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 315,
+   "strings": [
+    "{\"seq\":73,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.77,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":74,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" red\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" red\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.77,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":75,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" road\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" road\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":76,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" bike\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" bike\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":77,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" as\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" as\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":78,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" the\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" the\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":79,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" central\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" central\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1486,
+   "strings": [
+    "{\"seq\":80,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing photoreal bicycle scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing photoreal bicycle scene\",\"subtitle_detail\":\"I'm building a 16:9 photoreal image of a red road bike as the central subject\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and 16:9 framing before generating the image.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm building a 16:9 photoreal image of a red road bike as the central subject\"}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":81,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":82,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" set\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" set\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":83,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" on\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" on\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 315,
+   "strings": [
+    "{\"seq\":84,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.79,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":85,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" cob\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" cob\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.8,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 315,
+   "strings": [
+    "{\"seq\":86,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\"bl\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"bl\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.81,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":87,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\"estone\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"estone\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.98,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":88,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" street\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" street\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.98,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":89,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" with\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" with\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.99,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1564,
+   "strings": [
+    "{\"seq\":90,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing photoreal bicycle scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing photoreal bicycle scene\",\"subtitle_detail\":\"I'm building a 16:9 photoreal image of a red road bike as the central subject, set on a cobblestone street with soft\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and 16:9 framing before generating the image.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm building a 16:9 photoreal image of a red road bike as the central subject, set on a cobblestone street with soft\"}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.99,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 329,
+   "strings": [
+    "{\"seq\":91,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" daylight\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" daylight\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.99,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":92,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" and\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" and\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.99,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":93,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" blurred\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" blurred\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.99,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":94,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" city\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" city\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.99,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 333,
+   "strings": [
+    "{\"seq\":95,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\" background\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" background\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 11.99,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":96,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/body\",\"value\":\".\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\".\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 12.87,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 375,
+   "strings": [
+    "{\"seq\":97,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3\",\"value\":{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\"}},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.36,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":98,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\"I'm\"},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"I'm\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.38,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 333,
+   "strings": [
+    "{\"seq\":99,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" assembling\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" assembling\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.38,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1613,
+   "strings": [
+    "{\"seq\":100,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing photoreal bicycle scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing photoreal bicycle scene\",\"subtitle_detail\":\"I'm assembling a\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and 16:9 framing before generating the image.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm building a 16:9 photoreal image of a red road bike as the central subject, set on a cobblestone street with soft daylight and blurred city background.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm assembling a\"}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.38,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 995,
+   "strings": [
+    "{\"seq\":101,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/artifacts\",\"value\":[{\"__typename\":\"GenAIImagePrimitive\",\"full_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\"},\"preview_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\"},\"source\":{\"source_display_name\":\"generated_image_a21dea8d2396219a.webp\",\"source_type\":\"IMAGE_GEN\"}}]}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.38,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 322,
+   "strings": [
+    "{\"seq\":102,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" phot\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" phot\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.38,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 322,
+   "strings": [
+    "{\"seq\":103,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\"oreal\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"oreal\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.38,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 324,
+   "strings": [
+    "{\"seq\":104,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" image\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" image\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.38,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 318,
+   "strings": [
+    "{\"seq\":105,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" of\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" of\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 316,
+   "strings": [
+    "{\"seq\":106,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 324,
+   "strings": [
+    "{\"seq\":107,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" sleek\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" sleek\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 314,
+   "strings": [
+    "{\"seq\":108,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 326,
+   "strings": [
+    "{\"seq\":109,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" modern\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" modern\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2470,
+   "strings": [
+    "{\"seq\":110,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing photoreal bicycle scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing photoreal bicycle scene\",\"subtitle_detail\":\"I'm assembling a photoreal image of a sleek, modern red\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and 16:9 framing before generating the image.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm building a 16:9 photoreal image of a red road bike as the central subject, set on a cobblestone street with soft daylight and blurred city background.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"generated_image_a21dea8d2396219a.webp\"}}]},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm assembling a photoreal image of a sleek, modern red\"}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 328,
+   "strings": [
+    "{\"seq\":111,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" bicycle\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" bicycle\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 322,
+   "strings": [
+    "{\"seq\":112,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" with\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" with\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 316,
+   "strings": [
+    "{\"seq\":113,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 326,
+   "strings": [
+    "{\"seq\":114,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" sculpt\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" sculpt\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 316,
+   "strings": [
+    "{\"seq\":115,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\"ed\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"ed\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 320,
+   "strings": [
+    "{\"seq\":116,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" mon\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" mon\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 318,
+   "strings": [
+    "{\"seq\":117,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\"oco\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"oco\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 318,
+   "strings": [
+    "{\"seq\":118,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\"que\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"que\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.44,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 324,
+   "strings": [
+    "{\"seq\":119,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" frame\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" frame\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.56,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2552,
+   "strings": [
+    "{\"seq\":120,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing photoreal bicycle scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing photoreal bicycle scene\",\"subtitle_detail\":\"I'm assembling a photoreal image of a sleek, modern red bicycle with a sculpted monocoque frame,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and 16:9 framing before generating the image.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm building a 16:9 photoreal image of a red road bike as the central subject, set on a cobblestone street with soft daylight and blurred city background.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"generated_image_a21dea8d2396219a.webp\"}}]},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm assembling a photoreal image of a sleek, modern red bicycle with a sculpted monocoque frame,\"}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.56,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 328,
+   "strings": [
+    "{\"seq\":121,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" leather\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" leather\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.57,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 490,
+   "strings": [
+    "{\"seq\":122,\"type\":\"patch\",\"operations\":[{\"op\":\"replace\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/2/artifacts/0/source/source_display_name\",\"value\":\"gallery/image_20261023_004138.webp\"},{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" details\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" details\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.57,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 314,
+   "strings": [
+    "{\"seq\":123,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.57,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 320,
+   "strings": [
+    "{\"seq\":124,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" and\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" and\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.68,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 322,
+   "strings": [
+    "{\"seq\":125,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" ratt\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" ratt\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.69,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 316,
+   "strings": [
+    "{\"seq\":126,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\"an\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"an\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.69,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 326,
+   "strings": [
+    "{\"seq\":127,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" basket\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" basket\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.69,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 314,
+   "strings": [
+    "{\"seq\":128,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.69,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 320,
+   "strings": [
+    "{\"seq\":129,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" set\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" set\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2635,
+   "strings": [
+    "{\"seq\":130,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing photoreal bicycle scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing photoreal bicycle scene\",\"subtitle_detail\":\"I'm assembling a photoreal image of a sleek, modern red bicycle with a sculpted monocoque frame, leather details, and rattan basket, set in\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and 16:9 framing before generating the image.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm building a 16:9 photoreal image of a red road bike as the central subject, set on a cobblestone street with soft daylight and blurred city background.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004138.webp\"}}]},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm assembling a photoreal image of a sleek, modern red bicycle with a sculpted monocoque frame, leather details, and rattan basket, set in\"}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 316,
+   "strings": [
+    "{\"seq\":131,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 334,
+   "strings": [
+    "{\"seq\":132,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" minimalist\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" minimalist\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.85,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 324,
+   "strings": [
+    "{\"seq\":133,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" urban\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" urban\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.85,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 332,
+   "strings": [
+    "{\"seq\":134,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" courtyard\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" courtyard\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.88,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 322,
+   "strings": [
+    "{\"seq\":135,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" with\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" with\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.89,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 328,
+   "strings": [
+    "{\"seq\":136,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" natural\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" natural\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.89,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 330,
+   "strings": [
+    "{\"seq\":137,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\" daylight\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" daylight\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 13.89,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 314,
+   "strings": [
+    "{\"seq\":138,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/body\",\"value\":\".\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\".\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 15.14,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1749,
+   "strings": [
+    "{\"seq\":139,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/artifacts\",\"value\":[{\"__typename\":\"GenAIImagePrimitive\",\"full_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\"},\"preview_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\"},\"source\":{\"source_display_name\":\"generated_image_cd7b18bc0e436644.webp\",\"source_type\":\"IMAGE_GEN\"}}]},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/subtitle_artifacts\",\"value\":[{\"__typename\":\"GenAIImagePrimitive\",\"full_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\"},\"preview_image\":{\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\"}}]}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 15.14,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 4211,
+   "strings": [
+    " {\"seq\":140,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Composing photoreal bicycle scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Composing photoreal bicycle scene\",\"subtitle_detail\":\"I'm assembling a photoreal image of a sleek, modern red bicycle with a sculpted monocoque frame, leather details, and rattan basket, set in a minimalist urban courtyard with natural daylight.\",\"subtitle_artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"}}]}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and 16:9 framing before generating the image.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm building a 16:9 photoreal image of a red road bike as the central subject, set on a cobblestone street with soft daylight and blurred city background.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004138.webp\"}}]},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm assembling a photoreal image of a sleek, modern red bicycle with a sculpted monocoque frame, leather details, and rattan basket, set in a minimalist urban courtyard with natural daylight.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"generated_image_cd7b18bc0e436644.webp\"}}]}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5ch"
+   ]
+  }
+ },
+ {
+  "t": 17.33,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 364,
+   "strings": [
+    ".reasoning-f55849cc-75c5-4be0-95ff-89f0d89bd3aa\"",
+    "{\"seq\":141,\"type\":\"patch\",\"operations\":[{\"op\":\"replace\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/3/artifacts/0/source/source_display_name\",\"value\":\"gallery/image_20261023_004139.webp\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5cR"
+   ]
+  }
+ },
+ {
+  "t": 17.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 640,
+   "strings": [
+    "{\"seq\":142,\"type\":\"patch\",\"operations\":[{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/is_in_progress\",\"value\":false},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/show_answer_now\",\"value\":false},{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/title\",\"value\":\"Show thinking\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/subtitle_artifacts\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/thought_text\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5cR"
+   ]
+  }
+ },
+ {
+  "t": 17.55,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1679,
+   "strings": [
+    "{\"seq\":143,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/sections/1\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"follow_up_pills\":[{\"category\":\"ADD\",\"prompt_text\":\"Add a wicker basket upfront\"},{\"category\":\"LIGHT\",\"prompt_text\":\"Change to a sunset glow\"},{\"category\":\"SCENE\",\"prompt_text\":\"Place bike on a sandy beach\"},{\"category\":\"ADD\",\"prompt_text\":\"Add a vintage leather saddle\"},{\"category\":\"STYLE\",\"prompt_text\":\"Convert to black and white\"},{\"category\":\"FRAME\",\"prompt_text\":\"Blur the background more\"}],\"full_image\":{\"height\":1152,\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"width\":2048},\"image_type\":\"DEFAULT\",\"preview_image\":{\"height\":1152,\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"width\":2048},\"source\":{\"source_display_name\":\"gallery/image_20261023_004138.webp\",\"source_type\":\"IMAGE_GEN\"}}}}},{\"op\":\"add\",\"path\":\"/sections/2\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"!\"}}}}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5cR"
+   ]
+  }
+ },
+ {
+  "t": 17.74,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 188,
+   "strings": [
+    "R\"PRN{\"seq\":144,\"type\":\"patch\",\"operations\":[{\"op\":\"remove\",\"path\":\"/sections/2\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5cR"
+   ]
+  }
+ },
+ {
+  "t": 17.75,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1529,
+   "strings": [
+    "{\"seq\":145,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/sections/2\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"follow_up_pills\":[{\"category\":\"ADD\",\"prompt_text\":\"Add a second red bicycle\"},{\"category\":\"SCENE\",\"prompt_text\":\"Place the bike on a city street\"},{\"category\":\"SCENE\",\"prompt_text\":\"Change background to sunset park\"},{\"category\":\"STYLE\",\"prompt_text\":\"Add motion blur to the wheels\"},{\"category\":\"LIGHT\",\"prompt_text\":\"Adjust lighting for golden hour\"},{\"category\":\"FRAME\",\"prompt_text\":\"Crop to center the bicycle\"}],\"full_image\":{\"height\":1152,\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"width\":2048},\"image_type\":\"DEFAULT\",\"preview_image\":{\"height\":1152,\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"width\":2048},\"source\":{\"source_display_name\":\"gallery/image_20261023_004139.webp\",\"source_type\":\"IMAGE_GEN\"}}}}}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5cR"
+   ]
+  }
+ },
+ {
+  "t": 17.77,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 336,
+   "strings": [
+    "{\"seq\":146,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/sections/3\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here are your\"}}}}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5cR"
+   ]
+  }
+ },
+ {
+  "t": 17.77,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 249,
+   "strings": [
+    "{\"seq\":147,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" 2 red bicycles in 16:\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5cR"
+   ]
+  }
+ },
+ {
+  "t": 17.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 254,
+   "strings": [
+    "{\"seq\":148,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\"9 ",
+    " one classic road bike\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5cR"
+   ]
+  }
+ },
+ {
+  "t": 18.63,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 252,
+   "strings": [
+    "{\"seq\":149,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" on a cobblestone street,\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5cR"
+   ]
+  }
+ },
+ {
+  "t": 18.64,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 6176,
+   "strings": [
+    "/{\"seq\":150,\"type\":\"full\",\"response\":{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"width\":2048,\"height\":1152},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"width\":2048,\"height\":1152},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004138.webp\"},\"image_type\":\"DEFAULT\",\"follow_up_pills\":[{\"prompt_text\":\"Add a wicker basket upfront\",\"category\":\"ADD\"},{\"prompt_text\":\"Change to a sunset glow\",\"category\":\"LIGHT\"},{\"prompt_text\":\"Place bike on a sandy beach\",\"category\":\"SCENE\"},{\"prompt_text\":\"Add a vintage leather saddle\",\"category\":\"ADD\"},{\"prompt_text\":\"Convert to black and white\",\"category\":\"STYLE\"},{\"prompt_text\":\"Blur the background more\",\"category\":\"FRAME\"}]}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"width\":2048,\"height\":1152},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"width\":2048,\"height\":1152},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004139.webp\"},\"image_type\":\"DEFAULT\",\"follow_up_pills\":[{\"prompt_text\":\"Add a second red bicycle\",\"category\":\"ADD\"},{\"prompt_text\":\"Place the bike on a city street\",\"category\":\"SCENE\"},{\"prompt_text\":\"Change background to sunset park\",\"category\":\"SCENE\"},{\"prompt_text\":\"Add motion blur to the wheels\",\"category\":\"STYLE\"},{\"prompt_text\":\"Adjust lighting for golden hour\",\"category\":\"LIGHT\"},{\"prompt_text\":\"Crop to center the bicycle\",\"category\":\"FRAME\"}]}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here are your 2 red bicycles in 16:9 ",
+    " one classic road bike on a cobblestone street, and one modern city bike with a basket\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and 16:9 framing before generating the image.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm building a 16:9 photoreal image of a red road bike as the central subject, set on a cobblestone street with soft daylight and blurred city background.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004138.webp\"}}]},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm assembling a photoreal image of a sleek, modern red bicycle with a sculpted monocoque frame, leather details, and rattan basket, set in a minimalist urban courtyard with natural daylight.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004139.webp\"}}]}]}]}]}]}}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5cR"
+   ]
+  }
+ },
+ {
+  "t": 18.64,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 260,
+   "strings": [
+    "{\"seq\":151,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\".\\n\\nWant to refine them further?\"}]}\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5cR"
+   ]
+  }
+ },
+ {
+  "t": 24.69,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 7700,
+   "strings": [
+    "![image](container:///mnt/data/gallery/image_20261023_004138.webp)",
+    "![image](container:///mnt/data/gallery/image_20261023_004139.webp)",
+    "Here are your 2 red bicycles in 16:9 ",
+    " one classic road bike on a cobblestone street, and one modern city bike with a basket.",
+    "Want to refine them further?(",
+    "8{\"response_id\":\"f55849cc-75c5-4be0-95ff-89f0d89bd3aa\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N5d9b844aa57\",\"width\":2048,\"height\":1152},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N5d9b844aa57\",\"width\":2048,\"height\":1152},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004138.webp\"},\"image_type\":\"DEFAULT\",\"follow_up_pills\":[{\"prompt_text\":\"Add a wicker basket upfront\",\"category\":\"ADD\"},{\"prompt_text\":\"Change to a sunset glow\",\"category\":\"LIGHT\"},{\"prompt_text\":\"Place bike on a sandy beach\",\"category\":\"SCENE\"},{\"prompt_text\":\"Add a vintage leather saddle\",\"category\":\"ADD\"},{\"prompt_text\":\"Convert to black and white\",\"category\":\"STYLE\"},{\"prompt_text\":\"Blur the background more\",\"category\":\"FRAME\"}]}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N76e934ed34f\",\"width\":2048,\"height\":1152},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N76e934ed34f\",\"width\":2048,\"height\":1152},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004139.webp\"},\"image_type\":\"DEFAULT\",\"follow_up_pills\":[{\"prompt_text\":\"Add a second red bicycle\",\"category\":\"ADD\"},{\"prompt_text\":\"Place the bike on a city street\",\"category\":\"SCENE\"},{\"prompt_text\":\"Change background to sunset park\",\"category\":\"SCENE\"},{\"prompt_text\":\"Add motion blur to the wheels\",\"category\":\"STYLE\"},{\"prompt_text\":\"Adjust lighting for golden hour\",\"category\":\"LIGHT\"},{\"prompt_text\":\"Crop to center the bicycle\",\"category\":\"FRAME\"}]}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here are your 2 red bicycles in 16:9 ",
+    " one classic road bike on a cobblestone street, and one modern city bike with a basket.\\n\\nWant to refine them further?\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"55c33afa-bcf0-5939-86b4-44e121368b12\",\"prompt_text\":\"Change the first red road bike on cobblestones to a mountain bike style\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"5f4ef274-259d-51dc-87a4-e72f521a98cb\",\"prompt_text\":\"Add a rider to the second modern red bike with wicker basket\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"7d90024a-f7eb-527e-bb00-28fe8d9dd3b9\",\"prompt_text\":\"Show the first red bicycle in a clean studio on white background\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating red bicycle images\",\"body\":\"I'm preparing two 16:9 images of a red bicycle, setting up parallel generations with varied compositions to match the request.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Designing red bicycle concept\",\"body\":\"I'm shaping a red bicycle in a distinct artistic style, exploring options like Art Nouveau, minimalist, or cyberpunk to define the look, composition, and 16:9 framing before generating the image.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm building a 16:9 photoreal image of a red road bike as the central subject, set on a cobblestone street with soft daylight and blurred city background.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N5d9b844aa57\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/N43ab17c5_N374209de6ca_Nb8545207f4e_n.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=x&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N5d9b844aa57\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004138.webp\"}}]},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Composing photoreal bicycle scene\",\"body\":\"I'm assembling a photoreal image of a sleek, modern red bicycle with a sculpted monocoque frame, leather details, and rattan basket, set in a minimalist urban courtyard with natural daylight.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N76e934ed34f\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N76e934ed34f\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_004139.webp\"}}]}]}]}]}]}",
+    "\"$f55849cc-75c5-4be0-95ff-89f0d89bd3aa*$8c42c2fb-0751-4f56-9b40-ecd297b4be5c2",
+    "e.00qS4AZjByndH5Di50Bw2RX6YJ",
+    "Red bicycle imagesR",
+    "e.00qS4AZjByndH5Di50Bw2RX6Yh"
+   ]
+  }
+ }
+]

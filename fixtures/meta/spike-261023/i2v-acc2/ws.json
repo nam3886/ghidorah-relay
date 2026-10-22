@@ -1,0 +1,1361 @@
+[
+ {
+  "t": -17.56,
+  "kind": "open",
+  "url": "wss://gateway.meta.ai/ws/clippy?x-dgw-appid=x&x-dgw-appversion=x&x-dgw-authtype=x&x-dgw-version=x&x-dgw-uuid=x&x-dgw-tier=x&Authorization=x&x-dgw-app-origin=x&x-dgw-app-clippy-request-id=x"
+ },
+ {
+  "t": -15.44,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1,
+   "strings": []
+  }
+ },
+ {
+  "t": 0.15,
+  "kind": "out",
+  "op": 2,
+  "data": {
+   "binary_len": 133,
+   "strings": [
+    "{\"x-dgw-app-x-ecto-conversation-id\": \"6f281912-e3c0-4b47-afdc-612c73f1a2c8\", \"x-dgw-app-client-payload-type\": \"PROTO_INSIDE_JSON\"}"
+   ]
+  }
+ },
+ {
+  "t": 0.47,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 18,
+   "strings": [
+    "{\"code\": 200}"
+   ]
+  }
+ },
+ {
+  "t": 0.47,
+  "kind": "out",
+  "op": 2,
+  "data": {
+   "binary_len": 1490,
+   "strings": [
+    "{\"req-id\": \"79137535-c566-4c46-91df-8f6ca16cbef4\", \"payload\": \"<tok599>/EhQIh7nzq/HJvQIQh7nzq/<tok616>/<tok181>\"}"
+   ]
+  }
+ },
+ {
+  "t": 1.16,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 8,
+   "strings": []
+  }
+ },
+ {
+  "t": 1.16,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 129,
+   "strings": [
+    "$79137535-c566-4c46-91df-8f6ca16cbef4\"$79137535-c566-4c46-91df-8f6ca16cbef4*$79137535-c566-4c46-91df-8f6ca16cbef4"
+   ]
+  }
+ },
+ {
+  "t": 5.89,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 132,
+   "strings": [
+    "media_video_subagent",
+    "\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 5.9,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 787,
+   "strings": [
+    "{\"seq\":0,\"type\":\"full\",\"response\":{\"response_id\":\"79137535-c566-4c46-91df-8f6ca16cbef4\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Generating gentle waves video\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Generating gentle waves video\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating gentle waves video\"}]}]}]}]}}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 5.91,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 312,
+   "strings": [
+    "{\"seq\":1,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\"I'm\"},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"I'm\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 5.91,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 328,
+   "strings": [
+    "{\"seq\":2,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" creating\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" creating\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 5.91,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 314,
+   "strings": [
+    "{\"seq\":3,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 5.91,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 322,
+   "strings": [
+    "{\"seq\":4,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" short\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" short\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 5.91,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 328,
+   "strings": [
+    "{\"seq\":5,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" animated\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" animated\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 5.91,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 322,
+   "strings": [
+    "{\"seq\":6,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" video\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" video\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 5.91,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 320,
+   "strings": [
+    "{\"seq\":7,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" from\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" from\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 5.91,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 318,
+   "strings": [
+    "{\"seq\":8,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" the\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" the\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 5.92,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 328,
+   "strings": [
+    "{\"seq\":9,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" uploaded\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" uploaded\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 5.92,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 937,
+   "strings": [
+    "{\"seq\":10,\"type\":\"full\",\"response\":{\"response_id\":\"79137535-c566-4c46-91df-8f6ca16cbef4\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Generating gentle waves video\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Generating gentle waves video\",\"subtitle_detail\":\"I'm creating a short animated video from the uploaded water\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating gentle waves video\",\"body\":\"I'm creating a short animated video from the uploaded water\"}]}]}]}]}}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 5.92,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":11,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\"color\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"color\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.11,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 333,
+   "strings": [
+    "{\"seq\":12,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" lighthouse\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" lighthouse\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.11,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":13,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.11,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":14,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" adding\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" adding\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.12,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":15,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" gentle\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" gentle\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.12,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":16,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" rolling\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" rolling\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.12,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":17,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" waves\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" waves\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.12,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":18,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.12,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":19,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" dr\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" dr\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.12,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1047,
+   "strings": [
+    "{\"seq\":20,\"type\":\"full\",\"response\":{\"response_id\":\"79137535-c566-4c46-91df-8f6ca16cbef4\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Generating gentle waves video\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Generating gentle waves video\",\"subtitle_detail\":\"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating gentle waves video\",\"body\":\"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting\"}]}]}]}]}}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.36,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":21,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" clouds\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" clouds\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.36,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":22,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.36,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":23,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" and\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" and\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.36,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 315,
+   "strings": [
+    "{\"seq\":24,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" a\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" a\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.36,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":25,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" soft\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" soft\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.36,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":26,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" glow\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" glow\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.36,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":27,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" in\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" in\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.37,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":28,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" the\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" the\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.37,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 333,
+   "strings": [
+    "{\"seq\":29,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" lighthouse\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" lighthouse\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.48,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1147,
+   "strings": [
+    "{\"seq\":30,\"type\":\"full\",\"response\":{\"response_id\":\"79137535-c566-4c46-91df-8f6ca16cbef4\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Generating gentle waves video\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Generating gentle waves video\",\"subtitle_detail\":\"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting clouds, and a soft glow in the lighthouse windows\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating gentle waves video\",\"body\":\"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting clouds, and a soft glow in the lighthouse windows\"}]}]}]}]}}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.48,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":31,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" while\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" while\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.48,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":32,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" keeping\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" keeping\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.57,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":33,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" the\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" the\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.58,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 329,
+   "strings": [
+    "{\"seq\":34,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" painting\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" painting\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.58,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":35,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\" style\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" style\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 6.58,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":36,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/0/body\",\"value\":\".\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\".\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.42,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 612,
+   "strings": [
+    "{\"seq\":37,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1\",\"value\":{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Animating watercolor lighthouse scene\"}},{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/thought_text\",\"value\":\"Animating watercolor lighthouse scene\"},{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/title\",\"value\":\"Animating watercolor lighthouse scene\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":38,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\"I'm\"},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"I'm\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 331,
+   "strings": [
+    "{\"seq\":39,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" preparing\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" preparing\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1161,
+   "strings": [
+    "{\"seq\":40,\"type\":\"full\",\"response\":{\"response_id\":\"79137535-c566-4c46-91df-8f6ca16cbef4\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Animating watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Animating watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating gentle waves video\",\"body\":\"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting clouds, and a soft glow in the lighthouse windows while keeping the painting style.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Animating watercolor lighthouse scene\",\"body\":\"I'm preparing a\"}]}]}]}]}}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":41,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" \"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" \"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 315,
+   "strings": [
+    "{\"seq\":42,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\"10\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"10\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":43,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\"-second\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"-second\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.44,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":44,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" video\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" video\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.44,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":45,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" from\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" from\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.44,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":46,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" the\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" the\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.44,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":47,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" input\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" input\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.44,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":48,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" image\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" image\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.44,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":49,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.44,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1259,
+   "strings": [
+    "{\"seq\":50,\"type\":\"full\",\"response\":{\"response_id\":\"79137535-c566-4c46-91df-8f6ca16cbef4\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Animating watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Animating watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a 10-second video from the input image, describing\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating gentle waves video\",\"body\":\"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting clouds, and a soft glow in the lighthouse windows while keeping the painting style.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Animating watercolor lighthouse scene\",\"body\":\"I'm preparing a 10-second video from the input image, describing\"}]}]}]}]}}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.45,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":51,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" gentle\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" gentle\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.45,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":52,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" waves\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" waves\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.45,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":53,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.45,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":54,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" sw\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" sw\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.45,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":55,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\"aying\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"aying\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.45,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":56,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" wild\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" wild\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.45,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":57,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\"flowers\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"flowers\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.46,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":58,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.46,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":59,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" dr\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" dr\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.46,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1347,
+   "strings": [
+    "{\"seq\":60,\"type\":\"full\",\"response\":{\"response_id\":\"79137535-c566-4c46-91df-8f6ca16cbef4\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Animating watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Animating watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a 10-second video from the input image, describing gentle waves, swaying wildflowers, drifting\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating gentle waves video\",\"body\":\"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting clouds, and a soft glow in the lighthouse windows while keeping the painting style.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Animating watercolor lighthouse scene\",\"body\":\"I'm preparing a 10-second video from the input image, describing gentle waves, swaying wildflowers, drifting\"}]}]}]}]}}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.46,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":61,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" sunset\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" sunset\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.46,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 325,
+   "strings": [
+    "{\"seq\":62,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" clouds\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" clouds\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.46,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":63,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\",\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\",\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.46,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 319,
+   "strings": [
+    "{\"seq\":64,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" and\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" and\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.46,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":65,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" flick\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" flick\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.47,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":66,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\"ering\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"ering\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.47,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 333,
+   "strings": [
+    "{\"seq\":67,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" lighthouse\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" lighthouse\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.47,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":68,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" light\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" light\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.47,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 317,
+   "strings": [
+    "{\"seq\":69,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" in\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" in\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.47,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1451,
+   "strings": [
+    "{\"seq\":70,\"type\":\"full\",\"response\":{\"response_id\":\"79137535-c566-4c46-91df-8f6ca16cbef4\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Animating watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Animating watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a 10-second video from the input image, describing gentle waves, swaying wildflowers, drifting sunset clouds, and flickering lighthouse light in a\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating gentle waves video\",\"body\":\"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting clouds, and a soft glow in the lighthouse windows while keeping the painting style.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Animating watercolor lighthouse scene\",\"body\":\"I'm preparing a 10-second video from the input image, describing gentle waves, swaying wildflowers, drifting sunset clouds, and flickering lighthouse light in a\"}]}]}]}]}}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.47,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":71,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" soft\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" soft\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.47,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":72,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" water\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" water\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.47,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":73,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\"color\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\"color\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.47,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":74,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" style\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" style\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.47,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 321,
+   "strings": [
+    "{\"seq\":75,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" with\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" with\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.69,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":76,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" ambient\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" ambient\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.69,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 327,
+   "strings": [
+    "{\"seq\":77,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" coastal\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" coastal\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.69,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 323,
+   "strings": [
+    "{\"seq\":78,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\" audio\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\" audio\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.69,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 313,
+   "strings": [
+    "{\"seq\":79,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/body\",\"value\":\".\"},{\"op\":\"delta\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\",\"value\":\".\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 19.69,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1551,
+   "strings": [
+    "{\"seq\":80,\"type\":\"full\",\"response\":{\"response_id\":\"79137535-c566-4c46-91df-8f6ca16cbef4\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Animating watercolor lighthouse scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Animating watercolor lighthouse scene\",\"subtitle_detail\":\"I'm preparing a 10-second video from the input image, describing gentle waves, swaying wildflowers, drifting sunset clouds, and flickering lighthouse light in a soft watercolor style with ambient coastal audio.\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating gentle waves video\",\"body\":\"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting clouds, and a soft glow in the lighthouse windows while keeping the painting style.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Animating watercolor lighthouse scene\",\"body\":\"I'm preparing a 10-second video from the input image, describing gentle waves, swaying wildflowers, drifting sunset clouds, and flickering lighthouse light in a soft watercolor style with ambient coastal audio.\"}]}]}]}]}}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 38.89,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1051,
+   "strings": [
+    "{\"seq\":81,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/artifacts\",\"value\":[{\"__typename\":\"GenAIVideoPrimitive\",\"filename\":\"generated_image_5751b3ae0a36696a.mp4\",\"video\":{\"mime_type\":\"video/mp4\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\"}}]},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/subtitle_artifacts\",\"value\":[{\"__typename\":\"GenAIVideoPrimitive\",\"video\":{\"mime_type\":\"video/mp4\",\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\"}}]}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdh"
+   ]
+  }
+ },
+ {
+  "t": 40.52,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 336,
+   "strings": [
+    ".reasoning-79137535-c566-4c46-91df-8f6ca16cbef4\"",
+    "{\"seq\":82,\"type\":\"patch\",\"operations\":[{\"op\":\"replace\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/artifacts/0/filename\",\"value\":\"image_20261023_004331.mp4\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 40.97,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 828,
+   "strings": [
+    "{\"seq\":83,\"type\":\"patch\",\"operations\":[{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/is_in_progress\",\"value\":false},{\"op\":\"add\",\"path\":\"/sections/0/view_model/primitive/show_answer_now\",\"value\":false},{\"op\":\"replace\",\"path\":\"/sections/0/view_model/primitive/title\",\"value\":\"Show thinking\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/subtitle_artifacts\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/subtitle_detail\"},{\"op\":\"remove\",\"path\":\"/sections/0/view_model/primitive/thought_text\"},{\"op\":\"add\",\"path\":\"/sections/1\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your animated\"}}}}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.06,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 249,
+   "strings": [
+    "{\"seq\":84,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\" lighthouse ",
+    " kept in\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.11,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 227,
+   "strings": [
+    "y\"wRu{\"seq\":85,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\" the\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.17,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 233,
+   "strings": [
+    "\"}R{{\"seq\":86,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\" same soft\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.21,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 270,
+   "strings": [
+    "{\"seq\":87,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\" watercolor style, with gentle waves rolling\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.25,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 226,
+   "strings": [
+    "x\"vRt{\"seq\":88,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\" in\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.33,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 253,
+   "strings": [
+    "{\"seq\":89,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\", clouds drifting, and that\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.42,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1944,
+   "strings": [
+    "{\"seq\":90,\"type\":\"full\",\"response\":{\"response_id\":\"79137535-c566-4c46-91df-8f6ca16cbef4\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your animated lighthouse ",
+    " kept in the same soft watercolor style, with gentle waves rolling in, clouds drifting, and that warm\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating gentle waves video\",\"body\":\"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting clouds, and a soft glow in the lighthouse windows while keeping the painting style.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Animating watercolor lighthouse scene\",\"body\":\"I'm preparing a 10-second video from the input image, describing gentle waves, swaying wildflowers, drifting sunset clouds, and flickering lighthouse light in a soft watercolor style with ambient coastal audio.\",\"artifacts\":[{\"__typename\":\"GenAIVideoPrimitive\",\"filename\":\"image_20261023_004331.mp4\",\"video\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"video/mp4\"}}]}]}]}]}]}}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.42,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 233,
+   "strings": [
+    "\"}R{{\"seq\":91,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\" glow from\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.47,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 236,
+   "strings": [
+    "R}{\"seq\":92,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\" the cottage\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.55,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 231,
+   "strings": [
+    "}\"{Ry{\"seq\":93,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\" windows\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.55,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 224,
+   "strings": [
+    "v\"tRr{\"seq\":94,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\":\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.64,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 895,
+   "strings": [
+    "{\"seq\":95,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/sections/2\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIVideoPrimitive\",\"filename\":\"image_20261023_004331.mp4\",\"video\":{\"duration\":10000,\"height\":768,\"mime_type\":\"video/mp4\",\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"width\":1152},\"video_duration_ms\":10000}}}},{\"op\":\"add\",\"path\":\"/sections/3\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"I added\"}}}}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.67,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 239,
+   "strings": [
+    "{\"seq\":96,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\":\\n- **rolling\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 41.99,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 257,
+   "strings": [
+    "{\"seq\":97,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" waves** lapping the rocks with\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.0,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 248,
+   "strings": [
+    "{\"seq\":98,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" sunset reflections sh\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.0,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 244,
+   "strings": [
+    "{\"seq\":99,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\"immering\\n- subtle\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.0,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2738,
+   "strings": [
+    "{\"seq\":100,\"type\":\"full\",\"response\":{\"response_id\":\"79137535-c566-4c46-91df-8f6ca16cbef4\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your animated lighthouse ",
+    " kept in the same soft watercolor style, with gentle waves rolling in, clouds drifting, and that warm glow from the cottage windows:\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIVideoPrimitive\",\"filename\":\"image_20261023_004331.mp4\",\"video\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"video/mp4\",\"width\":1152,\"height\":768,\"duration\":10000},\"video_duration_ms\":10000}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"I added:\\n- **rolling waves** lapping the rocks with sunset reflections shimmering\\n- subtle cloud drift across\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating gentle waves video\",\"body\":\"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting clouds, and a soft glow in the lighthouse windows while keeping the painting style.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Animating watercolor lighthouse scene\",\"body\":\"I'm preparing a 10-second video from the input image, describing gentle waves, swaying wildflowers, drifting sunset clouds, and flickering lighthouse light in a soft watercolor style with ambient coastal audio.\",\"artifacts\":[{\"__typename\":\"GenAIVideoPrimitive\",\"filename\":\"image_20261023_004331.mp4\",\"video\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"video/mp4\"}}]}]}]}]}]}}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.0,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 229,
+   "strings": [
+    "{\"yRw{\"seq\":101,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" that\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.0,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 252,
+   "strings": [
+    "{\"seq\":102,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" pink-orange sky\\n- light\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.01,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 684,
+   "strings": [
+    "{\"seq\":103,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/artifacts/0/video/media_id\",\"value\":\"N2904188f88e\"},{\"op\":\"add\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/artifacts/0/video_ent_id\",\"value\":\"N2904188f88e\"},{\"op\":\"add\",\"path\":\"/sections/2/view_model/primitive/video/media_id\",\"value\":\"N2904188f88e\"},{\"op\":\"add\",\"path\":\"/sections/2/view_model/primitive/video_ent_id\",\"value\":\"N2904188f88e\"},{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" swaying in\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.03,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 235,
+   "strings": [
+    "\"~R|{\"seq\":104,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" the cliff\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.07,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 261,
+   "strings": [
+    "{\"seq\":105,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" grasses and wildflowers\\n- a soft\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.11,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 255,
+   "strings": [
+    "{\"seq\":106,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" flicker in the lantern room\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.18,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 236,
+   "strings": [
+    "R}{\"seq\":107,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\"\\n\\nWant it\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.23,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 239,
+   "strings": [
+    "{\"seq\":108,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" slower, more\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.27,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 233,
+   "strings": [
+    "\"}R{{\"seq\":109,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" dramatic\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.59,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 3042,
+   "strings": [
+    "{\"seq\":110,\"type\":\"full\",\"response\":{\"response_id\":\"79137535-c566-4c46-91df-8f6ca16cbef4\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your animated lighthouse ",
+    " kept in the same soft watercolor style, with gentle waves rolling in, clouds drifting, and that warm glow from the cottage windows:\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIVideoPrimitive\",\"filename\":\"image_20261023_004331.mp4\",\"video\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"video/mp4\",\"media_id\":\"N2904188f88e\",\"width\":1152,\"height\":768,\"duration\":10000},\"video_duration_ms\":10000,\"video_ent_id\":\"N2904188f88e\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"I added:\\n- **rolling waves** lapping the rocks with sunset reflections shimmering\\n- subtle cloud drift across that pink-orange sky\\n- light swaying in the cliff grasses and wildflowers\\n- a soft flicker in the lantern room\\n\\nWant it slower, more dramatic waves, or with the lighthouse\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating gentle waves video\",\"body\":\"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting clouds, and a soft glow in the lighthouse windows while keeping the painting style.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Animating watercolor lighthouse scene\",\"body\":\"I'm preparing a 10-second video from the input image, describing gentle waves, swaying wildflowers, drifting sunset clouds, and flickering lighthouse light in a soft watercolor style with ambient coastal audio.\",\"artifacts\":[{\"__typename\":\"GenAIVideoPrimitive\",\"filename\":\"image_20261023_004331.mp4\",\"video\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"video/mp4\",\"media_id\":\"N2904188f88e\"},\"video_ent_id\":\"N2904188f88e\"}]}]}]}]}]}}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 42.59,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 242,
+   "strings": [
+    "{\"seq\":111,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" beam sweeping?\"}]}\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bdR"
+   ]
+  }
+ },
+ {
+  "t": 47.52,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 4515,
+   "strings": [
+    "Here's your animated lighthouse ",
+    " kept in the same soft watercolor style, with gentle waves rolling in, clouds drifting, and that warm glow from the cottage windows:",
+    "![video](container:///mnt/data/image_20261023_004331.mp4)",
+    "I added:",
+    "- **rolling waves** lapping the rocks with sunset reflections shimmering",
+    "- subtle cloud drift across that pink-orange sky",
+    "- light swaying in the cliff grasses and wildflowers",
+    "- a soft flicker in the lantern room",
+    "Want it slower, more dramatic waves, or with the lighthouse beam sweeping?(",
+    "{\"response_id\":\"79137535-c566-4c46-91df-8f6ca16cbef4\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your animated lighthouse ",
+    " kept in the same soft watercolor style, with gentle waves rolling in, clouds drifting, and that warm glow from the cottage windows:\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIVideoPrimitive\",\"filename\":\"image_20261023_004331.mp4\",\"video\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"video/mp4\",\"media_id\":\"N2904188f88e\",\"width\":1152,\"height\":768,\"duration\":10000},\"video_duration_ms\":10000,\"video_ent_id\":\"N2904188f88e\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"I added:\\n- **rolling waves** lapping the rocks with sunset reflections shimmering\\n- subtle cloud drift across that pink-orange sky\\n- light swaying in the cliff grasses and wildflowers\\n- a soft flicker in the lantern room\\n\\nWant it slower, more dramatic waves, or with the lighthouse beam sweeping?\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"e2b6a9f1-d923-5828-8010-8df5248fcc47\",\"prompt_text\":\"Make a stormy night version with the lighthouse beam shining\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"b0472425-0689-501a-841c-f7f9679dda3d\",\"prompt_text\":\"Turn this into a winter scene with snow on the rocks\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"c8001765-392d-5ef5-8aa7-5b662eb0537b\",\"prompt_text\":\"Change it to a bright summer morning with clear blue sky\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Generating gentle waves video\",\"body\":\"I'm creating a short animated video from the uploaded watercolor lighthouse, adding gentle rolling waves, drifting clouds, and a soft glow in the lighthouse windows while keeping the painting style.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Animating watercolor lighthouse scene\",\"body\":\"I'm preparing a 10-second video from the input image, describing gentle waves, swaying wildflowers, drifting sunset clouds, and flickering lighthouse light in a soft watercolor style with ambient coastal audio.\",\"artifacts\":[{\"__typename\":\"GenAIVideoPrimitive\",\"filename\":\"image_20261023_004331.mp4\",\"video\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.mp4?_nc_ht=x&_nc_cat=x&_nc_ohc=x&sdl=x&ccb=14-4&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"video/mp4\",\"media_id\":\"N2904188f88e\"},\"video_ent_id\":\"N2904188f88e\"}]}]}]}]}]}",
+    "\"$79137535-c566-4c46-91df-8f6ca16cbef4*$1fd53d08-d265-497b-b6b1-64e4c75797bd2",
+    "e.00qS4BLSXswjKaGp9BiSWxZ7EJ",
+    "Animate gentle wavesR",
+    "e.00qS4BLSXswjKaGp9BiSWxZ7Eh"
+   ]
+  }
+ },
+ {
+  "t": 77.48,
+  "kind": "out",
+  "op": 2,
+  "data": {
+   "binary_len": 1,
+   "strings": []
+  }
+ },
+ {
+  "t": 77.82,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1,
+   "strings": []
+  }
+ }
+]

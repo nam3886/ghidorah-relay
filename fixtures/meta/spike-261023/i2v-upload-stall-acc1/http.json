@@ -1,0 +1,152 @@
+{
+ "note": "times are seconds from Enter (or from launch when nothing was sent)",
+ "sent_prompt": "Animate this image into a short video: gentle waves",
+ "http": [
+  {
+   "t": -43.64,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 403,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 478 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -42.66,
+   "method": "POST",
+   "url": "https://www.meta.ai/<tok62>?challenge=x",
+   "status": 200,
+   "mime": "text/plain",
+   "failed": "net::ERR_ABORTED"
+  },
+  {
+   "t": -42.42,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 200,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 497640 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -42.12,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 200,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 497640 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -40.37,
+   "method": "GET",
+   "url": "https://scontent-arn2-1.xx.fbcdn.net/v/t39.30808-6/<tok48>.jpg?_nc_cat=x&ccb=1-7&_nc_sid=x&_nc_ohc=x&_nc_oc=x&_nc_zt=x&_nc_ht=x&_nc_gid=x&_nc_ss=x&oh=x&oe=x",
+   "status": 200,
+   "mime": "image/jpeg",
+   "failed": null
+  },
+  {
+   "t": -30.55,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "2b7fcdc841885a7263eccebaab5cfa3e",
+   "variables": {
+    "input": {
+     "logInvitationImpression": false,
+     "conversationId": null,
+     "conversationDepth": 0,
+     "agentType": "think_fast"
+    }
+   },
+   "op": [
+    "checkSbsSurveyEligibility"
+   ],
+   "body": "{\"data\": {\"checkSbsSurveyEligibility\": {\"sbsConfig\": null, \"isEligible\": false}}}"
+  },
+  {
+   "t": -30.55,
+   "method": "GET",
+   "url": "https://www.meta.ai/vibes/?rsid=x&_rsc=x",
+   "status": 200,
+   "mime": "text/x-component",
+   "failed": null,
+   "body_omitted": "text/x-component, 1795 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -23.33,
+   "method": "GET",
+   "url": "blob:https://www.meta.ai/94e6c7d6-6f4f-442d-b5bc-623a45b41176",
+   "status": 200,
+   "mime": "image/png",
+   "failed": null
+  },
+  {
+   "t": -23.21,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "e7f802582dbfed8e181b012e010993eb",
+   "variables": {
+    "conversationId": "7f829c42-4426-4b7f-8e4b-d7b2b25d5dd5"
+   },
+   "op": [
+    "warmupConversation"
+   ],
+   "body": "{\"data\": {\"warmupConversation\": true}}"
+  },
+  {
+   "t": -23.18,
+   "method": "GET",
+   "url": "https://rupload.meta.ai/gen_ai_document_gen_ai_tenant/d359d14c-e9bd-4f6e-a36a-3db613f6b8d6",
+   "status": null,
+   "mime": null,
+   "failed": "net::ERR_FAILED"
+  },
+  {
+   "t": -23.18,
+   "method": "OPTIONS",
+   "url": "https://rupload.meta.ai/gen_ai_document_gen_ai_tenant/d359d14c-e9bd-4f6e-a36a-3db613f6b8d6",
+   "status": 200,
+   "mime": "",
+   "failed": null
+  },
+  {
+   "t": -23.16,
+   "method": "GET",
+   "url": "blob:https://www.meta.ai/d5aa9a1a-833b-4f1e-88b6-e1a9ee2684ba",
+   "status": 200,
+   "mime": "image/png",
+   "failed": null
+  },
+  {
+   "t": -19.69,
+   "method": "POST",
+   "url": "https://rupload.meta.ai/gen_ai_document_gen_ai_tenant/d359d14c-e9bd-4f6e-a36a-3db613f6b8d6",
+   "status": null,
+   "mime": null,
+   "failed": null
+  },
+  {
+   "t": -4.2,
+   "method": "GET",
+   "url": "https://www.meta.ai/vibes/?rsid=x&_rsc=x",
+   "status": 200,
+   "mime": "text/x-component",
+   "failed": null,
+   "body_omitted": "text/x-component, 1795 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -3.8,
+   "method": "GET",
+   "url": "https://www.meta.ai/vibes/?rsid=x&_rsc=x",
+   "status": 200,
+   "mime": "text/x-component",
+   "failed": "net::ERR_ABORTED"
+  }
+ ]
+}
