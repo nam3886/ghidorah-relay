@@ -1,4 +1,4 @@
-"""`net.stream_download` and `net.host_allowed` (contracts 5.1 "Media download"): memory, routes, bounds, hosts.
+"""`net.stream_download` and `net.host_allowed`: memory, routes, bounds, hosts.
 No real network except one local socket; the media comes from `relay_core.testing.fake_media`."""
 
 import asyncio

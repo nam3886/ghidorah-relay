@@ -1,4 +1,4 @@
-"""Reconciling unknown jobs (contracts 7.1 "Unknown"; I1, I2, I14, I27, I28): found, not sent (only with proof),
+"""Reconciling unknown jobs (I1, I2, I14, I27, I28): found, not sent (only with proof),
 still unknown with a growing interval, the lease fence, the browser share and the render deadline."""
 
 import asyncio

@@ -1,4 +1,4 @@
-"""SSRF-checked fetching and proxy strings (contracts §13, I16, D27). No real DNS and no real network: a fake
+"""SSRF-checked fetching and proxy strings (I16). No real DNS and no real network: a fake
 resolver and httpx's MockTransport stand in for both."""
 
 import asyncio

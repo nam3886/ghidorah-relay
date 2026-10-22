@@ -1,4 +1,4 @@
-"""A provider that does no I/O, for proving the core against the protocol (contracts 5, 14.3).
+"""A provider that does no I/O, for proving the core against the protocol.
 
 `FakeSpec` is the pure half (catalog, plan, caps, settings) and `FakeEngine` the worker half. The engine plays a
 script per job: a result, an exception, or an async callable, with or without `mark_sent` first; with no script it

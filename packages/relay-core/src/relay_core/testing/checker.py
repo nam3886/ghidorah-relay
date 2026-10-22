@@ -1,4 +1,4 @@
-"""The global invariant checker (contracts §14.3): run after every test and by the daily api sweep.
+"""The global invariant checker: run after every test and by the daily api sweep.
 
 `violations(conn)` returns one readable line per broken invariant; an empty list means the data is consistent.
 It covers the money invariants (I3, I4, I8, I21, I25), the lease and command rules (I14), the job rules (I1, I7, I9,
@@ -83,7 +83,7 @@ def _lease_violations(conn: Connection) -> list[str]:
     return found
 
 
-# Job rules (contracts 7.1, 12): each query returns the ids of the jobs that break one rule.
+# Job rules: each query returns the ids of the jobs that break one rule.
 _TERMINAL = "('done', 'failed')"
 _JOB_RULES = (
     ("I9", "a queued job still has sent_at (a requeue clears it)",

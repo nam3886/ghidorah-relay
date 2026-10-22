@@ -3,9 +3,8 @@
 A template is a ready-made PROMPT (poster, product shot, app mockup...) with an example image; applying it is a plain
 text-to-image run with its `prompt`, so nothing here drives the gallery UI. The catalog is global (not per user).
 
-Ported from dola_v4 `templates.py`, with one change of place: v4 fetched it inside the API with a pooled account's
-cookie and a 1-hour in-process cache. Now the worker's `refresh_catalog` command calls `build_snapshots` and the core
-stores the result as the `templates` and `styles` snapshots (contracts 4.6); the API reads them and never borrows a
+The worker's `refresh_catalog` command calls `build_snapshots` and the core
+stores the result as the `templates` and `styles` snapshots; the API reads them and never borrows a
 cookie. Nothing in a snapshot is a credential (the preview links are signed CDN links).
 
 Snapshot shapes (what `spec.plan()` and `spec.extras()` read; `catalog.py` documents the same):

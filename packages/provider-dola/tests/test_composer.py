@@ -1,4 +1,4 @@
-"""dola's composer driver (v4 `composer._demo`, coverage COMP00/COMP01) against a scripted page: the pure parts (chip
+"""dola's composer driver (coverage COMP00/COMP01) against a scripted page: the pure parts (chip
 patterns, label maps, step error codes) and the steps themselves on a small simulation of the two composers (old: a
 duration chip and a Ratio chip; new: ONE merged chip with a panel). No Chrome."""
 

@@ -1,4 +1,4 @@
-"""The error registry (contracts §11, I21, I26, D19) and its generated documentation."""
+"""The error registry (I21, I26) and its generated documentation."""
 
 import ast
 import importlib
@@ -39,8 +39,8 @@ def broken(rule: Rule) -> list[str]:
 
 def test_platform_registry_is_sound():
     assert errors.violations(RULES) == []
-    assert len(RULES) >= 42      # the §11 platform list
-    # D19: nothing in this registry or its envelope speaks of retry
+    assert len(RULES) >= 42      # the platform list
+    # nothing in this registry or its envelope speaks of retry
     assert not hasattr(Rule, "retryable")
 
 

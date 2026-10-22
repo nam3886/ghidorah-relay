@@ -1,4 +1,4 @@
-"""Reading dola's replies: every verbatim v4 sample (coverage REPLY01-17, ADM21).
+"""Reading dola's replies: every verbatim sample (coverage REPLY01-17, ADM21).
 
 Real sentences from dola, kept word for word: the classifier is a white list over exactly this kind of text.
 """
@@ -279,7 +279,8 @@ def test_a_content_refusal_with_no_credits_used_leaves_the_account_with_credit()
           'return ReplyVerdict(SubmitOutcome.NO_POINTS if credits == 0 else None, "no clear reply yet", credits)',
           expect="a bare zero balance was read as out of credit")
 def test_a_bare_zero_balance_is_unclear_but_carries_the_balance_and_a_priced_refusal_still_refuses():
-    # no real dola sample ties a bare zero balance to a refusal (v4 only had its own "You have 0 video credits left")
+    # no real dola sample ties a bare zero balance to a refusal (the only sample is our own
+    # "You have 0 video credits left")
     for said in ("You have 0 video credits left today.", "You only have 0 left today.",
                  "This video needs 2 credits. You only have 0 left today."):
         v = classify_reply(said)

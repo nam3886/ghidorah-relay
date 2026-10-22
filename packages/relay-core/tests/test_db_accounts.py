@@ -1,4 +1,4 @@
-"""Deleting an unused account is a worker action (contracts D37): refused for each way an account is used, and
+"""Deleting an unused account is a worker action: refused for each way an account is used, and
 otherwise removes the account with its by-products and hands back the screenshot object keys."""
 
 import asyncio

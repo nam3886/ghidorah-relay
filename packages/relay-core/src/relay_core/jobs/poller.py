@@ -1,4 +1,4 @@
-"""The poller (contracts 7.1 "Poller"; invariants I17, I23) and the loop machinery the fetcher and the reconciler share.
+"""The poller (invariants I17, I23) and the loop machinery the fetcher and the reconciler share.
 
 A tick claims `waiting` jobs whose `next_poll_at` is due: each gets a fresh `poll_token` and a visibility time, in one
 `SKIP LOCKED` statement, so two pollers never take the same job and a claim that is never applied (a crash) simply
@@ -32,7 +32,7 @@ from relay_core.providers import AccountView, JobView, Pending, PollResult, Prov
 log = logging.getLogger(__name__)
 
 TICK_S = 1.0
-POLL_VISIBILITY_S = 300.0       # contracts 7.1: a claimed poll is hidden this long
+POLL_VISIBILITY_S = 300.0       # a claimed poll is hidden this long
 POLL_BOUND_S = 120.0
 ERROR_RETRY_S = 60.0
 MAX_INFLIGHT = 16
@@ -161,7 +161,7 @@ class JobLoop:
 
 class Poller(JobLoop):
     """Polls `waiting` jobs. `needs_browser(job)` says whether a poll of that job needs a browser (most do not);
-    when it does, a token from the reconcile share is held for the poll (contracts 3: a read takes the share a
+    when it does, a token from the reconcile share is held for the poll (a read takes the share a
     reconcile takes)."""
 
     def __init__(self, db, spec, engine, settings, *, owner: str, load_account: LoadAccount,

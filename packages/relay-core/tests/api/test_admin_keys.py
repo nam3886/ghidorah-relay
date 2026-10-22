@@ -1,4 +1,4 @@
-"""Admin keys (contracts 4.1; D12, D31): per-provider wallets that are closed unless opened on purpose, the raw key
+"""Admin keys: per-provider wallets that are closed unless opened on purpose, the raw key
 shown once, the unfinished-jobs cap meanings, and a delete that only removes a key nothing ever used."""
 
 import uuid
@@ -199,7 +199,7 @@ def test_a_disabled_key_is_refused_and_enabling_brings_it_back(db):
 
 @mutation(ROUTES, DELETE_GATE, DELETE_ALWAYS_DISABLES, expect="the unused key is deleted")
 def test_delete_removes_a_key_nothing_used_and_only_disables_one_with_a_job(db):
-    """D31."""
+    """A key nothing used is deleted; a key with a job is only disabled."""
     async def scenario(env):
         h = await env.admin_headers()
         unused = await make(env, h, label="unused")
@@ -221,7 +221,7 @@ def test_delete_removes_a_key_nothing_used_and_only_disables_one_with_a_job(db):
 
 
 def test_a_key_with_ledger_history_and_no_job_is_disabled_not_deleted(db):
-    """D31: the ledger is the audit trail, so a key it names can never vanish."""
+    """The ledger is the audit trail, so a key it names can never vanish."""
     async def scenario(env):
         h = await env.admin_headers()
         key = await make(env, h)

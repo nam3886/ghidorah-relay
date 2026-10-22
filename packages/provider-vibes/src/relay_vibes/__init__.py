@@ -1,1 +1,1 @@
-"""vibes provider (contracts §5.4)."""
+"""vibes provider."""

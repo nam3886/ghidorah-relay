@@ -1,9 +1,9 @@
-"""Every error the HTTP layer sends, in one place (contracts §8, §11, D19).
+"""Every error the HTTP layer sends, in one place.
 
 Routes raise `ApiError(code, param)`; the status, `type` and text come from the code's `Rule`, never from the call
 site. Errors the framework makes itself (404, 405, 422) and crashes go through the same renderer, so no path can
 leave with another shape. The client text is always the rule's message, masked for a non-public code: never an
-exception message, an engine text or an upstream text (v1.3 #16).
+exception message, an engine text or an upstream text.
 
 Two shapes: OpenAI style `{"error": {"code", "message", "type", "param"}}` everywhere, and the Gemini body on the
 Gemini doors (`/v1beta…`, `/models…`).
@@ -39,7 +39,7 @@ MAX_PARAM = 200      # a field name of ours is far shorter; a longer one is the 
 
 
 def clean_param(param: str | None) -> str | None:
-    """A `param` the client sees: a field name it sent may be any text (D27 names it), so a long one is cut to its
+    """A `param` the client sees: a field name it sent may be any text (names it), so a long one is cut to its
     length and a short one goes through the redactor (I24)."""
     if param is None:
         return None
@@ -67,7 +67,7 @@ def is_facade_path(path: str) -> bool:
 
 
 def gemini_body(code: str, param: str | None = None) -> dict:
-    """The Gemini error body (§8). The text and the shown code follow the same masking as the OpenAI envelope."""
+    """The Gemini error body. The text and the shown code follow the same masking as the OpenAI envelope."""
     shown_code, message = shown(code)
     status = http_status(code)
     return {"error": {"code": status, "message": message, "status": _GRPC.get(status, "UNKNOWN"),
@@ -122,7 +122,7 @@ def install(app: FastAPI) -> None:
     # wrong method are raised by Starlette itself.
     @app.exception_handler(StarletteHTTPException)
     async def _framework(request: Request, exc: StarletteHTTPException):
-        # No route ran, so no key was resolved: a known key's wrong path or method is still logged under it (D52).
+        # No route ran, so no key was resolved: a known key's wrong path or method is still logged under it.
         from relay_core.api.deps import resolve_key_quietly
         await resolve_key_quietly(request)
         code = _BY_STATUS.get(exc.status_code) or ("input.invalid" if exc.status_code < 500 else INTERNAL)

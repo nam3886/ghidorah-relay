@@ -1,4 +1,4 @@
-"""The invariant suite's own guards (contracts §12, §14.3).
+"""The invariant suite's own guards.
 
 1. Every rule of the global checker (`testing/checker.py`) has a planted violation that it must name, and a mutation
    that switches that one rule off.

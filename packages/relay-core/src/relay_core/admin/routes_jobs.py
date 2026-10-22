@@ -1,4 +1,4 @@
-"""Admin: jobs (contracts 7.1, 7.5, 16; D14, D15).
+"""Admin: jobs.
 
 List (newest first, a keyset cursor), detail (events, media, debug files), Re-check, Recover, Regenerate and rename.
 Re-check is a store function; Recover is a `recover` command the provider's worker runs under an account lease

@@ -1,4 +1,4 @@
-"""Key wallets and the ledger: charge and refund (contracts §4.1, D2, D14, D17; invariants I4, I5, I10, I25, I29).
+"""Key wallets and the ledger: charge and refund (D2invariants I4, I5, I10, I25, I29).
 
 Every guard is in SQL: the charge is ONE conditional UPDATE, the refund is one insert protected by a unique
 index and the counters move only when that insert returned a row. Nothing derives quota from the ledger; the
@@ -19,7 +19,7 @@ from relay_core.txguard import NotInTransaction, require_tx  # noqa: F401  (re-e
 
 log = logging.getLogger(__name__)
 
-DEFAULT_TZ = "UTC"   # D17: the billing day is 00:00 UTC; `relay migrate` pins BILLING_TZ in billing_pin
+DEFAULT_TZ = "UTC"   # the billing day is 00:00 UTC; `relay migrate` pins BILLING_TZ in billing_pin
 _PIN = "SELECT tz FROM billing_pin"
 
 # The billing day is read from the database clock inside the statement, never from the caller, in the pinned tz.
@@ -146,7 +146,7 @@ async def refund(conn: AsyncConnection, charge_id: int) -> Refund:
     """Refund one charge row, at most once (I4), in the caller's transaction.
 
     The counters move only when the refund row was inserted. `used_day` moves only for a charge of today; a
-    charge from an earlier billing day reduces `used_total` alone (D14, I5). That is decided under the wallet lock,
+    charge from an earlier billing day reduces `used_total` alone (I5). That is decided under the wallet lock,
     from the wallet's own `day_anchor`: a charge of a newer day may have committed while this refund waited.
     A floor that clamped is an alert, stored in `billing_alerts` with the refund.
     """

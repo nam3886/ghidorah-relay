@@ -1,4 +1,4 @@
-"""What the accounts table shows beyond the phase 3 list (contracts §16): videos and images made per account, and the
+"""What the accounts table shows beyond the basic list: videos and images made per account, and the
 drift flag of a counted value that disagrees with the budget minus the day's unrefunded charges."""
 
 import pytest

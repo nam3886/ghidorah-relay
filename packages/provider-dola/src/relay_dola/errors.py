@@ -1,4 +1,4 @@
-"""dola's error codes (contracts 11): what dola said or what our browser did, as rules the core reads.
+"""dola's error codes: what dola said or what our browser did, as rules the core reads.
 
 Registered with the platform registry when this module loads (`relay_core.errors.register`), so a bad rule fails at
 import. The codes the platform already owns (`pool.*`, `account.*`, `render.*`, `input.*`) are not repeated here.
@@ -39,7 +39,7 @@ WARN_DURATION_DRIFT = "dola.duration_drift"
 WARN_MODEL_SUBSTITUTED = "dola.model_substituted"
 WARN_PARTLY_WATERMARKED = "dola.partly_watermarked"
 WARN_PRICE_FALLBACK = "dola.price_fallback"
-WARN_DURATION_CAPPED = "dola.duration_capped"   # 2.0 / 1.0 at their longest length (v4 `VideoRequest.warnings`)
+WARN_DURATION_CAPPED = "dola.duration_capped"   # 2.0 / 1.0 at their longest length
 
 _HIDDEN = "the request could not be submitted to dola"
 

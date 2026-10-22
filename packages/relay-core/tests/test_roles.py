@@ -1,4 +1,4 @@
-"""The two service roles (contracts §4.5, v1.3 #2, I20): what each may do is a matrix compared with the database,
+"""The two service roles (I20): what each may do is a matrix compared with the database,
 every api-side statement runs as `relay_api`, and the writes it must not make are refused."""
 
 import asyncio

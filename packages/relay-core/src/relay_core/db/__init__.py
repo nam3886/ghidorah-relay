@@ -1,4 +1,4 @@
-"""The database layer: migrations (the only DDL path), the async pool and the transaction helper (contracts §4.5)."""
+"""The database layer: migrations (the only DDL path), the async pool and the transaction helper."""
 
 from relay_core.db.accounts import AccountInUse, AccountNotFound, delete_unused_account, lock_account
 from relay_core.db.migrate import ROLES, migration_files, run_migrations

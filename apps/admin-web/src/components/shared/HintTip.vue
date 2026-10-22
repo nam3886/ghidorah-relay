@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 
-// A short note on a piece of text, drawn on the menu surface (D125) instead of the browser's own `title` tooltip. It
+// A short note on a piece of text, drawn on the menu surface instead of the browser's own `title` tooltip. It
 // shows on hover AND when the text takes the keyboard focus (the span is a tab stop), and Escape closes it while the
 // focus stays where it is. `text` is plain text, never HTML. The note is also the text's description for a screen
 // reader (Element Plus links it).

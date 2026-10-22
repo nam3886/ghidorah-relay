@@ -1,4 +1,4 @@
-"""The one redactor (contracts §13, I24): a planted secret per pattern, each with a "pattern removed" mutation.
+"""The one redactor (I24): a planted secret per pattern, each with a "pattern removed" mutation.
 
 A pattern is switched off by putting a never-matching `(?!)` at its start. Every planted secret is short and has
 one shape, so only the pattern under test can catch it (the long-token catch-all needs 40 characters).
@@ -136,7 +136,7 @@ def test_cookie_editor_array_without_any_sensitive_key():
 
 
 @mutation(SRC, "or any(needle in low for needle in _SENSITIVE_NAMES)", "or False", expect="other=x' == '[redacted]'")
-def test_field_names_v4_samples():
+def test_field_names_older_samples():
     secret_cookie = "sid_guard=6bf70a8161121010e391a11e6cc47c42abcdef0123456789; other=x"
     d = redact({"cookie": secret_cookie, "x-amz-meta-sessionid": "SECRET", "prompt": "sóng biển",
                 "proxy": "1.2.3.4:8000:u:p", "nested": {"authorization": "Bearer xyz", "raw_proxy": "5.6.7.8:8000:u:p"},
@@ -156,7 +156,7 @@ def test_openai_token_counts_are_not_secrets():
     assert safe["access_token"] == REDACTED and safe["api_key"] == REDACTED
 
 
-def test_v4_free_text_samples():
+def test_older_free_text_samples():
     secret_cookie = "sid_guard=6bf70a8161121010e391a11e6cc47c42abcdef0123456789; other=x"
     secret_bearer = "Authorization: Bearer dk-qRUlBoILoTbzNL5Xh77gJmNCrnzbAu2krCPbt1Gabcd"
     secret_proxy = "proxy 103.104.122.48:3129:h51jttwsx1ie:qry1d70u318ff1k failed"

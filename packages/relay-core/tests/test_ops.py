@@ -1,4 +1,4 @@
-"""Operator actions (contracts 7.7; invariants I1, I9): drain and resume, the restore mark."""
+"""Operator actions (invariants I1, I9): drain and resume, the restore mark."""
 
 import asyncio
 import time

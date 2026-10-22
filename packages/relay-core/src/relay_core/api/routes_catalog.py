@@ -1,4 +1,4 @@
-"""Catalog routes (contracts §8): the key's points, the models it may use, and a provider's options.
+"""Catalog routes: the key's points, the models it may use, and a provider's options.
 
 Every route needs a key. The model lists show a key only the models its allow-list admits (`keys.model_allowed`); a
 model it may not use is as unknown to it as a model that does not exist.
@@ -35,7 +35,7 @@ def _allowed(registry: ProviderRegistry, key: ApiKey) -> list[tuple[ProviderSpec
 
 
 def model_entry(spec: ProviderSpec, m: ModelSpec) -> dict:
-    """A catalog entry (contracts 8); the admin's model list uses it too. `name` is never empty: the id stands in."""
+    """A catalog entry; the admin's model list uses it too. `name` is never empty: the id stands in."""
     return {"id": m.id, "name": m.display_name or m.id, "object": "model", "owned_by": spec.name, "kind": m.media_type,
             "operations": list(m.operations), "aliases": list(m.aliases),
             "limits": {**m.limits, "max_prompt_chars": spec.max_prompt_chars},

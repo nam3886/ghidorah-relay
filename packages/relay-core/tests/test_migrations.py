@@ -1,4 +1,4 @@
-"""`relay migrate` is the only DDL path, idempotent, and builds the dola-shaped schema (contracts §4, §7.7)."""
+"""`relay migrate` is the only DDL path, idempotent, and builds the dola-shaped schema."""
 
 import asyncio
 
@@ -16,7 +16,7 @@ TABLES = {
     "admin_sessions", "request_logs", "worker_heartbeats", "provider_snapshots", "schema_migrations",
     "billing_pin", "billing_alerts", "prompt_frames", "prompt_frame_locks", "unclear_replies",
 }
-# contracts §4.5 and the unique indexes the money and lease rules stand on
+# the unique indexes the money and lease rules stand on
 INDEXES = {
     "jobs_queued", "jobs_poll", "jobs_callback", "jobs_unfinished", "leases_account", "leases_owner", "ledger_job",
     "job_events_job", "request_logs_at", "ledger_one_refund", "leases_one_job_lease",

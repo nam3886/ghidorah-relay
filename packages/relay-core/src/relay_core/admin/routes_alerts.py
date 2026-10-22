@@ -1,4 +1,4 @@
-"""Admin: billing alerts (contracts 4.1, 15). A `clamp` (a refund that would have taken a counter below 0) or a `drift`
+"""Admin: billing alerts. A `clamp` (a refund that would have taken a counter below 0) or a `drift`
 (a wallet whose counters disagree with its ledger) stays in the table as the audit trail; acknowledging only stamps who
 looked at it and when, so it stops being listed as open. `api/app.py` mounts this router (`ADMIN_ROUTES`)."""
 

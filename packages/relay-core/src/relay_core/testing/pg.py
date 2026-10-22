@@ -1,8 +1,8 @@
-"""A throwaway Postgres database per test session (contracts §14.2).
+"""A throwaway Postgres database per test session.
 
 The admin DSN comes only from RELAY_TEST_PG_DSN, which `scripts/check.sh` points at its own
 disposable container. The database is created with a `relay_test_` name and dropped on exit, even
-when the test fails, so a test run can never write into a real database. (dola_v4 once left 1432
+when the test fails, so a test run can never write into a real database. (A test run once left 1432
 test schemas in production because its test path could reach it.)
 """
 

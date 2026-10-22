@@ -1,4 +1,4 @@
-"""What the OpenAI and Gemini facades share (contracts 8): holding a request until its job ends, and its final text.
+"""What the OpenAI and Gemini facades share: holding a request until its job ends, and its final text.
 
 The job is created first (`doors.create_job_for`), so a refusal is a real HTTP error; only then does a facade hold
 or stream. A held request never touches the job: when the client leaves or the hold limit passes, the job runs on

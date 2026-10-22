@@ -1,4 +1,4 @@
-"""The crash windows of contracts §14.3: what a dying, stalled or hung worker leaves behind, and that recovery neither
+"""The crash windows: what a dying, stalled or hung worker leaves behind, and that recovery neither
 sends twice nor loses money. The kills are `os._exit(137)` in a real subprocess (`crashkit`); the rest run in process.
 
 Here: killed before mark_sent and right after it; killed during fetching; a lease lost before a second send; a stalled

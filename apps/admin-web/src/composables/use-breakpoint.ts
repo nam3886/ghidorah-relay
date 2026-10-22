@@ -1,6 +1,6 @@
 import { onScopeDispose, readonly, ref, type Ref } from "vue";
 
-// The one place the layout breakpoints live (contracts C3). Phone is below 768 px, tablet is 768 to 1279 px, desktop is
+// The one place the layout breakpoints live. Phone is below 768 px, tablet is 768 to 1279 px, desktop is
 // 1280 px and up. Style sheets cannot read this: they use the same two numbers in a media query (theme.css says so).
 export const PHONE_QUERY = "(max-width: 767px)";
 export const TABLET_QUERY = "(min-width: 768px) and (max-width: 1279px)";

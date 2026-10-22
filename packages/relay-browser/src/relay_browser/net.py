@@ -1,4 +1,4 @@
-"""`NetRecorder`: passive capture of what the page itself receives (contracts §6.2).
+"""`NetRecorder`: passive capture of what the page itself receives.
 
 It listens (`page.on("response")`, `page.on("websocket")`) and never intercepts: no route, no CDP `Fetch`, so the
 HTTP cache and request signatures are untouched. The site's profile declares what to keep: body paths (regular

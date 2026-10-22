@@ -1,4 +1,4 @@
-"""Job creation (contracts 7.3; I3, I15, D12, D14): idempotency before the cap, one charge, the cap, atomicity."""
+"""Job creation (I3, I15): idempotency before the cap, one charge, the cap, atomicity."""
 
 import asyncio
 import dataclasses
@@ -207,7 +207,7 @@ def test_a_unique_violation_from_a_writer_without_the_lock_replays_the_winner(db
     assert wallet_rows(db, k) == (0, 0) and job_count(db, k) == 1      # the charge rolled back with its transaction
 
 
-# ---- the cap (D12, I15) ----------------------------------------------------------------------------------------
+# ---- the cap (I15) ----------------------------------------------------------------------------------------
 def test_over_the_cap_is_refused_with_no_charge_and_no_job(db):
     k = key(db, max_unfinished=2)
 
@@ -366,7 +366,7 @@ def test_a_plan_without_a_frame_is_refused_inside_the_transaction_so_the_charge_
     assert db.wallet(k, PROVIDER) == (0, 0)
 
 
-# What dola_v4 `queue.py` computes for the same strings: 3000 + int(sha1(id)[:8], 16) % 7000.
+# What the dola contract computes for the same strings: 3000 + int(sha1(id)[:8], 16) % 7000.
 DOLA_MARKERS = {"00000000-0000-0000-0000-000000000001": "5461", "123e4567-e89b-12d3-a456-426614174000": "8117",
                 "ffffffff-ffff-4fff-bfff-ffffffffffff": "8327"}
 MARKER_BASE = "3000 + int(hashlib.sha1("

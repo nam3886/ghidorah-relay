@@ -1,10 +1,10 @@
-"""Account checks (contracts 7.6, 5.3; invariants I14, I24, I28) and the worker environment the account work shares.
+"""Account checks (invariants I14, I24, I28) and the worker environment the account work shares.
 
 A check is a task under `asyncio.timeout`, holding a `check` lease with a hard bound and (browser providers) a check
 token from the semaphore. The probe of a declared proxy runs first. The outcome is applied in one shielded
 transaction fenced by the lease id: the `Health` effects through `pool.apply_effects`, the `state_patch` merged into
 the account's `provider_state`, the schedule columns, and the identity (a known identity merges this new account into
-the existing row and removes it through the same cleanup as a delete: D21, D37).
+the existing row and removes it through the same cleanup as a delete).
 
 `disabled` accounts are never checked (a person's decision, no sending); `dead` ones still are. Never-checked accounts
 come first, then by `check_due_at`. An unreadable result changes nothing and keeps `last_checked_at`, so an account
@@ -214,7 +214,7 @@ async def _take_lease(env: Env, account_id) -> tuple[str, int | None]:
 
 
 def proxy_bad_effects(env: Env, reason: str) -> list:
-    """A failed proxy probe (D44): the account is marked bad and rests on EVERY pool for the provider's proxy rest, so
+    """A failed proxy probe: the account is marked bad and rests on EVERY pool for the provider's proxy rest, so
     the claim does not open a browser through a dead proxy. A provider with no pools cools the account down instead."""
     until = datetime.now(UTC) + timedelta(seconds=env.caps.proxy_rest_s)
     why = "proxy_bad"

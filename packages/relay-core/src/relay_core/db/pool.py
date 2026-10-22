@@ -1,4 +1,4 @@
-"""One async pool per process and the transaction helper (contracts §4.5).
+"""One async pool per process and the transaction helper.
 
 A connection is held only for one short transaction and never across an await of foreign I/O (an engine, a
 browser, an HTTP call, MinIO). Three things enforce it: `tx` cancels a body that runs longer than `hold_s`; a
@@ -25,7 +25,7 @@ _in_tx: contextvars.ContextVar[bool] = contextvars.ContextVar("relay_in_tx", def
 
 
 def session_options(*, statement_timeout_s: float = 5, lock_timeout_s: float = 3, idle_in_tx_s: float = 15) -> str:
-    """The libpq `options` string every connection starts with (contracts §4.5)."""
+    """The libpq `options` string every connection starts with."""
     values = {
         "statement_timeout": int(statement_timeout_s * 1000),
         "lock_timeout": int(lock_timeout_s * 1000),

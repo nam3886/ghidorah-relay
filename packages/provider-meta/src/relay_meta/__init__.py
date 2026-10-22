@@ -1,1 +1,1 @@
-"""meta provider (contracts §5.4)."""
+"""meta provider."""

@@ -1,7 +1,7 @@
-"""Network safety (contracts §13, I16, D27): the SSRF-checked fetch and proxy-string parsing.
+"""Network safety (I16): the SSRF-checked fetch and proxy-string parsing.
 
 The server fetches URLs a client chose (input images, webhooks), so a URL must lead to the public internet only:
-- https only (D27), no user:pass in the URL;
+- https only, no user:pass in the URL;
 - resolve the host and allow only addresses where `ipaddress.ip_address(a).is_global` holds after unwrapping the
   forms that carry an IPv4 address inside an IPv6 one (this excludes private, loopback, link-local, the metadata
   address 169.254.169.254, CGNAT 100.64/10, 0.0.0.0/8 and fc00::/7); one private answer among several refuses the
@@ -204,7 +204,7 @@ async def safe_post(url: str, content: bytes, **kw) -> SafeResponse:
     return await request("POST", url, content=content, max_redirects=0, **kw)
 
 
-# ---- media download (contracts 5.1 "Media download") ---------------------------------------------------------------
+# ---- media download ---------------------------------------------------------------
 CLOSE_TIMEOUT_S = 5.0      # closing a response or client is best effort and never hangs the helper
 _HOST_NAME = re.compile(r"[a-z0-9-]+(\.[a-z0-9-]+)*")      # letters, digits, "-" and "." only: no backslash, "%", IDN
 _FINAL_REASONS = ("timeout", "too_large")                  # a failure the proxy route cannot cure

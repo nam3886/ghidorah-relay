@@ -1,6 +1,6 @@
-# Two targets (contracts §3): `http` for api, migrate and worker-vibes; `browser` for worker-dola and
-# worker-meta. Built on the box itself; nothing is pushed to a registry (D18).
-# Base images are pinned by their multi-arch index digest (D23); the digests, the Chrome version and the
+# Two targets: `http` for api, migrate and worker-vibes; `browser` for worker-dola and
+# worker-meta. Built on the box itself; nothing is pushed to a registry.
+# Base images are pinned by their multi-arch index digest; the digests, the Chrome version and the
 # off-box copies are recorded in docs/operations.md. The browser target is linux/amd64 only (Chrome .deb).
 #
 # Stage order keeps the slow Chrome layer independent of the code: `xvfb` and `chrome` come from `base`,
@@ -21,7 +21,7 @@ COPY apps/relay apps/relay
 # browser binary); split the lock per target if image size ever matters.
 RUN uv sync --frozen --no-dev --all-packages
 
-# Graceful stop (contracts §7.7): tini is PID 1 WITHOUT -g and signals only its child. With -g, or with
+# Graceful stop: tini is PID 1 WITHOUT -g and signals only its child. With -g, or with
 # `xvfb-run` as that child, a stop kills Xvfb and the worker at once and `stop_grace_period` is never used.
 # xvfb-exec runs Xvfb in its own session, forwards SIGTERM to the worker only and stops Xvfb after it.
 # tests/browser/test_graceful_stop.py proves this against the real image.
@@ -33,7 +33,7 @@ RUN apt-get update \
 COPY --chmod=755 deploy/xvfb-exec /usr/local/bin/xvfb-exec
 ENTRYPOINT ["tini", "--", "/usr/local/bin/xvfb-exec"]
 
-# Google Chrome from a versioned .deb checked by sha256 (v1.3 #23): `apt install google-chrome-stable` would
+# Google Chrome from a versioned .deb checked by sha256: `apt install google-chrome-stable` would
 # float. Google's pool serves only the current stable, so an archived copy in deploy/vendor/ (gitignored;
 # copy it from ~/Archives/relay-images/) is used first when present, with no download. Either way the
 # sha256 is checked. patchright drives it as channel="chrome" from /opt/google/chrome.

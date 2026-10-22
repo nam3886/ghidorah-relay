@@ -176,7 +176,7 @@ SCENARIOS = {
     "page widget + acceptance": dict(replies={1: [ACCEPTED]}, base=(1, T2), page=DECOY,
                                      modes=("first good read at the end of the wait",)),
     # an acceptance, then a LATER content refusal in a SEPARATE reply (copyright; "no credit used"): the job ends at
-    # once with the refusal (D13), never a re-send, a rest or a move; the acceptance's balance is still reported
+    # once with the refusal, never a re-send, a rest or a move; the acceptance's balance is still reported
     "real: acceptance, then the no-charge refusal, both in the first read (no_charge-40b47fe1)": dict(
         replies={1: [real_reply("no_charge-40b47fe1", 0), real_reply("no_charge-40b47fe1", 1)]},
         base=(1, ("refused", 0)), real=True, tag="late-refusal"),

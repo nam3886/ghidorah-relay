@@ -1,4 +1,4 @@
-"""The browser semaphore (contracts 3, 6.1, D20; invariant I28): one per browser worker, for every browser purpose.
+"""The browser semaphore (invariant I28): one per browser worker, for every browser purpose.
 
 A browser opens only with a `Token` from this object; `open_session` refuses to launch without one. The size is the
 live setting `<p>.browser_slots`, bounded by the provider's spec. Lowering it retires idle

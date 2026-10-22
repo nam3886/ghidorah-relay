@@ -1,4 +1,4 @@
-"""Credential envelope encryption (contracts §13, I20): a NaCl sealed box.
+"""Credential envelope encryption (I20): a NaCl sealed box.
 
 The API holds the public key only: it can seal a credential but never open one. Workers hold the private key.
 A blob is `b"rs1" + len(key_id) + key_id + sealed`; the key id (a hash of the public key) names the key that sealed

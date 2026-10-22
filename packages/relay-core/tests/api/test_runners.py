@@ -1,4 +1,4 @@
-"""The api process's background loops (contracts §3, §7.4, §9): the webhook sender against a local receiver over HTTP
+"""The api process's background loops: the webhook sender against a local receiver over HTTP
 (I16), the housekeeping sweeps and the daily ledger check."""
 
 import asyncio
@@ -79,7 +79,7 @@ def test_the_sender_posts_a_thin_event_to_the_receiver_and_marks_it_sent(db):
     path, headers, body = rx.seen[0]
     assert len(rx.seen) == 1, "a sent webhook is posted once"
     assert path == "/in" and headers["user-agent"] == "relay/1" and headers["x-relay-event"] == "job.failed"
-    assert set(body) == {"event", "event_id", "job_id", "status"}, "a thin body (D22): %r" % body
+    assert set(body) == {"event", "event_id", "job_id", "status"}, "a thin body: %r" % body
     assert body["job_id"] == str(job)
     assert headers["x-relay-event-id"] == body["event_id"]
 

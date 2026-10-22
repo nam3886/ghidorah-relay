@@ -1,4 +1,4 @@
-"""The database session layer (contracts §4.5): session options, isolation, kill of an idle transaction, and a
+"""The database session layer: session options, isolation, kill of an idle transaction, and a
 transaction that cannot be held across foreign I/O."""
 
 import asyncio

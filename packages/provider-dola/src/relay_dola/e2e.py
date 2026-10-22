@@ -1,4 +1,4 @@
-"""dola end-to-end run against the live service (contracts §14, item 10): `relay e2e --provider dola`.
+"""dola end-to-end run against the live service: `relay e2e --provider dola`.
 
 It makes a temporary API key with a small video wallet, creates one 5-second video through the running API, waits for
 it, checks the delivered length with ffprobe, and disables the key afterwards. It SPENDS dola credits (a real
@@ -56,7 +56,7 @@ async def run(env: Mapping[str, str]) -> int:
             return await _generate(base, made.raw)
         finally:
             async with tx(pool) as conn:
-                await keys.set_enabled(conn, made.id, False)       # D31: disabled afterwards, never left open
+                await keys.set_enabled(conn, made.id, False)       # disabled afterwards, never left open
     finally:
         await pool.close()
 

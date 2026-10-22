@@ -1,4 +1,4 @@
--- Expand only (contracts 4.5, 4.8). The replies a provider could not classify, as data the admin alerts hub reads.
+-- Expand only. The replies a provider could not classify, as data the admin alerts hub reads.
 -- Written by the core only, in the transaction that applies a submit result or fails a job at its render deadline.
 -- Kept forever: no role may delete a row.
 --

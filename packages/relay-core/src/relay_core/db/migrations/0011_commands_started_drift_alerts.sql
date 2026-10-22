@@ -3,7 +3,7 @@
 -- running past its bound (a crash mid-run would otherwise leave it running forever). Worker-owned, like status.
 ALTER TABLE commands ADD COLUMN started_at timestamptz NULL;
 
--- The daily ledger check stores a counter that disagrees with the ledger as an alert row (contracts 4.1, 15), next to
+-- The daily ledger check stores a counter that disagrees with the ledger as an alert row, next to
 -- the clamp alerts. A drift names no single ledger entry, so ledger_id is optional for it and stays required for a
 -- clamp; detail says which counter and the two values.
 ALTER TABLE billing_alerts DROP CONSTRAINT billing_alerts_alert_check;

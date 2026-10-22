@@ -1,4 +1,4 @@
-"""The command runner (contracts 4.4, 5.1; invariants I14, I24, I28): the claim, the fenced hard-bounded lease, the
+"""The command runner (invariants I14, I24, I28): the claim, the fenced hard-bounded lease, the
 redacted failures, the engine kinds (recover, catalog refresh), the catalog scheduler and the loop."""
 
 import asyncio

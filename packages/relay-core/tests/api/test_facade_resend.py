@@ -1,4 +1,4 @@
-"""An SDK that re-sends a request must never make a second charged job (contracts 7.3, 8): every facade error says
+"""An SDK that re-sends a request must never make a second charged job: every facade error says
 `x-should-retry: false`, a non-stream request answers before the SDK's own timeout, and a re-send that carries
 `x-stainless-retry-count` and no Idempotency-Key is answered with the job of the first send. Also the order of the
 idempotency lookup (before any download), and the facts the replay and the status of a job must keep."""
@@ -41,7 +41,7 @@ def quick(monkeypatch, *, hold=0.3):
     monkeypatch.setattr(fc, "POLL_S", 0.05)
 
 
-# ---- D55 a: x-should-retry: false ---------------------------------------------------------------------------------
+# ---- x-should-retry: false ---------------------------------------------------------------------------------
 @mutation(ERRORS, "        headers = {**(headers or {}), NO_RETRY[0]: NO_RETRY[1]}", "        pass",
           expect="x-should-retry")
 def test_every_error_answer_of_a_facade_says_x_should_retry_false_and_a_native_one_does_not(db, monkeypatch):
@@ -68,7 +68,7 @@ def test_every_error_answer_of_a_facade_says_x_should_retry_false_and_a_native_o
     run_app(db, scenario)
 
 
-# ---- D55 b: a non-stream request answers within 540 s ---------------------------------------------------------------
+# ---- a non-stream request answers within 540 s ---------------------------------------------------------------
 @mutation(FC, "NON_STREAM_HOLD_S = 540.0", "NON_STREAM_HOLD_S = 700.0", expect="600")
 def test_the_non_stream_hold_stays_below_the_sdk_timeout_and_a_stream_keeps_1800():
     assert fc.NON_STREAM_HOLD_S < 600, "the hold must end below the SDK timeout of 600 s: %s" % fc.NON_STREAM_HOLD_S
@@ -129,7 +129,7 @@ def test_a_database_error_while_holding_ends_the_hold_with_the_poll_hint_not_a_5
     run_app(db, scenario)
 
 
-# ---- D55 c: a re-send finds the job of its first send ------------------------------------------------------------
+# ---- a re-send finds the job of its first send ------------------------------------------------------------
 @mutation(DOORS, '    elif req.door == "facade" and req.retry_count >= 1:', "    elif False:", expect="re-sent")
 @mutation(DOORS, "req.retry_count >= 1:", "req.retry_count >= 0:", expect="first send")
 @mutation(DOORS, "RETRY_WINDOW_S = 30 * 60", "RETRY_WINDOW_S = 30 * 60 * 1000", expect="30 min")
@@ -174,7 +174,7 @@ def test_a_facade_re_send_without_an_idempotency_key_is_answered_with_the_job_of
     run_app(db, scenario)
 
 
-# ---- D58: the idempotency lookup comes before any download -----------------------------------------------------------
+# ---- the idempotency lookup comes before any download -----------------------------------------------------------
 @mutation(DOORS, "    if req.idem_key is not None:                 # first,",
           "    if req.idem_key is not None and not (req.images or req.callback_url):                 # first,",
           expect="replay with an unreachable")

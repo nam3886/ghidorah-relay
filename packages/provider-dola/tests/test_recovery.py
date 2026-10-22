@@ -1,6 +1,6 @@
 """Recover (coverage RECOV00): the clean videos of one conversation, checked to be the job's, as `Output`s.
 
-The v4 demo attached the videos in the database; here the engine only reads and returns outputs, and the core stores
+The engine only reads and returns outputs, and the core stores
 them and dedupes by `upstream_id` (a second Recover of the same conversation returns the same ids, which is what makes
 it idempotent). The guard test is the one that matters: a conversation of another job must never be attached.
 """
@@ -78,7 +78,7 @@ CARRIES = "    if sent_text and not resolver.carries_text(resolver.user_text(bod
 @mutation(RECOVERY, CARRIES,
           "    if False:", expect="recovery attached another job's video")
 def test_recover_checks_the_conversation_carries_the_jobs_text():
-    """It could otherwise attach another job's paid video (the guard v4 passed down as expect_prompt)."""
+    """It could otherwise attach another job's paid video."""
     foreign = conv(cell("https://x/9.mp4", "z"), text="Generated video: a cat sleeping [8888]")
     with pytest.raises(RecoveryError):
         recovered(foreign)                                         # the marker guard
@@ -95,7 +95,7 @@ def test_recover_checks_the_conversation_carries_the_jobs_text():
 
 
 def test_the_strict_check_refuses_an_unreadable_conversation_but_the_marker_guard_waits():
-    """The marker guard is silent while the user's words are unreadable (v4); with the whole sent text Recover
+    """The marker guard is silent while the user's words are unreadable; with the whole sent text Recover
     needs positive proof, because it moves money."""
     loading = chain_with([reply("Your video is ready.", NOW - 20)] + [{
         "index_in_conv": 3, "create_time": NOW - 10, "content_type": 9999, "content": json.dumps([

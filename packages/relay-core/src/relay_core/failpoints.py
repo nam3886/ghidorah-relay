@@ -1,4 +1,4 @@
-"""Named crash and pause points for tests (contracts §14.3). Env-gated: nothing can arm one unless
+"""Named crash and pause points for tests. Env-gated: nothing can arm one unless
 `RELAY_FAILPOINTS` is present in the environment, so production code carrying a `hit()` call is inert.
 
 `RELAY_FAILPOINTS="name=action,name=action"`, with the actions

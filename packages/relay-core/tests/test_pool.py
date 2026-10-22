@@ -1,4 +1,4 @@
-"""Account pools (contracts 4.3, 5.3, 7.2; I6, I7): capacity and the day rollover, affordability, pool accounting by
+"""Account pools (I6, I7): capacity and the day rollover, affordability, pool accounting by
 `account_cost` with its once-only same-day refund, the drift check, and the account effects (rest and cooldown by
 GREATEST, one strike counter, Dead and Revive around a disabled account, the Balance rules)."""
 
@@ -187,7 +187,7 @@ def test_reserved_counts_uncharged_job_leases_of_the_pool_only(db):
     db.run("DELETE FROM leases")
 
 
-# ---- charge and refund (I7, D14) ------------------------------------------------------------------------------
+# ---- charge and refund (I7) ------------------------------------------------------------------------------
 def test_a_charge_counts_account_cost_once_per_job_and_a_reported_value_stays_reported(db):
     a, job = account(db), a_job(db)
 

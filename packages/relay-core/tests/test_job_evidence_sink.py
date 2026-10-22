@@ -1,4 +1,4 @@
-"""The evidence sink of a worker (contracts 5.2 `evidence`): debug files of a job, redacted, capped, never public, and
+"""The evidence sink of a worker (`evidence`): debug files of a job, redacted, capped, never public, and
 wired in the process that `serve` builds."""
 
 import asyncio

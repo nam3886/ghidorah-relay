@@ -1,5 +1,5 @@
-"""The OpenAI facade (contracts 8): request bodies the real `openai` SDK sends (golden snapshots), prompt extraction,
-the hold, a failed job as an HTTP error, and D27 strictness."""
+"""The OpenAI facade: request bodies the real `openai` SDK sends (golden snapshots), prompt extraction,
+the hold, a failed job as an HTTP error, and strictness."""
 
 import functools
 import json

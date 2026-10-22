@@ -1,4 +1,4 @@
-"""dola ProviderEngine: worker only, drives a browser (contracts §5.1, §6).
+"""dola ProviderEngine: worker only, drives a browser.
 
 The package imports relay_browser only through its submodules (the kit package imports nothing). Each method is a thin
 delegate to the module that owns the behaviour; the settings view is bound once at build time."""

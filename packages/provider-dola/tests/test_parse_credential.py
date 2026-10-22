@@ -1,4 +1,4 @@
-"""Importing a dola credential (D36; coverage SESS02): every accepted shape becomes one sealed shape."""
+"""Importing a dola credential (coverage SESS02): every accepted shape becomes one sealed shape."""
 
 import json
 import logging
@@ -65,7 +65,7 @@ def test_a_cookie_header_string_becomes_cookies_on_the_dola_domain():
         sealed(b"sessionid; uid_tt=1")
 
 
-def test_v4_jar_shapes_are_accepted():
+def test_old_jar_shapes_are_accepted():
     jar = {"cookies": editor(), "proxy": "proxy.example:8080:user:hunter2"}
     for shape in (jar, editor(), {"jars": [jar]}, [jar]):
         blob = sealed(shape)

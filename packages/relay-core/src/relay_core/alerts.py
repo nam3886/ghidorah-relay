@@ -1,5 +1,5 @@
 """Stored alerts: the unclear replies a provider could not classify, and the read side that lists every stored alert
-kind as one hub (contracts 4.8, 5.3, 7.1, 16).
+kind as one hub.
 
 Two halves, both free of any provider knowledge:
 
@@ -259,7 +259,7 @@ def _ms(moment) -> int:
 
 
 def group_view(row: tuple) -> dict:
-    """One group in the common shape `G` (contracts 16)."""
+    """One group in the common shape `G`."""
     g = dict(zip(GROUP_COLUMNS, row, strict=True))
     return {"kind": g["kind"], "group": g["grp"], "severity": g["severity"], "title": g["title"],
             "provider": g["provider"], "first_ms": _ms(g["first_at"]), "last_ms": _ms(g["last_at"]),

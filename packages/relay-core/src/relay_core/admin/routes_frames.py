@@ -1,4 +1,4 @@
-"""Admin: prompt frames and keep-own locks (contracts 4.7, 5.1, 16).
+"""Admin: prompt frames and keep-own locks.
 
 The text relay sends to a provider is one admin-written frame per model (or per kind: the default). Every save is a
 version (who, when); the current version of a target is its newest row. This module is thin: the grammar, the SQL and

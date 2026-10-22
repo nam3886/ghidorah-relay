@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The admin web (apps/admin-web, Vue + Vite) on the box. Nothing here runs Node, npm or Docker on the Mac (D95).
+# The admin web (apps/admin-web, Vue + Vite) on the box. Nothing here runs Node, npm or Docker on the Mac.
 #   scripts/web.sh [--tree NAME] lock     regenerate apps/admin-web/package-lock.json in the container; pull it back
 #   scripts/web.sh [--tree NAME] build    build in the container; pull back static/app/ and the two generated
 #                                         declaration files (components.d.ts, auto-imports.d.ts), ready to commit
@@ -114,7 +114,7 @@ print(hashlib.sha256("".join(sorted(rows)).encode()).hexdigest())
 PY
 }
 
-# The lockfile policy (contracts: supply chain): exact versions, one registry, no git/file/link/tarball dependency,
+# The lockfile policy (supply chain): exact versions, one registry, no git/file/link/tarball dependency,
 # install scripts only for the approved packages (apps/admin-web/approved-install-scripts.txt; missing = none).
 # The production licences are printed for the round report.
 audit_lock() {

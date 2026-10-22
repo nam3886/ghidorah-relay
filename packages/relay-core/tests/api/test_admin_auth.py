@@ -1,4 +1,4 @@
-"""Admin login and sessions on the API's port (contracts §13, D26)."""
+"""Admin login and sessions on the API's port."""
 
 import contextlib
 from datetime import UTC, datetime, timedelta
@@ -322,7 +322,7 @@ def test_create_user_refuses_a_bad_name_or_password_and_a_duplicate(db, name, pa
 @pytest.mark.parametrize("example", ["thay-bang-mat-khau-manh", "thay-bang-mat-khau-minio-manh", "minioadmin",
                                      " MinioAdmin "])
 def test_an_example_password_is_refused_on_create_and_on_change(db, example):
-    """Example secrets are refused (v4 admin_auth boot guard): the first admin and every password change."""
+    """Example secrets are refused (the boot guard): the first admin and every password change."""
     async def scenario(env):
         with pytest.raises(users.UserError, match="example password"):
             await users.create_user(env.pool, "op2", example)

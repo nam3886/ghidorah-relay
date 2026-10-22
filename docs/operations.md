@@ -1,9 +1,9 @@
 # Operations
 
-Pinned inputs of the relay images, the api and the worker, the `relay` commands, the box runbook (D95) and the restore
-runbook. Contracts §3, §7.7, §8, §13, §15, §16, §17 (D23, v1.3 #23, D95, D96).
-Since D95 relay runs on the box and the Mac is for coding only: the Mac wording below that describes runs, accounts or
-Chrome on the Mac is history until phase 7 step 9 cleans it up.
+Pinned inputs of the relay images, the api and the worker, the `relay` commands, the box runbook and the restore
+runbook.
+Relay runs on the box and the Mac is for coding only: the Mac wording below that describes runs, accounts or
+Chrome on the Mac is history.
 
 ## Image digests
 
@@ -21,7 +21,7 @@ the right image on the Mac (arm64) and on the box (amd64). Recorded 2026-10-01.
 `tests/test_deploy.py` fails on any image in these files that has no digest (images built here, `relay-*`, excepted).
 A pin moves only by a deliberate edit of every place above, of `scripts/restore-images.sh` and of this table.
 
-dola2api_v4 keeps using its own cached `quay.io/minio/minio` image. relay never shares it.
+Other projects on the box keep using their own cached `quay.io/minio/minio` image. relay never shares it.
 
 ## Google Chrome
 
@@ -93,7 +93,7 @@ Drilled on the Mac on 2026-10-01 (cycle 2): the four floating tags and the pinne
 deploy/compose.check.yml up --no-start --pull never` created both containers; a build of
 `FROM python@sha256:... + COPY --from=uv@sha256:...` ran with `--pull=false`; a relay-pin tag pointed at another
 image made the script exit 1 with "refusing to retag". **The restore has not been run on the box.** The box drill
-(which image store it uses, and that dola2api_v4's images stay untouched) happens in plan phase 7; the script is
+(which image store it uses, and that images of other projects stay untouched) is still to do; the script is
 safe to run there because it adds only `relay-pin-*` tags.
 
 ## Object store exit
@@ -102,7 +102,7 @@ relay's MinIO is `pgsty/minio` (a single-maintainer community build; upstream Mi
 February 2026 and no longer publishes images). It is pinned by digest and saved off the box. The documented exit is
 **Garage** (or SeaweedFS), which serves the same S3 subset relay uses (the `minio` SDK: put, get, presigned or
 streamed reads, list, delete). Leave when there is no pgsty release for 6 months, an unpatched CVE, or a fresh-box
-pull fails (contracts §17).
+pull fails.
 
 ## Compose, profiles and credentials
 
@@ -162,12 +162,12 @@ Used by browser workers only (dola, meta). Everything is read from the environme
 - **Sweep**: every claim deletes profiles nobody opened for more than 3 days (credential replaced, account
   deleted), skipping the current one and any whose lock another run holds. A sweep failure is only logged.
 - **Network**: Chrome's own background traffic (component updates, account and time checks, push check-in, safe
-  browsing; D61) is answered 502 at the local forwarder, so it never reaches an account proxy. Without a proxy
+  browsing) is answered 502 at the local forwarder, so it never reaches an account proxy. Without a proxy
   there is no forwarder, so nothing is refused. `www.google.com` stays open by default (reCAPTCHA needs it).
   Images and fonts are off by launch flags unless the run attaches or reads images.
 - **Environment**: Chrome gets an allow-list of variables (`PATH HOME USER LOGNAME LANG LANGUAGE TZ DISPLAY
   XAUTHORITY LC_* XDG_* FONTCONFIG_*`, plus its own `TMPDIR`), never the worker's environment. The worker also
-  removes `CREDENTIAL_SEAL_PRIVATE_KEY` from its own environment once it has read the key (D62), so nothing started
+  removes `CREDENTIAL_SEAL_PRIVATE_KEY` from its own environment once it has read the key, so nothing started
   later can read it; `env` inside a running worker no longer shows it, by design.
 - **Troubleshooting**
   - Every run on an account gets a throwaway profile (`tmp-*` in the root, slower): another run holds
@@ -177,7 +177,7 @@ Used by browser workers only (dola, meta). Everything is read from the environme
   - Temp dirs: each session makes `relay-chrome-*` in the system temp and removes it at close, also on failure;
     leftovers after a SIGKILL of the worker are safe to delete when no worker runs. On macOS Chrome ignores
     `TMPDIR` (measured), so Chrome's own scratch files land elsewhere there; the Linux behaviour is proven in the
-    box container (phase 7).
+    box container.
   - A Chrome that will not close: the kit waits 30 s, then SIGKILLs the process named by the profile's
     `SingletonLock`, and the forwarder, profile reset, lock and temp dir are still cleaned up. A killed close is
     logged `browser did not close ... killing it` and drops Local Storage whole.
@@ -214,11 +214,11 @@ Used by browser workers only (dola, meta). Everything is read from the environme
 - **Per-test time limit** (whole tier and narrowed runs): `scripts/hang_guard_plugin.py` gives each browser test 300 s
   (`TEST_TIMEOUT_S`) across its setup, body and teardown (SIGALRM; `pytest-timeout` is not a dependency). A test that
   hangs fails with its node id and a traceback ending at the hung line, and the run goes on.
-- `scripts/check.sh --full --local`: the same without the box (D59). The browser tier runs on the Mac:
-  `pytest -m "browser and not box"` with patchright driving the installed Google Chrome (D60). An unnarrowed run
+- `scripts/check.sh --full --local`: the same without the box. The browser tier runs on the Mac:
+  `pytest -m "browser and not box"` with patchright driving the installed Google Chrome. An unnarrowed run
   that selects no browser test fails (`browser tier: FAILED`); a green one prints `browser tier: GREEN on this Mac`.
   Tests marked `box` prove the image itself (pinned Linux Chrome, Xvfb, the entry script, Chrome's sandbox) and run
-  only in the box container (`scripts/check.sh --full`, phase 7); a local run never covers them.
+  only in the box container (`scripts/check.sh --full`); a local run never covers them.
 - `scripts/check.sh --soak [--seed N] [--verbose]`: only the soak, on its own database and bucket. `--soak --seed N
   --verbose` replays one seed (a failing seed prints its number). It is not a gate and never prints `CHECK: GREEN`.
 - **Traps seen on the Mac.** Docker's VM clock drifts under load, and MinIO then answers `RequestTimeTooSkewed`: replay
@@ -240,7 +240,7 @@ Used by browser workers only (dola, meta). Everything is read from the environme
 
 ## Running checks on the box (`scripts/box.sh`)
 
-Since D81 code and git stay on the Mac, and every run (tests, gates, mutation, soak, the browser tier, sweeps) happens
+Code and git stay on the Mac, and every run (tests, gates, mutation, soak, the browser tier, sweeps) happens
 on the box (`RELAY_BOX`, default `phuongnam@192.168.18.227`; Docker, uv and rsync there). The Mac runs no Docker for
 relay. The gate commands above are the commands to run there.
 
@@ -515,7 +515,7 @@ One process per provider (`dola`, `vibes`, `meta`; the compose services `worker-
 
 | Loop | Does |
 |---|---|
-| claims | takes the oldest queued job across pools (D43) and submits it |
+| claims | takes the oldest queued job across pools and submits it |
 | poller | polls running jobs (only for providers with `has_poll`) |
 | fetcher | downloads finished output into MinIO |
 | reconciler | proves `unknown` jobs against the account (only for providers with `has_reconcile`) |
@@ -538,7 +538,7 @@ copied, so a secret cannot be reported). It writes both with its heartbeat row (
 Start: the worker refuses (exit 2) when `BILLING_TZ` differs from the value pinned by `relay migrate`.
 
 Exit codes: 0 clean stop; 1 after 5 consecutive unexpected errors in the claim loop, or a loop that died; 2 refused
-to start. A submit stopped by the core's own timeout does not count toward the 5 (D42). Docker restarts the
+to start. A submit stopped by the core's own timeout does not count toward the 5. Docker restarts the
 container on 1.
 
 Graceful stop (SIGTERM or SIGINT; the entry script is under "Graceful stop of the browser workers"): no new claim,
@@ -552,7 +552,7 @@ requeued by a graceful stop is claimed again at once by another worker.
 Setting `<p>.claims_enabled` (default true). While false, that provider's worker claims no job, runs no account
 check and no command, and does no catalog maintenance. **Still running:** poller, fetcher, reconciler, reaper, the
 title sweep and webhooks, so open jobs finish, fail, refund and notify. Rollback of a provider go-live is drain mode
-(there is no fallback system, D36).
+(there is no fallback system).
 
 ```bash
 relay provider drain dola     # prints "draining dola"; "(no change)" when it already was
@@ -574,7 +574,7 @@ Drives dola.com in Chrome, one browser session per claimed job. Sources: `packag
   `CREDENTIAL_SEAL_PRIVATE_KEY`, `BILLING_TZ`, `RELAY_PROFILE_ROOT`. The number of browser sessions is not an
   environment variable: it is the live setting `dola.browser_slots`. In the compose stack `compose.yml` sets
   `RELAY_PROFILE_ROOT=/profiles` itself.
-- **Chrome** on the Mac (history, D95: relay runs on the box now, whose image holds the same pinned build): the pinned Chrome for Testing 154.0.8037.92 through `RELAY_CHROME_PATH` (see "Google Chrome"),
+- **Chrome** on the Mac (history: relay runs on the box now, whose image holds the same pinned build): the pinned Chrome for Testing 154.0.8037.92 through `RELAY_CHROME_PATH` (see "Google Chrome"),
   not the installed Google Chrome. Set `RELAY_PROFILE_ROOT` too, or the profile cache is not kept.
 - **Accounts and proxies live outside the repo**, in `~/relay-secrets/` (the Mac, mode 0600 files; copied to the box once at intake, see "The secret tools"). They are imported
   through the admin accounts import (`scripts/import-accounts.py` on the box), which seals each credential with the public key. Never print, paste or commit
@@ -607,7 +607,7 @@ admin setting.
 
 **Prompt frames.** The text sent to dola is not a setting: it is one admin-written frame per model (or per kind: the
 default), stored in `prompt_frames` with a version history and rendered once per job at creation into `jobs.sent_text`
-(contracts 4.7, 5.1). A frame has two placeholders, `{{client_prompt}}` (the customer's words) and `{{tracking_code}}`
+A frame has two placeholders, `{{client_prompt}}` (the customer's words) and `{{tracking_code}}`
 (relay's `[marker]`), each exactly once, on one line of at most 1,000 characters. `relay serve` seeds the shipped
 defaults (the old video sentence after the prompt; nothing for images), logs a WARNING at every start when a stored
 default differs from the shipped one, and never rewrites it: the admin resets it (`POST /admin/frames/dola/<kind>/reset`).
@@ -717,7 +717,7 @@ length with ffprobe, and disables the key. It spends dola credits: run it only w
 
 ### Not proven locally
 
-The local gates use recorded and fake dola behaviour. These wait for the live run on the box (D95):
+The local gates use recorded and fake dola behaviour. These wait for the live run on the box:
 
 - whether dola's conversation listing returns `has_more`;
 - how long the input takes to clear after Enter;
@@ -728,10 +728,10 @@ The local gates use recorded and fake dola behaviour. These wait for the live ru
 - the health of the supplied account jars;
 - `relay e2e`.
 
-## The box runbook (D95)
+## The box runbook
 
 Relay runs on the LAN box, in its own compose project `relay`, next to projects that are not ours (`portfolio` and
-`billiards`; c2tool-be no longer exists on the box). Every production action is the owner's or follows his go-ahead. Nothing here stops, execs
+`billiards`). Every production action is the owner's or follows his go-ahead. Nothing here stops, execs
 into, inspects beyond metadata, or prunes anything foreign; relay removes only what it names, and never runs a prune.
 
 ### Where things live
@@ -844,8 +844,7 @@ unchanged at the end of the first deploy and of the drills:
 | CPU / memory (idle) | 0.00% / 31 MiB | 0.00% / 25 MiB |
 
 Host at the baseline: 32 cores, 62.9 GiB (60.5 GiB available), swap 8 GiB unused, `/` and the Docker data root on one
-filesystem (166 GB free of 195 GB, inodes 2% used), load average 0.00 / 0.66 / 4.4, containerd image store. The full
-record, with the times and the drills, is in the go-live log (`plans/260930-1635-relay-platform/reports/07-go-live-log.md`).
+filesystem (166 GB free of 195 GB, inodes 2% used), load average 0.00 / 0.66 / 4.4, containerd image store.
 
 ### Slot values and the load test (14/10)
 
@@ -940,13 +939,13 @@ the wrong direction. A narrower profile (Docker's default plus user-namespace cr
 security surface, so it is the owner's choice and has not been adopted. The risk stays as before: a taken-over renderer
 runs as root inside the worker container (third-party pages are rendered), and the private key stays out of its reach only
 because Chrome receives a name list of the environment (`chrome_env`, `CHROME_ENV_NAMES`), not the worker's whole
-environment. The owner decided on 13/10 (D97): the sandbox stays off for the go-live. Chrome is bumped about monthly, and
-at once when an exploit is published, and every bump first passes the D92 cookie-loss check; the sandbox is revisited
+environment. The owner decided on 13/10: the sandbox stays off for the go-live. Chrome is bumped about monthly, and
+at once when an exploit is published, and every bump first passes the cookie-loss check; the sandbox is revisited
 after the live run is stable.
 
-## Restore runbook (contracts §7.7)
+## Restore runbook
 
-**Not in use while there is no backup (D96 (3)).** Kept for the day an off-box backup exists; nothing below has been drilled on the box.
+**Not in use while there is no backup.** Kept for the day an off-box backup exists; nothing below has been drilled on the box.
 
 Order matters: `restore_mark` writes whole tables and a running worker would claim jobs the dump knows nothing about.
 
@@ -961,7 +960,7 @@ Order matters: `restore_mark` writes whole tables and a running worker would cla
    heartbeat table, until the mark has committed (a stop signal ends the wait). It does not exit, so Docker's restart
    loop is not involved; still start none until the mark is done. It marks every non-terminal job created before `T` plus the longest submit timeout as
    `unknown` (never `queued`; reconcile proves each one), except a `queued` job never claimed. A job that was claimed,
-   requeued and has no account fails with refund at its render deadline and is never re-sent (D41). Queued commands
+   requeued and has no account fails with refund at its render deadline and is never re-sent. Queued commands
    fail, `left_n` is rebuilt from reported balances, every account is due for a check. It also clears each job's late
    stamp and last answered read, so a job that was late at dump time is read again before it can fail. It prints
    `marked N job(s) unknown`.
@@ -971,19 +970,19 @@ Order matters: `restore_mark` writes whole tables and a running worker would cla
 
 ## What an operator must know
 
-- **A job that keeps killing its worker fails (D46).** Each time the reaper requeues an unsent job whose worker died
+- **A job that keeps killing its worker fails.** Each time the reaper requeues an unsent job whose worker died
   it counts an attempt; at the provider's `max_attempts` the job fails with refund. The count covers every unsent job
   the dead worker held, so an innocent job sharing every crash fails and is refunded with it.
-- **Upstream completed means the account keeps the charge (D47).** A failed job whose order upstream finished (for
+- **Upstream completed means the account keeps the charge.** A failed job whose order upstream finished (for
   example the fetch failed) keeps its account-pool charge, because the upstream account spent the credit. The client's
   key is refunded as for every failed job.
-- **A dead proxy rests the account (D44).** A failed proxy probe rests the account on every pool for the provider's
+- **A dead proxy rests the account.** A failed proxy probe rests the account on every pool for the provider's
   proxy rest, 30 minutes (1 800 s) by default (`Caps.proxy_rest_s`); no browser opens through it.
 - **The account check interval is a provider constant** (`Caps.check_interval_s`, 21 600 s by default), not a setting.
 - **Admin account actions are worker commands** (wake, check, check all, proxy re-check, delete): the api queues
   them, the provider's worker runs them, so they wait while the worker is drained or stopped. A command aborted by a
   database deadlock or serialization failure is re-queued, a bounded number of times; other errors fail it.
-- **Browser shares stay reserved (D45):** reconcile up to 2 and check plus command 1, even when idle, so the submit
+- **Browser shares stay reserved:** reconcile up to 2 and check plus command 1, even when idle, so the submit
   share is `slots - 3` and never below 1. Up to 4 slots therefore give exactly one submit at a time; concurrent
   submits start at 5 slots. More submit slots mean a higher `<p>.browser_slots`, within the 1 to 12 the provider allows.
 - **A late render is read once more before it fails.**

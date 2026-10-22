@@ -1,6 +1,6 @@
 """Reading dola's words: classify a reply, read its credit statements.
 
-Port of dola_v4 `services/reply.py` and `services/credits.py` (same function names). Pure.
+Pure.
 
 WHY this exists: when dola refuses it STILL creates a conversation, so a refusal looks exactly like an accepted send
 from outside. Real replies seen while verifying:
@@ -35,7 +35,7 @@ class SubmitOutcome(StrEnum):
     ERROR = "error"                          # a temporary error
 
 
-# ================================= credits (v4 credits.py) =====================================================
+# ================================= credits =====================================================
 # "You still have 1 video credits left today." / "You have 3 video credits left today."
 _CREDITS_LEFT = re.compile(r"(\d+)\s+video\s+credits?\s+left", re.I)
 # "...will use 2 video credits. You only have 1 left today."
@@ -98,7 +98,7 @@ def looks_out_of_credit(text: str) -> bool:
     return False
 
 
-# ================================= replies (v4 reply.py) ======================================================
+# ================================= replies ======================================================
 # dola took the order and is rendering. WHITE LIST: only these sentences count.
 _ACCEPTED_MARKERS = (
     "be ready in",                    # "...and be ready in 15 minutes"

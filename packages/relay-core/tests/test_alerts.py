@@ -1,4 +1,4 @@
-"""Unclear replies (contracts 4.8, 5.3, 7.1, 13): the builder and its wording, the type that carries the
+"""Unclear replies: the builder and its wording, the type that carries the
 text, both writers (a submit result and a render-deadline failure) under the worker role with their failure windows, the
 trigger that freezes a stamp, and the absence of the text from every public surface.
 

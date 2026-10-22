@@ -2,7 +2,7 @@
 image): the receipt, the replies in order, the gate, the acceptance and the image HOLD, read from a REAL `NetRecorder`
 fed the recorded responses. The last test replays the captures in Chrome against the kit's local replay server.
 
-Also here: waiting for the reply instead of reading once (v4 BSUB03) and choosing the conversation by the sent text
+Also here: waiting for the reply instead of reading once (BSUB03) and choosing the conversation by the sent text
 (BSUB05)."""
 
 import json
@@ -328,7 +328,7 @@ async def test_a_prompt_that_quotes_dolas_refusals_or_gates_changes_nothing(name
     )
 
 
-# ---- waiting for the reply instead of reading once (v4 BSUB03) -------------------------------------------------------
+# ---- waiting for the reply instead of reading once (BSUB03) -------------------------------------------------------
 async def counted_sleeps(scene):
     count = {"n": 0}
     inner = scene.deps.sleep
@@ -364,7 +364,7 @@ async def test_a_mute_dola_is_given_up_on_after_a_bounded_wait():
     assert count["n"] == 12, "the wait must be bounded (12 reads): %d" % count["n"]
 
 
-# ---- the conversation is chosen by the sent text, never by the biggest id (v4 BSUB05) --------------------------------
+# ---- the conversation is chosen by the sent text, never by the biggest id (BSUB05) --------------------------------
 async def fallback(scene, ids, bodies, url="https://www.dola.com/chat"):
     run = raw_run(scene)
     scene.driver.probe_result = {**GOOD_PROBE, "ids": ids}

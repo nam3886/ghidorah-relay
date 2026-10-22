@@ -1,4 +1,4 @@
-"""Prompt frames (contracts 4.7, 5.1): the text relay sends is one admin-written frame with two
+"""Prompt frames: the text relay sends is one admin-written frame with two
 placeholders, rendered once per job at insert.
 
 The pure part (no I/O, no database): the invisible-character rule, the grammar, the renderer and the core frame. The
@@ -68,7 +68,7 @@ class FrameError(ValueError):
 
 
 def check_frame(text: object) -> str:
-    """The grammar (contracts 5.1). Returns the text when it passes; raises `FrameError` and stores nothing otherwise.
+    """The grammar. Returns the text when it passes; raises `FrameError` and stores nothing otherwise.
 
     One line of 1 to 1,000 characters with no invisible character; the placeholders `{{client_prompt}}` and
     `{{tracking_code}}`, each exactly once; no other `{{...}}` and no stray `{{` or `}}`. Single braces are text."""
@@ -102,7 +102,7 @@ def render(frame: str, prompt: str, marker: str) -> str:
     return " ".join(_SLOT.sub(lambda m: values[m.group(0)], frame).split())
 
 
-# ---- the stored versions (contracts 4.7) ------------------------------------------------------------------------
+# ---- the stored versions ------------------------------------------------------------------------
 @dataclass(frozen=True)
 class Version:
     """One row of `prompt_frames`."""
@@ -155,7 +155,7 @@ SYSTEM = By(None, "system")
 
 async def _lock_target(conn, provider: str, kind: str) -> None:
     """The transaction advisory lock for one (provider, kind): seeding, a lock toggle and apply to all take it first,
-    so apply to all never writes to a model whose lock committed before it read the locks (contracts 4.7)."""
+    so apply to all never writes to a model whose lock committed before it read the locks."""
     await conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
                        ("relay.frames:%s:%s" % (provider, kind),))
 

@@ -1,4 +1,4 @@
-"""Account checks (contracts 7.6, 5.3; invariants I14, I24, I28): the schedule, the lease and token, the proxy probe,
+"""Account checks (invariants I14, I24, I28): the schedule, the lease and token, the proxy probe,
 the outcome rules, the bounded hang, the redacted account error and the duplicate merge on the first check."""
 
 import asyncio

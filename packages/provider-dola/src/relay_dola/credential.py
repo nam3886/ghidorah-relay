@@ -1,7 +1,7 @@
 """dola credentials: what the importer accepts, the one shape that is sealed, and the readers the engine uses.
 
-Accepted input (D36): a Cookie-Editor export (a JSON list of cookies), a Playwright `storage_state`
-(`{"cookies": [...], "origins": [...]}`), a bare `Cookie:` header string (`a=b; c=d`), and dola_v4's jar JSON (one jar
+Accepted input: a Cookie-Editor export (a JSON list of cookies), a Playwright `storage_state`
+(`{"cookies": [...], "origins": [...]}`), a bare `Cookie:` header string (`a=b; c=d`), and the older jar JSON (one jar
 `{"cookies": [...], "proxy": ...}`, a bare list, `{"jars": [jar]}` or a list holding one jar). All of them become ONE
 sealed shape, the Cookie-Editor shape `{"cookies": [{name, value, domain, path, secure, httpOnly, sameSite, session,
 expirationDate}]}`, which `relay_browser.ui.cookies_for_playwright` and `jar_from_blob` both read.

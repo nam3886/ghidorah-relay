@@ -1,4 +1,4 @@
-"""Account check and proxy probe (contracts 5.4.1 "check_account", "probe_proxy"; v4 `alive.py`, `proxy_manager.py`).
+"""Account check and proxy probe ("probe_proxy").
 
 `check_account` opens the account in a browser and reads, from INSIDE the tab (a login read over HTTP from another
 machine
@@ -40,7 +40,7 @@ def identity_of(passport) -> tuple[str | None, str]:
 
 async def check_account(ctx, settings, *, deps: Deps | None = None) -> Health:
     """The state of one account. A login doubt (a guest read, a login dialog, no conversation and no name) never kills
-    an account by itself: the result is `unknown` with one spaced strike and a rest (D91). A failed read and cookies
+    an account by itself: the result is `unknown` with one spaced strike and a rest. A failed read and cookies
     lost or unreadable in the browser are no strike. Never a dead account from one read."""
     deps = deps or Deps()
     driver = deps.driver

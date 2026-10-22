@@ -1,4 +1,4 @@
-"""Background loops of the api process (contracts §3, §7.4, §9, §15): the webhook sender and the global sweeps.
+"""Background loops of the api process: the webhook sender and the global sweeps.
 
 `start_runners(...)` starts them, `await runners.stop()` ends them (`relay serve` calls both). Each loop takes one
 step, logs a failure and goes on: a bad pass never ends a loop. Every step is a CAS update or a SKIP LOCKED claim,

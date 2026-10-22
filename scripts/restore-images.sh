@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Restore the pinned base images from the off-box tarballs, with no registry (D23, docs/operations.md).
+# Restore the pinned base images from the off-box tarballs, with no registry (docs/operations.md).
 #   scripts/restore-images.sh [DIR]      DIR defaults to ~/Archives/relay-images
 # Each tarball is the full multi-arch image index saved by digest, so the index digest survives. `docker load`
 # leaves it nameless; the script gives it ONE relay-owned tag in the image's own repository,
@@ -8,7 +8,7 @@
 # `python:3.13-slim`, ...) are never created, moved or removed. A relay-pin tag that already points at a different
 # image is refused. Afterwards use `docker compose ... up --pull never` and `docker build --pull=false`.
 # Needs a daemon with the containerd image store (Docker Desktop and Docker 29 default): the pin check fails loudly
-# otherwise. Drilled on the Mac; the box drill is part of plan phase 7.
+# otherwise. Drilled on the Mac.
 set -euo pipefail
 
 DIR="${1:-$HOME/Archives/relay-images}"

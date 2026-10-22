@@ -1,4 +1,4 @@
-"""`NetRecorder` (contracts §6.2; coverage M4 recorder part, R67, E01 marker): it reads what the page receives and
+"""`NetRecorder` (coverage M4 recorder part, R67, E01 marker): it reads what the page receives and
 never intercepts. The replay tests give a real Chrome the three recorded dola captures (spike S1) and demand what the
 provider needs: the marker and the conversation id from the first matching `/im/chain/single`, and the replies in
 order. The pure tests drive the recorder with stand-in page objects."""

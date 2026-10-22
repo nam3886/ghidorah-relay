@@ -1,6 +1,6 @@
-"""The submit outcome mapping (contracts 5.4.1) and the money/lifecycle proofs, on a scripted page: no Chrome.
+"""The submit outcome mapping and the money/lifecycle proofs, on a scripted page: no Chrome.
 
-Every row of the v4 `worker._serve_jar` outcome table lives here as the `SubmitResult` + account effects it became.
+Every row of the submit outcome table lives here as the `SubmitResult` + account effects it became.
 The order of the irreversible steps (`mark_sent`, Enter, `fence`) is read from one shared log, so a test can say "this
 came before that"."""
 
@@ -153,7 +153,7 @@ async def test_the_browser_is_opened_for_a_submit_with_the_cores_token_the_30s_p
     assert kw["purpose"] == "submit" and kw["token"] is scene.ctx.browser_token and kw["images"] is False
     assert [p.url_pattern for p in kw["response_patches"]] == ["*action_bar_v3/get_item_conf*"]
     assert callable(kw["redact"]) and site.name == "dola"
-    assert site.viewport is None and site.locale == "en-US", "video keeps the browser's default viewport (v4)"
+    assert site.viewport is None and site.locale == "en-US", "video keeps the browser's default viewport"
 
 
 @sync
@@ -744,7 +744,7 @@ def test_a_job_with_no_sent_text_is_refused_the_engine_builds_none_of_its_own():
         order_spec(dataclasses.replace(make_job(), params={}))
 
 
-# ---- the attach itself and the composer net (v4 `browser_submit._demo`) ----------------------------------------------
+# ---- the attach itself and the composer net ----------------------------------------------
 class AttachPage:
     """A page for `PageDriver.attach`: how many previews show, and how many upload commits happen on choosing files."""
 

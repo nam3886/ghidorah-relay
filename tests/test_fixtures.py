@@ -1,4 +1,4 @@
-"""The committed fixtures stay redacted and documented (contracts §14.4)."""
+"""The committed fixtures stay redacted and documented."""
 
 import importlib.util
 import json

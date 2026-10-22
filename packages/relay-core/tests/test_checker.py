@@ -1,4 +1,4 @@
-"""The invariant checker (contracts §14.3): ledger = counters, one refund per charge, run after every DB test."""
+"""The invariant checker: ledger = counters, one refund per charge, run after every DB test."""
 
 import asyncio
 

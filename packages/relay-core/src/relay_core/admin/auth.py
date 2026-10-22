@@ -1,4 +1,4 @@
-"""Admin login, sessions and the login throttle (contracts §13, D26).
+"""Admin login, sessions and the login throttle.
 
 The admin shares the API's port, so its door is hardened: the session token travels in the `X-Admin-Session` header
 (no cookie, so no CSRF surface), only its SHA-256 is stored, a password change revokes every session

@@ -1,4 +1,4 @@
-"""`plan()` of the dola spec (contracts 5.4.1; coverage MODELS01-09, GEN02-05, WORKER16, PRICE00)."""
+"""`plan()` of the dola spec (coverage MODELS01-09, GEN02-05, WORKER16, PRICE00)."""
 
 import logging
 
@@ -255,7 +255,7 @@ def test_the_conflict_is_judged_on_the_ratio_and_length_that_will_run():
         "input.prompt_duration_conflict")
 
 
-# ---- options never steer money or time (carried from phase 3) --------------------------------------------------------
+# ---- options never steer money or time --------------------------------------------------------
 @mutation(SPEC_FILE, 'price, warnings = self._price(settings, gen.model, "video", duration)',
           'price, warnings = req.options.get("price", 2), []', expect="999")
 def test_plan_ignores_price_account_cost_and_timeout_in_options():
@@ -302,7 +302,7 @@ def test_an_image_is_judged_for_conflicts_with_the_customers_words_only():
     assert e.code == "input.prompt_ratio_conflict"
 
 
-# ---- a stored request replans the same way (D56) ---------------------------------------------------------------------
+# ---- a stored request replans the same way ---------------------------------------------------------------------
 def rebuilt(sent: dict) -> CreateRequest:
     """What the core stores in jobs.request, turned back into a request, as Regenerate does."""
     return CreateRequest(

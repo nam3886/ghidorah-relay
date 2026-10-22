@@ -1,4 +1,4 @@
-"""Prompt frames (contracts 4.7, 5.1): the grammar, the renderer, the tables and their guards, the
+"""Prompt frames: the grammar, the renderer, the tables and their guards, the
 effective lookup, the seed, and the stored text reaching the engine.
 
 The pure parts need no database; the guards run against the per-run Postgres as the two service roles."""
@@ -31,7 +31,7 @@ M14 = "packages/relay-core/src/relay_core/db/migrations/0014_prompt_frames.sql"
 CORE = frames.CORE_FRAME
 
 
-# ---- the grammar (contracts 5.1) -----------------------------------------------------------------------------------
+# ---- the grammar -----------------------------------------------------------------------------------
 ACCEPTED = (CORE, "{{tracking_code}}{{client_prompt}}", "{{tracking_code}} {{client_prompt}}",
             "Be brief: {{client_prompt}} (code {{tracking_code}}) a { single } brace } is { text",
             "{{{client_prompt}}} {{tracking_code}}", "x" * (1000 - len(CORE)) + CORE.replace(" ", ""))
@@ -135,7 +135,7 @@ def test_the_invisible_character_fold_is_the_one_the_page_applies_nfkc_first():
     assert frames.has_invisible("\uffa0") and not frames.has_invisible("ab \u00e9")      # U+FFA0 is U+1160 under NFKC
 
 
-# ---- the tables and their guards (contracts 4.2, 4.5, 4.7) ----------------------------------------------------
+# ---- the tables and their guards ----------------------------------------------------
 INSERT_VERSION = ("INSERT INTO prompt_frames (provider, kind, model, text, created_by) VALUES "
                   "('p1', 'video', %s, %s, 'test') RETURNING id")
 INSERT_LOCK = ("INSERT INTO prompt_frame_locks (provider, kind, model, locked, created_by) "
@@ -293,7 +293,7 @@ def test_a_job_committed_while_0014_waits_is_still_seen_by_its_guard(tmp_path, m
             assert c.execute("SELECT max(version) FROM schema_migrations").fetchone() == (13,)
 
 
-# ---- the effective lookup and the seed (contracts 4.7) ----------------------------------------------------------
+# ---- the effective lookup and the seed ----------------------------------------------------------
 USER = frames.By(uuid.UUID(int=7), "ann")
 DEFAULTS = {"video": "Shipped video. " + CORE, "image": "Shipped image. " + CORE}
 

@@ -1,6 +1,6 @@
-"""Echoed-prompt stripping (contracts §6.3 stage 2, coverage R64): the page holds the user's own chat bubble, so a
-prompt that quotes the site's refusal sentence must not be read as the site speaking. The samples are dola_v4's
-own."""
+"""Echoed-prompt stripping (stage 2, coverage R64): the page holds the user's own chat bubble, so a
+prompt that quotes the site's refusal sentence must not be read as the site speaking. The samples are real
+ones."""
 
 import unicodedata
 

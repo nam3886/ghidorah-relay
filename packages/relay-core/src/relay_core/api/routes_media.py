@@ -1,4 +1,4 @@
-"""`GET /m/{token}`: public input and output media (contracts §8, §9; invariant I12).
+"""`GET /m/{token}`: public input and output media (invariant I12).
 
 The token is the only credential. A token is served only while a `job_media` row of role input or output holds it:
 revoking or expiring clears it, and a debug object never has one. The body is streamed from the object store in

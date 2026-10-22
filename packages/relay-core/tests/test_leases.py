@@ -1,4 +1,4 @@
-"""Leases (contracts 4.3, 5.2, 7.1; I2, I14): a hard bound on every purpose, the batched heartbeat, the fence by lease
+"""Leases (I2, I14): a hard bound on every purpose, the batched heartbeat, the fence by lease
 id under `clock_timestamp()`, expiry and reclaim, and a lost lease cancelling its task. Short injected TTLs, no long
 sleeps."""
 

@@ -1,8 +1,8 @@
 """dola's model catalog: the names clients send, the parameters they stand for, prices and snapshot readers.
 
-Port of dola_v4 `core/models.py` (limits) and `core/model_resolver.py` (name grammar). Pure.
+Pure: limits and the name grammar.
 
-Names carry parameters (contracts 5.4.1): video `base[-Ns][-W:H]`, image `base[-W:H][-style]`, matched on the
+Names carry parameters: video `base[-Ns][-W:H]`, image `base[-W:H][-style]`, matched on the
 longest base prefix. The internal (canonical) names `seedance_v2.5` and the like resolve too, so one path serves both
 spellings. `public_name()` is the inverse of `resolve()`.
 """
@@ -307,7 +307,7 @@ def catalog() -> list[ModelSpec]:
 def usable_link(url: Any) -> str:
     """A preview link as the options endpoint may serve it. The core stores snapshots through its redactor, which blanks
     the signature and long path parts of a signed CDN link: the stored link is then dead, and a dead link is "" (the
-    client shows no preview) rather than a broken image. Needs a core change to keep the live form (contracts v2)."""
+    client shows no preview) rather than a broken image. Needs a core change to keep the live form."""
     return url if isinstance(url, str) and "[redacted]" not in url else ""
 
 

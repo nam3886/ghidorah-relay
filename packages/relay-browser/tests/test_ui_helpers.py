@@ -1,4 +1,4 @@
-"""UI helpers (contracts §6.3 stage 1; coverage SESS01, SESS03, E06, E12): cookie conversion and injection with
+"""UI helpers (stage 1; coverage SESS01, SESS03, E06, E12): cookie conversion and injection with
 read-back, the one-tab rule, typing and sending. The pure tests use stand-in objects; the browser tests drive a real
 Chrome."""
 

@@ -1,6 +1,6 @@
-"""The OpenAI facade (contracts 8): `POST /v1/chat/completions`, with and without `stream`.
+"""The OpenAI facade: `POST /v1/chat/completions`, with and without `stream`.
 
-Strict (D27): only `model`, `messages` and `stream` are accepted; anything else is 400 `input.invalid` naming the
+Strict: only `model`, `messages` and `stream` are accepted; anything else is 400 `input.invalid` naming the
 field. The prompt is the last message; `image_url` parts are its input images. The job is created before anything
 is streamed, so a refusal is a real HTTP error. A held request or a stream that ends early never cancels the job.
 """

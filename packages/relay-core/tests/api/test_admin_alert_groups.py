@@ -1,4 +1,4 @@
-"""The alerts hub (contracts 4.8, 16): one list of every stored alert kind in one shape, a detail per group and an
+"""The alerts hub: one list of every stored alert kind in one shape, a detail per group and an
 acknowledge per group that respects `through_id` and the alert kind. Billing rows are planted as `test_admin_alerts.py`
 does; unclear rows are planted next to a job with the state the test needs.
 """

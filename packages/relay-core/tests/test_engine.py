@@ -1,4 +1,4 @@
-"""The claim loop (contracts 7.1, 15; invariants I1, I2, I9, I14, D20): a submit runs with no connection held under
+"""The claim loop (invariants I1, I2, I9, I14): a submit runs with no connection held under
 its timeout, the result is applied outside it and shielded, anything that ends a sent submit without a result is
 `unknown` and never `queued`, five consecutive unexpected errors exit non-zero, a browser provider follows the live
 slot setting, and the worker's heartbeat row and loop-lag watchdog report."""
@@ -143,7 +143,7 @@ def test_a_hung_submit_after_the_send_ends_unknown_after_its_timeout_and_is_neve
     assert job_status(db, job_id) == "unknown" and 0.9 < took < 3
     assert [c for c in engine.calls if c[0] == "submit"] == [("submit", str(job_id))]
     assert row(db, job_id, "sent_at IS NOT NULL, attempts, claims") == (True, 0, 1)
-    assert lease_count(db) == 0 and errors == 0       # a timeout is expected and bounded (D42); the lease was released
+    assert lease_count(db) == 0 and errors == 0       # a timeout is expected and bounded; the lease was released
 
 
 TIMEOUT_IS_EXPECTED = "if timed_out:"
@@ -175,7 +175,7 @@ def test_submit_timeouts_never_count_toward_the_error_exit_and_are_logged_as_war
 
 @mutation(E, OWN_TIMER, ANY_TIMEOUT, expect="timed out waiting for the worker to stop after its error limit")
 def test_a_timeout_error_the_engine_raises_itself_counts_like_any_other_unexpected_error(db):
-    """Only the core's own submit timer is exempt (D42). A dead proxy makes the engine's connect raise TimeoutError
+    """Only the core's own submit timer is exempt. A dead proxy makes the engine's connect raise TimeoutError
     before the send: that job is requeued, and it must reach the five-error exit instead of looping unseen."""
     k, _ = key(db), account(db)
 
@@ -467,7 +467,7 @@ def test_a_tick_that_fails_counts_and_a_clean_idle_tick_resets(db):
     assert seen == [0, 1, 2, 3] and alive          # four failed ticks counted one by one; the loop survived
 
 
-# ---- a browser provider: the token and the live slot setting (D20) -----------------------------------------------
+# ---- a browser provider: the token and the live slot setting -----------------------------------------------
 class Peak:
     """A scripted submit that records how many run at once."""
 
@@ -559,7 +559,7 @@ def test_a_restart_after_an_abnormal_exit_starts_the_budget_on_a_ramp_and_a_clea
     assert db.one("SELECT count(*) FROM worker_heartbeats") == (0,)
 
 
-# ---- heartbeat row and loop-lag watchdog (contracts 15) ----------------------------------------------------------
+# ---- heartbeat row and loop-lag watchdog ----------------------------------------------------------
 def test_the_heartbeat_row_reports_busy_slots_errors_and_loop_lag_and_a_blocked_loop_is_logged(db, caplog):
     k, _ = key(db), account(db)
 

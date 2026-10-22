@@ -35,7 +35,7 @@ in Chrome, poll and fetch the outputs, and settle the charge or the refund.
 | `fixtures/` | Redacted provider captures used by the tests. |
 | `scripts/` | Checks, mutation testing, the soak test, remote test runs, fixture redaction. |
 | `tests/` | Repository guards, admin end-to-end tests and browser tests. Package tests live in `packages/*/tests`. |
-| `docs/` | Operations runbook, error codes, client migration guide. |
+| `docs/` | Operations runbook and error codes. |
 
 ## Requirements
 
@@ -106,7 +106,6 @@ Tests and builds run on the test host through `scripts/box.sh` (for example
 
 - [docs/operations.md](docs/operations.md): configuration, deploy, drain mode, rollback, gates and the browser setup
 - [docs/error-codes.md](docs/error-codes.md): every error code the API returns (generated)
-- [docs/client-migration.md](docs/client-migration.md): moving an existing client to this API
 
 ## Contributing
 

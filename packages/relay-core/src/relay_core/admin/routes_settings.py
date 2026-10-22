@@ -1,4 +1,4 @@
-"""Admin: live settings (contracts 10).
+"""Admin: live settings.
 
 The list shows each registered key with its value, where the value comes from (`db` or `default`), its default, its
 description and the values it allows. A put validates before it writes (a refused value leaves the stored one as it

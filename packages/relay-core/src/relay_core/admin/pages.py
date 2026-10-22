@@ -1,8 +1,8 @@
-"""The admin pages and their static files (contracts §13, §16, D26): `/`, `/login`, `/test`, `/manage`, `/reference` and
+"""The admin pages and their static files: `/`, `/login`, `/test`, `/manage`, `/reference` and
 `/ui/...` on the API's own port.
 
 Every response of this router carries the admin CSP, so no page can run an inline script or load a foreign asset;
-`/reference` alone also allows inline styles (D75). The files are read once at import: they are part of the package
+`/reference` alone also allows inline styles. The files are read once at import: they are part of the package
 and never change while the app runs. Only the names found in `static/` are served, so a request cannot reach any
 other path.
 """
@@ -25,7 +25,7 @@ TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=u
          ".woff2": "font/woff2", ".woff": "font/woff"}
 HEADERS = {"Content-Security-Policy": CSP, "X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"}
 # The API reference renderer writes its styles into the page at run time, so /reference alone may use inline styles
-# (D75). Its scripts stay `'self'`, and its own assets under /ui keep the exact header above.
+#. Its scripts stay `'self'`, and its own assets under /ui keep the exact header above.
 REFERENCE_CSP = CSP.replace("script-src 'self';", "script-src 'self'; style-src 'self' 'unsafe-inline';")
 REFERENCE_HEADERS = {**HEADERS, "Content-Security-Policy": REFERENCE_CSP}
 

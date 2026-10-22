@@ -1,4 +1,4 @@
-"""The admin pages on the API port: served with the exact CSP, only from the static folder (contracts §13, D26)."""
+"""The admin pages on the API port: served with the exact CSP, only from the static folder."""
 
 from pathlib import Path
 

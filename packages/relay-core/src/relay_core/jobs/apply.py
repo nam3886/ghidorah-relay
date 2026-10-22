@@ -1,4 +1,4 @@
-"""Result application (contracts 7.1, 5.3; invariants I1, I2, I7, I9, I23, I27).
+"""Result application (invariants I1, I2, I7, I9, I23, I27).
 
 Each function is one transaction on a fresh pooled connection. Submit results are fenced by the job lease ID with
 `clock_timestamp()` under `FOR SHARE` (`leases.fence`), so an expired holder cannot write; a failed fence raises
@@ -390,7 +390,7 @@ async def apply_poll(db: AsyncConnectionPool, job_id, poll_token, result: PollRe
             case Failed():
                 cols = dict(provider_state=_merge(out.state_patch))
                 if out.taken:                           # proven taken: the account is charged here and the failure
-                    await _charge_taken(conn, job, pools)   # below refunds it, both in this transaction (I7, D14)
+                    await _charge_taken(conn, job, pools)   # below refunds it, both in this transaction (I7)
                     cols["taken_at"] = _Raw("COALESCE(taken_at, clock_timestamp())")
                 await _set(conn, job_id, "waiting", **cols)
                 await fail_in_tx(conn, job_id, ("waiting",), out.code, out.detail, pools)

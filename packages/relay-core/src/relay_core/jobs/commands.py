@@ -1,4 +1,4 @@
-"""The command runner of one provider's worker (contracts 4.4, 5.1, 7.6, D37, D39; invariants I14, I24, I28).
+"""The command runner of one provider's worker (invariants I14, I24, I28).
 
 A command is claimed with `FOR UPDATE SKIP LOCKED` (`attempts + 1`). A kind that works through an account runs under a
 `command` lease on it (fenced, hard-bounded by `leases.command_hard_s(kind)`, stored as `lease_id`) and, for a browser

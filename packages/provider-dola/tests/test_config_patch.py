@@ -1,4 +1,4 @@
-"""The action-bar config patch (ported from v4 `config_patch._demo`, coverage CPATCH00/CPATCH01) and the response patch
+"""The action-bar config patch (coverage CPATCH00/CPATCH01) and the response patch
 built on it. Pure: a JSON string in, a JSON string out; the real captured config is the fixture."""
 
 import json

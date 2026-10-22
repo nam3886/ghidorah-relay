@@ -1,4 +1,4 @@
-"""The one redactor (contracts §13, I24): everything stored or logged that may carry a secret passes through here.
+"""The one redactor (I24): everything stored or logged that may carry a secret passes through here.
 
 Three layers, because a secret turns up in three shapes:
 1. by field name, for dicts: the value of a sensitive-looking key is replaced whole;

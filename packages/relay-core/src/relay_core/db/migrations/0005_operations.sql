@@ -1,4 +1,4 @@
--- Commands, settings, admin, logs, heartbeats and provider snapshots (contracts §4.4, §4.6).
+-- Commands, settings, admin, logs, heartbeats and provider snapshots.
 -- schema_migrations is created by the migration runner itself (it must exist before the first file runs).
 CREATE TABLE commands (
     id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),

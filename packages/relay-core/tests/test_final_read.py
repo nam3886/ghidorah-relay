@@ -1,4 +1,4 @@
-"""The final read before the render deadline fails a sent job (phase 7 step 1a), and the stats indexes (step 1b).
+"""The final read before the render deadline fails a sent job, and the stats indexes.
 
 A `waiting` job past its deadline fails only after a poll made after the deadline that the engine ANSWERED said "not
 ready"; an `unknown` job only after a reconcile that answered found nothing; a read that failed or ran out of time is
@@ -796,7 +796,7 @@ def test_a_final_reconcile_that_did_not_answer_is_tried_again_in_five_minutes_an
     assert 40 < early_in <= 70, "a job before its deadline lost its back-off: %.0f s" % early_in
 
 
-# ---- D41: a restore-marked job has no account and is failed at its deadline ---------------------------------------
+# ---- a restore-marked job has no account and is failed at its deadline ---------------------------------------
 @mutation(REAPER, "               AND account_id IS NOT NULL))", "               ))",
           expect="a restore-marked job with no account was held")
 def test_a_restore_marked_job_with_no_account_still_fails_at_its_deadline(db):

@@ -1,4 +1,4 @@
-"""`run_command` (contracts 5.1, 5.4.1; coverage RUN14, TPL00 engine half): titles, refresh_catalog, list_conversations,
+"""`run_command` (coverage RUN14, TPL00 engine half): titles, refresh_catalog, list_conversations,
 recover. The titles command is HTTP only: the core calls it with no lease and no browser token."""
 
 import asyncio

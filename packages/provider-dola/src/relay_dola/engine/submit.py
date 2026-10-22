@@ -1,4 +1,4 @@
-"""Submit: send one order through dola's page and map what dola said to a `SubmitResult` (contracts 5.4.1).
+"""Submit: send one order through dola's page and map what dola said to a `SubmitResult`.
 
 One `open_chat` preamble serves video and image: open the session, check the region, probe the login, take the
 baseline, build the composer, attach the references, then `mark_sent`, Enter, and read the receipt and the replies from
@@ -1022,7 +1022,7 @@ class _Run:
 
     def _not_logged_in(self, state: LoginState) -> SubmitResult:
         # A cookie that was just injected and read back, and dola says it belongs to nobody (a guest read), or shows a
-        # dialog, or shows no conversation and no name: every one is a doubt and never a verdict (D91): one spaced
+        # dialog, or shows no conversation and no name: every one is a doubt and never a verdict: one spaced
         # strike and a rest. A failed read is no strike, but the account rests briefly so the run does not spin on it.
         if state.signed_out or state.cells >= 0 or state.modal_visible:
             effects = login_doubt_effects(self.deps.now(), state.reason)

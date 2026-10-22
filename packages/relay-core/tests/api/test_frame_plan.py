@@ -1,4 +1,4 @@
-"""The plan step attaches the prompt frame (contracts 5.1, 7.3): a job's text is rendered once from the model's
+"""The plan step attaches the prompt frame: a job's text is rendered once from the model's
 frame, at insert, and stored; nothing falls back to the core frame; the length cap answers before any charge; and
 Regenerate gets today's frame."""
 
@@ -83,7 +83,7 @@ def test_a_provider_with_frames_and_no_row_is_500_frame_unusable_with_no_charge_
         return api_key, r
 
     api_key, r = run_app(db, scenario, spec=framed())
-    # the client sees the generic error: the detail is ours to fix (contracts 11)
+    # the client sees the generic error: the detail is ours to fix
     assert error_of(r)[:2] == (500, "internal.unexpected"), "no silent fallback: %s" % r.text
     assert jobs(db, api_key.id) == [] and charges(db, key_id=api_key.id) == 0, "no silent fallback: a job or a charge"
     assert any("provider=fake kind=video model=fake-video" in rec.getMessage() for rec in caplog.records

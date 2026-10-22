@@ -1,4 +1,4 @@
-"""Media storage (contracts §9, I11, I12): the S3 subset on the `minio` SDK, share tokens and the sweeps.
+"""Media storage (I11, I12): the S3 subset on the `minio` SDK, share tokens and the sweeps.
 
 One bucket, keys `<job_id>/<role>/<idx>.<ext>` with role `input`, `output` or `debug`. The SDK is blocking, so every
 call runs in `asyncio.to_thread`; its HTTP client has a 3 s connect and 30 s read timeout and one retry.

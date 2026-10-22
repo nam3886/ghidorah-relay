@@ -1,4 +1,4 @@
-"""The admin router and what makes every admin answer safe (contracts §13, D26).
+"""The admin router and what makes every admin answer safe.
 
 `build_admin_router(routers)` returns the whole `/admin` tree: the login route, then everything else behind the
 `X-Admin-Session` check. A lane's router (`routes_accounts.router`, ...) is added to `routers`; it gets the prefix

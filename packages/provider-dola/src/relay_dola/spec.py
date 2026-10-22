@@ -1,4 +1,4 @@
-"""dola ProviderSpec: pure data the API imports (contracts §5.1, §5.4.1). No engine, no browser imports."""
+"""dola ProviderSpec: pure data the API imports. No engine, no browser imports."""
 
 import logging
 from collections.abc import Mapping
@@ -58,7 +58,7 @@ DEFAULT_VIDEO_HINT = (
     "on-screen text in the video exactly as written in the prompt.")
 
 
-# The shipped default frames (contracts 5.4.1): byte for byte the text relay sent before frames existed, the customer's
+# The shipped default frames: byte for byte the text relay sent before frames existed, the customer's
 # words, then (video only) the sentence above, then the tracking code. A default is never updated by code after it is
 # seeded; the admin resets it to this text when a fix of it should reach a running database.
 DEFAULT_VIDEO_FRAME = "{{client_prompt}} " + DEFAULT_VIDEO_HINT + " {{tracking_code}}"
@@ -171,7 +171,7 @@ class DolaSpec:
     def deadline_cause(self, upstream_text: str, provider_state: Mapping[str, Any]) -> str:
         """The code of a render deadline. A session that died after the order (`signed_out`, set by the poll on
         712012001) is `account.dead_session` whatever dola last said: the account, not dola's words, is why nothing
-        came (R81, v1.3 #28). Otherwise dola's last words (refusal, likeness, question), else `render.deadline`."""
+        came (R81). Otherwise dola's last words (refusal, likeness, question), else `render.deadline`."""
         if provider_state.get("signed_out"):
             return "account.dead_session"
         cause = no_result_cause(upstream_text)

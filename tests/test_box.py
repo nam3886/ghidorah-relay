@@ -349,7 +349,7 @@ HOLD_FOR_A_MINUTE = ("--", "bash", "-c", 'touch "$HOME/started-$(basename "$PWD"
 
 class Runs:
     """Runs of scripts/box.sh that really hold or test ~/relay-runs/gate.lock (flock needs Linux: on the Mac these
-    tests fail rather than skip, the box is where they run, D95). Every started run is stopped at the end."""
+    tests fail rather than skip, the box is where they run). Every started run is stopped at the end."""
 
     def __init__(self, tmp_path: Path):
         self.box = Box(tmp_path, {"scripts/check.sh": FAKE_CHECK})

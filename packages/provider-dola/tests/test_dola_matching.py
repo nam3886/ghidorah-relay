@@ -1,5 +1,5 @@
 """How dola recognises its own job when the prompt frame puts the tracking code first, in the middle or last, and starts
-with fixed words (contracts 5.1, 5.4.1). Every text comes from the real renderer and every marker is
+with fixed words. Every text comes from the real renderer and every marker is
 the bare digits `JobView.marker` stores.
 
 Two directions, neither may cost money: a "not ours" ends in a second paid order, an "ours" adopts another job's

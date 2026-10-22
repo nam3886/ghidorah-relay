@@ -1,5 +1,5 @@
-: dola /chat/completion stream that ends in a rate limit. Rebuilt from the v4 event names (SSE_HEARTBEAT, STREAM_ERROR)
-: and the error code that dola_v4 reads from the stream body; HTTP stays 200. Not a live capture; no ids.
+: dola /chat/completion stream that ends in a rate limit, built from its event names (SSE_HEARTBEAT, STREAM_ERROR)
+: and the error code carried in the stream body; HTTP stays 200. Not a live capture; no ids.
 event: SSE_HEARTBEAT
 data: {}
 

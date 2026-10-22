@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The browser tier of `scripts/check.sh --full` (contracts §14, D33). On the box it builds the `browser` image,
+# The browser tier of `scripts/check.sh --full`. On the box it builds the `browser` image,
 # then runs two things:
 #   1. EVERY browser test, `pytest -m browser`, INSIDE the image under xvfb (tini + xvfb-exec), on the compose network
 #      of throwaway Postgres + MinIO from deploy/compose.check.yml: what the Mac tier runs (`browser and not box`)
@@ -11,7 +11,7 @@
 # Isolation: every run has a token (epoch.pid). Everything it creates is named or labelled with it: the temp dir
 # /tmp/relay-check.<token>, compose project relay-check-<token>, container relay-check-run-<token>, the image
 # tag relay-check-browser:<token> and the label relay.check=<token>. Teardown removes exactly those, also on
-# failure and on Ctrl-C, so concurrent runs cannot touch each other and nothing of dola2api_v4 is touched. The
+# failure and on Ctrl-C, so concurrent runs cannot touch each other and nothing else on the box is touched. The
 # test container joins the compose network (no --network host); no published ports are used (ephemeral
 # loopback ones, unused). No prune of any kind: images are removed by label, containers by label or name.
 #

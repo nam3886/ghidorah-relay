@@ -1,4 +1,4 @@
-"""Evidence (contracts §6.4, §13; coverage R98, M19): the after-send JPEG, and on a UI error the PNG, the HTML (as
+"""Evidence (coverage R98, M19): the after-send JPEG, and on a UI error the PNG, the HTML (as
 text, at most 2 M characters) and the network log, with no planted secret in any text part."""
 
 import threading

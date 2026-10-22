@@ -1,6 +1,6 @@
 """The result tier: read one dola conversation over HTTP (`POST /im/chain/single`, cmd 3100) and judge it.
 
-Ported from dola_v4 `resolver.py` (the poll half). It needs no browser. HTTP is always 200 and the real status is in
+The poll half. It needs no browser. HTTP is always 200 and the real status is in
 the body (measured 260910):
 
 | body `status_code` | meaning | retry helps? |
@@ -36,7 +36,7 @@ RENDER_WATERMARKED_ONLY = "render.watermarked_only"
 
 # `video.status` of a cell dola FAILED ("Couldn't generate video"): empty, never gets a file (measured 26/09).
 VIDEO_FAILED = 4
-# Longest prompt prefix compared when the conversation is judged to be the job's (v4 `_prompt_matches`).
+# Longest prompt prefix compared when the conversation is judged to be the job's.
 PROMPT_PREFIX = 80
 
 
@@ -360,9 +360,9 @@ def copyright_block_after(body: dict, since: float | None) -> str | None:
 
 
 def copyright_block_anywhere(body: dict, since: float | None) -> str | None:
-    """Any dola message (not only the newest) that holds a copyright block and is not dated before `since`: v4's second
-    path (`first_dola_saying`). The caller decides by when WE first saw it; a block with no time or a newer one is a
-    candidate, a dated one from before the send or the Re-check is an older order's and never is."""
+    """Any dola message (not only the newest) that holds a copyright block and is not dated before `since`: the second
+    copyright path (`first_dola_saying`). The caller decides by when WE first saw it; a block with no time or a newer
+    one is a candidate, a dated one from before the send or the Re-check is an older order's and never is."""
     for msg in chain_messages(body):
         text, at = " ".join(message_texts(msg)), message_time(msg)
         if text and _is_copyright(text) and not (at and since is not None and at < since):

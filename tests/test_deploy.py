@@ -1,4 +1,4 @@
-"""The compose file and env templates keep credentials apart (contracts §14.8 static half, I20, v1.3 #1).
+"""The compose file and env templates keep credentials apart (static half, I20).
 
 The real stack is checked again on the box at deploy time; this is the part that needs no box.
 """

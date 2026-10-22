@@ -1,4 +1,4 @@
-"""What every route gets from the app, and the API-key check (contracts §8, §13, D38).
+"""What every route gets from the app, and the API-key check.
 
 The app holds its pool, settings, object store and provider registry in `app.state` (set by `create_app`; the
 process that builds the app owns their lifecycle). Routes take them through the `get_*` dependencies.
@@ -49,7 +49,7 @@ def credential(request: Request) -> str:
 
 async def require_key(request: Request, pool: AsyncConnectionPool = Depends(get_pool)) -> ApiKey:
     """The enabled key behind the request. Missing, unknown or malformed -> 401 `auth.invalid_key`; disabled ->
-    403 `auth.key_disabled`, and only after the whole hash matched (D38). A database error propagates (500): no
+    403 `auth.key_disabled`, and only after the whole hash matched. A database error propagates (500): no
     answer, no access."""
     try:
         async with pool.connection() as conn:

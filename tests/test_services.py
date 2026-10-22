@@ -1,4 +1,4 @@
-"""The real services every later test relies on (contracts §14.2). A missing service fails; nothing is skipped."""
+"""The real services every later test relies on. A missing service fails; nothing is skipped."""
 
 import os
 import shutil

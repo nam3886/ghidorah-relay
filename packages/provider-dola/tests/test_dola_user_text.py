@@ -41,7 +41,7 @@ def test_the_reply_text_of_every_real_read_excludes_the_customers_prompt(name):
 def test_user_text_reads_the_block_list_shape_of_the_i2v_conversation():
     first = [b for _, anchor, b in s1_reads("i2v") if anchor == 6][0]      # attachment, prompt as a block, dola
     assert s1_capture("i2v")["marker"] in resolver.user_text(first), "a block-list user message was not read"
-    # and the dict shape the v4-era chains carry is still read
+    # and the dict shape the older chains carry is still read
     dict_shape = chain_with([user("Generated video: red kite [1234]")])
     assert resolver.user_text(dict_shape) == "Generated video: red kite [1234]"
 
@@ -69,7 +69,7 @@ def test_a_conversation_with_only_the_customers_message_has_no_reply_text():
 
 
 def test_a_message_with_no_user_type_keeps_its_old_reading():
-    """The v4-era chains carry no `user_type`: a block list there is dola's, a dict is the customer's."""
+    """The older chains carry no `user_type`: a block list there is dola's, a dict is the customer's."""
     body = chain_with([reply("Your video is ready.", 3, 2), user("Generated video: a kite", 1)])
     assert resolver.conversation_text(body) == "Your video is ready."
     assert resolver.user_text(body) == "Generated video: a kite"

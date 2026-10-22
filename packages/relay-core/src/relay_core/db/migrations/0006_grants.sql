@@ -1,4 +1,4 @@
--- Table privileges for the two service roles (contracts §4.5). The owner runs migrations only.
+-- Table privileges for the two service roles. The owner runs migrations only.
 -- Every table is decided here; tests/test_roles.py compares the result with the matrix and fails on a table
 -- that has no decision, so a later expand migration must grant its own tables.
 --

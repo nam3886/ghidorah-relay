@@ -1,4 +1,4 @@
-"""Media storage (contracts §9, I11, I12) against the real MinIO that scripts/check.sh starts."""
+"""Media storage (I11, I12) against the real MinIO that scripts/check.sh starts."""
 
 import asyncio
 import functools

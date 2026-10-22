@@ -1,10 +1,10 @@
-"""Recover: take the clean videos of ONE dola conversation (the admin's manual action; from dola_v4 `recovery.py`).
+"""Recover: take the clean videos of ONE dola conversation (the admin's manual action).
 
 A conversation can hold a paid order that no job points to any more (25/09: four conversations, five 30 s videos,
 dropped when an extra send hit "daily limit"). Recover reads the conversation through the real poll path: the job's
 marker guard stops it attaching another job's video, every clean video in it is taken, a watermarked one is not.
 
-What changed from v4: this only READS and returns `Output`s (the core fetches, probes and stores them, dedupes by
+This only READS and returns `Output`s (the core fetches, probes and stores them, dedupes by
 `upstream_id`, attaches them, re-charges a refunded job, and turns a failed job into done).
 """
 
@@ -21,7 +21,7 @@ async def recover_outputs(http: DolaHttp, conversation_id: str, *, expect: str |
                           now: float, prompt: str | None = None) -> tuple[Output, ...]:
     """The clean videos of `conversation_id`, in message order.
 
-    `expect` (the job's marker, else its prompt) is the guard v4 used: judged once the user's words are readable.
+    `expect` (the job's marker, else its prompt) is the guard: judged once the user's words are readable.
     `sent_text`, when given, is stricter: the user's words must carry the whole text that was sent (and `prompt`, the
     customer's words, must not be blank), and an unreadable conversation is refused (Recover moves money, so it needs
     positive proof)."""

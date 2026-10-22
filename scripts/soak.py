@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A seeded soak of the job engine against the FakeProvider (contracts §14.2, §14.3).
+"""A seeded soak of the job engine against the FakeProvider.
 
 One seed is one random but replayable workload: a few accounts, a dozen jobs in both completion modes, and a script
 per job for what the "upstream" does at each step (accept, complete, refuse, hang, die after the send, vanish and

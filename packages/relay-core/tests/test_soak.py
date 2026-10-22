@@ -1,4 +1,4 @@
-"""The soak in the fast tier (contracts §14.2): 20 seeds of `scripts/soak.py`, each a random but replayable workload
+"""The soak in the fast tier: 20 seeds of `scripts/soak.py`, each a random but replayable workload
 against the FakeProvider with every loop running and chaos interfering, judged by the strict invariant checker and the
 soak's own rules. `scripts/check.sh --full` runs at least 200 seeds. A failing seed is replayed alone with
 `scripts/soak.py --seed N`.

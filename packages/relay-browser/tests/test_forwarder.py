@@ -1,4 +1,4 @@
-"""The local proxy forwarder (contracts §6.1; coverage BSES04, BSES05, LSUB00 forwarder part, E02).
+"""The local proxy forwarder (coverage BSES04, BSES05, LSUB00 forwarder part, E02).
 
 Pure tests drive it with sockets; the browser tests send a real Chrome through it to a stand-in upstream proxy."""
 

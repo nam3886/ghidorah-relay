@@ -1,4 +1,4 @@
--- Expand only (contracts 4.2, 4.7, 5.1). Nothing is backfilled: a job made before this migration keeps
+-- Expand only. Nothing is backfilled: a job made before this migration keeps
 -- sent_text and frame_id NULL, which every engine reads as "cannot tell".
 --
 -- A job that is still in flight when this runs would be left without sent_text for good (the trigger below forbids a

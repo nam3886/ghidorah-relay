@@ -1,4 +1,4 @@
-"""Database fixtures for the relay-core tests (contracts §14.2, §14.3).
+"""Database fixtures for the relay-core tests.
 
 One migrated disposable database per session; every test that asks for `db` gets it empty. After each such
 test the invariant checker runs over what the test left behind, then every table is emptied.

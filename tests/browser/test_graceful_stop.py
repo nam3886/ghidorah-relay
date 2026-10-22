@@ -1,7 +1,7 @@
 """A stop signal reaches the worker only, the worker keeps its display for the whole grace period, and a killed
 container comes back with a working display.
 
-Contracts §7.7 / v1.3 #21: `docker stop` must let an in-flight submit finish. The config tests in
+`docker stop` must let an in-flight submit finish. The config tests in
 tests/test_deploy.py only see strings (`stop_grace_period`, the entrypoint); these run the real image with a
 stand-in worker, so they fail for an entrypoint that kills Xvfb or the worker at once.
 
@@ -24,7 +24,7 @@ import uuid
 
 import pytest
 
-pytestmark = [pytest.mark.browser, pytest.mark.box]   # the box image itself: never on the Mac (D60)
+pytestmark = [pytest.mark.browser, pytest.mark.box]   # the box image itself: never on the Mac
 
 GRACE_S = 6
 

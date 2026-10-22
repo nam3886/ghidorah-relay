@@ -1,4 +1,4 @@
-"""Webhook sender (contracts 7.4, D11, D22; invariant I16). Plain functions: the api process calls `deliver_due` on a
+"""Webhook sender (invariant I16). Plain functions: the api process calls `deliver_due` on a
 tick (wired in a later phase); nothing here starts a task or a loop.
 
 One pass: claim up to 5 due deliveries and commit (the claim counts the attempt), POST them concurrently through the

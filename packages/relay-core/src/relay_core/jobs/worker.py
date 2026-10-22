@@ -1,4 +1,4 @@
-"""The worker process of one provider (contracts 3, 7.7, 15): every loop of the provider, one stop signal.
+"""The worker process of one provider: every loop of the provider, one stop signal.
 
 It composes the claim loop, the poller, the fetcher, the reconciler, the reaper and the command runner (which also
 runs the account checks, the title sweep and the catalog refresh). Each loop is its own task; they share the pool,

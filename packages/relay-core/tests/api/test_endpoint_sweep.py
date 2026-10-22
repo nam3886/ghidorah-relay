@@ -1,5 +1,5 @@
 """Every route the app serves, called well-formed and malformed: none answers 500, every admin route refuses without
-a session and sends no CORS header (contracts §8, D26).
+a session and sends no CORS header.
 
 The route list comes from the schema (`app.openapi()`; FastAPI nests routers, so `app.routes` shows one entry) plus
 the routes the schema leaves out. A route module that is mistyped or missing changes the set and fails here.

@@ -30,7 +30,7 @@ PROMPT = "a paper lantern rising over a quiet lake"
 MARKER = "7100"
 SENT = frames.render(frames.CORE_FRAME, PROMPT, MARKER)         # the core frame: the words, then ` [7100]`
 
-# dola's own sentences, copied from measured conversations (v4 samples, redacted of ids)
+# dola's own sentences, copied from measured conversations (earlier samples, redacted of ids)
 ACCEPTED = ("The video will be generated using the **Dreamina Seedance 2.5 model**. It will use 2 credits and be ready "
             "in 25 minutes. I'll send it to you when it's done. You still have 2 video credits left today.")
 GATE = "Video generation currently supports durations from 4 to 15 seconds. Do you want to proceed with 15 seconds?"

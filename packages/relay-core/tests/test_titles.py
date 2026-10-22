@@ -1,4 +1,4 @@
-"""The core title sweep (contracts 7.5, v1.3 #29): which jobs it asks about, how it groups them, and that a title
+"""The core title sweep: which jobs it asks about, how it groups them, and that a title
 that is already set is never overwritten."""
 
 import asyncio

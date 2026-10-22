@@ -1,4 +1,4 @@
-"""The fetcher (contracts 7.1 "Fetching", 9; invariants I11, I21, I23).
+"""The fetcher (9; invariants I11, I21, I23).
 
 `fetching` jobs are claimed like polls (a token and a 900 s visibility), with no account lease. Each output goes
 `engine.fetch` -> a temporary file -> `ffprobe` -> the object store under `<job>/output/<n>.<ext>` (size verified by
@@ -32,7 +32,7 @@ from relay_core.redact import redact_log
 
 log = logging.getLogger(__name__)
 
-FETCH_VISIBILITY_S = 900.0        # contracts 7.1
+FETCH_VISIBILITY_S = 900.0
 FETCH_BOUND_S = 600.0
 PROBE_BOUND_S = 30.0
 DOWNLOAD_FAILED = "render.download_failed"

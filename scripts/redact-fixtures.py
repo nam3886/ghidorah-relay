@@ -205,22 +205,21 @@ LAYOUT = [
 HAND_MADE = [
     ("dola/listing-capped-30.json",
      "synthetic: a full 30-item conversation listing with one unknown conversation that does not carry the job's text "
-     "(phase 5, the capped-listing crash window)"),
+     "(the capped-listing crash window)"),
     ("dola/action_bar_conf.json",
-     "the dola action-bar config response (`get_item_conf`) the 30 s patch reads, from the v4 samples; phase 5"),
+     "the dola action-bar config response (`get_item_conf`) the 30 s patch reads, from earlier samples"),
 ]
 
-# Every fixture gap of contracts §14.5 and the plan phase that captures it; written into fixtures/README.md.
+# Every fixture gap; written into fixtures/README.md.
 GAPS = [
     "dola watermark-only: none of the 38 real done videos (30/09) lacked `main_url`. Tests build it from a done "
     "chain by deleting `main_url` from its `video_model` (derived, not captured).",
-    "dola throttle SSE (`/chat/completion` `error_code`) and dola likeness refusal: not captured here. Phase 5 "
-    "reconstructs the SSE bodies in `dola/sse/*.txt` from the v4 event names and error codes (not live captures); "
-    "a live 710022004 body replaces them when one is measured.",
+    "dola throttle SSE (`/chat/completion` `error_code`) and dola likeness refusal: not captured here. The "
+    "SSE bodies in `dola/sse/*.txt` are reconstructed from the event names and error codes of earlier samples (not "
+    "live captures); a live 710022004 body replaces them when one is measured.",
     "vibes derived operations (extend, v2v, image-edit) and vibes error bodies (401, 403, 429, QUOTA, a "
-    "rejected generate): not captured here. Phase 10 captures them.",
-    "meta refusal, rate or limit text, text-only reply and logged-out page: not captured here. Phases 8 (meta "
-    "spike) and 11 (provider) capture them.",
+    "rejected generate): not captured yet.",
+    "meta refusal, rate or limit text, text-only reply and logged-out page: not captured yet.",
 ]
 
 
@@ -239,7 +238,7 @@ def redact_tree(src: str, dst: str) -> None:
         readme.append("- `%s` — %s." % (rel, note))
     readme += ["- `%s` — %s." % h for h in HAND_MADE]
     readme += ["", "## Gaps", "",
-               "What the captures do not hold (contracts §14.5); the phase named closes each gap.", ""]
+               "What the captures do not hold.", ""]
     readme += ["- " + g for g in GAPS]
     open(os.path.join(dst, "README.md"), "w").write("\n".join(readme) + "\n")
     print("redacted %d files, %d identity values, %d bot names kept" % (len(files), len(ids), len(bots)))

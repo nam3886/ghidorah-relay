@@ -1,4 +1,4 @@
-"""The evidence sink of a worker (contracts §5.2 `evidence`): debug files of a job, kept as `job_media(role='debug')`.
+"""The evidence sink of a worker (`evidence`): debug files of a job, kept as `job_media(role='debug')`.
 
 Text (HTML, network logs) goes through the shared redactor again before it is stored; an image is pixels and is kept as
 it is. A file is never public (`share_token` stays NULL), the admin reads it through its own session, and the retention

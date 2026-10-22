@@ -1,4 +1,4 @@
--- Alerts raised by the money code, as data the admin alerts (§15) read: a refund whose counter floor clamped.
+-- Alerts raised by the money code, as data the admin alerts read: a refund whose counter floor clamped.
 -- Written in the refund's own transaction, so it exists exactly when the refund does.
 CREATE TABLE billing_alerts (
     id         bigserial PRIMARY KEY,

@@ -1,4 +1,4 @@
-"""Admin accounts and passwords (contracts §13): argon2id hashes, one row per user in `admin_users`.
+"""Admin accounts and passwords: argon2id hashes, one row per user in `admin_users`.
 
 Hashing and checking take tens of milliseconds of CPU and 64 MiB each, so they run in a thread (a login never stalls
 the event loop) and at most `HASH_CONCURRENCY` at a time (a login flood cannot hold gigabytes or the thread pool).
@@ -16,7 +16,7 @@ from psycopg_pool import AsyncConnectionPool
 from relay_core.db import tx
 
 MIN_PASSWORD_LEN = 10
-# Passwords and secrets that appear in examples, docs or v4's env files: never accepted as a real one.
+# Passwords and secrets that appear in examples, docs or old env files: never accepted as a real one.
 EXAMPLE_SECRETS = frozenset({"", "changeme", "change-me", "admin", "password", "thay-bang-mat-khau-manh",
                              "thay-bang-mat-khau-minio-manh", "minioadmin"})
 MAX_PASSWORD_LEN = 256       # bounds the work a request can ask of the hasher

@@ -415,7 +415,7 @@ CARD = "[aria-label='Account list'] .acct-scroll"
 def test_the_desktop_table_keeps_its_width_and_the_card_scrolls_sideways_to_reach_check(
         app, app_page, live, db, width):
     """At 1280 the table (1280 wide) is wider than the card, which scrolls to reach Check; at 1440 the page frame is
-    wide enough for the whole table, so nothing scrolls (D123) and Check is inside the card as it stands."""
+    wide enough for the whole table, so nothing scrolls and Check is inside the card as it stands."""
     page = app_page
     page.set_viewport_size({"width": width, "height": 800})
     new_account(db, label="free one", checked=True)

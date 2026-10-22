@@ -1,4 +1,4 @@
-"""The job lifecycle in the store (contracts 7.1, 5.3; I1, I2, I7, I9, I21, I23, I24, I27): every submit, poll and
+"""The job lifecycle in the store (I1, I2, I7, I9, I21, I23, I24, I27): every submit, poll and
 reconcile result in both completion modes, fenced by the lease id, with the account charged only when the order is
 proven taken, and a failed job refunded in one transaction."""
 

@@ -1,4 +1,4 @@
-"""Page helpers shared by every browser provider (contracts §6.3 stage 1).
+"""Page helpers shared by every browser provider (stage 1).
 
 Each rule below cost a lost session or a dead browser once:
 - closing the last tab makes Chrome quit: open the new tab FIRST, close the old ones after;

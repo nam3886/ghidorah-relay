@@ -1,4 +1,4 @@
-"""Evidence (contracts §6.4): what an operator needs to see why a job went wrong, never a secret.
+"""Evidence: what an operator needs to see why a job went wrong, never a secret.
 
 - after-send JPEG (q60) for every job that got a reply;
 - on a UI error, or when no receipt arrived: PNG, the page HTML (at most 2 M characters, served as text so it can never

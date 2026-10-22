@@ -1,10 +1,10 @@
-"""Account pools: capacity, rests and cooldowns, strikes, and pool accounting (contracts 4.3, 5.3, 7.1, 7.2;
-invariants I6, I7, I29).
+"""Account pools: capacity, rests and cooldowns, strikes, and pool accounting
+(invariants I6, I7, I29).
 
 Pool accounting counts `account_cost` (what an order costs the upstream account), never the price a client pays.
 `left_n IS NULL` means unknown, and unknown allows. A reported balance always beats a counted one. Every write that
 spans rows takes the caller's transaction (`require_tx`). The ACCOUNT ROW is locked before any capacity row of the
-account (`lock_account`; after the job and lease rows, see contracts item 9); capacity rows are then locked or
+account (`lock_account`; after the job and lease rows); capacity rows are then locked or
 created in any order, because everything is already serialised per account. A claim takes the account row
 `SKIP LOCKED` and never waits.
 

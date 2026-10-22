@@ -1,4 +1,4 @@
-"""Admin: the request-log viewer (contracts §4.4, §16).
+"""Admin: the request-log viewer.
 
 Every `request_logs` row is a request that carried a known key. A row with a job is a generation request; a row with
 no job and a failing status is a pre-job failure (a refused or malformed request). The filters are half-open on time

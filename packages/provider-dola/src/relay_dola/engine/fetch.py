@@ -1,7 +1,7 @@
-"""Fetch: the bytes of one output (contracts 5.4.1). An async generator, as the core expects.
+"""Fetch: the bytes of one output. An async generator, as the core expects.
 
 The link in `Output.ref` is a signed CDN link with no cookie: it is fetched DIRECT first and through the account proxy
-only when the direct route fails (v4: a flaky proxy gave 7 MB in 300 s against 1.5 s direct). Video: with the setting
+only when the direct route fails (a flaky proxy once gave 7 MB in 300 s against 1.5 s direct). Video: with the setting
 `dola.master_quality` the H.264 master (~12 Mbit/s, no watermark) replaces the lighter rendition: the cell's own
 `fallback_api` gives it, the token in it is decoded (qAAB). Any failure there silently keeps the rendition. Images: the
 clean `image_ori_raw` link only, which is what the poll put in `ref`.

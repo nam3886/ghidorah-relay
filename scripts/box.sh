@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run a command on the box against an exact copy of this working tree (contracts D81).
+# Run a command on the box against an exact copy of this working tree.
 #   scripts/box.sh -- <command...>              sync, check the fingerprint, run, stream the output, exit with its status
 #   scripts/box.sh --detach NAME -- <command>   the same under nohup setsid: returns at once, survives the Mac sleeping
 #   scripts/box.sh --wait NAME                  follow NAME's log until it ends, exit with its status

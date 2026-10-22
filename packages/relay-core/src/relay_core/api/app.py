@@ -1,4 +1,4 @@
-"""`create_app`: the one FastAPI app on the one port (contracts §3, §8, D26).
+"""`create_app`: the one FastAPI app on the one port.
 
 The caller (`relay serve`, a test) opens the pool, settings and object store and owns their lifecycle; the app
 only reads them. Public routes and admin routes are mounted separately: CORS applies to the public paths only, the
@@ -46,7 +46,7 @@ PUBLIC_ROUTES = (routes_native, routes_media, routes_catalog, routes_openai, rou
 ADMIN_ROUTES = (routes_accounts, routes_keys, routes_jobs, routes_settings, routes_alerts, routes_alert_groups,
                 routes_frames, routes_stats, routes_logs, routes_prices)
 SCHEMA_URL = "/openapi.json"     # the public-only schema; there is no /docs or /redoc (the API page is /reference)
-PUBLIC_PREFIXES = ("/v1", "/v1beta", "/models", "/m/")     # CORS paths (§8); never /admin
+PUBLIC_PREFIXES = ("/v1", "/v1beta", "/models", "/m/")     # CORS paths; never /admin
 
 
 def _is_public(path: str) -> bool:

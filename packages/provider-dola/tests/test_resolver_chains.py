@@ -1,10 +1,10 @@
-"""The poll resolver on real and synthetic dola conversations (contracts 5.4.1 "poll"; coverage RES*, RUN02/03/05/06).
+"""The poll resolver on real and synthetic dola conversations (coverage RES*, RUN02/03/05/06).
 
 The 16 recorded chains (relay/fixtures/dola/chains) plus the derived watermark-only chain are read through `poll()`
-with an in-process transport; the outcome and the code per case equal what the v4 resolver gave on the same data. The
-table `V4` was produced by running v4's `poll_video_once` / `poll_images_once` on each fixture with its clock at the
-fixture's `fetched_at` and the job's `created_at` as the Re-check mark. The only allowed difference between v4 and here
-is the listing bug in reconcile (test_dola_reconcile.py).
+with an in-process transport; the outcome and the code per case equal what the earlier resolver gave on the same
+data. The table `ANSWERS` was produced by running that resolver on each fixture with its clock at the fixture's
+`fetched_at` and the job's `created_at` as the Re-check mark. The only allowed difference is the listing bug in
+reconcile (test_dola_reconcile.py).
 """
 
 import asyncio
@@ -52,8 +52,8 @@ DAILY = "You've reached the daily limit for video generation. Please try again t
 STORYBOARD = "I've generated the 30-panel storyboard sheet based on your reference image and script."
 ASK = "Would you like me to generate Part 1 only, Part 2 only, or both parts now?"
 
-# v4's answer per chain: ("done", n outputs) | ("failed", code, state_patch without the healing keys)
-V4 = {
+# the recorded answer per chain: ("done", n outputs) | ("failed", code, state_patch without the healing keys)
+ANSWERS = {
     "asked_question-e6d0abb9": ("failed", errors.NEEDS_CONFIRM, {}),
     "copyright-20900298": ("failed", errors.CONTENT_REFUSED, {"no_recheck": True}),
     "copyright-840aa471": ("failed", errors.CONTENT_REFUSED, {"no_recheck": True}),
@@ -127,24 +127,25 @@ def mine(text="a plain grey wall, static shot [4100]", at=NOW - 100):
 
 # ---- the recorded chains ----------------------------------------------------------------------------------------
 def test_every_recorded_chain_has_an_expectation():
-    assert {p.stem for p in chain_files()} == set(V4), "a recorded chain without a v4 answer (or the reverse)"
+    assert {p.stem for p in chain_files()} == set(ANSWERS), "a recorded chain without an answer (or the reverse)"
 
 
-@pytest.mark.parametrize("name", sorted(V4))
-def test_recorded_chain_gives_what_v4_gave(name):
+@pytest.mark.parametrize("name", sorted(ANSWERS))
+def test_recorded_chain_gives_the_recorded_answer(name):
     case = load_case(name)
     result = poll_case(case)
-    want = V4[name]
+    want = ANSWERS[name]
     out = result.outcome
     if want[0] == "done":
-        assert isinstance(out, Done), "%s: v4 delivered, the port gave %r" % (name, out)
-        assert len(out.outputs) == want[1], "%s: v4 gave %d outputs, the port %d" % (name, want[1], len(out.outputs))
+        assert isinstance(out, Done), "%s: the recorded answer delivered, got %r" % (name, out)
+        assert len(out.outputs) == want[1], "%s: the recorded answer has %d outputs, got %d" % (
+            name, want[1], len(out.outputs))
         assert [o.idx for o in out.outputs] == list(range(want[1])), "outputs are not numbered from 0 in order"
         assert len({o.upstream_id for o in out.outputs}) == want[1], "two outputs share an upstream id"
         assert any(isinstance(e, Success) for e in result.effects), "a good read must clear the strike counter"
     else:
-        assert isinstance(out, Failed), "%s: v4 ended the job (%s), the port gave %r" % (name, want[1], out)
-        assert out.code == want[1], "%s: v4 code %s, the port %s" % (name, want[1], out.code)
+        assert isinstance(out, Failed), "%s: the recorded answer ended the job (%s), got %r" % (name, want[1], out)
+        assert out.code == want[1], "%s: the recorded code is %s, got %s" % (name, want[1], out.code)
         assert dict(out.state_patch) == want[2], "%s: state patch %r" % (name, dict(out.state_patch))
         assert out.taken, "a refusal after an accepted order is not 'not ours'"
 
@@ -213,7 +214,7 @@ def test_a_cell_of_the_wrong_kind_is_not_a_video():
     assert resolver.extract_videos(body) == ([], 0)
 
 
-# ---- v4 resolver demo segments: extraction (RES00), refusals (RES01), guard (RES02, RES10, RES11, RES17) ----------
+# ---- the resolver by segment: extraction (RES00), refusals (RES01), guard (RES02, RES10, RES11, RES17) ----------
 def test_extraction_prefers_the_decoded_master_and_scans_every_slot():
     master = "https://cdn.example.com/master.mp4"
     body = chain_with([video_msg(1, NOW, cell(master, vid="v1", duration=30.04))])
@@ -243,7 +244,7 @@ def test_refusals_that_may_still_deliver_are_not_final():
 
 def test_refuse_then_deliver_keeps_waiting_until_the_video_comes():
     """A refusal with 'no credits were used' before any video, judged with no send mark (a manual read): polling goes
-    on (v4: conv 38417876432719633). With a mark, a copyright block written after it ends the job at once (below)."""
+    on (conv 38417876432719633). With a mark, a copyright block written after it ends the job at once (below)."""
     body = chain_with([reply("I can't show you the generated video because it may contain copyrighted content. "
                              "No credits were used for this video.", NOW - 5), mine()])
     result, _, _ = poll_chain(body, since=None)
@@ -437,7 +438,7 @@ def test_copyright_block_after_the_mark_fails_at_once_and_older_ones_are_ignored
           expect="a block first seen before the Re-check ended the re-checked job")
 @mutation(RESOLVER, "at < since)", "at < 0)", expect="an older dated block ended the re-checked job")
 def test_a_block_that_is_not_the_newest_reply_or_has_no_time_fails_at_once_when_first_seen_after_the_mark():
-    """v4's second path (`first_dola_saying`): any message, judged by when WE first saw it."""
+    """The second path (`first_dola_saying`): any message, judged by when WE first saw it."""
     undated = chain_with([reply("Anything else I can help with?", NOW - 5, 3), reply(COPYRIGHT, 0, 2), mine()])
     result, _, _ = poll_chain(undated, since=NOW - 600)
     out = result.outcome

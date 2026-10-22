@@ -1,4 +1,4 @@
-# One box, one compose (contracts §3). Runs on the LAN box by IP and port; no reverse proxy (D16).
+# One box, one compose. Runs on the LAN box by IP and port; no reverse proxy.
 # No service shares an env file: every service names its own `<service>.env`, copied from its
 # `<service>.env.example` (variable names only). `api` and `migrate` never see the private credential key
 # (I20); tests/test_deploy.py parses this file to keep it so.
@@ -7,7 +7,7 @@
 # file changes when a provider is enabled. A bare `docker compose up` starts only Postgres and MinIO.
 # Every compose command needs GIT_SHA (and the two passwords) in the environment or in deploy/.env, because
 # compose interpolates the services of inactive profiles too: `export GIT_SHA=$(git rev-parse --short HEAD)`.
-# Images are named `relay-<service>:${GIT_SHA}` so a rollback is a retag, not a rebuild (contracts §3).
+# Images are named `relay-<service>:${GIT_SHA}` so a rollback is a retag, not a rebuild.
 # Every service runs under CPU, memory and PID limits from its first start (the *_CPUS, *_MEM_LIMIT and *_PIDS_LIMIT
 # variables, in deploy/.env): the defaults hold relay to at most half of the 32-core, 62 GB box. They change only
 # through a recorded deploy (docs/operations.md, "Limits and abort thresholds").
@@ -43,7 +43,7 @@ services:
     pids_limit: ${POSTGRES_PIDS_LIMIT:-512}
 
   minio:
-    # pgsty/minio pinned by digest (D23): upstream stopped publishing images (401 on 30/09). The image is also
+    # pgsty/minio pinned by digest: upstream stopped publishing images (401 on 30/09). The image is also
     # saved off the box; docs/operations.md lists the digest, the tarball and the exit (Garage).
     image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     pull_policy: missing

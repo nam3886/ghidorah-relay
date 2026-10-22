@@ -1,4 +1,4 @@
-"""Chrome's own background traffic (contracts §6.1): a session through the account's proxy must not call Google by
+"""Chrome's own background traffic: a session through the account's proxy must not call Google by
 itself. The profile is reset every run, so Chrome acts like a first run each time: component updates, account and
 time checks, safe browsing and the like would all go through the account's proxy otherwise."""
 
@@ -16,7 +16,7 @@ GOOGLE_SUFFIXES = (".google.com", ".googleapis.com", ".gstatic.com")
 IDLE_SECONDS = 10
 # Measured on Chrome 154 / macOS (10 s idle): 11 requests to Google before, 1 or 2 after (`www.google.com/async/folae`,
 # an AI-mode entry check that rides on a host a site may use, so it is not refused; Chrome sends it once or twice,
-# the same with and without the environment allow-list). See the phase 4 fix report.
+# the same with and without the environment allow-list).
 MAX_GOOGLE_REQUESTS = 2
 
 

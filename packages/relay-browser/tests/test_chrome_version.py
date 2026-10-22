@@ -1,4 +1,4 @@
-"""The pinned Chrome (D92): the constant matches the Dockerfile, a drifted browser is warned about by name, and the
+"""The pinned Chrome: the constant matches the Dockerfile, a drifted browser is warned about by name, and the
 version is logged once per launch. Pure tests: no browser is started."""
 
 import asyncio

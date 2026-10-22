@@ -1,4 +1,4 @@
-"""Sweeps (contracts 9, 15; invariant I25): retention, orphans, sessions, input links and the ledger check."""
+"""Sweeps (invariant I25): retention, orphans, sessions, input links and the ledger check."""
 
 import asyncio
 import time

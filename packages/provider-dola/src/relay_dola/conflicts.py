@@ -1,6 +1,6 @@
 """Refuse an order whose PROMPT says one thing and whose PARAMETERS say another, before any charge and before dola.
 
-Port of dola_v4 `services/prompt_conflicts.py`. Pure.
+Pure.
 
 Why refuse instead of fixing: dola reads BOTH. Job 36389eee asked for 21:9 while the prompt said "30-second, 16:9
 ...": dola asked "Which version do you want?", the pipeline pushed on, the assistant picked another model and the

@@ -1,4 +1,4 @@
-"""The settings registry (contracts §10; I19): precedence, validate-before-write, the allow-list, the boot-only rule,
+"""The settings registry (I19): precedence, validate-before-write, the allow-list, the boot-only rule,
 and the per-process cache that NOTIFY invalidates and a reconnect reloads in full."""
 
 import asyncio

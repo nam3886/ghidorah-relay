@@ -1,4 +1,4 @@
-"""The account commands (contracts 4.4, 7.6, D37, D39): delete of an unused account with its screenshot objects, wake,
+"""The account commands: delete of an unused account with its screenshot objects, wake,
 check, check all and proxy re-check, all run by the worker role. The api role cannot write what they write."""
 
 import asyncio

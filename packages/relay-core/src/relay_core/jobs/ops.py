@@ -1,4 +1,4 @@
-"""Operator actions (contracts 7.7): drain mode and the restore mark. Store functions only; the CLI wires them later."""
+"""Operator actions: drain mode and the restore mark. Store functions only; the CLI wires them later."""
 
 from datetime import datetime
 

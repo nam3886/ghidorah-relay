@@ -1,4 +1,4 @@
-"""relay-browser: the only package that may import patchright (contracts §2, §6).
+"""relay-browser: the only package that may import patchright.
 
 Imported only by browser providers' engines, never by the API. It does not import relay_core: the browser token is
 checked by what it carries and the redactor is passed in by the caller.

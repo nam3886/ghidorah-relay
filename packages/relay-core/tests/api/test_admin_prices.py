@@ -1,4 +1,4 @@
-"""Measured prices (contracts §16): per provider, model and requested duration, the points charged, the jobs the
+"""Measured prices: per provider, model and requested duration, the points charged, the jobs the
 upstream disagreed on and the lowest figure it named; a job the upstream did something else for is counted apart."""
 
 import json

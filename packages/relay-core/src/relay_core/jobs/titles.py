@@ -1,4 +1,4 @@
-"""The core title sweep (contracts 7.5, v1.3 #29).
+"""The core title sweep.
 
 For a provider with `Caps.titles`, jobs with an empty title, an `external_ref`, created in the last 24 hours and
 sent at least 60 seconds ago (`done` jobs included) are grouped by account, 50 refs per call, and the engine's

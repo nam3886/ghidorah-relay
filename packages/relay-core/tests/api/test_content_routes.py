@@ -1,4 +1,4 @@
-"""The content routes (contracts §8, §9): a job's output files through the API with Range and a download filename, only
+"""The content routes: a job's output files through the API with Range and a download filename, only
 for the key that owns the job; the admin proxies for outputs and input images; debug media never served."""
 
 from apikit import run_app

@@ -1,4 +1,4 @@
-"""Download filenames (contracts §9): `Content-Disposition` from the `filename_pattern` setting.
+"""Download filenames: `Content-Disposition` from the `filename_pattern` setting.
 
 Pure strings, no I/O. Tags (any case): {prompt} {model} {duration} {ratio} {resolution} {date} {time} {id} {index};
 an unknown tag stays as text. Forbidden characters become `_`; the n-th output of an order gets `_2`, `_3` ... (an

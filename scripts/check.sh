@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# The commit gate (contracts §14.8, D18, v1.3 #36): fast and browser-less, so it runs on the Mac.
+# The commit gate: fast and browser-less, so it runs on the Mac.
 #   scripts/check.sh           ruff + every test except the `browser` tier, against real Postgres 16 and MinIO
 #   scripts/check.sh --full    the same, then scripts/mutate.py (every @mutation must turn its test red),
 #                              scripts/soak.py (200 seeds; SOAK_SEEDS=n changes it, 0 skips it) and the browser tier
 #                              inside the box container (scripts/check-in-container.sh)
-#   scripts/check.sh --full --local   the same without the box (D59): the browser tier runs on this Mac with the
-#                              installed Google Chrome (D60); the pinned Linux Chrome, Xvfb and the container entry
+#   scripts/check.sh --full --local   the same without the box: the browser tier runs on this Mac with the
+#                              installed Google Chrome; the pinned Linux Chrome, Xvfb and the container entry
 #                              are proven only by the box run.
 #   MUTATE_ONLY="test_x test_y" scripts/check.sh --full --local   mutate only the markers of those tests/files
 #   scripts/check.sh --soak [soak.py args]   only the soak (its own database and bucket), e.g. `--soak --seed 13 --verbose`
@@ -37,12 +37,12 @@ if [ "$soak_only" != 1 ]; then verdict=$(scripts/check-verdict.sh "$full" "$narg
 # Stale .pyc files make a mutation or a fresh edit run the old code; keep none.
 export PYTHONDONTWRITEBYTECODE=1
 
-# On the box (32 cores, 62 GB) the slow stages run in parallel by default (D80, calibrated in the box-runner report):
+# On the box (32 cores, 62 GB) the slow stages run in parallel by default (calibrated in the box-runner report):
 # MUTATE_JOBS private copies in the mutation stage, SOAK_JOBS processes in the soak, PYTEST_JOBS xdist workers in the
 # main suite. A variable that is set wins; `MUTATE_JOBS=1 SOAK_JOBS=1 PYTEST_JOBS=` is the serial gate. Elsewhere the
 # stages stay serial unless the variable is set.
 if [ "${RELAY_ON_BOX:-}" = 1 ]; then
-  if [ "${RELAY_GATE_CAPPED:-}" = 1 ]; then      # box.sh: the production stack runs, the gate has 12 cores (D95)
+  if [ "${RELAY_GATE_CAPPED:-}" = 1 ]; then      # box.sh: the production stack runs, the gate has 12 cores
     MUTATE_JOBS=${MUTATE_JOBS-12}
     SOAK_JOBS=${SOAK_JOBS-8}
     PYTEST_JOBS=${PYTEST_JOBS-4}
@@ -82,7 +82,7 @@ if [ "$soak_only" = 1 ]; then
 fi
 uv run ruff check .
 # The admin web (apps/admin-web), in the Node container: lockfile audit, types, lint, Vitest; then a fresh build must
-# equal the committed dist and declaration files. Neither writes into the tree. On the box only (D95).
+# equal the committed dist and declaration files. Neither writes into the tree. On the box only.
 if [ "$nargs" = 0 ]; then      # a run narrowed to some tests is PARTIAL anyway (check-verdict.sh)
   # WEB_CHECK_CMD is the test hook of tests/test_mutate.py (box.sh never passes it to a run)
   ${WEB_CHECK_CMD:-scripts/web.sh} check
@@ -108,7 +108,7 @@ if [ "$full" = 1 ]; then
   if [ -n "${MUTATE_ONLY:-}" ]; then
     echo "mutate: PARTIAL (MUTATE_ONLY=$MUTATE_ONLY)"
   fi
-  # The soak (contracts §14.2): a seeded random workload with chaos against the FakeProvider. A failing seed prints
+  # The soak: a seeded random workload with chaos against the FakeProvider. A failing seed prints
   # its number; replay it with `scripts/check.sh --soak --seed N --verbose`.
   if [ "${SOAK_SEEDS:-200}" != 0 ]; then
     uv run python scripts/soak.py --seeds "${SOAK_SEEDS:-200}" ${SOAK_JOBS:+--jobs "$SOAK_JOBS"}
@@ -116,7 +116,7 @@ if [ "$full" = 1 ]; then
     echo "soak: SKIPPED (SOAK_SEEDS=0)"
   fi
   if [ "$local_only" = 1 ]; then
-    # D60: the browser suites on the Mac (patchright + the installed Google Chrome). Exit 5 = none selected: a note
+    # The browser suites on the Mac (patchright + the installed Google Chrome). Exit 5 = none selected: a note
     # for a narrowed run (it is PARTIAL anyway), a failure for the whole gate, which must never end GREEN without one.
     rc=0
     uv run pytest -m "browser and not box" ${args[@]+"${args[@]}"} || rc=$?
@@ -128,7 +128,7 @@ if [ "$full" = 1 ]; then
     elif [ "$rc" != 0 ]; then
       exit "$rc"
     else
-      echo "browser tier: GREEN on this Mac (D60); box image tests (-m box) not run: they need the box"
+      echo "browser tier: GREEN on this Mac; box image tests (-m box) not run: they need the box"
     fi
   else
     scripts/check-in-container.sh

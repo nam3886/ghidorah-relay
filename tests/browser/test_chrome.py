@@ -1,6 +1,6 @@
-"""The browser tier (contracts §14, D33): runs inside the `browser` image on its virtual display, never on the Mac.
+"""The browser tier: runs inside the `browser` image on its virtual display, never on the Mac.
 
-`scripts/check-in-container.sh` runs `pytest -m browser` there. dola_v4 drives Google Chrome through
+`scripts/check-in-container.sh` runs `pytest -m browser` there. The providers drive Google Chrome through
 patchright (`channel="chrome"`), the proven setup, so the tier proves exactly that: the .deb Chrome is
 installed and patchright can start it headful on the virtual screen.
 """
@@ -10,7 +10,7 @@ import subprocess
 
 import pytest
 
-pytestmark = [pytest.mark.browser, pytest.mark.box]   # the box image itself: never on the Mac (D60)
+pytestmark = [pytest.mark.browser, pytest.mark.box]   # the box image itself: never on the Mac
 
 CHROME = "/opt/google/chrome/chrome"
 

@@ -1,4 +1,4 @@
-"""Admin accounts and commands (contracts 4.4, 7.6, 16; D21, D37, D39): the import seals and never logs, the list shows
+"""Admin accounts and commands: the import seals and never logs, the list shows
 no secret, a patch is refused while a worker holds the account, and every account action is only a command row."""
 
 import logging
@@ -213,7 +213,7 @@ def test_an_import_for_an_unknown_provider_or_with_an_extra_field_or_no_items_is
 
 
 def test_a_credential_for_a_known_identity_is_inserted_and_the_first_check_merges_it_into_the_old_row(db, pair):
-    """D21. The api never learns an identity: the import adds a row, the worker's check merges it (contracts 7.6)."""
+    """The api never learns an identity: the import adds a row, the worker's check merges it."""
     old = new_account(db, identity="who@x", checked=True, credential=b"old-cred", proxy=("10.0.0.9", 1))
 
     async def scenario(env):

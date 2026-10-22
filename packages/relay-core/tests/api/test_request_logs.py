@@ -1,4 +1,4 @@
-"""The request log (contracts §4.4, §13): who is logged, what is stored, what never is."""
+"""The request log: who is logged, what is stored, what never is."""
 
 import logging
 import uuid
@@ -171,7 +171,7 @@ def test_a_422_is_logged_only_with_a_valid_key(db):
 @mutation(ERR, "        await resolve_key_quietly(request)\n        code = _BY_STATUS", "        code = _BY_STATUS",
           expect="a wrong path or method with a known key is logged")
 def test_a_wrong_path_or_method_with_a_known_key_is_logged_under_it(db):
-    """No route resolves the key of a 404 or 405 the router makes itself; the request log still names it (D52), so
+    """No route resolves the key of a 404 or 405 the router makes itself; the request log still names it, so
     the admin sees a client calling a path that does not exist. Without a known key nothing is written."""
     async def scenario(env):
         forged = {"Authorization": "Bearer rk-" + "z" * 43}

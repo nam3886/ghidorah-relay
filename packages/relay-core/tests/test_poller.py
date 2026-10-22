@@ -1,4 +1,4 @@
-"""The poller (contracts 7.1 "Poller"; I1, I21, I23): visibility claims, every poll result in both completion modes,
+"""The poller (I1, I21, I23): visibility claims, every poll result in both completion modes,
 the poll token, disabled accounts, drain, and the browser share."""
 
 import asyncio
@@ -103,7 +103,7 @@ def test_a_failed_poll_fails_the_job_and_refunds_the_key_once(db, completion):
            expect="assert ('failed', False) == ('failed', True)")
 def test_a_failed_poll_that_proves_the_order_taken_charges_the_account_and_refunds_it_in_one_go(db):
     """Accepted with `taken=False` (no account charge yet), then the poll fails with `taken=True`: the account's
-    history must show the taken order, charged and refunded together with the failure (I7, D14)."""
+    history must show the taken order, charged and refunded together with the failure (I7)."""
     k, _ = key(db), account(db, left=100)
 
     async def scenario(p):

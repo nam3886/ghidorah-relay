@@ -1,4 +1,4 @@
-"""Redaction at the real writers (contracts §13, I24): an event, a `jobs.error`, an account error and a `callback_last`
+"""Redaction at the real writers (I24): an event, a `jobs.error`, an account error and a `callback_last`
 value over 2,000 characters, each carrying a planted long secret, are stored as `[omitted len=N]`, and the secret is in
 no column of any table afterwards. The writers are the production ones: the job store, the account check and the
 webhook sender, running under the worker role."""

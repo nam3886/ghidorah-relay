@@ -1,4 +1,4 @@
-"""Static guards over the source tree (contracts §2 import rules, §6.4 browser guards, §14.6 language).
+"""Static guards over the source tree (import rulesbrowser guardslanguage).
 
 Every guard takes the repo root, so its test can also run it on a small tree with a planted
 violation and see it red (tests/test_guards.py).
@@ -40,7 +40,7 @@ def owner(root: Path, path: Path) -> str:
 
 
 def is_pure(root: Path, path: Path) -> bool:
-    """A provider's pure modules are its whole package minus engine/** and e2e.py (contracts §2 rule 5)."""
+    """A provider's pure modules are its whole package minus engine/** and e2e.py (rule 5)."""
     inner = path.relative_to(root).parts[4:]
     return owner(root, path) in PROVIDER_MODULES and bool(inner) and inner[0] != "engine" and inner != ("e2e.py",)
 
@@ -113,7 +113,7 @@ def launch_violations(root: Path = REPO) -> list[str]:
 
 
 def demo_violations(root: Path = REPO) -> list[str]:
-    """v4 proved its rules with an in-module `_demo()`; relay proves them with test files, so none may come back."""
+    """Rules are proved with test files, not an in-module `_demo()`, so none may come back."""
     bad = []
     for p in source_files(root):
         for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
@@ -152,7 +152,7 @@ def tx_task_violations(root: Path = REPO) -> list[str]:
     return bad
 
 
-# ---- the HTTP layer (contracts §8, §11, D19): relay error types only, and an event loop that never blocks ---------
+# ---- the HTTP layer: relay error types only, and an event loop that never blocks ---------
 HTTP_DIRS = ("packages/relay-core/src/relay_core/api/", "packages/relay-core/src/relay_core/admin/")
 HTTP_ERROR_NAMES = {"HTTPException", "StarletteHTTPException"}
 BLOCKING_CALLS = {"time.sleep", "psycopg.connect", "urllib.request.urlopen", "urlopen", "open"}
@@ -166,7 +166,7 @@ def _http_files(root: Path) -> list[Path]:
 
 def http_exception_violations(root: Path = REPO) -> list[str]:
     """No bare `HTTPException` is raised in `relay_core/api` or `relay_core/admin`: a route raises `ApiError(code)`,
-    so the status, `type` and text come from the code's rule and the answer has the one envelope shape (D19). The
+    so the status, `type` and text come from the code's rule and the answer has the one envelope shape. The
     handler module may import the class to register against it; only a `raise` is refused."""
     bad = []
     for p in _http_files(root):
@@ -275,7 +275,7 @@ def core_provider_violations(root: Path = REPO) -> list[str]:
     return bad
 
 
-# ---- deploy (contracts §14.8 static half, I20): which env files each compose service can see ------------------
+# ---- deploy (static half, I20): which env files each compose service can see ------------------
 def is_private_key_var(name: str) -> bool:
     return "PRIVATE_KEY" in name.upper()
 
@@ -297,7 +297,7 @@ def _declared_names(path: Path) -> set[str]:
 
 
 def _image_violations(deploy: Path) -> list[str]:
-    """Base images are pinned by digest (D23); only images built from this repo (`relay-*`) are exempt."""
+    """Base images are pinned by digest; only images built from this repo (`relay-*`) are exempt."""
     bad = []
     for name in ("compose.yml", "compose.check.yml"):
         for svc, body in yaml.safe_load((deploy / name).read_text(encoding="utf-8"))["services"].items():
@@ -344,7 +344,7 @@ def deploy_violations(root: Path = REPO) -> list[str]:
 
 
 # Identifiers and user-facing error text are English. Comments and docstrings may stay Vietnamese:
-# they carry the reason behind a decision. (Carried over from dola_v4's language gate.)
+# they carry the reason behind a decision.
 VIET_MARKS = set("àáảãạăằắẳẵặâầấẩẫậđèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵ")
 # Whole-word match only: `_demo` was once flagged because it contains `dem`.
 VIET_WORD = re.compile(

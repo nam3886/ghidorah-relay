@@ -1,1 +1,1 @@
-"""dola provider (contracts §5.4)."""
+"""dola provider."""

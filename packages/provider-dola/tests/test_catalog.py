@@ -1,4 +1,4 @@
-"""The model catalog and its name grammar (coverage MRES00, TPL00; contracts 5.4.1)."""
+"""The model catalog and its name grammar (coverage MRES00, TPL00)."""
 
 import pytest
 from kit_a import TEMPLATES, refused

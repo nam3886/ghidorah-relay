@@ -1,1 +1,1 @@
-"""The public HTTP app (contracts §8): the skeleton every route plugs into."""
+"""The public HTTP app: the skeleton every route plugs into."""

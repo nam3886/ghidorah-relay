@@ -1,4 +1,4 @@
-"""`GET /m/{token}` (contracts §8, §9; I12): Range in bounded chunks, filenames, expired and revoked links, debug media
+"""`GET /m/{token}` (I12): Range in bounded chunks, filenames, expired and revoked links, debug media
 never public, and the upstream connection released when the client goes away."""
 
 import asyncio

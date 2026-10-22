@@ -1,8 +1,8 @@
-"""`relay migrate`: the only DDL path (contracts §4, §7.7). Nothing runs DDL on connect.
+"""`relay migrate`: the only DDL path. Nothing runs DDL on connect.
 
 Numbered `migrations/NNNN_name.sql` files run in order, each in its own transaction with the version row, under
 one advisory lock, so a second `relay migrate` is a no-op and two at once do not interleave. Migrations are
-expand/contract (§7.7): the previous build keeps working on the new schema, so a file only adds, never drops
+expand/contract: the previous build keeps working on the new schema, so a file only adds, never drops
 what a running build still reads.
 """
 
@@ -43,7 +43,7 @@ def run_migrations(dsn: str, *, passwords: Mapping[str, str] | None = None, bill
 
     `passwords` maps a service role to the password it gets (and LOGIN); a role with no entry is left as it is.
     `billing_tz` (BILLING_TZ) is validated, then pinned in `billing_pin` by the first migrate (UTC when unset); a
-    later migrate that names another timezone is refused, since the billing day never changes (§4.1).
+    later migrate that names another timezone is refused, since the billing day never changes.
     """
     files = migration_files()
     unknown = set(passwords or ()) - set(ROLES)

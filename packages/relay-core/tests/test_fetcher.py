@@ -1,4 +1,4 @@
-"""The fetcher (contracts 7.1 "Fetching", 9; I11, I21, I23): outputs go through the engine into the real object
+"""The fetcher (9; I11, I21, I23): outputs go through the engine into the real object
 store, and the job becomes `done` with its media rows in ONE transaction, never before."""
 
 import asyncio
@@ -186,8 +186,8 @@ def test_a_download_that_keeps_failing_fails_the_job_at_the_render_deadline_and_
           "order_completed = False",
           expect="the order upstream completed keeps its account charge whichever path fails the job")
 def test_an_order_upstream_completed_keeps_its_account_charge_after_a_recheck_and_a_later_failure(db, then):
-    """D47 is decided by the job row (it records the outputs), not by the path that fails the job: a fetch failure,
-    then a Re-check, then a poll failure or the render deadline, must still keep the account charge."""
+    """Keeping the charge is decided by the job row (it records the outputs), not by the path that fails the job: a
+    fetch failure, then a Re-check, then a poll failure or the render deadline, must still keep the account charge."""
     k, _ = key(db), account(db)
 
     async def claim_visible(p, job_id, state, visibility_s):

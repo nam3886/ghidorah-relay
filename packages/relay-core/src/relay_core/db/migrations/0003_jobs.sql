@@ -1,4 +1,4 @@
--- Jobs, their events and media (contracts §4.2). The derived-operation columns (source_job_id, source_idx,
+-- Jobs, their events and media. The derived-operation columns (source_job_id, source_idx,
 -- pin_account_id) are not here: they are added by an expand migration with the members that use them.
 CREATE TABLE jobs (
     id                uuid PRIMARY KEY,

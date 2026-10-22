@@ -1,4 +1,4 @@
-"""Each guard is green on the repo and red on a planted violation (contracts §14.6).
+"""Each guard is green on the repo and red on a planted violation.
 
 Every guard test carries `@mutation` markers: scripts/mutate.py breaks the guard in the named way and the
 test must turn red, which proves the test checks the guard rather than just running it.

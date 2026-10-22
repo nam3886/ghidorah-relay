@@ -1,4 +1,4 @@
-"""Catalog routes (contracts §8): models, aliases, the Gemini catalog, provider options and `/v1/points`, each as the
+"""Catalog routes: models, aliases, the Gemini catalog, provider options and `/v1/points`, each as the
 calling key sees them."""
 
 import dataclasses

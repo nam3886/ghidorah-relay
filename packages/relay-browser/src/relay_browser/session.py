@@ -1,6 +1,6 @@
-"""`open_session`: the one way to open a browser for one piece of work on one account (contracts §6.1).
+"""`open_session`: the one way to open a browser for one piece of work on one account.
 
-Ported from dola_v4 `browser_session.py`, proven 30/09. What it keeps and why:
+Proven 30/09. What it keeps and why:
 - ONE persistent profile per (account id, credential generation), and NO Playwright route anywhere: any route makes
   Playwright switch Chrome's HTTP cache off, so every send downloaded the site's 10 MB of scripts again through the
   account's proxy. Telemetry blocking and response patches therefore go through CDP (`Network.setBlockedURLs`,
@@ -21,7 +21,7 @@ Ported from dola_v4 `browser_session.py`, proven 30/09. What it keeps and why:
   ignores TMPDIR). Its background calls
   to Google (safe browsing keys, account list, updates, push check-in) are kept off the account's proxy: safe browsing
   by a seeded preference, the rest by the forwarder refusing those hosts (no launch flag does it, measured).
-- It refuses to launch without the core's browser token (§3): a caller waits for a token, it never opens a browser
+- It refuses to launch without the core's browser token: a caller waits for a token, it never opens a browser
   without one. The token is checked by what it carries (`released`, `purpose`), so the kit does not import the core.
 
 patchright is imported only inside this package, and a browser starts only in this file (tests/guards.py).
@@ -161,7 +161,7 @@ class ResponsePatch:
 
 
 def check_token(token, purpose) -> None:
-    """Refuse without a live browser token, and one for another purpose (§3)."""
+    """Refuse without a live browser token, and one for another purpose."""
     if token is None or getattr(token, "released", True):
         raise BrowserRefused("no live browser token: a browser opens only with one from the core's budget")
     held = getattr(token, "purpose", None)

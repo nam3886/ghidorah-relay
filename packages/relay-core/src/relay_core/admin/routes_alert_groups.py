@@ -1,4 +1,4 @@
-"""Admin: the alerts hub (contracts 4.8, 16). One list of every stored alert kind (billing clamps and drifts, unclear
+"""Admin: the alerts hub. One list of every stored alert kind (billing clamps and drifts, unclear
 provider replies, kinds added later) in one shape, a detail per group and an acknowledge per group.
 
 Thin: the SQL, the shapes and the group rules are `relay_core.alerts`; this module checks the bounds before any SQL

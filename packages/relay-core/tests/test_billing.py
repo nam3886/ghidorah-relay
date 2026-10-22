@@ -1,4 +1,4 @@
-"""Charge and refund: the money rules in SQL (contracts §4.1; I3 transaction part, I4, I5, I10, I25, I29).
+"""Charge and refund: the money rules in SQL (I3 transaction part, I4, I5, I10, I25, I29).
 
 Tests run the real statements against Postgres. The concurrent ones use separate pooled connections and a
 barrier at a failpoint, so the callers really overlap on the server.

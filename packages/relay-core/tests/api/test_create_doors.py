@@ -1,4 +1,4 @@
-"""The create doors (contracts 7.3, 8, 9; D12, D27; invariant I3): every door goes through `create_job_for`, every
+"""The create doors (invariant I3): every door goes through `create_job_for`, every
 input check happens before the charge, and the status of a job is the one shape of the contract."""
 
 import base64
@@ -213,7 +213,7 @@ def test_an_idempotency_key_that_is_empty_too_long_or_not_printable_is_400(db):
     run_app(db, scenario)
 
 
-# ---- the cap (D12) and the wallet ---------------------------------------------------------------------------------
+# ---- the cap and the wallet ---------------------------------------------------------------------------------
 @mutation(DOORS, "(IdempotencyConflict, TooManyQueued, billing.BillingError) as refused",
           "(IdempotencyConflict, billing.BillingError) as refused", expect="too_many_queued")
 def test_max_unfinished_null_uses_the_default_and_zero_is_unlimited(db):
@@ -258,7 +258,7 @@ def test_a_closed_wallet_is_429_key_exceeded_and_makes_no_job(db):
     run_app(db, scenario)
 
 
-# ---- strict fields (D27) ------------------------------------------------------------------------------------------
+# ---- strict fields ------------------------------------------------------------------------------------------
 @mutation(DOORS, 'model_config = ConfigDict(extra="forbid")', 'model_config = ConfigDict(extra="ignore")',
           expect="unknown field")
 def test_an_unknown_field_is_400_input_invalid_naming_it_on_every_door(db):
@@ -312,7 +312,7 @@ def test_a_wrong_type_names_its_own_code_and_a_missing_prompt_is_input_invalid(d
     run_app(db, scenario)
 
 
-# ---- https only, SSRF (D27) ---------------------------------------------------------------------------------------
+# ---- https only, SSRF ---------------------------------------------------------------------------------------
 @mutation(DOORS, "        await check_callback(req.callback_url)", "        pass", expect="callback")
 @mutation(DOORS, 'raise ApiError("input.invalid", ref.param) from None', "pass", expect="http image")
 def test_an_http_or_private_callback_or_image_url_is_400_and_charges_nothing(db):
@@ -574,7 +574,7 @@ def test_a_title_is_one_line_up_to_200_characters_and_comes_back_in_status(db):
 # ---- status --------------------------------------------------------------------------------------------------------
 @mutation(DOORS, '"error": message, "error_code": shown_code,', '"error": message, "result_url": None, '
           '"error_code": shown_code,', expect="result_url")
-def test_status_has_the_contract_fields_and_none_of_the_v4_compatibility_ones(db):
+def test_status_has_the_contract_fields_and_none_of_the_older_compatibility_ones(db):
     async def scenario(env):
         key = await env.new_key()
         made = [(await env.client.post(VIDEO_PATH, json=video(title="t"), headers=key.headers)).json()
@@ -795,7 +795,7 @@ def test_an_empty_image_reference_is_no_image(db):
 
 @mutation(DOORS, "MAX_OPTIONS_BYTES = 16 * 1024", "MAX_OPTIONS_BYTES = 16 * 1024 * 1024", expect="options are bounded")
 def test_the_options_of_a_request_are_bounded_and_nothing_is_made_over_the_bound(db):
-    """The client's options are stored with the job for good (D56): 16 KiB of JSON at most."""
+    """The client's options are stored with the job for good: 16 KiB of JSON at most."""
     async def scenario(env):
         key = await env.new_key()
         over = await env.client.post(VIDEO_PATH, json=video(options={"note": "x" * (16 * 1024)}), headers=key.headers)

@@ -1,4 +1,4 @@
-"""Admin stats cards and live alerts (contracts §15, §16): computed from columns at request time, self-clearing."""
+"""Admin stats cards and live alerts: computed from columns at request time, self-clearing."""
 
 import json
 import re

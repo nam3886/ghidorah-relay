@@ -1,4 +1,4 @@
--- Expand only (D96). The indexes the admin stats read: the jobs of an account, the jobs by creation time, and the
+-- Expand only. The indexes the admin stats read: the jobs of an account, the jobs by creation time, and the
 -- charges of an account in a pool on a day. Built plainly (no CONCURRENTLY) because the tables are empty before the
 -- first deploy; later, a CREATE INDEX in a migration transaction would lock writes on a full table.
 CREATE INDEX jobs_account_idx ON jobs (account_id);

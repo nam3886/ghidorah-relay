@@ -1,6 +1,6 @@
 """dola's composer UI: enter video or image mode, pick model, duration, ratio and style, send.
 
-What this costs to get wrong, learned the hard way (dola_v4 composer.py):
+What this costs to get wrong, learned the hard way:
 
 - **Timing.** The chip row shows up only after React hydrates; every wait here is on a condition, never a fixed sleep.
 - **Real mouse clicks.** dola's dropdowns ignore `element.click()`; the click is a mouse event at the element's centre.

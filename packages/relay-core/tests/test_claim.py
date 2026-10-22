@@ -1,4 +1,4 @@
-"""The claim (contracts 7.1; I6, I9): drain, heads per cost, affordability before any browser, LRU, unchecked
+"""The claim (I6, I9): drain, heads per cost, affordability before any browser, LRU, unchecked
 accounts, live-lease slots, reservations, and the lease inserted with the claim."""
 
 import asyncio
@@ -108,7 +108,7 @@ def test_a_resting_pool_does_not_stop_another_pool_of_the_same_account(db):
     assert got.job_id == image.job_id and got.pool == "image"
 
 
-# ---- the oldest head across pools (D43) --------------------------------------------------------------------------
+# ---- the oldest head across pools --------------------------------------------------------------------------
 HEAD_ORDER = "heads.sort(key=lambda h: (h[0], h[1]))"
 
 

@@ -1,7 +1,7 @@
-"""The Gemini facade (contracts 8): `:generateContent` and `:streamGenerateContent` under `/v1beta/models/…` and
+"""The Gemini facade: `:generateContent` and `:streamGenerateContent` under `/v1beta/models/…` and
 `/models/…`.
 
-Strict (D27): only `contents` and `systemInstruction` are accepted (plus the empty `generationConfig` the SDK sends
+Strict: only `contents` and `systemInstruction` are accepted (plus the empty `generationConfig` the SDK sends
 with a system instruction); any other field, `generationConfig` with content included, is 400 `input.invalid` naming
 it. `alt` is ignored: a stream is always server-sent events. The prompt is the last `user` content's text parts
 (the `systemInstruction` text goes first); `inlineData` image parts and `fileData` https image URIs are the inputs.

@@ -1,5 +1,5 @@
-"""One admin Regenerate action makes one charged job per source job, however often its request is sent (contracts §7.1,
-§16): the page's operation key, the replay through jobs.idem_key, and a bulk answer that always says what happened."""
+"""One admin Regenerate action makes one charged job per source job, however often its request is sent:
+the page's operation key, the replay through jobs.idem_key, and a bulk answer that always says what happened."""
 
 import uuid
 

@@ -1,4 +1,4 @@
-"""The worker's claim loop for one provider (contracts 3, 7.1, 7.7, 15; invariants I1, I2, I13, I14).
+"""The worker's claim loop for one provider (invariants I1, I2, I13, I14).
 
 One asyncio loop drives every slot. A tick (1 s) claims queued jobs through the store, each claim in its own task:
 the engine's `submit` runs with NO database connection held, under `asyncio.timeout(submit_timeout_s)`, in a
@@ -13,7 +13,7 @@ Whatever ends a submit without a result goes through `apply_interrupted`: a job 
 Stop (SIGTERM or `stop()`): claims end, `fence()` and `mark_sent()` refuse (no new irreversible action), in-flight
 submits finish (after `grace_s` they are cancelled and so interrupted), and the loop exits 0. Five consecutive
 unexpected errors (the claim tick, a store write, an exception the engine raises) stop it the same way and exit 1,
-so a broken worker is loud instead of looking idle; a submit timeout does not count (D42).
+so a broken worker is loud instead of looking idle; a submit timeout does not count.
 """
 
 import asyncio
@@ -99,7 +99,7 @@ class ClaimLoop:
         self._tick_errors = self._job_errors = 0
 
     def _error(self, what: str, exc: BaseException | None = None, *, tick: bool = False) -> None:
-        """One unexpected error. At `max_errors` in a row the worker stops and exits non-zero (v4 worker.py)."""
+        """One unexpected error. At `max_errors` in a row the worker stops and exits non-zero."""
         if tick:
             self._tick_errors += 1
         else:
@@ -123,7 +123,7 @@ class ClaimLoop:
                                      ttl_s=self.lease_ttl_s)
 
     async def tick(self) -> int:
-        """One pass: follow the live slot setting (D20), then claim until nothing more can run. Returns the number
+        """One pass: follow the live slot setting, then claim until nothing more can run. Returns the number
         of jobs started. A drained provider claims nothing."""
         if self.budget is not None:
             self.budget.resize(self.settings.get(self._slots_key))
@@ -200,7 +200,7 @@ class ClaimLoop:
 
     async def _interrupted(self, claim: Claim, cause: BaseException, *, timed_out: bool) -> None:
         """A submit that ended without a result: `unknown` if it was sent, else `queued`, never re-sent (I1)."""
-        # D42: only the core's own submit timer (`timed_out`) is an expected, bounded outcome: a warning, not an
+        # Only the core's own submit timer (`timed_out`) is an expected, bounded outcome: a warning, not an
         # error. An exception the engine raises, a TimeoutError of its own included, is unexpected and counts, so a
         # broken engine cannot spin forever unseen.
         if timed_out:
@@ -245,7 +245,7 @@ class ClaimLoop:
 
     # ---- heartbeat row and loop-lag watchdog -------------------------------------------------------------------
     async def beat(self) -> None:
-        """Write this worker's `worker_heartbeats` row: loop lag, busy slots, consecutive errors (contracts 15)."""
+        """Write this worker's `worker_heartbeats` row: loop lag, busy slots, consecutive errors."""
         busy = self.budget.busy if self.budget is not None else len(self._inflight)
         lag_ms, self.lag_max_s = int(self.lag_max_s * 1000), 0.0
         async with tx(self.db) as conn:
@@ -280,7 +280,7 @@ class ClaimLoop:
 
     async def _register(self) -> None:
         """A heartbeat row left by an earlier run means that run ended abnormally: the browser budget ramps up
-        again instead of starting at full load (contracts 3, restart back-off). Once per run."""
+        again instead of starting at full load (restart back-off). Once per run."""
         if self._registered:
             return
         async with tx(self.db) as conn:

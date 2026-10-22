@@ -1,4 +1,4 @@
-"""dola spec constants (contracts 5.4.1): the numbers that were v4 module constants and are not live settings.
+"""dola spec constants: the numbers that are not live settings.
 
 Each one is fixed for a measured reason, named in its comment. Pure: imported by the spec, the classifier and the
 engine alike.
@@ -11,23 +11,23 @@ PROVIDER = "dola"
 
 # ---- timing ---------------------------------------------------------------------------------------------------
 POLL_INTERVAL_S = 30            # next poll after a Pending; a render takes minutes, so a faster loop only adds reads
-DURATION_TOLERANCE_S = 2        # a video within this many seconds of the asked length is on target (v4 runner)
+DURATION_TOLERANCE_S = 2        # a video within this many seconds of the asked length is on target
 PENDING_GRACE_S = 20 * 60       # a conversation with several videos: wait this long after the first finished one
 QUIET_GRACE_S = 2700            # dola silent this long with no order and nothing pending: nothing is coming
 THROTTLE_COOLDOWN_S = 1800      # throttle (710022002/4) and region/proxy failures: the account rests this long
-PROXY_REST_S = 1800             # a failed proxy probe rests every pool (D44; v4 PROXY_DOWN_COOLDOWN_S)
+PROXY_REST_S = 1800             # a failed proxy probe rests every pool
 BROWSER_FAULT_FREE_RETRIES = 3   # browser-fault retries of one job that use no attempt; the next ones count one (so
 #                                  max_attempts ends a job that keeps meeting the fault)
 BROWSER_FAULT_COOLDOWN_S = 60   # the account rests this long after the browser lost its cookies (not a guest read)
-CHECK_INTERVAL_S = 6 * 3600     # account check cadence (v4 CHECK_EVERY_S)
+CHECK_INTERVAL_S = 6 * 3600     # account check cadence
 CATALOG_REFRESH_S = 3600        # the worker refreshes the templates and styles snapshots this often
-SUBMIT_TIMEOUT_VIDEO_S = 720    # hard bound on one video submit; re-measured on the box in phase 7
+SUBMIT_TIMEOUT_VIDEO_S = 720    # hard bound on one video submit; re-measured on the box
 SUBMIT_TIMEOUT_IMAGE_S = 300    # hard bound on one image submit (the session waits for the image URLs)
 
 # ---- attempts and strikes ---------------------------------------------------------------------------------------
-MAX_ATTEMPTS = 3                # counted attempts before a job fails (v4 job attempts)
-SUSPECT_THRESHOLD = 3           # strikes before the account is dead (v4 DEAD_AFTER_FAILURES)
-LOGIN_DOUBT_REST_S = 600        # a login doubt rests the account this long, then it is checked again (D91)
+MAX_ATTEMPTS = 3                # counted attempts before a job fails
+SUSPECT_THRESHOLD = 3           # strikes before the account is dead
+LOGIN_DOUBT_REST_S = 600        # a login doubt rests the account this long, then it is checked again
 LOGIN_DOUBT_GAP_S = 540         # a doubt less than this long after the last counted strike adds none; shorter than
 #                                 the rest, so a slow close or a clock skew cannot put the next read inside the gap
 STRIKE_DEAD_REASON = "signed_out"
@@ -35,7 +35,7 @@ STRIKE_DEAD_REASON = "signed_out"
 # ---- money ----------------------------------------------------------------------------------------------------
 FALLBACK_VIDEO_PRICE = 3        # a video tier missing from `dola.prices`: dearest measured plain tier, + a warning
 FALLBACK_IMAGE_PRICE = 1        # an image model missing from `dola.prices`
-IMAGE_ACCOUNT_COST = 1          # dola counts the image ceiling per JOB, whatever the model (v4 wallet_cost, R20)
+IMAGE_ACCOUNT_COST = 1          # dola counts the image ceiling per JOB, whatever the model (R20)
 
 # ---- requests -------------------------------------------------------------------------------------------------
 MAX_REFERENCE_IMAGES = 10       # the composer takes 10 and silently drops the rest (spike 17/09)

@@ -1,4 +1,4 @@
-"""Leases: who may act on an account right now (contracts 4.3, 5.2, 7.1; invariants I2, I14).
+"""Leases: who may act on an account right now (invariants I2, I14).
 
 A lease row is the fencing token: its `id` is monotonic and every irreversible write is checked against it with
 `clock_timestamp()` under `FOR SHARE` (a stale `now()` frozen at transaction start would let an expired holder

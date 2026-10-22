@@ -1,4 +1,4 @@
-"""Credential sealing (contracts §13, I20 crypto part): a process holding only the public key cannot open a blob."""
+"""Credential sealing (I20 crypto part): a process holding only the public key cannot open a blob."""
 
 import os
 import subprocess

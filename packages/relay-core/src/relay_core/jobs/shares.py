@@ -1,4 +1,4 @@
-"""Share links on the database (contracts 9; invariant I12): the `ShareTable` that `storage.resolve_share` reads, the
+"""Share links on the database (invariant I12): the `ShareTable` that `storage.resolve_share` reads, the
 revoke action, and the expiry sweep for input links.
 
 A link is the `share_token` of a `job_media` row. Revoking or expiring clears the token, so the link is simply unknown

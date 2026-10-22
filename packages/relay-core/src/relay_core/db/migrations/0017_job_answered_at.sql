@@ -1,4 +1,4 @@
--- Expand only (D96). The time of the newest read that the engine really answered (a poll that said "not ready" or a
+-- Expand only. The time of the newest read that the engine really answered (a poll that said "not ready" or a
 -- reconcile that found nothing), so the reaper fails a job past its render deadline only after a read made after the
 -- deadline that was answered, or at the backstop. A poll or reconcile that failed or ran out of time writes nothing.
 -- A reconcile that finds the order resets it to NULL: the job then needs a poll after the deadline. NULL on a job

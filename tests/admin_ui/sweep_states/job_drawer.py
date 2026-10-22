@@ -10,7 +10,7 @@ from . import TIMEOUT_MS, cancel_box, dismiss_box, slow, unslow
 ROUTE = "job_drawer"
 STATES = [("jobs", "detail-loading"), ("jobs", "detail"), ("jobs", "detail-timeline"), ("jobs", "detail-technical"),
           ("jobs", "detail-regenerate-confirm"),
-          # what the app keeps and the boards do not draw (D125): each is photographed on its own
+          # what the app keeps and the boards do not draw: each is photographed on its own
           ("jobs", "detail-warnings"), ("jobs", "detail-rename"), ("jobs", "detail-more-actions"),
           ("jobs", "detail-revoke-confirm"), ("jobs", "detail-debug-files"), ("jobs", "detail-sent-text"),
           ("jobs", "detail-recover-done")]
@@ -103,7 +103,7 @@ def run(page, app, live, sw, data):
     dismiss_box(page)
     close_drawer(page)
 
-    # ---- what the boards do not draw (D125) ----
+    # ---- what the boards do not draw ----
     failed_title = page.locator("tbody tr, li").filter(has_text=failed).locator("a.title-link, .prow").first
     page.route(JOB, tamper)
     page.route(DEBUG, debug_file)

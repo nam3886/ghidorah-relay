@@ -1,4 +1,4 @@
--- Accounts, pools and leases (contracts §4.3). Not here: credential_version and slots, which belong to the
+-- Accounts, pools and leases. Not here: credential_version and slots, which belong to the
 -- members that use them and arrive by an expand migration.
 CREATE TABLE accounts (
     id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -1,4 +1,4 @@
-"""Deleting an account that was never used (contracts D37). Runs as `relay_worker`: the api has no DELETE on
+"""Deleting an account that was never used. Runs as `relay_worker`: the api has no DELETE on
 accounts, and the foreign keys from every account-owned table are RESTRICT, so nothing cascades by accident."""
 
 from collections.abc import Collection
@@ -32,7 +32,7 @@ _USED = (
 
 async def lock_account(conn: AsyncConnection, account_id, *, skip_locked: bool = False, delete: bool = False) -> bool:
     """The account row lock, taken after the job/lease rows and before capacity, charges and the key wallet
-    (contracts item 9, lock order):
+    (lock order):
     `FOR NO KEY UPDATE` for a writer, `FOR UPDATE` for the delete that removes the row. With `skip_locked` (a claim,
     which never waits) False also means another transaction holds the row; without it False means the account is
     gone. Capacity rows are locked or created after this, in any order: everything is serialised per account.

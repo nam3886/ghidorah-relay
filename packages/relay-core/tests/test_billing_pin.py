@@ -1,4 +1,4 @@
-"""The billing day timezone is fixed when `relay migrate` first runs and never changes (contracts §4.1, Q2, D17)."""
+"""The billing day timezone is fixed when `relay migrate` first runs and never changes (Q2)."""
 
 import asyncio
 from datetime import UTC, datetime

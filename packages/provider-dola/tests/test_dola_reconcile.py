@@ -1,9 +1,9 @@
-"""Reconcile: did a send that lost contact reach dola? (contracts 5.4.1, v1.3 #7, I27; coverage
+"""Reconcile: did a send that lost contact reach dola? (I27; coverage
 WORKER10/13/14/18/19/20/27/28, VERIFY02 for the probe the listing runs).
 
-`NotSent` needs positive proof; the default is `StillUnknown`. The v4 bug (worker.py 666-672: a FULL listing holding
+`NotSent` needs positive proof; the default is `StillUnknown`. The bug to avoid (a FULL listing holding
 unknown conversations that do not carry the text was taken as proof, so a job whose conversation newer ones pushed out
-of the 30 was sent twice) is NOT ported: `test_the_v4_listing_bug_is_not_ported` is that exact case.
+of the 30 was sent twice) must never happen: `test_a_capped_listing_is_never_proof_of_not_sent` is that exact case.
 """
 
 import asyncio
@@ -234,7 +234,7 @@ def test_an_empty_shell_is_not_ours_and_not_unreadable():
     assert not isinstance(go({"shell": shell()})[0], Found), "an empty shell was taken as the job's conversation"
 
 
-# ---- the listing-coverage proof (v1.3 #7) and the v4 bug ------------------------------------------------------------
+# ---- the listing-coverage proof and the capped-listing bug ------------------------------------------------------
 def capped_fixture():
     data = json.loads((FIXTURES / "listing-capped-30.json").read_text(encoding="utf-8"))
     sent_at = dt.datetime.fromtimestamp(data["sent_at"], dt.UTC)
@@ -243,10 +243,10 @@ def capped_fixture():
 
 @mutation(RECONCILE, "    covers = listing.complete or predates", "    covers = True",
           expect="a capped listing was taken as proof of NotSent")
-def test_the_v4_listing_bug_is_not_ported():
-    """A full listing (30) holding one conversation the system does not know, none carrying the job's text: v4 requeued
-    the job (worker.py 666-672). Newer conversations may have pushed the job's own out of the 30, so the order could be
-    sent twice. Here: StillUnknown. (The crash window of phase 5: capped listing + one unknown non-matching.)"""
+def test_a_capped_listing_is_never_proof_of_not_sent():
+    """A full listing (30) holding one conversation the system does not know, none carrying the job's text: an
+    older version requeued the job. Newer conversations may have pushed the job's own out of the 30, so the order
+    could be sent twice. Here: StillUnknown. (The crash window: capped listing + one unknown non-matching.)"""
     data, sent_at = capped_fixture()
     assert len(data["listing"]["ids"]) == CONV_LIST_LIMIT == 30
     assert data["unknown_non_matching"] in data["conversations"]

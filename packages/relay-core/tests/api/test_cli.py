@@ -1,4 +1,4 @@
-"""The `relay` commands (contracts §2, §7.7, §13; I20, I29, D31): `serve` and its refusals, wallet backfill at start,
+"""The `relay` commands (I20, I29): `serve` and its refusals, wallet backfill at start,
 shutdown order, `admin create-user`, `keygen`, `key create|disable`, `provider drain|resume`, `jobs restore-mark`,
 `e2e`. Each command is run through `main(argv)` against the real database, as the role its URL names."""
 
@@ -484,7 +484,7 @@ def test_serve_opens_the_api_pool_at_15_with_a_bounded_queue(db, monkeypatch, ht
     serve_env(monkeypatch, db)
     assert cli.main(["serve"]) == 0
     [(size, waiting)] = http.pools
-    assert size == 15, "the api pool is 15 connections (contracts 4.5): %d" % size
+    assert size == 15, "the api pool is 15 connections: %d" % size
     assert 0 < waiting <= 4 * size, "the queue of waiting requests is bounded: %d" % waiting
 
 

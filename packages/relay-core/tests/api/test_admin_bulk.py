@@ -1,4 +1,4 @@
-"""Admin bulk Re-check and Regenerate, webhook resend and link revoke (contracts §16)."""
+"""Admin bulk Re-check and Regenerate, webhook resend and link revoke."""
 
 import uuid
 

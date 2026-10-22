@@ -1,4 +1,4 @@
-"""Every error leaves in one shape (contracts §8, §11, D19): the OpenAI envelope, or the Gemini body on Gemini doors."""
+"""Every error leaves in one shape: the OpenAI envelope, or the Gemini body on Gemini doors."""
 
 from apikit import run_app
 from fastapi import APIRouter, Depends

@@ -1,4 +1,4 @@
-# Throwaway services for scripts/check.sh and scripts/check-in-container.sh only (contracts §14.2). Ports sit
+# Throwaway services for scripts/check.sh and scripts/check-in-container.sh only. Ports sit
 # away from the defaults so the check never touches a real Postgres or MinIO; the container script sets both
 # variables to empty, which publishes an ephemeral loopback port (its test container uses the compose network).
 # `down -v` removes the data after every run.
@@ -21,7 +21,7 @@ services:
       interval: 1s
       retries: 30
   minio:
-    # Same pin as compose.yml (D23): upstream stopped publishing images (quay/docker hub 401 on 30/09).
+    # Same pin as compose.yml: upstream stopped publishing images (quay/docker hub 401 on 30/09).
     image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     command: ["server", "/data"]
     environment:

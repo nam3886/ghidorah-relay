@@ -1,5 +1,5 @@
-"""The Gemini facade (contracts 8): request bodies the real `google-genai` SDK sends (golden snapshots), prompt and
-image extraction, url-safe and unpadded base64, the Gemini error body, D27 strictness."""
+"""The Gemini facade: request bodies the real `google-genai` SDK sends (golden snapshots), prompt and
+image extraction, url-safe and unpadded base64, the Gemini error body, strictness."""
 
 import base64
 import functools

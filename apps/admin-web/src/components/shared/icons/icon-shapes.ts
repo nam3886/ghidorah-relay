@@ -79,7 +79,7 @@ export const ICON_SHAPES = {
   },
   logOut: { nodes: [p("M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"), p("m16 17 5-5-5-5"), p("M21 12H9")] },
   arrowLeft: { nodes: [p("M19 12H5"), p("m12 19-7-7 7-7")] },
-  // The picture viewer's glyphs, which the canvas does not draw (D125), drawn from its own: chevron left mirrors
+  // The picture viewer's glyphs, which the canvas does not draw, drawn from its own: chevron left mirrors
   // chevron right; zoom in and out are the search glyph with a plus or a minus; rotate right is the refresh glyph,
   // rotate left its mirror; fit is four corners in the same stroke.
   chevronLeft: { nodes: [p("m15 6-6 6 6 6")] },

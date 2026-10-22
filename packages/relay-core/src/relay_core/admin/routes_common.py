@@ -2,7 +2,7 @@
 proxy parser. Not a lane module: it has no `router`, so `create_app` never lists it.
 
 `enqueue` is the only place the admin writes a `commands` row, and it refuses a kind outside `ADMIN_COMMANDS`
-(contracts 4.4: the database cannot tell which kinds the api may insert, the admin code does).
+(: the database cannot tell which kinds the api may insert, the admin code does).
 """
 
 import uuid

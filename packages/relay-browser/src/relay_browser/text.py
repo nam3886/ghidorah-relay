@@ -1,4 +1,4 @@
-"""Page text helpers (contracts §6.3 stage 2): judge what the site said, never what the user typed.
+"""Page text helpers (stage 2): judge what the site said, never what the user typed.
 
 A page's `innerText` holds the user's own chat bubble, so a prompt that quotes the site's refusal sentence would be
 read as the site speaking. The cure is to drop every page line that sits wholly inside the prompt before judging.

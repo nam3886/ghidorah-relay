@@ -1,5 +1,5 @@
 /*
- * Theme: direction B "Ledger" of the Ghidorah admin (DESIGN.md sections 3 to 7, contracts C2).
+ * Theme: direction B "Ledger" of the Ghidorah admin (DESIGN.md sections 3 to 7).
  * Light is the signature look, dark is a full theme. Flat surfaces: only overlays have a shadow. No gradient, no glow.
  * Loaded AFTER the Element Plus CSS. `html:root` (light) and `html.dark:root` (dark) outrank Element Plus's own
  * `:root` and `html.dark` blocks, whatever order the on-demand component styles end up in.

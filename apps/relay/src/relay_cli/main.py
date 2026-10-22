@@ -1,4 +1,4 @@
-"""`relay serve | worker | migrate | admin | keygen | key | provider | jobs | e2e` (contracts §2).
+"""`relay serve | worker | migrate | admin | keygen | key | provider | jobs | e2e`.
 
 Imports happen per subcommand, because they are the process boundary: `serve` loads relay_core and
 every provider's spec and never an engine; `worker --provider X` loads X's engine, and so pulls in
@@ -24,11 +24,11 @@ from typing import Any
 
 from relay_core.redact import install_log_redaction, redact, redact_text
 
-# The provider registry is an explicit list; entry-point discovery is not used (contracts §2).
+# The provider registry is an explicit list; entry-point discovery is not used.
 PROVIDERS = {"dola": "relay_dola", "vibes": "relay_vibes", "meta": "relay_meta"}
 EXIT_OK, EXIT_FAILED, EXIT_REFUSED = 0, 1, 2
 DEFAULT_PORT = 8100
-API_POOL_MAX = 15            # contracts §4.5: the api's pool; a worker's is 10
+API_POOL_MAX = 15            # the api's pool; a worker's is 10
 SHUTDOWN_GRACE_S = 25         # under the api container stop grace (30 s): the runners and the pool still close
 
 
@@ -193,7 +193,7 @@ async def serve_api(specs: list[Any], env: Mapping[str, str], *,
     with it), when the database or object store settings are missing, or when the object-store secret is empty or an
     example value; when the bucket cannot be made (exit 1, before the pool opens); after it connects, when
     BILLING_TZ differs from the pin. Then every (provider, kind) pair the registered specs declare gets a closed
-    wallet on the keys that exist (I29), each shipped default prompt frame without a row is seeded (§4.7), the app is
+    wallet on the keys that exist (I29), each shipped default prompt frame without a row is seeded, the app is
     built, and `http` serves until a stop signal. Shutdown order: stop serving, stop the runners, then the pool."""
     from relay_core import billing, crypto, frames
     from relay_core.api import runners
@@ -241,7 +241,7 @@ async def serve_api(specs: list[Any], env: Mapping[str, str], *,
         async with tx(pool) as conn:
             for spec in specs:
                 await billing.ensure_wallets(conn, spec.name, spec.caps.wallet_kinds)
-                if getattr(spec, "frames", None) is not None:       # version 1 of each shipped default (§4.7)
+                if getattr(spec, "frames", None) is not None:       # version 1 of each shipped default
                     await frames.seed(conn, spec.name, spec.frames.defaults)
         app = create_app(pool=pool, settings=settings, store=store, registry=registry)
         running = runners.start_runners(pool, settings, store)
@@ -350,7 +350,7 @@ def key_create(specs: list[Any], label: str, models: list[str], max_unfinished: 
 
 
 def key_disable(key_id: str) -> int:
-    """D31: a key is disabled here, never deleted (only a key with no jobs may be, and that is the admin's call)."""
+    """A key is disabled here, never deleted (only a key with no jobs may be, and that is the admin's call)."""
     from relay_core import keys
     from relay_core.db import tx
 
@@ -388,7 +388,7 @@ def provider_mode(specs: list[Any], provider: str, drain: bool) -> int:
 
 
 def restore_mark(dump_time: str) -> int:
-    """After a restore, with NO worker running (runbook, contracts §7.7): jobs that may have been sent after the dump
+    """After a restore, with NO worker running (runbook): jobs that may have been sent after the dump
     become `unknown`. Refuses while a worker heartbeat is fresh."""
     from relay_core.db import session_options
     from relay_core.jobs import ops
@@ -417,7 +417,7 @@ def e2e(provider: str) -> int:
     module = sys.modules[PROVIDERS[provider] + ".e2e"]       # loaded by `load_e2e` in main
     run = getattr(module, "run", None)
     if run is None:
-        raise CliError("provider %s has no e2e run yet (built with the provider, contracts §14)" % provider,
+        raise CliError("provider %s has no e2e run yet (built with the provider)" % provider,
                        EXIT_REFUSED)
     return int(asyncio.run(run(os.environ)))
 
@@ -442,7 +442,7 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--max-unfinished", type=int, default=None)
     create.add_argument("--wallet", action="append", default=[], metavar="PROVIDER:KIND=N|unlimited",
                         help="open a wallet with a day limit; unnamed wallets stay closed")
-    key.add_parser("disable", help="disable a key (D31)").add_argument("key_id")
+    key.add_parser("disable", help="disable a key").add_argument("key_id")
     provider = sub.add_parser("provider", help="drain or resume a provider").add_subparsers(dest="mode", required=True)
     provider.add_parser("drain", help="stop claiming new work; open jobs still finish").add_argument("name")
     provider.add_parser("resume", help="claim again").add_argument("name")

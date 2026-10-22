@@ -1,4 +1,4 @@
-"""Job creation (contracts 7.3, without the source step; invariants I3, I15, D12, D14).
+"""Job creation (without the source step; invariants I3, I15).
 
 One transaction: the idempotency lookup, the per-key cap, the wallet charge with its ledger row, the job row, the
 input media rows and the `queued` event. Input objects are uploaded BEFORE this runs (no foreign I/O in a
@@ -23,7 +23,7 @@ from relay_core.jobs.events import add_event
 from relay_core.providers import Plan
 from relay_core.redact import redact_log
 
-INPUT_LINK_TTL_S = 7 * 86_400           # v1.3 #41
+INPUT_LINK_TTL_S = 7 * 86_400
 IDEM_CONSTRAINT = "jobs_key_id_idem_key_key"
 
 
@@ -44,7 +44,7 @@ class TooManyQueued(CreateRefused):
 
 
 class FrameUnusable(CreateRefused):
-    """The plan has no frame, or one that fails the grammar: nothing falls back to the core frame (contracts 5.1)."""
+    """The plan has no frame, or one that fails the grammar: nothing falls back to the core frame."""
     code = "internal.frame_unusable"
 
 
@@ -97,13 +97,13 @@ def body_hash(request: Mapping[str, Any]) -> str:
 def marker_for(job_id: uuid.UUID) -> str:
     """The marker is derived from the job id; Regenerate makes a new job and so gets a new marker. It is the dola
     contract's: four digits, 3000-9999 (below 3000 reads as a year or a resolution, and letters read as content),
-    `3000 + sha1(job id)[:8] % 7000` (dola_v4 `queue.py`). Two jobs can share one; the provider judges a marker
+    `3000 + sha1(job id)[:8] % 7000`. Two jobs can share one; the provider judges a marker
     against its own time window, the core only sends it."""
     return str(3000 + int(hashlib.sha1(str(job_id).encode()).hexdigest()[:8], 16) % 7000)
 
 
 async def _position(conn, provider: str, job_id) -> int:
-    """1-based place among the queued jobs of the same provider AND pool (contracts 8)."""
+    """1-based place among the queued jobs of the same provider AND pool."""
     return (await (await conn.execute(
         "SELECT count(*) FROM jobs j, jobs me WHERE me.id = %s AND j.provider = %s AND j.status = 'queued' "
         "AND j.pool IS NOT DISTINCT FROM me.pool "
@@ -125,7 +125,7 @@ async def _replay(conn, new: NewJob) -> Created | None:
 
 
 async def _lock_key(conn, new: NewJob, settings: Settings) -> int:
-    """D12: lock the key row and return its cap (the key's own value, else the default; 0 = unlimited). The lock
+    """Lock the key row and return its cap (the key's own value, else the default; 0 = unlimited). The lock
     serialises this key's creators, which is what makes the cap exact. It is `NO KEY UPDATE`: as exclusive among
     creators as `UPDATE`, but it does not block the foreign-key check of another writer inserting a job for the key."""
     row = await (await conn.execute("SELECT max_unfinished FROM api_keys WHERE id = %s FOR NO KEY UPDATE",

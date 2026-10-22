@@ -1,4 +1,4 @@
-"""Webhook sender (contracts 7.4, D11, D22; invariant I16): claim, send, mark."""
+"""Webhook sender (invariant I16): claim, send, mark."""
 
 import asyncio
 

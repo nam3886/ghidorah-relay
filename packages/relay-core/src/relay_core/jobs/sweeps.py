@@ -1,4 +1,4 @@
-"""Sweeps for the api process (contracts 9, 15; invariant I25): retention, orphans, expired sessions and input
+"""Sweeps for the api process (invariant I25): retention, orphans, expired sessions and input
 links, and the daily ledger check. Plain functions; the api's runners (`api/runners.py`) call `run_housekeeping`
 every 15 minutes and the ledger check once a day. Every delete loops in bounded batches, each in its own short
 transaction, and every object-store call happens outside a transaction.
@@ -20,7 +20,7 @@ log = logging.getLogger("relay.sweeps")
 
 BATCH = 5000
 MEDIA_BATCH = 200
-SWEEP_STATEMENT_TIMEOUT = "60s"          # the sweeps raise the 5 s default for their own transactions (contracts 4.5)
+SWEEP_STATEMENT_TIMEOUT = "60s"          # the sweeps raise the 5 s default for their own transactions
 SWEEP_HOLD_S = 70.0                      # ... and `tx` holds a sweep transaction a little longer than that
 
 # Per wallet: used_total = sum(charge) - sum(refund) + sum(adjust); used_day is the same sum restricted to the
@@ -64,7 +64,7 @@ class Drift:
 
 async def ledger_check(db: AsyncConnectionPool) -> list[Drift]:
     """I25: every wallet's counters against its ledger. The discrepancies come back as data, are logged, and are
-    stored as `billing_alerts` rows (`alert='drift'`) for the admin alerts (contracts 15), at most one per distinct
+    stored as `billing_alerts` rows (`alert='drift'`) for the admin alerts, at most one per distinct
     drift per ALERT_EVERY_H hours so the daily check does not pile up rows. Nothing is corrected: a drift needs a
     person."""
     async with tx(db, hold_s=SWEEP_HOLD_S) as conn:
@@ -139,7 +139,7 @@ async def sweep_orphans(db: AsyncConnectionPool, store: ObjectStore, *, min_age_
                         now: datetime | None = None) -> list[str]:
     """Remove stored objects that no job owns and that are older than `min_age_h` hours (a file uploaded a moment
     before its job commits looks like an orphan). `enabled=False` is the restore switch: nothing is listed or
-    removed. Lists the whole bucket in memory (accepted for now, contracts 9)."""
+    removed. Lists the whole bucket in memory (accepted for now)."""
     async def owned_jobs(ids: set[str]) -> set[str]:
         """Ids that own objects: jobs, and accounts (the screenshot of an account is `<account_id>/debug/0.png`)."""
         found = []

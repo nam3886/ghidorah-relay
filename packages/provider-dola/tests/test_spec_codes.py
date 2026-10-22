@@ -1,4 +1,4 @@
-"""The dola spec's caps, its error codes and the deadline cause (contracts 5.4.1, 11; phase mutation 7)."""
+"""The dola spec's caps, its error codes and the deadline cause (phase mutation 7)."""
 
 import importlib
 
@@ -102,7 +102,7 @@ def test_the_warning_codes_are_dola_codes_and_are_not_error_rules():
     assert not (warnings & set(errors.RULES)), "a warning never ends a job, so it is not an error rule"
 
 
-# ---- deadline_cause (R81, v1.3 #28) ----------------------------------------------------------------------------------
+# ---- deadline_cause (R81) ----------------------------------------------------------------------------------
 @mutation(SPEC_FILE, 'if provider_state.get("signed_out"):', "if False:", expect="account.dead_session")
 def test_a_deadline_after_a_signed_out_poll_is_a_dead_session_whatever_dola_last_said():
     # the poll sets signed_out on error 712012001; the account, not dola's words, is why nothing came

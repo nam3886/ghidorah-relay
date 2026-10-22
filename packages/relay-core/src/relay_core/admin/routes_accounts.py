@@ -1,4 +1,4 @@
-"""Admin: accounts and the commands that act on them (contracts 4.4, 7.6, 16; D21, D37, D39).
+"""Admin: accounts and the commands that act on them.
 
 The api holds the PUBLIC key only: an import seals each credential and each proxy password and nothing here can open
 one. The api also cannot delete an account or write a worker-owned column (`check_due_at`, `cooldown_*`, `strikes`,
@@ -7,7 +7,7 @@ row and answer with its id; the provider's worker runs it and the page polls `GE
 queues the proxy re-check, since the api cannot refresh `proxy_ok` itself.
 
 An import never learns an account's identity (only the first check does), so a credential for a known identity is
-inserted like any other; the worker's first check merges it into the existing row (D21).
+inserted like any other; the worker's first check merges it into the existing row.
 """
 
 import logging
@@ -171,8 +171,8 @@ async def patch_account(account_id: uuid.UUID, body: AccountPatch,
     """Label, proxy and enable. A proxy or enable change is refused (409) while a worker holds a live lease on the
     account; the account row is locked first, so a lease cannot appear between the check and the write. A proxy that
     was set is probed again by a queued `proxy_recheck` command (the api cannot write `proxy_ok`). Enabling a
-    disabled account also queues a `wake` (its cooldown and pool rests are cleared by the worker, D39), as v4's
-    switch woke both pools."""
+    disabled account also queues a `wake` (its cooldown and pool rests are cleared by the worker), so that
+    enabling wakes both pools."""
     fields = body.model_fields_set
     if not fields:
         raise ApiError("input.invalid")
@@ -207,7 +207,7 @@ async def patch_account(account_id: uuid.UUID, body: AccountPatch,
     try:
         async with tx(pool, hold_s=LABEL_WAIT_S + 3 if label_only else TX_HOLD_S) as conn:
             if label_only:
-                # A label edit is always allowed (§16): it waits for a worker that holds the row instead of answering
+                # A label edit is always allowed: it waits for a worker that holds the row instead of answering
                 # 409. The UPDATE takes the row lock itself; a missing row updates nothing.
                 await conn.execute("SELECT set_config('lock_timeout', %s, true), "
                                    "set_config('statement_timeout', %s, true)",
@@ -256,7 +256,7 @@ async def account_screenshot(account_id: uuid.UUID, pool: AsyncConnectionPool = 
 # ---- commands -------------------------------------------------------------------------------------------------------
 async def _account_command(pool: AsyncConnectionPool, account_id: uuid.UUID, kind: str) -> dict:
     """One command row for an account of any state. A delete names its account in `args` only: its own row must not
-    reference the account it deletes (contracts 4.4)."""
+    reference the account it deletes."""
     async with tx(pool) as conn:
         row = await (await conn.execute("SELECT provider FROM accounts WHERE id = %s", (account_id,))).fetchone()
         if row is None:

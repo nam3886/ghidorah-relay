@@ -1,4 +1,4 @@
-"""Admin: API keys and their per-provider wallets (contracts 4.1, D12, D31).
+"""Admin: API keys and their per-provider wallets.
 
 A key is made with one wallet per declared (provider, kind) pair: a pair the admin does not name is CLOSED, a named one
 is `closed`, a `limit` (a day and/or a total number) or `unlimited` (set on purpose, never by omission). The raw key is
@@ -213,7 +213,7 @@ async def disable_key(key_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get
 
 @router.delete("/keys/{key_id}")
 async def delete_key(key_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
-    """D31: a key with no job and no ledger row is deleted; any other key is only disabled (the foreign keys decide)."""
+    """A key with no job and no ledger row is deleted; any other key is only disabled (the foreign keys decide)."""
     async with tx(pool) as conn:
         result = await keys.delete_key(conn, key_id)
     if result == "missing":

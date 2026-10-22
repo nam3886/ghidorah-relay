@@ -1,5 +1,4 @@
-"""Reconcile: did a send that lost contact reach dola? (contracts 5.4.1 "reconcile", v1.3 #7; ported from dola_v4
-`worker.reconcile_orphans`, minus its known bug.)
+"""Reconcile: did a send that lost contact reach dola?
 
 The question exists because a wrong answer costs money: "never sent" lets the core send the order again, and dola may
 already have taken and charged the first one. So `NotSent` needs POSITIVE proof, `StillUnknown` is the default.
@@ -9,7 +8,7 @@ already have taken and charged the first one. So `NotSent` needs POSITIVE proof,
 2. Otherwise the account's conversations are listed (the browser probe `recent_conv`, limit 30, under a `reconcile`
    lease: it works only from inside a tab) and every one is READ; the one whose user text carries the whole sent text
    (the marker is in it) is the job's.
-   Matching is v4's: the conversation must carry the whole sent text (folded with `norm_for_match`: invisible characters
+   Matching: the conversation must carry the whole sent text (folded with `norm_for_match`: invisible characters
    and typographic quotes do not matter) in the user's words or anywhere in the thread. A conversation that carries the
    job's bare marker or the first 80 characters of its prompt (the customer's words, not the sent text) but not the
    whole text may still be the job's with the text altered: it is "cannot tell", never "not ours".
@@ -23,7 +22,7 @@ already have taken and charged the first one. So `NotSent` needs POSITIVE proof,
    says continues (or does not say), cells with no id, an empty or unreadable list, a missing account, or any
    conversation that cannot be read: `StillUnknown`.
 
-The v4 bug (worker.py 666-672, recorded in its PORTLOG): a full list holding unknown conversations that do not carry the
+The bug this avoids: a full list holding unknown conversations that do not carry the
 text was taken as proof; newer conversations could have pushed the job's own out of the 30, so one order could be sent
 twice. Here a full list proves nothing unless it reaches back past `sent_at`.
 

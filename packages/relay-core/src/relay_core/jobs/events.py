@@ -1,4 +1,4 @@
-"""Job events: the timeline of a job (contracts 4.2). Every stored text goes through redact_log (I24, R8)."""
+"""Job events: the timeline of a job. Every stored text goes through redact_log (I24, R8)."""
 
 from psycopg import AsyncConnection
 

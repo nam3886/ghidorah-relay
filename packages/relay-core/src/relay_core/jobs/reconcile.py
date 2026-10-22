@@ -1,4 +1,4 @@
-"""Reconciling `unknown` jobs (contracts 7.1 "Unknown"; invariants I1, I2, I14, I27, I28).
+"""Reconciling `unknown` jobs (invariants I1, I2, I14, I27, I28).
 
 A job whose send outcome is unknown is never re-sent. With `after_sent=reconcile` this loop reads the upstream
 account to find out, at a growing interval (60 s doubling to 30 min, kept in `next_poll_at` by the store), until the

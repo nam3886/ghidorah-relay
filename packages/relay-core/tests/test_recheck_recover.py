@@ -1,4 +1,4 @@
-"""Re-check, Recover, Regenerate and input-link expiry (contracts 7.1, 9; D14, D15; invariants I8, I10, I12, I13, I17,
+"""Re-check, Recover, Regenerate and input-link expiry (invariants I8, I10, I12, I13, I17,
 I21, I23, I25): the only ways a terminal job changes, the key re-charge after a refund that a later failure can refund
 again, the render clock restart, a NEW marker on Regenerate, and links that stop working at expiry or revoke."""
 

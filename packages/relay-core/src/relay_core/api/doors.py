@@ -1,4 +1,4 @@
-"""The one creation path every public door uses (contracts 7.3, 8, 9; D12, D27) and the status view of a job.
+"""The one creation path every public door uses and the status view of a job.
 
     request (native, OpenAI or Gemini)
       -> `DoorRequest`
@@ -63,7 +63,7 @@ MAX_IMAGES = 10
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_TITLE = 200
 MAX_IDEM_KEY = 200
-MAX_OPTIONS_BYTES = 16 * 1024    # the client's options, as JSON: kept for good in jobs.request (D56)
+MAX_OPTIONS_BYTES = 16 * 1024    # the client's options, as JSON: kept for good in jobs.request
 RETRY_WINDOW_S = 30 * 60                # a facade retry with no Idempotency-Key finds its job this far back
 MAX_BODY_BYTES = 170 * 1024 * 1024      # ten images of 12 MiB as base64, plus the text
 # Foreign fetches of client image URLs go through `net`; a test passes `transport` / `resolver` here.
@@ -80,7 +80,7 @@ TERMINAL = ("done", "failed")
 
 
 class Strict(BaseModel):
-    """Base of every request body: an unknown field is refused (D27)."""
+    """Base of every request body: an unknown field is refused."""
     model_config = ConfigDict(extra="forbid")
 
 
@@ -175,7 +175,7 @@ def _field_path(loc: tuple, kind: str) -> tuple:
 
 
 def validated[M: BaseModel](cls: type[M], data: Any) -> M:
-    """`cls` from a parsed body. An unknown field is `input.invalid` naming it (D27, whatever the field is called);
+    """`cls` from a parsed body. An unknown field is `input.invalid` naming it (whatever the field is called);
     any other bad field gets the code of its field. Never echoes the value."""
     if not isinstance(data, dict):
         raise ApiError("input.invalid")
@@ -249,7 +249,7 @@ SAMPLE_JOB_ID = uuid.UUID(int=0)      # the job id whose marker renders the leng
 
 def frame_unusable(spec: ProviderSpec, model: ModelSpec) -> ApiError:
     """500 `internal.frame_unusable`, logged at ERROR with what is missing: a provider with frames and no usable frame
-    for the model is ours to fix, and nothing falls back to the core frame (contracts 5.1)."""
+    for the model is ours to fix, and nothing falls back to the core frame."""
     log.error("no usable prompt frame: provider=%s kind=%s model=%s", spec.name, model.media_type, model.id)
     return ApiError("internal.frame_unusable")
 
@@ -325,7 +325,7 @@ def sniff_image(data: bytes) -> str | None:
 
 async def load_image(ref: ImageRef) -> tuple[bytes, str]:
     """(bytes, mime) of one input image. The bytes decide the type, never the declared one. https only, SSRF-checked
-    for a URL (D27)."""
+    for a URL."""
     if ref.ref.startswith("data:"):
         m = _DATA_URI.fullmatch(ref.ref)
         if m is None or len(m.group(1)) > MAX_IMAGE_BYTES * 4 // 3 + 16:
@@ -513,7 +513,7 @@ _STATUS = ("SELECT j.status, j.error_code, j.model, j.params, j.title, j.warning
 async def job_status(pool: AsyncConnectionPool, base_url: str, key_id, job_id: str, *,
                      media_type: str | None = None, estimate: bool = False,
                      registry: ProviderRegistry | None = None) -> dict:
-    """The status body of a job the key owns (contracts 8). 404 `resource.not_found` for any other job, a malformed
+    """The status body of a job the key owns. 404 `resource.not_found` for any other job, a malformed
     id, or (when given) a job of the other media type. `error` is the rule's message of the job's code, masked
     for a non-public code: never engine or upstream text. The last three keys are estimates (`api/progress.py`):
     only a caller that passes `estimate` and the `registry` may cost a read, and a read that fails costs the answer

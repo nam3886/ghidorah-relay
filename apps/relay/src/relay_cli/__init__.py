@@ -1,1 +1,1 @@
-"""The relay command (contracts §2)."""
+"""The relay command."""

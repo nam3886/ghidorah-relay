@@ -1,4 +1,4 @@
-"""Admin jobs (contracts 7.1, 7.5; D14, D15): the list and its cursor, the detail the page shows, debug files served as
+"""Admin jobs: the list and its cursor, the detail the page shows, debug files served as
 text, Re-check refusals, the Recover and title commands, rename, and Regenerate at today's price through the gate."""
 
 import dataclasses

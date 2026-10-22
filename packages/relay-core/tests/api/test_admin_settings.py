@@ -1,4 +1,4 @@
-"""Admin settings (contracts 10; I19): where each value comes from, a refused value leaves the stored one alone, a
+"""Admin settings (I19): where each value comes from, a refused value leaves the stored one alone, a
 delete restores the default, and the boot-only values are listed read-only and never writable."""
 
 import json

@@ -1,5 +1,5 @@
-"""The native doors (contracts 8): create and read video and image jobs. Strict (D27): an unknown field, an http
-URL and the v4 compatibility fields are refused or absent. Media routes live in `routes_media`."""
+"""The native doors: create and read video and image jobs. Strict: an unknown field, an http
+URL and the compatibility fields of older clients are refused or absent. Media routes live in `routes_media`."""
 
 from typing import Any
 
@@ -99,7 +99,7 @@ async def image_status(job_id: str, request: Request, key: ApiKey = Depends(requ
                             registry=gate.registry)
 
 
-# ---- content: the job's output files through the API (contracts 8, 9) ----------------------------------------------
+# ---- content: the job's output files through the API ----------------------------------------------
 async def _content(request: Request, key: ApiKey, job_id: str, idx: int, media_type: str):
     if idx < 0:
         raise ApiError("resource.not_found")

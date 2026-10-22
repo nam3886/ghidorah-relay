@@ -1,4 +1,4 @@
-"""The protocol types and the registry (contracts section 5.1-5.3): validation at construction, and a catalog whose
+"""The protocol types and the registry: validation at construction, and a catalog whose
 model ids and aliases are unique across providers."""
 
 import math
@@ -186,7 +186,7 @@ def test_an_http_provider_needs_no_slot_bounds():
     pv.ProviderRegistry().register(SlotsStub(execution="http"))
 
 
-# ---- prompt frames in the registry check (contracts 5.1) -------------------------------------------------------
+# ---- prompt frames in the registry check -------------------------------------------------------
 CORE_FRAME = "{{client_prompt}} {{tracking_code}}"
 
 

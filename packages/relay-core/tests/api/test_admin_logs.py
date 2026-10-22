@@ -1,4 +1,4 @@
-"""The admin request-log viewer (contracts §4.4, §16): filters, half-open dates, search without pattern characters,
+"""The admin request-log viewer: filters, half-open dates, search without pattern characters,
 pagination, the detail, and Clear removing only the log rows."""
 
 import json

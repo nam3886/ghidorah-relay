@@ -1,4 +1,4 @@
-"""API-key auth on the HTTP door (contracts §8, §13, D38)."""
+"""API-key auth on the HTTP door."""
 
 import secrets
 

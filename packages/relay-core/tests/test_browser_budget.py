@@ -1,4 +1,4 @@
-"""The browser semaphore's shares and total (contracts 3, D20; I28): whatever mix of submit, reconcile, check and
+"""The browser semaphore's shares and total (I28): whatever mix of submit, reconcile, check and
 command is pending, never more browsers than its size, and each purpose within its share. Pure asyncio, no database."""
 
 import asyncio

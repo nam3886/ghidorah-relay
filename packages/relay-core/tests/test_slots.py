@@ -1,4 +1,4 @@
-"""Live slot count and restart back-off of the browser semaphore (contracts 3, D20): lowering retires idle slots
+"""Live slot count and restart back-off of the browser semaphore: lowering retires idle slots
 only, raising serves waiters, and after an abnormal restart the submit share starts at half and doubles each healthy
 minute. A fake clock, no sleeps."""
 

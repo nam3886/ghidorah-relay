@@ -1,4 +1,4 @@
-"""`run_command` for dola (contracts 5.1, 5.4.1): the four kinds the core hands to the engine.
+"""`run_command` for dola: the four kinds the core hands to the engine.
 
 - `titles`: args `{"refs": [conversation id, ...]}`, result `{"titles": {ref: name}}`. HTTP only, no browser: the core
   calls it with no lease and no browser token.

@@ -1,8 +1,8 @@
-"""Re-check, Recover and Regenerate (contracts 7.1; D14, D15; invariants I8, I10, I13, I17, I23).
+"""Re-check, Recover and Regenerate (invariants I8, I10, I13, I17, I23).
 
 The only ways a terminal job changes (I13). Each is one transaction.
 
-Re-check polls again for a result that was already paid for: no new order. It restarts the render clock (D15), takes a
+Re-check polls again for a result that was already paid for: no new order. It restarts the render clock, takes a
 fresh poll token (a poll result still in flight is dropped, I23) and clears the callback fields. After a refund the KEY
 is charged again (a new ledger row, which a later failure can refund, I10); the account pool never is. A refused
 re-charge (key disabled, limit reached) does not block the revival: a paid result must be reachable.
@@ -56,7 +56,7 @@ async def _recharge(conn: AsyncConnection, job_id, key_id, provider: str, kind: 
         return 0
     try:
         await billing.charge(conn, key_id, provider, kind, price, job_id)
-    except (billing.QuotaExceeded, billing.KeyDisabled) as e:     # a missing wallet is a bug: it propagates (§4.1)
+    except (billing.QuotaExceeded, billing.KeyDisabled) as e:     # a missing wallet is a bug: it propagates
         log.warning("job %s revived without a new charge: %s", job_id, e)
         return 0
     return price

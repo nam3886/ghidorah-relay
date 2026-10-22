@@ -1,4 +1,4 @@
-"""Admin billing alerts (contracts 4.1, 15): a clamp and a drift are listed, acknowledged once by a named operator, and
+"""Admin billing alerts: a clamp and a drift are listed, acknowledged once by a named operator, and
 the api can change nothing else of an alert."""
 
 import psycopg

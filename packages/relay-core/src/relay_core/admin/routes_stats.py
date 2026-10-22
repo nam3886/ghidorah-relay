@@ -1,4 +1,4 @@
-"""Admin: the stats cards and the live alerts (contracts §15, §16).
+"""Admin: the stats cards and the live alerts.
 
 Everything here is computed from columns at request time: no text pattern matching, no rows kept, nothing to
 acknowledge, so an alert clears itself when its condition does. The conditions that are stored (ledger drift,

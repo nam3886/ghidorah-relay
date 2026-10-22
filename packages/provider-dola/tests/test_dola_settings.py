@@ -1,4 +1,4 @@
-"""dola's live settings and their validators (contracts 5.4.1; coverage CFG07, CFG08, PRICE00, RUN00)."""
+"""dola's live settings and their validators (coverage CFG07, CFG08, PRICE00, RUN00)."""
 
 import importlib
 

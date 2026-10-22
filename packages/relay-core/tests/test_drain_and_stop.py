@@ -1,4 +1,4 @@
-"""Drain mode and graceful stop (contracts 7.7; invariants I1, I2, I14): a drained provider claims nothing while its
+"""Drain mode and graceful stop (invariants I1, I2, I14): a drained provider claims nothing while its
 open jobs still finish; SIGTERM during a submit ends the job applied or `unknown`, never lost and never re-sent; no
 new irreversible action starts after the signal; leases are released and the loop exits 0."""
 
@@ -93,7 +93,7 @@ def test_a_drained_provider_claims_nothing_while_its_open_jobs_still_finish_and_
         async with running(loop):
             await asyncio.wait_for(gate.started.wait(), 5)
             settings.set("fake.claims_enabled", False)             # drain while the first job is mid-submit
-            # A claim that began before the drain was seen may still take one job (contracts 7.7, I9): wait until
+            # A claim that began before the drain was seen may still take one job (I9): wait until
             # that claim and the next one, which starts after the drain, have both ended before creating the job.
             seen = claims["started"]
             await until(lambda: claims["ended"] >= seen + 1, what="the loop to see the drain")

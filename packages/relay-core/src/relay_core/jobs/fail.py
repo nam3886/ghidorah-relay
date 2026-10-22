@@ -1,8 +1,8 @@
-"""Failing a job (contracts 7.1 "Failing a job", D14; invariants I7, I21, I24).
+"""Failing a job (invariants I7, I21, I24).
 
 Every transition to `failed` is ONE transaction: the compare-and-set on the status, the redacted error, the key
 refund of every charge row, the account-pool refund and the callback fields. A failed job always has its key
-charge refunded (v4 rule, D14): the refund does not depend on the code.
+charge refunded: the refund does not depend on the code.
 """
 
 from collections.abc import Collection, Mapping
@@ -42,7 +42,7 @@ async def _mark_failed(conn: AsyncConnection, job_id, expect: Collection[str], c
 
 
 # Upstream completed the order when the job row records its outputs: a fetch failure, or any later failure of a job
-# that was re-checked after one (D47). The row decides, so every failure path agrees.
+# that was re-checked after one. The row decides, so every failure path agrees.
 _ORDER_COMPLETED = ("SELECT CASE WHEN jsonb_typeof(provider_state -> 'outputs') = 'array' "
                     "THEN jsonb_array_length(provider_state -> 'outputs') > 0 ELSE false END FROM jobs WHERE id = %s")
 
@@ -65,7 +65,7 @@ async def _refund(conn: AsyncConnection, job_id, pools: Mapping[str, pool.PoolCo
 async def fail_in_tx(conn: AsyncConnection, job_id, expect: Collection[str], code: str, detail: str,
                      pools: Mapping[str, pool.PoolConfig]) -> bool:
     """For a caller that already holds the transaction (a result application). The key is always refunded; the
-    account pool is not when the job row records upstream outputs (D47). False: the status was not one of `expect`,
+    account pool is not when the job row records upstream outputs. False: the status was not one of `expect`,
     nothing changed."""
     require_tx(conn)
     if not await _mark_failed(conn, job_id, expect, code, detail):

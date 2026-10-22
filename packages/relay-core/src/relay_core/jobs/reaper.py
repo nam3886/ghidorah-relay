@@ -1,4 +1,4 @@
-"""The reaper (contracts 7.1 "Reaper"; invariants I1, I9, I14, I17, I21).
+"""The reaper (invariants I1, I9, I14, I17, I21).
 
 Every `interval_s` (30 s), for one provider, each transition is ONE transaction that locks what it changes,
 re-checks its condition under the lock and compare-and-sets the status, so two reapers (or the reaper and a live
@@ -14,10 +14,10 @@ worker) never both act:
 - the other expired leases (check, command, reconcile) are deleted; a `running` command whose lease expired is
   `failed` in the same transaction (I14).
 - a `running` command with no lease (delete, wake, check all, check) whose `started_at` is older than its bound
-  (`leases.COMMAND_HARD_S`, else `COMMAND_STALL_S`, plus a margin) has stalled: it is failed (I14, contracts 4.4).
+  (`leases.COMMAND_HARD_S`, else `COMMAND_STALL_S`, plus a margin) has stalled: it is failed (I14).
 - a `queued` job past `unsent_deadline_s` from its creation fails `queue.never_started`.
 - a `waiting` or `unknown` job past `<provider>.render_deadline_s`, counted from `render_since` (from the send
-  when it has none), so a Re-check that restarts the clock saves it (D15, I17), fails with the spec's
+  when it has none), so a Re-check that restarts the clock saves it (I17), fails with the spec's
   `deadline_cause` code, but only once a final read can no longer save it: a read that started after the deadline and
   that the engine answered (`jobs.answered_at`), or `RENDER_BACKSTOP_S` after a running worker first saw the job late
   (`jobs.late_seen_at`, stamped by this pass; not within `STARTUP_GRACE_S` of the worker starting, so the reads of a
@@ -25,7 +25,7 @@ worker) never both act:
   (no poll or no reconcile for it) fails at the deadline as before.
 - a `waiting` or `fetching` job nobody can see (`next_poll_at` NULL) is made visible again.
 - every `drift_s` (300 s) the pool counters of the provider's accounts are compared with their charges and corrected
-  (`pool.check_drift`, contracts 7.2).
+  (`pool.check_drift`).
 
 Failing always goes through `fail_in_tx`: status, error and refunds in one transaction (I21). The settings are read
 live on every pass.
@@ -59,7 +59,7 @@ OWNER_GONE_S = 45.0          # 3 x the worker heartbeat (engine.BEAT_S); `Worker
 COMMAND_STALL_S = 300       # bound of a command that takes no lease and has no entry in leases.COMMAND_HARD_S
 COMMAND_STALL_MARGIN_S = 60  # room for the command to record its own outcome before the reaper decides it stalled
 
-# Where the render clock starts: the send, or the last Re-check (D15). Never the creation of the job.
+# Where the render clock starts: the send, or the last Re-check. Never the creation of the job.
 RENDER_FROM = "COALESCE(render_since, sent_at)"
 UNSENT_FROM = "created_at"
 

@@ -1,6 +1,5 @@
-"""The account check and the proxy probe (v4 `account._demo`, `alive._demo`, `session._demo`, `verify._demo`,
-`proxy_manager._demo`: coverage ACC00, ALIVE00, SESS03, VERIFY02, PROXY02). No Chrome, no network: the page is a
-scripted driver, the HTTP transport an in-process fake."""
+"""The account check and the proxy probe (coverage ACC00, ALIVE00, SESS03, VERIFY02, PROXY02). No Chrome, no
+network: the page is a scripted driver, the HTTP transport an in-process fake."""
 
 import asyncio
 import threading

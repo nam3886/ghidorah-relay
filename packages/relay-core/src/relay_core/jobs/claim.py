@@ -1,7 +1,7 @@
-"""The claim (contracts 7.1; invariants I6, I9): which queued job runs on which account, in ONE transaction.
+"""The claim (invariants I6, I9): which queued job runs on which account, in ONE transaction.
 
 The heads of every pool (the oldest queued job of each `account_cost` in each pool) are merged and walked oldest
-first by `(created_at, id)`, so a video backlog never starves an older image job (D43). A head looks for an
+first by `(created_at, id)`, so a video backlog never starves an older image job. A head looks for an
 account that is available, checked, not cooling, not resting in the pool, has a free slot, and can afford the head
 (`left_n - reserved >= account_cost`, unknown allows). Affordability is decided before any browser token is taken, so
 a head that no account can pay for never stalls the cheaper jobs behind it. A candidate's account row is locked first,

@@ -1,4 +1,4 @@
-"""Streaming through the facades (contracts 8): the job is created before any byte is sent, a heartbeat arrives
+"""Streaming through the facades: the job is created before any byte is sent, a heartbeat arrives
 while it runs, a failure is one error event, and a client that leaves never cancels the job. These run against a
 real server socket: the ASGI test transport buffers a whole response and cannot disconnect."""
 
@@ -213,7 +213,7 @@ def test_a_client_that_disconnects_stops_only_the_stream_and_the_job_stays_charg
 
 @mutation(FC, "HOLD_LIMIT_S = 1800.0", "HOLD_LIMIT_S = 180.0", expect="1800")
 def test_the_hold_limit_is_1800_s_and_a_stream_that_reaches_it_says_to_poll_and_leaves_the_job_running(db, monkeypatch):
-    assert fc.HOLD_LIMIT_S == 1800, "the hold limit is 1800 s (contracts 8)"
+    assert fc.HOLD_LIMIT_S == 1800, "the hold limit is 1800 s"
 
     async def scenario(env):
         quick(monkeypatch)

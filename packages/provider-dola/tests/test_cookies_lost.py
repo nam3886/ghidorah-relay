@@ -1,4 +1,4 @@
-"""Cookies the browser lost are a browser fault, not a guest verdict (D92): no strike, no `signed_out`, the same rest as
+"""Cookies the browser lost are a browser fault, not a guest verdict: no strike, no `signed_out`, the same rest as
 a login doubt, and a send goes back to the queue without using an attempt. Only the identity cookies that were injected
 into this browser can be lost. A browser that cannot be asked is a fault too. Scripted page, no Chrome."""
 

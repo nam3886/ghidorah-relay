@@ -39,7 +39,7 @@ def run(page, app, live, sw, data):
         page.locator(VIDEO).get_by_role("button", name="Edit frame for fake-video").click(),
         expect_dialog(page, MODEL_EDITOR),
         expect(page.get_by_label("Frame text")).to_be_visible()))
-    # the note on the preview's character count, opened from the keyboard (D125)
+    # the note on the preview's character count, opened from the keyboard
     sw.step("frames", "preview-tip", lambda: (
         # a draft to preview
         page.get_by_label("Frame text").fill("Preview frame. {{tracking_code}} {{client_prompt}}"),

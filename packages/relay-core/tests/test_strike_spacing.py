@@ -1,4 +1,4 @@
-"""Spaced strikes (D91): a doubt less than its gap after the last counted strike counts once; only the third spaced
+"""Spaced strikes: a doubt less than its gap after the last counted strike counts once; only the third spaced
 strike ends in the strike effect; a logged-in read, a merge and an admin revive clear the count and its time; a
 cooldown that asks for a recheck sets the next check at its end."""
 

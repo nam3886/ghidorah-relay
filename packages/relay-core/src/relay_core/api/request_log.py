@@ -1,4 +1,4 @@
-"""The request log (contracts §4.4, §13): one `request_logs` row per request a known key made.
+"""The request log: one `request_logs` row per request a known key made.
 
 Pure ASGI middleware, so it sees every outcome: a response, a framework error and a crash (answered here with the
 500 envelope). Rules:

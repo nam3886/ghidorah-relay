@@ -1,4 +1,4 @@
-"""The RunCtx an engine gets for one claimed job (contracts 5.2, 7.7; invariant I2) and the account it works on.
+"""The RunCtx an engine gets for one claimed job (invariant I2) and the account it works on.
 
 `fence()`, `mark_sent()` and `report_ref()` act on the job's lease by its ID. Once the worker has been told to stop,
 `fence()` and `mark_sent()` refuse with `Stopping`: no new irreversible action may start after the signal, so a job

@@ -1,4 +1,4 @@
-"""`open_session` (contracts §6.1; coverage BSES02, BSES03, E01, T10): the token, the profile and its two resets, the
+"""`open_session` (coverage BSES02, BSES03, E01, T10): the token, the profile and its two resets, the
 lock and the throwaway profile, the launch retry, the launch settings. The pure tests drive the functions open_session
 is made of; the browser tests open a real Chrome through it."""
 
@@ -42,7 +42,7 @@ def state_left(profile: Path) -> list[str]:
     return [f for f in files_left(profile) if not f.startswith(tuple("Default/" + k for k in sess.KEEP_IN_DEFAULT))]
 
 
-# ---- the token (§3) -------------------------------------------------------------------------------------------
+# ---- the token -------------------------------------------------------------------------------------------
 async def try_open(tmp_path, token, purpose="submit", **kw):
     """True when open_session refused; False when it opened (and closed again)."""
     try:

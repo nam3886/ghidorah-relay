@@ -1,4 +1,4 @@
-"""The job store's public surface (contracts 7.1, 7.3): creation, claim, result application, failing, events.
+"""The job store's public surface: creation, claim, result application, failing, events.
 
 The pieces live in `create`, `claim`, `apply`, `fail` and `events`; callers import from here. Every function takes
 the process's pool and opens its own transaction (money and multi-row writes only run inside `relay_core.db.tx`);

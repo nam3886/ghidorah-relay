@@ -1,4 +1,4 @@
-"""API keys (contracts §4.1, §13, D2, D31): hashed `rk-` keys, fail-closed lookup, the model allow-list, wallets made
+"""API keys: hashed `rk-` keys, fail-closed lookup, the model allow-list, wallets made
 with the key, and delete-or-disable. Everything runs as `relay_api`, the role that serves these operations."""
 
 import asyncio
@@ -232,7 +232,7 @@ def test_star_allows_everything_and_an_empty_list_nothing():
     assert not model_allowed([], "m-2.5", CATALOG)
 
 
-# ---- delete or disable (D31) ---------------------------------------------------------------------------------------
+# ---- delete or disable ---------------------------------------------------------------------------------------
 @mutation(K, "except psycopg.errors.ForeignKeyViolation:", "except psycopg.errors.NotNullViolation:",
            expect="violates foreign key constraint \"jobs_key_id_fkey\"")
 def test_only_a_key_without_history_is_deleted_the_rest_are_disabled(db):

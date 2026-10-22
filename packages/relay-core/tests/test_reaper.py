@@ -1,4 +1,4 @@
-"""The reaper (contracts 7.1 "Reaper", D15; I1, I9, I14, I17, I21): every transition is one compare-and-set
+"""The reaper (I1, I9, I14, I17, I21): every transition is one compare-and-set
 transaction, a sent job never goes back to `queued`, and deadlines are counted from the right clock."""
 
 import asyncio

@@ -1,4 +1,4 @@
-"""CDP response patches and telemetry blocking (contracts §6.1; coverage BSES06, E03): the page's request must never
+"""CDP response patches and telemetry blocking (coverage BSES06, E03): the page's request must never
 hang on us, a patch is counted only when it really changed something, and none of it goes through a route (which would
 switch Chrome's HTTP cache off). Pure tests use a recording stand-in for the CDP session; browser tests use a real
 one."""

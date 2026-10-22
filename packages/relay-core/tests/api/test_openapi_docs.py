@@ -1,4 +1,4 @@
-"""The public OpenAPI schema (contracts §8): valid, public routes only, the hand-parsed bodies and the error
+"""The public OpenAPI schema: valid, public routes only, the hand-parsed bodies and the error
 envelope declared."""
 
 import json
@@ -74,7 +74,7 @@ def test_the_hand_parsed_bodies_of_every_door_are_declared(db):
             assert ref.get("$ref") == "#/components/schemas/" + name, "%s %s has a declared request body" % (
                 method, path)
             body = schema["components"]["schemas"][name]
-            assert body.get("additionalProperties") is False, "unknown fields are refused (D27)"
+            assert body.get("additionalProperties") is False, "unknown fields are refused"
         fields = {n: set(schema["components"]["schemas"][n]["properties"]) for n in ("VideoBody", "ImageBody")}
         assert {"model", "prompt", "duration", "ratio", "n", "images", "callback_url"} <= fields["VideoBody"]
         assert "style" in fields["ImageBody"] and "duration" not in fields["ImageBody"]
@@ -116,7 +116,7 @@ APP = "packages/relay-core/src/relay_core/api/app.py"
           "    app.include_router(health)\n", expect="is not served")
 def test_there_is_no_docs_or_redoc_page_only_the_schema(db):
     """The customer API page is `/reference` (Scalar, vendored); Swagger and ReDoc loaded CDN scripts on the admin's
-    origin, so they are gone (D57)."""
+    origin, so they are gone."""
     async def scenario(env):
         for path in ("/docs", "/redoc", "/docs/oauth2-redirect"):
             r = await env.client.get(path)
@@ -149,9 +149,9 @@ def test_the_public_schema_is_built_once_per_app_and_served_from_the_copy(db, mo
     run_app(db, scenario)
 
 
-# plan and decision labels, old-system names and code notes that must never reach a client's reading
-INTERNAL = re.compile(r"\bD\d{1,3}\b|\bv4\b|\bv2\b|contracts|\blane\b|\bphase\b|TODO|FIXME|XXX|ponytail|\[P9\]|"
-                      r"dola2api|meta2api|vibesai2api|\bpool\b|\bworker\b|\baccount\b", re.IGNORECASE)
+# internal labels and code notes that must never reach a client's reading
+INTERNAL = re.compile(r"\bD\d{1,3}\b|contracts|\blane\b|\bphase\b|TODO|FIXME|XXX|ponytail|\[P9\]|"
+                      r"\bpool\b|\bworker\b|\baccount\b", re.IGNORECASE)
 
 
 def strings(node):

@@ -1,4 +1,4 @@
-"""Fetch (contracts 5.4.1 "fetch"; coverage RES14, RES26, RES16): direct first, then through the account proxy; master
+"""Fetch (coverage RES14, RES26, RES16): direct first, then through the account proxy; master
 quality through the cell's own `fallback_api` and the qAAB token; silent fallback; images take only the clean link."""
 
 import asyncio
@@ -59,10 +59,10 @@ PROXY_URL = PROXIES["https"]
 RENDITION = "http://v16-dola.dola.com/rendition-%s.mp4"
 IMAGE = "https://p16-flow-image-sign.ibyteimg.com/raw.png"
 MASTER_URL = "http://v16-dola.dola.com/master/h264-720p.mp4?sig=abc123"
-# a qAAB token and its seed, made with v4's own key schedule (resolver._decode_qaab round-trips it): port parity
+# a qAAB token and its seed, made with the reference key schedule (resolver._decode_qaab round-trips it): port parity
 SEED = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8w"
-V4_TOKEN = ("qAABANYTvgYokgwQE6gZbOf471LOxNMuc4DtnFxgHDdQs2rRcMI4+ZQD8iaV8vay/yIb2X5zwEcMnBM9ESyXXzu+3x8=")
-V4_URL = "https://cdn.example.com/master/h264-720p.mp4?sig=abc123"
+REFERENCE_TOKEN = ("qAABANYTvgYokgwQE6gZbOf471LOxNMuc4DtnFxgHDdQs2rRcMI4+ZQD8iaV8vay/yIb2X5zwEcMnBM9ESyXXzu+3x8=")
+REFERENCE_URL = "https://cdn.example.com/master/h264-720p.mp4?sig=abc123"
 # the same schedule applied to MASTER_URL
 TOKEN = ("qAABAKeh1olSrJJds+S+iT/5gayXR6Ng7rANHuFZuWlTVtB9eHVPJdaMEN0A0baCGXgWyfLBxkRtdry+6vUA+ujEJIA=")
 
@@ -130,7 +130,7 @@ def test_a_failed_download_with_no_proxy_is_an_error_and_with_both_failing_too()
 
 
 def test_an_empty_body_and_a_transport_exception_are_failed_attempts_not_a_video():
-    """A 200 with no bytes became a 0-second 'video' once (v4 fa10b65)."""
+    """A 200 with no bytes became a 0-second 'video' once."""
     with pytest.raises(FetchFailed) as info:
         collect(Ctx(account(proxy=False)), video_out(), media=MediaSite(b""))
     assert info.value.reason == "empty"
@@ -221,8 +221,8 @@ def test_an_image_is_downloaded_from_its_clean_link_and_never_asks_for_a_master(
 
 
 # ---- master quality via qAAB (RES14) --------------------------------------------------------------------------------
-def test_decode_qaab_matches_the_v4_key_schedule_and_refuses_what_it_cannot_decode():
-    assert decode_qaab(V4_TOKEN, SEED) == V4_URL, "the v4 token no longer decodes"
+def test_decode_qaab_matches_the_reference_key_schedule_and_refuses_what_it_cannot_decode():
+    assert decode_qaab(REFERENCE_TOKEN, SEED) == REFERENCE_URL, "the reference token no longer decodes"
     assert decode_qaab(TOKEN, SEED) == MASTER_URL
     assert decode_qaab(TOKEN, base64.b64encode(bytes(range(2, 50))).decode()) == "", "a wrong seed gave a URL"
     assert decode_qaab(base64.b64encode(b"\xa8\x00\x01\x00" + b"x" * 7).decode(), SEED) == "", "a ragged payload"
@@ -411,7 +411,7 @@ def test_no_secret_rides_in_the_output_meta_so_the_seed_route_is_not_stored():
 @pytest.mark.parametrize("failure", ["403", "too_large"])
 def test_a_master_that_fails_to_download_fails_the_output_and_the_rendition_is_never_requested(failure, monkeypatch):
     (out,), _ = outputs_of("v1")
-    answer = Resp(200, {"video_info": {"data": {"video_list": {"a": {"main_url": V4_TOKEN, "bitrate": 9}}}},
+    answer = Resp(200, {"video_info": {"data": {"video_list": {"a": {"main_url": REFERENCE_TOKEN, "bitrate": 9}}}},
                         "key_seed": SEED})
     monkeypatch.setattr(fetch_mod, "decode_qaab", lambda token, seed: MASTER_URL)
     monkeypatch.setattr(fetch_mod, "MEDIA_MAX_BYTES", 50)       # the rendition fits, the master below does not
@@ -451,7 +451,7 @@ def test_a_master_that_fails_to_download_fails_the_output_and_the_rendition_is_n
 def test_a_master_the_download_refuses_keeps_the_rendition_and_logs_only_the_reason_and_host(
         shape, master, expected_reason, expected_host, caplog, monkeypatch):
     (out,), _ = outputs_of("v1")
-    answer = Resp(200, {"video_info": {"data": {"video_list": {"a": {"main_url": V4_TOKEN, "bitrate": 9}}}},
+    answer = Resp(200, {"video_info": {"data": {"video_list": {"a": {"main_url": REFERENCE_TOKEN, "bitrate": 9}}}},
                         "key_seed": SEED})
     monkeypatch.setattr(fetch_mod, "decode_qaab", lambda token, seed: master)
     moves = {"/r/host": "https://cdn.example.com/m.mp4?sig=abc123",

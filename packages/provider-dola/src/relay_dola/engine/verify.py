@@ -1,7 +1,7 @@
-"""Login state, read from INSIDE the dola tab (ported from dola_v4 `verify.py`; the video check there was dead code).
+"""Login state, read from INSIDE the dola tab.
 
 Login is trusted only from signals inside the tab: calling `recent_conv` over HTTP from another machine once returned
-5 conversations for a cookie jar the browser could not use at all (contracts v4 section 2.4). The probe below runs in
+5 conversations for a cookie jar the browser could not use at all. The probe below runs in
 the page with `page.evaluate`; from outside it means nothing.
 
 The same probe lists the conversations of an account: reconcile needs that list, and it is the only reliable way to

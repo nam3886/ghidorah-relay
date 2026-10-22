@@ -1,8 +1,7 @@
-"""Poll: one read of the job's conversation, mapped to a `PollResult` (contracts 5.4.1 "poll"). Reads only: it works
+"""Poll: one read of the job's conversation, mapped to a `PollResult`. Reads only: it works
 for a disabled account too and NEVER spends credits. The core calls it every `next_in_s` (30 s) until the job ends.
 
-The v4 runner looped for 120 s per round and wrote its conclusions into the database; here one call is one read and the
-conclusion is the return value.
+One call is one read and the conclusion is the return value; nothing is written to the database here.
 
 Provider state this module writes through `state_patch` (the spec's `deadline_cause` reads it):
 - `signed_out`: dola said the session is dead (712012001). The job keeps waiting (fresh cookies may still deliver); a
@@ -84,7 +83,7 @@ def _done_video(job, conversation: str, read: resolver.VideoRead, healed: dict) 
 
 
 def _copyright_seen(job, body: dict, read: resolver.VideoRead, healed: dict, now: float) -> PollResult:
-    """v4's second copyright path: a block anywhere in the conversation (no time, or not the newest reply) that WE first
+    """The second copyright path: a block anywhere in the conversation (no time, or not the newest reply) that WE first
     saw at or after the send / Re-check ends the job at once, with nothing still rendering. The first sighting is kept
     in `copyright_seen_at`, so a Re-check later does not read the same old block as new."""
     since = _since(job)

@@ -1,4 +1,4 @@
-"""What dola hands the core to report (contracts 5.4.1 "unclear", "unclear_at_deadline"): at the render deadline the
+"""What dola hands the core to report ("unclear_at_deadline"): at the render deadline the
 newest paragraph of dola's last words when nothing explains them, and at submit the reply to the last send, from the
 engine's own reads, with the lines that only echo the customer's words removed.
 """

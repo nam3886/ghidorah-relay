@@ -1,7 +1,7 @@
-"""The provider protocol (contracts section 5.1-5.3), trimmed to what the first provider needs.
+"""The provider protocol, trimmed to what the first provider needs.
 
 Pure types: no I/O, no database, no browser. The API imports a provider's spec; only a worker imports its engine.
-Members the contracts mark as later additions (pinned jobs, credential push, poll-held leases, per-pool slots,
+Members marked as later additions (pinned jobs, credential push, poll-held leases, per-pool slots,
 bytes outputs, fail-and-refund, maintain, the cooldown strike effect) are deliberately absent.
 
 This module is also the one core module that may name providers (the registry); it names none itself.
@@ -145,7 +145,7 @@ class Accepted:
     facts: Facts = Facts()
     taken: bool = True
     unclear: str | None = field(default=None, repr=False)
-    """The upstream's own reply the provider could not classify (admin alerts, contracts 5.3): never page text, `""`
+    """The upstream's own reply the provider could not classify (admin alerts): never page text, `""`
     when no reply text could be read, None when there is nothing to report. Only for an order not yet proven taken."""
 
     def __post_init__(self):
@@ -323,8 +323,8 @@ class Caps:
     has_probe_proxy: bool = False
     titles: bool = False
     catalog_refresh_s: int | None = None
-    proxy_rest_s: int = 1800           # a failed proxy probe rests the account on every pool this long (D44)
-    check_interval_s: int = 21600      # the account check cadence (contracts 5.4.1); the retry stays an env value
+    proxy_rest_s: int = 1800           # a failed proxy probe rests the account on every pool this long
+    check_interval_s: int = 21600      # the account check cadence; the retry stays an env value
 
     def __post_init__(self):
         if self.execution not in ("http", "browser"):
@@ -396,7 +396,7 @@ class CreateRequest:
 
 @dataclass(frozen=True)
 class FrameUse:
-    """The frame a job is sent with (contracts 5.1): the stored version's id (None for the core frame, which has no
+    """The frame a job is sent with: the stored version's id (None for the core frame, which has no
     row) and its text."""
     id: int | None
     text: str
@@ -634,7 +634,7 @@ def _problems(spec: ProviderSpec) -> list[str]:
 
 def _frame_problems(spec: ProviderSpec) -> list[str]:
     """A provider with frames must ship a default that passes the grammar for every kind of its catalog, or neither the
-    api nor the worker starts (contracts 5.1)."""
+    api nor the worker starts."""
     rules = getattr(spec, "frames", None)
     if rules is None:
         return []

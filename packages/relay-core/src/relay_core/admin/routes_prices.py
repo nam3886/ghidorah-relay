@@ -1,4 +1,4 @@
-"""Admin: measured prices (contracts §4.2, §16).
+"""Admin: measured prices.
 
 `jobs.price` is the only figure a customer is charged; `jobs.upstream_price` is what the upstream said it took, stored
 only once the order was taken. Per provider, model and requested duration this lists the points charged, how many

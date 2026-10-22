@@ -1,4 +1,4 @@
-"""The worker process (contracts 3, 7.7, 15; invariants I1, I14): every loop of a provider runs under one stop signal,
+"""The worker process (invariants I1, I14): every loop of a provider runs under one stop signal,
 shutdown goes in order and leaves no lease that a job still depends on, a different BILLING_TZ refuses to start, and
 the claim loop's error limit is the process's exit code."""
 

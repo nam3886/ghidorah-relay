@@ -1,4 +1,4 @@
-"""The public OpenAPI schema (contracts §8): what a client may call, and nothing of the admin tree.
+"""The public OpenAPI schema: what a client may call, and nothing of the admin tree.
 
 FastAPI's own schema lists every route (admin included) and cannot see the create bodies, which the doors parse by
 hand so that an unknown field is always `input.invalid`. `public_schema(app)` starts from FastAPI's schema, drops the

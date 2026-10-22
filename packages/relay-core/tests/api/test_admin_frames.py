@@ -1,4 +1,4 @@
-"""Admin: prompt frames and keep-own locks (contracts 4.7, 5.1, 16): list, history, save, rollback, reset, the
+"""Admin: prompt frames and keep-own locks: list, history, save, rollback, reset, the
 lock, apply to all and the preview. Every write records the admin session's user; a refusal stores nothing."""
 
 import asyncio

@@ -1,5 +1,5 @@
 -- Roles are cluster-wide, so they are created only when missing. They start NOLOGIN: `relay migrate` gives them
--- a password (LOGIN) from the environment, so no secret lives in a migration file (contracts §4.5).
+-- a password (LOGIN) from the environment, so no secret lives in a migration file.
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'relay_api') THEN

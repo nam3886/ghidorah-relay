@@ -1,4 +1,4 @@
-"""The local proxy forwarder (contracts §6.1).
+"""The local proxy forwarder.
 
 Chrome goes through a local proxy that needs no password; the forwarder adds `Proxy-Authorization` when it passes
 the request on to the account's real proxy. Why: a proxy with a password makes Playwright enable CDP `Fetch` to answer
