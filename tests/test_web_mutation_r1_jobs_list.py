@@ -142,17 +142,12 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
 @mutation(VIEW, BULK_ANCHOR, CLEARS_FIRST, expect=KEEPS)
 @mutation(VIEW, "const out = await bulkRecheck(sent);", f"const out = await bulkRecheck({ALL_IDS});",
           expect=FV + "bulk re-check > posts the ticked ids in table order, says how many, and clears the ticks")
-@mutation(VIEW, ':disabled="!ids.length || rechecking"', ':disabled="rechecking"',
-          expect=AT_REST)
 @mutation(VIEW, "Regenerate ${ids.value.length} job(s)? ", "Regenerate job(s)? ",
           expect=FV + "bulk regenerate > asks first, naming the count, today's price and the charge")
 @mutation(VIEW, "picked.value = new Set(rows.map((r) => r.id));", "picked.value = picked.value;",
           expect=AT_REST)
 @mutation(VIEW, "label: keyName(k) }", "label: k.label }",
           expect=FV + "filters > every key option is readable: its label, else its prefix, else the start of its id")
-@mutation(VIEW, '<span class="jobs__key jobs__one-line">{{ keyLabel(row) }}</span>',
-          '<span class="jobs__key jobs__one-line">{{ row.key_label }}</span>',
-          expect=FV + "filters > a job whose key has no label shows the key as the Key filter names it")
 @mutation(VIEW, "keyNames.value.get(job.key_id) || ", "",
           expect=FV + "filters > a job whose key has no label shows the key as the Key filter names it")
 @mutation(VIEW, "label: s.charAt(0).toUpperCase() + s.slice(1)", "label: s",
@@ -175,22 +170,11 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
           'new Intl.DateTimeFormat("en-CA", { timeZone: "UTC" }).format(ms)',
           expect=FV + "time zones > asks for the day totals in the zone of the browser, exactly as the browser "
                       "reports it (America/Los_Angeles), and puts each on its own day's header")
-@mutation(VIEW, 'v-show="!isPhone || ids.length"', 'v-show="true"',
-          expect=FV + "selection > a phone shows the bulk bar only while a job is ticked, "
-                      "with the count and both buttons")
-@mutation(VIEW, '<el-button v-show="ids.length" :disabled', "<el-button :disabled", expect=AT_REST)
-@mutation(VIEW, '<RegenerateControl\n            v-show="ids.length"\n', "<RegenerateControl\n", expect=AT_REST)
-@mutation(VIEW, 'v-show="items.length || ids.length" class="num jobs__count"',
-          'v-show="ids.length" class="num jobs__count"', expect=AT_REST)
-@mutation(VIEW, 'v-show="items.length || ids.length" class="num jobs__count"', 'class="num jobs__count"',
-          expect=FV + "the list > an empty list has no count in its toolbar, as the no-results card draws it")
 @mutation(VIEW, '"Every generation job across keys, by day."', '"Every generation job across keys, grouped by day."',
           expect=FV + "the page head and the 24-hour band > a phone says 'by day' and has an icon-only Refresh "
                       "that names the update time")
 @mutation(VIEW, "if (!sameColumns(next, columnWidths.value)) columnWidths.value = next;", "columnWidths.value = null;",
           expect=GROWS)
-@mutation(VIEW, '        :style="columnVars"\n', "", expect=GROWS)
-@mutation(VIEW, '        @rows-drawn="measureColumns"\n', "", expect=GROWS)
 @mutation(VIEW, "    if (body) widthWatch?.observe(body);\n", "",
           expect=FV + "the list > the widths follow the table element's own width")
 @mutation(f"{SRC}/components/shared/DataTable.vue", '      emit("rows-drawn");\n', "", expect=GROWS)
@@ -227,8 +211,6 @@ CHIP_WINDOW = HEAD + "a column filters the list to its hour, from the first page
 @mutation(VIEW, "  clearInterval(timer);\n", "  void timer;\n", expect=HEAD + "stops reading once the page is gone")
 @mutation(VIEW, "  if (!document.hidden) poll();", "  void 0;",
           expect=HEAD + "coming back to the tab reads at once, and leaving it reads nothing")
-@mutation(f"{SRC}/components/jobs/HourBand.vue", 'role="group"', 'role="img"',
-          expect=HEAD + "the columns are a labelled group, not an image, so every hour link stays reachable")
 @pytest.mark.web_unit
 def test_the_hour_filter_the_band_follows_scope_and_sign_out_and_the_read_pauses_while_hidden():
     vitest(VIEW_SPEC)

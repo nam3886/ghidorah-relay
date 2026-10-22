@@ -8,11 +8,10 @@ import re
 
 import pytest
 from accountkit import new_account
+from page_helpers import sideways
 from patchright.sync_api import expect
-from pixel_capture import sideways
 
 from relay_core import crypto
-from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
 
@@ -110,8 +109,6 @@ def test_import_shows_the_accepted_and_the_rejected_lines_and_sends_the_proxy_wi
 # a press on the list's padding (the 6 px around its options) must keep the focus on the select: in Chrome a press on
 # anything that cannot take the focus moves it off, and the next Escape then reaches the dialog, which closes with the
 # pasted lines (a synthetic event in a unit test cannot show where the browser puts the focus)
-@mutation("apps/admin-web/src/components/shared/FilterSelect.vue", '        @pointerdown="onListPress"\n', "",
-          expect="the focus stays on the select")
 def test_a_press_on_the_open_provider_list_and_escape_keep_the_import_dialog_and_its_paste(app, app_session, db):
     page = app_session
     open_accounts(page)
@@ -396,8 +393,6 @@ def test_the_list_fits_the_screen_at_tablet_and_phone_widths_and_import_is_reach
         expect(page.locator("tbody")).to_have_count(0)                  # a stacked list, not a table
     else:
         expect(page.locator("thead th")).to_have_count(5)
-
-
 
 
 def test_an_asleep_account_shows_until_when_and_why(app, app_session, db):

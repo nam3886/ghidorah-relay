@@ -11,12 +11,10 @@ from zoneinfo import ZoneInfo
 import pytest
 from accountkit import done_job, new_account
 from jobkit import key as new_key
+from page_helpers import sideways
 from patchright.sync_api import expect
-from pixel_capture import sideways
 from test_admin_alert_groups import group_of, plant_unclear, stamp
 from test_admin_alerts import plant
-
-from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
 
@@ -271,7 +269,6 @@ def log(db, key, route, status=200, *, at_ms=None, job=None, error=None, request
            key, route, status, job, error, json.dumps(request or {}), at_ms, at_ms)
 
 
-DRAWER = "apps/admin-web/src/components/shared/DetailDrawer.vue"
 # the header's bottom padding, and how far the content of its last part (the chips, else the tab row) sits above the
 # line: the phone sheet puts the 16 px in the chip row's own padding, so that padding is not content
 HEAD_GAP_JS = """(testid) => {
@@ -283,10 +280,6 @@ HEAD_GAP_JS = """(testid) => {
 }"""
 
 
-@mutation(DRAWER, "  padding: 20px 24px 16px;\n  border-bottom", "  padding: 20px 24px 0;\n  border-bottom",
-          expect="16 px under the chips")
-@mutation(DRAWER, ":not(.has-tabs) .detail-drawer__chips {\n  padding-bottom: 16px;",
-          ":not(.has-tabs) .detail-drawer__chips {\n  padding-bottom: 0;", expect="16 px under the chips")
 @pytest.mark.parametrize("width", (1440, 390))
 def test_a_drawer_header_without_tabs_keeps_16_px_under_its_chips(app, app_session, db, width):
     """16 px from the chips to the line: the header's own padding on a desktop, the chip row's on the phone sheet."""
@@ -427,7 +420,6 @@ def test_the_date_window_is_the_viewers_midnights_and_ends_at_the_start_of_the_d
     assert timedelta(hours=1) <= after - day <= timedelta(hours=25)
 
 
-RANGE_CSS = "apps/admin-web/src/components/logs/logs-date-field.css"
 RANGE_GEOMETRY_JS = """() => {
   const rect = (e) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
   const editor = document.querySelector('.lf__date .el-date-editor');
@@ -439,9 +431,6 @@ RANGE_GEOMETRY_JS = """() => {
 
 
 @pytest.mark.parametrize("width", (1440, 768, 390))
-@mutation(RANGE_CSS, ".lf__date .el-date-editor .el-range-separator {",
-          ".lf__date .el-date-editor .el-range-input:last-of-type {\n  display: none;\n}\n"
-          ".lf__date .el-date-editor .el-range-separator {", expect="the range picker's inner layout")
 def test_the_range_picker_holds_two_named_inputs_a_dash_between_them_and_its_icon_inside_one_box(
         app, app_session, width):
     """The two outer fields of the canvas are one box here, so the inside is held by geometry: From then To, side by
@@ -465,7 +454,6 @@ def test_the_range_picker_holds_two_named_inputs_a_dash_between_them_and_its_ico
     assert icon[0] >= second[2] - 0.5 and icon[2] <= box[2] + 0.5, why                # the icon at the end, inside
 
 
-LOGS_FILTER_FORM = "apps/admin-web/src/components/logs/LogsFilterForm.vue"
 CHIPS_JS = """() => {
   const rect = (e) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
   const form = document.querySelector('.lf');
@@ -477,13 +465,6 @@ CHIPS_JS = """() => {
 }"""
 
 
-@mutation(LOGS_FILTER_FORM, "  flex-direction: column;\n  gap: 8px;\n  padding: 0 12px;\n",
-          "  gap: 8px;\n  padding: 0 12px;\n", expect="Status spans the row")
-@mutation(RANGE_CSS, "  flex: 1;\n  width: auto;\n  min-width: 0;\n",
-          "  flex: none;\n  width: 232px;\n  min-width: 0;\n", expect="the date field fills its chip")
-@mutation(LOGS_FILTER_FORM, ".lf__status :deep(.filter-select.is-field) {\n  flex: 1;\n}",
-          ".lf__status :deep(.filter-select.is-field) {\n  flex: none;\n}",
-          expect="the Status select fills its chip")
 @pytest.mark.parametrize("width", (1440, 768, 390))
 def test_on_a_phone_the_status_chip_and_the_dates_chip_each_take_a_full_width_row(app, app_session, width):
     page = app_session

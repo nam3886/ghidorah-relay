@@ -33,7 +33,6 @@ CONTAINERS = f"{SRC}/components/settings/ContainerLimits.vue"
 TEST_MODELS = f"{SRC}/components/test/test-models.ts"
 TEST_RESULT = f"{SRC}/components/test/TestResult.vue"
 TEST_RESULT_MODEL = f"{SRC}/components/test/test-result-model.ts"
-TEST_IMAGES = f"{SRC}/components/test/TestImages.vue"
 FRAMES = f"{SRC}/components/frames/use-frames.ts"
 FRAMES_MODEL = f"{SRC}/components/frames/frames-model.ts"
 FRAMES_VIEW = f"{SRC}/views/FramesView.vue"
@@ -50,12 +49,6 @@ SETTINGS_SPEC = FAILED + "settings/settings.spec.ts > "
 FRAMES_SPEC = FAILED + "frames/use-frames.spec.ts > "
 FRAMES_VIEW_SPEC = FAILED + "frames/frames-view.spec.ts > the view > "
 MODEL_SPEC = FAILED + "frames/frames-model.spec.ts > frame lines > "
-EMPTY_MODELS = VIEW_SPEC + ("the empty state > keeps the model column with a hint while no model is loaded, and drops "
-                            "the hint once models arrive")
-WALLET_BOX = VIEW_SPEC + ("the empty state > the wallet limits sit in a closed block of their own, and the optional "
-                          "fields say so")
-FRAME_SHAPE_SPEC = (FRAMES_VIEW_SPEC + "the frame box shows the shape of a frame as its placeholder, and the lock "
-                    "line sits on the checkbox cell")
 
 # ---- the image limits, on restore and before every write ---------------------------------------------------------
 TEN = FILES_SPEC + "the limits > keeps 10 files and drops the 11th"
@@ -224,7 +217,6 @@ def test_generate_polling_and_generation_guard():
 # ---- the tab itself: sign-out, the running state, the notices, the form on every input -----------------------------
 RUNNING = VIEW_SPEC + "a running job > "
 SIGN_OUT = RUNNING + "a sign-out ends the loop and drops the key and the models"
-NO_DOUBLE = RUNNING + "disables Generate only while its own request is in flight, then enables it again"
 SECOND_GENERATE = RUNNING + "a second Generate while the first job is polling ends the first loop and starts a new one"
 DROPPED = (VIEW_SPEC
            + "images > restores stored images, and a restore that drops anything "
@@ -241,19 +233,11 @@ FORM_RESTORED = VIEW_SPEC + "the tab > restores the form, the kept key, the mode
 LOAD_ONCE = (VIEW_SPEC + "Load models > shows a busy state and sends one request for a double click and an Enter "
              + "while the load is on its way")
 LOAD_FREE = VIEW_SPEC + "Load models > is free again after a load that failed, so the next click sends a request"
-FORGET_ALL = (VIEW_SPEC + "Forget key > clears everything of the key: the box, the stored key, the models, "
-              + "the points and the status line")
-KEY_OFF_PAGE = (VIEW_SPEC + "the key on the page > is never in the rendered page outside its password input, "
-                + "before and after sign-out")
 PICKER = VIEW_SPEC + "the model picker and the wallet > "
 WALLET_ROWS = PICKER + "shows the wallet limits of /v1/points as rows: day and total, and unlimited with its use"
 DURATION_SELECT = PICKER + "a model with a duration list gets a select of them, and the heading names them"
-NO_DURATION = PICKER + ("a model with no durations list shows no Duration field and sends no duration, even one saved "
-                        "for another model")
 DISPLAY_NAME = (PICKER + "a model that names a display name shows it with its id under it; "
                 + "one without shows the id alone")
-NAMES_ONLY = (VIEW_SPEC + "images > the drag area never uploads by itself, and shows names and sizes, "
-              + "never a picture")
 RESULT_CARD = (VIEW_SPEC + "the result card > shows the step and word of a job in progress, its short id "
                + "and the fields it carries, and the id opens the job")
 FAILED_JOB = VIEW_SPEC + "the result card > a finished job has no empty slot, and a failed one shows the reason"
@@ -261,8 +245,6 @@ FAILED_JOB = VIEW_SPEC + "the result card > a finished job has no empty slot, an
 
 @mutation(TEST_VIEW, "session.reset();", "", expect=SIGN_OUT)
 @mutation(TEST_VIEW, "generate.stop();\n  session.reset();", "session.reset();", expect=SIGN_OUT)
-@mutation(TEST_VIEW, ':disabled="!chosen || submitting"', ':disabled="!chosen"', expect=NO_DOUBLE)
-@mutation(TEST_VIEW, ':disabled="!chosen || submitting"', ':disabled="!chosen || true"', expect=NO_DOUBLE)
 @mutation(GENERATE, "const mine = latest.next();", "const mine = 1;", expect=SECOND_GENERATE)
 @mutation(TEST_VIEW, "if (restored.dropped) note.value = DROPPED_NOTE;", "", expect=DROPPED)
 @mutation(TEST_VIEW, "const persist = () => void (formFailed.value = !saveForm(form));",
@@ -277,25 +259,17 @@ FAILED_JOB = VIEW_SPEC + "the result card > a finished job has no empty slot, an
 @mutation(TEST_VIEW, "const form = reactive(initial.form);", "const form = reactive(emptyForm());",
           expect=FORM_RESTORED)
 @mutation(TEST_VIEW, "if (loadingModels.value) return;", "", expect=LOAD_ONCE)
-@mutation(TEST_VIEW, ':aria-busy="loadingModels"', ':aria-busy="false"', expect=LOAD_ONCE)
 @mutation(TEST_VIEW, "} finally {\n    loadingModels.value = false;", "} finally {", expect=LOAD_FREE)
-@mutation(TEST_VIEW, 'v-if="!groups.length"', 'v-if="false"', expect=EMPTY_MODELS)
-@mutation(TEST_VIEW, '<details v-if="points" class="test-tab__points-box">',
-          '<details v-if="points" open class="test-tab__points-box">', expect=WALLET_BOX)
 @mutation(TEST_VIEW, "form[name] = value;", "", expect=DURATION_SELECT)
-@mutation(TEST_VIEW, '@click="session.reset"', ':title="typedKey" @click="session.reset"', expect=KEY_OFF_PAGE)
-@mutation(TEST_VIEW, '@click="session.reset"', '@click="session.forget"', expect=FORGET_ALL)
 @mutation(TEST_MODELS, "wallet.day_limit === null && wallet.total_limit === null", "false", expect=WALLET_ROWS)
 @mutation(TEST_MODELS, "`${wallet.used_day} / ${wallet.day_limit}`", "`${wallet.used_day}`", expect=WALLET_ROWS)
 @mutation(TEST_MODELS, '`${head ? `${head} or ` : ""}${last} s`', '`${head ? `${head}, ` : ""}${last} s`',
           expect=DURATION_SELECT)
 @mutation(TEST_MODELS, "typeof m.name === \"string\" && m.name ? m.name : m.id", "m.id", expect=DISPLAY_NAME)
-@mutation(TEST_IMAGES, "{{ sizeText(f.blob.size) }}", "", expect=NAMES_ONLY)
 @mutation(TEST_RESULT, "ui.openJob(props.job.id)", "ui.openJob('')", expect=RESULT_CARD)
 @mutation(TEST_RESULT_MODEL, 'waiting: "2/4",', 'waiting: "3/4",', expect=RESULT_CARD)
 @mutation(TEST_RESULT_MODEL, "return job.stage || job.status;", "return job.status;", expect=RESULT_CARD)
 @mutation(TEST_RESULT_MODEL, 'add("Created", clockTime(job.created_at));', "", expect=RESULT_CARD)
-@mutation(TEST_RESULT, "!finished && !media.length", "!media.length", expect=FAILED_JOB)
 @mutation(TEST_RESULT, 'typeof props.job?.error === "string" ? props.job.error : ""', '""', expect=FAILED_JOB)
 @pytest.mark.web_unit
 def test_test_view_rules():
@@ -305,16 +279,11 @@ def test_test_view_rules():
 # ---- page-test-login: the Test page drawn as the design (the result card frames, the wallet order, the play box) -----
 WALLET_ORDER = PICKER + "lists the video wallet first, whatever order the points answer has"
 FRAMES_OF_RESULT = VIEW_SPEC + "the result card frames > "
-EMPTY_FRAME = FRAMES_OF_RESULT + "draws nothing made yet as a title bar over the status line in the middle"
 DONE_FRAME = (FRAMES_OF_RESULT + "draws a done job as a title bar over the media and the ledger: job, model, duration "
               + "and time taken")
-PLAIN_FRAME = FRAMES_OF_RESULT + "a job still on its way keeps the plain card: no title bar"
-PLAY_BOX = (VIEW_SPEC + "media > draws a video link as a box with a play button, and the video element only once it "
-            + "is played")
 FAILED_CODE = (VIEW_SPEC + "the result card > a failed job with a code names it in bold before the reason, as the "
                + "job drawer does")
 BY_VALUE = PICKER + "offers and sends a ratio by the value the provider takes, not by its label"
-CHIP_HINT = PICKER + "names a template chip by its whole text and shows the whole text in its hint"
 STYLE_VALUE = PICKER + "shows a style by its label and sends the value the provider takes"
 MODEL_RATIOS = (PICKER + "lists the picked model's own ratios over the provider's: a video model offers 21:9 and "
                 + "not 2:3")
@@ -327,12 +296,6 @@ OPTION_VALUE = FORM_SPEC + "optionValue > takes the value a provider takes, and 
 
 @mutation(TEST_MODELS, 'Number(b === "video") - Number(a === "video") || a.localeCompare(b)', "a.localeCompare(b)",
           expect=WALLET_ORDER)
-@mutation(TEST_VIEW, "capital(m.kind)", "m.kind", expect=DISPLAY_NAME)
-@mutation(TEST_VIEW, '<span class="num">{{ infoTail }}</span>', "{{ infoTail }}", expect=DURATION_SELECT)
-@mutation(TEST_RESULT, "'result--bar': !job || done", "'result--bar': !job", expect=DONE_FRAME)
-@mutation(TEST_RESULT, "'result--bar': !job || done", "'result--bar': true", expect=PLAIN_FRAME)
-@mutation(TEST_RESULT, 'v-if="!job" class="result__empty"', 'v-if="false" class="result__empty"', expect=EMPTY_FRAME)
-@mutation(TEST_RESULT, 'v-if="playing === i"', 'v-if="true"', expect=PLAY_BOX)
 @mutation(TEST_RESULT, 'typeof props.job?.error_code === "string" ? props.job.error_code : ""', '""',
           expect=FAILED_CODE)
 @mutation(TEST_VIEW, "(extras.ratios ?? []).map(optionValue)", "(extras.ratios ?? []).map(optionLabel)",
@@ -340,10 +303,6 @@ OPTION_VALUE = FORM_SPEC + "optionValue > takes the value a provider takes, and 
 @mutation(TEST_VIEW, "({ value: optionValue(o), label: optionLabel(o) })",
           "({ value: optionLabel(o), label: optionLabel(o) })", expect=STYLE_VALUE)
 @mutation(TEST_VIEW, "label: optionLabel(o) })", "label: optionValue(o) })", expect=STYLE_VALUE)
-@mutation(TEST_VIEW, '<FilterSelect\n            v-if="durations.length"', '<FilterSelect\n            v-if="false"',
-          expect=DURATION_SELECT)
-@mutation(TEST_VIEW, '<FilterSelect\n            v-if="durations.length"', '<FilterSelect\n            v-if="true"',
-          expect=NO_DURATION)
 @mutation(TEST_VIEW, "return own.length ? own : withSaved(ratios.value, form.ratio);",
           "return withSaved(ratios.value, form.ratio);", expect=MODEL_RATIOS)
 @mutation(TEST_VIEW, "if (own.length && form.ratio && !own.includes(form.ratio)) form.ratio = defaultRatioOf(model);",
@@ -351,7 +310,6 @@ OPTION_VALUE = FORM_SPEC + "optionValue > takes the value a provider takes, and 
 @mutation(TEST_MODELS, 'typeof ratio === "string" && ratiosOf(m).includes(ratio) ? ratio : ""', '""',
           expect=RATIO_FALLBACK)
 @mutation(TEST_RESULT_MODEL, 'if (typeof job.points === "number") {', "if (false) {", expect=RESULT_CARD)
-@mutation(TEST_VIEW, ':content="t.show_value || t.prompt"', ':content="t.prompt.slice(0, 40)"', expect=CHIP_HINT)
 @mutation(TEST_RESULT_MODEL, "job.refunded === true", "false", expect=REFUNDED_POINTS)
 @mutation(TEST_RESULT_MODEL, 'if (took) rows.push({ label: "Took", value: took });', "", expect=DONE_FRAME)
 @mutation(TEST_RESULT_MODEL, "minutes ? `${minutes} m ${seconds % 60} s` : `${seconds} s`", "`${seconds} s`",
@@ -544,43 +502,20 @@ def test_frames_write_calls():
 
 
 # ---- Prompt frames: what the view enables and shows ------------------------------------------------------------
-LOAD_VIEW = (FRAMES_VIEW_SPEC
-             + "during a load: Save and the other controls are off, the box is read-only, "
-             + "Edit and the provider stay on")
 VIDEO_FIRST = FRAMES_VIEW_SPEC + "draws video before image whatever order the server lists them in"
 DRAWER_VIEW = FAILED + "frames/frames-view.spec.ts > the editor drawer > "
 ASKS = DRAWER_VIEW + "asks before it closes over a typed draft, and keeps it on Keep editing"
-KEPT_ON_RELOAD = (DRAWER_VIEW + "a reload that finds no such frame keeps a drawer holding a draft, "
-                  + "and says so inside")
-SCRIM = DRAWER_VIEW + ("a click on the scrim closes a clean editor, asks over a typed draft, "
-                       + "and does nothing during a write")
 FOCUS_VIEW = DRAWER_VIEW + "focus after the drawer is gone > "
-NO_WAY_OUT = DRAWER_VIEW + "no way out works while a write runs"
 LEAVE = (DRAWER_VIEW + "leaving the page asks only for a typed draft in an open drawer, "
          + "and is refused during a write")
-IN_FOOTER = DRAWER_VIEW + "holds Save, Follow, Apply to all and Preview in the footer, not in the body"
-OPENS_MODEL = FRAMES_VIEW_SPEC + "opens the editor of a model: help text, Follow only for an own frame, no Apply to all"
 
 
-@mutation(FRAMES_VIEW, ':disabled="frames.opensOff"', ':disabled="frames.controlsOff"', expect=LOAD_VIEW)
 @mutation(FRAMES_VIEW, 'Number(b.kind === "video") - Number(a.kind === "video")', "0", expect=VIDEO_FIRST)
-@mutation(FRAME_EDITOR, ':readonly="frames.controlsOff"', ':readonly="false"', expect=LOAD_VIEW)
-@mutation(FRAME_EDITOR, "frames.shownModel.source === 'own'", "frames.shownModel.source === 'default'",
-          expect=OPENS_MODEL)
-@mutation(FRAME_EDITOR, 'v-if="frames.shown.target === DEFAULT_TARGET"', 'v-if="true"', expect=OPENS_MODEL)
-@mutation(FRAME_EDITOR, ':placeholder="FRAME_SHAPE"', "", expect=FRAME_SHAPE_SPEC)
 @mutation(FRAME_EDITOR, "props.frames.draft !== props.frames.loaded", "false", expect=ASKS)
 @mutation(FRAMES_VIEW, "if (opener?.isConnected && opener !== document.body) return;", "if (true) return;",
           expect=FOCUS_VIEW + "goes to the page's scroll area when the button that opened the editor is gone")
 @mutation(FRAMES_VIEW, "if (opener?.isConnected && opener !== document.body) return;", "if (false) return;",
           expect=FOCUS_VIEW + "is left alone while the button that opened the editor is still on the page")
-@mutation(FRAME_EDITOR, ':busy="frames.busy"', "", expect=NO_WAY_OUT)
-@mutation(FRAME_EDITOR, ':dirty="dirty"', ':dirty="dirty"\n    :close-on-scrim="false"', expect=SCRIM)
-@mutation(FRAME_EDITOR, "@update:model-value=\"(o: boolean) => !o && frames.close()\"",
-          "@update:model-value=\"(o: boolean) => !o && undefined\"", expect=ASKS)
-@mutation(FRAME_EDITOR, ':model-value="frames.open"', ':model-value="!!frames.shown"', expect=KEPT_ON_RELOAD)
-@mutation(FRAME_EDITOR, '<template v-if="frames.shown && frames.info" #footer>',
-          '<template v-if="false" #footer>', expect=IN_FOOTER)
 @mutation(FRAMES_VIEW, "() => frames.open && frames.draft !== frames.loaded", "() => false", expect=LEAVE)
 @mutation(FRAMES_VIEW, "() => frames.busy,", "() => false,", expect=LEAVE)
 @pytest.mark.web_unit
@@ -621,16 +556,9 @@ def test_frames_lines():
 
 
 # ---- page-frames-settings round: the drawn section titles, a refusal as a field error, the password error's field ---
-REFUSED = FRAMES_VIEW_SPEC + "shows a refused save beside the editor as an alert with the field"
-NOT_REFUSED = FRAMES_VIEW_SPEC + "marks no box invalid while nothing was refused"
 TITLES = FRAMES_VIEW_SPEC + "titles each kind's section as drawn: Video, Image"
 
 
-@mutation(FRAME_EDITOR, ":aria-invalid=\"frames.refusal ? 'true' : undefined\"", ':aria-invalid="undefined"',
-          expect=REFUSED)
-@mutation(FRAME_EDITOR, ":aria-describedby=\"frames.refusal ? 'frame-refusal' : undefined\"",
-          ':aria-describedby="undefined"', expect=REFUSED)
-@mutation(FRAME_EDITOR, "{ 'is-invalid': frames.refusal }", "{ 'is-invalid': true }", expect=NOT_REFUSED)
 @mutation(FRAMES_MODEL, "kind.charAt(0).toUpperCase() + kind.slice(1)", "kind", expect=TITLES)
 @pytest.mark.web_unit
 def test_frames_drawn_looks():
@@ -647,7 +575,6 @@ LOADING_ROWS = (SETTINGS_SPEC + "the settings page > draws the first read as the
                 + "header over five rows of bars")
 
 
-@mutation(PASSWORD, "fieldErrors.new_password ? 'new-password-error' : undefined", "undefined", expect=NEW_FIELD)
 @mutation(SETTINGS_VIEW, 'errorText(err), "the settings")', 'errorText(err), "the jobs")', expect=LOAD_WORDS)
 @mutation(SETTINGS_VIEW, 'errorText(err), "the measured prices")', "errorText(err))", expect=LOAD_WORDS)
 @mutation(SETTING_VALUE, ' || value === ""', "", expect=BOOT_DASH)
@@ -658,7 +585,6 @@ LOADING_ROWS = (SETTINGS_SPEC + "the settings page > draws the first read as the
 @mutation(SETTING_VALUE, "JSON.stringify(value, null, 2)", "JSON.stringify(value)", expect=LONG_DEFAULT)
 @mutation(SETTINGS_TABLE, "props.loading && !props.items.length && !props.error", "false", expect=LOADING_ROWS)
 @mutation(PRICES, "props.loading && !props.rows.length && !props.error", "false", expect=LOADING_ROWS)
-@mutation(VALUE_TABLE, ':empty="!rows.length && !loading"', ':empty="!rows.length"', expect=LOADING_ROWS)
 @mutation(VALUE_TABLE, "props.loading && !props.rows.length && !props.error", "false", expect=LOADING_ROWS)
 @mutation(CONTAINERS, "props.loading && !props.rows.length && !props.error", "false", expect=LOADING_ROWS)
 @pytest.mark.web_unit

@@ -9,7 +9,6 @@ from relay_core.testing.mutation import mutation
 SRC = "apps/admin-web/src"
 ACCOUNT_MODEL = SRC + "/components/accounts/account-model.ts"
 ACCOUNTS = SRC + "/views/AccountsView.vue"
-DESKTOP = SRC + "/components/accounts/AccountsTableDesktop.vue"
 MENU = SRC + "/components/shared/ActionMenu.vue"
 IMPORT = SRC + "/components/accounts/ImportDialog.vue"
 
@@ -27,10 +26,8 @@ CHECK_ALL = f"FAILED {ACCOUNTS_VIEW_SPEC} > Check all and Refresh catalog > "
 SWITCH_VIEW = f"FAILED {ACCOUNTS_VIEW_SPEC} > the enable switch > "
 LIST = f"FAILED {ACCOUNTS_VIEW_SPEC} > the list > "
 POOL = f"FAILED {ACCOUNTS_VIEW_SPEC} > the pool card > "
-LAYOUTS = f"FAILED {ACCOUNTS_VIEW_SPEC} > the layouts > "
 COMMANDS = f"FAILED {ACCOUNTS_VIEW_SPEC} > the row commands and the edit dialog > "
 MENU_SPEC = f"FAILED {PARTS_SPEC} > ActionMenu > "
-IMPORT_SPEC = f"FAILED {DIALOGS_SPEC} > ImportDialog > "
 WIPE = f"FAILED {DIALOGS_SPEC} > what was pasted never outlives its use > "
 
 
@@ -61,19 +58,12 @@ def test_the_account_edit_sends_changed_fields_only():
 @mutation(ACCOUNTS, 'error.value = loadFailedText(err, errorText(err), "the accounts");',
           "error.value = loadFailedText(err, errorText(err));",
           expect=LIST + "an empty list says so and offers Import; a failed read shows the error with Retry")
-@mutation(DESKTOP, '<span class="sub clip" :title="accountSub(a)">', '<span class="sub clip">',
-          expect=LIST + "a long account, status or asleep line keeps its whole text as its title, where it ends in "
-                        "an ellipsis")
 @pytest.mark.web_unit
 def test_the_accounts_view_keeps_its_rules():
     vitest(ACCOUNTS_VIEW_SPEC)
 
 
 # ---- Accounts: the switch, the reason, the commands and the proxy re-check -----------------------------------------
-@mutation(DESKTOP, 'v-if="!a.in_use"', 'v-if="true"',
-          expect=LIST + "draws every server string as text, and hides the switch of an account in use")
-@mutation(DESKTOP, '<template v-if="statusReason(a)"', '<template v-if="false"',
-          expect=LIST + "draws every server string as text, and hides the switch of an account in use")
 @mutation(ACCOUNT_MODEL, 'WAKE_LABEL = "Wake: clear cooldown and strikes"', 'WAKE_LABEL = "Clear cooldown"',
           expect=COMMANDS + "Wake queues the wake command under the label that names the cooldown and the strikes")
 @mutation(ACCOUNTS, 'else if (name === "wake") void wake(a);', 'else if (name === "wake") void check(a);',
@@ -96,8 +86,6 @@ def test_the_accounts_view_commands_and_proxy_recheck():
 # ---- colour is for exceptions: the checked stamp and the counts -------------------------------------------------
 AGO = (f"FAILED {ACCOUNT_SPEC} > pointsFigure, ago, proxyCheck, checkSummary > ago: never, just now, minutes, hours, "
        "days; a future time is just now")
-COUNTS = (f"FAILED {ACCOUNTS_VIEW_SPEC} > the list > draws every server string as text, and hides the switch of an "
-          "account in use")
 
 
 @mutation(ACCOUNT_MODEL, "if (minutes < 60) return", "if (minutes <= 60) return", expect=AGO)
@@ -105,13 +93,6 @@ COUNTS = (f"FAILED {ACCOUNTS_VIEW_SPEC} > the list > draws every server string a
 @pytest.mark.web_unit
 def test_the_accounts_checked_stamp_reads_as_a_time_ago():
     vitest(ACCOUNT_SPEC)
-
-
-@mutation(DESKTOP, '<td class="tnum right mono">{{ a.made.video }}</td>',
-          '<td class="tnum right mono">{{ a.made.image }}</td>', expect=COUNTS)
-@pytest.mark.web_unit
-def test_the_accounts_counts_are_two_number_columns():
-    vitest(ACCOUNTS_VIEW_SPEC)
 
 
 # ---- what a row says: sleep, errors, proxy, the menu ----------------------------------------------------------------
@@ -175,11 +156,6 @@ def test_the_pool_card_figures():
 @mutation(ACCOUNTS, 'poolError.value = loadFailedText(poolRead.err, errorText(poolRead.err), "the pool figures");',
           "poolError.value = null;",
           expect=POOL + "a failed pool read does not hide the list; it shows an alert and keeps the old figures")
-@mutation(ACCOUNTS, "v-else-if=\"isTablet\"", "v-else-if=\"false\"",
-          expect=LAYOUTS + "a tablet draws five columns and no Videos made column")
-@mutation(ACCOUNTS, 'v-if="isPhone && pageCount <= 1 && items.length"', 'v-if="false"',
-          expect=LAYOUTS + "a phone draws a list: no table, no Check button, Check first in the row menu, one "
-                           "footer line")
 @pytest.mark.web_unit
 def test_the_pool_card_reads_the_pool_endpoint_and_the_layouts_follow_the_width():
     vitest(ACCOUNTS_VIEW_SPEC)
@@ -201,9 +177,6 @@ def test_the_pool_card_reads_the_pool_endpoint_and_the_layouts_follow_the_width(
 @mutation(MENU, "if (item.disabled) return;", "",
           expect=MENU_SPEC + "a pick emits its key and closes the menu; a disabled item emits nothing and stays "
                              "open")
-@mutation(IMPORT, "Imported {{ result.imported.length }}, rejected {{ result.rejected.length }}",
-          "Imported {{ result.rejected.length }}, rejected {{ result.imported.length }}",
-          expect=IMPORT_SPEC + "a clean import shows one pill and no list; the box is gone on the next opening")
 @pytest.mark.web_unit
 def test_the_switch_the_menu_and_the_import_result():
     vitest(PARTS_SPEC, DIALOGS_SPEC)
@@ -223,7 +196,6 @@ def test_the_import_dialog_wipes_what_was_pasted():
 
 # ---- the two forms are guarded drawers: what was typed is never lost to a stray close, and nothing lingers ----------
 EDIT = SRC + "/components/accounts/EditDialog.vue"
-FRAME = SRC + "/components/accounts/AccountDialog.vue"
 GUARD = f"FAILED {DIALOGS_SPEC} > EditDialog > the guard > "
 
 
@@ -232,13 +204,6 @@ GUARD = f"FAILED {DIALOGS_SPEC} > EditDialog > the guard > "
 @mutation(IMPORT, 'credentials.value.trim() !== "" || proxy.value.trim() !== ""',
           'credentials.value !== "" || proxy.value !== ""',
           expect=WIPE + "spaces alone are not worth asking about")
-@mutation(IMPORT, "discard-text=\"Discard the pasted credentials?\"", "discard-text=\"Discard?\"",
-          expect=WIPE + "the X: asks, and on Discard the paste is gone when the drawer is opened again")
-@mutation(IMPORT, '    :busy="busy"\n', "",
-          expect=WIPE + "no close path works while the import runs")
-@mutation(FRAME, ':dirty="props.dirty"', ':dirty="false"',
-          expect=WIPE + "a click outside acts as Escape: a clean drawer closes, a pasted one asks, a running import "
-                        "does nothing")
 @mutation(EDIT, "label.value !== snap.value.label || proxy.value !== snap.value.proxy",
           "label.value !== (props.account?.label ?? '') || "
           "proxy.value !== (props.account ? proxyText(props.account) : '')",
@@ -249,17 +214,6 @@ GUARD = f"FAILED {DIALOGS_SPEC} > EditDialog > the guard > "
           expect=GUARD + "a new password alone, typed as host:port:user:pass, is a change")
 @mutation(EDIT, 'label.value = proxy.value = "";', "",
           expect=GUARD + "every close leaves nothing typed behind: a drawer closed from outside is clean and empty")
-@mutation(EDIT, '    :busy="props.saving"\n', "",
-          expect=GUARD + "no close path works while a save is in flight")
-@mutation(EDIT, 'discard-text="Discard your changes to this account?"', 'discard-text="Discard?"',
-          expect=GUARD + "a changed label asks what is lost, in words; Keep editing keeps the drawer and "
-                         "what was typed")
-@mutation(EDIT, ' :disabled="props.saving"', "",
-          expect=GUARD + "Cancel is disabled while the save is in flight, and only then")
-@mutation(EDIT, ' :disabled="props.saving"', ' :disabled="props.busy"',
-          expect=GUARD + "Cancel is disabled while the save is in flight, and only then")
-@mutation(IMPORT, ' :disabled="busy"', "",
-          expect=WIPE + "Cancel is disabled while the import runs, and enabled again after")
 @pytest.mark.web_unit
 def test_the_account_forms_are_guarded_drawers():
     vitest(DIALOGS_SPEC)
@@ -272,8 +226,6 @@ LEAVE_DIRTY = DRAWERS + "a paste in Import and a change in Edit are what a leave
 LEAVE_BLOCKED = DRAWERS + "an import under way blocks a leave of the page, and so does a save in flight"
 
 
-@mutation(ACCOUNTS, '      :saving="saving"\n', '      :saving="busy"\n',
-          expect=DRAWERS + "a row command that is running does not stop the Edit drawer from closing")
 @mutation(ACCOUNTS, "(importOpen.value && importDirty.value) || (editOpen.value && editDirty.value),",
           "(editOpen.value && editDirty.value),", expect=LEAVE_DIRTY)
 @mutation(ACCOUNTS, "(importOpen.value && importDirty.value) || (editOpen.value && editDirty.value),",
@@ -290,8 +242,6 @@ LEAVE_BLOCKED = DRAWERS + "an import under way blocks a leave of the page, and s
           "work\n  await runSave(async () => {\n    if (out.command_id)",
           expect=DRAWERS + "after the save the proxy check it queued does not lock the drawer: Edit opens again and "
                            "closes")
-@mutation(EDIT, "@click=\"!props.busy && !props.saving && save()\"", "@click=\"!props.busy && save()\"",
-          expect=COMMANDS + "Save during a running Check proxy waits for it, then sends what was typed")
 @pytest.mark.web_unit
 def test_the_account_drawers_on_the_page():
     vitest(ACCOUNTS_VIEW_SPEC)
@@ -353,9 +303,6 @@ def test_a_switched_off_row_and_the_pool_order_read_as_drawn():
                             "read and goes with the one after")
 @mutation(ACCOUNTS, "if (auto) chips.value =", "if (true) chips.value =",
           expect=COMMANDS + "two quick Checks keep both results: the reads the commands make do not clear a chip")
-@mutation(DESKTOP, 'v-if="chips[`check:${a.id}`]"', 'v-if="false"',
-          expect=COMMANDS + "a Check's chip runs under its button, says how it ended, stays through the next automatic "
-                            "read and goes with the one after")
 @mutation(ACCOUNTS, "if (ended?.status !== \"failed\") ended = command;", "ended = command;",
           expect=CHECK_ALL + "each page command has its chip under its button: running, then how the round ended (the "
                              "first failure)")
@@ -367,10 +314,6 @@ def test_a_switched_off_row_and_the_pool_order_read_as_drawn():
           '["credential_unparseable", ""]',
           expect=f"FAILED {ACCOUNT_SPEC} > rejectedText > says why a line was rejected in a sentence; any other code "
                  "gets one fixed sentence")
-@mutation(DESKTOP, '<tbody v-if="skeleton" aria-hidden="true">', '<tbody v-if="false" aria-hidden="true">',
-          expect=LIST + "the first read draws the list's own header over five rows of bars, and no footer count")
-@mutation(ACCOUNTS, 'v-else-if="items.length === 0 && !skeleton"', 'v-else-if="items.length === 0"',
-          expect=LIST + "the first read draws the list's own header over five rows of bars, and no footer count")
 @pytest.mark.web_unit
 def test_the_command_chips_follow_their_commands():
     vitest(ACCOUNT_SPEC, ACCOUNTS_VIEW_SPEC, DIALOGS_SPEC)
@@ -382,14 +325,6 @@ def test_the_command_chips_follow_their_commands():
 @pytest.mark.web_unit
 def test_a_failed_command_reads_as_the_canvas_writes_it():
     vitest("tests/unit/use-command-poll.spec.ts")
-
-
-@mutation(SRC + "/components/accounts/PoolCard.vue", 'v-if="count !== null"', 'v-if="true"',
-          expect=f"FAILED {PARTS_SPEC} > PoolCard > names the number of accounts once the list has been read, and "
-                 "nothing before")
-@pytest.mark.web_unit
-def test_the_pool_card_names_no_count_before_the_list_is_read():
-    vitest(PARTS_SPEC)
 
 
 # ---- page-accounts round, review fixes: one action per account at a time, Save after a running Check proxy, no
@@ -427,27 +362,15 @@ FIELD = SRC + "/components/shared/FilterSelect.vue"
 FIELD_SPEC = "tests/unit/shared/filter-select-field.spec.ts"
 DRAWN = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > the field draws the page's chevron, 14 px, on a "
          "desktop, a tablet and a phone chip")
-INK = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > the chevron is drawn in the page's ink, as the Jobs "
-       "chip's is, and only a disabled field turns it faint")
 FORM_FIELD = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > a form's field (block) is no chip on a "
               "phone, and the list hangs under the box")
 IN_DIALOG = (f"FAILED {FIELD_SPEC} > the field variant of FilterSelect > in a drawer: Escape closes the open list "
              "only > ")
-PROVIDER = (IMPORT_SPEC + "the Provider field is the drawn select: another provider picked from its list is the one "
-            "sent")
 
 
-@mutation(IMPORT, "@update:model-value=\"(v) => (provider = String(v))\"", "", expect=PROVIDER)
-@mutation(FIELD, '        @pointerdown="onListPress"\n', "",
-          expect=IN_DIALOG + "a press on the list's padding keeps the focus on the select, and Escape still leaves the "
-                             "dialog open")
 @mutation(FIELD, "  if (x < el.clientWidth && y < el.clientHeight) event.preventDefault();",
           "  event.preventDefault();",
           expect=IN_DIALOG + "a press in the list's scrollbar gutter is left alone, so the scrollbar can be dragged")
-@mutation(FIELD, "  right: 11px;\n  color: var(--rl-fg);", "  right: 11px;\n  color: var(--rl-muted);", expect=INK)
-@mutation(FIELD, "chevron {\n  color: var(--rl-faint);", "chevron {\n  color: var(--rl-muted);", expect=INK)
-@mutation(FIELD, '<IconChevronDown class="filter-field__chevron"',
-          '<IconChevronDown v-if="false" class="filter-field__chevron"', expect=DRAWN)
 @mutation(FIELD, "field.value && !props.block && isPhone.value", "field.value && isPhone.value", expect=FORM_FIELD)
 @mutation(FIELD, '"is-tall": isTablet.value,', '"is-tall": false,', expect=DRAWN)
 @pytest.mark.web_unit

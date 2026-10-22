@@ -6,8 +6,8 @@ import json
 import re
 
 import pytest
+from page_helpers import settle, sideways
 from patchright.sync_api import expect
-from pixel_capture import settle, sideways
 
 pytestmark = pytest.mark.browser
 

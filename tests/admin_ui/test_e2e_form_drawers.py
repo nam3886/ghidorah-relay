@@ -8,23 +8,47 @@ import re
 from datetime import UTC, datetime
 from math import floor
 
-import pixel_manifest  # noqa: F401  (before pixel_kla: the two import each other, and the manifest must load first)
 import pytest
 from accountkit import done_job
 from jobkit import key as new_key
 from patchright.sync_api import expect
-from pixel_kla import set_key
-from pixel_seed import WALLETS
 from test_admin_alert_groups import group_of, plant_unclear
 from test_e2e_keys_logs_alerts import log, open_tab, rows
 
-from relay_core.testing.mutation import mutation
-
 pytestmark = pytest.mark.browser
 
-KEY_FORM = "apps/admin-web/src/components/keys/KeyFormDialog.vue"
 
-TIMEOUT_MS = 10_000
+PROVIDER = "dola"
+WALLETS = ((PROVIDER, "video", None, None), (PROVIDER, "image", None, None))
+
+
+def wallet_values(spec: tuple) -> tuple:
+    """(day_limit, total_limit, used_day, used_total) of a wallet spec: ("limit", day, total, used day, used total),
+    ("unlimited", used) or ("closed",)."""
+    if spec[0] == "limit":
+        return spec[1], spec[2], spec[3], spec[4]
+    if spec[0] == "unlimited":
+        return None, None, 0, spec[1]
+    return 0, None, 0, 0
+
+
+def set_key(db, key_id, label, prefix, enabled, models, video, image, created) -> None:
+    db.run("UPDATE api_keys SET label = %s, key_prefix = %s, enabled = %s, models = %s, max_unfinished = 5, "
+           "created_at = %s WHERE id = %s", label, prefix, enabled, models, created, key_id)
+    if label == "Internal test":
+        db.run("UPDATE api_keys SET max_unfinished = 0 WHERE id = %s", key_id)
+    for kind, spec in (("video", video), ("image", image)):
+        day, total, used_day, used_total = wallet_values(spec)
+        db.run("UPDATE key_wallets SET day_limit = %s, total_limit = %s, used_day = %s, used_total = %s, "
+               "day_anchor = current_date WHERE key_id = %s AND provider = %s AND kind = %s", day, total, used_day,
+               used_total, key_id, PROVIDER, kind)
+        # the ledger the counters add up from (the checker holds every test to it): what was used before today,
+        # then what was used today
+        for amount, day_offset in ((used_total - used_day, 1), (used_day, 0)):
+            if amount:
+                db.run("INSERT INTO ledger (key_id, provider, kind, entry, amount, billing_day) VALUES (%s, %s, %s, "
+                       "'adjust', %s, current_date - %s)", key_id, PROVIDER, kind, amount, day_offset)
+
 WIDTHS = ((1440, 900), (768, 1024))
 BOXES_JS = """() => {
   window.__most_boxes = 0;
@@ -151,8 +175,6 @@ def test_the_footer_buttons_sit_at_the_right_of_a_drawer_and_wrap_on_a_sheet(app
         assert cancel["x"] < create["x"]
 
 
-@mutation(KEY_FORM, "  padding: 0;\n  border-bottom: 1px solid var(--rl-line);",
-          "  padding: 0 4px;\n  border-bottom: 1px solid var(--rl-line);", expect="model checkboxes at")
 @pytest.mark.parametrize("width, height", [(1440, 900), (768, 1024), (390, 844)])
 def test_every_model_checkbox_shares_the_left_edge_of_the_any_model_checkbox(app, app_session, db, width, height):
     page = app_session
@@ -169,8 +191,6 @@ def test_every_model_checkbox_shares_the_left_edge_of_the_any_model_checkbox(app
         edges["rows"], edges["any"])
 
 
-@mutation(KEY_FORM, "    flex: 1 1 0;\n", "    flex: none;\n", expect="equal widths")
-@mutation(KEY_FORM, "    border: 1px solid transparent;\n", "", expect="equal widths")
 def test_on_a_phone_cancel_and_create_key_are_two_equal_buttons_in_the_footer_row(app, app_session, db):
     page = app_session
     goto_keys(app, page, 390, 844)

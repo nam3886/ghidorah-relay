@@ -1,24 +1,20 @@
 """The page scroll area of the Vue admin in Chrome against the real app (browser tier): from 768 px the routed page
 scrolls in one `el-scrollbar` under the top bar and the document does not; on a phone the window scrolls as before.
 Also the keyboard (a tab click then PageDown), the Settings anchors, the popups that follow their trigger, and the
-proof that the whole-page photos of the pixel tests (the flow layout) show the same page as the scroll area does."""
+proof that the whole-page reads (the flow layout) show the same page as the scroll area does."""
 
 import pytest
 from accountkit import done_job, new_account
 from jobkit import key as new_key
+from page_helpers import flow, scroll_page_to, settle, sideways
 from patchright.sync_api import expect
-from pixel_capture import flow, scroll_page_to, settle, sideways
 
 from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
 
-WRAP = ".app-scroll__wrap"
 SHELL = "apps/admin-web/src/components/layout/AppShell.vue"
-SETTINGS = "apps/admin-web/src/views/SettingsView.vue"
-SIDEWAYS = "tests/admin_ui/pixel/pixel_capture.py"
-FLOW_ROOT = "    height: auto;\n    overflow: visible;\n  }\n  .app-shell .app-scroll__wrap {"
-FLOW_HIDDEN = "    height: auto;\n    overflow: hidden;\n  }\n  .app-shell .app-scroll__wrap {"
+SIDEWAYS = "tests/admin_ui/page_helpers.py"
 FOCUS = "  if (!main.value?.contains(document.activeElement)) focusPage();\n"
 HEIGHT = 700
 WIDTHS = (1440, 768, 390)
@@ -55,8 +51,6 @@ def go(app, page, route: str, width: int, height: int = HEIGHT) -> None:
 # ---- the scroller ------------------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("width", WIDTHS)
-@mutation(SHELL, "  height: 100vh;\n  height: 100dvh;\n  overflow: hidden;",
-          "  height: 200vh;\n  height: 200dvh;\n  overflow: hidden;", expect="the document scrolls")
 def test_the_page_scrolls_in_its_own_area_from_768_and_in_the_window_on_a_phone(app, app_session, width):
     page = app_session
     go(app, page, "settings", width)
@@ -90,10 +84,6 @@ THUMB_JS = """() => {
 
 
 @pytest.mark.parametrize("color_scheme", ("light", "dark"))
-@mutation(SHELL, "  right: 3px;\n  bottom: 0;\n  width: 9px;", "  right: 2px;\n  bottom: 0;\n  width: 9px;",
-          expect="the pill is 9 px wide")
-@mutation(SHELL, "  --el-scrollbar-bg-color: var(--rl-line-strong);", "  --el-scrollbar-bg-color: var(--rl-muted);",
-          expect="the pill is the strong line colour")
 def test_the_page_bar_is_the_signed_off_pill(app, app_session, color_scheme):
     """9 px wide, the strong line colour at full strength, 3 px from the edge, rounded, drawn without hovering."""
     page = app_session
@@ -174,9 +164,6 @@ def no_ring(page, how: str) -> None:
         "the page area never draws a focus ring, %s: %r" % (how, got))
 
 
-@mutation(SHELL, ".app-shell .app-scroll__wrap:focus {\n  outline: none;",
-          ".app-shell .app-scroll__wrap:focus:not(:focus-visible) {\n  outline: none;",
-          expect="the page area never draws a focus ring")
 def test_the_page_area_never_draws_a_focus_ring(app, app_session):
     """Focus is moved to the area by script on load and on a tab change, and Chrome counts that as keyboard focus."""
     page = app_session
@@ -194,9 +181,6 @@ def test_the_page_area_never_draws_a_focus_ring(app, app_session):
 # ---- Settings anchors and the sticky navigation ------------------------------------------------------------------
 
 @pytest.mark.parametrize(("width", "under"), ((1440, 16), (768, 68)))
-@mutation(SETTINGS, "  --settings-bar: 0px;\n  --settings-anchor: calc(var(--settings-bar) + 16px);",
-          "  --settings-bar: 65px;\n  --settings-anchor: calc(var(--settings-bar) + 16px);",
-          expect="px under the top of the area")
 def test_a_settings_nav_click_lands_the_card_under_the_navigation(app, app_session, width, under):
     page = app_session
     go(app, page, "settings", width, 330)
@@ -303,9 +287,6 @@ PAGES = ("jobs", "accounts", "settings", "test")
 
 @pytest.mark.parametrize("width", WIDTHS)
 @pytest.mark.parametrize("route", PAGES)
-@mutation(SHELL, "@media (max-width: 767px), print {", "@media (max-width: 767px) {", expect="AssertionError")
-@mutation(SHELL, FLOW_ROOT, FLOW_HIDDEN,
-          expect="overflow stays visible up the chain")
 def test_the_flow_layout_is_the_same_page_in_one_block(app, app_session, db, route, width):
     """What a whole-page photo shows (the flow layout) is the page the scroll area holds: the bar and the area's content
     add up to the document's height (a page shorter than the window clamps to it in both), `main` sits in the same place

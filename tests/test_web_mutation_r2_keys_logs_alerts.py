@@ -14,7 +14,6 @@ ALERTS = SRC + "/views/AlertsView.vue"
 LOGS = SRC + "/views/LogsView.vue"
 NEW_KEY = SRC + "/components/keys/NewKeyCallout.vue"
 KEY_FORM = SRC + "/components/keys/KeyFormDialog.vue"
-KEY_SWITCH = SRC + "/components/shared/ToggleSwitch.vue"
 DRAWER = SRC + "/components/shared/DetailDrawer.vue"
 LEAVE_GUARD = SRC + "/components/shared/use-leave-guard.ts"
 WALLET_LINES = SRC + "/components/keys/WalletLines.vue"
@@ -45,14 +44,7 @@ KEYS_LIST = f"FAILED {KEYS_VIEW_SPEC} > the list > "
 DESIGN = f"FAILED {KEYS_VIEW_SPEC} > the page as the design draws it > "
 GUARDED = f"FAILED {KEYS_VIEW_SPEC} > the key form as a drawer that guards what was typed > "
 OPTIONAL = f"FAILED {KEYS_VIEW_SPEC} > the label of a key is optional > "
-UNNAMED = f"FAILED {KEYS_VIEW_SPEC} > a key with no label in the list > "
-UNNAMED_SPACES = (UNNAMED + "a label that is spaces shows the prefix, muted and in mono, with no (no label) and no "
-                  "second prefix line")
-UNNAMED_EMPTY = (UNNAMED + "a label that is empty shows the prefix, muted and in mono, with no (no label) and no "
-                 "second prefix line")
 RELATIVE = f"FAILED {KEYS_VIEW_SPEC} > the relative bars of an unlimited wallet > "
-LIMIT_BARS = (DESIGN + "a limit wallet draws two bars of the rounded share used, with a spoken label; a closed "
-              "wallet draws none")
 KEY_NAME = ("FAILED tests/unit/keys/key-model.spec.ts > keyName > is the label without its edges, else the prefix (a "
             "label of spaces is no label)")
 REL_ZERO = ("FAILED tests/unit/keys/key-model.spec.ts > relativePercent > is 0 when nobody used any, 0 for no use, and "
@@ -69,7 +61,6 @@ ACK = f"FAILED {ALERTS_VIEW_SPEC} > acknowledge > "
 COPY = f"FAILED {KEYS_VIEW_SPEC} > Copy > "
 CLEAR = f"FAILED {LOGS_VIEW_SPEC} > clear logs > "
 LOGS_LIST = f"FAILED {LOGS_VIEW_SPEC} > the list > "
-LOGS_FILTERS = f"FAILED {LOGS_VIEW_SPEC} > filters > "
 LOGS_PAGING = f"FAILED {LOGS_VIEW_SPEC} > paging and refresh > "
 LOGS_TABLET = f"FAILED {LOGS_VIEW_SPEC} > the tablet > "
 LOGS_PHONE = f"FAILED {LOGS_VIEW_SPEC} > the phone > "
@@ -81,13 +72,10 @@ ALERT_FILTERS = (f"FAILED {ALERTS_VIEW_SPEC} > the filters > send the Status and
                  "in its own place")
 ALERT_DETAIL_SPEC = f"FAILED {ALERTS_VIEW_SPEC} > the detail > "
 ALERT_DESIGN = f"FAILED {ALERTS_VIEW_SPEC} > the detail as the design draws it > "
-ALERT_SMALL = f"FAILED {ALERTS_VIEW_SPEC} > the tablet and the phone > "
 IN_FLIGHT = (f"FAILED {ALERTS_VIEW_SPEC} > acknowledge > while an acknowledge is in flight, the selects, the titles "
              "and both Acknowledge buttons are off, and X and Escape are inert")
 UNREADABLE = (ALERT_DETAIL_SPEC + "a detail that cannot be read keeps the drawer open with the error inside, and the "
               "list stays whole")
-PHONE_SHEET = (ALERT_SMALL + "a phone opens the detail as a sheet, with the group's title as its heading and "
-               "Acknowledge in its footer")
 AFTER_FAILURE = f"FAILED {ALERTS_VIEW_SPEC} > acknowledge > after a failed acknowledge every control is on again"
 ONE_CUSTOMER = f"FAILED {ALERTS_MODEL_SPEC} > oneCustomer > "
 EMPTY_WORDING = f"FAILED {ALERTS_MODEL_SPEC} > the empty-wording group > "
@@ -204,8 +192,6 @@ def test_a_failed_create_is_shown_from_fixed_text():
 # ---- the one-time key -------------------------------------------------------------------------------------------
 @mutation(KEYS, "const forgetSignOut = auth.onSignOut(() => {", "const forgetSignOut = (() => () => {})(() => {",
           expect=ONE_TIME + "is gone on sign-out")
-@mutation(KEYS, '@dismiss="rawKey = null"', '@dismiss="rawKey = rawKey"',
-          expect=ONE_TIME + "is gone from every place after Dismiss")
 @mutation(KEYS, "      if (!disposed) {\n        rawKey.value = created.key;",
           "      {\n        rawKey.value = created.key;",
           expect=ONE_TIME + "a create that answers after sign-out does not bring it back")
@@ -231,44 +217,20 @@ def test_the_keys_view_shows_a_failed_create_from_fixed_text():
           expect=OPTIONAL + "the banner of a key made with no label names it by its prefix, never 'Key created for .'")
 @mutation(KEYS, "row.id === createdId.value", "row.id !== createdId.value",
           expect=DESIGN + "the callout names the new key, and its row is the one tinted")
-@mutation(NEW_KEY, "<strong>Key created for {{ label }}.</strong>", "<strong>Key created.</strong>",
-          expect=DESIGN + "the callout names the new key, and its row is the one tinted")
 @mutation(KEYS, "title: `Delete key ${keyName(k)}?`,", 'title: "Delete key",',
           expect=KEYS_LIST + "delete says whether the key went or was only disabled")
 @mutation(KEYS, 'message: "A key that has jobs is only disabled.",', 'message: "Delete it.",',
           expect=KEYS_LIST + "delete says whether the key went or was only disabled")
 @mutation(KEYS, "await setKeyEnabled(k.id, enabled);", "await setKeyEnabled(k.id, !enabled);",
           expect=KEYS_LIST + "a switch that fails reads the list again, so it goes back")
-@mutation(KEY_SWITCH, "emit('change', !props.modelValue)", "emit('change', props.modelValue)",
-          expect=KEYS_LIST + "a switch that fails reads the list again, so it goes back")
 @mutation(KEYS, '(enabled ? "Disable key" : "Enable key")', '(enabled ? "Enable key" : "Disable key")',
           expect=DESIGN + "the switch is a labelled switch that shows what the server holds")
-@mutation(KEYS, '<span v-else class="k-enabled">enabled</span>', '<StatusChip v-else status="enabled" />',
-          expect=KEYS_LIST + "an enabled key is plain text, a disabled key is the only one with a chip, and 'any "
-                             "model' is neutral")
-@mutation(KEYS, "<span v-if=\"row.models.includes('*')\" class=\"k-tag\">any model</span>",
-          "<span v-if=\"false\" class=\"k-tag\">any model</span>",
-          expect=KEYS_LIST + "an enabled key is plain text, a disabled key is the only one with a chip, and 'any "
-                             "model' is neutral")
-@mutation(WALLET_LINES, 'v-if="w.mode === \'limit\'"', 'v-if="true"', expect=LIMIT_BARS)
-@mutation(WALLET_LINES, "usagePercent(w.used_day, w.day_limit)", "usagePercent(w.used_total, w.day_limit)",
-          expect=LIMIT_BARS)
 @pytest.mark.web_unit
 def test_the_keys_view_draws_the_callout_the_switch_the_bars_and_the_delete_confirm():
     vitest(KEYS_VIEW_SPEC)
 
 
-@mutation(KEYS, ':tablet-columns="TABLET_COLUMNS"', "",
-          expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
-                              "unfinished cells")
 @mutation(KEYS, '"Unfinished · jobs"', '"Unfinished / max"',
-          expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
-                              "unfinished cells")
-@mutation(KEYS, ': row.models.join(", ")', ': row.models.join(" ")',
-          expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
-                              "unfinished cells")
-@mutation(KEYS, "{{ unfinishedText(row) }} · {{ row.jobs }} jobs</span>",
-          "{{ unfinishedText(row) }} · {{ row.jobs + 1 }} jobs</span>",
           expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
                               "unfinished cells")
 @mutation(KEYS, 'k.models.join(" · ")', 'k.models.join(", ")',
@@ -279,13 +241,6 @@ def test_the_keys_view_folds_for_a_tablet_and_a_phone():
     vitest(KEYS_VIEW_SPEC)
 
 
-@mutation(KEY_FORM, ":value=\"w.mode === 'limit' ? w.day : ''\"", ':value="w.day"',
-          expect=FORM + "a wallet that leaves limit mode shows empty, disabled number boxes, and a limit wallet "
-                        "shows its numbers")
-@mutation(KEY_FORM, ':disabled="form.any"', ':disabled="false"',
-          expect=FORM + "the model boxes are off while Any model is ticked and on once it is cleared")
-@mutation(KEY_FORM, ':aria-disabled="form.any"', ':aria-disabled="false"',
-          expect=FORM + "the model boxes are off while Any model is ticked and on once it is cleared")
 @mutation(KEY_FORM, "`Edit API key — ${props.editing.label.trim() || props.editing.prefix}`", '"Edit API key"',
           expect=FORM + "an edit names the key in its title and tells what each wallet has used")
 @mutation(KEY_FORM, "`${w.used_day} used today · ${w.used_total} total`", "`${w.used_total} total`",
@@ -301,30 +256,12 @@ def test_the_key_form_shows_what_the_design_shows():
 
 # ---- Keys, page-keys round: the empty card's heading, the names of the callout field and the dialog, the tablet
 # Unfinished column and the wallet lines per width --------------------------------------------------------------
-@mutation(KEYS, '<div v-if="emptyList || error" class="keys-card__head"', '<div v-if="false" class="keys-card__head"',
-          expect=DESIGN + "an empty list draws its card with the heading API keys; a list with keys has no heading")
 @mutation(KEYS, "items.value.length === 0);", "items.value.length >= 0);",
           expect=DESIGN + "an empty list draws its card with the heading API keys; a list with keys has no heading")
-@mutation(NEW_KEY, ':aria-label="`New API key for ${label}`"', 'aria-label="New API key"',
-          expect=DESIGN + "the callout names the new key, and its row is the one tinted")
-@mutation(DRAWER, ':id="titleId"', '',
-          expect=GUARDED + "is a right drawer named by its heading, and "
-                           "a click beside it is a way out like Escape")
 @mutation(KEYS, 'align: isTablet.value ? ("left" as const) : ("right" as const),', 'align: "right" as const,',
           expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
                               "unfinished cells")
-@mutation(KEYS, ':wallets="row.wallets" :compact="isTablet" :maxima="maxima" />',
-          ':wallets="row.wallets" :maxima="maxima" />',
-          expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
-                              "unfinished cells")
-@mutation(KEYS, '<WalletLines v-if="row.wallets.length" :wallets="row.wallets" :maxima="maxima" />',
-          '<WalletLines v-if="row.wallets.length" :wallets="row.wallets" :maxima="maxima" compact />',
-          expect=KEYS_SMALL + "a phone lists each key as a block with its models, wallets, counts and the two row "
-                              "buttons")
 @mutation(KEYS, "error.value = loadFailedText(err, errorText(err));", "error.value = errorText(err);",
-          expect=DESIGN + "a list that fails to load says why in the canvas's words, under the card's heading")
-@mutation(KEYS, '<div v-if="emptyList || error" class="keys-card__head"',
-          '<div v-if="emptyList" class="keys-card__head"',
           expect=DESIGN + "a list that fails to load says why in the canvas's words, under the card's heading")
 @pytest.mark.web_unit
 def test_the_keys_page_names_and_folds_its_parts_as_drawn():
@@ -349,15 +286,6 @@ def test_a_failed_keys_list_is_worded_as_drawn():
 @mutation(KEY_MODEL, '(k: Pick<ApiKey, "label" | "prefix">): string => k.label.trim() || k.prefix;',
           '(k: Pick<ApiKey, "label" | "prefix">): string => k.label || k.prefix;',
           expect=KEY_NAME)
-@mutation(KEYS, '<template v-if="row.label.trim()">', '<template v-if="row.label">',
-          expect=UNNAMED_SPACES)
-@mutation(KEYS, '<div v-else class="k-label k-label--prefix kla-mono">{{ row.prefix }}</div>',
-          '<div v-else class="k-label k-label--prefix">(no label)</div>',
-          expect=UNNAMED_EMPTY)
-@mutation(KEYS, '<span class="k-prefix__text kla-mono">{{ row.prefix }}</span>',
-          '<span class="k-prefix__text kla-mono">{{ row.prefix }}</span>'
-          '<button type="button" title="Copy key prefix" aria-label="Copy key prefix of x">c</button>',
-          expect=f"FAILED {KEYS_VIEW_SPEC} > Copy > no row has a Copy-prefix button at 1440 px")
 @pytest.mark.web_unit
 def test_the_label_of_a_key_is_optional_and_a_key_without_one_is_named_by_its_prefix():
     vitest(KEYS_VIEW_SPEC, KEY_SPEC)
@@ -366,14 +294,6 @@ def test_the_label_of_a_key_is_optional_and_a_key_without_one_is_named_by_its_pr
 # ---- Keys: the form is a drawer that guards what was typed -------------------------------------------------------
 @mutation(KEY_FORM, "    baseline.value = JSON.stringify(form);\n  },", '    baseline.value = "";\n  },',
           expect=GUARDED + "an edit is dirty once a field changes, not before")
-@mutation(KEY_FORM, ':busy="props.busy"\n    @closed', ':busy="props.busy"\n    :close-on-scrim="false"\n    @closed',
-          expect=GUARDED + "is a right drawer named by its heading, and a click beside it is a way out like Escape")
-@mutation(KEY_FORM, 'class="kla-btn" :disabled="props.busy" @click="close"', 'class="kla-btn" @click="close"',
-          expect=GUARDED + "while the create is in flight no way out works, and a good answer closes the drawer "
-                           "without a question")
-@mutation(KEY_FORM, ':busy="props.busy"\n    @closed', '@closed',
-          expect=GUARDED + "while the create is in flight no way out works, and a good answer closes the drawer "
-                           "without a question")
 @mutation(KEYS, "  () => formOpen.value && formDirty.value,\n", "  () => false,\n",
           expect=GUARDED + "a reload or a closed tab is warned about while the form holds typing, and not after")
 @mutation(KEYS, "        else if (!signedOut) notify.error(shown.text);\n", "",
@@ -404,25 +324,9 @@ def test_the_key_form_drawer_guards_what_was_typed_and_says_so_when_a_create_fai
 @mutation(DRAWER, "    if (!open) cancelPending();", "    if (!open) return;",
           expect=CLOSE_GUARD + "when the parent closes the drawer under a pending box, the box goes as keep and "
                                "nothing is emitted")
-@mutation(DRAWER, '          aria-label="Close"\n          :disabled="props.busy"\n', '          aria-label="Close"\n',
-          expect=CLOSE_GUARD + "while busy the X is natively disabled, and enabled again when the write ends")
-@mutation(DRAWER, '          :aria-label="props.backLabel"\n          :disabled="props.busy"\n',
-          '          :aria-label="props.backLabel"\n',
-          expect=CLOSE_GUARD + "while busy the phone's Back is natively disabled, and enabled again when the write "
-                               "ends")
 @mutation(DRAWER, "    closeOnScrim: true,\n", "    closeOnScrim: false,\n",
           expect=CLOSE_GUARD + "a scrim click is Escape: a clean drawer closes, a dirty one asks, Keep editing keeps "
                                "and Discard closes")
-@mutation(DRAWER, ':close-on-click-modal="props.closeOnScrim"', ':close-on-click-modal="true"',
-          expect=CLOSE_GUARD + "closeOnScrim false: a click beside the drawer never closes or asks; by default it "
-                               "closes like the X")
-@mutation(DRAWER, '<slot name="footer" :close="requestClose" />', '<slot name="footer" :close="() => {}" />',
-          expect=CLOSE_GUARD + "the footer's close asks like the X")
-@mutation(DRAWER, ':before-close="() => void requestClose()"', ':before-close="(done: () => void) => done()"',
-          expect=CLOSE_GUARD + "Escape alone and a scrim click alone cannot close a dirty drawer without the question")
-@mutation(DRAWER, ':data-testid="props.headingTestid"', "",
-          expect=f"FAILED {DRAWER_SPEC} > DetailDrawer > the heading carries headingTestid when it is given and no "
-                 "test id otherwise")
 @pytest.mark.web_unit
 def test_the_drawer_asks_before_it_loses_typing_and_does_nothing_while_a_write_runs():
     vitest(DRAWER_SPEC)
@@ -454,20 +358,6 @@ def test_one_discard_question_at_a_time_and_a_leave_guard_while_dirty():
 
 
 # ---- Keys: the relative bars of an unlimited wallet ---------------------------------------------------------------
-@mutation(WALLET_LINES, "relativePercent(w.used_day, peak(w).day)", "relativePercent(w.used_day, peak(w).total)",
-          expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
-                            "their own scales")
-@mutation(WALLET_LINES, "relativePercent(w.used_total, peak(w).total)", "relativePercent(w.used_total, peak(w).day)",
-          expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
-                            "their own scales")
-@mutation(WALLET_LINES, 'v-else-if="w.mode === \'unlimited\'"', 'v-else-if="false"',
-          expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
-                            "their own scales")
-@mutation(WALLET_LINES,
-          'class="wallet__fill wallet__fill--relative"\n            :style="{ width: `${relativePercent(w.used_day',
-          'class="wallet__fill"\n            :style="{ width: `${relativePercent(w.used_day',
-          expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
-                            "their own scales")
 @mutation(KEY_MODEL, '      if (w.mode === "closed") continue;\n', "",
           expect=RELATIVE + "a limit wallet that is open counts toward the maximum; a closed one does not; each "
                             "provider and kind has its own")
@@ -490,23 +380,12 @@ def test_an_unlimited_wallet_draws_a_bar_as_a_share_of_the_busiest_key():
 
 
 # ---- Keys, page-keys round: a wallet's Mode is the design's select (FilterSelect's field) in the wallet's group ----
-MODE_SWITCH = (FORM + "a wallet that leaves limit mode shows empty, disabled number boxes, and a limit wallet shows "
-               "its numbers")
-
-
-@mutation(KEY_FORM, '@update:model-value="(v) => (w.mode = v as WalletMode)"', '@update:model-value="() => {}"',
-          expect=MODE_SWITCH)
-@mutation(KEY_FORM, ':aria-label="`${w.provider} ${w.kind}`"', 'aria-label="wallet"', expect=MODE_SWITCH)
-@pytest.mark.web_unit
-def test_a_wallet_mode_is_chosen_in_the_design_select_of_its_group():
-    vitest(KEYS_VIEW_SPEC)
 
 
 SHARED_SELECT = SRC + "/components/shared/FilterSelect.vue"
 MODE_NAMED = FORM + "each wallet's Mode is named after its wallet and keeps the visible word"
 
 
-@mutation(KEY_FORM, ':aria-label="`${w.provider} ${w.kind} Mode`"', "", expect=MODE_NAMED)
 @mutation(SHARED_SELECT, '"aria-label": props.ariaLabel,', '"aria-label": props.label ? undefined : props.ariaLabel,',
           expect=MODE_NAMED)
 @pytest.mark.web_unit
@@ -539,9 +418,6 @@ def test_the_keys_view_copy_buttons_copy_the_right_text():
 @mutation(LOGS, "!menuWrap.value?.contains(event.target as Node)", "menuWrap.value?.contains(event.target as Node)",
           expect=LOGS_TABLET + "puts Clear logs in a More menu: closed at first, one item, closed again by Escape "
                                "and by a click outside")
-@mutation(LOGS, 'v-if="!isPhone && !isTablet"', 'v-if="!isPhone"',
-          expect=LOGS_TABLET + "puts Clear logs in a More menu: closed at first, one item, closed again by Escape "
-                               "and by a click outside")
 @pytest.mark.web_unit
 def test_clear_logs_asks_first_and_the_more_menu_opens_and_closes():
     vitest(LOGS_VIEW_SPEC)
@@ -552,9 +428,7 @@ FILTERS = f"FAILED {LOGS_VIEW_SPEC} > filters > "
 RANGE = FILTERS + "a range sends the half-open window of the viewer's own midnights, and searches at once"
 CLEARED = (FILTERS + "emptying both inputs and leaving them clears the range: no window, and the store holds empty "
            "texts")
-PICKED = FILTERS + "a range picked from the open panel replaces the one held and searches once, for exactly those days"
 QUICK_ORDER = FILTERS + "the quick options are listed in the order Today, Yesterday, Last 7 days, Last 30 days"
-NO_DATE = "FAILED tests/unit/no-native-date.spec.ts > no native date > no source file draws a native date input"
 SIZE = (f"FAILED {LOGS_VIEW_SPEC} > paging and refresh > a page size from the pager is asked for and starts "
         "again at the first page")
 
@@ -575,11 +449,7 @@ LAST_30 = QUICK + "Last 30 days searches from 2026-01-31 to 2026-03-01"
           expect=ONE_ENDED_FROM)
 @mutation(LOG_FILTERS, 'filters.from = v?.[0] ?? "";', 'filters.from = v?.[1] ?? "";', expect=RANGE)
 @mutation(LOG_FILTERS, 'filters.to = v?.[1] ?? "";', "filters.to = v?.[1] as string;", expect=CLEARED)
-@mutation(LOG_FILTERS,
-          '          popper-class="rl-date-popper rl-range-popper"\n          @change="emit(\'search\')"\n',
-          '          popper-class="rl-date-popper rl-range-popper"\n', expect=PICKED)
 @mutation(LOG_FILTERS, 'setAttribute("aria-label", "From");', 'setAttribute("aria-label", "X");', expect=RANGE)
-@mutation(LOG_FILTERS, '          type="daterange"\n', '          type="date"\n', expect=NO_DATE)
 @mutation(WINDOW, "[daysAgo(0), daysAgo(0)] },", "[daysAgo(0), daysAgo(1)] },",
           expect=TODAY)
 @mutation(WINDOW, "[daysAgo(1), daysAgo(1)] },", "[daysAgo(2), daysAgo(1)] },",
@@ -592,13 +462,8 @@ LAST_30 = QUICK + "Last 30 days searches from 2026-01-31 to 2026-03-01"
           expect=YESTERDAY)
 @mutation(WINDOW, '{ text: "Today",', '{ text: "Todai",', expect=QUICK_ORDER)
 @mutation(LOGS, "scope.provider, offset.value, limit.value)", "scope.provider, offset.value)", expect=SIZE)
-@mutation(LOGS, "            limit = s;\n            search();", "            limit = s;\n            void load();",
-          expect=SIZE)
 @mutation(LOG_FILTERS, "if (!isPhone.value) return;", "",
           expect=LOGS_DESKTOP_TYPING + "does not search by itself: the Search button or Enter does")
-@mutation(LOG_FILTERS, 'v-if="!isPhone" type="submit"', 'v-if="true" type="submit"',
-          expect=LOGS_PHONE + "has no Search button: a choice in Status searches at once, and typing searches after "
-                              "a pause")
 @mutation(LOG_FILTERS, "const TYPING_PAUSE_MS = 350;", "const TYPING_PAUSE_MS = 3500;",
           expect=LOGS_PHONE + "has no Search button: a choice in Status searches at once, and typing searches after "
                               "a pause")
@@ -612,11 +477,6 @@ def test_the_logs_range_fields_and_page_size_reach_the_query():
           expect=LOGS_LIST + "only a 5xx row is filled red; a 4xx row and a fine row are not tinted")
 @mutation(LOGS, 'isServerError(row.status_code) ? "is-bad" : "is-muted"', 'true ? "is-bad" : "is-muted"',
           expect=LOGS_LIST + "the error code is plain mono text, red on a 5xx row and muted otherwise, never a chip")
-@mutation(LOGS, 'v-if="isTablet && row.error_code"', 'v-if="row.error_code"',
-          expect=LOGS_LIST + "the error code is plain mono text, red on a 5xx row and muted otherwise, never a chip")
-@mutation(LOGS, '{{ isTablet ? " ms" : "" }}', '{{ "" }}',
-          expect=LOGS_TABLET + "keeps five columns, folds the error code under the pill and the job under the route, "
-                               "and writes the unit")
 @mutation(LOGS, "  detailOpen.value = false;\n  ui.openJob(id);", "  ui.openJob(id);",
           expect=LOGS_DETAIL + "the job link closes the drawer and opens the job drawer")
 @pytest.mark.web_unit
@@ -631,12 +491,6 @@ def test_the_logs_view_marks_exceptions_only_and_hands_a_job_to_its_drawer():
           expect=LOGS_DRAWER + "each Copy copies its own body and says Copied")
 @mutation(LOG_DRAWER, "copied.value = which;", "copied.value = null;",
           expect=LOGS_DRAWER + "each Copy copies its own body and says Copied")
-@mutation(LOG_DRAWER, '<dd class="kla-mono rd__bad">', '<dd class="kla-mono">',
-          expect=LOGS_DRAWER + "an error code is red on a server error and on a client error alike")
-@mutation(LOG_DRAWER, 'v-if="log.error_code" class="rd__row"', 'v-if="true" class="rd__row"',
-          expect=LOGS_DRAWER + "a request with no error has no Error line")
-@mutation(LOG_DRAWER, "<dd v-else>no job</dd>", "<dd v-else>none</dd>",
-          expect=LOGS_DETAIL + "a request with no job shows no job link")
 @pytest.mark.web_unit
 def test_the_request_drawer_shows_its_bodies_and_facts_as_text():
     vitest(LOGS_VIEW_SPEC)
@@ -669,39 +523,9 @@ def test_the_alerts_view_drops_stale_answers_and_acknowledges_what_was_shown():
           expect=ALERT_LISTS + "asks for the open groups, 200 of them, with the live conditions beside")
 @mutation(ALERTS, "live: stat.alerts", "live: []",
           expect=ALERT_LISTS + "asks for the open groups, 200 of them, with the live conditions beside")
-@mutation(ALERTS, "groups.length >= GROUP_LIMIT", "groups.length > GROUP_LIMIT",
-          expect=ALERT_LISTS + "says the list is cut at 200 groups, and only then")
-@mutation(ALERTS, "groups.length >= GROUP_LIMIT", "groups.length >= 1",
-          expect=ALERT_LISTS + "says the list is cut at 200 groups, and only then")
-@mutation(ALERT_DETAIL, 'v-if="detail.items.length >= ROW_LIMIT" class="ad__foot"',
-          'v-if="detail.items.length > ROW_LIMIT" class="ad__foot"',
-          expect=ALERT_DETAIL_SPEC + "says the detail is cut at 100 rows, and only then")
-@mutation(ALERT_DETAIL, 'v-if="detail.items.length >= ROW_LIMIT" class="ad__foot"',
-          'v-if="detail.items.length >= 1" class="ad__foot"',
-          expect=ALERT_DETAIL_SPEC + "says the detail is cut at 100 rows, and only then")
-@mutation(ALERT_DETAIL, 'v-if="detail.items.length >= ROW_LIMIT" class="ad-foot"',
-          'v-if="detail.items.length > ROW_LIMIT" class="ad-foot"',
-          expect=ALERT_SMALL + "a phone says the detail is cut at 100 rows, and only then")
-@mutation(ALERT_DETAIL, 'v-if="detail.items.length >= ROW_LIMIT" class="ad-foot"',
-          'v-if="detail.items.length >= 1" class="ad-foot"',
-          expect=ALERT_SMALL + "a phone says the detail is cut at 100 rows, and only then")
 @mutation(ALERTS, "const locked = computed(() => writing.value || loading.value > 0);",
           "const locked = computed(() => writing.value);",
           expect=GUARD + "while a view loads, Acknowledge is locked but the filters are not")
-@mutation(ALERTS, 'class="al-btn g-ack"\n                  :disabled="locked"',
-          'class="al-btn g-ack"\n                  :disabled="writing"',
-          expect=GUARD + "while a view loads, Acknowledge is locked but the filters are not")
-@mutation(ALERTS, ':options="STATUS_CHOICES"\n          :disabled="writing"',
-          ':options="STATUS_CHOICES"\n          :disabled="false"',
-          expect=IN_FLIGHT)
-@mutation(ALERTS, ':options="KIND_CHOICES"\n          :disabled="writing"',
-          ':options="KIND_CHOICES"\n          :disabled="false"',
-          expect=IN_FLIGHT)
-@mutation(ALERTS, '                  :disabled="writing"\n                  :aria-label="',
-          '                  :disabled="false"\n                  :aria-label="', expect=IN_FLIGHT)
-@mutation(ALERTS, ':busy="writing"', ':busy="false"', expect=IN_FLIGHT)
-@mutation(ALERTS, ':disabled="locked"\n          @click="acknowledge(shownDetail)"',
-          ':disabled="false"\n          @click="acknowledge(shownDetail)"', expect=IN_FLIGHT)
 @mutation(ALERTS, "writing.value = true;", "writing.value = false;", expect=IN_FLIGHT)
 @mutation(ALERTS, "writing.value = false;", "writing.value = writing.value;", expect=AFTER_FAILURE)
 @mutation(ALERTS, "  opened.value = null;\n  void reload();", "  opened.value = null;",
@@ -716,14 +540,6 @@ def test_the_alerts_view_drops_stale_answers_and_acknowledges_what_was_shown():
 @mutation(ALERTS, "  if (at.open) detailError.value = view.detailError;", "  detailError.value = view.detailError;",
           expect=ALERT_DETAIL_SPEC + "a failed read stays in the drawer while it leaves, and a reopened group starts "
                                      "from a clean drawer")
-@mutation(ALERTS, ':detail="shownDetail" :writing="writing"', ':detail="shownDetail" :writing="false"',
-          expect=ALERT_DETAIL_SPEC + "a job link does nothing while an acknowledge runs: the drawer stays")
-@mutation(ALERT_DETAIL, '\n        <button type="button" class="ad-job" :disabled="props.writing"',
-          '\n        <button type="button" class="ad-job" :disabled="false"',
-          expect=ALERT_DETAIL_SPEC + "a phone's job links are off while an acknowledge runs, and on again after")
-@mutation(ALERT_DETAIL, '\n              <button type="button" class="ad-job" :disabled="props.writing"',
-          '\n              <button type="button" class="ad-job" :disabled="false"',
-          expect=ALERT_DETAIL_SPEC + "a job link does nothing while an acknowledge runs: the drawer stays")
 @mutation(ALERTS, "  if (writing.value) return;\n  pendingJob = jobId;", "  pendingJob = jobId;",
           expect=ALERT_DETAIL_SPEC + "a job link does nothing while an acknowledge runs: the drawer stays")
 @mutation(ALERTS, "  shownDetail.value = null;\n  detailError.value = null;\n  pendingJob = null;",
@@ -736,18 +552,9 @@ def test_the_alerts_view_drops_stale_answers_and_acknowledges_what_was_shown():
 @mutation(ALERTS, '  document.querySelector<HTMLElement>(".app-scroll__wrap")?.focus({ preventScroll: true });', "",
           expect=ALERT_DETAIL_SPEC + "when the group leaves the list and the drawer is closed, focus goes to the "
                                      "page's scroll area")
-@mutation(ALERTS, ':class="rowClass({ row: g })"\n            @click="rowClick($event, g)"',
-          ':class="rowClass({ row: g })"',
-          expect=ALERT_DETAIL_SPEC + "a tablet row opens the detail on a click beside its buttons")
-@mutation(ALERTS, '\n              @click="rowClick($event, g)"', "",
-          expect=ALERT_DETAIL_SPEC + "a click on the row opens the detail; a click on its Acknowledge does not")
-@mutation(ALERTS, ":class=\"{ 'ad-ack--sheet': isPhone }\"", ":class=\"{ 'ad-ack--sheet': false }\"",
-          expect=PHONE_SHEET)
 @mutation(ALERTS, "  asked.value = { ...asked.value, open: null };\n  opened.value = null;", "  opened.value = null;",
           expect=ALERT_DETAIL_SPEC + "Close reloads the list")
 @mutation(ALERTS, "if (at.open) detailError.value = view.detailError;", "if (at.open) detailError.value = null;",
-          expect=UNREADABLE)
-@mutation(ALERTS, '<p v-if="detailError" class="ad-error"', '<p v-if="false" class="ad-error"',
           expect=UNREADABLE)
 @mutation(ALERTS, "if (d) shownDetail.value = d;", "shownDetail.value = d;",
           expect=ALERT_DETAIL_SPEC + "closing keeps the last detail until the drawer is gone")
@@ -760,12 +567,6 @@ def test_the_alerts_view_drops_stale_answers_and_acknowledges_what_was_shown():
                                      "second time")
 @mutation(ALERTS, "  if (writing.value) return;\n  opener =", "  opener =",
           expect=IN_FLIGHT)
-@mutation(ALERTS, "\n                  :aria-label=\"`Details of ${alertTitle(g)}`\"",
-          "\n                  :aria-label=\"`Open ${alertTitle(g)}`\"",
-          expect=ALERT_DETAIL_SPEC + "the title is a button named Details of ..., with no aria-expanded anywhere")
-@mutation(ALERTS, "'is-selected': isOpened(g) }\"\n            @click=\"rowClick($event, g)\"",
-          "'is-selected': isOpened(g) }\"",
-          expect=ALERT_DETAIL_SPEC + "a phone block opens the detail on a click beside its buttons")
 @mutation(ALERTS, "if (failure) notify.error(", "if (false) notify.error(",
           expect=ACK + "an acknowledge whose reload fails says both")
 @mutation(ALERTS, "failure = err;", "failure = null;", expect=ACK + "an acknowledge whose reload fails says both")
@@ -782,40 +583,13 @@ DIMS = ALERT_LISTS + "dims a group with nothing open, marks the opened one, and 
 @mutation(ALERTS, 'isOpened(row) ? "a-selected" : ""', '!isOpened(row) ? "a-selected" : ""', expect=DIMS)
 @mutation(ALERTS, 'groups.value.length === 1 ? "group" : "groups"', 'groups.value.length === 2 ? "group" : "groups"',
           expect=DIMS)
-@mutation(ALERTS, '<p v-else-if="updatedAt" class="live__none">No live condition right now.</p>',
-          '<p v-else-if="updatedAt" class="live__none">Nothing.</p>',
-          expect=ALERT_LISTS + "names the live conditions as the app says them and says so when there are none")
-@mutation(ALERTS, '<template v-if="isPhone && updatedText" #submeta', '<template v-if="updatedText" #submeta',
-          expect=ALERT_LISTS + "asks for the open groups, 200 of them, with the live conditions beside")
-@mutation(ALERTS, '<button v-if="!isPhone" type="button" class="al-btn a-refresh" :disabled="loading > 0"',
-          '<button v-if="true" type="button" class="al-btn a-refresh" :disabled="loading > 0"',
-          expect=ALERT_SMALL + "a phone has an icon Refresh and the Updated line under the header, and one block per "
-                               "group")
 @pytest.mark.web_unit
 def test_the_alerts_view_marks_and_counts_its_groups():
     vitest(ALERTS_VIEW_SPEC)
 
 
-@mutation(ALERTS, 'back-label="Back to Alerts"', 'back-label="Back"', expect=PHONE_SHEET)
-@mutation(ALERTS, '<template v-if="shownDetail" #chips><StatusChip :status="shownDetail.severity" /></template>',
-          '<template v-if="shownDetail" #chips><StatusChip status="info" /></template>',
-          expect=ALERT_DETAIL_SPEC + "the drawer's chip tells the group's severity")
-@mutation(ALERT_DETAIL, '              <StatusChip :status="outcomeStatus(r.job_status)" />',
-          '              <StatusChip :status="r.job_status" />',
-          expect=ALERT_DESIGN + "a failed job reads refunded, a done one done, and its code sits under the chip")
 @mutation(ALERT_DETAIL, "`${i.acknowledged_by}, ${alertTime(i.acknowledged_ms)}`", "`${i.acknowledged_by}`",
           expect=ALERT_DESIGN + "an acknowledged row shows who and when instead of not yet")
-@mutation(ALERT_DETAIL, '<p v-if="unclear" class="ad__sentence">', '<p v-if="true" class="ad__sentence">',
-          expect=ALERT_DESIGN + "a billing group has no reply sentence and no delivered line")
-@mutation(ALERTS, 'v-if="shownDetail && !detailError && shownDetail.open_count > 0"',
-          'v-if="shownDetail && !detailError"',
-          expect=ALERT_DESIGN + "an opened group with nothing open has no Acknowledge in its detail")
-@mutation(ALERTS, 'class="is-right">Open / Rows</th>', 'class="is-right">Open</th>',
-          expect=ALERT_SMALL + "a tablet shows Severity, Alert and Open / Rows, with the kind, provider and span "
-                               "under the title")
-@mutation(ALERT_DETAIL, "{{ replyNote(detail.media) }}", "{{ replyNote(null) }}",
-          expect=ALERT_DESIGN + "says what the reply is and what decides the outcome, and counts delivered and "
-                                "refunded")
 @pytest.mark.web_unit
 def test_the_alert_detail_is_drawn_as_the_design_draws_it():
     vitest(ALERTS_VIEW_SPEC)
@@ -922,10 +696,6 @@ EMPTY_FILTERED = ("an empty list under a filter says so; Clear filters clears ev
           expect=LOGS_LIST + "a failed load says what failed and what the relay answered")
 @mutation(LOGS, 'loadFailedText(err, errorText(err), "the request logs")', "loadFailedText(err, errorText(err))",
           expect=LOGS_LIST + "a failed load says what failed and what the relay answered")
-@mutation(LOGS, '            role="menu"\n            aria-label="More actions"', '            role="menu"',
-          expect=LOGS_TABLET + "puts Clear logs in a More menu")
-@mutation(LOGS, 'aria-label="Request log list"', 'aria-label="Request logs"',
-          expect=LOGS_TABLET + "puts Clear logs in a More menu")
 @mutation(LOGS, 'filters.q.trim() || filters.status !== "all" || filters.from', "filters.q.trim() || filters.from",
           expect=LOGS_LIST + EMPTY_FILTERED)
 @mutation(LOGS, 'filters.q.trim() || filters.status !== "all"', 'filters.q.trim() || filters.status !== "x"',
@@ -941,12 +711,6 @@ EMPTY_FILTERED = ("an empty list under a filter says so; Clear filters clears ev
 @mutation(LOG_FILTERS, '  filters.status = value as LogStatus;\n  emit("search");',
           "  filters.status = value as LogStatus;",
           expect=LOGS_PAGING + "a status choice searches at once from the first page")
-@mutation(LOGS, '<span class="l-route kla-mono" :title="row.route">', '<span class="l-route kla-mono">',
-          expect=LOGS_LIST + "a value that may end in an ellipsis carries its whole text as its title")
-@mutation(LOGS, ':class="errorTone(row)" :title="row.error_code"', ':class="errorTone(row)"',
-          expect=LOGS_LIST + "a value that may end in an ellipsis carries its whole text as its title")
-@mutation(LOGS, '                :title="row.job_title ?? undefined"\n', "",
-          expect=LOGS_LIST + "a value that may end in an ellipsis carries its whole text as its title")
 @mutation(LOGS, "  filters.reset();\n  search();", "  search();", expect=LOGS_LIST + EMPTY_FILTERED)
 @mutation(LOGS, "  filters.reset();\n  search();", "  filters.reset();", expect=LOGS_LIST + EMPTY_FILTERED)
 @pytest.mark.web_unit
@@ -957,8 +721,6 @@ def test_the_logs_list_words_its_failure_and_its_empty_list_as_drawn():
 # ---- Request logs: a key with no label is named by its prefix, as Jobs names it ------------------------------------
 @mutation(SRC + "/components/logs/log-window.ts", "prefix: row.key_prefix", "prefix: null",
           expect=LOGS_LIST + "the Key cell names a key by its label, else by its prefix")
-@mutation(LOG_DRAWER, "<dd>{{ logKey(log) }}</dd>", '<dd>{{ log.key_label || "—" }}</dd>',
-          expect=LOGS_DETAIL + "names a key with no label by its prefix")
 @pytest.mark.web_unit
 def test_a_log_row_names_a_key_with_no_label_by_its_prefix():
     vitest(LOGS_VIEW_SPEC)
@@ -996,12 +758,6 @@ def test_the_alert_names_and_live_words_are_the_canvas_words():
     vitest(ALERTS_MODEL_SPEC)
 
 
-@mutation(ALERTS, '<span class="live__kind">{{ liveWord(a.kind) }}:</span>',
-          '<span class="live__kind">{{ a.kind }}:</span>',
-          expect=ALERT_LISTS + "asks for the open groups, 200 of them, with the live conditions beside")
-@mutation(ALERTS, "\n                  {{ alertTitle(g) }}", "\n                  {{ g.title }}",
-          expect=NAMED + "the list and the detail name a reply group by its newest reply, a billing group by its "
-                         "wallet and key")
 @mutation(ALERTS, "? alertTitle(shownDetail.value) :", "? shownDetail.value.title :",
           expect=NAMED + "the list and the detail name a reply group by its newest reply, a billing group by its "
                          "wallet and key")

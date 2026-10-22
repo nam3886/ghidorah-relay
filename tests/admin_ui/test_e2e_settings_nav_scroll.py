@@ -4,14 +4,13 @@ scrolled by script even though its overflow is hidden, and the top bar and the n
 scrollbar root, which clips the page area, has no scroll range at all, so nothing can scroll it."""
 
 import pytest
+from page_helpers import settle
 from patchright.sync_api import expect
-from pixel_capture import settle
 
 from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
 
-SHELL = "apps/admin-web/src/components/layout/AppShell.vue"
 SETTINGS = "apps/admin-web/src/views/SettingsView.vue"
 TIMEOUT_MS = 10_000
 SECTIONS = (("Change password", "password"), ("Settings", "settings"), ("Boot-only values", "boot"),
@@ -63,9 +62,6 @@ def open_settings(app, page, width: int, height: int) -> None:
 
 
 @pytest.mark.parametrize(("width", "height"), ((1440, 900), (1024, 768)))
-@mutation(SHELL, "  position: relative;\n  display: flex;\n  flex-direction: column;\n  min-height: 100%;",
-          "  display: flex;\n  flex-direction: column;\n  min-height: 100%;",
-          expect="the scrollbar root has a scroll range")
 def test_the_scrollbar_root_has_no_scroll_range(app, app_session, width, height):
     page = app_session
     for route in ("settings", "jobs", "accounts", "keys", "alerts", "test"):

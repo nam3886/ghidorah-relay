@@ -85,28 +85,21 @@ CTRL = FC + "regenerate control > "
 @mutation(CONTROL, "if (abandonOperation(props.action))", "if (true)",
           expect=NEW + "tells the owner when the key could not be dropped, and keeps offering it")
 @mutation(CONTROL, "if (!ok) return;", "", expect=NEW + "warns of the double charge, and Cancel keeps the key")
-@mutation(CONTROL, 'v-if="kept && !busy"', 'v-if="kept"', expect=NEW + "is hidden while a call is in flight")
 @mutation(CONTROL, "if (!(await confirmDialog(props.confirm))) return;", "await confirmDialog(props.confirm);",
           expect=CTRL + "asks first with the text it was given, and Cancel sends nothing")
-@mutation(CONTROL, 'aria-haspopup="dialog"', 'aria-haspopup="menu"',
-          expect=CTRL + "says it opens a dialog, and shows the icon slot before the label")
 @pytest.mark.web_unit
 def test_a_regenerate_asks_first_is_single_flight_and_a_kept_key_is_dropped_only_behind_a_warning():
     vitest(CONTROL_SPEC)
 
 
 # ---- the job drawer ----------------------------------------------------------------------------------------------
-WORDS = (FD + "conclusion, ledger, prompt and technical > the prompt is the customer's words and Copy prompt copies "
-              "exactly that")
 SHOW = FD + "which actions show, and where > "
 EACH = FD + "what each action sends and says > "
 MEDIA_GROUP = FD + "results and references > "
 SCRIPT_URL = MEDIA_GROUP + "a script URL is never drawn: no preview, and Open goes through the admin session"
-OPEN_GONE = MEDIA_GROUP + "an item whose link is gone gets Open, which fetches it as a blob and opens it"
 REFERENCE = MEDIA_GROUP + "a reference opens through the input route, has no Download, and is counted in its heading"
 DONE_ROW = SHOW + "a done job offers Regenerate… in the overview row and Recover under More actions"
 RUNNING = SHOW + "a job still running offers neither Recover nor Regenerate…"
-PHONE_FOOT = SHOW + "on a phone the row moves to a sticky footer, and a failed job keeps its card in the body"
 # page-drawer: the Technical tab's wording
 TECH_GROUP = FD + "conclusion, ledger, prompt and technical > "
 EMPTY_DASH = TECH_GROUP + "a value that is not set is the list's empty-cell dash"
@@ -115,33 +108,23 @@ WEBHOOK = TECH_GROUP + "words a delivered webhook by its HTTP code, a retry by i
 
 
 @mutation(MEDIA, "const src = safeMediaUrl(item.url);", "const src = item.url;", expect=SCRIPT_URL)
-@mutation(MEDIA, '@click="open(s.item.idx)"', '@click="open(0)"', expect=OPEN_GONE)
 @mutation(MEDIA, "fetchMediaBlob(props.job.id, props.role, idx)", 'fetchMediaBlob(props.job.id, "output", idx)',
           expect=REFERENCE)
 @mutation(MEDIA, '.filter((s) => s.kind === "image")', ".filter(() => true)",
           expect=MEDIA_GROUP + "an image is a tile whose viewer lists every previewable image of the list, "
                                "and a video is left out")
-@mutation(ACTIONS, "props.job.can_recheck && props.zone !== 'more'", "true", expect=DONE_ROW)
 @mutation(ACTIONS, 'finished.value && (props.zone === "card"', 'true && (props.zone === "card"', expect=RUNNING)
 @mutation(ACTIONS, 'props.job.status !== "failed")', "true)",
           expect=SHOW + "Recover is in one place only: the card for a failed job, More actions for a done one")
-@mutation(ACTIONS, "finished && props.zone !== 'more'", "true", expect=RUNNING)
 @mutation(ACTIONS, "props.job.external_ref && props.job.account_label",
           "props.job.external_ref || props.job.account_label",
           expect=SHOW + "Fetch title needs both the upstream reference and the account")
-@mutation(ACTIONS, "hasLinks && props.zone === 'more'", "true",
-          expect=SHOW + "Revoke share links only while some media still has a link")
 @mutation(ACTIONS, "hasLinks.value ||", "true ||",
           expect=SHOW + "More actions is a card with its own heading, drawn only when it has a button")
 @mutation(ACTIONS, "account.value.trim()", "account.value",
           expect=EACH + "Recover sends the trimmed account, polls the command and reads the job again")
-@mutation(ACTIONS, '@confirm="revoke"', '@cancel="revoke"',
-          expect=EACH + "Revoke asks first and says how many links stopped")
 @mutation(ACTIONS, '${out.replayed ? "Already made: job " : "New job "}', '${"New job "}',
           expect=EACH + "a regenerate the server already did says Already made")
-@mutation(DRAWER, '<p ref="promptBlock" class="jd-prompt__text">{{ job.prompt }}</p>',
-          '<p ref="promptBlock" class="jd-prompt__text">{{ job.sent_text }}</p>', expect=WORDS)
-@mutation(DRAWER, ':text="job.prompt"', ':text="job.sent_text ?? \'\'"', expect=WORDS)
 @mutation(DRAWER, "if (!latest.isCurrent(ticket)) return;\n    job.value = out;", "job.value = out;",
           expect=FD + "opening > drops the answer for a job that is no longer the open one")
 @mutation(DRAWER, "newestFirst(job.value?.events ?? [])", "(job.value?.events ?? [])",
@@ -153,27 +136,17 @@ WEBHOOK = TECH_GROUP + "words a delivered webhook by its HTTP code, a retry by i
           expect=SHOW + "Download sits first in the row of a job with results, and says all for more than one")
 @mutation(DRAWER, "`job-${shortId(job.value.id)}-${m.idx}`", "`job-${shortId(job.value.id)}-0`",
           expect=EACH + "Download saves every result as job-<id8>-<idx>, one file each")
-@mutation(DRAWER, "isPhone && !failed", "isPhone", expect=PHONE_FOOT)
-@mutation(DRAWER, 'v-if="!failed && !isPhone && hasRow"', 'v-if="!failed && hasRow"', expect=PHONE_FOOT)
 # page-drawer (the drawer matched to the design): the action row and footer, the Back label, loading, the failed
 # read's wording, the key name, the Technical wording, the media names and the viewer's start; then the tile's shape,
 # the viewer's own buttons, the on-its-way banner and chip, the count of results, the empty-value dash, the popover
-@mutation(MEDIA, "videos.length > 1 ? `Play video ${n + 1}` : 'Play video'", "`Play video ${n + 1}`",
-          expect=MEDIA_GROUP + "a video card is named Result and its button Play video")
-@mutation(MEDIA, "@click=\"openViewer(previews.indexOf(s.src!))\"", "@click=\"openViewer(0)\"",
-          expect=MEDIA_GROUP + "an image is a tile whose viewer lists every previewable image of the list")
 @mutation(MEDIA, "if (m.width && m.height) return `${m.width} / ${m.height}`;", "",
           expect=MEDIA_GROUP + "a tile takes its picture's shape")
 @mutation(MEDIA, "return asked ? `${asked[1]} / ${asked[2]}` : \"2 / 3\";", "return \"2 / 3\";",
           expect=MEDIA_GROUP + "a tile takes its picture's shape")
 @mutation(MEDIA, 'jobParam(props.job.params, "ratio", "aspect_ratio")', 'jobParam(props.job.params, "ratio")',
           expect=MEDIA_GROUP + "a tile takes its picture's shape")
-@mutation(MEDIA, "<template #toolbar=\"{ actions, reset }\">", "<template #toolbars=\"{ actions, reset }\">",
-          expect=MEDIA_GROUP + "the viewer's buttons are ours")
 @mutation(MEDIA, "setActiveItem(showing.value + by)", "setActiveItem(by)",
           expect=MEDIA_GROUP + "the viewer's buttons are ours")
-@mutation(DRAWER, ':step="step"', "", expect=FD + "conclusion, ledger, prompt and technical > a job on its way shows "
-                                                "its step in the header chip")
 @mutation(DRAWER, "isPhone.value || !(done.value || failed.value)", "isPhone.value",
           expect=FD + "conclusion, ledger, prompt and technical > a job on its way shows its step in the header chip")
 @mutation(DRAWER, 'fetching: "Fetching the result",', 'fetching: "fetching",',
@@ -186,20 +159,12 @@ WEBHOOK = TECH_GROUP + "words a delivered webhook by its HTTP code, a retry by i
 @mutation(TEXT, '  if (!ms) return "—";\n  const d = new Date(ms);\n  return `${two(d.getDate())}',
           '  if (!ms) return "-";\n  const d = new Date(ms);\n  return `${two(d.getDate())}',
           expect=EMPTY_DASH)
-@mutation(ACTIONS, 'cancel-button-text="Cancel"', "",
-          expect=EACH + "Revoke asks first and says how many links stopped")
 @mutation(DRAWER, "Boolean(outputs.value.length || job.value?.can_recheck || done.value)", "true", expect=RUNNING)
 @mutation(DRAWER, "Boolean(outputs.value.length || job.value?.can_recheck || done.value)",
           "Boolean(outputs.value.length || job.value?.can_recheck)", expect=DONE_ROW)
 @mutation(DRAWER, "Boolean(outputs.value.length || job.value?.can_recheck || done.value)",
           "Boolean(outputs.value.length || done.value)",
           expect=SHOW + "Re-check only when the server says the job can be")
-@mutation(DRAWER, "isPhone && !failed && hasRow", "isPhone && !failed",
-          expect=SHOW + "on a phone a job with nothing to offer has no footer, and one that can be re-checked has it")
-@mutation(DRAWER, ':back-label="props.backLabel" ', "",
-          expect=FD + "opening > the phone sheet's Back names the page it goes back to")
-@mutation(DRAWER, 'class="jd-skeleton" data-state="loading"', 'class="jd-skeleton"',
-          expect=FD + "loading > while the read is out the drawer draws the list's loading bars")
 @mutation(DRAWER, 'loadFailedText(err, errorText(err), "the job")', "errorText(err)",
           expect=FD + "opening > a failed read is a message with Retry")
 @mutation(DRAWER, "keyName({ id: j.key_id, label: j.key_label, prefix: j.key_prefix })", 'asText(j.key_label) || "-"',

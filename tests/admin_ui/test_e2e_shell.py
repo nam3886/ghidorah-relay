@@ -6,9 +6,9 @@ clear or filter one. The app is opened by `app.url` (`/manage`)."""
 import re
 
 import pytest
+from page_helpers import sideways
 from patchright.sync_api import TimeoutError as PlaywrightTimeout
 from patchright.sync_api import expect
-from pixel_capture import sideways
 
 from relay_core.admin.auth import LOGIN_MAX_FAILS
 from relay_core.testing.mutation import mutation
@@ -349,7 +349,6 @@ def test_every_route_is_reachable_by_its_tab_and_by_its_address(app, app_session
 # ---- the top bar and the frame, drawn at the three widths ---------------------------------------------------------
 
 TOPBAR_BG = {"light": "rgb(255, 255, 255)", "dark": "rgb(19, 14, 31)"}
-CONTROL = {"light": "rgb(133, 117, 143)", "dark": "rgb(130, 115, 143)"}
 
 
 def box(locator):

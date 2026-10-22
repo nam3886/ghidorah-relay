@@ -2,8 +2,8 @@
 
 import re
 
+from page_helpers import sideways
 from patchright.sync_api import expect
-from pixel_capture import sideways
 
 from . import cancel_box, dialog, dismiss_box, expect_dialog, ready, skeleton_step
 

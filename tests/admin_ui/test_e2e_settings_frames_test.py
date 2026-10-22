@@ -11,9 +11,9 @@ import uuid
 import pytest
 from accountkit import new_account
 from jobkit import key as new_key
+from page_helpers import sideways
 from patchright.sync_api import TimeoutError as PlaywrightTimeout
 from patchright.sync_api import expect
-from pixel_capture import sideways
 from test_admin_prices import fabricated, priced
 from test_frame_plan import put
 
@@ -22,7 +22,6 @@ from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
 
-TIMEOUT_MS = 10_000
 VIDEO = '[data-frame-kind="video"]'
 HOSTILE = '<img src=x onerror="window.__pwned=1"> {{tracking_code}} {{client_prompt}}'
 PNG = base64.b64decode(

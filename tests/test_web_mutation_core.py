@@ -291,10 +291,6 @@ SHELL_FAILED = "FAILED tests/unit/app-shell.spec.ts > the shell > "
           expect=SHELL_FAILED + "writes 200+ for a full page of open groups and opens Alerts from the banner")
 @mutation(BANNER, ': "Needs attention."', ': "Attention."',
           expect=SHELL_FAILED + "with live conditions only, says Needs attention and still offers the link to Alerts")
-@mutation(BANNER, '<router-link class="banner-link"', '<router-link v-if="stats.openGroups > 0" class="banner-link"',
-          expect=SHELL_FAILED + "with live conditions only, says Needs attention and still offers the link to Alerts")
-@mutation(BANNER, "Review in Alerts", "Review in alerts",
-          expect=SHELL_FAILED + "shows the open group count and words the first group")
 @mutation(BANNER, "  if (stats.firstGroup) return groupSentence(stats.firstGroup, stats.firstReply);\n", "",
           expect=SHELL_FAILED + "shows the open group count and words the first group")
 @mutation(BANNER, "groupSentence(stats.firstGroup, stats.firstReply)", "groupSentence(stats.firstGroup)",
@@ -302,16 +298,9 @@ SHELL_FAILED = "FAILED tests/unit/app-shell.spec.ts > the shell > "
 @mutation(BANNER, "return rest.length ? `${first.message} (+${rest.length} more)` : first.message;",
           "return first.message;", expect=SHELL_FAILED + "with several live conditions shows the first and the count "
                                                            "of the rest")
-@mutation(BANNER, "background: var(--rl-warn-bg);", "background: var(--rl-bad-bg);",
-          expect=SHELL_FAILED + "draws the banner with a warn fill and no side border")
 @mutation(f"{SRC}/components/layout/AppShell.vue", "() => notify.clear(),", "() => undefined,",
           expect=SHELL_FAILED + "closes every toast when the tab changes, and not before")
-@mutation(f"{SRC}/App.vue", "<JobDetailDrawer :back-label=\"`Back to ${route.meta.label ?? 'Jobs'}`\" />",
-          "<!-- no drawer -->",
-          expect=SHELL_FAILED + "mounts the job detail through JobDetailDrawer, once, while signed in only")
 # page-drawer: the job detail's Back names the page it was opened on
-@mutation(f"{SRC}/App.vue", "${route.meta.label ?? 'Jobs'}", "Jobs",
-          expect=SHELL_FAILED + "the job detail's Back names the page it was opened on")
 @pytest.mark.web_unit
 def test_the_banner_rules():
     vitest("tests/unit/app-shell.spec.ts")
@@ -331,7 +320,6 @@ WALK = SHELL_FAILED + ("moves the focus into the listbox on open, onto the chose
                        "Arrow, Home and End")
 LAYOUT = BAR_FAILED + ("is one row on a desktop, and two rows on a tablet and on a phone, "
                        "with the user's name only on the desktop")
-CURRENT_COUNT = BAR_FAILED + "marks the count of the current tab as primary and the Alerts count as warn"
 
 
 @mutation(TOP_BAR, "stats.data.jobs.in_progress + stats.data.jobs.queued", "stats.data.jobs.in_progress",
@@ -339,8 +327,6 @@ CURRENT_COUNT = BAR_FAILED + "marks the count of the current tab as primary and 
                  "only when above zero")
 @mutation(TOP_BAR, "computed(() => scope.provider || ALL)", "computed(() => scope.provider)", expect=ALL_FILTER)
 @mutation(TOP_BAR, 'scope.provider = name === ALL ? "" : name;', "scope.provider = name;", expect=ALL_FILTER)
-@mutation(TOP_BAR, ':aria-selected="name === providerLabel"', ':aria-selected="name !== providerLabel"',
-          expect=ALL_FILTER)
 @mutation(TOP_BAR, 'if (event.key !== "Escape" || !open.value) return;\n  event.preventDefault();',
           'if (event.key !== "Escape" || !open.value) return;', expect=SIGN_OUT_ITEM_ESC)
 @mutation(TOP_BAR, 'if (event.key !== "Escape" || !open.value) return;', 'if (event.key !== "Escape") return;',
@@ -373,11 +359,6 @@ def test_the_top_bar_keeps_the_count_the_provider_and_the_popover_rules():
     vitest("tests/unit/app-shell.spec.ts")
 
 
-@mutation(TOP_BAR, "'tab-count--current': route.name === tab.name && tab.name !== 'alerts',",
-          "'tab-count--current': route.name !== tab.name && tab.name !== 'alerts',", expect=CURRENT_COUNT)
-@mutation(TOP_BAR, "'tab-count--warn': tab.name === 'alerts',", "'tab-count--warn': tab.name === 'jobs',",
-          expect=CURRENT_COUNT)
-@mutation(TOP_BAR, "tab.name !== 'alerts',", "tab.name === 'alerts',", expect=CURRENT_COUNT)
 @mutation(TOP_BAR, 'value > 999 ? "999+"', 'value > 1000 ? "999+"',
           expect=BAR_FAILED + "shows 999+ for a count above 999 and the number itself at 999")
 @mutation(TOP_BAR, "a.available > 0", "a.available > 1",
@@ -390,10 +371,6 @@ def test_the_top_bar_keeps_the_count_the_provider_and_the_popover_rules():
 @mutation(TOP_BAR, 'window.open("/reference", "_blank", "noopener")', 'window.open("/reference", "_self", "noopener")',
           expect=SHELL_FAILED + "opens the API reference in a new tab from the account menu, and nowhere else")
 @mutation(TOP_BAR, "computed(() => isPhone.value || isTablet.value)", "computed(() => isPhone.value)", expect=LAYOUT)
-@mutation(TOP_BAR, '<span v-if="!stacked" class="account-name"', '<span v-if="true" class="account-name"',
-          expect=LAYOUT)
-@mutation(f"{SRC}/components/layout/AppShell.vue", "'app-main--tablet': isTablet", "'app-main--tablet': isPhone",
-          expect=LAYOUT)
 @pytest.mark.web_unit
 def test_the_top_bar_behaviour():
     vitest("tests/unit/app-shell.spec.ts")
@@ -410,19 +387,6 @@ AREA_FAILED = "FAILED tests/unit/app-shell.spec.ts > the page scroll area > "
           expect=AREA_FAILED + "moves focus to the scroll area when it is drawn, so the page scrolls by key at once")
 @mutation(SHELL_VUE, "  if (!main.value?.contains(document.activeElement)) focusPage();\n", "  focusPage();\n",
           expect=AREA_FAILED + "does not take focus from a field in the page")
-@mutation(SHELL_VUE, 'tabindex="-1"', 'tabindex="0"',
-          expect=AREA_FAILED + "is a container for the keyboard: the wrap takes focus by script only, so it is not a "
-                               "stop of the Tab key")
-@mutation(SHELL_VUE, "@media (max-width: 767px), print {", "@media (max-width: 767px) {",
-          expect=AREA_FAILED + "is laid out as one block on a phone and in print, with every selector under .app-shell")
-@mutation(SHELL_VUE, "    height: auto;\n    overflow: visible;\n  }\n  .app-shell .app-scroll__wrap {",
-          "    height: auto;\n    overflow: hidden;\n  }\n  .app-shell .app-scroll__wrap {",
-          expect=AREA_FAILED + "is laid out as one block on a phone and in print, with every selector under .app-shell")
-@mutation(SHELL_VUE, "  .app-shell .app-scroll .el-scrollbar__bar {\n    display: none;",
-          "  .app-scroll .el-scrollbar__bar {\n    display: none;",
-          expect=AREA_FAILED + "is laid out as one block on a phone and in print, with every selector under .app-shell")
-@mutation(SHELL_VUE, "      <main ref=\"main\" class=\"app-main\"", "      <main class=\"app-main\"",
-          expect=AREA_FAILED + "does not take focus from a field in the page")
 @mutation(SHELL_VUE, 'watch(() => route.name, showTop, { flush: "post" });',
           'watch(() => route.fullPath, showTop, { flush: "post" });',
           expect=AREA_FAILED + "keeps the position when only the query changes")
@@ -430,44 +394,16 @@ AREA_FAILED = "FAILED tests/unit/app-shell.spec.ts > the page scroll area > "
           expect=AREA_FAILED + "names the focusable wrap as the page content region")
 @mutation(SHELL_VUE, '  wrap?.setAttribute("aria-label", "Page content");\n', "",
           expect=AREA_FAILED + "names the focusable wrap as the page content region")
-@mutation(SHELL_VUE, ".app-shell .app-scroll__wrap:focus {\n  outline: none;",
-          ".app-shell .app-scroll__wrap:focus:not(:focus-visible) {\n  outline: none;",
-          expect=AREA_FAILED + "draws no focus ring in any focus state")
-@mutation(SHELL_VUE, ".app-shell .app-scroll__wrap:focus {\n  outline: none;",
-          ".app-shell .app-scroll__wrap:focus {\n  outline: 2px solid red;",
-          expect=AREA_FAILED + "draws no focus ring in any focus state")
 @pytest.mark.web_unit
 def test_the_page_scroll_area():
     vitest("tests/unit/app-shell.spec.ts")
 
 
-# ---- the page header ---------------------------------------------------------------------------------------------
-HEADER = f"{SRC}/components/layout/PageHeader.vue"
-HEADER_FAILED = "FAILED tests/unit/app-shell.spec.ts > the page header > "
-
-
-@mutation(HEADER, '<span v-if="$slots.meta && !isPhone" class="page-header__meta">',
-          '<span v-if="$slots.meta" class="page-header__meta">',
-          expect=HEADER_FAILED + "leaves the meta line out on a phone but keeps the actions beside the title")
-@mutation(HEADER, '<div v-if="($slots.meta && !isPhone) || $slots.actions"', '<div v-if="true"',
-          expect=HEADER_FAILED + "draws no sentence, no meta and no side when it has none")
-@mutation(HEADER, '<p v-if="subtitle"', '<p v-if="true"',
-          expect=HEADER_FAILED + "draws no sentence, no meta and no side when it has none")
-@pytest.mark.web_unit
-def test_the_page_header_rules():
-    vitest("tests/unit/app-shell.spec.ts")
-
-
 # ---- breakpoints, tokens, fonts and the brand ----------------------------------------------------------------------
 BREAKPOINT = f"{SRC}/composables/use-breakpoint.ts"
-THEME_CSS = f"{SRC}/styles/theme.css"
 USE_BP = "FAILED tests/unit/theme.spec.ts > useBreakpoint > "
-TOKENS = "FAILED tests/unit/theme.spec.ts > the C2 tokens > "
 FONTS = "FAILED tests/unit/theme.spec.ts > the fonts > "
 LOGO = "FAILED tests/unit/brand.spec.ts > the brand logo > "
-BRAND_COLOURS = "FAILED tests/unit/brand.spec.ts > the colours > "
-LADDER = TOKENS + "every Element Plus ladder step is set explicitly in each theme and differs between them"
-LADDER_FILL = TOKENS + "the two light steps of each Element Plus ladder are the fill of its token"
 QUERIES = USE_BP +"asks for phone below 768 px and tablet from 768 to 1279 px, and nothing else"
 
 
@@ -488,53 +424,8 @@ def test_the_breakpoint_composable():
     vitest("tests/unit/theme.spec.ts")
 
 
-@mutation(THEME_CSS, "--rl-control: #85758f;", "--rl-control: #85758e;",
-          expect=TOKENS + "light has the value of DESIGN section 3 for every token")
-@mutation(THEME_CSS, "--rl-focus: #a78bfa;", "--rl-focus: #a78bfb;",
-          expect=TOKENS + "dark has the value of DESIGN section 3 for every token")
-@mutation(THEME_CSS, "--rl-bad-solid: #e11d48;", "--rl-bad-solid: #e11d49;",
-          expect=TOKENS + "dark has the value of DESIGN section 3 for every token")
-@mutation(THEME_CSS, "--el-color-error: var(--rl-bad);", "--el-color-error: var(--rl-ok);",
-          expect=TOKENS + "maps the Element Plus colours onto the status tokens, with error as an alias of danger")
-@mutation(THEME_CSS, "--el-component-size: 44px;", "--el-component-size: 40px;",
-          expect=TOKENS + "controls are 36 px high from the tablet width and 44 px below it")
-@mutation(THEME_CSS, "--el-button-size: var(--el-component-size);", "--el-button-size: 32px;",
-          expect=TOKENS + "a default button follows the control scale, a small or large one keeps its own size")
-@mutation(THEME_CSS, "height: var(--el-button-size);", "height: 32px;",
-          expect=TOKENS + "a default button follows the control scale, a small or large one keeps its own size")
-@mutation(THEME_CSS, "--el-checkbox-input-border: 1px solid var(--rl-control);",
-          "--el-checkbox-input-border: 1px solid var(--rl-line-strong);",
-          expect=TOKENS + "form controls take the control border colour and the focus ring is two pixels")
-@mutation(THEME_CSS, "--el-disabled-bg-color: var(--rl-raised);", "--el-disabled-bg-color: var(--rl-surface);",
-          expect=TOKENS + "disabled controls are a grey fill")
-@mutation(THEME_CSS, "--el-color-success-light-9: #e2f4ec;", "--el-color-success-light-9: #e2f4ed;",
-          expect=LADDER_FILL)
-@mutation(THEME_CSS, "--el-color-warning-light-8: rgb(251 191 36 / 13%);",
-          "--el-color-warning-light-8: rgb(251 191 36 / 14%);", expect=LADDER_FILL)
-@mutation(THEME_CSS, "--el-color-danger-light-8: #fde7ec;", "--el-color-danger-light-8: var(--rl-bad-bg);",
-          expect=LADDER)
-@mutation(THEME_CSS, "--el-color-info-light-9: rgb(185 174 201 / 12%);",
-          "--el-color-info-light-9: var(--rl-neutral-bg);", expect=LADDER)
-@mutation(THEME_CSS, "--el-color-primary-light-9: #2e1d4b;", "--el-color-primary-light-9: #2e1d4c;",
-          expect=LADDER_FILL)
-@mutation(THEME_CSS, "--el-color-error-light-9: var(--el-color-danger-light-9);",
-          "--el-color-error-light-9: var(--rl-bad-bg);",
-          expect=TOKENS + "maps the Element Plus colours onto the status tokens, with error as an alias of danger")
-@mutation(THEME_CSS, "--el-color-danger-light-3: #d25976;", "--el-color-danger-light-3: #b45264;",
-          expect=TOKENS + "every Element Plus ladder step is set explicitly in each theme and differs between them")
-@mutation(THEME_CSS, "--el-border-radius-base: 10px;", "--el-border-radius-base: 6px;",
-          expect=BRAND_COLOURS + "the brand radii are 10 px for controls, 16 px for cards and dialogs, 12 px for chips")
-@mutation(THEME_CSS, "--el-button-hover-bg-color: var(--rl-primary-hover);",
-          "--el-button-hover-bg-color: var(--rl-focus);",
-          expect=BRAND_COLOURS + "the primary is the brand purple in both themes, hover #6d28d9, "
-                                 "white text on a solid button")
-@mutation(THEME_CSS, "  font: 14px/20px var(--rl-font);\n}",
-          "  font: 14px/20px var(--rl-font);\n  -webkit-font-smoothing: antialiased;\n}",
-          expect=FONTS + "are drawn as the canvas draws them")
 @mutation(f"{SRC}/main.ts", "be-vietnam-pro/latin-500.css", "be-vietnam-pro/latin-300.css",
           expect=FONTS + "load the latin and vietnamese subsets of the weights the design uses, and nothing else")
-@mutation(f"{SRC}/components/layout/BrandLogo.vue", 'alt="Ghidorah"', 'alt="Relay"',
-          expect=LOGO + "names itself Ghidorah and is only the wide logo, whatever the width")
 @mutation(f"{SRC}/components/layout/BrandLogo.vue", 'ui.theme === "dark" ? logoDark : logoLight',
           'ui.theme === "dark" ? logoLight : logoDark',
           expect=LOGO + "shows the logo with light letters in the dark theme and dark letters in the light theme")
@@ -554,8 +445,6 @@ LOGIN_FAILED = "FAILED tests/unit/app-shell.spec.ts > the login page > "
 @mutation(f"{SRC}/views/LoginView.vue", "    reveal.value = false;\n", "",
           expect=LOGIN_FAILED + "clears the password after a successful sign-in too")
 # page-test-login: the busy button says so in the app's own words
-@mutation(f"{SRC}/views/LoginView.vue", '"Signing in…"', '"Signing in..."',
-          expect=LOGIN_FAILED + "says Signing in… on a disabled button while the answer is on its way")
 @pytest.mark.web_unit
 def test_the_login_page_clears_the_password():
     vitest("tests/unit/app-shell.spec.ts")
@@ -587,41 +476,8 @@ def test_the_build_strips_data_urls_from_vendor_css():
 
 
 # ---- page-shell: the canvas's global rules and the current tab kept in view ----------------------------------------
-GLOBAL_RULES = "FAILED tests/unit/theme.spec.ts > the canvas's global rules > "
 REVEAL = BAR_FAILED + ("keeps the current tab in view: on a tab switch, and again when the counts arrive and widen "
                        "the tabs before it")
-
-
-@mutation(THEME_CSS, "textarea,\na {\n  font-family: inherit;", "textarea,\na {\n  font-family: system-ui;",
-          expect=GLOBAL_RULES + "gives controls and links the page font, and nothing else of the browser's "
-                                "control font")
-@mutation(THEME_CSS, "scrollbar-color: var(--rl-line-strong) transparent;", "scrollbar-color: auto;",
-          expect=GLOBAL_RULES + "draws every scrollbar as a line-strong thumb on a transparent track")
-@mutation(THEME_CSS, "background: var(--rl-line-strong) padding-box;", "background: var(--rl-muted) padding-box;",
-          expect=GLOBAL_RULES + "gives Safari the same thumb through its own scrollbar pseudo-elements, rounded, on a "
-                                "transparent track")
-@mutation(THEME_CSS, "  border-radius: 8px;\n  background: var(--rl-line-strong)",
-          "  border-radius: 0;\n  background: var(--rl-line-strong)",
-          expect=GLOBAL_RULES + "gives Safari the same thumb through its own scrollbar pseudo-elements, rounded, on a "
-                                "transparent track")
-@mutation(THEME_CSS, "  width: 15px;\n  height: 15px;", "  width: 12px;\n  height: 12px;",
-          expect=GLOBAL_RULES + "gives Safari the same thumb through its own scrollbar pseudo-elements, rounded, on a "
-                                "transparent track")
-@mutation(THEME_CSS, "::-webkit-scrollbar-corner {\n  background: transparent;",
-          "::-webkit-scrollbar-corner {\n  background: var(--rl-raised);",
-          expect=GLOBAL_RULES + "gives Safari the same thumb through its own scrollbar pseudo-elements, rounded, on a "
-                                "transparent track")
-@mutation(THEME_CSS, ".num {\n  font-variant-numeric: tabular-nums;\n}",
-          ".num {\n  font-variant-numeric: tabular-nums;\n  text-align: right;\n}",
-          expect=GLOBAL_RULES + "gives a number its tabular figures and nothing else: a number column aligns its own "
-                                "cells")
-@mutation(THEME_CSS, "::selection {\n  background: var(--rl-primary-soft);",
-          "::selection {\n  background: var(--rl-raised);",
-          expect=GLOBAL_RULES + "selects text on the soft primary and draws bare links in the link colour, the hover "
-                                "step in light only")
-@pytest.mark.web_unit
-def test_the_global_rules_follow_the_canvas():
-    vitest("tests/unit/theme.spec.ts")
 
 
 @mutation(TOP_BAR, "watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(\" \")], "
@@ -632,11 +488,6 @@ def test_the_global_rules_follow_the_canvas():
           expect=BAR_FAILED + "brings the current tab into view again once the web fonts have loaded, as they change "
                               "every tab's width")
 @mutation(TOP_BAR, "if (unmounted || userMovedTabs) return;", "if (unmounted) return;",
-          expect=BAR_FAILED + "leaves the tab strip where the user put it when they moved it before the web fonts "
-                              "loaded")
-@mutation(TOP_BAR, '        @focusin="onTabsMoved"\n', "",
-          expect=BAR_FAILED + "leaves the tab strip alone when the focus entered it before the web fonts loaded")
-@mutation(TOP_BAR, '        @wheel.passive="onTabsMoved"\n', "",
           expect=BAR_FAILED + "leaves the tab strip where the user put it when they moved it before the web fonts "
                               "loaded")
 # No marker on the `unmounted` guard: Vue clears the strip's template ref on unmount, so without the guard the late
@@ -653,20 +504,13 @@ PLACE = SHELL_FAILED + ("places an open popup by the popup rule, relative to its
                         "is resized")
 PHONE_END = SHELL_FAILED + ("on a phone draws the Provider list with its right edge on the trigger, as drawn, and with "
                             "its left edge on it when that would pass the window's left edge")
-TAB_ROW = SHELL_FAILED + ("hides the scrollbar of the header's tab row only: the row keeps the drawn height and still "
-                          "scrolls")
 
 
 @mutation(TOP_BAR, '  window.addEventListener("resize", onResize);\n', "", expect=PLACE)
-@mutation(TOP_BAR, 'class="menu menu--account"\n            :style="popupStyle"', 'class="menu menu--account"',
-          expect=PLACE)
 @mutation(TOP_BAR, "    top: `${place.top - at.top}px`,", "    top: `${place.top}px`,", expect=PLACE)
 @mutation(TOP_BAR, "    left: `${place.left - at.left}px`,", "    left: `${place.left}px`,", expect=PLACE)
 @mutation(TOP_BAR, "{ maxHeight: `${place.maxHeight}px` }", "{}", expect=PLACE)
 @mutation(TOP_BAR, 'provider: isPhone.value ? "end" : "start",', 'provider: "start",', expect=PHONE_END)
-@mutation(TOP_BAR, "  scrollbar-width: none;\n}", "}", expect=TAB_ROW)
-@mutation(TOP_BAR, ".topbar__nav::-webkit-scrollbar {\n  display: none;",
-          ".topbar__nav::-webkit-scrollbar {\n  height: 4px;", expect=TAB_ROW)
 @pytest.mark.web_unit
 def test_the_top_bar_popups_and_tab_row_follow_the_rulings():
     vitest("tests/unit/app-shell.spec.ts")

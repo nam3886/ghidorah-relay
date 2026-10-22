@@ -20,7 +20,7 @@ Measured on the box (18/10):
 - Viewport shots: no resize at all.
 
 Growing the viewport to the page's height moves centred overlays and fixed bars to places no user sees. The lower parts
-of tall pages are covered by the pixel suite, the element diffs and the live-like photos."""
+of tall pages are read element by element in the E2E tests."""
 
 import os
 import signal

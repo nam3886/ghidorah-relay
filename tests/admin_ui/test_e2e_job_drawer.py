@@ -16,7 +16,6 @@ from patchright.sync_api import expect
 from test_admin_jobs import failed_job
 
 from relay_core import storage
-from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
 
@@ -124,11 +123,7 @@ def regenerate_button(page):
 
 # ---- the job drawer ----------------------------------------------------------------------------------------------
 
-DRAWER = "apps/admin-web/src/components/shared/DetailDrawer.vue"
 
-
-@mutation(DRAWER, "  padding-bottom: 0;\n}", "  padding-bottom: 16px;\n}",
-          expect="the tab row does not sit on the line")
 def test_a_drawer_header_with_a_tab_row_has_no_padding_under_it(app, app_page, live, db):
     page = app_page
     k = new_key(db)

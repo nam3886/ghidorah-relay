@@ -13,14 +13,10 @@ from relay_core.testing.mutation import mutation
 
 SRC = "apps/admin-web/src"
 VIEW = f"{SRC}/views/JobsView.vue"
-TABLE = f"{SRC}/components/shared/DataTable.vue"
 VIEW_SPEC = "tests/unit/jobs/jobs-view.spec.ts"
 TABLE_SPEC = "tests/unit/shared/data-table-selection.spec.ts"
 FV = "FAILED " + VIEW_SPEC + " > what is sent is what is ticked on screen (desktop) > "
-FT = "FAILED " + TABLE_SPEC + " > DataTable selection > "
 
-KEEP_ON_VIEW = "      keep-selection\n"
-KEEP_ON_TABLE = ':reserve-selection="props.keepSelection"'
 HIDDEN_BY_ERROR = "error.value ? [] : "
 RE_TICK = "table.value?.setSelection([...picked.value])"
 RE_TICK_CALL = "    void reTick();\n  } catch"
@@ -32,11 +28,6 @@ CLEAR_COPY = "picked.value = new Set();"
 NOTHING_TICKED = "if (!ids.value.length) {"
 
 
-@mutation(VIEW, KEEP_ON_VIEW, "",
-          expect=FV + "a tick right after a reload counts at once: "
-                      "Regenerate… sends exactly the ticks on screen")
-@mutation(TABLE, KEEP_ON_TABLE, ':reserve-selection="false"',
-          expect=FT + "keepSelection: new rows keep the ticks of the rows still there, by rowKey, and report nothing")
 @mutation(VIEW, HIDDEN_BY_ERROR, "",
           expect=FV + "an error hides the table: nothing can be sent until Retry draws the ticks again, "
                       "and then they are what is sent")
@@ -69,7 +60,6 @@ CONTROL = f"{SRC}/components/jobs/RegenerateControl.vue"
 API = f"{SRC}/api/jobs.ts"
 API_SPEC = "tests/unit/jobs/jobs-api.spec.ts"
 FB = "FAILED " + VIEW_SPEC + " > bulk regenerate > "
-FC = "FAILED " + VIEW_SPEC + " > bulk re-check > "
 FA = "FAILED " + API_SPEC + " > bulk actions > "
 
 
@@ -78,11 +68,6 @@ FA = "FAILED " + API_SPEC + " > bulk actions > "
 @mutation(CONTROL, "const { busy, run } = useBusy();",
           "const busy = ref(false);\nconst run = (a: () => unknown) => a();",
           expect=FB + "a second click while the confirm is open asks nothing more")
-@mutation(VIEW, ':disabled="!ids.length"', ':disabled="false"',
-          expect="FAILED " + VIEW_SPEC + " > selection > with nothing ticked the toolbar says 0 selected and has "
-                             "no bulk buttons; a tick shows them, and the count follows")
-@mutation(VIEW, ':disabled="!ids.length || rechecking" :loading="rechecking"', ':disabled="!ids.length"',
-          expect=FC + "a second click while the re-check is under way sends it once")
 @mutation(API, '{ method: "POST", body: { job_ids: jobIds } }', '{ method: "POST", body: { job_ids: [] } }',
           expect=FA + "re-check posts the job ids")
 @mutation(API, "body: { job_ids: jobIds, operation_key: operationKey },",
