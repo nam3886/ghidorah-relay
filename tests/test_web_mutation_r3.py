@@ -85,11 +85,13 @@ def test_image_limits():
 
 # ---- the form: localStorage, and the request body ----------------------------------------------------------------
 SAVED_FORM = (FORM_SPEC
-              + "the saved form > is kept under relay_test_form with the model and the eight fields, and nothing else")
+              + "the saved form > is kept under relay_test_form with the model and the nine fields, and nothing else")
 BODY = FORM_SPEC + "the request body > "
 BODY_KINDS = BODY + ("sends duration for a video that names its lengths and for nothing else, style for an image and "
                      "not for a video")
 BODY_TRIM = BODY + "sends ratio, count as n, and title trimmed, and leaves empty ones out"
+BODY_RESOLUTION = BODY + ("sends the resolution in options for a model that names resolutions, under one the JSON "
+                          "sets, and not for others")
 BODY_IMAGES = BODY + "sends the URL lines, then the attached files as data URIs, in that order"
 BODY_OPTIONS = BODY + "parses the options as JSON and fails on text that is not JSON"
 READ_FAILS = FORM_SPEC + "the saved form > reports a store that cannot be read as a failure"
@@ -107,6 +109,9 @@ READ_STRINGS = FORM_SPEC + "the saved form > ignores a field that is not a strin
 @mutation(FORM, 'model.kind === "image" && style', "style", expect=BODY_KINDS)
 @mutation(FORM, "body.n = Number(form.count)", "body.count = Number(form.count)", expect=BODY_TRIM)
 @mutation(FORM, "...dataUris,", "", expect=BODY_IMAGES)
+@mutation(FORM, "if (resolutionsOf(model).length && resolution) {", "if (resolution) {", expect=BODY_RESOLUTION)
+@mutation(FORM, "body.options = { resolution, ...own };", "body.options = { ...own, resolution };",
+          expect=BODY_RESOLUTION)
 @mutation(FORM, ".map((line) => line.trim())", ".map((line) => line)", expect=BODY_IMAGES)
 @mutation(FORM, "if (form.options.trim()) body.options", "if (form.options) body.options", expect=BODY_OPTIONS)
 @mutation(FORM, "return { form, ok: false };", "return { form, ok: true };", expect=READ_FAILS)
@@ -236,6 +241,9 @@ LOAD_FREE = VIEW_SPEC + "Load models > is free again after a load that failed, s
 PICKER = VIEW_SPEC + "the model picker and the wallet > "
 WALLET_ROWS = PICKER + "shows the wallet limits of /v1/points as rows: day and total, and unlimited with its use"
 DURATION_SELECT = PICKER + "a model with a duration list gets a select of them, and the heading names them"
+NOT_TAKEN = (PICKER + "a model that takes no ratio, style or image (meta) shows none of them and sends none, even "
+             + "ones saved for another model")
+OWN_STYLES = PICKER + "a dola image model offers its own styles when the provider's options name none"
 DISPLAY_NAME = (PICKER + "a model that names a display name shows it with its id under it; "
                 + "one without shows the id alone")
 RESULT_CARD = (VIEW_SPEC + "the result card > shows the step and word of a job in progress, its short id "
@@ -261,6 +269,10 @@ FAILED_JOB = VIEW_SPEC + "the result card > a finished job has no empty slot, an
 @mutation(TEST_VIEW, "if (loadingModels.value) return;", "", expect=LOAD_ONCE)
 @mutation(TEST_VIEW, "} finally {\n    loadingModels.value = false;", "} finally {", expect=LOAD_FREE)
 @mutation(TEST_VIEW, "form[name] = value;", "", expect=DURATION_SELECT)
+@mutation(TEST_VIEW, 'ratio: hasRatio.value ? form.ratio : "",', "ratio: form.ratio,", expect=NOT_TAKEN)
+@mutation(TEST_VIEW, "const picked = images ? files.value : [];", "const picked = files.value;", expect=NOT_TAKEN)
+@mutation(TEST_MODELS, "?.max_images !== 0;", "?.max_images !== -1;", expect=NOT_TAKEN)
+@mutation(TEST_VIEW, ": stylesOf(chosen.value).map(", ": [].map(", expect=OWN_STYLES)
 @mutation(TEST_MODELS, "wallet.day_limit === null && wallet.total_limit === null", "false", expect=WALLET_ROWS)
 @mutation(TEST_MODELS, "`${wallet.used_day} / ${wallet.day_limit}`", "`${wallet.used_day}`", expect=WALLET_ROWS)
 @mutation(TEST_MODELS, '`${head ? `${head} or ` : ""}${last} s`', '`${head ? `${head}, ` : ""}${last} s`',

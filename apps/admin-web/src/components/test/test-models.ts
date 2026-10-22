@@ -20,6 +20,22 @@ export function ratiosOf(m: PublicModel | null): string[] {
   return Array.isArray(list) ? list.filter((r): r is string => typeof r === "string" && r !== "") : [];
 }
 
+// The resolutions the model takes (`limits.resolutions`, vibes-video: 480p, 720p), or none.
+export function resolutionsOf(m: PublicModel | null): string[] {
+  const list = (m?.limits as { resolutions?: unknown } | undefined)?.resolutions;
+  return Array.isArray(list) ? list.filter((r): r is string => typeof r === "string" && r !== "") : [];
+}
+
+// The styles the model names (`limits.styles`, dola's image models), or none.
+export function stylesOf(m: PublicModel | null): string[] {
+  const list = (m?.limits as { styles?: unknown } | undefined)?.styles;
+  return Array.isArray(list) ? list.filter((s): s is string => typeof s === "string" && s !== "") : [];
+}
+
+// False only for a model that says it takes no input image (`limits.max_images` 0: meta-image, vibes-image).
+export const takesImages = (m: PublicModel | null): boolean =>
+  (m?.limits as { max_images?: unknown } | undefined)?.max_images !== 0;
+
 export function defaultRatioOf(m: PublicModel | null): string {
   const ratio = (m?.limits as { default_ratio?: unknown } | undefined)?.default_ratio;
   return typeof ratio === "string" && ratiosOf(m).includes(ratio) ? ratio : "";

@@ -833,6 +833,69 @@ def test_a_style_is_shown_by_its_label_and_sent_by_its_value(app_session, live, 
     expect(page.locator(".test-result__status")).to_contain_text("Job")
 
 
+def test_a_model_that_takes_no_ratio_style_or_image_shows_none_of_them_and_sends_none(app_session, live, db):
+    """meta refuses any ratio, style or input image on meta-image: a model that names no ratio or style list and
+    `max_images` 0 gets no such field, and the request carries none. With RELAY_SCREENSHOTS_DIR set the form is saved
+    as test-meta-image.png."""
+    import dataclasses
+    import os
+
+    from relay_core.providers import check_catalog
+
+    page = app_session
+    for name in live.env.registry.names():
+        spec = live.env.registry.spec(name)
+        listed = spec.catalog()
+        spec.catalog = lambda listed=listed: [
+            dataclasses.replace(m, limits={**m.limits, "max_images": 0}) if m.media_type == "image" else m
+            for m in listed]
+        spec.extras = lambda snapshots: {}
+    registry = live.env.registry
+    registry._models = check_catalog([registry.spec(n) for n in registry.names()])
+    open_test_tab(page, db, live)
+    page.get_by_test_id("test-model").filter(has_text="fake-image").click()
+    expect(page.locator("#test-form-title")).to_have_text("fake-image")
+    page.get_by_label("Prompt", exact=True).fill("a cat")
+    if os.environ.get("RELAY_SCREENSHOTS_DIR"):
+        page.locator("section.form").screenshot(path=os.path.join(os.environ["RELAY_SCREENSHOTS_DIR"],
+                                                                   "test-meta-image.png"))
+    form = page.locator("section.form")
+    for field in ("Ratio", "Style"):
+        expect(form.get_by_label(field, exact=True)).to_have_count(0)
+    expect(form.locator("#test-refs")).to_have_count(0)
+    expect(page.get_by_test_id("attach-input")).to_have_count(0)
+    with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
+        page.get_by_role("button", name="Generate", exact=True).click()
+    assert sent.value.post_data_json == {"model": "fake-image", "prompt": "a cat"}
+
+
+def test_a_model_with_resolutions_offers_them_and_sends_the_one_picked_in_options(app_session, live, db):
+    """vibes-video names 480p and 720p: the tab offers them (Default sends none) and the request carries the one picked
+    as `options.resolution`; the image model, which names none, has no Resolution field."""
+    import dataclasses
+
+    from relay_core.providers import check_catalog
+
+    page = app_session
+    for name in live.env.registry.names():
+        spec = live.env.registry.spec(name)
+        listed = spec.catalog()
+        spec.catalog = lambda listed=listed: [
+            dataclasses.replace(m, limits={**m.limits, "resolutions": ["480p", "720p"]})
+            if m.media_type == "video" else m for m in listed]
+    registry = live.env.registry
+    registry._models = check_catalog([registry.spec(n) for n in registry.names()])
+    open_test_tab(page, db, live)
+    page.get_by_test_id("test-model").filter(has_text="fake-image").click()
+    expect(page.locator("section.form").get_by_label("Resolution", exact=True)).to_have_count(0)
+    page.get_by_test_id("test-model").filter(has_text="fake-video").click()
+    offered_then_pick(page, "Resolution", ["Default", "480p", "720p"], "720p")
+    page.get_by_label("Prompt", exact=True).fill("a cat")
+    with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
+        page.get_by_role("button", name="Generate", exact=True).click()
+    assert sent.value.post_data_json["options"] == {"resolution": "720p"}
+
+
 def test_generate_polls_to_a_result_draws_a_share_link_and_shows_any_other_link_as_text(app_session, live, db):
     page = app_session
     requests = []

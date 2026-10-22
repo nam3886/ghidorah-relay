@@ -247,8 +247,9 @@ describe("the empty state", () => {
     expect(box.find("summary").text()).toBe("Wallet limits");
     expect(box.element.open).toBe(false);
     expect(box.find("pre").text()).toContain('"points": 9');
-    const placeholders = ["#test-ratio", "#test-count"].map((id) => wrapper!.find(id).attributes("placeholder"));
-    expect(placeholders).toEqual(["16:9", "1"]);
+    expect(wrapper!.find("#test-count").attributes("placeholder")).toBe("1");
+    // no model picked: no list of ratios, so no Ratio field (there is no free-text one)
+    expect(wrapper!.find("#test-ratio").exists()).toBe(false);
     // no model names lengths yet: no Duration field of any kind
     expect(wrapper!.find("#test-duration").exists()).toBe(false);
     expect(selectField("Duration")).toBeUndefined();
@@ -692,6 +693,67 @@ describe("the model picker and the wallet", () => {
     );
     await pickModel("imagen-4");
     expect(selectField("Duration")).toBeUndefined();
+  });
+
+  it("a model that takes no ratio, style or image (meta) shows none of them and sends none, even ones saved for another model", async () => {
+    const meta = { id: "meta-image", kind: "image", owned_by: "meta", limits: { max_images: 0 } };
+    vi.mocked(api.listModels).mockResolvedValue({ data: [video, meta] });
+    vi.mocked(api.getOptions).mockImplementation(async (_key, provider) =>
+      provider === "meta" ? {} : { ratios: [{ value: "16:9" }], styles: [{ value: "noir" }] },
+    );
+    vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    await choose("Ratio", "16:9");
+    await wrapper!.find("#test-refs").setValue("https://example.com/a.png");
+    await attach(new File(["x"], "a.png", { type: "image/png" }));
+    await pickModel("meta-image");
+    expect(selectField("Ratio")).toBeUndefined();
+    expect(selectField("Style")).toBeUndefined();
+    expect(wrapper!.find("#test-refs").exists()).toBe(false);
+    expect(wrapper!.find('[data-testid="attach-input"]').exists()).toBe(false);
+    await wrapper!.find("textarea").setValue("a cat");
+    await button("Generate").trigger("click");
+    await flushPromises();
+    const body = vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>;
+    expect(body).toEqual({ model: "meta-image", prompt: "a cat" });
+    // the saved values stay in the form for the next model that takes them
+    expect(fieldValue("Ratio")).toBeUndefined();
+    await pickModel("veo-3");
+    expect(fieldValue("Ratio")).toBe("16:9");
+  });
+
+  it("a model with a resolution list gets a select of them, sent in options; others get none", async () => {
+    const vibes = { id: "vibes-video", kind: "video", owned_by: "vibes", limits: { resolutions: ["480p", "720p"] } };
+    vi.mocked(api.listModels).mockResolvedValue({ data: [vibes, image] });
+    vi.mocked(api.getOptions).mockResolvedValue({});
+    vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
+    await open();
+    await loadModels();
+    await pickModel("vibes-video");
+    expect(fieldOptions("Resolution").map((o) => o.label)).toEqual(["Default", "480p", "720p"]);
+    expect(fieldValue("Resolution")).toBe("");
+    await choose("Resolution", "720p");
+    expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "").resolution).toBe("720p");
+    await wrapper!.find("textarea").setValue("a cat");
+    await button("Generate").trigger("click");
+    await flushPromises();
+    expect((vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>).options).toEqual({
+      resolution: "720p",
+    });
+    await pickModel("imagen-4");
+    expect(selectField("Resolution")).toBeUndefined();
+  });
+
+  it("a dola image model offers its own styles when the provider's options name none", async () => {
+    const dola = { id: "seedream", kind: "image", owned_by: "dola", limits: { styles: ["anime", "pixel"] } };
+    vi.mocked(api.listModels).mockResolvedValue({ data: [dola] });
+    vi.mocked(api.getOptions).mockResolvedValue({});
+    await open();
+    await loadModels();
+    await pickModel("seedream");
+    expect(fieldOptions("Style").map((o) => o.value)).toEqual(["", "anime", "pixel"]);
   });
 
   it("a model that names a display name shows it with its id under it; one without shows the id alone", async () => {

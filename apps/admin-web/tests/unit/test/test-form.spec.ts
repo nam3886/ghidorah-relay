@@ -24,9 +24,19 @@ beforeEach(() => {
 });
 
 describe("the saved form", () => {
-  it("is kept under relay_test_form with the model and the eight fields, and nothing else", () => {
+  it("is kept under relay_test_form with the model and the nine fields, and nothing else", () => {
     expect(FORM_KEY).toBe("relay_test_form");
-    expect(FIELDS).toEqual(["prompt", "duration", "ratio", "count", "style", "images", "title", "options"]);
+    expect(FIELDS).toEqual([
+      "prompt",
+      "duration",
+      "ratio",
+      "count",
+      "style",
+      "images",
+      "title",
+      "options",
+      "resolution",
+    ]);
     const typed = form({
       model: "veo-3",
       duration: "8",
@@ -36,6 +46,7 @@ describe("the saved form", () => {
       images: "https://x",
       title: "t",
       options: "{}",
+      resolution: "720p",
     });
     saveForm(typed);
     expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "")).toEqual({
@@ -48,6 +59,7 @@ describe("the saved form", () => {
       images: "https://x",
       title: "t",
       options: "{}",
+      resolution: "720p",
     });
     expect(localStorage.length).toBe(1);
   });
@@ -175,5 +187,21 @@ describe("the request body", () => {
     expect(buildBody(image, form({ options: '{"seed": 3}' }), []).options).toEqual({ seed: 3 });
     expect(() => buildBody(image, form({ options: "{nope" }), [])).toThrow(SyntaxError);
     expect(buildBody(image, form({ options: "   " }), [])).not.toHaveProperty("options");
+  });
+
+  it("sends the resolution in options for a model that names resolutions, under one the JSON sets, and not for others", () => {
+    const vibes: PublicModel = { ...video, limits: { resolutions: ["480p", "720p"] } };
+    expect(buildBody(vibes, form({ resolution: "720p" }), []).options).toEqual({ resolution: "720p" });
+    expect(buildBody(vibes, form({ resolution: "720p", options: '{"seed": 3}' }), []).options).toEqual({
+      resolution: "720p",
+      seed: 3,
+    });
+    // the JSON's own resolution wins over the select
+    expect(buildBody(vibes, form({ resolution: "720p", options: '{"resolution": "480p"}' }), []).options).toEqual({
+      resolution: "480p",
+    });
+    expect(buildBody(vibes, form(), [])).not.toHaveProperty("options");
+    // no list: the form shows no Resolution, so a value saved earlier is not sent
+    expect(buildBody(video, form({ resolution: "720p" }), [])).not.toHaveProperty("options");
   });
 });

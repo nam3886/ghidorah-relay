@@ -14,6 +14,9 @@ import {
   durationsOf,
   durationsPhrase,
   ratiosOf,
+  resolutionsOf,
+  stylesOf,
+  takesImages,
   titleOf,
   walletRows,
 } from "@/components/test/test-models";
@@ -99,10 +102,18 @@ const ratioChoices = computed(() => {
   const own = ratiosOf(chosen.value);
   return own.length ? own : withSaved(ratios.value, form.ratio);
 });
+// A model takes a ratio or a style only from a list (its own, or its provider's options): with no list the field is not
+// drawn and not sent (meta takes neither, vibes names its ratios), so the form never offers what the provider refuses.
+const hasRatio = computed(() => ratiosOf(chosen.value).length > 0 || ratios.value.length > 0);
+const styleList = computed(() =>
+  styles.value.length ? styles.value : stylesOf(chosen.value).map((value) => ({ value, label: value })),
+);
+const hasStyle = computed(() => chosen.value?.kind === "image" && styleList.value.length > 0);
+const hasImages = computed(() => takesImages(chosen.value));
 const styleChoices = computed(() =>
-  form.style && !styles.value.some((s) => s.value === form.style)
-    ? [...styles.value, { value: form.style, label: form.style }]
-    : styles.value,
+  form.style && !styleList.value.some((s) => s.value === form.style)
+    ? [...styleList.value, { value: form.style, label: form.style }]
+    : styleList.value,
 );
 // The selects' lists, "Default" (nothing sent) first.
 const DEFAULT_OPTION = { value: "", label: "Default" };
@@ -112,6 +123,11 @@ const durationOptions = computed(() => [
 ]);
 const ratioOptions = computed(() => [DEFAULT_OPTION, ...ratioChoices.value.map((r) => ({ value: r, label: r }))]);
 const styleOptions = computed(() => [DEFAULT_OPTION, ...styleChoices.value]);
+// "Default" sends none: vibes then renders 480p.
+const resolutionOptions = computed(() => [
+  DEFAULT_OPTION,
+  ...withSaved(resolutionsOf(chosen.value), form.resolution).map((r) => ({ value: r, label: r })),
+]);
 
 async function pick(model: PublicModel): Promise<void> {
   const ticket = pickLatest.next();
@@ -202,9 +218,18 @@ async function clearForm(): Promise<void> {
 async function generateNow(): Promise<void> {
   const model = chosen.value;
   if (!model) return;
+  // a field the model does not take is not drawn, and a value saved for another model is not sent either
+  const images = hasImages.value;
+  const sent = {
+    ...form,
+    ratio: hasRatio.value ? form.ratio : "",
+    style: hasStyle.value ? form.style : "",
+    images: images ? form.images : "",
+  };
+  const picked = images ? files.value : [];
   await generate.start(model, async () => {
-    const uris = await Promise.all(files.value.map((f) => blobToDataUri(f.blob)));
-    return buildBody(model, form, uris);
+    const uris = await Promise.all(picked.map((f) => blobToDataUri(f.blob)));
+    return buildBody(model, sent, uris);
   });
 }
 
@@ -389,7 +414,7 @@ onMounted(async () => {
             @update:model-value="setField('duration', String($event))"
           />
           <FilterSelect
-            v-if="ratios.length || ratiosOf(chosen).length"
+            v-if="hasRatio"
             class="field"
             variant="field"
             block
@@ -398,10 +423,6 @@ onMounted(async () => {
             :options="ratioOptions"
             @update:model-value="setField('ratio', String($event))"
           />
-          <div v-else class="field">
-            <label for="test-ratio">Ratio</label>
-            <input id="test-ratio" v-model="form.ratio" class="control" placeholder="16:9" @input="persist" />
-          </div>
           <div class="field">
             <label for="test-count">Count</label>
             <input
@@ -414,25 +435,29 @@ onMounted(async () => {
               @input="setField('count', ($event.target as HTMLInputElement).value)"
             />
           </div>
-          <template v-if="chosen?.kind === 'image'">
-            <FilterSelect
-              v-if="styles.length"
-              class="field"
-              variant="field"
-              block
-              label="Style"
-              :model-value="form.style"
-              :options="styleOptions"
-              @update:model-value="setField('style', String($event))"
-            />
-            <div v-else class="field">
-              <label for="test-style">Style</label>
-              <input id="test-style" v-model="form.style" class="control" placeholder="optional" @input="persist" />
-            </div>
-          </template>
+          <FilterSelect
+            v-if="resolutionsOf(chosen).length"
+            class="field"
+            variant="field"
+            block
+            label="Resolution"
+            :model-value="form.resolution"
+            :options="resolutionOptions"
+            @update:model-value="setField('resolution', String($event))"
+          />
+          <FilterSelect
+            v-if="hasStyle"
+            class="field"
+            variant="field"
+            block
+            label="Style"
+            :model-value="form.style"
+            :options="styleOptions"
+            @update:model-value="setField('style', String($event))"
+          />
         </div>
 
-        <div class="field">
+        <div v-if="hasImages" class="field">
           <label for="test-refs">Reference image URLs <span class="field__hint">· one per line</span></label>
           <textarea
             id="test-refs"
@@ -444,7 +469,7 @@ onMounted(async () => {
           />
         </div>
 
-        <TestImages :files="files" :note="shownNote" @add="onAdd" @remove="onRemove" />
+        <TestImages v-if="hasImages" :files="files" :note="shownNote" @add="onAdd" @remove="onRemove" />
 
         <div class="field">
           <label for="test-title">Title</label>
