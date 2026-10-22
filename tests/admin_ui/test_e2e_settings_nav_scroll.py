@@ -14,8 +14,8 @@ pytestmark = pytest.mark.browser
 SHELL = "apps/admin-web/src/components/layout/AppShell.vue"
 SETTINGS = "apps/admin-web/src/views/SettingsView.vue"
 TIMEOUT_MS = 10_000
-SECTIONS = (("Settings", "settings"), ("Boot-only values", "boot"), ("Measured prices", "prices"),
-            ("Change password", "password"), ("Fixed limits", "limits"), ("Containers", "containers"))
+SECTIONS = (("Change password", "password"), ("Settings", "settings"), ("Boot-only values", "boot"),
+            ("Measured prices", "prices"), ("Fixed limits", "limits"), ("Containers", "containers"))
 
 # What every ancestor of the card except the page scroll area (and the window) has scrolled.
 MOVED_JS = """(id) => {
@@ -76,6 +76,11 @@ def test_the_scrollbar_root_has_no_scroll_range(app, app_session, width, height)
         settle(page)
         got = page.evaluate(RANGE_JS, isolated_context=False)
         assert got["x"] == 0 and got["y"] == 0, "%s: the scrollbar root has a scroll range: %r" % (route, got)
+        if route == "settings":
+            # Change password is first, so its screen-reader line is in view and no longer stretches the root: the
+            # containing block is checked itself
+            assert "app-scroll__view" in got["offsetParent"].split(), \
+                "settings: the scrollbar root has a scroll range waiting: %r" % got
 
 
 @pytest.mark.parametrize(("width", "height"), ((1440, 900), (1024, 768)))

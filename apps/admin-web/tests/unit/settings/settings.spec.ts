@@ -149,7 +149,8 @@ afterEach(() => {
 describe("the settings page", () => {
   it("lets the page scroll: no table holds a fixed height that would clip a row", async () => {
     await open();
-    expect(wrapper!.findAll("table")).toHaveLength(2);
+    // Settings, Boot-only values and Measured prices have rows; Fixed limits and Containers read None
+    expect(wrapper!.findAll("table")).toHaveLength(3);
     expect(wrapper!.html()).not.toMatch(/max-height:\s*(\d|calc)/);
   });
 
@@ -158,7 +159,7 @@ describe("the settings page", () => {
     vi.mocked(api.getPrices).mockReturnValue(new Promise(() => undefined));
     await open();
     const tables = wrapper!.findAll("table");
-    expect(tables).toHaveLength(2);
+    expect(tables).toHaveLength(5);
     for (const table of tables) {
       expect(table.find("thead").exists()).toBe(true);
       const body = table.find("tbody");
@@ -187,10 +188,10 @@ describe("the settings table", () => {
     expect(text).toContain("BILLING_TZ");
     expect(text).toContain("Asia/Saigon");
     const env = wrapper!
-      .find('dl[aria-label="Boot-only values"]')
-      .findAll("div")
+      .find('table[aria-label="Boot-only values"]')
+      .findAll("tbody tr")
       .find((r) => r.text().includes("PUBLIC_BASE_URL"));
-    expect(env!.find("dd").text()).toBe("-");
+    expect(env!.findAll("td")[1]!.text()).toBe("-");
   });
 
   it("Save is disabled until the value changed, the row says edited, and an edit back disables it again", async () => {
@@ -283,10 +284,10 @@ describe("the sub-navigation", () => {
     const nav = wrapper!.find('nav[aria-label="Settings sections"]');
     const links = nav.findAll("a");
     expect(links.map((a) => a.text())).toEqual([
+      "Change password",
       "Settings",
       "Boot-only values",
       "Measured prices",
-      "Change password",
       "Fixed limits",
       "Containers",
     ]);
@@ -299,12 +300,12 @@ describe("the sub-navigation", () => {
       undefined,
     ]);
     vi.stubGlobal("scrollTo", vi.fn());
-    await links[2]!.trigger("click");
+    await links[3]!.trigger("click");
     expect(wrapper!.findAll('nav[aria-label="Settings sections"] a').map((a) => a.attributes("aria-current"))).toEqual([
       undefined,
       undefined,
-      "true",
       undefined,
+      "true",
       undefined,
       undefined,
     ]);
@@ -336,7 +337,7 @@ describe("the sub-navigation", () => {
     wrapEl = wrap;
     return wrap;
   }
-  const pricesLink = () => wrapper!.findAll('nav[aria-label="Settings sections"] a')[2]!;
+  const pricesLink = () => wrapper!.findAll('nav[aria-label="Settings sections"] a')[3]!;
 
   it("scrolls the page's scroll area to the card minus the anchor, and nothing else", async () => {
     await open();

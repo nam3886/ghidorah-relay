@@ -142,6 +142,8 @@ def _number(v: Any) -> str:
 
 
 def _bytes(n: int) -> str:
+    if n == 1:
+        return "1 byte"
     if n >= MIB:
         return ("%g MiB" if n % MIB == 0 else "\u2248 %g MiB") % round(n / MIB, 2)
     if n % KIB == 0:
@@ -157,12 +159,19 @@ def _entry(key: str, value: Any, unit: str) -> str:
 
 
 def value_text(value: Any, unit: str = "") -> str:
-    """The value as the admin reads it: seconds as `720 s`, bytes as MiB or KiB, a tuple as `30, 300 s`, a table as
-    `recover 600 s, ...`. A string is shown as it is (`no limit`, `never`)."""
+    """The value as the admin reads it: seconds as `720 s`, bytes as MiB or KiB, a count with its unit (`1 point`,
+    `2 points`), a tuple as `30, 300 s`, a table as `recover 600 s, ...`. A string is shown as it is (`no limit`,
+    `never`)."""
     if isinstance(value, str):
         return value
     if unit == "bytes":
         return _bytes(value)
+    if value == 1 and not isinstance(value, tuple | Mapping) and len(unit) > 2 and unit.endswith("s"):
+        # one point, not "1 points"; one hash, one retry (`s` and `h` are symbols, not plurals)
+        if unit.endswith("ies"):
+            unit = unit[:-3] + "y"
+        else:
+            unit = unit[:-2] if unit.endswith(("ches", "shes", "sses", "xes")) else unit[:-1]
     tail = " " + unit if unit else ""
     if isinstance(value, Mapping):
         return ", ".join("%s %s" % (k, _entry(k, v, unit)) for k, v in value.items())

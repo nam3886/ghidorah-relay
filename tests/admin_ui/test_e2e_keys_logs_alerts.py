@@ -271,6 +271,40 @@ def log(db, key, route, status=200, *, at_ms=None, job=None, error=None, request
            key, route, status, job, error, json.dumps(request or {}), at_ms, at_ms)
 
 
+DRAWER = "apps/admin-web/src/components/shared/DetailDrawer.vue"
+# the header's bottom padding, and how far the content of its last part (the chips, else the tab row) sits above the
+# line: the phone sheet puts the 16 px in the chip row's own padding, so that padding is not content
+HEAD_GAP_JS = """(testid) => {
+  const head = document.querySelector('[data-testid=' + testid + '] .detail-drawer__head');
+  const last = head.querySelector('.detail-drawer__tabs') || head.querySelector('.detail-drawer__chips');
+  const content = last.getBoundingClientRect().bottom - parseFloat(getComputedStyle(last).paddingBottom);
+  return {padding: parseFloat(getComputedStyle(head).paddingBottom),
+          gap: Math.round(head.getBoundingClientRect().bottom - 1 - content)};
+}"""
+
+
+@mutation(DRAWER, "  padding: 20px 24px 16px;\n  border-bottom", "  padding: 20px 24px 0;\n  border-bottom",
+          expect="16 px under the chips")
+@mutation(DRAWER, ":not(.has-tabs) .detail-drawer__chips {\n  padding-bottom: 16px;",
+          ":not(.has-tabs) .detail-drawer__chips {\n  padding-bottom: 0;", expect="16 px under the chips")
+@pytest.mark.parametrize("width", (1440, 390))
+def test_a_drawer_header_without_tabs_keeps_16_px_under_its_chips(app, app_session, db, width):
+    """16 px from the chips to the line: the header's own padding on a desktop, the chip row's on the phone sheet."""
+    page = app_session
+    page.set_viewport_size({"width": width, "height": 844})
+    k = new_key(db)
+    log(db, k, "POST /v1/video/generations", 422, error="input.invalid")
+    open_tab(page, "Request logs")
+    if width > 390:
+        rows(page).first.get_by_role("button", name="Open details of request").click()
+    else:
+        page.get_by_role("button", name=re.compile(r"^Open request")).first.click()
+    expect(page.get_by_test_id("request-drawer")).to_be_visible()
+    got = page.evaluate(HEAD_GAP_JS, "request-drawer", isolated_context=False)
+    want = {"padding": 16 if width > 390 else 0, "gap": 16}
+    assert got == want, "the header has not 16 px under the chips at %d: %r" % (width, got)
+
+
 def test_the_filters_search_detail_refresh_and_clear(app, app_session, db):
     page = app_session
     k = new_key(db)

@@ -35,3 +35,12 @@ export function parseValue(text: string): unknown {
     return text;
   }
 }
+
+// One line of the read-only tables (Boot-only values, Fixed limits): `group` is the band it sits under, `reason` the
+// third column.
+export interface ValueRow {
+  group?: string;
+  name: string;
+  value: string;
+  reason?: string;
+}

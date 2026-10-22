@@ -649,11 +649,18 @@ LONG_KEY = "Partner Collective Southeast Asia, wholesale"
 TITLES = ("Cat on a sofa, sunset light", "Logo reveal, purple smoke", "Portrait, soft light", "Lantern festival")
 # the live-shaped values: always drawn whole, at every width
 LIVE_VALUES = ("k7a-team2", "m2c-shop1", "rk-q7mfz2kd", "d07-12", LIVE_TITLE, LIVE_CODE)
-# every table box that scrolls sideways (desktop) to its start or its end; returns by how much each one overflows
-SCROLL_TO_END_JS = """(end) => [...document.querySelectorAll('.g-scroll')].map((box) => {
-  box.scrollLeft = end ? box.scrollWidth : 0;
-  return Math.round(box.scrollWidth - box.clientWidth);
-})"""
+# every table box that scrolls sideways (desktop) to its start or its end; returns by how much each one overflows. The
+# drawer's body scrolls up and down: a row cut by its top or bottom edge is reachable by scrolling, so the body goes to
+# its start or its end with the boxes (where that edge falls depends on the header's height, not on a defect).
+SCROLL_TO_END_JS = """(end) => {
+  document.querySelectorAll('.detail-drawer__body').forEach((body) => {
+    body.scrollTop = end ? body.scrollHeight : 0;
+  });
+  return [...document.querySelectorAll('.g-scroll')].map((box) => {
+    box.scrollLeft = end ? box.scrollWidth : 0;
+    return Math.round(box.scrollWidth - box.clientWidth);
+  });
+}"""
 JOB_SQL = ("INSERT INTO jobs (id, provider, key_id, operation, media_type, model, prompt, marker, status, completion, "
            "after_sent, submit_timeout_s, wallet_kind, price, title, error_code, finished_at) VALUES (%s, %s, %s, "
            "'generate', 'video', 'm', 'p', %s, %s, 'detach', 'reconcile', 60, 'video', 0, %s, %s, now())")

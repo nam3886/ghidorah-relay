@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // One card of the Settings page: a heading with one muted sentence, then its content. `id` is the in-page anchor the
-// sub-navigation points at. `snug` is the narrower head of the boot-only card.
-defineProps<{ id: string; title: string; note?: string; snug?: boolean }>();
+// sub-navigation points at.
+defineProps<{ id: string; title: string; note?: string }>();
 </script>
 
 <template>
   <section :id="id" class="card" :aria-labelledby="`${id}-title`">
-    <div class="card__head" :class="{ 'card__head--snug': snug }">
+    <div class="card__head">
       <h2 :id="`${id}-title`">{{ title }}</h2>
       <p v-if="note">{{ note }}</p>
     </div>
@@ -25,9 +25,6 @@ defineProps<{ id: string; title: string; note?: string; snug?: boolean }>();
 .card__head {
   padding: 16px 16px 14px;
 }
-.card__head--snug {
-  padding: 16px 20px 12px;
-}
 .card h2 {
   margin: 0;
   font-size: 15px;
@@ -38,10 +35,5 @@ defineProps<{ id: string; title: string; note?: string; snug?: boolean }>();
   margin: 2px 0 0;
   font-size: 13px;
   color: var(--rl-muted);
-}
-@media (max-width: 767px) {
-  .card__head--snug {
-    padding: 16px 16px 12px;
-  }
 }
 </style>

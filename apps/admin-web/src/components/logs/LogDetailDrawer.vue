@@ -140,7 +140,6 @@ async function copy(which: "request" | "answer"): Promise<void> {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  padding-bottom: 16px;
 }
 .rd__pill {
   font-variant-numeric: tabular-nums;
@@ -233,10 +232,6 @@ html:not(.dark) .rd__link:hover {
 /* a phone: every action has a 44 px hit area (the Copy buttons are drawn that high; the job link keeps its look and
    gets the height from padding that negative margins give back) */
 @media (max-width: 767px) {
-  /* the sheet's own chip row ends 4 px above its hairline: 16 in all, as on the desktop */
-  .rd__chips {
-    padding-bottom: 12px;
-  }
   .rd__block-head .kla-btn--tiny {
     height: 44px;
     padding: 0 12px;

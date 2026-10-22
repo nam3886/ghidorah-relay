@@ -16,6 +16,7 @@ from patchright.sync_api import expect
 from test_admin_jobs import failed_job
 
 from relay_core import storage
+from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
 
@@ -122,6 +123,28 @@ def regenerate_button(page):
 
 
 # ---- the job drawer ----------------------------------------------------------------------------------------------
+
+DRAWER = "apps/admin-web/src/components/shared/DetailDrawer.vue"
+
+
+@mutation(DRAWER, "  padding-bottom: 0;\n}", "  padding-bottom: 16px;\n}",
+          expect="the tab row does not sit on the line")
+def test_a_drawer_header_with_a_tab_row_has_no_padding_under_it(app, app_page, live, db):
+    page = app_page
+    k = new_key(db)
+    job = done_job(db, k, new_account(db, label="acct", checked=True), ref="r1", status="failed", prompt="a cat")
+    db.run("UPDATE jobs SET error_code = 'render.deadline', error = 'too slow' WHERE id = %s", job)
+    app.sign_in(page)
+    open_row(page, job)
+    expect(drawer(page).get_by_role("tab", name="Overview", exact=True)).to_be_visible()
+    got = page.evaluate("""() => {
+      const head = document.querySelector('[data-testid=job-drawer] .detail-drawer__head');
+      const tabs = head.querySelector('.detail-drawer__tabs');
+      return {padding: parseFloat(getComputedStyle(head).paddingBottom),
+              gap: Math.round(head.getBoundingClientRect().bottom - 1 - tabs.getBoundingClientRect().bottom)};
+    }""", isolated_context=False)
+    assert got == {"padding": 0, "gap": 0}, "the tab row does not sit on the line: %r" % got
+
 
 def test_the_drawer_shows_its_tabs_copies_the_prompt_and_renames(app, app_page, live, db):
     page = app_page

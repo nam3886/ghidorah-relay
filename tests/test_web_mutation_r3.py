@@ -28,6 +28,8 @@ SETTINGS_TABLE = f"{SRC}/components/settings/SettingsTable.vue"
 SETTINGS_VIEW = f"{SRC}/views/SettingsView.vue"
 PASSWORD = f"{SRC}/components/settings/PasswordForm.vue"
 PRICES = f"{SRC}/components/settings/PricesTable.vue"
+VALUE_TABLE = f"{SRC}/components/settings/ValueTable.vue"
+CONTAINERS = f"{SRC}/components/settings/ContainerLimits.vue"
 TEST_MODELS = f"{SRC}/components/test/test-models.ts"
 TEST_RESULT = f"{SRC}/components/test/TestResult.vue"
 TEST_RESULT_MODEL = f"{SRC}/components/test/test-result-model.ts"
@@ -656,8 +658,9 @@ LOADING_ROWS = (SETTINGS_SPEC + "the settings page > draws the first read as the
 @mutation(SETTING_VALUE, "JSON.stringify(value, null, 2)", "JSON.stringify(value)", expect=LONG_DEFAULT)
 @mutation(SETTINGS_TABLE, "props.loading && !props.items.length && !props.error", "false", expect=LOADING_ROWS)
 @mutation(PRICES, "props.loading && !props.rows.length && !props.error", "false", expect=LOADING_ROWS)
-@mutation(SETTINGS_VIEW, ':empty="!envOnly.length && !settingsLoading"', ':empty="!envOnly.length"',
-          expect=LOADING_ROWS)
+@mutation(VALUE_TABLE, ':empty="!rows.length && !loading"', ':empty="!rows.length"', expect=LOADING_ROWS)
+@mutation(VALUE_TABLE, "props.loading && !props.rows.length && !props.error", "false", expect=LOADING_ROWS)
+@mutation(CONTAINERS, "props.loading && !props.rows.length && !props.error", "false", expect=LOADING_ROWS)
 @pytest.mark.web_unit
 def test_settings_errors_as_drawn():
     vitest("tests/unit/settings/settings.spec.ts")

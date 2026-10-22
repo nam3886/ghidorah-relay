@@ -143,3 +143,20 @@ def test_every_listed_value_is_the_live_constant():
         if found.get(name, object()) != value:
             wrong.append(name)
     assert not wrong, "listed rows that are not a numeric constant, or not its value: %s" % wrong
+
+
+@mutation(LIMITS, "else unit[:-1]", "else unit", expect="1 points")
+@mutation(LIMITS, "unit = unit[:-2] if", "unit = unit[:-1] if", expect="1 hashe")
+@mutation(LIMITS, 'unit = unit[:-3] + "y"', "unit = unit[:-1]", expect="1 retrie")
+def test_a_value_of_one_reads_with_a_singular_unit_and_two_with_the_plural():
+    from relay_core.limits import value_text
+    assert [value_text(1, u) for u in ("points", "sessions", "slots", "jobs")] == [
+        "1 point", "1 session", "1 slot", "1 job"]
+    assert [value_text(2, u) for u in ("points", "sessions", "slots", "jobs")] == [
+        "2 points", "2 sessions", "2 slots", "2 jobs"]
+    assert value_text(1, "s") == "1 s" and value_text(1, "h") == "1 h"          # symbols stay as they are
+    assert value_text(1, "hashes") == "1 hash" and value_text(2, "hashes") == "2 hashes", "1 hashe"
+    assert value_text(1, "retries") == "1 retry" and value_text(2, "retries") == "2 retries", "1 retrie"
+    assert value_text(1, "bytes") == "1 byte" and value_text(2, "bytes") == "2 bytes"
+    assert value_text(1.0, "days") == "1 day" and value_text((1, 2), "jobs") == "1, 2 jobs"
+    assert value_text({"recover": 1, "check": 2}, "jobs") == "recover 1 job, check 2 jobs"

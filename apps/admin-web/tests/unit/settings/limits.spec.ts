@@ -5,8 +5,8 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import { ApiError } from "@/api/client";
 import * as api from "@/api/settings";
 import ContainerLimits from "@/components/settings/ContainerLimits.vue";
-import FixedLimits from "@/components/settings/FixedLimits.vue";
 import SettingsTable from "@/components/settings/SettingsTable.vue";
+import ValueTable from "@/components/settings/ValueTable.vue";
 import SettingsView from "@/views/SettingsView.vue";
 
 vi.mock("@/api/settings");
@@ -30,6 +30,10 @@ const fixed = (): api.FixedLimit[] => [
   { group: "core", name: "jobs.engine.MAX_INFLIGHT", value: "32 jobs", reason: "submits one worker runs at once" },
   { group: "core", name: "leases.LEASE_TTL_S", value: "60 s", reason: "a lease not renewed is gone" },
   { group: "dola", name: "caps.max_attempts", value: "3 attempts", reason: "counted attempts before a job fails" },
+];
+const bootRows = (): api.EnvOnlyItem[] => [
+  { name: "RELAY_BIND", value: "0.0.0.0:8100" },
+  { name: "RELAY_CHROME_PATH", value: null },
 ];
 const containers = (): api.ContainerRow[] => [
   {
@@ -118,7 +122,7 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   vi.mocked(api.getSettings).mockImplementation(async () => ({
     items: items(),
-    env_only: [],
+    env_only: bootRows(),
     fixed: fixed(),
     containers: containers(),
   }));
@@ -151,20 +155,28 @@ describe("the allowed text", () => {
   });
 });
 
+const cells = (tr: { findAll: (s: string) => { text: () => string }[] }) => tr.findAll("th, td").map((c) => c.text());
+
 describe("the fixed limits card", () => {
-  it("lists one block per group in the server's order, each row with its name, value and reason", () => {
-    wrapper = mount(FixedLimits, { props: { rows: fixed(), loading: false, error: null } });
-    expect(wrapper.findAll("h3").map((h) => h.text())).toEqual(["core", "dola"]);
-    const blocks = wrapper.findAll("section");
-    expect(blocks[0]!.findAll("dt").map((d) => d.text())).toEqual(["jobs.engine.MAX_INFLIGHT", "leases.LEASE_TTL_S"]);
-    expect(blocks[0]!.text()).toContain("32 jobs");
-    expect(blocks[0]!.text()).toContain("submits one worker runs at once");
-    expect(blocks[1]!.findAll("dt").map((d) => d.text())).toEqual(["caps.max_attempts"]);
-    expect(blocks[1]!.text()).toContain("3 attempts");
+  const mountFixed = () =>
+    mount(ValueTable, { props: { rows: fixed(), loading: false, error: null, label: "Fixed limits", reasons: true } });
+
+  it("is a table of Name, Value and Reason with one band per group in the server's order", () => {
+    phone(false);
+    wrapper = mountFixed();
+    expect(wrapper.findAll("thead th").map((h) => h.text())).toEqual(["Name", "Value", "Reason"]);
+    expect(wrapper.findAll("tr.set-table__group").map((r) => r.text())).toEqual(["core", "dola"]);
+    const rows = wrapper.findAll("tbody tr:not(.set-table__group)").map(cells);
+    expect(rows).toEqual([
+      ["jobs.engine.MAX_INFLIGHT", "32 jobs", "submits one worker runs at once"],
+      ["leases.LEASE_TTL_S", "60 s", "a lease not renewed is gone"],
+      ["caps.max_attempts", "3 attempts", "counted attempts before a job fails"],
+    ]);
   });
 
   it("reads None when empty, shows the error with Retry and draws bars while the first read runs", async () => {
-    wrapper = mount(FixedLimits, { props: { rows: [], loading: false, error: null } });
+    phone(false);
+    wrapper = mount(ValueTable, { props: { rows: [], loading: false, error: null, label: "Fixed limits" } });
     expect(wrapper.text()).toContain("None");
     await wrapper.setProps({ error: "Could not load the settings: boom." });
     expect(wrapper.find('[role="alert"]').text()).toContain("Could not load the settings: boom.");
@@ -174,44 +186,115 @@ describe("the fixed limits card", () => {
     expect(wrapper.find(".set-skel").exists()).toBe(true);
     expect(wrapper.text()).not.toContain("None");
   });
+
+  it("is one block per row under a heading per group on a phone, with no table", () => {
+    phone(true);
+    wrapper = mountFixed();
+    expect(wrapper.find("table").exists()).toBe(false);
+    expect(wrapper.findAll("h3").map((h) => h.text())).toEqual(["core", "dola"]);
+    const first = wrapper.findAll("ul")[0]!.findAll("li")[0]!;
+    expect(first.findAll("span").map((c) => c.text())).toEqual([
+      "jobs.engine.MAX_INFLIGHT",
+      "32 jobs",
+      "submits one worker runs at once",
+    ]);
+    expect(wrapper.findAll("li")).toHaveLength(3);
+  });
 });
 
-describe("the containers card", () => {
-  it("says this process for the api and shows a worker's four texts with how long ago it reported", () => {
-    wrapper = mount(ContainerLimits, { props: { rows: containers(), loading: false, error: null } });
-    const api_ = wrapper.find('[data-service="api"]');
-    expect(api_.text()).toContain("this process, read at start");
-    expect(api_.text()).toContain("1.5");
-    expect(api_.text()).toContain("512");
-    const worker = wrapper.find('[data-service="worker-dola"]');
-    expect(worker.text()).toContain("seen 2 min ago");
-    expect(worker.text()).not.toContain("reported");
-    expect(worker.find(".containers__when").attributes("title")).toMatch(/20\/10\/2026/);
-    expect(worker.findAll("dd").map((d) => d.text())).toEqual(["8", "12 GiB", "2048", "1 GiB", "worker-dola", "-"]);
-    expect(worker.findAll("dt").map((d) => d.text())).toEqual([
-      "CPUs",
-      "Memory",
-      "PIDs",
-      "Shared memory (/dev/shm)",
-      "WORKER_ID",
-      "RELAY_CHROME_PATH",
+describe("the boot-only card", () => {
+  it("is a table of Name and Value, an unset value as a dash", async () => {
+    phone(false);
+    await open();
+    const card = wrapper!.find("#boot");
+    expect(card.findAll("thead th").map((h) => h.text())).toEqual(["Name", "Value"]);
+    expect(card.findAll("tbody tr").map(cells)).toEqual([
+      ["RELAY_BIND", "0.0.0.0:8100"],
+      ["RELAY_CHROME_PATH", "-"],
     ]);
   });
 
+  it("is one block per row on a phone", async () => {
+    phone(true);
+    await open();
+    const card = wrapper!.find("#boot");
+    expect(card.find("table").exists()).toBe(false);
+    expect(card.findAll("li").map((li) => li.findAll("span").map((c) => c.text()))).toEqual([
+      ["RELAY_BIND", "0.0.0.0:8100"],
+      ["RELAY_CHROME_PATH", "-"],
+    ]);
+  });
+});
+
+describe("the containers card", () => {
+  const mountContainers = () => mount(ContainerLimits, { props: { rows: containers(), loading: false, error: null } });
+
+  it("has a column per service and a row per measure, then one per boot knob any service reported", () => {
+    phone(false);
+    wrapper = mountContainers();
+    expect(wrapper.find("thead th").text()).toBe("Name");
+    expect(wrapper.findAll("thead th[data-service]").map((h) => h.attributes("data-service"))).toEqual([
+      "api",
+      "worker-dola",
+      "worker-old",
+      "worker-odd",
+    ]);
+    const rows = wrapper.findAll("tbody tr").map(cells);
+    expect(rows).toEqual([
+      ["Container limits"],
+      ["CPUs", "1.5", "8", "-", "no limit"],
+      ["Memory", "2 GiB", "12 GiB", "-", "unreadable"],
+      ["PIDs", "512", "2048", "-", "2048"],
+      ["Shared memory (/dev/shm)", "64 MiB", "1 GiB", "-", "64 MiB"],
+      ["Boot values"],
+      ["WORKER_ID", "-", "worker-dola", "-", "-"],
+      ["RELAY_CHROME_PATH", "-", "not set", "-", "-"],
+    ]);
+  });
+
+  it("reads not set for a value a service reported unset, and dims the dash of a value it does not report", () => {
+    phone(false);
+    wrapper = mountContainers();
+    const knob = wrapper.findAll("tbody tr").find((tr) => tr.find("th").text() === "RELAY_CHROME_PATH")!;
+    const cell = (service: string) => knob.find(`td[data-service="${service}"]`);
+    expect(cell("worker-dola").text()).toBe("not set");
+    expect(cell("worker-dola").classes()).not.toContain("set-table__none");
+    expect(cell("api").text()).toBe("-");
+    expect(cell("api").classes()).toContain("set-table__none");
+  });
+
+  it("has no Boot values band when no service reports a boot value", () => {
+    phone(false);
+    wrapper = mount(ContainerLimits, { props: { rows: [containers()[0]!], loading: false, error: null } });
+    expect(wrapper.findAll("tbody tr.set-table__group").map((tr) => tr.text())).toEqual(["Container limits"]);
+  });
+
+  it("says this process for the api and how long ago a worker reported, under the service name", () => {
+    phone(false);
+    wrapper = mountContainers();
+    const head = (service: string) => wrapper!.find(`thead th[data-service="${service}"]`);
+    expect(head("api").text()).toContain("this process, read at start");
+    expect(head("worker-dola").text()).toContain("seen 2 min ago");
+    expect(head("worker-dola").text()).not.toContain("reported");
+    expect(head("worker-dola").find(".set-svc__when").attributes("title")).toMatch(/20\/10\/2026/);
+  });
+
   it("says a worker that has not reported is not reported by this worker version, and marks a silent one stale", () => {
-    wrapper = mount(ContainerLimits, { props: { rows: containers(), loading: false, error: null } });
-    const old = wrapper.find('[data-service="worker-old"]');
+    phone(false);
+    wrapper = mountContainers();
+    const old = wrapper.find('thead th[data-service="worker-old"]');
     expect(old.text()).toContain("Not reported by this worker version");
-    expect(old.find("dl").exists()).toBe(false);
     expect(old.text()).toContain("stale");
     expect(old.text()).toContain("seen 10 min ago");
+    expect(wrapper.find('thead th[data-service="worker-dola"]').text()).not.toContain("Not reported");
   });
 
   it("marks only a silent worker stale: a fresh one and the api carry no chip", () => {
-    wrapper = mount(ContainerLimits, { props: { rows: containers(), loading: false, error: null } });
+    phone(false);
+    wrapper = mountContainers();
     const stale = wrapper
-      .findAll(".containers__block")
-      .map((b) => [b.attributes("data-service"), b.find(".status-chip").exists()]);
+      .findAll("thead th[data-service]")
+      .map((h) => [h.attributes("data-service"), h.find(".status-chip").exists()]);
     expect(stale).toEqual([
       ["api", false],
       ["worker-dola", false],
@@ -220,22 +303,49 @@ describe("the containers card", () => {
     ]);
   });
 
-  it("shows an unreadable limit and a limit that is not set as the server's exact words", () => {
-    wrapper = mount(ContainerLimits, { props: { rows: containers(), loading: false, error: null } });
-    const odd = wrapper.find('[data-service="worker-odd"]');
-    const value = (label: string) =>
-      odd
-        .findAll(".set-leader__row")
-        .find((r) => r.find("dt").text() === label)!
-        .find("dd")
-        .text();
-    expect(value("CPUs")).toBe("no limit");
-    expect(value("Memory")).toBe("unreadable");
-    expect(value("PIDs")).toBe("2048");
-    expect(value("Shared memory (/dev/shm)")).toBe("64 MiB");
+  it("shows an unreadable limit and a limit that is not set as the server's exact words, apart from a dash", () => {
+    phone(false);
+    wrapper = mountContainers();
+    const odd = wrapper
+      .findAll("tbody tr:not(.set-table__group)")
+      .map((tr) => tr.findAll('td[data-service="worker-odd"]')[0]!.text());
+    expect(odd.slice(0, 4)).toEqual(["no limit", "unreadable", "2048", "64 MiB"]);
+    const old = wrapper
+      .findAll("tbody tr:not(.set-table__group)")
+      .map((tr) => tr.findAll('td[data-service="worker-old"]')[0]!.text());
+    expect(old.slice(0, 4)).toEqual(["-", "-", "-", "-"]);
+  });
+
+  it("is one block per service on a phone, with its stamp, its chip and its own boot knobs", () => {
+    phone(true);
+    wrapper = mountContainers();
+    expect(wrapper.find("table").exists()).toBe(false);
+    const worker = wrapper.find('section[data-service="worker-dola"]');
+    expect(worker.text()).toContain("seen 2 min ago");
+    expect(worker.findAll("li").map((li) => li.findAll("span").map((c) => c.text()))).toEqual([
+      ["CPUs", "8"],
+      ["Memory", "12 GiB"],
+      ["PIDs", "2048"],
+      ["Shared memory (/dev/shm)", "1 GiB"],
+      ["WORKER_ID", "worker-dola"],
+      ["RELAY_CHROME_PATH", "not set"],
+    ]);
+    expect(worker.findAll(".set-list__group").map((h) => h.text())).toEqual(["Container limits", "Boot values"]);
+    expect(
+      wrapper
+        .find('section[data-service="api"]')
+        .findAll(".set-list__group")
+        .map((h) => h.text()),
+    ).toEqual(["Container limits"]);
+    const old = wrapper.find('section[data-service="worker-old"]');
+    expect(old.text()).toContain("Not reported by this worker version");
+    expect(old.find("ul").exists()).toBe(false);
+    expect(old.text()).toContain("stale");
+    expect(wrapper.find('section[data-service="api"]').text()).toContain("this process, read at start");
   });
 
   it("reads None when empty and shows the error with Retry", async () => {
+    phone(false);
     wrapper = mount(ContainerLimits, { props: { rows: [], loading: false, error: null } });
     expect(wrapper.text()).toContain("None");
     await wrapper.setProps({ error: "Could not load the settings: boom." });
@@ -253,10 +363,10 @@ describe("the page", () => {
     await open();
     const nav = wrapper!.find('nav[aria-label="Settings sections"]');
     expect(nav.findAll("a").map((a) => a.text())).toEqual([
+      "Change password",
       "Settings",
       "Boot-only values",
       "Measured prices",
-      "Change password",
       "Fixed limits",
       "Containers",
     ]);
@@ -264,6 +374,20 @@ describe("the page", () => {
     await nav.findAll("a")[4]!.trigger("click");
     const marks = wrapper!.findAll('nav[aria-label="Settings sections"] a').map((a) => a.attributes("aria-current"));
     expect(marks).toEqual([undefined, undefined, undefined, undefined, "true", undefined]);
+  });
+
+  it("puts Change password first among the cards, ahead of Settings", async () => {
+    phone(false);
+    await open();
+    expect(wrapper!.findAll(".settings__content > section").map((c) => c.attributes("id"))).toEqual([
+      "password",
+      "settings",
+      "boot",
+      "prices",
+      "limits",
+      "containers",
+    ]);
+    expect(wrapper!.find('nav[aria-label="Settings sections"] a[aria-current]').text()).toBe("Change password");
   });
 
   it("shows the Fixed limits rows that the settings read brought", async () => {

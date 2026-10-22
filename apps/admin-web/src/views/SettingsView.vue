@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import {
   type ContainerRow,
   deleteSetting,
@@ -12,16 +12,13 @@ import {
   type SettingItem,
 } from "@/api/settings";
 import ContainerLimits from "@/components/settings/ContainerLimits.vue";
-import FixedLimits from "@/components/settings/FixedLimits.vue";
 import PasswordForm from "@/components/settings/PasswordForm.vue";
 import SettingsTable from "@/components/settings/SettingsTable.vue";
+import ValueTable from "@/components/settings/ValueTable.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { loadFailedText } from "@/components/jobs/job-text";
 import { bootValue, parseValue } from "@/components/settings/settings-value";
 import { errorText } from "@/lib/errors";
-import SectionState from "@/components/settings/SectionState.vue";
-import "@/components/settings/settings-leader.css";
-import "@/components/settings/settings-skeleton.css";
 import PricesTable from "@/components/settings/PricesTable.vue";
 import SettingsCard from "@/components/settings/SettingsCard.vue";
 import { useBusy } from "@/composables/use-busy";
@@ -108,16 +105,15 @@ const withKey = (row: PriceRow): KeyedPrice => ({ ...row, id: `${row.provider}/$
 
 // The sub-navigation: in-page anchors. The app routes by hash, so a click scrolls to the card instead of changing it.
 const SECTIONS = [
+  { id: "password", label: "Change password" },
   { id: "settings", label: "Settings" },
   { id: "boot", label: "Boot-only values" },
   { id: "prices", label: "Measured prices" },
-  { id: "password", label: "Change password" },
   { id: "limits", label: "Fixed limits" },
   { id: "containers", label: "Containers" },
 ] as const;
-const current = ref<string>("settings");
-// the boot-only list while the first read runs: its rows as bars (the B-States loading pattern)
-const BOOT_SKELETON = ["88px", "120px", "72px", "104px"];
+const current = ref<string>("password");
+const bootRows = computed(() => envOnly.value.map((row) => ({ name: row.name, value: bootValue(row.value) })));
 // Scrolls the page's own scroll area (the window on a phone) and nothing else: scrollIntoView would also scroll the
 // overflow-hidden ancestors once a card cannot reach the top, shifting and clipping the layout. The area clamps the
 // target, so a card too near the end just scrolls as far as it can.
@@ -159,6 +155,8 @@ function go(id: string): void {
       </nav>
 
       <div class="settings__content">
+        <PasswordForm />
+
         <SettingsCard
           id="settings"
           title="Settings"
@@ -179,29 +177,15 @@ function go(id: string): void {
           id="boot"
           title="Boot-only values"
           note="Read once when the relay starts. Change them in the environment and restart. Secrets are never listed."
-          snug
         >
           <!-- read with the settings: their failure and their wait are this card's too -->
-          <SectionState
+          <ValueTable
+            :rows="bootRows"
+            :loading="settingsLoading"
             :error="settingsError"
-            :empty="!envOnly.length && !settingsLoading"
-            empty-text="None"
+            label="Boot-only values"
             @retry="loadSettings"
           />
-          <dl v-if="!settingsError && !envOnly.length && settingsLoading" class="set-leader" aria-hidden="true">
-            <div v-for="w in BOOT_SKELETON" :key="w" class="set-leader__row">
-              <i class="set-skel" :style="{ width: w }" />
-              <span class="set-leader__line" />
-              <i class="set-skel" :style="{ width: '96px' }" />
-            </div>
-          </dl>
-          <dl v-else-if="!settingsError && envOnly.length" class="set-leader" aria-label="Boot-only values">
-            <div v-for="row in envOnly" :key="row.name" class="set-leader__row">
-              <dt>{{ row.name }}</dt>
-              <span class="set-leader__line" aria-hidden="true" />
-              <dd class="num">{{ bootValue(row.value) }}</dd>
-            </div>
-          </dl>
         </SettingsCard>
 
         <SettingsCard
@@ -212,22 +196,25 @@ function go(id: string): void {
           <PricesTable :rows="prices" :loading="pricesLoading" :error="pricesError" @retry="loadPrices" />
         </SettingsCard>
 
-        <PasswordForm />
-
         <SettingsCard
           id="limits"
           title="Fixed limits"
           note="Constants in the code that shape behaviour. They change only with a new release."
-          snug
         >
-          <FixedLimits :rows="fixed" :loading="settingsLoading" :error="settingsError" @retry="loadSettings" />
+          <ValueTable
+            :rows="fixed"
+            :loading="settingsLoading"
+            :error="settingsError"
+            label="Fixed limits"
+            reasons
+            @retry="loadSettings"
+          />
         </SettingsCard>
 
         <SettingsCard
           id="containers"
           title="Containers"
           note="Each relay service's own limits, read from its cgroup when it started. A worker that stopped cleanly is not listed."
-          snug
         >
           <ContainerLimits :rows="containers" :loading="settingsLoading" :error="settingsError" @retry="loadSettings" />
         </SettingsCard>

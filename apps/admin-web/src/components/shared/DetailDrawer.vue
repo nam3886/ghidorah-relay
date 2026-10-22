@@ -95,7 +95,7 @@ watch(
     @closed="emit('closed')"
   >
     <template #header="{ titleId }">
-      <div class="detail-drawer__head">
+      <div class="detail-drawer__head" :class="{ 'has-tabs': !!$slots.tabs }">
         <button
           v-if="isPhone"
           type="button"
@@ -169,8 +169,12 @@ watch(
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 8px 12px;
-  padding: 20px 24px 0;
+  padding: 20px 24px 16px;
   border-bottom: 1px solid var(--rl-line);
+}
+/* a tab row sits on the line itself (the canvas draws 20 24 0 where a drawer has tabs, 20 24 16 where it has none) */
+.detail-drawer__head.has-tabs {
+  padding-bottom: 0;
 }
 .detail-drawer__title {
   grid-column: 1;
@@ -286,6 +290,10 @@ watch(
 .detail-drawer.is-sheet .detail-drawer__chips {
   grid-column: 1 / -1;
   padding: 0 8px 4px 12px;
+}
+/* with no tab row the chip line is the last thing in the header: 16 above the hairline, as on the desktop */
+.detail-drawer.is-sheet .detail-drawer__head:not(.has-tabs) .detail-drawer__chips {
+  padding-bottom: 16px;
 }
 .detail-drawer.is-sheet .detail-drawer__tabs {
   margin-top: 0;

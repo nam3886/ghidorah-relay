@@ -208,6 +208,57 @@ CANVAS_NOTE_JS = """([now, old]) => {
 }"""
 
 
+# The page differs from the boards in two declared ways that would move everything under them, so the drive puts the
+# boards' form back into the page before the photo and the element read (the words and rows stay the page's own):
+# Change password is the first card (the boards draw it fourth), and Boot-only values is a table (the boards draw a
+# leader list: name, dotted leader, value; on a phone name over value). The table is covered by unit specs and E2E.
+AS_THE_BOARDS_JS = """() => {
+  const phone = innerWidth < 768;
+  document.getElementById('prices').after(document.getElementById('password'));
+  const links = [...document.querySelectorAll('.snav li')];
+  const pill = (text) => links.find((li) => li.textContent.trim() === text);
+  pill('Measured prices').after(pill('Change password'));
+  const mark = (li, on) => {
+    const a = li.querySelector('a');
+    a.classList.toggle('is-current', on);
+    if (on) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current');
+  };
+  mark(pill('Change password'), false);
+  mark(pill('Settings'), true);
+  const card = document.getElementById('boot');
+  const cellsOf = (row) => [...row.children].map((c) => c.textContent.trim());
+  const lines = phone ? card.querySelectorAll('li') : card.querySelectorAll('tbody tr');
+  const rows = [...lines].map(cellsOf);
+  card.querySelector('.card__head').style.padding = phone ? '16px 16px 12px' : '16px 20px 12px';
+  card.querySelector('.set-value').remove();
+  const make = (tag, css, text) => {
+    const el = document.createElement(tag);
+    el.style.cssText = css;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  };
+  const MONO = "font-family: var(--rl-mono);";
+  const dl = make('dl', 'margin: 0; background: var(--rl-raised); display: flex; flex-direction: column; '
+    + 'font-size: 13px; ' + (phone ? 'padding: 14px 16px 18px; gap: 12px;' : 'padding: 14px 20px 18px; gap: 8px;'));
+  for (const [name, value] of rows) {
+    const row = make('div', phone ? 'display: flex; flex-direction: column; gap: 2px;'
+      : 'display: flex; align-items: baseline; gap: 8px;');
+    row.append(make('dt', MONO + ' font-size: 12px; color: var(--rl-muted); '
+      + (phone ? 'overflow-wrap: anywhere;' : 'white-space: nowrap;'), name));
+    if (!phone) {
+      row.append(make('span', 'flex: 1; min-width: 16px; border-bottom: 1px dotted var(--rl-line-strong); '
+        + 'transform: translateY(-4px);'));
+    }
+    const dd = make('dd', 'margin: 0; ' + MONO + ' font-weight: 500; overflow-wrap: anywhere;'
+      + (phone ? '' : ' text-align: right;'), value);
+    dd.className = 'num';
+    row.append(dd);
+    dl.append(row);
+  }
+  card.append(dl);
+}"""
+
+
 def settings_drive(page, live, data):
     """The boards' state: one value typed over its stored one (the row is edited), and the password form refused on
     the new password. The board's rule is sample data (12); the form holds the server's, 10, so a 9-character new
@@ -221,6 +272,7 @@ def settings_drive(page, live, data):
     expect(page.locator("#password").get_by_role("alert")).to_be_visible(timeout=TIMEOUT_MS)
     page.mouse.move(0, 0)
     drop_the_banner(page)
+    page.evaluate(AS_THE_BOARDS_JS, isolated_context=False)
 
 
 def settings_pixel_drive(page, live, data):

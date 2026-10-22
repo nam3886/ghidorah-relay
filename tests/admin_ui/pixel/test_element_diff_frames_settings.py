@@ -596,7 +596,7 @@ LIVE_LIKE = [("frames", Entry("B-Frames", "#/frames", seed=live_frames_seed, now
                                 user=BOARD_USER))]
 LIVE_WIDTHS = (1440, 768, 390)
 # the sub-navigation pills of a phone are a strip that scrolls sideways: P-Settings draws the third one cut at the edge
-SUBNAV = ("Settings", "Boot-only values", "Measured prices", "Change password", "Fixed limits", "Containers")
+SUBNAV = ("Change password", "Settings", "Boot-only values", "Measured prices", "Fixed limits", "Containers")
 
 
 @pytest.mark.parametrize("theme", THEMES)
