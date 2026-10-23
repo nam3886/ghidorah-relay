@@ -1,0 +1,104 @@
+{
+ "method": "POST",
+ "url": "https://flow.google.com/_/AiSandboxAngularFrontend/data/batchexecute?rpcids=xxxxx&source-path=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&bl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&f.sid=xxxxxxxxxxxxxxxxxxxx&hl=xx&_reqid=xxxxx&rt=x",
+ "rpcid": "as29s",
+ "request": {
+  "args": [
+   "1d61f6cc-61ab-496e-bf15-556baec3ce21"
+  ]
+ },
+ "status": 200,
+ "elapsed_s": 0.48,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "server": "ESF",
+  "x-frame-options": "SAMEORIGIN"
+ },
+ "error": null,
+ "body_raw": "<dropped: same as payload>",
+ "payload": [
+  "1d61f6cc-61ab-496e-bf15-556baec3ce21",
+  "33333333-3333-4333-8333-333333333333",
+  "186b683d-de15-4a96-b173-b3b39a1b39bc",
+  null,
+  null,
+  [
+   [
+    1792737679,
+    837160000
+   ],
+   null,
+   null,
+   null,
+   null,
+   null,
+   [
+    null,
+    null,
+    [
+     [
+      "a red paper boat on a calm lake at sunrise, photo",
+      null,
+      [
+       [
+        [
+         "a red paper boat on a calm lake at sunrise, photo"
+        ]
+       ]
+      ]
+     ]
+    ],
+    [],
+    1
+   ],
+   null,
+   null,
+   1,
+   "https://flow-content.google/image/1d61f6cc-61ab-496e-bf15-556baec3ce21?Expires=xxxxxxxxxx&KeyName=xxxxxxxxxxxxxxxxxxxxxx&Signature=xxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   null,
+   null,
+   79334
+  ],
+  [
+   [
+    null,
+    412588959,
+    null,
+    null,
+    null,
+    null,
+    null,
+    "a red paper boat on a calm lake at sunrise, photo",
+    36,
+    "",
+    null,
+    "186b683d-de15-4a96-b173-b3b39a1b39bc",
+    null,
+    "https://flow-content.google/image/1d61f6cc-61ab-496e-bf15-556baec3ce21?Expires=xxxxxxxxxx&KeyName=xxxxxxxxxxxxxxxxxxxxxx&Signature=xxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    3
+   ],
+   null,
+   [
+    1376,
+    768
+   ],
+   null,
+   null,
+   [
+    null,
+    "https://flow-content.google/image/1d61f6cc-61ab-496e-bf15-556baec3ce21?Expires=xxxxxxxxxx&KeyName=xxxxxxxxxxxxxxxxxxxxxx&Signature=xxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   ]
+  ]
+ ],
+ "wrb_item_tail": [
+  null,
+  null,
+  null,
+  "generic"
+ ],
+ "er": [],
+ "note": null,
+ "step": "getmedia_v0",
+ "t": 1.86,
+ "at_utc": "06:59:41Z"
+}

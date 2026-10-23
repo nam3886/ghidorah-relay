@@ -1,0 +1,185 @@
+{
+ "method": "POST",
+ "url": "https://flow.google.com/_/AiSandboxAngularFrontend/data/batchexecute?rpcids=xxxxxx&source-path=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&bl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&f.sid=xxxxxxxxxxxxxxxxxxxx&hl=xx&_reqid=xxxxx&rt=x",
+ "rpcid": "jwpduf",
+ "request": {
+  "args": [
+   null,
+   null,
+   [
+    [
+     "fd6f10c0-1323-4d77-8312-7990ff91f9ad"
+    ],
+    [
+     "1aa49420-aee6-465c-ba37-66d28b990f23"
+    ],
+    [
+     "e9629406-e250-4470-a50e-10ae1c1df5fc"
+    ]
+   ]
+  ]
+ },
+ "status": 200,
+ "elapsed_s": 0.51,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "server": "ESF",
+  "x-frame-options": "SAMEORIGIN"
+ },
+ "error": null,
+ "body_raw": "<dropped: same as payload>",
+ "payload": [
+  null,
+  null,
+  [
+   [
+    "fd6f10c0-1323-4d77-8312-7990ff91f9ad",
+    null,
+    null,
+    null,
+    null,
+    [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     [
+      4,
+      [
+       null,
+       "Media not found."
+      ],
+      [
+       "Media not found."
+      ]
+     ]
+    ]
+   ],
+   [
+    "1aa49420-aee6-465c-ba37-66d28b990f23",
+    "33333333-3333-4333-8333-333333333333",
+    "fd6f10c0-1323-4d77-8312-7990ff91f9ad",
+    null,
+    null,
+    [
+     [
+      1792739586,
+      51141000
+     ],
+     "a slow pan over a misty pine forest at dawn, cinematic",
+     null,
+     null,
+     null,
+     null,
+     [
+      null,
+      [
+       [
+        "veo_3_1_t2v_lite",
+        1,
+        null,
+        null,
+        2,
+        1
+       ]
+      ],
+      [
+       [
+        null,
+        null,
+        [
+         [
+          [
+           "a slow pan over a misty pine forest at dawn, cinematic"
+          ]
+         ]
+        ]
+       ]
+      ],
+      null,
+      1
+     ],
+     null,
+     [
+      2
+     ],
+     1
+    ],
+    null,
+    [
+     [
+      null,
+      817039,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "<root>\n  <context>\n  </context>\n  <instruction>\n    <prompt>a slow pan over a misty pine forest at dawn, cinematic</prompt>\n  </instruction>\n</root>",
+      null,
+      null,
+      null,
+      null,
+      "veo_3_1_t2v_lite",
+      "",
+      null,
+      false,
+      2
+     ],
+     [
+      null,
+      null,
+      [
+       8
+      ]
+     ],
+     [
+      "1aa49420-aee6-465c-ba37-66d28b990f23"
+     ]
+    ]
+   ],
+   [
+    "e9629406-e250-4470-a50e-10ae1c1df5fc",
+    null,
+    null,
+    null,
+    null,
+    [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     [
+      4,
+      [
+       null,
+       "Media not found."
+      ],
+      [
+       "Media not found."
+      ]
+     ]
+    ]
+   ]
+  ]
+ ],
+ "wrb_item_tail": [
+  null,
+  null,
+  null,
+  "generic"
+ ],
+ "er": [],
+ "note": null,
+ "step": "status_v0",
+ "t": 25.86,
+ "at_utc": "07:13:09Z"
+}

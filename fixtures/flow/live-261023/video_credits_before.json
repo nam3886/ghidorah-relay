@@ -1,0 +1,40 @@
+{
+ "method": "POST",
+ "url": "https://flow.google.com/_/AiSandboxAngularFrontend/data/batchexecute?rpcids=xxxxx&source-path=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&bl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&f.sid=xxxxxxxxxxxxxxxxxxxx&hl=xx&_reqid=xxxxx&rt=x",
+ "rpcid": "nzlxg",
+ "request": {
+  "args": []
+ },
+ "status": 200,
+ "elapsed_s": 0.39,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "server": "ESF",
+  "x-frame-options": "SAMEORIGIN"
+ },
+ "error": null,
+ "body_raw": "<dropped: same as payload>",
+ "payload": [
+  50,
+  3,
+  8,
+  1,
+  null,
+  50,
+  [
+   1792825965,
+   280272000
+  ]
+ ],
+ "wrb_item_tail": [
+  null,
+  null,
+  null,
+  "generic"
+ ],
+ "er": [],
+ "note": null,
+ "step": "credits_before",
+ "t": 1.81,
+ "at_utc": "07:12:45Z"
+}

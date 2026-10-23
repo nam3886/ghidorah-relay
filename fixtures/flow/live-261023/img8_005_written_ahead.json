@@ -1,0 +1,15 @@
+{
+ "media_ids": [
+  "360960c0-e5b0-4c2f-aa3b-5f372fd7f8cb"
+ ],
+ "workflow_ids": [
+  "acd153f2-289c-4911-872c-8ff0523613a0"
+ ],
+ "batch": "3cc64e26-362b-42d9-9f5d-0fd5a113489d",
+ "prompt": "a red paper boat on a calm lake at sunrise, photo",
+ "model": "BELUGA",
+ "aspect": 1,
+ "step": "written_ahead",
+ "t": 17.12,
+ "at_utc": "06:44:53Z"
+}

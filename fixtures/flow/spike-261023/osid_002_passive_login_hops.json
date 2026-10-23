@@ -1,0 +1,19 @@
+{
+ "hops": [
+  {
+   "status": 302,
+   "at": "accounts.google.com/ServiceLogin",
+   "set_cookie_names": [
+    "__Host-GAPS"
+   ]
+  },
+  {
+   "status": 200,
+   "at": "accounts.google.com/v3/signin/identifier",
+   "set_cookie_names": []
+  }
+ ],
+ "step": "passive_login_hops",
+ "t": 5.42,
+ "at_utc": "06:27:01Z"
+}

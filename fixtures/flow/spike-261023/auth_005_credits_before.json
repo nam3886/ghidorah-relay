@@ -1,0 +1,40 @@
+{
+ "method": "POST",
+ "url": "https://flow.google.com/_/AiSandboxAngularFrontend/data/batchexecute?rpcids=xxxxx&source-path=xxx&bl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&f.sid=xxxxxxxxxxxxxxxxxxx&hl=xx&_reqid=xxxxx&rt=x",
+ "rpcid": "nzlxg",
+ "request": {
+  "args": []
+ },
+ "status": 200,
+ "elapsed_s": 0.41,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "server": "ESF",
+  "x-frame-options": "SAMEORIGIN"
+ },
+ "error": null,
+ "body_raw": ")]}'\n\n144\n[[\"wrb.fr\",\"nzlxg\",\"[50,3,8,1,null,50,[1792819892,879337000]]\",null,null,null,\"generic\"],[\"di\",160],[\"af.httprm\",160,\"4170210484486844968\",1]]\n25\n[[\"e\",4,null,null,180]]\n",
+ "payload": [
+  50,
+  3,
+  8,
+  1,
+  null,
+  50,
+  [
+   1792819892,
+   879337000
+  ]
+ ],
+ "wrb_item_tail": [
+  null,
+  null,
+  null,
+  "generic"
+ ],
+ "er": [],
+ "note": null,
+ "step": "credits_before",
+ "t": 5.93,
+ "at_utc": "05:31:33Z"
+}

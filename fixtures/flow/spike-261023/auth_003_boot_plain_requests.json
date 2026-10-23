@@ -1,0 +1,14 @@
+{
+ "method": "GET",
+ "url": "https://flow.google.com/",
+ "status": 200,
+ "final_url": "https://flow.google.com/",
+ "body": {
+  "len": 162073,
+  "has_at": true,
+  "signed_in_email_present": true
+ },
+ "step": "boot_plain_requests",
+ "t": 4.13,
+ "at_utc": "05:31:31Z"
+}

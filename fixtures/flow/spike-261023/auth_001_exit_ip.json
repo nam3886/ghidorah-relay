@@ -1,0 +1,13 @@
+{
+ "method": "GET",
+ "url": "https://ipinfo.io/json",
+ "status": 200,
+ "body": {
+  "country": "CA",
+  "region": "Ontario",
+  "timezone": "America/Toronto"
+ },
+ "step": "exit_ip",
+ "t": 0.94,
+ "at_utc": "05:31:28Z"
+}

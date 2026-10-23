@@ -1,0 +1,12 @@
+{
+ "url": "https://flow-content.google/image/1aa49420-aee6-465c-ba37-66d28b990f23?Expires=xxxxxxxxxx&KeyName=xxxxxxxxxxxxxxxxxxxxxx&Signature=xxxxxxxxxxxxxxxxxxxxxxxxxxx",
+ "status": 200,
+ "size": 97039,
+ "magic": "ffd8fffe0009476f6f676c65",
+ "ctype": "image/jpeg",
+ "elapsed_s": 1.68,
+ "ffprobe": null,
+ "step": "download_0",
+ "t": 5.07,
+ "at_utc": "07:24:08Z"
+}

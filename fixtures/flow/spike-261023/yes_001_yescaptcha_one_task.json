@@ -1,0 +1,33 @@
+{
+ "task": {
+  "type": "RecaptchaV3TaskProxylessM1",
+  "websiteKey": "6LdsFiUsAAAAAIjVDZcuLhaHiDn5nnHVXVRQGeMV",
+  "pageAction": "IMAGE_GENERATION",
+  "isEnterprise": true
+ },
+ "result": {
+  "status": "ready",
+  "errorId": 0,
+  "errorCode": null,
+  "token_len": 2574,
+  "solution_keys": [
+   "gRecaptchaResponse",
+   "userAgent"
+  ],
+  "cost": null
+ },
+ "solve_s": 14.8,
+ "balance_before": {
+  "errorId": 0,
+  "errorCode": null,
+  "balance": 9795
+ },
+ "balance_after": {
+  "errorId": 0,
+  "errorCode": null,
+  "balance": 9770
+ },
+ "step": "yescaptcha_one_task",
+ "t": 15.11,
+ "at_utc": "06:29:33Z"
+}

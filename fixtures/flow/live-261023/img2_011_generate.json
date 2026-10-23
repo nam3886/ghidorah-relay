@@ -1,0 +1,218 @@
+{
+ "rpcid": "ogiZ0b",
+ "request": {
+  "args": [
+   null,
+   [
+    [
+     null,
+     null,
+     null,
+     412588959,
+     3,
+     "BELUGA",
+     null,
+     [
+      null,
+      22,
+      null,
+      null,
+      null,
+      "33333333-3333-4333-8333-333333333333",
+      null,
+      null,
+      null,
+      null,
+      [
+       "<token len 2596>",
+       1
+      ]
+     ],
+     [
+      [
+       [
+        "a red paper boat on a calm lake at sunrise, photo"
+       ]
+      ]
+     ],
+     null,
+     null,
+     null,
+     "ae6259f7-043a-44e5-a377-fb289f12c51d",
+     "a7b61462-a9ef-4559-87e4-e166ff844eb5"
+    ]
+   ],
+   1,
+   [
+    null,
+    22,
+    null,
+    null,
+    null,
+    "33333333-3333-4333-8333-333333333333",
+    null,
+    null,
+    null,
+    null,
+    [
+     "<token len 2596>",
+     1
+    ]
+   ],
+   [
+    "723245f9-5e36-44d1-bf06-f8b6f41902fa"
+   ]
+  ]
+ },
+ "status": 200,
+ "elapsed_s": 16.59,
+ "error": null,
+ "body_raw": "<dropped: same as payload>",
+ "payload": [
+  [
+   [
+    "1d61f6cc-61ab-496e-bf15-556baec3ce21",
+    null,
+    "186b683d-de15-4a96-b173-b3b39a1b39bc",
+    null,
+    null,
+    null,
+    [
+     [
+      null,
+      412588959,
+      null,
+      null,
+      null,
+      null,
+      1,
+      "a red paper boat on a calm lake at sunrise, photo",
+      36,
+      null,
+      null,
+      "186b683d-de15-4a96-b173-b3b39a1b39bc",
+      null,
+      "https://flow-content.google/image/1d61f6cc-61ab-496e-bf15-556baec3ce21?Expires=xxxxxxxxxx&KeyName=xxxxxxxxxxxxxxxxxxxxxx&Signature=xxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      3,
+      [
+       null,
+       null,
+       [
+        [
+         "a red paper boat on a calm lake at sunrise, photo",
+         null,
+         [
+          [
+           [
+            "a red paper boat on a calm lake at sunrise, photo"
+           ]
+          ]
+         ]
+        ]
+       ],
+       []
+      ],
+      null,
+      "1d61f6cc-61ab-496e-bf15-556baec3ce21"
+     ],
+     null,
+     [
+      1376,
+      768
+     ],
+     null,
+     null,
+     [
+      null,
+      "https://flow-content.google/image/1d61f6cc-61ab-496e-bf15-556baec3ce21?Expires=xxxxxxxxxx&KeyName=xxxxxxxxxxxxxxxxxxxxxx&Signature=xxxxxxxxxxxxxxxxxxxxxxxxxxx"
+     ]
+    ]
+   ]
+  ],
+  [
+   [
+    "186b683d-de15-4a96-b173-b3b39a1b39bc",
+    null,
+    null,
+    [
+     "Red paper boat on lake",
+     [
+      1792737679,
+      837160000
+     ],
+     null,
+     null,
+     "1d61f6cc-61ab-496e-bf15-556baec3ce21",
+     "723245f9-5e36-44d1-bf06-f8b6f41902fa",
+     [
+      1792737695,
+      5361000
+     ]
+    ],
+    "33333333-3333-4333-8333-333333333333"
+   ]
+  ]
+ ],
+ "wrb_item_tail": [
+  null,
+  null,
+  null,
+  "generic"
+ ],
+ "er": [],
+ "inflight_listing": [
+  {
+   "t": 2.0,
+   "has_media": [
+    false
+   ],
+   "has_wf": [
+    false
+   ],
+   "len": 6486
+  },
+  {
+   "t": 6.3,
+   "has_media": [
+    false
+   ],
+   "has_wf": [
+    false
+   ],
+   "len": 6486
+  },
+  {
+   "t": 9.7,
+   "has_media": [
+    false
+   ],
+   "has_wf": [
+    false
+   ],
+   "len": 6486
+  },
+  {
+   "t": 13.1,
+   "has_media": [
+    false
+   ],
+   "has_wf": [
+    false
+   ],
+   "len": 6486
+  },
+  {
+   "t": 16.6,
+   "has_media": [
+    false
+   ],
+   "has_wf": [
+    false
+   ],
+   "len": 6486
+  }
+ ],
+ "step": "generate",
+ "t": 32.37,
+ "at_utc": "06:41:36Z"
+}

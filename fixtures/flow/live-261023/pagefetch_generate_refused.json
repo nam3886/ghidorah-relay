@@ -1,0 +1,33 @@
+{
+ "status": 200,
+ "mint_ms": 465.10000014305115,
+ "gen_ms": 435.39999985694885,
+ "tok_len": 2638,
+ "written_ahead": {
+  "media": "7ce6a57d-cd04-4213-aa29-01e864a5ca3b",
+  "workflow": "291dfabe-5432-42f5-af57-67fdcb7fecf3",
+  "batch": "0e19a229-13e3-4868-90a9-8590506264a3"
+ },
+ "body_raw": ")]}'\n\n191\n[[\"wrb.fr\",\"ogiZ0b\",null,null,null,[7,null,[[\"type.googleapis.com/google.rpc.ErrorInfo\",[\"PUBLIC_ERROR_UNUSUAL_ACTIVITY\"]]]],\"generic\"],[\"di\",173],[\"af.httprm\",173,\"6728828704617523554\",2]]\n25\n[[\"e\",4,null,null,227]]\n",
+ "payload": null,
+ "wrb_item_tail": [
+  null,
+  null,
+  [
+   7,
+   null,
+   [
+    [
+     "type.googleapis.com/google.rpc.ErrorInfo",
+     [
+      "PUBLIC_ERROR_UNUSUAL_ACTIVITY"
+     ]
+    ]
+   ]
+  ],
+  "generic"
+ ],
+ "step": "pagefetch_generate",
+ "t": 15.47,
+ "at_utc": "06:59:23Z"
+}

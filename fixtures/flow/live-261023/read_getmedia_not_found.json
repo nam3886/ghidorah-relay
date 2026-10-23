@@ -1,0 +1,33 @@
+{
+ "method": "POST",
+ "url": "https://flow.google.com/_/AiSandboxAngularFrontend/data/batchexecute?rpcids=xxxxx&source-path=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&bl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&f.sid=xxxxxxxxxxxxxxxxxxxx&hl=xx&_reqid=xxxxx&rt=x",
+ "rpcid": "as29s",
+ "request": {
+  "args": [
+   "media/1d61f6cc-61ab-496e-bf15-556baec3ce21"
+  ]
+ },
+ "status": 200,
+ "elapsed_s": 0.34,
+ "headers": {
+  "content-type": "application/json; charset=utf-8",
+  "server": "ESF",
+  "x-frame-options": "SAMEORIGIN"
+ },
+ "error": null,
+ "body_raw": ")]}'\n\n100\n[[\"wrb.fr\",\"as29s\",null,null,null,[5],\"generic\"],[\"di\",87],[\"af.httprm\",86,\"37621801335902276\",1]]\n25\n[[\"e\",4,null,null,136]]\n",
+ "payload": null,
+ "wrb_item_tail": [
+  null,
+  null,
+  [
+   5
+  ],
+  "generic"
+ ],
+ "er": [],
+ "note": null,
+ "step": "getmedia_v1",
+ "t": 2.21,
+ "at_utc": "06:59:42Z"
+}

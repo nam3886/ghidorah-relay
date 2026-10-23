@@ -1,0 +1,185 @@
+{
+ "rpcid": "YhhmEf",
+ "request": {
+  "args": [
+   [
+    [
+     [
+      null,
+      null,
+      [
+       [
+        [
+         "a slow pan over a misty pine forest at dawn, cinematic"
+        ]
+       ]
+      ]
+     ],
+     "veo_3_1_t2v_lite",
+     2,
+     null,
+     [
+      null,
+      null,
+      null,
+      null,
+      "19b82c11-fdca-402d-9e1e-1e4b0c7cc649",
+      "f41b9eb7-57e2-4fca-80a8-1234f8aca162"
+     ]
+    ]
+   ],
+   [
+    null,
+    22,
+    null,
+    null,
+    null,
+    "33333333-3333-4333-8333-333333333333",
+    null,
+    null,
+    null,
+    null,
+    [
+     "<token len 2617>",
+     1
+    ]
+   ],
+   [
+    "e9629406-e250-4470-a50e-10ae1c1df5fc",
+    1
+   ]
+  ]
+ },
+ "solve_s": 19.9,
+ "status": 200,
+ "elapsed_s": 2.64,
+ "error": null,
+ "body_raw": "<dropped: same as payload>",
+ "payload": [
+  null,
+  40,
+  [
+   [
+    "fd6f10c0-1323-4d77-8312-7990ff91f9ad",
+    null,
+    null,
+    [
+     "Misty pine forest panning",
+     [
+      1792739586,
+      51141000
+     ],
+     null,
+     null,
+     "1aa49420-aee6-465c-ba37-66d28b990f23",
+     "e9629406-e250-4470-a50e-10ae1c1df5fc",
+     [
+      1792739586,
+      834203000
+     ]
+    ],
+    "33333333-3333-4333-8333-333333333333"
+   ]
+  ],
+  [
+   [
+    "1aa49420-aee6-465c-ba37-66d28b990f23",
+    "33333333-3333-4333-8333-333333333333",
+    "fd6f10c0-1323-4d77-8312-7990ff91f9ad",
+    null,
+    null,
+    [
+     [
+      1792739586,
+      51141000
+     ],
+     "a slow pan over a misty pine forest at dawn, cinematic",
+     null,
+     null,
+     null,
+     null,
+     [
+      null,
+      [
+       [
+        "veo_3_1_t2v_lite",
+        1,
+        null,
+        null,
+        2,
+        1
+       ]
+      ],
+      [
+       [
+        null,
+        null,
+        [
+         [
+          [
+           "a slow pan over a misty pine forest at dawn, cinematic"
+          ]
+         ]
+        ]
+       ]
+      ],
+      null,
+      1
+     ],
+     null,
+     [
+      6
+     ],
+     1
+    ],
+    null,
+    [
+     [
+      null,
+      817039,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "<root>\n  <context>\n  </context>\n  <instruction>\n    <prompt>a slow pan over a misty pine forest at dawn, cinematic</prompt>\n  </instruction>\n</root>",
+      null,
+      null,
+      null,
+      null,
+      "veo_3_1_t2v_lite",
+      "",
+      null,
+      false,
+      2
+     ],
+     [
+      null,
+      null,
+      [
+       8
+      ]
+     ],
+     [
+      "1aa49420-aee6-465c-ba37-66d28b990f23"
+     ]
+    ]
+   ]
+  ]
+ ],
+ "wrb_item_tail": [
+  null,
+  null,
+  null,
+  "generic"
+ ],
+ "er": [],
+ "written_ahead": {
+  "media": "19b82c11-fdca-402d-9e1e-1e4b0c7cc649",
+  "workflow": "f41b9eb7-57e2-4fca-80a8-1234f8aca162",
+  "batch": "e9629406-e250-4470-a50e-10ae1c1df5fc"
+ },
+ "step": "submit_try1",
+ "t": 24.87,
+ "at_utc": "07:13:08Z"
+}

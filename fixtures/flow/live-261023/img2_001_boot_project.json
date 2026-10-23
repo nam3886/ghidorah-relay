@@ -1,0 +1,25 @@
+{
+ "method": "GET",
+ "url": "https://flow.google.com/project/33333333-3333-4333-8333-333333333333",
+ "status": 200,
+ "final_url": "https://flow.google.com/project/33333333-3333-4333-8333-333333333333",
+ "elapsed_s": 1.38,
+ "headers": {
+  "content-type": "text/html; charset=utf-8",
+  "server": "ESF",
+  "x-frame-options": "SAMEORIGIN"
+ },
+ "body": {
+  "len": 162792,
+  "has_at": true,
+  "has_fsid": true,
+  "bl": "boq_labs-ai-sandbox-frontend_20261021.10_p0",
+  "signed_in_email_present": true,
+  "site_keys": [
+   "6LdsFiUsAAAAAIjVDZcuLhaHiDn5nnHVXVRQGeMV"
+  ]
+ },
+ "step": "boot_project",
+ "t": 1.39,
+ "at_utc": "06:41:05Z"
+}

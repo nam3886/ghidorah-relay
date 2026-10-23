@@ -1,0 +1,14 @@
+{
+ "action": "IMAGE_GENERATION",
+ "n": 1,
+ "mint_s": [
+  2.5
+ ],
+ "token_len": [
+  2553
+ ],
+ "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+ "step": "browser_mint",
+ "t": 9.42,
+ "at_utc": "06:52:14Z"
+}

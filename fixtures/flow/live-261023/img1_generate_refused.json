@@ -1,0 +1,94 @@
+{
+ "rpcid": "ogiZ0b",
+ "request": {
+  "args": [
+   null,
+   [
+    [
+     null,
+     null,
+     null,
+     581899754,
+     3,
+     "BELUGA",
+     null,
+     [
+      null,
+      22,
+      null,
+      null,
+      null,
+      "33333333-3333-4333-8333-333333333333",
+      null,
+      null,
+      null,
+      null,
+      [
+       "<token len 2553>",
+       1
+      ]
+     ],
+     [
+      [
+       [
+        "a red paper boat on a calm lake at sunrise, photo"
+       ]
+      ]
+     ],
+     null,
+     null,
+     null,
+     "f4d2216c-7d9b-4ea2-a15e-2081c2661cf4",
+     "53dd0c2b-a752-4a58-bb17-12c295d06e9e"
+    ]
+   ],
+   1,
+   [
+    null,
+    22,
+    null,
+    null,
+    null,
+    "33333333-3333-4333-8333-333333333333",
+    null,
+    null,
+    null,
+    null,
+    [
+     "<token len 2553>",
+     1
+    ]
+   ],
+   [
+    "6e150456-2f3e-4ded-bd51-12afee7190d4"
+   ]
+  ]
+ },
+ "status": 200,
+ "elapsed_s": 0.42,
+ "error": null,
+ "body_raw": ")]}'\n\n192\n[[\"wrb.fr\",\"ogiZ0b\",null,null,null,[7,null,[[\"type.googleapis.com/google.rpc.ErrorInfo\",[\"PUBLIC_ERROR_UNUSUAL_ACTIVITY\"]]]],\"generic\"],[\"di\",163],[\"af.httprm\",162,\"-4184967834799446091\",1]]\n25\n[[\"e\",4,null,null,228]]\n",
+ "payload": null,
+ "wrb_item_tail": [
+  null,
+  null,
+  [
+   7,
+   null,
+   [
+    [
+     "type.googleapis.com/google.rpc.ErrorInfo",
+     [
+      "PUBLIC_ERROR_UNUSUAL_ACTIVITY"
+     ]
+    ]
+   ]
+  ],
+  "generic"
+ ],
+ "er": [],
+ "inflight_listing": [],
+ "step": "generate",
+ "t": 20.88,
+ "at_utc": "06:40:42Z"
+}

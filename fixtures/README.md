@@ -270,3 +270,81 @@ first, one video) and the reads around them; `dola/api-spike-261023/README.md` d
 - `dola/api-spike-261023/video_chain_final.json`
 - `dola/api-spike-261023/video_request.json`
 - `dola/api-spike-261023/video_sse.json`
+
+## Google Flow step-0 spike (23/10/2026)
+
+Redacted plain-HTTP calls of the auth, credits and project-create probes, the session loss and one YesCaptcha task; no
+generation was sent. `flow/spike-261023/README.md` describes each file and `fixtures/flow/FINDINGS.md` sums
+them up.
+
+- `flow/spike-261023/auth_001_exit_ip.json`
+- `flow/spike-261023/auth_002_boot_anon.json`
+- `flow/spike-261023/auth_003_boot_plain_requests.json`
+- `flow/spike-261023/auth_004_boot_root.json`
+- `flow/spike-261023/auth_005_credits_before.json`
+- `flow/spike-261023/html_001_boot_root.json`
+- `flow/spike-261023/html_002_boot_project.json`
+- `flow/spike-261023/osid_001_myaccount.json`
+- `flow/spike-261023/osid_002_passive_login_hops.json`
+- `flow/spike-261023/osid_003_boot_after_osid.json`
+- `flow/spike-261023/project_002_create_project.json`
+- `flow/spike-261023/project_003_boot_project.json`
+- `flow/spike-261023/rotate_001_rotate_cookies.json`
+- `flow/spike-261023/rotate_002_boot_after_rotate.json`
+- `flow/spike-261023/yes_001_yescaptcha_one_task.json`
+
+## Google Flow live run (23/10/2026)
+
+Redacted calls of the session keep-alive, 3 accepted images, 1 accepted Veo 3.1 Lite video, the reCAPTCHA refusals
+and the free reads (models, listing, media); `flow/live-261023/README.md` describes them.
+
+- `flow/live-261023/browser_mint.json`
+- `flow/live-261023/img1_generate_refused.json`
+- `flow/live-261023/img1_token.json`
+- `flow/live-261023/img11_generate_browser_refused.json`
+- `flow/live-261023/img11_token_browser.json`
+- `flow/live-261023/img12_generate_after_cooldown.json`
+- `flow/live-261023/img2_001_boot_project.json`
+- `flow/live-261023/img2_002_credits_before.json`
+- `flow/live-261023/img2_003_listing_before.json`
+- `flow/live-261023/img2_004_token.json`
+- `flow/live-261023/img2_005_written_ahead.json`
+- `flow/live-261023/img2_006_listing_inflight.json`
+- `flow/live-261023/img2_007_listing_inflight.json`
+- `flow/live-261023/img2_008_listing_inflight.json`
+- `flow/live-261023/img2_009_listing_inflight.json`
+- `flow/live-261023/img2_010_listing_inflight.json`
+- `flow/live-261023/img2_011_generate.json`
+- `flow/live-261023/img2_012_listing_after.json`
+- `flow/live-261023/img2_013_credits_after.json`
+- `flow/live-261023/img2_014_download_0.json`
+- `flow/live-261023/img2_download_later.json`
+- `flow/live-261023/img6_generate_refused.json`
+- `flow/live-261023/img6_token.json`
+- `flow/live-261023/img8_004_token.json`
+- `flow/live-261023/img8_005_written_ahead.json`
+- `flow/live-261023/img8_010_generate.json`
+- `flow/live-261023/img8_011_listing_after.json`
+- `flow/live-261023/img8_listing_1min_later.json`
+- `flow/live-261023/img9_generate_browser_refused.json`
+- `flow/live-261023/img9_token_browser.json`
+- `flow/live-261023/keeper_timeline.json`
+- `flow/live-261023/pagefetch_generate_refused.json`
+- `flow/live-261023/read_getmedia_as29s.json`
+- `flow/live-261023/read_getmedia_not_found.json`
+- `flow/live-261023/read_listing_bad_arg.json`
+- `flow/live-261023/read_listing_Zzl0ze.json`
+- `flow/live-261023/read_models_HTrJv.json`
+- `flow/live-261023/video_credits_before.json`
+- `flow/live-261023/video_get_boot_project.json`
+- `flow/live-261023/video_get_credits_after_video.json`
+- `flow/live-261023/video_get_download_0.json`
+- `flow/live-261023/video_get_download_1.json`
+- `flow/live-261023/video_get_getmedia.json`
+- `flow/live-261023/video_listing_before.json`
+- `flow/live-261023/video_listing_poll_first.json`
+- `flow/live-261023/video_listing_poll_last.json`
+- `flow/live-261023/video_status_poll_first.json`
+- `flow/live-261023/video_status_poll_last.json`
+- `flow/live-261023/video_status_v0.json`
+- `flow/live-261023/video_submit_try1.json`

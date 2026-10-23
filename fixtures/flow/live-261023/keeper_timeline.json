@@ -1,0 +1,248 @@
+[
+ {
+  "min": 0.0,
+  "utc": "06:35:25Z",
+  "check": 200,
+  "signed_in": true,
+  "email": true,
+  "check_set_cookie": [
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "rotate": 200,
+  "rotate_set_cookie": [
+   "__Secure-1PSIDTS",
+   "__Secure-3PSIDTS",
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "signed_in_after_rotate": true,
+  "step": "tick",
+  "at_utc": "06:35:27Z"
+ },
+ {
+  "min": 5.0,
+  "utc": "06:40:28Z",
+  "check": 200,
+  "signed_in": true,
+  "email": true,
+  "check_set_cookie": [
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "step": "tick",
+  "at_utc": "06:40:28Z"
+ },
+ {
+  "min": 10.1,
+  "utc": "06:45:30Z",
+  "check": 200,
+  "signed_in": true,
+  "email": true,
+  "check_set_cookie": [
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "rotate": 200,
+  "rotate_set_cookie": [
+   "__Secure-1PSIDTS",
+   "__Secure-3PSIDTS",
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "signed_in_after_rotate": true,
+  "step": "tick",
+  "at_utc": "06:45:31Z"
+ },
+ {
+  "min": 15.1,
+  "utc": "06:50:33Z",
+  "check": 200,
+  "signed_in": true,
+  "email": true,
+  "check_set_cookie": [
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "step": "tick",
+  "at_utc": "06:50:33Z"
+ },
+ {
+  "min": 20.1,
+  "utc": "06:55:34Z",
+  "check": 200,
+  "signed_in": true,
+  "email": true,
+  "check_set_cookie": [
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "rotate": 200,
+  "rotate_set_cookie": [
+   "__Secure-1PSIDTS",
+   "__Secure-3PSIDTS",
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "signed_in_after_rotate": true,
+  "step": "tick",
+  "at_utc": "06:55:35Z"
+ },
+ {
+  "min": 25.2,
+  "utc": "07:00:37Z",
+  "check": 200,
+  "signed_in": true,
+  "email": true,
+  "check_set_cookie": [
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "step": "tick",
+  "at_utc": "07:00:37Z"
+ },
+ {
+  "min": 30.2,
+  "utc": "07:05:38Z",
+  "check": 200,
+  "signed_in": true,
+  "email": true,
+  "check_set_cookie": [
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "rotate": 200,
+  "rotate_set_cookie": [
+   "__Secure-1PSIDTS",
+   "__Secure-3PSIDTS",
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "signed_in_after_rotate": true,
+  "step": "tick",
+  "at_utc": "07:05:40Z"
+ },
+ {
+  "min": 35.3,
+  "utc": "07:10:41Z",
+  "check": 200,
+  "signed_in": true,
+  "email": true,
+  "check_set_cookie": [
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "step": "tick",
+  "at_utc": "07:10:41Z"
+ },
+ {
+  "min": 40.3,
+  "utc": "07:15:43Z",
+  "check": 200,
+  "signed_in": true,
+  "email": true,
+  "check_set_cookie": [
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "rotate": 200,
+  "rotate_set_cookie": [
+   "__Secure-1PSIDTS",
+   "__Secure-3PSIDTS",
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "signed_in_after_rotate": true,
+  "step": "tick",
+  "at_utc": "07:15:44Z"
+ },
+ {
+  "min": 45.3,
+  "utc": "07:20:46Z",
+  "check": 200,
+  "signed_in": true,
+  "email": true,
+  "check_set_cookie": [
+   "NID",
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "step": "tick",
+  "at_utc": "07:20:46Z"
+ },
+ {
+  "min": 50.4,
+  "utc": "07:25:47Z",
+  "check": 200,
+  "signed_in": true,
+  "email": true,
+  "check_set_cookie": [
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "rotate": 200,
+  "rotate_set_cookie": [
+   "__Secure-1PSIDTS",
+   "__Secure-3PSIDTS",
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "signed_in_after_rotate": true,
+  "step": "tick",
+  "at_utc": "07:25:49Z"
+ },
+ {
+  "min": 55.4,
+  "utc": "07:30:50Z",
+  "check": 200,
+  "signed_in": true,
+  "email": true,
+  "check_set_cookie": [
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "step": "tick",
+  "at_utc": "07:30:50Z"
+ },
+ {
+  "min": 60.4,
+  "utc": "07:35:52Z",
+  "check": 200,
+  "signed_in": true,
+  "email": true,
+  "check_set_cookie": [
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "rotate": 200,
+  "rotate_set_cookie": [
+   "__Secure-1PSIDTS",
+   "__Secure-3PSIDTS",
+   "SIDCC",
+   "__Secure-1PSIDCC",
+   "__Secure-3PSIDCC"
+  ],
+  "signed_in_after_rotate": true,
+  "step": "tick",
+  "at_utc": "07:35:53Z"
+ }
+]

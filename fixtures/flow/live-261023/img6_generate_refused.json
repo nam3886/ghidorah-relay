@@ -1,0 +1,94 @@
+{
+ "rpcid": "ogiZ0b",
+ "request": {
+  "args": [
+   null,
+   [
+    [
+     null,
+     null,
+     null,
+     1373312841,
+     1,
+     "BELUGA",
+     null,
+     [
+      null,
+      22,
+      null,
+      null,
+      null,
+      "33333333-3333-4333-8333-333333333333",
+      null,
+      null,
+      null,
+      null,
+      [
+       "<token len 2638>",
+       1
+      ]
+     ],
+     [
+      [
+       [
+        "a red paper boat on a calm lake at sunrise, photo"
+       ]
+      ]
+     ],
+     null,
+     null,
+     null,
+     "0273724e-00e7-4641-91fe-b5a4d58dfd6a",
+     "95bb9cd3-d0da-4d2d-bdd6-3584e5eb0f64"
+    ]
+   ],
+   1,
+   [
+    null,
+    22,
+    null,
+    null,
+    null,
+    "33333333-3333-4333-8333-333333333333",
+    null,
+    null,
+    null,
+    null,
+    [
+     "<token len 2638>",
+     1
+    ]
+   ],
+   [
+    "49e94b9f-ff39-4945-a0d3-ef40008ad203"
+   ]
+  ]
+ },
+ "status": 200,
+ "elapsed_s": 0.43,
+ "error": null,
+ "body_raw": ")]}'\n\n208\n[[\"wrb.fr\",\"ogiZ0b\",null,null,null,[8,null,[[\"type.googleapis.com/google.rpc.ErrorInfo\",[\"PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC\"]]]],\"generic\"],[\"di\",179],[\"af.httprm\",179,\"9035067455073384667\",0]]\n25\n[[\"e\",4,null,null,244]]\n",
+ "payload": null,
+ "wrb_item_tail": [
+  null,
+  null,
+  [
+   8,
+   null,
+   [
+    [
+     "type.googleapis.com/google.rpc.ErrorInfo",
+     [
+      "PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC"
+     ]
+    ]
+   ]
+  ],
+  "generic"
+ ],
+ "er": [],
+ "inflight_listing": [],
+ "step": "generate",
+ "t": 16.11,
+ "at_utc": "06:44:15Z"
+}

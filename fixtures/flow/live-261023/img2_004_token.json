@@ -1,0 +1,10 @@
+{
+ "ytype": "RecaptchaV3TaskProxylessM1",
+ "ua_sent": false,
+ "solve_s": 13.1,
+ "token_len": 2596,
+ "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+ "step": "token",
+ "t": 15.36,
+ "at_utc": "06:41:19Z"
+}

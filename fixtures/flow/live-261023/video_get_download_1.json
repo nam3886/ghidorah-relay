@@ -1,0 +1,33 @@
+{
+ "url": "https://flow-content.google/video/1aa49420-aee6-465c-ba37-66d28b990f23?Expires=xxxxxxxxxx&KeyName=xxxxxxxxxxxxxxxxxxxxxx&Signature=xxxxxxxxxxxxxxxxxxxxxxxxxxx",
+ "status": 200,
+ "size": 8468655,
+ "magic": "000000206674797069736f6d",
+ "ctype": "video/mp4",
+ "elapsed_s": 2.13,
+ "ffprobe": {
+  "programs": [],
+  "stream_groups": [],
+  "streams": [
+   {
+    "codec_name": "h264",
+    "width": 1280,
+    "height": 720,
+    "r_frame_rate": "24/1"
+   },
+   {
+    "codec_name": "aac",
+    "sample_rate": "48000",
+    "channels": 2,
+    "r_frame_rate": "0/0"
+   }
+  ],
+  "format": {
+   "duration": "8.000000",
+   "size": "8468655"
+  }
+ },
+ "step": "download_1",
+ "t": 7.2,
+ "at_utc": "07:24:10Z"
+}
