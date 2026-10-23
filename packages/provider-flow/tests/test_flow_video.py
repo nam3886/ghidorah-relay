@@ -42,7 +42,6 @@ from relay_core.providers import (
     Done,
     Found,
     JobView,
-    NotTaken,
     Pending,
     Rest,
     Retry,
@@ -93,8 +92,11 @@ WRITE_AHEAD = ("                await ctx.report_ref(batch, {BATCH_KEY: batch, B
 MARK_FIRST = ("                    await ctx.mark_sent()          # then marked sent, immediately before the POST\n"
               "                    sent = True\n")
 ACTION = "token = await tokens(VIDEO_ACTION if video else IMAGE_ACTION,"
-VIDEO_BRANCH = ("                    if video:\n"
-                "                        return video_answer(reply, batch, batches, project, settings, now())\n")
+VIDEO_IF = ("                if video:      # a 7/8 envelope on YhhmEf was never captured: no proof nothing was made, "
+            "never re-sent\n")
+VIDEO_BRANCH = ("                if video:      # a 7/8 envelope on YhhmEf was never captured: "
+                "no proof nothing was made, never re-sent\n"
+                "                    return video_answer(reply, batch, batches, project, settings, now())\n")
 
 
 @mutation(SUBMIT_FILE, WRITE_AHEAD, "", expect="the batch id was not on the job before the send")
@@ -165,21 +167,21 @@ def test_too_few_flow_credits_or_an_unread_balance_is_a_retry_before_anything_is
     assert Balance("video", 9) in result.account
 
 
-def test_a_7_or_8_refusal_of_a_video_is_tried_again_with_a_new_token_and_batch_and_all_refused_is_not_taken():
+@mutation(SUBMIT_FILE, VIDEO_IF, "                if video and not reply.refused_before_anything:\n",
+          expect="sent twice")
+@mutation(SUBMIT_FILE, VIDEO_BRANCH, "", expect="sent twice")
+@pytest.mark.parametrize("code", (7, 8))
+def test_a_7_or_8_envelope_to_a_video_send_is_ambiguous_and_never_sent_again(code):
+    """Codex review of d92c5f4, owner's ruling 24/10: the 7/8 refusal is proven on images only. On YhhmEf it is no
+    proof that nothing was made (Flow could take the video and still answer it), so it is reconciled, never re-sent."""
     log = []
-    flow, ctx = Flow(log, rpc={"nzlxg": CREDITS, "YhhmEf": [REFUSED_7.replace("ogiZ0b", "YhhmEf"),
-                                                              REFUSED_8.replace("ogiZ0b", "YhhmEf"),
-                                                              accepted_for]}), Ctx(log)
+    envelope = (REFUSED_7 if code == 7 else REFUSED_8).replace("ogiZ0b", "YhhmEf")
+    flow, ctx = Flow(log, rpc={"nzlxg": CREDITS, "YhhmEf": [envelope, accepted_for]}), Ctx(log)
     result = run(flow, ctx)
-    posts = flow.calls("YhhmEf")
-    assert len(posts) == 3 and log.count("mark_sent") == 3 and isinstance(result.job, Accepted)
-    batches = [args_of(p)[2][0] for p in posts]
-    assert len(set(batches)) == 3 and result.job.provider_state["batches"] == batches
-    log = []
-    flow = Flow(log, rpc={"nzlxg": CREDITS, "YhhmEf": REFUSED_7.replace("ogiZ0b", "YhhmEf")})
-    result = run(flow, Ctx(log), cfg=settings(flow__captcha_max_tries=2))
-    assert len(flow.calls("YhhmEf")) == 2 and type(result.job) is NotTaken
-    assert result.job.code == errors.CAPTCHA_REFUSED
+    assert len(flow.calls("YhhmEf")) == 1 and log.count("mark_sent") == 1, "sent twice after a %d envelope" % code
+    assert isinstance(result.job, Ambiguous), "a %d envelope on a video must be Ambiguous: %s" % (code, result.job)
+    (batch, state), = ctx.refs
+    assert state["batches"] == [batch] and rested(result)
 
 
 TAKEN_MATCH = ("    if wf[3][5] != batch or wf[4] != project or media[1] != project or wf[3][4] != media[0] "

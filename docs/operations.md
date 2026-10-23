@@ -849,9 +849,13 @@ The local gates use recorded and fake dola behaviour. These wait for the live ru
 
 ## The flow provider (`relay worker --provider flow`)
 
-Google Flow (flow.google.com) over plain HTTP: no browser. Text to image only for now (`flow-nano-banana-2.1`,
-`flow-nano-banana-pro`, `flow-nano-banana-2-lite`; ratios 1:1, 9:16, 16:9 default, 3:4, 4:3; one image per job). Veo
-video is the next step (TODO in `relay_flow/catalog.py`). The protocol is in `fixtures/flow/FINDINGS.md`.
+Google Flow (flow.google.com) over plain HTTP: no browser. Text to image (`flow-nano-banana-2.1`,
+`flow-nano-banana-pro`, `flow-nano-banana-2-lite`; ratios 1:1, 9:16, 16:9 default, 3:4, 4:3; one image per job) and
+Veo 3.1 Lite text to video (`flow-veo-3.1-lite`: 8 s, 16:9 only, 10 Flow credits; built from the 23/10 capture, live
+proof pending). An input image (image to image, image to video) is refused with `input.unsupported`: the upload was
+never captured. A request whose input image cannot be read is refused earlier, at the door, with
+`input.image_unreadable` (nothing charged either way; Codex review 24/10, accepted). The protocol and what is still
+unproven are in `fixtures/flow/FINDINGS.md`.
 
 **What the worker needs.** `deploy/worker-flow.env` (from the `.example`): the usual worker variables plus
 `FLOW_YESCAPTCHA_KEY`, the YesCaptcha client key. It is a secret of this worker only: read once at start, removed from
@@ -889,6 +893,15 @@ false, the default), so an imported account is kept signed in before flow takes 
 - After any generate the account's image pool rests `flow.account_min_gap_s` (300): YesCaptcha tokens were refused at a
   fast rate and accepted after a 12-min pause, so measure the accept rate per account and per IP before raising load.
 
+**A video job.** Load the project page; read the account's Flow credits (`nzlxg`, free): fewer than the video costs
+and the job goes to another account (`pool.account_out_of_points`), nothing sent. Then ONE try: a token for
+`VIDEO_GENERATION`, a batch id written to the job, marked sent, one `YhhmEf` POST. The recorded acceptance (our batch
+echoed, the media record of our project) is accepted with the new credit balance; the job is then polled (`jwpduf`
+status 6 queued, 2 rendering, 3 done; `as29s` gives the mp4 link). Anything else, the 7/8 envelope included (proven
+on images only, so on a video it is no proof nothing was made), is `unknown`: reconciled by the batch, never re-sent,
+refunded at `flow.render_deadline_s`. A status never recorded waits, is named once in a job event, and ends at the
+deadline with its refund. Both pools rest after any generate.
+
 | Setting | Default | Meaning |
 |---|---|---|
 | `flow.claims_enabled` | false | drain mode: no new job; the checks (and so the session upkeep) go on |
@@ -900,6 +913,7 @@ false, the default), so an imported account is kept signed in before flow takes 
 | `flow.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
 | `flow.poll_interval_s` | 30 | between two reads of a found job |
 | `flow.prices`, `flow.image_budget` | 1 each, 1000 | points per image; images per account per day (not measured) |
+| `flow.prices` (video), `flow.video_budget` | 2, 50 | points per 8 s video; Flow credits per account per day |
 | `flow.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
 ## The gemini provider (`relay worker --provider gemini`)

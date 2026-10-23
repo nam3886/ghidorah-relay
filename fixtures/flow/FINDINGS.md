@@ -112,7 +112,8 @@ to image, image to video) is refused at the door with `input.unsupported` (nothi
 | `as29s [media]` → `flow-content.google/video/<id>` mp4 at status 3 | video_get_getmedia | captured |
 | Zzl0ze lists the video by its batch | video_listing_poll_last | captured |
 | VIDEO_GENERATION token from YesCaptcha (M1, enterprise) | the 23/10 video | captured (accepted once) |
-| the 7/8 reCAPTCHA refusal on `YhhmEf` | — | **unproven**: never seen on a video; held to the exact image refusal shape (NotTaken, retried with a new token and batch) |
+| the 7/8 reCAPTCHA refusal on `YhhmEf` | — | **unproven**: never seen on a video, so no proof nothing was made (Codex review 24/10, owner's ruling): a video gets ONE try and any 7/8 envelope is Ambiguous, reconciled by its batch, never re-sent |
+| an unreadable input image on a flow model | the door | refused with `input.image_unreadable` before plan() can say `input.unsupported` (accepted: still refused, nothing charged) |
 | a refused video (policy / likeness / safety) at the send or in `jwpduf` | — | **unproven**: an unseen send answer is Ambiguous (reconcile, deadline refund); an unseen status waits, is named once in an event (`odd_status`), and `render.deadline` ends it with its refund |
 | out of credits at the send (balance read was enough, then not) | — | **unproven**: Ambiguous → reconcile → deadline refund; whether Flow charges or lists it is unknown |
 | the credit refresh | `nzlxg` `[…,[refresh_s,ns]]` | **unproven**: the stamp was ~24 h after the read (rolling?), the pool day is UTC; the pre-send read is the real guard |
@@ -128,6 +129,9 @@ is used by one client at a time.
    mp4 from `as29s` downloaded through the proxy. Save the records as fixtures like `video_*`.
 3. One video whose prompt Flow should refuse (a named real person): **0 or 10 credits**. Record what `YhhmEf` and then
    `jwpduf` say, and `nzlxg` before/after: this decides a `flow.refused` Fail with refund instead of the deadline.
+   Also capture a 7/8 reCAPTCHA envelope on `YhhmEf` (a low-score token, e.g. back-to-back sends right after step 2):
+   record the reply, then `nzlxg` and `Zzl0ze` 1-2 min later. Only "no credit spent and the batch never listed",
+   seen on such a send, would let a video 7/8 become NotTaken with a re-send; until then it stays Ambiguous.
 4. In the exporting browser (worker still stopped), with DevTools recording a HAR: one image to image (free) and one
    image to video with Veo 3.1 Lite (**10 credits**). This captures `maseQ`, the image entry's refs slot and the i2v
    RPC. Then re-export the cookies and re-import the account (the browser use makes a new session generation).

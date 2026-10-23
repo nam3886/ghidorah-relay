@@ -15,10 +15,10 @@ Money rules that shape this file (each has a test and a mutation):
 - One generate POST per try. A try is followed by another only when flow's reply was the immediate reCAPTCHA refusal:
   HTTP 200, the reply item there with NO payload and an envelope code 7 or 8 (`Reply.refused_before_anything`).
   Measured on images: such a refusal comes in 0.4 s, nothing is listed, nothing is charged, so a new try with a new
-  token and a new batch id cannot make a second result. (A video refusal was never captured; the shape is the same
-  transport's and is held to the same exact match: FINDINGS "i2i/t2v/i2v build 24/10".) When the tries run out (or the
-  next would not end inside the submit bound, or a token cannot be had after a refusal) the job goes back to the queue:
-  `NotTaken`, nothing was made.
+  token and a new batch id cannot make a second image. When the tries run out (or the next would not end inside the
+  submit bound, or a token cannot be had after a refusal) the job goes back to the queue: `NotTaken`, nothing was made.
+  A video gets ONE try: a 7/8 envelope on `YhhmEf` was never captured, so it is no proof nothing was made (Flow could
+  take the video and still answer it): `Ambiguous`, reconciled by its batch, never re-sent (FINDINGS 24/10).
 - Any other reply that is not a drawn image, or for a video not the recorded acceptance (our batch echoed, a media
   record of our project), is `Ambiguous`: the job becomes unknown and the reconciler looks for its batch ids; it is
   never sent again. A refusal or an out-of-credits answer to a video send was never captured, so it is ambiguous too:
@@ -263,9 +263,9 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                 except httpx.HTTPError as e:
                     return _result(Ambiguous("the generate got no answer (%s)" % type(e).__name__),
                                    *pacing(settings, now()))
+                if video:      # a 7/8 envelope on YhhmEf was never captured: no proof nothing was made, never re-sent
+                    return video_answer(reply, batch, batches, project, settings, now())
                 if not reply.refused_before_anything:
-                    if video:
-                        return video_answer(reply, batch, batches, project, settings, now())
                     return answer(reply, batch, settings, now())
                 await ctx.event("flow refused try %d at its reCAPTCHA check (code %s); nothing was made"
                                 % (attempt + 1, reply.code), "submit", "upstream")
