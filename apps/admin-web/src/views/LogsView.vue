@@ -22,6 +22,7 @@ import "@/components/logs/lane-controls.css";
 import DataTable from "@/components/shared/DataTable.vue";
 import { IconChevronRight, IconMoreCircles, IconTrashClear } from "@/components/shared/icons";
 import ListPager from "@/components/shared/ListPager.vue";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import type { Tone } from "@/components/shared/status-tones";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
@@ -31,6 +32,7 @@ import { useLatest } from "@/composables/use-latest";
 import { type DayRow, groupByDay, isDayRow } from "@/lib/day-rows";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
+import { providerClass } from "@/lib/providers";
 import { useScopeStore } from "@/stores/scope";
 import { useUiStore } from "@/stores/ui";
 
@@ -58,23 +60,29 @@ const detailOpen = ref(false);
 // Only a server error fills its row; a client error is told by its amber code alone.
 const rowTone = (row: LogRow): Tone | undefined => (isServerError(row.status_code) ? "bad" : undefined);
 
+// Every request carries its provider's colours: a rail on the row's left edge and the tinted provider cell (phone: the
+// tinted side column). A request no provider handled (a model list, a refused call) is the relay's own, in grey.
+const providerOf = (row: LogRow): string => row.provider || "relay";
+const rowClass = ({ row }: { row: LogRow | DayRow }): string =>
+  isDayRow(row) ? "" : `logs-row ${providerClass(providerOf(row))}`;
+
 // The desktop columns; a tablet keeps five of them and folds the rest into those cells. The canvas lays the table out by
 // its content; the drawn shares of its width are set in the style block below, and these minimums are those shares of
 // the narrowest table (1080 px desktop, 600 px tablet), so every column is flexible and the shares decide.
 const columns = computed(() => {
   const tablet = isTablet.value;
   return [
-    { key: "time", label: "Time", minWidth: tablet ? 74 : 88 },
-    { key: "status", label: "Status", minWidth: tablet ? 134 : 79, skeleton: "pill" as const },
-    { key: "route", label: "Route", minWidth: tablet ? 217 : 213, skeleton: "title" as const },
-    { key: "provider", label: "Provider", minWidth: 72 },
-    { key: "key", label: "Key", minWidth: tablet ? 69 : 82 },
-    { key: "job", label: "Job", minWidth: 258 },
+    { key: "provider", label: "Provider", minWidth: tablet ? 75 : 81, className: "col-provider" },
+    { key: "time", label: "Time", minWidth: tablet ? 65 : 88 },
+    { key: "status", label: "Status", minWidth: tablet ? 116 : 79, skeleton: "pill" as const },
+    { key: "route", label: "Route", minWidth: tablet ? 178 : 213, skeleton: "title" as const },
+    { key: "key", label: "Key", minWidth: tablet ? 60 : 82 },
+    { key: "job", label: "Job", minWidth: 250 },
     { key: "error", label: "Error code", minWidth: 164 },
     { key: "duration", label: "Duration", align: "right" as const, minWidth: tablet ? 67 : 73 },
   ];
 });
-const TABLET_COLUMNS = ["time", "status", "route", "key", "duration"];
+const TABLET_COLUMNS = ["provider", "time", "status", "route", "key", "duration"];
 // The loading skeleton, after the drawn Jobs one (B-States, loading): four columns, the time, the status pill, the route
 // with the job under it, the duration; a phone leaves the duration out, so the route keeps some room.
 const SKELETON_COLUMNS = ["time", "status", "route", "duration"];
@@ -264,6 +272,7 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
         row-clickable
         tone-fill
         :row-tone="rowTone"
+        :row-class-name="rowClass"
         :tablet-columns="TABLET_COLUMNS"
         :skeleton-columns="isPhone ? PHONE_SKELETON_COLUMNS : SKELETON_COLUMNS"
         :row-label="(r: LogRow) => `Open request ${r.id}`"
@@ -294,9 +303,11 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
             <span v-else class="l-nojob">no job</span>
           </template>
         </template>
-        <template #cell-provider="{ row }"
-          ><span class="l-muted">{{ row.provider || "—" }}</span></template
-        >
+        <template #cell-provider="{ row }">
+          <span class="l-pcell"
+            ><ProviderTile :provider="providerOf(row)" /><span class="l-pname">{{ providerOf(row) }}</span></span
+          >
+        </template>
         <template #cell-key="{ row }"
           ><span class="l-key">{{ logKey(row) }}</span></template
         >
@@ -337,8 +348,12 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
           </button>
         </template>
 
-        <!-- the phone list: four short lines per request -->
+        <!-- the phone list: the provider's side column, then four short lines per request -->
         <template #row="{ row }">
+          <div class="p-req__side">
+            <ProviderTile :provider="providerOf(row)" />
+            <small class="p-req__pname">{{ providerOf(row) }}</small>
+          </div>
           <div class="p-req">
             <div class="p-req__line">
               <StatusChip :status="row.status_code" class="l-pill" />
@@ -422,24 +437,25 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
 /* The canvas lays the table out by its content (the browser's auto layout); at 1440 the columns come to these widths
    of the 1302 px table: 106.3, 95.2, 256.8, 87.1, 99.4, 311.5, 197.5, 88.2 and 60 (the 48 px details column plus its
    12 px padding); at 768 to these of the 718 px table: 88.3, 160.1, 259.3, 82.8, 79.6 and 48. Element Plus lays out
-   fixed columns, so each takes the same share of the table's width. */
+   fixed columns, so each takes the same share of the table's width. The provider column (the redesign) comes first:
+   7.5 % on a desktop (its old 6.7 and 0.8 from Job; Key takes 2 more from Job), 12.5 % on a tablet (from Route, Status, Time and Key). */
 .logs-table:not(.is-tablet) :deep(col:nth-child(1)) {
-  width: 8.1644%;
+  width: 7.5%;
 }
 .logs-table:not(.is-tablet) :deep(col:nth-child(2)) {
-  width: 7.3118%;
+  width: 8.1644%;
 }
 .logs-table:not(.is-tablet) :deep(col:nth-child(3)) {
-  width: 19.7235%;
+  width: 7.3118%;
 }
 .logs-table:not(.is-tablet) :deep(col:nth-child(4)) {
-  width: 6.6897%;
+  width: 19.7235%;
 }
 .logs-table:not(.is-tablet) :deep(col:nth-child(5)) {
-  width: 7.6344%;
+  width: 9.6344%;
 }
 .logs-table:not(.is-tablet) :deep(col:nth-child(6)) {
-  width: 23.9247%;
+  width: 21.1144%;
 }
 .logs-table:not(.is-tablet) :deep(col:nth-child(7)) {
   width: 15.169%;
@@ -451,21 +467,24 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
   width: 4.6083%;
 }
 .logs-table.is-tablet :deep(col:nth-child(1)) {
-  width: 12.2981%;
+  width: 12.5%;
 }
 .logs-table.is-tablet :deep(col:nth-child(2)) {
-  width: 22.2981%;
+  width: 10.7981%;
 }
 .logs-table.is-tablet :deep(col:nth-child(3)) {
-  width: 36.1142%;
+  width: 19.2981%;
 }
 .logs-table.is-tablet :deep(col:nth-child(4)) {
-  width: 11.532%;
+  width: 29.6142%;
 }
 .logs-table.is-tablet :deep(col:nth-child(5)) {
-  width: 11.0864%;
+  width: 10.018%;
 }
 .logs-table.is-tablet :deep(col:nth-child(6)) {
+  width: 11.0864%;
+}
+.logs-table.is-tablet :deep(col:nth-child(7)) {
   width: 6.6852%;
 }
 /* a row is as high as its content: the first cell holds it at 49 (the canvas's `height: 48px` on the first td plus its
@@ -507,9 +526,10 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
 .logs-table :deep(.data-table__skeleton.is-drawn th:nth-child(3)) {
   width: auto;
 }
+/* a key label wraps (anywhere, as a long one has no space) rather than being cut by its cell */
 .l-key {
   font-size: 13px;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .is-tablet .l-key {
   line-height: 24px;
@@ -536,9 +556,24 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
 .l-pill {
   font-variant-numeric: tabular-nums;
 }
-.l-muted {
-  font-size: 13px;
-  color: var(--rl-muted);
+/* the provider: a rail in its tone on the row's left edge and its tinted cell with the tile and the name; the cell
+   keeps its tint on hover and on a 5xx row */
+.logs-table :deep(.el-table tr.logs-row > td.el-table__cell:first-child) {
+  box-shadow: inset 4px 0 0 var(--pc);
+}
+.logs-table :deep(.el-table tr.logs-row > td.el-table__cell.col-provider) {
+  background: var(--ps);
+}
+.l-pcell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.l-pname {
+  color: var(--pi);
+  font-size: 12px;
+  font-weight: 600;
 }
 .l-job-cell {
   padding: 6px 0;
@@ -676,7 +711,33 @@ html.dark .is-tablet .l-job-link:hover {
 
 /* phone: the day header is 12/16 (the Jobs one 12/20), a row is raised on hover */
 .logs-card :deep(.data-table__main) {
-  padding: 12px 16px !important;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 12px 16px 12px 0 !important;
+}
+/* the provider's side column: its rail, its tint, the tile and the name, as high as the row */
+.p-req__side {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+  width: 44px;
+  margin: -12px 0;
+  padding-top: 14px;
+  background: var(--ps);
+  box-shadow: inset 4px 0 0 var(--pc);
+}
+.p-req__pname {
+  max-width: 40px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--pi);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 12px;
 }
 .logs-card :deep(.data-table__day .data-table__day-label) {
   line-height: 16px;
@@ -686,6 +747,7 @@ html.dark .is-tablet .l-job-link:hover {
 }
 .p-req {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 6px;
   min-width: 0;

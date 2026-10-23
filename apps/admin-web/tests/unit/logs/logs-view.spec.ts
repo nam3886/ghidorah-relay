@@ -740,11 +740,12 @@ describe("the tablet", () => {
       total: 2,
     });
 
-  it("keeps five columns, folds the error code under the pill and the job under the route, and writes the unit", async () => {
+  it("keeps six columns, the provider first, folds the error code under the pill and the job under the route, and writes the unit", async () => {
     showAt(768);
     rich();
     const { w } = await open();
     expect(w.findAll("thead th").map((h) => h.text())).toEqual([
+      "Provider",
       "Time",
       "Status",
       "Route",
@@ -793,6 +794,29 @@ describe("the tablet", () => {
     expect(confirm.confirmDialog).toHaveBeenCalledWith(expect.objectContaining({ confirmText: "Clear logs" }));
     expect(logs.clearLogs).not.toHaveBeenCalled();
     expect(w.find('[role="menu"]').exists()).toBe(false);
+  });
+});
+
+describe("the provider of a request", () => {
+  beforeEach(() => {
+    list.mockResolvedValue({ items: [row({ id: "a" }), row({ id: "b", provider: null })], total: 2 });
+  });
+
+  it("is the first column: a tile and the name in a tinted cell, the row railed; none is the relay, grey", async () => {
+    const { w } = await open();
+    expect(w.findAll("thead th")[0]!.text()).toBe("Provider");
+    const [vibes, relay] = w.findAll("tbody tr:not(.is-day)");
+    expect(vibes!.classes()).toEqual(expect.arrayContaining(["logs-row", "p-vibes"]));
+    expect(vibes!.find("td.col-provider").text()).toBe("Vvibes");
+    expect(relay!.classes()).toContain("p-other");
+    expect(relay!.find("td.col-provider").text()).toBe("Rrelay");
+  });
+
+  it("a phone row has the provider's side column", async () => {
+    showAt(390);
+    const { w } = await open();
+    expect(w.findAll(".p-req__side").map((s) => s.text())).toEqual(["Vvibes", "Rrelay"]);
+    expect(w.findAll(".data-table__item")[1]!.classes()).toContain("p-other");
   });
 });
 
