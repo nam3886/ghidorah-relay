@@ -1,4 +1,4 @@
-"""Every module-level numeric constant of the core and of the provider pure modules (dola, meta, vibes, flow) is
+"""Every module-level numeric constant of the core and of the provider pure modules (dola, meta, vibes, flow, gemini) is
 either on the Fixed limits card or excused here with a reason. "Numeric" is an int, a float, a timedelta, or a
 non-empty tuple, list, set or dict of them; "module-level" is an UPPER_CASE name assigned at the top of a module. A
 literal default of a parameter, a class attribute and a private name are not seen, so such a limit must be given a
@@ -14,12 +14,14 @@ from pathlib import Path
 import relay_core
 import relay_dola
 import relay_flow
+import relay_gemini
 import relay_meta
 import relay_vibes
 from relay_core.limits import CORE
 from relay_core.testing.mutation import mutation
 from relay_dola.spec import SPEC as DOLA
 from relay_flow.spec import SPEC as FLOW
+from relay_gemini.spec import SPEC as GEMINI
 from relay_meta.spec import SPEC as META
 from relay_vibes.spec import SPEC as VIBES
 
@@ -77,13 +79,22 @@ NOT_SHOWN = {
              "relay_vibes.constants.MAX_ATTEMPTS", "relay_vibes.constants.SUSPECT_THRESHOLD",
              "relay_vibes.constants.PROMPT_MAX_CHARS", "relay_flow.constants.PROXY_REST_S",
              "relay_flow.constants.CHECK_INTERVAL_S", "relay_flow.constants.MAX_ATTEMPTS",
-             "relay_flow.constants.SUSPECT_THRESHOLD", "relay_flow.constants.PROMPT_MAX_CHARS"),
+             "relay_flow.constants.SUSPECT_THRESHOLD", "relay_flow.constants.PROMPT_MAX_CHARS",
+             "relay_gemini.constants.PROXY_REST_S", "relay_gemini.constants.CHECK_INTERVAL_S",
+             "relay_gemini.constants.MAX_ATTEMPTS", "relay_gemini.constants.SUSPECT_THRESHOLD",
+             "relay_gemini.constants.PROMPT_MAX_CHARS"),
     **excuse("the catalog a customer reads from GET /v1/models",
              "relay_dola.catalog.DURATIONS_BY_MODEL", "relay_dola.catalog.VALID_DURATIONS"),
     **excuse("the default of the provider's prices setting, which the page already shows",
              "relay_dola.catalog.DEFAULT_PRICES", "relay_meta.catalog.DEFAULT_PRICES",
-             "relay_vibes.catalog.DEFAULT_PRICES", "relay_flow.catalog.DEFAULT_PRICES"),
+             "relay_vibes.catalog.DEFAULT_PRICES", "relay_flow.catalog.DEFAULT_PRICES",
+             "relay_gemini.catalog.DEFAULT_PRICES"),
     **excuse("an upstream protocol code (flow's aspect ratio numbers), not a bound", "relay_flow.catalog.ASPECTS"),
+    **excuse("an upstream protocol code (gemini's tool and ratio option ids, the web app's capability list), not a "
+             "bound", "relay_gemini.catalog.RATIO_IDS", "relay_gemini.constants.IMAGE_TOOL",
+             "relay_gemini.constants.CAPABILITIES"),
+    **excuse("the page size of gemini's own chat list (the web app's), not ours to change",
+             "relay_gemini.constants.LIST_PAGE"),
     **excuse("a unit size used to print a value", "limits.MIB", "limits.KIB", "cgroup.GIB", "cgroup.MIB",
              "cgroup.KIB"),
     **excuse("a time unit: the length of one hour bucket of the dashboard's day", "admin.routes_stats.HOUR_MS"),
@@ -120,7 +131,7 @@ def scanned_modules():
     for info in pkgutil.walk_packages(relay_core.__path__, "relay_core."):
         if not info.name.startswith("relay_core.testing"):
             yield info.name.removeprefix("relay_core."), importlib.import_module(info.name)
-    for provider in (relay_dola, relay_meta, relay_vibes, relay_flow):
+    for provider in (relay_dola, relay_meta, relay_vibes, relay_flow, relay_gemini):
         yield from ((m.__name__, m) for m in map(importlib.import_module, (
             "%s.%s" % (provider.__name__, i.name) for i in pkgutil.iter_modules(provider.__path__)
             if not i.ispkg and i.name != "e2e")))
@@ -136,7 +147,8 @@ def numeric_constants() -> dict[str, object]:
 
 
 def listed() -> dict[str, object]:
-    return {f.name: f.value for f in (*CORE, *DOLA.limits, *META.limits, *VIBES.limits, *FLOW.limits)}
+    return {f.name: f.value for f in (*CORE, *DOLA.limits, *META.limits, *VIBES.limits, *FLOW.limits,
+                                             *GEMINI.limits)}
 
 
 @mutation(LIMITS, MAX_INFLIGHT_ROW, "", expect="jobs.engine.MAX_INFLIGHT")

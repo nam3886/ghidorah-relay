@@ -108,7 +108,7 @@ pull fails.
 
 - Every compose command needs `GIT_SHA` (and, for postgres and minio, their two passwords) in the environment or in
   `deploy/.env`: compose interpolates the services of inactive profiles too. `export GIT_SHA=$(git rev-parse --short HEAD)`.
-- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta`, `flow` = the provider workers. A bare `docker compose up`
+- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta`, `flow`, `gemini` = the provider workers. A bare `docker compose up`
   starts only Postgres and MinIO. `docker compose --profile app --profile dola up -d` starts the api and the dola
   worker; enabling a provider later changes no file.
 - Every service has its own env file (`deploy/<service>.env`, gitignored), copied from `deploy/<service>.env.example`
@@ -522,7 +522,7 @@ fails when any other page or `/ui/` file carries the looser one.
 
 ## The worker (`relay worker --provider X`)
 
-One process per provider (`dola`, `vibes`, `meta`, `flow`; the compose services `worker-<provider>`). It loads
+One process per provider (`dola`, `vibes`, `meta`, `flow`, `gemini`; the compose services `worker-<provider>`). It loads
 `relay_<p>.spec.SPEC` and `relay_<p>.engine.build_engine`, then runs these loops as tasks of one process:
 
 | Loop | Does |
@@ -901,6 +901,59 @@ false, the default), so an imported account is kept signed in before flow takes 
 | `flow.poll_interval_s` | 30 | between two reads of a found job |
 | `flow.prices`, `flow.image_budget` | 1 each, 1000 | points per image; images per account per day (not measured) |
 | `flow.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
+
+## The gemini provider (`relay worker --provider gemini`)
+
+Gemini web (gemini.google.com) over plain HTTP: no browser, no token service. One model, `gemini-nano-banana-2`
+(Nano Banana 2): an image from text (ratios 1:1, 9:16, 3:4, 4:3, 16:9, or none: gemini picks), or one input image edited
+as the text asks (its shape kept, no ratio). One image per job, about 30 s, a 1408x768 PNG for 16:9 with Gemini's
+visible watermark. Veo video is not sold: the only session measured is on the free plan, which refuses video (TODO in
+`relay_gemini/catalog.py`). The protocol is in `fixtures/gemini/FINDINGS.md`.
+
+**What the worker needs.** `deploy/worker-gemini.env` (from the `.example`): the usual worker variables, no secret of its
+own. Each account should have a proxy: every call to Google and every result download goes through it (owner, 23/10;
+direct only for an account with none).
+
+**Account.** Import a Cookie-Editor JSON export of gemini.google.com from a browser profile used for gemini ALONE
+(owner, 24/10: one independent Google session per provider; flow has its own). Only google.com cookies are sealed;
+`__Secure-1PSID` must be there. A profile signed in to several Google accounts sends jobs to the first (`/u/0`): check
+that it is the account meant. The first check names the account by its email. Before the import, stop anything else
+that rotates that session (the spike's keeper container `gemini-spike-keeper` on the box): two rotators end it.
+
+**Session keeping.** As flow: every run (the check every 5 min, a submit, a poll, a reconcile, a fetch) first calls
+`RotateCookies` when `gemini.rotate_interval_s` (600) has passed and writes the rotated jar back into the sealed
+credential at once (compare-and-swap, merged cookie by cookie with a concurrent renewal, the later rotation winning),
+then every cookie a page load refreshed when the run ends. The checks also run while gemini is drained
+(`gemini.claims_enabled` false, the default). A signed-out page is one spaced strike and a rest with a recheck; three
+counted strikes end the account.
+
+**An image job.** Load the page; for an edit, upload the input image (`push.clients6.google.com`, free; not taken:
+`gemini.upload_failed`, retried); write the job's request id; mark sent; ONE `StreamGenerate` POST with the image tool
+and the customer's words verbatim (a tracking code typed in the prompt was drawn into the image, so the core frame
+renders none). The answer streams until the image is drawn.
+
+- A complete answer (every line read, closed by gemini's end item) with an image is `Completed`: the image's link is
+  resolved with the session (`=d-I`, a few text hops on lh3/work.fife/lh3.google.com) and the PNG downloaded from lh3
+  through the proxy.
+- A complete answer with a final text and no image fails the job with its refund: `gemini.not_entitled` for the
+  "upgrade your subscription" answer, `gemini.refused` for any other (a refused prompt, a reached limit), the text kept.
+- Anything else (no answer, a timeout, a cut or unreadable answer, a status that is not 200, an error item, an answer
+  that promises an image with no record) is `unknown`. The reconciler reads the chat the answer named, or else the
+  chat list (`MaZiqc`, the newest 13): a chat started within 60 s before / 300 s after the send whose prompt is the job's
+  exact text is the job's (found: the poll reads it, an image is done, a plain answer fails refunded). Not found stays
+  unknown until `gemini.render_deadline_s` (900) fails the job with its refund (a cut send left no chat in the spike).
+  It is never sent again.
+- After any send the account's image pool rests `gemini.account_min_gap_s` (30).
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `gemini.claims_enabled` | false | drain mode: no new job; the checks (and so the session upkeep) go on |
+| `gemini.rotate_interval_s` | 600 | between two `RotateCookies` of one account (120-900) |
+| `gemini.account_min_gap_s` | 30 | the pool rest after a send (gemini's own rate limit not measured) |
+| `gemini.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
+| `gemini.poll_interval_s` | 30 | between two reads of a found job |
+| `gemini.prices`, `gemini.image_budget` | 1, 100 | points per image; images per account per day (not measured) |
+| `gemini.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
 ## The box runbook
 

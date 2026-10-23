@@ -12,7 +12,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[1]
 
-PROVIDER_MODULES = {"relay_dola", "relay_vibes", "relay_meta", "relay_flow"}
+PROVIDER_MODULES = {"relay_dola", "relay_vibes", "relay_meta", "relay_flow", "relay_gemini"}
 BROWSER_ONLY = {"patchright", "playwright"}
 ROUTE_CALLS = {"route", "unroute", "unroute_all", "route_from_har", "route_web_socket"}
 LAUNCH_CALLS = {"launch", "launch_persistent_context", "connect_over_cdp", "connect"}
@@ -21,10 +21,11 @@ REGISTRY_FILE = "packages/relay-core/src/relay_core/providers.py"   # the one co
 PRIVATE_KEY_VAR = "CREDENTIAL_SEAL_PRIVATE_KEY"                      # workers only; the api holds the public key
 PROVIDER_VARS = {"provider", "provider_name", "provider_id"}
 PROVIDER_NAMES = {m.removeprefix("relay_") for m in PROVIDER_MODULES}
-# Bare `"meta"` is the name of the `Output.meta` field, a dict key and an SQL parameter all over the core, so as a
-# plain literal it is allowed; it is still caught in a comparison with a provider reference, as `"meta."` and as
-# `"relay_meta"`.
-LITERAL_TOKENS = (PROVIDER_NAMES - {"meta"}) | PROVIDER_MODULES
+# Bare `"meta"` is the name of the `Output.meta` field, a dict key and an SQL parameter all over the core, and bare
+# `"gemini"` the name of the core's Gemini-compatible API door (`routes_gemini`, a request log's endpoint), so as plain
+# literals they are allowed; they are still caught in a comparison with a provider reference, as `"meta."`/`"gemini."`
+# and as `"relay_meta"`/`"relay_gemini"`.
+LITERAL_TOKENS = (PROVIDER_NAMES - {"meta", "gemini"}) | PROVIDER_MODULES
 CODE_PREFIXES = tuple(n + "." for n in PROVIDER_NAMES)
 
 
@@ -247,8 +248,8 @@ def core_provider_violations(root: Path = REPO) -> list[str]:
       `row["provider"]`, `getattr(x, "provider")`) on one side and a string literal on the other;
     - any string literal in code (docstrings excepted) that is `dola` or `vibes`, a provider package
       (`relay_dola`), or starts with a provider name and a dot (`dola.likeness_refused`, `meta.x`). This covers
-      `spec.name == "dola"`, `{"dola": 1}[p]`, `p.startswith("dola")` and provider error codes. A bare `"meta"`
-      is not flagged by this rule (see LITERAL_TOKENS); rule A still catches `provider == "meta"`.
+      `spec.name == "dola"`, `{"dola": 1}[p]`, `p.startswith("dola")` and provider error codes. A bare `"meta"` or
+      `"gemini"` is not flagged by this rule (see LITERAL_TOKENS); rule A still catches `provider == "meta"`.
     Provider package imports are import_violations' job.
     """
     bad = []

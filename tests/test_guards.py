@@ -192,14 +192,18 @@ def test_core_guard_allows_provider_names_in_docstrings(tmp_path):
     assert guards.core_provider_violations(tmp_path) == []
 
 
-@mutation(G, 'LITERAL_TOKENS = (PROVIDER_NAMES - {"meta"})', "LITERAL_TOKENS = (PROVIDER_NAMES)",
+@mutation(G, 'LITERAL_TOKENS = (PROVIDER_NAMES - {"meta", "gemini"})', 'LITERAL_TOKENS = (PROVIDER_NAMES - {"gemini"})',
            expect="names a provider: 'meta'")
-def test_core_guard_allows_the_output_meta_field_name(tmp_path):
+@mutation(G, 'LITERAL_TOKENS = (PROVIDER_NAMES - {"meta", "gemini"})', 'LITERAL_TOKENS = (PROVIDER_NAMES - {"meta"})',
+           expect="names a provider: 'gemini'")
+def test_core_guard_allows_the_output_meta_field_name_and_the_gemini_api_door(tmp_path):
     plant(tmp_path, CORE + "fetcher.py",
           "def rows(o, row, cur):\n"
           "    cur.execute('UPDATE t SET meta = %(meta)s', {'meta': o.meta})\n"
-          "    return {'ref': o.ref, 'meta': o.meta, 'seen': row['meta']}\n")
+          "    return {'ref': o.ref, 'meta': o.meta, 'seen': row['meta'], 'door': row['endpoint'] == 'gemini'}\n")
     assert guards.core_provider_violations(tmp_path) == []
+    plant(tmp_path, CORE + "codes.py", "CODES = ['gemini.refused']\n")
+    assert any("'gemini.refused'" in v for v in guards.core_provider_violations(tmp_path)), "a gemini code passed"
 
 
 @mutation(G, 'or rel.as_posix() == REGISTRY_FILE', "or False", expect="names a provider: 'relay_dola'")
@@ -251,7 +255,8 @@ def run_py(code: str) -> str:
 # The browser packages count by their top-level name: relay_browser.session or a patchright submodule is the same fact.
 LOADED = ("import sys; print(sorted({m if m.endswith(('.engine', '.e2e')) else m.split('.')[0] "
           "for m in sys.modules if m.split('.')[0] in "
-          "('relay_browser', 'patchright', 'relay_dola', 'relay_vibes', 'relay_meta', 'relay_flow') and "
+          "('relay_browser', 'patchright', 'relay_dola', 'relay_vibes', 'relay_meta', 'relay_flow', "
+          "'relay_gemini') and "
           "(m.endswith('.engine') or m.endswith('.e2e') or m.split('.')[0] in ('relay_browser', 'patchright'))}))")
 
 
@@ -273,6 +278,7 @@ def test_serve_loads_no_engine_and_no_browser():
 def test_http_worker_loads_no_browser():
     assert loaded_after("worker", "--provider", "vibes") == "['relay_vibes.engine']"
     assert loaded_after("worker", "--provider", "flow") == "['relay_flow.engine']"
+    assert loaded_after("worker", "--provider", "gemini") == "['relay_gemini.engine']"
 
 
 @mutation(M, 'return importlib.import_module(PROVIDERS[provider] + ".engine")',
