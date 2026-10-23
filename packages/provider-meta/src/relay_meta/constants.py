@@ -41,9 +41,11 @@ MEDIA_HOSTS = ("fbcdn.net",)                             # the final images: `sc
 PREVIEW_MARK = "/t58.90637-"                             # the low-res preview that comes first; never delivered
 # meta has no ratio control: it reads the ratio from the words. Typed after the final text as ", <ratio>", these came
 # out at exactly that ratio from text alone (FINDINGS.md, 23/10); any other ratio, or a job from an input image, is
-# refused rather than drawn at meta's own size. A video asked ", 16:9" or ", 1:1" came back with no video at all.
+# refused rather than drawn at meta's own size. A video asked ", 16:9" or ", 1:1" came back with no video at all, but
+# a plain text-to-video comes out 1280x720: a 16:9 video is sent with no tail (`RATIO_UNTYPED`).
 RATIO_TAIL = ", %s"
-RATIOS = {"image": ("16:9", "9:16", "1:1", "4:3", "3:4"), "video": ("9:16",)}
+RATIOS = {"image": ("16:9", "9:16", "1:1", "4:3", "3:4"), "video": ("16:9", "9:16")}
+RATIO_UNTYPED = (("video", "16:9"),)
 
 # ---- timing ---------------------------------------------------------------------------------------------------
 PAGE_LOAD_TIMEOUT_S = 60        # the first load of the app over a proxy

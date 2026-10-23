@@ -124,10 +124,11 @@ engine adds "Create a short video: " before it).
 
 - Every image ratio came out exact, in both written forms; a video honoured 9:16. A video asked 16:9 or 1:1 got an
   answer without a video (its text was not read); a plain text→video already comes out 1280×720.
-- So the plan takes `ratio` from text alone: images 16:9, 9:16, 1:1, 4:3, 3:4; videos 9:16. The engine types
-  `, <ratio>` after the final text. Any other ratio, and a ratio with an input image (an edit keeps the input's size,
-  an animation follows its orientation), is `input.bad_ratio`; a prompt naming another ratio is
-  `input.prompt_ratio_conflict`.
+- So the plan takes `ratio` from text alone: images 16:9, 9:16, 1:1, 4:3, 3:4; videos 9:16 and
+  16:9. The engine types `, <ratio>` after the final text, except for a 16:9 video, sent with no tail since a plain
+  text→video already comes out 1280×720 (ruled 23/10). Any other ratio, and a ratio with an input image (an edit
+  keeps the input's size, an animation follows its orientation), is `input.bad_ratio`; a prompt naming another ratio
+  is `input.prompt_ratio_conflict`.
 - 12 launches of one account within ~75 min ended in the browser checkpoint (the first one came on the 4th launch in
   15 min after a killed run): pace live runs.
 

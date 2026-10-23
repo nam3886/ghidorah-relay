@@ -197,7 +197,7 @@ def test_a_duration_is_refused_rather_than_ignored():
 @mutation(SPEC_FILE, '            params={"kind": kind, **({"ratio": req.ratio} if req.ratio else {})}, completion',
           '            params={"kind": kind}, completion', expect="the ratio reaches the engine")
 def test_a_proven_ratio_from_text_alone_reaches_the_engine_and_keeps_the_model_name():
-    for model, ratios in (("meta-image", ("16:9", "9:16", "1:1", "4:3", "3:4")), ("meta-video", ("9:16",))):
+    for model, ratios in (("meta-image", ("16:9", "9:16", "1:1", "4:3", "3:4")), ("meta-video", ("16:9", "9:16"))):
         for ratio in ratios:
             p = plan(model, "a red fox in the snow, %s" % ratio, ratio=ratio)    # the same ratio in the prompt is fine
             assert (p.model, p.params.get("ratio")) == (model, ratio), "the ratio reaches the engine: %r" % (p.params,)
@@ -210,7 +210,7 @@ def test_a_proven_ratio_from_text_alone_reaches_the_engine_and_keeps_the_model_n
 @mutation(SPEC_FILE, "            if req.images or req.ratio not in RATIOS[kind]:", "            if req.images:",
           expect="a ratio meta never honoured")
 def test_an_unproven_ratio_or_a_ratio_with_an_input_image_is_refused():
-    for model, ratio in (("meta-video", "16:9"), ("meta-video", "1:1"), ("meta-image", "21:9"), ("meta-image", "2:3")):
+    for model, ratio in (("meta-video", "1:1"), ("meta-video", "4:3"),("meta-image", "21:9"), ("meta-image", "2:3")):
         try:
             planned = plan(model, ratio=ratio)
         except InputError as e:

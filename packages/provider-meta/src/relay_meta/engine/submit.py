@@ -57,6 +57,7 @@ from relay_meta.constants import (
     PAGE_LOAD_TIMEOUT_S,
     PREVIEW_MARK,
     RATIO_TAIL,
+    RATIO_UNTYPED,
     RESULT_ALT,
     SEL_ASSISTANT,
     SEL_ATTACHED,
@@ -302,7 +303,8 @@ class _Run:
         self.ctx, self.job, self.settings, self.deps = ctx, job, settings, deps
         # One line: the composer sends on Enter, so a newline would send part of the prompt.
         self.text = " ".join(((VIDEO_FROM_TEXT if self.operation == "text_to_video" else "") + job.sent_text).split())
-        if job.params.get("ratio"):     # meta reads the ratio from the words, after the final (framed) text
+        # meta reads the ratio from the words, after the final (framed) text; a 16:9 video is its own default
+        if job.params.get("ratio") and (self.kind, job.params["ratio"]) not in RATIO_UNTYPED:
             self.text += RATIO_TAIL % job.params["ratio"]
         self.started = deps.clock()
         self.signed_in = False      # the sign-in read said signed in: the strike count is cleared

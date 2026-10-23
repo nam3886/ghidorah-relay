@@ -593,7 +593,8 @@ def test_only_a_video_from_text_alone_gets_the_video_wording():
         assert page.typed == {EDITABLE: "%s [7100]" % cap.prompt}, op
 
 
-@mutation(SUBMIT_FILE, '        if job.params.get("ratio"):', "        if False:", expect="the ratio is typed")
+@mutation(SUBMIT_FILE, '        if job.params.get("ratio") and (self.kind, job.params["ratio"]) not in RATIO_UNTYPED:',
+          "        if False:", expect="the ratio is typed")
 @mutation(CONSTANTS, 'RATIO_TAIL = ", %s"', 'RATIO_TAIL = " %s"', expect="the ratio is typed")
 def test_a_ratio_is_typed_after_the_final_text_and_only_when_the_job_has_one():
     for folder, kind, op, head in (("image-1-acc1", "image", "text_to_image", ""),
@@ -604,6 +605,19 @@ def test_a_ratio_is_typed_after_the_final_text_and_only_when_the_job_has_one():
         assert page.typed == {EDITABLE: "%s%s [7100], 9:16" % (head, cap.prompt)}, "the ratio is typed: %r" % (
             page.typed,)
         assert isinstance(result.job, Completed) and page.log.count("Enter") == 1, op
+
+
+@mutation(SUBMIT_FILE, '        if job.params.get("ratio") and (self.kind, job.params["ratio"]) not in RATIO_UNTYPED:',
+          '        if job.params.get("ratio"):', expect="a 16:9 video goes with no tail")
+@mutation(CONSTANTS, 'RATIO_UNTYPED = (("video", "16:9"),)', "RATIO_UNTYPED = ()",
+          expect="a 16:9 video goes with no tail")
+def test_a_16_9_video_is_sent_with_no_tail_since_meta_draws_text_to_video_at_16_9_itself():
+    cap = capture(T2V)
+    page = Page([], cap)
+    result, _ = run(page, cap, kind="video", op="text_to_video", ratio="16:9")
+    assert page.typed == {EDITABLE: "Create a short video: %s [7100]" % cap.prompt}, (
+        "a 16:9 video goes with no tail: %r" % (page.typed,))
+    assert isinstance(result.job, Completed) and page.log.count("Enter") == 1
 
 
 def test_a_video_from_text_that_never_finishes_is_unknown_after_one_enter():
