@@ -86,6 +86,7 @@ NOT_SHOWN = {
     **excuse("an upstream protocol code (flow's aspect ratio numbers), not a bound", "relay_flow.catalog.ASPECTS"),
     **excuse("a unit size used to print a value", "limits.MIB", "limits.KIB", "cgroup.GIB", "cgroup.MIB",
              "cgroup.KIB"),
+    **excuse("a time unit: the length of one hour bucket of the dashboard's day", "admin.routes_stats.HOUR_MS"),
 }
 
 
