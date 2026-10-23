@@ -200,6 +200,7 @@ class Minter:
                 minted = await asyncio.wait_for(self._mint(account, cred, token), MINT_TIMEOUT_S)
             except MintError as e:
                 if e.cred is not None and e.cred.cookies != cred.cookies:
+                    self._stamp(e.cred, cred)
                     await write_back(ctx, sessions, e.cred)      # the page renewed the session: keep it
                 raise MintError(str(e)) from None
             except Exception as e:  # noqa: BLE001 - a browser failure of any kind is "no pair"; its text may hold a URL
@@ -207,8 +208,13 @@ class Minter:
             finally:
                 token.release()
             minted.minted_at = self.clock()
+            self._stamp(minted, cred)
             await write_back(ctx, sessions, minted)
             return sessions.current(account)
+
+    def _stamp(self, after: Cred, before: Cred) -> None:
+        """A session cookie the browser changed is a refresh made now; an unchanged one keeps its stamp."""
+        after.refreshed_at = self.clock() if after.session() != before.session() else before.refreshed_at
 
 
 async def drop_pair(ctx, sessions: Sessions, minted_at: float) -> None:

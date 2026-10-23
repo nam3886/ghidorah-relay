@@ -2,13 +2,17 @@
 
 Accepted input: a JSON list of cookies, `{"url": ..., "cookies": [...]}`, or the sealed shape itself. Only cookies of
 qwen.ai and its subdomains are kept; `refresh_token` must be there. Everything becomes ONE sealed shape:
-`{"cookies": [{name, value, domain, path}], "bx": {header: value} | null, "minted_at": <unix s>}`.
+`{"cookies": [{name, value, domain, path}], "bx": {header: value} | null, "minted_at": <unix s>,
+"refreshed_at": <unix s>}`.
 
 `bx` is what a browser mint kept from the page's own (aborted) generate: `bx-ua`, `bx-umidtoken`, `bx-v`, the
 browser's user agent and client hints and the web app version (`BX_HEADERS`). A mint also replaces `cookies` with the
 browser's cookies of the same session, since the pair is sent with them (FINDINGS 2). `minted_at` is when that mint
 was made (0: never); a pair found stale is dropped by writing `bx: null` with the same `minted_at`. The engine writes
-the shape back through `RunCtx.renew_credential`. No function here logs or raises with a cookie or header value.
+the shape back through `RunCtx.renew_credential`. `refreshed_at` is when the session cookie (`refresh_token`) last
+changed (0: as imported). Two writes that raced are merged field by field (`merge_creds`): the pair, the minted
+cookies and `minted_at` by the newer mint, the session cookie by the newer `refreshed_at`, so a mint never undoes a
+rotated session token nor a rotation a newer pair. No function here logs or raises with a cookie or header value.
 """
 
 import json
@@ -39,13 +43,18 @@ class Cred:
     cookies: dict[tuple[str, str, str], str]
     bx: dict[str, str] | None = None
     minted_at: float = 0.0
+    refreshed_at: float = 0.0
 
     def blob(self) -> bytes:
         return dump([{"name": n, "value": v, "domain": d, "path": p} for (d, p, n), v in self.cookies.items()],
-                    self.bx, self.minted_at)
+                    self.bx, self.minted_at, self.refreshed_at)
 
     def copy(self) -> "Cred":
-        return Cred(dict(self.cookies), dict(self.bx) if self.bx else None, self.minted_at)
+        return Cred(dict(self.cookies), dict(self.bx) if self.bx else None, self.minted_at, self.refreshed_at)
+
+    def session(self) -> dict[tuple[str, str, str], str]:
+        """The session cookie(s): every `refresh_token` entry."""
+        return {k: v for k, v in self.cookies.items() if k[2] == REFRESH_COOKIE}
 
 
 def on_qwen(domain: str) -> bool:
@@ -89,27 +98,29 @@ def _bx(raw: object) -> dict[str, str] | None:
     return out
 
 
-def _parts(data: object) -> tuple[list[dict], dict | None, float]:
-    default, bx, minted_at = None, None, 0.0
+def _stamp(value: object) -> float:
+    return float(value) if isinstance(value, int | float) and not isinstance(value, bool) and value >= 0 else 0.0
+
+
+def _parts(data: object) -> tuple[list[dict], dict | None, float, float]:
+    default, bx, minted_at, refreshed_at = None, None, 0.0, 0.0
     if isinstance(data, Mapping):
         url = data.get("url")
         default = (urlsplit(url).hostname or None) if isinstance(url, str) else None
-        stamp = data.get("minted_at")
-        if isinstance(stamp, int | float) and not isinstance(stamp, bool) and stamp >= 0:
-            minted_at = float(stamp)
+        minted_at, refreshed_at = _stamp(data.get("minted_at")), _stamp(data.get("refreshed_at"))
         bx = _bx(data.get("bx"))
         data = data.get("cookies")
     if not isinstance(data, list) or not data:
         raise ValueError("no cookies")
     if len(data) > MAX_COOKIES:
         raise ValueError("too many cookies")
-    return [_cookie(c, default) for c in data], bx, minted_at
+    return [_cookie(c, default) for c in data], bx, minted_at, refreshed_at
 
 
-def dump(cookies: list[dict], bx: Mapping[str, str] | None, minted_at: float) -> bytes:
+def dump(cookies: list[dict], bx: Mapping[str, str] | None, minted_at: float, refreshed_at: float = 0.0) -> bytes:
     """The sealed shape."""
-    return json.dumps({"cookies": cookies, "bx": dict(bx) if bx else None, "minted_at": minted_at},
-                      separators=(",", ":"), ensure_ascii=False).encode()
+    return json.dumps({"cookies": cookies, "bx": dict(bx) if bx else None, "minted_at": minted_at,
+                       "refreshed_at": refreshed_at}, separators=(",", ":"), ensure_ascii=False).encode()
 
 
 def parse_credential(raw: bytes) -> ParsedCredential:
@@ -121,25 +132,36 @@ def parse_credential(raw: bytes) -> ParsedCredential:
         data = json.loads(text)
     except ValueError:
         raise ValueError("the credential is not a JSON cookie export") from None
-    cookies, bx, minted_at = _parts(data)
+    cookies, bx, minted_at, refreshed_at = _parts(data)
     cookies = [c for c in cookies if on_qwen(c["domain"])]
     if not any(c["name"] == REFRESH_COOKIE and c["value"] for c in cookies):
         raise ValueError("the credential has no qwen.ai %s cookie" % REFRESH_COOKIE)
     # the hint is stored in plain text: no part of the session goes into it (the first check names the account)
-    return ParsedCredential(blob=dump(cookies, bx, minted_at), hint="qwen")
+    return ParsedCredential(blob=dump(cookies, bx, minted_at, refreshed_at), hint="qwen")
 
 
 def cred_of(blob: bytes) -> Cred:
     """The `Cred` of a sealed credential. ValueError (no value in it) when the blob is not one."""
     try:
-        cookies, bx, minted_at = _parts(json.loads(blob))
+        cookies, bx, minted_at, refreshed_at = _parts(json.loads(blob))
     except (ValueError, TypeError):
         raise ValueError("the sealed qwen credential is not readable") from None
-    return Cred({(c["domain"], c["path"], c["name"]): c["value"] for c in cookies}, bx, minted_at)
+    return Cred({(c["domain"], c["path"], c["name"]): c["value"] for c in cookies}, bx, minted_at, refreshed_at)
+
+
+def merge_creds(other: Cred, mine: Cred) -> Cred:
+    """Two credentials of one session, field by field: the pair, its cookies and `minted_at` from the newer mint; the
+    session cookie and `refreshed_at` from the newer refresh. A tie goes to `mine` (a drop of the same pair, the same
+    write)."""
+    minted = mine if mine.minted_at >= other.minted_at else other
+    refreshed = mine if mine.refreshed_at >= other.refreshed_at else other
+    out = minted.copy()
+    others = {k: v for k, v in out.cookies.items() if k[2] != REFRESH_COOKIE}
+    out.cookies = others | (refreshed.session() or minted.session())
+    out.refreshed_at = refreshed.refreshed_at
+    return out
 
 
 def merge_blobs(stored: bytes, mine: bytes) -> bytes:
-    """`RunCtx.renew_credential`'s merge: another run wrote first. The credential of the newer mint wins whole; at the
-    same mint, mine (a drop of that pair, or the same write) wins."""
-    a, b = cred_of(stored), cred_of(mine)
-    return (b if b.minted_at >= a.minted_at else a).blob()
+    """`RunCtx.renew_credential`'s merge: another run wrote first (`merge_creds`)."""
+    return merge_creds(cred_of(stored), cred_of(mine)).blob()

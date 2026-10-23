@@ -120,11 +120,12 @@ def test_runs_that_need_a_token_together_make_one_upstream_refresh():
 def test_a_rotation_that_lost_its_write_refreshes_next_with_what_was_stored():
     log = []
     q, ctx, sessions = Qwen(log, refresh=rotated("rt-mine")), Ctx(log), H.Sessions()
-    other = cred_of(minted_blob(NOW - 30))           # another run wrote first: a newer mint, its own session token
-    other.cookies[(".qwen.ai", "/", "refresh_token")] = "rt-stored"
-    ctx.stored_as = lambda mine: cred_of(merge_blobs(other.blob(), mine)).blob()
+    other = cred_of(minted_blob(NOW - 30))           # another run wrote first: a newer mint and a later refresh
+    other.cookies[(".qwen.ai", "/", "refresh_token")], other.refreshed_at = "rt-stored", NOW + 1
+    ctx.stored_as = lambda mine: merge_blobs(other.blob(), mine)
     asyncio.run(tokens_of(sessions, ctx, q, lambda: NOW))
-    assert sessions.current(ctx.account).cookies[(".qwen.ai", "/", "refresh_token")] == "rt-stored", \
+    held = sessions.current(ctx.account)
+    assert (held.cookies[(".qwen.ai", "/", "refresh_token")], held.minted_at) == ("rt-stored", NOW - 30), \
         "the process kept a stale session token"
     later = Qwen(log, refresh=rotated("rt-stored"))
     asyncio.run(tokens_of(sessions, ctx, later, lambda: NOW + TOKEN_REUSE_S))

@@ -175,8 +175,8 @@ def test_the_sealed_shape_round_trips_with_its_pair_and_only_clean_kept_headers(
         assert BX_UA not in str(e.value)
 
 
-@mutation(CREDENTIAL_FILE, "    return (b if b.minted_at >= a.minted_at else a).blob()",
-          "    return (b if b.minted_at > a.minted_at else a).blob()", expect="the drop of the same pair")
+@mutation(CREDENTIAL_FILE, "    minted = mine if mine.minted_at >= other.minted_at else other\n",
+          "    minted = mine if mine.minted_at > other.minted_at else other\n", expect="the drop of the same pair")
 def test_a_renewal_merge_keeps_the_newer_mint_and_a_drop_of_the_same_pair_wins():
     old, new = minted_blob(100.0), minted_blob(200.0)
     assert cred.cred_of(cred.merge_blobs(new, old)).minted_at == 200.0, "an older mint undid a newer one"
@@ -184,3 +184,27 @@ def test_a_renewal_merge_keeps_the_newer_mint_and_a_drop_of_the_same_pair_wins()
     dropped = cred.cred_of(old)
     dropped.bx = None
     assert cred.cred_of(cred.merge_blobs(old, dropped.blob())).bx is None, "the drop of the same pair was lost"
+
+
+SESSION = (".qwen.ai", "/", "refresh_token")
+
+
+@mutation(CREDENTIAL_FILE, "    refreshed = mine if mine.refreshed_at >= other.refreshed_at else other\n",
+          "    refreshed = minted\n", expect="a newer mint dropped the rotated session token")
+def test_a_renewal_merge_keeps_the_pair_by_its_mint_and_the_session_token_by_its_refresh():
+    rotated = cred.cred_of(minted_blob(100.0))           # an older pair, but a session token rotated at 150
+    rotated.cookies[SESSION], rotated.refreshed_at = "rt-rotated", 150.0
+    newer_mint = cred.cred_of(minted_blob(200.0))        # a newer pair, the session token as imported
+    for stored, mine in ((newer_mint, rotated), (rotated, newer_mint)):
+        merged = cred.cred_of(cred.merge_blobs(stored.blob(), mine.blob()))
+        assert merged.cookies[SESSION] == "rt-rotated", "a newer mint dropped the rotated session token"
+        assert (merged.minted_at, merged.refreshed_at, merged.bx) == (200.0, 150.0, PAIR)
+        assert ("chat.qwen.ai", "/", "cna") in merged.cookies
+
+
+@mutation(SPEC_FILE, '        return "render.deadline"\n', '        return "qwen.http_error"\n',
+          expect="refunded at the deadline")
+def test_an_unknown_job_is_ended_at_its_render_deadline_with_a_refund_and_never_sent_again():
+    cause = SPEC.deadline_cause("", {"chat": "c1"})
+    rule = errors.RULES[cause]
+    assert cause == "render.deadline" and rule.terminal and rule.refund, "not refunded at the deadline: %s" % cause

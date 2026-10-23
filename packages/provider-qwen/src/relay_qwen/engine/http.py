@@ -37,7 +37,7 @@ from relay_qwen.constants import (
     USER_AGENT,
     WEB_VERSION,
 )
-from relay_qwen.credential import Cred, cred_of, merge_blobs
+from relay_qwen.credential import Cred, cred_of, merge_blobs, merge_creds
 
 log = logging.getLogger(__name__)
 
@@ -87,12 +87,12 @@ class Sessions:
         return self._refreshing.setdefault(account_id, asyncio.Lock())
 
     def current(self, account) -> Cred:
-        """The newer of the credential this process holds and the one the account was loaded with. A held one of
-        another credential generation (the account was re-imported) is dropped."""
+        """The credential this process holds merged with the one the account was loaded with, field by field
+        (`merge_creds`). A held one of another credential generation (the account was re-imported) is dropped."""
         loaded = cred_of(account.credential)
         held = self._creds.get(account.id)
-        if held is not None and held[0] == account.credential_gen and held[1].minted_at >= loaded.minted_at:
-            return held[1].copy()
+        if held is not None and held[0] == account.credential_gen:
+            return merge_creds(loaded, held[1])
         return loaded
 
     def keep(self, account, cred: Cred) -> None:
@@ -229,10 +229,9 @@ class Site:
             return
         rotated = self.cred.copy()
         rotated.cookies[key] = new
+        rotated.refreshed_at = self.clock()
         await write_back(self.ctx, self.sessions, rotated)
         self.adopt(self.sessions.current(self.account))
-        # ponytail: a mint written meanwhile wins the merge whole (newer minted_at); a rotation would then be lost.
-        # Merge the session cookie separately if qwen is ever seen rotating.
 
     async def token(self) -> str:
         """The access token: the one this process holds while it is young enough, else a refresh. Runs that need one
