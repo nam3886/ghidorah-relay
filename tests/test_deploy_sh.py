@@ -18,6 +18,7 @@ from guards import REPO
 DEPLOY = "scripts/deploy.sh"
 MIG = "packages/relay-core/src/relay_core/db/migrations"
 SECRET = "S3CRET-VALUE-0042"
+SNAPSHOT = "relay-claims-snapshot"
 ENV_FILES = (".env", "api.env", "migrate.env", "worker-dola.env", "worker-meta.env", "worker-flow.env")
 
 SSH_STUB = """\
@@ -211,8 +212,8 @@ def test_help_describes_both_scripts():
 # ---- a deploy that goes through -------------------------------------------------------------------------------------
 @mutation(DEPLOY, '    step drain "$p"\n    step idle "$p"\n    step worker "$p"\n',
           '    step worker "$p"\n    step drain "$p"\n    step idle "$p"\n', expect="the worker restarted before")
-@mutation(DEPLOY, '    step worker "$p"\n    if [ "$was" = on ]; then\n      step resume "$p"\n',
-          '    if [ "$was" = on ]; then\n      step resume "$p"\n    fi\n    step worker "$p"\n    if false; then\n',
+@mutation(DEPLOY, '    step worker "$p"\n    step restore "$p" "$was"\n',
+          '    step restore "$p" "$was"\n    step worker "$p"\n',
           expect="resumed before the worker restarted")
 @mutation(DEPLOY, '[ "$n" = 0 ] && { echo', 'true && { echo', expect="the worker restarted before")
 @mutation(DEPLOY, 'step build ${workers[@]+"${workers[@]}"}\nif',
@@ -606,10 +607,10 @@ def claims(box: Box, provider: str) -> str | None:
     return path.read_text(encoding="utf-8").strip() if path.exists() else None
 
 
-@mutation(DEPLOY, '    if [ "$was" = on ]; then\n      step resume', '    if true; then\n      step resume',
+@mutation(DEPLOY, '  if [ "$2" = on ]; then resume "$1"; fi', '  resume "$1"',
           expect="a provider that was off came back on")
 @mutation(DEPLOY, '[[ "$claims " != *" $p=on "* ]] || was=on', "true", expect="a provider that claimed was not resumed")
-@mutation(DEPLOY, '  case "${v:-$2}" in', '  case "${v:-true}" in', expect="a provider that was off came back on")
+@mutation(DEPLOY, '      v=${raw:-${a#*=}}', '      v=${raw:-true}', expect="a provider that was off came back on")
 @mutation(DEPLOY, '  case "$1" in dola) echo true ;;', '  case "$1" in dola) echo false ;;',
           expect="a provider that claimed was not resumed")
 def test_after_a_deploy_and_a_rollback_each_provider_claims_exactly_when_it_claimed_before(tmp_path):
@@ -632,7 +633,7 @@ def test_after_a_deploy_and_a_rollback_each_provider_claims_exactly_when_it_clai
         assert -1 < max(reads) < box.index("provider drain dola"), "a drain came before every state was read"
 
 
-@mutation(DEPLOY, '    *) fail "$1.claims_enabled reads', '    *) echo off; true "$1.claims_enabled reads',
+@mutation(DEPLOY, '        || fail "$p.claims_enabled reads', '        || v=false; true "$p.claims_enabled reads',
           expect="an unreadable claims state went on")
 def test_an_unreadable_claims_state_stops_before_any_provider_is_drained(tmp_path):
     for i, read in enumerate(("fail", "odd")):
@@ -641,6 +642,7 @@ def test_an_unreadable_claims_state_stops_before_any_provider_is_drained(tmp_pat
         assert run.returncode != 0 and "stopped at 'claims'" in run.stderr and "no worker was drained" in run.stderr \
             and box.index("provider") == -1 and box.index("up -d --no-deps worker-") == -1, \
             "an unreadable claims state went on (%s): %d %r %s" % (read, run.returncode, run.stderr, box.docker())
+        assert not (box.home / SNAPSHOT).exists(), "a snapshot was kept of an unreadable state"
     assert "reads [1], not true or false" in run.stderr
 
 
@@ -653,3 +655,55 @@ def test_the_claims_defaults_of_deploy_sh_are_those_of_the_provider_specs():
         got = subprocess.run(["bash", "-c", script], capture_output=True, text=True).stdout.strip()
         assert got == str(default).lower(), "deploy.sh says %s for %s.claims_enabled, the spec %s" % (
             got, name, default)
+
+
+def snapshot(box: Box) -> list[str] | None:
+    path = box.home / SNAPSHOT
+    return sorted(path.read_text(encoding="utf-8").split()) if path.exists() else None
+
+
+def failed_after_the_drain(tmp_path: Path) -> Box:
+    """A deploy of B with dola (on: no row, default) and flow (off) whose new dola worker writes no heartbeat: dola is
+    left drained (a stored false) and the snapshot keeps what each provider was."""
+    box = Box(tmp_path)
+    box.images("relay-worker-flow:" + box.a)
+    run = box.deploy(box.b, "--workers", "dola,flow", STUB_HB="0")
+    assert run.returncode == 1 and "heartbeat" in run.stderr and claims(box, "dola") == "false", run.stderr
+    assert "relay-claims-snapshot keeps that dola claimed" in run.stderr, run.stderr
+    assert snapshot(box) == ["dola=true", "flow=false"], "no snapshot was kept before the drain"
+    box.log.unlink()
+    return box
+
+
+@mutation(DEPLOY, 'v=$(sed -n "s/^$p=//p" "$tmp" | tail -1)', 'v=""', expect="a provider that was on stayed drained")
+@mutation(DEPLOY, '  sync "$tmp" && mv -f "$tmp" "$SNAP"', '  rm -f "$tmp"', expect="no snapshot was kept")
+@mutation(DEPLOY, 'else rm -f "$tmp" "$SNAP"; fi', 'else mv -f "$tmp" "$SNAP"; fi',
+          expect="the snapshot outlived the restore")
+def test_a_deploy_again_after_one_that_stopped_after_its_drain_restores_what_each_provider_was(tmp_path):
+    box = failed_after_the_drain(tmp_path)
+    run = box.deploy(box.c, "--allow-migrate", "--workers", "dola,flow")
+    assert run.returncode == 0, run.stderr
+    assert claims(box, "dola") == "true" and box.index("key = 'dola.claims_enabled'") == -1 \
+        and "dola: claims_enabled=true, from ~/relay-claims-snapshot" in run.stdout, \
+        "a provider that was on stayed drained: %s %s" % (run.stdout, box.docker())
+    assert claims(box, "flow") == "false" and box.index("provider resume flow") == -1, \
+        "a provider that was off came back on: %s" % box.docker()
+    assert not (box.home / SNAPSHOT).exists(), "the snapshot outlived the restore"
+
+
+@mutation(DEPLOY, '  grep -v "^$1=" "$SNAP" > "$tmp" || true', '  : > "$tmp"',
+          expect="a provider left the snapshot before its restore")
+def test_a_rollback_after_a_deploy_that_stopped_after_its_drain_restores_each_provider_as_it_comes(tmp_path):
+    box = failed_after_the_drain(tmp_path)
+    run = box.rollback("--workers", "flow")             # flow only: dola stays in the snapshot
+    assert run.returncode == 0 and box.deployed() == box.a, run.stderr
+    assert claims(box, "flow") == "false" and box.index("provider resume") == -1, \
+        "a provider that was off came back on: %s" % box.docker()
+    assert snapshot(box) == ["dola=true"], "a provider left the snapshot before its restore: %s" % snapshot(box)
+    box.log.unlink()
+    run = box.rollback(box.b, "--workers", "dola,flow")
+    assert run.returncode == 0 and box.deployed() == box.b, run.stderr
+    assert claims(box, "dola") == "true" and claims(box, "flow") == "false" \
+        and box.index("provider resume flow") == -1, \
+        "a provider left the snapshot before its restore, or flow came back on: %s" % box.docker()
+    assert not (box.home / SNAPSHOT).exists()

@@ -15,11 +15,14 @@
 #   6. Rotate: ~/relay-deploy -> ~/relay-deploy-<old>, ~/relay-deploy-new -> ~/relay-deploy. Only the newest previous
 #      tree is kept: older relay-deploy-<sha> trees go, with their relay-* images unless a running container uses one.
 #   7. `up -d --no-deps api`, then /healthz 200 on 127.0.0.1:8100 and the admin bundle served.
-#   8. First the claims state of every --workers provider (its stored <p>.claims_enabled, or the default of its spec
-#      when none is stored; an unreadable one stops the run before any worker is drained). Then per worker:
-#      `relay provider drain <p>` twice (the second prints "(no change)"), wait until no job of <p> is submitting,
-#      `up -d --no-deps worker-<p>`, a fresh heartbeat of the new process (and Chrome's version for a browser
-#      worker), and `relay provider resume <p>` only when <p> claimed before: a provider that was off stays off.
+#   8. First the claims state of every --workers provider: its stored <p>.claims_enabled, or the default of its spec
+#      when none is stored (an unreadable one stops the run before any worker is drained), kept on the box in
+#      ~/relay-claims-snapshot before any drain. A provider still in that snapshot (a deploy or rollback that stopped
+#      after its drain) takes its state from there, not from the database. Then per worker: `relay provider drain
+#      <p>` twice (the second prints "(no change)"), wait until no job of <p> is submitting, `up -d --no-deps
+#      worker-<p>`, a fresh heartbeat of the new process (and Chrome's version for a browser worker), `relay provider
+#      resume <p>` only when <p> claimed before (a provider that was off stays off), and <p> leaves the snapshot,
+#      which goes once it is empty.
 # Rollback takes the same lock and makes the same box checks as step 2, swaps ~/relay-deploy with ~/relay-deploy-<sha>
 # (the only kept tree when no sha is given), then step 7 and, with --workers, step 8. It refuses when that tree or its images are missing, and when the migrations of the two
 # trees differ unless --allow-schema-mismatch (the database stays at the newer schema: the older code must cope with
@@ -184,14 +187,34 @@ worker() {   # worker P: restart it, then a heartbeat of the new process and Chr
 
 resume() { compose "$D" --profile app exec -T api relay provider resume "$1"; }
 
-claims() {   # claims P DEFAULT: on or off, as P claims now: its stored P.claims_enabled, DEFAULT when none is stored
-  local v
-  v=$(sql "SELECT value FROM settings_kv WHERE key = '"'"'$1.claims_enabled'"'"'")
-  case "${v:-$2}" in
-    true) echo on ;;
-    false) echo off ;;
-    *) fail "$1.claims_enabled reads [$v], not true or false: its claims state is unknown" ;;
-  esac
+SNAP=$HOME/relay-claims-snapshot
+claims() {   # claims P=DEFAULT...: "state P on|off" per provider, from the snapshot of a run that stopped after its
+             # drain, else its stored P.claims_enabled (DEFAULT when none is stored); the snapshot then holds them all
+  local a p v raw tmp=$SNAP.tmp
+  if [ -e "$SNAP" ]; then cp "$SNAP" "$tmp"; else : > "$tmp"; fi
+  for a in "$@"; do
+    p=${a%%=*}
+    v=$(sed -n "s/^$p=//p" "$tmp" | tail -1)
+    if [ -n "$v" ]; then
+      echo "$p: claims_enabled=$v, from ~/relay-claims-snapshot (a deploy or rollback stopped after its drain)"
+    else
+      raw=$(sql "SELECT value FROM settings_kv WHERE key = '"'"'$p.claims_enabled'"'"'")
+      v=${raw:-${a#*=}}
+      [ "$v" = true ] || [ "$v" = false ] \
+        || fail "$p.claims_enabled reads [$raw], not true or false: its claims state is unknown"
+      echo "$p=$v" >> "$tmp"
+      echo "$p: claims_enabled=$v"
+    fi
+    case "$v" in true) echo "state $p on" ;; false) echo "state $p off" ;; *) fail "~/relay-claims-snapshot holds $p=$v" ;; esac
+  done
+  sync "$tmp" && mv -f "$tmp" "$SNAP"
+}
+
+restore() {   # restore P on|off: P claims again when it did before, then P leaves the snapshot (gone once empty)
+  local tmp=$SNAP.tmp
+  if [ "$2" = on ]; then resume "$1"; fi
+  grep -v "^$1=" "$SNAP" > "$tmp" || true
+  if [ -s "$tmp" ]; then sync "$tmp"; mv -f "$tmp" "$SNAP"; else rm -f "$tmp" "$SNAP"; fi
 }
 '
 remote() { { printf '%s\n' "$REMOTE_LIB"; printf '%q ' "$@"; echo; } | ssh_box "bash -s"; }
@@ -262,25 +285,27 @@ default_claims() {   # the default <p>.claims_enabled of each provider's spec (t
 }
 
 restart_workers() {   # a provider claims after its restart exactly when it claimed before: off stays off
-  local p c was claims=""
+  local p out was claims args=()
+  [ -n "${workers[*]+x}" ] || return 0
   hint="the api is live; no worker was drained"
-  for p in ${workers[@]+"${workers[@]}"}; do
-    c=$(step claims "$p" "$(default_claims "$p")")
-    claims+=" $p=$c"
-  done
+  for p in "${workers[@]}"; do args+=("$p=$(default_claims "$p")"); done
+  out=$(step claims "${args[@]}")
+  sed "/^state /d; s/^/$NAME: /" <<< "$out"
+  claims=" $(sed -n 's/^state \([a-z]*\) \([a-z]*\)$/\1=\2/p' <<< "$out" | tr '\n' ' ')"
   for p in ${workers[@]+"${workers[@]}"}; do
     was=off
     [[ "$claims " != *" $p=on "* ]] || was=on
     if [ "$was" = on ]; then
-      hint="the api is live; worker-$p may be drained: fix it, then \`relay provider resume $p\` (or scripts/rollback.sh)"
+      hint="the api is live; worker-$p may be drained: fix it, then \`relay provider resume $p\` (or scripts/rollback.sh, or \
+deploy again: ~/relay-claims-snapshot keeps that $p claimed)"
     else
       hint="the api is live; worker-$p may be down; $p was off before and stays drained: fix it (or scripts/rollback.sh)"
     fi
     step drain "$p"
     step idle "$p"
     step worker "$p"
+    step restore "$p" "$was"
     if [ "$was" = on ]; then
-      step resume "$p"
       echo "$NAME: $p claims again (it claimed before)"
     else
       echo "$NAME: $p left drained (it was off before)"
