@@ -675,7 +675,7 @@ def failed_after_the_drain(tmp_path: Path) -> Box:
     return box
 
 
-@mutation(DEPLOY, 'snap=$(sed -n "s/^$p=//p" "$SNAP" 2> /dev/null | tail -1 || true)', 'snap=""',
+@mutation(DEPLOY, 'snap=$(sed -n "s/^$p=//p" "$SNAP") || fail', 'snap=$(true) || fail',
           expect="a provider that was on stayed drained")
 @mutation(DEPLOY, 'echo "$1=true"; } > "$SNAP.tmp"', '} > "$SNAP.tmp"', expect="the snapshot is not what claimed")
 @mutation(DEPLOY, 'else rm -f "$1" "$SNAP"; fi', 'else mv -f "$1" "$SNAP"; fi',
@@ -691,7 +691,7 @@ def test_a_deploy_again_after_one_that_stopped_after_its_drain_restores_what_eac
     assert not (box.home / SNAPSHOT).exists(), "the snapshot outlived the restore"
 
 
-@mutation(DEPLOY, '  grep -v "^$1=" "$SNAP" > "$SNAP.tmp" || true', '  : > "$SNAP.tmp"',
+@mutation(DEPLOY, '  snap_without "$1" > "$SNAP.tmp"', '  : > "$SNAP.tmp"',
           expect="a provider left the snapshot before its restore")
 def test_a_rollback_after_a_deploy_that_stopped_after_its_drain_restores_each_provider_as_it_comes(tmp_path):
     box = failed_after_the_drain(tmp_path)

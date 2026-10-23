@@ -196,7 +196,11 @@ claims() {   # claims P=DEFAULT...: "state P on|off" per provider: on when its s
     v=${raw:-${a#*=}}
     [ "$v" = true ] || [ "$v" = false ] \
       || fail "$p.claims_enabled reads [$raw], not true or false: its claims state is unknown"
-    snap=$(sed -n "s/^$p=//p" "$SNAP" 2> /dev/null | tail -1 || true)
+    snap=
+    if [ -e "$SNAP" ]; then   # only a missing snapshot reads as empty; an unreadable one stops the run
+      snap=$(sed -n "s/^$p=//p" "$SNAP") || fail "~/relay-claims-snapshot exists but cannot be read"
+      snap=$(echo "$snap" | tail -n 1)   # the last line wins
+    fi
     if [ "$snap" = true ] && [ "$v" = false ]; then   # a snapshot line only ever turns a provider back on
       v=true
       echo "box: WARNING: $p.claims_enabled is false, but ~/relay-claims-snapshot holds [$p=$snap], left by a deploy \
@@ -207,20 +211,27 @@ or rollback that stopped between draining $p and resuming it: $p will be resumed
   done
 }
 
+snap_without() {   # snap_without P: every snapshot line but the one of P (nothing when there is no snapshot)
+  [ -e "$SNAP" ] || return 0
+  local rc=0
+  grep -v "^$1=" "$SNAP" || rc=$?
+  [ "$rc" -le 1 ] || fail "~/relay-claims-snapshot exists but cannot be read"   # grep: 1 = no other line
+}
+
 snap_write() {   # snap_write FILE: FILE replaces the snapshot durably; an empty FILE removes it
   if [ -s "$1" ]; then sync "$1"; mv -f "$1" "$SNAP"; else rm -f "$1" "$SNAP"; fi
   sync "$HOME"                                         # the rename or the removal itself
 }
 
 mark() {   # mark P: right before P (which claims) is drained: the snapshot keeps P=true until P is resumed
-  { grep -sv "^$1=" "$SNAP" || true; echo "$1=true"; } > "$SNAP.tmp"
+  { snap_without "$1"; echo "$1=true"; } > "$SNAP.tmp"
   snap_write "$SNAP.tmp"
 }
 
 restore() {   # restore P on|off: P claims again when it did before, then P leaves the snapshot
   if [ "$2" = on ]; then resume "$1"; fi
   [ -e "$SNAP" ] || return 0
-  grep -v "^$1=" "$SNAP" > "$SNAP.tmp" || true
+  snap_without "$1" > "$SNAP.tmp"
   snap_write "$SNAP.tmp"
 }
 '
