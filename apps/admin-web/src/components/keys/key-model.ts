@@ -2,6 +2,7 @@
 import { ApiError } from "@/api/client";
 import type { ApiKey, KeyBody, Wallet, WalletBody, WalletMode } from "@/api/keys";
 import type { CatalogModel } from "@/api/shell";
+import { byProviderOrder } from "@/lib/providers";
 
 // `closed`, `unlimited (N used)`, or `day used/limit · total used/limit` for the limits that are set.
 export function walletText(w: Wallet): string {
@@ -76,6 +77,39 @@ export function loadFailedText(err: unknown, said: string): string {
       : said.charAt(0).toLowerCase() + said.slice(1);
   return `Could not load the API keys: ${why}.`;
 }
+
+// A key's allowed models as the list draws them: one group per provider, in the drawn provider order, each model
+// marked paused when the admin switched it off (`disabled` in the catalog). A name the catalog does not know (a model
+// that left it) goes in a last group with no provider. A model is found by its id or one of its aliases. `only`: the
+// groups of that provider alone ("" for every one). A key that allows any model ("*") has no groups.
+export interface ModelGroup {
+  provider: string;
+  models: Array<{ id: string; paused: boolean }>;
+}
+export function modelGroups(allowed: readonly string[], catalog: readonly CatalogModel[], only = ""): ModelGroup[] {
+  const owner = new Map<string, CatalogModel>();
+  for (const m of catalog) {
+    owner.set(m.id, m);
+    const aliases = Array.isArray(m.aliases) ? m.aliases : [];
+    for (const a of aliases) if (typeof a === "string" && !owner.has(a)) owner.set(a, m);
+  }
+  const groups = new Map<string, ModelGroup>();
+  for (const id of allowed) {
+    if (id === "*") continue;
+    const m = owner.get(id);
+    const provider = m?.owned_by ?? "";
+    if (only && provider !== only) continue;
+    const g = groups.get(provider) ?? { provider, models: [] };
+    g.models.push({ id, paused: m?.disabled === true });
+    groups.set(provider, g);
+  }
+  const named = byProviderOrder([...groups.keys()].filter(Boolean));
+  return [...named, ...(groups.has("") ? [""] : [])].map((p) => groups.get(p)!);
+}
+
+// Whether a key reaches a provider at all: any model, or one of that provider's models by id or alias.
+export const keyReaches = (k: Pick<ApiKey, "models">, provider: string, catalog: readonly CatalogModel[]): boolean =>
+  k.models.includes("*") || modelGroups(k.models, catalog, provider).length > 0;
 
 export function unfinishedText(k: Pick<ApiKey, "unfinished" | "max_unfinished_effective">): string {
   return `${k.unfinished} / ${k.max_unfinished_effective === 0 ? "unlimited" : k.max_unfinished_effective}`;

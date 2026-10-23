@@ -10,7 +10,9 @@ import {
   keyForm,
   type KeyForm,
   keyName,
+  keyReaches,
   loadFailedText,
+  modelGroups,
   relativeLabel,
   relativePercent,
   sortedWallets,
@@ -31,6 +33,39 @@ const wallet = (over: Partial<Wallet>): Wallet => ({
   used_total: 0,
   mode: "limit",
   ...over,
+});
+
+describe("modelGroups", () => {
+  const catalog = [
+    { id: "vibes-video", owned_by: "vibes", kind: "video" },
+    { id: "seedance-2.0", owned_by: "dola", kind: "video", aliases: ["seedance-2"] },
+    { id: "seedream-4.5", owned_by: "dola", kind: "image", disabled: true },
+  ];
+
+  it("groups by provider in the drawn order, finds aliases, marks paused, and puts unknown names last", () => {
+    expect(modelGroups(["vibes-video", "gone", "seedream-4.5", "seedance-2"], catalog)).toEqual([
+      {
+        provider: "dola",
+        models: [
+          { id: "seedream-4.5", paused: true },
+          { id: "seedance-2", paused: false },
+        ],
+      },
+      { provider: "vibes", models: [{ id: "vibes-video", paused: false }] },
+      { provider: "", models: [{ id: "gone", paused: false }] },
+    ]);
+  });
+
+  it("keeps one provider's group when asked, and has none for any model", () => {
+    expect(modelGroups(["vibes-video", "seedance-2.0"], catalog, "vibes").map((g) => g.provider)).toEqual(["vibes"]);
+    expect(modelGroups(["*"], catalog)).toEqual([]);
+  });
+
+  it("a key reaches a provider by any model or by one of its models", () => {
+    expect(keyReaches({ models: ["*"] }, "meta", catalog)).toBe(true);
+    expect(keyReaches({ models: ["seedance-2"] }, "dola", catalog)).toBe(true);
+    expect(keyReaches({ models: ["seedance-2"] }, "vibes", catalog)).toBe(false);
+  });
 });
 
 describe("walletText", () => {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Wallet } from "@/api/keys";
 import { computed } from "vue";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 import {
   relativeLabel,
   relativePercent,
@@ -15,6 +16,7 @@ import {
 // today, right = in total). An unlimited wallet draws the same two bars, lighter, as a share of the busiest key's use of
 // that wallet (`maxima`, from every key the page loaded); a closed wallet draws none. `compact` is the tablet form
 // (smaller value, lines may wrap). The server lists wallets by name; the page lists a provider's video wallet first.
+// Each line starts with its provider's tile (the name is spoken, not drawn).
 const props = defineProps<{ wallets: Wallet[]; compact?: boolean; maxima?: WalletMaxima }>();
 const ordered = computed(() => sortedWallets(props.wallets));
 const NONE = { day: 0, total: 0 };
@@ -25,7 +27,12 @@ const peak = (w: Wallet) => props.maxima?.get(`${w.provider}/${w.kind}`) ?? NONE
   <div class="wallets" :class="{ 'is-compact': compact }">
     <div v-for="w in ordered" :key="`${w.provider}/${w.kind}`" class="wallet" data-testid="wallet-line">
       <div class="wallet__line">
-        <span class="wallet__kind">{{ w.provider }} {{ w.kind }}</span>
+        <span class="wallet__kind"
+          ><ProviderTile :provider="w.provider" class="wallet__tile" /><span class="sr-only">{{
+            `${w.provider} `
+          }}</span
+          >{{ w.kind }}</span
+        >
         <span class="wallet__leader" aria-hidden="true" />
         <span class="wallet__value" :class="`is-${w.mode}`">{{ walletText(w) }}</span>
       </div>
@@ -76,8 +83,17 @@ const peak = (w: Wallet) => props.maxima?.get(`${w.provider}/${w.kind}`) ?? NONE
   gap: 0 8px;
 }
 .wallet__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--rl-muted);
   white-space: nowrap;
+}
+.wallet__kind .wallet__tile {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  font-size: 9px;
 }
 .wallet__leader {
   flex: 1;

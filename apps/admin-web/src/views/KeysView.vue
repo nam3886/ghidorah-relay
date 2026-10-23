@@ -4,6 +4,7 @@ import { type ApiKey, createKey, deleteKey, type KeyBody, listKeys, patchKey, se
 import type { CatalogModel } from "@/api/shell";
 import PageHeader from "@/components/layout/PageHeader.vue";
 import KeyFormDialog from "@/components/keys/KeyFormDialog.vue";
+import KeyModels from "@/components/keys/KeyModels.vue";
 import ToggleSwitch from "@/components/shared/ToggleSwitch.vue";
 import NewKeyCallout from "@/components/keys/NewKeyCallout.vue";
 import WalletLines from "@/components/keys/WalletLines.vue";
@@ -13,7 +14,9 @@ import {
   createError,
   deleteToast,
   keyName,
+  keyReaches,
   loadFailedText,
+  modelGroups,
   unfinishedText,
   walletMaxima,
 } from "@/components/keys/key-model";
@@ -31,8 +34,9 @@ import { notify } from "@/lib/notify";
 import { useAuthStore } from "@/stores/auth";
 import { useScopeStore } from "@/stores/scope";
 
-// API keys. The list answers whole (a deployment has a handful of keys), so there is no pager. Keys ignore the global
-// provider filter: a key spans providers.
+// API keys. The list answers whole (a deployment has a handful of keys), so there is no pager. The provider strip
+// filters it here, in the page: a provider shows the keys that may use any of its models, and only its models and its
+// wallets in each row.
 const scope = useScopeStore();
 const auth = useAuthStore();
 const { busy, run } = useBusy();
@@ -82,6 +86,20 @@ onBeforeUnmount(() => {
   forgetSignOut();
   latest.invalidate();
 });
+
+// The catalog names each model's provider and whether it is paused (one read, shared with the form).
+scope.loadCatalog().catch((err) => notify.error(errorText(err)));
+const known = computed(() => scope.models ?? []);
+const shown = computed(() =>
+  scope.provider ? items.value.filter((k) => keyReaches(k, scope.provider, known.value)) : items.value,
+);
+const walletsOf = (k: ApiKey) => (scope.provider ? k.wallets.filter((w) => w.provider === scope.provider) : k.wallets);
+// a model on the page is paused: the note under the list says what that means
+const anyPaused = computed(() =>
+  shown.value.some((k) =>
+    modelGroups(k.models, known.value, scope.provider).some((g) => g.models.some((m) => m.paused)),
+  ),
+);
 
 const columns = computed(() => [
   { key: "label", label: "Label", minWidth: isTablet.value ? 130 : 150 },
@@ -212,7 +230,6 @@ const maxima = computed(() => walletMaxima(items.value));
 // the switch says what a click does
 const switchTitle = (enabled: boolean): string => (enabled ? "Disable key" : "Enable key");
 const rowClass = ({ row }: { row: ApiKey }): string => (row.id === createdId.value ? "key-new" : "");
-const modelsText = (k: ApiKey): string => k.models.join(" · ");
 // an empty list and a failed one draw their card with a heading, as B-States does (a list with keys has none)
 const emptyList = computed(() => !loading.value && !error.value && items.value.length === 0);
 </script>
@@ -253,10 +270,10 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
         class="keys-table"
         :actions-width="isTablet ? 128 : 141"
         :columns="columns"
-        :rows="items"
+        :rows="shown"
         :loading="loading"
         :error="error"
-        empty-text="No API keys yet."
+        :empty-text="items.length ? `No key may use a ${scope.provider} model.` : 'No API keys yet.'"
         :tablet-columns="TABLET_COLUMNS"
         :row-class-name="rowClass"
         @retry="load"
@@ -274,9 +291,13 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
             </div>
           </template>
           <div v-else class="k-label k-label--prefix kla-mono">{{ row.prefix }}</div>
-          <span v-if="isTablet" class="k-models-line kla-mono">{{
-            row.models.includes("*") ? "any model" : row.models.join(", ")
-          }}</span>
+          <KeyModels
+            v-if="isTablet"
+            class="k-models-line"
+            :models="row.models"
+            :catalog="known"
+            :only="scope.provider"
+          />
         </template>
         <!-- Colour is for exceptions: an enabled key is the normal case and reads as plain text. -->
         <template #cell-status="{ row }">
@@ -284,13 +305,10 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
           <span v-else class="k-enabled">enabled</span>
         </template>
         <template #cell-models="{ row }">
-          <span v-if="row.models.includes('*')" class="k-tag">any model</span>
-          <div v-else class="k-models kla-mono">
-            <span v-for="m in row.models" :key="m">{{ m }}</span>
-          </div>
+          <KeyModels :models="row.models" :catalog="known" :only="scope.provider" />
         </template>
         <template #cell-wallets="{ row }">
-          <WalletLines v-if="row.wallets.length" :wallets="row.wallets" :compact="isTablet" :maxima="maxima" />
+          <WalletLines v-if="walletsOf(row).length" :wallets="walletsOf(row)" :compact="isTablet" :maxima="maxima" />
           <template v-else>-</template>
         </template>
         <template #cell-unfinished="{ row }">
@@ -359,10 +377,9 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
             </div>
             <div class="p-key__models">
               <span class="p-key__models-word">Models</span>
-              <span v-if="row.models.includes('*')" class="k-tag k-tag--phone">any model</span>
-              <span v-else class="kla-mono p-key__models-list">{{ modelsText(row) }}</span>
+              <KeyModels class="p-key__models-list" :models="row.models" :catalog="known" :only="scope.provider" />
             </div>
-            <WalletLines v-if="row.wallets.length" :wallets="row.wallets" :maxima="maxima" />
+            <WalletLines v-if="walletsOf(row).length" :wallets="walletsOf(row)" :maxima="maxima" />
             <div class="p-key__foot">
               <span class="p-key__facts"
                 >Unfinished <span class="kla-mono p-key__fg">{{ unfinishedText(row) }}</span> ·
@@ -396,6 +413,10 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
       </DataTable>
       <p v-if="items.length" class="keys-note">
         A key that has jobs is only disabled when deleted. Wallet bars: left = today, right = total.
+        <template v-if="anyPaused"
+          >A model marked (paused) is switched off in Settings: the key keeps it, and a call for it is refused
+          <span class="kla-mono">model.disabled</span> until it is back on.</template
+        >
       </p>
     </section>
 
@@ -525,31 +546,11 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
   color: var(--rl-faint);
 }
 .k-models-line {
-  display: block;
-  font-size: 11px;
-  line-height: 16px;
-  color: var(--rl-muted);
-  word-break: break-word;
+  margin-top: 4px;
 }
 .k-enabled {
   color: var(--rl-muted);
   line-height: 24px;
-}
-.k-tag {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 8px;
-  background: var(--rl-neutral-bg);
-  color: var(--rl-neutral);
-  font-size: 12px;
-  line-height: 16px;
-}
-.k-models {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 12px;
-  line-height: 18px;
 }
 /* the counts and dates take tabular figures, as the canvas's `num` cells do */
 .k-num {
@@ -701,13 +702,8 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
   font-size: 12px;
   color: var(--rl-muted);
 }
-.k-tag--phone {
-  padding: 2px 8px;
-}
 .p-key__models-list {
-  font-size: 12px;
-  line-height: 18px;
-  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .p-key__foot {
   display: flex;

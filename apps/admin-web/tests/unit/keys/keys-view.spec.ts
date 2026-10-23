@@ -8,6 +8,7 @@ import * as shell from "@/api/shell";
 import * as confirm from "@/components/shared/confirm-dialog";
 import { notify } from "@/lib/notify";
 import { useAuthStore } from "@/stores/auth";
+import { useScopeStore } from "@/stores/scope";
 import KeysView from "@/views/KeysView.vue";
 
 vi.mock("@/api/keys", () => ({
@@ -189,7 +190,12 @@ describe("the list", () => {
     expect(row).toContain("dola image");
     expect(row).toContain("closed");
     expect(row).toContain("2 / unlimited");
-    expect(w.findAll("tbody tr")[0]!.find(".k-models").text()).toBe("m1m2");
+    expect(
+      w
+        .findAll("tbody tr")[0]!
+        .findAll(".k-mg")
+        .map((g) => g.text()),
+    ).toEqual(["Ddola: m2", "Vvibes: m1"]);
     expect(w.find("img").exists()).toBe(false);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
@@ -448,6 +454,42 @@ const limitWallet = (over: Partial<keys.Wallet> = {}): keys.Wallet => ({
   ...over,
 });
 
+describe("the provider strip", () => {
+  beforeEach(() => {
+    vi.mocked(shell.getModels).mockResolvedValue({
+      data: [
+        { id: "m1", owned_by: "vibes", kind: "video" },
+        { id: "m2", owned_by: "dola", kind: "image" },
+        { id: "m3", owned_by: "dola", kind: "video", disabled: true },
+      ],
+    });
+    list.mockResolvedValue({
+      items: [
+        key({ id: "k1", label: "any", models: ["*"] }),
+        key({
+          id: "k2",
+          label: "dola only",
+          models: ["m2", "m3"],
+          wallets: [limitWallet(), limitWallet({ provider: "vibes", kind: "video" })],
+        }),
+        key({ id: "k3", label: "vibes only", models: ["m1"] }),
+      ],
+    });
+  });
+
+  it("a provider shows the keys that may use its models, only its models and its wallets; paused is greyed", async () => {
+    const w = await open();
+    useScopeStore().provider = "dola";
+    await settle();
+    const rows = w.findAll("tbody tr");
+    expect(rows.map((r) => r.find(".k-label").text())).toEqual(["any", "dola only"]);
+    expect(rows[1]!.findAll(".k-mg").map((g) => g.text())).toEqual(["Ddola: m2, m3 (paused)"]);
+    expect(rows[1]!.find(".k-mg__paused").text()).toBe("m3 (paused)");
+    expect(rows[1]!.findAll('[data-testid="wallet-line"] .wallet__kind').map((k) => k.text())).toEqual(["Ddola video"]);
+    expect(w.text()).toContain("A model marked (paused) is switched off in Settings");
+  });
+});
+
 describe("the page as the design draws it", () => {
   it("has the title, the sentence, New key, and no Refresh, no Updated line, no pager", async () => {
     const w = await open();
@@ -497,8 +539,8 @@ describe("the page as the design draws it", () => {
     });
     const w = await open();
     expect(w.findAll('tbody [data-testid="wallet-line"] .wallet__kind').map((k) => k.text())).toEqual([
-      "dola video",
-      "dola image",
+      "Ddola video",
+      "Ddola image",
     ]);
   });
 
@@ -1090,7 +1132,7 @@ describe("the tablet and the phone", () => {
       "Actions",
     ]);
     const [shop, any] = w.findAll("tbody tr");
-    expect(shop!.find(".k-models-line").text()).toBe("m1, m2");
+    expect(shop!.findAll(".k-models-line .k-mg").map((g) => g.text())).toEqual(["Ddola: m2", "Vvibes: m1"]);
     expect(any!.find(".k-models-line").text()).toBe("any model");
     expect(shop!.text()).toContain("1 / 5 · 61 jobs");
     expect(shop!.find(".k-created").exists()).toBe(true);
@@ -1106,7 +1148,7 @@ describe("the tablet and the phone", () => {
     expect(w.find("table").exists()).toBe(false);
     const [shop, any] = w.findAll(".p-key");
     expect(shop!.text()).toContain("Models");
-    expect(shop!.find(".p-key__models-list").text()).toBe("m1 · m2");
+    expect(shop!.findAll(".p-key__models-list .k-mg").map((g) => g.text())).toEqual(["Ddola: m2", "Vvibes: m1"]);
     expect(shop!.find('[role="img"]').attributes("aria-label")).toBe("Used 3 of 20 today, 14 of 200 in total");
     expect(shop!.find(".p-key__facts").text()).toContain("Unfinished 1 / 5 · 61 jobs · created");
     // the phone draws the wallet lines at the desktop size (12 px values, one line each)
