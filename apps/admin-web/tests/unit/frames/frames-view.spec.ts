@@ -8,6 +8,7 @@ import * as confirm from "@/components/shared/confirm-dialog";
 import { useRouteLeaveGuard } from "@/components/shared/use-leave-guard";
 import { forgetFramesMemory } from "@/components/frames/use-frames";
 import HintTip from "@/components/shared/HintTip.vue";
+import { useScopeStore } from "@/stores/scope";
 import FramesView from "@/views/FramesView.vue";
 import { deferred, frameInfo, framesList, version } from "./fixtures";
 
@@ -42,8 +43,6 @@ const buttons = (name: string) =>
     .filter((b) => b.text() === name || b.attributes("aria-label") === name);
 const button = (name: string) => buttons(name)[0]!;
 const textarea = () => page().find("textarea");
-// the drawn select: a combobox button named by its label word
-const providerSelect = () => page().find('button[role="combobox"]');
 
 beforeEach(() => {
   forgetFramesMemory();
@@ -131,6 +130,39 @@ describe("the view", () => {
     expect(sections[1]!.text()).not.toContain("Reset to the shipped default");
     expect(page().text()).not.toContain("Pick a model or a default");
     expect(page().find(".frame-editor").exists()).toBe(false);
+  });
+
+  it("writes out each kind's default with its markers picked out, and an own model's text under it", async () => {
+    vi.mocked(api.listFrames).mockImplementation(async () => {
+      const list = framesList();
+      list.kinds[0]!.models[0]!.own = version(2, "own {{client_prompt}} x {{tracking_code}}");
+      list.kinds[0]!.models[0]!.name = "Model One";
+      return { ...list, verbatim: true };
+    });
+    await open();
+    const [video, image] = page().findAll('[data-testid="frame-default-text"]');
+    expect(video!.text()).toBe("D {{client_prompt}} {{tracking_code}}");
+    expect(video!.findAll("em").map((e) => e.text())).toEqual(["{{client_prompt}}", "{{tracking_code}}"]);
+    // a kind with no stored default shows the shipped text, here none
+    expect(image!.text()).toBe("");
+    const m1 = page().find('[data-frame-kind="video"] tbody tr');
+    expect(m1.find(".kind__name").text()).toBe("Model One");
+    expect(m1.find(".kind__own").text()).toBe("own {{client_prompt}} x {{tracking_code}}");
+    expect(m1.findAll(".kind__own em")).toHaveLength(2);
+    expect(page().find('[data-frame-kind="video"]').classes()).toContain("p-flow");
+    // the page says so too, not only the editor
+    expect(page().find('[data-testid="frames-verbatim"]').text()).toContain("flow sends the text as written");
+  });
+
+  it("marks a model the admin paused", async () => {
+    await open();
+    useScopeStore().models = [
+      { id: "m1", owned_by: "flow" },
+      { id: "m2", owned_by: "flow", disabled: true },
+    ];
+    await flushPromises();
+    const rows = page().findAll('[data-frame-kind="video"] tbody tr');
+    expect(rows.map((r) => r.find(".kind__paused").exists())).toEqual([false, true]);
   });
 
   it("draws video before image whatever order the server lists them in", async () => {
@@ -327,7 +359,7 @@ describe("the view", () => {
     expect(page().find("b").exists()).toBe(false);
   });
 
-  it("during a load: Save and the other controls are off, the box is read-only, Edit and the provider stay on", async () => {
+  it("during a load: Save and the other controls are off, the box is read-only, Edit and the provider strip stay on", async () => {
     await open();
     await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
@@ -343,13 +375,13 @@ describe("the view", () => {
     expect(page().find('input[type="checkbox"]').attributes("disabled")).toBeDefined();
     expect(page().find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeUndefined();
     expect(button("Edit the default").attributes("disabled")).toBeUndefined();
-    expect(providerSelect().attributes("disabled")).toBeUndefined();
+    expect(useScopeStore().stripLocked).toBe(false);
     slow.resolve(frameInfo(null));
     await flushPromises();
     expect(textarea().attributes("readonly")).toBeUndefined();
   });
 
-  it("during a write: everything is off, Edit buttons and the provider select too", async () => {
+  it("during a write: everything is off, Edit buttons and the provider strip too", async () => {
     await open();
     await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
     await flushPromises();
@@ -360,7 +392,7 @@ describe("the view", () => {
     expect(textarea().attributes("readonly")).toBeDefined();
     expect(page().find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeDefined();
     expect(button("Edit the default").attributes("disabled")).toBeDefined();
-    expect(providerSelect().attributes("disabled")).toBeDefined();
+    expect(useScopeStore().stripLocked).toBe(true);
     slow.resolve({ version: version(9, "typed"), unchanged: false, warnings: [] });
     await flushPromises();
     expect(page().find('button[aria-label="Edit frame for m2"]').attributes("disabled")).toBeUndefined();
@@ -384,7 +416,7 @@ describe("the editor drawer", () => {
     expect(drawer().props("modelValue")).toBe(false);
     expect(page().find(".frame-editor").exists()).toBe(false);
     // the provider that was chosen stays
-    expect(providerSelect().text()).toContain("flow");
+    expect(useScopeStore().only).toBe("flow");
   });
 
   it("a row's Edit and Edit the default each open it, named by its heading", async () => {

@@ -1,12 +1,11 @@
 <script setup lang="ts">
 // Prompt frames: the text relay sends is the customer's prompt inside one admin-written frame per model, or per kind
 // (the default). All the state and the race rules are in components/frames/use-frames.ts.
-import { computed, onBeforeUnmount, onMounted, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, watch, watchEffect } from "vue";
 import FrameEditor from "@/components/frames/FrameEditor.vue";
 import FrameKindSection from "@/components/frames/FrameKindSection.vue";
-import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { useRouteLeaveGuard } from "@/components/shared/use-leave-guard";
-import { NO_FRAMES_TEXT } from "@/components/frames/frames-model";
+import { NO_FRAMES_TEXT, TRACKING_MARKER } from "@/components/frames/frames-model";
 import { forgetFramesMemory, useFrames } from "@/components/frames/use-frames";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
@@ -39,7 +38,9 @@ function editorClosed(): void {
   document.querySelector<HTMLElement>(".app-scroll__wrap")?.focus({ preventScroll: true });
 }
 
-// The provider select is this view's own state. The global filter only decides where it starts, when valid.
+// The provider strip (one provider at a time) picks the provider: it shares `only` with the Test page. On the way in
+// the strip's provider is opened, else the one chosen last on this page, else the first; the strip then shows it. The
+// strip is off while a write runs, as the old select was.
 onMounted(async () => {
   try {
     await scope.loadCatalog();
@@ -47,20 +48,28 @@ onMounted(async () => {
     notify.error(errorText(err));
     return;
   }
-  await frames.init(scope.providers, scope.provider);
+  // the strip's provider (picked here or on Test) goes before the one this page remembers
+  if (scope.providers.includes(scope.only)) frames.provider = scope.only;
+  await frames.init(scope.providers, scope.only);
+  scope.only = frames.provider;
 });
+watch(
+  () => scope.only,
+  (name) => {
+    if (name && frames.providers.includes(name) && name !== frames.provider) void frames.openProvider(name);
+  },
+);
+watchEffect(() => (scope.stripLocked = frames.opensOff));
 onBeforeUnmount(() => {
   frames.dispose();
   offSignOut();
+  scope.stripLocked = false;
 });
 
 // Video first, as drawn; any other kind keeps the server order after it.
 const kinds = computed(() =>
   [...(frames.data?.kinds ?? [])].sort((a, b) => Number(b.kind === "video") - Number(a.kind === "video")),
 );
-
-const providerOptions = computed(() => frames.providers.map((name) => ({ value: name, label: name })));
-const onProvider = (name: string | number): void => void frames.openProvider(String(name));
 </script>
 
 <template>
@@ -72,17 +81,11 @@ const onProvider = (name: string | number): void => void frames.openProvider(Str
           The wrapper text around each customer prompt. A save applies only to jobs created after it.
         </p>
       </div>
-      <!-- the drawn `Provider dola` trigger and list; `disabled` lands on its button -->
-      <FilterSelect
-        class="frames__provider"
-        size="header"
-        label="Provider"
-        :model-value="frames.provider"
-        :options="providerOptions"
-        :disabled="frames.opensOff"
-        @update:model-value="onProvider"
-      />
     </header>
+    <p v-if="frames.data?.verbatim" class="frames__verbatim" data-testid="frames-verbatim">
+      {{ frames.listed }} sends the text as written: <code>{{ TRACKING_MARKER }}</code> adds nothing and the prompt
+      keeps its line breaks.
+    </p>
     <!-- a provider with no frames: the drawn empty card (12.6) -->
     <section v-if="frames.noFrames" class="frames__none" aria-label="Prompt frames, none">
       <p>{{ NO_FRAMES_TEXT }}</p>
@@ -134,11 +137,14 @@ const onProvider = (name: string | number): void => void frames.openProvider(Str
   color: var(--rl-muted);
 }
 
-/* off while a write runs: the drawn disabled secondary (the view's own rules outrank the select's) */
-.frames .frames__head .frames__provider:disabled {
-  background: var(--rl-raised);
-  color: var(--rl-faint);
-  cursor: default;
+.frames__verbatim {
+  margin: 0;
+  font-size: 13px;
+  color: var(--rl-muted);
+}
+.frames__verbatim code {
+  font-family: var(--rl-mono);
+  font-size: 12px;
 }
 
 .frames__kinds {
@@ -173,11 +179,6 @@ const onProvider = (name: string | number): void => void frames.openProvider(Str
   }
   .frames__subtitle {
     margin-top: 2px;
-  }
-  .frames .frames__head .frames__provider {
-    align-self: flex-start;
-    height: 44px;
-    padding: 0 14px;
   }
   .frames {
     gap: 16px;

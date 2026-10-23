@@ -582,13 +582,15 @@ def test_frame_text_with_markup_is_text_in_the_editor_the_history_and_the_previe
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
-def test_a_provider_without_frames_says_the_core_frame_applies_and_the_provider_select_lists_it(
+def test_a_provider_without_frames_says_the_core_frame_applies_and_the_provider_strip_lists_it(
         app_session, db, color_scheme):
     page = app_session
     open_tab(page, "Prompt frames")
     expect(page.get_by_text("This provider has no prompt frames: the core frame applies.")).to_be_visible()
-    page.get_by_role("combobox", name="Provider", exact=True).click()
-    expect(page.get_by_role("option", name="fake", exact=True)).to_have_count(1)
+    strip = page.get_by_role("navigation", name="Provider")
+    expect(strip.get_by_test_id("provider-tab-fake")).to_have_attribute("aria-pressed", "true")
+    expect(strip.get_by_test_id("provider-tab-all")).to_have_count(0)        # one provider at a time: no All
+    expect(page.get_by_role("banner").get_by_test_id("provider-filter")).to_have_count(0)
     page.problems.clear()                                    # the 404 is a console line
 
 
@@ -606,23 +608,23 @@ def test_every_provider_has_its_own_frames_and_a_vibes_edit_previews_verbatim_an
     page = app_session
     page.set_viewport_size({"width": 1440, "height": 900})
     open_tab(page, "Prompt frames")
-    select = page.get_by_role("combobox", name="Provider", exact=True)
+    strip = page.get_by_role("navigation", name="Provider")
     kinds = {"dola": ["video", "image"], "meta": ["video", "image"], "vibes": ["video", "image"], "flow": ["image"]}
     for name, drawn in kinds.items():
-        select.click()
         if name == "dola":
             for listed in kinds:
-                expect(page.get_by_role("option", name=listed, exact=True)).to_have_count(1)
+                expect(strip.get_by_test_id("provider-tab-%s" % listed)).to_have_count(1)
+        strip.get_by_test_id("provider-tab-%s" % name).click()
+        expect(strip.get_by_test_id("provider-tab-%s" % name)).to_have_attribute("aria-pressed", "true")
+        if name == "dola":
             shoot("frames-providers.png")
-        page.get_by_role("option", name=name, exact=True).click()
-        expect(select).to_contain_text(name)
         expect(page.get_by_text("This provider has no prompt frames: the core frame applies.")).to_have_count(0)
         expect(page.locator("[data-frame-kind]")).to_have_count(len(drawn))
         assert page.locator("[data-frame-kind]").evaluate_all("els => els.map(e => e.dataset.frameKind)") == drawn
     before = db.all("SELECT provider, kind, model, text FROM prompt_frames ORDER BY id")
     assert sorted({r[0] for r in before}) == ["dola", "flow", "meta", "vibes"]
-    select.click()
-    page.get_by_role("option", name="vibes", exact=True).click()
+    strip.get_by_test_id("provider-tab-vibes").click()
+    expect(page.get_by_test_id("frames-verbatim")).to_contain_text("vibes sends the text as written")
     video = page.locator(VIDEO)
     video.get_by_role("button", name="Edit frame for vibes-video").click()
     expect(page.get_by_role("dialog").get_by_role("heading", level=2)).to_have_text("Editing video / vibes-video")
@@ -636,8 +638,7 @@ def test_every_provider_has_its_own_frames_and_a_vibes_edit_previews_verbatim_an
     after = db.all("SELECT provider, kind, model, text FROM prompt_frames ORDER BY id")
     assert after == before + [("vibes", "video", "vibes-video", "Cinematic, {{client_prompt}} {{tracking_code}}")]
     close_editor(page)
-    select.click()
-    page.get_by_role("option", name="meta", exact=True).click()
+    strip.get_by_test_id("provider-tab-meta").click()
     page.locator(VIDEO).get_by_role("button", name="Edit frame for meta-video").click()
     expect(page.get_by_label("Frame text")).to_have_value("{{client_prompt}} {{tracking_code}}")
     expect(page.get_by_test_id("frame-verbatim")).to_have_count(0)

@@ -1,4 +1,4 @@
-"""The Prompt frames tab: the lists, the Provider select, the editor drawer (its preview, lock history and discard
+"""The Prompt frames tab: the lists, the provider strip, the editor drawer (its preview, lock history and discard
 question) and the two notes drawn on the menu surface."""
 
 import re
@@ -8,7 +8,7 @@ from patchright.sync_api import expect
 from . import close_dialog, expect_dialog, tab
 
 ROUTE = "frames"
-STATES = [("frames", "list"), ("frames", "provider-select"), ("frames", "editor"), ("frames", "preview-tip"),
+STATES = [("frames", "list"), ("frames", "provider-strip"), ("frames", "editor"), ("frames", "preview-tip"),
           ("frames", "lock-history-tip"), ("frames", "editor-default"), ("frames", "editor-discard-confirm")]
 
 VIDEO = "[data-frame-kind=video]"
@@ -29,13 +29,12 @@ def run(page, app, live, sw, data):
         # the page opens with no drawer, whatever was open the last time
         expect(page.get_by_role("dialog")).to_have_count(0)
     sw.step("frames", "list", frames_list)
-    # the provider list open: the drawn listbox under its trigger
-    sw.step("frames", "provider-select", lambda: (
-        page.get_by_role("combobox", name="Provider", exact=True).click(),
-        expect(page.get_by_role("listbox", name="Provider")).to_be_visible()))
+    # the provider strip picks the provider: one tab per provider, no All
+    sw.step("frames", "provider-strip", lambda: (
+        page.get_by_role("navigation", name="Provider").get_by_test_id("provider-tab-fake").click(),
+        expect(page.get_by_test_id("provider-tab-fake")).to_have_attribute("aria-pressed", "true"),
+        expect(page.get_by_test_id("provider-tab-all")).to_have_count(0)))
     sw.step("frames", "editor", lambda: (
-        page.keyboard.press("Escape"),
-        expect(page.get_by_role("listbox", name="Provider")).to_have_count(0),
         page.locator(VIDEO).get_by_role("button", name="Edit frame for fake-video").click(),
         expect_dialog(page, MODEL_EDITOR),
         expect(page.get_by_label("Frame text")).to_be_visible()))

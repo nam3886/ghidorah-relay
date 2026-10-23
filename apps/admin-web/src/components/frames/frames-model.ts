@@ -10,6 +10,14 @@ export const DEFAULT_TARGET = "default";
 export const PROMPT_MARKER = "{{client_prompt}}";
 export const TRACKING_MARKER = "{{tracking_code}}";
 
+// A frame cut into its plain runs and its markers (`{{name}}`), so a page can pick the markers out as text.
+export function markerParts(text: string): Array<{ text: string; marker: boolean }> {
+  return text
+    .split(/(\{\{\w+\}\})/)
+    .filter(Boolean)
+    .map((part) => ({ text: part, marker: /^\{\{\w+\}\}$/.test(part) }));
+}
+
 // "Video": a kind as its section heading writes it
 export const kindTitle = (kind: string): string => kind.charAt(0).toUpperCase() + kind.slice(1);
 

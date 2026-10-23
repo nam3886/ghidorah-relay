@@ -1,16 +1,30 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { FrameKind, FrameModel } from "@/api/frames";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
-import { DEFAULT_TARGET, kindTitle, lockLine, versionTag } from "./frames-model";
+import { providerClass } from "@/lib/providers";
+import { useScopeStore } from "@/stores/scope";
+import { DEFAULT_TARGET, kindTitle, lockLine, markerParts, versionTag } from "./frames-model";
 import type { FramesController } from "./use-frames";
 
-// One kind (image, video): its default frame and a table of its models. The default can be edited, reset to the shipped
-// text when it differs from it, and applied to every model that is not kept on its own frame. From 768 px the Source
-// column folds under the model id; below that the table becomes a list. A click anywhere on a model's row (or its
-// phone block) opens its editor, except on Keep own; the model id is the button that does it from the keyboard.
+// One kind (image, video) of the provider: its default frame, written out with its two markers picked out, and a table
+// of its models, each with its name, whether it has its own frame (then that text too) or follows the default, and
+// paused when the admin switched it off. The default can be edited, reset to the shipped text when it differs from it,
+// and applied to every model that is not kept on its own frame. From 768 px the Source column folds under the model
+// id; below that the table becomes a list. A click anywhere on a model's row (or its phone block) opens its editor,
+// except on Keep own; the model id is the button that does it from the keyboard.
 const props = defineProps<{ frames: FramesController; kind: FrameKind }>();
 const { isPhone, isTablet } = useBreakpoint();
+const scope = useScopeStore();
+
+// the default in force: its stored text, else the shipped one
+const defaultText = computed(() => props.kind.default?.text ?? props.kind.shipped ?? "");
+const ownText = (row: FrameModel): string => (row.source === "own" ? (row.own?.text ?? "") : "");
+const nameOf = (row: FrameModel): string => (row.name && row.name !== row.model ? row.name : "");
+const paused = (row: FrameModel): boolean =>
+  (scope.models ?? []).some((m) => m.id === row.model && m.owned_by === props.frames.listed && m.disabled === true);
 
 const selected = (frames: FramesController, kind: FrameKind, model: FrameModel): boolean =>
   frames.shown?.kind === kind.kind && frames.shown.target === model.model;
@@ -26,12 +40,13 @@ const openRow = (model: string, event: MouseEvent): void => {
 <template>
   <section
     class="kind"
-    :class="{ 'is-tablet': isTablet, 'is-phone': isPhone }"
+    :class="[providerClass(frames.listed), { 'is-tablet': isTablet, 'is-phone': isPhone }]"
     :data-frame-kind="kind.kind"
     :aria-labelledby="`kind-${kind.kind}`"
   >
     <div class="kind__head">
       <div class="kind__title">
+        <ProviderTile :provider="frames.listed" class="kind__tile" />
         <h2 :id="`kind-${kind.kind}`">{{ kindTitle(kind.kind) }}</h2>
         <span class="kind__default"
           >Default: <span class="kind__mono">{{ versionTag(kind.default) }}</span></span
@@ -63,6 +78,14 @@ const openRow = (model: string, event: MouseEvent): void => {
         Edit the default
       </button>
     </div>
+    <!-- the default frame as it reads, its two markers picked out -->
+    <div class="kind__frame-wrap">
+      <pre class="kind__frame" data-testid="frame-default-text"><template
+          v-for="(part, i) in markerParts(defaultText)"
+          :key="i"
+          ><em v-if="part.marker">{{ part.text }}</em><template v-else>{{ part.text }}</template></template
+        ></pre>
+    </div>
 
     <p v-if="!kind.models.length" class="kind__empty">No models</p>
 
@@ -73,6 +96,7 @@ const openRow = (model: string, event: MouseEvent): void => {
         :class="{ 'is-selected': selected(frames, kind, row), 'is-open-off': frames.opensOff }"
         @click="openRow(row.model, $event)"
       >
+        <span v-if="nameOf(row)" class="kind__name">{{ nameOf(row) }}</span>
         <div class="kind__line">
           <button
             type="button"
@@ -83,6 +107,7 @@ const openRow = (model: string, event: MouseEvent): void => {
           >
             {{ row.model }}
           </button>
+          <span v-if="paused(row)" class="kind__paused">paused</span>
           <StatusChip
             :status="row.source"
             :label="row.source"
@@ -105,6 +130,12 @@ const openRow = (model: string, event: MouseEvent): void => {
           </label>
         </div>
         <span v-if="lockLine(row.lock)" class="kind__lock kind__lock--phone">{{ lockLine(row.lock) }}</span>
+        <span v-if="ownText(row)" class="kind__own"
+          ><template v-for="(part, i) in markerParts(ownText(row))" :key="i"
+            ><em v-if="part.marker">{{ part.text }}</em
+            ><template v-else>{{ part.text }}</template></template
+          ></span
+        >
       </li>
     </ul>
 
@@ -126,6 +157,7 @@ const openRow = (model: string, event: MouseEvent): void => {
             @click="openRow(row.model, $event)"
           >
             <td class="kind__first kind__model">
+              <span v-if="nameOf(row)" class="kind__name">{{ nameOf(row) }}</span>
               <button
                 type="button"
                 class="kind__open"
@@ -135,11 +167,18 @@ const openRow = (model: string, event: MouseEvent): void => {
               >
                 {{ row.model }}
               </button>
+              <span v-if="paused(row)" class="kind__paused">paused</span>
               <span
                 v-if="isTablet"
                 class="pill pill--tablet"
                 :class="row.source === 'own' ? 'pill--info' : 'pill--neutral'"
                 ><i class="dot" aria-hidden="true" />{{ row.source }}</span
+              >
+              <span v-if="ownText(row)" class="kind__own"
+                ><template v-for="(part, i) in markerParts(ownText(row))" :key="i"
+                  ><em v-if="part.marker">{{ part.text }}</em
+                  ><template v-else>{{ part.text }}</template></template
+                ></span
               >
             </td>
             <td v-if="!isTablet">
@@ -195,6 +234,66 @@ const openRow = (model: string, event: MouseEvent): void => {
 .kind__default {
   font-size: 13px;
   color: var(--rl-muted);
+}
+/* the provider's tile, large, and its tint fading across the head and the default frame */
+.kind__head,
+.kind__frame-wrap {
+  background: linear-gradient(90deg, var(--ps), var(--rl-surface) 70%);
+}
+.kind__title .kind__tile {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.kind__frame-wrap {
+  padding: 0 16px 16px;
+}
+.kind__frame {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--rl-line);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  font: 12px/1.6 var(--rl-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.kind__frame em,
+.kind__own em {
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--ps);
+  color: var(--pi);
+  font-style: normal;
+  font-weight: 600;
+}
+.kind__name {
+  display: block;
+  font-family: var(--rl-font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rl-fg);
+}
+.kind__own {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--rl-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--rl-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.kind__paused {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--rl-warn-bg);
+  color: var(--rl-warn);
+  font-family: var(--rl-font);
+  font-size: 11px;
+  font-weight: 600;
 }
 .kind__mono {
   font-family: var(--rl-mono);
