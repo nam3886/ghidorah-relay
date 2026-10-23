@@ -2,7 +2,8 @@
 
     request (native, OpenAI or Gemini)
       -> `DoorRequest`
-      -> `plan_job`: resolve the model, the key's allow-list, the provider's snapshots, `spec.plan()`, the prompt frame
+      -> `plan_job`: resolve the model, the key's allow-list, the paused models, the provider's snapshots,
+         `spec.plan()`, the prompt frame
       -> input checks and media uploads (all foreign I/O, before any transaction)
       -> `store.create_job`: idempotency, cap, charge, job row, input rows, `queued` event (one transaction)
 
@@ -219,6 +220,11 @@ def _check_allowed(registry: ProviderRegistry, allowed: Sequence[str], requested
         raise ApiError("auth.model_forbidden", "model")
 
 
+def model_disabled(settings: Any, spec: ProviderSpec, model: ModelSpec) -> bool:
+    """The admin paused the model for every key (`<p>.disabled_models`, catalog ids; a variant or alias is its base)."""
+    return model.id in settings.get(spec.name + ".disabled_models")
+
+
 async def snapshots_of(pool: AsyncConnectionPool, provider: str) -> dict[str, dict]:
     async with pool.connection() as conn:
         rows = await (await conn.execute("SELECT name, data FROM provider_snapshots WHERE provider = %s",
@@ -288,10 +294,12 @@ def plan_request(gate: Gate, spec: ProviderSpec, model: ModelSpec, creq: CreateR
 
 
 async def plan_job(gate: Gate, allowed_models: Sequence[str], creq: CreateRequest) -> tuple[ProviderSpec, Plan]:
-    """Model -> provider, the key's allow-list, the provider's snapshots, `spec.plan()`, the prompt frame. Raises
-    ApiError with the refusal's own code; touches nothing."""
+    """Model -> provider, the key's allow-list, the paused models, the provider's snapshots, `spec.plan()`, the prompt
+    frame. Raises ApiError with the refusal's own code; touches nothing."""
     spec, model = resolve_model(gate.registry, creq.model)
     _check_allowed(gate.registry, allowed_models, creq.model, model)
+    if model_disabled(gate.settings, spec, model):
+        raise ApiError("model.disabled", "model")
     snapshots = await snapshots_of(gate.pool, spec.name)
     stored = await frame_of(gate.pool, spec, model)
     use = None if stored is None else FrameUse(stored.version.id, stored.version.text)

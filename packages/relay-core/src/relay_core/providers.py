@@ -615,9 +615,10 @@ def _problems(spec: ProviderSpec) -> list[str]:
     stray = sorted(k for k in keys if not k.startswith(spec.name + "."))
     if stray:
         bad.append("%s: settings outside its namespace: %s" % (spec.name, ", ".join(stray)))
-    needed = ["claims_enabled", "render_deadline_s"] + (["browser_slots"] if spec.caps.execution == "browser" else [])
+    needed = ["claims_enabled", "render_deadline_s", "disabled_models"] + (
+        ["browser_slots"] if spec.caps.execution == "browser" else [])
     missing = [spec.name + "." + n for n in needed if spec.name + "." + n not in keys]
-    if missing:                      # the core reads these on every tick; a missing one breaks the loops at run time
+    if missing:                      # the core reads these (the door reads disabled_models); a missing one breaks it
         bad.append("%s: settings the core reads are not declared: %s" % (spec.name, ", ".join(missing)))
     if spec.caps.execution == "browser" and spec.name + ".browser_slots" in keys:
         slots = spec.settings()[spec.name + ".browser_slots"]     # its bound is what keeps a browser worker in memory

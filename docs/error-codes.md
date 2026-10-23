@@ -104,6 +104,12 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `meta.ui_page_not_ready` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to meta) meta's page showed no sign-in sign or no ready composer |
 | `meta.ui_send_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to meta) the prompt could not be sent on meta's page |
 
+## `model.*`
+
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `model.disabled` | 403 | permission_error | yes | no | no | 0 | no | this model is paused |
+
 ## `pool.*`
 
 | Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |

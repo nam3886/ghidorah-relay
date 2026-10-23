@@ -121,6 +121,8 @@ RULES: dict[str, Rule] = {r.code: r for r in (
     _r("auth.invalid_key", 401, "authentication_error", message="the API key is not valid", **_pre),
     _r("auth.key_disabled", 403, "permission_error", message="the API key is disabled", **_pre),
     _r("auth.model_forbidden", 403, "permission_error", message="the API key may not use this model", **_pre),
+    # The admin paused the model for every key (`<p>.disabled_models`): refused at the door, nothing charged.
+    _r("model.disabled", 403, "permission_error", message="this model is paused", **_pre),
     _r("auth.forbidden", 403, "permission_error", message="the request is not allowed", **_pre),
     # The admin door: a wrong login, and a request without a live admin session.
     _r("auth.invalid_login", 401, "authentication_error", message="the username or password is wrong", **_pre),

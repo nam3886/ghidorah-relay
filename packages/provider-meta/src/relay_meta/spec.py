@@ -18,7 +18,7 @@ from relay_core.providers import (
     PoolSpec,
     Warning,
 )
-from relay_core.settings import Rule, Spec
+from relay_core.settings import Rule, Spec, disabled_models
 from relay_meta import catalog as C
 from relay_meta import errors as codes
 from relay_meta.constants import (
@@ -70,16 +70,16 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
 
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,
-             "Drain mode off: when false meta claims no new job. Off until meta can submit."),
+             "Drain mode off: when false meta claims no new job. Off until meta can submit.", basic=True),
     _setting("render_deadline_s", int, 900,
              "Seconds after the send before a meta job that has not delivered is given up.", min=60),
     _setting("browser_slots", int, 2, "Browser sessions at once (live). Lowering retires idle slots.",
              min=BROWSER_SLOTS_MIN, max=BROWSER_SLOTS_MAX),
     _setting("prices", dict, dict(C.DEFAULT_PRICES),
              "Points charged per generation, keyed by model. A model missing here is charged the fallback (1) with a "
-             "warning.", rule=PRICES_RULE),
-    _setting("image_budget", int, 40, "Image jobs each meta account may take per day.", min=1),
-    _setting("video_budget", int, 20, "Videos each meta account may make per day.", min=1),
+             "warning.", rule=PRICES_RULE, basic=True),
+    _setting("image_budget", int, 40, "Image jobs each meta account may take per day.", min=1, basic=True),
+    _setting("video_budget", int, 20, "Videos each meta account may make per day.", min=1, basic=True),
     _setting("image_submit_timeout_s", int, 240,
              "Hard bound on one image submit (meta takes 20 s to 3 min to draw).", min=60, max=SUBMIT_TIMEOUT_MAX_S),
     _setting("video_submit_timeout_s", int, 420,
@@ -88,6 +88,7 @@ _SETTINGS = dict((
              "Seconds a meta account rests after Vercel's browser checkpoint (\"Failed to verify your browser\") "
              "before it is checked again. Nothing is sent and no job is charged; %d checkpoint reads in a row end "
              "the account as dead: checkpoint, for the owner." % CHECKPOINTS_TO_OWNER, min=300, max=86400),
+    (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 
 

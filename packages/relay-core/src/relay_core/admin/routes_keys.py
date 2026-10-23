@@ -16,6 +16,7 @@ from pydantic import Field, field_validator, model_validator
 from relay_core import keys
 from relay_core.admin.routes_common import Strict, ms
 from relay_core.api.deps import get_pool, get_registry, get_settings
+from relay_core.api.doors import model_disabled
 from relay_core.api.errors_http import ApiError
 from relay_core.api.routes_catalog import model_entry
 from relay_core.db import tx
@@ -26,11 +27,13 @@ router = APIRouter()
 
 
 @router.get("/models")
-async def list_models(registry: ProviderRegistry = Depends(get_registry)) -> dict:
-    """Every model of every provider, unfiltered: the choices of a key's allow-list (the admin has no API key to
-    read `/v1/models` with). Same entries as the public catalog."""
+async def list_models(registry: ProviderRegistry = Depends(get_registry),
+                      settings: Settings = Depends(get_settings)) -> dict:
+    """Every model of every provider, unfiltered: the choices of a key's allow-list and of `<p>.disabled_models` (the
+    admin has no API key to read `/v1/models` with). The public catalog's entries plus `disabled` (paused)."""
     specs = [registry.spec(name) for name in registry.names()]
-    return {"object": "list", "data": [model_entry(s, m) for s in specs for m in s.catalog()]}
+    return {"object": "list", "data": [{**model_entry(s, m), "disabled": model_disabled(settings, s, m)}
+                                       for s in specs for m in s.catalog()]}
 
 Limits = tuple[int | None, int | None]       # (day_limit, total_limit)
 

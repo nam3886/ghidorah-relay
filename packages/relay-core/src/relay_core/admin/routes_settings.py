@@ -2,9 +2,11 @@
 
 The list shows each registered key with its value, where the value comes from (`db` or `default`), its default, its
 description and the values it allows. A put validates before it writes (a refused value leaves the stored one as it
-was); a delete restores the default. The list also carries `fixed`, the limits that are code and not settings. The
-boot-only values (an upstream URL, the billing timezone, the proxy list...) are configuration of the deployment: they
-are listed read-only under `env_only` and a put or delete of one is refused.
+was); a delete restores the default. Each item names its `group` (the provider, or "core", as the `fixed` rows do) and
+says whether it is `basic` (one the admin changes often) so the page can group them and fold the rest away. The list
+also carries `fixed`, the limits that are code and not settings. The boot-only values (an upstream URL, the billing
+timezone, the proxy list...) are configuration of the deployment: they are listed read-only under `env_only` and a put
+or delete of one is refused.
 """
 
 from typing import Any
@@ -52,8 +54,10 @@ class SettingPut(Strict):
 
 
 def _item(settings: Settings, key: str) -> dict:
+    """`group`: the provider of a namespaced key (`<p>.<name>`), else "core", as in `fixed`. `basic`: shown first."""
     spec = settings.specs()[key]
-    return {"key": key, "type": spec.type.__name__, "value": settings.get(key), "source": settings.source(key),
+    return {"key": key, "group": key.partition(".")[0] if "." in key else "core", "basic": spec.basic,
+            "type": spec.type.__name__, "value": settings.get(key), "source": settings.source(key),
             "default": spec.default, "description": spec.description, "allowed": spec.allowed, "read_only": False}
 
 

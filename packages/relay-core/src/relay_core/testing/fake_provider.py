@@ -40,7 +40,7 @@ from relay_core.providers import (
     StillUnknown,
     SubmitResult,
 )
-from relay_core.settings import REGISTRY, Spec
+from relay_core.settings import REGISTRY, Spec, disabled_models
 
 # Opt-in frames for a FakeSpec: the marker first, behind a fixed preamble, the way a real admin frame can be written.
 FAKE_FRAMES = FrameRules(
@@ -104,7 +104,8 @@ class FakeSpec:
                 n + ".alert_drift_rate": Spec(n + ".alert_drift_rate", float, 0.5, "Drift alert (warning)."),
                 n + ".alert_deadline_rate": Spec(n + ".alert_deadline_rate", float, 0.5, "Drift alert (deadline)."),
                 n + ".browser_slots": Spec(n + ".browser_slots", int, 4, "Browser sessions at once (browser only).",
-                                             min=1, max=30)}
+                                             min=1, max=30),
+                n + ".disabled_models": disabled_models(n, (m.id for m in self.catalog()))}
 
     def parse_credential(self, raw: bytes) -> ParsedCredential:
         return ParsedCredential(blob=raw, hint="fake")

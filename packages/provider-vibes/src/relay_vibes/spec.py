@@ -18,7 +18,7 @@ from relay_core.providers import (
     PoolSpec,
     Warning,
 )
-from relay_core.settings import Rule, Spec
+from relay_core.settings import Rule, Spec, disabled_models
 from relay_vibes import catalog as C
 from relay_vibes import errors as codes
 from relay_vibes.constants import (
@@ -70,7 +70,7 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
 
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,
-             "Drain mode off: when false vibes claims no new job. Off until the owner turns vibes on."),
+             "Drain mode off: when false vibes claims no new job. Off until the owner turns vibes on.", basic=True),
     _setting("render_deadline_s", int, 1800,
              "Seconds after the send before a vibes job that has not delivered is given up (a video takes about "
              "5 min).", min=60),
@@ -87,11 +87,14 @@ _SETTINGS = dict((
              "download, check); Vercel blocked ~45 calls in 5.5 min.", min=2, max=60),
     _setting("prices", dict, dict(C.DEFAULT_PRICES),
              "Points charged per generation, keyed by model. A model missing here is charged the fallback (1) with a "
-             "warning.", rule=PRICES_RULE),
+             "warning.", rule=PRICES_RULE, basic=True),
     # vibes' daily quota is not measured yet: the budgets start far above any real day, and the account check reads
     # the used-up banner instead.
-    _setting("image_budget", int, 1000, "Image jobs each vibes account may take per day (not measured yet).", min=1),
-    _setting("video_budget", int, 1000, "Videos each vibes account may make per day (not measured yet).", min=1),
+    _setting("image_budget", int, 1000, "Image jobs each vibes account may take per day (not measured yet).", min=1,
+             basic=True),
+    _setting("video_budget", int, 1000, "Videos each vibes account may make per day (not measured yet).", min=1,
+             basic=True),
+    (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 
 

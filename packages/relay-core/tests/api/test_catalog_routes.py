@@ -13,7 +13,8 @@ from relay_core.testing.fake_provider import FAKE_MAX_PROMPT_CHARS, FakeSpec
 from relay_core.testing.mutation import mutation
 
 CATALOG = "packages/relay-core/src/relay_core/api/routes_catalog.py"
-FILTER = "if keys.model_allowed(key.models, m.id, canonical)]"
+FILTER = "if keys.model_allowed(key.models, m.id, canonical) and"
+PAUSED_FILTER = " and not model_disabled(settings, s, m)]"
 NAME_ENTRY = '"name": m.display_name or m.id,'
 GEMINI_NAME = '"displayName": name,'
 ROUTES = ("/v1/models", "/v1/models/aliases", "/v1beta/models", "/models", "/v1beta/models/fake-video",
@@ -58,7 +59,7 @@ def test_every_catalog_route_needs_a_key(db):
           expect="limits.max_prompt_chars")
 def test_models_list_the_catalog_with_prices_and_limits(db):
     async def scenario(env):
-        env.registry.register(AliasSpec("other"))
+        env.add_provider(AliasSpec("other"))
         key = await make_key(env)
         return await env.client.get("/v1/models", headers=key.headers)
 
@@ -85,7 +86,7 @@ class NamedSpec(AliasSpec):
 @mutation(CATALOG, GEMINI_NAME, '"displayName": m.display_name or name,', expect="gemini displayName is unchanged")
 def test_every_catalog_entry_names_the_model_with_its_display_name_or_its_id(db):
     async def scenario(env):
-        env.registry.register(NamedSpec("other"))
+        env.add_provider(NamedSpec("other"))
         h = (await make_key(env)).headers
         out = {p: (await env.client.get(p, headers=h)).json()
                for p in ("/v1/models", "/v1/models/aliases", "/v1beta/models", "/models/other-fast")}
@@ -106,7 +107,7 @@ def test_every_catalog_entry_names_the_model_with_its_display_name_or_its_id(db)
 
 def test_the_aliases_list_has_one_entry_per_alias_naming_its_base(db):
     async def scenario(env):
-        env.registry.register(AliasSpec("other"))
+        env.add_provider(AliasSpec("other"))
         key = await make_key(env)
         return await env.client.get("/v1/models/aliases", headers=key.headers)
 
@@ -116,10 +117,10 @@ def test_the_aliases_list_has_one_entry_per_alias_naming_its_base(db):
 
 
 @mutation(
-    CATALOG, FILTER, "if True]", expect="the key sees only the models its allow-list admits")
+    CATALOG, FILTER, "if True and", expect="the key sees only the models its allow-list admits")
 def test_a_key_sees_only_the_models_its_allow_list_admits(db):
     async def scenario(env):
-        env.registry.register(AliasSpec("other"))
+        env.add_provider(AliasSpec("other"))
         one = await make_key(env, models=("fake-video",))
         alias = await make_key(env, models=("other-fast",))         # an alias admits the model it runs
         out = {}
@@ -137,9 +138,32 @@ def test_a_key_sees_only_the_models_its_allow_list_admits(db):
     assert out["alias"] == (["other-video"], ["other-fast"], ["models/other-video"], ["models/other-video"])
 
 
+@mutation(CATALOG, PAUSED_FILTER, "]", expect="a paused model is listed")
+@mutation("packages/relay-core/src/relay_core/admin/routes_keys.py", '"disabled": model_disabled(settings, s, m)',
+          '"disabled": False', expect="'other-video': False")
+def test_a_paused_model_is_left_out_of_every_list_and_its_admin_entry_says_so(db):
+    async def scenario(env):
+        env.add_provider(AliasSpec("other"))
+        await env.settings.set("other.disabled_models", ["other-video"])
+        h = (await make_key(env)).headers
+        return {"models": ids(await env.client.get("/v1/models", headers=h)),
+                "aliases": ids(await env.client.get("/v1/models/aliases", headers=h)),
+                "gemini": [m["name"] for m in (await env.client.get("/v1beta/models", headers=h)).json()["models"]],
+                "one": (await env.client.get("/models/other-fast", headers=h)).status_code,
+                "options": (await env.client.get("/v1/providers/other/options", headers=h)).status_code,
+                "admin": {m["id"]: m["disabled"] for m in (await env.client.get(
+                    "/admin/models", headers=await env.admin_headers())).json()["data"]}}
+
+    out = run_app(db, scenario)
+    assert (out["models"], out["aliases"], out["gemini"], out["one"], out["options"]) == (
+        ["fake-video", "fake-image"], [], ["models/fake-video", "models/fake-image"], 404, 404), (
+        "a paused model is listed: %s" % out)
+    assert out["admin"] == {"fake-video": False, "fake-image": False, "other-video": True}, out["admin"]
+
+
 def test_the_gemini_catalog_has_the_resource_shape_and_resolves_aliases(db):
     async def scenario(env):
-        env.registry.register(AliasSpec("other"))
+        env.add_provider(AliasSpec("other"))
         key = await make_key(env, models=("fake-video", "other-fast"))
         h = key.headers
         return (await env.client.get("/v1beta/models/fake-video", headers=h),
@@ -162,7 +186,7 @@ def test_the_gemini_catalog_has_the_resource_shape_and_resolves_aliases(db):
 
 def test_provider_options_come_from_the_provider_snapshots(db):
     async def scenario(env):
-        env.registry.register(AliasSpec("other"))
+        env.add_provider(AliasSpec("other"))
         db.run("INSERT INTO provider_snapshots (provider, name, data) VALUES ('other', 'templates', %s::jsonb), "
                "('fake', 'x', '{}'::jsonb)", json.dumps({"items": [1, 2]}))
         key = await make_key(env, models=("other-video",))

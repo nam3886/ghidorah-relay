@@ -155,7 +155,7 @@ def test_the_same_key_and_body_is_one_job_and_another_body_is_409(db):
 def test_a_replay_is_answered_before_the_plan_the_allow_list_and_any_upload(db, monkeypatch):
     async def scenario(env):
         strict = StrictFake()
-        env.registry.register(strict)
+        env.add_provider(strict)
         key = await env.new_key()
         h = {**key.headers, "Idempotency-Key": "k-1"}
         body = video(model="strict-video", images=[png_uri()])
@@ -475,7 +475,7 @@ def test_an_unknown_model_or_the_other_kind_of_model_is_400_bad_model(db):
 def test_the_key_allow_list_covers_variants_refuses_others_and_fails_closed(db):
     async def scenario(env):
         strict = StrictFake()
-        env.registry.register(strict)
+        env.add_provider(strict)
         key = await env.new_key(models=("strict-video",))
         h = key.headers
         r = await env.client.post(VIDEO_PATH, json=video(model="strict-video-5s"), headers=h)
@@ -494,13 +494,39 @@ def test_the_key_allow_list_covers_variants_refuses_others_and_fails_closed(db):
     run_app(db, scenario)
 
 
+@mutation(DOORS, "    return model.id in settings.get(spec.name + \".disabled_models\")", "    return False",
+          expect="paused model was accepted")
+def test_a_paused_model_is_refused_at_every_door_before_any_charge_and_accepted_jobs_stay(db):
+    async def scenario(env):
+        strict = StrictFake()
+        env.add_provider(strict)
+        key = await env.new_key()
+        before = await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)
+        assert before.status_code == 200, before.text
+        await env.settings.set("fake.disabled_models", ["fake-video"])
+        await env.settings.set("strict.disabled_models", ["strict-video"])
+        for path, body in ((VIDEO_PATH, video()), (CHAT_PATH, chat()), (GEMINI_PATH, gemini()),
+                           (VIDEO_PATH, video(model="strict-video-5s")), (VIDEO_PATH, video(model="strict-video"))):
+            r = await env.client.post(path, json=body, headers=key.headers)
+            assert error_of(r) == (403, "model.disabled", "model"), "paused model was accepted: %s %s" % (path, r.text)
+        assert jobs(db, key.id) == [(uuid.UUID(before.json()["id"]), "queued")], "an accepted job runs on"
+        assert charges(db, key_id=key.id) == 1, nothing_made(db, key)
+        r = await env.client.post(IMAGE_PATH, json={"model": IMAGE, "prompt": "a"}, headers=key.headers)
+        assert r.status_code == 200, "another model of the provider still works: %s" % r.text
+        await env.settings.set("fake.disabled_models", [])
+        assert (await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)).status_code == 200
+        assert errors.rule("model.disabled").message == "this model is paused"
+
+    run_app(db, scenario)
+
+
 @mutation(DOORS, "if isinstance(exc, InputError) and exc.code != errors.INTERNAL and errors.rule(exc.code).code",
           "if False and exc.code != errors.INTERNAL and errors.rule(exc.code).code", expect="bad_duration")
 @mutation(DOORS, "if isinstance(exc, InputError) and exc.code", "if exc.code", expect="duck-typed")
 def test_a_plan_refusal_is_its_own_400_and_an_engine_crash_never_leaks_its_text(db):
     async def scenario(env):
         strict = StrictFake()
-        env.registry.register(strict)
+        env.add_provider(strict)
         key = await env.new_key()
         post = lambda **options: env.client.post(  # noqa: E731
             VIDEO_PATH, json=video(model="strict-video", options=options), headers=key.headers)
@@ -528,7 +554,7 @@ def test_the_fields_of_each_door_reach_plan_as_one_request(db, monkeypatch):
     async def scenario(env):
         await quick_holds(monkeypatch)
         strict = StrictFake()
-        env.registry.register(strict)
+        env.add_provider(strict)
         key = await env.new_key()
         r = await env.client.post(VIDEO_PATH, json={
             "model": "strict-video", "prompt": "  a cat  ", "duration": 5, "ratio": "16:9", "n": 2,

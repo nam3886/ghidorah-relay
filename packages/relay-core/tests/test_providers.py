@@ -30,7 +30,8 @@ class Stub:
     def settings(self):
         keys = set(self.settings_keys)
         if not self.bare:
-            keys |= {self.name + "." + n for n in ("claims_enabled", "render_deadline_s", "browser_slots")}
+            keys |= {self.name + "." + n
+                     for n in ("claims_enabled", "render_deadline_s", "browser_slots", "disabled_models")}
         return {k: object() for k in keys}
 
 
@@ -136,14 +137,15 @@ def test_the_spec_constants_default_to_the_contract_values():
 @mutation(SRC, "    if missing:", "    if False:", expect="DID NOT RAISE RegistryError")
 def test_a_spec_must_declare_the_settings_the_core_reads():
     bare = Stub("one", bare=True)
-    with pytest.raises(pv.RegistryError, match="one.claims_enabled.*one.render_deadline_s"):
+    with pytest.raises(pv.RegistryError, match="one.claims_enabled.*one.render_deadline_s.*one.disabled_models"):
         pv.ProviderRegistry().register(bare)
     # browser_slots is only needed by a browser provider
-    only_two = Stub("one", bare=True, settings_keys=("one.claims_enabled", "one.render_deadline_s"))
+    read = ("one.claims_enabled", "one.render_deadline_s", "one.disabled_models")
+    only_two = Stub("one", bare=True, settings_keys=read)
     pv.ProviderRegistry().register(only_two)
     with pytest.raises(pv.RegistryError, match="one.browser_slots"):
         pv.ProviderRegistry().register(Stub("one", bare=True, caps=caps(execution="browser"),
-                                            settings_keys=("one.claims_enabled", "one.render_deadline_s")))
+                                            settings_keys=read))
 
 
 class SlotsStub(Stub):

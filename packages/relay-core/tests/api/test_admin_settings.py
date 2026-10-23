@@ -102,6 +102,42 @@ def test_every_setting_says_what_it_allows_and_none_names_an_env_variable(db):
         assert "allowed" in i
 
 
+@mutation(ROUTES, '"basic": spec.basic', '"basic": False', expect="basic")
+@mutation(ROUTES, '"group": key.partition(".")[0] if "." in key else "core"', '"group": "core"', expect="group")
+def test_each_setting_names_its_group_and_whether_it_is_basic(db):
+    async def scenario(env):
+        return await env.client.get("/admin/settings", headers=await env.admin_headers())
+
+    items = {i["key"]: i for i in run_app(db, scenario).json()["items"]}
+    assert {k: i["group"] for k, i in items.items() if k in (KEY, "fake.disabled_models")} == {
+        KEY: "core", "fake.disabled_models": "fake"}, "group"
+    assert all(i["group"] == ("core" if "." not in k else k.split(".")[0]) for k, i in items.items()), "group"
+    assert {k for k, i in items.items() if i["basic"]} == {"fake.disabled_models"}, "basic"
+
+
+@mutation("packages/relay-core/src/relay_core/settings.py", "        if unknown:", "        if False:",
+          expect="unknown model id saved")
+def test_disabled_models_takes_only_the_providers_model_ids(db):
+    async def scenario(env):
+        h = await env.admin_headers()
+        def put(value):
+            return env.client.put("/admin/settings/fake.disabled_models", json={"value": value}, headers=h)
+
+        return {"listing": await env.client.get("/admin/settings", headers=h), "unknown": await put(["fake-nope"]),
+                "not_text": await put(["fake-video", 3]), "not_a_list": await put("fake-video"),
+                "ok": await put(["fake-image"])}
+
+    out = run_app(db, scenario)
+    first = item(out["listing"], "fake.disabled_models")
+    assert (first["type"], first["value"], first["default"]) == ("list", [], [])
+    assert first["allowed"] == "a list of fake model ids: fake-video, fake-image"
+    refused = {n: (out[n].status_code, out[n].json().get("error", {}).get("code"),
+                   out[n].json().get("error", {}).get("param")) for n in ("unknown", "not_text", "not_a_list")}
+    assert refused == dict.fromkeys(refused, (400, "input.invalid", "value")), "unknown model id saved: %s" % refused
+    assert out["ok"].status_code == 200 and out["ok"].json()["value"] == ["fake-image"], out["ok"].text
+    assert db.one("SELECT value FROM settings_kv WHERE key = 'fake.disabled_models'") == (["fake-image"],)
+
+
 @mutation(ROUTES, FIXED, NO_FIXED, expect="where 0 = len([])")
 def test_the_list_carries_the_fixed_limits_core_first_then_each_provider(db):
     async def scenario(env):

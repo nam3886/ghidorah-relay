@@ -1,0 +1,29 @@
+"""Every provider pauses its models with `<p>.disabled_models` (its own catalog ids, nothing else) and marks as basic
+the settings its admin changes often: the switch, the prices, the budgets and the pause list."""
+
+import pytest
+
+from relay_core.settings import SettingsError
+from relay_dola.spec import SPEC as DOLA
+from relay_flow.spec import SPEC as FLOW
+from relay_meta.spec import SPEC as META
+from relay_vibes.spec import SPEC as VIBES
+
+BASIC = {
+    "dola": {"claims_enabled", "prices", "video_budget", "image_budget", "master_quality", "disabled_models"},
+    "flow": {"claims_enabled", "prices", "image_budget", "disabled_models"},
+    "meta": {"claims_enabled", "prices", "image_budget", "video_budget", "disabled_models"},
+    "vibes": {"claims_enabled", "prices", "image_budget", "video_budget", "disabled_models"},
+}
+
+
+@pytest.mark.parametrize("spec", [DOLA, FLOW, META, VIBES], ids=lambda s: s.name)
+def test_disabled_models_takes_the_catalog_ids_and_the_basic_settings_are_the_everyday_ones(spec):
+    settings = spec.settings()
+    paused = settings[spec.name + ".disabled_models"]
+    ids = [m.id for m in spec.catalog()]
+    assert paused.default == [] and paused.validate(ids) == ids
+    for bad in (["nope"], [*ids[:1], "nope"], ids[0]):
+        with pytest.raises(SettingsError):
+            paused.validate(bad)
+    assert {k.split(".", 1)[1] for k, s in settings.items() if s.basic} == BASIC[spec.name]

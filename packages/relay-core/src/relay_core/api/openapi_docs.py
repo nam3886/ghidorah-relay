@@ -76,7 +76,8 @@ _DOCS: dict[tuple[str, str], tuple[str, str]] = {
     ("post", "/v1/chat/completions"): (
         "OpenAI", "OpenAI-style chat completion: creates a job, then holds or streams until it ends. "
                   "Only model, messages and stream are accepted."),
-    ("get", "/v1/models"): ("Catalog", "Models this key may use, with prices."),
+    ("get", "/v1/models"): ("Catalog", "Models this key may use, with prices. A paused model is left out; a request "
+                                       "for it is refused 403 model.disabled."),
     ("get", "/v1/models/aliases"): ("Catalog", "Model aliases this key may use."),
     ("get", "/v1beta/models"): ("Catalog", "Models in the Gemini list shape."),
     ("get", "/models"): ("Catalog", "Models in the Gemini list shape."),

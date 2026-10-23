@@ -421,11 +421,14 @@ token sent as the `X-Admin-Session` header (no cookie).
   are 400. Password hashing runs at most 2 at a time.
 - Routes: accounts (list, import, edit, screenshot), keys, jobs (list with a cursor or an `offset` (0 to 1 000 000, else 400 `input.invalid`; not both, an empty `cursor=` counts as given; `total` = jobs matching the filters; `created_from_ms` inclusive and `created_to_ms` exclusive bound `created_at`, from < to, applied to the page and `total`; `tz=<IANA zone>` adds `day_totals`, `{"YYYY-MM-DD": n}` for each local day on the page, n = every job of that day matching the same filters and window; an unknown zone is 400 `input.invalid`; without `tz` the answer has no such field), detail, rename, debug, recheck,
   regenerate, media proxies), stats (`GET /admin/stats` the cards; `GET /admin/stats/hourly?provider=` the last 24 UTC hours, zero-filled, oldest first, each `{hour_ms, delivered, failed, in_progress}` counting jobs by the hour they were submitted; `GET /admin/stats/pool?provider=` the Accounts pool panel: per pool `{pool, left, budget, unknown, drift}` over the `available` accounts only (dead and disabled are not counted; a pool with no budget has every account unknown), plus `proxy_failed` and `last_full_check_ms`, the newest finished Check all), settings (read, write, reset; `BILLING_TZ`, `PUBLIC_BASE_URL` and `TRUSTED_PROXIES` are
-  listed read-only because they are boot-time env; see the next bullet), alerts (list, acknowledge), `GET /admin/models`. Times are epoch
+  listed read-only because they are boot-time env; see the next bullet), alerts (list, acknowledge), `GET /admin/models`
+  (every model, the `/v1/models` entry plus `disabled`: paused by `<p>.disabled_models`). Times are epoch
   milliseconds (`*_ms`).
 - **Settings** (`admin/routes_settings.py`): a live setting is the stored database value, else its default. No
   environment variable sets one, and a variable named like a setting is ignored (precedence in `relay_core/settings.py`).
-  Each item carries `allowed`, the range or rule the value must meet. The answer also carries `fixed` (the code
+  Each item carries `allowed`, the range or rule the value must meet, `group` (the provider of a `<p>.<name>` key, else
+  `core`, as the `fixed` rows) and `basic` (true for the few an admin changes often: a provider's `claims_enabled`,
+  `prices`, budgets, `disabled_models`, dola's `master_quality`; the page may fold the others away). The answer also carries `fixed` (the code
   constants that shape behaviour, each with a reason; the list is `relay_core/limits.py` and each provider's `LIMITS`)
   and `containers` (the api's and each recently reporting worker's CPU, memory, PID and `/dev/shm` limits, read from
   its cgroup at start, and when each was reported). An item no longer names an environment variable. The boot-only list
@@ -569,6 +572,17 @@ Both set `<p>.claims_enabled` through the settings store (so they take the same 
 run as `relay_api`. An unknown provider exits 2 and lists the built ones. Drain mode is not an exit code of the worker:
 the worker keeps running and picks the setting up live.
 
+### Paused models
+
+Setting `<p>.disabled_models` (default `[]`): a list of the provider's public model ids (the `id` of its
+`/v1/models` entries, not an alias); any other value is refused 400 `input.invalid` when saved. A request for a
+paused model, its aliases or its variants (`seedance-2.5-10s`) is refused 403 `model.disabled` ("this model is paused")
+at the door, after the key's allow-list and before the inputs are stored, anything is charged or a job is made; the
+admin Regenerate is refused the same way, and an idempotent replay of a job made before the pause still answers that job. Jobs already accepted run on.
+`GET /v1/models`, `/v1/models/aliases`, `/v1beta/models` and `/models` leave a paused model out (as a model the key
+may not use), `GET /models/<id>` answers 404, and `/v1/providers/<p>/options` answers 404 once every model of the
+provider the key may use is paused. Live: the next request reads the new value.
+
 ## The dola provider (`relay worker --provider dola`)
 
 Drives dola.com in Chrome, one browser session per claimed job, or sends the order over plain HTTP when
@@ -602,6 +616,7 @@ Registered by `spec.py`; read and written on the admin Settings page, live.
 | `dola.alert_duration_mismatch_rate` | drift alert: share of the last 24 h jobs delivered with the wrong length (0 to 1) | 0.2 |
 | `dola.alert_watermark_only_rate` | drift alert: share of the last 24 h jobs that failed as watermark-only (0 to 1) | 0.2 |
 | `dola.alert_content_refused_rate` | drift alert: share of the last 24 h submits refused for content (0 to 1) | 0.5 |
+| `dola.disabled_models` | public model ids paused for every key (see "Paused models") | `[]` |
 | `dola.browser_slots` | browser sessions at once, 1 to 12 (code constants `BROWSER_SLOTS_MIN`, `BROWSER_SLOTS_MAX` in `relay_dola/constants.py`, sized to the dola container: 8 CPUs, 12 GiB); lowering retires idle slots | 4 |
 | `dola.send_path` | how an order is sent: `browser` (Chrome) or `http` (one signed POST, no browser); read per job at the send; a job with reference images, an image with a style, or any video but Seedance 2.0 5 s 16:9 always goes by browser | browser |
 | `dola.signer_alarm_accounts` | HTTP send only: this many different accounts refused (710022002/710022004) before an acknowledgement within the window = relay's signature is suspect (at least 2) | 3 |
@@ -880,6 +895,7 @@ false, the default), so an imported account is kept signed in before flow takes 
 | `flow.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
 | `flow.poll_interval_s` | 30 | between two reads of a found job |
 | `flow.prices`, `flow.image_budget` | 1 each, 1000 | points per image; images per account per day (not measured) |
+| `flow.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
 ## The box runbook
 

@@ -20,7 +20,7 @@ from relay_core.providers import (
     RateAlert,
     Warning,
 )
-from relay_core.settings import Rule, Spec
+from relay_core.settings import Rule, Spec, disabled_models
 from relay_dola import catalog as C
 from relay_dola import errors as codes
 from relay_dola.classify import no_result_cause, order_accepted
@@ -112,20 +112,20 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
 
 
 _SETTINGS = dict((
-    _setting("claims_enabled", bool, True, "Drain mode off: when false dola claims no new job."),
+    _setting("claims_enabled", bool, True, "Drain mode off: when false dola claims no new job.", basic=True),
     _setting("render_deadline_s", int, 9000,
              "Seconds to wait for dola to render one submission before giving up on it (the new UI promises up to 2 "
              "hours).", min=60),
     _setting("prices", dict, dict(C.DEFAULT_PRICES),
              "Points charged per generation, keyed '<model>@<N>s' for video and '<model>' for image. A tier missing "
-             "here is charged the fallback (video 3, image 1) with a warning.", rule=PRICES_RULE),
+             "here is charged the fallback (video 3, image 1) with a warning.", rule=PRICES_RULE, basic=True),
     _setting("video_budget", int, 4, "Video points each dola account gets per day (dola reports its own number and "
-             "that wins).", min=1),
+             "that wins).", min=1, basic=True),
     _setting("image_budget", int, 40, "Image jobs each dola account may take per day (measured about 40; dola never "
-             "reports it).", min=1),
+             "reports it).", min=1, basic=True),
     _setting("master_quality", bool, True,
              "Deliver the H.264 master (720p, about 12 Mbps, no watermark) instead of the light HEVC rendition; falls "
-             "back to the rendition when the master cannot be fetched."),
+             "back to the rendition when the master cannot be fetched.", basic=True),
     _setting("alert_duration_mismatch_rate", float, 0.2,
              "Drift alert: share of the last 24 h jobs delivered with the wrong length.", min=0.0, max=1.0),
     _setting("alert_watermark_only_rate", float, 0.2,
@@ -147,6 +147,7 @@ _SETTINGS = dict((
     _setting("browser_slots", int, 4,
              "Browser sessions at once (live). Lowering retires idle slots.",
              min=BROWSER_SLOTS_MIN, max=BROWSER_SLOTS_MAX),
+    (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 
 

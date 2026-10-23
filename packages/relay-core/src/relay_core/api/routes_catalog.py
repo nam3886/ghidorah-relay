@@ -1,7 +1,8 @@
 """Catalog routes: the key's points, the models it may use, and a provider's options.
 
 Every route needs a key. The model lists show a key only the models its allow-list admits (`keys.model_allowed`); a
-model it may not use is as unknown to it as a model that does not exist.
+model it may not use is as unknown to it as a model that does not exist. A model the admin paused
+(`<p>.disabled_models`) is left out of every list the same way; a request for it is refused `model.disabled`.
 """
 
 from fastapi import APIRouter, Depends
@@ -9,6 +10,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from relay_core import keys
 from relay_core.api.deps import get_pool, get_registry, get_settings, require_key
+from relay_core.api.doors import model_disabled
 from relay_core.api.errors_http import ApiError
 from relay_core.keys import ApiKey
 from relay_core.providers import ModelSpec, ProviderRegistry, ProviderSpec, RegistryError
@@ -27,11 +29,12 @@ SELECT w.provider, w.kind, w.day_limit, w.total_limit,
 """
 
 
-def _allowed(registry: ProviderRegistry, key: ApiKey) -> list[tuple[ProviderSpec, ModelSpec]]:
-    """Every (provider, model) the key may use, in provider then catalog order."""
+def _allowed(registry: ProviderRegistry, key: ApiKey, settings: Settings) -> list[tuple[ProviderSpec, ModelSpec]]:
+    """Every (provider, model) the key may use and the admin has not paused, in provider then catalog order."""
     specs = [registry.spec(n) for n in registry.names()]
     canonical = {name: m.id for s in specs for m in s.catalog() for name in m.names()}
-    return [(s, m) for s in specs for m in s.catalog() if keys.model_allowed(key.models, m.id, canonical)]
+    return [(s, m) for s in specs for m in s.catalog()
+            if keys.model_allowed(key.models, m.id, canonical) and not model_disabled(settings, s, m)]
 
 
 def model_entry(spec: ProviderSpec, m: ModelSpec) -> dict:
@@ -49,31 +52,34 @@ def _gemini_resource(name: str, spec: ProviderSpec, m: ModelSpec) -> dict:
 
 
 @router.get("/v1/models")
-async def list_models(key: ApiKey = Depends(require_key), registry: ProviderRegistry = Depends(get_registry)):
-    return {"object": "list", "data": [model_entry(s, m) for s, m in _allowed(registry, key)]}
+async def list_models(key: ApiKey = Depends(require_key), registry: ProviderRegistry = Depends(get_registry),
+                      settings: Settings = Depends(get_settings)):
+    return {"object": "list", "data": [model_entry(s, m) for s, m in _allowed(registry, key, settings)]}
 
 
 @router.get("/v1/models/aliases")
-async def list_aliases(key: ApiKey = Depends(require_key), registry: ProviderRegistry = Depends(get_registry)):
+async def list_aliases(key: ApiKey = Depends(require_key), registry: ProviderRegistry = Depends(get_registry),
+                       settings: Settings = Depends(get_settings)):
     """One entry per alias, carrying the model it runs as `base_model`."""
     return {"object": "list", "data": [{**model_entry(s, m), "id": alias, "aliases": [], "base_model": m.id,
                                         "is_alias": True}
-                                       for s, m in _allowed(registry, key) for alias in m.aliases]}
+                                       for s, m in _allowed(registry, key, settings) for alias in m.aliases]}
 
 
 @router.get("/v1beta/models")
 @router.get("/models")
-async def list_gemini_models(key: ApiKey = Depends(require_key),
-                             registry: ProviderRegistry = Depends(get_registry)):
-    return {"models": [_gemini_resource(m.id, s, m) for s, m in _allowed(registry, key)]}
+async def list_gemini_models(key: ApiKey = Depends(require_key), registry: ProviderRegistry = Depends(get_registry),
+                             settings: Settings = Depends(get_settings)):
+    return {"models": [_gemini_resource(m.id, s, m) for s, m in _allowed(registry, key, settings)]}
 
 
 @router.get("/v1beta/models/{model}")
 @router.get("/models/{model}")
 async def get_gemini_model(model: str, key: ApiKey = Depends(require_key),
-                           registry: ProviderRegistry = Depends(get_registry)):
-    """An id or an alias; unknown, or not allowed for this key: 404 (Gemini body, by path)."""
-    for s, m in _allowed(registry, key):
+                           registry: ProviderRegistry = Depends(get_registry),
+                           settings: Settings = Depends(get_settings)):
+    """An id or an alias; unknown, not allowed for this key or paused: 404 (Gemini body, by path)."""
+    for s, m in _allowed(registry, key, settings):
         if model in m.names():
             return _gemini_resource(model, s, m)
     raise ApiError("resource.not_found", "model")
@@ -82,14 +88,14 @@ async def get_gemini_model(model: str, key: ApiKey = Depends(require_key),
 @router.get("/v1/providers/{provider}/options")
 async def provider_options(provider: str, key: ApiKey = Depends(require_key),
                            registry: ProviderRegistry = Depends(get_registry),
-                           pool: AsyncConnectionPool = Depends(get_pool)):
-    """`spec.extras(snapshots)` over the provider's stored snapshots. A provider the key may use no model of is
-    unknown to it."""
+                           pool: AsyncConnectionPool = Depends(get_pool), settings: Settings = Depends(get_settings)):
+    """`spec.extras(snapshots)` over the provider's stored snapshots. A provider the key may use no model of (or whose
+    every model it may use is paused) is unknown to it."""
     try:
         spec = registry.spec(provider)
     except RegistryError:
         raise ApiError("resource.not_found", "provider") from None
-    if not any(s.name == provider for s, _ in _allowed(registry, key)):
+    if not any(s.name == provider for s, _ in _allowed(registry, key, settings)):
         raise ApiError("resource.not_found", "provider")
     async with pool.connection() as conn:
         rows = await (await conn.execute("SELECT name, data FROM provider_snapshots WHERE provider = %s",

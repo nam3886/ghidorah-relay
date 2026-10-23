@@ -887,6 +887,22 @@ def test_regenerate_goes_through_the_gate_the_allow_list_the_key_the_wallet_and_
     assert db.one("SELECT count(*) FROM jobs") == (2,), "only the one that passed the gate made a job"
 
 
+@mutation(DOORS, '        raise ApiError("model.disabled", "model")', "        pass", expect="paused model regenerated")
+def test_regenerate_of_a_paused_model_is_refused_like_a_client_request(db):
+    k = key(db)
+    account(db)
+    old = run(db, lambda p: failed_job(p, k, "a cat"))
+
+    async def scenario(env):
+        await env.settings.set("fake.disabled_models", ["fake-video"])
+        return await env.client.post("/admin/jobs/%s/regenerate" % old, headers=await env.admin_headers(), **op())
+
+    r = run_app(db, scenario)
+    assert (r.status_code, r.json().get("error", {}).get("code")) == (403, "model.disabled"), (
+        "paused model regenerated: %s" % r.text)
+    assert db.one("SELECT count(*) FROM jobs") == (1,)
+
+
 @mutation(DOORS, PLAN_REFUSAL, NO_PLAN_REFUSAL, expect="its own code")
 def test_regenerate_answers_a_plan_refusal_with_the_codes_of_a_client_request(db):
     k = key(db)

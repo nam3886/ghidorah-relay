@@ -79,6 +79,11 @@ class Env:
     store: ObjectStore
     _admin: dict[str, str] = field(default_factory=dict)
 
+    def add_provider(self, spec: Any) -> None:
+        """Register one more provider as `relay serve` would have at start: its spec and its settings."""
+        self.registry.register(spec)
+        self.settings._registry.register(*spec.settings().values())
+
     async def new_key(self, *, enabled: bool = True, models=(keys.ANY_MODEL,), unlimited: bool = True) -> NewApiKey:
         """A key with a wallet per declared (provider, kind): unlimited by default so a test is not stopped by a
         limit it did not ask about."""

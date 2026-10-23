@@ -15,7 +15,7 @@ with `REGISTRY.register(...)` when their package loads; this module names no pro
 import asyncio
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import KW_ONLY, dataclass
 from typing import Any
 
@@ -52,7 +52,8 @@ class Rule:
 @dataclass(frozen=True)
 class Spec:
     """`type` is exact (a bool is not an int). `min` and `max` bound a number; `rule` covers what a range cannot say.
-    The same fields drive the refusal and the `allowed` text, so the page never shows a bound the code does not hold."""
+    The same fields drive the refusal and the `allowed` text, so the page never shows a bound the code does not hold.
+    `basic`: one the admin changes often (a switch, a price, a budget); the settings page shows the others on demand."""
 
     key: str
     type: type
@@ -62,6 +63,7 @@ class Spec:
     min: float | None = None
     max: float | None = None
     rule: Rule | None = None
+    basic: bool = False
 
     @property
     def allowed(self) -> str | None:
@@ -123,6 +125,22 @@ class Registry:
 def _filename_pattern(v: str) -> None:
     if not v.strip():
         raise ValueError("must not be empty")
+
+
+def disabled_models(provider: str, model_ids: Iterable[str]) -> Spec:
+    """`<provider>.disabled_models`: the public model ids (catalog ids, not aliases) the door refuses with
+    `model.disabled` before any charge. Jobs already accepted run on. An id outside `model_ids` is refused."""
+    ids = tuple(model_ids)
+
+    def check(v: list) -> None:
+        unknown = [m for m in v if m not in ids]
+        if unknown:
+            raise ValueError("not a %s model id: %s" % (provider, ", ".join(map(repr, unknown))))
+
+    return Spec(provider + ".disabled_models", list, [],
+                "Models paused for every key: a request for one is refused (model.disabled), nothing is charged; "
+                "jobs already accepted run on.",
+                rule=Rule("a list of %s model ids: %s" % (provider, ", ".join(ids)), check), basic=True)
 
 
 REGISTRY = Registry(
