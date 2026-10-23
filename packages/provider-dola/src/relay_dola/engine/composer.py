@@ -86,16 +86,45 @@ _OPTIONS_JS = """(pattern)=>{
   return [...seen];
 }"""
 
+# A leaf element whose whole text is the label AND that is on screen: a hidden copy (a folded menu, a measuring
+# layer) is never taken for the button, so a folded row reaches the "···" fallback instead of clicking nothing.
 _CLICK_TEXT_JS = """(label)=>{
-  const el = [...document.querySelectorAll('*')].find(
-    e => e.childElementCount === 0 && (e.textContent||'').trim() === label);
+  const el = [...document.querySelectorAll('*')].find(e => {
+    if (e.childElementCount !== 0 || (e.textContent||'').trim() !== label) return false;
+    const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0;});
   if (el) { el.click(); return true; }
   return false;
 }"""
 
 # Find only (no click): poll for the button without pressing it too early.
-_FIND_TEXT_JS = """(label)=>[...document.querySelectorAll('*')].some(
-  e => e.childElementCount === 0 && (e.textContent||'').trim() === label)"""
+_FIND_TEXT_JS = """(label)=>[...document.querySelectorAll('*')].some(e => {
+  if (e.childElementCount !== 0 || (e.textContent||'').trim() !== label) return false;
+  const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0;})"""
+
+# The same visible leaf, as coordinates for a REAL click (an item of a floating menu: no position limit).
+_VISIBLE_TEXT_JS = """(label)=>{
+  const el = [...document.querySelectorAll('*')].find(e => {
+    if (e.childElementCount !== 0 || (e.textContent||'').trim() !== label) return false;
+    const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0;});
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return {x: r.x + r.width/2, y: r.y + r.height/2, text: label};
+}"""
+
+# The composer row's "···" button. When dola's action row measures itself too narrow it folds its buttons ("Create
+# Videos", "Create Images") behind it: seen 23/10 on first runs, the row read `+ | Fast ···` and had no Create Images
+# button (a Blueprint overflow list, class `bp5-overflow-list`; the button holds only an icon). The opened menu was
+# never captured, so the fallback clicks only a VISIBLE item whose whole text is the label, and fails before anything
+# is sent otherwise.
+_OVERFLOW_JS = """()=>{
+  const els = [...document.querySelectorAll('[class*=overflow-list] button')].filter(b => {
+    const r = b.getBoundingClientRect();
+    return !(b.textContent||'').trim() && r.width > 0 && r.height > 0 && r.top > innerHeight*0.6;});
+  const b = els[els.length - 1];
+  if (!b) return null;
+  const r = b.getBoundingClientRect();
+  return {x: r.x + r.width/2, y: r.y + r.height/2, text: '···'};
+}"""
 
 MODEL_CHIP = "^Model "
 # The duration chip ENDS with the seconds, but dola may put a prefix before them (measured 23/09: `Auto · 10s`, no
@@ -126,6 +155,27 @@ async def _click(page, rect: dict) -> None:
     await page.wait_for_timeout(2000)
 
 
+async def _mode_from_overflow_menu(page, label: str) -> str:
+    """The row folded its buttons behind "···" (see `_OVERFLOW_JS`): open that menu, click the item `label` with a real
+    click on a VISIBLE item only, and return the Model chip label as `enter_*_mode` does. No "···" button, no such item
+    in the open menu, or no chip row after it: `UI_MODE_NOT_READY` before anything is sent, never a guess."""
+    trigger = await page.evaluate(_OVERFLOW_JS)
+    if not trigger:
+        raise ComposerError("could not find the '%s' button" % label, code=UI_MODE_NOT_READY)
+    await _click(page, trigger)
+    item = await page.evaluate(_VISIBLE_TEXT_JS, label)
+    if not item:
+        await page.keyboard.press("Escape")
+        raise ComposerError("could not find the '%s' button, nor the item in the '···' menu" % label,
+                            code=UI_MODE_NOT_READY)
+    await _click(page, item)
+    rect = await _wait_rect(page, MODEL_CHIP, timeout_s=12)
+    if not rect:
+        raise ComposerError("chip row did not appear after choosing %s in the '···' menu" % label,
+                            code=UI_MODE_NOT_READY)
+    return rect["text"]
+
+
 async def enter_video_mode(page, settle_s: int = 9) -> str:
     """Enter *Create Videos* and wait for the chip row. Returns the Model chip label read (proof of the mode).
 
@@ -138,7 +188,7 @@ async def enter_video_mode(page, settle_s: int = 9) -> str:
             break
         await page.wait_for_timeout(500)
     if not ready:
-        raise ComposerError("could not find the 'Create Videos' button", code=UI_MODE_NOT_READY)
+        return await _mode_from_overflow_menu(page, "Create Videos")
 
     await page.evaluate(_CLICK_TEXT_JS, "Create Videos")
     rect = await _wait_rect(page, MODEL_CHIP, timeout_s=6)
@@ -371,7 +421,8 @@ IMAGE_RATIO_CHIP = "^(Ratio|Aspect Ratio.*)$"
 async def enter_image_mode(page, settle_s: int = 9) -> str:
     """Enter *Create Images* and wait for the chip row (the press is retried as in `enter_video_mode`).
 
-    One press before React hydrates shows no Model chip: it needs another press and a longer wait (measured 260917)."""
+    One press before React hydrates shows no Model chip: it needs another press and a longer wait (measured 260917).
+    A row that folded its buttons behind "···" (23/10) is entered through that menu (`_mode_from_overflow_menu`)."""
     ready = False
     for _ in range(settle_s * 2):
         if await page.evaluate(_FIND_TEXT_JS, "Create Images"):
@@ -379,7 +430,7 @@ async def enter_image_mode(page, settle_s: int = 9) -> str:
             break
         await page.wait_for_timeout(500)
     if not ready:
-        raise ComposerError("could not find the 'Create Images' button", code=UI_MODE_NOT_READY)
+        return await _mode_from_overflow_menu(page, "Create Images")
 
     rect = None
     for attempt in range(3):                # late hydration or an early click: press again, wait longer

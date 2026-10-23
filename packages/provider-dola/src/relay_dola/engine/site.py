@@ -19,8 +19,8 @@ TELEMETRY_URL_PATTERNS = ("*mon-sg.byteintlapi.com*", "*mcs.snssdk.com*", "*tobl
                           "*/monitor_browser/*", "*slardar*")
 
 # The recorder keeps these bodies: `/im/chain/single` carries the conversation and its replies (and the request names
-# the conversation id); `/chat/completion` carries no id and no reply, but its SSE body holds the throttle or region
-# `error_code` (710022002 high demand, 710022003 region, 710022004 rate limit). Regular expressions over the path.
+# the conversation id); `/chat/completion` carries no id and no reply, but its SSE body holds dola's `error_code`
+# (710022002 a refused order, 710022003 region, 710022004 rate limit). Regular expressions over the path.
 CAPTURE_PATHS = (r"^/im/chain/single$", r"^/chat/completion$")
 
 # Which Local Storage keys of dola.com identify the account or hold a token (the kit strips them before the browser

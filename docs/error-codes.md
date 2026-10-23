@@ -39,6 +39,7 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `dola.no_image` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola made no image for this order |
 | `dola.no_video` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola made no video for this order |
 | `dola.page_reloaded` | 500 | api_error | no | no | no | 3 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) dola's page reloaded while the order was being composed; the run is tried again |
+| `dola.refused_710022002` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola refused to take this order (its code 710022002, which it gives for prompts it will not make); nothing was made and the charge is returned |
 | `dola.temporary_error` | 502 | api_error | no | yes | yes | 0 | yes | dola reported a temporary error when it took the order |
 | `dola.ui_attach_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the reference images could not be attached on dola's page |
 | `dola.ui_duration_patch_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the duration could not be set on dola's page |

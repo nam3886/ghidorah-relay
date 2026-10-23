@@ -650,15 +650,44 @@ conversation's own messages (dola's API, through the page), never the page text,
 | accepted, taken | dola accepted; the job waits for the poll |
 | accepted, not proven | unclear or still gated after the re-sends; the conversation is kept and the poll decides |
 | completed | image whose pictures are already there |
-| not taken | out of credit, temporary error, throttle; the job goes elsewhere or later |
-| fail | content refused |
+| not taken | out of credit, temporary error, throttle (710022004); the job goes elsewhere or later. Also a send proven not to have left the page (below) |
+| fail | content refused; dola's stream code 710022002 (`dola.refused_710022002`) |
 | retry | a failure before the send (nothing was sent) |
 | ambiguous | a failure after the send, or no conversation appeared; reconcile reads the account's own conversation list |
 
 Rules an operator must know:
 
 - **One Enter per send.** The Send button is never clicked. An input still holding the prompt after the clear wait
-  is ambiguous, and reconcile decides.
+  is ambiguous, and reconcile decides, unless the browser provably sent NOTHING that could carry the order. The
+  watch covers the whole browser context from the moment it opens: any request that is not a GET, on any host, from
+  any page, popup or worker the context reports (bar the conversation reads `/im/chain/single`,
+  `/im/chain/recent_conv`); a GET whose full URL (query included) names a completion or holds `/chat/`; any WebSocket
+  frame sent by any page. A watch that could not attach or whose listener failed counts as traffic, and so does a
+  `/chat/completion` answer in the recorder. The proof is read only on a browser that no longer exists: the whole
+  browser (context and process) is closed first, so every page, service worker, keep-alive request and beacon dies
+  with it; the watch counts until the close has completed, and only then is it read. A send fired late, even after
+  the 30 s clear wait, is seen. A close that fails (Chrome had to be killed) is no proof. The session's own exit then
+  only finishes its cleanup. Only zero traffic is the proof. Then the send is proven not sent: not taken
+  (`dola.ui_send_failed`, one attempt), the job goes back to the queue as a new attempt, and nothing more is pressed
+  in that session (23/10: such a job sat 11 min in unknown).
+- **dola's code 710022002 ends the job.** dola's `/chat/completion` stream answering a send (the first or a gated
+  re-send) with 710022002 means
+  dola will not take this order (23/10: 9 of 18 tries in 3 h, all on one prompt, on 7 accounts; 5 of those accounts
+  were logged out by dola within the hour). The job fails at once with `dola.refused_710022002`, refunded, and is never
+  tried on another account (owner's ruling 23/10). dola's own message goes to the timeline, the stream is kept as
+  evidence (`refused-710022002-stream.txt`), and the account rests 30 min (`THROTTLE_COOLDOWN_S`) with its next check
+  due then: the code is about the prompt, but an account that just sent such a prompt is at risk, and the check finds
+  a logout before a job does. 710022004 stays a throttle (the account rests, the job goes elsewhere). The stream is
+  parsed event by event: a code counts only in an error envelope (`error_code` at the top of an event or of its
+  `event_data`), never inside a reply's text, and a stream that also delivered anything (an event other than a
+  heartbeat, an acknowledgement, an empty object or `[DONE]`) is no error at all. When a conversation had already
+  appeared it is kept: it becomes the job's reference (`provider_state.refused_conversation`, named in the timeline).
+  dola can refuse and still deliver about 25 min later; such a delivery is NOT fetched by itself (the job stays failed
+  and refunded), but an admin Re-check of the job sends it back to waiting (the key is charged again) and the poll
+  reads that conversation. Without a conversation there is nothing to re-check. On a refusal the conversation is
+  still looked for up to 10 s (`REFUSAL_RECEIPT_S`) before the job fails, and storing it is best effort: if the
+  reference cannot be written, the job still fails (refunded) and the id stays in `refused_conversation` and the
+  timeline.
 - **Re-send only on a finished question.** A re-send happens only when dola's own API read, taken right before it, shows
   a finished reply that is itself a confirmation question, and the order was not already accepted. A re-send is a new
   paid order, so a stale, partial or failed read never earns one; each re-send repeats the full composer set-up.
@@ -666,7 +695,11 @@ Rules an operator must know:
   and an acceptance, is not taken, is not re-sent, moves no job and rests no account; the poll decides (a video is
   delivered, or quiet ends in a refund). A bare "0 credits left" is unclear plus a zero balance and a rest.
 - **No conversation after the send** means the job is ambiguous. Page text never decides there (the sidebar holds
-  titles of other chats); only dola's own throttle or region signal does.
+  titles of other chats); only dola's own throttle or region signal does, or the login read of the page: a guest page
+  is a logout. The account gets what a guest read at the open gets (a spaced strike and a 600 s rest with a recheck;
+  no strike when the browser lost the cookies), the run clears no strike, and the order follows the proof above:
+  traffic that could carry it left the browser, so it stays unknown; none did, so it is not taken and goes back to
+  the queue.
 - **The customer's own words never decide.** A reply that reads differently once the quoted prompt is removed is unclear.
 
 ### Account check, catalog refresh, recover
@@ -703,6 +736,13 @@ Worker commands (queued from the admin pages, run by the dola worker; see "The a
 
 ### Page timing
 
+- **A cold profile waits longer for the composer.** The first run on a profile with no HTTP cache (a new credential
+  generation makes a new profile; a throwaway or a wiped one too) fetches dola's whole script bundle through the proxy;
+  it waits up to 30 s (`COLD_MODE_WAIT_S`) for the Create Videos / Create Images button instead of 9 s.
+- **A folded composer row.** When dola's row measures itself too narrow it folds its buttons behind a "···" button
+  (23/10: the row read `+ | Fast ···`). The run opens that menu and clicks the mode item there, a real click on a
+  visible item only; no "···" button, no such item or no chip row after it is `dola.ui_mode_not_ready` before anything
+  is sent. The opened menu was never captured live: the fallback is built from the folded row's screenshots and HTML.
 - After `goto` the run waits for a quiet page before it composes: at least 4 s, then until no main-frame navigation for
   3 s, never longer than 15 s (some accounts' pages reload themselves a few seconds after loading, measured on Chrome
   154). A navigation that still hits the run before the send (a reload after the settle wait) is absorbed once inside

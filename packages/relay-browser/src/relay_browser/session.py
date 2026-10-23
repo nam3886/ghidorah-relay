@@ -301,6 +301,7 @@ class ProfileClaim:
     path: str
     lock: int | None          # None: the profile was held elsewhere and this one is a throwaway
     throwaway: bool
+    cold: bool = False        # no HTTP cache from an earlier run: the site's first load downloads every script
 
 
 def claim_profile(root: str, name: str, site: SiteProfile) -> ProfileClaim:
@@ -313,18 +314,19 @@ def claim_profile(root: str, name: str, site: SiteProfile) -> ProfileClaim:
         if lock is None:
             log.info("another run holds this account's browser profile: using a throwaway profile")
             # a crash leaves the throwaway for the sweep
-            claim = ProfileClaim(tempfile.mkdtemp(prefix="tmp-", dir=root), None, True)
+            claim = ProfileClaim(tempfile.mkdtemp(prefix="tmp-", dir=root), None, True, cold=True)
             seed_preferences(claim.path)
         else:
             os.makedirs(profile, exist_ok=True)
             os.utime(profile)
+            cold = not os.path.isdir(os.path.join(profile, "Default", "Cache"))      # a new credential: a new profile
             # An open marker still here means the last run died before its close-time reset, so tokens may still be in
             # Local Storage and nothing could strip them: drop it whole.
             crashed = os.path.exists(os.path.join(profile, OPEN_MARK))
             reset_profile_state(profile, drop_local_storage=crashed and bool(site.local_storage_token_keys))
             seed_preferences(profile)
             mark_open(profile)
-            claim = ProfileClaim(profile, lock, False)
+            claim = ProfileClaim(profile, lock, False, cold=cold)
     except BaseException:
         if lock is not None:
             unlock_profile(lock)
@@ -430,6 +432,7 @@ async def launch_with_retry(launch: Callable[[str], Awaitable], claim: ProfileCl
             raise BrowserLaunchError("the browser would not start: %s" % str(exc)[:300]) from exc
         log.warning("browser profile would not open (%s): starting it fresh", str(exc)[:100])
         await asyncio.to_thread(shutil.rmtree, claim.path, True)
+        claim.cold = True
         os.makedirs(claim.path, exist_ok=True)
         seed_preferences(claim.path)
         mark_open(claim.path)
@@ -505,6 +508,8 @@ class BrowserSession:
         self.page = None
         # False until the strip has succeeded: a close that is cut short (a cancel, an error) must drop Local Storage
         self.local_storage_clean = not site.local_storage_token_keys
+        # None: open; True: closed by `ctx.close()`; False: the close failed and Chrome was killed
+        self.closed: bool | None = None
 
     @property
     def patched(self) -> int:
@@ -518,6 +523,12 @@ class BrowserSession:
     @property
     def profile(self) -> str:
         return self._claim.path
+
+    @property
+    def cold(self) -> bool:
+        """The profile had no HTTP cache when it was claimed (a new credential, a throwaway, a wiped profile): the
+        site's first load fetches all of its scripts through the proxy and its UI takes longer to be ready."""
+        return self._claim.cold
 
     async def open_page(self):
         """The site's single tab: new tab first, old ones after (see ui.py), recorder attached, telemetry blocked and
@@ -573,13 +584,25 @@ class BrowserSession:
             return
         self.local_storage_clean = True
 
+    async def close_now(self) -> bool:
+        """Close the browser now, for good, while the session is still open: every page, worker, timer and pending
+        request of the site dies with the process. Done once: the exit of `open_session` then only does the rest of
+        its cleanup. True only when `ctx.close()` itself completed (a browser that had to be killed is not
+        confirmed)."""
+        await self._shutdown()
+        return self.closed is True
+
     async def _shutdown(self) -> None:
+        if self.closed is not None:
+            return                            # closed already (`close_now`): never touched again
+        self.closed = False
         try:
             await self._strip_local_storage()
         finally:
             self.recorder.close()
             try:
                 await asyncio.wait_for(self.ctx.close(), CLOSE_TIMEOUT_S)
+                self.closed = True
             except Exception as exc:      # noqa: BLE001 - a hung or failed close must not stop the rest of the cleanup
                 log.warning("browser did not close (%s): killing it", type(exc).__name__)
                 # a killed Chrome may not have written the strip to disk: the close reset drops Local Storage whole

@@ -87,6 +87,11 @@ async def keep(db: AsyncConnectionPool, store: ObjectStore, job_id: str, name: s
 
 
 async def _keep(db: AsyncConnectionPool, store: ObjectStore, job_id: str, name: str, data: bytes, mime: str) -> None:
+    if not data:
+        # An empty file says nothing (a network log of a page that made no recorded request), and a 0-byte object is
+        # refused by the store: a row for it would only point at nothing.
+        log.info("evidence %r of a job skipped: the file is empty", name)
+        return
     kind = _kind(mime)
     if kind is None:
         log.warning("evidence %r of a job dropped: %s is not a type that is kept", name, mime or "no type")

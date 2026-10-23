@@ -144,6 +144,29 @@ async def test_an_upstream_that_stays_silent_or_closes_without_a_reply_reaches_c
     assert reached == 1 and status == 502, "an upstream that closes without a reply answers Chrome with nothing"
 
 
+@mutation(F, '                self._log_502(why if not reply else "upstream 407 (the proxy refused its login)")\n', "",
+          expect="a 502 was given without its cause in the log")
+@mutation(F, 'log.warning("proxy %s:%d: 502 to Chrome (%s)", self._host, self._port, why)',
+          'log.warning("proxy %s: 502 to Chrome (%s)", self._auth, why)', expect="the proxy login reached the log")
+@sync
+async def test_every_502_is_logged_with_its_cause_and_the_proxy_host_never_its_login(monkeypatch, caplog):
+    """23/10: three ERR_TUNNEL_CONNECTION_FAILED in 36 s and no word of why: connect failed, 407, timeout or closed."""
+    caplog.set_level("WARNING", logger="relay_browser.forwarder")
+    monkeypatch.setattr(fwdmod, "REPLY_TIMEOUT_S", 0.3)
+    cases = ((dict(upstream_reply=None), "connect failed"),
+             (dict(upstream_reply=b"HTTP/1.1 407 Proxy Authentication Required\r\n\r\n"), "upstream 407"),
+             (dict(upstream_reply=None, silent=True), "reply timeout"),
+             (dict(upstream_reply=b""), "closed without a reply"))
+    for kw, cause in cases:
+        caplog.clear()
+        assert (await connect_status(**kw))[0] == 502
+        login = base64.b64encode(b"u:p").decode()
+        assert login not in caplog.text and "u:p" not in caplog.text, "the proxy login reached the log"
+        lines = [r.getMessage() for r in caplog.records if "502 to Chrome" in r.getMessage()]
+        assert len(lines) == 1 and cause in lines[0] and "proxy 127.0.0.1:" in lines[0], \
+            "a 502 was given without its cause in the log (%s): %r" % (cause, lines)
+
+
 @mutation(F, "            if _refused(target_host(head), self._refuse):", "            if False:",
           expect="refused host reached the account proxy")
 @sync

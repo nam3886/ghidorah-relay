@@ -11,6 +11,10 @@ from relay_core.errors import Rule
 from relay_dola.constants import BROWSER_FAULT_FREE_RETRIES
 
 CONTENT_REFUSED = "dola.content_refused"
+# dola's reply stream ended with error code 710022002 (fixtures called it "high demand"): measured 23/10, 9 of 18 tries
+# in 3 h, ALL on one prompt and on 7 different accounts, so it answers the prompt, not the account's load. Owner's
+# ruling 23/10: it ends the job at once, refunded, and is never tried on another account (dola took nothing).
+REFUSED_710022002 = "dola.refused_710022002"
 LIKENESS_REFUSED = "dola.likeness_refused"
 RENDER_WATERMARKED_ONLY = "render.watermarked_only"      # a core code: the poll saw only watermarked links
 NEEDS_CONFIRM = "dola.needs_confirm"
@@ -69,7 +73,9 @@ def _ui(code: str, message: str) -> Rule:
 
 CODES: dict[str, Rule] = {r.code: r for r in (
     _refusal(CONTENT_REFUSED, "dola refused to make this (copyright, safety or content rules); the charge is returned"),
-    _refusal(LIKENESS_REFUSED, "dola refused: with a photo of a person it only makes videos of the account owner"),
+    _refusal(REFUSED_710022002, "dola refused to take this order (its code 710022002, which it gives for prompts it "
+                                "will not make); nothing was made and the charge is returned"),
+    _refusal(LIKENESS_REFUSED,"dola refused: with a photo of a person it only makes videos of the account owner"),
     _refusal(NEEDS_CONFIRM, "dola asked a question instead of taking the order, and never delivered"),
     _refusal(NO_VIDEO, "dola made no video for this order"),
     _refusal(NO_IMAGE, "dola made no image for this order"),

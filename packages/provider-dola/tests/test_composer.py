@@ -54,7 +54,8 @@ class Pg:
 
     def __init__(self, *, chips: dict[str, str] | None = None, offers: dict[str, list[str]] | None = None,
                  take: bool = True, merged: bool = False, slider_range=(4, 30), tiles=("16:9", "9:16"),
-                 buttons=("Create Videos",), hydrate_after: int = 0):
+                 buttons=("Create Videos",), hydrate_after: int = 0, overflow: tuple | None = None,
+                 overflow_chip: str = "Model Seedream 4.5"):
         self.chips = dict(chips or {})
         self.offers = offers or {}
         self.take, self.merged, self.slider_range, self.tiles = take, merged, slider_range, tiles
@@ -67,6 +68,10 @@ class Pg:
         self.reloads = 0
         self.waits = 0
         self.items: list[str] = []
+        # The row folded behind "···": None = no such button; else the items of its menu. Choosing one shows
+        # `overflow_chip` as the Model chip ("" = nothing appears).
+        self.overflow, self.overflow_chip, self.menu_open = overflow, overflow_chip, False
+        self.menu_clicks: list[str] = []
 
     # -- the page API the composer uses
     def locator(self, selector):
@@ -97,6 +102,12 @@ class Pg:
         if js is composer._CLICK_TEXT_JS:
             self.pressed_buttons.append(arg)
             return True
+        if js is composer._OVERFLOW_JS:
+            return {"x": 5000, "y": 0, "text": "···"} if self.overflow is not None else None
+        if js is composer._VISIBLE_TEXT_JS:
+            if self.menu_open and arg in self.overflow:
+                return {"x": 6000 + self.overflow.index(arg), "y": 0, "text": arg}
+            return None
         if js is composer._SLIDER_RANGE_JS:
             return {"min": self.slider_range[0], "max": self.slider_range[1]} if self.merged else None
         raise AssertionError("an unscripted script reached the page")
@@ -110,6 +121,16 @@ class Pg:
 
     # -- reactions
     def clicked(self, x):
+        if x == 5000:
+            self.menu_open = True
+            self.menu_clicks.append("···")
+            return
+        if x >= 6000:
+            self.menu_open = False
+            self.menu_clicks.append(self.overflow[x - 6000])
+            if self.overflow_chip:
+                self.chips["model"] = self.overflow_chip
+            return
         if x < 1000:
             self.open = list(self.chips)[x]
             return
@@ -131,6 +152,8 @@ class Pg:
 
     def pressed(self, key):
         self.pressed_keys.append(key)
+        if key == "Escape":
+            self.menu_open = False
         if key == "Home":
             self.slider_value = self.slider_range[0]
         elif key == "ArrowRight":
@@ -395,6 +418,47 @@ async def test_a_button_that_never_shows_is_a_mode_error():
     assert err.value.code == errors.UI_MODE_NOT_READY
     with pytest.raises(ComposerError, match="could not find the 'Create Images' button"):
         await composer.enter_image_mode(page, settle_s=1)
+
+
+OVERFLOW_ITEM = "    item = await page.evaluate(_VISIBLE_TEXT_JS, label)\n"
+
+
+@mutation(CO, '        return await _mode_from_overflow_menu(page, "Create Images")\n',
+          '        raise ComposerError("could not find the \'Create Images\' button", code=UI_MODE_NOT_READY)\n',
+          expect="the folded row was not entered through its menu")
+@mutation(CO, OVERFLOW_ITEM, "    item = trigger\n", expect="the folded row was not entered through its menu")
+@sync
+async def test_a_row_folded_behind_its_dots_menu_is_entered_through_it_and_only_through_a_visible_item():
+    """23/10: on a first run the composer row read `+ | Fast ···`, with no Create Images button: its buttons were
+    folded into the "···" menu. The mode is entered through that menu, by a real click on the item; a menu without the
+    item is a mode error before anything is sent, never a guess."""
+    page = Pg(chips={}, buttons=(), overflow=("Create Videos", "Create Images", "Writing"))
+    try:
+        got = await composer.enter_image_mode(page, settle_s=1)
+    except ComposerError as exc:
+        got = "error: %s" % exc
+    assert got == "Model Seedream 4.5", "the folded row was not entered through its menu: %r" % got
+    assert page.menu_clicks == ["···", "Create Images"] and page.pressed_buttons == [], \
+        "the folded row was not entered through its menu by real clicks: %r" % page.menu_clicks
+    video = Pg(chips={}, buttons=(), overflow=("Create Videos",), overflow_chip="Model Dreamina Seedance 2.5")
+    assert await composer.enter_video_mode(video, settle_s=1) == "Model Dreamina Seedance 2.5"
+    assert video.menu_clicks == ["···", "Create Videos"]
+    without = Pg(chips={}, buttons=(), overflow=("Writing", "Translate"))
+    with pytest.raises(ComposerError, match="nor the item") as err:
+        await composer.enter_image_mode(without, settle_s=1)
+    assert err.value.code == errors.UI_MODE_NOT_READY and without.menu_clicks == ["···"]
+    assert "Escape" in without.pressed_keys and not without.menu_open, "the menu was left open"
+    blank = Pg(chips={}, buttons=(), overflow=("Create Images",), overflow_chip="")
+    with pytest.raises(ComposerError, match="chip row did not appear after choosing Create Images") as err:
+        await composer.enter_image_mode(blank, settle_s=1)
+    assert err.value.code == errors.UI_MODE_NOT_READY
+
+
+def test_the_button_scripts_take_only_an_element_on_screen():
+    # a hidden copy (a folded menu, a measuring layer) is never taken for the button: the fold reaches the menu
+    for js in (composer._FIND_TEXT_JS, composer._CLICK_TEXT_JS, composer._VISIBLE_TEXT_JS):
+        assert "getBoundingClientRect" in js and "r.width > 0 && r.height > 0" in js
+    assert "overflow-list" in composer._OVERFLOW_JS and "innerHeight*0.6" in composer._OVERFLOW_JS
 
 
 @sync

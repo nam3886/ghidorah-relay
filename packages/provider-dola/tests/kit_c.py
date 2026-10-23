@@ -76,10 +76,10 @@ class FakeCtx:
     """A RunCtx that records what the engine does, in order, next to the driver's page actions."""
 
     def __init__(self, log: list, acct: AccountView | None = None, *, fence_error: Exception | None = None,
-                 mark_error: Exception | None = None):
+                 mark_error: Exception | None = None, report_error: Exception | None = None):
         self.log, self.account = log, acct or account()
         self.browser_token, self.settings, self.log_ = object(), Settings(), None
-        self.fence_error, self.mark_error = fence_error, mark_error
+        self.fence_error, self.mark_error, self.report_error = fence_error, mark_error, report_error
         self.events: list[tuple[str, str, str]] = []
         self.evidence_items: list[tuple[str, bytes, str]] = []
         self.refs: list[tuple[str, dict]] = []
@@ -98,6 +98,8 @@ class FakeCtx:
 
     async def report_ref(self, ref, state):
         self.log.append("report_ref")
+        if self.report_error is not None:
+            raise self.report_error
         self.refs.append((ref, dict(state)))
 
     async def event(self, text, stage, source):
@@ -279,11 +281,11 @@ class FakeEvidence:
 
 
 class FakeSession:
-    def __init__(self, patched: int = 1):
+    def __init__(self, patched: int = 1, cold: bool = False):
         self.page = _Page()
         self.recorder = NetRecorder(CAPTURE_PATHS)
         self.feeder = Feeder(self.recorder)
-        self.evidence, self.patched, self.ctx = FakeEvidence(), patched, None
+        self.evidence, self.patched, self.ctx, self.cold = FakeEvidence(), patched, None, cold
 
 
 def opener(session: FakeSession, calls: list | None = None, error: Exception | None = None):
@@ -314,6 +316,36 @@ class FakeWatch:
         self._moved = True
 
 
+class FakeTraffic:
+    """What the driver's traffic watch says: did the browser send anything that could carry the order from the Enter
+    to the end of the send? `scripted` None: exactly when the Enter happened (the fake's `send`, or a real send's Enter
+    key, logged it): the money-safe default, so only a test that says so proves a send never left. With `scripted`
+    False a late send (`hit`, while armed and not frozen) is still seen."""
+
+    def __init__(self, log: list, scripted: bool | None):
+        self._log, self._scripted, self.stopped = log, scripted, False
+        self.armed = self.frozen = False
+        self.count = 0
+
+    def hit(self) -> None:
+        if self.armed and not self.frozen:
+            self.count += 1
+
+    def arm(self) -> None:
+        self.armed, self.frozen = True, False
+
+    def freeze(self) -> None:
+        self.frozen = True
+
+    def seen(self) -> bool:
+        if self._scripted is None:
+            return "send" in self._log or "Enter" in self._log
+        return self._scripted or self.count > 0
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
 class FakeDriver(PageDriver):
     """The page actions, scripted. Every action is appended to `log`; nothing touches a browser."""
 
@@ -324,7 +356,8 @@ class FakeDriver(PageDriver):
                  passport: dict | None = None, kind: str | None = "new", type_error: Exception | None = None,
                  cookie_names: set | None = ..., injected: list | None = ..., build_error_times: int | None = None,
                  moves: list | None = None, region_after_settle: bool = False,
-                 build_reloads: int = 0, attach_errors: dict | None = None):
+                 build_reloads: int = 0, attach_errors: dict | None = None, order_request: bool | None = None,
+                 probe_after_send: dict | None = None, late_send: bool = False, halt_ok: bool = True):
         self.log, self.world = log, world
         self.probe_result = GOOD_PROBE if probe is None else probe
         self.url, self.new_composer, self.text = url, new_composer, page_text
@@ -342,6 +375,10 @@ class FakeDriver(PageDriver):
         self.build_reloads = build_reloads        # builds that reload the page themselves (the engine's own net)
         self.attach_errors, self.attaches = dict(attach_errors or {}), 0    # {call number: error}
         self.opens = 0
+        self.order_request, self.traffic_watches = order_request, []   # see FakeTraffic
+        self.probe_after_send = probe_after_send     # the login read once the Enter happened (None: as before it)
+        self.builds_cold: list[bool] = []
+        self.late_send, self.halt_ok = late_send, halt_ok   # halt: a send fires late; the browser close works
         self.attached, self.images_at_send = 0, []   # thumbnails on the page: a settle keeps them, a load clears them
         self.sent: list[str] = []
         self.snapshots: list[dict] = []           # the conversation as it stood just before each send
@@ -359,6 +396,17 @@ class FakeDriver(PageDriver):
         self.watches.append(watch)
         return watch
 
+    async def halt(self, session):
+        if self.late_send:                 # a sender fires late (a worker, a beacon), before the close ends it
+            self.traffic_watches[-1].hit()
+        self.log.append("halt")
+        return self.halt_ok
+
+    def watch_traffic(self, session):
+        watch = FakeTraffic(self.log, self.order_request)
+        self.traffic_watches.append(watch)
+        return watch
+
     async def identity_cookie_names(self, session):
         return self.cookie_names
 
@@ -372,6 +420,8 @@ class FakeDriver(PageDriver):
             raise self.open_error
 
     async def probe(self, page):
+        if self.probe_after_send is not None and "mark_sent" in self.log:
+            return self.probe_after_send
         return self.probe_result
 
     async def page_url(self, page):
@@ -388,8 +438,9 @@ class FakeDriver(PageDriver):
         self.world.reads += 1
         return self.world.body() if self.world.thread else None
 
-    async def build(self, page, spec):
+    async def build(self, page, spec, *, cold=False):
         self.log.append("build")
+        self.builds_cold.append(cold)
         self.builds += 1
         if self.builds <= self.build_reloads:
             for watch in self.watches:
@@ -466,15 +517,15 @@ class Scene:
                  on_send=None, user_kind: str = "user", fence_error: Exception | None = None,
                  mark_error: Exception | None = None,
                  open_error: Exception | None = None, read_media=None, hold_s: float = 5.0, world_factory=None,
-                 **driver_kw):
+                 cold: bool = False, report_error: Exception | None = None, **driver_kw):
         self.log: list = []
-        self.session = FakeSession(patched)
+        self.session = FakeSession(patched, cold)
         self.world = (world_factory(self.session.feeder) if world_factory else
                       World(self.session.feeder, replies=replies, late=late, polls=polls, on_send=on_send,
                            user_kind=user_kind))
         self.driver = FakeDriver(self.log, self.world, new_composer=new_composer, **driver_kw)
         self.ctx = FakeCtx(self.log, acct or account(composer=composer_kind), fence_error=fence_error,
-                           mark_error=mark_error)
+                           mark_error=mark_error, report_error=report_error)
         self.job = job or make_job()
         self.calls: list = []
         self.deps = deps(self.session, self.driver, self.world, calls=self.calls, read_media=read_media,

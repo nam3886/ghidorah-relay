@@ -121,6 +121,19 @@ def test_a_job_keeps_at_most_the_file_limit_and_the_rest_is_dropped(db, objects,
     assert len(stored_keys(objects)) == 3 and "already holds 3 files" in caplog.text
 
 
+@mutation(EVIDENCE, "    if not data:\n        # An empty file", "    if False:\n        # An empty file",
+          expect="an empty file was stored")
+def test_an_empty_file_is_skipped_and_stores_no_row(db, objects, caplog):
+    """23/10: an empty network log (a page that made no recorded request) became a 0-byte row the store refused."""
+    caplog.set_level("INFO", logger="relay.evidence")
+    _, made = one_job(db)
+    keep_all(db, objects, made.job_id, [("ui-error-send-1.network.txt", b"", "text/plain; charset=utf-8"),
+                                        ("ui-error-send-1.png", PNG, "image/png")])
+    kept = rows(db, made.job_id)
+    assert [r[1].endswith("-ui-error-send-1.png") for r in kept] == [True], "an empty file was stored: %r" % kept
+    assert "file is empty" in caplog.text
+
+
 @mutation(EVIDENCE, "if len(data) > MAX_BYTES:", "if False:", expect="a file over the size limit was kept")
 def test_a_file_over_the_size_limit_is_dropped_whole(db, objects, monkeypatch, caplog):
     monkeypatch.setattr(evidence, "MAX_BYTES", 100)

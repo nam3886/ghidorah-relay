@@ -235,10 +235,10 @@ async def test_a_real_navigation_watch_counts_document_loads_not_same_document_m
 
 
 # ---- the watch starts after the build; a recompose loads the page afresh ------------------------------------------
-BUILD_WATCH = ("            built = await driver.build(page, spec)\n"
+BUILD_WATCH = ("            built = await driver.build(page, spec, cold=self.session.cold)\n"
                "            self.watch = driver.watch_navigation(page)")
 WATCH_BEFORE_BUILD = ("            self.watch = driver.watch_navigation(page)\n"
-                      "            built = await driver.build(page, spec)")
+                      "            built = await driver.build(page, spec, cold=self.session.cold)")
 
 
 @mutation(SUB, BUILD_WATCH, WATCH_BEFORE_BUILD, expect="the build's own reload was counted as a navigation")

@@ -166,6 +166,26 @@ def test_releasing_a_profile_resets_it_again_and_frees_the_lock(tmp_path):
     sess.release_profile(again)
 
 
+@mutation(S, 'cold = not os.path.isdir(os.path.join(profile, "Default", "Cache"))',
+          "cold = False", expect="a profile with no cache was not called cold")
+@mutation(S, "claim = ProfileClaim(profile, lock, False, cold=cold)", "claim = ProfileClaim(profile, lock, False)",
+          expect="a profile with no cache was not called cold")
+def test_a_profile_without_an_http_cache_is_cold_and_one_with_it_is_not(tmp_path):
+    """23/10: the first run after a cookie refresh (a new credential generation: a new, empty profile) loaded dola too
+    slowly for the composer wait. The engine waits longer on a cold profile; it must be told which one is."""
+    site = site_for(tmp_path)
+    first = sess.claim_profile(str(tmp_path), "a-g2", site)
+    assert first.cold, "a profile with no cache was not called cold"
+    plant(Path(first.path), "Default/Cache/Cache_Data/index")
+    throwaway = sess.claim_profile(str(tmp_path), "a-g2", site)
+    assert throwaway.throwaway and throwaway.cold, "a throwaway profile starts empty: it is cold"
+    sess.release_profile(throwaway)
+    sess.release_profile(first)
+    again = sess.claim_profile(str(tmp_path), "a-g2", site)
+    assert not again.cold, "a profile that kept its cache was called cold"
+    sess.release_profile(again)
+
+
 # ---- the lock and the throwaway profile ------------------------------------------------------------------------------
 @mutation(S, "fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)", "fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)",
           expect="two runs hold the same account's profile")
@@ -306,6 +326,7 @@ async def test_a_failed_launch_wipes_the_profile_and_retries_once(tmp_path):
     assert await sess.launch_with_retry(launch, claim) == "context", "a failed launch was not retried"
     assert seen[1] == [sess.OPEN_MARK, "Default/Preferences"], \
         "the damaged profile was not wiped before the retry: %r" % seen[1]
+    assert claim.cold, "a wiped profile lost its cache and was not called cold"
 
     async def always_fails(path):
         seen.append("again")

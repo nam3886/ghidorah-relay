@@ -19,6 +19,7 @@ that need no Chrome (`Deps`).
 """
 
 import asyncio
+import contextlib
 import functools
 import json
 import logging
@@ -30,7 +31,9 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
+from urllib.parse import urlsplit
 
+from relay_browser.evidence import TEXT_MIME, Evidence
 from relay_browser.session import BrowserLaunchError, BrowserRefused, open_session
 from relay_browser.text import norm_for_match
 from relay_browser.ui import inject_cookies
@@ -79,9 +82,15 @@ COMPLETION_PATH = "/chat/completion"
 
 # dola's own throttle and region codes, carried in the `/chat/completion` SSE body (HTTP stays 200). Passive reading
 # only: the request is never edited (dola signs the body).
-THROTTLE_CODES = (710022004, 710022002)     # rate limit, high demand: the account rests, the job goes elsewhere
+THROTTLE_CODES = (710022004,)               # rate limit: the account rests, the job goes elsewhere
 REGION_CODE = 710022003                     # blocked by region for this endpoint: the proxy is the wrong region
-_SSE_ERROR = re.compile(r"error_code\W{0,4}(\d{6,})")
+# dola will not take THIS order: measured 23/10, 9 of 18 tries in 3 h were 710022002, all on one prompt and on 7
+# accounts, so it answers the prompt, not the account. Owner's ruling 23/10: the job ends at once, refunded, and is
+# never tried on another account (dola took nothing). It was a throttle (rest, job elsewhere) until then.
+REFUSED_CODE = 710022002
+SSE_MESSAGE_CHARS = 200
+# Events of a `/chat/completion` stream that deliver nothing: a heartbeat and the acknowledgement of the send.
+QUIET_EVENTS = frozenset({"SSE_HEARTBEAT", "SSE_ACK"})
 _CONV_ID = re.compile(r'"conversation_id"\s*:\s*"(\d+)"')
 _ANCHOR = re.compile(r'"anchor_index"\s*:\s*(\d+)')
 # The anchor of a FULL read of a conversation (the newest messages, whole): the one `CHAIN_FETCH_JS` asks for. The
@@ -161,6 +170,16 @@ PASSPORT_JS = """async (qp) => {
 CARD_COUNT_JS = r"""() => [...document.querySelectorAll('img')]
   .filter(i => (i.src || '').startsWith('blob:')).length"""
 ATTACH_TRIES = 45            # ~31 s: N images through a slow proxy
+# The wait for the mode button on a cold profile: its first load fetches dola's whole script bundle (~10 MB) through
+# the proxy, and the 9 s of a warm page ran out before the row was there (23/10). The success path does not wait it
+# out: the button is polled.
+COLD_MODE_WAIT_S = 30
+# On a 710022002 the receipt keeps looking for the conversation this long (it may appear a moment after the stream),
+# so it is kept as evidence; the job still fails right after.
+REFUSAL_RECEIPT_S = 10.0
+# The conversation reads of the page and of the engine (`CHAIN_FETCH_JS`, the login probe): POSTs that read, and the
+# only POSTs the traffic watch does not count. The order itself goes elsewhere (`/chat/completion`).
+READ_PATHS = frozenset({SINGLE_PATH, "/im/chain/recent_conv", "/passport/account/info/v2/"})
 
 
 # ---- pure helpers ------------------------------------------------------------------------------------------------
@@ -171,7 +190,6 @@ def is_upload_commit(method: str, url: str) -> bool:
     store at 2.4-4.8 s, the commit at 5.3 s; the DOM shows nothing in between). Sending in that gap sends an image dola
     does not have yet. The chain is: prepare_upload (POST, dola), imagex (GET, reserve), store (POST, the file), imagex
     (POST, commit). Only the last counts."""
-    from urllib.parse import urlsplit
     return method == "POST" and "imagex" in urlsplit(url).netloc
 
 
@@ -445,6 +463,88 @@ def network_failure(text: str) -> bool:
     return any(mark in low for mark in NETWORK_MARKS)
 
 
+class StreamError(NamedTuple):
+    code: int
+    message: str                  # dola's own words, white space folded, at most SSE_MESSAGE_CHARS ("" when none)
+
+
+def sse_events(body: str) -> list[tuple[str, str]]:
+    """The events of a server-sent-events body as (event name, data), the data lines of one event joined; comment
+    lines (`:`) are skipped."""
+    out, name, data = [], "", []
+    for line in [*(body or "").splitlines(), ""]:
+        if not line.strip():
+            if data:
+                out.append((name, "\n".join(data)))
+            name, data = "", []
+        elif line.startswith("event:"):
+            name = line[6:].strip()
+        elif line.startswith("data:"):
+            data.append(line[5:].strip())
+    return out
+
+
+def _error_envelope(obj) -> dict | None:
+    """dola's error envelope: an object with an integer `error_code` at its TOP level, or in its `event_data` (an
+    object, or a JSON string of one: the nested shape). A code anywhere deeper (inside a message's content, an echo of
+    the prompt) is never one."""
+    if not isinstance(obj, dict):
+        return None
+    inner = obj.get("event_data")
+    if isinstance(inner, str):
+        try:
+            inner = json.loads(inner)
+        except ValueError:
+            inner = None
+    for env in (obj, inner):
+        code = env.get("error_code") if isinstance(env, dict) else None
+        if (isinstance(code, int) and not isinstance(code, bool)) or (isinstance(code, str) and code.isdigit()):
+            return env
+    return None
+
+
+def stream_error(body: str) -> StreamError | None:
+    """dola's error for a send, read from its `/chat/completion` stream, parsed event by event: the first error
+    envelope, and only when the stream delivered NOTHING else. An event that is not a heartbeat, an acknowledgement, an
+    empty object or `[DONE]` is a delivery (unreadable data too), and a stream with one is no error: an error code
+    then a reply, or a code inside the reply's text, never ends a job."""
+    error = None
+    for name, data in sse_events(body):
+        if data == "[DONE]":
+            continue
+        try:
+            obj = json.loads(data)
+        except ValueError:
+            return None                       # unreadable data: it may have been a delivery
+        env = _error_envelope(obj)
+        if env is not None:
+            if error is None:
+                said = env.get("error_msg")
+                said = " ".join(said.split())[:SSE_MESSAGE_CHARS] if isinstance(said, str) else ""
+                error = StreamError(int(env["error_code"]), said)
+            continue
+        if name in QUIET_EVENTS or obj == {}:
+            continue
+        return None
+    return error
+
+
+def sse_message(body: str) -> str:
+    """dola's words next to its error code in a stream ("" when none, or when the stream is no error)."""
+    error = stream_error(body)
+    return error.message if error else ""
+
+
+_ORDER_REQUEST = re.compile(r"/chat/|completion")
+
+
+def may_carry_order(url: str) -> bool:
+    """Could this GET carry the order? Any URL naming a completion or with `/chat/` in it, path or query (a send
+    routed by a query parameter), on any host. Any request that is not a GET counts whatever its URL
+    (`TrafficWatch`)."""
+    return bool(_ORDER_REQUEST.search(url or ""))
+
+
 # ---- what the engine reads off the job -----------------------------------------------------------------------------
 @dataclass(frozen=True)
 class OrderSpec:
@@ -504,11 +604,97 @@ class NavWatch:
         self._page.remove_listener("domcontentloaded", self._on_load)
 
 
+class TrafficWatch:
+    """Everything the browser context sends that could carry an order, from `arm()` (right before the Enter) until
+    `freeze()` (after the browser was closed, see `_proven_not_sent`): any request that is not a GET, on any host, from
+    any page, popup or worker the context reports (the context's own `request` event), bar the conversation reads
+    (`READ_PATHS`); a GET whose full URL names a send (`may_carry_order`); any WebSocket frame sent by any page, also
+    a page opened later. Watched from the moment the session opens, so a
+    WebSocket opened before the send is seen too. Fail-safe: a context that could not be watched, a page or socket it
+    could not attach to, or a listener that failed is a BLIND watch, which counts as traffic. Only a watch that saw
+    nothing proves the order never left (`seen()` False).
+
+    ponytail: a WebSocket of a dedicated worker is not reported by Playwright, so it is not seen; dola sends over
+    `POST /chat/completion` (measured), which the context does report."""
+
+    def __init__(self, ctx) -> None:
+        self._ctx, self.count, self.blind = ctx, 0, False
+        self.armed = self.frozen = False
+        self._pages: list = []
+        self._sockets: list = []
+        try:
+            ctx.on("request", self._on_request)
+            ctx.on("page", self._on_page)
+            for page in list(ctx.pages):
+                self._on_page(page)
+        except Exception:      # noqa: BLE001 - not watched is not "nothing left"
+            self.blind = True
+
+    def _hit(self) -> None:
+        if self.armed and not self.frozen:
+            self.count += 1
+
+    def _on_request(self, request) -> None:
+        try:
+            carries = ((request.method != "GET" and urlsplit(request.url).path not in READ_PATHS)
+                       or may_carry_order(request.url))
+        except Exception:      # noqa: BLE001 - an unreadable request may have been the order
+            carries = True
+        if carries:
+            self._hit()
+
+    def _on_page(self, page) -> None:
+        try:
+            page.on("websocket", self._on_socket)
+            self._pages.append(page)
+        except Exception:      # noqa: BLE001
+            self.blind = True
+
+    def _on_socket(self, ws) -> None:
+        try:
+            ws.on("framesent", self._on_frame)
+            self._sockets.append(ws)
+        except Exception:      # noqa: BLE001
+            self.blind = True
+
+    def _on_frame(self, *_args) -> None:
+        self._hit()
+
+    def arm(self) -> None:
+        self.armed, self.frozen = True, False
+
+    def freeze(self) -> None:
+        self.frozen = True
+
+    def seen(self) -> bool:
+        return self.blind or not self.armed or self.count > 0
+
+    def stop(self) -> None:
+        with contextlib.suppress(Exception):
+            self._ctx.remove_listener("request", self._on_request)
+            self._ctx.remove_listener("page", self._on_page)
+        for page in self._pages:
+            with contextlib.suppress(Exception):
+                page.remove_listener("websocket", self._on_socket)
+        for ws in self._sockets:
+            with contextlib.suppress(Exception):
+                ws.remove_listener("framesent", self._on_frame)
+
+
 class PageDriver:
     """The real page actions. A test subclasses it and answers from a script, so no Chrome is needed."""
 
     def watch_navigation(self, page) -> NavWatch:
         return NavWatch(page)
+
+    def watch_traffic(self, session) -> TrafficWatch:
+        return TrafficWatch(session.ctx)
+
+    async def halt(self, session) -> bool:
+        """Make every further send of this browser impossible: close the whole browser (its context and process), so
+        no page, service worker, keep-alive request or beacon of dola's is left. The session is closed for good; its
+        own exit does not touch it again. True only when the close itself completed."""
+        return await session.close_now()
 
     async def inject(self, session, account) -> list[str]:
         """Put the account's cookies into the context and read the identity cookies back (a half-done injection would
@@ -565,15 +751,17 @@ class PageDriver:
             return None
         return body if isinstance(body, dict) else None
 
-    async def build(self, page, spec: OrderSpec) -> Built:
+    async def build(self, page, spec: OrderSpec, *, cold: bool = False) -> Built:
         """The whole composer, with a reload and a retry when the chip row has not rendered (it misses ~50% of first
         tries: late hydration). The net wraps the WHOLE group (mode, model, duration, ratio): all steps read one
         chip row and fail for one reason; wrapping only the first step moved the failure to `duration chip not
-        found` (22/09)."""
+        found` (22/09). A `cold` profile (no HTTP cache: the first run after a new credential) waits up to
+        COLD_MODE_WAIT_S for the mode button before it gives up on a try (23/10: the button was not there yet)."""
         steps: list[str] = []
+        wait = {"settle_s": COLD_MODE_WAIT_S} if cold else {}
         if spec.kind == "image":
             async def group(p):
-                chip = await composer.enter_image_mode(p)
+                chip = await composer.enter_image_mode(p, **wait)
                 # The cookies popup blocks the first chip click (measured 260918): close it after EVERY reload.
                 await composer.dismiss_consent(p)
                 return (chip, await composer.select_image_model(p, spec.model),
@@ -586,7 +774,7 @@ class PageDriver:
             return Built(tuple(steps), None)
 
         async def group(p):
-            return (await composer.enter_video_mode(p), await composer.select_video_model(p, spec.model),
+            return (await composer.enter_video_mode(p, **wait), await composer.select_video_model(p, spec.model),
                     *await composer.select_video_ratio_duration(p, spec.ratio, spec.duration))
         chip, model, duration, ratio, new_composer = await self._robust(page, group, "video composer")
         steps += ["video mode: chip %s" % chip, "model: %s" % model, "duration: %s" % duration, "ratio: %s" % ratio]
@@ -762,6 +950,7 @@ class _Run:
         self.spec = order_spec(job)
         self.started = deps.clock()
         self.watch: NavWatch | None = None     # sees the page load again between the compose and the send
+        self.traffic: TrafficWatch | None = None    # what the browser sent from the Enter on
         self.logged_in = False            # True once the login read said logged in: the strike count is then cleared
         self.injected: list[str] = []     # the identity cookie names `inject` verified in this browser
         self.sent = False                 # True from the moment `mark_sent` returned: the order may be at dola
@@ -843,13 +1032,31 @@ class _Run:
         # re-send, the money-safe side.
         return True if self.new_composer is None else self.new_composer
 
-    def _sse_error(self) -> int | None:
+    def _stream_errors(self) -> list[tuple[StreamError, str]]:
+        """dola's error of every `/chat/completion` stream since the first send that is an error (`stream_error`), with
+        that stream's body, oldest first."""
+        out = []
         for ev in self.session.recorder.events(self.since):
-            if ev.path == COMPLETION_PATH:
-                m = _SSE_ERROR.search(ev.body)
-                if m:
-                    return int(m.group(1))
-        return None
+            if ev.path == COMPLETION_PATH and (error := stream_error(ev.body)) is not None:
+                out.append((error, ev.body))
+        return out
+
+    def _sse_error(self) -> int | None:
+        errors_seen = self._stream_errors()
+        return errors_seen[0][0].code if errors_seen else None
+
+    def _refusal(self) -> str | None:
+        """The body of a stream of this job's sends that refused the order with REFUSED_CODE; None when none did. Every
+        stream is read, the first send's and each re-send's."""
+        return next((body for error, body in self._stream_errors() if error.code == REFUSED_CODE), None)
+
+    def _order_may_have_left(self) -> bool:
+        """May the order have reached dola? Yes when the browser sent anything that could carry it since the Enter
+        (`TrafficWatch`, blind or unarmed included), or the recorder holds a `/chat/completion` answer since the send.
+        No only when both saw nothing (decided for good only by `_proven_not_sent`)."""
+        if self.traffic is None or self.traffic.seen():
+            return True
+        return any(ev.path == COMPLETION_PATH for ev in self.session.recorder.events(self.since))
 
     # ---- the order ----
     async def run(self) -> SubmitResult:
@@ -868,6 +1075,14 @@ class _Run:
         return [(await self.deps.read_media(ref), ref.mime) for ref in refs]
 
     async def _order(self, images) -> SubmitResult:
+        # Watched from the open, before any page loads: a WebSocket the page opens early is seen when it sends.
+        self.traffic = self.driver.watch_traffic(self.session)
+        try:
+            return await self._order_steps(images)
+        finally:
+            self.traffic.stop()
+
+    async def _order_steps(self, images) -> SubmitResult:
         ctx, driver, page = self.ctx, self.driver, self.page
         self.injected = list(await driver.inject(self.session, ctx.account))
         await driver.open_chat(page)
@@ -921,7 +1136,7 @@ class _Run:
         baseline = set(probe.get("ids") or [])
 
         try:
-            built = await driver.build(page, spec)
+            built = await driver.build(page, spec, cold=self.session.cold)
             self.watch = driver.watch_navigation(page)     # not before: the build reloads the page itself when it must
         except composer.ComposerError as exc:
             await self._ui_error_evidence("%s-composer" % spec.kind)
@@ -953,19 +1168,53 @@ class _Run:
         # would not go into the input) an ordinary retry.
         self.since = self.session.recorder.now()
         try:
-            await driver.send(page, spec.sent_text, before_enter=self._mark_sent)
+            await self._send_once()
         except composer.ComposerError as exc:
             await self._ui_error_evidence("%s-send" % spec.kind)
             if not self.sent:
                 return await self._unsent(exc.code, "the prompt did not go into the input: %s" % exc)
+            if await self._proven_not_sent():
+                # Enter was pressed, the prompt stayed in the input, and the page asked dola nothing: provably not
+                # sent (23/10: reconcile took 11 min to prove it). Nothing more is pressed in this session.
+                return await self._not_sent("the prompt stayed in the input and the browser sent nothing that could "
+                                            "carry the order: not sent (%s)" % exc)
             return await self._after_send_failure("the send did not complete: %s" % exc)
 
         conversation = await self._receipt(baseline)
+        refused = self._refusal()
+        if refused is not None:
+            return await self._refused_by_code(refused, conversation)
         if conversation is None:
             return await self._no_conversation()
         self.conversation = conversation
         await ctx.report_ref(conversation, {})
         return await self._answer(conversation, images)
+
+    async def _send_once(self) -> None:
+        """The first send. The traffic watch keeps counting after it: a send the page fires late (the input is given
+        30 s to clear) is still seen (`_proven_not_sent`)."""
+        await self.driver.send(self.page, self.spec.sent_text, before_enter=self._mark_sent)
+
+    async def _proven_not_sent(self) -> bool:
+        """Is it PROVEN that the order never left? Only on a browser that no longer exists: the whole browser is closed
+        first (`driver.halt`: every page, service worker, keep-alive request and beacon dies with it), the watch keeps
+        counting until the close has completed, and only then is it read and frozen. Traffic seen at any point, a close
+        that fails or cannot be confirmed: not proven (the order may have left; the job stays unknown). The session is
+        gone afterwards, which is fine: this run ends here either way."""
+        if self._order_may_have_left():
+            return False
+        try:
+            halted = await self.driver.halt(self.session)
+        except Exception as exc:      # noqa: BLE001 - not confirmed is not proven
+            log.info("could not close the browser before the not-sent proof: %s", str(exc)[:80])
+            halted = False
+        if not halted:
+            await self._say("the browser could not be closed cleanly, so a late send cannot be ruled out", "submit",
+                            "engine")
+            return False
+        if self.traffic is not None:
+            self.traffic.freeze()
+        return not self._order_may_have_left()
 
     async def _mark_sent(self) -> None:
         """Called by the driver immediately before Enter: from here dola MAY have the order."""
@@ -973,6 +1222,8 @@ class _Run:
             # The page loaded again while the prompt was typed (a reload that threw nothing): the composer the run built
             # is gone, and nothing was sent. Treated like any navigation before the send.
             raise RuntimeError("Execution context was destroyed: the page loaded again before the send")
+        if self.traffic is not None:
+            self.traffic.arm()             # from here everything the browser sends may be the order
         await self._flush_steps()          # before mark_sent: nothing may come between mark_sent and the keypress
         await self._core(self.ctx.mark_sent)
         self.sent = True
@@ -1037,7 +1288,7 @@ class _Run:
         id taken from the request. Not the URL, not the biggest id (dola's ids do not grow with time: 14 of 35
         consecutive pairs fell). The URL and the account's conversation list are the fallback when the page's own
         traffic gives nothing, and the fallback is logged as the engine's."""
-        spec = self.spec
+        spec, refused_at = self.spec, None
         for attempt in range(REPLY_TRIES):
             ev = await self.session.recorder.wait_for(
                 lambda e: e.path == SINGLE_PATH and e.status == 200
@@ -1049,8 +1300,13 @@ class _Run:
                     return conversation
             if attempt >= 2:
                 # The page text is NOT consulted here: a sidebar title or the echo of the order can read as "out of
-                # credit" before the receipt exists. Only dola's own code for THIS send ends the wait early.
-                if self._sse_error() is not None:
+                # credit" before the receipt exists. Only dola's own code for THIS send ends the wait early; on a
+                # refusal the conversation is still looked for REFUSAL_RECEIPT_S, as evidence for a late delivery.
+                if self._refusal() is not None:
+                    refused_at = self.deps.clock() if refused_at is None else refused_at
+                    if self.deps.clock() - refused_at >= REFUSAL_RECEIPT_S:
+                        return None
+                elif self._sse_error() is not None:
                     return None              # dola answered with a throttle or region code: nothing will come
                 try:
                     found = await self._fallback_receipt(baseline)
@@ -1080,17 +1336,93 @@ class _Run:
 
     async def _no_conversation(self) -> SubmitResult:
         """Sent, and no conversation of ours appeared. Only dola's own signals decide: a throttle or region code in
-        its stream, or its region page. The page TEXT never does (sidebar titles of the account's other chats read
-        as "not enough credits"): anything else is unknown, and reconcile reads the account's own conversation list
-        (proven not sent: send again; otherwise the deadline refunds)."""
+        its stream, its region page, or the login read of the page (a guest page: logged out). The page TEXT never
+        does (sidebar titles of the account's other chats read as "not enough credits"): anything else is unknown,
+        and reconcile reads the account's own conversation list (proven not sent: send again; otherwise the deadline
+        refunds)."""
         code = self._sse_error()
         if code in THROTTLE_CODES:
             return self._throttled(code)
         if code == REGION_CODE or REGION_BLOCK_MARK in await self.driver.page_url(self.page):
             return self._region_blocked("dola answered %s" % (code or "with its region page"))
+        logged_out = await self._logged_out_after_send()
+        if logged_out is not None:
+            return logged_out
         await self._ui_error_evidence("no-conversation")
         return await self._after_send_failure("no new conversation appeared after sending (%s)"
                                               % errors.UI_NO_CONVERSATION)
+
+    async def _logged_out_after_send(self) -> SubmitResult | None:
+        """The page read as a guest after the send (23/10: "Log in to unlock more features" over the composer, labelled
+        unknown with no word of the logout). The account gets what a guest read at the open gets (one spaced strike and
+        a rest, or no strike when the browser itself lost the cookies), and this run clears no strike. The order
+        follows the money rule: a request that may carry it left the page, so it stays unknown; none did, so it was
+        not sent and goes back to the queue. None when the read says logged in or says nothing."""
+        try:
+            state = login_state(await self.driver.probe(self.page))
+        except Exception as exc:      # noqa: BLE001 - a page that cannot be read proves nothing
+            log.info("login read after the send failed: %s", str(exc)[:80])
+            return None
+        if state.logged_in or not (state.signed_out or state.cells >= 0 or state.modal_visible):
+            return None
+        self.logged_in = False
+        present = await self.driver.identity_cookie_names(self.session)
+        lost = lost_identity_cookies(present, self.injected)
+        if present is None or lost:         # the browser's fault, not dola's verdict: no strike
+            why, code, effects = ("the browser lost the account's cookies: %s" % (", ".join(lost) or "not readable"),
+                                  errors.BROWSER_COOKIES_LOST, cookies_lost_effects(self.deps.now()))
+        else:
+            why, code, effects = ("logged out: %s" % state.reason, POOL_LOGGED_OUT,
+                                  login_doubt_effects(self.deps.now(), "after the send: %s" % state.reason))
+        await self._ui_error_evidence("logged-out-after-send")
+        if not await self._proven_not_sent():
+            await self._flush_steps()
+            await self._say("after the send the page read %s; the order may have reached dola" % why,
+                            "submit_error", "engine")
+            return _outcome(Ambiguous(("after the send: %s" % why)[:500]), *effects)
+        return await self._not_sent("after the send the page read %s, and it sent no request that could carry the "
+                                    "order: not sent" % why, code, effects)
+
+    async def _not_sent(self, why: str, code: str = errors.UI_SEND_FAILED, effects=()) -> SubmitResult:
+        """After `mark_sent`, PROVEN not sent (`_order_may_have_left` is False): the order goes back to the queue as a
+        new attempt (`NotTaken`; the core clears `sent_at`). Nothing more is pressed in this session."""
+        await self._flush_steps()
+        await self._say(why, "submit_error", "engine")
+        return _outcome(NotTaken(code), *effects)
+
+    async def _refused_by_code(self, stream: str, conversation: str | None) -> SubmitResult:
+        """dola's stream answered the send with REFUSED_CODE: dola will not take this order, and took nothing. The job
+        ends now, refunded (owner's ruling 23/10), and is never tried on another account: in 3 h it went to 7 accounts
+        and 5 of them were logged out by dola within the hour. The stream is kept as evidence and dola's own words go
+        to the timeline. The account rests THROTTLE_COOLDOWN_S and is checked again then: the refusal is about the
+        prompt, but an account that just sent such a prompt is at risk, and the check finds a logout before a job
+        does.
+
+        A conversation that already appeared is KEPT before the job fails: its id becomes the job's reference and is
+        named in the timeline and in `provider_state.refused_conversation`. dola is known to refuse and still deliver
+        about 25 min later; such a delivery is not fetched by itself (the job is failed and refunded), but an admin
+        Re-check sends the job back to waiting (the key is charged again) and the poll reads that conversation."""
+        said = sse_message(stream)
+        detail = "dola refused the order with %d: %s" % (REFUSED_CODE, said or "(no message)")
+        await self._flush_steps()
+        await self._say(detail, "submit", "upstream")
+        await self._evidence([Evidence("refused-%d-stream.txt" % REFUSED_CODE, stream.encode("utf-8"), TEXT_MIME)])
+        patch = {}
+        if conversation is not None:
+            self.conversation = conversation
+            patch = {"refused_conversation": conversation}      # kept by the Fail itself, whatever comes next
+            try:
+                await self.ctx.report_ref(conversation, patch)
+                await self._say("conversation %s is kept as the job's reference: a late delivery there is found by "
+                                "a Re-check" % conversation, "submit", "engine")
+            except Exception as exc:      # noqa: BLE001 - keeping the evidence is best effort; the refusal stands
+                log.warning("refused conversation %s not stored as the reference: %s", conversation, str(exc)[:80])
+                await self._say("conversation %s could not be stored as the job's reference (%s); it is named in "
+                                "provider_state.refused_conversation" % (conversation, type(exc).__name__),
+                                "submit", "engine")
+        until = self.deps.now() + timedelta(seconds=constants.THROTTLE_COOLDOWN_S)
+        return _outcome(Fail(errors.REFUSED_710022002, detail, patch),
+                        Cooldown("dola refused a prompt (%d)" % REFUSED_CODE, until, recheck=True))
 
     def _throttled(self, code: int) -> SubmitResult:
         until = self.deps.now() + timedelta(seconds=constants.THROTTLE_COOLDOWN_S)
@@ -1194,6 +1526,10 @@ class _Run:
                 break
             for _ in range(REPLY_TRIES):
                 await self.deps.sleep(self.deps.poll_s)
+                refused = self._refusal()
+                if refused is not None:       # the re-send's own stream refused it, as the first send's could
+                    await self._flush_steps()
+                    return judged, await self._refused_by_code(refused, conversation)
                 latest = await self._judged(conversation)
                 if not latest.usable:
                     continue              # a failed or stale read says nothing: keep waiting, keep what was read

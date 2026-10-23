@@ -14,7 +14,7 @@ POLL_INTERVAL_S = 30            # next poll after a Pending; a render takes minu
 DURATION_TOLERANCE_S = 2        # a video within this many seconds of the asked length is on target
 PENDING_GRACE_S = 20 * 60       # a conversation with several videos: wait this long after the first finished one
 QUIET_GRACE_S = 2700            # dola silent this long with no order and nothing pending: nothing is coming
-THROTTLE_COOLDOWN_S = 1800      # throttle (710022002/4) and region/proxy failures: the account rests this long
+THROTTLE_COOLDOWN_S = 1800      # throttle (710022004), a 710022002 refusal, region/proxy failures: the account rests
 PROXY_REST_S = 1800             # a failed proxy probe rests every pool
 BROWSER_FAULT_FREE_RETRIES = 3   # browser-fault retries of one job that use no attempt; the next ones count one (so
 #                                  max_attempts ends a job that keeps meeting the fault)

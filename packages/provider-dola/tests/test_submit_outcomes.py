@@ -60,8 +60,12 @@ from relay_dola.engine.submit import (
     REPLY_TRIES,
     OrderSpec,
     PageDriver,
+    TrafficWatch,
     is_upload_commit,
+    may_carry_order,
     order_spec,
+    sse_message,
+    stream_error,
     submit,
 )
 
@@ -109,9 +113,10 @@ async def test_an_order_sent_with_a_frame_that_moves_the_tracking_code_is_still_
         assert scene.log.count("send") == 1, "frame %r sent more than once: %r" % (frame, kinds(scene.log))
 
 
-SEND_CALL = "            await driver.send(page, spec.sent_text, before_enter=self._mark_sent)\n"
-MARK_SENT_AFTER = ("            await driver.send(page, spec.sent_text, before_enter=self._flush_steps)\n"
-                   "            await self._mark_sent()\n")
+SEND_CALL = "        await self.driver.send(self.page, self.spec.sent_text, before_enter=self._mark_sent)\n"
+MARK_SENT_AFTER = ("        await self.driver.send(self.page, self.spec.sent_text, "
+                   "before_enter=self._flush_steps)\n        await self._mark_sent()\n")
+FROZEN_AT_SEND = ("        try:\n    " + SEND_CALL + "        finally:\n            self.traffic.freeze()\n")
 FLUSH_FIRST = ("        await self._flush_steps()          # before mark_sent: nothing may come between mark_sent "
                "and the keypress\n"
                "        await self._core(self.ctx.mark_sent)\n        self.sent = True\n")
@@ -381,8 +386,7 @@ async def test_a_region_page_is_the_proxys_fault_and_nothing_is_sent():
     assert "mark_sent" not in scene.log and "send" not in scene.log
 
 
-STREAMS = pytest.mark.parametrize("name,code", [("throttle-710022004.txt", 710022004),
-                                                ("high-demand-710022002-nested.txt", 710022002)])
+STREAMS = pytest.mark.parametrize("name,code", [("throttle-710022004.txt", 710022004)])
 
 
 def stream_text(name: str) -> str:
@@ -407,6 +411,155 @@ async def test_a_throttle_code_in_the_stream_cools_the_account_down_for_30_minut
     assert res.job == NotTaken("pool.account_throttled")
     assert effects_of(res) == (Cooldown("dola throttled (%d)" % code, COOLDOWN),), "cooldown must be 1800 s"
     assert rule("pool.account_throttled").counts_attempt is False
+
+
+# ---- 710022002: dola will not take this order (owner's ruling 23/10) ------------------------------------------------
+REFUSED_ENDS = ("        if refused is not None:\n            return await self._refused_by_code(refused, "
+                "conversation)\n")
+REFUSED_KEPT = "                await self.ctx.report_ref(conversation, patch)\n"
+REFUSED_REST = "                        Cooldown(\"dola refused a prompt (%d)\" % REFUSED_CODE, until, recheck=True))"
+PLAIN_REFUSAL = ('data: {"error_code": 710022002, "error_msg": "The request   could not\\nbe completed"}\n\n'
+                 'data: [DONE]\n\n')
+
+
+def refusal_on_send(text):
+    async def feed(world, n):
+        await world.feeder.sse(text)
+    return feed
+
+
+@mutation(SUB, REFUSED_ENDS, "", expect="a 710022002 refusal did not end the job at once")
+@mutation(SUB, REFUSED_REST, "                        )",
+          expect="the account that sent the refused prompt did not rest")
+@mutation(SUB, REFUSED_KEPT, "                pass\n", expect="the refused conversation was not kept")
+@pytest.mark.parametrize("conversation", [False, True], ids=["no-conversation", "a-conversation-appeared"])
+@sync
+async def test_a_710022002_refusal_ends_the_job_at_once_refunded_and_never_goes_to_another_account(conversation):
+    """23/10: 9 of 18 tries in 3 h were 710022002, all on one prompt, re-queued to 7 accounts in turn (5 of them were
+    logged out by dola within the hour). The owner ruled: it ends the job at once, with its refund."""
+    scene = Scene(polls=conversation, on_send=refusal_on_send(stream_text("high-demand-710022002-nested.txt")))
+    res = await scene.run()
+    assert isinstance(res.job, Fail) and res.job.code == errors.REFUSED_710022002, \
+        "a 710022002 refusal did not end the job at once (it would go to another account): %r" % (res.job,)
+    r = rule(errors.REFUSED_710022002)
+    assert (r.terminal, r.refund, r.counts_attempt, r.public) == (True, True, False, True), \
+        "a 710022002 refusal did not end the job at once with its refund"
+    assert res.job.detail == "dola refused the order with 710022002: high demand"
+    assert effects_of(res) == (Cooldown("dola refused a prompt (710022002)", COOLDOWN, recheck=True),), \
+        "the account that sent the refused prompt did not rest: %r" % (res.account,)
+    assert ("dola refused the order with 710022002: high demand", "upstream") in scene.ctx.said("submit")
+    [(name, data, mime)] = [e for e in scene.ctx.evidence_items if e[0].startswith("refused-")]
+    assert name == "refused-710022002-stream.txt" and b"710022002" in data and mime.startswith("text/plain")
+    assert scene.log.count("send") == 1
+    if conversation:
+        # dola may refuse and still deliver ~25 min later: the conversation stays the job's reference for a Re-check
+        assert scene.ctx.refs == [(CONV, {"refused_conversation": CONV})], \
+            "the refused conversation was not kept: %r" % scene.ctx.refs
+        assert res.job.state_patch == {"refused_conversation": CONV}
+        assert any(CONV in t and "Re-check" in t for t, _ in scene.ctx.said("submit"))
+    else:
+        assert scene.ctx.refs == [] and res.job.state_patch == {}
+
+
+STREAM_DELIVERED = "        return None\n    return error\n"
+QUIET = "        if name in QUIET_EVENTS or obj == {}:\n            continue\n"
+ERROR_THEN_REPLY = ('event: STREAM_ERROR\ndata: {"error_code": 710022002, "error_msg": "busy"}\n\n'
+                    'event: CHUNK_DELTA\ndata: {"message": {"content": "{\\"text\\": \\"a lantern\\"}"}}\n\n')
+CODE_IN_CONTENT = ('event: SSE_ACK\ndata: {"conversation_id": "1"}\n\n'
+                   'event: CHUNK_DELTA\ndata: {"event_data": "{\\"message\\": {\\"content\\": '
+                   '\\"error_code: 710022002\\", \\"error_code\\": 710022002}}"}\n\n')
+
+
+@mutation(SUB, STREAM_DELIVERED, "        continue\n    return error\n",
+          expect="a stream that also delivered was read as an error")
+@mutation(SUB, QUIET, "        if True:\n            continue\n",
+          expect="a stream that also delivered was read as an error")
+def test_only_an_error_envelope_in_a_stream_that_delivered_nothing_is_dolas_error():
+    """Codex 23/10: a regular expression over the raw stream could read the code out of a reply's text (an echo of the
+    prompt). The stream is parsed event by event; the code counts only at the top level of an event (or of its
+    `event_data`), and a stream that delivered anything else is no error at all."""
+    assert stream_error(stream_text("high-demand-710022002-nested.txt")) == (710022002, "high demand")
+    assert stream_error(stream_text("throttle-710022004.txt")) == (710022004, "rate limited")
+    assert stream_error(stream_text("clean-ack.txt")) is None
+    assert stream_error(PLAIN_REFUSAL).message == "The request could not be completed"
+    for body in (ERROR_THEN_REPLY, CODE_IN_CONTENT, 'data: {"error_code": 710022002}\n\ndata: not json\n\n'):
+        assert stream_error(body) is None, "a stream that also delivered was read as an error: %r" % body[:60]
+
+
+REF_BEST_EFFORT = ("            except Exception as exc:      # noqa: BLE001 - keeping the evidence is best effort; "
+                   "the refusal stands\n")
+
+
+@mutation(SUB, REF_BEST_EFFORT, "            except ValueError as exc:\n",
+          expect="a failed reference turned the refusal into an unknown order")
+@sync
+async def test_a_reference_that_cannot_be_stored_still_ends_the_refused_job_with_its_refund():
+    scene = Scene(on_send=refusal_on_send(stream_text("high-demand-710022002-nested.txt")),
+                  report_error=RuntimeError("database unavailable"))
+    res = await scene.run()
+    assert isinstance(res.job, Fail) and res.job.code == errors.REFUSED_710022002, \
+        "a failed reference turned the refusal into an unknown order: %r" % (res.job,)
+    assert res.job.state_patch == {"refused_conversation": CONV}, "the conversation was lost with the reference"
+    assert any("could not be stored" in t for t, _ in scene.ctx.said("submit"))
+
+
+@mutation(SUB, "REFUSAL_RECEIPT_S = 10.0", "REFUSAL_RECEIPT_S = 0.0",
+          expect="a conversation that appeared after the refusal was lost")
+@sync
+async def test_a_conversation_that_appears_shortly_after_the_refusal_is_still_kept():
+    """Codex 23/10: the receipt stopped at the first error, so a conversation that appeared a moment later was lost as
+    evidence. On a refusal it is looked for REFUSAL_RECEIPT_S more; the job still fails right after."""
+    scene = Scene(polls=False, on_send=refusal_on_send(stream_text("high-demand-710022002-nested.txt")))
+    probes = {"n": 0}
+
+    async def probe(page):
+        probes["n"] += 1
+        late = dict(GOOD_PROBE, ids=["111", "222", CONV])
+        return late if probes["n"] >= 4 else GOOD_PROBE
+    scene.driver.probe = probe
+    res = await scene.run()
+    assert isinstance(res.job, Fail) and res.job.code == errors.REFUSED_710022002
+    assert res.job.state_patch == {"refused_conversation": CONV}, \
+        "a conversation that appeared after the refusal was lost: %r" % (res.job,)
+    assert scene.log.count("send") == 1
+
+
+@sync
+async def test_an_error_code_with_a_delivery_in_the_same_stream_never_ends_the_job():
+    for body in (ERROR_THEN_REPLY, CODE_IN_CONTENT):
+        res = await Scene(polls=False, on_send=refusal_on_send(body)).run()
+        assert isinstance(res.job, Ambiguous), "a stream that also delivered ended the job: %r" % (res.job,)
+
+
+GATE_REFUSAL = ("                if refused is not None:       # the re-send's own stream refused it, as the first "
+                "send's could\n")
+
+
+@mutation(SUB, GATE_REFUSAL, "                if False:\n", expect="a re-send's refusal did not end the job")
+@sync
+async def test_a_710022002_on_a_gated_re_send_ends_the_job_at_once_too():
+    """The gate presses Enter again in the same conversation; that send's own stream is read the same way."""
+    async def refuse_resend(world, n):
+        if n == 2:
+            await world.feeder.sse(stream_text("high-demand-710022002-nested.txt"))
+    scene = Scene(replies={1: [GATE]}, on_send=refuse_resend)
+    res = await scene.run()
+    assert isinstance(res.job, Fail) and res.job.code == errors.REFUSED_710022002, \
+        "a re-send's refusal did not end the job: %r" % (res.job,)
+    assert scene.log.count("send") == 2, "sent again after dola refused: %r" % kinds(scene.log)
+    assert res.job.state_patch == {"refused_conversation": CONV}
+
+
+@sync
+async def test_a_710022002_refusal_keeps_dolas_own_words_folded_and_cut():
+    scene = Scene(polls=False, on_send=refusal_on_send(PLAIN_REFUSAL))
+    res = await scene.run()
+    assert res.job == Fail(errors.REFUSED_710022002, "dola refused the order with 710022002: The request could not "
+                                                    "be completed")
+    assert sse_message('data: {"error_code": 710022002, "error_msg": "%s"}' % ("x" * 999)) == "x" * 200
+    assert sse_message('data: {"error_code": 710022002}') == ""
+    silent = await Scene(polls=False, on_send=refusal_on_send('data: {"error_code": 710022002}\n\n')).run()
+    assert silent.job == Fail(errors.REFUSED_710022002, "dola refused the order with 710022002: (no message)")
 
 
 @sync
@@ -533,6 +686,200 @@ async def test_nothing_after_mark_sent_ever_comes_back_as_a_retry():
     for label, kw in failures.items():
         res = await Scene(**kw).run()
         assert isinstance(res.job, Ambiguous), "%s: a retry after mark_sent is a possible second order" % label
+
+
+# ---- after the send: proven not sent, and a guest page --------------------------------------------------------------
+NOT_SENT_GUARD = "            if await self._proven_not_sent():\n                # Enter was pressed"
+HALTED = "            halted = await self.driver.halt(self.session)\n"
+FROZEN_BEFORE_CLOSE = "            self.traffic.freeze()\n" + HALTED
+HALT_CHECKED = ("        if not halted:\n            await self._say(\"the browser could not be closed cleanly, so a "
+                "late send cannot be ruled out\", \"submit\",\n")
+COMPLETION_SEEN = ("        return any(ev.path == COMPLETION_PATH for ev in "
+                   "self.session.recorder.events(self.since))")
+STILL = composer.ComposerError("prompt still in the input")
+
+
+@mutation(SUB, HALTED, "            halted = True\n", expect="decided before the browser was closed")
+@mutation(SUB, HALT_CHECKED, "        if False:\n            await self._say(\"\", \"submit\",\n",
+          expect="a browser that could not be closed")
+@mutation(SUB, HALTED, FROZEN_BEFORE_CLOSE, expect="a late send was missed")
+@mutation(SUB, SEND_CALL, FROZEN_AT_SEND, expect="a late send was missed")
+@mutation(SUB, NOT_SENT_GUARD, "            if True:\n                # Enter was pressed",
+          expect="not sent was decided before the browser was closed")
+@mutation(SUB, NOT_SENT_GUARD, "            if False:\n                # Enter was pressed",
+          expect="a send proven not to have left was left unknown")
+@mutation(SUB, COMPLETION_SEEN, "        return False", expect="re-queued although dola answered the send")
+@sync
+async def test_a_prompt_left_in_the_input_with_no_request_to_dola_is_not_sent_and_goes_back_to_the_queue():
+    """23/10: Enter did nothing (the prompt stayed in the input, the page made no request to dola) and the job sat in
+    unknown for 11 min until reconcile proved it not sent. One Enter, then the proof, then the queue."""
+    scene = Scene(send_error=STILL, order_request=False)
+    res = await scene.run()
+    assert res.job == NotTaken(errors.UI_SEND_FAILED), \
+        "a send proven not to have left was left unknown: %r" % (res.job,)
+    assert scene.log.count("send") == 1 and scene.log.index("mark_sent") < scene.log.index("send"), \
+        "more than one Enter in one session"
+    assert "halt" in scene.log and scene.log.index("halt") > scene.log.index("send"), \
+        "not sent was decided before the browser was closed: %r" % scene.log
+    watch = scene.driver.traffic_watches[0]
+    assert watch.armed and watch.frozen and watch.stopped, "the traffic watch was not armed at the Enter, frozen "
+    "after the close, and stopped with the run"
+    res = await Scene(send_error=STILL, order_request=False, late_send=True).run()
+    assert isinstance(res.job, Ambiguous), "a late send was missed: %r" % (res.job,)
+    res = await Scene(send_error=STILL, order_request=False, halt_ok=False).run()
+    assert isinstance(res.job, Ambiguous), "a browser that could not be closed proved not sent: %r" % (res.job,)
+    res = await Scene(send_error=STILL, order_request=True).run()
+    assert isinstance(res.job, Ambiguous), "re-queued although a request that may carry the order left the page"
+    answered = Scene(send_error=STILL, order_request=False)
+    real_send = answered.driver.send
+
+    async def send(page, text, *, before_enter):
+        async def enter():
+            await before_enter()
+            await answered.session.feeder.sse("data: {}\n\n")       # dola answered: the order left the page
+        await real_send(page, text, before_enter=enter)
+    answered.driver.send = send
+    res = await answered.run()
+    assert isinstance(res.job, Ambiguous), "re-queued although dola answered the send: %r" % (res.job,)
+
+
+class Emitter:
+    """A Playwright object's `on` / `remove_listener`, and `emit` for the test."""
+
+    def __init__(self, pages=()):
+        self.handlers, self.pages = {}, list(pages)
+
+    def on(self, event, handler):
+        self.handlers[event] = handler
+
+    def remove_listener(self, event, handler):
+        assert self.handlers.pop(event) == handler
+
+    def emit(self, event, *args):
+        if event in self.handlers:          # nobody listening: the event goes unseen, as in the browser
+            self.handlers[event](*args)
+
+
+def request(method, url):
+    return dataclasses.make_dataclass("Request", ["method", "url"])(method, url)
+
+
+CARRIES = ("            carries = ((request.method != \"GET\" and urlsplit(request.url).path not in READ_PATHS)"
+           "\n")
+CARRIES_GET_ONLY = "            carries = ((False)\n"
+FULL_URL = "    return bool(_ORDER_REQUEST.search(url or \"\"))\n"
+PATH_ONLY = "    return bool(_ORDER_REQUEST.search(urlsplit(url or \"\").path))\n"
+BLIND_SEEN = "        return self.blind or not self.armed or self.count > 0\n"
+
+
+@mutation(SUB, CARRIES, CARRIES_GET_ONLY, expect="a POST after the Enter was not seen")
+@mutation(SUB, FULL_URL, PATH_ONLY, expect="a send routed by its query was not seen")
+@mutation(SUB, '            ws.on("framesent", self._on_frame)\n', "            pass\n",
+          expect="a WebSocket send on a page opened later was not seen")
+@mutation(SUB, BLIND_SEEN, "        return self.count > 0\n", expect="a blind watch proved nothing left")
+def test_the_traffic_watch_sees_every_send_of_the_context_and_a_blind_watch_proves_nothing():
+    """Codex 23/10: "provably not sent" may rest only on a watch of the WHOLE browser context: every page and popup,
+    a send routed by a query, any request that is not a GET, any WebSocket frame sent; a watch that could not see
+    counts as traffic."""
+    for url in ("https://www.dola.com/chat/completion?aid=1", "https://www.dola.com/chat/38418281883319313",
+                "https://api.example/samantha/completion_v2", "https://www.dola.com/api?route=chat/completion"):
+        assert may_carry_order(url), "a send routed by its query was not seen: %s" % url
+    for url in ("https://www.dola.com/im/chain/single?x=1", "https://www.dola.com/passport/account/info/v2/",
+                "https://www.dola.com/chat", ""):
+        assert not may_carry_order(url), "a read of the page counted as a send: %s" % url
+
+    old_page = Emitter()
+    ctx = Emitter([old_page])
+    watch = TrafficWatch(ctx)
+    ctx.emit("request", request("POST", "https://www.dola.com/im/chain/single"))
+    assert not watch.count, "traffic before the Enter was counted"
+    watch.arm()
+    ctx.emit("request", request("GET", "https://www.dola.com/im/chain/single?aid=1"))
+    assert not watch.seen(), "a plain read counted as a send"
+    ctx.emit("request", request("GET", "https://www.dola.com/api?route=chat/completion"))
+    assert watch.seen(), "a send routed by its query was not seen"
+
+    reads = TrafficWatch(Emitter())
+    reads.arm()
+    reads._ctx.emit("request", request("POST", "https://www.dola.com/im/chain/single?aid=1"))
+    assert not reads.seen(), "a conversation read counted as a send"
+    for method, url in (("POST", "https://mon.example/anything"), ("PUT", "https://www.dola.com/x"),
+                        ("POST", "https://www.dola.com/im/chain/send")):
+        other = TrafficWatch(Emitter())
+        other.arm()
+        other._ctx.emit("request", request(method, url))
+        assert other.seen(), "a POST after the Enter was not seen: %s %s" % (method, url)
+
+    ctx = Emitter()
+    watch = TrafficWatch(ctx)
+    watch.arm()
+    popup, ws = Emitter(), Emitter()
+    ctx.emit("page", popup)
+    popup.emit("websocket", ws)
+    ws.emit("framesent", "payload")
+    assert watch.seen(), "a WebSocket send on a page opened later was not seen"
+    watch.freeze()
+    after = watch.count
+    ctx.emit("request", request("POST", "https://www.dola.com/im/chain/single"))
+    assert watch.count == after, "the engine's own reads after the send were counted"
+    watch.stop()
+    assert ctx.handlers == {} and popup.handlers == {} and ws.handlers == {}
+
+    class Unwatchable:
+        pages = ()
+
+        def on(self, event, handler):
+            raise RuntimeError("target closed")
+    blind = TrafficWatch(Unwatchable())
+    blind.arm()
+    assert blind.seen(), "a blind watch proved nothing left"
+    unarmed = TrafficWatch(Emitter())
+    assert unarmed.seen(), "a watch never armed at an Enter proved nothing left"
+    odd = TrafficWatch(Emitter())
+    odd.arm()
+
+    class Unreadable:
+        @property
+        def method(self):
+            raise RuntimeError("target closed")
+    odd._ctx.emit("request", Unreadable())
+    assert odd.seen(), "a request that could not be read was taken as no order"
+
+
+GUEST_READ = "        logged_out = await self._logged_out_after_send()\n        if logged_out is not None:\n"
+GUEST_MAY_HAVE_LEFT = ("        if not await self._proven_not_sent():\n            await self._flush_steps()\n"
+                       "            await self._say(\"after the send the page read")
+GUEST_NEVER_LEFT = ("        if False:\n            await self._flush_steps()\n"
+                    "            await self._say(\"after the send the page read")
+GUEST_AFTER_SEND = {"cells": 0, "ids": [], "name": "", "modal": True,
+                    "passport": {"message": "error", "uid": False, "name": "account_info_error"}}
+
+
+@mutation(SUB, GUEST_READ, "        logged_out = None\n        if logged_out is not None:\n",
+          expect="a guest page after the send was not read as logged out")
+@mutation(SUB, GUEST_MAY_HAVE_LEFT, GUEST_NEVER_LEFT,
+          expect="re-queued although a request that may carry the order left the page")
+@mutation(SUB, "        self.logged_in = False\n        present = ", "        present = ",
+          expect="the logged-in read at the open cleared the strike of the logout")
+@sync
+async def test_a_guest_page_after_the_send_is_a_logout_and_the_order_follows_the_not_sent_proof():
+    """23/10: "Log in to unlock more features" over the composer after the send went to unknown with no word of the
+    logout. Now the account gets the strike and the rest of a guest read; the order stays unknown when a request that
+    may carry it left the page, and goes back to the queue when none did."""
+    scene = Scene(polls=False, probe_after_send=GUEST_AFTER_SEND)
+    res = await scene.run()
+    assert isinstance(res.job, Ambiguous), \
+        "re-queued although a request that may carry the order left the page: %r" % (res.job,)
+    assert "Suspect" in types(res), "a guest page after the send was not read as logged out: %r" % (res.account,)
+    assert "Success" not in types(res), "the logged-in read at the open cleared the strike of the logout"
+    assert types(res) == ["Suspect", "Cooldown"], res.account
+    assert res.account[1].recheck and res.account[1].until == NOW + timedelta(seconds=constants.LOGIN_DOUBT_REST_S)
+    res = await Scene(polls=False, probe_after_send=GUEST_AFTER_SEND, order_request=False).run()
+    assert res.job == NotTaken("pool.account_logged_out") and types(res) == ["Suspect", "Cooldown"], \
+        "a guest page after the send was not read as logged out: %r" % (res,)
+    lost = await Scene(polls=False, probe_after_send=GUEST_AFTER_SEND, order_request=False, cookie_names=set()).run()
+    assert lost.job == NotTaken(errors.BROWSER_COOKIES_LOST) and types(lost) == ["Cooldown"], \
+        "the browser's lost cookies were struck against the account: %r" % (lost,)
 
 
 @sync
@@ -895,6 +1242,47 @@ async def test_the_composer_is_rebuilt_after_a_reload_for_both_modes_and_gives_u
     monkeypatch.setattr(composer, "enter_video_mode", always)
     with pytest.raises(composer.ComposerError):
         await PageDriver().build(ReloadPage(), OrderSpec("video", "seedance_v2.5", 30, "16:9", None, SENT, PROMPT))
+
+
+COLD_WAIT = 'wait = {"settle_s": COLD_MODE_WAIT_S} if cold else {}'
+COLD_PASSED = "built = await driver.build(page, spec, cold=self.session.cold)"
+
+
+@mutation(SUB, COLD_WAIT, "wait = {}", expect="a cold profile got the warm wait for the mode button")
+@mutation(SUB, COLD_PASSED, "built = await driver.build(page, spec)", expect="the run did not say its profile is cold")
+@sync
+async def test_a_cold_profile_waits_longer_for_the_mode_button(monkeypatch):
+    """23/10: on the first run after a cookie refresh (a new, empty profile) the image composer was not there yet when
+    the 9 s wait for its button ran out. A cold profile waits up to COLD_MODE_WAIT_S; a warm one keeps the 9 s."""
+    from relay_dola.engine.submit import COLD_MODE_WAIT_S
+    waits = []
+
+    async def enter(page, **kw):
+        waits.append(kw.get("settle_s"))
+        return "Model x"
+
+    async def model(page, m):
+        return "Model " + m
+
+    async def dur(page, ratio, seconds):
+        return ("30s", "16:9", True)
+
+    async def nothing(page):
+        return None
+    for name, fn in (("enter_image_mode", enter), ("enter_video_mode", enter), ("select_image_model", model),
+                     ("select_video_model", model), ("select_video_ratio_duration", dur), ("dismiss_consent", nothing)):
+        monkeypatch.setattr(composer, name, fn)
+    image = OrderSpec("image", "seedream-4.5", None, None, None, SENT, PROMPT)
+    video = OrderSpec("video", "seedance_v2.5", 30, "16:9", None, SENT, PROMPT)
+    for order in (image, video):
+        await PageDriver().build(ReloadPage(), order, cold=True)
+        await PageDriver().build(ReloadPage(), order)
+    assert waits == [COLD_MODE_WAIT_S, None] * 2 and COLD_MODE_WAIT_S == 30, \
+        "a cold profile got the warm wait for the mode button: %r" % waits
+    for cold in (True, False):
+        scene = Scene(cold=cold, replies={1: [ACCEPTED]})
+        await scene.run()
+        assert scene.driver.builds_cold == [cold], "the run did not say its profile is cold"
 
 
 @sync

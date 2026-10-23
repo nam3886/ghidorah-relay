@@ -8,7 +8,8 @@ leaves `Fetch` and the HTTP cache alone. It lives for one browser session.
 502 on purpose: an upstream 407 (wrong or expired proxy password) passed through would make Chrome, which has no
 password, show a login prompt and hang the page for 60 s, an error the worker cannot tell from a dead network. A 502
 fails at once (`ERR_TUNNEL_CONNECTION_FAILED`) and the account rests as a dead proxy does. The same 502 answers an
-upstream that stays silent (`REPLY_TIMEOUT_S`) or closes without a reply.
+upstream that stays silent (`REPLY_TIMEOUT_S`) or closes without a reply. Each such 502 is logged with its cause and
+the proxy's host and port, never its login (23/10: a burst of ERR_TUNNEL_CONNECTION_FAILED could not be explained).
 
 `refuse` names hosts that get that 502 without ever reaching the account's proxy: Chrome's own background services
 (updates, account and push checks) that no flag switches off, and that would put a Google fingerprint on the proxy.
@@ -17,7 +18,10 @@ upstream that stays silent (`REPLY_TIMEOUT_S`) or closes without a reply.
 import asyncio
 import base64
 import contextlib
+import logging
 from urllib.parse import urlsplit
+
+log = logging.getLogger("relay_browser.forwarder")
 
 _BAD_GATEWAY = b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
 HEAD_TIMEOUT_S = 30
@@ -117,18 +121,25 @@ class ProxyForwarder:
             with contextlib.suppress(Exception):
                 w.close()
 
+    def _log_502(self, why: str) -> None:
+        """One 502 Chrome is given, with its cause and the proxy's host and port only: never the login."""
+        log.warning("proxy %s:%d: 502 to Chrome (%s)", self._host, self._port, why)
+
     async def _handle(self, cr, cw) -> None:
         self._writers.add(cw)
         uw = up = None
         try:
             head = await asyncio.wait_for(cr.readuntil(b"\r\n\r\n"), HEAD_TIMEOUT_S)
             if _refused(target_host(head), self._refuse):
+                log.debug("502 to Chrome: %s is a refused host", target_host(head))
                 cw.write(_BAD_GATEWAY)
                 await cw.drain()
                 return
             try:
                 ur, uw = await asyncio.wait_for(asyncio.open_connection(self._host, self._port), CONNECT_TIMEOUT_S)
-            except Exception:  # noqa: BLE001 - the real proxy cannot be reached
+            except Exception as exc:  # noqa: BLE001 - the real proxy cannot be reached
+                self._log_502("connect timeout" if isinstance(exc, TimeoutError)
+                              else "connect failed: %s" % (str(exc) or type(exc).__name__)[:120])
                 cw.write(_BAD_GATEWAY)
                 await cw.drain()
                 return
@@ -138,9 +149,10 @@ class ProxyForwarder:
             up = asyncio.ensure_future(_pipe(cr, uw))    # a request body, if any, travels in parallel
             try:
                 reply = await asyncio.wait_for(ur.readuntil(b"\r\n\r\n"), REPLY_TIMEOUT_S)
-            except Exception:  # noqa: BLE001 - silent for too long, or closed without a reply
-                reply = b""
+            except Exception as exc:  # noqa: BLE001 - silent for too long, or closed without a reply
+                reply, why = b"", ("reply timeout" if isinstance(exc, TimeoutError) else "closed without a reply")
             if not reply or _status(reply) == 407:
+                self._log_502(why if not reply else "upstream 407 (the proxy refused its login)")
                 cw.write(_BAD_GATEWAY)
                 await cw.drain()
                 return
