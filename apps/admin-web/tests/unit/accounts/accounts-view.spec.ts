@@ -30,7 +30,6 @@ vi.mock("@/api/shell", () => ({
   getModels: vi.fn(),
   getStats: vi.fn(),
   getOpenAlertGroups: vi.fn(),
-  getPoolStats: vi.fn(),
   getProvidersSummary: vi.fn(),
 }));
 vi.mock("@/components/shared/confirm-dialog", () => ({ confirmDialog: vi.fn() }));
@@ -176,11 +175,6 @@ beforeEach(() => {
     alerts: [],
   });
   vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [] });
-  vi.mocked(shell.getPoolStats).mockResolvedValue({
-    pools: [{ pool: "video", left: 143, budget: 210, unknown: 2, drift: 1 }],
-    proxy_failed: 1,
-    last_full_check_ms: new Date(2026, 9, 15, 20, 48, 10).getTime(),
-  });
   vi.mocked(shell.getProvidersSummary).mockResolvedValue(summary());
   delete (window as unknown as { __pwned?: number }).__pwned;
 });
@@ -371,63 +365,6 @@ describe("the list", () => {
     list.mockResolvedValue(page([account({ id: "a1" }), account({ id: "a2", label: "two" })]));
     const w = await open();
     expect(w.text()).toContain("Showing 1–2 of 2");
-  });
-});
-
-describe("the pool card", () => {
-  it("the left half is the stats' (all accounts), even when the page shows fewer", async () => {
-    vi.mocked(shell.getStats).mockResolvedValue({
-      jobs: { queued: 0, in_progress: 0, done: 0, failed: 0, pre_job_failures_24h: 0 },
-      made: { videos: 0, images: 0 },
-      accounts: { usable: 7, available: 8, dead: 1, disabled: 0, in_use: 5, asleep: 3 },
-      keys: 0,
-      alerts: [],
-    });
-    list.mockResolvedValue(page([account({ id: "a1" })]));
-    const w = await open();
-    const card = w.find("[data-testid=pool-card]");
-    const ledger = (label: string) =>
-      [...card.element.querySelectorAll(".ledger__row")]
-        .find((r) => r.querySelector("dt")!.textContent === label)!
-        .querySelector("dd")!
-        .textContent!.trim();
-    expect(card.text()).toContain("Pool health · 1 account");
-    expect(ledger("Accounts ready")).toBe("7 / 8");
-    expect(ledger("Accounts dead")).toBe("1");
-    expect(ledger("Accounts disabled")).toBe("0");
-    expect(ledger("In use")).toBe("5");
-    expect(ledger("Asleep")).toBe("3");
-  });
-
-  it("the right half comes from the pool endpoint of the provider filter and is titled with the provider", async () => {
-    useScopeStore(pinia).provider = "dola";
-    const w = await open();
-    expect(shell.getPoolStats).toHaveBeenCalledWith("dola");
-    const card = w.find("[data-testid=pool-card]");
-    expect(card.text()).toContain("dola pool");
-    expect(card.text()).toContain("143 / 210");
-    expect(card.text()).toContain("2 accounts");
-    expect(card.text()).toContain("20:48:10");
-  });
-
-  it("a failed pool read does not hide the list; it shows an alert and keeps the old figures", async () => {
-    const w = await open();
-    expect(w.find("[data-testid=pool-card]").text()).toContain("143 / 210");
-    expect(w.find("[data-testid=pool-error]").exists()).toBe(false);
-    vi.mocked(shell.getPoolStats).mockRejectedValue(
-      new ApiError(502, { error: { code: "x", message: "pool is down" } }),
-    );
-    useScopeStore(pinia).provider = "dola";
-    await settle();
-    expect(rows(w)).toHaveLength(1);
-    expect(w.find("[data-testid=pool-error]").text()).toContain(
-      "Could not load the pool figures: the relay answered 502 (pool is down).",
-    );
-    expect(w.find("[data-testid=pool-card]").text()).toContain("143 / 210");
-    vi.mocked(shell.getPoolStats).mockResolvedValue({ pools: [], proxy_failed: 0, last_full_check_ms: null });
-    useScopeStore(pinia).provider = "vibes";
-    await settle();
-    expect(w.find("[data-testid=pool-error]").exists()).toBe(false);
   });
 });
 

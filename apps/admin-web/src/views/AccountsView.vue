@@ -14,7 +14,6 @@ import {
   refreshCatalog,
   wakeAccount,
 } from "@/api/accounts";
-import { getPoolStats, type PoolStats } from "@/api/shell";
 import AccountsHeader from "@/components/accounts/AccountsHeader.vue";
 import AccountLanes from "@/components/accounts/AccountLanes.vue";
 import {
@@ -23,17 +22,14 @@ import {
   checkSummary,
   chipsAfterRead,
   commandChip,
-  healthItems,
   hhmmss,
   PAGE_SIZE,
-  poolItems,
   type RowAction,
   WAKE_LABEL,
 } from "@/components/accounts/account-model";
 import type { CommandStatus } from "@/api/commands";
 import EditDialog from "@/components/accounts/EditDialog.vue";
 import ImportDialog from "@/components/accounts/ImportDialog.vue";
-import PoolCard from "@/components/accounts/PoolCard.vue";
 import ProviderTable from "@/components/jobs/ProviderTable.vue";
 import { loadFailedText } from "@/components/jobs/job-text";
 import { IconAlertCircle, IconPlus } from "@/components/shared/icons";
@@ -76,8 +72,6 @@ const limit = ref(PAGE_SIZE);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const updatedAt = ref<number | null>(null);
-const pool = shallowRef<PoolStats | null>(null);
-const poolError = ref<string | null>(null);
 // the accounts whose Check is running: their Check button is drawn disabled
 const checking = ref<ReadonlySet<string>>(new Set());
 // The chip line under each command's control (B-States "Command status"), by control: `check:<account id>`,
@@ -111,28 +105,14 @@ async function load(auto = false): Promise<void> {
   const ticket = latest.next();
   loading.value = true;
   try {
-    const [page, poolRead] = await Promise.all([
-      listAccounts(scope.provider, limit.value, offset.value),
-      // the pool figures are a side panel: a failure keeps the old figures, says so, and never hides the list
-      getPoolStats(scope.provider).then(
-        (value) => ({ value }),
-        (err: unknown) => ({ err }),
-      ),
-    ]);
+    const page = await listAccounts(scope.provider, limit.value, offset.value);
     if (!latest.isCurrent(ticket)) return;
     items.value = page.items;
     total.value = page.total;
     if (auto) chips.value = chipsAfterRead(chips.value, ++autoReads);
-    if ("value" in poolRead) {
-      pool.value = poolRead.value;
-      poolError.value = null;
-    } else {
-      poolError.value = loadFailedText(poolRead.err, errorText(poolRead.err), "the pool figures");
-    }
     error.value = null;
     updatedAt.value = Date.now();
-    // the tab counts and the ready / dead / disabled figures come from /admin/stats; the table on top and the lane
-    // headers from the provider summary
+    // the tab counts come from /admin/stats; the table on top and the lane headers from the provider summary
     void stats.refresh();
     void providers.refresh();
   } catch (err) {
@@ -368,11 +348,6 @@ async function forEachProvider(
 const checkEvery = () => forEachProvider(runCheckAll, "Check all", "checkAll", checkAll);
 const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", "refreshCatalog", refreshCatalog);
 
-const health = computed(() => healthItems(stats.data?.accounts ?? null));
-const poolFigures = computed(() => poolItems(pool.value));
-const poolTitle = computed(
-  () => `${scope.provider || (scope.providers.length === 1 ? scope.providers[0] : "provider")} pool`,
-);
 const updated = computed(() => (updatedAt.value ? hhmmss(updatedAt.value) : null));
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / limit.value)));
 const showing = computed(() =>
@@ -399,14 +374,6 @@ const laneSize = computed(() => (isPhone.value ? "phone" : isTablet.value ? "tab
     />
 
     <ProviderTable :summary="providers.data" :selected="scope.provider" @pick="(p: string) => (scope.provider = p)" />
-
-    <!-- the count is the list's: none until the list has been read once -->
-    <PoolCard :count="updatedAt ? total : null" :health="health" :pool="poolFigures" :pool-title="poolTitle" />
-
-    <div v-if="poolError" class="state-error" role="alert" data-testid="pool-error">
-      <IconAlertCircle :size="18" />
-      <span class="state-error__text">{{ poolError }}</span>
-    </div>
 
     <section class="list" aria-label="Account list" :aria-busy="loading">
       <div v-if="error" class="state-error" role="alert" data-state="error">

@@ -2,7 +2,6 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ActionMenu, { type MenuItem } from "@/components/shared/ActionMenu.vue";
 import MiniChip from "@/components/accounts/MiniChip.vue";
-import PoolCard from "@/components/accounts/PoolCard.vue";
 import { IconCamera, IconPencilMenu, IconPower, IconTrashMenu } from "@/components/shared/icons";
 
 let wrapper: VueWrapper | null = null;
@@ -17,16 +16,6 @@ describe("MiniChip", () => {
     wrapper = mount(MiniChip, { props: { tone: "warn" }, slots: { default: "drift" } });
     expect(wrapper.attributes("data-tone")).toBe("warn");
     expect(wrapper.text()).toBe("drift");
-  });
-});
-
-describe("PoolCard", () => {
-  it("names the number of accounts once the list has been read, and nothing before", () => {
-    const card = (count: number | null) =>
-      mount(PoolCard, { props: { count, health: [], pool: [], poolTitle: "dola pool" } });
-    expect(card(null).find("h2").text()).toBe("Pool health");
-    expect(card(9).find("h2").text()).toBe("Pool health · 9 accounts");
-    expect(card(1).find("h2").text()).toBe("Pool health · 1 account");
   });
 });
 

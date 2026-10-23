@@ -20,12 +20,10 @@ DIALOGS_SPEC = "tests/unit/accounts/accounts-dialogs.spec.ts"
 CHANGES = f"FAILED {ACCOUNT_SPEC} > accountChanges (the edit payload) > "
 ASLEEP = f"FAILED {ACCOUNT_SPEC} > asleepInfo > "
 ROW_TEXT = f"FAILED {ACCOUNT_SPEC} > the text of a row > "
-FIGURES = f"FAILED {ACCOUNT_SPEC} > the pool card figures > "
 AUTO = f"FAILED {ACCOUNTS_VIEW_SPEC} > auto-refresh > "
 CHECK_ALL = f"FAILED {ACCOUNTS_VIEW_SPEC} > Check all and Refresh catalog > "
 SWITCH_VIEW = f"FAILED {ACCOUNTS_VIEW_SPEC} > the enable switch > "
 LIST = f"FAILED {ACCOUNTS_VIEW_SPEC} > the list > "
-POOL = f"FAILED {ACCOUNTS_VIEW_SPEC} > the pool card > "
 COMMANDS = f"FAILED {ACCOUNTS_VIEW_SPEC} > the row commands and the edit dialog > "
 MENU_SPEC = f"FAILED {PARTS_SPEC} > ActionMenu > "
 WIPE = f"FAILED {DIALOGS_SPEC} > what was pasted never outlives its use > "
@@ -122,43 +120,6 @@ def test_the_accounts_checked_stamp_reads_as_a_time_ago():
 @pytest.mark.web_unit
 def test_a_row_says_its_sleep_error_proxy_and_menu_as_drawn():
     vitest(ACCOUNT_SPEC)
-
-
-# ---- the pool card ----------------------------------------------------------------------------------------------
-READY = (FIGURES + "health: ready is usable / available, dead is bad only when there is one, in use and asleep "
-                   "are the stats'")
-POOL_FIG = (FIGURES + "pool: video points left / budget, unknown, drift as a warning, failed proxies as bad, the "
-                      "last full check")
-POOL_EDGE = (FIGURES + "pool: one account is singular, zeros carry no colour, no full check reads never, no "
-                       "answer shows dashes")
-
-
-@mutation(ACCOUNT_MODEL, "value: stats ? `${stats.usable} / ${stats.available}` : \"-\"",
-          "value: stats ? `${stats.available} / ${stats.usable}` : \"-\"", expect=READY)
-@mutation(ACCOUNT_MODEL, "...count(stats?.in_use)", "...count(stats?.asleep)", expect=READY)
-@mutation(ACCOUNT_MODEL, "...count(stats?.asleep)", "...count(stats?.in_use)", expect=READY)
-@mutation(ACCOUNT_MODEL, "tone: n ? tone : undefined", "tone", expect=READY)
-@mutation(ACCOUNT_MODEL, 'p.pool === "video"', 'p.pool === "image"', expect=POOL_FIG)
-@mutation(ACCOUNT_MODEL, 'tone: drift ? "warn" : undefined', 'tone: "warn"', expect=POOL_EDGE)
-@mutation(ACCOUNT_MODEL, '`${n} account${n === 1 ? "" : "s"}`', '`${n} accounts`', expect=POOL_EDGE)
-@mutation(ACCOUNT_MODEL, 'pool.last_full_check_ms ? hhmmss(pool.last_full_check_ms) : "never"',
-          'hhmmss(pool.last_full_check_ms ?? 0)', expect=POOL_EDGE)
-@pytest.mark.web_unit
-def test_the_pool_card_figures():
-    vitest(ACCOUNT_SPEC)
-
-
-@mutation(ACCOUNTS, "getPoolStats(scope.provider)", 'getPoolStats("")',
-          expect=POOL + "the right half comes from the pool endpoint of the provider filter and is titled with "
-                        "the provider")
-@mutation(ACCOUNTS, "(err: unknown) => ({ err })", "(err: unknown) => {\n          throw err;\n        }",
-          expect=POOL + "a failed pool read does not hide the list; it shows an alert and keeps the old figures")
-@mutation(ACCOUNTS, 'poolError.value = loadFailedText(poolRead.err, errorText(poolRead.err), "the pool figures");',
-          "poolError.value = null;",
-          expect=POOL + "a failed pool read does not hide the list; it shows an alert and keeps the old figures")
-@pytest.mark.web_unit
-def test_the_pool_card_reads_the_pool_endpoint_and_the_layouts_follow_the_width():
-    vitest(ACCOUNTS_VIEW_SPEC)
 
 
 # ---- the switch, the menu and the import result ---------------------------------------------------------------

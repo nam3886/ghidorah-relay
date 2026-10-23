@@ -1,9 +1,6 @@
 // Pure rules of the Accounts view: what each cell says and what an edit or an import sends.
 import type { Account, AccountPatch, ImportBody } from "@/api/accounts";
 import type { CommandStatus } from "@/api/commands";
-import type { PoolStats } from "@/api/shell";
-import type { LedgerItem } from "@/components/shared/LedgerList.vue";
-import type { Tone } from "@/components/shared/status-tones";
 import { IconCamera, IconCheck, IconPencilMenu, IconPower, IconTrashMenu } from "@/components/shared/icons";
 import type { MenuItem } from "@/components/shared/ActionMenu.vue";
 
@@ -146,49 +143,6 @@ export function proxyStatus(a: Account, now: number = Date.now()): { tone: "ok" 
 // In the toasts' form, "<label> done: <detail>": "Check done: signed_out, account dead (account.dead_session)".
 export function checkSummary(outcome: string | undefined, a: Pick<Account, "state" | "state_reason">): string {
   return `Check done: ${outcome ? `${outcome}, ` : ""}account ${a.state}${a.state_reason ? ` (${a.state_reason})` : ""}`;
-}
-
-// The pool card's left half: every figure is /admin/stats', counted over all accounts, not the page on screen.
-export function healthItems(
-  stats: {
-    usable: number;
-    available: number;
-    dead: number;
-    disabled: number;
-    in_use?: number;
-    asleep?: number;
-  } | null,
-): LedgerItem[] {
-  const count = (n: number | undefined, tone?: Tone): Pick<LedgerItem, "value" | "tone"> => ({
-    value: n ?? "-",
-    tone: n ? tone : undefined,
-  });
-  return [
-    { label: "Accounts ready", value: stats ? `${stats.usable} / ${stats.available}` : "-", mono: true },
-    { label: "Accounts dead", mono: true, ...count(stats?.dead, "bad") },
-    { label: "Accounts disabled", mono: true, ...count(stats?.disabled) },
-    { label: "In use", mono: true, ...count(stats?.in_use) },
-    { label: "Asleep", mono: true, ...count(stats?.asleep) },
-  ];
-}
-
-// The pool card's right half, from GET /admin/stats/pool. The points are the video pool's.
-export function poolItems(pool: PoolStats | null): LedgerItem[] {
-  const video = pool?.pools.find((p) => p.pool === "video");
-  const accounts = (n: number) => `${n} account${n === 1 ? "" : "s"}`;
-  const drift = video?.drift ?? 0;
-  const failed = pool?.proxy_failed ?? 0;
-  return [
-    { label: "Video points left", value: pool ? `${video?.left ?? 0} / ${video?.budget ?? 0}` : "-", mono: true },
-    { label: "Points unknown", value: pool ? accounts(video?.unknown ?? 0) : "-", mono: true },
-    { label: "Drift flagged", value: pool ? drift : "-", mono: true, tone: drift ? "warn" : undefined },
-    { label: "Proxy checks failed", value: pool ? failed : "-", mono: true, tone: failed ? "bad" : undefined },
-    {
-      label: "Last full check",
-      value: pool ? (pool.last_full_check_ms ? hhmmss(pool.last_full_check_ms) : "never") : "-",
-      mono: true,
-    },
-  ];
 }
 
 // The chip line under a command's control (B-States "Command status"): `running…` while the worker runs it, then

@@ -10,13 +10,11 @@ import {
   chipsAfterRead,
   commandChip,
   extraError,
-  healthItems,
   hhmm,
   hhmmss,
   importBody,
   madeLine,
   pointsFigure,
-  poolItems,
   poolsInOrder,
   rejectedText,
   proxyCheck,
@@ -254,67 +252,6 @@ describe("the text of a row", () => {
     expect(rowMenu({ has_screenshot: true }, false)[0]!.disabled).toBe(false);
     const del = rowMenu({ has_screenshot: true }, false).at(-1)!;
     expect(del).toMatchObject({ key: "delete", danger: true, separated: true });
-  });
-});
-
-describe("the pool card figures", () => {
-  const stats = { usable: 7, available: 8, dead: 1, disabled: 0 };
-
-  it("health: ready is usable / available, dead is bad only when there is one, in use and asleep are the stats'", () => {
-    expect(healthItems({ ...stats, in_use: 2, asleep: 1 })).toEqual([
-      { label: "Accounts ready", value: "7 / 8", mono: true },
-      { label: "Accounts dead", value: 1, tone: "bad", mono: true },
-      { label: "Accounts disabled", value: 0, tone: undefined, mono: true },
-      { label: "In use", value: 2, tone: undefined, mono: true },
-      { label: "Asleep", value: 1, tone: undefined, mono: true },
-    ]);
-    expect(healthItems({ ...stats, dead: 0 })[1]).toMatchObject({ value: 0, tone: undefined });
-  });
-
-  it("an old server without in use and asleep shows dashes for those two, not zeros", () => {
-    const items = healthItems(stats);
-    expect(items[3]!.value).toBe("-");
-    expect(items[4]!.value).toBe("-");
-  });
-
-  it("health without stats yet shows dashes, never zeros", () => {
-    const items = healthItems(null);
-    expect(items[0]!.value).toBe("-");
-    expect(items[1]!.value).toBe("-");
-    expect(items[2]!.value).toBe("-");
-  });
-
-  it("pool: video points left / budget, unknown, drift as a warning, failed proxies as bad, the last full check", () => {
-    const at = new Date(2026, 9, 15, 20, 48, 10).getTime();
-    const items = poolItems({
-      pools: [
-        { pool: "image", left: 0, budget: 0, unknown: 9, drift: 5 },
-        { pool: "video", left: 143, budget: 210, unknown: 2, drift: 1 },
-      ],
-      proxy_failed: 1,
-      last_full_check_ms: at,
-    });
-    expect(items.map((i) => [i.label, i.value, i.tone])).toEqual([
-      ["Video points left", "143 / 210", undefined],
-      ["Points unknown", "2 accounts", undefined],
-      ["Drift flagged", 1, "warn"],
-      ["Proxy checks failed", 1, "bad"],
-      ["Last full check", "20:48:10", undefined],
-    ]);
-  });
-
-  it("pool: one account is singular, zeros carry no colour, no full check reads never, no answer shows dashes", () => {
-    const items = poolItems({
-      pools: [{ pool: "video", left: 3, budget: 30, unknown: 1, drift: 0 }],
-      proxy_failed: 0,
-      last_full_check_ms: null,
-    });
-    expect(items[1]!.value).toBe("1 account");
-    expect(items[2]).toMatchObject({ value: 0, tone: undefined });
-    expect(items[3]).toMatchObject({ value: 0, tone: undefined });
-    expect(items[4]!.value).toBe("never");
-    expect(poolItems(null).map((i) => i.value)).toEqual(["-", "-", "-", "-", "-"]);
-    expect(poolItems({ pools: [], proxy_failed: 0, last_full_check_ms: null })[0]!.value).toBe("0 / 0");
   });
 });
 

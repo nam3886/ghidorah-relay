@@ -1,5 +1,5 @@
 """The Accounts tab of the Vue admin in Chrome against the real app (browser tier): the list, the row More menu,
-import, edit, the enable switch, the commands the worker would run, the screenshot blob, auto-refresh, the pool card,
+import, edit, the enable switch, the commands the worker would run, the screenshot blob, auto-refresh,
 the provider lanes at every width and server strings as text. Every test runs
 under the CSP watch of `conftest.CspWatch`. The app is opened by `app.url` (`/manage`)."""
 
@@ -335,20 +335,6 @@ def test_auto_refresh_picks_up_new_rows_and_waits_while_a_dialog_is_open(app, ap
     expect(rows(page)).to_have_count(1)
     page.get_by_role("dialog").get_by_role("button", name="Close", exact=True).click()
     expect(rows(page)).to_have_count(2, timeout=15000)
-
-
-def test_the_pool_card_counts_the_pool_and_reads_the_points_from_the_pool_endpoint(app, app_session, db):
-    page = app_session
-    new_account(db, label="free one", checked=True)
-    gone = new_account(db, label="gone one", checked=True)
-    db.run("UPDATE accounts SET state = 'dead', state_reason = 'signed out' WHERE id = %s", gone)
-    open_accounts(page)
-    card = page.get_by_test_id("pool-card")
-    expect(card).to_contain_text("Pool health · 2 accounts")
-    expect(card.locator("dd").nth(0)).to_have_text("1 / 1")             # ready: usable / available
-    expect(card.locator("dd").nth(1)).to_have_text("1")                 # dead
-    expect(card).to_contain_text("Video points left")
-    expect(card).to_contain_text("Last full check")
 
 
 def test_the_more_menu_opens_under_its_button_and_closes_on_escape(app, app_session, db):
