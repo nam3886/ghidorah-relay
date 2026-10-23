@@ -87,6 +87,7 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `input.prompt_ratio_conflict` | 400 | invalid_request_error | yes | no | no | 0 | no | the prompt asks for a different aspect ratio than the request |
 | `input.prompt_too_long` | 400 | invalid_request_error | yes | no | no | 0 | no | the prompt is too long |
 | `input.too_many_images` | 400 | invalid_request_error | yes | no | no | 0 | no | too many input images |
+| `input.unsupported` | 400 | invalid_request_error | yes | no | no | 0 | no | this model does not take this kind of input yet |
 
 ## `internal.*`
 

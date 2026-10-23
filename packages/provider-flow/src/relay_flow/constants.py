@@ -19,9 +19,11 @@ ROTATE_BODY = '[000,"-0000000000000000000"]'
 RPC_PATH = "/_/AiSandboxAngularFrontend/data/batchexecute"
 MEDIA_HOSTS = ("flow-content.google",)                      # the signed result links; no cookie is sent there
 OUTPUT_MIME = "image/jpeg"
-# reCAPTCHA Enterprise of flow.google.com: the token of an image generate is minted for this action
+VIDEO_MIME = "video/mp4"          # H.264 1280x720 8 s with AAC (FINDINGS 5)
+# reCAPTCHA Enterprise of flow.google.com: the token of a generate is minted for its page action
 RECAPTCHA_SITE_KEY = "6LdsFiUsAAAAAIjVDZcuLhaHiDn5nnHVXVRQGeMV"
 IMAGE_ACTION = "IMAGE_GENERATION"
+VIDEO_ACTION = "VIDEO_GENERATION"
 # The token source. Only YesCaptcha is built; its key is a secret of the worker's environment, never a setting.
 CAPTCHA_PROVIDERS = ("yescaptcha",)
 YESCAPTCHA_URL = "https://api.yescaptcha.com"
@@ -33,10 +35,10 @@ USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHT
 
 # ---- timing ---------------------------------------------------------------------------------------------------
 API_TIMEOUT_S = 30              # one page load, read or cookie rotation over a proxy (reads took 0.3-1.5 s)
-GENERATE_TIMEOUT_S = 90         # the image generate holds its reply until the image is drawn (13-17 s measured)
+GENERATE_TIMEOUT_S = 90         # the image generate holds its reply until drawn (13-17 s); a video's answers in 2.6 s
 CAPTCHA_TIMEOUT_S = 120         # one reCAPTCHA token from the solver (10-17 s measured)
 CAPTCHA_POLL_S = 3              # between two reads of the solver's task
-SUBMIT_TIMEOUT_IMAGE_S = 900    # one image submit, its spaced reCAPTCHA retries included
+SUBMIT_TIMEOUT_S = 900          # one submit (image or video), its spaced reCAPTCHA retries included
 PROXY_REST_S = 1800             # a failed proxy probe rests every pool
 CHECK_INTERVAL_S = 300          # the account check: it also rotates the session, which ages out in about 20 min
 SIGNED_OUT_REST_S = 600         # a signed-out read rests the account this long, then it is checked again
@@ -51,6 +53,7 @@ STRIKE_DEAD_REASON = "signed_out"
 # ---- money ----------------------------------------------------------------------------------------------------
 FALLBACK_PRICE = 1              # a model missing from `flow.prices`, charged with a warning
 ACCOUNT_COST = 1                # an image costs no Flow credit (50 -> 50 measured): each job counts one
+# a video's account cost is its Flow credits (catalog.VIDEO_CREDITS), counted against flow.video_budget
 
 # ---- requests -------------------------------------------------------------------------------------------------
 PROMPT_MAX_CHARS = 4000         # not measured on flow yet: a cap well inside what a generate request takes
@@ -64,8 +67,8 @@ LIMITS = (
     FixedLimit("relay_flow.constants.CAPTCHA_TIMEOUT_S", CAPTCHA_TIMEOUT_S,
                "one reCAPTCHA token from the solver; none in time is a failed try", "s"),
     FixedLimit("relay_flow.constants.CAPTCHA_POLL_S", CAPTCHA_POLL_S, "between two reads of the solver's task", "s"),
-    FixedLimit("relay_flow.constants.SUBMIT_TIMEOUT_IMAGE_S", SUBMIT_TIMEOUT_IMAGE_S,
-               "hard bound on one image submit; no reCAPTCHA retry starts that would not end inside it", "s"),
+    FixedLimit("relay_flow.constants.SUBMIT_TIMEOUT_S", SUBMIT_TIMEOUT_S,
+               "hard bound on one submit; no reCAPTCHA retry starts that would not end inside it", "s"),
     FixedLimit("relay_flow.constants.SIGNED_OUT_REST_S", SIGNED_OUT_REST_S,
                "a signed-out read rests the account this long, then it is checked again", "s"),
     FixedLimit("relay_flow.constants.SIGNED_OUT_GAP_S", SIGNED_OUT_GAP_S,

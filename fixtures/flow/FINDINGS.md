@@ -93,3 +93,42 @@ minute later. After a lost reply: match the batch id; "not listed yet" is unknow
 - Which token source and spacing give a usable accept rate; whether refusals are tied to the account, the IP or the rate.
 - Token lifetime (tokens were used within seconds of minting).
 - Image-to-image/upload (UPLOAD_IMAGE token), count > 1 per entry, other ratios for video (2 gave 16:9 here).
+
+## i2i/t2v/i2v build 24/10, live proof pending
+Built from the captures above only: no call reached Google (production's only Flow session was in use; a second user
+would kill it). Everything below that is not "captured" must be proven live before `flow.claims_enabled` goes on.
+
+Built and offered: `flow-veo-3.1-lite` text to video (8 s, 16:9, 10 credits; price 2 points, `flow.prices`), pool
+`video` counting Flow credits against `flow.video_budget` (default 50). Stubbed: an input image on any flow model (image
+to image, image to video) is refused at the door with `input.unsupported` (nothing queued, nothing charged).
+
+| Piece | Source | Status |
+|---|---|---|
+| `YhhmEf` args `[[[[null,null,[[[prompt]]]],"veo_3_1_t2v_lite",2,null,[null×4,<media>,<wf>]]],<ctx>,[<batch>,1]]` | video_submit_try1 | captured (sent byte-for-byte in that shape) |
+| the acceptance `[null,<balance>,[[wf,_,_,[title,_,_,_,media,batch,_],project]],[[media,project,wf,...,[6]...]]]` | video_submit_try1 | captured; we require OUR batch echoed, our project on both records, wf↔media cross-linked, exactly one of each |
+| `nzlxg` balance read before the send (`payload[0]`) | video_credits_before | captured; too few → `pool.account_out_of_points` + Balance, nothing sent |
+| `jwpduf` args `[null,null,[[wf],[media],[batch]]]` | video_status_* | captured (after a lost reply the three ids come from the Zzl0ze listing) |
+| status `record[5][8]` = `[6]` queued, `[2]` rendering, `[3]` done | video_submit_try1, video_status_* | captured |
+| `as29s [media]` → `flow-content.google/video/<id>` mp4 at status 3 | video_get_getmedia | captured |
+| Zzl0ze lists the video by its batch | video_listing_poll_last | captured |
+| VIDEO_GENERATION token from YesCaptcha (M1, enterprise) | the 23/10 video | captured (accepted once) |
+| the 7/8 reCAPTCHA refusal on `YhhmEf` | — | **unproven**: never seen on a video; held to the exact image refusal shape (NotTaken, retried with a new token and batch) |
+| a refused video (policy / likeness / safety) at the send or in `jwpduf` | — | **unproven**: an unseen send answer is Ambiguous (reconcile, deadline refund); an unseen status waits, is named once in an event (`odd_status`), and `render.deadline` ends it with its refund |
+| out of credits at the send (balance read was enough, then not) | — | **unproven**: Ambiguous → reconcile → deadline refund; whether Flow charges or lists it is unknown |
+| the credit refresh | `nzlxg` `[…,[refresh_s,ns]]` | **unproven**: the stamp was ~24 h after the read (rolling?), the pool day is UTC; the pre-send read is the real guard |
+| other video ratios (field after the model key), 4/6 s, Veo Fast (20) / Quality (100), the `_portrait` keys | HTrJv only | **unproven**, not offered |
+| image upload `maseQ` (UPLOAD_IMAGE token), the image-to-image entry's refs slot, the start-image video RPC (MZZa6b/eb1hJf/nprQif, `veo_3_1_i2v_lite` 10 credits) | the JS names only | **not built**: `input.unsupported` |
+
+### The morning proof (with the owner, one account, ~20-30 credits of the day's 50)
+The flow worker is stopped first (`docker stop` of worker-flow: its 5-min check rotates the session), and the session
+is used by one client at a time.
+1. `nzlxg` (free): the balance and the refresh stamp; again after 24 h to see whether the credits refill and when.
+2. One `flow-veo-3.1-lite` job through the relay (claims on for that account only): **10 credits**. Expect the token,
+   the written-ahead batch, one `YhhmEf`, `Accepted` with Balance 40→(balance-10), `jwpduf` 6 → 2 → 3 within ~45 s, the
+   mp4 from `as29s` downloaded through the proxy. Save the records as fixtures like `video_*`.
+3. One video whose prompt Flow should refuse (a named real person): **0 or 10 credits**. Record what `YhhmEf` and then
+   `jwpduf` say, and `nzlxg` before/after: this decides a `flow.refused` Fail with refund instead of the deadline.
+4. In the exporting browser (worker still stopped), with DevTools recording a HAR: one image to image (free) and one
+   image to video with Veo 3.1 Lite (**10 credits**). This captures `maseQ`, the image entry's refs slot and the i2v
+   RPC. Then re-export the cookies and re-import the account (the browser use makes a new session generation).
+5. Out of credits is proven only when an account is drained: not run on purpose.

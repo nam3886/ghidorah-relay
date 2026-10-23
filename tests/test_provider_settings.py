@@ -15,7 +15,7 @@ from relay_vibes.spec import SPEC as VIBES
 BASIC = {
     "dola": {"claims_enabled", "prices", "video_budget", "image_budget", "master_quality", "disabled_models",
              "browser_slots"},
-    "flow": {"claims_enabled", "prices", "image_budget", "disabled_models", "captcha_provider"},
+    "flow": {"claims_enabled", "prices", "image_budget", "video_budget", "disabled_models", "captcha_provider"},
     "gemini": {"claims_enabled", "prices", "image_budget", "disabled_models"},
     "meta": {"claims_enabled", "prices", "image_budget", "video_budget", "disabled_models", "browser_slots"},
     "vibes": {"claims_enabled", "prices", "image_budget", "video_budget", "disabled_models"},

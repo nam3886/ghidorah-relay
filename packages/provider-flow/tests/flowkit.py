@@ -39,6 +39,17 @@ LISTING = live("img8_listing_1min_later")               # lists img2's batch (72
 GET_MEDIA = live("read_getmedia_as29s")
 IMG2_BATCH = live("img2_005_written_ahead")["batch"]
 IMG2_MEDIA = "1d61f6cc-61ab-496e-bf15-556baec3ce21"
+# the Veo 3.1 Lite video of 23/10: its send, credits, status reads, listing and media record
+VIDEO_SENT = live("video_submit_try1")                  # accepted in 2.6 s: new balance 40, the media record at [6]
+VIDEO_BATCH = VIDEO_SENT["written_ahead"]["batch"]      # e9629406-...
+VIDEO_MEDIA = "1aa49420-aee6-465c-ba37-66d28b990f23"
+VIDEO_WORKFLOW = "fd6f10c0-1323-4d77-8312-7990ff91f9ad"
+CREDITS_50 = live("video_credits_before")               # nzlxg: [50, 3, 8, 1, null, 50, [refresh s, ns]]
+STATUS_RUNNING = live("video_status_poll_first")        # jwpduf: our record at [2], the two other ids not found
+STATUS_DONE = live("video_status_poll_last")            # jwpduf: our record at [3], with the byte size
+VIDEO_MEDIA_DONE = live("video_get_getmedia")           # as29s: the poster and the mp4 links
+VIDEO_LISTED = live("video_listing_poll_last")          # Zzl0ze listing the video's batch
+VIDEO_NOT_LISTED = live("video_listing_poll_first")     # Zzl0ze before the video was listed
 
 
 def page(signed_in: bool = True) -> str:

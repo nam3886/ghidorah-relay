@@ -114,6 +114,7 @@ RULES: dict[str, Rule] = {r.code: r for r in (
     _r("input.idempotency_conflict", 409, _BAD,
        message="this idempotency key was already used with a different request", **_pre),
     _r("input.too_many_images", 400, _BAD, message="too many input images", **_pre),
+    _r("input.unsupported", 400, _BAD, message="this model does not take this kind of input yet", **_pre),
     _r("input.prompt_too_long", 400, _BAD, message="the prompt is too long", **_pre),
     _r("input.frame_placeholder", 400, _BAD,
        message="a prompt frame has a missing, repeated or unknown placeholder", **_pre),

@@ -30,6 +30,7 @@ SPEC_FILE = "packages/provider-flow/src/relay_flow/spec.py"
 CREDENTIAL_FILE = "packages/provider-flow/src/relay_flow/credential.py"
 IMG = MediaIn(sha256="0" * 64, mime="image/png", size=10)
 MODELS = ("flow-nano-banana-2.1", "flow-nano-banana-pro", "flow-nano-banana-2-lite")
+VIDEO = "flow-veo-3.1-lite"
 
 
 def plan(model="flow-nano-banana-2.1", prompt="a lighthouse at dawn", *, cfg=None, **kw):
@@ -45,10 +46,11 @@ def refusal(model="flow-nano-banana-2.1", prompt="a lighthouse at dawn", **kw):
 
 
 # ---- caps, settings, catalog, codes --------------------------------------------------------------------------------
-def test_the_caps_say_an_http_provider_with_one_image_pool_checked_every_five_minutes():
+def test_the_caps_say_an_http_provider_with_an_image_and_a_video_pool_checked_every_five_minutes():
     c = SPEC.caps
-    assert SPEC.name == "flow" and c.execution == "http" and c.wallet_kinds == ("image",)
-    assert [(p.name, p.tz, p.budget_setting) for p in c.pools] == [("image", "UTC", "flow.image_budget")]
+    assert SPEC.name == "flow" and c.execution == "http" and c.wallet_kinds == ("image", "video")
+    assert [(p.name, p.tz, p.budget_setting, p.unit) for p in c.pools] == [
+        ("image", "UTC", "flow.image_budget", "jobs"), ("video", "UTC", "flow.video_budget", "points")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold, c.strike_effect) == (1, 3, 3, Dead("signed_out"))
     assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (True, True, False, False)
     # the check rotates the session, which ages out in ~20 min: it must come at least twice per rotation interval
@@ -63,7 +65,8 @@ def test_flow_stays_drained_by_default_and_declares_its_tunables():
     assert (s["flow.rotate_interval_s"].default, s["flow.rotate_interval_s"].max) == (600, 900)
     assert (s["flow.captcha_max_tries"].default, s["flow.captcha_retry_gap_s"].default) == (5, 60)
     assert s["flow.account_min_gap_s"].default == 300 and s["flow.captcha_provider"].default == "yescaptcha"
-    assert s["flow.prices"].default == dict.fromkeys(MODELS, 1)
+    assert s["flow.prices"].default == {**dict.fromkeys(MODELS, 1), VIDEO: 2}
+    assert s["flow.video_budget"].default == 50
     assert all(s[k].description for k in s) and _problems(SPEC) == []
     assert not [k for k in s if "key" in k.lower()], "a secret is never a setting"
 
@@ -82,8 +85,15 @@ def test_the_registry_takes_flow_beside_the_others_and_no_model_name_clashes():
     for name in MODELS:
         spec, model = reg.resolve(name)
         assert spec is SPEC and model.operations == ("text_to_image",) and model.media_type == "image"
-    assert {m.id for m in SPEC.catalog()} == set(MODELS)
-    assert [m.display_name for m in SPEC.catalog()] == ["Nano Banana 2.1", "Nano Banana Pro", "Nano Banana 2 Lite"]
+    spec, model = reg.resolve(VIDEO)
+    assert spec is SPEC and model.operations == ("text_to_video",) and model.media_type == "video"
+    assert dict(model.limits) | {"description": ""} == {"max_images": 0, "ratios": ["16:9"], "default_ratio": "16:9",
+                                                        "durations": [8], "default_duration": 8, "description": ""}
+    assert {m.id for m in SPEC.catalog()} == {*MODELS, VIDEO}
+    assert [m.display_name for m in SPEC.catalog()] == ["Nano Banana 2.1", "Nano Banana Pro", "Nano Banana 2 Lite",
+                                                        "Veo 3.1 Lite"]
+    # the pause list takes every model, the video too
+    assert SPEC.settings()["flow.disabled_models"].validate([VIDEO]) == [VIDEO]
 
 
 def test_flow_registers_its_codes_on_load():
@@ -95,8 +105,8 @@ def test_flow_registers_its_codes_on_load():
 
 
 # ---- plan ----------------------------------------------------------------------------------------------------------
-@mutation(SPEC_FILE, '            params={"model": model[0], "aspect": C.ASPECTS[ratio], "ratio": ratio},',
-          '            params={"model": model[0], "aspect": 1, "ratio": ratio},', expect="aspect")
+@mutation(SPEC_FILE, '                params={"model": image[0], "aspect": C.ASPECTS[ratio], "ratio": ratio},',
+          '                params={"model": image[0], "aspect": 1, "ratio": ratio},', expect="aspect")
 def test_each_model_and_ratio_maps_to_flows_own_keys_and_the_image_is_held():
     keys = {"flow-nano-banana-2.1": "BELUGA", "flow-nano-banana-pro": "GEM_PIX_2",
             "flow-nano-banana-2-lite": "HARBOR_SEAL"}
@@ -112,10 +122,13 @@ def test_each_model_and_ratio_maps_to_flows_own_keys_and_the_image_is_held():
 
 
 @mutation(SPEC_FILE, "        if req.images:", "        if False:", expect="an input image")
+@mutation(SPEC_FILE, '            raise _refuse("input.unsupported",',
+          '            raise _refuse("input.too_many_images",', expect="an input image")
 @mutation(SPEC_FILE, "        if req.n not in (None, 1):", "        if False:", expect="more than one image")
 @mutation(SPEC_FILE, "        if C.is_blank_prompt(req.prompt):", "        if False:", expect="a blank prompt")
 def test_what_flow_cannot_do_yet_is_refused_rather_than_ignored():
-    assert refusal(images=(IMG,)) == ("input.too_many_images", "images"), "an input image was ignored"
+    for model in (*MODELS, VIDEO):       # image to image, image to video: the upload is not proven yet
+        assert refusal(model, images=(IMG,)) == ("input.unsupported", "images"), "an input image was ignored"
     assert refusal(n=2) == ("input.invalid", "n"), "more than one image was planned"
     assert refusal(prompt=" ​ ") == ("input.empty_prompt", "prompt"), "a blank prompt was planned"
     assert refusal(duration=8) == ("input.bad_duration", "duration")
@@ -206,7 +219,7 @@ def test_the_shipped_frames_send_the_customers_words_byte_for_byte_as_before_fra
     """Before frames flow got the customer's words as the door took them (trimmed, line breaks kept, no tracking
     code). The goldens are literals."""
     assert SPEC.frames is not None, "flow declares no frames"
-    assert set(SPEC.frames.defaults) == {m.media_type for m in SPEC.catalog()} == {"image"}
+    assert set(SPEC.frames.defaults) == {m.media_type for m in SPEC.catalog()} == {"image", "video"}
     golden = {"a calm sea at dusk": "a calm sea at dusk",
               MULTI: "a lantern\n\tfloats over a lake,\r\n  été — 日本語",
               "see {{tracking_code}} [1234]": "see {{tracking_code}} [1234]",
@@ -217,3 +230,43 @@ def test_the_shipped_frames_send_the_customers_words_byte_for_byte_as_before_fra
             assert got == want, "the %s default is not byte for byte: %r" % (kind, got)
         longest = frames.render(frame, "x" * SPEC.max_prompt_chars, "7908", SPEC.frames.verbatim)
         assert len(longest) <= SPEC.frames.max_sent_chars, "the longest prompt flow takes is refused for length"
+
+
+# ---- the video -----------------------------------------------------------------------------------------------------
+VIDEO_CREDITS = '                    "duration": C.VIDEO_DURATION, "credits": credits},'
+VIDEO_ASPECT = '            params={"model": video[0], "aspect": C.VIDEO_ASPECTS[ratio], "ratio": ratio,'
+
+
+@mutation(SPEC_FILE, VIDEO_CREDITS, '                    "duration": C.VIDEO_DURATION, "credits": 0},',
+          expect="credits")
+@mutation(SPEC_FILE, VIDEO_ASPECT, '            params={"model": video[0], "aspect": 3, "ratio": ratio,',
+          expect="credits")
+@mutation(SPEC_FILE, "            pool=\"video\", account_cost=credits,", "            pool=\"video\", account_cost=1,",
+          expect="the account cost of a video is its Flow credits")
+@mutation(SPEC_FILE, "            completion=Completion.DETACH,", "            completion=Completion.HOLD,",
+          expect="a video is polled")
+def test_a_veo_video_is_planned_as_recorded_and_costs_its_flow_credits_against_the_video_pool():
+    p = plan(VIDEO, ratio="16:9", duration=8)
+    assert dict(p.params) == {"model": "veo_3_1_t2v_lite", "aspect": 2, "ratio": "16:9", "duration": 8,
+                              "credits": 10}, "credits"
+    assert p.account_cost == 10, "the account cost of a video is its Flow credits"
+    assert p.completion == Completion.DETACH, "a video is polled"
+    assert (p.operation, p.media_type, p.after_sent, p.wallet_kind, p.pool, p.price, p.submit_timeout_s) == (
+        "text_to_video", "video", AfterSent.RECONCILE, "video", "video", 2, 900)
+    assert dict(plan(VIDEO).params) == dict(p.params)
+    assert plan(VIDEO, cfg=FakeSettings(SPEC, flow__prices={VIDEO: 7})).price == 7
+
+
+@mutation(SPEC_FILE, "        aspects = C.VIDEO_ASPECTS if video else C.ASPECTS", "        aspects = C.ASPECTS",
+          expect="an unrecorded video ratio")
+@mutation(SPEC_FILE, "        if req.duration not in (None, C.VIDEO_DURATION):", "        if False:",
+          expect="an unrecorded duration")
+@mutation(SPEC_FILE, "        if credits > budget:", "        if False:", expect="more credits than a day's budget")
+def test_what_the_video_capture_did_not_prove_is_refused():
+    for ratio in ("9:16", "1:1", "4:3"):
+        assert refusal(VIDEO, ratio=ratio) == ("input.bad_ratio", "ratio"), "an unrecorded video ratio %s" % ratio
+    for duration in (4, 6, 10):
+        assert refusal(VIDEO, duration=duration) == ("input.bad_duration", "duration"), "an unrecorded duration"
+    assert refusal(VIDEO, n=2) == ("input.invalid", "n")
+    assert refusal(VIDEO, cfg=FakeSettings(SPEC, flow__video_budget=9)) == ("input.bad_duration", "duration"), \
+        "more credits than a day's budget"

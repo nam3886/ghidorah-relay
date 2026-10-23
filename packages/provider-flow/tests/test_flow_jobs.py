@@ -92,7 +92,8 @@ class Tokens:
     async def __call__(self, action, url, proxy=None):
         self.log.append("token")
         self.proxies = [*getattr(self, "proxies", []), proxy]
-        assert action == "IMAGE_GENERATION" and url == "https://flow.google.com/project/" + PROJECT
+        self.actions = [*getattr(self, "actions", []), action]
+        assert url == "https://flow.google.com/project/" + PROJECT
         if self.fails:
             fail = self.fails.pop(0)
             if fail is not None:
@@ -158,7 +159,7 @@ def test_the_batch_is_written_ahead_and_marked_sent_right_before_the_one_generat
     assert result.job.outputs == (Output(SIGNED_LINK, "image/jpeg", 0, IMG2_MEDIA, {"batch": batch}),)
     assert SIGNED_LINK.startswith("https://flow-content.google/image/" + IMG2_MEDIA)
     assert Success() in result.account and rested(result) == [
-        Rest("image", NOW + timedelta(seconds=300), "flow pacing between two generates")]
+        Rest(pool, NOW + timedelta(seconds=300), "flow pacing between two generates") for pool in ("image", "video")]
 
 
 @mutation(SUBMIT_FILE, "    return job.prompt if job.frame_id is None else job.sent_text", "    return job.prompt",
@@ -336,7 +337,7 @@ def test_when_every_try_is_refused_the_job_goes_back_to_the_queue_not_taken_and_
     assert rested(result) and not any(isinstance(e, Success) for e in result.account)
 
 
-@mutation(SUBMIT_FILE, "                            > SUBMIT_TIMEOUT_IMAGE_S:", "                            > 10**9:",
+@mutation(SUBMIT_FILE, "                            > SUBMIT_TIMEOUT_S:", "                            > 10**9:",
           expect="a try past the submit bound")
 def test_no_try_starts_that_would_not_end_inside_the_submit_bound():
     log = []
@@ -346,14 +347,15 @@ def test_no_try_starts_that_would_not_end_inside_the_submit_bound():
     assert type(result.job) is NotTaken
 
 
-@mutation(SUBMIT_FILE, "token = await tokens(IMAGE_ACTION, BASE_URL + path, ctx.account.proxy)",
-          "token = await tokens(IMAGE_ACTION, BASE_URL + path)", expect="the token source was not given the proxy")
+@mutation(SUBMIT_FILE, "IMAGE_ACTION, BASE_URL + path, ctx.account.proxy)", "IMAGE_ACTION, BASE_URL + path)",
+          expect="the token source was not given the proxy")
 def test_the_token_source_is_given_the_accounts_proxy():
     log = []
     proxy = Proxy("10.0.0.1", 8080, "user:pw")
     tokens = Tokens(log)
     run_submit(Flow(log, rpc={"ogiZ0b": GOOD}), Ctx(log, proxy=proxy), tokens)
     assert tokens.proxies == [proxy], "the token source was not given the proxy: %s" % tokens.proxies
+    assert tokens.actions == ["IMAGE_GENERATION"]
 
 
 @mutation(SUBMIT_FILE, "                    if not sent:\n                        await ctx.event(",
@@ -461,7 +463,8 @@ def test_reconcile_finds_any_batch_the_job_sent_and_absence_stays_unknown():
     listing = frame("Zzl0ze", LISTING["payload"])
     state = {"project": PROJECT, "batch": IMG2_BATCH, "batches": ["refused-batch-0", IMG2_BATCH]}
     got = reconcile(Flow(log, rpc={"Zzl0ze": listing}), Ctx(log), state)
-    assert got == Found(IMG2_BATCH, {"batch": IMG2_BATCH, "media": IMG2_MEDIA}, True), \
+    assert got == Found(IMG2_BATCH, {"batch": IMG2_BATCH, "media": IMG2_MEDIA,
+                                     "workflow": "186b683d-de15-4a96-b173-b3b39a1b39bc"}, True), \
         "any batch the job sent: %s" % (got,)
     missing = {"project": PROJECT, "batch": "b-never", "batches": ["b-never"]}
     got = reconcile(Flow(log, rpc={"Zzl0ze": listing}), Ctx(log), missing)

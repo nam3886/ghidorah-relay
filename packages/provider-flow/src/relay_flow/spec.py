@@ -33,7 +33,7 @@ from relay_flow.constants import (
     PROVIDER,
     PROXY_REST_S,
     STRIKE_DEAD_REASON,
-    SUBMIT_TIMEOUT_IMAGE_S,
+    SUBMIT_TIMEOUT_S,
     SUSPECT_THRESHOLD,
 )
 from relay_flow.credential import MAX_COOKIES
@@ -99,10 +99,14 @@ _SETTINGS = dict((
              "Minimum seconds between two jobs of one flow account: after a generate the account's pools rest this "
              "long (a 12-min pause was accepted on the first try, rapid tries were refused).", min=0, max=3600),
     _setting("prices", dict, dict(C.DEFAULT_PRICES),
-             "Points charged per image, keyed by model. A model missing here is charged the fallback (1) with a "
-             "warning.", rule=PRICES_RULE, basic=True),
+             "Points charged per job (an image, or one 8 s video), keyed by model. A model missing here is charged "
+             "the fallback (1) with a warning.", rule=PRICES_RULE, basic=True),
     _setting("image_budget", int, 1000, "Images each flow account may make per day (not measured yet).", min=1,
              basic=True),
+    _setting("video_budget", int, 50,
+             "Flow credits each account may spend on videos per day (the account showed 50; a Veo 3.1 Lite video "
+             "takes 10). Before each video the account's own balance is read too: too few credits and the job "
+             "goes to another account, nothing sent.", min=1, basic=True),
     (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 
@@ -111,7 +115,7 @@ _SETTINGS = dict((
 # its batch id): `{{tracking_code}}` renders as nothing and the line breaks stay, so it sends the customer's words
 # byte for byte, as flow was sent before it had frames. The longest sent text is the prompt cap plus the longest
 # frame: no prompt flow takes today is refused for length.
-FRAMES = FrameRules(defaults={"image": frames.CORE_FRAME}, warnings=lambda kind, text: (),
+FRAMES = FrameRules(defaults={"image": frames.CORE_FRAME, "video": frames.CORE_FRAME}, warnings=lambda kind, text: (),
                     max_sent_chars=PROMPT_MAX_CHARS + frames.FRAME_MAX, verbatim=True)
 
 
@@ -120,7 +124,8 @@ class FlowSpec:
     frames = FRAMES
     max_prompt_chars = PROMPT_MAX_CHARS
     caps = Caps(
-        execution="http", wallet_kinds=("image",), pools=(PoolSpec("image", "UTC", "flow.image_budget"),),
+        execution="http", wallet_kinds=("image", "video"),
+        pools=(PoolSpec("image", "UTC", "flow.image_budget"), PoolSpec("video", "UTC", "flow.video_budget", "points")),
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
         strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=False,
         titles=False, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)
@@ -152,29 +157,47 @@ class FlowSpec:
 
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
         """Validate and normalise. Price and timeout come from the settings and the constants, NEVER from
-        `req.options`. Raises `InputError`. One image per job (n > 1 later)."""
-        model = C.MODELS.get(req.model)
-        if model is None:
-            raise _refuse("input.bad_model", "flow's models are %s" % ", ".join(C.MODELS), "model")
-        if req.duration is not None:
-            raise _refuse("input.bad_duration", "an image has no duration", "duration")
+        `req.options`. Raises `InputError`. One result per job. An input image (image to image, image to video) is
+        refused with `input.unsupported`: flow's upload was never captured, so it is not guessed."""
+        image, video = C.MODELS.get(req.model), C.VIDEO_MODELS.get(req.model)
+        if image is None and video is None:
+            raise _refuse("input.bad_model", "flow's models are %s" % ", ".join((*C.MODELS, *C.VIDEO_MODELS)),
+                          "model")
         if req.images:
-            raise _refuse("input.too_many_images", "%s takes no input image" % req.model, "images")
+            raise _refuse("input.unsupported", "flow takes no input image yet: its image upload is not proven",
+                          "images")
         if req.n not in (None, 1):
-            raise _refuse("input.invalid", "flow makes one image per request", "n")
+            raise _refuse("input.invalid", "flow makes one result per request", "n")
         ratio = C.DEFAULT_RATIO if req.ratio is None else req.ratio
-        if ratio not in C.ASPECTS:
-            raise _refuse("input.bad_ratio", "%s takes the ratios %s (or none)" % (req.model, ", ".join(C.ASPECTS)),
+        aspects = C.VIDEO_ASPECTS if video else C.ASPECTS
+        if ratio not in aspects:
+            raise _refuse("input.bad_ratio", "%s takes the ratios %s (or none)" % (req.model, ", ".join(aspects)),
                           "ratio")
         if C.is_blank_prompt(req.prompt):
             raise _refuse("input.empty_prompt", "the prompt shows no visible characters", "prompt")
         price, warnings = self._price(settings, req.model)
+        if video is None:
+            if req.duration is not None:
+                raise _refuse("input.bad_duration", "an image has no duration", "duration")
+            return Plan(
+                operation="text_to_image", media_type="image", model=req.model,
+                params={"model": image[0], "aspect": C.ASPECTS[ratio], "ratio": ratio},
+                completion=Completion.HOLD, after_sent=AfterSent.RECONCILE, wallet_kind="image", price=price,
+                pool="image", account_cost=ACCOUNT_COST, submit_timeout_s=SUBMIT_TIMEOUT_S,
+                warnings=tuple(warnings))
+        if req.duration not in (None, C.VIDEO_DURATION):
+            raise _refuse("input.bad_duration", "%s makes %d s clips" % (req.model, C.VIDEO_DURATION), "duration")
+        credits = C.VIDEO_CREDITS[req.model]
+        budget = int(settings.get("flow.video_budget"))
+        if credits > budget:
+            raise _refuse("input.bad_duration", "a %s video takes %d Flow credits; an account has %d a day"
+                          % (req.model, credits, budget), "duration")
         return Plan(
-            operation="text_to_image", media_type="image", model=req.model,
-            params={"model": model[0], "aspect": C.ASPECTS[ratio], "ratio": ratio},
-            completion=Completion.HOLD, after_sent=AfterSent.RECONCILE, wallet_kind="image", price=price,
-            pool="image", account_cost=ACCOUNT_COST, submit_timeout_s=SUBMIT_TIMEOUT_IMAGE_S,
-            warnings=tuple(warnings))
+            operation="text_to_video", media_type="video", model=req.model,
+            params={"model": video[0], "aspect": C.VIDEO_ASPECTS[ratio], "ratio": ratio,
+                    "duration": C.VIDEO_DURATION, "credits": credits},
+            completion=Completion.DETACH, after_sent=AfterSent.RECONCILE, wallet_kind="video", price=price,
+            pool="video", account_cost=credits, submit_timeout_s=SUBMIT_TIMEOUT_S, warnings=tuple(warnings))
 
     @staticmethod
     def _price(settings: Any, model: str) -> tuple[int, list[Warning]]:
