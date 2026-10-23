@@ -2,7 +2,8 @@
 # No service shares an env file: every service names its own `<service>.env`, copied from its
 # `<service>.env.example` (variable names only). `api` and `migrate` never see the private credential key
 # (I20); tests/test_deploy.py parses this file to keep it so.
-# `migrate` and `api` sit in the profile `app`, provider workers in `dola`, `vibes`, `meta` and `flow`:
+# `migrate` and `api` sit in the profile `app`, provider workers in `dola`, `vibes`, `meta`, `flow` and
+# `gemini`:
 # `docker compose --profile app --profile dola up -d` starts the api and the dola worker, and nothing in this
 # file changes when a provider is enabled. A bare `docker compose up` starts only Postgres and MinIO.
 # Every compose command needs GIT_SHA (and the two passwords) in the environment or in deploy/.env, because
@@ -146,6 +147,18 @@ services:
     cpus: ${FLOW_CPUS:-1}
     mem_limit: ${FLOW_MEM_LIMIT:-1g}
     pids_limit: ${FLOW_PIDS_LIMIT:-256}
+
+  worker-gemini:
+    <<: *app
+    profiles: [gemini]
+    image: relay-worker-gemini:${GIT_SHA:?set GIT_SHA}
+    build: {context: .., dockerfile: deploy/Dockerfile, target: http}
+    env_file: [worker-gemini.env]
+    command: ["relay", "worker", "--provider", "gemini"]
+    stop_grace_period: 780s   # the worker's own stop grace (720 s, WORKER_GRACE_S) plus a minute; no browser, no volume
+    cpus: ${GEMINI_CPUS:-1}
+    mem_limit: ${GEMINI_MEM_LIMIT:-1g}
+    pids_limit: ${GEMINI_PIDS_LIMIT:-256}
 
 volumes:
   pgdata:

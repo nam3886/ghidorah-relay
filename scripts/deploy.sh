@@ -45,7 +45,7 @@ set -euo pipefail
 D=$HOME/relay-deploy
 N=$HOME/relay-deploy-new
 MIG=packages/relay-core/src/relay_core/db/migrations
-IMAGES="relay-api relay-migrate relay-worker-dola relay-worker-meta relay-worker-vibes relay-worker-flow"
+IMAGES="relay-api relay-migrate relay-worker-dola relay-worker-meta relay-worker-vibes relay-worker-flow relay-worker-gemini"
 fail() { echo "box: $1" >&2; exit "${2:-1}"; }
 compose() { local t=$1; shift; (cd "$t" && docker compose -p relay -f deploy/compose.yml "$@"); }
 sha_of() { sed -n "s/^GIT_SHA=//p" "$1/deploy/.env" 2>/dev/null | tail -1; }
@@ -294,12 +294,12 @@ while [ $# -gt 0 ]; do
   esac
 done
 for p in ${workers[@]+"${workers[@]}"}; do
-  case "$p" in dola | meta | vibes | flow) ;; *) die "unknown provider '$p' (dola, meta, vibes, flow)" ;; esac
+  case "$p" in dola | meta | vibes | flow | gemini) ;; *) die "unknown provider '$p' (dola, meta, vibes, flow, gemini)" ;; esac
 done
 if [ -n "$sha" ]; then [[ "$sha" =~ ^[0-9a-f]{7,40}$ ]] || die "a commit is 7 to 40 hex digits: '$sha'"; fi
 
 default_claims() {   # the default <p>.claims_enabled of each provider's spec (test_deploy_sh compares them)
-  case "$1" in dola) echo true ;; meta | vibes | flow) echo false ;; esac
+  case "$1" in dola) echo true ;; meta | vibes | flow | gemini) echo false ;; esac
 }
 
 restart_workers() {   # a provider claims after its restart exactly when it claimed before: off stays off

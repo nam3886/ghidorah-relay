@@ -1,0 +1,129 @@
+"""After a lost answer: find the job's chat (reconcile), read what it holds (poll), and download a result (fetch).
+Reads only: nothing here sends, so nothing here can spend.
+
+- Reconcile: a job whose send answered its conversation id is read by that id. Otherwise the chat list (`MaZiqc`) is
+  read: gemini lists each chat with the time its send started (measured 1 s after the POST) and shows it as soon as the
+  answer is done; a chat started within `FIND_BEFORE_S`/`FIND_AFTER_S` of the job's `sent_at` whose first prompt is
+  the job's exact sent text (`hNvQHb`) is the job's: `Found`. The account sends one job at a time (`account_slots` 1),
+  so no other send of the account starts in that window. Not found is `StillUnknown(answered=True)`, never `NotSent`:
+  a send cut before its answer ended left no chat in the spike (FINDINGS 4), but that is not proof, so the render
+  deadline ends such a job with its refund and it is never sent again.
+- Poll (a job `Found`): the chat read, judged like a send's answer (`submit.judge`): an image is `Done`; a final text
+  and no image is `Failed` (refunded); anything else `Pending`.
+- Fetch: the result link resolved to the original file's bytes link with the session (`Site.resolve`), then those
+  bytes from lh3 with no cookie, through the account's proxy (never direct when it has one).
+"""
+
+import contextlib
+import random
+from collections.abc import AsyncIterator, Callable
+
+import httpx
+
+from relay_core.net import stream_download, system_resolver
+from relay_core.providers import Done, Failed, Found, Output, Pending, PollResult, Reconciled, StillUnknown, Success
+from relay_gemini.constants import BYTES_HOST, FIND_AFTER_S, FIND_BEFORE_S, LIST_PAGE, MEDIA_DEADLINE_S, MEDIA_MAX_BYTES
+from relay_gemini.engine.http import Sessions, Site, proxy_url
+from relay_gemini.engine.reply import Answer, Turn, chats, same_text, turns
+from relay_gemini.engine.submit import CHAT_KEY, REQUEST_KEY, judge, outputs_of, sent_text
+
+LIST_CHATS = "MaZiqc"
+READ_CHAT = "hNvQHb"
+
+
+async def read_chat(site: Site, chat: str) -> tuple[Turn | None, bool]:
+    """The first turn of one chat, and whether the read was answered (200, clean, ended)."""
+    status, body = await site.rpc(READ_CHAT, [chat, 10, None, 1, [0], [4], None, 1], "/app/%s" % chat[2:])
+    if status != 200:
+        return None, False
+    found, ok = turns(body)
+    return (found[0] if found else None), ok
+
+
+async def _find(site: Site, job) -> tuple[str | None, bool]:
+    """(the job's chat, answered): the chats started near the send, oldest first, the first whose prompt is the job's
+    sent text."""
+    if job.sent_at is None:
+        return None, False
+    status, body = await site.rpc(LIST_CHATS, [LIST_PAGE, None, [0, None, 1]])
+    listed, ok = chats(body) if status == 200 else ([], False)
+    if not ok:
+        return None, False
+    # ponytail: one page of LIST_PAGE chats, the newest; a job whose chat fell off it (more than 13 chats started on
+    # the account since) is not found and the render deadline refunds it. Page on through MaZiqc if that ever bites.
+    start = job.sent_at.timestamp()
+    near = sorted((c for c in listed if start - FIND_BEFORE_S <= c.started <= start + FIND_AFTER_S),
+                  key=lambda c: c.started)
+    text, answered = sent_text(job), True
+    for c in near:
+        turn, read = await read_chat(site, c.cid)
+        answered = answered and read
+        if turn is not None and same_text(turn.prompt, text):
+            return c.cid, True
+    return None, answered
+
+
+async def reconcile(ctx, job, settings, sessions: Sessions, *, transport=None) -> Reconciled:
+    """Did the send of an unknown job reach gemini? Its chat is `Found`; none is `StillUnknown`."""
+    state = job.provider_state or {}
+    try:
+        async with Site(ctx, sessions, settings, transport=transport) as site:
+            if not (await site.load()).signed_in:
+                return StillUnknown()
+            chat = state.get(CHAT_KEY)
+            if chat:
+                turn, answered = await read_chat(site, chat)
+                if turn is None:
+                    return StillUnknown(answered=answered)
+            else:
+                chat, answered = await _find(site, job)
+                if chat is None:
+                    return StillUnknown(answered=answered)
+    except httpx.HTTPError:
+        return StillUnknown()
+    return Found(chat, {CHAT_KEY: chat, REQUEST_KEY: state.get(REQUEST_KEY)}, True)
+
+
+def interval_s(settings, rand: Callable[[], float] = random.random) -> int:
+    base = int(settings.get("gemini.poll_interval_s"))
+    return base + int(rand() * base / 2)
+
+
+async def poll(ctx, job, settings, sessions: Sessions, *, transport=None,
+               rand: Callable[[], float] = random.random) -> PollResult:
+    """The found chat's answer, judged like a send's."""
+    chat, wait = (job.provider_state or {}).get(CHAT_KEY), interval_s(settings, rand)
+    if not chat:
+        return PollResult(Pending("no chat to read", wait, answered=False))
+    try:
+        async with Site(ctx, sessions, settings, transport=transport) as site:
+            if not (await site.load()).signed_in:
+                return PollResult(Pending("gemini's page is signed out", wait, answered=False))
+            turn, answered = await read_chat(site, chat)
+    except httpx.HTTPError as e:
+        return PollResult(Pending("gemini could not be read (%s)" % type(e).__name__, wait, answered=False))
+    if turn is None:
+        return PollResult(Pending("the chat could not be read", wait, answered=answered))
+    verdict, what = judge(200, Answer(True, True, (), chat, turn.texts, turn.images, ()))
+    if verdict == "done":
+        return PollResult(Done(outputs_of(what, chat)), effects=(Success(),))
+    if verdict == "refused":
+        code, text = what
+        return PollResult(Failed(code, "gemini answered: %s" % text[:300]))
+    return PollResult(Pending(what, wait))
+
+
+async def fetch(ctx, out: Output, settings, sessions: Sessions, *, transport=None, media_transport=None,
+                media_resolver=system_resolver) -> AsyncIterator[bytes]:
+    """The bytes of `out`: its link resolved with the session (cookies only where their domain covers a hop), then
+    streamed from lh3 with no cookie. Both through the account's proxy. A link that does not resolve raises (the
+    fetcher retries; the render deadline bounds it)."""
+    async with Site(ctx, sessions, settings, transport=transport) as site:
+        link = await site.resolve(out.ref)
+    if link is None:
+        raise RuntimeError("the result link did not resolve to the image")
+    async with contextlib.aclosing(stream_download(
+            link, hosts=(BYTES_HOST,), proxy=proxy_url(ctx.account.proxy), max_bytes=MEDIA_MAX_BYTES,
+            deadline_s=MEDIA_DEADLINE_S, resolver=media_resolver, transport=media_transport)) as parts:
+        async for part in parts:
+            yield part

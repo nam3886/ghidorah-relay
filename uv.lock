@@ -9,6 +9,7 @@ members = [
     "relay-core",
     "relay-dola",
     "relay-flow",
+    "relay-gemini",
     "relay-meta",
     "relay-vibes",
     "relay-workspace",
@@ -801,6 +802,7 @@ dependencies = [
     { name = "relay-core" },
     { name = "relay-dola" },
     { name = "relay-flow" },
+    { name = "relay-gemini" },
     { name = "relay-meta" },
     { name = "relay-vibes" },
 ]
@@ -810,6 +812,7 @@ requires-dist = [
     { name = "relay-core", editable = "packages/relay-core" },
     { name = "relay-dola", editable = "packages/provider-dola" },
     { name = "relay-flow", editable = "packages/provider-flow" },
+    { name = "relay-gemini", editable = "packages/provider-gemini" },
     { name = "relay-meta", editable = "packages/provider-meta" },
     { name = "relay-vibes", editable = "packages/provider-vibes" },
 ]
@@ -874,6 +877,17 @@ dependencies = [
 requires-dist = [{ name = "relay-core", editable = "packages/relay-core" }]
 
 [[package]]
+name = "relay-gemini"
+version = "0.0.0"
+source = { editable = "packages/provider-gemini" }
+dependencies = [
+    { name = "relay-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "relay-core", editable = "packages/relay-core" }]
+
+[[package]]
 name = "relay-meta"
 version = "0.0.0"
 source = { editable = "packages/provider-meta" }
@@ -909,6 +923,7 @@ dependencies = [
     { name = "relay-core" },
     { name = "relay-dola" },
     { name = "relay-flow" },
+    { name = "relay-gemini" },
     { name = "relay-meta" },
     { name = "relay-vibes" },
 ]
@@ -930,6 +945,7 @@ requires-dist = [
     { name = "relay-core", editable = "packages/relay-core" },
     { name = "relay-dola", editable = "packages/provider-dola" },
     { name = "relay-flow", editable = "packages/provider-flow" },
+    { name = "relay-gemini", editable = "packages/provider-gemini" },
     { name = "relay-meta", editable = "packages/provider-meta" },
     { name = "relay-vibes", editable = "packages/provider-vibes" },
 ]
