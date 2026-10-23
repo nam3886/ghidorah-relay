@@ -3,6 +3,7 @@ that plays the box user's home and fake docker, curl and sleep on PATH that reco
 box would. The trees, the env files and the rotation are real directories; flock is real (the tests run on the box)."""
 
 import fcntl
+import importlib
 import os
 import shlex
 import stat
@@ -17,7 +18,7 @@ from guards import REPO
 DEPLOY = "scripts/deploy.sh"
 MIG = "packages/relay-core/src/relay_core/db/migrations"
 SECRET = "S3CRET-VALUE-0042"
-ENV_FILES = (".env", "api.env", "migrate.env", "worker-dola.env", "worker-meta.env")
+ENV_FILES = (".env", "api.env", "migrate.env", "worker-dola.env", "worker-meta.env", "worker-flow.env")
 
 SSH_STUB = """\
 #!/usr/bin/env bash
@@ -55,12 +56,12 @@ case "$*" in
     after=0
     for w in "$@"; do [ "$after" = 1 ] && echo "relay-$w:$sha" >> "$S/images"; [ "$w" = build ] && after=1; done ;;
   *"run --rm migrate"*) exit "${STUB_MIGRATE_FAIL:-0}" ;;
-  *"relay provider drain "*)
+  *"relay provider drain "*)                 # $S/claims-<p>: the stored <p>.claims_enabled (none: no row)
     p=${!#}
-    if [ -e "$S/drained-$p" ] || [ -n "${STUB_DRAIN_NO_STORE:-}" ]; then
-      [ -n "${STUB_DRAIN_NO_STORE:-}" ] && echo "draining $p" || echo "(no change)"
-    else touch "$S/drained-$p"; echo "draining $p"; fi ;;
-  *"relay provider resume "*) p=${!#}; rm -f "$S/drained-$p"; echo "resumed $p" ;;
+    if [ -n "${STUB_DRAIN_NO_STORE:-}" ]; then echo "draining $p"
+    elif [ "$(cat "$S/claims-$p" 2>/dev/null)" = false ]; then echo "draining $p (no change)"
+    else echo false > "$S/claims-$p"; echo "draining $p"; fi ;;
+  *"relay provider resume "*) p=${!#}; echo true > "$S/claims-$p"; echo "resumed $p" ;;
   *"exec -T postgres"*)
     sql=${!#}
     case "$sql" in
@@ -69,6 +70,13 @@ case "$*" in
         echo "${seq[$i]:-0}" ;;
       "SELECT now()") echo "2026-10-23 01:00:00+00" ;;
       *worker_heartbeats*) echo "${STUB_HB:-1}" ;;
+      "SELECT value FROM settings_kv WHERE key = '"*".claims_enabled'")
+        p=${sql#*key = \\'}; p=${p%%.claims_enabled*}
+        case "${STUB_CLAIMS_READ:-}" in
+          "") cat "$S/claims-$p" 2>/dev/null || true ;;
+          odd) echo 1 ;;
+          *) exit 9 ;;
+        esac ;;
       *) exit 9 ;;
     esac ;;
   *"chrome --version"*) echo "Google Chrome 154.0.8037.92" ;;
@@ -203,7 +211,8 @@ def test_help_describes_both_scripts():
 # ---- a deploy that goes through -------------------------------------------------------------------------------------
 @mutation(DEPLOY, '    step drain "$p"\n    step idle "$p"\n    step worker "$p"\n',
           '    step worker "$p"\n    step drain "$p"\n    step idle "$p"\n', expect="the worker restarted before")
-@mutation(DEPLOY, '    step worker "$p"\n    step resume "$p"\n', '    step resume "$p"\n    step worker "$p"\n',
+@mutation(DEPLOY, '    step worker "$p"\n    if [ "$was" = on ]; then\n      step resume "$p"\n',
+          '    if [ "$was" = on ]; then\n      step resume "$p"\n    fi\n    step worker "$p"\n    if false; then\n',
           expect="resumed before the worker restarted")
 @mutation(DEPLOY, '[ "$n" = 0 ] && { echo', 'true && { echo', expect="the worker restarted before")
 @mutation(DEPLOY, 'step build ${workers[@]+"${workers[@]}"}\nif',
@@ -588,3 +597,59 @@ def test_a_rollback_across_a_migration_needs_allow_schema_mismatch_and_never_mig
     run = box.rollback("--allow-schema-mismatch")
     assert run.returncode == 0 and box.deployed() == box.a, run.stderr
     assert box.index("migrate") == -1 and box.index("volume") == -1
+
+
+# ---- the claims state of each provider survives the restart --------------------------------------------------------
+def claims(box: Box, provider: str) -> str | None:
+    """The stored <provider>.claims_enabled in the fake database (None: no row)."""
+    path = box.state / ("claims-" + provider)
+    return path.read_text(encoding="utf-8").strip() if path.exists() else None
+
+
+@mutation(DEPLOY, '    if [ "$was" = on ]; then\n      step resume', '    if true; then\n      step resume',
+          expect="a provider that was off came back on")
+@mutation(DEPLOY, '[[ "$claims " != *" $p=on "* ]] || was=on', "true", expect="a provider that claimed was not resumed")
+@mutation(DEPLOY, '  case "${v:-$2}" in', '  case "${v:-true}" in', expect="a provider that was off came back on")
+@mutation(DEPLOY, '  case "$1" in dola) echo true ;;', '  case "$1" in dola) echo false ;;',
+          expect="a provider that claimed was not resumed")
+def test_after_a_deploy_and_a_rollback_each_provider_claims_exactly_when_it_claimed_before(tmp_path):
+    box = Box(tmp_path)
+    box.images("relay-worker-meta:" + box.a, "relay-worker-flow:" + box.a)
+    (box.state / "claims-meta").write_text("true\n")      # turned on by the owner although its default is off
+    for name, run in (("deploy", lambda: box.deploy(box.b, "--workers", "dola,meta,flow")),
+                      ("rollback", lambda: box.rollback("--workers", "dola,meta,flow"))):
+        box.log.unlink(missing_ok=True)
+        done = run()
+        assert done.returncode == 0, "the %s failed: %r" % (name, done.stderr)
+        # dola: no row, default on; meta: stored on; flow: no row, default off (then a stored off on the rollback)
+        assert claims(box, "flow") == "false" and box.index("provider resume flow") == -1, \
+            "a provider that was off came back on after the %s: %s" % (name, box.docker())
+        assert claims(box, "dola") == claims(box, "meta") == "true", \
+            "a provider that claimed was not resumed after the %s: %s" % (name, box.docker())
+        assert "flow left drained (it was off before)" in done.stdout and "dola claims again" in done.stdout \
+            and "meta claims again" in done.stdout, done.stdout
+        reads = [box.index("key = '%s.claims_enabled'" % p) for p in ("dola", "meta", "flow")]
+        assert -1 < max(reads) < box.index("provider drain dola"), "a drain came before every state was read"
+
+
+@mutation(DEPLOY, '    *) fail "$1.claims_enabled reads', '    *) echo off; true "$1.claims_enabled reads',
+          expect="an unreadable claims state went on")
+def test_an_unreadable_claims_state_stops_before_any_provider_is_drained(tmp_path):
+    for i, read in enumerate(("fail", "odd")):
+        box = Box(tmp_path / str(i))
+        run = box.deploy(box.b, "--workers", "dola,flow", STUB_CLAIMS_READ=read)
+        assert run.returncode != 0 and "stopped at 'claims'" in run.stderr and "no worker was drained" in run.stderr \
+            and box.index("provider") == -1 and box.index("up -d --no-deps worker-") == -1, \
+            "an unreadable claims state went on (%s): %d %r %s" % (read, run.returncode, run.stderr, box.docker())
+    assert "reads [1], not true or false" in run.stderr
+
+
+def test_the_claims_defaults_of_deploy_sh_are_those_of_the_provider_specs():
+    for package in ("relay_dola", "relay_flow", "relay_meta", "relay_vibes"):
+        module = importlib.import_module(package + ".spec")
+        name = module.SPEC.name
+        default = module.SPEC.settings()[name + ".claims_enabled"].default
+        script = "source <(sed -n '/^default_claims() {/,/^}/p' %s); default_claims %s" % (REPO / DEPLOY, name)
+        got = subprocess.run(["bash", "-c", script], capture_output=True, text=True).stdout.strip()
+        assert got == str(default).lower(), "deploy.sh says %s for %s.claims_enabled, the spec %s" % (
+            got, name, default)
