@@ -61,7 +61,7 @@ def test_qwen_stays_drained_by_default_and_declares_its_tunables():
     s = SPEC.settings()
     assert s["qwen.claims_enabled"].default is False, "qwen must stay drained until the owner turns it on"
     for key in ("render_deadline_s", "poll_interval_s", "account_min_gap_s", "bx_max_age_s", "image_lost_after_s",
-                "prices", "image_budget", "video_budget", "disabled_models"):
+                "refusal_grace_s", "prices", "image_budget", "video_budget", "disabled_models"):
         assert "qwen." + key in s, key
     assert s["qwen.video_budget"].default == 40          # a free account's daily credits
     assert {k for k, v in s.items() if v.basic} == {"qwen.claims_enabled", "qwen.prices", "qwen.image_budget",

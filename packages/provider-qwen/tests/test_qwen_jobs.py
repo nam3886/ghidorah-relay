@@ -255,6 +255,21 @@ def test_insufficient_credits_after_the_send_ends_the_job_refunded_and_empties_t
     assert "Insufficient Credits" in result.job.detail and Balance("video", 0) in result.account
 
 
+VIDEO_REFUSAL = {"success": True, "data": {"chat_id": CHAT, "messages": [
+    {"role": "assistant", "content": "", "extra": {}, "content_list": [
+        {"content": "I can't make a video of that.", "phase": "answer", "status": "finished"}]}]}}
+REFUSED_BRANCH = ('    if msg.get("role") == "assistant" and words and "wanx" not in extra:\n'
+                  '        return "refused", words\n')
+
+
+@mutation(SUBMIT_FILE, REFUSED_BRANCH, '    if False:\n        return "refused", words\n', expect="qwen.refused")
+def test_a_complete_video_answer_in_words_with_no_task_is_a_refusal_refunded_at_once():
+    log = []
+    result = run_submit(Qwen(log, send=VIDEO_REFUSAL), Ctx(log), job(VIDEO))
+    assert isinstance(result.job, Fail) and result.job.code == "qwen.refused", result.job
+    assert "can't make a video" in result.job.detail and log.count("send") == 1
+
+
 @mutation(SUBMIT_FILE, "    if status == 200 and finished and not cut:\n", "    if False:\n", expect="qwen.refused")
 def test_an_image_stream_that_ends_with_words_and_no_image_is_qwen_refusing():
     log = []
@@ -418,6 +433,22 @@ def test_a_video_found_without_its_task_learns_it_from_the_chat_or_ends_on_insuf
     record = {"success": True, "data": {"chat": {"messages": [{"role": "user", "content": "x"}, no_credits]}}}
     out = run_poll(Qwen([], chat=record), job(VIDEO, state={"chat": CHAT})).outcome
     assert isinstance(out, Failed) and out.code == "qwen.out_of_credits" and not out.taken
+
+
+GRACE = "    if words and job.sent_at is not None and (now - job.sent_at).total_seconds() >= grace:\n"
+
+
+@mutation(RESULTS_FILE, GRACE, "    if False:\n", expect="refused")
+def test_a_lost_video_answer_whose_chat_holds_words_and_no_task_is_a_refusal_after_the_grace():
+    reply = VIDEO_REFUSAL["data"]["messages"][0]
+    record = {"success": True, "data": {"chat": {"messages": [{"role": "user", "content": "x"}, reply]}}}
+    young = job(VIDEO, state={"chat": CHAT}, sent_at=NOW_DT - timedelta(seconds=120))
+    assert isinstance(run_poll(Qwen([], chat=record), young).outcome, Pending), "refused before the grace"
+    old = job(VIDEO, state={"chat": CHAT}, sent_at=NOW_DT - timedelta(seconds=300))
+    out = run_poll(Qwen([], chat=record), old).outcome
+    assert isinstance(out, Failed) and out.code == "qwen.refused" and not out.taken, "refused: %s" % (out,)
+    with_task = run_poll(Qwen([], chat=CHAT_VIDEO), old).outcome
+    assert isinstance(with_task, Pending) and with_task.state_patch.get("task"), "a named task was not followed"
 
 
 @mutation(RESULTS_FILE, "    if job.sent_at is not None and (now - job.sent_at).total_seconds() >= lost_after:\n",

@@ -984,9 +984,11 @@ the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An i
 `Completed`); a video answers its task id at once (`Accepted`, then `task/status` is polled). After the send:
 - the WAF's `FAIL_SYS_USER_VALIDATE` (or its captcha page) with the chat read back empty: the pair is dropped and the
   job requeued (`qwen.waf_refused`, the first two free); with a message of ours in the chat it is unknown;
-- "Insufficient Credits" fails the job (`qwen.out_of_credits`, refunded) and empties the video pool; a stream that ends
-  with words and no image fails it (`qwen.refused`, refunded);
-- anything else is unknown: the reconciler reads the chat (no message of ours: not sent; a message: found).
+- "Insufficient Credits" fails the job (`qwen.out_of_credits`, refunded) and empties the video pool; a complete answer
+  in words with no image (image) or no task id (video) fails it at once (`qwen.refused`, refunded);
+- anything else is unknown: the reconciler reads the chat (no message of ours: not sent; a message: found). A found
+  video whose chat holds a reply in words and no task is failed as refused (refunded) `qwen.refusal_grace_s` after the
+  send; a task named meanwhile is followed. A task that ends failed is refunded at once (`qwen.render_failed`).
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -995,6 +997,7 @@ the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An i
 | `qwen.account_min_gap_s` | 60 | the pools' rest after a generate |
 | `qwen.poll_interval_s` | 30 | between two reads of a rendering video |
 | `qwen.image_lost_after_s` | 900 | an image chat still empty this long after the send fails, refunded |
+| `qwen.refusal_grace_s` | 300 | a lost video answer whose chat shows words and no task is refused after this |
 | `qwen.render_deadline_s` | 2700 | an unfinished job is given up then, refunded |
 | `qwen.prices` | 1 per image, 1/2/3 per 5/10/15 s video | points, keyed `model` or `model@<s>s` |
 | `qwen.image_budget`, `qwen.video_budget` | 1000, 40 | images per account per day; video credits per account per day |

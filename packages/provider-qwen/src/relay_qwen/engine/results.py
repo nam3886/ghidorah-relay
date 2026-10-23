@@ -6,10 +6,11 @@ sends a generate, so nothing here can spend.
   the order; the core requeues only when this read started after the whole send window). A user message is `Found`:
   a video taken when its assistant message names the task (`extra.wanx.task_id`), an image always.
 - Poll, a video with its task: `GET /api/v2/task/status/<task>` until `success` with the mp4 link; a status that says
-  the task failed fails the job (refunded). A video without a task yet: read the chat for its task, or for qwen's
-  "Insufficient Credits". An image: read the chat; the image is the assistant's `cdn.qwenlm.ai` link (in
-  `content_list`); a finished answer with words and no image is qwen refusing; an image chat still empty
-  `qwen.image_lost_after_s` after the send is a lost stream (it never delivered later, FINDINGS 6).
+  the task failed fails the job (refunded). A video without a task yet: read the chat for its task, for qwen's
+  "Insufficient Credits", or for a reply in words with no task, a refusal after `qwen.refusal_grace_s`. An image:
+  read the chat; the image is the assistant's `cdn.qwenlm.ai` link (in `content_list`); a finished answer with
+  words and no image is qwen refusing; an image chat still empty `qwen.image_lost_after_s` after the send is a lost
+  stream (it never delivered later, FINDINGS 6).
 - Fetch: the `cdn.qwenlm.ai` link (its `key` holds no expiry), through the account's proxy, no cookie.
 """
 
@@ -106,7 +107,7 @@ async def poll(ctx, job, settings, sessions: Sessions, *, transport=None, rand: 
     if record is None:
         return PollResult(Pending("the chat could not be read", wait, answered=False))
     if job.params.get("kind") == "video":
-        return _video_chat(record, chat, wait)
+        return _video_chat(record, chat, wait, job, settings, now())
     return _image_chat(record, chat, wait, job, settings, now())
 
 
@@ -124,9 +125,10 @@ def _task(status: int, body: dict, task: str, chat: str, wait: int) -> PollResul
     return PollResult(Pending(said, wait), effects=(Success(),))
 
 
-def _video_chat(record: dict, chat: str, wait: int) -> PollResult:
-    """A video found by the reconciler with no task yet: the task once the chat names it, or qwen's "Insufficient
-    Credits". Any other words wait (their shape is not known yet): the render deadline ends such a job, refunded."""
+def _video_chat(record: dict, chat: str, wait: int, job, settings, now: datetime) -> PollResult:
+    """A video found by the reconciler with no task yet: the task once the chat names it (followed), qwen's
+    "Insufficient Credits", or an assistant reply in words with no task: a refusal once it has stood
+    `qwen.refusal_grace_s` after the send (owner, 23/10), so a task written a little later is still followed."""
     message = assistant(record)
     task = task_of(message)
     if task:
@@ -134,7 +136,11 @@ def _video_chat(record: dict, chat: str, wait: int) -> PollResult:
     extra = (message or {}).get("extra")
     if isinstance(extra, dict) and extra.get("quota_limit") is True:
         return PollResult(Failed(errors.OUT_OF_CREDITS, "qwen: %s" % text_of(message)[:300], False))
-    return PollResult(Pending("no task in the chat yet", wait))
+    words = text_of(message)
+    grace = int(settings.get("qwen.refusal_grace_s"))
+    if words and job.sent_at is not None and (now - job.sent_at).total_seconds() >= grace:
+        return PollResult(Failed(errors.REFUSED, "qwen: %s" % words[:300], False))
+    return PollResult(Pending("qwen answered in words with no task yet" if words else "no task in the chat yet", wait))
 
 
 def _image_chat(record: dict, chat: str, wait: int, job, settings, now: datetime) -> PollResult:

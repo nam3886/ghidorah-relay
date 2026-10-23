@@ -88,6 +88,10 @@ _SETTINGS = dict((
              "Seconds after the send before an image job whose chat still shows no image is failed and refunded "
              "(an image is drawn only while its stream is open: a lost stream never delivered later).", min=300,
              max=3600),
+    _setting("refusal_grace_s", int, 300,
+             "Seconds after the send before a video whose answer was lost, and whose chat holds a reply in words with "
+             "no task, is failed as a refusal and refunded (a task named within this time is followed).", min=60,
+             max=3600),
     _setting("prices", dict, dict(C.DEFAULT_PRICES),
              "Points charged per job, keyed by model for an image and by model@<seconds>s for a video. A key missing "
              "here is charged the fallback (1) with a warning.", rule=PRICES_RULE, basic=True),
