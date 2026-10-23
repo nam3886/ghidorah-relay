@@ -60,22 +60,33 @@ describe("the provider strip", () => {
   });
 
   it("draws the catalog's providers until the summary arrives", async () => {
+    vi.mocked(shell.getProvidersSummary).mockReturnValue(new Promise(() => {}));
     useScopeStore().models = [{ id: "m1", owned_by: "meta" }];
     const w = mount(ProviderStrip);
     await flushPromises();
     expect(w.findAll("button.ptab").map((t) => t.text().replace(/\s+/g, " "))).toEqual(["All", "M meta"]);
   });
 
-  it("is shown on Jobs, Accounts and Settings: the other tabs keep the top bar's Provider list", () => {
+  it("is shown on the tabs that filter by provider, in each one's mode; the others keep the top bar's list", () => {
     const routes = createAppRouter().getRoutes();
-    const strip = routes.filter((r) => r.meta.providerStrip).map((r) => r.name);
-    expect(strip).toEqual(["jobs", "accounts", "settings"]);
-    expect(routes.filter((r) => r.meta.stripGeneral).map((r) => r.name)).toEqual(["settings"]);
+    const strip = Object.fromEntries(
+      routes.filter((r) => r.meta.providerStrip).map((r) => [r.name, r.meta.providerStrip]),
+    );
+    expect(strip).toEqual({
+      jobs: "all",
+      accounts: "all",
+      keys: "all",
+      logs: "all",
+      alerts: "all",
+      frames: "only",
+      settings: "general",
+      test: "only",
+    });
   });
 
   it("on Settings starts with All providers and General, draws no counts, and General is its own pick", async () => {
     await useProvidersStore().refresh();
-    const w = mount(ProviderStrip, { props: { general: true } });
+    const w = mount(ProviderStrip, { props: { mode: "general" } });
     const scope = useScopeStore();
     expect(w.findAll("button.ptab").map((t) => t.text().replace(/\s+/g, " "))).toEqual([
       "All providers",
@@ -93,6 +104,33 @@ describe("the provider strip", () => {
     await w.get('[data-testid="provider-tab-general"]').trigger("click");
     await w.get('[data-testid="provider-tab-all"]').trigger("click");
     expect([scope.provider, scope.general]).toEqual(["", false]);
+  });
+
+  it("for a one-provider page lists the providers alone, picks `only` (not the filter) and is off while locked", async () => {
+    await useProvidersStore().refresh();
+    const scope = useScopeStore();
+    const w = mount(ProviderStrip, { props: { mode: "only" } });
+    await flushPromises();
+    expect(w.find('[data-testid="provider-tab-all"]').exists()).toBe(false);
+    expect(w.findAll("button.ptab").map((t) => t.text().replace(/\s+/g, " "))).toEqual([
+      "D dola",
+      "V vibes",
+      "F flow paused",
+    ]);
+    await w.get('[data-testid="provider-tab-vibes"]').trigger("click");
+    expect(scope.only).toBe("vibes");
+    expect(scope.provider).toBe("");
+    expect(w.get('[data-testid="provider-tab-vibes"]').attributes("aria-pressed")).toBe("true");
+    scope.stripLocked = true;
+    await flushPromises();
+    expect(w.findAll("button.ptab").every((t) => t.attributes("disabled") !== undefined)).toBe(true);
+  });
+
+  it("reads the summary itself when nobody has yet (a page other than Jobs)", async () => {
+    vi.mocked(shell.getProvidersSummary).mockClear();
+    mount(ProviderStrip, { props: { mode: "all" } });
+    await flushPromises();
+    expect(shell.getProvidersSummary).toHaveBeenCalledTimes(1);
   });
 });
 

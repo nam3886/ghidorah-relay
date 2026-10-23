@@ -1,16 +1,18 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw, type RouterHistory } from "vue-router";
 import { getToken } from "@/lib/session";
 
+export type StripMode = "all" | "general" | "only";
+
 declare module "vue-router" {
   interface RouteMeta {
     // Shown in the tab bar.
     label?: string;
     // Reachable without a session (the login page).
     public?: boolean;
-    // Filtered by the provider strip under the top bar (ProviderStrip) instead of the top bar's Provider list.
-    providerStrip?: boolean;
-    // The strip starts with "All providers" and "General" and draws no counts (Settings).
-    stripGeneral?: boolean;
+    // Filtered by the provider strip under the top bar (ProviderStrip) instead of the top bar's Provider list, in one
+    // of its modes: "all" (All, then each provider: a filter), "general" (All providers, General, then each provider:
+    // Settings) or "only" (the providers alone: the page works on one at a time).
+    providerStrip?: StripMode;
   }
 }
 
@@ -26,8 +28,17 @@ export const TABS = [
   { name: "test", label: "Test", component: () => import("@/views/TestView.vue") },
 ] as const;
 
-// The tabs whose provider filter is the strip; the others keep the top bar's Provider list for now.
-const STRIP_TABS: string[] = ["jobs", "accounts", "settings"];
+// The tabs whose provider filter is the strip, and its mode there; the others keep the top bar's Provider list.
+const STRIP_TABS: Record<string, StripMode> = {
+  jobs: "all",
+  accounts: "all",
+  keys: "all",
+  logs: "all",
+  alerts: "all",
+  frames: "only",
+  settings: "general",
+  test: "only",
+};
 
 const routes: RouteRecordRaw[] = [
   { path: "/", redirect: { name: "jobs" } },
@@ -36,7 +47,7 @@ const routes: RouteRecordRaw[] = [
     path: `/${tab.name}`,
     name: tab.name,
     component: tab.component,
-    meta: { label: tab.label, providerStrip: STRIP_TABS.includes(tab.name), stripGeneral: tab.name === "settings" },
+    meta: { label: tab.label, providerStrip: STRIP_TABS[tab.name] },
   })),
   // Anything else (a mistyped hash) lands on the default tab.
   { path: "/:rest(.*)*", redirect: { name: "jobs" } },

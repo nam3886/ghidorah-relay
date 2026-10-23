@@ -20,6 +20,8 @@ export interface CatalogModel {
   // The product name shown to people; the server sends the id when a model has none.
   name?: string;
   owned_by: string;
+  // paused by the admin (`<provider>.disabled_models`): the public lists leave it out
+  disabled?: boolean;
   [key: string]: unknown;
 }
 
@@ -29,6 +31,8 @@ export interface LiveAlert {
   kind: string;
   severity: string;
   message: string;
+  // the provider the condition is about; null for one of the whole relay (the disk, the webhooks)
+  provider?: string | null;
 }
 
 export interface Stats {
