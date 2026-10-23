@@ -1,0 +1,38 @@
+[
+ {
+  "t": 0.0,
+  "elapsed_s": 8.07,
+  "step": "upload_media",
+  "status": 200
+ },
+ {
+  "t": 20.07,
+  "elapsed_s": 2.6,
+  "step": "project_upload",
+  "status": 200
+ },
+ {
+  "t": 34.67,
+  "elapsed_s": 3.87,
+  "step": "create_batch",
+  "status": 200
+ },
+ {
+  "t": 50.54,
+  "elapsed_s": 11.01,
+  "step": "generate",
+  "status": 200
+ },
+ {
+  "t": 73.55,
+  "elapsed_s": 2.31,
+  "step": "read_batch",
+  "status": 200
+ },
+ {
+  "t": 87.86,
+  "elapsed_s": 5.02,
+  "step": "download_png",
+  "status": 200
+ }
+]

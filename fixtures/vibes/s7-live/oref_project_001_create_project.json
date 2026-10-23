@@ -1,0 +1,28 @@
+{
+ "t": 0.0,
+ "elapsed_s": 2.17,
+ "step": "create_project",
+ "method": "POST",
+ "path": "/api/projects",
+ "request": {},
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "success": true,
+  "project": {
+   "id": "8d5e6ac1-d77a-4346-ae9c-68e7cbd2bf00",
+   "userId": "<user.id>",
+   "name": "Untitled",
+   "composition": {
+    "id": "studio-composition",
+    "tracks": [],
+    "duration": 5
+   },
+   "exportStatus": "draft",
+   "createdAt": "2026-10-23T02:23:58.609Z",
+   "updatedAt": "2026-10-23T02:23:58.609Z"
+  }
+ }
+}

@@ -1,0 +1,38 @@
+{
+ "t": 20.07,
+ "elapsed_s": 2.6,
+ "step": "project_upload",
+ "method": "POST",
+ "path": "/api/projects/8d5e6ac1-d77a-4346-ae9c-68e7cbd2bf00/upload",
+ "request": {
+  "files": [
+   {
+    "mediaEntId": "1347592281778171",
+    "uploadToken": "<redacted>",
+    "cdnUrl": "https://scontent-dub4-1.xx.fbcdn.net/o1/v/t6/f2/m421/AQNi1SAh5fGdJ7Tw0HBJF9k2X15u_jJ1zB5RR0nNlyfAl4R--ErMmOhszUxRAU5N68U6O0ljpvW1dTH5mCjsMkErFVIh?<redacted-query>",
+    "dimensions": {
+     "width": 720,
+     "height": 720
+    },
+    "aspectRatio": "1:1",
+    "filename": "start.jpg"
+   }
+  ]
+ },
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "success": true,
+  "contentItems": [
+   {
+    "id": "e3T3zRY5quES19SpiFyZH",
+    "type": "images",
+    "imageUrl": "https://scontent-dub4-1.xx.fbcdn.net/o1/v/t6/f2/m421/AQNi1SAh5fGdJ7Tw0HBJF9k2X15u_jJ1zB5RR0nNlyfAl4R--ErMmOhszUxRAU5N68U6O0ljpvW1dTH5mCjsMkErFVIh?<redacted-query>",
+    "videoUrl": null
+   }
+  ],
+  "count": 1
+ }
+}

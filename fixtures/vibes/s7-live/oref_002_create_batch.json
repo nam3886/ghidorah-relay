@@ -1,0 +1,35 @@
+{
+ "t": 17.77,
+ "elapsed_s": 0.9,
+ "step": "create_batch",
+ "method": "POST",
+ "path": "/api/generation-batches",
+ "request": {
+  "id": "b3b01889-6bab-471b-8d0e-9ca1a1a6d00c",
+  "type": "images",
+  "prompt": "the same subject placed on a sandy beach at sunset, photo",
+  "timestamp": 1792721979614,
+  "isComplete": false,
+  "config": {
+   "imageModel": "midjen-base",
+   "aspectRatio": "1:1",
+   "oref_image_ent_id": "1347583775112355",
+   "oref_image_url": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQNJvbISWCP33ElCKbdMXHG4337UX-O5OEHnvZDwBxGWXwpQBOHAqeKBWHFq_lTdGxxIuE9uxvB_kewtRQ1cGTzt1rVx?<redacted-query>"
+  },
+  "content": [
+   {
+    "id": "b3b01889-6bab-471b-8d0e-9ca1a1a6d00c-content-0",
+    "type": "image",
+    "isLoading": true
+   }
+  ]
+ },
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "batch": null,
+  "id": "b3b01889-6bab-471b-8d0e-9ca1a1a6d00c"
+ }
+}

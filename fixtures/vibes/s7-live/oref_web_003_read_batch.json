@@ -1,0 +1,92 @@
+{
+ "t": 37.38,
+ "elapsed_s": 0.83,
+ "step": "read_batch",
+ "method": "GET",
+ "path": "/api/generation-batches/5bda454b-8572-460a-baaf-ca54e92e9abd",
+ "request": null,
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "batch": {
+   "id": "5bda454b-8572-460a-baaf-ca54e92e9abd",
+   "userId": "<user.id>",
+   "projectId": null,
+   "type": "images",
+   "prompt": "the same subject placed on a sandy beach at sunset, photo",
+   "timestamp": "2026-10-23T02:21:38.000Z",
+   "isComplete": true,
+   "hasError": false,
+   "error": null,
+   "canRetry": true,
+   "config": {
+    "imageModel": "midjen-base",
+    "aspectRatio": "1:1",
+    "generationType": "t2i",
+    "oref_image_url": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQNJvbISWCP33ElCKbdMXHG4337UX-O5OEHnvZDwBxGWXwpQBOHAqeKBWHFq_lTdGxxIuE9uxvB_kewtRQ1cGTzt1rVx?<redacted-query>",
+    "directGeneration": true,
+    "oref_image_ent_id": "1347583775112355"
+   },
+   "systemPrompt": null,
+   "promptModel": null,
+   "imageModel": "midjen-base",
+   "videoModel": null,
+   "bulkGenId": null,
+   "generationStartTime": "2026-10-23T02:21:40.000Z",
+   "generationEndTime": "2026-10-23T02:22:02.000Z",
+   "creationContext": "legacy",
+   "createdAt": "2026-10-23T02:21:40.000Z",
+   "updatedAt": "2026-10-23T02:22:02.000Z",
+   "content": [
+    {
+     "id": "5bda454b-8572-460a-baaf-ca54e92e9abd-content-0",
+     "userId": "<user.id>",
+     "batchId": "5bda454b-8572-460a-baaf-ca54e92e9abd",
+     "originProjectId": null,
+     "type": "images",
+     "isLoading": false,
+     "isFavorited": false,
+     "data": "{\"requestId\": \"www-09303023-179c-47fd-88e5-5fa68e9c4088\", \"imageEntId\": \"1347586465112086\"}",
+     "imageUrl": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQPf6viU3AVhIlFApso2nafmdnKLdzUxOx8XZPAEwN50PA35RtjgYQ1twjQJ_I1ohsO4t3Y3Vt63o4AE3ntMZuySHk5L1v-dXKMgQIIhuWwzRFw3YqeRsvteBd6aGgJ3BRT74K1ULXNIwqhit_4r6kp00zCZxQ.jpeg?<redacted-query>",
+     "imageHandle": null,
+     "videoUrl": null,
+     "videoHandle": null,
+     "mediaEntId": "1347586465112086",
+     "prompt": "the same subject placed on a sandy beach at sunset, photo",
+     "imagePrompt": "the same subject placed on a sandy beach at sunset, photo",
+     "videoPrompt": null,
+     "structuredOutput": {
+      "config": {
+       "imageModel": "midjen-base",
+       "aspectRatio": "1:1",
+       "generationType": "t2i",
+       "oref_image_url": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQNJvbISWCP33ElCKbdMXHG4337UX-O5OEHnvZDwBxGWXwpQBOHAqeKBWHFq_lTdGxxIuE9uxvB_kewtRQ1cGTzt1rVx?<redacted-query>",
+       "directGeneration": true,
+       "oref_image_ent_id": "1347583775112355"
+      },
+      "metadata": {
+       "dimensions": {
+        "width": 1280,
+        "height": 1280
+       },
+       "aspectRatio": "1:1"
+      }
+     },
+     "srefValues": "",
+     "sourceContentItemIds": null,
+     "hasUploadedAncestor": false,
+     "error": null,
+     "canRetry": false,
+     "orderIndex": 0,
+     "createdAt": "2026-10-23T02:21:40.000Z",
+     "updatedAt": "2026-10-23T02:22:02.000Z",
+     "thumbnailUrl": null,
+     "aspectRatio": 1
+    }
+   ],
+   "needsPolling": false
+  }
+ }
+}

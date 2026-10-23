@@ -88,3 +88,34 @@ Two more jobs, same account and proxy (`fixtures/vibes/s6-live/`):
   ratio is not tested.
 - Reads every 25 s met no checkpoint; `isComplete: true, isLoading: false` came on the read at 320 s.
 - Owner ruling 23/10: until a ratio is proven for video, vibes-video takes no ratio or `9:16` only; any other ratio is refused (`input.bad_ratio`), image to video included.
+
+## S7 (2026-10-23, 09:19 GMT+7): image to image
+Question: can `vibes-image` take a customer's image? vibes has two forms; neither is built.
+
+**Image edit, `POST /api/generate/image-edit`** (from the references `c2tool/vibesai-go` `edit.go`/`docs/api.md` and
+`vibesai2api_v2`, not run here). Body `{sourceImageEntId, editPrompt, projectId?}`; it answers
+`{success, contentItem: {imageUrl, mediaEntId}}` synchronously in about 8 s. It makes no batch: there is no id we
+choose, nothing to write ahead, and nothing to read back after a lost answer (`/api/download/png` 404s on the
+`mediaEntId`, the result is only a signed CDN URL). And the source must be an image the account generated itself: an
+uploaded image is refused with 403 "You do not have access to this image". So it cannot edit a customer's image at all,
+only an earlier vibes result of the same account. To sell it anyway the core would need a send mode whose ambiguous
+answer fails the job at once with its refund (the platform has only `AfterSent.RECONCILE`), plus a job pinned to the
+account that owns the source.
+
+**Reference images on a text-to-image** (from vibes' own web bundle, the `/create` page chunks, then three live jobs,
+`fixtures/vibes/s7-live/`). The composer's Character / Style / Scene pickers go into the generate config:
+`oref_image_ent_id` + `oref_image_url` (one character, the omni reference), `sref_image_ent_ids` +
+`sref_image_urls` (styles, space-separated), `setting_image_ent_ids` + `setting_image_url` (scene), and
+`sourceContentItemIds: [{id, source: "oref"|"sref"|"setting"}]` when the pick is a content item. It is the ordinary
+batch flow (create batch, one generate, batch read), so money-wise it would fit: write-ahead batch id, `mark_sent`
+before the one POST, reconcile by reading the batch, which keeps the reference fields. **But vibes ignored the
+reference in all three jobs**: an `/api/upload-image` id in the config; the same with the web app's full shape
+(config in every input, `directGeneration`, `generationType: "t2i"`); and an upload turned into a content item of
+the account (`/api/upload-media` + `POST /api/projects/<id>/upload`) with `sourceContentItemIds`. Each answered
+`success: true` in 7–11 s with `orefValues: ""` and a picture with nothing of the reference. It cannot be sold as
+image to image, so `vibes-image` stays text only (`max_images: 0`).
+
+Not tried (each needs more live jobs on the production account): a reference that is an image the account generated
+(the web app drops an `oref_image_ent_id` that is not one of the account's results: "Reference image was deleted —
+regenerating without it"), the `oref_image_handle` (oil handle) form, style references (`sref_*`), and the
+`--oref <url>` prompt flag. The third job left one empty project on acc1.

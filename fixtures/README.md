@@ -194,3 +194,28 @@ Redacted calls of one image job asked for 16:9 and one image-to-video job; `vibe
 - `vibes/s6-live/t2i_001_create_batch.json`
 - `vibes/s6-live/t2i_002_generate.json`
 - `vibes/s6-live/t2i_003_download_png.json`
+
+## vibes.ai live run S7 (23/10/2026)
+
+Redacted calls of three text-to-image jobs that sent one reference image as an omni reference (`oref`); vibes ignored
+it each time. `vibes/s7-live/README.md` describes them.
+
+- `vibes/s7-live/log_oref_1792721973.json`
+- `vibes/s7-live/log_oref_project_1792722383.json`
+- `vibes/s7-live/log_oref_web_1792722097.json`
+- `vibes/s7-live/oref_001_upload_image.json`
+- `vibes/s7-live/oref_002_create_batch.json`
+- `vibes/s7-live/oref_003_generate.json`
+- `vibes/s7-live/oref_004_read_batch.json`
+- `vibes/s7-live/oref_005_download_png.json`
+- `vibes/s7-live/oref_project_001_create_project.json`
+- `vibes/s7-live/oref_project_001_upload_media.json`
+- `vibes/s7-live/oref_project_002_project_upload.json`
+- `vibes/s7-live/oref_project_003_create_batch.json`
+- `vibes/s7-live/oref_project_004_generate.json`
+- `vibes/s7-live/oref_project_005_read_batch.json`
+- `vibes/s7-live/oref_project_006_download_png.json`
+- `vibes/s7-live/oref_web_001_create_batch.json`
+- `vibes/s7-live/oref_web_002_generate.json`
+- `vibes/s7-live/oref_web_003_read_batch.json`
+- `vibes/s7-live/oref_web_004_download_png.json`

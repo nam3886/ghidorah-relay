@@ -1,0 +1,26 @@
+[
+ {
+  "t": 0.0,
+  "elapsed_s": 3.05,
+  "step": "create_batch",
+  "status": 200
+ },
+ {
+  "t": 15.05,
+  "elapsed_s": 10.33,
+  "step": "generate",
+  "status": 200
+ },
+ {
+  "t": 37.38,
+  "elapsed_s": 0.83,
+  "step": "read_batch",
+  "status": 200
+ },
+ {
+  "t": 50.21,
+  "elapsed_s": 2.31,
+  "step": "download_png",
+  "status": 200
+ }
+]

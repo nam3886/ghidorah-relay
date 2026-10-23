@@ -1,0 +1,126 @@
+{
+ "t": 30.67,
+ "elapsed_s": 7.18,
+ "step": "generate",
+ "method": "POST",
+ "path": "/api/generate/images",
+ "request": {
+  "batchId": "b3b01889-6bab-471b-8d0e-9ca1a1a6d00c",
+  "inputs": [
+   {
+    "type": "variation",
+    "image_prompt": "the same subject placed on a sandy beach at sunset, photo",
+    "original_prompt": "the same subject placed on a sandy beach at sunset, photo",
+    "config": {}
+   }
+  ],
+  "config": {
+   "imageModel": "midjen-base",
+   "aspectRatio": "1:1",
+   "oref_image_ent_id": "1347583775112355",
+   "oref_image_url": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQNJvbISWCP33ElCKbdMXHG4337UX-O5OEHnvZDwBxGWXwpQBOHAqeKBWHFq_lTdGxxIuE9uxvB_kewtRQ1cGTzt1rVx?<redacted-query>"
+  },
+  "mg_request_id": "www-adeabca4-b582-4911-aace-887167d4bdf2"
+ },
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "success": true,
+  "data": [
+   {
+    "url": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t0/f2/m340/AQOIpw-MLmrj1gvTdsRuv2E5-7yMrxahMBhCbhubsFnTQBtElAUcZPilQ0XvJf7-i7Z2g-5gnGWAp3tKbS37VLQPsPGPIXBZnj_MI6JoRBB-Sjo9vd054KPJijFsiUtBJtpchZ0ECwOpp5Ttr5bHuAogSInFLA.jpeg?<redacted-query>",
+    "prompt": "the same subject placed on a sandy beach at sunset, photo",
+    "originalPrompt": "the same subject placed on a sandy beach at sunset, photo",
+    "srefValues": "",
+    "orefValues": "",
+    "config": {
+     "imageModel": "midjen-base",
+     "aspectRatio": "1:1",
+     "oref_image_ent_id": "1347583775112355",
+     "oref_image_url": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQNJvbISWCP33ElCKbdMXHG4337UX-O5OEHnvZDwBxGWXwpQBOHAqeKBWHFq_lTdGxxIuE9uxvB_kewtRQ1cGTzt1rVx?<redacted-query>"
+    },
+    "imageEntId": "1347584328445633",
+    "dimensions": {
+     "width": 1280,
+     "height": 1280
+    }
+   }
+  ],
+  "updatedBatch": {
+   "id": "b3b01889-6bab-471b-8d0e-9ca1a1a6d00c",
+   "userId": "<user.id>",
+   "projectId": null,
+   "type": "images",
+   "prompt": "the same subject placed on a sandy beach at sunset, photo",
+   "timestamp": "2026-10-23T02:19:40.000Z",
+   "isComplete": true,
+   "hasError": false,
+   "error": null,
+   "canRetry": true,
+   "config": {
+    "imageModel": "midjen-base",
+    "aspectRatio": "1:1",
+    "oref_image_url": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQNJvbISWCP33ElCKbdMXHG4337UX-O5OEHnvZDwBxGWXwpQBOHAqeKBWHFq_lTdGxxIuE9uxvB_kewtRQ1cGTzt1rVx?<redacted-query>",
+    "oref_image_ent_id": "1347583775112355"
+   },
+   "systemPrompt": null,
+   "promptModel": null,
+   "imageModel": "midjen-base",
+   "videoModel": null,
+   "bulkGenId": null,
+   "generationStartTime": "2026-10-23T02:19:52.000Z",
+   "generationEndTime": "2026-10-23T02:20:11.000Z",
+   "creationContext": "legacy",
+   "createdAt": "2026-10-23T02:19:52.000Z",
+   "updatedAt": "2026-10-23T02:20:11.000Z",
+   "content": [
+    {
+     "id": "b3b01889-6bab-471b-8d0e-9ca1a1a6d00c-content-0",
+     "userId": "<user.id>",
+     "batchId": "b3b01889-6bab-471b-8d0e-9ca1a1a6d00c",
+     "originProjectId": null,
+     "type": "images",
+     "isLoading": false,
+     "isFavorited": false,
+     "data": {
+      "requestId": "www-adeabca4-b582-4911-aace-887167d4bdf2",
+      "imageEntId": "1347584328445633"
+     },
+     "imageUrl": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t0/f2/m340/AQOIpw-MLmrj1gvTdsRuv2E5-7yMrxahMBhCbhubsFnTQBtElAUcZPilQ0XvJf7-i7Z2g-5gnGWAp3tKbS37VLQPsPGPIXBZnj_MI6JoRBB-Sjo9vd054KPJijFsiUtBJtpchZ0ECwOpp5Ttr5bHuAogSInFLA.jpeg?<redacted-query>",
+     "imageHandle": null,
+     "videoUrl": null,
+     "videoHandle": null,
+     "mediaEntId": "1347584328445633",
+     "prompt": "the same subject placed on a sandy beach at sunset, photo",
+     "imagePrompt": "the same subject placed on a sandy beach at sunset, photo",
+     "videoPrompt": null,
+     "structuredOutput": {
+      "config": {
+       "imageModel": "midjen-base",
+       "aspectRatio": "1:1",
+       "oref_image_url": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQNJvbISWCP33ElCKbdMXHG4337UX-O5OEHnvZDwBxGWXwpQBOHAqeKBWHFq_lTdGxxIuE9uxvB_kewtRQ1cGTzt1rVx?<redacted-query>",
+       "oref_image_ent_id": "1347583775112355"
+      },
+      "metadata": {
+       "dimensions": {
+        "width": 1280,
+        "height": 1280
+       },
+       "aspectRatio": "1:1"
+      }
+     },
+     "srefValues": "",
+     "sourceContentItemIds": null,
+     "hasUploadedAncestor": false,
+     "error": null,
+     "canRetry": false,
+     "orderIndex": 0,
+     "createdAt": "2026-10-23T02:19:52.000Z",
+     "updatedAt": "2026-10-23T02:20:11.000Z"
+    }
+   ]
+  }
+ }
+}

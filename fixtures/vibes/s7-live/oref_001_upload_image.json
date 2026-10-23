@@ -1,0 +1,18 @@
+{
+ "t": 0.0,
+ "elapsed_s": 5.77,
+ "step": "upload_image",
+ "method": "POST",
+ "path": "/api/upload-image",
+ "request": {
+  "image": "data:image/jpeg;base64,<117117 bytes>"
+ },
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "mediaEntId": "1347583775112355",
+  "imageUrl": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQNJvbISWCP33ElCKbdMXHG4337UX-O5OEHnvZDwBxGWXwpQBOHAqeKBWHFq_lTdGxxIuE9uxvB_kewtRQ1cGTzt1rVx?<redacted-query>"
+ }
+}
