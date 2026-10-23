@@ -433,7 +433,7 @@ def test_without_tz_the_answer_has_no_day_totals_and_a_bad_tz_is_refused(db):
     # the answer a client without `tz` has always got, byte for byte (key order and compact separators included)
     golden = {"items": [{
         "id": str(job), "provider": PROVIDER, "key_id": str(k), "key_label": "Golden key", "operation": "generate",
-        "media_type": "video", "model": "m", "title": None, "status": "queued", "error_code": None, "price": 0,
+        "media_type": "video", "model": "m", "title": "a prompt", "status": "queued", "error_code": None, "price": 0,
         "account_id": None, "account_label": None, "external_ref": None, "created_ms": saigon_ms("2026-03-10", "10:00"),
         "finished_ms": None, "error_status": None, "can_recheck": False, "outputs": 0, "inputs": 0, "net_charged": 0,
         "model_substituted": False}], "total": 1, "next_cursor": None}
@@ -740,6 +740,37 @@ def test_rename_sets_one_clean_line_clears_with_null_and_refuses_a_long_title(db
     assert out["clear"].json()["title"] is None and out["empty"].json()["title"] is None
     assert db.one("SELECT title FROM jobs WHERE id = %s", job.job_id) == (None,), "a cleared title is NULL"
     assert out["extra"].status_code == 400 and out["ghost"].status_code == 404
+
+
+LIST_TITLE = ('" + SHOWN_TITLE + ", j.status, "\n    "j.error_code, j.price, j.account_id, a.label, j.external_ref, '
+              'j.created_at, j.finished_at, "\n    "(SELECT')
+LIST_RAW = ('j.title, j.status, "\n    "j.error_code, j.price, j.account_id, a.label, j.external_ref, '
+            'j.created_at, j.finished_at, "\n    "(SELECT')
+DETAIL_TITLE = ('" + SHOWN_TITLE + ", j.status, "\n    "j.error_code, j.price, j.account_id, a.label, j.external_ref, '
+                'j.created_at, j.finished_at, j.prompt')
+DETAIL_RAW = ('j.title, j.status, "\n    "j.error_code, j.price, j.account_id, a.label, j.external_ref, '
+              'j.created_at, j.finished_at, j.prompt')
+
+
+@mutation(ROUTES, LIST_TITLE, LIST_RAW, expect="the list")
+@mutation(ROUTES, DETAIL_TITLE, DETAIL_RAW, expect="the detail")
+def test_an_untitled_job_is_shown_by_the_first_words_of_its_prompt_until_it_gets_a_title(db):
+    k = key(db)
+    job = run(db, lambda p: create(p, k, "Create a short video of a red fox trotting through a snowy forest"))
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        listed = lambda: env.client.get("/admin/jobs", headers=h)  # noqa: E731
+        detail = lambda: env.client.get("/admin/jobs/%s" % job.job_id, headers=h)  # noqa: E731
+        before = [(await listed()).json()["items"][0]["title"], (await detail()).json()["title"]]
+        await env.client.patch("/admin/jobs/%s" % job.job_id, json={"title": "Fox"}, headers=h)
+        return before, [(await listed()).json()["items"][0]["title"], (await detail()).json()["title"]]
+
+    before, after = run_app(db, scenario)
+    words = "Create a short video of a red fox"
+    assert before[0] == words, "the list shows the prompt's first words"
+    assert before[1] == words, "the detail shows the prompt's first words"
+    assert after == ["Fox", "Fox"]
 
 
 # ---- Regenerate -------------------------------------------------------------------------------------------------

@@ -306,13 +306,14 @@ JOB_ANY_KEY = "LEFT JOIN jobs j ON j.id = l.job_id "
 @mutation(ALERTS, UNNAMED_JOB, "LEFT JOIN ledger l ON false ", expect="the clamp names its job")
 @mutation(ALERTS, JOB_JOIN, "LEFT JOIN jobs j ON false ", expect="the clamp names its job")
 @mutation(ALERTS, UNCLEAR_KEY, "LEFT JOIN api_keys k ON false ", expect="the unclear reply names its key")
-@mutation(ALERTS, 'u.acknowledged_by, j.title, " + KEY_NAME', 'u.acknowledged_by, NULL, " + KEY_NAME',
+@mutation(ALERTS, 'u.acknowledged_by, " + _shown_title() + ", " + KEY_NAME', 'u.acknowledged_by, NULL, " + KEY_NAME',
           expect="the unclear reply names its job")
+@mutation(ALERTS, 'KEY_NAME + ", j.id, " + _shown_title() + " "', 'KEY_NAME + ", j.id, j.title "',
+          expect="an untitled job is named by its prompt")
 def test_alert_details_carry_the_job_title_and_the_key_label_next_to_the_ids(db):
     k, clamp, drift = plant(db)
     db.run("UPDATE api_keys SET label = 'Main key' WHERE id = %s", k)
-    job = plant_job(db, k, "done")
-    db.run("UPDATE jobs SET title = 'A Quiet Lake' WHERE id = %s", job)
+    job = plant_job(db, k, "done")                         # untitled: named by its prompt
     ledger = db.one("INSERT INTO ledger (key_id, job_id, provider, kind, entry, amount, billing_day) "
                     "VALUES (%s, %s, 'fake', 'video', 'charge', 1, current_date) RETURNING id", k, job)[0]
     db.run("UPDATE key_wallets SET used_total = 1 WHERE key_id = %s", k)   # agrees with the ledger
@@ -329,7 +330,8 @@ def test_alert_details_carry_the_job_title_and_the_key_label_next_to_the_ids(db)
     billing, unclear = run_app(db, scenario)
     by_id = {i["id"]: i for i in billing.json()["items"]}
     assert (by_id[named]["key_label"], by_id[named]["job_id"], by_id[named]["job_title"]) == (
-        "Main key", str(job), "A Quiet Lake"), "the clamp names its key; the clamp names its job"
+        "Main key", str(job), "a prompt"), (
+        "the clamp names its key; the clamp names its job; an untitled job is named by its prompt")
     assert (by_id[clamp]["key_label"], by_id[clamp]["job_id"], by_id[clamp]["job_title"]) == ("Main key", None, None)
     [item] = unclear.json()["items"]
     assert item["key_label"] == "Main key", "the unclear reply names its key"

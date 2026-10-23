@@ -557,6 +557,8 @@ def test_the_fields_of_each_door_reach_plan_as_one_request(db, monkeypatch):
 
 
 @mutation(DOORS, 'raise ApiError("input.invalid", "title")', "pass", expect="title")
+@mutation(DOORS, 'j.params, " + SHOWN_TITLE + ", j.warnings', "j.params, j.title, j.warnings",
+          expect="untitled: the prompt's first words")
 def test_a_title_is_one_line_up_to_200_characters_and_comes_back_in_status(db):
     async def scenario(env):
         key = await env.new_key()
@@ -567,6 +569,10 @@ def test_a_title_is_one_line_up_to_200_characters_and_comes_back_in_status(db):
         assert r.status_code == 200, r.text
         s = await env.client.get("%s/%s" % (VIDEO_PATH, r.json()["id"]), headers=key.headers)
         assert s.json()["title"] == "x" * 200
+        r = await env.client.post(VIDEO_PATH, json=video(prompt="a red fox trotting through a snowy forest at dawn"),
+                                  headers=key.headers)
+        s = await env.client.get("%s/%s" % (VIDEO_PATH, r.json()["id"]), headers=key.headers)
+        assert s.json()["title"] == "a red fox trotting through a snowy forest", "untitled: the prompt's first words"
 
     run_app(db, scenario)
 

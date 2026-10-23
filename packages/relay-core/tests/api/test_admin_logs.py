@@ -106,6 +106,8 @@ def test_dates_are_half_open_since_included_until_excluded(db):
 
 
 @mutation(ROUTES, ID_PREFIX, ID_ANYWHERE, expect="prefix")
+@mutation(ROUTES, "OR strpos(lower(coalesce(\" + SHOWN_TITLE + \", '')), lower(%(q)s)) > 0)",
+          "OR strpos(lower(coalesce(j.title, '')), lower(%(q)s)) > 0)", expect="found by its prompt")
 def test_search_matches_a_job_id_prefix_an_external_ref_prefix_or_part_of_a_title_and_pattern_characters_are_plain(db):
     k = key(db)
     plain = done_job(db, k, ref="ref-alpha-1")
@@ -114,6 +116,7 @@ def test_search_matches_a_job_id_prefix_an_external_ref_prefix_or_part_of_a_titl
     db.run("UPDATE jobs SET title = %s WHERE id = %s", "100% sure_thing", percent)
     on_plain, on_percent = log(db, k, job=plain), log(db, k, job=percent)
     no_job = log(db, k, status=422)
+    on_untitled = log(db, k, job=done_job(db, k, ref="ref-gamma-3", prompt="A paper boat drifting on a calm pond"))
 
     async def scenario(env):
         search = lambda q: get(env, "?q=" + q)  # noqa: E731
@@ -122,7 +125,7 @@ def test_search_matches_a_job_id_prefix_an_external_ref_prefix_or_part_of_a_titl
             "ref": await search("ref-beta"), "ref_inside": await search("beta-2"),
             "title": await search("quiet%20lake"),
             "percent": await search("%25"), "underscore": await search("_"), "lone_wildcards": await search("%25%25"),
-            "blank": await search("%20"),
+            "blank": await search("%20"), "prompt_words": await search("PAPER%20BOAT"),
         }
 
     got = run_app(db, scenario)
@@ -132,7 +135,10 @@ def test_search_matches_a_job_id_prefix_an_external_ref_prefix_or_part_of_a_titl
     assert ids(got["title"]) == [on_plain], "a title matches by part, any case"
     assert ids(got["percent"]) == [on_percent], "a % is a character, not a wildcard"
     assert ids(got["underscore"]) == [on_percent] and ids(got["lone_wildcards"]) == []
-    assert sorted(ids(got["blank"])) == sorted([on_plain, on_percent, no_job]), "a blank search is no search"
+    assert sorted(ids(got["blank"])) == sorted([on_plain, on_percent, no_job, on_untitled]), (
+        "a blank search is no search")
+    assert [(int(i["id"]), i["job_title"]) for i in got["prompt_words"].json()["items"]] == [
+        (on_untitled, "A paper boat drifting on a calm pond")], "an untitled job is named and found by its prompt"
 
 
 def test_limits_and_offsets_out_of_range_are_refused(db):
@@ -161,14 +167,14 @@ def test_the_detail_shows_the_redacted_request_and_unknown_rows_are_404(db):
     assert ghost.status_code == 404 and huge.status_code == 404
 
 
-LIST_PREFIX = ('k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "\n            "j.title, l.duration_ms, '
-               'l.error_code " + _FROM')
-LIST_NO_PREFIX = ('NULL, l.provider, l.route, l.status_code, l.job_id, "\n            "j.title, l.duration_ms, '
-                  'l.error_code " + _FROM')
-DETAIL_PREFIX = ('k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "\n            "j.title, l.duration_ms, '
-                 "l.error_code, l.body")
-DETAIL_NO_PREFIX = ('NULL, l.provider, l.route, l.status_code, l.job_id, "\n            "j.title, l.duration_ms, '
-                    "l.error_code, l.body")
+LIST_PREFIX = ('k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "\n            + SHOWN_TITLE + '
+               '", l.duration_ms, l.error_code " + _FROM')
+LIST_NO_PREFIX = ('NULL, l.provider, l.route, l.status_code, l.job_id, "\n            + SHOWN_TITLE + '
+                  '", l.duration_ms, l.error_code " + _FROM')
+DETAIL_PREFIX = ('k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "\n            + SHOWN_TITLE + '
+                 '", l.duration_ms, l.error_code, l.body')
+DETAIL_NO_PREFIX = ('NULL, l.provider, l.route, l.status_code, l.job_id, "\n            + SHOWN_TITLE + '
+                    '", l.duration_ms, l.error_code, l.body')
 
 
 @mutation(ROUTES, LIST_PREFIX, LIST_NO_PREFIX, expect="the list names")

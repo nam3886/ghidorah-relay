@@ -43,6 +43,7 @@ from relay_core.jobs.create import (
     create_job,
     marker_for,
 )
+from relay_core.jobs.titles import SHOWN_TITLE
 from relay_core.keys import ApiKey
 from relay_core.providers import (
     CreateRequest,
@@ -499,7 +500,8 @@ def public_base(request: Request) -> str:
 # charges again, once; a refused re-charge leaves 0). A failed job has had that charge given back (I21, `refunded`):
 # it shows the amount refunded, its last charge, so a client's net is `refunded ? 0 : points`. Both ledger reads go
 # through the `ledger_job` index.
-_STATUS = ("SELECT j.status, j.error_code, j.model, j.params, j.title, j.warnings, j.created_at, j.finished_at, "
+_STATUS = ("SELECT j.status, j.error_code, j.model, j.params, " + SHOWN_TITLE + ", j.warnings, j.created_at, "
+           "j.finished_at, "
            "j.media_type, EXISTS (SELECT 1 FROM ledger l WHERE l.job_id = j.id AND l.entry = 'refund'), "
            "COALESCE((SELECT CASE WHEN j.status = 'failed' "
            "THEN (array_agg(l.amount ORDER BY l.id DESC) FILTER (WHERE l.entry = 'charge'))[1] "

@@ -26,6 +26,16 @@ MAX_AGE_S = 24 * 3600
 BATCH = 50
 SWEEP_EVERY_S = 60.0
 
+# The title every reader shows (the API status, the admin's jobs, logs and alerts), as SQL over `jobs j`: the job's
+# own title (the client's, the admin's or the provider's native name), else the prompt's first 8 words on one line,
+# cut to 60 characters on a word boundary. It is computed on read and never stored, so the column stays empty until a
+# native name lands (this sweep, or a submit or poll result's title): the native name always wins. The stored prompt
+# is the client's own words (the frame is in `sent_text`), so nothing has to be skipped at its start.
+SHOWN_TITLE = (
+    "COALESCE(NULLIF(j.title, ''), (SELECT NULLIF(rtrim(COALESCE(substring(w FROM '^.{1,60}(?= |$)'), left(w, 60)), "
+    "' ,.;:-'), '') FROM (SELECT substring(btrim(regexp_replace(left(j.prompt, 2000), '\\s+', ' ', 'g')) "
+    "FROM '^\\S+(?: \\S+){0,7}') AS w) AS s))")
+
 
 def clean_title(raw: object) -> str | None:
     """One line of at most 200 characters, through the redactor; None when nothing is left."""

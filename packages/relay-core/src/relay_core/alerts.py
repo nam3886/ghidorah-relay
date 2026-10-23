@@ -321,13 +321,19 @@ def _billing_key(group: str) -> tuple[str, str, str]:
     return key_id, provider, wallet
 
 
+def _shown_title() -> str:
+    # imported here: at module level it is a cycle (titles -> checks -> runctx -> store -> apply -> alerts)
+    from relay_core.jobs.titles import SHOWN_TITLE
+    return SHOWN_TITLE
+
+
 async def billing_items(conn, kind: str, group: str, limit: int, offset: int) -> list[dict]:
     key_id, provider, wallet = _billing_key(group)
     # The key's name and the job (through the ledger row the alert points at) ride along so the page can name them;
     # an alert with no ledger row, or a deleted key, has null names. The ledger row and the job must belong to the
     # alert's own key: a row of another key is never named here.
     rows = await (await conn.execute(
-        "SELECT " + ", ".join("b." + c for c in BILLING_COLUMNS) + ", " + KEY_NAME + ", j.id, j.title "
+        "SELECT " + ", ".join("b." + c for c in BILLING_COLUMNS) + ", " + KEY_NAME + ", j.id, " + _shown_title() + " "
         "FROM billing_alerts b LEFT JOIN api_keys k ON k.id = b.key_id "
         "LEFT JOIN ledger l ON l.id = b.ledger_id AND l.key_id = b.key_id "
         "LEFT JOIN jobs j ON j.id = l.job_id AND j.key_id = b.key_id "
@@ -342,7 +348,7 @@ async def billing_items(conn, kind: str, group: str, limit: int, offset: int) ->
 async def unclear_items(conn, group: str, limit: int, offset: int) -> list[dict]:
     rows = await (await conn.execute(
         "SELECT u.id, u.at, u.job_id, u.account_id, a.label, j.key_id, u.text, j.status, j.error_code, "
-        "u.acknowledged_at, u.acknowledged_by, j.title, " + KEY_NAME + " FROM unclear_replies u "
+        "u.acknowledged_at, u.acknowledged_by, " + _shown_title() + ", " + KEY_NAME + " FROM unclear_replies u "
         "JOIN jobs j ON j.id = u.job_id "
         "LEFT JOIN accounts a ON a.id = u.account_id LEFT JOIN api_keys k ON k.id = j.key_id "
         "WHERE u.group_id = %s ORDER BY u.id DESC LIMIT %s OFFSET %s",

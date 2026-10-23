@@ -30,6 +30,7 @@ from relay_core.jobs import store as jobs
 from relay_core.jobs import webhooks
 from relay_core.jobs.create import InputMedia
 from relay_core.jobs.shares import PgShareTable
+from relay_core.jobs.titles import SHOWN_TITLE
 from relay_core.providers import CreateRequest, MediaIn, Plan, ProviderRegistry
 from relay_core.settings import Settings
 from relay_core.storage import ObjectStore
@@ -51,7 +52,7 @@ _FILTERS = ("(%(status)s::text IS NULL OR j.status = %(status)s) AND (%(provider
 _FROM = " AND j.created_at >= %(from)s"
 _TO = " AND j.created_at < %(to)s"
 _LIST_HEAD = (
-    "SELECT j.id, j.provider, j.key_id, k.label, j.operation, j.media_type, j.model, j.title, j.status, "
+    "SELECT j.id, j.provider, j.key_id, k.label, j.operation, j.media_type, j.model, " + SHOWN_TITLE + ", j.status, "
     "j.error_code, j.price, j.account_id, a.label, j.external_ref, j.created_at, j.finished_at, "
     "(SELECT count(*) FROM job_media m WHERE m.job_id = j.id AND m.role = 'output'), "
     "(SELECT count(*) FROM job_media m WHERE m.job_id = j.id AND m.role = 'input'), "
@@ -91,7 +92,7 @@ def _window_sql(window: dict[str, datetime | None]) -> str:
     """The predicates of the bounds that are set: one of four fixed texts, every value bound by the driver."""
     return (_FROM if window["from"] is not None else "") + (_TO if window["to"] is not None else "")
 _DETAIL = (
-    "SELECT j.id, j.provider, j.key_id, k.label, j.operation, j.media_type, j.model, j.title, j.status, "
+    "SELECT j.id, j.provider, j.key_id, k.label, j.operation, j.media_type, j.model, " + SHOWN_TITLE + ", j.status, "
     "j.error_code, j.price, j.account_id, a.label, j.external_ref, j.created_at, j.finished_at, j.prompt, j.marker, "
     "j.params, j.completion, j.wallet_kind, j.pool, j.account_cost, j.attempts, j.claims, j.sent_at, j.render_since, "
     "j.upstream_price, j.upstream_model, j.error, j.warnings, j.callback_status, j.callback_attempts, k.key_prefix, "

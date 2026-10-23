@@ -8,7 +8,7 @@ from accountkit import KitEngine, KitSpec, beating, make_env, new_account, run_a
 
 from relay_core.budget import BrowserBudget
 from relay_core.jobs.checks import check_account
-from relay_core.jobs.titles import apply_titles, clean_title, sweep_titles
+from relay_core.jobs.titles import SHOWN_TITLE, apply_titles, clean_title, sweep_titles
 from relay_core.testing.fake_provider import FakeSettings
 from relay_core.testing.mutation import mutation
 
@@ -220,3 +220,45 @@ def test_clean_title_is_one_short_line(raw, want):
 
 def test_a_planted_secret_in_a_title_is_redacted():
     assert "sk-" not in (clean_title("name sk-" + "A1b2C3d4" * 10) or "")
+
+
+# ---- the title a reader shows -----------------------------------------------------------------------------------
+KOL = "A stunningly beautiful adult Korean female AI KOL, 20 years old, authentic Korean beauty"
+LONG_WORDS = "Extraordinarily magnificent incomprehensibly beautiful watercolour lighthouses everywhere tonight"
+
+
+def shown(db, job):
+    return db.one("SELECT " + SHOWN_TITLE + " FROM jobs j WHERE j.id = %s", job)[0]
+
+
+@mutation(SRC, "{0,7}", "{0,70}", expect="20 years")
+@mutation(SRC, "'^.{1,60}(?= |$)'", "'^.{1,60}'", expect="waterc")
+@mutation(SRC, "' ,.;:-'", "' '", expect="KOL,")
+@mutation(SRC, "COALESCE(NULLIF(j.title, ''), ", "COALESCE(", expect="client title")
+@pytest.mark.parametrize("title, prompt, want", [
+    (None, "A watercolor painting of a lighthouse at sunset", "A watercolor painting of a lighthouse at sunset"),
+    (None, KOL, "A stunningly beautiful adult Korean female AI KOL"),
+    ("", "  one\n\n two\tthree  ", "one two three"),
+    (None, LONG_WORDS, "Extraordinarily magnificent incomprehensibly beautiful"),
+    (None, "x" * 80, "x" * 60),
+    (None, "...", None),
+    ("client title", KOL, "client title"),
+])
+def test_an_untitled_job_shows_the_first_words_of_its_prompt_and_a_set_title_wins(db, title, prompt, want):
+    job = db.job(make_key(db), provider="fake", prompt=prompt)
+    db.run("UPDATE jobs SET title = %s WHERE id = %s", title, job)
+    assert shown(db, job) == want
+
+
+def test_a_native_name_replaces_the_prompt_words_which_are_never_stored(db):
+    key, a = make_key(db), new_account(db, checked=True)
+    job = titled_job(db, key, a, "r")
+    before = shown(db, job)
+
+    async def scenario(p):
+        from relay_core.db import tx
+        async with tx(p) as conn:
+            return await apply_titles(conn, "fake", {"r": "Native name"})
+
+    assert (before, title_of(db, job)) == ("a prompt", None), "the prompt words are shown, never stored"
+    assert worker(db, scenario) == 1 and shown(db, job) == "Native name"

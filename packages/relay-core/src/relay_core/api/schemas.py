@@ -63,7 +63,9 @@ class JobStatus(BaseModel):
     ratio: str | None = Field(description="Aspect ratio asked for, else null.")
     n: int | None = Field(description="Number of outputs asked for, else null.")
     style: str | None = Field(description="Image style asked for, else null.")
-    title: str | None = Field(description="The title sent when the job was created, else null.")
+    title: str | None = Field(
+        description="The title sent when the job was created, else the name the provider gave it, else the first "
+                    "words of the prompt.")
     warnings: list[JobWarning] = Field(description="Non-fatal notes about the request.")
     queue_position: int | None = Field(
         description="As in the create answer: your place in the line while queued; null once the job leaves the line.")

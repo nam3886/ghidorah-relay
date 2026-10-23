@@ -19,6 +19,7 @@ from relay_core.admin.routes_jobs import _zone, day_rows
 from relay_core.api.deps import get_pool
 from relay_core.api.errors_http import ApiError
 from relay_core.db import tx
+from relay_core.jobs.titles import SHOWN_TITLE
 
 router = APIRouter()
 
@@ -35,7 +36,7 @@ _FROM = (
     "WHEN 'pre_job' THEN l.job_id IS NULL AND l.status_code >= 400 AND l.route !~ '^(GET|HEAD|OPTIONS) ' "
     "ELSE TRUE END "
     "AND (%(q)s::text IS NULL OR starts_with(l.job_id::text, %(q)s) OR starts_with(j.external_ref, %(q)s) "
-    "OR strpos(lower(coalesce(j.title, '')), lower(%(q)s)) > 0)")
+    "OR strpos(lower(coalesce(" + SHOWN_TITLE + ", '')), lower(%(q)s)) > 0)")
 
 # Per local day under the list's own filters, bounded to the earliest..latest day of the page so the planner keeps a
 # plain range on request_logs_at. The day bounds are local midnights in `tz`.
@@ -84,7 +85,7 @@ async def list_logs(provider: str | None = None, status: Literal["all", "ok", "e
         total = (await (await conn.execute("SELECT count(*) " + _FROM, params)).fetchone())[0]
         rows = await (await conn.execute(
             "SELECT l.id, l.at, l.key_id, k.label, k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "
-            "j.title, l.duration_ms, l.error_code " + _FROM
+            + SHOWN_TITLE + ", l.duration_ms, l.error_code " + _FROM
             + " ORDER BY l.at DESC, l.id DESC LIMIT %(limit)s OFFSET %(offset)s",
             {**params, "limit": limit, "offset": offset})).fetchall()
         if zone is not None and rows:
@@ -106,7 +107,7 @@ async def log_detail(log_id: int, pool: AsyncConnectionPool = Depends(get_pool))
     async with tx(pool) as conn:
         row = await (await conn.execute(
             "SELECT l.id, l.at, l.key_id, k.label, k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "
-            "j.title, l.duration_ms, l.error_code, l.body_redacted, l.response_redacted FROM request_logs l "
+            + SHOWN_TITLE + ", l.duration_ms, l.error_code, l.body_redacted, l.response_redacted FROM request_logs l "
             "LEFT JOIN api_keys k ON k.id = l.key_id LEFT JOIN jobs j ON j.id = l.job_id WHERE l.id = %s",
             (log_id,))).fetchone()
     if row is None:
