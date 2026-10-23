@@ -28,9 +28,10 @@ HEARTBEAT_STALE_S = 60              # a worker beats every 15 s: four missed bea
 CONSECUTIVE_ERRORS = 5
 DISK_PATH = "/"                     # ponytail: the api host's disk; the object store's volume is not visible here
 
+_QUEUED = "count(*) FILTER (WHERE status = 'queued')"
+_RUNNING = "count(*) FILTER (WHERE status NOT IN ('queued', 'done', 'failed'))"     # claimed and not finished
 _JOB_COUNTS = (
-    "SELECT count(*) FILTER (WHERE status = 'queued'), "
-    "count(*) FILTER (WHERE status NOT IN ('queued', 'done', 'failed')), "
+    "SELECT " + _QUEUED + ", " + _RUNNING + ", "
     "count(*) FILTER (WHERE status = 'done'), count(*) FILTER (WHERE status = 'failed'), "
     "count(*) FILTER (WHERE status = 'done' AND media_type = 'video'), "
     "count(*) FILTER (WHERE status = 'done' AND media_type = 'image') "
@@ -181,30 +182,29 @@ _POOL_CHECK = (
     "status = 'done' AND (%(p)s::text IS NULL OR provider = %(p)s)")
 
 
-@router.get("/stats/pool")
-async def stats_pool(provider: str | None = None, pool: AsyncConnectionPool = Depends(get_pool),
-                     settings: Settings = Depends(get_settings),
-                     registry: ProviderRegistry = Depends(get_registry)) -> dict:
-    """Per pool (video, image, ...): points left over the budget of the accounts that know their points, the accounts
-    that do not, and the counted values that disagree with the ledger (the accounts list's own drift rule); plus the
-    proxy checks that failed and when the last `check_all` finished. A pool with no budget has every account unknown."""
+def _zero() -> dict[str, int]:
+    return {"left": 0, "budget": 0, "unknown": 0, "drift": 0}
+
+
+async def _pool_points(conn, settings: Settings, registry: ProviderRegistry,
+                       provider: str | None) -> dict[str, dict[str, dict[str, int]]]:
+    """Per provider, per pool (spec order): points left over the budget of the accounts that know their points, the
+    accounts that do not, and the counted values that disagree with the ledger (the accounts list's own drift rule).
+    A pool with no budget has every account unknown."""
     args = {"p": provider}
-    async with tx(pool) as conn:
-        accounts = await (await conn.execute(_POOL_ACCOUNTS, args)).fetchall()
-        rows = {(a, p): (left, source, anchor) for a, p, left, source, anchor in await (
-            await conn.execute(_POOL_CAPACITY, args)).fetchall()}
-        spent = {(a, p): n for a, p, n in await (await conn.execute(_POOL_SPENT, args)).fetchall()}
-        proxy_failed = (await (await conn.execute(_POOL_PROXY, args)).fetchone())[0]
-        last_check = (await (await conn.execute(_POOL_CHECK, args)).fetchone())[0]
-        now = (await (await conn.execute("SELECT clock_timestamp()")).fetchone())[0]   # the clock the claim uses
+    accounts = await (await conn.execute(_POOL_ACCOUNTS, args)).fetchall()
+    rows = {(a, p): (left, source, anchor) for a, p, left, source, anchor in await (
+        await conn.execute(_POOL_CAPACITY, args)).fetchall()}
+    spent = {(a, p): n for a, p, n in await (await conn.execute(_POOL_SPENT, args)).fetchall()}
+    now = (await (await conn.execute("SELECT clock_timestamp()")).fetchone())[0]   # the clock the claim uses
     configs = {name: pool_configs(registry.spec(name).caps, settings.get) for name in registry.names()}
-    totals: dict[str, dict[str, int]] = {}
+    per: dict[str, dict[str, dict[str, int]]] = {}
     for name, cfgs in configs.items():
         for pool_name in cfgs if provider in (None, name) else ():
-            totals.setdefault(pool_name, {"left": 0, "budget": 0, "unknown": 0, "drift": 0})
+            per.setdefault(name, {})[pool_name] = _zero()
     for account_id, account_provider in accounts:
         for pool_name, cfg in configs.get(account_provider, {}).items():
-            total = totals.setdefault(pool_name, {"left": 0, "budget": 0, "unknown": 0, "drift": 0})
+            total = per.setdefault(account_provider, {}).setdefault(pool_name, _zero())
             row = rows.get((account_id, pool_name))
             if cfg.budget is None or row is None:
                 total["unknown"] += 1
@@ -218,8 +218,84 @@ async def stats_pool(provider: str | None = None, pool: AsyncConnectionPool = De
             total["budget"] += cfg.budget
             total["left"] += left_today
             total["drift"] += bool(drift)
+    return per
+
+
+@router.get("/stats/pool")
+async def stats_pool(provider: str | None = None, pool: AsyncConnectionPool = Depends(get_pool),
+                     settings: Settings = Depends(get_settings),
+                     registry: ProviderRegistry = Depends(get_registry)) -> dict:
+    """Per pool (video, image, ...), summed over the providers: the figures of `_pool_points`; plus the proxy checks
+    that failed and when the last `check_all` finished."""
+    args = {"p": provider}
+    async with tx(pool) as conn:
+        per = await _pool_points(conn, settings, registry, provider)
+        proxy_failed = (await (await conn.execute(_POOL_PROXY, args)).fetchone())[0]
+        last_check = (await (await conn.execute(_POOL_CHECK, args)).fetchone())[0]
+    totals: dict[str, dict[str, int]] = {}
+    for pools in per.values():
+        for pool_name, figures in pools.items():
+            into = totals.setdefault(pool_name, _zero())
+            for field, n in figures.items():
+                into[field] += n
     return {"pools": [{"pool": name, **total} for name, total in totals.items()],
             "proxy_failed": proxy_failed, "last_full_check_ms": ms(last_check)}
+
+
+# The Jobs page's provider cards. "Today" is the relay's billing day (billing_pin, BILLING_TZ), counted on finished_at.
+_DAY = ("SELECT tz, date_trunc('day', clock_timestamp() AT TIME ZONE tz) AT TIME ZONE tz, clock_timestamp() "
+        "FROM billing_pin")
+_SUMMARY_JOBS = (
+    "SELECT provider, " + _QUEUED + ", " + _RUNNING + ", "
+    "count(*) FILTER (WHERE status = 'done'), count(*) FILTER (WHERE status = 'failed') "
+    "FROM jobs WHERE status NOT IN ('done', 'failed') OR finished_at >= %(start)s GROUP BY provider")
+# ponytail: no index on finished_at, so both read the whole jobs table, as `/stats` already does; add one (a
+# migration) when the table makes the 10 s refresh slow
+# The same day's finished jobs per whole hour since the day's start (an hour of a half-hour zone starts at :30 UTC).
+_SUMMARY_HOURS = (
+    "SELECT floor(extract(epoch FROM finished_at - %(start)s) / 3600)::int, provider, "
+    "count(*) FILTER (WHERE status = 'done'), count(*) FILTER (WHERE status = 'failed') "
+    "FROM jobs WHERE status IN ('done', 'failed') AND finished_at >= %(start)s GROUP BY 1, 2")
+HOUR_MS = 3_600_000
+
+
+@router.get("/providers/summary")
+async def providers_summary(pool: AsyncConnectionPool = Depends(get_pool), settings: Settings = Depends(get_settings),
+                            registry: ProviderRegistry = Depends(get_registry)) -> dict:
+    """One card per registered provider, in a single call: how it sends now, whether it takes jobs, its open jobs,
+    what finished since the start of the billing day, its usable accounts and each pool's points left; and `hours`,
+    every hour of the billing day so far (oldest first, zero-filled, `h` = its start) with the done and failed jobs of
+    each provider. No alert is computed here (`/stats` does that)."""
+    async with tx(pool) as conn:
+        tz, start, now = await (await conn.execute(_DAY)).fetchone()
+        jobs = {r[0]: r[1:] for r in await (await conn.execute(_SUMMARY_JOBS, {"start": start})).fetchall()}
+        hourly = await (await conn.execute(_SUMMARY_HOURS, {"start": start})).fetchall()
+        accounts = {r[0]: r[1:] for r in await (await conn.execute(_USABLE)).fetchall()}
+        per = await _pool_points(conn, settings, registry, None)
+    cards = []
+    for name in registry.names():
+        spec = registry.spec(name)
+        setting = getattr(spec, "execution_setting", None)
+        queued, running, done, failed = jobs.get(name, (0, 0, 0, 0))
+        usable, available, dead, disabled = accounts.get(name, (0, 0, 0, 0, 0, 0))[:4]
+        units = {p.name: p.unit for p in spec.caps.pools}
+        cards.append({
+            "provider": name,
+            "execution": settings.get(setting) if setting else spec.caps.execution,
+            "claims_enabled": settings.get(name + ".claims_enabled"),
+            "running": running, "queued": queued, "done_today": done, "failed_today": failed,
+            "accounts": {"usable": usable, "total": available + dead + disabled},
+            "pools": [{"pool": p, "unit": units[p], "left": f["left"], "budget": f["budget"]}
+                      for p, f in per.get(name, {}).items()],
+        })
+    names = registry.names()
+    day_ms = int(start.timestamp() * 1000)
+    hours = [{"h": day_ms + i * HOUR_MS, "done": dict.fromkeys(names, 0), "failed": dict.fromkeys(names, 0)}
+             for i in range(int((now - start).total_seconds()) // 3600 + 1)]
+    for i, name, done, failed in hourly:
+        if name in names and i < len(hours):         # a finish stamped after the read's clock waits for the next read
+            hours[i]["done"][name], hours[i]["failed"][name] = done, failed
+    return {"day_tz": tz, "day_start_ms": day_ms, "providers": cards, "hours": hours}
 
 
 @router.get("/stats")

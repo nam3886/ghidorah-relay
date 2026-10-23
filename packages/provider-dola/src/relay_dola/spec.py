@@ -155,9 +155,10 @@ class DolaSpec:
     name = PROVIDER
     frames = FRAMES
     max_prompt_chars = PROMPT_MAX_CHARS
+    execution_setting = PROVIDER + ".send_path"      # the admin shows the live send path, not caps.execution
     caps = Caps(
         execution="browser", wallet_kinds=("video", "image"),
-        pools=(PoolSpec("video", "UTC", "dola.video_budget"), PoolSpec("image", "UTC", "dola.image_budget")),
+        pools=(PoolSpec("video", "UTC", "dola.video_budget", "points"), PoolSpec("image", "UTC", "dola.image_budget")),
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
         strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=True, titles=True,
         catalog_refresh_s=CATALOG_REFRESH_S, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)

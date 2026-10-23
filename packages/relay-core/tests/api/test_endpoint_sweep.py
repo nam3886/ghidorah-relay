@@ -48,6 +48,7 @@ ADMIN = {
     "POST /admin/providers/{provider}/check-all", "POST /admin/providers/{provider}/refresh-catalog",
     "GET /admin/settings", "PUT /admin/settings/{key}", "DELETE /admin/settings/{key}",
     "GET /admin/models", "GET /admin/stats", "GET /admin/stats/hourly", "GET /admin/stats/pool",
+    "GET /admin/providers/summary",
     "GET /admin/logs", "GET /admin/logs/{log_id}", "DELETE /admin/logs",
     "POST /admin/jobs/bulk-recheck", "POST /admin/jobs/bulk-regenerate", "POST /admin/jobs/{job_id}/resend-webhook",
     "POST /admin/jobs/{job_id}/revoke-links", "GET /admin/prices",

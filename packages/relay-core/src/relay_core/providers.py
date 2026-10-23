@@ -310,14 +310,18 @@ class ProxyVerdict:
 # ---- capabilities, catalog, plan ------------------------------------------------------------------------------
 @dataclass(frozen=True)
 class PoolSpec:
-    """One account pool: its day rule is a constant of the spec, its daily budget a live setting (or None)."""
+    """One account pool: its day rule is a constant of the spec, its daily budget a live setting (or None). `unit` is
+    what the budget counts, for the admin: points (an account cost that varies per job) or jobs."""
     name: str
     tz: str
     budget_setting: str | None = None
+    unit: Literal["points", "jobs"] = "jobs"
 
     def __post_init__(self):
         if not self.name:
             raise ValueError("a pool needs a name")
+        if self.unit not in ("points", "jobs"):
+            raise ValueError("a pool counts points or jobs")
         ZoneInfo(self.tz)   # an unknown timezone refuses here, not at the first rollover
 
 
@@ -564,6 +568,9 @@ class ProviderSpec(Protocol):
     max_prompt_chars: int                        # the longest prompt a customer may send, in characters
     rate_alerts: tuple[RateAlert, ...] = ()      # a spec without the attribute declares none (read with getattr)
     limits: tuple[FixedLimit, ...] = ()          # fixed limits it adds to the Fixed limits card (read with getattr)
+    # a live setting (one of its own) whose value, http or browser, is how it sends now instead of caps.execution: the
+    # admin shows that one (read with getattr; None = caps.execution)
+    execution_setting: str | None = None
 
     def catalog(self) -> list[ModelSpec]: ...
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan: ...
@@ -639,6 +646,9 @@ def _problems(spec: ProviderSpec) -> list[str]:
         if pool.budget_setting is not None and pool.budget_setting not in keys:
             bad.append("%s: pool %s names the budget setting %s, which the spec does not declare"
                        % (spec.name, pool.name, pool.budget_setting))
+    execution_setting = getattr(spec, "execution_setting", None)
+    if execution_setting is not None and execution_setting not in keys:
+        bad.append("%s: execution_setting names %s, which the spec does not declare" % (spec.name, execution_setting))
     for m in spec.catalog():
         if not m.operations:
             bad.append("%s: model %s has no operations" % (spec.name, m.id))
