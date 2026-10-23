@@ -47,7 +47,7 @@ def strip(page):
 
 
 def shot(page, name: str, below: str | None = None) -> None:
-    """The top of the page, then (`below`) that element scrolled into view: the viewport only, as the sweep takes them."""
+    """The top of the page, then (`below`) that element scrolled into view: the viewport only, as the sweep does."""
     if not SHOTS:
         return
     settle(page)
@@ -59,12 +59,18 @@ def shot(page, name: str, below: str | None = None) -> None:
         page.locator("h1").first.scroll_into_view_if_needed()
 
 
+# what may end in an ellipsis (a title, a route, a key label: each with its whole text in a title attribute), what is
+# spoken only, and el-table's hidden measuring copy of the columns
+ELLIPSIS_OK = ".sr-only, .l-route, .l-key, .l-job-link, .p-req__route, .p-req__title, .hidden-columns"
+
+
 def no_cut_text(page, sel: str) -> None:
-    """Nothing in `sel` or the strip is cut (a title or route may end in its ellipsis), and no sideways scroll."""
-    cut = page.evaluate("""(sel) => [...document.querySelectorAll(sel + ', .ptab, .ptab *')]
-        .filter((el) => el.offsetParent && !el.closest('.sr-only, .l-route, .l-job-link, .p-req__route, .p-req__title, .hidden-columns'))
+    """Nothing in `sel` or the strip is cut (bar ELLIPSIS_OK), and no sideways scroll."""
+    cut = page.evaluate("""([sel, ok]) => [...document.querySelectorAll(sel + ', .ptab, .ptab *')]
+        .filter((el) => el.offsetParent && !el.closest(ok))
         .filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'visible')
-        .map((el) => el.className + ': ' + el.textContent.trim().slice(0, 40))""", sel, isolated_context=False)
+        .map((el) => el.className + ': ' + el.textContent.trim().slice(0, 40))""", [sel, ELLIPSIS_OK],
+                        isolated_context=False)
     assert cut == [], cut
     assert sideways(page) == 0, "the page scrolls sideways by %d px" % sideways(page)
 
@@ -76,8 +82,8 @@ def label_key(db, label: str, models: list[str], wallets):
 
 
 def log(db, key, provider, route: str, status: int, error=None) -> None:
-    db.run("INSERT INTO request_logs (key_id, provider, route, status_code, duration_ms, error_code, body_redacted, at) "
-           "VALUES (%s, %s, %s, %s, 42, %s, %s, clock_timestamp())", key, provider, route, status, error,
+    db.run("INSERT INTO request_logs (key_id, provider, route, status_code, duration_ms, error_code, body_redacted, "
+           "at) VALUES (%s, %s, %s, %s, 42, %s, %s, clock_timestamp())", key, provider, route, status, error,
            json.dumps({}))
 
 

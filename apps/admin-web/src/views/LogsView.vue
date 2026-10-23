@@ -284,9 +284,16 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
         >
         <template #cell-status="{ row }">
           <StatusChip :status="row.status_code" class="l-pill" />
-          <span v-if="isTablet && row.error_code" class="l-code kla-mono" :class="errorTone(row)">{{
-            row.error_code
-          }}</span>
+          <!-- a code breaks only after its dots (quota. / too_many_queued), never inside a word -->
+          <span
+            v-if="isTablet && row.error_code"
+            class="l-code kla-mono"
+            :class="errorTone(row)"
+            :title="row.error_code"
+            ><template v-for="(part, i) in row.error_code.split('.')" :key="i"
+              ><template v-if="i">.<wbr /></template>{{ part }}</template
+            ></span
+          >
         </template>
         <template #cell-route="{ row }">
           <span class="l-route kla-mono" :title="row.route">{{ row.route }}</span>
@@ -309,7 +316,7 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
           >
         </template>
         <template #cell-key="{ row }"
-          ><span class="l-key">{{ logKey(row) }}</span></template
+          ><span class="l-key" :title="logKey(row)">{{ logKey(row) }}</span></template
         >
         <template #cell-job="{ row }">
           <div class="l-job-cell">
@@ -335,7 +342,7 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
           <span v-else class="l-err-none" />
         </template>
         <template #cell-duration="{ row }"
-          ><span class="l-dur kla-mono">{{ thousands(row.duration_ms) }}{{ isTablet ? " ms" : "" }}</span></template
+          ><span class="l-dur kla-mono">{{ thousands(row.duration_ms) }} ms</span></template
         >
         <template #actions="{ row }">
           <button
@@ -438,7 +445,8 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
    of the 1302 px table: 106.3, 95.2, 256.8, 87.1, 99.4, 311.5, 197.5, 88.2 and 60 (the 48 px details column plus its
    12 px padding); at 768 to these of the 718 px table: 88.3, 160.1, 259.3, 82.8, 79.6 and 48. Element Plus lays out
    fixed columns, so each takes the same share of the table's width. The provider column (the redesign) comes first:
-   7.5 % on a desktop (its old 6.7 and 0.8 from Job; Key takes 2 more from Job), 12.5 % on a tablet (from Route, Status, Time and Key). */
+   7.5 % on a desktop (its old 6.7 and 0.8 from Job; Key takes 2 more from Job), 12.5 % on a tablet (from Route,
+   Status, Time and Key; a tablet's Key then takes 3 more from Route). */
 .logs-table:not(.is-tablet) :deep(col:nth-child(1)) {
   width: 7.5%;
 }
@@ -476,10 +484,10 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
   width: 19.2981%;
 }
 .logs-table.is-tablet :deep(col:nth-child(4)) {
-  width: 29.6142%;
+  width: 26.6142%;
 }
 .logs-table.is-tablet :deep(col:nth-child(5)) {
-  width: 10.018%;
+  width: 13.018%;
 }
 .logs-table.is-tablet :deep(col:nth-child(6)) {
   width: 11.0864%;
@@ -527,9 +535,13 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
   width: auto;
 }
 /* a key label wraps (anywhere, as a long one has no space) rather than being cut by its cell */
+/* the key on one line: a long one ends in an ellipsis, its whole text in the title */
 .l-key {
+  display: block;
+  overflow: hidden;
   font-size: 13px;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .is-tablet .l-key {
   line-height: 24px;
@@ -634,7 +646,6 @@ html.dark .is-tablet .l-job-link:hover {
   margin-top: 3px;
   font-size: 11px;
   line-height: 16px;
-  overflow-wrap: anywhere;
 }
 .is-bad {
   color: var(--rl-bad);

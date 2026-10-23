@@ -145,7 +145,7 @@ describe("the list", () => {
     const { w } = await open();
     const text = w.find("tbody tr:not(.is-day)").text();
     expect(text).toContain("01234567");
-    expect(w.find("tbody .l-dur").text()).toBe("42");
+    expect(w.find("tbody .l-dur").text()).toBe("42 ms");
     expect(text).toContain(PLANTED);
     expect(w.find("img").exists()).toBe(false);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
@@ -195,7 +195,7 @@ describe("the list", () => {
   it("a duration has a thousands comma and no unit on a desktop", async () => {
     list.mockResolvedValue({ items: [row({ duration_ms: 1980 })], total: 1 });
     const { w } = await open();
-    expect(w.find("tbody .l-dur").text()).toBe("1,980");
+    expect(w.find("tbody .l-dur").text()).toBe("1,980 ms");
   });
 
   it("requests are grouped under a day header that counts the rows of the page", async () => {
@@ -755,6 +755,10 @@ describe("the tablet", () => {
     ]);
     const [first, second] = w.findAll("tbody tr:not(.is-day)");
     expect(first!.find(".l-code").text()).toBe("account.dead_session");
+    // it breaks only after its dot, and says itself whole in its title
+    expect(first!.find(".l-code").findAll("wbr")).toHaveLength(1);
+    expect(first!.find(".l-code").attributes("title")).toBe("account.dead_session");
+    expect(first!.find(".l-key").attributes("title")).toBe(first!.find(".l-key").text());
     expect(first!.find(".l-code").classes()).toContain("is-bad");
     expect(first!.find(".l-job-link").text()).toBe("a title");
     expect(first!.find(".l-dur").text()).toBe("2,140 ms");
