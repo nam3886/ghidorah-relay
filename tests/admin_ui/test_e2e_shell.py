@@ -365,14 +365,16 @@ def test_the_top_bar_is_one_row_from_1280_and_two_rows_below_with_the_control_si
         app, app_session, color_scheme, width, stacked, bar_height, control):
     page = app_session
     page.set_viewport_size({"width": width, "height": 800})
-    page.goto(app.url + "#/logs")       # Jobs, Accounts and Settings filter by the provider strip: no Provider list
+    page.goto(app.url + "#/logs")
     bar = page.get_by_role("banner")
     logo = bar.get_by_role("link", name="Ghidorah admin home")
     nav = bar.get_by_role("navigation", name="Main")
     toggle = bar.get_by_role("button", name=re.compile("theme", re.I))
     menu = bar.get_by_role("button", name=re.compile(r"^Account menu"))
-    for part in (logo, nav, toggle, menu, bar.get_by_test_id("provider-filter")):
+    for part in (logo, nav, toggle, menu):
         expect(part).to_be_visible()
+    # every tab filters by provider in its strip: the bar has no Provider list
+    expect(bar.get_by_test_id("provider-filter")).to_have_count(0)
     assert abs(box(bar)["height"] - bar_height) <= 2, box(bar)
     assert abs(box(toggle)["height"] - control) <= 1 and abs(box(toggle)["width"] - control) <= 1, box(toggle)
     if stacked:
@@ -407,17 +409,17 @@ LINE_STRONG = {"light": "rgb(221, 213, 232)", "dark": "rgb(62, 51, 86)"}
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
-def test_the_current_tab_is_underlined_and_the_provider_trigger_has_the_line_strong_border(
+def test_the_current_tab_is_underlined_and_the_theme_toggle_has_the_line_strong_border(
         app, app_session, color_scheme):
     page = app_session
-    page.goto(app.url + "#/logs")       # Jobs, Accounts and Settings filter by the provider strip: no Provider list
+    page.goto(app.url + "#/logs")
     current = page.get_by_role("tab", selected=True)
     expect(current).to_have_text("Request logs", use_inner_text=True)
     settle(page)                                   # the underline's colour transition onto the new tab has ended
     underline = current.evaluate(
         "el => [getComputedStyle(el).borderBottomWidth, getComputedStyle(el).borderBottomColor]")
     assert underline == ["2px", "rgb(124, 58, 237)"], underline
-    border = page.get_by_test_id("provider-filter").evaluate(
+    border = page.get_by_test_id("theme-toggle").evaluate(
         "el => [getComputedStyle(el).borderTopWidth, getComputedStyle(el).borderTopColor]")
     assert border == ["1px", LINE_STRONG[color_scheme]], border
 
@@ -466,31 +468,23 @@ def sizes(locator):
 
 # The avatar is the canvas measurement (T-Jobs): at 768 the browser's own padding of the 40 px button squeezes the
 # 30 px avatar to 28 x 30.
-@pytest.mark.parametrize("width, provider, toggle, account, tab, avatar, menu_w, list_w, item_h", [
-    (1440, 34, (34, 34), (None, 34), 64, (28, 28), 200, 180, 36),
-    (768, 36, (36, 36), (40, 40), 48, (28, 30), 220, 200, 40),
-    (390, 44, (44, 44), (44, 44), 44, (32, 32), 220, 200, 44)])
+@pytest.mark.parametrize("width, toggle, account, tab, avatar, menu_w, item_h", [
+    (1440, (34, 34), (None, 34), 64, (28, 28), 200, 36),
+    (768, (36, 36), (40, 40), 48, (28, 30), 220, 40),
+    (390, (44, 44), (44, 44), 44, (32, 32), 220, 44)])
 def test_the_top_bar_and_its_popovers_have_the_drawn_sizes(
-        app, app_session, width, provider, toggle, account, tab, avatar, menu_w, list_w, item_h):
+        app, app_session, width, toggle, account, tab, avatar, menu_w, item_h):
     page = app_session
     page.set_viewport_size({"width": width, "height": 900})
-    page.goto(app.url + "#/logs")       # Jobs, Accounts and Settings filter by the provider strip: no Provider list
+    page.goto(app.url + "#/logs")
     bar = page.get_by_role("banner")
-    trigger = bar.get_by_test_id("provider-filter")
-    expect(trigger).to_be_visible()
-    assert sizes(trigger)[1] == provider
+    expect(bar.get_by_test_id("theme-toggle")).to_be_visible()
     assert sizes(bar.get_by_test_id("theme-toggle")) == list(toggle)
     button = bar.get_by_test_id("account-menu")
     got = sizes(button)
     assert got[1] == account[1] and (account[0] is None or got[0] == account[0]), got
     assert sizes(button.locator(".account-avatar")) == list(avatar)
     assert sizes(bar.get_by_role("tab", selected=True))[1] == tab
-    trigger.click()
-    listbox = page.get_by_role("listbox", name="Provider")
-    assert sizes(listbox)[0] == list_w
-    assert sizes(listbox.get_by_role("option").first)[1] == item_h
-    expect(trigger).to_have_attribute("aria-expanded", "true")
-    page.keyboard.press("Escape")
     button.click()
     menu = page.get_by_role("menu", name="Account")
     assert sizes(menu)[0] == menu_w

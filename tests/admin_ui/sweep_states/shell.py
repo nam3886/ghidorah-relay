@@ -1,11 +1,10 @@
-"""The shell around every tab: the Provider listbox, the account menu and the theme's multiple-select tick."""
+"""The shell around every tab: the account menu and the theme's multiple-select tick (the Provider list is gone:
+every tab filters by provider in its strip)."""
 
 from patchright.sync_api import expect
 
-from . import tab
-
 ROUTE = "shell"
-STATES = [("shell", "scope-select"), ("shell", "account-menu"), ("shell", "multiple-select-tick")]
+STATES = [("shell", "account-menu"), ("shell", "multiple-select-tick")]
 
 
 def check_multiple_select_tick(page):
@@ -38,10 +37,6 @@ def popover(page, trigger, popup):
 
 
 def run(page, app, live, sw, data):
-    # the top bar's Provider list lives on the tabs without the provider strip (Settings is one)
-    sw.step("shell", "scope-select", lambda: (tab(page, "settings"),
-                                              popover(page, page.get_by_test_id("provider-filter"),
-                                                      page.get_by_role("listbox", name="Provider"))))
     sw.step("shell", "account-menu", lambda: popover(page, page.get_by_test_id("account-menu"),
                                                      page.get_by_role("menu", name="Account")))
     sw.step("shell", "multiple-select-tick", lambda: check_multiple_select_tick(page))

@@ -308,16 +308,12 @@ def test_the_banner_rules():
 
 # ---- the top bar: the behaviours the old header and tab bar guarded, now in TopBar --------------------------------
 TOP_BAR = f"{SRC}/components/layout/TopBar.vue"
-ALL_FILTER = SHELL_FAILED + ("shows All in the provider trigger, lists All then the catalog's providers "
-                             "and keeps the store's empty string for All")
-POPOVERS = SHELL_FAILED + "closes an open popover on Escape and on a click outside, and keeps one open at a time"
+POPOVERS = SHELL_FAILED + "closes the account menu on Escape and on a click outside, not on a press inside it"
 SIGN_OUT_ITEM = SHELL_FAILED + "signs out through the menu item: server revoke first, then every sign-out hook"
 BAR_FAILED = "FAILED tests/unit/app-shell.spec.ts > the top bar > "
-PROVIDER_ORDER_TEST = SHELL_FAILED + "lists the providers in the drawn order, dola, vibes, meta, then any other sorted"
 SIGN_OUT_ITEM_ESC = SHELL_FAILED + (
     "opens a popup with ArrowDown on its trigger, puts the focus on the first menu item and returns it on Escape")
-WALK = SHELL_FAILED + ("moves the focus into the listbox on open, onto the chosen option, and walks it with "
-                       "Arrow, Home and End")
+WALK = SHELL_FAILED + "moves the focus into the account menu on open and walks it with Arrow, Home and End"
 LAYOUT = BAR_FAILED + ("is one row on a desktop, and two rows on a tablet and on a phone, "
                        "with the user's name only on the desktop")
 
@@ -325,8 +321,6 @@ LAYOUT = BAR_FAILED + ("is one row on a desktop, and two rows on a tablet and on
 @mutation(TOP_BAR, "stats.data.jobs.in_progress + stats.data.jobs.queued", "stats.data.jobs.in_progress",
           expect=SHELL_FAILED + "counts the unfinished jobs on the Jobs tab and the open groups on Alerts, "
                  "only when above zero")
-@mutation(TOP_BAR, "computed(() => scope.provider || ALL)", "computed(() => scope.provider)", expect=ALL_FILTER)
-@mutation(TOP_BAR, 'scope.provider = name === ALL ? "" : name;', "scope.provider = name;", expect=ALL_FILTER)
 @mutation(TOP_BAR, 'if (event.key !== "Escape" || !open.value) return;\n  event.preventDefault();',
           'if (event.key !== "Escape" || !open.value) return;', expect=SIGN_OUT_ITEM_ESC)
 @mutation(TOP_BAR, 'if (event.key !== "Escape" || !open.value) return;', 'if (event.key !== "Escape") return;',
@@ -335,12 +329,7 @@ LAYOUT = BAR_FAILED + ("is one row on a desktop, and two rows on a tablet and on
           'if (event.key !== "Enter" || !open.value) return;', expect=POPOVERS)
 @mutation(TOP_BAR, "wrap && !wrap.contains(target)", "wrap && wrap.contains(target)", expect=POPOVERS)
 @mutation(TOP_BAR, "const opening = open.value !== which;", "const opening = true;", expect=POPOVERS)
-@mutation(TOP_BAR, 'const PROVIDER_ORDER = ["dola", "vibes", "meta"];',
-          'const PROVIDER_ORDER = ["dola", "meta", "vibes"];',
-          expect=PROVIDER_ORDER_TEST)
-@mutation(TOP_BAR, "(items.find((el) => el.getAttribute(\"aria-selected\") === \"true\") ?? items[0])?.focus();",
-          "items[0]?.focus();", expect=SHELL_FAILED + "opens the listbox on the chosen option when one is set, and "
-                                                      "gives the focus back to the trigger on Escape and on a pick")
+@mutation(TOP_BAR, "  items[0]?.focus();", "  items[1]?.focus();", expect=WALK)
 @mutation(TOP_BAR, "  Home: 0,", "  Home: 1,", expect=WALK)
 @mutation(TOP_BAR, "  End: items.length - 1,", "  End: 0,", expect=WALK)
 @mutation(TOP_BAR, "ArrowDown: at + 1,", "ArrowDown: at + 2,", expect=WALK)
@@ -352,10 +341,9 @@ LAYOUT = BAR_FAILED + ("is one row on a desktop, and two rows on a tablet and on
           expect=SHELL_FAILED + "opens a popup with ArrowDown on its trigger, puts the focus on the first menu item "
                                 "and returns it on Escape")
 @mutation(TOP_BAR, 'wrapOf(which)?.querySelector<HTMLElement>("button")?.focus();', "void which;",
-          expect=SHELL_FAILED + "opens the listbox on the chosen option when one is set, and gives the focus back "
-                                "to the trigger on Escape and on a pick")
+          expect=SIGN_OUT_ITEM_ESC)
 @pytest.mark.web_unit
-def test_the_top_bar_keeps_the_count_the_provider_and_the_popover_rules():
+def test_the_top_bar_keeps_the_count_and_the_popover_rules():
     vitest("tests/unit/app-shell.spec.ts")
 
 
@@ -500,17 +488,14 @@ def test_the_current_tab_stays_in_view():
     vitest("tests/unit/app-shell.spec.ts")
 
 
-PLACE = SHELL_FAILED + ("places an open popup by the popup rule, relative to its trigger, and again when the window "
-                        "is resized")
-PHONE_END = SHELL_FAILED + ("on a phone draws the Provider list with its right edge on the trigger, as drawn, and with "
-                            "its left edge on it when that would pass the window's left edge")
+PLACE = SHELL_FAILED + ("places the open account menu by the popup rule, relative to its trigger, and again when the "
+                        "window is resized")
 
 
 @mutation(TOP_BAR, '  window.addEventListener("resize", onResize);\n', "", expect=PLACE)
 @mutation(TOP_BAR, "    top: `${place.top - at.top}px`,", "    top: `${place.top}px`,", expect=PLACE)
 @mutation(TOP_BAR, "    left: `${place.left - at.left}px`,", "    left: `${place.left}px`,", expect=PLACE)
 @mutation(TOP_BAR, "{ maxHeight: `${place.maxHeight}px` }", "{}", expect=PLACE)
-@mutation(TOP_BAR, 'provider: isPhone.value ? "end" : "start",', 'provider: "start",', expect=PHONE_END)
 @pytest.mark.web_unit
 def test_the_top_bar_popups_and_tab_row_follow_the_rulings():
     vitest("tests/unit/app-shell.spec.ts")

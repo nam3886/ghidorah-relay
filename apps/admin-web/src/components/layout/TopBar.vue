@@ -2,22 +2,21 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import BrandLogo from "@/components/layout/BrandLogo.vue";
-import { IconCheck, IconChevronDown, IconFileText, IconLogOut, IconMoon } from "@/components/shared/icons";
+import { IconChevronDown, IconFileText, IconLogOut, IconMoon } from "@/components/shared/icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { placePopup, type PopupAlign } from "@/lib/popup-place";
 import { useBusy } from "@/composables/use-busy";
 import { TABS } from "@/router";
 import { useAuthStore } from "@/stores/auth";
-import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 import { useUiStore } from "@/stores/ui";
 
 // The top bar, as drawn in the canvas (specs/shell.md): logo, the eight tabs (Jobs, Accounts and Alerts carry a count),
-// the Provider scope, the theme toggle and the account menu (API docs, Sign out). One row of 64 px from 1280 px up;
-// below that two rows (logo and tools, then the tabs, which scroll sideways when they do not fit). The Provider list
-// and the account menu are our own popovers, not Element Plus, so every size and colour is the drawn one.
+// the theme toggle and the account menu (API docs, Sign out). One row of 64 px from 1280 px up; below that two rows
+// (logo and tools, then the tabs, which scroll sideways when they do not fit). The account menu is our own popover, not
+// Element Plus, so every size and colour is the drawn one. No Provider list: every tab filters by provider in its
+// provider strip (ProviderStrip), under this bar.
 const auth = useAuthStore();
-const scope = useScopeStore();
 const stats = useStatsStore();
 const ui = useUiStore();
 const route = useRoute();
@@ -44,35 +43,17 @@ function countText(value: number | string): string | number {
   return typeof value === "number" && value > 999 ? "999+" : value;
 }
 
-// The Provider listbox. The store keeps "" for All (every view reads that as "no provider"); the list shows the word.
-const ALL = "All";
-const providerLabel = computed(() => scope.provider || ALL);
-// The drawn order is dola, vibes, meta; a provider the canvas does not know follows, sorted.
-const PROVIDER_ORDER = ["dola", "vibes", "meta"];
-const providerOptions = computed(() => {
-  const known = PROVIDER_ORDER.filter((name) => scope.providers.includes(name));
-  return [ALL, ...known, ...scope.providers.filter((name) => !PROVIDER_ORDER.includes(name))];
-});
-function pickProvider(name: string): void {
-  scope.provider = name === ALL ? "" : name;
-  closePopup();
-}
-
-// One popover at a time; a click outside or Escape closes it and gives the focus back to its trigger.
-const open = ref<"provider" | "account" | null>(null);
-const providerWrap = ref<HTMLElement | null>(null);
+// The popover; a click outside or Escape closes it and gives the focus back to its trigger.
+type Popup = "account";
+const open = ref<Popup | null>(null);
 const accountWrap = ref<HTMLElement | null>(null);
-const wrapOf = (which: "provider" | "account") => (which === "provider" ? providerWrap.value : accountWrap.value);
-const ITEMS = '[role="option"], [role="menuitem"]';
+const wrapOf = (which: Popup) => (which === "account" ? accountWrap.value : null);
+const ITEMS = '[role="menuitem"]';
 
-// Where an open popup sits: the app's popup rule (lib/popup-place.ts), from the trigger edge each popup is drawn on.
-// Both start at the trigger, as drawn, except the Provider list on a phone, which the canvas ends at it; the account
-// trigger is at the right of the header, so the rule ends its menu at the trigger at every width. The popup is first
-// measured at its own size, then placed inside the window (written relative to its trigger); again on a resize.
-const align = computed<Record<"provider" | "account", PopupAlign>>(() => ({
-  provider: isPhone.value ? "end" : "start",
-  account: "start",
-}));
+// Where an open popup sits: the app's popup rule (lib/popup-place.ts), from the trigger edge it is drawn on. The
+// account trigger is at the right of the header, so the rule ends its menu at the trigger at every width. The popup is
+// first measured at its own size, then placed inside the window (written relative to its trigger); again on a resize.
+const align: Record<Popup, PopupAlign> = { account: "start" };
 const popupStyle = ref<Record<string, string>>({});
 async function placeOpenPopup(): Promise<void> {
   const which = open.value;
@@ -85,7 +66,7 @@ async function placeOpenPopup(): Promise<void> {
   const at = wrap.getBoundingClientRect();
   const html = document.documentElement;
   const view = { width: html.clientWidth || window.innerWidth, height: html.clientHeight || window.innerHeight };
-  const place = placePopup(at, { width: popup.offsetWidth, height: popup.offsetHeight }, view, align.value[which]);
+  const place = placePopup(at, { width: popup.offsetWidth, height: popup.offsetHeight }, view, align[which]);
   popupStyle.value = {
     left: `${place.left - at.left}px`,
     top: `${place.top - at.top}px`,
@@ -97,24 +78,24 @@ function onResize(): void {
   void placeOpenPopup();
 }
 
-// The keyboard moves into the popup when it opens: the chosen option, else the first item. Arrow keys, Home and End
+// The keyboard moves into the popup when it opens: its first item. Arrow keys, Home and End
 // move between items (they stop at the ends), Escape closes and gives the focus back. The popup is placed first, so
 // the focus never scrolls the page towards a popup that has not been placed yet.
-async function toggle(which: "provider" | "account"): Promise<void> {
+async function toggle(which: Popup): Promise<void> {
   const opening = open.value !== which;
   open.value = opening ? which : null;
   if (!opening) return;
   await placeOpenPopup();
   await nextTick();
   const items = [...(wrapOf(which)?.querySelectorAll<HTMLElement>(ITEMS) ?? [])];
-  (items.find((el) => el.getAttribute("aria-selected") === "true") ?? items[0])?.focus();
+  items[0]?.focus();
 }
 function closePopup(): void {
   const which = open.value;
   open.value = null;
   if (which) wrapOf(which)?.querySelector<HTMLElement>("button")?.focus();
 }
-function onTriggerKey(event: KeyboardEvent, which: "provider" | "account"): void {
+function onTriggerKey(event: KeyboardEvent, which: Popup): void {
   if (event.key !== "ArrowDown" || open.value === which) return;
   event.preventDefault();
   void toggle(which);
@@ -136,7 +117,7 @@ function onPopupKey(event: KeyboardEvent): void {
 function onPointerDown(event: Event): void {
   const target = event.target as Node | null;
   if (!target || !open.value) return;
-  const wrap = open.value === "provider" ? providerWrap.value : accountWrap.value;
+  const wrap = wrapOf(open.value);
   if (wrap && !wrap.contains(target)) open.value = null;
 }
 function onKeydown(event: KeyboardEvent): void {
@@ -244,48 +225,6 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
       </nav>
 
       <div class="topbar__tools">
-        <!-- a page with the provider strip (route meta providerStrip) filters there, not here -->
-        <div v-if="!route.meta.providerStrip" ref="providerWrap" class="pop pop--provider">
-          <button
-            type="button"
-            class="scope-trigger"
-            :class="{ 'is-open': open === 'provider' }"
-            aria-haspopup="listbox"
-            :aria-expanded="open === 'provider'"
-            :aria-label="isPhone ? `Provider scope: ${providerLabel}` : undefined"
-            data-testid="provider-filter"
-            @click="toggle('provider')"
-            @keydown="onTriggerKey($event, 'provider')"
-          >
-            <span class="scope-label">Provider</span>
-            <span class="scope-value">{{ providerLabel }}</span>
-            <IconChevronDown :size="14" :stroke="2" />
-          </button>
-          <div
-            v-if="open === 'provider'"
-            class="menu menu--provider"
-            :style="popupStyle"
-            role="listbox"
-            aria-label="Provider"
-            @keydown="onPopupKey"
-          >
-            <button
-              v-for="name in providerOptions"
-              :key="name"
-              type="button"
-              class="menu-item"
-              :class="{ 'is-selected': name === providerLabel }"
-              role="option"
-              tabindex="-1"
-              :aria-selected="name === providerLabel"
-              @click="pickProvider(name)"
-            >
-              <span class="menu-item__text">{{ name }}</span>
-              <IconCheck v-if="name === providerLabel" class="menu-item__check" :size="16" :stroke="2" />
-            </button>
-          </div>
-        </div>
-
         <button
           type="button"
           class="theme-toggle"
@@ -446,31 +385,6 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
   position: relative;
 }
 
-/* Provider trigger. */
-.scope-trigger {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: var(--ctl);
-  padding: 0 12px;
-  border: 1px solid var(--rl-line-strong);
-  border-radius: 10px;
-  background: var(--rl-surface);
-  color: var(--rl-fg);
-  font: inherit;
-  font-size: 13px;
-  line-height: normal;
-  cursor: pointer;
-}
-.scope-trigger.is-open {
-  background: var(--rl-raised);
-}
-.scope-label {
-  color: var(--rl-muted);
-}
-
 /* Theme toggle. */
 .theme-toggle {
   box-sizing: border-box;
@@ -548,9 +462,6 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
 .menu--account {
   width: 200px;
 }
-.menu--provider {
-  width: 180px;
-}
 .menu-item {
   box-sizing: border-box;
   display: flex;
@@ -572,20 +483,12 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
 .menu-item:hover {
   background: var(--rl-raised);
 }
-.menu-item.is-selected {
-  background: var(--rl-primary-soft);
-  font-weight: 600;
-}
 .menu-item__text {
   flex: 1;
 }
 .menu-item__icon {
   flex: none;
   color: var(--rl-muted);
-}
-.menu-item__check {
-  flex: none;
-  color: var(--rl-primary);
 }
 .menu-separator {
   height: 1px;
@@ -643,9 +546,6 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
 .topbar--stacked .menu--account {
   width: 220px;
 }
-.topbar--stacked .menu--provider {
-  width: 200px;
-}
 .topbar--stacked .menu-item {
   height: 40px;
   font-size: 14px;
@@ -665,10 +565,6 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
 }
 .topbar--phone .tabs {
   padding: 0 8px;
-}
-.topbar--phone .scope-trigger {
-  gap: 4px;
-  padding: 0 10px;
 }
 .topbar--phone .theme-toggle {
   border: 0;

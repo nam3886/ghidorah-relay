@@ -386,53 +386,23 @@ describe("the shell", () => {
     expect(wrapper.find("main section").element).not.toBe(first);
   });
 
-  it("offers the providers of the catalog in the filter, sorted", async () => {
-    await open("/logs");
-    const { useScopeStore } = await import("@/stores/scope");
-    expect(useScopeStore().providers).toEqual(["dola", "vibes"]);
+  it("has no Provider list in the top bar: every tab filters by provider in its strip", async () => {
+    const { wrapper, router } = await open("/jobs");
+    for (const name of ["jobs", "accounts", "keys", "logs", "alerts", "frames", "settings", "test"]) {
+      await router.push(`/${name}`);
+      await flushPromises();
+      expect(wrapper.find('[data-testid="provider-filter"]').exists()).toBe(false);
+      expect(wrapper.find("nav.pstrip").exists()).toBe(true);
+    }
   });
 
-  it("shows All in the provider trigger, lists All then the catalog's providers and keeps the store's empty string for All", async () => {
+  it("closes the account menu on Escape and on a click outside, not on a press inside it", async () => {
     const { wrapper } = await open("/logs");
-    const { useScopeStore } = await import("@/stores/scope");
-    const scope = useScopeStore();
-    const trigger = wrapper.find('[data-testid="provider-filter"]');
-    // the word Provider sits in front of the value
-    expect(trigger.text()).toBe("ProviderAll");
-    expect(trigger.attributes("aria-haspopup")).toBe("listbox");
-    expect(trigger.attributes("aria-expanded")).toBe("false");
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
-    await trigger.trigger("click");
-    const list = wrapper.find('[role="listbox"]');
-    expect(list.attributes("aria-label")).toBe("Provider");
-    expect(trigger.attributes("aria-expanded")).toBe("true");
-    const options = list.findAll('[role="option"]');
-    expect(options.map((o) => o.text())).toEqual(["All", "dola", "vibes"]);
-    expect(options.map((o) => o.attributes("aria-selected"))).toEqual(["true", "false", "false"]);
-    await options[1]?.trigger("click");
-    expect(scope.provider).toBe("dola");
-    expect(trigger.text()).toBe("Providerdola");
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
-    await trigger.trigger("click");
-    expect(wrapper.findAll('[role="option"]').map((o) => o.attributes("aria-selected"))).toEqual([
-      "false",
-      "true",
-      "false",
-    ]);
-    await wrapper.findAll('[role="option"]')[0]?.trigger("click");
-    expect(scope.provider).toBe("");
-    expect(trigger.text()).toBe("ProviderAll");
-  });
-
-  it("closes an open popover on Escape and on a click outside, and keeps one open at a time", async () => {
-    const { wrapper } = await open("/logs");
-    await wrapper.find('[data-testid="provider-filter"]').trigger("click");
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(true);
-    await wrapper.find('[data-testid="provider-filter"]').trigger("click");
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
-    await wrapper.find('[data-testid="provider-filter"]').trigger("click");
     await wrapper.find('[data-testid="account-menu"]').trigger("click");
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    expect(wrapper.find('[role="menu"]').exists()).toBe(true);
+    await wrapper.find('[data-testid="account-menu"]').trigger("click");
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false);
+    await wrapper.find('[data-testid="account-menu"]').trigger("click");
     expect(wrapper.find('[role="menu"]').exists()).toBe(true);
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await flushPromises();
@@ -449,28 +419,6 @@ describe("the shell", () => {
     expect(wrapper.find('[role="menu"]').exists()).toBe(true);
   });
 
-  it("lists the providers in the drawn order, dola, vibes, meta, then any other sorted", async () => {
-    vi.mocked(shell.getModels).mockResolvedValue({
-      data: [
-        { id: "a", owned_by: "meta" },
-        { id: "b", owned_by: "zeta" },
-        { id: "c", owned_by: "dola" },
-        { id: "d", owned_by: "vibes" },
-        { id: "e", owned_by: "alpha" },
-      ],
-    });
-    const { wrapper } = await open("/logs");
-    await wrapper.find('[data-testid="provider-filter"]').trigger("click");
-    expect(wrapper.findAll('[role="option"]').map((o) => o.text())).toEqual([
-      "All",
-      "dola",
-      "vibes",
-      "meta",
-      "alpha",
-      "zeta",
-    ]);
-  });
-
   const press = async (el: Element, key: string) => {
     const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
     el.dispatchEvent(event);
@@ -478,51 +426,30 @@ describe("the shell", () => {
     return event;
   };
 
-  it("moves the focus into the listbox on open, onto the chosen option, and walks it with Arrow, Home and End", async () => {
+  it("moves the focus into the account menu on open and walks it with Arrow, Home and End", async () => {
     const { wrapper } = await open("/logs");
-    const trigger = wrapper.find('[data-testid="provider-filter"]');
-    await trigger.trigger("click");
+    await wrapper.find('[data-testid="account-menu"]').trigger("click");
     await flushPromises();
-    const options = wrapper.findAll('[role="option"]').map((o) => o.element);
-    expect(document.activeElement).toBe(options[0]);
-    const down = await press(options[0]!, "ArrowDown");
-    expect(document.activeElement).toBe(options[1]);
+    const items = wrapper.findAll('[role="menuitem"]').map((o) => o.element);
+    expect(items).toHaveLength(2);
+    expect(document.activeElement).toBe(items[0]);
+    const down = await press(items[0]!, "ArrowDown");
+    expect(document.activeElement).toBe(items[1]);
     expect(down.defaultPrevented).toBe(true);
-    await press(options[1]!, "End");
-    expect(document.activeElement).toBe(options.at(-1));
-    await press(options.at(-1)!, "ArrowDown");
-    expect(document.activeElement).toBe(options.at(-1));
-    await press(options.at(-1)!, "ArrowUp");
-    expect(document.activeElement).toBe(options.at(-2));
-    await press(options.at(-2)!, "Home");
-    expect(document.activeElement).toBe(options[0]);
-    await press(options[0]!, "ArrowUp");
-    expect(document.activeElement).toBe(options[0]);
+    await press(items[1]!, "ArrowDown");
+    expect(document.activeElement).toBe(items[1]);
+    await press(items[1]!, "Home");
+    expect(document.activeElement).toBe(items[0]);
+    await press(items[0]!, "ArrowUp");
+    expect(document.activeElement).toBe(items[0]);
+    await press(items[0]!, "End");
+    expect(document.activeElement).toBe(items[1]);
+    await press(items[1]!, "ArrowUp");
+    expect(document.activeElement).toBe(items[0]);
     // a key it does not own is left alone
     const other = new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true });
-    options[0]!.dispatchEvent(other);
+    items[0]!.dispatchEvent(other);
     expect(other.defaultPrevented).toBe(false);
-  });
-
-  it("opens the listbox on the chosen option when one is set, and gives the focus back to the trigger on Escape and on a pick", async () => {
-    const { wrapper } = await open("/logs");
-    const { useScopeStore } = await import("@/stores/scope");
-    useScopeStore().provider = "vibes";
-    await flushPromises();
-    const trigger = wrapper.find('[data-testid="provider-filter"]');
-    await trigger.trigger("click");
-    await flushPromises();
-    const chosen = wrapper.find('[role="option"][aria-selected="true"]').element;
-    expect(chosen.textContent?.trim()).toBe("vibes");
-    expect(document.activeElement).toBe(chosen);
-    await press(document.body, "Escape");
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
-    expect(document.activeElement).toBe(trigger.element);
-    await trigger.trigger("click");
-    await flushPromises();
-    await wrapper.findAll('[role="option"]')[0]?.trigger("click");
-    await flushPromises();
-    expect(document.activeElement).toBe(trigger.element);
   });
 
   it("opens a popup with ArrowDown on its trigger, puts the focus on the first menu item and returns it on Escape", async () => {
@@ -574,7 +501,7 @@ describe("the shell", () => {
     return { left: style.left, top: style.top, maxHeight: style.maxHeight };
   };
 
-  it("places an open popup by the popup rule, relative to its trigger, and again when the window is resized", async () => {
+  it("places the open account menu by the popup rule, relative to its trigger, and again when the window is resized", async () => {
     let triggerLeft = 0;
     let height = 80;
     const restore = layOut(() => new DOMRect(triggerLeft, 10, 0, 34), {
@@ -585,19 +512,18 @@ describe("the shell", () => {
     });
     try {
       const { wrapper } = await open("/logs");
-      const opened = async (which: string, left: number) => {
+      const opened = async (left: number) => {
         triggerLeft = left;
-        await wrapper.find(`[data-testid="${which}"]`).trigger("click");
+        await wrapper.find('[data-testid="account-menu"]').trigger("click");
         await flushPromises();
         return placed(wrapper);
       };
       expect([window.innerWidth, window.innerHeight]).toEqual([1024, 768]);
       // drawn: the left edge on the trigger's, 6 px under it
-      expect(await opened("provider-filter", 800)).toEqual({ left: "0px", top: "40px", maxHeight: "" });
-      await wrapper.find('[data-testid="provider-filter"]').trigger("click");
+      expect(await opened(800)).toEqual({ left: "0px", top: "40px", maxHeight: "" });
+      await wrapper.find('[data-testid="account-menu"]').trigger("click");
       // 900 + 200 passes the window: its right edge on the trigger's
-      expect((await opened("provider-filter", 900)).left).toBe("-200px");
-      expect((await opened("account-menu", 900)).left).toBe("-200px");
+      expect((await opened(900)).left).toBe("-200px");
       // the window changes while the menu is open: placed again; too high for the room below, it is cut to it
       triggerLeft = 100;
       height = 900;
@@ -608,35 +534,6 @@ describe("the shell", () => {
       restore();
     }
   });
-
-  it("on a phone draws the Provider list with its right edge on the trigger, as drawn, and with its left edge on it when that would pass the window's left edge", async () => {
-    const { PHONE_QUERY } = await import("@/composables/use-breakpoint");
-    vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: query === PHONE_QUERY,
-      media: query,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-    }));
-    // the trigger is 100 px wide and the list 200
-    let triggerLeft = 0;
-    const restore = layOut(() => new DOMRect(triggerLeft, 10, 100, 44), { width: 200, height: 190 });
-    try {
-      const { wrapper } = await open("/logs");
-      const trigger = wrapper.find('[data-testid="provider-filter"]');
-      triggerLeft = 150;
-      await trigger.trigger("click");
-      await flushPromises();
-      expect(placed(wrapper).left).toBe("-100px");
-      await trigger.trigger("click");
-      triggerLeft = 40;
-      await trigger.trigger("click");
-      await flushPromises();
-      expect(placed(wrapper).left).toBe("0px");
-    } finally {
-      restore();
-    }
-  });
-
   it("hides the scrollbar of the header's tab row only: the row keeps the drawn height and still scrolls", () => {
     const source = readFileSync(join(process.cwd(), "src/components/layout/TopBar.vue"), "utf8");
     expect(source).toMatch(/\.topbar__nav \{[^}]*overflow-x: auto;[^}]*scrollbar-width: none;\s*\}/);
@@ -925,7 +822,6 @@ describe("the top bar", () => {
         stacked: header.classes().includes("topbar--stacked"),
         phone: header.classes().includes("topbar--phone"),
         name: view.wrapper.find('[data-testid="whoami"]').exists(),
-        label: view.wrapper.find(".scope-label").exists(),
         main: view.wrapper
           .find("main")
           .classes()
@@ -933,19 +829,17 @@ describe("the top bar", () => {
       };
       return out;
     };
-    expect(await classesOf([])).toEqual({ stacked: false, phone: false, name: true, label: true, main: [] });
+    expect(await classesOf([])).toEqual({ stacked: false, phone: false, name: true, main: [] });
     expect(await classesOf([TABLET_QUERY])).toEqual({
       stacked: true,
       phone: false,
       name: false,
-      label: true,
       main: ["app-main--tablet"],
     });
     expect(await classesOf([PHONE_QUERY])).toEqual({
       stacked: true,
       phone: true,
       name: false,
-      label: true,
       main: ["app-main--phone"],
     });
   });
