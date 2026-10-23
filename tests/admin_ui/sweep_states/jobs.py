@@ -40,7 +40,7 @@ def run(page, app, live, sw, data):
     sw.step("jobs", "status-select", lambda: (open_select(page, "Status"), close_select(page, "Status")))
     sw.step("jobs", "key-select", lambda: (open_select(page, "Key"), close_select(page, "Key")))
     # a table row on a desktop or tablet, a stacked item on a phone; both have the tick box in a label
-    first_row = page.locator("tbody tr:not(.is-day), li.data-table__item").first
+    first_row = page.locator(".jobs__table tbody tr:not(.is-day), li.data-table__item").first
     sw.step("jobs", "bulk-selected", lambda: (
         first_row.locator("label.el-checkbox, label.data-table__check").first.click(),
         expect(page.locator(".jobs__count")).to_have_text("1 selected")))

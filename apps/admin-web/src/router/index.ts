@@ -7,6 +7,8 @@ declare module "vue-router" {
     label?: string;
     // Reachable without a session (the login page).
     public?: boolean;
+    // Filtered by the provider strip under the top bar (ProviderStrip) instead of the top bar's Provider list.
+    providerStrip?: boolean;
   }
 }
 
@@ -22,6 +24,9 @@ export const TABS = [
   { name: "test", label: "Test", component: () => import("@/views/TestView.vue") },
 ] as const;
 
+// The tabs whose provider filter is the strip; the others keep the top bar's Provider list for now.
+const STRIP_TABS: string[] = ["jobs"];
+
 const routes: RouteRecordRaw[] = [
   { path: "/", redirect: { name: "jobs" } },
   { path: "/login", name: "login", component: () => import("@/views/LoginView.vue"), meta: { public: true } },
@@ -29,7 +34,7 @@ const routes: RouteRecordRaw[] = [
     path: `/${tab.name}`,
     name: tab.name,
     component: tab.component,
-    meta: { label: tab.label },
+    meta: { label: tab.label, providerStrip: STRIP_TABS.includes(tab.name) },
   })),
   // Anything else (a mistyped hash) lands on the default tab.
   { path: "/:rest(.*)*", redirect: { name: "jobs" } },

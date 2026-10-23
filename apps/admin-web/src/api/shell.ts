@@ -85,3 +85,27 @@ export const getNewestReply = (g: Pick<AlertGroup, "kind" | "group">): Promise<s
     `/alerts/groups/${encodeURIComponent(g.kind)}/${encodeURIComponent(g.group)}`,
     { query: { limit: 1 } },
   ).then((d) => d.items[0]?.text ?? null);
+
+// GET /admin/providers/summary: one entry per registered provider, read in one call. "Today" is the relay's billing
+// day (`day_tz`, from `day_start_ms`); `execution` is how it sends now (dola: its live send path).
+export interface ProviderSummary {
+  provider: string;
+  execution: "browser" | "http";
+  claims_enabled: boolean;
+  running: number;
+  queued: number;
+  done_today: number;
+  failed_today: number;
+  accounts: { usable: number; total: number };
+  pools: Array<{ pool: string; unit: "points" | "jobs"; left: number; budget: number }>;
+}
+
+export interface ProvidersSummary {
+  day_tz: string;
+  day_start_ms: number;
+  providers: ProviderSummary[];
+  // every hour of the billing day so far, oldest first, zero-filled: its start and each provider's finished jobs
+  hours: Array<{ h: number; done: Record<string, number>; failed: Record<string, number> }>;
+}
+
+export const getProvidersSummary = (): Promise<ProvidersSummary> => request("/providers/summary");

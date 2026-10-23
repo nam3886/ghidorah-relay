@@ -39,6 +39,7 @@ vi.mock("@/api/shell", async (importOriginal) => {
     getStats: vi.fn(),
     getOpenAlertGroups: vi.fn(),
     getNewestReply: vi.fn(),
+    getProvidersSummary: vi.fn(),
   };
 });
 vi.mock("@/components/shared/confirm-dialog", () => ({ confirmDialog: vi.fn() }));
@@ -108,6 +109,8 @@ const STATS: shell.Stats = {
   keys: 5,
   alerts: [],
 };
+// The provider summary behind the strip and the "Jobs today" table: none of these tests is about it.
+const SUMMARY: shell.ProvidersSummary = { day_tz: "UTC", day_start_ms: 0, providers: [], hours: [] };
 const A = "aaaaaaaa-1111";
 const B = "bbbbbbbb-2222";
 const C = "cccccccc-3333";
@@ -130,6 +133,7 @@ beforeEach(() => {
   getHourlyStats.mockReset().mockResolvedValue({ hours: [] });
   vi.mocked(shell.getStats).mockReset().mockResolvedValue(STATS);
   vi.mocked(shell.getOpenAlertGroups).mockReset().mockResolvedValue({ items: [] });
+  vi.mocked(shell.getProvidersSummary).mockReset().mockResolvedValue(SUMMARY);
   vi.mocked(confirmDialog).mockReset().mockResolvedValue(true);
   for (const fn of Object.values(notify)) vi.mocked(fn).mockReset();
 });
@@ -188,17 +192,36 @@ describe("the list", () => {
     expect(listJobs).toHaveBeenCalledWith(query());
   });
 
-  it("shows the nine columns of the Jobs table", async () => {
+  it("shows the ten columns of the Jobs table, the provider first", async () => {
     const { w } = await open();
     const headers = w.findAll("thead th").map((th) => th.text());
-    expect(headers).toEqual(["", "Time", "Job", "Status", "Model", "Account", "Key", "Out · Refs", "Net points"]);
+    expect(headers).toEqual([
+      "",
+      "Provider",
+      "Time",
+      "Job",
+      "Status",
+      "Model",
+      "Account",
+      "Key",
+      "Out · Refs",
+      "Net points",
+    ]);
   });
 
   it("a tablet drops Account, Key and Out · Refs and folds them into the Job cell", async () => {
     stubWidth("tablet");
     listJobs.mockResolvedValue({ items: [job(A, { account_label: null })], total: 1, next_cursor: null });
     const { w } = await open();
-    expect(w.findAll("thead th").map((th) => th.text())).toEqual(["", "Time", "Job", "Status", "Model", "Net points"]);
+    expect(w.findAll("thead th").map((th) => th.text())).toEqual([
+      "",
+      "Provider",
+      "Time",
+      "Job",
+      "Status",
+      "Model",
+      "Net points",
+    ]);
     expect(rows(w)[0]!.find(".jobs__id").text()).toBe("aaaaaaaa · — · key-one");
   });
 
@@ -275,7 +298,7 @@ describe("the list", () => {
       expect(vars.getPropertyValue("--jobs-col-key")).toBe("120px");
       expect(parseFloat(vars.getPropertyValue("--jobs-col-account"))).toBeCloseTo((1302 * 6.5438) / 100, 6);
       expect(parseFloat(vars.getPropertyValue("--jobs-col-job"))).toBeCloseTo(
-        (1302 * 23.3257) / 100 - (120 - (1302 * 7.4347) / 100),
+        (1302 * 20.3257) / 100 - (120 - (1302 * 7.4347) / 100),
         6,
       );
     } finally {
@@ -532,8 +555,8 @@ describe("filters", () => {
       next_cursor: null,
     });
     const { w } = await open();
-    expect(rows(w)[0]!.find("td:nth-child(7)").text()).toBe("rk_bbbb");
-    expect(rows(w)[1]!.find("td:nth-child(7)").text()).toBe("kkkkkkkk");
+    expect(rows(w)[0]!.find("td:nth-child(8)").text()).toBe("rk_bbbb");
+    expect(rows(w)[1]!.find("td:nth-child(8)").text()).toBe("kkkkkkkk");
   });
 
   it("a provider scope change reloads with the provider", async () => {
@@ -1452,5 +1475,60 @@ describe("server text", () => {
     expect(w.find("tbody img").exists()).toBe(false);
     expect(rows(w)[0]!.text()).toContain(planted);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
+  });
+});
+
+describe("providers", () => {
+  afterEach(() => vi.useRealTimers());
+  const twoProviders: shell.ProvidersSummary = {
+    day_tz: "UTC",
+    day_start_ms: 0,
+    hours: [],
+    providers: ["dola", "vibes"].map((provider) => ({
+      provider,
+      execution: "http" as const,
+      claims_enabled: true,
+      running: 0,
+      queued: 0,
+      done_today: 0,
+      failed_today: 0,
+      accounts: { usable: 0, total: 0 },
+      pools: [],
+    })),
+  };
+
+  it("every row carries its provider: the rail class, a tinted cell with its tile and name, the model in its ink", async () => {
+    listJobs.mockResolvedValue({ items: [job(A, { provider: "vibes" })], total: 1, next_cursor: null });
+    const { w } = await open();
+    const row = w.get(".jobs__table tbody tr:not(.is-day)");
+    expect(row.classes()).toEqual(expect.arrayContaining(["jobs-row", "p-vibes"]));
+    expect(row.get("td.col-provider").text()).toBe("Vvibes");
+    expect(row.get(".jobs__model").text()).toBe("veo");
+  });
+
+  it("a phone row has the provider's side column", async () => {
+    stubWidth("phone");
+    listJobs.mockResolvedValue({ items: [job(A, { provider: "meta" })], total: 1, next_cursor: null });
+    const { w } = await open();
+    const item = w.get("li.data-table__item");
+    expect(item.classes()).toContain("p-meta");
+    expect(item.get(".prow__side").text()).toBe("Mmeta");
+  });
+
+  it("reads the provider summary with the list and on every 10-second read; a row of Jobs today picks the provider", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    vi.mocked(shell.getProvidersSummary).mockResolvedValue(twoProviders);
+    const { w } = await open();
+    const reads = vi.mocked(shell.getProvidersSummary).mock.calls.length;
+    expect(reads).toBeGreaterThan(0);
+    vi.advanceTimersByTime(10_000);
+    await flushPromises();
+    expect(vi.mocked(shell.getProvidersSummary).mock.calls.length).toBe(reads + 1);
+    await w.get('[data-testid="provider-row-vibes"]').trigger("click");
+    await flushPromises();
+    expect(useScopeStore().provider).toBe("vibes");
+    expect(listJobs).toHaveBeenLastCalledWith(query({ provider: "vibes" }));
+    await w.get('[data-testid="provider-row-vibes"]').trigger("click");
+    expect(useScopeStore().provider).toBe("");
   });
 });

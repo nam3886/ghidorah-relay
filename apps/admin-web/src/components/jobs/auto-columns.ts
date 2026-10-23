@@ -6,7 +6,7 @@
 export const COLUMN_CAP = 120;
 
 // the drawn shares (% of the table) of the three columns this moves, as JobsView's stylesheet sets them
-export const SHARES = { job: 23.3257, account: 6.5438, key: 7.4347 } as const;
+export const SHARES = { job: 20.3257, account: 6.5438, key: 7.4347 } as const;
 
 export interface ColumnWidths {
   job: number;

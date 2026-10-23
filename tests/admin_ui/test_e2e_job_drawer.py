@@ -27,7 +27,7 @@ REGENERATE = "Regenerate…"
 
 
 def rows(page):
-    return page.locator("tbody tr")
+    return page.locator(".jobs__table tbody tr")
 
 
 def drawer(page):
@@ -175,7 +175,7 @@ def test_the_drawer_shows_its_tabs_copies_the_prompt_and_renames(app, app_page, 
     expect(page.get_by_text("Renamed")).to_be_visible()
     assert db.one("SELECT title FROM jobs WHERE id = %s", job)[0] == "My new title"
     close_drawer(page)
-    first_job = page.locator("tbody tr:not(.is-day)").first
+    first_job = page.locator(".jobs__table tbody tr:not(.is-day)").first
     expect(first_job).to_contain_text("My new title")     # the list reloaded after the rename
 
 

@@ -14,6 +14,7 @@ import { getHourlyStats, type HourBucket } from "@/api/shell";
 import AttentionBanner from "@/components/layout/AttentionBanner.vue";
 import PageHeader from "@/components/layout/PageHeader.vue";
 import HourBand from "@/components/jobs/HourBand.vue";
+import ProviderTable from "@/components/jobs/ProviderTable.vue";
 import { HOUR_MS, hourRange } from "@/components/jobs/hour-band";
 import { PAGE_SIZE, PAGE_SIZES } from "@/components/jobs/paging";
 import { ALL, fromSelect, rememberedStatus, toSelect } from "@/components/jobs/job-filters";
@@ -34,6 +35,7 @@ import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { IconClose, IconRefresh } from "@/components/shared/icons";
 import ListPager from "@/components/shared/ListPager.vue";
 import MoneyCell from "@/components/shared/MoneyCell.vue";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import type { Tone } from "@/components/shared/status-tones";
 import type { Column } from "@/components/shared/types";
@@ -45,7 +47,9 @@ import { groupByDay, isDayRow } from "@/lib/day-rows";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
 import { bulkAction } from "@/lib/operation-key";
+import { providerClass } from "@/lib/providers";
 import { useAuthStore } from "@/stores/auth";
+import { useProvidersStore } from "@/stores/providers";
 import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 import { useUiStore } from "@/stores/ui";
@@ -58,6 +62,7 @@ const route = useRoute();
 const scope = useScopeStore();
 const ui = useUiStore();
 const stats = useStatsStore();
+const providers = useProvidersStore();
 const auth = useAuthStore();
 const { isPhone, isTablet } = useBreakpoint();
 
@@ -67,12 +72,13 @@ const zone = localZone();
 const dayTotals = shallowRef<Record<string, number>>({});
 
 // Tablet: the Job cell also carries the account and the key, so those columns are left out; widths are the drawn ones.
-const TABLET_COLUMNS = ["time", "job", "status", "model", "net"];
+const TABLET_COLUMNS = ["provider", "time", "job", "status", "model", "net"];
 // The loading skeleton draws the canvas's four columns at every width (B-States, loading).
 const SKELETON_COLUMNS = ["time", "job", "status", "net"];
 const columns = computed<Column[]>(() =>
   isTablet.value
     ? [
+        { key: "provider", label: "Provider", width: 92, className: "col-provider" },
         { key: "time", label: "Time", width: 76 },
         { key: "job", label: "Job", className: "col-job" },
         { key: "status", label: "Status", width: 112 },
@@ -82,6 +88,7 @@ const columns = computed<Column[]>(() =>
     : // the canvas's widths scaled to its 1040 px minimum: the table shrinks to it before it scrolls; the drawn shares
       // of the width are set in the style block below
       [
+        { key: "provider", label: "Provider", minWidth: 92, className: "col-provider" },
         { key: "time", label: "Time", minWidth: 78 },
         { key: "job", label: "Job", minWidth: 240, className: "col-job" },
         { key: "status", label: "Status", minWidth: 141 },
@@ -233,6 +240,7 @@ function refreshAll(): void {
   void load();
   void loadHours();
   void stats.refresh();
+  void providers.refresh();
 }
 function poll(): void {
   if (document.hidden || loading.value) return;
@@ -248,6 +256,7 @@ const forgetSignOut = auth.onSignOut(() => {
 onMounted(() => {
   void load(0);
   void loadHours();
+  void providers.refresh();
   listKeyOptions().then(
     (out) => (keys.value = out.items),
     (err) => notify.error(errorText(err)),
@@ -299,6 +308,10 @@ const regenerateConfirm = computed(() => ({
   confirmText: "Regenerate",
   danger: true,
 }));
+
+// Every job row carries its provider's colours: a rail on its left edge and the tinted provider cell (phone: the
+// tinted side column).
+const rowClass = ({ row }: { row: JobSummary }): string => `jobs-row ${providerClass(row.provider)}`;
 
 // A failed job is tinted; an unknown one is not (the design draws only the failed fill).
 const rowTone = (job: JobSummary): Tone | undefined => (job.status === "failed" ? "bad" : undefined);
@@ -403,6 +416,8 @@ const subtitle = computed(() =>
       </template>
     </PageHeader>
 
+    <ProviderTable :summary="providers.data" :selected="scope.provider" @pick="(p: string) => (scope.provider = p)" />
+
     <HourBand :hours="hours" :stats="stats.data" @pick="(ms: number) => (hour = ms)" />
 
     <AttentionBanner />
@@ -468,6 +483,7 @@ const subtitle = computed(() =>
         keep-selection
         tone-fill
         :row-tone="rowTone"
+        :row-class-name="rowClass"
         :row-label="(job: JobSummary) => `Open job ${shortId(job.id)}, ${job.title || '(untitled)'}`"
         :select-label="(job: JobSummary) => `Select job ${shortId(job.id)}`"
         @retry="load()"
@@ -475,6 +491,11 @@ const subtitle = computed(() =>
         @selection-change="onSelection"
         @rows-drawn="measureColumns"
       >
+        <template #cell-provider="{ row }">
+          <span class="jobs__pcell"
+            ><ProviderTile :provider="row.provider" /><span class="jobs__pname">{{ row.provider }}</span></span
+          >
+        </template>
         <template #cell-time="{ row }">
           <span class="num mono jobs__time">{{ clock(row.created_ms) }}</span>
         </template>
@@ -513,21 +534,30 @@ const subtitle = computed(() =>
         </template>
         <template #row="{ row }">
           <div class="prow">
-            <div class="prow__top">
-              <span class="prow__title">{{ row.title || "(untitled)" }}</span>
-              <StatusChip
-                :status="row.status"
-                :step="isRunning(row.status) ? `${progressStep(row.status)}/4` : undefined"
-              />
+            <div class="prow__side">
+              <ProviderTile :provider="row.provider" />
+              <small class="prow__pname">{{ row.provider }}</small>
             </div>
-            <div class="mono prow__ids">{{ shortId(row.id) }} · {{ row.model }} · {{ row.account_label || "—" }}</div>
-            <div class="prow__bottom">
-              <!-- as drawn: the space after the time is part of the mono run, the key's words are in the UI font -->
-              <span class="num mono prow__meta"
-                >{{ clock(row.created_ms) }} <span class="prow__key">· {{ keyLabel(row) }}</span
-                ><span v-if="row.error_code" class="prow__code"> · {{ row.error_code }}</span></span
-              >
-              <MoneyCell :price="row.price" :net="netPoints(row)" />
+            <div class="prow__main">
+              <div class="prow__top">
+                <span class="prow__title">{{ row.title || "(untitled)" }}</span>
+                <StatusChip
+                  :status="row.status"
+                  :step="isRunning(row.status) ? `${progressStep(row.status)}/4` : undefined"
+                />
+              </div>
+              <div class="mono prow__ids">
+                {{ shortId(row.id) }} · <span class="jobs__model">{{ row.model }}</span> ·
+                {{ row.account_label || "—" }}
+              </div>
+              <div class="prow__bottom">
+                <!-- as drawn: the space after the time is part of the mono run, the key's words are in the UI font -->
+                <span class="num mono prow__meta"
+                  >{{ clock(row.created_ms) }} <span class="prow__key">· {{ keyLabel(row) }}</span
+                  ><span v-if="row.error_code" class="prow__code"> · {{ row.error_code }}</span></span
+                >
+                <MoneyCell :price="row.price" :net="netPoints(row)" />
+              </div>
             </div>
           </div>
         </template>
@@ -765,36 +795,40 @@ const subtitle = computed(() =>
   font-size: 13px;
 }
 .jobs:not(.jobs--tablet) .jobs__table :deep(.el-table) {
-  min-width: 1040px;
+  min-width: 1120px;
 }
 /* The canvas lays the desktop table out by its content (the browser's auto layout); at 1440 the columns come to these
    widths of the 1302 px table: 56 (the 40 px box column plus its 16 px padding), 99, 303.7, 178.8, 288.2, 85.2, 96.8,
-   92.3 and 102. Element Plus lays out fixed columns, so each takes the same share of the table's width. */
+   92.3 and 102. Element Plus lays out fixed columns, so each takes the same share of the table's width. The provider
+   column (the redesign's slice 1) takes 7 %: 3 from Job and 4 from Model. */
 .jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(1)) {
   width: 4.3011%;
 }
 .jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(2)) {
-  width: 7.6037%;
+  width: 7%;
 }
 .jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(3)) {
-  width: var(--jobs-col-job, 23.3257%);
+  width: 7.6037%;
 }
 .jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(4)) {
-  width: 13.7327%;
+  width: var(--jobs-col-job, 20.3257%);
 }
 .jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(5)) {
-  width: 22.1352%;
+  width: 13.7327%;
 }
 .jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(6)) {
-  width: var(--jobs-col-account, 6.5438%);
+  width: 18.1352%;
 }
 .jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(7)) {
-  width: var(--jobs-col-key, 7.4347%);
+  width: var(--jobs-col-account, 6.5438%);
 }
 .jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(8)) {
-  width: 7.0891%;
+  width: var(--jobs-col-key, 7.4347%);
 }
 .jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(9)) {
+  width: 7.0891%;
+}
+.jobs:not(.jobs--tablet) .jobs__table :deep(col:nth-child(10)) {
   width: 7.8341%;
 }
 .jobs__table :deep(.el-table th.el-table__cell) {
@@ -915,6 +949,29 @@ html.dark .title-link:hover {
 .jobs__kind {
   color: var(--rl-muted);
 }
+/* the provider: a rail in its tone on the row's left edge, its tinted cell with the tile and the name, the model name
+   in its ink. The cell keeps its tint on hover, on a tick and on a failed row */
+.jobs__table :deep(.el-table tr.jobs-row > td.el-table__cell:first-child) {
+  box-shadow: inset 4px 0 0 var(--pc);
+}
+.jobs__table :deep(.el-table tr.jobs-row > td.el-table__cell.col-provider) {
+  background: var(--ps);
+}
+.jobs__pcell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.jobs__pname {
+  color: var(--pi);
+  font-size: 12px;
+  font-weight: 600;
+}
+.jobs__model {
+  color: var(--pi);
+  font-weight: 600;
+}
 .jobs__differs {
   margin-left: 4px;
   padding: 1px 6px;
@@ -946,10 +1003,39 @@ html.dark .title-link:hover {
   color: var(--rl-muted);
 }
 
-/* the phone's rows */
+/* the phone's rows: cards with the provider's rail on the left edge and a tinted side column (tile and name) */
+.jobs__table :deep(.data-table__item.jobs-row) {
+  box-shadow: inset 4px 0 0 var(--pc);
+}
 .prow {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+.prow__side {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: -10px 0;
+  padding-top: 12px;
+  background: var(--ps);
+}
+.prow__pname {
+  max-width: 40px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--pi);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 12px;
+}
+.prow__main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   gap: 3px;
   min-width: 0;
 }

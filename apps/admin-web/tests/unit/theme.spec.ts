@@ -327,6 +327,27 @@ describe("the C2 tokens", () => {
   });
 });
 
+describe("the provider palette (A, jewel tones)", () => {
+  const TONES = {
+    dola: "#087f98",
+    meta: "#2c4aad",
+    vibes: "#8e1b5c",
+    flow: "#666b1f",
+    qwen: "#0b5c80",
+    gemini: "#1c70d3",
+  };
+
+  it("each provider has its tone in both themes, a tint at 9 % on white in light, and a class that names them", () => {
+    for (const [name, tone] of Object.entries(TONES)) {
+      expect(lightBlock[`--p-${name}`], name).toBe(tone);
+      expect(darkBlock[`--p-${name}`], name).toBe(tone);
+      expect(lightBlock[`--p-${name}-soft`], name).toBe(`color-mix(in oklab, var(--p-${name}) 9%, #ffffff)`);
+      expect(lightBlock[`--p-${name}-ink`], name).toBe(`var(--p-${name})`);
+      expect(css).toContain(`.p-${name} {\n  --pc: var(--p-${name});\n  --ps: var(--p-${name}-soft);`);
+    }
+  });
+});
+
 describe("the fonts", () => {
   const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
     dependencies: Record<string, string>;

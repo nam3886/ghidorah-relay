@@ -365,7 +365,7 @@ def test_the_top_bar_is_one_row_from_1280_and_two_rows_below_with_the_control_si
         app, app_session, color_scheme, width, stacked, bar_height, control):
     page = app_session
     page.set_viewport_size({"width": width, "height": 800})
-    page.goto(app.url + "#/jobs")
+    page.goto(app.url + "#/accounts")              # Jobs filters by its provider strip: no Provider list in the bar
     bar = page.get_by_role("banner")
     logo = bar.get_by_role("link", name="Ghidorah admin home")
     nav = bar.get_by_role("navigation", name="Main")
@@ -410,6 +410,7 @@ LINE_STRONG = {"light": "rgb(221, 213, 232)", "dark": "rgb(62, 51, 86)"}
 def test_the_current_tab_is_underlined_and_the_provider_trigger_has_the_line_strong_border(
         app, app_session, color_scheme):
     page = app_session
+    page.goto(app.url + "#/accounts")              # Jobs filters by its provider strip: no Provider list in the bar
     current = page.get_by_role("tab", selected=True)
     expect(current).to_have_count(1)
     underline = current.evaluate(
@@ -472,7 +473,7 @@ def test_the_top_bar_and_its_popovers_have_the_drawn_sizes(
         app, app_session, width, provider, toggle, account, tab, avatar, menu_w, list_w, item_h):
     page = app_session
     page.set_viewport_size({"width": width, "height": 900})
-    page.goto(app.url + "#/jobs")
+    page.goto(app.url + "#/accounts")              # Jobs filters by its provider strip: no Provider list in the bar
     bar = page.get_by_role("banner")
     trigger = bar.get_by_test_id("provider-filter")
     expect(trigger).to_be_visible()

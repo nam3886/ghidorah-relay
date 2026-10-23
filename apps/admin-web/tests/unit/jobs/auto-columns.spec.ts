@@ -15,14 +15,14 @@ describe("auto columns", () => {
     const got = autoColumns(TABLE, { account: 60, key: 101 })!;
     expect(got.key).toBe(101);
     expect(got.account).toBeCloseTo(drawn(6.5438), 6);
-    expect(got.job).toBeCloseTo(drawn(23.3257) - (101 - drawn(7.4347)), 6);
-    expect(got.job + got.account + got.key).toBeCloseTo(drawn(23.3257) + drawn(6.5438) + drawn(7.4347), 6);
+    expect(got.job).toBeCloseTo(drawn(20.3257) - (101 - drawn(7.4347)), 6);
+    expect(got.job + got.account + got.key).toBeCloseTo(drawn(20.3257) + drawn(6.5438) + drawn(7.4347), 6);
   });
 
   it("neither column grows over the cap, and Job gives up both", () => {
     const got = autoColumns(TABLE, { account: 300, key: 400 })!;
     expect([got.account, got.key]).toEqual([COLUMN_CAP, COLUMN_CAP]);
-    expect(got.job).toBeCloseTo(drawn(23.3257) - (COLUMN_CAP - drawn(6.5438)) - (COLUMN_CAP - drawn(7.4347)), 6);
+    expect(got.job).toBeCloseTo(drawn(20.3257) - (COLUMN_CAP - drawn(6.5438)) - (COLUMN_CAP - drawn(7.4347)), 6);
   });
 
   it("on a wider table a drawn width over the cap is kept, never cut to the cap", () => {

@@ -279,7 +279,10 @@ SAMPLE_JS = """() => {
 }"""
 MEASURE_JS = """() => {
   const w = document.querySelector('.app-scroll__wrap'), m = document.querySelector('main').getBoundingClientRect();
-  return {bar: document.querySelector('header.topbar').offsetHeight, wrap: w.scrollHeight,
+  // the fixed chrome over the scroll area: the top bar, and the provider strip on a page that has one (Jobs)
+  const strip = document.querySelector('nav.pstrip');
+  return {bar: document.querySelector('header.topbar').offsetHeight + (strip ? strip.offsetHeight : 0),
+          wrap: w.scrollHeight,
           doc: document.documentElement.scrollHeight, left: m.left, width: m.width};
 }"""
 PAGES = ("jobs", "accounts", "settings", "test")

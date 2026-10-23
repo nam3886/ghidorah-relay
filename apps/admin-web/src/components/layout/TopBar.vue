@@ -244,7 +244,8 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
       </nav>
 
       <div class="topbar__tools">
-        <div ref="providerWrap" class="pop pop--provider">
+        <!-- a page with the provider strip (route meta providerStrip) filters there, not here -->
+        <div v-if="!route.meta.providerStrip" ref="providerWrap" class="pop pop--provider">
           <button
             type="button"
             class="scope-trigger"

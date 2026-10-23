@@ -100,6 +100,28 @@ html:root {
   --rl-accent: var(--rl-focus);
   --rl-accent-hover: var(--rl-primary-hover);
   --rl-brand: var(--rl-bar-done);
+
+  /* Providers (palette A, jewel tones): the tone fills the tile and the rail, `-soft` is the tint behind a
+     provider's cell, `-ink` its text. Light: the tint is the tone at 9 % on white, the ink the tone itself.
+     Dark: the tint is the tone at 22 % on the surface, the ink the tone lifted toward white. */
+  --p-dola: #087f98;
+  --p-dola-soft: color-mix(in oklab, var(--p-dola) 9%, #ffffff);
+  --p-dola-ink: var(--p-dola);
+  --p-meta: #2c4aad;
+  --p-meta-soft: color-mix(in oklab, var(--p-meta) 9%, #ffffff);
+  --p-meta-ink: var(--p-meta);
+  --p-vibes: #8e1b5c;
+  --p-vibes-soft: color-mix(in oklab, var(--p-vibes) 9%, #ffffff);
+  --p-vibes-ink: var(--p-vibes);
+  --p-flow: #666b1f;
+  --p-flow-soft: color-mix(in oklab, var(--p-flow) 9%, #ffffff);
+  --p-flow-ink: var(--p-flow);
+  --p-qwen: #0b5c80;
+  --p-qwen-soft: color-mix(in oklab, var(--p-qwen) 9%, #ffffff);
+  --p-qwen-ink: var(--p-qwen);
+  --p-gemini: #1c70d3;
+  --p-gemini-soft: color-mix(in oklab, var(--p-gemini) 9%, #ffffff);
+  --p-gemini-ink: var(--p-gemini);
 }
 
 html.dark:root {
@@ -187,6 +209,65 @@ html.dark:root {
   --rl-accent: var(--rl-focus);
   --rl-accent-hover: var(--rl-info);
   --rl-brand: var(--rl-bar-done);
+
+  /* Providers: see the light block */
+  --p-dola: #087f98;
+  --p-dola-soft: color-mix(in oklab, var(--p-dola) 22%, #171222);
+  --p-dola-ink: color-mix(in oklab, var(--p-dola) 55%, #ffffff);
+  --p-meta: #2c4aad;
+  --p-meta-soft: color-mix(in oklab, var(--p-meta) 22%, #171222);
+  --p-meta-ink: color-mix(in oklab, var(--p-meta) 55%, #ffffff);
+  --p-vibes: #8e1b5c;
+  --p-vibes-soft: color-mix(in oklab, var(--p-vibes) 22%, #171222);
+  --p-vibes-ink: color-mix(in oklab, var(--p-vibes) 55%, #ffffff);
+  --p-flow: #666b1f;
+  --p-flow-soft: color-mix(in oklab, var(--p-flow) 22%, #171222);
+  --p-flow-ink: color-mix(in oklab, var(--p-flow) 55%, #ffffff);
+  --p-qwen: #0b5c80;
+  --p-qwen-soft: color-mix(in oklab, var(--p-qwen) 22%, #171222);
+  --p-qwen-ink: color-mix(in oklab, var(--p-qwen) 55%, #ffffff);
+  --p-gemini: #1c70d3;
+  --p-gemini-soft: color-mix(in oklab, var(--p-gemini) 22%, #171222);
+  --p-gemini-ink: color-mix(in oklab, var(--p-gemini) 55%, #ffffff);
+}
+
+/* A provider's colours, by class (lib/providers.ts `providerClass`): --pc the tone, --ps the tint, --pi the ink.
+   A provider is always a square letter tile (ProviderTile) and a status always a pill with a dot: a mark never
+   carries both. A provider with no tone of its own is neutral. */
+.p-dola {
+  --pc: var(--p-dola);
+  --ps: var(--p-dola-soft);
+  --pi: var(--p-dola-ink);
+}
+.p-meta {
+  --pc: var(--p-meta);
+  --ps: var(--p-meta-soft);
+  --pi: var(--p-meta-ink);
+}
+.p-vibes {
+  --pc: var(--p-vibes);
+  --ps: var(--p-vibes-soft);
+  --pi: var(--p-vibes-ink);
+}
+.p-flow {
+  --pc: var(--p-flow);
+  --ps: var(--p-flow-soft);
+  --pi: var(--p-flow-ink);
+}
+.p-qwen {
+  --pc: var(--p-qwen);
+  --ps: var(--p-qwen-soft);
+  --pi: var(--p-qwen-ink);
+}
+.p-gemini {
+  --pc: var(--p-gemini);
+  --ps: var(--p-gemini-soft);
+  --pi: var(--p-gemini-ink);
+}
+.p-other {
+  --pc: var(--rl-neutral);
+  --ps: var(--rl-neutral-bg);
+  --pi: var(--rl-muted);
 }
 
 /* Fonts: Be Vietnam Pro for the interface, IBM Plex Mono for data only (ids, times, quantities, routes, JSON). */

@@ -18,7 +18,7 @@ SAFE_AFTER_LOST = "Trying again is safe"
 
 def rows(page):
     """The job rows: table rows without the day headers, or the phone's stacked list items."""
-    return page.locator("tbody tr:not(.is-day), li.data-table__item")
+    return page.locator(".jobs__table tbody tr:not(.is-day), li.data-table__item")
 
 
 def settled(page, showing: str, count: int, left: list[str] | None = None) -> list[str]:
@@ -106,9 +106,9 @@ def test_the_list_shows_its_columns_and_a_row_opens_the_detail_but_its_tick_box_
     db.run("UPDATE jobs SET title = 'clickable', model = 'fake-video' WHERE id = %s", job)
     app.sign_in(page)
     expect(rows(page)).to_have_count(1)
-    headers = page.locator("thead th").all_inner_texts()
-    assert [h.strip() for h in headers] == ["", "Time", "Job", "Status", "Model", "Account", "Key", "Out · Refs",
-                                           "Net points"]
+    headers = page.locator(".jobs__table thead th").all_inner_texts()
+    assert [h.strip() for h in headers] == ["", "Provider", "Time", "Job", "Status", "Model", "Account", "Key",
+                                           "Out · Refs", "Net points"]
     row = rows(page).first
     for text in (str(job)[:8], "clickable", "acct-a", "done", "fake-video"):
         expect(row).to_contain_text(text)
@@ -117,7 +117,7 @@ def test_the_list_shows_its_columns_and_a_row_opens_the_detail_but_its_tick_box_
     row.locator("label.el-checkbox").click()
     expect(page.locator(".jobs__count")).to_have_text("1 selected")
     expect(drawer(page)).to_be_hidden()
-    row.locator("td").nth(2).click()
+    row.locator("td").nth(3).click()
     expect(page.get_by_test_id("job-drawer")).to_be_visible()
 
 

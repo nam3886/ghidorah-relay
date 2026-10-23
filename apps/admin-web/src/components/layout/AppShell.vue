@@ -2,6 +2,7 @@
 import type { ScrollbarInstance } from "element-plus";
 import { onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
+import ProviderStrip from "@/components/layout/ProviderStrip.vue";
 import TopBar from "@/components/layout/TopBar.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { errorText } from "@/lib/errors";
@@ -10,9 +11,10 @@ import { useAuthStore } from "@/stores/auth";
 import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 
-// Everything around the routed view: the top bar and the page frame (centred, 1360 px at most, padding 28
-// px, 24 px on a tablet, 16 px on a phone). Mounted only while signed in. On a tablet and a desktop the page scrolls
-// in its own area under the bar (the style block below); on a phone the window scrolls, as the bar sticks.
+// Everything around the routed view: the top bar, the provider strip (a route with meta providerStrip) and the page
+// frame (centred, 1360 px at most, padding 28 px, 24 px on a tablet, 16 px on a phone). Mounted only while signed in.
+// On a tablet and a desktop the page scrolls in its own area under the bar and the strip (the style block below); on a
+// phone the window scrolls, as the bar sticks.
 const route = useRoute();
 const auth = useAuthStore();
 const scope = useScopeStore();
@@ -68,6 +70,7 @@ defineExpose({ focusPage });
 <template>
   <div class="app-shell">
     <TopBar />
+    <ProviderStrip v-if="route.meta.providerStrip" />
     <el-scrollbar
       ref="scroller"
       class="app-scroll"
@@ -118,7 +121,8 @@ defineExpose({ focusPage });
   height: 100dvh;
   overflow: hidden;
 }
-.app-shell > .topbar {
+.app-shell > .topbar,
+.app-shell > .pstrip {
   flex: none;
 }
 /* the pill: 9 px, the strong line colour, 3 px from the edge, always drawn, no track; it overlays the page, so the top
