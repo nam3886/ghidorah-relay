@@ -43,10 +43,12 @@ def is_boot_only(key: str) -> bool:
 @dataclass(frozen=True)
 class Rule:
     """A bound a range cannot say. `check` raises ValueError for a value of the right type that is out; `text` is what
-    the settings page shows as the allowed values."""
+    the settings page shows as the allowed values. `choices`, when given, is the whole list of allowed values: a value
+    outside it is refused before `check` runs, so code that reads the list (the registry) can trust it."""
 
     text: str
     check: Callable[[Any], None]
+    choices: tuple[Any, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -93,6 +95,8 @@ class Spec:
         if self.max is not None and value > self.max:
             raise SettingsError("%s: must be at most %g" % (self.key, self.max))
         if self.rule:
+            if self.rule.choices is not None and value not in self.rule.choices:
+                raise SettingsError("%s: must be one of %s" % (self.key, ", ".join(map(str, self.rule.choices))))
             try:
                 self.rule.check(value)
             except ValueError as e:

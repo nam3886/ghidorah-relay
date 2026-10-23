@@ -10,12 +10,14 @@ from apikit import run_app
 from jobkit import account, key
 
 from relay_core.providers import PoolSpec, ProviderRegistry, RegistryError
-from relay_core.settings import Spec
+from relay_core.settings import Rule, SettingsError, Spec
 from relay_core.testing.fake_provider import FakeSpec
 from relay_core.testing.mutation import mutation
 
 ROUTES = "packages/relay-core/src/relay_core/admin/routes_stats.py"
 PROVIDERS = "packages/relay-core/src/relay_core/providers.py"
+SETTINGS = "packages/relay-core/src/relay_core/settings.py"
+SEND_PATHS = Rule("http or browser", lambda v: None, ("http", "browser"))   # its check lets anything by: choices rule
 TODAY_ONLY = "WHERE status NOT IN ('done', 'failed') OR finished_at >= %(start)s GROUP BY provider"
 EVERY_DAY = "WHERE true GROUP BY provider"
 BILLING_DAY = "date_trunc('day', clock_timestamp() AT TIME ZONE tz) AT TIME ZONE tz, clock_timestamp()"
@@ -40,7 +42,8 @@ class Switching(FakeSpec):
         self.execution_setting = "sw.send_path"
 
     def settings(self):
-        return {**super().settings(), "sw.send_path": Spec("sw.send_path", str, "http", "How it sends now.")}
+        return {**super().settings(),
+                "sw.send_path": Spec("sw.send_path", str, "http", "How it sends now.", rule=SEND_PATHS)}
 
 
 async def summary(env):
@@ -164,7 +167,7 @@ def test_an_empty_relay_gives_zero_figures_and_zero_filled_hours(db):
 
 
 @mutation(PROVIDERS, "if execution_setting is not None and execution_setting not in keys:", "if False:",
-          expect="DID NOT RAISE")
+          expect="fake.nope")        # the next check then reads the undeclared setting: a KeyError, not a refusal
 def test_an_execution_setting_the_spec_does_not_declare_is_refused_at_registration():
     spec = FakeSpec()
     spec.execution_setting = "fake.nope"
@@ -178,3 +181,41 @@ def test_a_pool_counts_points_or_jobs_and_nothing_else():
     with pytest.raises(ValueError) as seen:
         PoolSpec("video", "UTC", None, "credits")      # type: ignore[arg-type]
     assert "points or jobs" in str(seen.value), "a pool counts points or jobs"
+
+
+@pytest.mark.parametrize("setting", [
+    "fake.claims_enabled",                                                            # a bool: "execution: true"
+    Spec("fake.via", str, "http", "No choices listed.", rule=Rule("any", lambda v: None)),
+    Spec("fake.via", str, "http", "No rule at all."),
+    Spec("fake.via", str, "http", "A third value.", rule=Rule("x", lambda v: None, ("http", "browser", "ftp"))),
+    Spec("fake.via", int, 1, "Not a str.", rule=Rule("x", lambda v: None, ("http", "browser"))),
+])
+@mutation(PROVIDERS, "elif execution_setting is not None and not _execution_values(", "elif False and not (",
+          expect="DID NOT RAISE")
+@mutation(PROVIDERS, 'set(choices) <= {"http", "browser"}', "True", expect="DID NOT RAISE")
+@mutation(PROVIDERS, 'getattr(setting, "type", None) is str and ', "", expect="DID NOT RAISE")
+def test_an_execution_setting_must_be_a_str_whose_rule_lists_only_http_and_browser(setting):
+    """Else the summary could say `execution: true` (or ftp): the setting stands for caps.execution."""
+    spec = FakeSpec()
+    if isinstance(setting, str):
+        spec.execution_setting = setting
+    else:
+        own = spec.settings()
+        spec.execution_setting = setting.key
+        spec.settings = lambda: {**own, setting.key: setting}
+    with pytest.raises(RegistryError) as seen:
+        ProviderRegistry().register(spec)
+    assert "must be a str setting whose rule lists its choices" in str(seen.value)
+
+
+def test_a_provider_whose_execution_setting_lists_http_and_browser_registers():
+    ProviderRegistry().register(Switching())
+
+
+@mutation(SETTINGS, "if self.rule.choices is not None and value not in self.rule.choices:", "if False:",
+          expect="DID NOT RAISE")
+def test_a_rule_with_choices_refuses_a_value_outside_them_whatever_its_check_says():
+    spec = Spec("sw.send_path", str, "http", "How it sends now.", rule=SEND_PATHS)
+    assert spec.validate("browser") == "browser"
+    with pytest.raises(SettingsError, match="must be one of http, browser"):
+        spec.validate("ftp")

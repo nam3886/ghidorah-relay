@@ -102,7 +102,7 @@ def _send_path(v: str) -> None:
 
 
 SEND_PATHS = ("browser", "http")
-SEND_PATH_RULE = Rule("browser or http", _send_path)
+SEND_PATH_RULE = Rule("browser or http", _send_path, SEND_PATHS)   # the choices: execution_setting needs them
 PRICES_RULE = Rule("each tier: a non-empty name and a whole number of points, 0 or more", _prices)
 
 

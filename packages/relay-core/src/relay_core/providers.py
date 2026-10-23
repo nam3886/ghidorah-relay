@@ -616,6 +616,14 @@ def _bounded_slots(slots: Any) -> bool:
     return getattr(slots, "type", None) is int and _whole(low) and low >= 1 and _whole(high)
 
 
+def _execution_values(setting: Any) -> bool:
+    """A setting that may stand for `caps.execution`: a `str` setting whose rule lists every value it allows
+    (`Rule.choices`), each one http or browser, so the admin can never show it as anything else. Read with getattr: a
+    test stub holds plain objects."""
+    choices = getattr(getattr(setting, "rule", None), "choices", None) or ()
+    return getattr(setting, "type", None) is str and bool(choices) and set(choices) <= {"http", "browser"}
+
+
 def _problems(spec: ProviderSpec) -> list[str]:
     bad = []
     if not _NAME.fullmatch(spec.name):
@@ -649,6 +657,9 @@ def _problems(spec: ProviderSpec) -> list[str]:
     execution_setting = getattr(spec, "execution_setting", None)
     if execution_setting is not None and execution_setting not in keys:
         bad.append("%s: execution_setting names %s, which the spec does not declare" % (spec.name, execution_setting))
+    elif execution_setting is not None and not _execution_values(spec.settings()[execution_setting]):
+        bad.append("%s: execution_setting %s must be a str setting whose rule lists its choices, all of http and "
+                   "browser" % (spec.name, execution_setting))
     for m in spec.catalog():
         if not m.operations:
             bad.append("%s: model %s has no operations" % (spec.name, m.id))
