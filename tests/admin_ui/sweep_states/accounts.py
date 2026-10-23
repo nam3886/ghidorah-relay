@@ -14,7 +14,7 @@ STATES = [
     ("accounts", "import-toast"), ("accounts", "import-dialog-discard-confirm"),
 ]
 
-ROW = "tbody tr, [aria-label='Account list'] li"      # a table row from 768 px, a list row on a phone
+ROW = ".acct-row"      # an account's row in its provider's lane, at every width
 
 
 def run(page, app, live, sw, data):

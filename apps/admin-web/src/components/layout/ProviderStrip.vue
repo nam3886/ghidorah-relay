@@ -9,7 +9,9 @@ import { useScopeStore } from "@/stores/scope";
 // The provider strip under the top bar: THE provider filter of the page that shows it (the top bar's Provider list is
 // hidden there). "All", then every registered provider, "paused" when it takes no new job (`<provider>.claims_enabled`
 // off). No counts: the Jobs today table shows running, done and failed. It sets the shared scope store. Until the
-// summary arrives the catalog's providers are drawn.
+// summary arrives the catalog's providers are drawn. On Settings (`general`, route meta stripGeneral) it starts with
+// "All providers" and "General" (the relay-wide card, `scope.general`).
+const props = defineProps<{ general?: boolean }>();
 const scope = useScopeStore();
 const summary = useProvidersStore();
 const { isPhone, isTablet } = useBreakpoint();
@@ -20,6 +22,12 @@ const tabs = computed<Array<{ name: string; paused: boolean }>>(() => {
   const paused = new Map(rows.map((p) => [p.provider, !p.claims_enabled]));
   return byProviderOrder([...paused.keys()]).map((name) => ({ name, paused: paused.get(name)! }));
 });
+const onAll = computed(() => scope.provider === "" && !(props.general && scope.general));
+const onGeneral = computed(() => !!props.general && scope.provider === "" && scope.general);
+function choose(name: string, general = false): void {
+  scope.provider = name;
+  scope.general = general;
+}
 </script>
 
 <template>
@@ -28,13 +36,25 @@ const tabs = computed<Array<{ name: string; paused: boolean }>>(() => {
       <button
         type="button"
         class="ptab"
-        :class="{ 'is-on': scope.provider === '' }"
-        :aria-pressed="scope.provider === ''"
+        :class="{ 'is-on': onAll }"
+        :aria-pressed="onAll"
         aria-label="All providers"
         data-testid="provider-tab-all"
-        @click="scope.provider = ''"
+        @click="choose('')"
       >
-        All
+        {{ general ? "All providers" : "All" }}
+      </button>
+      <button
+        v-if="general"
+        type="button"
+        class="ptab"
+        :class="{ 'is-on': onGeneral }"
+        :aria-pressed="onGeneral"
+        aria-label="General"
+        data-testid="provider-tab-general"
+        @click="choose('', true)"
+      >
+        General
       </button>
       <button
         v-for="t in tabs"
@@ -45,7 +65,7 @@ const tabs = computed<Array<{ name: string; paused: boolean }>>(() => {
         :aria-pressed="scope.provider === t.name"
         :aria-label="t.paused ? `${t.name}, paused` : t.name"
         :data-testid="`provider-tab-${t.name}`"
-        @click="scope.provider = t.name"
+        @click="choose(t.name)"
       >
         <ProviderTile :provider="t.name" />
         {{ t.name }}

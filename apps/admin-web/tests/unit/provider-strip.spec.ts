@@ -66,10 +66,33 @@ describe("the provider strip", () => {
     expect(w.findAll("button.ptab").map((t) => t.text().replace(/\s+/g, " "))).toEqual(["All", "M meta"]);
   });
 
-  it("is shown on Jobs only: the other tabs keep the top bar's Provider list", () => {
+  it("is shown on Jobs, Accounts and Settings: the other tabs keep the top bar's Provider list", () => {
     const routes = createAppRouter().getRoutes();
     const strip = routes.filter((r) => r.meta.providerStrip).map((r) => r.name);
-    expect(strip).toEqual(["jobs"]);
+    expect(strip).toEqual(["jobs", "accounts", "settings"]);
+    expect(routes.filter((r) => r.meta.stripGeneral).map((r) => r.name)).toEqual(["settings"]);
+  });
+
+  it("on Settings starts with All providers and General, draws no counts, and General is its own pick", async () => {
+    await useProvidersStore().refresh();
+    const w = mount(ProviderStrip, { props: { general: true } });
+    const scope = useScopeStore();
+    expect(w.findAll("button.ptab").map((t) => t.text().replace(/\s+/g, " "))).toEqual([
+      "All providers",
+      "General",
+      "D dola",
+      "V vibes",
+      "F flow paused",
+    ]);
+    await w.get('[data-testid="provider-tab-general"]').trigger("click");
+    expect([scope.provider, scope.general]).toEqual(["", true]);
+    expect(w.get('[data-testid="provider-tab-general"]').attributes("aria-pressed")).toBe("true");
+    expect(w.get('[data-testid="provider-tab-all"]').attributes("aria-pressed")).toBe("false");
+    await w.get('[data-testid="provider-tab-dola"]').trigger("click");
+    expect([scope.provider, scope.general]).toEqual(["dola", false]);
+    await w.get('[data-testid="provider-tab-general"]').trigger("click");
+    await w.get('[data-testid="provider-tab-all"]').trigger("click");
+    expect([scope.provider, scope.general]).toEqual(["", false]);
   });
 });
 

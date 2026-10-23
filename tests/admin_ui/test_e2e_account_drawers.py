@@ -172,7 +172,7 @@ def test_focus_goes_to_the_import_button_when_the_row_that_opened_edit_is_gone(a
     box.get_by_label("Label", exact=True).fill("renamed")
     box.get_by_role("button", name="Save", exact=True).click()
     expect(drawer(page)).to_have_count(0)
-    expect(page.locator("tbody tr")).to_have_count(0)
+    expect(page.locator(".acct-row")).to_have_count(0)
     expect(header_import(page)).to_be_focused()
 
 

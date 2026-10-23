@@ -1,7 +1,7 @@
 /* The loading list of the Accounts page, on the B-States loading pattern (the Jobs skeleton): the list's own header,
    five rows of the list's height, flat raised bars in each column (no shimmer, no spinner). The bar sizes are the
    Jobs ones: 12 px lines (radius 6), a 10 px second line 8 px under the first, 22 px pills (radius 11). Global and
-   keyed by `acct-skel`, as the desktop, tablet and phone lists all draw it. */
+   keyed by `acct-skel` (AccountLanes draws it). */
 .acct-skel {
   display: block;
   height: 12px;
@@ -19,10 +19,4 @@
 }
 .acct-skel--end {
   margin-left: auto;
-}
-/* the tablet's cells sit at the top of rows as tall as their content: the loading rows are the list's 64 px, centred */
-tr.acct-skel-row > td {
-  box-sizing: border-box;
-  height: 64px;
-  vertical-align: middle;
 }

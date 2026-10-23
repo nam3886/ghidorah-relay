@@ -387,13 +387,13 @@ describe("the shell", () => {
   });
 
   it("offers the providers of the catalog in the filter, sorted", async () => {
-    await open("/accounts");
+    await open("/logs");
     const { useScopeStore } = await import("@/stores/scope");
     expect(useScopeStore().providers).toEqual(["dola", "vibes"]);
   });
 
   it("shows All in the provider trigger, lists All then the catalog's providers and keeps the store's empty string for All", async () => {
-    const { wrapper } = await open("/accounts");
+    const { wrapper } = await open("/logs");
     const { useScopeStore } = await import("@/stores/scope");
     const scope = useScopeStore();
     const trigger = wrapper.find('[data-testid="provider-filter"]');
@@ -425,7 +425,7 @@ describe("the shell", () => {
   });
 
   it("closes an open popover on Escape and on a click outside, and keeps one open at a time", async () => {
-    const { wrapper } = await open("/accounts");
+    const { wrapper } = await open("/logs");
     await wrapper.find('[data-testid="provider-filter"]').trigger("click");
     expect(wrapper.find('[role="listbox"]').exists()).toBe(true);
     await wrapper.find('[data-testid="provider-filter"]').trigger("click");
@@ -459,7 +459,7 @@ describe("the shell", () => {
         { id: "e", owned_by: "alpha" },
       ],
     });
-    const { wrapper } = await open("/accounts");
+    const { wrapper } = await open("/logs");
     await wrapper.find('[data-testid="provider-filter"]').trigger("click");
     expect(wrapper.findAll('[role="option"]').map((o) => o.text())).toEqual([
       "All",
@@ -479,7 +479,7 @@ describe("the shell", () => {
   };
 
   it("moves the focus into the listbox on open, onto the chosen option, and walks it with Arrow, Home and End", async () => {
-    const { wrapper } = await open("/accounts");
+    const { wrapper } = await open("/logs");
     const trigger = wrapper.find('[data-testid="provider-filter"]');
     await trigger.trigger("click");
     await flushPromises();
@@ -505,7 +505,7 @@ describe("the shell", () => {
   });
 
   it("opens the listbox on the chosen option when one is set, and gives the focus back to the trigger on Escape and on a pick", async () => {
-    const { wrapper } = await open("/accounts");
+    const { wrapper } = await open("/logs");
     const { useScopeStore } = await import("@/stores/scope");
     useScopeStore().provider = "vibes";
     await flushPromises();
@@ -526,7 +526,7 @@ describe("the shell", () => {
   });
 
   it("opens a popup with ArrowDown on its trigger, puts the focus on the first menu item and returns it on Escape", async () => {
-    const { wrapper } = await open("/accounts");
+    const { wrapper } = await open("/logs");
     const trigger = wrapper.find('[data-testid="account-menu"]');
     (trigger.element as HTMLElement).focus();
     await press(trigger.element, "ArrowDown");
@@ -584,7 +584,7 @@ describe("the shell", () => {
       },
     });
     try {
-      const { wrapper } = await open("/accounts");
+      const { wrapper } = await open("/logs");
       const opened = async (which: string, left: number) => {
         triggerLeft = left;
         await wrapper.find(`[data-testid="${which}"]`).trigger("click");
@@ -621,7 +621,7 @@ describe("the shell", () => {
     let triggerLeft = 0;
     const restore = layOut(() => new DOMRect(triggerLeft, 10, 100, 44), { width: 200, height: 190 });
     try {
-      const { wrapper } = await open("/accounts");
+      const { wrapper } = await open("/logs");
       const trigger = wrapper.find('[data-testid="provider-filter"]');
       triggerLeft = 150;
       await trigger.trigger("click");
@@ -919,7 +919,7 @@ describe("the top bar", () => {
       wrapper = null;
       document.body.replaceChildren();
       stub(matching);
-      const view = await open("/accounts");
+      const view = await open("/logs");
       const header = view.wrapper.find("header");
       const out = {
         stacked: header.classes().includes("topbar--stacked"),

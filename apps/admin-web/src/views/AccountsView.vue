@@ -16,9 +16,7 @@ import {
 } from "@/api/accounts";
 import { getPoolStats, type PoolStats } from "@/api/shell";
 import AccountsHeader from "@/components/accounts/AccountsHeader.vue";
-import AccountsListPhone from "@/components/accounts/AccountsListPhone.vue";
-import AccountsTableDesktop from "@/components/accounts/AccountsTableDesktop.vue";
-import AccountsTableTablet from "@/components/accounts/AccountsTableTablet.vue";
+import AccountLanes from "@/components/accounts/AccountLanes.vue";
 import {
   AUTO_REFRESH_MS,
   type ChipState,
@@ -36,6 +34,7 @@ import type { CommandStatus } from "@/api/commands";
 import EditDialog from "@/components/accounts/EditDialog.vue";
 import ImportDialog from "@/components/accounts/ImportDialog.vue";
 import PoolCard from "@/components/accounts/PoolCard.vue";
+import ProviderTable from "@/components/jobs/ProviderTable.vue";
 import { loadFailedText } from "@/components/jobs/job-text";
 import { IconAlertCircle, IconPlus } from "@/components/shared/icons";
 import ListPager from "@/components/shared/ListPager.vue";
@@ -47,14 +46,17 @@ import { useCommandPoll } from "@/composables/use-command-poll";
 import { useLatest } from "@/composables/use-latest";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
+import { useProvidersStore } from "@/stores/providers";
 import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 
-// Accounts. Delete, check, Check all, proxy re-check and wake are commands run by the provider's worker: the page
+// Accounts. The provider strip and the per-provider table on top filter the page; the accounts are drawn in one lane per
+// provider (AccountLanes). Delete, check, Check all, proxy re-check and wake are commands run by the provider's worker: the page
 // queues one and polls it. A used account can only be disabled, and its switch is hidden while a worker holds it.
 // The list reads itself again every 10 s while the page is open (and no dialog or confirm box is in front of it).
 const scope = useScopeStore();
 const stats = useStatsStore();
+const providers = useProvidersStore();
 const { isPhone, isTablet } = useBreakpoint();
 const { busy, run } = useBusy();
 // the Edit drawer's own write (the wait for a proxy check and the patch): only this makes its close paths inert
@@ -129,8 +131,10 @@ async function load(auto = false): Promise<void> {
     }
     error.value = null;
     updatedAt.value = Date.now();
-    // the tab counts and the ready / dead / disabled figures come from /admin/stats
+    // the tab counts and the ready / dead / disabled figures come from /admin/stats; the table on top and the lane
+    // headers from the provider summary
     void stats.refresh();
+    void providers.refresh();
   } catch (err) {
     if (!latest.isCurrent(ticket)) return;
     error.value = loadFailedText(err, errorText(err), "the accounts");
@@ -378,6 +382,7 @@ const showing = computed(() =>
 );
 const skeleton = computed(() => loading.value && items.value.length === 0 && !error.value);
 const refreshing = computed(() => loading.value && items.value.length > 0 && !error.value);
+const laneSize = computed(() => (isPhone.value ? "phone" : isTablet.value ? "tablet" : "desktop"));
 </script>
 
 <template>
@@ -393,76 +398,65 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
       @refresh-catalog="readCatalogs"
     />
 
+    <ProviderTable :summary="providers.data" :selected="scope.provider" @pick="(p: string) => (scope.provider = p)" />
+
     <!-- the count is the list's: none until the list has been read once -->
     <PoolCard :count="updatedAt ? total : null" :health="health" :pool="poolFigures" :pool-title="poolTitle" />
 
-    <div v-if="poolError" class="state-error state-error--page" role="alert" data-testid="pool-error">
+    <div v-if="poolError" class="state-error" role="alert" data-testid="pool-error">
       <IconAlertCircle :size="18" />
       <span class="state-error__text">{{ poolError }}</span>
     </div>
 
-    <section class="list-card" aria-label="Account list" :aria-busy="loading">
+    <section class="list" aria-label="Account list" :aria-busy="loading">
       <div v-if="error" class="state-error" role="alert" data-state="error">
         <IconAlertCircle :size="18" />
         <span class="state-error__text">{{ error }}</span>
         <button type="button" class="retry" @click="load()">Retry</button>
       </div>
-      <div v-else-if="items.length === 0 && !skeleton" class="state-empty" data-state="empty">
+      <div v-else-if="items.length === 0 && !skeleton" class="list-card state-empty" data-state="empty">
         <p>No accounts yet.</p>
         <button type="button" class="primary" @click="openImport"><IconPlus :size="15" :stroke="2" />Import</button>
       </div>
-      <!-- the first read draws the list's own header with flat bars in its columns (the B-States loading pattern) -->
+      <!-- the first read draws one lane of flat bars (the B-States loading pattern) -->
       <div v-else :class="{ 'is-refreshing': refreshing }" :data-state="skeleton ? 'loading' : 'ready'">
-        <AccountsListPhone
-          v-if="isPhone"
-          :rows="items"
-          :chips="chips"
-          :skeleton="skeleton"
-          @toggle="onToggle"
-          @action="onAction"
-        />
-        <AccountsTableTablet
-          v-else-if="isTablet"
+        <AccountLanes
           :rows="items"
           :checking="checking"
           :chips="chips"
+          :summary="providers.data"
+          :selected="scope.provider"
+          :size="laneSize"
           :skeleton="skeleton"
           @toggle="onToggle"
           @action="onAction"
-        />
-        <AccountsTableDesktop
-          v-else
-          :rows="items"
-          :checking="checking"
-          :chips="chips"
-          :skeleton="skeleton"
-          @toggle="onToggle"
-          @action="onAction"
+          @pick="(p: string) => (scope.provider = p)"
         />
       </div>
       <!-- the phone's one footer line, once there are rows to count -->
-      <div v-if="isPhone && pageCount <= 1 && items.length" class="foot-text">
+      <div v-if="isPhone && pageCount <= 1 && items.length" class="list-card foot-text">
         <span class="tnum">{{ showing }}</span>
       </div>
-      <ListPager
-        v-else-if="!error && items.length"
-        :offset="offset"
-        :limit="limit"
-        :total="total"
-        @move="
-          (o: number) => {
-            offset = o;
-            void load();
-          }
-        "
-        @size="
-          (s: number) => {
-            limit = s;
-            offset = 0;
-            void load();
-          }
-        "
-      />
+      <div v-else-if="!error && items.length" class="list-card">
+        <ListPager
+          :offset="offset"
+          :limit="limit"
+          :total="total"
+          @move="
+            (o: number) => {
+              offset = o;
+              void load();
+            }
+          "
+          @size="
+            (s: number) => {
+              limit = s;
+              offset = 0;
+              void load();
+            }
+          "
+        />
+      </div>
     </section>
 
     <ImportDialog
@@ -495,6 +489,11 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
 .accounts-view--phone {
   gap: 16px;
 }
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
 .list-card {
   overflow: hidden;
   background: var(--rl-surface);
@@ -518,14 +517,10 @@ const refreshing = computed(() => loading.value && items.value.length > 0 && !er
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  margin: 16px;
   padding: 12px 16px;
   border-radius: 12px;
   background: var(--rl-bad-bg);
   color: var(--rl-bad);
-}
-.state-error--page {
-  margin: 0;
 }
 .state-error__text {
   flex: 1;

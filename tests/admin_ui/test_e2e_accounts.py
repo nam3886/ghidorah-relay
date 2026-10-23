@@ -1,6 +1,6 @@
 """The Accounts tab of the Vue admin in Chrome against the real app (browser tier): the list, the row More menu,
 import, edit, the enable switch, the commands the worker would run, the screenshot blob, auto-refresh, the pool card,
-the tablet and phone layouts and server strings as text. Every test runs
+the provider lanes at every width and server strings as text. Every test runs
 under the CSP watch of `conftest.CspWatch`. The app is opened by `app.url` (`/manage`)."""
 
 import json
@@ -26,7 +26,7 @@ def open_accounts(page):
 
 
 def rows(page):
-    return page.locator("tbody tr")
+    return page.locator(".acct-row")
 
 
 def header_import(page):
@@ -354,6 +354,7 @@ def test_the_pool_card_counts_the_pool_and_reads_the_points_from_the_pool_endpoi
 def test_the_more_menu_opens_under_its_button_and_closes_on_escape(app, app_session, db):
     page = app_session
     new_account(db, label="free one", checked=True)
+    page.set_viewport_size({"width": 1440, "height": 1400})          # room under the row, below the cards on top
     open_accounts(page)
     row = rows(page).filter(has_text="free one")
     trigger = row.get_by_role("button", name="More actions for free one")
@@ -390,9 +391,10 @@ def test_the_list_fits_the_screen_at_tablet_and_phone_widths_and_import_is_reach
                 break
             box = again
         assert box["x"] == 0 and box["width"] == width, box             # a full-screen sheet below 768 px
-        expect(page.locator("tbody")).to_have_count(0)                  # a stacked list, not a table
+        # a phone row has no Check button: Check is in its row menu
+        expect(page.get_by_role("button", name="Check free one", exact=True)).to_have_count(0)
     else:
-        expect(page.locator("thead th")).to_have_count(5)
+        expect(page.get_by_role("button", name="Check free one", exact=True)).to_have_count(1)
 
 
 def test_an_asleep_account_shows_until_when_and_why(app, app_session, db):
@@ -408,31 +410,28 @@ def test_an_asleep_account_shows_until_when_and_why(app, app_session, db):
     expect(row).to_contain_text("dola.likeness_refused")
 
 
-CARD = "[aria-label='Account list'] .acct-scroll"
+# a text that the page cuts off has more width than its box shows
+CUT_JS = """() => [...document.querySelectorAll('.lane *, .ptab, [data-testid=provider-table] *')]
+    .filter((el) => el.offsetParent && !el.closest('.spark, .mini__bar, .meter__track'))
+    .filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'visible')
+    .map((el) => el.className + ': ' + el.textContent.trim().slice(0, 40))"""
 
 
 @pytest.mark.parametrize("width", [1280, 1440])
-def test_the_desktop_table_keeps_its_width_and_the_card_scrolls_sideways_to_reach_check(
-        app, app_page, live, db, width):
-    """At 1280 the table (1280 wide) is wider than the card, which scrolls to reach Check; at 1440 the page frame is
-    wide enough for the whole table, so nothing scrolls and Check is inside the card as it stands."""
+def test_the_desktop_lane_rows_fit_their_lane_with_check_inside(app, app_page, live, db, width):
+    """A lane is as wide as the board gives it: a row's Check sits inside its lane and nothing scrolls sideways."""
     page = app_page
     page.set_viewport_size({"width": width, "height": 800})
-    new_account(db, label="free one", checked=True)
+    new_account(db, label="free one", checked=True, proxy=("10.0.0.1", 8080))
     app.sign_in(page)
     open_accounts(page)
-    card = page.locator(CARD)
-    sizes = card.evaluate("e => [e.scrollWidth, e.clientWidth]")
-    assert sizes[0] >= 1280, sizes                                   # the table keeps its width
-    if width == 1280:
-        assert sizes[0] > sizes[1], sizes                            # inside a narrower card
-    else:
-        assert sizes[0] <= sizes[1] + 1, sizes                       # the card holds the whole table
-    card.evaluate("e => { e.scrollLeft = e.scrollWidth; }")
-    expect(page.get_by_role("button", name="Check free one", exact=True)).to_be_visible()
-    inside = page.evaluate("""css => {
-        const box = document.querySelector(css).getBoundingClientRect();
+    check = page.get_by_role("button", name="Check free one", exact=True)
+    expect(check).to_be_visible()
+    inside = page.evaluate("""() => {
+        const box = document.querySelector(".lane").getBoundingClientRect();
         const b = document.querySelector("button[aria-label='Check free one']").getBoundingClientRect();
         return b.left >= box.left - 1 && b.right <= box.right + 1;
-    }""", CARD)
-    assert inside, "Check lies inside the card once it is scrolled to the end"
+    }""")
+    assert inside, "Check lies inside its lane"
+    assert sideways(page) <= 0, "the page scrolls sideways"
+    assert page.evaluate(CUT_JS, isolated_context=False) == []

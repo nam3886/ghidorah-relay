@@ -6,8 +6,10 @@ import { useAuthStore } from "@/stores/auth";
 // The global provider filter ("" = All) and the model catalog it is built from. The filter is never persisted. It
 // applies to the stats, Accounts, Check all / Refresh catalog, Jobs, Logs, measured prices and the Frames default;
 // not to Keys, Alerts or Test. Views read `provider` and pass it as the `provider` query (an empty one is dropped).
+// `general`: the Settings strip's "General" tab (the relay-wide card), picked while `provider` is "" (All).
 export const useScopeStore = defineStore("scope", () => {
   const provider = ref("");
+  const general = ref(false);
   const models = shallowRef<CatalogModel[] | null>(null);
   const providers = computed(() => [...new Set((models.value ?? []).map((m) => m.owned_by))].sort());
 
@@ -25,9 +27,10 @@ export const useScopeStore = defineStore("scope", () => {
 
   function reset(): void {
     provider.value = "";
+    general.value = false;
     models.value = null;
   }
   useAuthStore().onSignOut(reset);
 
-  return { provider, models, providers, loadCatalog, reset };
+  return { provider, general, models, providers, loadCatalog, reset };
 });

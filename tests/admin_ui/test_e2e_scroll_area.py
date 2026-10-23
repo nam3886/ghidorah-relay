@@ -23,7 +23,9 @@ TIMEOUT_MS = 10_000
 STATE_JS = """() => {
   const w = document.querySelector('.app-scroll__wrap'), d = document.documentElement;
   return {doc: d.scrollHeight, view: innerHeight, docWidth: d.clientWidth, view_width: innerWidth,
-          bar: document.querySelector('header.topbar').getBoundingClientRect().height,
+          // the fixed chrome over the area: the top bar, and the provider strip on a page that has one
+          bar: document.querySelector('header.topbar').getBoundingClientRect().height
+            + (document.querySelector('nav.pstrip')?.getBoundingClientRect().height ?? 0),
           wrapHeight: w.clientHeight, wrapRoom: w.scrollHeight - w.clientHeight, top: w.scrollTop, windowY: scrollY,
           active: document.activeElement === w, root: getComputedStyle(w.parentElement).overflowY,
           wrapOverflow: getComputedStyle(w).overflowY};
@@ -178,43 +180,33 @@ def test_the_page_area_never_draws_a_focus_ring(app, app_session):
     no_ring(page, "after Enter on a tab")
 
 
-# ---- Settings anchors and the sticky navigation ------------------------------------------------------------------
+# ---- Settings anchors: the General card's links ------------------------------------------------------------------
 
-@pytest.mark.parametrize(("width", "under"), ((1440, 16), (768, 68)))
-def test_a_settings_nav_click_lands_the_card_under_the_navigation(app, app_session, width, under):
+def general_link(page, name: str):
+    return page.get_by_test_id("settings-card-core").get_by_role("link", name=name, exact=True)
+
+
+@pytest.mark.parametrize("width", (1440, 768))
+def test_a_settings_link_lands_the_card_16_px_under_the_top_of_the_area(app, app_session, width):
     page = app_session
     go(app, page, "settings", width, 330)
-    page.locator(".snav").get_by_role("link", name="Boot-only values").click()
+    general_link(page, "Boot-only values").click()
     page.wait_for_function("() => document.querySelector('.app-scroll__wrap').scrollTop > 0", timeout=TIMEOUT_MS)
     settle(page)
     top = page.evaluate("""() => document.getElementById('boot').getBoundingClientRect().top
         - document.querySelector('.app-scroll__wrap').getBoundingClientRect().top""", isolated_context=False)
-    assert abs(top - under) <= 1, "the card is %s px under the top of the area, not %d" % (top, under)
+    assert abs(top - 16) <= 1, "the card is %s px under the top of the area, not 16" % top
 
 
-def test_on_a_phone_a_settings_nav_click_lands_the_card_under_the_bar(app, app_session):
-    """The phone's sub-navigation scrolls away with the page (it is not sticky); the window scrolls and a card stops
-    below the sticky bar and 16 px more."""
+def test_on_a_phone_a_settings_link_lands_the_card_under_the_bar(app, app_session):
+    """On a phone the window scrolls and a card stops below the sticky bar and 16 px more."""
     page = app_session
     go(app, page, "settings", 390, 500)
-    assert page.locator(".snav").evaluate("e => getComputedStyle(e).position") == "static"
-    page.locator(".snav").get_by_role("link", name="Boot-only values").click()
+    general_link(page, "Boot-only values").click()
     page.wait_for_function("() => scrollY > 0", timeout=TIMEOUT_MS)
     settle(page)
     top = page.evaluate("document.getElementById('boot').getBoundingClientRect().top", isolated_context=False)
     assert abs(top - 118) <= 1, "the card is %s px from the top, under the bar and 16 px more" % top
-
-
-@pytest.mark.parametrize(("width", "under"), ((1440, 16), (768, 0)))
-def test_the_settings_navigation_sticks_under_the_top_of_the_area(app, app_session, width, under):
-    page = app_session
-    go(app, page, "settings", width, 400)
-    scroll_page_to(page, 300)
-    settle(page)
-    assert state(page)["top"] > 150
-    top = page.evaluate("""() => document.querySelector('.snav').getBoundingClientRect().top
-        - document.querySelector('.app-scroll__wrap').getBoundingClientRect().top""", isolated_context=False)
-    assert abs(top - under) <= 1, "the navigation is %s px under the top of the area, not %d" % (top, under)
 
 
 # ---- the popups that follow their trigger -------------------------------------------------------------------------

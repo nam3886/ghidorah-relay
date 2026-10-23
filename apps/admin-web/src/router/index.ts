@@ -9,6 +9,8 @@ declare module "vue-router" {
     public?: boolean;
     // Filtered by the provider strip under the top bar (ProviderStrip) instead of the top bar's Provider list.
     providerStrip?: boolean;
+    // The strip starts with "All providers" and "General" and draws no counts (Settings).
+    stripGeneral?: boolean;
   }
 }
 
@@ -25,7 +27,7 @@ export const TABS = [
 ] as const;
 
 // The tabs whose provider filter is the strip; the others keep the top bar's Provider list for now.
-const STRIP_TABS: string[] = ["jobs"];
+const STRIP_TABS: string[] = ["jobs", "accounts", "settings"];
 
 const routes: RouteRecordRaw[] = [
   { path: "/", redirect: { name: "jobs" } },
@@ -34,7 +36,7 @@ const routes: RouteRecordRaw[] = [
     path: `/${tab.name}`,
     name: tab.name,
     component: tab.component,
-    meta: { label: tab.label, providerStrip: STRIP_TABS.includes(tab.name) },
+    meta: { label: tab.label, providerStrip: STRIP_TABS.includes(tab.name), stripGeneral: tab.name === "settings" },
   })),
   // Anything else (a mistyped hash) lands on the default tab.
   { path: "/:rest(.*)*", redirect: { name: "jobs" } },

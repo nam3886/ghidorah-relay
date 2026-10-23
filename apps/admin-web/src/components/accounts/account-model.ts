@@ -103,6 +103,12 @@ export function pointsFigure(c: Account["capacity"][number]): string {
   return `${left}${c.budget !== null && c.budget !== undefined ? ` / ${c.budget}` : ""}`;
 }
 
+// How full a pool's meter is: what is left of the budget, in % (0 when the count or the budget is unknown).
+export const poolShare = (c: Account["capacity"][number]): number =>
+  c.budget && c.left_today !== null && c.left_today !== undefined
+    ? Math.max(0, Math.min(100, (c.left_today / c.budget) * 100))
+    : 0;
+
 // How long ago, for a "checked" stamp: the table stays short, the title carries the exact time. A time in the future
 // (clock skew) reads as just now.
 export function ago(epochMs: number | null | undefined, now: number = Date.now()): string {

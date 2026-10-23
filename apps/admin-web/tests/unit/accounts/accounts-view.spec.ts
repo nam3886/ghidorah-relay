@@ -31,6 +31,7 @@ vi.mock("@/api/shell", () => ({
   getStats: vi.fn(),
   getOpenAlertGroups: vi.fn(),
   getPoolStats: vi.fn(),
+  getProvidersSummary: vi.fn(),
 }));
 vi.mock("@/components/shared/confirm-dialog", () => ({ confirmDialog: vi.fn() }));
 // the leave guard the page registers: its two predicates are read back by the tests below
@@ -77,6 +78,25 @@ const account = (over: Partial<Account> = {}): Account => ({
 });
 
 const page = (items: Account[]) => ({ items, total: items.length });
+
+// GET /admin/providers/summary: vibes takes jobs over HTTP with 3 of 4 accounts usable, dola is paused.
+const providerRow = (provider: string, usable: number, total: number, claims = true): shell.ProviderSummary => ({
+  provider,
+  execution: "http",
+  claims_enabled: claims,
+  running: 0,
+  queued: 0,
+  done_today: 0,
+  failed_today: 0,
+  accounts: { usable, total },
+  pools: [],
+});
+const summary = (): shell.ProvidersSummary => ({
+  day_tz: "UTC",
+  day_start_ms: 0,
+  hours: [],
+  providers: [providerRow("vibes", 3, 4), providerRow("dola", 1, 2, false)],
+});
 const list = vi.mocked(accounts.listAccounts);
 let wrapper: VueWrapper | null = null;
 let pinia = createPinia();
@@ -100,7 +120,7 @@ async function open(): Promise<VueWrapper> {
 
 const button = (w: VueWrapper, name: string) =>
   w.findAll("button").find((b) => b.text() === name || b.attributes("aria-label") === name)!;
-const rows = (w: VueWrapper) => w.findAll("tbody tr");
+const rows = (w: VueWrapper) => w.findAll(".acct-row");
 const menuItem = (name: string) =>
   [...document.body.querySelectorAll<HTMLElement>("[role=menuitem]")].find((b) => b.textContent?.trim() === name)!;
 
@@ -161,6 +181,7 @@ beforeEach(() => {
     proxy_failed: 1,
     last_full_check_ms: new Date(2026, 9, 15, 20, 48, 10).getTime(),
   });
+  vi.mocked(shell.getProvidersSummary).mockResolvedValue(summary());
   delete (window as unknown as { __pwned?: number }).__pwned;
 });
 
@@ -189,17 +210,13 @@ describe("the list", () => {
     expect(table).toHaveLength(3);
     expect(table[0]!.find("[role=switch]").exists()).toBe(true);
     expect(table[1]!.find("[role=switch]").exists()).toBe(false);
-    // the two counts are two right-aligned number columns, not one text cell
-    const headers = w.findAll("thead th").map((th) => th.text());
-    const cells = table[1]!.findAll("td").map((td) => td.text());
-    expect(cells[headers.indexOf("Videos made")]).toBe("3");
-    expect(cells[headers.indexOf("Images made")]).toBe("2");
-    expect(table[1]!.text()).not.toContain("videos ·");
+    // what it made sits on the foot line, after the checked stamp
+    expect(table[1]!.find(".foot-note").text()).toBe("Checked never · 3 videos · 2 images");
     expect(table[1]!.text()).toContain("in use");
     expect(table[2]!.text()).toContain("login failed");
   });
 
-  it("a long account, status or asleep line keeps its whole text as its title, where it ends in an ellipsis", async () => {
+  it("a long account, reason or sleep line keeps its whole text as its title, where it ends in an ellipsis", async () => {
     const owner = "Nguyen Thi Thanh Huong Collective";
     const reason = "account.dead_session_after_password_change";
     const why = "dola.likeness_refused_by_the_review";
@@ -220,9 +237,9 @@ describe("the list", () => {
     const titled = (cls: string) => rows(w)[0]!.find(`.${cls}.clip`).attributes("title");
     expect(titled("label")).toBe("acct-n11-00007919");
     expect(titled("sub")).toContain(owner);
-    expect(rows(w)[0]!.find(".status-note .bad").attributes("title")).toBe(reason);
-    expect(titled("asleep")).toContain("asleep until");
-    expect(titled("why")).toBe(why);
+    expect(titled("reason")).toBe(reason);
+    expect(rows(w)[0]!.find(".why .asleep").text()).toContain("asleep until");
+    expect(rows(w)[0]!.find(".why .clip").attributes("title")).toBe(why);
   });
 
   it("a dead account's row is tinted, and a disabled account reads disabled", async () => {
@@ -283,7 +300,10 @@ describe("the list", () => {
     expect(text).toContain("acct-n11-06");
     expect(text).toContain("Demo User F · dola · composer v2");
     expect(text).toContain("Checked 4 min ago");
-    expect(text).toContain("video 27 / 30");
+    expect(rows(w)[0]!.find(".meter__name").text()).toBe("video");
+    expect(rows(w)[0]!.find(".meter__figure").text()).toBe("27 / 30");
+    // the meter is filled to what is left of the budget, in the provider's tone
+    expect(rows(w)[0]!.find(".meter__track i").attributes("style")).toContain("width: 90%");
     expect(text).toContain("drift");
     expect(text).toContain("asleep until");
     expect(text).toContain("· strike");
@@ -294,10 +314,10 @@ describe("the list", () => {
     expect(text).toContain("drift: page shows 26, ledger says 27");
   });
 
-  it("an account with no proxy says direct; an awake one shows a dash in Asleep", async () => {
+  it("an account with no proxy says direct; an awake one with no error has no sleep line", async () => {
     const w = await open();
-    expect(rows(w)[0]!.text()).toContain("direct");
-    expect(rows(w)[0]!.text()).toContain("—");
+    expect(rows(w)[0]!.text()).toContain("direct, no proxy");
+    expect(rows(w)[0]!.find(".why").exists()).toBe(false);
   });
 
   it("asks for the provider filter and 50 per page", async () => {
@@ -320,13 +340,12 @@ describe("the list", () => {
     expect(w.text()).not.toContain("first-stale");
   });
 
-  it("the first read draws the list's own header over five rows of bars, and no footer count", async () => {
+  it("the first read draws one lane of five rows of bars, and no footer count", async () => {
     list.mockReturnValue(new Promise(() => {}));
     const w = await open();
     const loading = w.find("[data-state=loading]");
-    expect(loading.find("thead").text()).toContain("Points left / budget");
-    expect(loading.findAll("tbody tr")).toHaveLength(5);
-    expect(loading.findAll("tbody tr")[0]!.findAll(".acct-skel")).toHaveLength(10);
+    expect(loading.findAll(".acct-row")).toHaveLength(5);
+    expect(loading.findAll(".acct-row")[0]!.findAll(".acct-skel")).toHaveLength(3);
     expect(w.text()).not.toContain("Showing");
     expect(w.find("[data-state=empty]").exists()).toBe(false);
   });
@@ -433,21 +452,72 @@ describe("the header", () => {
   });
 });
 
-describe("the layouts", () => {
-  it("a tablet draws five columns and no Videos made column", async () => {
+describe("the lanes", () => {
+  it("groups the accounts per provider in the drawn order, each lane headed by its usable / total and paused", async () => {
+    list.mockResolvedValue(
+      page([
+        account({ id: "a1", label: "v-one" }),
+        account({ id: "a2", label: "d-one", provider: "dola" }),
+        account({ id: "a3", label: "v-two" }),
+        account({ id: "a4", label: "x-one", provider: "other" }),
+      ]),
+    );
+    const w = await open();
+    const lanes = w.findAll(".lane");
+    expect(lanes.map((l) => l.find(".lane__name").text())).toEqual(["dola", "vibes", "other"]);
+    expect(lanes.map((l) => l.findAll(".acct-row").map((r) => r.find(".label").text()))).toEqual([
+      ["d-one"],
+      ["v-one", "v-two"],
+      ["x-one"],
+    ]);
+    expect(lanes[0]!.classes()).toContain("p-dola");
+    expect(lanes[0]!.find(".lane__meta").text()).toMatch(/^1\/2 usable\s*paused$/);
+    expect(lanes[0]!.find(".lane__meta .paused").exists()).toBe(true);
+    expect(lanes[1]!.find(".lane__meta").text()).toBe("3/4 usable");
+    // a provider the summary does not know counts the rows on the page
+    expect(lanes[2]!.classes()).toContain("p-other");
+    expect(lanes[2]!.find(".lane__meta").text()).toBe("1 account");
+    expect(lanes[0]!.find(".ptile").text()).toBe("D");
+  });
+
+  it("with All, a lane's footer shows that provider alone; with a provider chosen there is none", async () => {
+    list.mockResolvedValue(page([account({ id: "a1" }), account({ id: "a2", provider: "dola", label: "d" })]));
+    const w = await open();
+    const scope = useScopeStore(pinia);
+    const more = w.find("[data-testid=lane-vibes] .lane__more");
+    expect(more.text()).toBe("All 4 vibes accounts →");
+    await more.trigger("click");
+    await settle();
+    expect(scope.provider).toBe("vibes");
+    expect(list).toHaveBeenLastCalledWith("vibes", 50, 0);
+    list.mockResolvedValue(page([account({ id: "a1" })]));
+    await settle();
+    expect(w.find(".lane__more").exists()).toBe(false);
+  });
+
+  it("the Jobs today table sits on top, reads the summary with the list, and a row picks the provider", async () => {
+    const w = await open();
+    expect(shell.getProvidersSummary).toHaveBeenCalled();
+    const table = w.find("[data-testid=provider-table]");
+    expect(table.exists()).toBe(true);
+    await table.find("[data-testid=provider-row-dola]").trigger("click");
+    await settle();
+    expect(useScopeStore(pinia).provider).toBe("dola");
+  });
+
+  it("a tablet keeps the Check button; the made counts are on the foot line", async () => {
     stubWidth("tablet");
     list.mockResolvedValue(page([account({ made: { video: 31, image: 12 } })]));
     const w = await open();
-    expect(w.findAll("thead th").map((th) => th.text())).toEqual(["Account", "Status", "Points", "Asleep", "Actions"]);
     expect(rows(w)[0]!.text()).toContain("31 videos · 12 images");
     expect(rows(w)[0]!.text()).toContain("direct, no proxy");
+    expect(button(w, "Check main")).toBeTruthy();
   });
 
-  it("a phone draws a list: no table, no Check button, Check first in the row menu, one footer line", async () => {
+  it("a phone: no Check button, Check first in the row menu, one footer line", async () => {
     stubWidth("phone");
     const w = await open();
-    expect(w.find("table").exists()).toBe(false);
-    expect(w.findAll("li")).toHaveLength(1);
+    expect(w.findAll(".acct-row")).toHaveLength(1);
     expect(w.findAll("button").some((b) => b.text() === "Check")).toBe(false);
     await w.find("[aria-label^='More actions for']").trigger("click");
     const names = [...document.body.querySelectorAll("[role=menuitem]")].map((i) => i.textContent?.trim());
@@ -501,7 +571,7 @@ describe("the row commands and the edit dialog", () => {
 
   it("the row has a switch, a Check button and one More menu; the menu holds Shot (only with a screenshot), Wake, Edit, Delete", async () => {
     const w = await open();
-    const names = w.findAll("tbody button").map((b) => b.attributes("aria-label"));
+    const names = w.findAll(".acct-row button").map((b) => b.attributes("aria-label"));
     expect(names).toEqual(["Enable main", "Check main", "More actions for main"]);
     await w.find("[aria-label='More actions for main']").trigger("click");
     const items = [...document.body.querySelectorAll("[role=menuitem]")];
@@ -592,7 +662,7 @@ describe("the row commands and the edit dialog", () => {
       const gate = deferred<commands.CommandStatus>();
       vi.mocked(commands.getCommand).mockReturnValue(gate.promise);
       const w = await open();
-      const chip = () => w.find("tbody td.last [data-state]");
+      const chip = () => w.find(".acct-row .cmd-line [data-state]");
       await w.find("[aria-label='Check main']").trigger("click");
       await settle();
       expect(chip().attributes("data-state")).toBe("running");
@@ -622,7 +692,7 @@ describe("the row commands and the edit dialog", () => {
       await w.find(`[aria-label='Check ${label}']`).trigger("click");
       await settle();
     }
-    expect(w.findAll("tbody td.last [data-state=ok]")).toHaveLength(3);
+    expect(w.findAll(".acct-row .cmd-line [data-state=ok]")).toHaveLength(3);
   });
 
   it("a failed Check's chip and toast carry the worker's reason", async () => {
@@ -635,7 +705,7 @@ describe("the row commands and the edit dialog", () => {
     const w = await open();
     await w.find("[aria-label='Check main']").trigger("click");
     await settle();
-    expect(w.find("tbody td.last [data-state=error]").text()).toBe("error · connect timeout after 8 s");
+    expect(w.find(".acct-row .cmd-line [data-state=error]").text()).toBe("error · connect timeout after 8 s");
     expect(notify.error).toHaveBeenCalledWith("Check failed: connect timeout after 8 s");
   });
 

@@ -70,7 +70,7 @@ defineExpose({ focusPage });
 <template>
   <div class="app-shell">
     <TopBar />
-    <ProviderStrip v-if="route.meta.providerStrip" />
+    <ProviderStrip v-if="route.meta.providerStrip" :general="!!route.meta.stripGeneral" />
     <el-scrollbar
       ref="scroller"
       class="app-scroll"
