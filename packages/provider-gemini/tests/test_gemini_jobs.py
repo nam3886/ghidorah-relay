@@ -196,7 +196,7 @@ def test_no_answer_a_timeout_or_a_status_that_is_not_200_is_unknown_and_never_se
 PLACEHOLDER = "    if not final or IMAGE_PLACEHOLDER in final:\n"
 ERROR_FIRST = ('    if answer.errors:\n        return "unknown", "the answer carried an error item"\n'
                '    if answer.images:\n        return "done", answer.images\n')
-ERR = '[["er",null,null,null,null,500],["e"'
+ERR = '[["er",null,null,null,null,500]]\n33\n[["e"'     # an error item in its own frame: the answer still ends
 
 
 @mutation(SUBMIT_FILE, PLACEHOLDER, "    if not final:\n", expect="an image promised")
@@ -304,7 +304,7 @@ WINDOW = "    near = sorted((c for c in listed if start - FIND_BEFORE_S <= c.sta
 
 @mutation(RESULTS_FILE, "        if turn is not None and same_text(turn.prompt, text):",
           "        if turn is not None:", expect="another chat was taken for the job")
-@mutation(RESULTS_FILE, WINDOW, "    near = sorted((c for c in listed),", expect="a chat outside the send window")
+@mutation(RESULTS_FILE, WINDOW, "    near = sorted((c for c in listed),", expect="was taken")
 @mutation(REPLY_FILE, "    return a is not None and a == b",
           '    return a is not None and " ".join(a.split()) == " ".join(b.split())',
           expect="another chat was taken for the job")

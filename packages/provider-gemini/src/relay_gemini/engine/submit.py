@@ -187,8 +187,8 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
             except httpx.HTTPError as e:
                 return _result(Ambiguous("the send got no full answer (%s)" % type(e).__name__),
                                *pacing(settings, now()))
-            answer = read_answer(body) if status == 200 else None
-            if answer is not None and answer.cid:
+            answer = read_answer(body)          # judged with its status, never instead of it
+            if status == 200 and answer.cid:
                 await ctx.report_ref(answer.cid, {REQUEST_KEY: rid, CHAT_KEY: answer.cid})
             return answer_result(status, answer, settings, now())
     except httpx.HTTPError as e:
