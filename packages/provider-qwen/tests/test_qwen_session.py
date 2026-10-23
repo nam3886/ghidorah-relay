@@ -20,6 +20,7 @@ from qwenkit import (
     Qwen,
     minted_blob,
     minter,
+    refresh_ok,
     settings,
 )
 
@@ -70,7 +71,67 @@ def test_the_refresh_sends_the_jar_and_reads_signed_out_only_from_qwens_own_answ
             asyncio.run(tokens_of(H.Sessions(), Ctx([]), Qwen([], refresh=answer), lambda: NOW))
 
 
-PROXY_LINE = "        inner = self.transport or httpx.AsyncHTTPTransport(proxy=proxy_url(self.account.proxy), " \
+def rotated(value: str) -> dict:
+    body = refresh_ok()
+    body["data"]["refresh_token"] = value
+    return body
+
+
+def sent_refresh_token(request) -> str:
+    return dict(p.strip().split("=", 1) for p in request.headers["cookie"].split(";"))["refresh_token"]
+
+
+@mutation(HTTP_FILE, '            await self._keep_rotated(data.get("refresh_token"))\n', "",
+          expect="the next refresh sent the old token")
+def test_a_rotated_refresh_token_is_written_back_at_once_and_the_next_refresh_sends_it():
+    log = []
+    q, ctx, sessions = Qwen(log, refresh=rotated("rt-rotated-1")), Ctx(log), H.Sessions()
+    asyncio.run(tokens_of(sessions, ctx, q, lambda: NOW))
+    asyncio.run(tokens_of(sessions, ctx, q, lambda: NOW + TOKEN_REUSE_S))
+    first, second = q.calls("refresh")
+    assert sent_refresh_token(first) == REFRESH
+    assert sent_refresh_token(second) == "rt-rotated-1", "the next refresh sent the old token"
+    assert log == ["refresh", "renew", "refresh"], "the rotation was not written back before anything else: %s" % log
+    assert cred_of(ctx.renewed[0]).cookies[(".qwen.ai", "/", "refresh_token")] == "rt-rotated-1"
+    assert cred_of(ctx.renewed[0]).bx == PAIR, "the rotation lost the pair"
+
+
+REUSE_HELD = ("            held = self.sessions.token(self.account, self.clock())\n"
+              "            if held is not None:\n"
+              "                self._token, self.user = held.value, held.user\n"
+              "                return held.value\n"
+              "            await self._refresh()\n")
+
+
+@mutation(HTTP_FILE, REUSE_HELD, "            await self._refresh()\n", expect="one upstream refresh")
+def test_runs_that_need_a_token_together_make_one_upstream_refresh():
+    log = []
+    q, sessions = Qwen(log), H.Sessions()
+
+    async def both():
+        return await asyncio.gather(tokens_of(sessions, Ctx(log), q, lambda: NOW),
+                                    tokens_of(sessions, Ctx(log), q, lambda: NOW))
+    assert asyncio.run(both()) == [ACCESS, ACCESS]
+    assert log.count("refresh") == 1, "not one upstream refresh: %s" % log
+
+
+@mutation(HTTP_FILE, "        sessions.keep(account, cred_of(stored))\n", "        sessions.keep(account, cred)\n",
+          expect="a stale session token")
+def test_a_rotation_that_lost_its_write_refreshes_next_with_what_was_stored():
+    log = []
+    q, ctx, sessions = Qwen(log, refresh=rotated("rt-mine")), Ctx(log), H.Sessions()
+    other = cred_of(minted_blob(NOW - 30))           # another run wrote first: a newer mint, its own session token
+    other.cookies[(".qwen.ai", "/", "refresh_token")] = "rt-stored"
+    ctx.stored_as = lambda mine: cred_of(merge_blobs(other.blob(), mine)).blob()
+    asyncio.run(tokens_of(sessions, ctx, q, lambda: NOW))
+    assert sessions.current(ctx.account).cookies[(".qwen.ai", "/", "refresh_token")] == "rt-stored", \
+        "the process kept a stale session token"
+    later = Qwen(log, refresh=rotated("rt-stored"))
+    asyncio.run(tokens_of(sessions, ctx, later, lambda: NOW + TOKEN_REUSE_S))
+    assert sent_refresh_token(later.calls("refresh")[0]) == "rt-stored", "a stale session token was sent"
+
+
+PROXY_LINE ="        inner = self.transport or httpx.AsyncHTTPTransport(proxy=proxy_url(self.account.proxy), " \
              "trust_env=False)"
 
 

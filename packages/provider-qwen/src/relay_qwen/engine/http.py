@@ -28,6 +28,8 @@ from relay_qwen.constants import (
     CREDITS_QUERY,
     CREDITS_URL,
     MEDIA_HOSTS,
+    QWEN_DOMAIN,
+    REFRESH_COOKIE,
     REFRESH_URL,
     SEC_CH_UA,
     SEC_CH_UA_PLATFORM,
@@ -75,9 +77,14 @@ class Sessions:
         self._creds: dict[str, tuple[int, Cred]] = {}
         self._tokens: dict[str, tuple[int, Token]] = {}
         self._locks: dict[str, asyncio.Lock] = {}
+        self._refreshing: dict[str, asyncio.Lock] = {}
 
     def lock(self, account_id: str) -> asyncio.Lock:
         return self._locks.setdefault(account_id, asyncio.Lock())
+
+    def refresh_lock(self, account_id: str) -> asyncio.Lock:
+        """One session refresh of an account at a time in this process; the others wait and reuse its token."""
+        return self._refreshing.setdefault(account_id, asyncio.Lock())
 
     def current(self, account) -> Cred:
         """The newer of the credential this process holds and the one the account was loaded with. A held one of
@@ -186,7 +193,13 @@ class Site:
     # ---- the session ------------------------------------------------------------------------------------------
     async def refresh(self) -> dict:
         """A new access token from the jar (always a call); the user it names. `SignedOut` when qwen says the session
-        is gone, `BadAnswer` on any other unusable answer; network errors propagate."""
+        is gone, `BadAnswer` on any other unusable answer; network errors propagate. One refresh per account at a
+        time, always with the newest stored session cookie."""
+        async with self.sessions.refresh_lock(self.account.id):
+            return await self._refresh()
+
+    async def _refresh(self) -> dict:
+        self.adopt(self.sessions.current(self.account))       # the newest session, never a stale copy
         headers = self.headers()
         headers.pop("Authorization", None)
         headers["x-request-origin"] = BASE_URL
@@ -197,6 +210,7 @@ class Site:
         if resp.status_code == 200 and body.get("success") is True and isinstance(token, str) and token:
             self._token = token
             self.user = {k: data.get(k) for k in ("id", "email", "name") if isinstance(data.get(k), str)}
+            await self._keep_rotated(data.get("refresh_token"))
             self.sessions.keep_token(self.account, Token(token, self.clock(), self.user))
             return self.user
         if resp.status_code in (401, 403) or (resp.status_code == 200 and body.get("success") is False):
@@ -204,14 +218,32 @@ class Site:
                 resp.status_code, str(data.get("code") or body.get("message") or "no code")[:60]))
         raise BadAnswer("qwen answered %d to the session refresh" % resp.status_code)
 
+    async def _keep_rotated(self, answered) -> None:
+        """A refresh that hands back another refresh token (in its body or a cookie) rotated the session: the new
+        one is written back at once, before anything else uses the session. Not seen so far (24 of 24 recorded
+        refreshes gave the jar's own token back, FINDINGS 1): a guard, in case qwen starts rotating."""
+        key = next((k for k in self.cred.cookies if k[2] == REFRESH_COOKIE), ("." + QWEN_DOMAIN, "/", REFRESH_COOKIE))
+        jar = [c.value for c in self.client.cookies.jar if c.name == REFRESH_COOKIE and c.value]
+        new = answered if isinstance(answered, str) and answered else (jar[-1] if jar else None)
+        if not new or new == self.cred.cookies.get(key):
+            return
+        rotated = self.cred.copy()
+        rotated.cookies[key] = new
+        await write_back(self.ctx, self.sessions, rotated)
+        self.adopt(self.sessions.current(self.account))
+        # ponytail: a mint written meanwhile wins the merge whole (newer minted_at); a rotation would then be lost.
+        # Merge the session cookie separately if qwen is ever seen rotating.
+
     async def token(self) -> str:
-        """The access token: the one this process holds while it is young enough, else a refresh."""
-        held = self.sessions.token(self.account, self.clock())
-        if held is not None:
-            self._token, self.user = held.value, held.user
-            return held.value
-        await self.refresh()
-        return self._token
+        """The access token: the one this process holds while it is young enough, else a refresh. Runs that need one
+        together make one refresh; the others reuse its token."""
+        async with self.sessions.refresh_lock(self.account.id):
+            held = self.sessions.token(self.account, self.clock())
+            if held is not None:
+                self._token, self.user = held.value, held.user
+                return held.value
+            await self._refresh()
+            return self._token
 
     # ---- calls ------------------------------------------------------------------------------------------------
     async def call(self, method: str, path: str, body: Any = None, *, referer: str = "/",

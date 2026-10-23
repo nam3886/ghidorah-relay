@@ -240,6 +240,23 @@ The cause is not isolated: one account was revoked right after a browser session
 the mint fails the page's `/api/v2/auths/signout` and `/api/v2/users/logout/*` in the browser and writes the browser's
 cookies back even when it fails. New jars are needed for any further live run.
 
+**Is it refresh-token rotation with reuse detection? Not by the records.** Checked offline (no live call), on the box:
+- All 24 refreshes the spike recorded (`~/relay-qwen-spike/raw`, 05:35-08:04Z, both accounts, plain HTTP) answered
+  `success: true` with `data.refresh_token` equal to the jar's own value; none set a `refresh_token` cookie (only
+  `acw_tc`, on 3 of them). The browser's own refresh during the last mint set only `acw_tc` too.
+- The spike reused the jar's original token for hours, also after its browser mints (whose pages refreshed with the
+  same cookie), and the 08:04Z reads with that token worked. Under reuse detection that would have revoked it then.
+- Two refreshes with one token at once had already happened in the spike (gen2: the page's refresh in the browser and
+  the httpx refresh right after) with no revocation. On 23/10 evening no other process of ours held a qwen jar: no qwen
+  worker is deployed, the other spike on the box was v2v for dola/meta/vibes. acc2 was revoked after ONE refresh of
+  ours (python `requests`, no browser), the one before it in the spike at 08:04Z.
+
+So the records show no rotation, and the acc2 revocation followed a single refresh. An outside cause (a sign-out or
+password change on the owner's side, or qwen revoking the sessions) fits better; this is not proven either. The
+provider guards against rotation all the same: a refresh is made with the newest stored session cookie, one per
+account at a time (the others reuse its token), and a refresh token handed back that differs from the jar's is written
+back at once (`RunCtx.renew_credential`, merged) before anything else uses the session.
+
 ## Open questions
 - What revoked both refresh tokens on 23/10 evening (above), and how to keep a session alive.
 - How long a `bx-*` pair lasts beyond 30 min and 3 sends, and what it is tied to (cookies, UA, exit IP). Can one pair

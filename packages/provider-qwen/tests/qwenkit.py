@@ -174,6 +174,7 @@ class Ctx:
         self.renewed: list[bytes] = []
         self.merges: list = []
         self.mark_error: BaseException | None = None
+        self.stored_as = None       # a test playing a write that lost to another run: what the core stored instead
 
     async def report_ref(self, ref, state):
         self.log.append("report_ref")
@@ -191,7 +192,7 @@ class Ctx:
         self.log.append("renew")
         self.renewed.append(blob)
         self.merges.append(merge)
-        return blob
+        return self.stored_as(blob) if self.stored_as is not None else blob
 
 
 class FakeMint:
