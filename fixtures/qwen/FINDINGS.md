@@ -257,6 +257,16 @@ provider guards against rotation all the same: a refresh is made with the newest
 account at a time (the others reuse its token), and a refresh token handed back that differs from the jar's is written
 back at once (`RunCtx.renew_credential`, merged) before anything else uses the session.
 
+## Provider live proof, 23/10 23:10-23:15 GMT+7 (fresh acc1 jar, its own proxy)
+The relay_qwen engine itself (submit, fetch, check), in the `relay-worker-dola:0a2ee77` image:
+- Check: refresh OK, `totalCredits` 10 read as the video balance; the browser mint gave a pair in about 20 s (the page's
+  generate failed inside the browser, nothing sent). The session stayed alive through every run below.
+- t2i, `qwen-image-3.0`, 16:9: `Completed` after 80 s; PNG **2752x1536**, 5.8 MB (the spike's 1664x928 was smaller).
+- i2i, the same model with that PNG: the upload (getstsToken, then the OSS V4 signed PUT over plain HTTP) was
+  accepted; `Completed` after 71 s; PNG **2752x1536**, 8.0 MB; the edit kept the boat and turned the scene to winter.
+- t2v, HappyHorse 1.1 5 s: the free credit check refused it (10 of 30 credits) and the job was retried as
+  `pool.account_out_of_points` with nothing sent. A paid video waits for the daily credits.
+
 ## Review rulings for the provider (23/10)
 The spike's reading rules above ("no user message: not sent", "check the chat is still empty, then send again") are
 NOT what the provider does: a chat read may lag the paid send it would deny. The provider:
@@ -273,7 +283,8 @@ NOT what the provider does: a chat read may lag the paid send it would deny. The
   serve an account through another proxy?
 - A failed or refused video: its `task_status` value, and whether the credits come back (none seen).
 - The free accounts' daily image limit (none met in 8 images).
-- The OSS PUT over plain HTTP with the STS (not tried).
+- The OSS PUT over plain HTTP with the STS: proven by the provider on 23/10 (V4 signature).
+- When the daily credits come back (acc1 still had 10 at 23:15 GMT+7).
 - Does a lost image stream ever finish later (S1 still `done: false` after 1.5 h), and does it count against any quota?
 - `RateLimited` and content-refusal answers: not met.
 
