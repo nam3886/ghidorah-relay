@@ -25,7 +25,9 @@ Money rules (each has a test and a mutation):
 - only the hydrated composer (the Lexical contenteditable) is typed into, never the placeholder textarea rendered
   before hydration (it ignores input for 7-12 s on a cold load);
 - Vercel's browser checkpoint sends nothing: `Retry(meta.checkpoint)` with a rest and a recheck, no strike, never a
-  failed or charged job.
+  failed or charged job;
+- the run up to its verdict is bounded by the deadline, the submit timeout less the browser's close allowance
+  (`_bounded`): whatever hangs, the verdict is out before the close, `Retry` before `mark_sent`, `Ambiguous` after.
 
 Debug files (`relay_browser.evidence`, text through the core's redactor), diagnostics only, taken once the verdict is
 decided, in the time left before the browser's close allowance (`HOLD_MARGIN_S` before the core's submit timeout),
@@ -323,6 +325,7 @@ class _Run:
         # the run returns by then, so the browser's close still fits before the core's submit timeout
         self.deadline = self.started + settings.get("meta.%s_submit_timeout_s" % self.kind) - deps.hold_margin_s
         self.evidence_left = deps.evidence_wait_s     # shared by every capture of this job
+        self.wanted: list[str | None] = []              # the captures asked for, taken after the verdict
         self.signed_in = False      # the sign-in read said signed in: the strike count is cleared
         self.sent = False           # True from the moment `mark_sent` returned: meta may have the order
         self.conversation: str | None = None
@@ -335,9 +338,18 @@ class _Run:
         except Exception as exc:      # noqa: BLE001 - diagnostics never fail the order
             log.warning("event %s not recorded: %s", stage, type(exc).__name__)
 
-    async def _evidence(self, tag: str | None) -> None:
-        """The job's debug files: the after-send JPEG (`tag` None), else the UI-error PNG, redacted HTML and network
-        log. Diagnostics only: bounded by what is left of the job's shared `evidence_wait_s` and by the deadline (the
+    def _evidence(self, tag: str | None) -> None:
+        """Ask for the job's debug files: the after-send JPEG (`tag` None), else the UI-error PNG, redacted HTML and
+        network log. They are taken once the verdict is out of the bounded part of the run (`_captures`)."""
+        self.wanted.append(tag)
+
+    async def _captures(self) -> None:
+        for tag in self.wanted:
+            await self._capture(tag)
+        self.wanted = []
+
+    async def _capture(self, tag: str | None) -> None:
+        """Diagnostics only: bounded by what is left of the job's shared `evidence_wait_s` and by the deadline (the
         close allowance is never touched); a failure or a cut capture is logged and skipped."""
         if self.page is None:      # the browser is closed
             return
@@ -369,19 +381,42 @@ class _Run:
                                           images=True, redact=redact_text) as session:
             self.session, self.page = session, session.page
             try:
-                if image is not None:
-                    image = await self._shrink(*image)
-                    if image is None:
-                        return await self._unsent(errors.UI_SEND_FAILED, "the input image could not be made smaller "
-                                                  "than %d bytes for meta's upload" % UPLOAD_MAX_BYTES)
-                return await self._order(image)
+                result = await self._bounded(image)
             except _CoreVerdict:
                 raise
             except Exception:
-                await self._evidence("browser-error")      # the verdict (`failed`) comes after: the browser closes
+                self._evidence("browser-error")      # the verdict (`failed`) comes after: the browser closes
+                await self._captures()
                 raise
+            else:
+                await self._captures()      # after the verdict, in the time left before the deadline
+                return result
             finally:
                 self.page = None
+
+    async def _bounded(self, image: tuple[bytes, str] | None) -> SubmitResult:
+        """Everything up to the verdict runs before the deadline (the submit timeout less the browser's close
+        allowance), whatever hangs: a page read, an event, `report_ref`. Past it the verdict is what is known then:
+        nothing sent is a `Retry`, a sent order is `Ambiguous` (the reconcile decides), never a re-send."""
+        bound = asyncio.timeout(max(0.0, self.deadline - self.deps.clock()))
+        try:
+            async with bound:
+                return await self._steps(image)
+        except TimeoutError:
+            if not bound.expired():
+                raise
+        why = "no verdict within %d s of the start (the submit timeout less the browser's close)" % (
+            self.deadline - self.started)
+        log.warning("%s (sent=%s)", why, self.sent)
+        return _result(Ambiguous(why) if self.sent else Retry(errors.UI_PAGE_NOT_READY))
+
+    async def _steps(self, image: tuple[bytes, str] | None) -> SubmitResult:
+        if image is not None:
+            image = await self._shrink(*image)
+            if image is None:
+                return await self._unsent(errors.UI_SEND_FAILED, "the input image could not be made smaller than %d "
+                                          "bytes for meta's upload" % UPLOAD_MAX_BYTES)
+        return await self._order(image)
 
     async def _input_image(self) -> tuple[bytes, str]:
         refs = await self.job.inputs()
@@ -499,9 +534,8 @@ class _Run:
         grace = deps.clock() + deps.tiles_grace_s
         while (answer.previews or not answer.media) and deps.clock() < grace and await self._step():
             answer = await self._read_answer()
-        result = await self._done(answer)
-        await self._evidence(None)      # meta's answer is in: the after-send picture, once the verdict is decided
-        return result
+        self._evidence(None)      # meta's answer is in: the after-send picture
+        return await self._done(answer)
 
     async def _done(self, answer: Answer) -> SubmitResult:
         if answer.previews:
@@ -516,9 +550,8 @@ class _Run:
                                        % (self.kind, answer.other), "other-kind")
         why = "meta finished its answer with no %s" % self.kind
         await self._say(why, "submit")
-        result = _result(Fail(errors.NO_IMAGE if self.kind == "image" else errors.NO_VIDEO, why))
-        await self._evidence("no-media")
-        return result
+        self._evidence("no-media")
+        return _result(Fail(errors.NO_IMAGE if self.kind == "image" else errors.NO_VIDEO, why))
 
     async def _receipt(self) -> str | None:
         waited = 0.0
@@ -549,16 +582,14 @@ class _Run:
     async def _unsent(self, code: str, why: str, *effects) -> SubmitResult:
         """Nothing was sent: the order goes back to the queue (`Retry` is legal only here)."""
         await self._say(why, "submit")
-        result = _result(Retry(code), *effects)
-        await self._evidence(code)
-        return result
+        self._evidence(code)
+        return _result(Retry(code), *effects)
 
     async def _unknown(self, why: str, tag: str = "unknown") -> SubmitResult:
         """After `mark_sent`: the outcome is unknown, never a re-send."""
         await self._say(why, "submit_error")
-        result = _result(Ambiguous(why[:500]))
-        await self._evidence(tag)
-        return result
+        self._evidence(tag)
+        return _result(Ambiguous(why[:500]))
 
     async def failed(self, exc: BaseException) -> SubmitResult:
         """The run raised. Before `mark_sent`: a retry (a network error is the proxy's). After it: unknown."""

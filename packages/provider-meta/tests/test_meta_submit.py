@@ -148,6 +148,7 @@ class Box:
         self.target = EDITABLE if '[contenteditable="true"]' in selector else TEXTAREA
 
     async def wait_for(self, state="visible", timeout=None):
+        await asyncio.sleep(self.page.composer_hang_s)
         if self.target == EDITABLE and not self.page.hydrates:
             raise TimeoutError("Timeout %sms exceeded" % timeout)
 
@@ -183,6 +184,8 @@ class Page:
         self.shot_error = None  # what a screenshot and the page HTML raise (a capture that fails)
         self.shot_hang_s = 0.0  # how long a screenshot takes
         self.goto_s = 0.0       # how long the page load takes (real time)
+        self.read_hang_s = 0.0  # how long a read of meta's answer takes (real time)
+        self.composer_hang_s = 0.0   # how long the wait for the composer takes (real time)
 
     async def screenshot(self, type="png", **kw):
         await asyncio.sleep(self.shot_hang_s)
@@ -211,6 +214,7 @@ class Page:
         if script is SIGNALS_JS:
             return self.signals
         if script is S.ANSWER_JS:
+            await asyncio.sleep(self.read_hang_s)
             return self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
         if script is S.SHRINK_JS:
             self.log.append("shrink")
@@ -846,7 +850,9 @@ def failure_shapes(cap):
     }
 
 
-@mutation(SUBMIT_FILE, "        await self._evidence(None)      # meta's answer is in", "        pass  #",
+@mutation(SUBMIT_FILE, "        self._evidence(None)      # meta's answer is in", "        pass  #",
+          expect="the after-send picture")
+@mutation(SUBMIT_FILE, "                await self._captures()      # after the verdict", "                pass  #",
           expect="the after-send picture")
 def test_a_delivered_answer_keeps_one_after_send_jpeg_and_nothing_else():
     cap = capture("image-1-acc1")
@@ -855,17 +861,17 @@ def test_a_delivered_answer_keeps_one_after_send_jpeg_and_nothing_else():
     assert ctx.kept == [("after-send-1000.jpg", b"jpeg", "image/jpeg")], "the after-send picture: %s" % ctx.kept
 
 
-@mutation(SUBMIT_FILE, "        await self._evidence(code)\n", "", expect="meta_ui_page_not_ready")
-@mutation(SUBMIT_FILE, "        await self._evidence(tag)\n", "", expect="no_receipt")
-@mutation(SUBMIT_FILE, '        await self._evidence("no-media")\n', "", expect="no_media")
-@mutation(SUBMIT_FILE, '                await self._evidence("browser-error")', "                pass",
+@mutation(SUBMIT_FILE, "        self._evidence(code)\n", "", expect="meta_ui_page_not_ready")
+@mutation(SUBMIT_FILE, "        self._evidence(tag)\n", "", expect="no_receipt")
+@mutation(SUBMIT_FILE, '        self._evidence("no-media")\n', "", expect="no_media")
+@mutation(SUBMIT_FILE, '                self._evidence("browser-error")', "                pass",
           expect="browser_error")
 def test_each_failure_keeps_a_png_the_html_and_the_network_log_and_an_answer_that_is_in_its_jpeg_too():
     cap = capture("image-1-acc1")
     for tag, (make, answered) in failure_shapes(cap).items():
         result, ctx = run(make(), cap)
         names = [n for n, _, _ in ctx.kept]
-        want = ["ui-error-%s-1000%s" % (tag, ext) for ext in UI_ERROR] + (["after-send-1000.jpg"] if answered else [])
+        want = (["after-send-1000.jpg"] if answered else []) + ["ui-error-%s-1000%s" % (tag, ext) for ext in UI_ERROR]
         if tag == "not_done":
             want = []       # it waited up to the deadline: no time is left for captures, the verdict had it all
         assert names == want, "%s: %s" % (tag, names)
@@ -910,14 +916,16 @@ def test_the_html_and_the_network_log_go_through_the_core_redactor():
         assert "v-fake-secret" not in body and "[redacted]" in body, "%s is redacted: %s" % (what, body[:200])
 
 
+BOUND = "        bound = asyncio.timeout(max(0.0, self.deadline - self.deps.clock()))"
+UNBOUND = "        bound = asyncio.timeout(None)"
+
+
 # The core's submit bound around a run whose captures all hang and whose browser takes half its close allowance to
 # close, scaled down: a 3 s bound (240 s), a 1.2 s close allowance (30 s), 1 s of evidence per job (10 s).
 CLOSE_S, BOUND_S, SCALED = 0.6, 3.0, {"hold_margin_s": 1.2, "evidence_wait_s": 1.0, "receipt_wait_s": 0.5,
                                       "tiles_grace_s": 0.5}
 
 
-@mutation(SUBMIT_FILE, "        budget = min(self.evidence_left, self.deadline - self.deps.clock())",
-          "        budget = self.evidence_left", expect="within the core's bound")
 @mutation(SUBMIT_FILE, "            self.evidence_left -= self.deps.clock() - t0", "            pass",
           expect="one shared cap")
 def test_hanging_captures_and_a_slow_close_never_cost_a_verdict_to_the_core_submit_bound():
@@ -943,13 +951,14 @@ def test_hanging_captures_and_a_slow_close_never_cost_a_verdict_to_the_core_subm
         assert isinstance(result.job, verdict), "%s: %r" % (what, result.job)
         assert page.log.count("Enter") == 1, what
         if what == "no media":
-            # two captures (the UI error, then the after-send picture): one shared cap, never one each
+            # two captures (the after-send picture, then the UI error): one shared cap, never one each
             assert took < 1.0 + CLOSE_S + 0.3, "%s: one shared cap for the job's captures, took %.2f s" % (what, took)
 
 
-@mutation(SUBMIT_FILE, "            if not await self._step():\n                return None",
-          "            await self.deps.sleep(STEP_S)\n            if False:\n                return None",
-          expect="slow setup")
+# the receipt wait (`_step`) and the bound of the run both stop at the deadline: only a deadline in the close allowance
+# loses the verdict
+@mutation(SUBMIT_FILE, '"meta.%s_submit_timeout_s" % self.kind) - deps.hold_margin_s',
+          '"meta.%s_submit_timeout_s" % self.kind) + deps.hold_margin_s', expect="the verdict was lost")
 def test_a_slow_setup_and_a_receipt_that_never_comes_still_return_the_verdict_within_the_core_bound():
     cap = capture("image-1-acc1")
     page = Page([], cap, opens=None)
@@ -971,3 +980,42 @@ def test_an_answer_that_turns_final_in_the_last_10_s_before_the_deadline_is_stil
         page = Page([], cap, answers=[streaming(cap.answer)] * late + [final])
         result, _ = run(page, cap)
         assert isinstance(result.job, verdict), "final in the last 10 s: %r" % (result.job,)
+
+
+
+
+def bounded_run(page, cap, what, **deps):
+    try:
+        return run(page, cap, real_time=(CLOSE_S, BOUND_S, {**SCALED, **deps}))[0]
+    except TimeoutError:
+        raise AssertionError("%s: the verdict was lost: not within the core's bound" % what) from None
+
+
+@mutation(SUBMIT_FILE, BOUND, UNBOUND, expect="the verdict was lost")
+def test_a_read_of_the_answer_that_hangs_after_the_enter_is_ambiguous_within_the_core_bound():
+    cap = capture("image-1-acc1")
+    page = Page([], cap)
+    page.read_hang_s = 60.0
+    result = bounded_run(page, cap, "a hung read")
+    assert isinstance(result.job, Ambiguous) and sent(page.log)[-2:] == ["mark_sent", "Enter"], result.job
+
+
+@mutation(SUBMIT_FILE, BOUND, UNBOUND, expect="the verdict was lost")
+@mutation(SUBMIT_FILE, "Ambiguous(why) if self.sent else", "Ambiguous(why) if True else", expect="nothing was sent")
+def test_a_composer_wait_that_hangs_before_the_enter_sends_nothing_and_is_a_retry_within_the_core_bound():
+    cap = capture("image-1-acc1")
+    page = Page([], cap)
+    page.composer_hang_s = 60.0
+    result = bounded_run(page, cap, "a hung composer", composer_wait_s=60.0)
+    assert result.job == Retry("meta.ui_page_not_ready"), "nothing was sent: %r" % (result.job,)
+    assert sent(page.log) == []
+
+
+@mutation(SUBMIT_FILE, "        budget = min(self.evidence_left, self.deadline - self.deps.clock())",
+          "        budget = self.evidence_left", expect="the verdict was lost")
+def test_a_capture_that_hangs_after_a_verdict_late_in_the_window_keeps_that_verdict_within_the_core_bound():
+    cap = capture("image-1-acc1")
+    page = Page([], cap)        # done at the third read, 1 s in, 0.8 s before the deadline
+    page.shot_hang_s = 60.0
+    result = bounded_run(page, cap, "a hung capture", evidence_wait_s=2.0)
+    assert isinstance(result.job, Completed), result.job
