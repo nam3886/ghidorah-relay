@@ -1,6 +1,6 @@
 """Mutation markers for the Settings page's limits: the allowed text under a setting, the Fixed limits card, the
-Containers card and the sub-navigation that reaches them. Each mutant must turn the Vitest spec it names red, with the
-exact failed test; `webunit.vitest` runs the spec and scripts/mutate.py does the mutating. A plain `check.sh`
+Containers card and the General card's links that reach them. Each mutant must turn the Vitest spec it names red,
+with the exact failed test; `webunit.vitest` runs the spec and scripts/mutate.py does the mutating. A plain `check.sh`
 deselects these tests. The expected failed test lines are built the way the runner reads them: `<spec prefix> +
 "<describe> > <test title>"`."""
 
@@ -22,7 +22,8 @@ REPORTED_AGO = SPEC + ("the containers card > says this process for the api and 
 EXACT_WORDS = SPEC + ("the containers card > shows an unreadable limit and a limit that is not set as the server's "
                       "exact words, apart from a dash")
 NO_BOOT_BAND = SPEC + "the containers card > has no Boot values band when no service reports a boot value"
-SIX_SECTIONS = SPEC + "the page > lists the six sections and moves the mark to Fixed limits on a click"
+FIVE_SECTIONS = SPEC + ("the page > lists the five sections in the General card and moves the mark to Fixed limits on "
+                        "a click")
 FIXED_ROWS = SPEC + "the page > shows the Fixed limits rows that the settings read brought"
 CONTAINER_ROWS = SPEC + "the page > shows the Containers rows that the settings read brought"
 
@@ -36,10 +37,11 @@ CONTAINER_ROWS = SPEC + "the page > shows the Containers rows that the settings 
 @mutation(CONTAINER_LIMITS, '{ name: "Boot values", lines: lines.value.filter((l) => l.boot) },', "", expect=MATRIX)
 @mutation(CONTAINER_LIMITS, "].filter((g) => g.lines.length),", "],", expect=NO_BOOT_BAND)
 @mutation(CONTAINER_LIMITS, "if (!line.boot) return bootValue(", "if (!line.boot) return String(", expect=EXACT_WORDS)
-@mutation(SETTINGS_VIEW, '  { id: "limits", label: "Fixed limits" },\n', "", expect=SIX_SECTIONS)
-@mutation(SETTINGS_VIEW, '  { id: "password", label: "Change password" },\n  { id: "settings", label: "Settings" },\n',
-          '  { id: "settings", label: "Settings" },\n  { id: "password", label: "Change password" },\n',
-          expect=SIX_SECTIONS)
+@mutation(SETTINGS_VIEW, '  { id: "limits", label: "Fixed limits" },\n', "", expect=FIVE_SECTIONS)
+@mutation(SETTINGS_VIEW,
+          '  { id: "password", label: "Change password" },\n  { id: "boot", label: "Boot-only values" },\n',
+          '  { id: "boot", label: "Boot-only values" },\n  { id: "password", label: "Change password" },\n',
+          expect=FIVE_SECTIONS)
 @mutation(SETTINGS_VIEW, "fixed.value = data.fixed;", "fixed.value = [];", expect=FIXED_ROWS)
 @mutation(SETTINGS_VIEW, "containers.value = data.containers;", "containers.value = [];", expect=CONTAINER_ROWS)
 @pytest.mark.web_unit

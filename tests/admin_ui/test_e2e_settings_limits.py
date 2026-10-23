@@ -51,7 +51,12 @@ def limit_cell(page, service: str, label: str):
 
 
 def row_of(page, key: str):
-    return page.locator("#settings tbody tr, #settings ul.list li", has_text=key).filter(has=page.locator(".key"))
+    """A setting's field on its card; one under Advanced is shown first."""
+    field = page.locator('#settings .field[data-key="%s"]' % key)
+    fold = page.locator("#settings details.adv").filter(has=field)
+    if fold.count() and fold.first.get_attribute("open") is None:
+        fold.first.locator("summary").click()
+    return field
 
 
 @pytest.mark.parametrize(("width", "height"), SIZES)
@@ -70,8 +75,9 @@ def test_the_allowed_text_of_a_bounded_setting_shows_under_its_description_uncut
 def test_a_value_over_its_bound_is_refused_and_the_stored_value_stays(app, app_session, db, width, height):
     page = app_session
     open_settings(app, page, width, height)
+    row_of(page, "fake.browser_slots")
     page.get_by_label("Value of fake.browser_slots").fill("31")
-    page.get_by_role("button", name="Save fake.browser_slots").click()
+    page.get_by_role("button", name="Save fake", exact=True).click()
     expect(page.locator(".el-message--error")).to_contain_text("(value)")
     assert db.one("SELECT count(*) FROM settings_kv WHERE key = 'fake.browser_slots'")[0] == 0
     page.problems.clear()                                    # the 400 is a console line
@@ -82,7 +88,7 @@ def test_the_fixed_limits_link_brings_its_card_into_view_with_the_core_and_the_p
                                                                                                 height):
     page = app_session
     open_settings(app, page, width, height)
-    page.locator(".snav").get_by_role("link", name="Fixed limits").click()
+    page.get_by_test_id("settings-card-core").get_by_role("link", name="Fixed limits").click()
     settle(page)
     card = page.locator("#limits")
     expect(card).to_be_in_viewport()
@@ -101,7 +107,7 @@ def test_the_fixed_limits_link_brings_its_card_into_view_with_the_core_and_the_p
 def test_the_containers_card_lists_the_api_with_four_readable_limits(app, app_session, width, height):
     page = app_session
     open_settings(app, page, width, height)
-    page.locator(".snav").get_by_role("link", name="Containers").click()
+    page.get_by_test_id("settings-card-core").get_by_role("link", name="Containers").click()
     settle(page)
     api = service_head(page, "api")
     expect(api).to_be_visible()

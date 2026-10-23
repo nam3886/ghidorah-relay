@@ -12,6 +12,15 @@ import {
   parseValue,
   valueText,
 } from "@/components/settings/settings-value";
+import * as shell from "@/api/shell";
+import {
+  cardsOf,
+  fieldLabel,
+  otherPrices,
+  priceInputs,
+  withModelOn,
+  withPrice,
+} from "@/components/settings/settings-cards";
 import { notify } from "@/lib/notify";
 import { TEST_KEY, TOKEN_KEY, USER_KEY } from "@/lib/session";
 import { useAuthStore } from "@/stores/auth";
@@ -19,7 +28,7 @@ import { useScopeStore } from "@/stores/scope";
 import SettingsView from "@/views/SettingsView.vue";
 
 vi.mock("@/api/settings");
-vi.mock("@/api/shell", () => ({ getModels: vi.fn() }));
+vi.mock("@/api/shell", () => ({ getModels: vi.fn(), getProvidersSummary: vi.fn() }));
 vi.mock("@/lib/notify", () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 describe("setting values", () => {
@@ -67,23 +76,50 @@ describe("setting values", () => {
   });
 });
 
+const setting = (over: Partial<api.SettingItem> & Pick<api.SettingItem, "key" | "value">): api.SettingItem => ({
+  group: over.key.includes(".") ? over.key.split(".")[0]! : "core",
+  basic: false,
+  type: typeof over.value === "number" ? "int" : typeof over.value === "boolean" ? "bool" : "str",
+  source: "default",
+  default: over.value,
+  description: "",
+  allowed: null,
+  ...over,
+});
 const items = (): api.SettingItem[] => [
-  {
+  setting({
     key: "session_ttl_s",
     value: 3600,
     source: "db",
     default: 1800,
     description: "How long a session lasts",
     allowed: "at least 60",
-  },
-  {
-    key: "billing_label",
-    value: "relay",
-    source: "default",
-    default: "relay",
-    description: "A label",
-    allowed: null,
-  },
+  }),
+  setting({ key: "billing_label", value: "relay", description: "A label" }),
+  setting({ key: "dola.claims_enabled", value: true, basic: true, description: "Drain mode off." }),
+  setting({
+    key: "dola.disabled_models",
+    value: ["seedance-1.0"],
+    default: [],
+    type: "list",
+    basic: true,
+    source: "db",
+    description: "Models paused for every key.",
+  }),
+  setting({
+    key: "dola.prices",
+    value: { "seedance_v2.5@5s": 2, "seedance_v2.5@10s": 4, "seedream-4.5": 1, "old-model": 3 },
+    type: "dict",
+    basic: true,
+    description: "Points per model.",
+  }),
+  setting({ key: "dola.video_budget", value: 4, basic: true, description: "Video points per account a day." }),
+  setting({ key: "dola.render_deadline_s", value: 9000, description: "Render deadline." }),
+];
+const models = (): shell.CatalogModel[] => [
+  { id: "seedance-2.5", name: "Dreamina Seedance 2.5", owned_by: "dola", kind: "video", aliases: ["seedance_v2.5"] },
+  { id: "seedance-1.0", name: "Dreamina Seedance 1.0", owned_by: "dola", kind: "video", aliases: ["seedance_v1.0"] },
+  { id: "seedream-4.5", name: "Seedream 4.5", owned_by: "dola", kind: "image", aliases: [] },
 ];
 const priceRows = (): api.PriceRow[] => [
   {
@@ -139,6 +175,25 @@ beforeEach(() => {
     containers: [],
   }));
   vi.mocked(api.getPrices).mockImplementation(async () => ({ items: priceRows() }));
+  vi.mocked(shell.getModels).mockResolvedValue({ data: models() });
+  vi.mocked(shell.getProvidersSummary).mockResolvedValue({
+    day_tz: "UTC",
+    day_start_ms: 0,
+    hours: [],
+    providers: [
+      {
+        provider: "dola",
+        execution: "browser",
+        claims_enabled: true,
+        running: 0,
+        queued: 0,
+        done_today: 0,
+        failed_today: 0,
+        accounts: { usable: 1, total: 1 },
+        pools: [],
+      },
+    ],
+  });
 });
 afterEach(() => {
   wrapper?.unmount();
@@ -149,8 +204,8 @@ afterEach(() => {
 describe("the settings page", () => {
   it("lets the page scroll: no table holds a fixed height that would clip a row", async () => {
     await open();
-    // Settings, Boot-only values and Measured prices have rows; Fixed limits and Containers read None
-    expect(wrapper!.findAll("table")).toHaveLength(3);
+    // Boot-only values and Measured prices have rows; Fixed limits and Containers read None
+    expect(wrapper!.findAll("table")).toHaveLength(2);
     expect(wrapper!.html()).not.toMatch(/max-height:\s*(\d|calc)/);
   });
 
@@ -159,7 +214,9 @@ describe("the settings page", () => {
     vi.mocked(api.getPrices).mockReturnValue(new Promise(() => undefined));
     await open();
     const tables = wrapper!.findAll("table");
-    expect(tables).toHaveLength(5);
+    expect(tables).toHaveLength(4);
+    // the settings cards wait as one card of bars
+    expect(wrapper!.findAll("#settings [data-state=loading] .set-skel")).toHaveLength(5);
     for (const table of tables) {
       expect(table.find("thead").exists()).toBe(true);
       const body = table.find("tbody");
@@ -175,18 +232,99 @@ describe("the settings page", () => {
   });
 });
 
-describe("the settings table", () => {
+const card = (group: string) => wrapper!.find(`[data-testid="settings-card-${group}"]`);
+const field = (key: string) => wrapper!.find(`.field[data-key="${key}"]`);
+
+describe("the cards", () => {
+  it("draws General first, then a card per provider; a strip pick shows one card, General its own", async () => {
+    await open();
+    expect(wrapper!.findAll(".scard").map((c) => c.attributes("data-testid"))).toEqual([
+      "settings-card-core",
+      "settings-card-dola",
+    ]);
+    const scope = useScopeStore();
+    scope.provider = "dola";
+    await flushPromises();
+    expect(wrapper!.findAll(".scard").map((c) => c.attributes("data-testid"))).toEqual(["settings-card-dola"]);
+    // a provider keeps its measured prices; the password and the boot-only values go with General
+    expect(wrapper!.find("#prices").exists()).toBe(true);
+    expect(wrapper!.find("#password").exists()).toBe(false);
+    scope.provider = "";
+    scope.general = true;
+    await flushPromises();
+    expect(wrapper!.findAll(".scard").map((c) => c.attributes("data-testid"))).toEqual(["settings-card-core"]);
+    expect(wrapper!.find("#password").exists()).toBe(true);
+  });
+
+  it("a provider card's header: its tile, how it sends, the models on, and the Taking jobs switch", async () => {
+    await open();
+    const head = card("dola").find(".scard__head");
+    expect(head.find(".ptile").text()).toBe("D");
+    expect(head.find(".scard__sub").text()).toBe("browser · 2/3 models on");
+    expect(head.find("[role=switch]").attributes("aria-checked")).toBe("true");
+    expect(head.text()).toContain("Taking jobs");
+    expect(head.text()).toContain("dola.claims_enabled");
+    await head.find("[role=switch]").trigger("click");
+    expect(head.text()).toContain("Paused");
+    expect(head.text()).toContain("edited");
+  });
+
+  it("Models & prices: a row per model with its switch and price inputs, a paused one dimmed, other keys apart", async () => {
+    await open();
+    const rows = card("dola").findAll(".mrow");
+    expect(rows.map((r) => r.attributes("data-model"))).toEqual(["seedance-2.5", "seedance-1.0", "seedream-4.5", ""]);
+    expect(rows[0]!.find(".mrow__name").text()).toBe("Dreamina Seedance 2.5video · seedance-2.5");
+    expect(rows[0]!.findAll("label").map((l) => l.text())).toEqual(["5 s", "10 s"]);
+    expect(rows[1]!.classes()).toContain("is-off");
+    expect(rows[1]!.find("small").text()).toBe("video · seedance-1.0 · Paused");
+    expect(rows[1]!.find("[role=switch]").attributes("aria-checked")).toBe("false");
+    expect(rows[2]!.findAll("label").map((l) => l.text())).toEqual(["points"]);
+    expect(rows[3]!.text()).toContain("old-model");
+  });
+
+  it("a model switch and a price input edit the drafts; Save sends each changed setting, then reads again", async () => {
+    await open();
+    await card("dola").find('[aria-label="Offer seedance-1.0"]').trigger("click");
+    await card("dola").find('[aria-label="seedance-2.5 5 s price"]').setValue("3");
+    expect(card("dola").find(".scard__changed").text()).toBe("2 changes not saved");
+    vi.mocked(api.putSetting).mockResolvedValue(items()[0]!);
+    vi.mocked(api.getSettings).mockClear();
+    await card("dola").find('[aria-label="Save dola"]').trigger("click");
+    await flushPromises();
+    expect(api.putSetting).toHaveBeenCalledWith("dola.disabled_models", []);
+    expect(api.putSetting).toHaveBeenCalledWith("dola.prices", {
+      "seedance_v2.5@5s": 3,
+      "seedance_v2.5@10s": 4,
+      "seedream-4.5": 1,
+      "old-model": 3,
+    });
+    expect(api.getSettings).toHaveBeenCalledTimes(1);
+    expect(notify.success).toHaveBeenCalledWith("Saved");
+    expect(card("dola").find('[aria-label="Save dola"]').attributes("disabled")).toBeDefined();
+  });
+
+  it("basic settings show on the card, the rest folded under Advanced", async () => {
+    await open();
+    const dola = card("dola");
+    expect(dola.find(".blk .fields").find('[data-key="dola.video_budget"]').exists()).toBe(true);
+    expect(dola.find("details.adv").attributes("open")).toBeUndefined();
+    expect(dola.find("details.adv").find('[data-key="dola.render_deadline_s"]').exists()).toBe(true);
+    expect(dola.find("details.adv summary").text()).toContain("1 settings");
+    // General marks none basic: its settings are all shown, none folded
+    expect(card("core").find("details.adv").exists()).toBe(false);
+    expect(card("core").find('[data-key="session_ttl_s"]').exists()).toBe(true);
+  });
+
   it("shows each setting with its value, source and default, and the boot-only values with - for none", async () => {
     await open();
-    const text = wrapper!.text();
-    expect(text).toContain("session_ttl_s");
+    const text = field("session_ttl_s").text();
+    expect(text).toContain("Session ttl (s)");
     expect(text).toContain("How long a session lasts");
+    expect(text).toContain("Allowed: at least 60");
+    expect(text).toContain("db · default 1800");
     expect((valueInput("session_ttl_s").element as HTMLInputElement).value).toBe("3600");
     expect((valueInput("billing_label").element as HTMLInputElement).value).toBe("relay");
-    expect(text).toContain("db");
-    expect(text).toContain("1800");
-    expect(text).toContain("BILLING_TZ");
-    expect(text).toContain("Asia/Saigon");
+    expect(wrapper!.text()).toContain("Asia/Saigon");
     const env = wrapper!
       .find('table[aria-label="Boot-only values"]')
       .findAll("tbody tr")
@@ -194,52 +332,49 @@ describe("the settings table", () => {
     expect(env!.findAll("td")[1]!.text()).toBe("-");
   });
 
-  it("Save is disabled until the value changed, the row says edited, and an edit back disables it again", async () => {
+  it("Save is disabled until a value changed, the field says edited, and an edit back disables it again", async () => {
     await open();
-    expect(button("Save session_ttl_s").attributes("disabled")).toBeDefined();
+    const save = () => card("core").find('[aria-label="Save General"]');
+    expect(save().attributes("disabled")).toBeDefined();
     expect(wrapper!.text()).not.toContain("edited");
     await valueInput("session_ttl_s").setValue("7200");
-    expect(button("Save session_ttl_s").attributes("disabled")).toBeUndefined();
-    expect(wrapper!.text()).toContain("edited");
-    expect(button("Save billing_label").attributes("disabled")).toBeDefined();
+    expect(save().attributes("disabled")).toBeUndefined();
+    expect(field("session_ttl_s").text()).toContain("edited");
+    expect(card("dola").find('[aria-label="Save dola"]').attributes("disabled")).toBeDefined();
     await valueInput("session_ttl_s").setValue("3600");
-    expect(button("Save session_ttl_s").attributes("disabled")).toBeDefined();
+    expect(save().attributes("disabled")).toBeDefined();
   });
 
   it("Save sends the parsed value, reloads both lists and says Saved", async () => {
     await open();
     await valueInput("session_ttl_s").setValue("7200");
+    await valueInput("billing_label").setValue("my label");
     vi.mocked(api.putSetting).mockResolvedValue(items()[0]!);
     vi.mocked(api.getSettings).mockClear();
-    await button("Save session_ttl_s").trigger("click");
+    vi.mocked(api.getPrices).mockClear();
+    await card("core").find('[aria-label="Save General"]').trigger("click");
     await flushPromises();
     expect(api.putSetting).toHaveBeenCalledWith("session_ttl_s", 7200);
-    expect(api.getSettings).toHaveBeenCalledTimes(1);
-    expect(notify.success).toHaveBeenCalledWith("Saved");
-    expect(button("Save session_ttl_s").attributes("disabled")).toBeDefined();
-  });
-
-  it("Save falls back to the raw string for text that is not JSON", async () => {
-    await open();
-    await valueInput("billing_label").setValue("my label");
-    vi.mocked(api.putSetting).mockResolvedValue(items()[1]!);
-    await button("Save billing_label").trigger("click");
-    await flushPromises();
+    // text that is not JSON goes as the string it is
     expect(api.putSetting).toHaveBeenCalledWith("billing_label", "my label");
+    expect(api.getSettings).toHaveBeenCalledTimes(1);
+    expect(api.getPrices).toHaveBeenCalledTimes(1);
+    expect(notify.success).toHaveBeenCalledWith("Saved");
   });
 
-  it("Reset is on for a stored value or an edit, and off for a value that is only the environment or default", async () => {
+  it("Discard puts the stored values back", async () => {
     await open();
-    expect(button("Reset session_ttl_s").attributes("disabled")).toBeUndefined();
-    expect(button("Reset billing_label").attributes("disabled")).toBeDefined();
-    await valueInput("billing_label").setValue("changed");
-    expect(button("Reset billing_label").attributes("disabled")).toBeUndefined();
-    await valueInput("billing_label").setValue("relay");
-    expect(button("Reset billing_label").attributes("disabled")).toBeDefined();
+    await valueInput("session_ttl_s").setValue("7200");
+    await card("core").find('[aria-label="Discard General changes"]').trigger("click");
+    expect((valueInput("session_ttl_s").element as HTMLInputElement).value).toBe("3600");
+    expect(card("core").find('[aria-label="Save General"]').attributes("disabled")).toBeDefined();
   });
 
-  it("Reset deletes the stored value and says Reset", async () => {
+  it("Reset is offered for a stored value only, deletes it and says Reset", async () => {
     await open();
+    expect(button("Reset session_ttl_s").exists()).toBe(true);
+    expect(button("Reset billing_label").exists()).toBe(false);
+    expect(button("Reset dola.disabled_models").exists()).toBe(true);
     vi.mocked(api.deleteSetting).mockResolvedValue({});
     await button("Reset session_ttl_s").trigger("click");
     await flushPromises();
@@ -247,16 +382,20 @@ describe("the settings table", () => {
     expect(notify.success).toHaveBeenCalledWith("Reset");
   });
 
-  it("a refused value is a toast with the field and no Saved", async () => {
+  it("a refused value is a toast and a line under the field, keeps what was typed, and no Saved", async () => {
     await open();
     await valueInput("session_ttl_s").setValue("nope");
     vi.mocked(api.putSetting).mockRejectedValue(
       new ApiError(400, { error: { code: "input.invalid", message: "bad value", param: "value" } }),
     );
-    await button("Save session_ttl_s").trigger("click");
+    await card("core").find('[aria-label="Save General"]').trigger("click");
     await flushPromises();
     expect(notify.error).toHaveBeenCalledWith("bad value (value)");
     expect(notify.success).not.toHaveBeenCalled();
+    expect(field("session_ttl_s").find("[role=alert]").text()).toBe("bad value (value)");
+    expect((valueInput("session_ttl_s").element as HTMLInputElement).value).toBe("nope");
+    await card("core").find('[aria-label="Discard General changes"]').trigger("click");
+    expect(field("session_ttl_s").find("[role=alert]").exists()).toBe(false);
   });
 
   it("shows an empty list and a failed load with Retry", async () => {
@@ -278,31 +417,68 @@ describe("the settings table", () => {
   });
 });
 
-describe("the sub-navigation", () => {
-  it("lists the six sections in order, marks the first as current and moves the mark on a click", async () => {
+describe("the card rules", () => {
+  it("label a setting from its name, its unit apart", () => {
+    expect(fieldLabel({ key: "dola.render_deadline_s", group: "dola" })).toBe("Render deadline (s)");
+    expect(fieldLabel({ key: "alert_disk_free_gb", group: "core" })).toBe("Alert disk free (GB)");
+    expect(fieldLabel({ key: "log_retention_days", group: "core" })).toBe("Log retention days");
+  });
+
+  it("put the claims switch, the models and the prices in their own place, basic first, the rest under Advanced", () => {
+    const [core, dola] = cardsOf(items());
+    expect(core!.group).toBe("core");
+    expect(core!.basic.map((i) => i.key)).toEqual(["session_ttl_s", "billing_label"]);
+    expect(Object.keys(dola!.own).sort()).toEqual(["claims_enabled", "disabled_models", "prices"]);
+    expect(dola!.basic.map((i) => i.key)).toEqual(["dola.video_budget"]);
+    expect(dola!.advanced.map((i) => i.key)).toEqual(["dola.render_deadline_s"]);
+  });
+
+  it("find a model's prices by its id or an alias, a tier after @, and the keys no model has", () => {
+    const table = items()[4]!.value as Record<string, unknown>;
+    expect(priceInputs(models()[0]!, table).map((p) => [p.key, p.label, p.text])).toEqual([
+      ["seedance_v2.5@5s", "5 s", "2"],
+      ["seedance_v2.5@10s", "10 s", "4"],
+    ]);
+    expect(priceInputs(models()[1]!, table)).toEqual([]);
+    expect(otherPrices(models(), table).map((p) => p.key)).toEqual(["old-model"]);
+  });
+
+  it("send a whole price as a number and anything else as typed", () => {
+    const prices = items()[4]!;
+    expect(JSON.parse(withPrice(undefined, prices, "seedream-4.5", " 7 "))["seedream-4.5"]).toBe(7);
+    expect(JSON.parse(withPrice(undefined, prices, "seedream-4.5", "1.5"))["seedream-4.5"]).toBe("1.5");
+  });
+
+  it("keep the paused models in the catalog's order, and a switch off and on again is no change", () => {
+    const paused = items()[3]!;
+    const ids = models().map((m) => m.id);
+    const off = withModelOn(undefined, paused, ids, "seedance-2.5", false);
+    expect(JSON.parse(off)).toEqual(["seedance-2.5", "seedance-1.0"]);
+    expect(withModelOn(off, paused, ids, "seedance-2.5", true)).toBe('["seedance-1.0"]');
+  });
+});
+
+describe("the General links", () => {
+  const links = () => card("core").findAll(".scard__links a");
+  it("lists the five other sections in order, marks the first as current and moves the mark on a click", async () => {
     await open();
-    const nav = wrapper!.find('nav[aria-label="Settings sections"]');
-    const links = nav.findAll("a");
-    expect(links.map((a) => a.text())).toEqual([
+    expect(links().map((a) => a.text())).toEqual([
       "Change password",
-      "Settings",
       "Boot-only values",
       "Measured prices",
       "Fixed limits",
       "Containers",
     ]);
-    expect(links.map((a) => a.attributes("aria-current"))).toEqual([
+    expect(links().map((a) => a.attributes("aria-current"))).toEqual([
       "true",
-      undefined,
       undefined,
       undefined,
       undefined,
       undefined,
     ]);
     vi.stubGlobal("scrollTo", vi.fn());
-    await links[3]!.trigger("click");
-    expect(wrapper!.findAll('nav[aria-label="Settings sections"] a').map((a) => a.attributes("aria-current"))).toEqual([
-      undefined,
+    await links()[2]!.trigger("click");
+    expect(links().map((a) => a.attributes("aria-current"))).toEqual([
       undefined,
       undefined,
       "true",
@@ -318,11 +494,11 @@ describe("the sub-navigation", () => {
   });
   // The card sits 700 px below the top of the viewport and keeps 16 px of scroll margin.
   function geometry(withArea: boolean): void {
-    const card = document.getElementById("prices")!;
-    vi.spyOn(card, "getBoundingClientRect").mockReturnValue({ top: 700 } as DOMRect);
+    const target = document.getElementById("prices")!;
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue({ top: 700 } as DOMRect);
     const real = window.getComputedStyle.bind(window);
     vi.spyOn(window, "getComputedStyle").mockImplementation(((el: Element) =>
-      el === card
+      el === target
         ? { scrollMarginTop: "16px" }
         : el.classList.contains("app-scroll__wrap")
           ? { overflowY: withArea ? "auto" : "visible" }
@@ -337,7 +513,7 @@ describe("the sub-navigation", () => {
     wrapEl = wrap;
     return wrap;
   }
-  const pricesLink = () => wrapper!.findAll('nav[aria-label="Settings sections"] a')[3]!;
+  const pricesLink = () => links()[2]!;
 
   it("scrolls the page's scroll area to the card minus the anchor, and nothing else", async () => {
     await open();

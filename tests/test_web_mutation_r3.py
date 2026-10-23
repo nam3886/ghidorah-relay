@@ -6,7 +6,7 @@ A plain `check.sh` deselects these tests. The rules covered:
 - the Generate polling (3 s, 600 tries) and its generation guard, sign-out and a 401 ending it;
 - Prompt frames: the `gen` guard on answers and errors, the busy rules, the lock toggle keeping the draft, the inline
   4xx refusal, the preview and apply-all drops;
-- Settings: the JSON-then-string value parse, the dirty rule, the provider scope, the password change.
+- Settings: the JSON-then-string value parse, the dirty rule, the cards, the provider scope, the password change.
 The runner reads every argument as a string literal, an f-string or a sum of module constants, so the expected failed
 test lines are built that way: `<spec prefix> + "<describe> > <test title>"`."""
 
@@ -24,7 +24,9 @@ SESSION = f"{SRC}/components/test/use-test-session.ts"
 GENERATE = f"{SRC}/components/test/use-generate.ts"
 TEST_VIEW = f"{SRC}/views/TestView.vue"
 SETTING_VALUE = f"{SRC}/components/settings/settings-value.ts"
-SETTINGS_TABLE = f"{SRC}/components/settings/SettingsTable.vue"
+SETTINGS_CARD = f"{SRC}/components/settings/SettingsGroupCard.vue"
+SETTING_FIELD = f"{SRC}/components/settings/SettingField.vue"
+SETTINGS_CARDS = f"{SRC}/components/settings/settings-cards.ts"
 SETTINGS_VIEW = f"{SRC}/views/SettingsView.vue"
 PASSWORD = f"{SRC}/components/settings/PasswordForm.vue"
 PRICES = f"{SRC}/components/settings/PricesTable.vue"
@@ -343,19 +345,23 @@ def test_test_view_option_values():
 # ---- Settings: the value parse, the dirty rule, the scope, the password change -------------------------------------
 PARSE = SETTINGS_SPEC + "setting values > are parsed as JSON first and fall back to the raw string"
 TEXT = SETTINGS_SPEC + "setting values > start in the input as the string itself, or JSON for anything else"
-TABLE = SETTINGS_SPEC + "the settings table > "
-DIRTY = TABLE + "Save is disabled until the value changed, the row says edited, and an edit back disables it again"
+TABLE = SETTINGS_SPEC + "the cards > "
+DIRTY = TABLE + "Save is disabled until a value changed, the field says edited, and an edit back disables it again"
 SAVE_SENDS = TABLE + "Save sends the parsed value, reloads both lists and says Saved"
 SCOPE = (SETTINGS_SPEC
          + "measured prices > follows the global provider filter and reloads only the prices when it changes")
-RESET_RULE = (TABLE + "Reset is on for a stored value or an edit, "
-              + "and off for a value that is only the environment or default")
-NAV_MOVES = (SETTINGS_SPEC + "the sub-navigation > lists the six sections in order, marks the first as current "
-             + "and moves the mark on a click")
-NAV_AREA = (SETTINGS_SPEC + "the sub-navigation > scrolls the page's scroll area to the card minus the anchor, "
+RESET_RULE = TABLE + "Reset is offered for a stored value only, deletes it and says Reset"
+NAV_MOVES = (SETTINGS_SPEC + "the General links > lists the five other sections in order, marks the first as "
+             + "current and moves the mark on a click")
+NAV_AREA = (SETTINGS_SPEC + "the General links > scrolls the page's scroll area to the card minus the anchor, "
             + "and nothing else")
-NAV_WINDOW = (SETTINGS_SPEC + "the sub-navigation > scrolls the window where the page has no scroll area of its own "
+NAV_WINDOW = (SETTINGS_SPEC + "the General links > scrolls the window where the page has no scroll area of its own "
               + "(a phone)")
+REFUSED = TABLE + "a refused value is a toast and a line under the field, keeps what was typed, and no Saved"
+MODELS_SAVE = TABLE + ("a model switch and a price input edit the drafts; Save sends each changed setting, then "
+                       "reads again")
+STRIP_PICK = TABLE + "draws General first, then a card per provider; a strip pick shows one card, General its own"
+RULES = SETTINGS_SPEC + "the card rules > "
 PRICES_SPEC = SETTINGS_SPEC + "measured prices > "
 PRICES_FIGURES = PRICES_SPEC + "shows duration as Ns or -, flags a disagreement and shows 0 for none"
 PASSWORD_SPEC = SETTINGS_SPEC + "change password > "
@@ -368,8 +374,23 @@ BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
 
 @mutation(SETTING_VALUE, "return text;", "return null;", expect=PARSE)
 @mutation(SETTING_VALUE, STRING_VALUE, "JSON.stringify(item.value)", expect=TEXT)
-@mutation(SETTINGS_TABLE, "drafts[item.key] !== valueText(item)", "true", expect=DIRTY)
-@mutation(SETTINGS_TABLE, 'item.source === "db" || edited(item)', "edited(item)", expect=RESET_RULE)
+@mutation(SETTINGS_CARD, "props.drafts[item.key] !== valueText(item)", "true", expect=DIRTY)
+@mutation(SETTING_FIELD, "v-if=\"item.source === 'db'\"", 'v-if="true"', expect=RESET_RULE)
+@mutation(SETTINGS_VIEW, "        errors[key] = errorText(err);\n", "", expect=REFUSED)
+@mutation(SETTINGS_VIEW, "for (const item of list) if (!(item.key in errors)) drafts[item.key]",
+          "for (const item of list) if (true) drafts[item.key]", expect=REFUSED)
+@mutation(SETTINGS_VIEW, "for (const key of keys.filter(edited)) {", "for (const key of keys.slice(0, 1)) {",
+          expect=MODELS_SAVE)
+@mutation(SETTINGS_VIEW, 'scope.general ? c.group === "core" : true', "true", expect=STRIP_PICK)
+@mutation(SETTINGS_CARDS, "if (!card.basic.length) [card.basic, card.advanced] = [card.advanced, []];", "",
+          expect=RULES + "put the claims switch, the models and the prices in their own place, basic first, the rest "
+                         "under Advanced")
+@mutation(SETTINGS_CARDS, '.filter((k) => names.includes(k.split("@")[0]!))', ".filter((k) => names.includes(k))",
+          expect=RULES + "find a model's prices by its id or an alias, a tier after @, and the keys no model has")
+@mutation(SETTINGS_CARDS, '/^\\d+$/.test(text.trim()) ? Number(text.trim()) : text', "Number(text)",
+          expect=RULES + "send a whole price as a number and anything else as typed")
+@mutation(SETTINGS_CARDS, "return same ? valueText(item) : JSON.stringify(next);", "return JSON.stringify(next);",
+          expect=RULES + "keep the paused models in the catalog's order, and a switch off and on again is no change")
 @mutation(SETTINGS_VIEW, "current.value = id;", "", expect=NAV_MOVES)
 @mutation(SETTINGS_VIEW, "if (area) area.scrollTo({ top: area.scrollTop + offset });",
           'if (area) card.scrollIntoView({ block: "start" });', expect=NAV_AREA)
@@ -379,7 +400,8 @@ BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
           "- (area ? area.getBoundingClientRect().top : 0);", expect=NAV_AREA)
 @mutation(PRICES, 'const NONE = "—";', 'const NONE = "-";', expect=PRICES_FIGURES)
 @mutation(PRICES, ': "0"', ': "none"', expect=PRICES_FIGURES)
-@mutation(SETTINGS_VIEW, "await putSetting(key, parseValue(text));", "await putSetting(key, text);", expect=SAVE_SENDS)
+@mutation(SETTINGS_VIEW, 'await putSetting(key, parseValue(drafts[key] ?? ""));',
+          'await putSetting(key, drafts[key] ?? "");', expect=SAVE_SENDS)
 @mutation(SETTINGS_VIEW, "watch(() => scope.provider, loadPrices);", "watch(() => scope.provider, () => undefined);",
           expect=SCOPE)
 @mutation(SETTINGS_VIEW, "getPrices(scope.provider)", 'getPrices("")', expect=SCOPE)
@@ -595,7 +617,8 @@ LOADING_ROWS = (SETTINGS_SPEC + "the settings page > draws the first read as the
 @mutation(PASSWORD, "if (fieldErrors.new_password) return;", "", expect=FORM_CHECK)
 @mutation(SETTING_VALUE, "shown.length > LONG_DEFAULT", "shown.length > 1000", expect=LONG_DEFAULT)
 @mutation(SETTING_VALUE, "JSON.stringify(value, null, 2)", "JSON.stringify(value)", expect=LONG_DEFAULT)
-@mutation(SETTINGS_TABLE, "props.loading && !props.items.length && !props.error", "false", expect=LOADING_ROWS)
+@mutation(SETTINGS_VIEW, "settingsLoading.value && !items.value.length && !settingsError.value", "false",
+          expect=LOADING_ROWS)
 @mutation(PRICES, "props.loading && !props.rows.length && !props.error", "false", expect=LOADING_ROWS)
 @mutation(VALUE_TABLE, "props.loading && !props.rows.length && !props.error", "false", expect=LOADING_ROWS)
 @mutation(CONTAINERS, "props.loading && !props.rows.length && !props.error", "false", expect=LOADING_ROWS)

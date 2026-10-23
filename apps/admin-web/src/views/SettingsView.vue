@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import {
   type ContainerRow,
   deleteSetting,
@@ -13,20 +14,30 @@ import {
 } from "@/api/settings";
 import ContainerLimits from "@/components/settings/ContainerLimits.vue";
 import PasswordForm from "@/components/settings/PasswordForm.vue";
-import SettingsTable from "@/components/settings/SettingsTable.vue";
+import SectionState from "@/components/settings/SectionState.vue";
+import SettingsGroupCard from "@/components/settings/SettingsGroupCard.vue";
+import "@/components/settings/settings-skeleton.css";
+import { cardsOf } from "@/components/settings/settings-cards";
 import ValueTable from "@/components/settings/ValueTable.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { loadFailedText } from "@/components/jobs/job-text";
-import { bootValue, parseValue } from "@/components/settings/settings-value";
+import { bootValue, parseValue, valueText } from "@/components/settings/settings-value";
 import { errorText } from "@/lib/errors";
 import PricesTable from "@/components/settings/PricesTable.vue";
 import SettingsCard from "@/components/settings/SettingsCard.vue";
 import { useBusy } from "@/composables/use-busy";
 import { useLatest } from "@/composables/use-latest";
 import { notify } from "@/lib/notify";
+import { useProvidersStore } from "@/stores/providers";
 import { useScopeStore } from "@/stores/scope";
 
+// Settings (final.html): the provider strip picks All providers, General or one provider. A card per provider (its
+// "Taking jobs" switch, its models and prices, its basic settings, the rest under Advanced) and General (the
+// relay-wide settings, with links to the page's other sections). Every value is a draft until its card's Save; a
+// refused value keeps what was typed and says why under it.
 const scope = useScopeStore();
+const providers = useProvidersStore();
+const router = useRouter();
 const { isPhone, isTablet } = useBreakpoint();
 const { busy, run } = useBusy();
 
@@ -82,37 +93,93 @@ async function loadPrices(): Promise<void> {
 
 const reload = () => Promise.all([loadSettings(), loadPrices()]);
 
-// Save sends the input text parsed as JSON, or the raw string when it is not JSON. Both writes reload the lists.
-const save = (key: string, text: string) =>
+// The draft of every setting (the text its input holds) and the refusal of its last Save. A read of the settings gives
+// each draft its stored value, except a refused one: what was typed stays, with the reason under it.
+const drafts = reactive<Record<string, string>>({});
+const errors = reactive<Record<string, string>>({});
+watch(items, (list) => {
+  const keys = new Set(list.map((i) => i.key));
+  for (const key of Object.keys(drafts)) if (!keys.has(key)) delete drafts[key];
+  for (const item of list) if (!(item.key in errors)) drafts[item.key] = valueText(item);
+});
+const byKey = computed(() => new Map(items.value.map((i) => [i.key, i])));
+const edited = (key: string): boolean => {
+  const item = byKey.value.get(key);
+  return !!item && drafts[key] !== valueText(item);
+};
+
+// Save sends each changed setting of the card, the input text parsed as JSON (or the raw string when it is not JSON),
+// one after another; a refusal is kept on its field and toasted, the others still go. Then both lists are read again.
+const save = (keys: string[]) =>
   run(async () => {
-    await putSetting(key, parseValue(text));
+    let refused = 0;
+    for (const key of keys.filter(edited)) {
+      try {
+        await putSetting(key, parseValue(drafts[key] ?? ""));
+        delete errors[key];
+      } catch (err) {
+        refused++;
+        errors[key] = errorText(err);
+        notify.error(errors[key]);
+      }
+    }
     await reload();
-    notify.success("Saved");
+    if (!refused) notify.success("Saved");
   });
+
+// Discard puts the stored values back and forgets the refusals.
+function discard(keys: string[]): void {
+  for (const key of keys) {
+    delete errors[key];
+    const item = byKey.value.get(key);
+    if (item) drafts[key] = valueText(item);
+  }
+}
 
 const reset = (key: string) =>
   run(async () => {
     await deleteSetting(key);
+    delete errors[key];
     await reload();
     notify.success("Reset");
   });
 
-onMounted(reload);
+onMounted(() => {
+  void reload();
+  // the models of each provider card, and how each provider sends (its header)
+  void scope.loadCatalog().catch((err: unknown) => notify.error(errorText(err)));
+  void providers.refresh();
+});
 watch(() => scope.provider, loadPrices);
 
 // A row is one (provider, model, duration): that is its table key.
 const withKey = (row: PriceRow): KeyedPrice => ({ ...row, id: `${row.provider}/${row.model}/${row.duration}` });
 
-// The sub-navigation: in-page anchors. The app routes by hash, so a click scrolls to the card instead of changing it.
+// The page's other sections, reached from the General card's footer: in-page anchors. The app routes by hash, so a
+// click scrolls to the card instead of changing it.
 const SECTIONS = [
   { id: "password", label: "Change password" },
-  { id: "settings", label: "Settings" },
   { id: "boot", label: "Boot-only values" },
   { id: "prices", label: "Measured prices" },
   { id: "limits", label: "Fixed limits" },
   { id: "containers", label: "Containers" },
 ] as const;
 const current = ref<string>("password");
+
+// What the strip picked: one provider's card, General alone, or every card (General first). The other sections show
+// with General and with All; a provider keeps its measured prices.
+const cards = computed(() => cardsOf(items.value));
+const shown = computed(() =>
+  cards.value.filter((c) => (scope.provider ? c.group === scope.provider : scope.general ? c.group === "core" : true)),
+);
+const modelsOf = (group: string) => (scope.models ?? []).filter((m) => m.owned_by === group);
+const summaryOf = (group: string) => providers.data?.providers.find((p) => p.provider === group) ?? null;
+function frames(group: string): void {
+  scope.provider = group;
+  void router.push({ name: "frames" });
+}
+// the first read: one card of flat bars
+const skeleton = computed(() => settingsLoading.value && !items.value.length && !settingsError.value);
 const bootRows = computed(() => envOnly.value.map((row) => ({ name: row.name, value: bootValue(row.value) })));
 // Scrolls the page's own scroll area (the window on a phone) and nothing else: scrollIntoView would also scroll the
 // overflow-hidden ancestors once a card cannot reach the top, shifting and clipping the layout. The area clamps the
@@ -135,90 +202,91 @@ function go(id: string): void {
     <div>
       <h1 class="settings__title">Settings</h1>
       <p class="settings__subtitle">
-        Values the relay reads at run time, what it was started with, what upstream charges, and your password.
+        A card per provider: its models and prices, its budgets, the rest folded under Advanced. General holds the
+        relay-wide values, your password and what the relay was started with.
       </p>
     </div>
 
-    <div class="settings__row">
-      <nav class="snav" aria-label="Settings sections">
-        <ul>
-          <li v-for="s in SECTIONS" :key="s.id">
-            <a
-              :href="`#${s.id}`"
-              :class="{ 'is-current': current === s.id }"
-              :aria-current="current === s.id ? 'true' : undefined"
-              @click.prevent="go(s.id)"
-              >{{ s.label }}</a
-            >
-          </li>
-        </ul>
-      </nav>
-
-      <div class="settings__content">
-        <PasswordForm />
-
-        <SettingsCard
-          id="settings"
-          title="Settings"
-          note="A saved value is kept in the database. Reset returns to the default."
-        >
-          <SettingsTable
-            :items="items"
-            :loading="settingsLoading"
-            :error="settingsError"
-            :busy="busy"
-            @save="save"
-            @reset="reset"
-            @retry="loadSettings"
-          />
-        </SettingsCard>
-
-        <SettingsCard
-          id="boot"
-          title="Boot-only values"
-          note="Read once when the relay starts. Change them in the environment and restart. Secrets are never listed."
-        >
-          <!-- read with the settings: their failure and their wait are this card's too -->
-          <ValueTable
-            :rows="bootRows"
-            :loading="settingsLoading"
-            :error="settingsError"
-            label="Boot-only values"
-            @retry="loadSettings"
-          />
-        </SettingsCard>
-
-        <SettingsCard
-          id="prices"
-          title="Measured prices"
-          note="What upstream reported per job, against what the relay charges."
-        >
-          <PricesTable :rows="prices" :loading="pricesLoading" :error="pricesError" @retry="loadPrices" />
-        </SettingsCard>
-
-        <SettingsCard
-          id="limits"
-          title="Fixed limits"
-          note="Constants in the code that shape behaviour. They change only with a new release."
-        >
-          <ValueTable
-            :rows="fixed"
-            :loading="settingsLoading"
-            :error="settingsError"
-            label="Fixed limits"
-            reasons
-            @retry="loadSettings"
-          />
-        </SettingsCard>
-
-        <SettingsCard
-          id="containers"
-          title="Containers"
-          note="Each relay service's own limits, read from its cgroup when it started. A worker that stopped cleanly is not listed."
-        >
-          <ContainerLimits :rows="containers" :loading="settingsLoading" :error="settingsError" @retry="loadSettings" />
-        </SettingsCard>
+    <section id="settings" class="settings__cards" aria-label="Settings" :aria-busy="settingsLoading">
+      <SettingsCard v-if="settingsError || !items.length" id="settings-state" title="Settings">
+        <SectionState :error="settingsError" :empty="!settingsLoading" empty-text="No settings" @retry="loadSettings" />
+        <div v-if="skeleton" class="set-skel-card" data-state="loading" aria-hidden="true">
+          <i v-for="n in 5" :key="n" class="set-skel" :style="{ width: `${40 + n * 9}%` }" />
+        </div>
+      </SettingsCard>
+      <div v-else class="sboard" :class="{ 'sboard--single': shown.length === 1 }" data-state="ready">
+        <SettingsGroupCard
+          v-for="card in shown"
+          :key="card.group"
+          :card="card"
+          :drafts="drafts"
+          :errors="errors"
+          :models="modelsOf(card.group)"
+          :summary="summaryOf(card.group)"
+          :busy="busy"
+          :links="card.group === 'core' ? SECTIONS : undefined"
+          :current="current"
+          @draft="(key: string, text: string) => (drafts[key] = text)"
+          @save="save"
+          @discard="discard"
+          @reset="reset"
+          @go="go"
+          @frames="frames(card.group)"
+        />
       </div>
+    </section>
+
+    <div class="settings__content">
+      <PasswordForm v-if="!scope.provider" />
+
+      <SettingsCard
+        v-if="!scope.provider"
+        id="boot"
+        title="Boot-only values"
+        note="Read once when the relay starts. Change them in the environment and restart. Secrets are never listed."
+      >
+        <!-- read with the settings: their failure and their wait are this card's too -->
+        <ValueTable
+          :rows="bootRows"
+          :loading="settingsLoading"
+          :error="settingsError"
+          label="Boot-only values"
+          @retry="loadSettings"
+        />
+      </SettingsCard>
+
+      <SettingsCard
+        id="prices"
+        title="Measured prices"
+        note="What upstream reported per job, against what the relay charges."
+      >
+        <PricesTable :rows="prices" :loading="pricesLoading" :error="pricesError" @retry="loadPrices" />
+      </SettingsCard>
+
+      <SettingsCard
+        v-if="!scope.provider"
+        id="limits"
+        title="Fixed limits"
+        note="Constants in the code that shape behaviour. They change only with a new release."
+      >
+        <ValueTable
+          :rows="fixed"
+          :loading="settingsLoading"
+          :error="settingsError"
+          label="Fixed limits"
+          reasons
+          @retry="loadSettings"
+        />
+      </SettingsCard>
+
+      <SettingsCard
+        v-if="!scope.provider"
+        id="containers"
+        title="Containers"
+        note="Each relay service's own limits, read from its cgroup when it started. A worker that stopped cleanly is not listed."
+      >
+        <ContainerLimits :rows="containers" :loading="settingsLoading" :error="settingsError" @retry="loadSettings" />
+      </SettingsCard>
     </div>
   </section>
 </template>
@@ -240,63 +308,36 @@ function go(id: string): void {
   margin: 4px 0 0;
   color: var(--rl-muted);
 }
-.settings__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 20px;
-}
 .settings__content {
-  flex: 1 1 640px;
-  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
+}
+.sboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+.sboard--single {
+  grid-template-columns: minmax(0, 760px);
+}
+.set-skel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 16px 18px;
 }
 
-/* The drawn sub-navigation sticks 16 px from the top of the page (tablet: at the top). On a tablet and a desktop the
-   page scrolls in its own area under the top bar, so nothing is added for the bar (--settings-bar 0); on a phone the
-   window scrolls and the sticky bar (102 px) is added. A card reached from the sub-navigation stops below the stuck
-   navigation. ponytail: the phone bar height written here; a variable from the top bar when it gets one. */
+/* A card reached from a General link stops 16 px under the top of the page area; on a phone the window scrolls and the
+   sticky top bar (102 px) is added. ponytail: the phone bar height written here; a variable from the top bar when it
+   gets one. */
 .settings {
   --settings-bar: 0px;
   --settings-anchor: calc(var(--settings-bar) + 16px);
 }
-.snav {
-  flex: 0 1 200px;
-  min-width: 180px;
-  position: sticky;
-  top: calc(var(--settings-bar) + 16px);
-}
-.snav ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.snav a {
-  display: block;
-  padding: 8px 12px;
-  border-radius: 10px;
-  color: var(--rl-muted);
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-}
-.snav a.is-current {
-  background: var(--rl-primary-soft);
-  color: var(--rl-fg);
-  font-weight: 600;
-}
-
 @media (min-width: 768px) and (max-width: 1279px) {
-  /* a card stops below the stuck pills (8 + 36 + 8) */
-  .settings {
-    --settings-bar: 0px;
-    --settings-anchor: calc(var(--settings-bar) + 52px + 16px);
-  }
   .settings__title {
     font-size: 24px;
     line-height: 32px;
@@ -304,48 +345,6 @@ function go(id: string): void {
   }
   .settings__subtitle {
     margin-top: 2px;
-  }
-  .settings__row {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-items: stretch;
-    gap: 20px;
-  }
-  .settings__content {
-    flex: none;
-  }
-  .snav {
-    flex: none;
-    position: sticky;
-    top: var(--settings-bar);
-    z-index: 2;
-    min-width: 0;
-    margin: -8px -24px;
-    padding: 8px 24px;
-    background: var(--rl-bg);
-    overflow-x: auto;
-  }
-  .snav ul {
-    flex-wrap: nowrap;
-    gap: 8px;
-  }
-  .snav li {
-    flex: none;
-  }
-  .snav a {
-    display: flex;
-    align-items: center;
-    box-sizing: border-box;
-    height: 36px;
-    padding: 0 14px;
-    border: 1px solid var(--rl-line-strong);
-    border-radius: 18px;
-    background: var(--rl-surface);
-    font-size: 13px;
-  }
-  .snav a.is-current {
-    border-color: var(--rl-primary);
-    background: var(--rl-primary-soft);
   }
 }
 @media (max-width: 767px) {
@@ -361,45 +360,11 @@ function go(id: string): void {
   .settings__subtitle {
     margin-top: 2px;
   }
-  .settings__row {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-items: stretch;
-    gap: 16px;
-  }
   .settings__content {
-    flex: none;
     gap: 16px;
   }
-  .snav {
-    flex: none;
-    position: static;
-    min-width: 0;
-    margin: 0 -16px;
-    overflow-x: auto;
-  }
-  .snav ul {
-    flex-wrap: nowrap;
-    gap: 8px;
-    padding: 0 16px;
-  }
-  .snav li {
-    flex: none;
-  }
-  .snav a {
-    display: flex;
-    align-items: center;
-    box-sizing: border-box;
-    height: 44px;
-    padding: 0 16px;
-    border: 1px solid var(--rl-line-strong);
-    border-radius: 22px;
-    background: transparent;
-    font-size: 14px;
-  }
-  .snav a.is-current {
-    border-color: var(--rl-primary);
-    background: var(--rl-primary-soft);
+  .sboard {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

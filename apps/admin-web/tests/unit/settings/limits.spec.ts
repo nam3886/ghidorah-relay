@@ -4,13 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { ApiError } from "@/api/client";
 import * as api from "@/api/settings";
+import * as shell from "@/api/shell";
 import ContainerLimits from "@/components/settings/ContainerLimits.vue";
-import SettingsTable from "@/components/settings/SettingsTable.vue";
+import SettingField from "@/components/settings/SettingField.vue";
 import ValueTable from "@/components/settings/ValueTable.vue";
 import SettingsView from "@/views/SettingsView.vue";
 
 vi.mock("@/api/settings");
-vi.mock("@/api/shell", () => ({ getModels: vi.fn() }));
+vi.mock("@/api/shell", () => ({ getModels: vi.fn(), getProvidersSummary: vi.fn() }));
 vi.mock("@/lib/notify", () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 const NOW = Date.UTC(2026, 9, 20, 12, 0, 0);
@@ -18,13 +19,26 @@ const NOW = Date.UTC(2026, 9, 20, 12, 0, 0);
 const items = (): api.SettingItem[] => [
   {
     key: "dola.browser_slots",
+    group: "dola",
+    basic: true,
+    type: "int",
     value: 4,
     source: "default",
     default: 4,
     description: "Browser sessions at once (live).",
     allowed: "1–12",
   },
-  { key: "billing_label", value: "relay", source: "default", default: "relay", description: "A label", allowed: null },
+  {
+    key: "billing_label",
+    group: "core",
+    basic: false,
+    type: "str",
+    value: "relay",
+    source: "default",
+    default: "relay",
+    description: "A label",
+    allowed: null,
+  },
 ];
 const fixed = (): api.FixedLimit[] => [
   { group: "core", name: "jobs.engine.MAX_INFLIGHT", value: "32 jobs", reason: "submits one worker runs at once" },
@@ -127,6 +141,7 @@ beforeEach(() => {
     containers: containers(),
   }));
   vi.mocked(api.getPrices).mockResolvedValue({ items: [] });
+  vi.mocked(shell.getModels).mockResolvedValue({ data: [] });
 });
 afterEach(() => {
   wrapper?.unmount();
@@ -137,21 +152,24 @@ afterEach(() => {
 });
 
 describe("the allowed text", () => {
-  it("shows the allowed text under the description in the table, and none for a setting with no bound", () => {
-    phone(false);
-    wrapper = mount(SettingsTable, { props: { items: items(), loading: false, error: null, busy: false } });
-    const lines = wrapper.findAll(".allowed").map((l) => l.text());
-    expect(lines).toEqual(["Allowed: 1–12"]);
-    expect(wrapper.find("tbody tr:first-child .first").text()).toContain("Allowed: 1–12");
-    expect(wrapper.find("tbody tr:nth-child(2) .first").text()).not.toContain("Allowed");
+  const field = (item: api.SettingItem) =>
+    mount(SettingField, { props: { item, draft: String(item.value), edited: false, busy: false } });
+
+  it("shows the allowed text under the description of a field, and none for a setting with no bound", () => {
+    const [bounded, free] = items();
+    wrapper = field(bounded!);
+    expect(wrapper.findAll(".allowed").map((l) => l.text())).toEqual(["Allowed: 1–12"]);
+    expect(wrapper.text()).toContain("Browser sessions at once (live).");
+    wrapper.unmount();
+    wrapper = field(free!);
+    expect(wrapper.find(".allowed").exists()).toBe(false);
   });
 
-  it("shows the allowed text under the description in the phone list, and none for a setting with no bound", () => {
+  it("shows the allowed text of every bounded setting on its card", async () => {
     phone(true);
-    wrapper = mount(SettingsTable, { props: { items: items(), loading: false, error: null, busy: false } });
-    expect(wrapper.findAll("ul.list li").length).toBe(2);
-    expect(wrapper.findAll(".allowed").map((l) => l.text())).toEqual(["Allowed: 1–12"]);
-    expect(wrapper.find("ul.list li:first-child").text()).toContain("Allowed: 1–12");
+    await open();
+    expect(wrapper!.findAll("#settings .allowed").map((l) => l.text())).toEqual(["Allowed: 1–12"]);
+    expect(wrapper!.find('#settings .field[data-key="dola.browser_slots"]').text()).toContain("Allowed: 1–12");
   });
 });
 
@@ -358,36 +376,40 @@ describe("the containers card", () => {
 });
 
 describe("the page", () => {
-  it("lists the six sections and moves the mark to Fixed limits on a click", async () => {
+  const links = () => wrapper!.findAll('[data-testid="settings-card-core"] .scard__links a');
+
+  it("lists the five sections in the General card and moves the mark to Fixed limits on a click", async () => {
     phone(false);
     await open();
-    const nav = wrapper!.find('nav[aria-label="Settings sections"]');
-    expect(nav.findAll("a").map((a) => a.text())).toEqual([
+    expect(links().map((a) => a.text())).toEqual([
       "Change password",
-      "Settings",
       "Boot-only values",
       "Measured prices",
       "Fixed limits",
       "Containers",
     ]);
     vi.stubGlobal("scrollTo", vi.fn());
-    await nav.findAll("a")[4]!.trigger("click");
-    const marks = wrapper!.findAll('nav[aria-label="Settings sections"] a').map((a) => a.attributes("aria-current"));
-    expect(marks).toEqual([undefined, undefined, undefined, undefined, "true", undefined]);
+    await links()[3]!.trigger("click");
+    expect(links().map((a) => a.attributes("aria-current"))).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      "true",
+      undefined,
+    ]);
   });
 
-  it("puts Change password first among the cards, ahead of Settings", async () => {
+  it("puts the settings cards first, then Change password ahead of the other sections", async () => {
     phone(false);
     await open();
+    expect(wrapper!.find(".settings > #settings").exists()).toBe(true);
     expect(wrapper!.findAll(".settings__content > section").map((c) => c.attributes("id"))).toEqual([
       "password",
-      "settings",
       "boot",
       "prices",
       "limits",
       "containers",
     ]);
-    expect(wrapper!.find('nav[aria-label="Settings sections"] a[aria-current]').text()).toBe("Change password");
   });
 
   it("shows the Fixed limits rows that the settings read brought", async () => {
@@ -407,14 +429,6 @@ describe("the page", () => {
     expect(card.find("h2").text()).toBe("Containers");
     expect(card.text()).toContain("worker-dola");
     expect(card.text()).toContain("12 GiB");
-  });
-
-  it("states what a saved value does in the settings card note", async () => {
-    phone(false);
-    await open();
-    expect(wrapper!.find("#settings").text()).toContain(
-      "A saved value is kept in the database. Reset returns to the default.",
-    );
   });
 
   it("shows the failed read in both new cards, with Retry", async () => {

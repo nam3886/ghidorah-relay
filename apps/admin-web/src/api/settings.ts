@@ -3,6 +3,12 @@ import { request } from "@/api/client";
 
 export interface SettingItem {
   key: string;
+  // the provider of a namespaced key (`<p>.<name>`), else "core"
+  group: string;
+  // one the admin changes often: drawn first on its card, the others under Advanced
+  basic: boolean;
+  // the value's type: "int", "float", "str", "bool", "list" or "dict"
+  type: string;
   value: unknown;
   source: "db" | "default";
   default: unknown;
