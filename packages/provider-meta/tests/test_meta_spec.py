@@ -183,18 +183,59 @@ def test_a_request_with_two_input_images_is_refused_by_either_model():
             pytest.fail("planned %s with two input images: %r" % (model, planned))
 
 
-@mutation(SPEC_FILE, "        if req.ratio is not None:", "        if False:", expect="a ratio was ignored")
 @mutation(SPEC_FILE, "        if req.duration is not None:", "        if False:", expect="a duration was ignored")
-def test_a_ratio_or_a_duration_is_refused_rather_than_ignored():
+def test_a_duration_is_refused_rather_than_ignored():
     for model, images in (("meta-image", ()), ("meta-video", (IMG,))):
-        for kw, code, what in ((dict(ratio="16:9"), "input.bad_ratio", "a ratio was ignored"),
-                               (dict(duration=10), "input.bad_duration", "a duration was ignored")):
-            try:
-                planned = plan(model, images=images, **kw)
-            except InputError as e:
-                assert e.code == code, (model, e.code)
-            else:
-                pytest.fail("%s: %s -> %r" % (what, model, planned))
+        try:
+            planned = plan(model, images=images, duration=10)
+        except InputError as e:
+            assert e.code == "input.bad_duration", (model, e.code)
+        else:
+            pytest.fail("a duration was ignored: %s -> %r" % (model, planned))
+
+
+@mutation(SPEC_FILE, '            params={"kind": kind, **({"ratio": req.ratio} if req.ratio else {})}, completion',
+          '            params={"kind": kind}, completion', expect="the ratio reaches the engine")
+def test_a_proven_ratio_from_text_alone_reaches_the_engine_and_keeps_the_model_name():
+    for model, ratios in (("meta-image", ("16:9", "9:16", "1:1", "4:3", "3:4")), ("meta-video", ("9:16",))):
+        for ratio in ratios:
+            p = plan(model, "a red fox in the snow, %s" % ratio, ratio=ratio)    # the same ratio in the prompt is fine
+            assert (p.model, p.params.get("ratio")) == (model, ratio), "the ratio reaches the engine: %r" % (p.params,)
+    assert "ratio" not in plan("meta-video").params, "no ratio sent: the job is unchanged"
+
+
+@mutation(SPEC_FILE, "        if req.ratio is not None:", "        if False:", expect="a ratio meta never honoured")
+@mutation(SPEC_FILE, "            if req.images or req.ratio not in RATIOS[kind]:",
+          "            if req.ratio not in RATIOS[kind]:", expect="a ratio with an input image")
+@mutation(SPEC_FILE, "            if req.images or req.ratio not in RATIOS[kind]:", "            if req.images:",
+          expect="a ratio meta never honoured")
+def test_an_unproven_ratio_or_a_ratio_with_an_input_image_is_refused():
+    for model, ratio in (("meta-video", "16:9"), ("meta-video", "1:1"), ("meta-image", "21:9"), ("meta-image", "2:3")):
+        try:
+            planned = plan(model, ratio=ratio)
+        except InputError as e:
+            assert (e.code, e.param) == ("input.bad_ratio", "ratio"), (model, ratio, e.code)
+        else:
+            pytest.fail("a ratio meta never honoured: %s %s -> %r" % (model, ratio, planned))
+    for model in ("meta-image", "meta-video"):
+        try:
+            planned = plan(model, images=(IMG,), ratio="9:16")
+        except InputError as e:
+            assert (e.code, e.param) == ("input.bad_ratio", "ratio"), (model, e.code)
+        else:
+            pytest.fail("a ratio with an input image: %s -> %r" % (model, planned))
+
+
+@mutation(SPEC_FILE, "            if other:", "            if False:", expect="a prompt naming another ratio")
+def test_a_prompt_that_names_another_ratio_is_refused_but_a_time_is_not_a_ratio():
+    try:
+        planned = plan("meta-image", "a red fox, 9:16, in the snow", ratio="16:9")
+    except InputError as e:
+        assert e.code == "input.prompt_ratio_conflict" and "9:16" in e.detail, (e.code, e.detail)
+    else:
+        pytest.fail("a prompt naming another ratio: %r" % (planned,))
+    assert plan("meta-image", "a station clock at 10:30, 1:16:9 scale", ratio="16:9").params["ratio"] == "16:9"
+    assert plan("meta-image", "a red fox, 9:16").params == {"kind": "image"}, "no ratio sent: the prompt is not read"
 
 
 @mutation(SPEC_FILE, "        if kind is None:", "        if False:", expect="an unknown model")

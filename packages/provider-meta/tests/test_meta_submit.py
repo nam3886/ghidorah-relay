@@ -250,7 +250,8 @@ INPUT = b"RIFF-webp-560k"     # the input image of a video job, as the object st
 DEFAULT_OP = {"image": "text_to_image", "video": "image_to_video"}
 
 
-def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "image/webp"), **settings):
+def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "image/webp"), ratio=None,
+        **settings):
     log = page.log if log is None else log
     ctx = ctx or Ctx(log)
 
@@ -272,7 +273,8 @@ def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "
     deps = S.Deps(open_session=fake_open, read_media=read_media, sleep=clock.sleep, clock=clock, now=lambda: NOW,
                   signal_wait_s=0, composer_wait_s=1, warmup_wait_s=0, receipt_wait_s=2, tiles_grace_s=3,
                   upload_wait_s=0, attached_wait_s=1)
-    job = SimpleNamespace(params={"kind": kind}, operation=op, sent_text="%s [7100]" % (cap.prompt or "a lighthouse"),
+    params = {"kind": kind, **({"ratio": ratio} if ratio else {})}
+    job = SimpleNamespace(params=params, operation=op, sent_text="%s [7100]" % (cap.prompt or "a lighthouse"),
                           inputs=inputs)
     result = asyncio.run(S.submit(ctx, job, FakeSettings(SPEC, **settings), deps=deps))
     return result, ctx
@@ -589,6 +591,19 @@ def test_only_a_video_from_text_alone_gets_the_video_wording():
         page = Page([], cap)
         run(page, cap, kind=kind, op=op)
         assert page.typed == {EDITABLE: "%s [7100]" % cap.prompt}, op
+
+
+@mutation(SUBMIT_FILE, '        if job.params.get("ratio"):', "        if False:", expect="the ratio is typed")
+@mutation(CONSTANTS, 'RATIO_TAIL = ", %s"', 'RATIO_TAIL = " %s"', expect="the ratio is typed")
+def test_a_ratio_is_typed_after_the_final_text_and_only_when_the_job_has_one():
+    for folder, kind, op, head in (("image-1-acc1", "image", "text_to_image", ""),
+                                   (T2V, "video", "text_to_video", "Create a short video: ")):
+        cap = capture(folder)
+        page = Page([], cap)
+        result, _ = run(page, cap, kind=kind, op=op, ratio="9:16")
+        assert page.typed == {EDITABLE: "%s%s [7100], 9:16" % (head, cap.prompt)}, "the ratio is typed: %r" % (
+            page.typed,)
+        assert isinstance(result.job, Completed) and page.log.count("Enter") == 1, op
 
 
 def test_a_video_from_text_that_never_finishes_is_unknown_after_one_enter():

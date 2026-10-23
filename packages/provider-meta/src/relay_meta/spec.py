@@ -1,6 +1,7 @@
 """meta ProviderSpec: pure data the API imports. No engine, no browser imports."""
 
 import logging
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -32,6 +33,7 @@ from relay_meta.constants import (
     PROMPT_MAX_CHARS,
     PROVIDER,
     PROXY_REST_S,
+    RATIOS,
     STRIKE_DEAD_REASON,
     SUBMIT_TIMEOUT_MAX_S,
     SUSPECT_THRESHOLD,
@@ -40,6 +42,9 @@ from relay_meta.credential import MAX_COOKIES
 from relay_meta.credential import parse_credential as _parse_credential
 
 log = logging.getLogger(__name__)
+
+# A ratio written in the prompt (dola's list); not next to another digit or colon, so "10:30" (a time) is not one.
+_PROMPT_RATIO = re.compile(r"(?<![\d.:])(21:9|16:9|9:16|4:3|3:4|3:2|2:3|1:1)(?![\d:])")
 
 
 def _refuse(code: str, detail: str = "", param: str | None = None) -> InputError:
@@ -131,14 +136,21 @@ class MetaSpec:
     # ---- plan -----------------------------------------------------------------------------------------------------
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
         """Validate and normalise. Price and timeout come from the settings, NEVER from `req.options`. Raises
-        `InputError`. meta takes neither a ratio nor a duration, so neither is accepted rather than ignored. Each model
-        takes at most one input image: with one it edits (image) or animates (video) it, without one it draws from the
-        text, which must then show something (a video from an image may come with no text)."""
+        `InputError`. meta takes no duration (refused rather than ignored) and a ratio only from text alone, one of
+        `RATIOS` (the engine types it after the text); a prompt naming another ratio is refused, as dola does. Each
+        model takes at most one input image: with one it edits (image) or animates (video) it, without one it draws
+        from the text, which must then show something (a video from an image may come with no text)."""
         kind = C.KIND.get(req.model)
         if kind is None:
             raise _refuse("input.bad_model", "meta's models are %s" % ", ".join(C.KIND), "model")
         if req.ratio is not None:
-            raise _refuse("input.bad_ratio", "meta sets the size itself: send no ratio", "ratio")
+            if req.images or req.ratio not in RATIOS[kind]:
+                raise _refuse("input.bad_ratio", "%s takes the ratios %s from text alone (or none); a job from an "
+                              "image keeps the image's shape" % (req.model, ", ".join(RATIOS[kind])), "ratio")
+            other = sorted({r for r in _PROMPT_RATIO.findall(req.prompt or "") if r != req.ratio})
+            if other:
+                raise _refuse("input.prompt_ratio_conflict", "the prompt says %s but the ratio is %s: make them match "
+                              "or remove the ratio from the prompt" % (" / ".join(other), req.ratio))
         if req.duration is not None:
             raise _refuse("input.bad_duration", "meta sets the length itself: send no duration", "duration")
         if len(req.images) > 1:
@@ -154,7 +166,8 @@ class MetaSpec:
             operation = "image_to_video" if req.images else "text_to_video"
         price, warnings = self._price(settings, req.model)
         return Plan(
-            operation=operation, media_type=kind, model=req.model, params={"kind": kind}, completion=Completion.HOLD,
+            operation=operation, media_type=kind, model=req.model,
+            params={"kind": kind, **({"ratio": req.ratio} if req.ratio else {})}, completion=Completion.HOLD,
             after_sent=AfterSent.RECONCILE, wallet_kind=kind, price=price, pool=kind, account_cost=ACCOUNT_COST,
             submit_timeout_s=settings.get("meta.%s_submit_timeout_s" % kind), warnings=tuple(warnings))
 

@@ -102,6 +102,35 @@ Captures: `t2v-acc1`, `i2i-acc1`.
 - Reconcile of that edit chat (09:40, a fourth launch, read only): `/prompt/<uuid>` showed the same slider; `Found`
   5.2 s after launch with the one edited webp (the input image not among the outputs), nothing typed or sent.
 
+## Aspect ratio from the words, 23/10 18:25–19:42 (GMT+7)
+meta has no ratio control; it reads the ratio from the prompt. The production account meta-acc1 (disabled for the run,
+re-enabled after) through its own proxy, driven by the engine's own submit and fetcher, one launch per order, text
+alone. Bike = "A red bicycle leaning against a brick wall in a quiet street", fox = the text→video prompt above (the
+engine adds "Create a short video: " before it).
+
+| order | kind | output |
+|---|---|---|
+| bike`, 16:9` | image | 1 × 2048×1152 |
+| bike`, 9:16` | image | 1 × 1152×2048 |
+| bike`, 1:1` | image | 1 × 1600×1600 |
+| bike`. Aspect ratio 9:16` | image | 1 × 1152×2048 |
+| bike`, 4:3` | image | 1 × 1792×1344 |
+| bike`, 3:4` | image | 1 × 1344×1792 |
+| fox`, 9:16` | video | 720×1280, 10.0 s |
+| fox`. Aspect ratio 9:16` | video | 720×1280, 10.0 s (the fetch timed out at 7 MB; the header was read) |
+| fox`, 16:9` | video | 1st: composer never hydrated, nothing sent; 2nd: answer DONE with **no video** (`meta.no_video`) |
+| fox`, 1:1` | video | answer DONE with **no video** (`meta.no_video`) |
+| fox`. Aspect ratio 16:9` | video | not sent: Vercel checkpoint on this 12th launch in ~75 min |
+
+- Every image ratio came out exact, in both written forms; a video honoured 9:16. A video asked 16:9 or 1:1 got an
+  answer without a video (its text was not read); a plain text→video already comes out 1280×720.
+- So the plan takes `ratio` from text alone: images 16:9, 9:16, 1:1, 4:3, 3:4; videos 9:16. The engine types
+  `, <ratio>` after the final text. Any other ratio, and a ratio with an input image (an edit keeps the input's size,
+  an animation follows its orientation), is `input.bad_ratio`; a prompt naming another ratio is
+  `input.prompt_ratio_conflict`.
+- 12 launches of one account within ~75 min ended in the browser checkpoint (the first one came on the 4th launch in
+  15 min after a killed run): pace live runs.
+
 ## Not seen yet
 A signed-out page, limit or refusal text, ask-back text, a 503 on the first MP4 fetch, more than one image from an
 edit.

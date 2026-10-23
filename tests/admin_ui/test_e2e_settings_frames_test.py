@@ -834,7 +834,7 @@ def test_a_style_is_shown_by_its_label_and_sent_by_its_value(app_session, live, 
 
 
 def test_a_model_that_takes_no_ratio_style_or_image_shows_none_of_them_and_sends_none(app_session, live, db):
-    """meta refuses any ratio, style or input image on meta-image: a model that names no ratio or style list and
+    """A model that takes no ratio, style or input image: one that names no ratio or style list and
     `max_images` 0 gets no such field, and the request carries none. With RELAY_SCREENSHOTS_DIR set the form is saved
     as test-meta-image.png."""
     import dataclasses
