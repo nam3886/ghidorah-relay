@@ -545,7 +545,10 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
   font-size: 12px;
   color: var(--rl-faint);
 }
+/* its own line under the prefix, the "any model" tag too */
 .k-models-line {
+  display: flex;
+  width: fit-content;
   margin-top: 4px;
 }
 .k-enabled {

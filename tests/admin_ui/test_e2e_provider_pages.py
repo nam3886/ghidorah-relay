@@ -1,9 +1,9 @@
 """The provider side of API keys, Request logs, Alerts, Prompt frames and Test in Chrome against the real app with the
 four real provider specs (browser tier). Keys, Request logs and Alerts have the strip with "All" as their provider
-filter; Prompt frames and Test have the strip of the providers alone, which picks
-the one provider they work on. Rows carry their provider's tile (a grey "relay" tile for none). At a desktop width and
-at a phone's 390 px no text is cut and the page never scrolls sideways. With RELAY_SCREENSHOTS_DIR set, each state is
-saved as <page>-<width>-<state>.png (the top of the page, then the list scrolled into view)."""
+filter; Prompt frames and Test have the strip of the providers alone, which picks the one provider they work on. Rows
+carry their provider's tile (a grey "relay" tile for none). At a desktop's 1440 px, a tablet's 820 px and a phone's
+390 px no text is cut and the page never scrolls sideways. With RELAY_SCREENSHOTS_DIR set, each state is saved as
+<page>-<width>-<state>.png (the top of the page, then the list scrolled into view)."""
 
 import json
 import os
@@ -18,7 +18,7 @@ from test_admin_alert_groups import plant_unclear
 pytestmark = pytest.mark.browser
 
 SHOTS = os.environ.get("RELAY_SCREENSHOTS_DIR")
-WIDTHS = [1440, 390]
+WIDTHS = [1440, 820, 390]                # desktop, tablet, phone
 
 
 def size(page, width: int) -> None:

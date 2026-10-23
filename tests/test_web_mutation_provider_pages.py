@@ -36,8 +36,7 @@ FRAMES = f"FAILED {FRAMES_SPEC} > the view > "
 TEST_STRIP = f"FAILED {TEST_SPEC} > the provider strip > "
 
 
-@mutation(STRIP, 'if (props.mode === "only") scope.only = name;', 'if (props.mode === "nope") scope.only = name;',
-          expect=ONLY)
+@mutation(STRIP, "    scope.only = name;\n    return;", "    return;", expect=ONLY)
 @mutation(STRIP, ':disabled="mode === \'only\' && scope.stripLocked"', ':disabled="false"', expect=ONLY)
 @pytest.mark.web_unit
 def test_the_strip_of_a_one_provider_page():
