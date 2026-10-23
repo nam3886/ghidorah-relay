@@ -3,11 +3,14 @@ itself. The profile is reset every run, so Chrome acts like a first run each tim
 time checks, safe browsing and the like would all go through the account's proxy otherwise."""
 
 import asyncio
+import json
+import os
 from collections import Counter
 
 import pytest
 from browserkit import Account, Proxy, redact, site_for, sync
 
+from relay_browser import session as sess
 from relay_browser.session import open_session
 from relay_core.testing.mutation import mutation
 
@@ -53,12 +56,28 @@ async def google_requests_of_a_session(tmp_path, token) -> tuple[list[str], list
 
 @pytest.mark.browser
 @mutation(S, "            seed_preferences(profile)\n            mark_open(profile)", "            mark_open(profile)",
-          expect="Google through the account")
+          expect="not seeded before the first launch")
 @mutation(S, "refuse_hosts: tuple[str, ...] = CHROME_BACKGROUND_HOSTS", "refuse_hosts: tuple[str, ...] = ()",
           expect="Google through the account")
 @sync
-async def test_an_idle_session_sends_nothing_to_google_through_the_account_proxy(tmp_path, token):
+async def test_an_idle_session_sends_nothing_to_google_through_the_account_proxy(tmp_path, token, monkeypatch):
+    # The claim seeds the preferences. Without them the first launch fails (no Preferences to add the proxy's to) and
+    # the retry wipes the profile and seeds it, so the Google count alone cannot see a missing seed: every run would
+    # just lose its cache. Each launch's starting preferences are read here.
+    seeded = []
+    real = sess.seed_proxy_preferences
+
+    def spy(path):
+        prefs = os.path.join(path, "Default", "Preferences")
+        try:
+            with open(prefs, encoding="utf-8") as f:
+                seeded.append(json.load(f).get("safebrowsing") == sess.SEED_PREFERENCES["safebrowsing"])
+        except OSError:
+            seeded.append(False)
+        real(path)
+    monkeypatch.setattr(sess, "seed_proxy_preferences", spy)
     google, hosts = await google_requests_of_a_session(tmp_path, token)
+    assert seeded == [True], "the profile was not seeded before the first launch (per launch: %r)" % seeded
     print("background traffic: %d requests through the proxy, %d to Google: %s"
           % (len(hosts), len(google), dict(Counter(hosts))))
     assert len(google) <= MAX_GOOGLE_REQUESTS, \

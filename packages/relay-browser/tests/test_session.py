@@ -3,11 +3,16 @@ lock and the throwaway profile, the launch retry, the launch settings. The pure 
 is made of; the browser tests open a real Chrome through it."""
 
 import asyncio
+import contextlib
 import json
 import os
+import signal
+import subprocess
+import sys
 import tempfile
 import threading
 import time
+import types
 from pathlib import Path
 
 import pytest
@@ -23,6 +28,7 @@ S = "packages/relay-browser/src/relay_browser/session.py"
 KEEP = 'KEEP_IN_DEFAULT = ("Cache", "Code Cache", "Local Storage")'
 CLAIM_RESET = "reset_profile_state(profile, drop_local_storage=crashed and bool(site.local_storage_token_keys))"
 RELEASE_RESET = "await asyncio.to_thread(release_profile, claim, drop_local_storage=drop_storage)"
+KILL = "                self.gone = await _kill_browser(self._claim.path)\n"
 BASE = Path("Default")
 
 
@@ -622,8 +628,8 @@ async def test_images_are_off_unless_the_run_asks_for_them(tmp_path, token):
 
 
 @pytest.mark.browser
-@mutation(S, "    drop_storage = bool(site.local_storage_token_keys)", "    drop_storage = False",
-          expect="token survived a cancelled close")
+@mutation(S, "                    drop_storage = not session.local_storage_clean\n",
+          "                    drop_storage = False\n", expect="token survived a cancelled close")
 @sync
 async def test_a_cancel_during_the_close_time_strip_still_leaves_no_token_in_local_storage(tmp_path, token,
                                                                                             monkeypatch):
@@ -731,9 +737,10 @@ async def test_a_launch_that_fails_leaves_no_forwarder_scratch_directory_or_lock
 
 
 @pytest.mark.browser
+@pytest.mark.box      # the kill finds Chrome's processes through /proc (Linux); elsewhere the profile is quarantined
 @mutation(S, "await asyncio.wait_for(self.ctx.close(), CLOSE_TIMEOUT_S)", "await self.ctx.close()",
           expect="hung close was not cut off")
-@mutation(S, "                _kill_browser(self._claim.path)\n", "                pass\n", expect="still running")
+@mutation(S, KILL, "                self.gone = True\n", expect="still running")
 @sync
 async def test_a_close_that_hangs_is_cut_off_the_browser_killed_and_the_cleanup_still_runs(tmp_path, token,
                                                                                           monkeypatch):
@@ -755,17 +762,12 @@ async def test_a_close_that_hangs_is_cut_off_the_browser_killed_and_the_cleanup_
             start = time.monotonic()
             await shutdown()
             seen["took"] = time.monotonic() - start
-            for _ in range(60):                       # the kill is a signal: the process goes a moment later
-                try:
-                    os.kill(pid, 0)
-                except ProcessLookupError:
-                    seen["alive"] = False
-                    return
-                await asyncio.sleep(0.05)
-            seen["alive"] = True
+            seen["alive"] = running(pid)              # no polling here: the shutdown itself waits for the death
+            seen["named"] = naming(str(prof))
         s._shutdown = timed_shutdown
     assert seen["took"] < 15, "a hung close was not cut off: %.1f s" % seen["took"]
     assert seen["alive"] is False, "the browser was still running after its close timed out"
+    assert seen["named"] == [], "Chrome processes still named the profile after the kill: %r" % seen["named"]
     assert list(shared.iterdir()) == [], "the scratch directory was left behind"
     assert state_left(prof) == [], "the profile was not reset after a hung close"
     held = sess.lock_profile(str(prof))
@@ -774,8 +776,8 @@ async def test_a_close_that_hangs_is_cut_off_the_browser_killed_and_the_cleanup_
 
 
 @pytest.mark.browser
-@mutation(S, "                self.local_storage_clean = False\n                _kill_browser",
-          "                _kill_browser", expect="a killed close counted as clean")
+@mutation(S, "                self.local_storage_clean = False\n                self.gone = await _kill_browser",
+          "                self.gone = await _kill_browser", expect="a killed close counted as clean")
 @sync
 async def test_a_close_that_had_to_be_killed_never_counts_as_clean_and_no_token_survives(tmp_path, token, monkeypatch):
     """The strip succeeds in memory, then Chrome hangs on close and is killed before it writes the removal to disk:
@@ -813,3 +815,399 @@ async def test_one_open_session_logs_the_running_browser_version_exactly_once(tm
              and r.getMessage().startswith("browser ")]
     assert len(lines) == 1 and "/" in lines[0], \
         "the browser version was not logged exactly once per launch: %r" % (lines,)
+
+
+# ---- a Chrome that was killed: the profile waits for its death -------------------------------------------------------
+HAS_PROC = Path("/proc/self").exists()
+linux = pytest.mark.skipif(not HAS_PROC, reason="the kill reads /proc (Linux); elsewhere it quarantines")
+
+
+def running(pid: int) -> bool:
+    """Alive and not a zombie (a zombie holds no file open)."""
+    try:
+        return Path("/proc/%d/stat" % pid).read_text().rsplit(")", 1)[1].split()[0] != "Z"
+    except FileNotFoundError:
+        return False
+
+
+def naming(profile: str) -> list[int]:
+    """Live processes whose command line names `profile`."""
+    found = []
+    for d in Path("/proc").iterdir():
+        try:
+            if d.name.isdigit() and running(int(d.name)) and profile.encode() in (d / "cmdline").read_bytes():
+                found.append(int(d.name))
+        except OSError:
+            pass
+    return found
+
+
+def spawn(code: str, *args: str) -> subprocess.Popen:
+    proc = subprocess.Popen([sys.executable, "-c", code, *args])
+    threading.Thread(target=proc.wait, daemon=True).start()      # reaped at once: a dead child is no zombie
+    return proc
+
+
+class FakePage:
+    url = "about:blank"
+
+    def on(self, *args):
+        pass
+
+    async def close(self):
+        pass
+
+
+class FakeCtx:
+    def __init__(self, close):
+        self.pages, self._close = [], close
+
+    async def new_page(self):
+        self.pages.append(FakePage())
+        return self.pages[-1]
+
+    async def new_cdp_session(self, page):
+        raise RuntimeError("a fake browser has no devtools")
+
+    async def close(self):
+        await self._close()
+
+
+async def hang():
+    await asyncio.sleep(30)
+
+
+def fake_chrome(monkeypatch, code=None, close=hang, lock=False):
+    """patchright's launch replaced: the 'browser' is `python -c code --user-data-dir=<profile>` (None: no process;
+    `lock`: a SingletonLock is left anyway), its `ctx.close()` is `close`. Returns (the list the patched
+    `release_profile` fills with "did a process still name the profile?", the list the launched process lands in)."""
+    procs = []
+
+    class PW:
+        chromium = property(lambda self: self)
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def launch_persistent_context(self, path, **kw):
+            if code is not None:
+                procs.append(spawn(code, "--user-data-dir=" + path))
+            if lock:
+                os.symlink("host-999999", os.path.join(path, "SingletonLock"))
+            return FakeCtx(close)
+    # through sys.modules: the driver itself is imported only inside relay_browser (tests/guards.py)
+    monkeypatch.setitem(sys.modules, "patchright.async_api", types.SimpleNamespace(async_playwright=PW))
+    monkeypatch.setattr(sess, "CLOSE_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(sess, "QUARANTINED", {})
+    released = []
+    real = sess.release_profile
+    monkeypatch.setattr(sess, "release_profile",
+                        lambda claim, **kw: (released.append(HAS_PROC and naming(claim.path) != []),
+                                             real(claim, **kw))[1])
+    return released, procs
+
+
+async def run_fake(tmp_path, token):
+    async with open_session(site_for(tmp_path), Account(), purpose="submit", token=token, redact=redact) as s:
+        plant(Path(s.profile), "Default/Cookies")
+        return Path(s.profile)
+
+
+def assert_quarantined(prof: Path, released: list, why: str, planted: bool = True):
+    assert released == [], "the profile was released while %s" % why
+    assert not planted or (prof / "Default" / "Cookies").exists(), "the profile was reset while %s" % why
+    assert sess.lock_profile(str(prof)) is None, "the profile lock was given up while %s" % why
+    assert str(prof) in sess.QUARANTINED, "the profile was not listed as quarantined while %s" % why
+
+
+NO_KILL = type("NoKill", (), {"SIGKILL": 0})      # os.kill(pid, 0) only probes: the process ends on its own
+
+
+@linux
+@mutation(S, "        if not alive and not strangers:", "        if True:", expect="released before")
+@sync
+async def test_a_killed_browser_that_dies_late_is_waited_for_before_the_profile_is_released(tmp_path, token,
+                                                                                           monkeypatch):
+    released, _ = fake_chrome(monkeypatch, "import time; time.sleep(1.5)")
+    monkeypatch.setattr(sess, "signal", NO_KILL)
+    start = time.monotonic()
+    prof = await run_fake(tmp_path, token)
+    assert released == [False], "the profile was released before the killed browser was gone: %r" % released
+    assert time.monotonic() - start >= 1.0, "released before the browser could have died"
+    assert state_left(prof) == [], "the profile was not reset after the browser died"
+    held = sess.lock_profile(str(prof))
+    assert held is not None, "the profile lock was not released after the browser died"
+    sess.unlock_profile(held)
+
+
+@linux
+@mutation(S, KILL, "                self.gone = True\n", expect="released while")
+@mutation(S, "        if gone:\n", "        if True:\n", expect="released while")
+@mutation(S, "    lift_quarantine(profile)\n", "", expect="not lifted")
+@sync
+async def test_a_killed_browser_that_never_dies_quarantines_its_profile_until_it_is_gone(tmp_path, token,
+                                                                                         monkeypatch):
+    released, procs = fake_chrome(monkeypatch, "import time; time.sleep(60)")
+    monkeypatch.setattr(sess, "signal", NO_KILL)
+    monkeypatch.setattr(sess, "KILL_WAIT_S", 0.5)
+    root, name, site = str(tmp_path / "profiles"), sess.profile_name(Account()), site_for(tmp_path)
+    try:
+        prof = await run_fake(tmp_path, token)
+        assert_quarantined(prof, released, "the browser still ran")
+        nxt = sess.claim_profile(root, name, site)
+        assert nxt.throwaway, "the next run was given the quarantined profile while its browser still ran"
+        sess.release_profile(nxt)
+    finally:
+        procs[0].kill()
+    for _ in range(100):
+        if not running(procs[0].pid):
+            break
+        time.sleep(0.05)
+    again = sess.claim_profile(root, name, site)
+    assert not again.throwaway, "the quarantine was not lifted once its browser was gone"
+    assert sess.QUARANTINED == {}, "the lifted profile is still listed as quarantined"
+    assert not (Path(again.path) / "Default" / "Cookies").exists(), "the lifted profile was not reset"
+    sess.release_profile(again)
+
+
+@mutation(S, "    if any(not p.zombie and names.search(p.cmdline) for p in table.values()):\n        return\n", "",
+          expect="lifted while")
+@sync
+async def test_a_quarantine_is_not_lifted_while_a_process_names_the_profile(tmp_path, monkeypatch):
+    root, site = str(tmp_path / "profiles"), site_for(tmp_path)
+    claim = sess.claim_profile(root, "acct-1-g1", site)
+    monkeypatch.setattr(sess, "QUARANTINED", {claim.path: claim})
+    me = os.getpid()
+    named = {me: sess.Proc(1, "1", False, b"python"),
+             4242: sess.Proc(1, "9", False, b"/opt/google/chrome/chrome --type=renderer --user-data-dir="
+                             + claim.path.encode() + b" --lang=en-US")}
+    monkeypatch.setattr(sess, "processes", lambda: named)
+    assert sess.claim_profile(root, "acct-1-g1", site).throwaway, "lifted while a process named the profile"
+    longer = {me: named[me], 4242: sess.Proc(1, "9", False, b"chrome\0--user-data-dir=" + claim.path.encode() + b"0")}
+    monkeypatch.setattr(sess, "processes", lambda: longer)        # acct-1-g10 is not acct-1-g1
+    freed = sess.claim_profile(root, "acct-1-g1", site)
+    assert not freed.throwaway, "a longer path that starts with the profile's kept it quarantined"
+    sess.release_profile(freed)
+
+
+@sync
+async def test_a_quarantine_is_kept_while_the_process_table_cannot_be_read(tmp_path, monkeypatch):
+    root, site = str(tmp_path / "profiles"), site_for(tmp_path)
+    claim = sess.claim_profile(root, "acct-1-g1", site)
+    monkeypatch.setattr(sess, "QUARANTINED", {claim.path: claim})
+
+    def unreadable():
+        raise PermissionError("/proc")
+    monkeypatch.setattr(sess, "processes", unreadable)
+    assert sess.claim_profile(root, "acct-1-g1", site).throwaway, "lifted while the process table was unreadable"
+
+
+@mutation(S, KILL, "                self.gone = True\n", expect="released while")
+@sync
+async def test_a_chrome_lock_with_no_browser_found_quarantines_the_profile(tmp_path, token, monkeypatch):
+    released, _ = fake_chrome(monkeypatch, None, lock=True)
+    prof = await run_fake(tmp_path, token)
+    assert_quarantined(prof, released, "no browser was found")
+
+
+@linux
+@mutation(S, "                    gone = session.gone\n", "                    gone = True\n", expect="released while")
+@sync
+async def test_a_close_cut_short_by_a_cancel_quarantines_the_profile(tmp_path, token, monkeypatch):
+    async def cancelled():
+        raise asyncio.CancelledError
+    released, procs = fake_chrome(monkeypatch, "import time; time.sleep(60)", close=cancelled)
+    try:
+        with pytest.raises(asyncio.CancelledError):
+            await run_fake(tmp_path, token)
+        assert_quarantined(tmp_path / "profiles" / sess.profile_name(Account()), released,
+                           "a cancel cut the close short")
+    finally:
+        procs[0].kill()
+
+
+@sync
+async def test_a_browser_that_closes_releases_its_profile_at_once(tmp_path, token, monkeypatch):
+    async def closes():
+        pass
+    released, procs = fake_chrome(monkeypatch, "import time; time.sleep(60)", close=closes)
+    try:
+        prof = await run_fake(tmp_path, token)
+    finally:
+        procs[0].kill()
+    assert len(released) == 1, "a browser that closed cleanly did not release its profile"     # close() is trusted
+    assert state_left(prof) == []
+
+
+@linux
+@mutation(S, "            gone = False        # a Chrome runs now", "            pass  #", expect="released while")
+@sync
+async def test_a_browser_left_running_by_a_failure_before_the_session_quarantines_the_profile(tmp_path, token,
+                                                                                            monkeypatch):
+    released, procs = fake_chrome(monkeypatch, "import time; time.sleep(60)")
+
+    def broken(*args):
+        raise RuntimeError("evidence writer broke")
+    monkeypatch.setattr(sess, "EvidenceWriter", broken)
+    try:
+        with pytest.raises(RuntimeError, match="evidence writer broke"):
+            await run_fake(tmp_path, token)
+        assert_quarantined(tmp_path / "profiles" / sess.profile_name(Account()), released,
+                           "its browser was never shut down", planted=False)
+    finally:
+        procs[0].kill()
+
+
+@linux
+@mutation(S, "                if pid not in ours and p.ppid in ours and parent and parent.start == ours[p.ppid]:",
+          "                if False:", expect="child process")
+@sync
+async def test_the_kill_takes_the_browsers_child_processes_and_waits_for_them_too(tmp_path, token, monkeypatch):
+    # the child's command line does not name the profile: only the walk of the tree finds it
+    child_pid = tmp_path / "child.pid"
+    code = ("import subprocess, sys, time; c = subprocess.Popen([sys.executable, '-c', 'import time; "
+            "time.sleep(60)']); open(%r, 'w').write(str(c.pid)); time.sleep(60)" % str(child_pid))
+
+    async def started_then_hang():
+        for _ in range(100):
+            if child_pid.exists() and child_pid.read_text():
+                break
+            await asyncio.sleep(0.05)
+        await hang()
+    fake_chrome(monkeypatch, code, close=started_then_hang)
+    try:
+        await run_fake(tmp_path, token)
+        assert not running(int(child_pid.read_text())), \
+            "a child process of the killed browser was still running at release"
+    finally:
+        with contextlib.suppress(Exception):
+            os.kill(int(child_pid.read_text()), signal.SIGKILL)
+
+
+# ---- the kill on a scripted process table: only this worker's own Chrome is ever signalled ---------------------------
+class Table:
+    """A process table that changes as it is killed: `deaths` = how many kills each pid takes to die (absent: never),
+    `forks` = {pid: (child pid, Proc)} added at the second read while that pid lives (a child forked after the first
+    signal), `reuse` = {pid: Proc} that takes the pid over once it died."""
+
+    def __init__(self, rows, deaths=None, forks=None, reuse=None):
+        self.rows, self.deaths = dict(rows), dict(deaths or {})
+        self.forks, self.reuse = dict(forks or {}), dict(reuse or {})
+        self.reads, self.kills = 0, []
+
+    def read(self):
+        self.reads += 1
+        if self.reads == 2:
+            for pid, (child, proc) in self.forks.items():
+                if pid in self.rows:
+                    self.rows[child] = proc
+                    self.deaths.setdefault(child, 1)
+        return dict(self.rows)
+
+    def kill(self, pid, sig):
+        self.kills.append(pid)
+        if pid not in self.rows:
+            raise ProcessLookupError(pid)
+        if pid in self.deaths:
+            self.deaths[pid] -= 1
+            if self.deaths[pid] <= 0:
+                del self.rows[pid]
+                if pid in self.reuse:
+                    self.rows[pid] = self.reuse.pop(pid)
+
+
+def scripted(monkeypatch, table: Table):
+    monkeypatch.setattr(sess, "processes", table.read)
+    monkeypatch.setattr(sess.os, "kill", table.kill)
+    monkeypatch.setattr(sess, "KILL_WAIT_S", 0.5)
+
+
+PROFILE = "/profiles/acct-1-g1"
+CHROME = b"/opt/google/chrome/chrome\0--user-data-dir=" + PROFILE.encode() + b"\0--no-sandbox"
+ZYGOTE = b"/opt/google/chrome/chrome --type=zygote --user-data-dir=" + PROFILE.encode()
+
+
+def proc(ppid, start="1", cmd=b"x", zombie=False):
+    return sess.Proc(ppid, start, zombie, cmd)
+
+
+def rows(*extra):
+    """tini 1, the worker (this process) under it, its node driver 500 under the worker, and `extra` (pid, Proc)."""
+    me = os.getpid()
+    return {1: proc(0, cmd=b"tini"), me: proc(1, cmd=b"python worker"), 500: proc(me, cmd=b"node driver"),
+            **dict(extra)}
+
+
+@mutation(S, "                 if pid in table and table[pid].start == start and not table[pid].zombie]",
+          "                 if pid in table and not table[pid].zombie]", expect="a reused pid")
+@sync
+async def test_a_pid_reused_by_another_process_is_never_signalled(monkeypatch):
+    t = Table(rows((600, proc(500, "10", CHROME)), (601, proc(600, "11", ZYGOTE))),
+              deaths={600: 1, 601: 1}, reuse={600: proc(1, "99", b"/usr/bin/other-service")})
+    scripted(monkeypatch, t)
+    assert await sess._kill_browser(PROFILE) is True
+    assert t.kills.count(600) == 1, "a reused pid was signalled again: %r" % t.kills
+
+
+@mutation(S, "            if flag in p.cmdline.split(b\"\\0\") and _descends(table, pid, me):",
+          "            if flag in p.cmdline.split(b\"\\0\"):", expect="outside this worker")
+@sync
+async def test_a_chrome_on_the_profile_outside_this_workers_tree_is_never_signalled_and_quarantines(monkeypatch):
+    t = Table(rows((700, proc(1, "5", CHROME))), deaths={700: 1})
+    scripted(monkeypatch, t)
+    gone = await sess._kill_browser(PROFILE)
+    assert 700 not in t.kills, "a process outside this worker's tree was signalled: %r" % t.kills
+    assert gone is False, "a profile still named by a live process was released"
+
+
+@mutation(S, "        pid = table[pid].ppid\n        if pid == ancestor:\n            return True\n",
+          "        if pid == ancestor:\n            return True\n        pid = table[pid].ppid\n",
+          expect="the worker or its parent")
+@sync
+async def test_the_worker_and_its_parents_are_never_signalled(monkeypatch):
+    me = os.getpid()
+    t = Table({1: proc(0, cmd=b"tini\0" + CHROME), me: proc(1, cmd=b"python\0" + CHROME)})
+    scripted(monkeypatch, t)
+    assert await sess._kill_browser(PROFILE) is False
+    assert t.kills == [], "the worker or its parent was signalled: %r" % t.kills
+
+
+@mutation(S, "        grown = True\n        while grown:", "        grown = False\n        while grown:",
+          expect="forked after")
+@sync
+async def test_a_child_forked_after_the_first_signal_is_killed_and_waited_for(monkeypatch):
+    # the browser takes two kills to go (still alive at the second read) and forks 602 before it; 602's command line
+    # does not name the profile, so only the walk of the tree finds it
+    t = Table(rows((600, proc(500, "10", CHROME))), deaths={600: 2},
+              forks={600: (602, proc(600, "12", b"/opt/google/chrome/chrome --type=renderer"))})
+    scripted(monkeypatch, t)
+    assert await sess._kill_browser(PROFILE) is True
+    assert 602 in t.kills and 602 not in t.rows, "a child forked after the first signal was left: %r" % t.kills
+
+
+@sync
+async def test_an_unreadable_process_table_proves_nothing_and_signals_nothing(monkeypatch):
+    t = Table(rows((600, proc(500, "10", CHROME))), deaths={600: 1})
+    scripted(monkeypatch, t)
+
+    def unreadable():
+        raise PermissionError("/proc/600/cmdline")
+    monkeypatch.setattr(sess, "processes", unreadable)
+    assert await sess._kill_browser(PROFILE) is False, "an unreadable process table counted as the browser gone"
+    assert t.kills == []
+
+
+@mutation(S, "            quiet += 1\n            if quiet >= 2:", "            quiet += 2\n            if quiet >= 2:",
+          expect="one quiet read")
+@sync
+async def test_gone_takes_two_quiet_reads_in_a_row(monkeypatch):
+    # a process that names the profile (not ours) is gone at the second read and back at the third
+    seq = [rows((600, proc(500, "10", CHROME))), rows(), rows((800, proc(1, "20", ZYGOTE))), rows(), rows()]
+    reads = iter(seq)
+    monkeypatch.setattr(sess, "processes", lambda: next(reads))
+    monkeypatch.setattr(sess.os, "kill", lambda pid, sig: None)
+    assert await sess._kill_browser(PROFILE) is True
+    assert next(reads, "done") == "done", "gone was declared after one quiet read"

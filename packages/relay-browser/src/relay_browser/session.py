@@ -16,6 +16,10 @@ Proven 30/09. What it keeps and why:
 - A non-blocking flock on the profile; a run that finds it held gets a throwaway profile (slower, never a second Chrome
   inside the first one's profile).
 - A launch that fails wipes the profile and tries once more; a failure after that is a `BrowserLaunchError`.
+- A Chrome that will not close is killed (only processes of this worker's own tree, found through /proc), and the
+  profile is reset and released only once no process names it any more. A kill that cannot be confirmed (no /proc, a
+  lock left with no browser found, a process still there after `KILL_WAIT_S`) quarantines the profile instead: its lock
+  stays held, so the account's next runs get throwaway profiles, until a later claim sees no process naming it.
 - Chrome gets an allow-list of environment variables (`chrome_env`), never the worker's whole environment: the worker
   holds the credential private key. A claim that fails or is cancelled releases its lock (`claim_profile_in_thread`).
 - Chrome's own temp files go to a scratch directory made for the session and removed at its end (Linux; macOS Chrome
@@ -60,6 +64,7 @@ _ID_OK = re.compile(r"[A-Za-z0-9_-]{1,64}")      # used with fullmatch: `$` woul
 STRIP_TIMEOUT_S = 5.0
 VERSION_TIMEOUT_S = 5.0
 CLOSE_TIMEOUT_S = 30.0       # a Chrome that does not close in this time is killed
+KILL_WAIT_S = 10.0           # a killed Chrome not gone after this long is not confirmed: its profile is quarantined
 
 
 class BrowserRefused(RuntimeError):
@@ -309,6 +314,7 @@ def claim_profile(root: str, name: str, site: SiteProfile) -> ProfileClaim:
     fails after the lock was taken releases it: a lock nobody holds a claim for would last as long as the worker."""
     os.makedirs(root, exist_ok=True)
     profile = os.path.join(root, name)
+    lift_quarantine(profile)
     lock = lock_profile(profile)
     try:
         if lock is None:
@@ -510,6 +516,8 @@ class BrowserSession:
         self.local_storage_clean = not site.local_storage_token_keys
         # None: open; True: closed by `ctx.close()`; False: the close failed and Chrome was killed
         self.closed: bool | None = None
+        # True once Chrome is known to be gone (closed, or killed and seen dead): only then may the profile be released
+        self.gone = False
 
     @property
     def patched(self) -> int:
@@ -603,18 +611,147 @@ class BrowserSession:
             try:
                 await asyncio.wait_for(self.ctx.close(), CLOSE_TIMEOUT_S)
                 self.closed = True
+                self.gone = True
             except Exception as exc:      # noqa: BLE001 - a hung or failed close must not stop the rest of the cleanup
                 log.warning("browser did not close (%s): killing it", type(exc).__name__)
                 # a killed Chrome may not have written the strip to disk: the close reset drops Local Storage whole
                 self.local_storage_clean = False
-                _kill_browser(self._claim.path)
+                self.gone = await _kill_browser(self._claim.path)
 
 
-def _kill_browser(profile: str) -> None:
-    """SIGKILL the Chrome that owns `profile`: its `SingletonLock` link is `host-pid`."""
-    with contextlib.suppress(OSError, ValueError):
-        pid = int(os.readlink(os.path.join(profile, "SingletonLock")).rsplit("-", 1)[1])
-        os.kill(pid, signal.SIGKILL)
+@dataclass(frozen=True)
+class Proc:
+    """One row of the process table."""
+    ppid: int
+    start: str              # start time in clock ticks: a pid that was used again is another process
+    zombie: bool            # a zombie holds no file open: it counts as gone
+    cmdline: bytes          # NUL-separated; Chrome's child processes rewrite theirs into one string
+
+
+def processes() -> dict[int, Proc]:
+    """Every process of this pid namespace, from /proc. A process that ends while it is read is left out; any other
+    error (no /proc: macOS; a row that cannot be read or parsed) raises: an unknown table proves nothing."""
+    table = {}
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
+            continue
+        try:
+            with open("/proc/%s/stat" % name, "rb") as f:
+                stat = f.read().rsplit(b")", 1)[1].split()
+            with open("/proc/%s/cmdline" % name, "rb") as f:
+                cmdline = f.read()
+        except (FileNotFoundError, ProcessLookupError):
+            continue
+        table[int(name)] = Proc(int(stat[1]), stat[19].decode(), stat[0] == b"Z", cmdline)
+    return table
+
+
+def _names(profile: str) -> re.Pattern:
+    """A command line that names `profile` (not a longer path that starts with it: acct-1-g1 vs acct-1-g10)."""
+    return re.compile(re.escape(profile.encode()) + rb"(?=[\0 /]|$)")
+
+
+def _descends(table: dict[int, Proc], pid: int, ancestor: int) -> bool:
+    """`pid` is strictly below `ancestor` (never `ancestor` itself)."""
+    seen = {pid}
+    while pid in table:
+        pid = table[pid].ppid
+        if pid == ancestor:
+            return True
+        if pid in seen:
+            return False
+        seen.add(pid)
+    return False
+
+
+async def _kill_browser(profile: str) -> bool:
+    """SIGKILL the Chrome on `profile` and everything below it, and wait up to `KILL_WAIT_S` until it is gone.
+
+    Killed are only processes of this worker's own tree: the browser (its argument `--user-data-dir=<profile>`) and,
+    walked again at every pass, every process below one already taken (a child forked after the first signal is taken
+    at the next pass). A pid is kept with its start time, so a pid used again is never taken for ours. Gone means two
+    passes in a row with none of ours alive and no process anywhere naming the profile (every Chrome child process
+    names it, measured 23/10 on Chrome 154: one that left the tree is still seen). True only then; False (the profile
+    must be quarantined) when the table cannot be read, when a Chrome lock is left but no browser was ever found, or
+    when the wait runs out."""
+    me, flag = os.getpid(), b"--user-data-dir=" + profile.encode()
+    names = _names(profile)
+    ours: dict[int, str] = {}
+    quiet = 0
+    deadline = time.monotonic() + KILL_WAIT_S
+    while True:
+        try:
+            table = processes()
+        except (OSError, ValueError, IndexError) as exc:
+            log.error("the process table cannot be read (%s): profile %s is quarantined", type(exc).__name__,
+                      os.path.basename(profile))
+            return False
+        for pid, p in table.items():
+            if flag in p.cmdline.split(b"\0") and _descends(table, pid, me):
+                ours.setdefault(pid, p.start)
+        grown = True
+        while grown:                               # every process below a live one of ours
+            grown = False
+            for pid, p in table.items():
+                parent = table.get(p.ppid)
+                if pid not in ours and p.ppid in ours and parent and parent.start == ours[p.ppid]:
+                    ours[pid] = p.start
+                    grown = True
+        alive = [pid for pid, start in ours.items()
+                 if pid in table and table[pid].start == start and not table[pid].zombie]
+        strangers = [pid for pid, p in table.items() if pid not in ours and not p.zombie and names.search(p.cmdline)]
+        if not alive and not strangers:
+            if not ours and os.path.lexists(os.path.join(profile, "SingletonLock")):
+                log.error("a Chrome lock is on profile %s but no browser of ours was found: it is quarantined",
+                          os.path.basename(profile))
+                return False
+            quiet += 1
+            if quiet >= 2:
+                return True
+        else:
+            quiet = 0
+        # ponytail: a pid can die and be reused between the read and the kill (microseconds); pidfd closes that gap
+        for pid in alive:
+            with contextlib.suppress(OSError):
+                os.kill(pid, signal.SIGKILL)
+        if time.monotonic() >= deadline:
+            log.error("browser processes %s (ours) and %s (not ours) still run on profile %s after %.0f s: it is "
+                      "quarantined", alive, strangers, os.path.basename(profile), KILL_WAIT_S)
+            return False
+        await asyncio.sleep(0.05)
+
+
+# Kept profiles whose Chrome could not be seen gone, with their claims (the lock fd held). The next claim of one
+# lifts it when no process names the profile any more.
+QUARANTINED: dict[str, ProfileClaim] = {}
+
+
+def quarantine_profile(claim: ProfileClaim) -> None:
+    """A Chrome that may still run on the profile: neither reset nor release it. The kept lock makes this worker's
+    later claims of the account use throwaway profiles until `lift_quarantine` sees the profile free (the open marker
+    left in it then drops its Local Storage whole). A throwaway is left to the sweep."""
+    if not claim.throwaway:
+        QUARANTINED[claim.path] = claim
+    log.error("browser profile %s quarantined: not reset, lock kept (%d quarantined in this worker)",
+              os.path.basename(claim.path), len(QUARANTINED))
+
+
+def lift_quarantine(path: str) -> None:
+    """Release a quarantined profile once no process names it (a table that cannot be read keeps it)."""
+    if path not in QUARANTINED:
+        return
+    try:
+        table = processes()
+    except (OSError, ValueError, IndexError):
+        return
+    names = _names(path)
+    if any(not p.zombie and names.search(p.cmdline) for p in table.values()):
+        return
+    claim = QUARANTINED.pop(path, None)
+    if claim is None:                               # another thread lifted it first
+        return
+    release_profile(claim, drop_local_storage=True)
+    log.warning("browser profile %s: quarantine lifted, no process uses it any more", os.path.basename(path))
 
 
 @contextlib.asynccontextmanager
@@ -638,6 +775,7 @@ async def open_session(site: SiteProfile, account, *, purpose, token, images: bo
     scratch = None
     # Until the strip has succeeded Local Storage is dropped whole, whatever cuts the close short.
     drop_storage = bool(site.local_storage_token_keys)
+    gone = True                 # until a browser starts nothing runs on the profile
     try:
         scratch = tempfile.mkdtemp(prefix="relay-chrome-")      # short path: Chrome puts a unix socket in it
         # everything that can fail on a bad declaration (a capture regex) is built before Chrome starts
@@ -653,17 +791,24 @@ async def open_session(site: SiteProfile, account, *, purpose, token, images: bo
                 return await pw.chromium.launch_persistent_context(path, **kw)
 
             ctx = await launch_with_retry(launch, claim)
+            gone = False        # a Chrome runs now: the profile is released only once it is known gone
             session = BrowserSession(site, ctx, recorder, EvidenceWriter(redact, recorder), patcher, claim)
             try:
                 await session.open_page()
                 await log_browser_version(ctx, session.page)
                 yield session
             finally:
-                await session._shutdown()
-                drop_storage = not session.local_storage_clean
+                try:
+                    await session._shutdown()
+                finally:            # also when a cancel cut the shutdown short: what it got done still counts
+                    drop_storage = not session.local_storage_clean
+                    gone = session.gone
     finally:
         if fwd is not None:
             fwd.close()
         if scratch is not None:
             shutil.rmtree(scratch, ignore_errors=True)
-        await asyncio.to_thread(release_profile, claim, drop_local_storage=drop_storage)
+        if gone:
+            await asyncio.to_thread(release_profile, claim, drop_local_storage=drop_storage)
+        else:
+            quarantine_profile(claim)
