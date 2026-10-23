@@ -8,7 +8,16 @@ import os
 import pytest
 
 from relay_core.db import open_pool
-from relay_core.settings import REGISTRY, Registry, Rule, Settings, SettingsError, Spec, is_boot_only
+from relay_core.settings import (
+    REGISTRY,
+    Registry,
+    Rule,
+    Settings,
+    SettingsError,
+    Spec,
+    disabled_models,
+    is_boot_only,
+)
 from relay_core.testing.mutation import mutation
 
 S = "packages/relay-core/src/relay_core/settings.py"
@@ -353,3 +362,27 @@ def test_a_stored_value_that_no_longer_validates_is_ignored_with_the_default_app
         assert (s.get("log_retention_days"), s.source("log_retention_days")) == (30, "default")
 
     run(db, scenario)
+
+
+@mutation(S, "spec.validate(spec.on_load(value) if spec.on_load else value)", "spec.validate(value)",
+          expect="a retired id unpaused the known one")
+@mutation(S, "        return [m for m in v if m in ids]", "        return v",
+          expect="a retired id unpaused the known one")
+def test_a_stored_pause_list_keeps_its_known_ids_when_one_was_retired_and_a_write_stays_strict(db):
+    paused = disabled_models("p1", ("p1-video", "p1-image"))
+
+    async def scenario(s, pool):
+        with db.connect() as c:
+            c.execute("INSERT INTO settings_kv (key, value) VALUES (%s, %s::jsonb)",
+                      ("p1.disabled_models", json.dumps(["p1-video", "p1-retired"])))
+        await s.reload()
+        assert (s.get("p1.disabled_models"), s.source("p1.disabled_models")) == (["p1-video"], "db"), (
+            "a retired id unpaused the known one")
+        with pytest.raises(SettingsError, match="p1-retired"):
+            await s.set("p1.disabled_models", ["p1-video", "p1-retired"])
+        with db.connect() as c:
+            c.execute("UPDATE settings_kv SET value = '\"p1-video\"'::jsonb WHERE key = 'p1.disabled_models'")
+        await s.reload()
+        assert (s.get("p1.disabled_models"), s.source("p1.disabled_models")) == ([], "default"), "not a list"
+
+    run(db, scenario, registry=Registry(*REGISTRY.specs.values(), paused))

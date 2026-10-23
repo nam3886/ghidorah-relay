@@ -53,7 +53,9 @@ class Rule:
 class Spec:
     """`type` is exact (a bool is not an int). `min` and `max` bound a number; `rule` covers what a range cannot say.
     The same fields drive the refusal and the `allowed` text, so the page never shows a bound the code does not hold.
-    `basic`: one the admin changes often (a switch, a price, a budget); the settings page shows the others on demand."""
+    `basic`: one the admin changes often (a switch, a price, a budget); the settings page shows the others on demand.
+    `on_load`: turns a STORED value into one `validate` accepts before the cache takes it (a write is still checked
+    strictly); it may drop what a newer catalog no longer knows, so the rest of the stored value keeps its effect."""
 
     key: str
     type: type
@@ -64,6 +66,7 @@ class Spec:
     max: float | None = None
     rule: Rule | None = None
     basic: bool = False
+    on_load: Callable[[Any], Any] | None = None
 
     @property
     def allowed(self) -> str | None:
@@ -137,10 +140,21 @@ def disabled_models(provider: str, model_ids: Iterable[str]) -> Spec:
         if unknown:
             raise ValueError("not a %s model id: %s" % (provider, ", ".join(map(repr, unknown))))
 
+    def known(v: Any) -> Any:
+        """A stored list keeps its known ids: a model since retired is dropped (logged), never the whole pause."""
+        if type(v) is not list:
+            return v                    # validate refuses it
+        retired = [m for m in v if m not in ids]
+        if retired:
+            log.error("stored setting %s.disabled_models: dropped ids not in the catalog: %s", provider,
+                      ", ".join(map(repr, retired)))
+        return [m for m in v if m in ids]
+
     return Spec(provider + ".disabled_models", list, [],
                 "Models paused for every key: a request for one is refused (model.disabled), nothing is charged; "
                 "jobs already accepted run on.",
-                rule=Rule("a list of %s model ids: %s" % (provider, ", ".join(ids)), check), basic=True)
+                rule=Rule("a list of %s model ids: %s" % (provider, ", ".join(ids)), check), basic=True,
+                on_load=known)
 
 
 REGISTRY = Registry(
@@ -233,7 +247,7 @@ class Settings:
             try:
                 if spec is None:
                     raise SettingsError("not a setting")
-                fresh[key] = spec.validate(value)
+                fresh[key] = spec.validate(spec.on_load(value) if spec.on_load else value)
             except SettingsError as e:
                 log.error("stored setting %s ignored: %s", key, e)
         return fresh
