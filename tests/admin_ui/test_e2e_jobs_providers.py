@@ -1,7 +1,7 @@
 """The provider side of the Jobs page in Chrome against the real app with the four real provider specs (browser tier):
 the provider strip under the top bar is the provider filter, the "Jobs today" table reads the provider summary, and
-the job rows carry their provider. At a desktop width and at a phone's 390 px, where the table turns into cards and no
-text may be cut. With RELAY_SCREENSHOTS_DIR set, each state is saved as jobs-providers-<width>-<pick>.png."""
+the job rows carry their provider. At a desktop width, a tablet's 820 px and a phone's 390 px, where the table turns into
+cards; no text may be cut but a job title, one line ending in an ellipsis. With RELAY_SCREENSHOTS_DIR set, each state is saved as jobs-providers-<width>-<pick>.png."""
 
 import os
 import re
@@ -35,7 +35,7 @@ def job(db, k, provider: str, model: str, status: str = "done", title: str = "")
 def plant(db) -> None:
     k = new_key(db)
     job(db, k, "dola", "seedance-2.5", title="Lantern festival in Hoi An at dusk, a slow pan along the river with "
-        "paper boats drifting past the old town and the bridge")       # past two lines on a phone: an ellipsis
+        "paper boats drifting past the old town and the bridge")       # past one line at every width: an ellipsis
     job(db, k, "dola", "seedance-2.0", title="Vintage car chase, 1970s film look, two coupes")
     job(db, k, "dola", "seedream-4.5", "failed", title="Dragon mascot logo, flat")
     job(db, k, "vibes", "vibes-video", title="Rainy Tokyo street at night, neon")
@@ -75,23 +75,32 @@ def shot(page, name: str) -> None:
 
 
 def no_cut_text(page) -> None:
-    """Nothing in the provider table, the strip's tabs or a job card is cut, and the page never scrolls sideways. A
-    phone's job title wraps to two lines; one longer still ends in an ellipsis and carries its whole text in its title
-    attribute (and the detail). The desktop title link keeps its one line and its title attribute."""
+    """Nothing in the provider table, the strip's tabs or a job card is cut (the status pill beside a card's title
+    included), and the page never scrolls sideways. A job title, a card's or the table's title link, is one line at
+    every width: a longer one ends in an ellipsis and carries its whole text in its title attribute (and the detail)."""
     cut = page.evaluate("""() => {
         const sel = '[data-testid=provider-table] *, .ptab, .jobs__table li.data-table__item *';
-        const seen = (el) => el.offsetParent && !el.closest('.title-link, .spark, .mini__bar');
+        const seen = (el) => el.offsetParent && !el.closest('.prow__title, .title-link, .spark, .mini__bar');
         const wide = (el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'visible';
-        const tall = (el) => el.classList.contains('prow__title') && el.scrollHeight > el.clientHeight + 1
-            && el.getAttribute('title') !== el.textContent.trim();
-        return [...document.querySelectorAll(sel)].filter((el) => seen(el) && (wide(el) || tall(el)))
+        return [...document.querySelectorAll(sel)].filter((el) => seen(el) && wide(el))
             .map((el) => el.className + ': ' + el.textContent.trim().slice(0, 40));
     }""", isolated_context=False)
     assert cut == [], cut
+    titles = page.evaluate("""() => [...document.querySelectorAll('.jobs__table .prow__title, .jobs__table .title-link')]
+        .filter((el) => el.offsetParent).map((el) => {
+            const cs = getComputedStyle(el);
+            return {text: el.textContent.trim(), title: el.getAttribute('title'),
+                    oneLine: cs.whiteSpace === 'nowrap' && el.clientHeight < 2 * parseFloat(cs.fontSize),
+                    ellipsis: cs.textOverflow === 'ellipsis', cut: el.scrollWidth > el.clientWidth};
+        })""", isolated_context=False)
+    assert titles, "no job title drawn"
+    for t in titles:
+        assert t["oneLine"] and t["ellipsis"] and t["title"] == t["text"], t
+    assert all(t["cut"] for t in titles if t["text"].startswith("Lantern")), titles   # cut on one line, not wrapped
     assert sideways(page) == 0, "the page scrolls sideways by %d px" % sideways(page)
 
 
-@pytest.mark.parametrize("width", [1440, 390])
+@pytest.mark.parametrize("width", [1440, 820, 390])
 def test_the_strip_and_the_jobs_today_table_filter_the_list_by_provider(app, app_page, live, db, real_providers,
                                                                         width):
     page = app_page

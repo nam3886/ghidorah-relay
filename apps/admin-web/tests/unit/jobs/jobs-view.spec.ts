@@ -1448,7 +1448,7 @@ describe("providers", () => {
     expect(models).toEqual(["image meta-image", "video seedance-2.5"]);
   });
 
-  it("a phone row has the provider's side column, and its title wraps to two lines with the whole title kept", async () => {
+  it("a phone row has the provider's side column, and its one-line title's whole text in its title attribute", async () => {
     stubWidth("phone");
     const title = "Lantern festival in Hoi An at dusk, a slow pan along the river with paper boats";
     listJobs.mockResolvedValue({ items: [job(A, { provider: "meta", title })], total: 1, next_cursor: null });

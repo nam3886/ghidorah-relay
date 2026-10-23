@@ -964,17 +964,14 @@ html.dark .title-link:hover {
   justify-content: space-between;
   gap: 8px;
 }
-/* up to two lines, broken anywhere a word is longer than the line; a title past two lines ends in an ellipsis and its
-   whole text is in the title attribute and the job's detail */
+/* one line at every width, as on the desktop: a longer title ends in an ellipsis; its whole text is in the title
+   attribute and the job's detail */
 .prow__title {
-  display: -webkit-box;
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 14px;
   font-weight: 500;
   color: var(--rl-fg);
