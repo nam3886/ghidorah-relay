@@ -127,24 +127,28 @@ def _compact(obj) -> str:
 
 
 def chat_ability(spec) -> tuple[dict, str]:
-    """(`chat_ability`, the message text) of an order, in the shape dola's page records on its user message.
+    """(`chat_ability`, the message text) of an order. Each shape is the one a live send delivered (23/10, d23-05):
 
-    Proven over HTTP: Seedream 4.5 with no ratio and no style (spike 23/10, live check 23/10); Seedance 2.0, 5 s,
-    16:9 (spike). Recorded from the BROWSER path (the same shape, proven there): `seedance_v2.5` with `duration` 30
-    and the six video ratios (fixtures/dola/chains). UNPROVEN over HTTP, sent as the page's config names them
-    (fixtures/dola/action_bar_conf.json): a duration other than 5 (20/25/30 s on the browser path needed the
-    action-bar patch; here it is just the number), `seedance_v1.0` (not in today's config), `Seedream 5.0 Pro`.
-    Never sent here (`browser_only`): an image ratio or style (as `image_creation_ratio` dola ignored it, live check
-    23/10: 16:9 asked, 2048x2048 made) and a video ratio other than 16:9 (live check 23/10, Seedance 2.0: `ratio`
-    9:16 in this very field, stored on the message, and dola replied "16:9" and made 1280x720; the browser path's
-    same field gave 21:9 on 2.5, fixtures/dola/chains/refuse_then_deliver-*). The `ratio` field is still sent: 16:9."""
+    - Image: the page's own form, `reply_message_format` filled with the typed text, then the ratio:
+      "Generate image: <text>, 16:9", and the page config's selector key `image_creation_ratio` beside the model.
+      Delivered: Seedream 4.5 no ratio 2048x2048, 4.5 16:9 2848x1600, 5.0 Pro 9:16 1600x2848. Without the text tail
+      the key alone was ignored (16:9 asked, 2048x2048 made). A style is not built (`browser_only`).
+    - Video: the bare text and the parameters in `ability_param` (spike and live check: Seedance 2.0, 5 s, 16:9).
+      The ratio is NOT honoured this way (9:16 asked: dola stored it, replied "16:9", made 1280x720), so a video in
+      another ratio goes by browser (`browser_only`). The browser's own form ("Generated video: <text>, 9:16" plus
+      `reply_message_format`, fixtures/dola/chains) was sent twice on Seedance 2.5 (9:16, 21:9) and both times dola
+      answered "I can't generate the requested content." (the account then had no video credit left that day: the
+      cause, form, model or credit, is not known), so it is not used. UNPROVEN: `duration` other than 5,
+      `seedance_v1.0`."""
     text = spec.sent_text
     if spec.kind == "image":
         inner = {"model": IMAGE_MODEL_LABELS[spec.model]}
+        if spec.ratio:
+            inner["image_creation_ratio"] = spec.ratio
         inner["input_box_content"] = {"user_input_content": text,
                                       "reply_message_format": IMAGE_REPLY_PREFIX + "%s"}
-        return ({"ability_type": 3, "ability_param": _compact({"ability_param": inner, "ability_type": 1})},
-                IMAGE_REPLY_PREFIX + text)
+        said = IMAGE_REPLY_PREFIX + text + (", " + spec.ratio if spec.ratio else "")
+        return {"ability_type": 3, "ability_param": _compact({"ability_param": inner, "ability_type": 1})}, said
     param = {"ratio": spec.ratio, "model": spec.model, "duration": spec.duration,
              "input_box_content": {"user_input_content": text}}
     return {"ability_type": 17, "ability_param": _compact(param)}, text
@@ -431,10 +435,13 @@ class HttpRun(_Run):
         return await self._answered(lines, status, failure, accounts, window)
 
     async def _answered(self, lines: list[str], status: int | None, failure: str, accounts: int, window: int):
-        stream = read_send_stream(lines)
         text = "\n".join(lines)
+        if status is not None and not 200 <= status < 300:
+            # Only a 200 stream is read for dola's verdict: an error page may carry anything, even a code.
+            return await self._after_send_failure("the send was answered HTTP %d: unknown" % status)
+        stream = read_send_stream(lines)
         if stream.conversation is None:
-            if stream.early is not None:
+            if stream.early is not None and status == 200:      # a whole 200 stream, not a cut one
                 return await self._refused_before_ack(stream, text, accounts, window)
             why = ("the send got no acknowledgement (%s, %d line(s) read)"
                    % (failure or "HTTP %s" % status, len(lines)))
@@ -508,8 +515,8 @@ def browser_only(job) -> str | None:
     """Why this job cannot go over HTTP (it is sent by browser whatever the setting), None when it can."""
     if job.operation in REFERENCE_OPERATIONS:
         return "the HTTP send cannot attach reference images yet"
-    if job.params.get("kind") == "image" and (job.params.get("ratio") or job.params.get("style")):
-        return "dola ignored an image ratio sent over HTTP (live check 23/10: 16:9 asked, 2048x2048 made)"
+    if job.params.get("kind") == "image" and job.params.get("style"):
+        return "an image style is not proven over HTTP"
     if job.params.get("kind") == "video" and (job.params.get("ratio") or DEFAULT_RATIO) != DEFAULT_RATIO:
         return "dola ignored a video ratio sent over HTTP (live check 23/10: 9:16 asked, 1280x720 made)"
     return None

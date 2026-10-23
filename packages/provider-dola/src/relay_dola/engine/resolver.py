@@ -195,6 +195,7 @@ def video_outputs(cells, conversation_id: str, start: int = 0) -> tuple[Output, 
 
 
 USER_TYPE = 1       # `user_type` of a message the customer wrote (dola's own replies are 2)
+ASSISTANT_TYPE = 2
 
 
 def is_user_message(msg: dict) -> bool:
@@ -208,10 +209,18 @@ def _block_texts(content: list) -> list[str]:
 
 def message_texts(msg: dict) -> list[str]:
     """The text blocks of ONE assistant message. A user message gives nothing, in either of its shapes (a dict
-    `{"text": ...}`, or the block list the page's own reads carry): the customer's words are never dola's reply."""
+    `{"text": ...}`, or the block list the page's own reads carry): the customer's words are never dola's reply.
+    A plain `{"text": ...}` is dola's only when the message SAYS it is the assistant's (`user_type` 2: its refusal "I
+    can't generate the requested content." of an HTTP-sent video, 23/10, which a block-only read missed); without a
+    `user_type` that shape is the customer's (older reads)."""
     if is_user_message(msg):
         return []
     content = _content(msg)
+    if isinstance(content, dict):
+        if msg.get("user_type") not in (ASSISTANT_TYPE, str(ASSISTANT_TYPE)):
+            return []
+        text = content.get("text")
+        return [text] if isinstance(text, str) and text.strip() else []
     return _block_texts(content) if isinstance(content, list) else []
 
 
@@ -246,7 +255,7 @@ def user_text(body: dict) -> str:
     parts = []
     for msg in chain_messages(body):
         content = _content(msg)
-        if isinstance(content, dict):
+        if isinstance(content, dict) and msg.get("user_type") not in (ASSISTANT_TYPE, str(ASSISTANT_TYPE)):
             text = content.get("text")
             if isinstance(text, str) and text:
                 parts.append(text)

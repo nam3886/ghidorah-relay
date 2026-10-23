@@ -81,8 +81,8 @@ class Dola:
     """In-process dola. `stream`: the lines of the send's SSE answer; `drop`: raised after them (a cut stream)."""
 
     def __init__(self, log: list, *, stream=IMAGE_SSE, drop: Exception | None = None, chains=None, listing=None,
-                 passport="success", page=PAGE, unreachable=False):
-        self.log, self.stream, self.drop = log, stream, drop
+                 passport="success", page=PAGE, unreachable=False, status=200):
+        self.log, self.stream, self.drop, self.status = log, stream, drop, status
         self.chains = chains if chains is not None else {IMAGE_CONV: chain("chain_after_send.json"),
                                                          VIDEO_CONV: chain("video_chain_final.json")}
         self.listing, self.passport, self.page, self.unreachable = listing, passport, page, unreachable
@@ -102,7 +102,7 @@ class Dola:
         lines.extend(self.stream)
         if self.drop is not None:
             raise self.drop
-        return Resp(200)
+        return Resp(self.status)
 
     def get(self, url, *, headers, timeout, proxies):
         if self.unreachable:
@@ -367,7 +367,21 @@ def test_the_body_matches_the_spike_shape_for_image_and_video():
         want["messages"][0]["content_block"][0]["content"]
     vid = json.loads(send_http.build_body(order_spec(video_job()), ids, BOT_ID, "fp", 1))
     want_v = json.loads((SPIKE / "video_request.json").read_text())["body"]
-    assert vid["chat_ability"] == want_v["chat_ability"]
+    assert vid["chat_ability"] == want_v["chat_ability"]        # the shape that delivered (spike, live check)
+    assert vid["messages"][0]["content_block"][0]["content"] == want_v["messages"][0]["content_block"][0]["content"]
+
+
+@mutation(SEND, '        said = IMAGE_REPLY_PREFIX + text + (", " + spec.ratio if spec.ratio else "")',
+          "        said = IMAGE_REPLY_PREFIX + text", expect="the ratio rides in the text")
+def test_an_image_ratio_rides_in_the_text_as_the_page_writes_it():
+    """Live 23/10: 4.5 16:9 -> 2848x1600, 5.0 Pro 9:16 -> 1600x2848 with this form; the key alone was ignored."""
+    from relay_dola.engine.submit import order_spec
+    ability, said = send_http.chat_ability(order_spec(make_job("image", ratio="9:16", sent_text=IMAGE_TEXT,
+                                                               model="seedream-5.0-pro")))
+    assert said == "Generate image: " + IMAGE_TEXT + ", 9:16", "the ratio rides in the text"
+    inner = json.loads(ability["ability_param"])["ability_param"]
+    assert (inner["model"], inner["image_creation_ratio"]) == ("Seedream 5.0 Pro", "9:16")
+    assert inner["input_box_content"]["user_input_content"] == IMAGE_TEXT
 
 
 def test_unproven_parameters_are_sent_as_dolas_config_names_them():
@@ -391,8 +405,7 @@ async def test_the_setting_picks_the_path_per_job_and_reference_images_stay_on_t
 
     for settings, job in ((Settings({}), image_job()), (Settings({"dola.send_path": "browser"}), image_job()),
                           (HTTP_ON, replace(video_job(), operation="image_to_video")),
-                          (HTTP_ON, make_job("image", ratio="16:9")), (HTTP_ON, make_job("image", ratio=None,
-                                                                                          style="anime")),
+                          (HTTP_ON, make_job("image", ratio=None, style="anime")),
                           (HTTP_ON, make_job("video", duration=5, ratio="9:16", model="seedance_v2.0"))):
         log: list = []
         dola = Dola(log)
@@ -466,3 +479,75 @@ async def test_reconcile_proves_nothing_from_a_read_that_does_not_reach_the_firs
     failed = Dola([], listing={"status_code": 712012001})
     assert isinstance(await rec.reconcile(RCtx(), http_job(), None, http=DolaHttp.for_account(account(), failed)),
                       StillUnknown)
+
+
+# ---- Codex review of 32fb5a6 ---------------------------------------------------------------------------------------
+REFUSED_AFTER_ACK = IMAGE_SSE[:next(i for i, line in enumerate(IMAGE_SSE) if "ack_client_meta" in line) + 2] + [
+    "id: 0", "event: STREAM_ERROR",
+    'data: {"error_code":710022002,"error_msg":"We are experiencing high demand right now.","extra":{"ack":"1"}}', ""]
+
+
+@sync
+async def test_a_refusal_after_the_ack_ends_the_job_and_keeps_the_conversation_for_a_recheck():
+    log: list = []
+    ctx, result = await run(Dola(log, stream=REFUSED_AFTER_ACK))
+    assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED_710022002
+    assert result.job.state_patch == {"refused_conversation": IMAGE_CONV}
+    assert (IMAGE_CONV, {"refused_conversation": IMAGE_CONV}) in ctx.refs
+    assert log.count("POST") == 1
+
+
+@mutation(SEND, "        if status is not None and not 200 <= status < 300:", "        if False:",
+          expect="an error page is unknown")
+@sync
+async def test_an_answer_that_is_not_2xx_is_unknown_whatever_its_body_carries():
+    region = [line.replace("710022004", "710022003") for line in THROTTLE_SSE]
+    for status, stream in ((500, BADSIG_SSE), (429, THROTTLE_SSE), (403, region), (502, IMAGE_SSE)):
+        log: list = []
+        _, result = await run(Dola(log, stream=stream, status=status), acct=account("s%d" % status))
+        assert isinstance(result.job, Ambiguous), "an error page is unknown: %d %r" % (status, result.job)
+        assert not any(isinstance(e, Cooldown) for e in result.account), "an error page is unknown: no rest"
+
+
+@mutation(SEND, "            if stream.early is not None and status == 200:",
+          "            if stream.early is not None:", expect="a cut stream is unknown")
+@sync
+async def test_an_error_read_from_a_stream_that_was_cut_is_unknown():
+    log: list = []
+    _, result = await run(Dola(log, stream=BADSIG_SSE, drop=TimeoutError("cut")))
+    assert isinstance(result.job, Ambiguous), "a cut stream is unknown: %r" % (result.job,)
+
+
+@mutation(RECONCILE, "    return Listing(ids, len(raw), has_more", "    return Listing(ids, len(ids), has_more",
+          expect="an unreadable cell")
+@sync
+async def test_a_list_cell_that_cannot_be_read_makes_the_list_incomplete():
+    listed = listing(VIDEO_CONV)
+    listed["downlink_body"]["pull_recent_conv_chain_downlink_body"]["cells"].append("not a cell")
+    dola = Dola([], listing=listed)
+    got = await rec.reconcile(RCtx(), http_job("00000000-0000-4000-8000-000000000000"), None,
+                              http=DolaHttp.for_account(account(), dola))
+    assert isinstance(got, StillUnknown), "an unreadable cell: %r" % (got,)
+
+
+RESOLVER = "packages/provider-dola/src/relay_dola/engine/resolver.py"
+
+
+@mutation(RESOLVER, "        return [text] if isinstance(text, str) and text.strip() else []", "        return []",
+          expect="a plain-text refusal")
+@sync
+async def test_a_plain_text_refusal_of_dola_is_read_and_ends_the_job():
+    """23/10 live (Seedance 2.5, 9:16): dola answered with a message whose content is `{"text": ...}`, user_type 2;
+    the block-only read saw no reply and the job waited for its deadline."""
+    refused = chain("video_chain_final.json")
+    msgs = refused["downlink_body"]["pull_singe_chain_downlink_body"]["messages"]
+    bot = next(m for m in msgs if m.get("user_type") == 2)
+    msgs[:] = [m for m in msgs if m.get("user_type") == 1] + [{
+        "conversation_id": VIDEO_CONV, "message_id": bot["message_id"], "user_type": 2, "content_type": 1,
+        "index_in_conv": "2", "create_time": bot["create_time"], "ext": {"is_finish": "1"},
+        "content": json.dumps({"text": "I can't generate the requested content. Try something else."})}]
+    log: list = []
+    _, result = await run(Dola(log, stream=VIDEO_SSE, chains={VIDEO_CONV: refused}), video_job())
+    assert isinstance(result.job, Fail) and result.job.code == errors.CONTENT_REFUSED, \
+        "a plain-text refusal: %r" % (result.job,)
+    assert log.count("POST") == 1

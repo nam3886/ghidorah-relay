@@ -603,7 +603,7 @@ Registered by `spec.py`; read and written on the admin Settings page, live.
 | `dola.alert_watermark_only_rate` | drift alert: share of the last 24 h jobs that failed as watermark-only (0 to 1) | 0.2 |
 | `dola.alert_content_refused_rate` | drift alert: share of the last 24 h submits refused for content (0 to 1) | 0.5 |
 | `dola.browser_slots` | browser sessions at once, 1 to 12 (code constants `BROWSER_SLOTS_MIN`, `BROWSER_SLOTS_MAX` in `relay_dola/constants.py`, sized to the dola container: 8 CPUs, 12 GiB); lowering retires idle slots | 4 |
-| `dola.send_path` | how an order is sent: `browser` (Chrome) or `http` (one signed POST, no browser); read per job at the send; a job with reference images, an image with a ratio or style, or a video not in 16:9 always goes by browser | browser |
+| `dola.send_path` | how an order is sent: `browser` (Chrome) or `http` (one signed POST, no browser); read per job at the send; a job with reference images, an image with a style, or a video not in 16:9 always goes by browser | browser |
 | `dola.signer_alarm_accounts` | HTTP send only: this many different accounts refused (710022002/710022004) before an acknowledgement within the window = relay's signature is suspect (at least 2) | 3 |
 | `dola.signer_alarm_window_s` | HTTP send only: that window, and how long HTTP sends pause after the alarm (at least 60) | 900 |
 
@@ -642,13 +642,16 @@ is read per job at the send; flipping it never moves a job that is already sent.
   to `browser` and have the signer looked at. The alarm lives in the worker process; a restart clears it.
 - **Before the send** nothing is ever moved to the other path: a proxy that cannot reach dola is `pool.proxy_failed`, a
   bootstrap or signer failure `dola.http_setup_failed`, both ordinary retries under the same setting.
-- **Proven over HTTP (23/10):** Seedream 4.5 (no ratio, no style), Seedance 2.0 5 s 16:9 (spike and live check). **Sent as dola's config
-  names them but not yet proven over HTTP:** other video lengths (20/25/30 s on 2.5 needed the action-bar patch on the
-  browser path), `seedance_v1.0`, Seedream 5.0 Pro. **Always by browser, whatever the setting** (with a line in the
-  timeline): reference images (i2v, i2i: the HTTP upload is not built), and an image with a ratio or a style (sent as
-  the page config's `image_creation_ratio`, dola ignored it: 16:9 asked, 2048x2048 delivered, live check 23/10), and a
-  video in any ratio but 16:9 (Seedance 2.0 asked 9:16 in `ability_param.ratio`: dola stored it, replied "16:9" and
-  made 1280x720, live check 23/10).
+- **Proven over HTTP (23/10, d23-05, delivered files measured):** Seedream 4.5 with no ratio (2048x2048) and at 16:9
+  (2848x1600), Seedream 5.0 Pro at 9:16 (1600x2848), Seedance 2.0 5 s 16:9 (1280x720). An image ratio rides in the
+  message text as the page writes it ("Generate image: <prompt>, 16:9") plus the page config's `image_creation_ratio`;
+  the key alone was ignored (16:9 asked, 2048x2048 made). **Not yet proven:** other video lengths (20/25/30 s on 2.5
+  needed the action-bar patch on the browser path), `seedance_v1.0`, Seedance 2.5 at all: sent twice in the
+  browser's own form ("Generated video: <prompt>, 9:16" / 21:9) and both times dola answered "I can't generate the
+  requested content." with the account's video credit for the day spent right after, so the cause is not known.
+  **Always by browser, whatever the setting** (with a line in the timeline): reference images (i2v, i2i: the HTTP
+  upload is not built), an image with a style (not tried), and a video in any ratio but 16:9 (Seedance 2.0 asked
+  9:16 in `ability_param.ratio`: dola stored it, replied "16:9" and made 1280x720).
 
 There is no setting for image templates or for extra reply phrases. Image templates are not creation parameters: a
 request with `options.template` or `options.template_category` is refused 400 (no charge); a UI reads the template

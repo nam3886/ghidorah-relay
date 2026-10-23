@@ -127,11 +127,17 @@ async def list_over_http(http: DolaHttp) -> Listing:
     down = ((body.get("downlink_body") or {}).get("pull_recent_conv_chain_downlink_body")) if ok else None
     if not isinstance(down, dict):
         raise ListingError("the conversation list over HTTP gave no list")
-    cells = [c for c in down.get("cells") or [] if isinstance(c, dict)]
-    convs = [c.get("conversation") or {} for c in cells]
-    ids = [str(i) for i in (cc.get("conversation_id") or cc.get("id") for cc in convs) if i]
+    raw = down.get("cells") or []
+    if not isinstance(raw, list):
+        raise ListingError("the conversation list over HTTP gave no list")
+    ids = []
+    for cell in raw:        # a cell that cannot be read is still counted: the list is then not complete
+        conv = cell.get("conversation") if isinstance(cell, dict) else None
+        cid = (conv.get("conversation_id") or conv.get("id")) if isinstance(conv, dict) else None
+        if cid:
+            ids.append(str(cid))
     has_more = down.get("has_more")
-    return Listing(ids, len(cells), has_more if isinstance(has_more, bool) else None)
+    return Listing(ids, len(raw), has_more if isinstance(has_more, bool) else None)
 
 
 @dataclass(frozen=True)
