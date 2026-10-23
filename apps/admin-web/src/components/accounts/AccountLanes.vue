@@ -35,7 +35,8 @@ import MiniChip from "./MiniChip.vue";
 // The accounts of the page grouped per provider (final.html, "accounts board"): one lane per provider with a header in
 // its colours (tile, name, usable / total from the provider summary, paused), then one row per account: label, status
 // pill, "in use", the enable switch; who it is; its pools as meters in the provider's tone; the proxy and its check;
-// why it sleeps and its last error; when it was checked, what it made, Check and the row menu. One provider (or one
+// why it sleeps and its last error; when it was checked and what it made, on a line of its own; Check and the row
+// menu on a compact action row. One provider (or one
 // lane) lays its rows out side by side. A phone has no Check button: Check is the first item of the row menu.
 const props = defineProps<{
   rows: Account[];
@@ -149,10 +150,10 @@ const phone = computed(() => props.size === "phone");
             <span v-if="a.last_error" class="mono bad err" :title="a.last_error">{{ a.last_error }}</span>
           </div>
 
+          <span class="foot-note tnum clip" :title="fmtTime(a.last_checked_ms)"
+            >Checked {{ ago(a.last_checked_ms) }} · {{ madeLine(a.made) }}</span
+          >
           <div class="acct-row__foot">
-            <span class="foot-note tnum" :title="fmtTime(a.last_checked_ms)"
-              >Checked {{ ago(a.last_checked_ms) }} · {{ madeLine(a.made) }}</span
-            >
             <button
               v-if="!phone"
               type="button"
@@ -376,10 +377,10 @@ const phone = computed(() => props.size === "phone");
 .acct-row__foot {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
 }
 .foot-note {
-  flex: 1;
   min-width: 0;
   color: var(--rl-faint);
   font-size: 12px;

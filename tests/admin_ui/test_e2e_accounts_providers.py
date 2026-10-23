@@ -1,8 +1,8 @@
 """The provider side of the Accounts page in Chrome against the real app with the four real provider specs (browser
 tier): the provider strip is the page's provider filter (no Provider list in the top bar), the "Jobs today" table sits
 on top, and the accounts are drawn in one lane per provider with its coloured header, each row with its status pill,
-in use, the switch, pool meters, the proxy check, the sleep and the last error. At a desktop width and at a phone's
-390 px, where no text may be cut. With RELAY_SCREENSHOTS_DIR set, each state is saved as accounts-<width>-<pick>.png."""
+in use, the switch, pool meters, the proxy check, the sleep and the last error. At a desktop width, a tablet's 820 px
+and a phone's 390 px, where no text may be cut. With RELAY_SCREENSHOTS_DIR set, each state is saved as accounts-<width>-<pick>.png."""
 
 import os
 import re
@@ -76,7 +76,7 @@ def no_cut_text(page) -> None:
     assert sideways(page) == 0, "the page scrolls sideways by %d px" % sideways(page)
 
 
-@pytest.mark.parametrize("width", [1440, 390])
+@pytest.mark.parametrize("width", [1440, 820, 390])
 def test_the_accounts_are_drawn_in_provider_lanes_filtered_by_the_strip(app, app_page, live, db, real_providers,
                                                                        width):
     page = app_page
@@ -113,6 +113,9 @@ def test_the_accounts_are_drawn_in_provider_lanes_filtered_by_the_strip(app, app
     expect(page.get_by_test_id("lane-vibes").locator(".acct-row").filter(has_text="vibes-01")
            .get_by_role("switch")).to_have_attribute("aria-checked", "false")
     no_cut_text(page)
+    # the checked stamp and the made counts are one line of their own, at every width
+    heights = page.locator(".foot-note").evaluate_all("els => els.map((e) => e.getBoundingClientRect().height)")
+    assert heights and max(heights) < 22, heights
     shot(page, "%d-all" % width)
 
     # the strip filters the page; a lane's footer picks its provider as well

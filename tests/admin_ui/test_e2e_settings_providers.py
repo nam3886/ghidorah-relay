@@ -1,7 +1,7 @@
 """The provider cards of the Settings page in Chrome against the real app with the four real provider specs (browser
 tier): the strip offers All providers, General and each provider; a provider's card has its "Taking jobs" switch, a
 row per model with its switch and price inputs, its basic settings and the rest folded under Advanced; Save writes
-what the card changed. At a desktop width and at a phone's 390 px, where no text may be cut. With
+what the card changed. At a desktop width, a tablet's 820 px and a phone's 390 px, where no text may be cut. With
 RELAY_SCREENSHOTS_DIR set, each state is saved as settings-<width>-<pick>.png."""
 
 import json
@@ -45,7 +45,7 @@ def stored(db, key: str):
     return None if row is None else (json.loads(row[0]) if isinstance(row[0], str) else row[0])
 
 
-@pytest.mark.parametrize("width", [1440, 390])
+@pytest.mark.parametrize("width", [1440, 820, 390])
 def test_the_provider_cards_edit_the_models_prices_and_claims_and_save_them(app, app_page, live, db, real_providers,
                                                                           width):
     page = app_page

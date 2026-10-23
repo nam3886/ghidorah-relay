@@ -116,9 +116,9 @@ def test_the_accounts_checked_stamp_reads_as_a_time_ago():
           "return items;",
           expect=ROW_TEXT + "the row menu: Shot cannot be picked without a screenshot, Delete is last and apart, "
                             "a phone adds Check")
-@mutation(ACCOUNT_MODEL, 'return [name, a.provider, a.composer ? `composer ${a.composer}` : ""].filter(Boolean)',
-          'return [name, a.provider, a.composer ? `composer ${a.composer}` : ""]',
-          expect=ROW_TEXT + "the second line is name, provider and composer, with no empty piece")
+@mutation(ACCOUNT_MODEL, 'return [name, a.composer ? `composer ${a.composer}` : ""].filter(Boolean)',
+          'return [name, a.composer ? `composer ${a.composer}` : ""]',
+          expect=ROW_TEXT + "the second line is name and composer, with no empty piece; the lane names the provider")
 @pytest.mark.web_unit
 def test_a_row_says_its_sleep_error_proxy_and_menu_as_drawn():
     vitest(ACCOUNT_SPEC)

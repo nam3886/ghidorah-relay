@@ -231,10 +231,10 @@ export const chipsAfterRead = (chips: Record<string, ChipState>, read: number): 
 
 export type RowAction = "check" | "shot" | "wake" | "edit" | "delete";
 
-// The second line of an account: `<name> · <provider>` and ` · composer <v>` when it has one.
-export function accountSub(a: Pick<Account, "display_name" | "identity" | "provider" | "composer">): string {
+// The second line of an account: who it is, and ` · composer <v>` when it has one. Its lane names the provider.
+export function accountSub(a: Pick<Account, "display_name" | "identity" | "composer">): string {
   const name = a.display_name || a.identity || "";
-  return [name, a.provider, a.composer ? `composer ${a.composer}` : ""].filter(Boolean).join(" · ");
+  return [name, a.composer ? `composer ${a.composer}` : ""].filter(Boolean).join(" · ");
 }
 
 // The items of a row menu. Shot is drawn always but cannot be picked without a screenshot; a phone row has no Check

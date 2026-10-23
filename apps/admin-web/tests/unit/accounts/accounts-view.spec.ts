@@ -298,7 +298,7 @@ describe("the list", () => {
     const w = await open();
     const text = rows(w)[0]!.text();
     expect(text).toContain("acct-n11-06");
-    expect(text).toContain("Demo User F · dola · composer v2");
+    expect(rows(w)[0]!.find(".sub").text()).toBe("Demo User F · composer v2");
     expect(text).toContain("Checked 4 min ago");
     expect(rows(w)[0]!.find(".meter__name").text()).toBe("video");
     expect(rows(w)[0]!.find(".meter__figure").text()).toBe("27 / 30");

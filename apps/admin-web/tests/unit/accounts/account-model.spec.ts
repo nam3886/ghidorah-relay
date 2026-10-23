@@ -195,12 +195,14 @@ describe("asleepInfo", () => {
 });
 
 describe("the text of a row", () => {
-  it("the second line is name, provider and composer, with no empty piece", () => {
+  it("the second line is name and composer, with no empty piece; the lane names the provider", () => {
     expect(accountSub(account({ display_name: "Demo User H", provider: "dola", composer: "v2" }))).toBe(
-      "Demo User H · dola · composer v2",
+      "Demo User H · composer v2",
     );
-    expect(accountSub(account({ display_name: null, identity: null, provider: "dola" }))).toBe("dola");
-    expect(accountSub(account({ display_name: null, identity: "me@x", provider: "dola" }))).toBe("me@x · dola");
+    expect(accountSub(account({ display_name: null, identity: null, provider: "dola", composer: "v2" }))).toBe(
+      "composer v2",
+    );
+    expect(accountSub(account({ display_name: null, identity: "me@x", provider: "dola" }))).toBe("me@x");
   });
 
   it("the video pool comes first, the others keep their order; the tablet counts are singular for one", () => {

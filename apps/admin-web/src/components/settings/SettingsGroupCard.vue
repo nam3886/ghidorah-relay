@@ -399,7 +399,7 @@ const changedWord = computed(() =>
 .mrow__prices label {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   color: var(--rl-muted);
   font-size: 12px;
 }
@@ -414,6 +414,10 @@ const changedWord = computed(() =>
   color: var(--rl-fg);
   font: 12px var(--rl-mono);
   text-align: center;
+}
+/* the focus ring hugs the box, clear of its label */
+.price:focus-visible {
+  outline-offset: 0;
 }
 .mrow.is-off .mrow__name,
 .mrow.is-off .mrow__prices {
@@ -544,8 +548,32 @@ const changedWord = computed(() =>
 .mono {
   font-family: var(--rl-mono);
 }
-/* a phone: the footer's buttons and the price boxes are finger targets */
+/* a phone: the footer's buttons and the price boxes are finger targets; the header is tile, name and switch on one
+   row, the claims state and its key under them, left-aligned */
 @media (max-width: 767px) {
+  .scard__head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px 12px;
+  }
+  .scard__claims {
+    display: contents;
+  }
+  .scard__claims > :last-child {
+    grid-row: 1;
+    grid-column: 3;
+  }
+  .claims__text {
+    grid-column: 2 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 2px 8px;
+    text-align: left;
+  }
+  .scard__err {
+    grid-column: 1 / -1;
+  }
   .btn {
     flex: 1;
     height: 44px;
