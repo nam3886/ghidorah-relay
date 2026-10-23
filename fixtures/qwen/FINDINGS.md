@@ -224,7 +224,24 @@ Headers: `Authorization`, `bx-ua`, `bx-umidtoken`, `bx-v`, `Version: 0.3.22`, `s
   - Check video credits first with the free verify call. An "Insufficient Credits" answer has no `wanx` and charges
     nothing.
 
+## Provider build, 23/10 evening (21:41-21:50 GMT+7): both refresh tokens revoked
+The provider's first live runs (relay_qwen engine in the `relay-worker-dola:0a2ee77` image, each account through its
+own proxy) proved the plain-HTTP session and nothing paid:
+- acc1, 21:41: refresh OK, credits read (`totalCredits` 10, so the account check's video balance works); then the
+  first browser mint (`open_session`, warm profile, cookies added, `?inputFeature=t2i&text=…`, Enter) saw no generate
+  in 30 s. From the next run on (21:43) every refresh of acc1 answers `200 {"success": false, "data": {"code":
+  "Unauthorized", "details": "Token is revoked, please login again."}}`.
+- acc2, about 21:48: one plain refresh (python `requests`) answered `success: true`. About 21:49, before any browser
+  ran for acc2, the next refresh answered the same "Token is revoked".
+- With a revoked token the page loads as a guest (an age-check modal, a "Log in" button) and calls only
+  `auths/refresh` and `auths/` (both `Unauthorized`); it did not call `auths/signout`.
+
+The cause is not isolated: one account was revoked right after a browser session, the other with none. Until it is,
+the mint fails the page's `/api/v2/auths/signout` and `/api/v2/users/logout/*` in the browser and writes the browser's
+cookies back even when it fails. New jars are needed for any further live run.
+
 ## Open questions
+- What revoked both refresh tokens on 23/10 evening (above), and how to keep a session alive.
 - How long a `bx-*` pair lasts beyond 30 min and 3 sends, and what it is tied to (cookies, UA, exit IP). Can one pair
   serve an account through another proxy?
 - A failed or refused video: its `task_status` value, and whether the credits come back (none seen).
