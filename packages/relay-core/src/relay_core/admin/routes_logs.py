@@ -36,7 +36,8 @@ _FROM = (
     "WHEN 'pre_job' THEN l.job_id IS NULL AND l.status_code >= 400 AND l.route !~ '^(GET|HEAD|OPTIONS) ' "
     "ELSE TRUE END "
     "AND (%(q)s::text IS NULL OR starts_with(l.job_id::text, %(q)s) OR starts_with(j.external_ref, %(q)s) "
-    "OR strpos(lower(coalesce(" + SHOWN_TITLE + ", '')), lower(%(q)s)) > 0)")
+    # the title, else the prompt's start: a cheap superset of the shown title (SHOWN_TITLE runs on the page rows only)
+    "OR strpos(lower(coalesce(NULLIF(j.title, ''), left(j.prompt, 120), '')), lower(%(q)s)) > 0)")
 
 # Per local day under the list's own filters, bounded to the earliest..latest day of the page so the planner keeps a
 # plain range on request_logs_at. The day bounds are local midnights in `tz`.

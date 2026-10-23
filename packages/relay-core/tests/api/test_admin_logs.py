@@ -106,7 +106,7 @@ def test_dates_are_half_open_since_included_until_excluded(db):
 
 
 @mutation(ROUTES, ID_PREFIX, ID_ANYWHERE, expect="prefix")
-@mutation(ROUTES, "OR strpos(lower(coalesce(\" + SHOWN_TITLE + \", '')), lower(%(q)s)) > 0)",
+@mutation(ROUTES, "OR strpos(lower(coalesce(NULLIF(j.title, ''), left(j.prompt, 120), '')), lower(%(q)s)) > 0)",
           "OR strpos(lower(coalesce(j.title, '')), lower(%(q)s)) > 0)", expect="found by its prompt")
 def test_search_matches_a_job_id_prefix_an_external_ref_prefix_or_part_of_a_title_and_pattern_characters_are_plain(db):
     k = key(db)
