@@ -28,7 +28,9 @@ Money rules (each has a test and a mutation):
   failed or charged job.
 
 Debug files (`relay_browser.evidence`, text through the core's redactor), diagnostics only, taken once the verdict is
-decided and bounded by `EVIDENCE_WAIT_S`; a failure to capture is logged and skipped:
+decided; all captures of a job share one `EVIDENCE_WAIT_S` and never reach into the browser's close allowance before
+the core's submit timeout (`HOLD_MARGIN_S`), so the verdict never waits on them; a failure to capture is logged and
+skipped:
 - an after-send JPEG once meta's answer is done;
 - a PNG, the redacted HTML and the network log when nothing was sent (`_unsent`), the outcome is unknown (`_unknown`:
   no receipt, never done, previews or the other kind), the answer holds no media, or the browser raised.
@@ -89,14 +91,16 @@ WARMUP_WAIT_S = 10.0      # `warmupConversation` came 1.2-1.5 s after the typing
 RECEIPT_WAIT_S = 15.0     # the URL became `/prompt/<uuid>` 0.1 s after Enter
 STEP_S = 0.5              # between two reads of the page
 TILES_GRACE_S = 10.0      # after DONE, how long the tiles may take to show their final links
-HOLD_MARGIN_S = 30        # the hold ends this long before the core's submit timeout (`meta.<kind>_submit_timeout_s`)
+HOLD_MARGIN_S = 30        # the run ends this long before the core's submit timeout (`meta.<kind>_submit_timeout_s`):
+                          # the browser's close allowance (`relay_browser.session.CLOSE_TIMEOUT_S`); the wait for
+                          # meta's answer ends `EVIDENCE_WAIT_S` before that
 FAULT_REST_S = 300        # a proxy failure before the send rests the account this long
 UPLOAD_WAIT_S = 60.0      # a 560 KB webp was answered in 7.3 s through a proxy; a 5 MB PNG never was
 ATTACHED_WAIT_S = 5.0     # after the upload answer, how long the composer may take to show the thumbnail
 UPLOAD_MAX_BYTES = 1 << 20    # an input image above this is re-encoded before the upload
 UPLOAD_MAX_SIDE = 2048        # ... to a JPEG at most this many pixels a side (meta's own images are 1920x1280)
 UPLOAD_AS_IS = ("image/jpeg", "image/png", "image/webp")     # sent unchanged when small enough
-EVIDENCE_WAIT_S = 10.0    # the longest a capture of debug files may hold the run's verdict back
+EVIDENCE_WAIT_S = 10.0    # the longest all captures of debug files of one job may hold its verdict back, together
 
 _UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 _WARMUP_ID = re.compile(r'"conversationId"\s*:\s*"(%s)"' % _UUID)
@@ -283,6 +287,7 @@ class Deps:
     upload_wait_s: float = UPLOAD_WAIT_S
     attached_wait_s: float = ATTACHED_WAIT_S
     evidence_wait_s: float = EVIDENCE_WAIT_S
+    hold_margin_s: float = HOLD_MARGIN_S
 
 
 class _CoreVerdict(Exception):
@@ -315,6 +320,10 @@ class _Run:
         if job.params.get("ratio") and (self.kind, job.params["ratio"]) not in RATIO_UNTYPED:
             self.text += RATIO_TAIL % job.params["ratio"]
         self.started = deps.clock()
+        # the run returns by then, so the browser's close still fits before the core's submit timeout
+        self.deadline = self.started + settings.get("meta.%s_submit_timeout_s" % self.kind) - deps.hold_margin_s
+        self.evidence_left = deps.evidence_wait_s     # shared by every capture of this job
+        self.hold_until = self.deadline - deps.evidence_wait_s      # the wait for meta leaves the captures their time
         self.signed_in = False      # the sign-in read said signed in: the strike count is cleared
         self.sent = False           # True from the moment `mark_sent` returned: meta may have the order
         self.conversation: str | None = None
@@ -329,17 +338,25 @@ class _Run:
 
     async def _evidence(self, tag: str | None) -> None:
         """The job's debug files: the after-send JPEG (`tag` None), else the UI-error PNG, redacted HTML and network
-        log. Diagnostics only: a failure, or a capture slower than `evidence_wait_s`, is logged and skipped."""
+        log. Diagnostics only: bounded by what is left of the job's shared `evidence_wait_s` and by the deadline (the
+        close allowance is never touched); a failure or a cut capture is logged and skipped."""
         if self.page is None:      # the browser is closed
             return
+        budget = min(self.evidence_left, self.deadline - self.deps.clock())
+        if budget <= 0:
+            log.warning("evidence %s skipped: no time left for it before the submit deadline", tag or "after-send")
+            return
+        t0 = self.deps.clock()
         try:
-            async with asyncio.timeout(self.deps.evidence_wait_s):
+            async with asyncio.timeout(budget):
                 writer = self.session.evidence
                 items = [await writer.after_send(self.page)] if tag is None else await writer.ui_error(self.page, tag)
                 for item in filter(None, items):
                     await self.ctx.evidence(item.name, item.data, item.mime)
         except Exception as exc:      # noqa: BLE001 - diagnostics never fail the order
             log.warning("evidence %s not kept: %s", tag or "after-send", type(exc).__name__)
+        finally:
+            self.evidence_left -= self.deps.clock() - t0
 
     async def _core(self, fn) -> None:
         try:
@@ -474,14 +491,14 @@ class _Run:
                             "submit")
             self.conversation = url_id
             await self._core(lambda: ctx.report_ref(url_id, {"conversation_id": url_id}))
-        hold_s = self.settings.get("meta.%s_submit_timeout_s" % self.kind) - HOLD_MARGIN_S
         answer = await self._read_answer()
         while not answer.done:
-            if deps.clock() - self.started >= hold_s:
-                return await self._unknown("meta's answer was not done within %d s" % hold_s, "not-done")
+            if deps.clock() >= self.hold_until:
+                return await self._unknown("meta's answer was not done within %d s" % (self.hold_until - self.started),
+                                           "not-done")
             await deps.sleep(STEP_S)
             answer = await self._read_answer()
-        grace = deps.clock() + deps.tiles_grace_s
+        grace = min(deps.clock() + deps.tiles_grace_s, self.hold_until)
         while (answer.previews or not answer.media) and deps.clock() < grace:
             await deps.sleep(STEP_S)
             answer = await self._read_answer()

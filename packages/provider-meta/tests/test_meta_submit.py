@@ -7,6 +7,7 @@ import contextlib
 import json
 import re
 import time
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from html import unescape
 from pathlib import Path
@@ -276,7 +277,9 @@ DEFAULT_OP = {"image": "text_to_image", "video": "image_to_video"}
 
 
 def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "image/webp"), ratio=None,
-        sent=None, **settings):
+        sent=None, real_time=None, **settings):
+    """`real_time` = (close_s, bound_s, deps): a real clock, a browser close of `close_s` and the core's own bound
+    (`asyncio.timeout`, the kind's submit timeout) of `bound_s` around the submit."""
     log = page.log if log is None else log
     ctx = ctx or Ctx(log)
 
@@ -284,8 +287,12 @@ def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "
     async def fake_open(site, account, **kw):
         assert kw["purpose"] == "submit" and kw["images"] is True
         recorder = Recorder(page.events)
-        yield SimpleNamespace(page=page, ctx=Cookies(), recorder=recorder,
-                              evidence=EvidenceWriter(kw["redact"], recorder, clock=lambda: 1.0))
+        try:
+            yield SimpleNamespace(page=page, ctx=Cookies(), recorder=recorder,
+                                  evidence=EvidenceWriter(kw["redact"], recorder, clock=lambda: 1.0))
+        finally:
+            if real_time:
+                await asyncio.sleep(real_time[0])      # the browser's close
 
     op = op or DEFAULT_OP[kind]
 
@@ -303,8 +310,16 @@ def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "
     params = {"kind": kind, **({"ratio": ratio} if ratio else {})}
     sent = "%s [7100]" % (cap.prompt or "a lighthouse") if sent is None else sent
     job = SimpleNamespace(params=params, operation=op, sent_text=sent, inputs=inputs)
-    result = asyncio.run(S.submit(ctx, job, FakeSettings(SPEC, **settings), deps=deps))
-    return result, ctx
+    if real_time is None:
+        return asyncio.run(S.submit(ctx, job, FakeSettings(SPEC, **settings), deps=deps)), ctx
+    _, bound_s, more = real_time
+    deps = replace(deps, sleep=asyncio.sleep, clock=time.monotonic, **more)
+    settings["meta__%s_submit_timeout_s" % kind] = bound_s
+
+    async def bounded():
+        async with asyncio.timeout(bound_s):
+            return await S.submit(ctx, job, FakeSettings(SPEC, **settings), deps=deps)
+    return asyncio.run(bounded()), ctx
 
 
 def sent(log) -> list[str]:
@@ -840,6 +855,8 @@ def test_a_delivered_answer_keeps_one_after_send_jpeg_and_nothing_else():
 
 @mutation(SUBMIT_FILE, "        await self._evidence(code)\n", "", expect="meta_ui_page_not_ready")
 @mutation(SUBMIT_FILE, "        await self._evidence(tag)\n", "", expect="no_receipt")
+@mutation(SUBMIT_FILE, "        self.hold_until = self.deadline - deps.evidence_wait_s ",
+          "        self.hold_until = self.deadline ", expect="not_done")
 @mutation(SUBMIT_FILE, '        await self._evidence("no-media")\n', "", expect="no_media")
 @mutation(SUBMIT_FILE, '                await self._evidence("browser-error")', "                pass",
           expect="browser_error")
@@ -856,7 +873,7 @@ def test_each_failure_keeps_a_png_the_html_and_the_network_log_and_an_answer_tha
 @mutation(SUBMIT_FILE, "        except Exception as exc:      # noqa: BLE001 - diagnostics never fail the order\n"
           '            log.warning("evidence', "        except ZeroDivisionError as exc:\n"
           '            log.warning("evidence', expect="the same verdict")
-@mutation(SUBMIT_FILE, "            async with asyncio.timeout(self.deps.evidence_wait_s):",
+@mutation(SUBMIT_FILE, "            async with asyncio.timeout(budget):",
           "            async with asyncio.timeout(None):", expect="bounded")
 def test_a_capture_that_fails_or_hangs_changes_no_verdict_and_holds_it_back_at_most_the_bound():
     cap = capture("image-1-acc1")
@@ -889,3 +906,40 @@ def test_the_html_and_the_network_log_go_through_the_core_redactor():
     assert set(text) == {"html.txt", "network.txt"}, ctx.kept
     for what, body in text.items():
         assert "v-fake-secret" not in body and "[redacted]" in body, "%s is redacted: %s" % (what, body[:200])
+
+
+# The core's submit bound around a run whose captures all hang and whose browser takes half its close allowance to
+# close, scaled down: a 3 s bound (240 s), a 1.2 s close allowance (30 s), 1 s of evidence per job (10 s).
+CLOSE_S, BOUND_S, SCALED = 0.6, 3.0, {"hold_margin_s": 1.2, "evidence_wait_s": 1.0, "receipt_wait_s": 0.5,
+                                      "tiles_grace_s": 0.5}
+
+
+@mutation(SUBMIT_FILE, "        budget = min(self.evidence_left, self.deadline - self.deps.clock())",
+          "        budget = self.evidence_left", expect="within the core's bound")
+@mutation(SUBMIT_FILE, "            self.evidence_left -= self.deps.clock() - t0", "            pass",
+          expect="one shared cap")
+def test_hanging_captures_and_a_slow_close_never_cost_a_verdict_to_the_core_submit_bound():
+    cap = capture("image-1-acc1")
+    bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
+    cases = {   # what -> (a page, the deps, the verdict)
+        "delivered": (lambda: Page([], cap), {}, Completed),
+        "never done": (lambda: Page([], cap, answers=[streaming(cap.answer)]), {}, Ambiguous),
+        # the verdict comes past the point where a capture would reach into the close allowance
+        "late, no receipt": (lambda: Page([], cap, opens=None), {"receipt_wait_s": 2.0}, Ambiguous),
+        "no media": (lambda: Page([], cap, answers=[bare]), {"tiles_grace_s": 0.0}, Fail),
+        "browser error": (lambda: Page([], cap, press_error=RuntimeError("Target page closed")), {}, Ambiguous),
+    }
+    for what, (make, deps, verdict) in cases.items():
+        page = make()
+        page.shot_hang_s = 60.0
+        t0 = time.monotonic()
+        try:
+            result, _ = run(page, cap, real_time=(CLOSE_S, BOUND_S, {**SCALED, **deps}))
+        except TimeoutError:
+            raise AssertionError("%s: the verdict was lost: not within the core's bound" % what) from None
+        took = time.monotonic() - t0
+        assert isinstance(result.job, verdict), "%s: %r" % (what, result.job)
+        assert page.log.count("Enter") == 1, what
+        if what == "no media":
+            # two captures (the UI error, then the after-send picture): one shared cap, never one each
+            assert took < 1.0 + CLOSE_S + 0.3, "%s: one shared cap for the job's captures, took %.2f s" % (what, took)
