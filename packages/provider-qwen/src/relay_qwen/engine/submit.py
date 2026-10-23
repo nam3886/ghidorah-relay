@@ -11,10 +11,11 @@ Money rules that shape this file (each has a test and a mutation):
   back (reconcile). One chat per job, and exactly one POST into it.
 - `ctx.mark_sent()` runs immediately before that POST, never after.
 - Nothing is ever sent twice. After `mark_sent` only two answers end in something other than `Ambiguous`/`Completed`/
-  `Accepted`: qwen's own refusal and its "Insufficient Credits" (`Fail`, refunded), and the WAF's refusal of the pair
-  (`FAIL_SYS_USER_VALIDATE`, or its captcha page), which comes from the firewall in front of qwen. That one is
-  `NotTaken` (the job goes back to the queue, the stale pair is dropped so the next send mints anew) ONLY when a read
-  of the chat right after shows it still empty; otherwise it is `Ambiguous`.
+  `Accepted`: qwen's own refusal and its "Insufficient Credits" (`Fail`, refunded), and the Aliyun WAF's edge block
+  of the pair, which never reached qwen's app. That one is `NotTaken` (the job goes back to the queue, the stale pair
+  is dropped so the next send mints anew) ONLY when the answer is that block exactly, as measured (`is_waf_block`:
+  status, the WAF's own headers and cookie, none of the app's, the exact body); a chat read is no proof and is not
+  used. Anything that only looks like it is `Ambiguous`.
 - Any other answer (no answer, a timeout, a cut stream with no image, a 5xx, a shape not seen) is `Ambiguous`: the
   job becomes unknown and the reconciler reads the chat; it is never sent again.
 
@@ -64,7 +65,6 @@ from relay_qwen.engine.http import (
     Sessions,
     SignedOut,
     Site,
-    has_user_message,
     media_link,
     task_of,
     text_of,
@@ -80,8 +80,12 @@ OUT_OF_POINTS = "pool.account_out_of_points"
 PROXY_FAILED = "pool.proxy_failed"
 POOLS = ("video", "image")
 IMAGE_MIME = "image/png"
-WAF_MARK = "FAIL_SYS_USER_VALIDATE"
-WAF_PAGE = "aliyun_waf_aa"
+# The Aliyun WAF edge block (fixtures waf_plain_no_bx, waf_replayed_bx_other_body): never an answer of qwen's app.
+WAF_RET = "FAIL_SYS_USER_VALIDATE"
+WAF_RET_DETAIL = "RGV587_ERROR::"
+WAF_PUNISH = "/_____tmd_____/punish?"
+WAF_COOKIE = "x5secdata"
+APP_HEADERS = ("x-request-id", "x-actual-status-code")     # qwen's app sets both on every answer it makes
 FEATURES = {"thinking_enabled": False, "output_schema": "phase", "research_mode": "normal", "auto_thinking": False,
             "thinking_mode": "Fast", "auto_search": True}
 _store = None
@@ -151,16 +155,24 @@ def _obj(text: str) -> dict | None:
     return body if isinstance(body, dict) else None
 
 
-def is_waf(status: int, text: str) -> bool:
-    """The WAF's refusal of the pair, and only its recorded shapes (fixtures waf_*): HTTP 200 with a JSON object whose
-    `ret` list starts with FAIL_SYS_USER_VALIDATE and that carries no answer of qwen's (`success`, `choices`), or the
-    WAF's captcha page."""
+def is_waf_block(status: int, headers: httpx.Headers, text: str) -> bool:
+    """The Aliyun WAF's edge block of the request, matched exactly as measured twice (fixtures waf_*): HTTP 200,
+    `bxpunish: 1` and a `bxuuid`, a JSON content type, an `x5secdata` cookie set, none of the headers qwen's app puts on
+    its answers, and a body that is exactly `{"ret": ["FAIL_SYS_USER_VALIDATE", "RGV587_ERROR::..."], "data": {"url":
+    ".../_____tmd_____/punish?..."}}`. Anything else, however close, is not it."""
+    if status != 200 or headers.get("bxpunish") != "1" or not headers.get("bxuuid"):
+        return False
+    if any(h in headers for h in APP_HEADERS) or not headers.get("content-type", "").startswith("application/json"):
+        return False
+    if WAF_COOKIE not in {c.split("=", 1)[0].strip() for c in headers.get_list("set-cookie")}:
+        return False
     body = _obj(text.strip())
-    if body is not None:
-        ret = body.get("ret")
-        return (status == 200 and isinstance(ret, list) and bool(ret) and isinstance(ret[0], str)
-                and ret[0].startswith(WAF_MARK) and "success" not in body and "choices" not in body)
-    return WAF_PAGE in text and "data:" not in text
+    if body is None or set(body) != {"ret", "data"}:
+        return False
+    ret, data = body["ret"], body["data"]
+    return (isinstance(ret, list) and len(ret) == 2 and ret[0] == WAF_RET and isinstance(ret[1], str)
+            and ret[1].startswith(WAF_RET_DETAIL) and isinstance(data, dict) and set(data) == {"url"}
+            and isinstance(data["url"], str) and WAF_PUNISH in data["url"])
 
 
 def _first_message(body: dict) -> dict:
@@ -197,12 +209,12 @@ def _events(lines: list[str]) -> list[dict]:
     return out
 
 
-def stream_verdict(status: int, lines: list[str], cut: bool) -> tuple[str, Any]:
+def stream_verdict(status: int, lines: list[str], cut: bool, headers: httpx.Headers) -> tuple[str, Any]:
     """The image POST's answer: ("images", [links]) | ("waf", None) | ("no_credits", text) | ("refused", text) |
     ("unclear", note). An image link anywhere counts, even in a stream cut after it; a stream that ended cleanly
     with words and no image is qwen refusing; nothing else is final."""
     text = "\n".join(lines)
-    if not cut and is_waf(status, text):
+    if not cut and is_waf_block(status, headers, text):
         return "waf", None
     if not any(line.startswith("data:") for line in lines):
         verdict = json_verdict(status, None if cut else _obj(text.strip()))
@@ -228,20 +240,22 @@ def stream_verdict(status: int, lines: list[str], cut: bool) -> tuple[str, Any]:
 
 
 # ---- the send ----------------------------------------------------------------------------------------------------
-async def _post_image(site: Site, url: str, body: dict, headers: dict) -> tuple[int, list[str], bool]:
-    """The image POST, read to its end: (status, lines, cut). A stream that broke or ran out of time is `cut`."""
-    status, lines = 0, []
+async def _post_image(site: Site, url: str, body: dict, headers: dict
+                      ) -> tuple[int, list[str], bool, httpx.Headers]:
+    """The image POST, read to its end: (status, lines, cut, answer headers). A stream that broke or ran out of time
+    is `cut`."""
+    status, lines, got = 0, [], httpx.Headers()
     try:
         async with asyncio.timeout(IMAGE_STREAM_TIMEOUT_S):
             async with site.client.stream("POST", url, json=body, headers=headers, timeout=httpx.Timeout(
                     API_TIMEOUT_S, read=IMAGE_READ_TIMEOUT_S)) as resp:
-                status = resp.status_code
+                status, got = resp.status_code, resp.headers
                 async for line in resp.aiter_lines():
                     if line.strip():
                         lines.append(line)
     except (httpx.HTTPError, TimeoutError):
-        return status, lines, True
-    return status, lines, False
+        return status, lines, True, got
+    return status, lines, False, got
 
 
 async def submit(ctx, job, settings, sessions: Sessions, minter: Minter, *, transport=None,
@@ -287,20 +301,20 @@ async def submit(ctx, job, settings, sessions: Sessions, minter: Minter, *, tran
         await ctx.report_ref(chat, {CHAT_KEY: chat})       # write-ahead: the chat is on the job first
         await ctx.mark_sent()                               # then marked sent, immediately before the POST
         if kind == "image":
-            status, lines, cut = await _post_image(site, url, body, headers)
-            verdict, said = stream_verdict(status, lines, cut)
+            status, lines, cut, answered = await _post_image(site, url, body, headers)
+            verdict, said = stream_verdict(status, lines, cut, answered)
         else:
             try:
                 resp = await site.client.post(url, json=body, headers=headers, timeout=VIDEO_SEND_TIMEOUT_S)
             except httpx.HTTPError as e:
                 return _result(Ambiguous("the video send got no answer (%s)" % type(e).__name__),
                                *pacing(settings, now()))
-            if is_waf(resp.status_code, resp.text):
+            if is_waf_block(resp.status_code, resp.headers, resp.text):
                 verdict, said = "waf", None
             else:
                 verdict, said = json_verdict(resp.status_code, _obj(resp.text))
         if verdict == "waf":
-            return await _waf(ctx, site, sessions, chat, cred.minted_at)
+            return await _waf(ctx, sessions, chat, cred.minted_at)
         rest = pacing(settings, now())
         if verdict == "images":
             outs = tuple(Output(link, IMAGE_MIME, i, None, {CHAT_KEY: chat}) for i, link in enumerate(said))
@@ -315,15 +329,9 @@ async def submit(ctx, job, settings, sessions: Sessions, minter: Minter, *, tran
         return _result(Ambiguous(str(said)), *rest)
 
 
-async def _waf(ctx, site: Site, sessions: Sessions, chat: str, minted_at: float) -> SubmitResult:
-    """The firewall refused the pair. NotTaken only when the chat reads back with no message of ours."""
-    try:
-        record = await site.read_chat(chat)
-    except httpx.HTTPError:
-        record = None
+async def _waf(ctx, sessions: Sessions, chat: str, minted_at: float) -> SubmitResult:
+    """The WAF's edge block: the request never reached qwen's app. The stale pair is dropped, the job requeued."""
     await drop_pair(ctx, sessions, minted_at)
-    if record is None or has_user_message(record):
-        return _result(Ambiguous("qwen's firewall refused the send, and the chat could not be proven empty"))
-    await ctx.event("qwen's firewall refused the anti-bot pair; the chat is empty: a new pair will be minted",
+    await ctx.event("qwen's firewall blocked the send at its edge (the anti-bot pair); a new pair will be minted",
                     "submit", "upstream")
     return _result(NotTaken(errors.WAF_REFUSED, {"waf_chat": chat}))

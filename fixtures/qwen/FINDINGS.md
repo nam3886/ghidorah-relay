@@ -257,6 +257,16 @@ provider guards against rotation all the same: a refresh is made with the newest
 account at a time (the others reuse its token), and a refresh token handed back that differs from the jar's is written
 back at once (`RunCtx.renew_credential`, merged) before anything else uses the session.
 
+## Review rulings for the provider (23/10)
+The spike's reading rules above ("no user message: not sent", "check the chat is still empty, then send again") are
+NOT what the provider does: a chat read may lag the paid send it would deny. The provider:
+- requeues after the send only on the WAF's exact edge block (HTTP 200, `bxpunish: 1`, a `bxuuid`, an `x5secdata`
+  cookie, none of the app's `x-request-id`/`x-actual-status-code`, the recorded body), with no chat read;
+- never calls a lost send "not sent": an empty chat stays unknown and the render deadline fails the job with its
+  refund;
+- merges two racing writes of a credential field by field: the pair by `minted_at`, the session cookie by
+  `refreshed_at`.
+
 ## Open questions
 - What revoked both refresh tokens on 23/10 evening (above), and how to keep a session alive.
 - How long a `bx-*` pair lasts beyond 30 min and 3 sends, and what it is tied to (cookies, UA, exit IP). Can one pair

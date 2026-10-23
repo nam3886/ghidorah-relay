@@ -2,8 +2,9 @@
 sends a generate, so nothing here can spend.
 
 - Reconcile (a send whose answer was lost): read the job's chat (`GET /api/v2/chats/<id>`), made before the send and
-  on the job since. No message of ours in it is `NotSent` (FINDINGS 4: qwen writes the user message when it takes
-  the order; the core requeues only when this read started after the whole send window). A user message is `Found`:
+  on the job since. A chat with no message of ours is `StillUnknown(answered=True)`, NEVER `NotSent`: a chat read
+  may lag the paid send it would deny, and a requeue would send it again; the render deadline fails such a job with
+  its refund. A user message is `Found`:
   a video taken when its assistant message names the task (`extra.wanx.task_id`), an image always.
 - Poll, a video with its task: `GET /api/v2/task/status/<task>` until `success` with the mp4 link; a status that says
   the task failed fails the job (refunded). A video without a task yet: read the chat for its task, for qwen's
@@ -25,7 +26,6 @@ from relay_core.providers import (
     Done,
     Failed,
     Found,
-    NotSent,
     Output,
     Pending,
     PollResult,
@@ -78,7 +78,7 @@ async def reconcile(ctx, job, settings, sessions: Sessions, *, transport=None) -
     if record is None:
         return StillUnknown()
     if not has_user_message(record):
-        return NotSent(covers_send_window=True)
+        return StillUnknown(answered=True)          # never NotSent: the read may lag the send (no re-send, ever)
     if job.params.get("kind") == "video":
         task = task_of(assistant(record))
         if task is None:

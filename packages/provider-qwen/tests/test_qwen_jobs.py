@@ -35,7 +35,9 @@ from qwenkit import (
     VIDEO_LINK,
     VIDEO_TASK,
     WAF,
+    WAF_REC,
     Ctx,
+    CutStream,
     Qwen,
     cut_after,
     job,
@@ -44,6 +46,7 @@ from qwenkit import (
     read_media,
     settings,
     sts_ok,
+    waf_block,
 )
 
 from relay_core.net import UnsafeUrl
@@ -205,24 +208,53 @@ def test_an_image_edit_is_a_t2i_chat_with_its_one_file():
 # ---- the firewall: the one answer after the send that requeues -------------------------------------------------
 @mutation(SUBMIT_FILE, '        if verdict == "waf":\n', '        if False:\n', expect="NotTaken")
 @mutation(SUBMIT_FILE, "    await drop_pair(ctx, sessions, minted_at)\n", "", expect="the stale pair was kept")
-def test_a_firewall_refusal_with_the_chat_still_empty_drops_the_pair_and_requeues_not_taken():
+def test_the_wafs_exact_edge_block_drops_the_pair_and_requeues_not_taken_without_reading_the_chat():
     log = []
-    q = Qwen(log, send=WAF, chat=CHAT_EMPTY)
     ctx = Ctx(log)
-    result = run_submit(q, ctx)
+    result = run_submit(Qwen(log, send=WAF), ctx)
     assert isinstance(result.job, NotTaken) and result.job.code == "qwen.waf_refused", result.job
     assert ctx.renewed and cred_of(ctx.renewed[-1]).bx is None, "the stale pair was kept"
-    assert log[log.index("send"):] == ["send", "chat", "renew"] and log.count("send") == 1
+    assert log[log.index("send"):] == ["send", "renew"], "the chat was read as proof: %s" % log
     assert cred_of(ctx.renewed[-1]).minted_at == cred_of(minted_blob()).minted_at
 
 
-@mutation(SUBMIT_FILE, "    if record is None or has_user_message(record):\n", "    if record is None:\n",
-          expect="a chat with our message was requeued")
-def test_a_firewall_refusal_is_ambiguous_unless_the_chat_is_proven_empty():
-    for chat in (CHAT_IMAGE, httpx.Response(500), httpx.ConnectError("down")):
+NEAR_MISSES = {
+    "no-bxpunish": dict(drop=("bxpunish",)), "no-bxuuid": dict(drop=("bxuuid",)),
+    "app-request-id": dict(add={"x-request-id": "r1"}), "app-status": dict(add={"x-actual-status-code": "200"}),
+    "no-waf-cookie": dict(cookies=("x5sectag",)),
+    "html": dict(drop=("content-type",), add={"content-type": "text/html"}),
+    "status-500": dict(status=500), "with-success": dict(body={**WAF_REC["body"], "success": False}),
+    "other-ret": dict(body={**WAF_REC["body"], "ret": ["FAIL_SYS_TOKEN_EXOIRED", WAF_REC["body"]["ret"][1]]}),
+    "short-ret": dict(body={**WAF_REC["body"], "ret": ["FAIL_SYS_USER_VALIDATE"]}),
+    "no-punish-url": dict(body={**WAF_REC["body"], "data": {"url": "https://chat.qwen.ai/x"}}),
+}
+
+
+@mutation(SUBMIT_FILE, '    if status != 200 or headers.get("bxpunish") != "1" or not headers.get("bxuuid"):\n',
+          "    if False:\n", expect="requeued")
+@mutation(SUBMIT_FILE, "    if any(h in headers for h in APP_HEADERS) or not", "    if not", expect="requeued")
+@mutation(SUBMIT_FILE, "    if WAF_COOKIE not in", "    if WAF_COOKIE in", expect="requeued")
+@mutation(SUBMIT_FILE, '    if body is None or set(body) != {"ret", "data"}:\n', "    if body is None:\n",
+          expect="requeued")
+@mutation(SUBMIT_FILE, "            and isinstance(data[\"url\"], str) and WAF_PUNISH in data[\"url\"])",
+          "            and isinstance(data[\"url\"], str))", expect="requeued")
+@pytest.mark.parametrize("change", list(NEAR_MISSES), ids=list(NEAR_MISSES))
+def test_anything_short_of_the_exact_edge_block_is_ambiguous_and_keeps_the_pair(change):
+    for kind in ("image", "video"):
         log = []
-        result = run_submit(Qwen(log, send=WAF, chat=chat), Ctx(log))
-        assert isinstance(result.job, Ambiguous), "a chat with our message was requeued: %s" % (result.job,)
+        ctx = Ctx(log)
+        result = run_submit(Qwen(log, send=lambda r: waf_block(**NEAR_MISSES[change])), ctx,
+                            job(VIDEO) if kind == "video" else job())
+        assert isinstance(result.job, Ambiguous), "a near miss (%s, %s) was requeued: %s" % (change, kind, result.job)
+        assert log.count("send") == 1 and "renew" not in log
+
+
+def test_a_cut_edge_block_is_ambiguous():
+    log = []
+    cut = httpx.Response(200, headers=list(waf_block().headers.multi_items()),
+                         stream=CutStream(json.dumps(WAF_REC["body"])[:40]))
+    result = run_submit(Qwen(log, send=cut), Ctx(log))
+    assert isinstance(result.job, Ambiguous), result.job
 
 
 @pytest.mark.parametrize("answer", [
@@ -389,10 +421,18 @@ def run_reconcile(q, the_job):
     return asyncio.run(R.reconcile(Ctx(log), the_job, settings(), Sessions(), transport=q.transport))
 
 
-@mutation(RESULTS_FILE, "    if not has_user_message(record):\n", "    if record:\n", expect="NotSent")
-def test_reconcile_reads_the_chat_no_message_of_ours_is_not_sent_one_is_found():
+NEVER_NOT_SENT = ("        return StillUnknown(answered=True)          # never NotSent: the read may lag the send "
+                  "(no re-send, ever)\n")
+
+
+@mutation(RESULTS_FILE, NEVER_NOT_SENT,
+          '        return __import__("relay_core.providers").providers.NotSent(covers_send_window=True)\n',
+          expect="an empty chat was taken for not sent")
+def test_reconcile_never_calls_an_empty_chat_not_sent_and_a_message_of_ours_is_found():
     state = {"chat": CHAT}
-    assert run_reconcile(Qwen([], chat=CHAT_EMPTY), job(state=state)) == NotSent(covers_send_window=True)
+    empty = run_reconcile(Qwen([], chat=CHAT_EMPTY), job(state=state))
+    assert empty == StillUnknown(answered=True), "an empty chat was taken for not sent: %s" % (empty,)
+    assert not isinstance(empty, NotSent)
     assert run_reconcile(Qwen([], chat=CHAT_IMAGE), job(state=state)) == Found(CHAT, {"chat": CHAT}, True)
     task = "tsk_6993c8657bf4a05bc4593e3eca35a1f7"
     assert run_reconcile(Qwen([], chat=CHAT_VIDEO), job(VIDEO, state=state)) == Found(

@@ -43,7 +43,20 @@ IMAGE_STREAM = body_of("t2i_send")             # 1664x928 PNG link in an image_g
 VIDEO_TASK = body_of("t2v_send")               # the t2v answer: wanx task, 30 credits deducted
 I2V_TASK = body_of("i2v_send")
 NO_CREDITS = body_of("t2v_no_credits")         # "Insufficient Credits", quota_limit, no wanx
-WAF = body_of("waf_plain_no_bx")               # FAIL_SYS_USER_VALIDATE
+WAF_REC = rec("waf_plain_no_bx")               # the Aliyun WAF edge block: FAIL_SYS_USER_VALIDATE
+
+
+def waf_block(*, drop: tuple[str, ...] = (), add: dict | None = None, cookies=("x5secdata", "x5sectag"), status=200,
+              body: dict | None = None) -> httpx.Response:
+    """The WAF's edge block as recorded (status, its headers, its cookies, its body); a test changes one part."""
+    headers = [(k, v) for k, v in WAF_REC["headers"].items()
+               if k.lower() not in ("content-length", "date") and k.lower() not in drop]
+    headers += list((add or {}).items()) + [("set-cookie", "%s=planted; Path=/" % c) for c in cookies]
+    return httpx.Response(status, headers=headers, content=json.dumps(body or WAF_REC["body"]).encode())
+
+
+def WAF(request) -> httpx.Response:     # noqa: N802 - a route answer: a fresh recorded block per call
+    return waf_block()
 CHAT_EMPTY = rec("chat_read_empty")["body"]
 CHAT_IMAGE = rec("t2i_chat_read")["body"]
 CHAT_VIDEO = rec("t2v_chat_read")["body"]

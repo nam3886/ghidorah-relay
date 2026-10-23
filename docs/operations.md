@@ -982,11 +982,14 @@ send until `qwen.bx_max_age_s` (1500); one browser at a time per worker.
 **Send.** Free steps first (token, pair, video credit check `credits/verify`, the input image to OSS, a new chat), then
 the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An image is drawn in that stream (60-110 s,
 `Completed`); a video answers its task id at once (`Accepted`, then `task/status` is polled). After the send:
-- the WAF's `FAIL_SYS_USER_VALIDATE` (or its captcha page) with the chat read back empty: the pair is dropped and the
-  job requeued (`qwen.waf_refused`, the first two free); with a message of ours in the chat it is unknown;
+- the Aliyun WAF's edge block, matched exactly as recorded (HTTP 200, `bxpunish: 1`, `bxuuid`, an `x5secdata` cookie,
+  none of the app's `x-request-id`/`x-actual-status-code`, the body `{"ret": ["FAIL_SYS_USER_VALIDATE", "RGV587_ERROR::…"],
+  "data": {"url": "…/_____tmd_____/punish?…"}}`): the request never reached qwen, so the pair is dropped and the job
+  requeued (`qwen.waf_refused`, the first two free). Anything only like it is unknown;
 - "Insufficient Credits" fails the job (`qwen.out_of_credits`, refunded) and empties the video pool; a complete answer
   in words with no image (image) or no task id (video) fails it at once (`qwen.refused`, refunded);
-- anything else is unknown: the reconciler reads the chat (no message of ours: not sent; a message: found). A found
+- anything else is unknown: the reconciler reads the chat (a message of ours: found; none: still unknown, never "not
+  sent", as the read may lag the send: the render deadline fails the job with its refund, it is never sent again). A found
   video whose chat holds a reply in words and no task is failed as refused (refunded) `qwen.refusal_grace_s` after the
   send; a task named meanwhile is followed. A task that ends failed is refunded at once (`qwen.render_failed`).
 
