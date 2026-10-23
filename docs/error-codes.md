@@ -34,12 +34,14 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `dola.browser_cookies_lost` | 500 | api_error | no | no | no | 3 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the browser lost the account's cookies; the run is tried again |
 | `dola.content_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola refused to make this (copyright, safety or content rules); the charge is returned |
 | `dola.http_error` | 502 | api_error | no | yes | yes | 0 | yes | dola answered with an HTTP error |
+| `dola.http_setup_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the plain-HTTP send could not be prepared (login read, session or signature); nothing was sent |
 | `dola.likeness_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola refused: with a photo of a person it only makes videos of the account owner |
 | `dola.needs_confirm` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola asked a question instead of taking the order, and never delivered |
 | `dola.no_image` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola made no image for this order |
 | `dola.no_video` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola made no video for this order |
 | `dola.page_reloaded` | 500 | api_error | no | no | no | 3 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) dola's page reloaded while the order was being composed; the run is tried again |
 | `dola.refused_710022002` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola refused to take this order (its code 710022002, which it gives for prompts it will not make); nothing was made and the charge is returned |
+| `dola.signer_suspect` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) dola refused the plain-HTTP send in a way that points at relay's request signature; nothing was taken |
 | `dola.temporary_error` | 502 | api_error | no | yes | yes | 0 | yes | dola reported a temporary error when it took the order |
 | `dola.ui_attach_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the reference images could not be attached on dola's page |
 | `dola.ui_duration_patch_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the duration could not be set on dola's page |

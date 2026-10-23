@@ -37,6 +37,9 @@ UI_SEND_FAILED = "dola.ui_send_failed"
 PAGE_RELOADED = "dola.page_reloaded"   # the page navigated while the order was being composed: nothing was sent
 BROWSER_COOKIES_LOST = "dola.browser_cookies_lost"   # the browser lost the account's identity cookies: a browser fault
 UI_NO_CONVERSATION = "dola.ui_no_conversation"   # names the cause in the detail of an Ambiguous send; ends no job alone
+# The plain-HTTP send (`dola.send_path` = http). Neither is dola's verdict on the order: both are ours to fix.
+HTTP_SETUP_FAILED = "dola.http_setup_failed"     # the login read, the session bootstrap or the signer failed: not sent
+SIGNER_SUSPECT = "dola.signer_suspect"           # dola's refusals look like OUR signature is rejected (see send_http)
 
 # Warnings (not rules).
 WARN_DURATION_DRIFT = "dola.duration_drift"
@@ -93,6 +96,10 @@ CODES: dict[str, Rule] = {r.code: r for r in (
     _ui(UI_STYLE_SELECT_FAILED, "the style could not be selected on dola's page"),
     _ui(UI_SEND_FAILED, "the order could not be sent on dola's page"),
     _ui(UI_NO_CONVERSATION, "dola's page showed no conversation after sending"),
+    _ui(HTTP_SETUP_FAILED, "the plain-HTTP send could not be prepared (login read, session or signature); nothing "
+                           "was sent"),
+    _ui(SIGNER_SUSPECT, "dola refused the plain-HTTP send in a way that points at relay's request signature; nothing "
+                        "was taken"),
 )}
 
 # A module loaded twice (a test reloading it) keeps its first registration.

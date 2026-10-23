@@ -26,11 +26,18 @@ The bug this avoids: a full list holding unknown conversations that do not carry
 text was taken as proof; newer conversations could have pushed the job's own out of the 30, so one order could be sent
 twice. Here a full list proves nothing unless it reaches back past `sent_at`.
 
+A job sent over plain HTTP (`provider_state.send_path == "http"`) carries the `local_message_id` it was sent with
+(written before `mark_sent`); dola keeps that id on the user message. Its conversations are listed over HTTP
+(`/im/chain/recent_conv`, which answers with the `/im/*` content type) and matched by that exact id, not by text. The
+proof standard is the same: `NotSent` only when every conversation of a window-covering list was read; a read that
+does not reach a conversation's first message cannot rule it out.
+
 An empty shell (a conversation with 0 messages: dola gives every opened `/chat` page an id, and a process that died
 before typing leaves one) is read, is not ours, and is not "unreadable".
 """
 
 import logging
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
@@ -97,6 +104,36 @@ async def list_conversation_ids(ctx, purpose: str = "reconcile") -> Listing:
     return Listing(ids, int(probe.get("cells", len(ids))), has_more if isinstance(has_more, bool) else None)
 
 
+RECENT_PATH = "/im/chain/recent_conv"
+
+
+def recent_payload() -> dict:
+    """The page's own list request (`LOGIN_PROBE_JS`), the 30 most recent conversations."""
+    return {"cmd": 3200, "uplink_body": {"pull_recent_conv_chain_uplink_body": {
+        "limit": CONV_LIST_LIMIT, "message_count_per_conv": 1, "api_version": 1, "conv_version": 0, "direction": 3,
+        "option": {"not_need_message": True, "need_complete_conversation": True}}},
+        "sequence_id": str(uuid.uuid4()), "channel": 2, "version": "1"}
+
+
+async def list_over_http(http: DolaHttp) -> Listing:
+    """The same list as the browser probe, over HTTP. Anything but a readable `status_code 0` answer is a
+    `ListingError` (never "no conversations")."""
+    try:
+        resp = await http.post_chain(RECENT_PATH, recent_payload(), BASE + "/chat")
+        body = resp.json() if resp.status_code == 200 else None
+    except Exception as exc:   # noqa: BLE001 - unreachable or unreadable is "cannot read"
+        raise ListingError("the conversation list could not be read over HTTP: %s" % type(exc).__name__) from exc
+    ok = isinstance(body, dict) and body.get("status_code") in (0, None)
+    down = ((body.get("downlink_body") or {}).get("pull_recent_conv_chain_downlink_body")) if ok else None
+    if not isinstance(down, dict):
+        raise ListingError("the conversation list over HTTP gave no list")
+    cells = [c for c in down.get("cells") or [] if isinstance(c, dict)]
+    convs = [c.get("conversation") or {} for c in cells]
+    ids = [str(i) for i in (cc.get("conversation_id") or cc.get("id") for cc in convs) if i]
+    has_more = down.get("has_more")
+    return Listing(ids, len(cells), has_more if isinstance(has_more, bool) else None)
+
+
 @dataclass(frozen=True)
 class Reading:
     """One conversation as reconcile saw it."""
@@ -130,6 +167,26 @@ def read_conversation(body: dict, job, sent_at: float | None, new_composer: bool
     return Reading(False, older=older, newest=summary.newest)
 
 
+def read_by_local_id(body: dict, local_message_id: str, sent_at: float | None) -> Reading:
+    """Judge one conversation read by the job's `local_message_id`: a user message carrying it = the job's
+    conversation (dola took the send: it made this conversation for it). Not found counts as "not ours" only when the
+    read reaches the conversation's first message (the send opens a new conversation, so it is message 1)."""
+    messages = resolver.chain_messages(body)
+    if not messages:
+        return Reading(False)
+    newest = resolver.last_message_time(body)
+    if any(str(m.get("local_message_id") or "") == local_message_id for m in messages):
+        return Reading(True, taken=True, newest=newest)
+    try:
+        first = min(int(m.get("index_in_conv")) for m in messages)
+    except (TypeError, ValueError):
+        return Reading(None)
+    if first > 1:
+        return Reading(None)       # older messages were not read: ours could be among them
+    return Reading(False, older=bool(newest and sent_at is not None and newest < sent_at - PREDATE_MARGIN_S),
+                   newest=newest)
+
+
 async def _read(http: DolaHttp, conversation_id: str) -> dict | None:
     """The body of one conversation, or None when it cannot be read now (including a dead session)."""
     try:
@@ -142,7 +199,8 @@ async def _read(http: DolaHttp, conversation_id: str) -> dict | None:
 async def reconcile(ctx, job, settings, *, http: DolaHttp | None = None, lister: Lister | None = None) -> Reconciled:
     """See the module text. `http` and `lister` are seams for tests; the engine passes neither."""
     sent_text = job.sent_text
-    if not sent_text or ctx.account is None:
+    local_id = (job.provider_state or {}).get("local_message_id")
+    if not (sent_text or local_id) or ctx.account is None:
         return StillUnknown()
     try:
         http = http or DolaHttp.for_account(ctx.account)
@@ -151,16 +209,26 @@ async def reconcile(ctx, job, settings, *, http: DolaHttp | None = None, lister:
     sent_at = job.sent_at.timestamp() if job.sent_at else None
     new_composer = (ctx.account.provider_state or {}).get("composer") == "new"
 
+    if local_id:            # sent over HTTP: the exact id decides, and the list is read over HTTP
+        def judge(body):
+            return read_by_local_id(body, str(local_id), sent_at)
+
+        async def default_lister(_ctx):
+            return await list_over_http(http)
+    else:
+        def judge(body):
+            return read_conversation(body, job, sent_at, new_composer)
+        default_lister = list_conversation_ids
+
     if job.external_ref:
         body = await _read(http, job.external_ref)
         if body is not None:
-            mine = read_conversation(body, job, sent_at, new_composer)
-            summary = resolver.conversation_summary(body)
-            if mine.found and summary.assistant.strip():
+            mine = judge(body)
+            if mine.found and (local_id or resolver.conversation_summary(body).assistant.strip()):
                 return Found(str(job.external_ref), {}, mine.taken)
 
     try:
-        listing = await (lister or list_conversation_ids)(ctx)
+        listing = await (lister or default_lister)(ctx)
     except ListingError as exc:
         log.info("reconcile: %s", exc)
         return StillUnknown()
@@ -178,7 +246,7 @@ async def reconcile(ctx, job, settings, *, http: DolaHttp | None = None, lister:
         if body is None:
             unreadable = True
             continue
-        got = read_conversation(body, job, sent_at, new_composer)
+        got = judge(body)
         if got.found:
             if best is None or got.newest > best[0]:
                 best = (got.newest, cid, got.taken)

@@ -96,6 +96,13 @@ def _prices(v: dict) -> None:
             raise ValueError("the price for %s is negative" % tier)
 
 
+def _send_path(v: str) -> None:
+    if v not in SEND_PATHS:
+        raise ValueError("must be one of %s" % ", ".join(SEND_PATHS))
+
+
+SEND_PATHS = ("browser", "http")
+SEND_PATH_RULE = Rule("browser or http", _send_path)
 PRICES_RULE = Rule("each tier: a non-empty name and a whole number of points, 0 or more", _prices)
 
 
@@ -125,6 +132,18 @@ _SETTINGS = dict((
              "Drift alert: share of the last 24 h jobs that failed as watermark-only.", min=0.0, max=1.0),
     _setting("alert_content_refused_rate", float, 0.5,
              "Drift alert: share of the last 24 h submits refused for content.", min=0.0, max=1.0),
+    _setting("send_path", str, "browser",
+             "How an order is sent to dola: 'browser' drives dola.com in Chrome; 'http' posts it signed, with no "
+             "browser. Read per job at the send; polls, reconcile and downloads are HTTP either way. A job with "
+             "reference images, an image with a ratio or style, or a video not in 16:9 always goes by browser.",
+             rule=SEND_PATH_RULE),
+    _setting("signer_alarm_accounts", int, 3,
+             "HTTP send only: when this many different accounts get dola's 710022002/710022004 before any "
+             "acknowledgement within dola.signer_alarm_window_s, relay blames its own signature: those refusals rest "
+             "no account and fail no job, and HTTP sends pause for the window.", min=2),
+    _setting("signer_alarm_window_s", int, 900,
+             "HTTP send only: the window of dola.signer_alarm_accounts, and how long HTTP sends pause after it trips.",
+             min=60),
     _setting("browser_slots", int, 4,
              "Browser sessions at once (live). Lowering retires idle slots.",
              min=BROWSER_SLOTS_MIN, max=BROWSER_SLOTS_MAX),

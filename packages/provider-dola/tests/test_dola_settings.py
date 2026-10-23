@@ -20,7 +20,8 @@ LIVE_KEYS = {
     "dola.claims_enabled", "dola.render_deadline_s", "dola.prices",
     "dola.video_budget",
     "dola.image_budget", "dola.master_quality", "dola.alert_duration_mismatch_rate", "dola.alert_watermark_only_rate",
-    "dola.alert_content_refused_rate", "dola.browser_slots"}
+    "dola.alert_content_refused_rate", "dola.browser_slots", "dola.send_path", "dola.signer_alarm_accounts",
+    "dola.signer_alarm_window_s"}
 
 
 SLOTS = "BROWSER_SLOTS_MIN, BROWSER_SLOTS_MAX = 1, 12"
@@ -171,7 +172,9 @@ def test_every_dola_setting_states_what_it_allows():
         "dola.render_deadline_s": "at least 60", "dola.video_budget": "at least 1", "dola.image_budget": "at least 1",
         "dola.prices": "each tier: a non-empty name and a whole number of points, 0 or more",
         "dola.alert_duration_mismatch_rate": "0\u20131", "dola.alert_watermark_only_rate": "0\u20131",
-        "dola.alert_content_refused_rate": "0\u20131", "dola.browser_slots": "1\u201312"}
+        "dola.alert_content_refused_rate": "0\u20131", "dola.browser_slots": "1\u201312",
+        "dola.send_path": "browser or http", "dola.signer_alarm_accounts": "at least 2",
+        "dola.signer_alarm_window_s": "at least 60"}
 
 
 def test_the_fixed_limits_name_only_constants_of_the_pure_modules_and_equal_them():

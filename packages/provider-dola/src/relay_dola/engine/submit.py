@@ -58,7 +58,7 @@ from relay_dola import classify, constants, errors
 from relay_dola.catalog import DEFAULT_RATIO
 from relay_dola.credential import IDENTITY_COOKIE_NAMES, jar_from_blob
 from relay_dola.engine import composer, resolver
-from relay_dola.engine.http import query_params
+from relay_dola.engine.http import DolaHttp, query_params
 from relay_dola.engine.poll import image_outputs
 from relay_dola.engine.site import (
     BASE,
@@ -919,6 +919,8 @@ class Deps:
     poll_s: float = POLL_S
     image_poll_s: float = IMAGE_POLL_S
     image_hold_s: float = IMAGE_HOLD_S
+    http: Callable[..., DolaHttp] = DolaHttp.for_account     # the HTTP send path: the account's client
+    signer: Callable[[str], object] | None = None             # the HTTP send path: a signer for a User-Agent
 
 
 class _CoreVerdict(Exception):
@@ -1705,7 +1707,17 @@ class _Run:
 async def submit(ctx, job, settings, *, deps: Deps | None = None) -> SubmitResult:
     """Send the job's order and return what happened. Exceptions the core must see (`mark_sent` refused: a lost lease,
     a stopping worker) propagate unchanged; every other failure becomes a result."""
-    run = _Run(ctx, job, settings, deps or Deps())
+    deps = deps or Deps()
+    from relay_dola.engine import send_http  # it imports this module: loaded here, not at the top
+    http = send_http.wanted_path(settings) == "http"
+    why_browser = send_http.browser_only(job) if http else None
+    if http and why_browser is None:
+        signed = deps if deps.signer else replace(deps, signer=send_http.make_signer)
+        run = send_http.HttpRun(ctx, job, settings, signed)
+    else:
+        run = _Run(ctx, job, settings, deps)
+        if why_browser:
+            await run._say("send path: browser (%s)" % why_browser, "submit", "engine")
     outcome = None
     try:
         outcome = run.with_login_read(await run.run())

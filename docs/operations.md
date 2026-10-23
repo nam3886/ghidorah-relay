@@ -571,7 +571,8 @@ the worker keeps running and picks the setting up live.
 
 ## The dola provider (`relay worker --provider dola`)
 
-Drives dola.com in Chrome, one browser session per claimed job. Sources: `packages/provider-dola/src/relay_dola/`.
+Drives dola.com in Chrome, one browser session per claimed job, or sends the order over plain HTTP when
+`dola.send_path` is `http` (see "Send path"). Sources: `packages/provider-dola/src/relay_dola/`.
 
 ### What the worker needs locally
 
@@ -602,8 +603,52 @@ Registered by `spec.py`; read and written on the admin Settings page, live.
 | `dola.alert_watermark_only_rate` | drift alert: share of the last 24 h jobs that failed as watermark-only (0 to 1) | 0.2 |
 | `dola.alert_content_refused_rate` | drift alert: share of the last 24 h submits refused for content (0 to 1) | 0.5 |
 | `dola.browser_slots` | browser sessions at once, 1 to 12 (code constants `BROWSER_SLOTS_MIN`, `BROWSER_SLOTS_MAX` in `relay_dola/constants.py`, sized to the dola container: 8 CPUs, 12 GiB); lowering retires idle slots | 4 |
+| `dola.send_path` | how an order is sent: `browser` (Chrome) or `http` (one signed POST, no browser); read per job at the send; a job with reference images, an image with a ratio or style, or a video not in 16:9 always goes by browser | browser |
+| `dola.signer_alarm_accounts` | HTTP send only: this many different accounts refused (710022002/710022004) before an acknowledgement within the window = relay's signature is suspect (at least 2) | 3 |
+| `dola.signer_alarm_window_s` | HTTP send only: that window, and how long HTTP sends pause after the alarm (at least 60) | 900 |
 
 The range or rule of every setting is shown on the Settings page.
+
+### Send path (`dola.send_path`)
+
+One dola provider, two ways to send the order, chosen by this one global setting (no per-account override; default
+`browser`, so nothing changes until it is set). Polls, reconcile reads and downloads are HTTP either way. The setting
+is read per job at the send; flipping it never moves a job that is already sent. Sources: `engine/send_http.py`,
+`signing/`; the wire format is FINDINGS.md "HTTP send spike 23/10".
+
+- **`http`**: per account, a session is made over the account's proxy and cached 6 h (`SESSION_TTL_S`) per credential:
+  the `/chat` page is fetched once to check dola's `bdms` SDK file (a new one may change the signature format), an
+  anonymous web id (`get_web_anon_id`), the assistant bot id (`/alice/user/launch`, signed: it takes the account
+  signer's first signature, so the paid send is never a first one). Each send: the passport login read over HTTP (a
+  guest read is a login doubt, as on the browser path), the client ids are made and written to the job
+  (`provider_state`: `send_path`, `local_conversation_id`, `local_message_id`, `unique_key`, `collect_id`), the job is
+  marked sent, then ONE signed `POST /chat/completion`. Its stream decides:
+  - `SSE_ACK` with a conversation: dola has the order; the conversation becomes the job's reference and the reply is
+    judged as on the browser path (images finish in the session or by the poll, a video by the poll). There is no
+    re-send over HTTP: a confirmation question stays unclear and the poll decides.
+  - `STREAM_ERROR` before any acknowledgement: dola made no conversation. 710022002 ends the job refunded
+    (`dola.refused_710022002`), 710022004 rests the account (throttle), 710022003 is the region; 710020702 (a replay
+    of ids dola saw before: never expected, relay never re-sends) and any other code are unknown.
+  - anything else (a drop, a timeout, an HTTP error, a stream with neither): unknown. Reconcile lists the account's
+    conversations over HTTP and looks for the job's exact `local_message_id`; not found is a proof only by the usual
+    rule (every conversation of a list that covers the send window was read, each read back to its first message).
+- **Signer alarm.** dola answers a bad `a_bogus` with its throttle codes, so a broken signer would look like every
+  account throttled and every prompt refused. The alarm blames relay's signature when 710022004 carries dola's
+  `verify` decision (its captcha: what an unsigned send got), when `dola.signer_alarm_accounts` different accounts
+  are refused before an acknowledgement within `dola.signer_alarm_window_s` with no acknowledged send in between, or
+  when the session bootstrap finds a new `bdms` SDK on the page. Then that send is not taken (`dola.signer_suspect`,
+  one attempt), no account rests, an ERROR line is logged (`relay_dola.send_http`) and the job's timeline says why,
+  and every HTTP send of the worker is put back (`dola.signer_suspect`) until the window ends. Set `dola.send_path` back
+  to `browser` and have the signer looked at. The alarm lives in the worker process; a restart clears it.
+- **Before the send** nothing is ever moved to the other path: a proxy that cannot reach dola is `pool.proxy_failed`, a
+  bootstrap or signer failure `dola.http_setup_failed`, both ordinary retries under the same setting.
+- **Proven over HTTP (23/10):** Seedream 4.5 (no ratio, no style), Seedance 2.0 5 s 16:9 (spike and live check). **Sent as dola's config
+  names them but not yet proven over HTTP:** other video lengths (20/25/30 s on 2.5 needed the action-bar patch on the
+  browser path), `seedance_v1.0`, Seedream 5.0 Pro. **Always by browser, whatever the setting** (with a line in the
+  timeline): reference images (i2v, i2i: the HTTP upload is not built), and an image with a ratio or a style (sent as
+  the page config's `image_creation_ratio`, dola ignored it: 16:9 asked, 2048x2048 delivered, live check 23/10), and a
+  video in any ratio but 16:9 (Seedance 2.0 asked 9:16 in `ability_param.ratio`: dola stored it, replied "16:9" and
+  made 1280x720, live check 23/10).
 
 There is no setting for image templates or for extra reply phrases. Image templates are not creation parameters: a
 request with `options.template` or `options.template_category` is refused 400 (no charge); a UI reads the template
