@@ -144,6 +144,18 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `quota.key_exceeded` | 429 | rate_limit_error | yes | no | no | 0 | no | the API key's limit is reached |
 | `quota.too_many_queued` | 429 | rate_limit_error | yes | no | no | 0 | no | too many unfinished jobs for this API key |
 
+## `qwen.*`
+
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `qwen.http_error` | 502 | api_error | no | yes | yes | 0 | yes | qwen answered with an error before the order was sent |
+| `qwen.image_lost` | 502 | api_error | yes | yes | no | 0 | yes | qwen lost the image while it was drawn; the charge is returned |
+| `qwen.mint_failed` | 502 | api_error | no | yes | yes | 0 | yes | the security headers for qwen could not be made; the order was not sent |
+| `qwen.out_of_credits` | 503 | api_error | yes | yes | no | 0 | yes | the qwen account had too few credits for this; the charge is returned |
+| `qwen.refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | qwen refused to make this; try a different prompt; the charge is returned |
+| `qwen.render_failed` | 502 | api_error | yes | yes | no | 0 | yes | qwen ended the render with no result; the charge is returned |
+| `qwen.waf_refused` | 503 | api_error | no | no | no | 2 | yes | qwen's firewall refused the request; nothing was made, it is sent again |
+
 ## `render.*`
 
 | Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |

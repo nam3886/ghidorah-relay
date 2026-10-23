@@ -9,6 +9,7 @@ from relay_dola.spec import SPEC as DOLA
 from relay_flow.spec import SPEC as FLOW
 from relay_gemini.spec import SPEC as GEMINI
 from relay_meta.spec import SPEC as META
+from relay_qwen.spec import SPEC as QWEN
 from relay_vibes.spec import SPEC as VIBES
 
 BASIC = {
@@ -18,10 +19,11 @@ BASIC = {
     "gemini": {"claims_enabled", "prices", "image_budget", "disabled_models"},
     "meta": {"claims_enabled", "prices", "image_budget", "video_budget", "disabled_models", "browser_slots"},
     "vibes": {"claims_enabled", "prices", "image_budget", "video_budget", "disabled_models"},
+    "qwen": {"claims_enabled", "prices", "image_budget", "video_budget", "disabled_models"},
 }
 
 
-@pytest.mark.parametrize("spec", [DOLA, FLOW, GEMINI, META, VIBES], ids=lambda s: s.name)
+@pytest.mark.parametrize("spec", [DOLA, FLOW, GEMINI, META, VIBES, QWEN], ids=lambda s: s.name)
 def test_disabled_models_takes_the_catalog_ids_and_the_basic_settings_are_the_everyday_ones(spec):
     settings = spec.settings()
     paused = settings[spec.name + ".disabled_models"]

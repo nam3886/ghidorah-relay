@@ -11,6 +11,7 @@ members = [
     "relay-flow",
     "relay-gemini",
     "relay-meta",
+    "relay-qwen",
     "relay-vibes",
     "relay-workspace",
 ]
@@ -804,6 +805,7 @@ dependencies = [
     { name = "relay-flow" },
     { name = "relay-gemini" },
     { name = "relay-meta" },
+    { name = "relay-qwen" },
     { name = "relay-vibes" },
 ]
 
@@ -814,6 +816,7 @@ requires-dist = [
     { name = "relay-flow", editable = "packages/provider-flow" },
     { name = "relay-gemini", editable = "packages/provider-gemini" },
     { name = "relay-meta", editable = "packages/provider-meta" },
+    { name = "relay-qwen", editable = "packages/provider-qwen" },
     { name = "relay-vibes", editable = "packages/provider-vibes" },
 ]
 
@@ -903,6 +906,21 @@ requires-dist = [
 ]
 
 [[package]]
+name = "relay-qwen"
+version = "0.0.0"
+source = { editable = "packages/provider-qwen" }
+dependencies = [
+    { name = "relay-browser" },
+    { name = "relay-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "relay-browser", editable = "packages/relay-browser" },
+    { name = "relay-core", editable = "packages/relay-core" },
+]
+
+[[package]]
 name = "relay-vibes"
 version = "0.0.0"
 source = { editable = "packages/provider-vibes" }
@@ -925,6 +943,7 @@ dependencies = [
     { name = "relay-flow" },
     { name = "relay-gemini" },
     { name = "relay-meta" },
+    { name = "relay-qwen" },
     { name = "relay-vibes" },
 ]
 
@@ -947,6 +966,7 @@ requires-dist = [
     { name = "relay-flow", editable = "packages/provider-flow" },
     { name = "relay-gemini", editable = "packages/provider-gemini" },
     { name = "relay-meta", editable = "packages/provider-meta" },
+    { name = "relay-qwen", editable = "packages/provider-qwen" },
     { name = "relay-vibes", editable = "packages/provider-vibes" },
 ]
 

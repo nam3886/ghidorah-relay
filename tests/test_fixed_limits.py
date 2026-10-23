@@ -16,6 +16,7 @@ import relay_dola
 import relay_flow
 import relay_gemini
 import relay_meta
+import relay_qwen
 import relay_vibes
 from relay_core.limits import CORE
 from relay_core.testing.mutation import mutation
@@ -23,6 +24,7 @@ from relay_dola.spec import SPEC as DOLA
 from relay_flow.spec import SPEC as FLOW
 from relay_gemini.spec import SPEC as GEMINI
 from relay_meta.spec import SPEC as META
+from relay_qwen.spec import SPEC as QWEN
 from relay_vibes.spec import SPEC as VIBES
 
 LIMITS = "packages/relay-core/src/relay_core/limits.py"
@@ -82,13 +84,20 @@ NOT_SHOWN = {
              "relay_flow.constants.SUSPECT_THRESHOLD", "relay_flow.constants.PROMPT_MAX_CHARS",
              "relay_gemini.constants.PROXY_REST_S", "relay_gemini.constants.CHECK_INTERVAL_S",
              "relay_gemini.constants.MAX_ATTEMPTS", "relay_gemini.constants.SUSPECT_THRESHOLD",
-             "relay_gemini.constants.PROMPT_MAX_CHARS"),
+             "relay_gemini.constants.PROMPT_MAX_CHARS",
+             "relay_qwen.constants.PROXY_REST_S", "relay_qwen.constants.CHECK_INTERVAL_S",
+             "relay_qwen.constants.MAX_ATTEMPTS", "relay_qwen.constants.SUSPECT_THRESHOLD",
+             "relay_qwen.constants.PROMPT_MAX_CHARS"),
     **excuse("the catalog a customer reads from GET /v1/models",
-             "relay_dola.catalog.DURATIONS_BY_MODEL", "relay_dola.catalog.VALID_DURATIONS"),
+             "relay_dola.catalog.DURATIONS_BY_MODEL", "relay_dola.catalog.VALID_DURATIONS",
+             "relay_qwen.catalog.DURATIONS", "relay_qwen.catalog.DEFAULT_DURATION"),
     **excuse("the default of the provider's prices setting, which the page already shows",
              "relay_dola.catalog.DEFAULT_PRICES", "relay_meta.catalog.DEFAULT_PRICES",
              "relay_vibes.catalog.DEFAULT_PRICES", "relay_flow.catalog.DEFAULT_PRICES",
-             "relay_gemini.catalog.DEFAULT_PRICES"),
+             "relay_gemini.catalog.DEFAULT_PRICES",
+             "relay_qwen.catalog.DEFAULT_PRICES"),
+    **excuse("an upstream fact: qwen's own credit price of a video, which is the job's account cost",
+             "relay_qwen.catalog.VIDEO_CREDITS"),
     **excuse("an upstream protocol code (flow's aspect ratio numbers), not a bound", "relay_flow.catalog.ASPECTS"),
     **excuse("an upstream protocol code (gemini's tool and ratio option ids, the web app's capability list), not a "
              "bound", "relay_gemini.catalog.RATIO_IDS", "relay_gemini.constants.IMAGE_TOOL",
@@ -131,7 +140,7 @@ def scanned_modules():
     for info in pkgutil.walk_packages(relay_core.__path__, "relay_core."):
         if not info.name.startswith("relay_core.testing"):
             yield info.name.removeprefix("relay_core."), importlib.import_module(info.name)
-    for provider in (relay_dola, relay_meta, relay_vibes, relay_flow, relay_gemini):
+    for provider in (relay_dola, relay_meta, relay_vibes, relay_flow, relay_gemini, relay_qwen):
         yield from ((m.__name__, m) for m in map(importlib.import_module, (
             "%s.%s" % (provider.__name__, i.name) for i in pkgutil.iter_modules(provider.__path__)
             if not i.ispkg and i.name != "e2e")))
@@ -148,7 +157,7 @@ def numeric_constants() -> dict[str, object]:
 
 def listed() -> dict[str, object]:
     return {f.name: f.value for f in (*CORE, *DOLA.limits, *META.limits, *VIBES.limits, *FLOW.limits,
-                                             *GEMINI.limits)}
+                                             *GEMINI.limits, *QWEN.limits)}
 
 
 @mutation(LIMITS, MAX_INFLIGHT_ROW, "", expect="jobs.engine.MAX_INFLIGHT")

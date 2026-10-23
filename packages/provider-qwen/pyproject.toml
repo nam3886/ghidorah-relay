@@ -1,0 +1,14 @@
+[project]
+name = "relay-qwen"
+version = "0.0.0"
+requires-python = ">=3.13,<3.14"
+description = "qwen provider (chat.qwen.ai): spec (pure) + engine (worker only, HTTP; a browser only mints the anti-bot pair)"
+dependencies = ["relay-core", "relay-browser"]
+
+[build-system]
+requires = ["uv_build>=0.9,<0.10"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+relay-core = { workspace = true }
+relay-browser = { workspace = true }
