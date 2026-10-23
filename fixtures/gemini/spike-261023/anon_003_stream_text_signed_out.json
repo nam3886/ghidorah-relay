@@ -1,0 +1,9 @@
+{
+ "status": 200,
+ "len": 16744,
+ "head": ")]}'\n\n177\n[[\"wrb.fr\",null,\"[null,[\\\"c_<id>\\\",\\\"r_<id>\\\"],{\\\"18\\\":\\\"r_<id>\\\",\\\"21\\\":[\\\"uUXW8zLsIjyeVYkgz4UdyBYvwq-BvtgVtschCRYFu1k\\\"],\\\"44\\\":true}]\"]]\n5343\n[[\"wrb.fr\",null,\"[null,[\\\"c_<id>\\\",\\\"r_<id>\\\"],null,null,[[\\\"rc_<id>\\\",[\\\"pong\\\"],null,null,null,null,null,null,[1],\\\"en\\\",null,null,[null,null,null,null,null,null,null,[]],null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,[],null,null,null,null,null,null,null,null,[]]],<cut: geo block and the rest of the frame>",
+ "ctype": "application/json; charset=utf-8",
+ "step": "anon_stream_text",
+ "t": 15.76,
+ "at_utc": "15:16:23Z"
+}

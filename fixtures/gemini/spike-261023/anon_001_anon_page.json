@@ -1,0 +1,26 @@
+{
+ "status": 200,
+ "signed_in": false,
+ "has_email": false,
+ "bl": "boq_gemini-web-uiserver_20261022.15_p0",
+ "fsid_present": true,
+ "location_prefix": "",
+ "elapsed": 1.81,
+ "set_cookie": [
+  "NID",
+  "COMPASS"
+ ],
+ "html_len": 828517,
+ "wiz_keys_found": {
+  "SNlM0e": false,
+  "FdrFJe": true,
+  "cfb2h": true,
+  "TuX5cc": true,
+  "qKIAYe": true,
+  "S06Grb": true
+ },
+ "scripts": 0,
+ "step": "anon_page",
+ "t": 1.95,
+ "at_utc": "15:16:09Z"
+}

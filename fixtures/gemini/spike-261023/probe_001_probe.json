@@ -1,0 +1,17 @@
+{
+ "status": 200,
+ "signed_in": false,
+ "has_email": false,
+ "bl": "boq_gemini-web-uiserver_20261022.15_p0",
+ "fsid_present": true,
+ "location_prefix": "",
+ "elapsed": 1.82,
+ "set_cookie": [
+  "NID"
+ ],
+ "html_len": 828673,
+ "jar": "export",
+ "step": "probe",
+ "t": 1.95,
+ "at_utc": "15:15:25Z"
+}
