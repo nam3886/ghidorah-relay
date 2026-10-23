@@ -31,7 +31,9 @@ pytest_configure = _core.pytest_configure      # registers the `fabricated_rows`
 
 from apikit import ADMIN_PASSWORD, ADMIN_USER, serving  # noqa: E402  (needs the path set above)
 
+from relay_core import frames  # noqa: E402
 from relay_core.admin import users  # noqa: E402
+from relay_core.db import tx  # noqa: E402
 from relay_core.testing.fake_provider import FAKE_FRAMES, FakeSpec  # noqa: E402
 
 
@@ -54,13 +56,28 @@ def framed():
 
 
 @pytest.fixture
+def real_providers():
+    """Asking for this fixture makes `live` serve the four real provider specs, their shipped default frames seeded as
+    `relay serve` seeds them."""
+    from relay_dola.spec import SPEC as DOLA
+    from relay_flow.spec import SPEC as FLOW
+    from relay_meta.spec import SPEC as META
+    from relay_vibes.spec import SPEC as VIBES
+    return DOLA, META, VIBES, FLOW
+
+
+@pytest.fixture
 def live(db, request):
     spec = FakeSpec(frames=FAKE_FRAMES) if "framed" in request.fixturenames else None
+    specs = request.getfixturevalue("real_providers") if "real_providers" in request.fixturenames else ()
     ready = threading.Event()
     box: dict = {}
 
     async def main():
-        async with serving(db, raise_app_exceptions=False, spec=spec) as env:
+        async with serving(db, raise_app_exceptions=False, spec=spec, specs=specs) as env:
+            for one in specs:
+                async with tx(env.pool) as conn:
+                    await frames.seed(conn, one.name, one.frames.defaults)
             await users.create_user(env.pool, ADMIN_USER, ADMIN_PASSWORD)
             server = uvicorn.Server(uvicorn.Config(env.app, host="127.0.0.1", port=0, log_level="warning"))
             task = asyncio.create_task(server.serve())

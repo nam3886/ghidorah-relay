@@ -4,7 +4,8 @@ import logging
 
 import pytest
 
-from relay_core import errors
+from relay_core import errors, frames
+from relay_core.api.doors import checked_prompt
 from relay_core.providers import (
     AfterSent,
     Completion,
@@ -49,7 +50,7 @@ def test_the_caps_say_a_browser_provider_with_two_pools_that_reconciles_and_poll
     assert (c.account_slots, c.max_attempts, c.suspect_threshold) == (1, 3, 3)
     assert c.strike_effect == Dead("signed_out")
     assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (True, True, False, False)
-    assert SPEC.frames is None and SPEC.extras({}) == {}
+    assert SPEC.extras({}) == {}
 
 
 @mutation(SPEC_FILE, '    _setting("claims_enabled", bool, False,', '    _setting("claims_enabled", bool, True,',
@@ -253,3 +254,28 @@ def test_an_unknown_or_extended_model_name_is_refused():
 
 def test_the_options_never_set_the_price():
     assert plan(options={"price": 0}).price == 1
+
+
+# ---- prompt frames ---------------------------------------------------------------------------------------------------
+MULTI = "  a lantern\n\tfloats over a lake,\r\n  été — 日本語  \n"
+
+
+@mutation(SPEC_FILE, '"video": frames.CORE_FRAME}, warnings', '"video": frames.CORE_FRAME + "."}, warnings',
+          expect="not byte for byte")
+@mutation(SPEC_FILE, '"image": frames.CORE_FRAME, "video"', '"image": "{{tracking_code}} {{client_prompt}}", "video"',
+          expect="not byte for byte")
+@mutation(SPEC_FILE, "    frames = FRAMES\n", "    frames = None\n", expect="meta declares no frames")
+def test_the_shipped_frames_send_the_text_meta_was_sent_before_frames_byte_for_byte():
+    """Before frames meta got the core frame's text: the words then `[marker]`, the white space collapsed. The goldens
+    are literals recorded from that rule; the engine types them on one line (a ratio tail, when set, follows)."""
+    assert SPEC.frames is not None, "meta declares no frames"
+    assert set(SPEC.frames.defaults) == {m.media_type for m in SPEC.catalog()} == {"image", "video"}
+    assert not SPEC.frames.verbatim, "meta's text is typed into a chat: one line, with the tracking code"
+    golden = {"a calm sea at dusk": "a calm sea at dusk [7908]",
+              MULTI: "a lantern floats over a lake, été — 日本語 [7908]"}
+    for kind, frame in SPEC.frames.defaults.items():
+        for words, want in golden.items():
+            got = frames.render(frame, checked_prompt(words, SPEC.max_prompt_chars), "7908", SPEC.frames.verbatim)
+            assert got == want, "the %s default is not byte for byte: %r" % (kind, got)
+        longest = frames.render(frame, "x" * SPEC.max_prompt_chars, "7908", SPEC.frames.verbatim)
+        assert len(longest) <= SPEC.frames.max_sent_chars, "the longest prompt meta takes is refused for length"

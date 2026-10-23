@@ -2,6 +2,7 @@
 frame, at insert, and stored; nothing falls back to the core frame; the length cap answers before any charge; and
 Regenerate gets today's frame."""
 
+import dataclasses
 import logging
 import uuid
 
@@ -65,6 +66,32 @@ def test_a_job_stores_the_text_rendered_from_its_models_frame_and_the_version_it
     assert ta[1] == marker_for(uuid.UUID(a)), "the marker comes from the job's own id"
 
 
+@mutation(DOORS, "frames.check_frame(frame.text), rules.verbatim)", "frames.check_frame(frame.text))",
+          expect="the verbatim rule did not reach the insert")
+@mutation("packages/relay-core/src/relay_core/jobs/create.py", "new.prompt, marker, frame.verbatim)",
+          "new.prompt, marker)", expect="the verbatim rule did not reach the insert")
+@mutation(DOORS, "marker_for(SAMPLE_JOB_ID), use.verbatim)", "marker_for(SAMPLE_JOB_ID))",
+          expect="the length check rendered another text")
+def test_a_verbatim_provider_stores_the_frame_with_no_tracking_code_and_the_customers_line_breaks(db):
+    video_default, _ = seed(db)
+    words = "a  cat\non"
+    rules = dataclasses.replace(FAKE_FRAMES, max_sent_chars=len("Fixed preamble for videos.  " + words))
+
+    async def scenario(env):
+        api_key = await env.new_key()
+        fits = await make(env, api_key, words)                                  # exactly the cap
+        over = await make(env, api_key, words + "x")
+        return fits, over
+
+    fits, over = run_app(db, scenario, spec=FakeSpec(frames=dataclasses.replace(rules, verbatim=True)))
+    assert fits.status_code == 200, \
+        "the verbatim rule did not reach the insert, or the length check rendered another text: %s" % fits.text
+    got = stored(db, fits.json()["id"])
+    assert got[0] == "Fixed preamble for videos.  a  cat\non" and got[2] == video_default, \
+        "the verbatim rule did not reach the insert: %r" % (got,)
+    assert error_of(over)[:2] == (400, "input.prompt_too_long"), "the length check rendered another text"
+
+
 def test_a_provider_without_frames_gets_the_core_frame_with_no_frame_id(db):
     async def scenario(env):
         return (await make(env, await env.new_key(), "a cat")).json()["id"]
@@ -90,7 +117,7 @@ def test_a_provider_with_frames_and_no_row_is_500_frame_unusable_with_no_charge_
                if rec.levelno == logging.ERROR), "the error log names provider, kind and model"
 
 
-@mutation(DOORS, "FrameUse(frame.id, frames.check_frame(frame.text))", "FrameUse(frame.id, frame.text)",
+@mutation(DOORS, "FrameUse(frame.id, frames.check_frame(frame.text), ", "FrameUse(frame.id, frame.text, ",
           expect="the stored text was not validated again")
 def test_a_stored_text_that_fails_the_grammar_is_refused_in_the_plan_step_as_frame_unusable(db, caplog):
     put(db, "video", None, DEFAULT_VIDEO + "​")           # the table CHECK cannot see an invisible character

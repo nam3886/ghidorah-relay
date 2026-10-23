@@ -409,19 +409,23 @@ class CreateRequest:
 @dataclass(frozen=True)
 class FrameUse:
     """The frame a job is sent with: the stored version's id (None for the core frame, which has no
-    row) and its text."""
+    row), its text and its provider's `FrameRules.verbatim`."""
     id: int | None
     text: str
+    verbatim: bool = False
 
 
 @dataclass(frozen=True)
 class FrameRules:
     """What a provider declares about its prompt frames. `defaults` is the shipped default text per media kind and must
     cover every kind of the catalog and pass the grammar; `warnings(kind, text)` is pure and returns the texts an
-    admin save shows (never a refusal); `max_sent_chars` is the longest rendered text the provider accepts."""
+    admin save shows (never a refusal); `max_sent_chars` is the longest rendered text the provider accepts.
+    `verbatim`: the provider sends the text in a request field, not typed into a chat, and finds its job by its own
+    id: `{{tracking_code}}` renders as nothing and the customer's line breaks are kept (`frames.render`)."""
     defaults: Mapping[str, str]
     warnings: Callable[[str, str], tuple[str, ...]]
     max_sent_chars: int
+    verbatim: bool = False
 
 
 @dataclass(frozen=True)
@@ -497,6 +501,7 @@ class JobView:
     external_ref: str | None
     provider_state: Mapping[str, Any]
     inputs: Callable[[], Awaitable[list[MediaRef]]]   # loaded lazily
+    frame_id: int | None = None       # the frame version `sent_text` was rendered with; None = the core frame
 
 
 class RunCtx(Protocol):

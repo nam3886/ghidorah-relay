@@ -92,14 +92,16 @@ def check_frame(text: object) -> str:
     return text
 
 
-def render(frame: str, prompt: str, marker: str) -> str:
+def render(frame: str, prompt: str, marker: str, verbatim: bool = False) -> str:
     """The text relay sends: the frame with `{{client_prompt}}` replaced by the customer's words and
     `{{tracking_code}}` by `[marker]`, in one pass (a value is never scanned again), then every white-space run
-    collapsed to one space and the ends trimmed. The frame is parsed first, so a frame that fails the grammar cannot
-    be rendered."""
+    collapsed to one space and the ends trimmed. `verbatim` (the provider's `FrameRules.verbatim`): the tracking code
+    renders as nothing and only the ends are trimmed, so the core frame gives the customer's words byte for byte, line
+    breaks and all. The frame is parsed first, so a frame that fails the grammar cannot be rendered."""
     check_frame(frame)
-    values = {CLIENT_PROMPT: prompt, TRACKING_CODE: "[%s]" % marker}
-    return " ".join(_SLOT.sub(lambda m: values[m.group(0)], frame).split())
+    values = {CLIENT_PROMPT: prompt, TRACKING_CODE: "" if verbatim else "[%s]" % marker}
+    text = _SLOT.sub(lambda m: values[m.group(0)], frame)
+    return text.strip() if verbatim else " ".join(text.split())
 
 
 # ---- the stored versions ------------------------------------------------------------------------

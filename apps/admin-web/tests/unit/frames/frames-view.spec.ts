@@ -97,6 +97,22 @@ describe("the lock history note", () => {
 });
 
 describe("the view", () => {
+  it("says in the editor when the provider sends the text as written, and says nothing for one that does not", async () => {
+    await open();
+    await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await flushPromises();
+    expect(page().find('[data-testid="frame-verbatim"]').exists()).toBe(false);
+    wrapper?.unmount();
+    document.body.replaceChildren();
+    vi.mocked(api.listFrames).mockImplementation(async () => ({ ...framesList(), verbatim: true }));
+    await open();
+    await page().find('button[aria-label="Edit frame for m1"]').trigger("click");
+    await flushPromises();
+    expect(page().find('[data-testid="frame-verbatim"]').text()).toBe(
+      "flow sends the text as written: {{tracking_code}} adds nothing and the prompt keeps its line breaks.",
+    );
+  });
+
   it("draws a section per kind with the default line, the shipped-differs flag and the model table", async () => {
     await open();
     const sections = page().findAll("[data-frame-kind]");

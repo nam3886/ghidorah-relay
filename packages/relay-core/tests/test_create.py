@@ -321,9 +321,10 @@ def test_the_queue_position_counts_only_the_jobs_of_the_same_pool(db):
           expect="the text was not stored at insert")
 @mutation(C, '"sent": sent_text, "frame": frame_id,', '"sent": sent_text, "frame": None,',
           expect="the frame version was not stored at insert")
-@mutation(S, "return JobView(str(row[0]), *row[1:], inputs)",
-          'return __import__("dataclasses").replace(JobView(str(row[0]), *row[1:], inputs), '
+@mutation(S, "return JobView(str(row[0]), *row[1:-1], inputs, frame_id=row[-1])",
+          'return __import__("dataclasses").replace(JobView(str(row[0]), *row[1:-1], inputs, frame_id=row[-1]), '
           'sent_text=row[5] + " [" + row[6] + "]")', expect="the job view recomposed the text")
+@mutation(S, "inputs, frame_id=row[-1])", "inputs)", expect="the job view lost the frame version")
 def test_the_job_view_carries_the_text_stored_at_insert_byte_for_byte(db):
     k = key(db)
     framed = db.one("INSERT INTO prompt_frames (provider, kind, model, text, created_by) "
@@ -342,6 +343,8 @@ def test_the_job_view_carries_the_text_stored_at_insert_byte_for_byte(db):
     assert framed_view.sent_text == "Fixed words. [%s] a cat on a mat" % framed_view.marker, \
         "the text was not stored at insert, or the job view recomposed the text: %r" % framed_view.sent_text
     assert plain.sent_text == "plain [%s]" % plain.marker
+    assert (framed_view.frame_id, plain.frame_id) == (framed, None), \
+        "the frame version was not stored at insert, or the job view lost the frame version"
     assert re.fullmatch(r"[3-9]\d{3}", plain.marker), "the marker is four digits, 3000 to 9999"
     assert db.one("SELECT frame_id FROM jobs WHERE id = %s", framed_view.id)[0] == framed, \
         "the frame version was not stored at insert"

@@ -6,7 +6,8 @@ import logging
 import pytest
 from flowkit import PSID, PSIDTS, export
 
-from relay_core import errors
+from relay_core import errors, frames
+from relay_core.api.doors import checked_prompt
 from relay_core.providers import (
     AfterSent,
     Completion,
@@ -192,3 +193,27 @@ def test_malformed_input_is_refused_with_a_fixed_reason():
     assert refused(export() * 61) == "too many cookies"
     with pytest.raises(ValueError, match="not readable"):
         cred.jar_of(b"[not json")
+
+
+# ---- prompt frames ---------------------------------------------------------------------------------------------------
+MULTI = "  a lantern\n\tfloats over a lake,\r\n  été — 日本語  \n"
+
+
+@mutation(SPEC_FILE, "max_sent_chars=PROMPT_MAX_CHARS + frames.FRAME_MAX, verbatim=True)",
+          "max_sent_chars=PROMPT_MAX_CHARS + frames.FRAME_MAX)", expect="not byte for byte")
+@mutation(SPEC_FILE, "    frames = FRAMES\n", "    frames = None\n", expect="flow declares no frames")
+def test_the_shipped_frames_send_the_customers_words_byte_for_byte_as_before_frames():
+    """Before frames flow got the customer's words as the door took them (trimmed, line breaks kept, no tracking
+    code). The goldens are literals."""
+    assert SPEC.frames is not None, "flow declares no frames"
+    assert set(SPEC.frames.defaults) == {m.media_type for m in SPEC.catalog()} == {"image"}
+    golden = {"a calm sea at dusk": "a calm sea at dusk",
+              MULTI: "a lantern\n\tfloats over a lake,\r\n  été — 日本語",
+              "see {{tracking_code}} [1234]": "see {{tracking_code}} [1234]",
+              "\u200b\u2060": "\u200b\u2060"}          # a blank-looking prompt (an image to video) stays as it is
+    for kind, frame in SPEC.frames.defaults.items():
+        for words, want in golden.items():
+            got = frames.render(frame, checked_prompt(words, SPEC.max_prompt_chars), "7908", SPEC.frames.verbatim)
+            assert got == want, "the %s default is not byte for byte: %r" % (kind, got)
+        longest = frames.render(frame, "x" * SPEC.max_prompt_chars, "7908", SPEC.frames.verbatim)
+        assert len(longest) <= SPEC.frames.max_sent_chars, "the longest prompt flow takes is refused for length"

@@ -177,7 +177,9 @@ async def submit(ctx, job, settings, rests: Rests, *, transport=None,
                  now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> SubmitResult:
     """Send the job. Exceptions of `ctx.report_ref` / `ctx.mark_sent` (a lost lease, a stopping worker) reach the
     core unchanged. `transport`, `read_media` and `now` are seams for tests."""
-    prompt = job.prompt
+    # the core's framed text; a job queued before vibes had frames carries the core frame's (the words and the
+    # tracking code) and goes as it went then: the bare words
+    prompt = job.prompt if job.frame_id is None else job.sent_text
     config = _config(job.params)
     async with client_for(ctx.account, transport, rests) as client:
         run = _Run(ctx, job, settings, rests, client, now)

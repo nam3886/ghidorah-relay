@@ -54,6 +54,21 @@ async def go(env, method, path, **kw):
 
 
 # ---- the list -----------------------------------------------------------------------------------------------------
+@mutation(ROUTES, '"verbatim": rules.verbatim,', '"verbatim": False,', expect="the list hides the verbatim rule")
+def test_the_list_says_whether_the_provider_renders_verbatim_and_the_preview_renders_that_way(db):
+    seed(db)
+
+    async def scenario(env):
+        return (await go(env, "GET", "/frames?provider=" + PROVIDER),
+                await go(env, "POST", "/frames/preview", json={"model": A, "prompt": "a  cat\non"}))
+
+    listed, preview = run_app(db, scenario, spec=Three(frames=dataclasses.replace(FAKE_FRAMES, verbatim=True)))
+    assert listed.json()["verbatim"] is True, "the list hides the verbatim rule"
+    assert preview.json()["text"] == "Fixed preamble for videos.  a  cat\non", "the preview is not verbatim"
+    plain = run_app(db, lambda env: go(env, "GET", "/frames?provider=" + PROVIDER), spec=spec())
+    assert plain.json()["verbatim"] is False
+
+
 @mutation(ROUTES, '"shipped_differs": default is not None and default.text != shipped',
           '"shipped_differs": False', expect="shipped_differs is always false")
 def test_the_list_shows_every_model_with_its_default_source_lock_and_whether_the_default_differs_from_the_shipped(db):

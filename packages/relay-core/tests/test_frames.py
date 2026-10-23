@@ -102,14 +102,11 @@ def test_a_frame_with_both_placeholders_once_each_is_accepted_and_single_braces_
 
 
 # ---- the renderer ----------------------------------------------------------------------------------------------------
-@mutation(F, '    return " ".join(_SLOT.sub(lambda m: values[m.group(0)], frame).split())',
-          '    return " ".join(_SLOT.sub(lambda m: values.get(m.group(0), m.group(0)), _SLOT.sub('
-          'lambda m: values.get(m.group(0), m.group(0)), frame)).split())', expect="the renderer re-scans values")
-@mutation(F, '    return " ".join(_SLOT.sub(lambda m: values[m.group(0)], frame).split())',
-          '    return _SLOT.sub(lambda m: values[m.group(0)], frame).strip()',
-          expect="whitespace runs are not collapsed")
-@mutation(F, 'TRACKING_CODE: "[%s]" % marker', 'TRACKING_CODE: "%s" % marker',
-          expect="the tracking code is not in brackets")
+@mutation(F, '    text = _SLOT.sub(lambda m: values[m.group(0)], frame)',
+          '    text = _SLOT.sub(lambda m: values.get(m.group(0), m.group(0)), _SLOT.sub('
+          'lambda m: values.get(m.group(0), m.group(0)), frame))', expect="the renderer re-scans values")
+@mutation(F, 'else " ".join(text.split())', "else text.strip()", expect="whitespace runs are not collapsed")
+@mutation(F, '"[%s]" % marker}', '"%s" % marker}', expect="the tracking code is not in brackets")
 def test_the_renderer_fills_both_slots_once_never_rescans_a_value_and_collapses_white_space():
     assert frames.render(CORE, "a  cat\non\ta\r\nmat", "4321") == "a cat on a mat [4321]", \
         "whitespace runs are not collapsed (or the tracking code is not in brackets)"
@@ -124,9 +121,21 @@ def test_the_renderer_fills_both_slots_once_never_rescans_a_value_and_collapses_
 @mutation(F, "    check_frame(frame)\n    values", "    values", expect="a frame that fails the grammar was rendered")
 def test_a_frame_that_fails_the_grammar_cannot_be_rendered():
     for bad in ("no slots", "{{client_prompt}}", CORE + " {{other}}", CORE + "\n"):
-        with pytest.raises(frames.FrameError):
-            frames.render(bad, "p", "1234")
-            pytest.fail("a frame that fails the grammar was rendered: %r" % bad)
+        for verbatim in (False, True):
+            with pytest.raises(frames.FrameError):
+                frames.render(bad, "p", "1234", verbatim)
+                pytest.fail("a frame that fails the grammar was rendered: %r" % bad)
+
+
+@mutation(F, 'TRACKING_CODE: "" if verbatim else ', "TRACKING_CODE: ", expect="verbatim rendered the tracking code")
+@mutation(F, "    return text.strip() if verbatim else ", "    return ", expect="verbatim collapsed the white space")
+def test_verbatim_renders_the_tracking_code_as_nothing_and_keeps_the_customers_white_space():
+    """A provider that sends the text in a request field (vibes, flow): the core frame gives the words byte for byte."""
+    words = "a  cat\non\ta\r\nmat {{tracking_code}} ünï"
+    assert frames.render(CORE, words, "4321", True) == words, "verbatim rendered the tracking code, or verbatim " \
+        "collapsed the white space"
+    assert frames.render("  Style:\t{{client_prompt}}  {{tracking_code}}. ", "x\ny", "4321", True) == \
+        "Style:\tx\ny  .", "verbatim rendered the tracking code, or verbatim collapsed the white space"
 
 
 def test_the_invisible_character_fold_is_the_one_the_page_applies_nfkc_first():

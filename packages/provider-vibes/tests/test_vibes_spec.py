@@ -4,7 +4,8 @@ import logging
 
 import pytest
 
-from relay_core import errors
+from relay_core import errors, frames
+from relay_core.api.doors import checked_prompt
 from relay_core.providers import (
     AfterSent,
     Completion,
@@ -55,7 +56,7 @@ def test_the_caps_say_an_http_provider_with_a_video_and_an_image_pool():
     assert c.strike_effect == Dead("signed_out")
     # a video is polled after the send, and a send whose answer was lost is reconciled from its batch
     assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (True, True, False, False)
-    assert SPEC.frames is None and SPEC.extras({}) == {}
+    assert SPEC.extras({}) == {}
 
 
 @mutation(SPEC_FILE, '    _setting("claims_enabled", bool, False,', '    _setting("claims_enabled", bool, True,',
@@ -223,3 +224,27 @@ def test_a_model_missing_from_the_prices_is_charged_the_fallback_with_a_warning(
     assert p.price == 1
     assert [w.code for w in p.warnings] == ["vibes.price_fallback"], "a missing price must warn"
     assert "vibes-image" in caplog.text
+
+
+# ---- prompt frames ---------------------------------------------------------------------------------------------------
+MULTI = "  a lantern\n\tfloats over a lake,\r\n  été — 日本語  \n"
+
+
+@mutation(SPEC_FILE, "max_sent_chars=PROMPT_MAX_CHARS + frames.FRAME_MAX, verbatim=True)",
+          "max_sent_chars=PROMPT_MAX_CHARS + frames.FRAME_MAX)", expect="not byte for byte")
+@mutation(SPEC_FILE, "    frames = FRAMES\n", "    frames = None\n", expect="vibes declares no frames")
+def test_the_shipped_frames_send_the_customers_words_byte_for_byte_as_before_frames():
+    """Before frames vibes got the customer's words as the door took them (trimmed, line breaks kept, no tracking
+    code). The goldens are literals."""
+    assert SPEC.frames is not None, "vibes declares no frames"
+    assert set(SPEC.frames.defaults) == {m.media_type for m in SPEC.catalog()} == {"image", "video"}
+    golden = {"a calm sea at dusk": "a calm sea at dusk",
+              MULTI: "a lantern\n\tfloats over a lake,\r\n  été — 日本語",
+              "see {{tracking_code}} [1234]": "see {{tracking_code}} [1234]",
+              "\u200b\u2060": "\u200b\u2060"}          # a blank-looking prompt (an image to video) stays as it is
+    for kind, frame in SPEC.frames.defaults.items():
+        for words, want in golden.items():
+            got = frames.render(frame, checked_prompt(words, SPEC.max_prompt_chars), "7908", SPEC.frames.verbatim)
+            assert got == want, "the %s default is not byte for byte: %r" % (kind, got)
+        longest = frames.render(frame, "x" * SPEC.max_prompt_chars, "7908", SPEC.frames.verbatim)
+        assert len(longest) <= SPEC.frames.max_sent_chars, "the longest prompt vibes takes is refused for length"

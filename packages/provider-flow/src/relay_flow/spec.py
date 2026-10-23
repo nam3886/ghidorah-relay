@@ -4,6 +4,7 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
+from relay_core import frames
 from relay_core.providers import (
     AfterSent,
     Caps,
@@ -11,6 +12,7 @@ from relay_core.providers import (
     CreateRequest,
     Dead,
     FixedLimit,
+    FrameRules,
     InputError,
     ModelSpec,
     ParsedCredential,
@@ -105,9 +107,17 @@ _SETTINGS = dict((
 ))
 
 
+# The shipped default: the core frame, rendered verbatim (the text goes in a request field, and a job is found by
+# its batch id): `{{tracking_code}}` renders as nothing and the line breaks stay, so it sends the customer's words
+# byte for byte, as flow was sent before it had frames. The longest sent text is the prompt cap plus the longest
+# frame: no prompt flow takes today is refused for length.
+FRAMES = FrameRules(defaults={"image": frames.CORE_FRAME}, warnings=lambda kind, text: (),
+                    max_sent_chars=PROMPT_MAX_CHARS + frames.FRAME_MAX, verbatim=True)
+
+
 class FlowSpec:
     name = PROVIDER
-    frames = None
+    frames = FRAMES
     max_prompt_chars = PROMPT_MAX_CHARS
     caps = Caps(
         execution="http", wallet_kinds=("image",), pools=(PoolSpec("image", "UTC", "flow.image_budget"),),

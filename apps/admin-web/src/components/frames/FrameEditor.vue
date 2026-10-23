@@ -63,6 +63,10 @@ const currentId = computed(() => props.frames.info?.current?.id ?? null);
         One line, at most 1,000 characters. It must contain <code>{{ PROMPT_MARKER }}</code> and
         <code>{{ TRACKING_MARKER }}</code> exactly once each.
       </p>
+      <p v-if="frames.data?.verbatim" class="editor__hint" data-testid="frame-verbatim">
+        {{ frames.provider }} sends the text as written: <code>{{ TRACKING_MARKER }}</code> adds nothing and the prompt
+        keeps its line breaks.
+      </p>
       <p v-if="frames.shownModel && frames.shownModel.source === 'default'" class="editor__hint">
         This model follows the default. Saving gives it its own frame; until then a change to the default reaches it.
       </p>

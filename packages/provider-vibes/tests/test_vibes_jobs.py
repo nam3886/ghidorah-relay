@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
+from relay_core import frames
 from relay_core.providers import (
     Accepted,
     Ambiguous,
@@ -138,8 +139,10 @@ class Ctx:
         self.log.append("mark_sent")
 
 
-def job(model="vibes-video", prompt="a small wooden sailboat", *, images=(), ratio=None, batch=None, **options):
-    """A job view as the core builds it from vibes' own plan."""
+def job(model="vibes-video", prompt="a small wooden sailboat", *, images=(), ratio=None, batch=None, sent=None,
+        frame_id=1, **options):
+    """A job view as the core builds it from vibes' own plan: `sent_text` rendered with the shipped default frame
+    unless `sent` gives it; `frame_id` None is a job queued before vibes had frames."""
     req = CreateRequest(model=model, prompt=prompt, ratio=ratio, options=options,
                         images=tuple(MediaIn("0" * 64, "image/jpeg", 10) for _ in images))
     p = SPEC.plan(req, SETTINGS, {})
@@ -147,7 +150,10 @@ def job(model="vibes-video", prompt="a small wooden sailboat", *, images=(), rat
     async def inputs():
         return [MediaRef(i, "in/%d" % i, "image/jpeg", len(data)) for i, data in enumerate(images)]
 
+    text = frames.render(SPEC.frames.defaults[p.media_type], prompt, "7100", SPEC.frames.verbatim) if sent is None \
+        else sent
     return SimpleNamespace(id="job-1", operation=p.operation, params=dict(p.params), prompt=prompt,
+                           sent_text=text, frame_id=frame_id,
                            external_ref=batch, provider_state={"batch": batch} if batch else {}, inputs=inputs,
                            sent_at=None, render_since=None)
 
@@ -268,6 +274,23 @@ def test_text_to_video_starts_the_render_with_the_resolution_and_no_ratio_unless
     assert sent["config"] == {"videoModel": "midjen-short", "resolution": "720p"}
     assert sent["inputs"] == [{"type": "prompt", "value": "a small wooden sailboat",
                                "original_prompt": "a small wooden sailboat", "config": {}}]
+
+
+@mutation(SUBMIT_FILE, "    prompt = job.prompt if job.frame_id is None else job.sent_text", "    prompt = job.prompt",
+          expect="the framed text was not sent")
+@mutation(SUBMIT_FILE, "    prompt = job.prompt if job.frame_id is None else job.sent_text",
+          "    prompt = job.sent_text", expect="a job queued before frames")
+def test_the_batch_and_the_generate_carry_the_framed_text_and_a_job_queued_before_frames_its_bare_words():
+    cases = ((job(sent="Style: a small wooden sailboat\nat dawn"), "Style: a small wooden sailboat\nat dawn",
+              "the framed text was not sent"),
+             (job(sent="a small wooden sailboat [7100]", frame_id=None), "a small wooden sailboat",
+              "a job queued before frames was sent its core-frame text"))
+    for the_job, want, why in cases:
+        fake = Vibes([], generate=answer(rec("s5-live/video_007_video_generate")))
+        run_submit(fake, the_job)
+        assert body(fake.sent("generate")[0])["inputs"][0]["value"] == want, why
+        assert body(fake.sent("generate")[0])["inputs"][0]["original_prompt"] == want, why
+        assert body(fake.sent("create")[0])["prompt"] == want, why
 
 
 def test_image_to_video_uploads_the_start_frame_and_hands_its_id_to_the_generate():

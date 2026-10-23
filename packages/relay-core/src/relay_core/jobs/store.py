@@ -69,7 +69,7 @@ __all__ = [
 ]
 
 _VIEW = ("SELECT id, provider, operation, model, params, prompt, marker, sent_text, render_since, sent_at, "
-         "external_ref, provider_state FROM jobs WHERE id = %s")
+         "external_ref, provider_state, frame_id FROM jobs WHERE id = %s")
 
 
 async def job_view(db: AsyncConnectionPool, job_id) -> JobView:
@@ -86,4 +86,4 @@ async def job_view(db: AsyncConnectionPool, job_id) -> JobView:
                 (job_id,))).fetchall()
         return [MediaRef(*r) for r in rows]
 
-    return JobView(str(row[0]), *row[1:], inputs)
+    return JobView(str(row[0]), *row[1:-1], inputs, frame_id=row[-1])

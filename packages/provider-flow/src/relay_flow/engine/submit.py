@@ -103,6 +103,12 @@ def outputs_of(payload, batch: str) -> tuple[Output, ...]:
     return tuple(out)
 
 
+def _text(job) -> str:
+    """The core's framed text; a job queued before flow had frames carries the core frame's (the words and the
+    tracking code) and goes as it went then: the bare words."""
+    return job.prompt if job.frame_id is None else job.sent_text
+
+
 def generate_args(params, prompt: str, project: str, token: str, batch: str, seed: int) -> list:
     """`ogiZ0b` args (FINDINGS 4). The media and workflow ids we send are ignored by flow; the batch id is echoed."""
     ctx = request_context(project, token)
@@ -172,7 +178,7 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                         return _result(NotTaken(errors.CAPTCHA_REFUSED, {"refused_batches": batches[:-1]}),
                                        *pacing(settings, now()))
                 try:
-                    reply = await site.rpc(GENERATE, generate_args(job.params, job.prompt, project, token, batch,
+                    reply = await site.rpc(GENERATE, generate_args(job.params, _text(job), project, token, batch,
                                                                    seed()), path, GENERATE_TIMEOUT_S)
                 except httpx.HTTPError as e:
                     return _result(Ambiguous("the generate got no answer (%s)" % type(e).__name__),

@@ -30,6 +30,7 @@ from flowkit import (
     settings,
 )
 
+from relay_core import frames
 from relay_core.net import UnsafeUrl
 from relay_core.providers import (
     Ambiguous,
@@ -69,13 +70,17 @@ SIGNED_LINK = GENERATED["payload"][0][0][6][0][13]
 TOKENS = ("tok-%d-" % i + "x" * 40 for i in range(1000))
 
 
-def job(state=None, ref=None, ratio="16:9", model="flow-nano-banana-2.1", prompt="a red paper boat"):
+def job(state=None, ref=None, ratio="16:9", model="flow-nano-banana-2.1", prompt="a red paper boat", sent=None,
+        frame_id=1):
+    """`sent_text` rendered with the shipped default frame unless `sent` gives it; `frame_id` None is a job queued
+    before flow had frames."""
     plan = SPEC.plan(CreateRequest(model=model, prompt=prompt, ratio=ratio), settings(), {})
+    text = frames.render(SPEC.frames.defaults["image"], prompt, "7100", SPEC.frames.verbatim) if sent is None else sent
 
     async def inputs():
         return []
-    return JobView("job-1", "flow", plan.operation, plan.model, plan.params, prompt, "", None, None, None, ref,
-                   state or {}, inputs)
+    return JobView("job-1", "flow", plan.operation, plan.model, plan.params, prompt, "7100", text, None, None, ref,
+                   state or {}, inputs, frame_id=frame_id)
 
 
 class Tokens:
@@ -154,6 +159,22 @@ def test_the_batch_is_written_ahead_and_marked_sent_right_before_the_one_generat
     assert SIGNED_LINK.startswith("https://flow-content.google/image/" + IMG2_MEDIA)
     assert Success() in result.account and rested(result) == [
         Rest("image", NOW + timedelta(seconds=300), "flow pacing between two generates")]
+
+
+@mutation(SUBMIT_FILE, "    return job.prompt if job.frame_id is None else job.sent_text", "    return job.prompt",
+          expect="the framed text was not sent")
+@mutation(SUBMIT_FILE, "    return job.prompt if job.frame_id is None else job.sent_text", "    return job.sent_text",
+          expect="a job queued before frames")
+def test_the_generate_carries_the_framed_text_and_a_job_queued_before_frames_its_bare_words():
+    cases = ((job(sent="Style: a red paper boat\non a pond"), "Style: a red paper boat\non a pond",
+              "the framed text was not sent"),
+             (job(sent="a red paper boat [7100]", frame_id=None), "a red paper boat",
+              "a job queued before frames was sent its core-frame text"))
+    for the_job, want, why in cases:
+        log = []
+        flow, ctx = Flow(log, rpc={"ogiZ0b": GOOD}), Ctx(log)
+        run_submit(flow, ctx, the_job=the_job)
+        assert args_of(flow.calls("ogiZ0b")[0])[1][0][8] == [[[want]]], why
 
 
 # ---- submit: the immediate reCAPTCHA refusal ----------------------------------------------------------------------

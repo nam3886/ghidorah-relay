@@ -38,6 +38,9 @@ export interface FrameKind {
 
 export interface FramesList {
   provider: string;
+  // The provider sends the text in a request field (vibes, flow): the tracking code renders as nothing and the
+  // prompt's line breaks are kept.
+  verbatim?: boolean;
   kinds: FrameKind[];
 }
 

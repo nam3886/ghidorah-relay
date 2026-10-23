@@ -5,6 +5,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
+from relay_core import frames
 from relay_core.providers import (
     AfterSent,
     Caps,
@@ -12,6 +13,7 @@ from relay_core.providers import (
     CreateRequest,
     Dead,
     FixedLimit,
+    FrameRules,
     InputError,
     ModelSpec,
     ParsedCredential,
@@ -97,9 +99,17 @@ _SETTINGS = dict((
 ))
 
 
+# The shipped default frames: the core frame, byte for byte the text meta was sent before it had frames (the customer's
+# words, then the tracking code). The engine types it on one line; a ratio tail, when the plan sets one, follows it.
+# The longest sent text is the prompt cap plus the longest frame: no prompt meta takes today is refused for length
+# (its composer's own cap is not measured).
+FRAMES = FrameRules(defaults={"image": frames.CORE_FRAME, "video": frames.CORE_FRAME}, warnings=lambda kind, text: (),
+                    max_sent_chars=PROMPT_MAX_CHARS + frames.FRAME_MAX)
+
+
 class MetaSpec:
     name = PROVIDER
-    frames = None
+    frames = FRAMES
     max_prompt_chars = PROMPT_MAX_CHARS
     caps = Caps(
         execution="browser", wallet_kinds=("image", "video"),

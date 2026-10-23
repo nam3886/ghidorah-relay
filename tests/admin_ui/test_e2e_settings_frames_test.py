@@ -586,6 +586,57 @@ def test_a_provider_without_frames_says_the_core_frame_applies_and_the_provider_
     page.problems.clear()                                    # the 404 is a console line
 
 
+def test_every_provider_has_its_own_frames_and_a_vibes_edit_previews_verbatim_and_touches_no_other(
+        app_session, db, real_providers):
+    """The real dola, meta, vibes and flow specs, their shipped defaults seeded: each provider is in the select and
+    draws its own kinds; a vibes frame previews as written (no tracking code) and its save adds one row, for vibes
+    only."""
+    import os
+
+    def shoot(name):
+        if os.environ.get("RELAY_SCREENSHOTS_DIR"):
+            page.screenshot(path=os.path.join(os.environ["RELAY_SCREENSHOTS_DIR"], name))
+
+    page = app_session
+    page.set_viewport_size({"width": 1440, "height": 900})
+    open_tab(page, "Prompt frames")
+    select = page.get_by_role("combobox", name="Provider", exact=True)
+    kinds = {"dola": ["video", "image"], "meta": ["video", "image"], "vibes": ["video", "image"], "flow": ["image"]}
+    for name, drawn in kinds.items():
+        select.click()
+        if name == "dola":
+            for listed in kinds:
+                expect(page.get_by_role("option", name=listed, exact=True)).to_have_count(1)
+            shoot("frames-providers.png")
+        page.get_by_role("option", name=name, exact=True).click()
+        expect(select).to_contain_text(name)
+        expect(page.get_by_text("This provider has no prompt frames: the core frame applies.")).to_have_count(0)
+        expect(page.locator("[data-frame-kind]")).to_have_count(len(drawn))
+        assert page.locator("[data-frame-kind]").evaluate_all("els => els.map(e => e.dataset.frameKind)") == drawn
+    before = db.all("SELECT provider, kind, model, text FROM prompt_frames ORDER BY id")
+    assert sorted({r[0] for r in before}) == ["dola", "flow", "meta", "vibes"]
+    select.click()
+    page.get_by_role("option", name="vibes", exact=True).click()
+    video = page.locator(VIDEO)
+    video.get_by_role("button", name="Edit frame for vibes-video").click()
+    expect(page.get_by_role("dialog").get_by_role("heading", level=2)).to_have_text("Editing video / vibes-video")
+    expect(page.get_by_test_id("frame-verbatim")).to_contain_text("vibes sends the text as written")
+    page.get_by_label("Frame text").fill("Cinematic, {{client_prompt}} {{tracking_code}}")
+    press(page, page.get_by_role("button", name="Preview", exact=True))
+    expect(page.get_by_test_id("frame-preview")).to_have_text("Cinematic, a cat on a sofa")
+    shoot("frames-vibes-editor.png")
+    press(page, page.get_by_role("button", name="Save", exact=True))
+    expect(page.get_by_role("button", name="Save", exact=True)).to_be_disabled()      # saved: the draft is the text
+    after = db.all("SELECT provider, kind, model, text FROM prompt_frames ORDER BY id")
+    assert after == before + [("vibes", "video", "vibes-video", "Cinematic, {{client_prompt}} {{tracking_code}}")]
+    close_editor(page)
+    select.click()
+    page.get_by_role("option", name="meta", exact=True).click()
+    page.locator(VIDEO).get_by_role("button", name="Edit frame for meta-video").click()
+    expect(page.get_by_label("Frame text")).to_have_value("{{client_prompt}} {{tracking_code}}")
+    expect(page.get_by_test_id("frame-verbatim")).to_have_count(0)
+
+
 # ---- Test tab -------------------------------------------------------------------------------------------------------
 
 OPEN_STORE = """const db = await new Promise((ok, no) => {

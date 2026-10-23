@@ -110,18 +110,22 @@ class Env:
 @contextlib.asynccontextmanager
 async def serving(db, *, routers=(), admin_routers=(), peer_ip: str = PEER_IP, trusted_proxies: str = "",
                   public_base_url: str | None = None,
-                  raise_app_exceptions: bool = False, spec: FakeSpec | None = None) -> AsyncIterator[Env]:
+                  raise_app_exceptions: bool = False, spec: FakeSpec | None = None,
+                  specs: tuple = ()) -> AsyncIterator[Env]:
+    """`specs` (the real providers, say) replaces the one fake `spec`."""
     store = await shared_store()
     pool = await open_pool(db.api_dsn, max_size=8, name="relay-api-test")
     saved = users._hasher, users._dummy
     users._hasher, users._dummy = FAST_HASHER, None       # the tests prove the flow, not the cost parameters
     try:
-        spec = spec or FakeSpec()
+        specs = specs or (spec or FakeSpec(),)
         # as `relay serve` builds it: the core settings plus every registered provider's own
-        settings = Settings(pool, db.api_dsn, registry=Registry(*REGISTRY.specs.values(), *spec.settings().values()))
+        own = [s for one in specs for s in one.settings().values()]
+        settings = Settings(pool, db.api_dsn, registry=Registry(*REGISTRY.specs.values(), *own))
         await settings.reload()
         registry = ProviderRegistry()
-        registry.register(spec)
+        for one in specs:
+            registry.register(one)
         app = create_app(pool=pool, settings=settings, store=store, registry=registry, routers=routers,
                          admin_routers=admin_routers, public_base_url=public_base_url,
                          trusted_proxies=trusted_proxies)

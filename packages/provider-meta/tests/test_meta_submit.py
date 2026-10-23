@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from relay_core import errors
+from relay_core import errors, frames
 from relay_core.net import FetchFailed, UnsafeUrl
 from relay_core.providers import Ambiguous, Completed, Cooldown, Dead, Fail, MediaRef, Proxy, Retry, Success, Suspect
 from relay_core.testing.fake_media import MediaSite, public_resolver
@@ -251,7 +251,7 @@ DEFAULT_OP = {"image": "text_to_image", "video": "image_to_video"}
 
 
 def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "image/webp"), ratio=None,
-        **settings):
+        sent=None, **settings):
     log = page.log if log is None else log
     ctx = ctx or Ctx(log)
 
@@ -274,8 +274,8 @@ def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "
                   signal_wait_s=0, composer_wait_s=1, warmup_wait_s=0, receipt_wait_s=2, tiles_grace_s=3,
                   upload_wait_s=0, attached_wait_s=1)
     params = {"kind": kind, **({"ratio": ratio} if ratio else {})}
-    job = SimpleNamespace(params=params, operation=op, sent_text="%s [7100]" % (cap.prompt or "a lighthouse"),
-                          inputs=inputs)
+    sent = "%s [7100]" % (cap.prompt or "a lighthouse") if sent is None else sent
+    job = SimpleNamespace(params=params, operation=op, sent_text=sent, inputs=inputs)
     result = asyncio.run(S.submit(ctx, job, FakeSettings(SPEC, **settings), deps=deps))
     return result, ctx
 
@@ -605,6 +605,21 @@ def test_a_ratio_is_typed_after_the_final_text_and_only_when_the_job_has_one():
         assert page.typed == {EDITABLE: "%s%s [7100], 9:16" % (head, cap.prompt)}, "the ratio is typed: %r" % (
             page.typed,)
         assert isinstance(result.job, Completed) and page.log.count("Enter") == 1, op
+
+
+@mutation(SUBMIT_FILE, '            self.text += RATIO_TAIL % job.params["ratio"]',
+          '            self.text = (RATIO_TAIL % job.params["ratio"]).lstrip(", ") + " " + self.text',
+          expect="the frame first, the ratio tail second")
+def test_an_admin_frame_is_typed_first_and_the_ratio_tail_after_it():
+    """The core renders the frame (the shipped default or an admin's); the engine types it, then `, <ratio>`."""
+    admin = "Style: watercolor. {{client_prompt}} {{tracking_code}} Keep it calm."
+    for frame in (SPEC.frames.defaults["image"], admin):
+        cap = capture("image-1-acc1")
+        page = Page([], cap)
+        text = frames.render(frame, cap.prompt, "7100", SPEC.frames.verbatim)
+        result, _ = run(page, cap, kind="image", op="text_to_image", ratio="4:3", sent=text)
+        assert page.typed == {EDITABLE: text + ", 4:3"}, "the frame first, the ratio tail second: %r" % (page.typed,)
+        assert isinstance(result.job, Completed) and page.log.count("Enter") == 1
 
 
 @mutation(SUBMIT_FILE, '        if job.params.get("ratio") and (self.kind, job.params["ratio"]) not in RATIO_UNTYPED:',

@@ -135,7 +135,7 @@ async def list_frames(request: Request, provider: str, pool: AsyncConnectionPool
             shipped = rules.defaults.get(kind)
             kinds.append({"kind": kind, "default": _v(default), "shipped": shipped,
                           "shipped_differs": default is not None and default.text != shipped, "models": models})
-    return {"provider": provider, "kinds": kinds}
+    return {"provider": provider, "verbatim": rules.verbatim, "kinds": kinds}
 
 
 @router.get("/frames/{provider}/{kind}/{target}")

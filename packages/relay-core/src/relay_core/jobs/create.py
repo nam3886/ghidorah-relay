@@ -162,7 +162,7 @@ def rendered(new: NewJob, marker: str) -> tuple[str, int | None]:
     if frame is None:
         raise FrameUnusable("the plan of a %s job carries no frame" % new.provider)
     try:
-        return frames.render(frame.text, new.prompt, marker), frame.id
+        return frames.render(frame.text, new.prompt, marker, frame.verbatim), frame.id
     except frames.FrameError as e:
         raise FrameUnusable("the frame of a %s job fails the grammar: %s" % (new.provider, e)) from e
 

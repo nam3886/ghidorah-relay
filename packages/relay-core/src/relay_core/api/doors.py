@@ -282,12 +282,12 @@ def plan_request(gate: Gate, spec: ProviderSpec, model: ModelSpec, creq: CreateR
         use = FrameUse(None, frames.CORE_FRAME)
     else:
         try:
-            use = None if frame is None else FrameUse(frame.id, frames.check_frame(frame.text))
+            use = None if frame is None else FrameUse(frame.id, frames.check_frame(frame.text), rules.verbatim)
         except frames.FrameError:
             use = None
         if use is None:
             raise frame_unusable(spec, model)
-    text = frames.render(use.text, creq.prompt, marker_for(SAMPLE_JOB_ID))
+    text = frames.render(use.text, creq.prompt, marker_for(SAMPLE_JOB_ID), use.verbatim)
     if rules is not None and len(text) > rules.max_sent_chars:
         raise ApiError("input.prompt_too_long", "prompt")
     return spec, replace(plan, frame=use), text
