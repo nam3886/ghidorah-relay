@@ -167,8 +167,8 @@ Used by browser workers only (dola, meta). Everything is read from the environme
   Images and fonts are off by launch flags unless the run attaches or reads images.
 - **Debug files** (Job drawer, "Debug files"): dola and meta keep an after-send JPEG once the site answered, and a PNG,
   the redacted HTML and the network log (`ui-error-<tag>-*`) when a send fails, gets no receipt, an answer is unclear,
-  refused or holds no media. meta gives all captures of a job 10 s together, never inside the 30 s close allowance
-  before the submit timeout (its wait for the answer ends 40 s before it); a failed capture is only logged.
+  refused or holds no media. meta's captures of a job get at most 10 s together, and only time left before the 30 s
+  close allowance ahead of the submit timeout (an answer never done gets none); a failed capture is only logged.
 - **Environment**: Chrome gets an allow-list of variables (`PATH HOME USER LOGNAME LANG LANGUAGE TZ DISPLAY
   XAUTHORITY LC_* XDG_* FONTCONFIG_*`, plus its own `TMPDIR`), never the worker's environment. The worker also
   removes `CREDENTIAL_SEAL_PRIVATE_KEY` from its own environment once it has read the key, so nothing started

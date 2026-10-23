@@ -28,9 +28,9 @@ Money rules (each has a test and a mutation):
   failed or charged job.
 
 Debug files (`relay_browser.evidence`, text through the core's redactor), diagnostics only, taken once the verdict is
-decided; all captures of a job share one `EVIDENCE_WAIT_S` and never reach into the browser's close allowance before
-the core's submit timeout (`HOLD_MARGIN_S`), so the verdict never waits on them; a failure to capture is logged and
-skipped:
+decided, in the time left before the browser's close allowance (`HOLD_MARGIN_S` before the core's submit timeout),
+all captures of a job together at most `EVIDENCE_WAIT_S`: they never take time from a verdict (none left: skipped, so
+an answer never done gets none); a failure to capture is logged and skipped:
 - an after-send JPEG once meta's answer is done;
 - a PNG, the redacted HTML and the network log when nothing was sent (`_unsent`), the outcome is unknown (`_unknown`:
   no receipt, never done, previews or the other kind), the answer holds no media, or the browser raised.
@@ -92,8 +92,8 @@ RECEIPT_WAIT_S = 15.0     # the URL became `/prompt/<uuid>` 0.1 s after Enter
 STEP_S = 0.5              # between two reads of the page
 TILES_GRACE_S = 10.0      # after DONE, how long the tiles may take to show their final links
 HOLD_MARGIN_S = 30        # the run ends this long before the core's submit timeout (`meta.<kind>_submit_timeout_s`):
-                          # the browser's close allowance (`relay_browser.session.CLOSE_TIMEOUT_S`); the wait for
-                          # meta's answer ends `EVIDENCE_WAIT_S` before that
+                          # the browser's close allowance (`relay_browser.session.CLOSE_TIMEOUT_S`); every wait after
+                          # the Enter (receipt, answer, tiles) stops there too
 FAULT_REST_S = 300        # a proxy failure before the send rests the account this long
 UPLOAD_WAIT_S = 60.0      # a 560 KB webp was answered in 7.3 s through a proxy; a 5 MB PNG never was
 ATTACHED_WAIT_S = 5.0     # after the upload answer, how long the composer may take to show the thumbnail
@@ -323,7 +323,6 @@ class _Run:
         # the run returns by then, so the browser's close still fits before the core's submit timeout
         self.deadline = self.started + settings.get("meta.%s_submit_timeout_s" % self.kind) - deps.hold_margin_s
         self.evidence_left = deps.evidence_wait_s     # shared by every capture of this job
-        self.hold_until = self.deadline - deps.evidence_wait_s      # the wait for meta leaves the captures their time
         self.signed_in = False      # the sign-in read said signed in: the strike count is cleared
         self.sent = False           # True from the moment `mark_sent` returned: meta may have the order
         self.conversation: str | None = None
@@ -493,14 +492,12 @@ class _Run:
             await self._core(lambda: ctx.report_ref(url_id, {"conversation_id": url_id}))
         answer = await self._read_answer()
         while not answer.done:
-            if deps.clock() >= self.hold_until:
-                return await self._unknown("meta's answer was not done within %d s" % (self.hold_until - self.started),
+            if not await self._step():
+                return await self._unknown("meta's answer was not done within %d s" % (self.deadline - self.started),
                                            "not-done")
-            await deps.sleep(STEP_S)
             answer = await self._read_answer()
-        grace = min(deps.clock() + deps.tiles_grace_s, self.hold_until)
-        while (answer.previews or not answer.media) and deps.clock() < grace:
-            await deps.sleep(STEP_S)
+        grace = deps.clock() + deps.tiles_grace_s
+        while (answer.previews or not answer.media) and deps.clock() < grace and await self._step():
             answer = await self._read_answer()
         result = await self._done(answer)
         await self._evidence(None)      # meta's answer is in: the after-send picture, once the verdict is decided
@@ -529,8 +526,17 @@ class _Run:
             found = chat_id(self.page.url)
             if found or waited >= self.deps.receipt_wait_s:
                 return found
-            await self.deps.sleep(STEP_S)
+            if not await self._step():
+                return None
             waited += STEP_S
+
+    async def _step(self) -> bool:
+        """One wait between two reads, never past the deadline: False once it is reached (the wait ends there)."""
+        left = self.deadline - self.deps.clock()
+        if left <= 0:
+            return False
+        await self.deps.sleep(min(STEP_S, left))
+        return True
 
     async def _read_answer(self) -> Answer:
         try:

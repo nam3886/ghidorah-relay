@@ -182,6 +182,7 @@ class Page:
         self.lands = None       # where meta sends a goto instead of its address (None: the address itself)
         self.shot_error = None  # what a screenshot and the page HTML raise (a capture that fails)
         self.shot_hang_s = 0.0  # how long a screenshot takes
+        self.goto_s = 0.0       # how long the page load takes (real time)
 
     async def screenshot(self, type="png", **kw):
         await asyncio.sleep(self.shot_hang_s)
@@ -196,6 +197,7 @@ class Page:
 
     async def goto(self, url, **kw):
         self.log.append("goto " + url)
+        await asyncio.sleep(self.goto_s)
         self.url = self.lands or url
 
     def locator(self, selector):
@@ -855,8 +857,6 @@ def test_a_delivered_answer_keeps_one_after_send_jpeg_and_nothing_else():
 
 @mutation(SUBMIT_FILE, "        await self._evidence(code)\n", "", expect="meta_ui_page_not_ready")
 @mutation(SUBMIT_FILE, "        await self._evidence(tag)\n", "", expect="no_receipt")
-@mutation(SUBMIT_FILE, "        self.hold_until = self.deadline - deps.evidence_wait_s ",
-          "        self.hold_until = self.deadline ", expect="not_done")
 @mutation(SUBMIT_FILE, '        await self._evidence("no-media")\n', "", expect="no_media")
 @mutation(SUBMIT_FILE, '                await self._evidence("browser-error")', "                pass",
           expect="browser_error")
@@ -866,6 +866,8 @@ def test_each_failure_keeps_a_png_the_html_and_the_network_log_and_an_answer_tha
         result, ctx = run(make(), cap)
         names = [n for n, _, _ in ctx.kept]
         want = ["ui-error-%s-1000%s" % (tag, ext) for ext in UI_ERROR] + (["after-send-1000.jpg"] if answered else [])
+        if tag == "not_done":
+            want = []       # it waited up to the deadline: no time is left for captures, the verdict had it all
         assert names == want, "%s: %s" % (tag, names)
         assert not isinstance(result.job, Completed), tag
 
@@ -943,3 +945,29 @@ def test_hanging_captures_and_a_slow_close_never_cost_a_verdict_to_the_core_subm
         if what == "no media":
             # two captures (the UI error, then the after-send picture): one shared cap, never one each
             assert took < 1.0 + CLOSE_S + 0.3, "%s: one shared cap for the job's captures, took %.2f s" % (what, took)
+
+
+@mutation(SUBMIT_FILE, "            if not await self._step():\n                return None",
+          "            await self.deps.sleep(STEP_S)\n            if False:\n                return None",
+          expect="slow setup")
+def test_a_slow_setup_and_a_receipt_that_never_comes_still_return_the_verdict_within_the_core_bound():
+    cap = capture("image-1-acc1")
+    page = Page([], cap, opens=None)
+    page.goto_s = 1.5           # the load took most of the window: the deadline (1.8 s) is near at the Enter
+    try:
+        result, _ = run(page, cap, real_time=(CLOSE_S, BOUND_S, {**SCALED, "receipt_wait_s": 5.0}))
+    except TimeoutError:
+        raise AssertionError("slow setup: the verdict was lost: not within the core's bound") from None
+    assert isinstance(result.job, Ambiguous) and page.log.count("Enter") == 1, result.job
+
+
+@mutation(SUBMIT_FILE, "        left = self.deadline - self.deps.clock()",
+          "        left = self.deadline - EVIDENCE_WAIT_S - self.deps.clock()", expect="last 10 s")
+def test_an_answer_that_turns_final_in_the_last_10_s_before_the_deadline_is_still_a_verdict():
+    cap = capture("image-1-acc1")
+    bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
+    late = int((240 - S.HOLD_MARGIN_S - 5) / S.STEP_S)       # reads every 0.5 s: final 5 s before the deadline
+    for final, verdict in ((cap.answer, Completed), (bare, Fail)):
+        page = Page([], cap, answers=[streaming(cap.answer)] * late + [final])
+        result, _ = run(page, cap)
+        assert isinstance(result.job, verdict), "final in the last 10 s: %r" % (result.job,)
