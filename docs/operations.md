@@ -108,7 +108,7 @@ pull fails.
 
 - Every compose command needs `GIT_SHA` (and, for postgres and minio, their two passwords) in the environment or in
   `deploy/.env`: compose interpolates the services of inactive profiles too. `export GIT_SHA=$(git rev-parse --short HEAD)`.
-- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta`, `flow`, `gemini` = the provider workers. A bare `docker compose up`
+- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen` = the provider workers. A bare `docker compose up`
   starts only Postgres and MinIO. `docker compose --profile app --profile dola up -d` starts the api and the dola
   worker; enabling a provider later changes no file.
 - Every service has its own env file (`deploy/<service>.env`, gitignored), copied from `deploy/<service>.env.example`
@@ -522,7 +522,7 @@ fails when any other page or `/ui/` file carries the looser one.
 
 ## The worker (`relay worker --provider X`)
 
-One process per provider (`dola`, `vibes`, `meta`, `flow`, `gemini`; the compose services `worker-<provider>`). It loads
+One process per provider (`dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`; the compose services `worker-<provider>`). It loads
 `relay_<p>.spec.SPEC` and `relay_<p>.engine.build_engine`, then runs these loops as tasks of one process:
 
 | Loop | Does |
@@ -954,6 +954,51 @@ renders none). The answer streams until the image is drawn.
 | `gemini.poll_interval_s` | 30 | between two reads of a found job |
 | `gemini.prices`, `gemini.image_budget` | 1, 100 | points per image; images per account per day (not measured) |
 | `gemini.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
+
+## The qwen provider (`relay worker --provider qwen`)
+
+Qwen Chat (chat.qwen.ai) over plain HTTP; Chrome only mints the anti-bot pair. Models: `qwen-image-3.0` (text to
+image and one-image edit; ratios 16:9 default, 1:1, 9:16, 4:3, 3:4, 3:2, 2:3) and `qwen-happyhorse-1.1`,
+`qwen-happyhorse-1.0` (text or one image to a 720p video with sound, 5/10/15 s; ratios 16:9 default, 4:3, 1:1, 3:4,
+9:16). Wan 2.7 is hidden in the web app's picker and not offered; HappyHorse 1080P is for paid plans. The protocol is
+in `fixtures/qwen/FINDINGS.md`.
+
+**What the worker needs.** The browser image (`worker-qwen`, target `browser`, profiles on `profiles-qwen`) and
+`deploy/worker-qwen.env` with the usual worker variables. No key of its own.
+
+**Account.** A Cookie-Editor JSON export of chat.qwen.ai (`refresh_token` on `.qwen.ai` is required). Each run buys a
+15-min access token at `auth.qwen.ai/api/v2/auths/refresh` and reuses it for 10 min in the process. The check (every
+10 min) reads the credits (`totalCredits`, the account's `video` balance) and, while `qwen.claims_enabled` is true,
+mints a new pair at half `qwen.bx_max_age_s`. A refresh that says the session is gone is one spaced strike and a rest
+with a recheck. Live 23/10: both spike accounts' refresh tokens came back "Token is revoked, please login again"
+minutes after a working refresh (one right after a first browser mint, one with no browser run): watch for it.
+
+**The pair.** Chrome loads chat.qwen.ai with the jar through the account's proxy, the page gets a prompt and Enter,
+and its `chat/completions` is failed inside the browser (CDP Fetch, Request stage) after its headers (`bx-ua`,
+`bx-umidtoken`, `bx-v`, the user agent and client hints) are kept; the page's sign-out and log-out calls are failed
+too, and the browser's cookies replace the jar (written back even when the mint fails). The pair is reused by every
+send until `qwen.bx_max_age_s` (1500); one browser at a time per worker.
+
+**Send.** Free steps first (token, pair, video credit check `credits/verify`, the input image to OSS, a new chat), then
+the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An image is drawn in that stream (60-110 s,
+`Completed`); a video answers its task id at once (`Accepted`, then `task/status` is polled). After the send:
+- the WAF's `FAIL_SYS_USER_VALIDATE` (or its captcha page) with the chat read back empty: the pair is dropped and the
+  job requeued (`qwen.waf_refused`, the first two free); with a message of ours in the chat it is unknown;
+- "Insufficient Credits" fails the job (`qwen.out_of_credits`, refunded) and empties the video pool; a stream that ends
+  with words and no image fails it (`qwen.refused`, refunded);
+- anything else is unknown: the reconciler reads the chat (no message of ours: not sent; a message: found).
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `qwen.claims_enabled` | false | drain mode: no new job; the checks go on (no mint while drained) |
+| `qwen.bx_max_age_s` | 1500 | a pair is reused this long; the check mints at half of it |
+| `qwen.account_min_gap_s` | 60 | the pools' rest after a generate |
+| `qwen.poll_interval_s` | 30 | between two reads of a rendering video |
+| `qwen.image_lost_after_s` | 900 | an image chat still empty this long after the send fails, refunded |
+| `qwen.render_deadline_s` | 2700 | an unfinished job is given up then, refunded |
+| `qwen.prices` | 1 per image, 1/2/3 per 5/10/15 s video | points, keyed `model` or `model@<s>s` |
+| `qwen.image_budget`, `qwen.video_budget` | 1000, 40 | images per account per day; video credits per account per day |
+| `qwen.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
 ## The box runbook
 
