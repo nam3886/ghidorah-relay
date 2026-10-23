@@ -2,7 +2,8 @@
 tier): the provider strip is the page's provider filter (no Provider list in the top bar), the "Jobs today" table sits
 on top, and the accounts are drawn in one lane per provider with its coloured header, each row with its status pill,
 in use, the switch, pool meters, the proxy check, the sleep and the last error. At a desktop width, a tablet's 820 px
-and a phone's 390 px, where no text may be cut. With RELAY_SCREENSHOTS_DIR set, each state is saved as accounts-<width>-<pick>.png."""
+and a phone's 390 px, where no text may be cut. With RELAY_SCREENSHOTS_DIR set, each state is saved as
+accounts-<width>-<pick>.png."""
 
 import os
 import re

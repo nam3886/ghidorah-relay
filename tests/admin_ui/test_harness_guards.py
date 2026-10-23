@@ -24,9 +24,11 @@ DOCUMENT_WIDTH_OK = {"page_helpers.py"}
 # files that read the scroll width of one element, and how many times
 ELEMENT_WIDTH = {
     "page_helpers.py": 2,                   # the helper: the document and the page scroller
-    "test_e2e_accounts.py": 2,              # the table card's own sideways scroll
+    "test_e2e_accounts.py": 1,              # an element of the Accounts page cut by its box
     "test_e2e_jobs.py": 1,
-    "test_e2e_jobs_providers.py": 1,        # an element of the provider table or a job card cut by its box
+    "test_e2e_jobs_providers.py": 2,        # a table element or a job card cut by its box; a title's ellipsis
+    "test_e2e_accounts_providers.py": 1,    # an element of a lane cut by its box
+    "test_e2e_settings_providers.py": 1,    # an element of a provider card cut by its box
     "test_e2e_settings_nav_scroll.py": 1,   # the scrollbar root's own range
     "test_e2e_settings_limits.py": 1,      # the allowed line's own width against its box
     "test_e2e_shell.py": 1,                # elements wider than the page, named in a failure message

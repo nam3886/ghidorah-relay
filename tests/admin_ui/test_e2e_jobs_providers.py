@@ -1,7 +1,8 @@
 """The provider side of the Jobs page in Chrome against the real app with the four real provider specs (browser tier):
 the provider strip under the top bar is the provider filter, the "Jobs today" table reads the provider summary, and
-the job rows carry their provider. At a desktop width, a tablet's 820 px and a phone's 390 px, where the table turns into
-cards; no text may be cut but a job title, one line ending in an ellipsis. With RELAY_SCREENSHOTS_DIR set, each state is saved as jobs-providers-<width>-<pick>.png."""
+the job rows carry their provider. At a desktop width, a tablet's 820 px and a phone's 390 px, where the table turns
+into cards; no text may be cut but a job title, one line ending in an ellipsis. With RELAY_SCREENSHOTS_DIR set, each
+state is saved as jobs-providers-<width>-<pick>.png."""
 
 import os
 import re
@@ -86,7 +87,8 @@ def no_cut_text(page) -> None:
             .map((el) => el.className + ': ' + el.textContent.trim().slice(0, 40));
     }""", isolated_context=False)
     assert cut == [], cut
-    titles = page.evaluate("""() => [...document.querySelectorAll('.jobs__table .prow__title, .jobs__table .title-link')]
+    titles = page.evaluate("""() => [
+        ...document.querySelectorAll('.jobs__table .prow__title, .jobs__table .title-link')]
         .filter((el) => el.offsetParent).map((el) => {
             const cs = getComputedStyle(el);
             return {text: el.textContent.trim(), title: el.getAttribute('title'),
