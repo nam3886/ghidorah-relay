@@ -1,0 +1,2210 @@
+[
+ {
+  "source": "capture-0551",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus": "E7sjD77iQoWfOVMG8On9ey25ULbMNTuyweiQbzFRyqPIyHzY4XBCGcbJcPiwshoSZRsTqoI71DzkYdDcpRvA-/npFmkku/TfhmocIW8LMqqhYzksLHjsCwsFFwBKWRTueQ57iAWX0UGHZxQ5kqdD8p5HF/lx-QR2Pr-JfZYbn9AGdSDop2xYFofQTwn6B4I3OthLyNRa",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"bot_id\":\"7339470689562525703\",\"skip_cache\":true,\"scene\":4,\"sug_layout\":\"direct_above_input\"}",
+  "bound": {
+   "query": [
+    217,
+    146,
+    88
+   ],
+   "body": [
+    220,
+    130,
+    189
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus": "xf0fhqyEQoRbcVMSuCc9etrRuob/NPSy0-idRcd5yoFuL1FTAhB9GtWrnPwLsw9SpmkiqoIHWDF4bdfONR5F4/9pzmpDudsjwWK5I6voMqNXb0JsgHj0Cu8FzwBFWcGue5V4il4XZUG9ZDQ5kHdD8pl7o/lxBQY2Pq3tf/zbj9WGVCDoZVO8FoXmYwjgB493uTtyHcm=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"language_code\":\"en\",\"bot_id\":\"7339470689562525703\",\"item_ids\":[\"1064442771335185\",\"1064442771335697\",\"1064442771335441\",\"1064442771336209\",\"1064442771335953\"]}",
+  "bound": {
+   "query": [
+    114,
+    49,
+    35
+   ],
+   "body": [
+    196,
+    91,
+    212
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/user/launch",
+  "a_bogus": "D645kwU7OxRRad/G8KcAeCKRBIR/rT8y0BT2Rc25eoFuL1FT1wB5GGGJcPwL4w9SNWkkqo17WDKGYDfaZ8VDf/rpFmkkSBzbkWKnIWso8qw6bzisDHjhCw8zowBe8bTu-/5GilRXgUGqZxc5wHQm8Ql7F/Un-QR2Bq-7fMzbJ9WTdSfoZIODFFvmNwjh-ao3/sws7rRK",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"select\":{\"launch_config\":true,\"assistant_bot_info\":true,\"landing_config\":true,\"user_info\":true}}",
+  "bound": {
+   "query": [
+    114,
+    49,
+    35
+   ],
+   "body": [
+    181,
+    124,
+    156
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/profile/self_brief",
+  "a_bogus": "Yf4Rh7S7dZmjed/SucnceHK5mgRANPuyT-ioRaZ5yozuyHMTHwBIGGDJGNqLshoSq8siqqIHADuMbDDPqR5rVMnkompvSTvRhmo5IW8ohqwXbMJsgHbsCw0zwwBe85suaQ5ti1W18Ua9Zx55wNQD8d57F/lxBQR2PN3Gf/Ybn9AbVAjopdx8FKXQTwngB-o3/0i893R8",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    114,
+    49,
+    35
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/profile/self",
+  "a_bogus": "EvsVD7y7Oo55OdKbYKcIeHFRdgmlrsSyslTQRr25CoFtyXeT3JBcGHurJNiL4Z9Sp8shqK17IDu/YExcZm3e-M9kzmkfuBJWiWocIX8Lgqw6bFisLNbkCLszqwBF8RTu-QV7il4X/UaH1Dc5kNdD8BA7w/lNBQR2MH3Jf/ucn9AGVWEoNVxgFo6QYwj6-493OU7Oyr-6",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": null,
+  "bound": {
+   "query": [
+    114,
+    49,
+    35
+   ],
+   "body": [
+    18,
+    3,
+    121
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/basic/launch",
+  "a_bogus": "EX0fD7WjOZ8jeV/b8Kc5eHKRhgblrB8y0MiORc2R9oFSL1FTHwB9GGDJrNw7sh2SN8kkqo1H6DKMYEDPp85-VZnkumkvSQifkWK9IXsLgqwgbFJsDNjTCz0FzwsK8bsuaAVXi14X/UaHZxO5hqQE8B5Hw/lx-Ob2Fq-Uf2Tcb9AYdAfoZIx8Fq6QxwnX-493/0t27r5w",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    114,
+    49,
+    35
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/im/launch",
+  "a_bogus": "OjURkHtyOoRVPdFS8ccIeHK5/gYlNPuysMiKRad5CoFzL7FTHiBAGjzrjOiy4hISqWkwqFIHUDKoYDdaN855RM9pqmpvumJ6iWoAIWsLZqqXbFisEqb0CzmzKwsK85sueQVUi1R1gUG91d55irQD8dA7K/Ur-Qb2BH-7fMYbr9ATdCfoZdxDFKfQxwnh--93Q4Jgyr-P",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"im_config\":true}",
+  "bound": {
+   "query": [
+    114,
+    49,
+    35
+   ],
+   "body": [
+    59,
+    78,
+    137
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/samantha/skill/recommend",
+  "a_bogus": "xjs5h7WJE2mneV/GuOnCeHFR0g5ArT8yT-i2Rap5CoFSL1lTrJpAGbYrGOq74ZISNWkkqqV76Dz/bxxaqmVHfM9pKmkvSQiRwRKAI68Lhqqhb0JsDqjsCu8zuwsF85sua5VGiIUX8UaH1d55iNQY8B57w/Ur-Yb2Pq-7f/ucj9WbdWEoZ2ODFF6mTwj6B-93K4Gu7r-W",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"omit_sidebar\":true,\"omit_image\":true,\"omit_music\":true,\"omit_write\":true,\"omit_search\":true}",
+  "bound": {
+   "query": [
+    114,
+    49,
+    35
+   ],
+   "body": [
+    83,
+    111,
+    136
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus": "QJs5kw7wdpQRcdFtmOnCeeF5ggm/NTSy0MTORcZRyozuy1eTHwBcGjkJbNq7sZ2SpmkkqoV7ADKAbxfPpmVeV/HkzmpkumiWimKAI66o0qqgYzksDNjkCz0FowBe854ul/5vi141gUaH1xO5wNQL8d57w/Ur-mm2BH-7f/Ycb9ATVAjoZdxDFoXmiwjhBa23OWlpHj==",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    114,
+    49,
+    35
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "dysjD7Wixd8beVMGmKnCe9o5G2SMrsSy0MTORnp5eoFuLXMT3Xp9GYkrjNwLshoSZmssqF176DKMbDfPZm5aVZnkwmkvuwkjwWonIUfLMqwhbzvsDHjzCw0FwwseWRGul/5JiIWXhUaq1d55wrQD8BA7z/lr-OY2Fq-Uf/Ybr9AGVAEopVODFoXQNwng--I3F8AsCj==",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    114,
+    49,
+    35
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "Qf4VDFUiYoWfcVKGYcnceHxRa2KMrB8ysBixRad5toFuy7MT1kpCGYkJjNw7shoSZRkhqKI7IDuMbDEPpRVaVM9pumkvuhvyh8KVIU6o2qNgbzksgNjzCu0zLwBKWR4u-QVUilU18UaHZEQ5kNQE8d5HF/Ux-Qb2Pr-JfZzcr9AGdAEop2OLFFXQEwjX-a93/GwyHNE=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    114,
+    49,
+    35
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus": "Q645kz6Jxx5bPdMGYcnVebxRt1WlrBSyJlTobuQ5yKzrLXFTFXBCtNbJnPN74Z2SZWkhqqVH1DzvYDDcpW4c-Z9pqmpDuLzbw8o9IWXo0qiXYMksLNbhCusFKwBeWcTuaQ57i1RXMUGqZxQ5wqQL8p5Hq/lnBYR2Pq3vf/TcG9WbVCDoN2xLFK6mxwj6-a93/sk6HGj=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"bot_id\":\"7339470689562525703\",\"skip_cache\":true,\"scene\":4,\"sug_layout\":\"direct_above_input\"}",
+  "bound": {
+   "query": [
+    124,
+    208,
+    193
+   ],
+   "body": [
+    220,
+    130,
+    189
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus": "QX4Rg77EOpRRPdKtmCcVecPRWhWlrsSyM-i/WTrRSFFcyXUbp7pCtxtJrPNysZoSqWkkqKIHUDzDbxjcZ84I-2npqmkvuukRimo5IU0Lgqq6YMvsEHjzCw0zuwBC8Rsu-/V7iI410UGqZdQ5wrQE8B57q/lxBYb2FN34f2zcc9AYdAEoNdOLFFXmiwjhB-o3/TsgyN-T",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"bot_id\":\"7339470689562525703\",\"skip_cache\":true,\"scene\":4,\"sug_layout\":\"direct_above_input\"}",
+  "bound": {
+   "query": [
+    229,
+    40,
+    159
+   ],
+   "body": [
+    220,
+    130,
+    189
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/user/launch",
+  "a_bogus": "YJ0Vkwt7mp5bOdFS8OncecaR-6OMNBWyXFToSjQReqOEyHFGdipcGGSJGPqw4Z2SZWksqFIHIDuGYdEaqRVLf2rkompvSFz6hmKAI68LMqqgbFksgqjsCzsFLwBeWcGulQ5UilR10UaoZE55kqQm8d-7u/UxBQY2Pr3vfZTbG9AGVCEoZVODFqXmOwnh-G23/tth9p5m",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"select\":{\"launch_config\":true,\"assistant_bot_info\":true,\"landing_config\":true,\"user_info\":true}}",
+  "bound": {
+   "query": [
+    46,
+    195,
+    16
+   ],
+   "body": [
+    181,
+    124,
+    156
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/profile/self_brief",
+  "a_bogus": "OXsfDt6JmZ5bcdMSYccIeaeR1yclNsWyJPToSjBR71cJy7lG2ip9GbhrjNqy4hoSN8k0qq17lDKlbDEPq851VZrkzmpkuzhWh8oAIW0ohqqgbFJsgNjwCzmzwwBFW5Gua/VJi1WX0UaH1dO5hNQY8d5HF/ln-QR2FN3tfMTbn9WYVWEoNVO8FK6QNwnXB-I3QzGs9p-9",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    46,
+    195,
+    16
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/profile/self",
+  "a_bogus": "E6sfgH67OxRjeVFt8Ocneca5AyOMNTWyJaToSjQRHqOEyHeGo7pCGCYrbNiy4Z2SpWksqFI7ADuAYxdcqR3r-M9pLmkku/hfwmoVI68ogqqXY0isEqbhCwsFLwBe8bTuaQVXi1W18Uao1d55wHd88B-7F/ln-QR2Pr3tfZubb9WGdAEoN2x8FqfQNwj6B493QThpyN5U",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": null,
+  "bound": {
+   "query": [
+    46,
+    195,
+    16
+   ],
+   "body": [
+    18,
+    3,
+    121
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/basic/launch",
+  "a_bogus": "dvsjkzU7YdAbFdFSuKn9era51yR/rP8y7aidSG/5yqYEL1eGxipAGbkJGNww4h2SqRskqq3HWDKMYDEPpWV-V/9kFmkvu876iWKcIU8ogqw6bFvsLrjTCwmzqwBK8b4ua5VUilUXZUGq1Ec5wrdL8QAHK/lx-Yb2MH-7fZTcG9AYVCfoNdxgFKvmTwngB-23/z0Z7NRO",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    46,
+    195,
+    16
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/im/launch",
+  "a_bogus": "YJUVgH7iYdWjPVMtmOncere51yQlNsWy7aidSGB5SqOJy7eG2wBcGjzrcONy4q9SqRkTqoV7IDu9YDVaN8V5R29kwmkkuuwRiWoVI68L8qq6bzvsDrjiCuszuwsK85Tu-/VUiAW1gUG91xQ5hqQY8QAHu/UxBYm2Pr-UfMTcb9WYdWEoZ2OmFKvQiwng-ao3KzskyNR2",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"im_config\":true}",
+  "bound": {
+   "query": [
+    46,
+    195,
+    16
+   ],
+   "body": [
+    59,
+    78,
+    137
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/samantha/skill/recommend",
+  "a_bogus": "Yy05kH6JmoAjad/GmOcneceRD9b/rPSyvPiQSGBRCqYjyXMGd7p5GGYrrOqLsq9SNWsiqK171Dz/YEnaqRVrfMnkFmkvSKXWhmKAIX0oMqq6bFisLNjwCLszzwsC85Tul5VJiIW1ZUGH1xO5iHdg8d57o/Ur-Qm2Pr-GfZzbc9AYdAEoq2OgFovQEwjg-G23QTkw7NRT",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"omit_sidebar\":true,\"omit_image\":true,\"omit_music\":true,\"omit_write\":true,\"omit_search\":true}",
+  "bound": {
+   "query": [
+    46,
+    195,
+    16
+   ],
+   "body": [
+    83,
+    111,
+    136
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus": "m7UfD7WwYoRnCV/Gmcn5ece5D9OlrsWyXFixSbBRtqYjy1eGowpCGbhJbNw7sw2SZWskqqIH6DuMYEjPZW5aVZHpomkvSTXjkWoCIX0o8qqhYFvsgqjhCLmzKwBF8bGu-/VXilR1gUGqZEO5iqdL8B-Ho/ln-mm2Pr3vfMYcr9ATVAjoqVxgFKvQYwjX-a93Otsh9NRr",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    46,
+    195,
+    16
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "Yv45DqyjQ28fedKSuOcnencRm95ArTuyXaidSGQ5eqYEy1eGxJBnGbhrrNqyshoSZWkwqF17lDuMYdDPZR53V/9pKmkvuBhyhRKcIXsLgqwXbMksErjzCL8FwwBKWRTueA5GiARXhUGqZdc5irQ88pA7q/Ux-Ym2Fq3tf/Ycb9WYVCDoqVx8FF6mEwnh-aI3K4wByr5i",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    46,
+    195,
+    16
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "EJ0jkw67YZQbPd/SuKn9erC5s2RlrPWyXFidSbB5HqOiLXFG2JBCGGDrjNwwsZ2SZWkwqFI76DuAbxjPp8VHV2rpumpDSTJbw8oAIWsLhqqgbFisgHjsCz0zzwsC85TulA54iI4XhUa9ZEO5wrQm8pAHF/lN-Om2FN3Jf/Ycj9WGVSfoNVxLFqXQTwngB493/0zd7r-P",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    46,
+    195,
+    16
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus": "xysVhFUEDpmRad/S8OcVeClRgu/lNBSycMTdbqVRtouIy70GywBn4OtrGPiysZ2Sqmkkqo371DzfbEEcq84c-M9pFmkvum4WwRoCIUfLZqqgb0JsLNbhCusFzwBC8bTuaA5Ui1W1gUaq1Ec5iNQY8dlHo/lrBQb2Pq-7f/zcJ9AYVCDoqVxmFqvmOwjg-G93Kulpyj==",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"bot_id\":\"7339470689562525703\",\"skip_cache\":true,\"scene\":4,\"sug_layout\":\"direct_above_input\"}",
+  "bound": {
+   "query": [
+    136,
+    252,
+    103
+   ],
+   "body": [
+    220,
+    130,
+    189
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus": "mXsjD7Ujdq/nCd/SmKn5eHoRQAWlrsWyeMiQbLZ5yAS4LX0T3Xp54zRJaPwLsw9SZmskqo37ADFsYDfOZm5N4MnpFmkfusUbwmoAIWsoMqwgYFvsgqb0CLszqwBe854ua/5JilRX0UG9Zx55hNdE8pl7K/UNBOm2FN37fMTbc9ATVCDoNVOYFFvQTwn6B-93Q4zT7r5J",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"language_code\":\"en\",\"bot_id\":\"7339470689562525703\",\"item_ids\":[\"1064442771335185\",\"1064442771335697\",\"1064442771335441\",\"1064442771336209\",\"1064442771335953\"]}",
+  "bound": {
+   "query": [
+    150,
+    248,
+    195
+   ],
+   "body": [
+    196,
+    91,
+    212
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/user/launch",
+  "a_bogus": "d6UVgw67QdQfKdFtYKnVeJ55XtbMNB8yaMiKbwpR7KK4yHUT8wBcUJtJJPqy4wISNmksqo1HlDubYEjaZm5Ef/HkFmkkuzXWkmonI60L0qwgYzksEqbTCLmzLwBF8R4ue554i1412UGo1Dc5irdL8QlHF/UNBYb2FN3tf/Tcj9AGVCjoqdOmFFvmYwn6BG23KtGT9p5P",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"select\":{\"launch_config\":true,\"assistant_bot_info\":true,\"landing_config\":true,\"user_info\":true}}",
+  "bound": {
+   "query": [
+    150,
+    248,
+    195
+   ],
+   "body": [
+    181,
+    124,
+    156
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/profile/self_brief",
+  "a_bogus": "Yy0jD77JQdmfcVKGuCc9ejA5lUQlNTSya-TxbLp5yKKRL7UTmipcUGgJjNqLshoSqWk0qo376Du/bdEPpW5HV2npumkkSKUWwmKCIU0L8qwXbMisgrbkCu0FwwsFW5Tul/5tilUXgUa91xQ5kHQg8Q57F/UnBmY2FH-Gf/ucJ9ATdAfoZIxmFo6QTwnX-G23OzkFyN-0",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    150,
+    248,
+    195
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/profile/self",
+  "a_bogus": "EX4Rh7yyxo85FVKSmOnCeJARseOANTSyeMi2bwZ5eACRLXUTm7BcU9YrJNiLsq9SZRkhqoV7lDK/YDxcpm-3-M9pFmpkuskjwWo9IU0L0qqXbFvsDrbiCusFowsCWRsueQ5XilWX0UG91dO5wrdu8d-7K/Ur-Om2Pr3GfZucn9AbdSfoZdODFKfmiwjh-aI3Qtks9N5u",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": null,
+  "bound": {
+   "query": [
+    150,
+    248,
+    195
+   ],
+   "body": [
+    18,
+    3,
+    121
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/basic/launch",
+  "a_bogus": "Yf4nDHWymqQ5FdFb8KcIejARmeR/NTSye-iQbz2ReKK4L7zTYwpnUJDJjNw74hoSNWs0qoVHIDK/bxDPNRVaV2HpwmpfST7yk8KCIX8L0qq6Y0JsEqbTCw0FFwsKWR4u-5VviIWXZUGHZdc5wrQY8p57w/lx-OY2Bq3vf2Ybc9AbdAEoNdOmFK6Qiwj6BaI3KUwpyr4O",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    150,
+    248,
+    195
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/im/launch",
+  "a_bogus": "D64VgttyxxWnOVKt8KnneG5RQMQlNsSyelT2bLpR7KKmLHtTuwBnUGYraOi74Z9SN8s0qKIH6DuoYxxaq859RZ9pqmpvuBkSwWoCIWsLhqqXbMJsLNj0CumzFwse8Rsul5V4iIWX/Uaq1dc5wqdg8d57z/UN-Om2Fq-Gf/TbG9WYdSfoZ2OLFK6mOwjgBao3/Ui8yr5p",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"im_config\":true}",
+  "bound": {
+   "query": [
+    150,
+    248,
+    195
+   ],
+   "body": [
+    59,
+    78,
+    137
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/samantha/skill/recommend",
+  "a_bogus": "xXsRD7XJmp8cFd/G8CcCeGlR2lOlNsWyllTdbwZRSKKRL70TYJBCUJzrGOwwsqISqWkzqq3H1DzlbdnaZW5-fMnpKmpDuOzykWonIXsL2qw6Y0JsLNbhCu0zFwBFW5su-A54ilRXMUaqZEO5krQY8pAHz/ln-YR2Br3Xf2zbJ9WTdAjoqIOLFq6mEwngBa23/Uip7r-T",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"omit_sidebar\":true,\"omit_image\":true,\"omit_music\":true,\"omit_write\":true,\"omit_search\":true}",
+  "bound": {
+   "query": [
+    150,
+    248,
+    195
+   ],
+   "body": [
+    83,
+    111,
+    136
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus": "dy0RgHXLQd8ncdKtmccCeGlRglRlrBWy--ixbuZ5yKu4L1tTYJBVUbgrjNq7swoSZRskqFV7IDKAYdjPZ85aV/HpqmpkumtbkRKAIU0o2qwgYFvsErb0CzszzwsCWbsuaQV4iARX/UaH1E55hqdD8pA7z/ln-OR2Bq3UfZYbc9WGdAEoNdx8FFXmEwj6-a23KUwwy3-I",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    150,
+    248,
+    195
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "Q7snD77JYxQbPd/b8OnCeb-5glmlNTWyl-i2bwZRSKu4yH0TYwpIUGkrbNwL4h2SqWskqoI7UDK/YDfPpWVeV2HkumkDuO0SimK9IUmLhqqXY0JsEHbsCu0zKwBeWc4ueQ54il4X/UaHZdO5iqQE8Ql7q/lr-QR2MH37f/uba9WTVSEoZIxDFFvmTwnhB4I3QUwi735N",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    150,
+    248,
+    195
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "m6sVhtyiYd5fPd/SYKnceG-5dtY/NBuya-i/bwdRyKKmLH0T8JBcUbhrbNwy4wISqmsiqqI7XDuMbdEPNmVlVM9kumkkuB7fwWKcIWsLhqwXYzksLrj0Cu8zzwsK85Tu-/5tilRXgUG91dc5irQu8QAHq/UNBmR2FN-JfZzbG9WTVCDop2xLFq6mTwn6-423/UTTy34U",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    150,
+    248,
+    195
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus": "QfUfDFWiEpmfOd/tuKnIeJORKtc/rsuytPTObcBR9oPuy1tTBwBcUrGVjPNwsqVWpmskqKI7XDFfYDEcZRv9-ZHkzmpfSihWwRo9I60LMqw6YMvsEHbhCzsFFwsFWcGulAVGi1R1/UGo1DO5kNQ88dlHo/lN-Om2Bq37fZYbc9WYVSfoqIx8FofmPwn6--o3KGTk7N4Z",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"bot_id\":\"7339470689562525703\",\"skip_cache\":true,\"scene\":4,\"sug_layout\":\"direct_above_input\"}",
+  "bound": {
+   "query": [
+    242,
+    243,
+    32
+   ],
+   "body": [
+    220,
+    130,
+    189
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus": "E60nkqXjDp5cKdKbmCc9ejN5u0QlrTWy2aTdRJO5yKKzLHtYBhpCUSWVGPqy4ZxWp8s0qoV71DzsbxDOZm5p4/rkLmkDuDvWiWK9IXmL0qw6b0ksENb0CLmzFwBC8bGulQ5GiI41hUa91x55kHQg8d-7F/lN-OY2MN-JfMYbr9WTVWDoZIOuFFvQiwn6-G23QtT8ypRX",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"language_code\":\"en\",\"bot_id\":\"7339470689562525703\",\"item_ids\":[\"1064442771335185\",\"1064442771335697\",\"1064442771335441\",\"1064442771336209\",\"1064442771335953\"]}",
+  "bound": {
+   "query": [
+    179,
+    31,
+    137
+   ],
+   "body": [
+    196,
+    91,
+    212
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/user/launch",
+  "a_bogus": "DysVhHt7O2QcOdKGuOcIeJC5LKmlNPWyxai2RbO5eKKty7zYQipn4jtVbPqL4wxWp8ssqo1HXDuGbxjap85gfZnpKmkDudsSk8K9I6foMqi6YFksgNjTCumFKwsKW5Gua/57ilWX8UaH1DO5hrQg8d-7L/lr-Qm2Br3tfZucG9WYdWEoN2OEFofmOwn6B4238t7bHQR=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"select\":{\"launch_config\":true,\"assistant_bot_info\":true,\"landing_config\":true,\"user_info\":true}}",
+  "bound": {
+   "query": [
+    179,
+    31,
+    137
+   ],
+   "body": [
+    181,
+    124,
+    156
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "E74RktyiQd8ccdKSuOnCejeRV8mMrBSy2eTQRbPR7KKuy1zYO7pc4jDVcNqw4qdWqmk0qo1HIDK/bdfPqRVeVZnkompfuMJWkWo5I6mogqqXbzJsLrjzCL8FwwBe8RTu-/VviI41/UGoZd55kNdD8BlHu/UN-Qb2PH-4fMzbb9WTVAjoN2xDFqfQxwngBGo3/GGL9p5b",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    179,
+    31,
+    137
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/im/launch",
+  "a_bogus": "EvsVgw7JYx8jKdFSYOnIebCRlK5MNsSyxaToRJKR7KKSL1tY/ipI4jYfnOiwsqVWqRkwqKIHlDKoYDxaqmVcR2HkLmpDSK4bh8oII6mL0qqgb0isEHbhCzsFwwBe85GuaAVJilW18Uao1xc5hNQL8pl7q/lN-Ob2Fq3vfMYba9WYdWEoNdxLFKvmEwjXBaI3OtJ/7N-n",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"im_config\":true}",
+  "bound": {
+   "query": [
+    179,
+    31,
+    137
+   ],
+   "body": [
+    59,
+    78,
+    137
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/basic/launch",
+  "a_bogus": "YX4VgwXLdpWcedKbYcn5eGcRX/blrP8y2eT/RGK5tASuyX0YO7pC4bDfjNqyswxWZ8kiqK3HIDuMYEEPqWVlV2nkwmkkS8kjhRoIIU8o2qqXbMisEqjsCLsFFwBF85Tu-/5ti1R1hUaqZx55wHdu8pAHq/lx-Ob2BN-7f2ubn9WGVCfoZ2OgFFvQPwjXBaI3QGGgyN4I",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    179,
+    31,
+    137
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/profile/self_brief",
+  "a_bogus": "m60RD7UEQq5bFdKbuOn9eje5R/OArT8y2ei/RGO5eKuzL7zY/7B94GgfjNqw4wdWqmk0qFI76DuAbEfPNm53VZrkFmpDSFiywWo9IXsL0qw6Y0JsErjTCLmzzwBCWc4ue/Vti1W1gUGH1E55kNdY8QA7q/UNBOm2BN-4fZYbc9AbVCEoNVO8FofQxwj6--I3QtTg9p-9",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    179,
+    31,
+    137
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/profile/self",
+  "a_bogus": "DfUfk7yEQ285KV/tYCnCebe5-KQ/rsSydPT2RJOR9KuzL70YKJBn4CTfjNNw4ZdWZWshqoVH1Du/bDdcN83--MrkKmkvSz4ShWoAIW0L0qqXYMJsLHjzCz0zLwsF8c4ulQ5GilWX/Ua91dQ5kHQD8d57K/lr-Ym2Mr3JfZTcb9ATVCDoZ2OuFFXmEwj6-G23/t7Y7N5l",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": null,
+  "bound": {
+   "query": [
+    179,
+    31,
+    137
+   ],
+   "body": [
+    18,
+    3,
+    121
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus": "Ev4fhw7jx2AVKdKtYcnIeGCRvSY/NsSyoPTQRbO57KutLX0YOiBC4jkVGNqyswdWpWssqF3H1DKlbDDPpR51VMrpLmpkuzwfkWKVI6sL0qw6YzisgrbkCzmFqwBK8csulA5Ui141hUaHZD55kqQD8pAHo/lx-mY2Fq3tf2zbr9WTdCfopIOEFoXQPwn6B4o3Oz7Z7p4n",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    179,
+    31,
+    137
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/samantha/skill/recommend",
+  "a_bogus": "Q70Vg7SJOx5bCdKSYCn5eGCR1/mMNTSydFTKRjPRtKuuLXUYQwBA4bzfGOw74hVWZ8s0qFIH6DzAYEVaq8VHf29pumpkuukSkRonIUmogqwXY0ksDHjsCumFFwseWRTua/54ilUX0UGo1x55hNdu8Q5HL/lxBYb2PN-Xf/ucj9WTVSjoN2OEFq6Qxwjh-423Qt7dyp4t",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"omit_sidebar\":true,\"omit_image\":true,\"omit_music\":true,\"omit_write\":true,\"omit_search\":true}",
+  "bound": {
+   "query": [
+    179,
+    31,
+    137
+   ],
+   "body": [
+    83,
+    111,
+    136
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "mJsnDqtLDd5nOd/tuKcVebcRvWR/NBSydPTKRbORyKuSL7tYQiBC4bgfcNwL4hnWNRkiqFI7ADKAbdDPpR5lVM9pzmpvuMtRi8oAI6mL2qqhb0JsgrbwCLmzqwBKW5Tu-A5til41gUGo1D55wrdL8QAHL/UxBmb2Fq3tf/Ycj9AbVSjoqVxEFFXQPwn6B-o3/tGFyp5J",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    179,
+    31,
+    137
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus": "m6UnDtS7OxWnPVMtmCnAen/RgKClNTWyn-idWHa5Cqz6yHMYkiBC4PSVJPiysZdWpWkiqK171DzDbDjcNR4C-Z9pumpDSQGji8KAIUso8qwXYFvsLqbkCw0FuwseWbTu-5VXi1R1/UG9ZD55wNQE8pl7o/lx-mb2PN3Gf/zcb9WGVCfoNdxLFKvmTwng-a23O0ioyr4H",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"bot_id\":\"7339470689562525703\",\"skip_cache\":true,\"scene\":4,\"sug_layout\":\"direct_above_input\"}",
+  "bound": {
+   "query": [
+    91,
+    77,
+    125
+   ],
+   "body": [
+    220,
+    130,
+    189
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus": "QvsnDzSiDNWVOdFtYCcVetp59Hu/NBSy0BToSJa5eFTrLXUbUhB9twWvrPFyshCWq8khqo1HXDz4YdDOqR5P4/rkompvugwjiWo9IXfohqNgYFksErb0CwmFKwBK85sue557i1U1hUGq1xc5wrQ88p-7q/lNBmb2FN-4f/ucn9WTdWfopIOuFFvQTwnX-4I3QsT6H5j=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"language_code\":\"en\",\"bot_id\":\"7339470689562525703\",\"item_ids\":[\"1064442771335185\",\"1064442771335697\",\"1064442771335441\",\"1064442771336209\",\"1064442771335953\"]}",
+  "bound": {
+   "query": [
+    237,
+    161,
+    156
+   ],
+   "body": [
+    196,
+    91,
+    212
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus": "m60nDHWEEq55FdFG8OnAey2RKZWArPuy0-TxSJCRCFPnyH0bUXpAtNbvrPTy4wKWq8kwqq37lDFvbEDcpWv9-MHpKmkkuEkbiRKVIUvL0qNhYFvsDNb0CL0FFwBC8RTueAVUilWX/UG91xc5iHQL8B57w/lrBOY2BH34fMYca9WGdCEoqIxDFo6mTwnX-ao3YttbHFm=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"bot_id\":\"7339470689562525703\",\"skip_cache\":true,\"scene\":4,\"sug_layout\":\"direct_above_input\"}",
+  "bound": {
+   "query": [
+    237,
+    161,
+    156
+   ],
+   "body": [
+    220,
+    130,
+    189
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "d6UnD76Jmq85cd/SuKc9eS-R-ZmMrB8yQaT/RKF5SFFWyXlYWipItGkvJNzL4hCWZmssqKIHIDKMbdfPp85rV2nkumkkuFJShmoIIUmL0qqgbFvsgHjwCumFwwBCWbsua/VJiI4XZUGq1dO5hNQm8pl7o/lrBQY2Bq-vfZucc9WTVCDopVOuFovQNwn6-ao3OT7Q7N-N",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    83,
+    62,
+    249
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus": "OXsVk7SLOoRRFV/SmOcceyA5V15lNTSyQFiQRFFRCFF0y7MYW7BVtGkvGNzw4w/WqmkzqFVHIDuAYdfPN8VeVMrkFmpkSzUbkmoVIX0L/qw6YzJsDHjzCusFKwBF8c4ueA5Ji1UX8UGq1dQ5iqdY8p5Hu/UxBYb2Mr-Xf2ubb9WYdSDop2xgFK6mYwng-4I3/TtwyNRy",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    83,
+    62,
+    249
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/samantha/skill/recommend",
+  "a_bogus": "DysRD76EOdWnFdKb8Kn5etl551OMrsuyQPTxRqP5eFz8LHeYRiBntJY3nOF7shAWpRsTqqV71DFMYxdaNW5afMHpumpvS00yiWoCIW0o/qqXYzksDrjsCwsFLwsF8bTu-AVtilW1hUGo1DQ5wHdY8p-7u/lxBmY2Fr-GfMTca9WGdCfoNVOuFo6mxwngB-23QTiZ7pRW",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"omit_sidebar\":true,\"omit_image\":true,\"omit_music\":true,\"omit_write\":true,\"omit_search\":true}",
+  "bound": {
+   "query": [
+    83,
+    62,
+    249
+   ],
+   "body": [
+    83,
+    111,
+    136
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/im/launch",
+  "a_bogus": "Ej45DqyJYNWRPV/t8CcIetlR3qc/NTuy/eToRKKRCFzWLXFYS7p5tjYvnOTyshCWZ8ssqoIHWDKHYxVaZ85nRMHpLmpvu0sjwRonIWmo8qq6bMJsgNbTCLsFwwsKWRsulA5UiAUX/Uao1dO5wNdE8d57o/Ux-Om2BH-tf/Tcn9WTVWDop2xDFq6mTwngB4I3QGiKyp4p",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"im_config\":true}",
+  "bound": {
+   "query": [
+    83,
+    62,
+    249
+   ],
+   "body": [
+    59,
+    78,
+    137
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/user/launch",
+  "a_bogus": "Dv0RgqUidomfedFbmOcceSl5xhRMrB8yKaioRFF5CFzWy1MYRJBAtJSvjPFyshCWZ8szqqVH6DKGYEfaNmVYfZHpFmpkukJRwmKAIUsL2qwgbFksDNbsCzmFzwBCW5GuaQVviIRXZUaoZDO5hrdu8Q-Ho/UN-YY2PN-Gf2Tbn9WbVCjoZdOEFqXmTwjhBa23KTTuyN44",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"select\":{\"launch_config\":true,\"assistant_bot_info\":true,\"landing_config\":true,\"user_info\":true}}",
+  "bound": {
+   "query": [
+    83,
+    62,
+    249
+   ],
+   "body": [
+    181,
+    124,
+    156
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/profile/self_brief",
+  "a_bogus": "E74RgtW7OxRbcVMtYcn9e7-RK7OArsSyOFToRoKR7Fz8LXeYSiB9tbhvnNzysqAWq8k0qqV7XDKlYxfPZR5HV/9pLmkfudwfw8KCIWsLZqw6YFksgHjiCw8FuwBeWc4ua/5GiIW1/UGHZE55hNQY8dlHF/UrBQb2FH3tf/TcJ9WTVSEoN2OuFFvmEwjX-Go3/Tii9N-W",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    83,
+    62,
+    249
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/basic/launch",
+  "a_bogus": "df05gzWyYq8RPdKbmCnCeSA5o7mlNP8yOaTQRKKRtFF0L1FYR7p5tGDvnNF74qKWpWk0qqIHIDuAYDjPZ8VlVZHkomkfuxhRkWKcIU0LMqqgbFJsDHjkCwszFwsC8csuaAVXi1410UGHZEc5hqdD8BAHK/Ur-mR2Fr-Xf2ubc9AGdWEopIODFF6QYwnXBaI3/Gwq7p5Y",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    83,
+    62,
+    249
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/profile/self",
+  "a_bogus": "Oy0fh7WjdxmVCd/GYCnIey5Rz75lrsSy/PT/RqFRSFz0yXlYRiBVtCuvGNTLshCWpRkiqo37UDKAYDdcq831-29kompDuDX6hWK9IX0LZqwgYzvsgrbTCz8zowBe85sulQ5tiAUX2UG9Zdc5hHQu8Ql7K/UN-mm2Pr37f2zcj9WYdWfoZVOYFqfQTwn6-a23/tzFypR6",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": null,
+  "bound": {
+   "query": [
+    83,
+    62,
+    249
+   ],
+   "body": [
+    18,
+    3,
+    121
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "xJ4VgtUiY2mfCdKGuKcIeS-5AZb/Nsuy/aToRqOR9FFWLHFYbJpItbDvnNFy4hAWNRsiqKV7ADKlbdfPN8V-V/HkzmkDSKkjwWKVIUsL0qwXYFvsgrbkCu8FFwBFWcGu-/V7iIUXMUGqZE55iNd88d-7L/lr-mb2FH-UfZucj9AYdCDoqdOgFKXQxwjXBG93QtJmyN57",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    83,
+    62,
+    249
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus": "Yf05D7SyO2Q5Fd/SYOnce995sISArTSyuMTdbyV5HAb4LXeTVhpAGxbvGPT7sZKWZWkhqF3HWDFvbEEcq84A-ZnpumpvuBTjhmoIIUsoMqwXb0ksDNj0CLmFwwsFWbGu-/VXiAU1hUaHZx55wNQu8B-7L/Ux-Ym2Bq-4fZubr9WbVAjopIOgFovmPwj6B4I3QGkZ7N4p",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"bot_id\":\"7339470689562525703\",\"skip_cache\":true,\"scene\":4,\"sug_layout\":\"direct_above_input\"}",
+  "bound": {
+   "query": [
+    22,
+    181,
+    198
+   ],
+   "body": [
+    220,
+    130,
+    189
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/user/launch",
+  "a_bogus": "dy0nDtWyEoAbKdKSmKnnej2RO7Q/rs8yLeTQRo55CFzfyXUGzXBAtJGvnPF74h/WpRszqq1HXDKGYdEaZRVuf29kwmkDuNwRw8K9IX0o8qwXbMksEqbkCusFqwBFWR4ul557il412UG9ZxO5kHQu8pAHL/UN-mm2Br3tf2ucn9WGdWDoZIOEFFfmNwn6B-93QTThyNR9",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"select\":{\"launch_config\":true,\"assistant_bot_info\":true,\"landing_config\":true,\"user_info\":true}}",
+  "bound": {
+   "query": [
+    206,
+    22,
+    245
+   ],
+   "body": [
+    181,
+    124,
+    156
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/profile/self_brief",
+  "a_bogus": "x6snke6LQoAjKd/t8cnVeJd5qXO/NPWyDPiQRqlRtFzkyHtG0hpctJgvbNFy4hCWZRs0qK17XDKMYEjPqW51V2npKmkvSEU6hRK9I60Lhqw6bFisLHjsCz0FFwsFW5TuaQ54i1U1gUGH1x55hrdY8plHK/UnBYm2Bq3tfZuba9WGVADoZVOmFofmOwn6B493KGzhypRQ",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    206,
+    22,
+    245
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "Qy4RkqWLmo/cFdMGYOn9ebp547clNPSyLFTxRKA5Hltfy1zG0kpCtjkvcNFysqKWZmkwqqV7UDKlbEEPp85eVZ9pqmpfSu7ShWoCIW8LhqqhYMksDNbkCw0FKwBF8R4ulAV7iAW1/UGo1x55iqQg8B-HL/UxBOY2BH3XfZzcj9WYVAfopdxDFFfmiwjhBG23KztNyp-7",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    206,
+    22,
+    245
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/samantha/skill/recommend",
+  "a_bogus": "xv4VktWLDZQ5Fd/t8CcVeJ2R1Zc/rT8yDFiKRKAR9FzDy7zGTvp9tju3nOFy4w/WNWksqqVHADF/bEdaN85lf/rkompfSukjimoAI68L/qqgYMksErbwCz8FFwBe8b4uaAVJilUXhUGo1xO5kNQu8pl7L/Ur-OY2Mr3Xf/ubJ9AYdSfoqIxLFq6QNwnX-G93OGJ8yN4G",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"omit_sidebar\":true,\"omit_image\":true,\"omit_music\":true,\"omit_write\":true,\"omit_search\":true}",
+  "bound": {
+   "query": [
+    206,
+    22,
+    245
+   ],
+   "body": [
+    83,
+    111,
+    136
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/im/launch",
+  "a_bogus": "YJ0RgzUjxN5RKdFb8KnneJZ5Vqm/NPSyDaTdRF5ReFzfy70GsXBAtjY3jOTLshCWZRkwqqVHWDK9bdxaqR5nRZnkqmkfuFGSk8KAI68o2qqhbMJsDrbsCL0zqwsCWcsulA5UiIU1/UaoZEO5iHdg8B-7o/lrBmR2Br-7f2zcj9WGVWfoNIOEFFfmPwj6--93Kt787N-E",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"im_config\":true}",
+  "bound": {
+   "query": [
+    206,
+    22,
+    245
+   ],
+   "body": [
+    59,
+    78,
+    137
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/basic/launch",
+  "a_bogus": "YJ0Vke6imp85OVKbYCcAeG2R3qOMNTuyDeTORqA5eFzfy70G0XBctGhvbNFwsZCWpWshqF3HXDu/bxDPZWV3VM9kzmkfuz4ywWo9IXmoMqqgY0ksgqjwCwsFwwBe8RsueQVti141MUGq1xO5hNdL8p57q/Un-OY2BN3UfMYbJ9AGdCEoNIO8Fo6QNwng--o3Qti/7p-w",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    206,
+    22,
+    245
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus": "Yj4VkeSyQqWbPVKGucc5ej25U15Ars8yLFioRq5R7FzfL7zGTkBntGk3rNFw4hKWpmswqF1HWDKAbDjPNW5aV/9kFmpfu/tbwRKVIUmoMqwhb0JsEqj0Cw8zuwsFWRGua/5GilWX2Uao1E55iqdD8d-Hz/UnBmm2FH-7fZYcG9WTdCDoZVx8FKXQPwnhB-o3/GJP7N5v",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    206,
+    22,
+    245
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/profile/self",
+  "a_bogus": "Dy4VDw6jOqAbOdFS8KcnebZ5owQlNB8yEeidRK5RyFFDy1UG0XBAtHu3nNPy4ZAWpmkTqFV7UDKlbDxcp8-a-2rpzmpkuETWh8KcIUmogqqXY0ksDHbTCuszFwBe8cGu-A57i1U18UaHZDQ5krQg8d57F/UnBYb2Pq-Uf/Tbn9WbVAEoqdxgFoXQTwjgB423KTwm9p-N",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": null,
+  "bound": {
+   "query": [
+    206,
+    22,
+    245
+   ],
+   "body": [
+    18,
+    3,
+    121
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "dJU5D7yjYxQfKd/bmccceGZ5R7R/NBuyEeidRFA5eFFvy1tG0vBAtGDvbNz74ZAWq8k0qoI76DKlbdDPZm5HV/npFmpvuM76k8oVIWsoZqwgbFvsgqbkCwmFqwse8b4ua/5Gi1U1ZUGq1D55wHQ88p5Hu/lr-YR2Bq3JfZzbb9AGVAEopVxuFq6QOwnh-493OTGwypR=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    206,
+    22,
+    245
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus": "QX45kqyyQoWjFV/bYKn9eG25AhR/NTWyLai2RF-RtFzfyXzGsvpnttUvcPzy4hAWpWkkqqV7IDzsbxEOp85B4ZnkFmpfSuJRkmKVI6sohqwhbMJsLrjzCw8Fowse85su-55Gi141MUG91dO5iqQ88dlHq/UN-Ym2Mr34fMYbn9ATdSDoZVxgFKfmYwj6Ba93OTk8yN5z",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"language_code\":\"en\",\"bot_id\":\"7339470689562525703\",\"item_ids\":[\"1064442771335185\",\"1064442771335697\",\"1064442771335441\",\"1064442771336209\",\"1064442771335953\"]}",
+  "bound": {
+   "query": [
+    206,
+    22,
+    245
+   ],
+   "body": [
+    196,
+    91,
+    212
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/passport/token/beat/web/",
+  "a_bogus": "mv4nkty7OZWVPVFSYOnCeb-RX6O/rPSyOFTxRn1R7qTOLXUYmwBnGab3jxFy4qAWqWkTqoIHXDFMbxxcpm4w32nkqmkDS8t6w8ocIW8o2qqgYzksLqjsCzszFwsC85Tu-AVJiAW1ZUaq1dc5hNdY8pAHo/UrBOR2PH-4fZYcc9AGdAjop2xYFqXmEwjh-4I3Qz0s7N5H",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "",
+  "bound": {
+   "query": [
+    245,
+    63,
+    54
+   ],
+   "body": [
+    82,
+    177,
+    44
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus": "E60RkFX7Od8RPVKSmOc5eaARde5MNTuyM-TKWYORtAbvy7eYEiBCUrSEjPTyso5SqmkwqoIHUDzfYEEcqWv9-MrkKmkDuBJykmoVIXmLhqwgbzvsLNjhCu8FowsK8csulA57iIR1ZUao1xO5krQY8Ql7w/UrBYR2Fr-vf/zcn9WGdSDoNIOLFqXQEwjg-aI3Q0zpyr5L",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"bot_id\":\"7339470689562525703\",\"skip_cache\":true,\"scene\":4,\"sug_layout\":\"direct_above_input\"}",
+  "bound": {
+   "query": [
+    31,
+    40,
+    136
+   ],
+   "body": [
+    220,
+    130,
+    189
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus": "O70jk77wQd8fCdFSmcccerrRItcMrsSyFBiOWiPRSKOfLHlYxvpVUSRxbPz7sLcSpRkwqoV76DFsbDDOqWVN4/rpzmkfuMXWhmKcI68Lhqqhb0isLqj0Cw0zLwBeWR4ue5Vvi1U1gUaH1Ec5irdE8Q-7L/UN-YY2Mr-GfZTbb9ATVWjopdOEFFXQTwn6BG93KtGi9pRe",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"language_code\":\"en\",\"bot_id\":\"7339470689562525703\",\"item_ids\":[\"1064442771335185\",\"1064442771335697\",\"1064442771335441\",\"1064442771336209\",\"1064442771335953\"]}",
+  "bound": {
+   "query": [
+    31,
+    40,
+    136
+   ],
+   "body": [
+    196,
+    91,
+    212
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/user/launch",
+  "a_bogus": "DjUfkzXyYZ8cKVFG8CitSXq5BwW/NsSyUaiKRt/5eoPmL7FGevpVtibwrPLLs99YqRshqK17GdYbbnfaZ85Df2npFmpDST4RiRo9IXso2qqgYFisgHjkCwszKwsF85Tul55tiIWX0UG9ZEc5kqQE8d57q/lr-Qm2Br3Jf2ubn9AYVCjoZ2xuFK6mYwnh-423K4i/73-n",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"select\":{\"launch_config\":true,\"assistant_bot_info\":true,\"landing_config\":true,\"user_info\":true}}",
+  "bound": {
+   "query": [
+    70,
+    115,
+    64
+   ],
+   "body": [
+    181,
+    124,
+    156
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/profile/self_brief",
+  "a_bogus": "mf0fD7ywmd8fKdMSYKTvSXo5eZbMrBSyUPT/R7/RCoTsy7eGehB5tJgqJNLLsI9YNmkkqoI7bdYMYnjPZ85-V29kLmpvuoijk8oCIUfogqiXbFisEHbkCu0zzwsFW5sua55tiAWX/Uaq1x55hqQY8QlHu/lNBOR2PN3Gf/Ybj9WTdADoNIxgFoXQNwn6Ba93/UzbH3g=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    70,
+    115,
+    64
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/profile/self",
+  "a_bogus": "dy4VhetJE2WcPVFbuCi4SWN5eqmlNT8y4PiOR7QRHoTRyXlGavBcteYqjNEL49oYpmkiqKI7adOMbjVcpm-r-/npzmpkugTSi8KIIXvogqigYMvsEHjTCwmzqwBF8cGu-/5UilW12UaHZEQ5iNQg8Bl7z/lNBQR2FN-vfMYbG9WTVSDoq2xgFF6mOwngBao3KszbHmb=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": null,
+  "bound": {
+   "query": [
+    70,
+    115,
+    64
+   ],
+   "body": [
+    18,
+    3,
+    121
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/basic/launch",
+  "a_bogus": "Y64jD7WwdpmbKVMt8ciUS6N5rXblNPWytaToRyM5toTRy1lGeXp5tGkwjNo7s62YqWkiqqV7rdY/YVEPNmVaV/9kqmkkuq0fhRK9I6fL2qiXYzvsENbiCL0zFwBCW5sueQVGilRXgUGqZDQ5hqQE8p57K/Ur-Ym2BN3vf2Ycj9WYVADopdOgFq6mxwjh-4I3/UGWHdE=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    70,
+    115,
+    64
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/im/launch",
+  "a_bogus": "QysVht7jQpR5CdMtYKitSWx5nhYANs8yUeT2RtQ59oTRL7FGlXpntbuwrOxw4IoYpRshqqIHbdYqbnVapmVIR/rkFmkkuhv6wRoAI6fLgqNgYFisENjTCwszzwBK85sueAVviI4XhUGo1xQ5wrQY8B5Hz/UrBQm2Br3vf2YbG9WYdSEoNdxEFKfQOwnh-a93FGzWH-E=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"im_config\":true}",
+  "bound": {
+   "query": [
+    70,
+    115,
+    64
+   ],
+   "body": [
+    59,
+    78,
+    137
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/samantha/skill/recommend",
+  "a_bogus": "D70fgFUEDqmbKV/bmKTXSUx5G7mMrBWyGFTQRtMReoTmy7lG-kpAtJTwGOLw492YZ8siqF3HjdPAYVdaNR5rfMrpwmkvuqhRwmKIIXfo8qNhY0vsDqb0CLmFuwBK8cGu-55UilUXgUGqZEO5hHQE8pAHF/Un-Om2BH-7f/Ycj9AbdADoNIOuFFvmYwn6--I3MzJRHRf=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"omit_sidebar\":true,\"omit_image\":true,\"omit_music\":true,\"omit_write\":true,\"omit_search\":true}",
+  "bound": {
+   "query": [
+    70,
+    115,
+    64
+   ],
+   "body": [
+    83,
+    111,
+    136
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus": "xf4jkwUEEqAnedMSuOiJS6o5ehb/NB8yUPiKR7BRHoTmyHFGekB5tbgwjNoL4IoYZWswqK1HrdOMbVjPq853VZrkqmkDuoJfkmK5I66o0qi6YMJsgHbzCwszwwBeWcsul/VXi1R1hUGq1xc5hrdD8BA7o/lrBmY2MN3Jf2zcb9ATVADoq2O8FF6QxwjhB-23FttWHob=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    70,
+    115,
+    64
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "DXs5gHU7xZQnCdKbYKivS6oR7h5lNPWyUFiQRy/RSoTmy1lGevpCtjgwbNLysy9YZmk0qqI7GdYAbnEPZmV3VMnkumpDugvRiRo5IXvLMqNgY0JsgHbTCwmFwwBC8bsul/57i1R18UGHZdO5kHdE8dlHL/lNBYm2Pq-XfZYbb9AbVSjoqIx8Fq6mTwngB423B4zSHvj=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    70,
+    115,
+    64
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "dJUjkFtiYx/ncdKbuciJSWo5YqblNTSy4PTQR7/RyoTRL7eGakpItJhqaNLys99YNmkwqo3HndO/YnjPZm5rV29kLmpDSpTjkmocI6vL/qiXY0ksDNbzCumzowsCWbsulAV7iAR12UGH1EQ5iHd88Q5Hw/UN-OR2MN3vfZubc9AGdAjoNVOuFK6Qxwn6BaI3B0hyHCu=",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    70,
+    115,
+    64
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus": "QXsfkFUid2AbCdMGYcTUSWORBoKlNTWyveTOWaO5SFYKy7UG-ipcGObqrPx7469YpmshqK1HndTkbVEcqR4A-2HkLmkkSPsyh8KnI68oZqw6YMvsgNbsCL8FowBK8RTulA5Gi1WX/Uaq1D55kHQg8Q5Hw/lx-Qm2MN-vf2Ycb9WbdSDoZVOgFqXQOwnXB493O4zuyrRO",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"bot_id\":\"7339470689562525703\",\"skip_cache\":true,\"scene\":4,\"sug_layout\":\"direct_above_input\"}",
+  "bound": {
+   "query": [
+    160,
+    67,
+    184
+   ],
+   "body": [
+    220,
+    130,
+    189
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus": "Dv0nDqSEdZ55FdMGucn5ecq51WOlrsuyVlT/S9V5tozey1tYqXpI4aS3cPPw4ZKWNRshqqV71DFDYxEcNR4C-ZnpLmpfuuU6iWonIWsohqqhYzvsErbsCu0FwwBK8csu-AVGiI412UGqZDc5hHdu8BlHL/lr-Om2Mq3UfZTcc9AYdCDoZdxLFFXQNwjX-493Kt0T7N5C",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"bot_id\":\"7339470689562525703\",\"skip_cache\":true,\"scene\":4,\"sug_layout\":\"direct_above_input\"}",
+  "bound": {
+   "query": [
+    241,
+    205,
+    103
+   ],
+   "body": [
+    220,
+    130,
+    189
+   ],
+   "user_agent": [
+    236,
+    8,
+    20
+   ]
+  }
+ },
+ {
+  "source": "capture",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus": "Of0VkHyJEx8neVFbmOi4SXZ52Z8MrTSyVBidS91RtoFeyX0YUXBntwUVcPu74HQ8pWksqK17bdP4YVfOZRVM4/rpzmkDumJShmK9IX0ogqq6YzJsDqbhCLmFwwBeW54ueA5ti1418UG91xc5iqdY8dAHF/Ur-Qb2Fq-Gf/zcb9ATdCfoZVOuFofQPwnX-493O0wo73Rf",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"language_code\":\"en\",\"bot_id\":\"7339470689562525703\",\"item_ids\":[\"1064442771335185\",\"1064442771335697\",\"1064442771335441\",\"1064442771336209\",\"1064442771335953\"]}",
+  "bound": {
+   "query": [
+    241,
+    205,
+    103
+   ],
+   "body": [
+    196,
+    91,
+    212
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture",
+  "path": "/alice/user/launch",
+  "a_bogus": "dX05hw77mp8VKVKG8CTJSUORX9WMNT8ynliQS91R9ozFy7UYeJBVGYSVcPK74758Z8kiqq1HndOTbfjaNWV8f/9kumkDS/XywWKIIUsLgqwgbMJsgqjkCuszFwseWRGue/Vti1R10Ua9ZDc5kHdu8B-7K/UrBOR2BN-UfZzbb9WTVAfop2xgFoXmYwnh-GI3QtJi7N-r",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"select\":{\"launch_config\":true,\"assistant_bot_info\":true,\"landing_config\":true,\"user_info\":true}}",
+  "bound": {
+   "query": [
+    241,
+    205,
+    103
+   ],
+   "body": [
+    181,
+    124,
+    156
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture",
+  "path": "/alice/profile/self_brief",
+  "a_bogus": "Yj4Vhz6wYdmbOd/bYKTXSUORBoS/rs8y9-TOSH357ozKyH0YawBIGTgVnNu7sHO8q8kwqK1HGdYlbVjPNWVrVZnpFmpvuPsji8oCIWsLgqwXbzksDqbkCLmzwwsFW5sua/VviI41ZUGHZDc5hHdg8B5Hz/lx-mY2BN-tfZubG9WYdADoNdxmFFvmPwjXBa23KzkO7NRw",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    241,
+    205,
+    103
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture",
+  "path": "/samantha/skill/recommend",
+  "a_bogus": "mv4RDtSyO25bKdFGmKTJSUK509KMNBSyV-ixS915SoFeLHzYeipnGEzfrOKLsHQ8ZmkTqqVHJdPMbVxapm5afMrpumkDuYXjhmoCIX8ohqw6bFvsDHjwCw0zuwsK8bTuaAVUiAWXhUG91xc5kHQu8dlHz/UNBmb2PH3vf/ubn9AYVSfoNVxgFF6mTwjXBa93KsTT7r-F",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"omit_sidebar\":true,\"omit_image\":true,\"omit_music\":true,\"omit_write\":true,\"omit_search\":true}",
+  "bound": {
+   "query": [
+    241,
+    205,
+    103
+   ],
+   "body": [
+    83,
+    111,
+    136
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus": "OJUfhqyjx2WRKVKbmOivSUPR09WlNPuynlT2SCV5SoFCyHzYe7pcGTkVrNKw4XQ8N8szqoIHcdO/YjfPZ8V-VZnkFmpDuOhykWKAIXmoZqq6Y0JsgqjkCumFKwseWcsue/VXiIU12UGqZx55kNdD8d-7F/UN-Yb2FH3tf2TbG9ATVWjoqdOgFqfQOwjh-a23Q0TT9r-d",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    241,
+    205,
+    103
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture",
+  "path": "/alice/im/launch",
+  "a_bogus": "Ey4Rg7yJEpRROVKb8ciGSUPRd28ANBuynlioSCVRHoFCyHtYawp9GEYVcOY74758pRszqq1HjdO9YnnaNmVARZ9pzmkDSBJShWocIU0o0qqgYMksgNb0Cu0FzwBC8RTu-AVUi1RXgUaqZD55kNdL8Q57q/lNBQR2BH-7f2Tcr9WbVWDopVxDFKfQEwnhBG93/4igyr5K",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"im_config\":true}",
+  "bound": {
+   "query": [
+    241,
+    205,
+    103
+   ],
+   "body": [
+    59,
+    78,
+    137
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture",
+  "path": "/alice/basic/launch",
+  "a_bogus": "Y6UnDFtEdxmbFdFSmcivSWO5p2WlNPuyVMiQSeV5HozKy70Y-7BcGYhVJNuLs758N8kzqFV7jdY/YVEPZRVeV/rpFmkvuPJbw8o9I6mLMqwhY0vsENj0Cu0FowsCWbsuaA54i14X2UGqZEc5iqd88d-7q/lrBYY2MN3GfMYbj9WGdCjoZIOgFovmTwjgBG23K4wK7r5b",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    241,
+    205,
+    103
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture",
+  "path": "/alice/profile/self",
+  "a_bogus": "Q705gFyyEZQfcd/SYCivSWK5DIuMrBSyVlT/S9VR7ozKyXUYaiBIGquVJNYLs7O8pWskqqV7GdOlYnncpm-r-/9pLmkfSszyh8oCIW0L8qq6YzisEHjwCLmzzwsCWcGu-AV4ilUXgUaoZEO5wqdL8d57z/UN-Qm2FH-XfZubc9WGVSDoZVOmFofQiwj6B423/sw0yrRW",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": null,
+  "bound": {
+   "query": [
+    241,
+    205,
+    103
+   ],
+   "body": [
+    18,
+    3,
+    121
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "O6sVh7SidxQVcdMbuci4SUPRkLCArsSynlT/SeVR7oFKL1UYlJB5GYhVGNuys1O8NRkzqo37adY/YVjPZ85-V/9pqmkkSPsfi8ocIX0LZqwXbMvsgHbsCu8FFwBCWc4ua/VXi1WX/UaoZxc5kHQg8Q-Hz/lN-mR2MH34f/Yca9ATVWfoqdxDFqXQEwjX-a93K4wL935P",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    241,
+    205,
+    103
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus": "Y64RhHtLYxAbOdMtYCTUSXFRgo//NTSyVBiOS9IRCozCyH0Yl7BnGihfcNKwsHQ8NRkiqqIHcdOAYffPpm5lVZrpwmkfSY4SkRoVIWso/qwgb0JsLrbhCw8zowsK85TueAVti14X8UaqZxc5kNQu8dl7z/UN-YR2Bq3vf/TbJ9WTdAEoN2OLFqXQiwj6-a23/szm73R8",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{}",
+  "bound": {
+   "query": [
+    241,
+    205,
+    103
+   ],
+   "body": [
+    131,
+    103,
+    18
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ },
+ {
+  "source": "capture",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus": "mXU5getwYxQbKdFSuCT7Sl2Rs6QANTuySBi/bc559IcOy1UT7vBAGnbVbPOLsHQ8pmkhqo3HadTvbjEcqm4n-2rpumpkuBzWimonIW8o2qwXYMJsgrbhCLsFzwBeWRGu-AVJiIW12Ua9Zxc5iqdu8BA7L/UrBmY2PH-Xf2ubb9AbVWfoZ2OEFK6mxwnhBaI3/stiyr5e",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "body": "{\"bot_id\":\"7339470689562525703\",\"skip_cache\":true,\"scene\":4,\"sug_layout\":\"direct_above_input\"}",
+  "bound": {
+   "query": [
+    180,
+    245,
+    36
+   ],
+   "body": [
+    220,
+    130,
+    189
+   ],
+   "user_agent": [
+    35,
+    184,
+    68
+   ]
+  }
+ }
+]

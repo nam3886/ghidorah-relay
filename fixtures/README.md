@@ -257,6 +257,7 @@ first, one video) and the reads around them; `dola/api-spike-261023/README.md` d
 - `dola/api-spike-261023/badsig_sse.json`
 - `dola/api-spike-261023/chain_after_send.json`
 - `dola/api-spike-261023/nosig_sse.json`
+- `dola/api-spike-261023/page_signatures.json`
 - `dola/api-spike-261023/recent_conv_after.json`
 - `dola/api-spike-261023/recent_conv_before.json`
 - `dola/api-spike-261023/recent_conv_plain_json_content_type.json`
