@@ -411,6 +411,7 @@ def test_unproven_parameters_are_sent_as_dolas_config_names_them():
 
 
 # ---- the setting ---------------------------------------------------------------------------------------------------
+@mutation(SEND, "not in PROVEN_VIDEO:", "in PROVEN_VIDEO:", expect="the browser by default")
 @mutation(SEND, 'return "http" if settings is not None and settings.get(SEND_PATH_SETTING) == "http" else "browser"',
           'return "browser" if settings is not None and settings.get(SEND_PATH_SETTING) == "browser" else "http"',
           expect="the browser by default")
@@ -422,7 +423,10 @@ async def test_the_setting_picks_the_path_per_job_and_reference_images_stay_on_t
     for settings, job in ((Settings({}), image_job()), (Settings({"dola.send_path": "browser"}), image_job()),
                           (HTTP_ON, replace(video_job(), operation="image_to_video")),
                           (HTTP_ON, make_job("image", ratio=None, style="anime")),
-                          (HTTP_ON, make_job("video", duration=5, ratio="9:16", model="seedance_v2.0"))):
+                          (HTTP_ON, make_job("video", duration=5, ratio="9:16", model="seedance_v2.0")),
+                          (HTTP_ON, make_job("video", duration=5, ratio="16:9", model="seedance_v2.5")),
+                          (HTTP_ON, make_job("video", duration=10, ratio="16:9", model="seedance_v2.0")),
+                          (HTTP_ON, make_job("video", duration=5, ratio="16:9", model="seedance_v1.0"))):
         log: list = []
         dola = Dola(log)
         deps = deps_for(dola)
@@ -549,7 +553,7 @@ async def test_a_list_cell_that_cannot_be_read_makes_the_list_incomplete():
 RESOLVER = "packages/provider-dola/src/relay_dola/engine/resolver.py"
 
 
-@mutation(RESOLVER, "        return [text] if isinstance(text, str) and text.strip() else []", "        return []",
+@mutation(RESOLVER, "        return [text]\n    return _block_texts", "        return []\n    return _block_texts",
           expect="a plain-text refusal")
 @sync
 async def test_a_plain_text_refusal_of_dola_is_read_and_ends_the_job():

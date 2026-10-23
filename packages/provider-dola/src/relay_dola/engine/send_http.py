@@ -515,6 +515,9 @@ class HttpRun(_Run):
 
 
 REFERENCE_OPERATIONS = ("image_to_video", "image_to_image")
+# The only video (model, seconds) delivered over HTTP (spike and live check 23/10, 16:9). Seedance 2.5 was not
+# testable (two sends answered "I can't generate the requested content."), 1.0 and other lengths were not tried.
+PROVEN_VIDEO = frozenset({("seedance_v2.0", 5)})
 
 
 def browser_only(job) -> str | None:
@@ -525,6 +528,8 @@ def browser_only(job) -> str | None:
         return "an image style is not proven over HTTP"
     if job.params.get("kind") == "video" and (job.params.get("ratio") or DEFAULT_RATIO) != DEFAULT_RATIO:
         return "dola ignored a video ratio sent over HTTP (live check 23/10: 9:16 asked, 1280x720 made)"
+    if job.params.get("kind") == "video" and (job.params.get("model"), job.params.get("duration")) not in PROVEN_VIDEO:
+        return "this video model and length are not proven over HTTP yet"
     return None
 
 

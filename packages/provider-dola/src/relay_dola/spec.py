@@ -135,7 +135,7 @@ _SETTINGS = dict((
     _setting("send_path", str, "browser",
              "How an order is sent to dola: 'browser' drives dola.com in Chrome; 'http' posts it signed, with no "
              "browser. Read per job at the send; polls, reconcile and downloads are HTTP either way. A job with "
-             "reference images, an image with a style, or a video not in 16:9 always goes by browser.",
+             "reference images, an image with a style, or any video but Seedance 2.0 5 s 16:9 goes by browser.",
              rule=SEND_PATH_RULE),
     _setting("signer_alarm_accounts", int, 3,
              "HTTP send only: when this many different accounts get dola's 710022002/710022004 before any "
