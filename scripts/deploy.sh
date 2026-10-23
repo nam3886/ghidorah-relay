@@ -15,14 +15,13 @@
 #   6. Rotate: ~/relay-deploy -> ~/relay-deploy-<old>, ~/relay-deploy-new -> ~/relay-deploy. Only the newest previous
 #      tree is kept: older relay-deploy-<sha> trees go, with their relay-* images unless a running container uses one.
 #   7. `up -d --no-deps api`, then /healthz 200 on 127.0.0.1:8100 and the admin bundle served.
-#   8. First the claims state of every --workers provider: its stored <p>.claims_enabled, or the default of its spec
-#      when none is stored (an unreadable one stops the run before any worker is drained), kept on the box in
-#      ~/relay-claims-snapshot before any drain. A provider still in that snapshot (a deploy or rollback that stopped
-#      after its drain) takes its state from there, not from the database. Then per worker: `relay provider drain
-#      <p>` twice (the second prints "(no change)"), wait until no job of <p> is submitting, `up -d --no-deps
-#      worker-<p>`, a fresh heartbeat of the new process (and Chrome's version for a browser worker), `relay provider
-#      resume <p>` only when <p> claimed before (a provider that was off stays off), and <p> leaves the snapshot,
-#      which goes once it is empty.
+#   8. First the claims state of every --workers provider: on when its stored <p>.claims_enabled (the default of its
+#      spec when none is stored) is true, or when ~/relay-claims-snapshot holds <p>=true (a deploy or rollback that
+#      stopped between draining <p> and resuming it; said with a WARNING). An unreadable state stops the run before
+#      any worker is drained. Then per worker: <p>=true into the snapshot when <p> is on, `relay provider drain <p>`
+#      twice (the second prints "(no change)"), wait until no job of <p> is submitting, `up -d --no-deps worker-<p>`,
+#      a fresh heartbeat of the new process (and Chrome's version for a browser worker), `relay provider resume <p>`
+#      only when <p> was on (a provider that was off stays off), then <p> leaves the snapshot (gone once empty).
 # Rollback takes the same lock and makes the same box checks as step 2, swaps ~/relay-deploy with ~/relay-deploy-<sha>
 # (the only kept tree when no sha is given), then step 7 and, with --workers, step 8. It refuses when that tree or its images are missing, and when the migrations of the two
 # trees differ unless --allow-schema-mismatch (the database stays at the newer schema: the older code must cope with
@@ -187,34 +186,42 @@ worker() {   # worker P: restart it, then a heartbeat of the new process and Chr
 
 resume() { compose "$D" --profile app exec -T api relay provider resume "$1"; }
 
-SNAP=$HOME/relay-claims-snapshot
-claims() {   # claims P=DEFAULT...: "state P on|off" per provider, from the snapshot of a run that stopped after its
-             # drain, else its stored P.claims_enabled (DEFAULT when none is stored); the snapshot then holds them all
-  local a p v raw tmp=$SNAP.tmp
-  if [ -e "$SNAP" ]; then cp "$SNAP" "$tmp"; else : > "$tmp"; fi
+SNAP=$HOME/relay-claims-snapshot   # "P=true" per provider drained while it claimed and not resumed yet
+claims() {   # claims P=DEFAULT...: "state P on|off" per provider: on when its stored P.claims_enabled (DEFAULT when
+             # none is stored) is true, or when the snapshot holds P=true (a run stopped between its drain and resume)
+  local a p v raw snap
   for a in "$@"; do
     p=${a%%=*}
-    v=$(sed -n "s/^$p=//p" "$tmp" | tail -1)
-    if [ -n "$v" ]; then
-      echo "$p: claims_enabled=$v, from ~/relay-claims-snapshot (a deploy or rollback stopped after its drain)"
-    else
-      raw=$(sql "SELECT value FROM settings_kv WHERE key = '"'"'$p.claims_enabled'"'"'")
-      v=${raw:-${a#*=}}
-      [ "$v" = true ] || [ "$v" = false ] \
-        || fail "$p.claims_enabled reads [$raw], not true or false: its claims state is unknown"
-      echo "$p=$v" >> "$tmp"
-      echo "$p: claims_enabled=$v"
+    raw=$(sql "SELECT value FROM settings_kv WHERE key = '"'"'$p.claims_enabled'"'"'")
+    v=${raw:-${a#*=}}
+    [ "$v" = true ] || [ "$v" = false ] \
+      || fail "$p.claims_enabled reads [$raw], not true or false: its claims state is unknown"
+    snap=$(sed -n "s/^$p=//p" "$SNAP" 2> /dev/null | tail -1 || true)
+    if [ "$snap" = true ] && [ "$v" = false ]; then   # a snapshot line only ever turns a provider back on
+      v=true
+      echo "box: WARNING: $p.claims_enabled is false, but ~/relay-claims-snapshot holds [$p=$snap], left by a deploy \
+or rollback that stopped between draining $p and resuming it: $p will be resumed" >&2
     fi
-    case "$v" in true) echo "state $p on" ;; false) echo "state $p off" ;; *) fail "~/relay-claims-snapshot holds $p=$v" ;; esac
+    echo "$p: claims_enabled=$v"
+    if [ "$v" = true ]; then echo "state $p on"; else echo "state $p off"; fi
   done
-  sync "$tmp" && mv -f "$tmp" "$SNAP"
 }
 
-restore() {   # restore P on|off: P claims again when it did before, then P leaves the snapshot (gone once empty)
-  local tmp=$SNAP.tmp
+snap_write() {   # snap_write FILE: FILE replaces the snapshot durably; an empty FILE removes it
+  if [ -s "$1" ]; then sync "$1"; mv -f "$1" "$SNAP"; else rm -f "$1" "$SNAP"; fi
+  sync "$HOME"                                         # the rename or the removal itself
+}
+
+mark() {   # mark P: right before P (which claims) is drained: the snapshot keeps P=true until P is resumed
+  { grep -sv "^$1=" "$SNAP" || true; echo "$1=true"; } > "$SNAP.tmp"
+  snap_write "$SNAP.tmp"
+}
+
+restore() {   # restore P on|off: P claims again when it did before, then P leaves the snapshot
   if [ "$2" = on ]; then resume "$1"; fi
-  grep -v "^$1=" "$SNAP" > "$tmp" || true
-  if [ -s "$tmp" ]; then sync "$tmp"; mv -f "$tmp" "$SNAP"; else rm -f "$tmp" "$SNAP"; fi
+  [ -e "$SNAP" ] || return 0
+  grep -v "^$1=" "$SNAP" > "$SNAP.tmp" || true
+  snap_write "$SNAP.tmp"
 }
 '
 remote() { { printf '%s\n' "$REMOTE_LIB"; printf '%q ' "$@"; echo; } | ssh_box "bash -s"; }
@@ -301,6 +308,7 @@ deploy again: ~/relay-claims-snapshot keeps that $p claimed)"
     else
       hint="the api is live; worker-$p may be down; $p was off before and stays drained: fix it (or scripts/rollback.sh)"
     fi
+    if [ "$was" = on ]; then step mark "$p"; fi
     step drain "$p"
     step idle "$p"
     step worker "$p"
