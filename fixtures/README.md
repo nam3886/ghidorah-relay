@@ -350,6 +350,26 @@ and the free reads (models, listing, media); `flow/live-261023/README.md` descri
 - `flow/live-261023/video_status_v0.json`
 - `flow/live-261023/video_submit_try1.json`
 
+## Gemini web spikes (23/10/2026)
+
+The signed-out probe (`gemini/spike-261023/`) and the live run with gemini's own session (`gemini/live-261023/`: t2i,
+i2i, the not-entitled t2v, chat reads and the chat list, the cut sends, the web app's own requests captured unsent;
+the full answers are the `.txt` beside each `.json`). Each folder's README.md describes its files and
+`fixtures/gemini/FINDINGS.md` sums them up.
+
+- `gemini/live-261023/cut_summary.json`
+- `gemini/live-261023/cutcid_summary.json`
+- `gemini/live-261023/i2i_reply.json`
+- `gemini/live-261023/t2i_16x9_reply.json`
+- `gemini/live-261023/t2i_default_ratio_reply.json`
+- `gemini/live-261023/t2v_not_entitled_reply.json`
+- `gemini/live-261023/upload.json`
+- `gemini/live-261023/web_request_edit.json`
+- `gemini/live-261023/web_request_image_16x9.json`
+- `gemini/spike-261023/anon_001_anon_page.json`
+- `gemini/spike-261023/anon_003_stream_text_signed_out.json`
+- `gemini/spike-261023/probe_001_probe.json`
+
 ## chat.qwen.ai live spike (23/10/2026)
 
 Redacted calls of the qwen step-0 spike (auth refresh, WAF answers, t2i, image edit, t2v, i2v, task status, credits);

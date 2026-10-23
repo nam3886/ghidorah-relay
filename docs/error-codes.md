@@ -61,6 +61,15 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `flow.captcha_refused` | 503 | api_error | no | yes | yes | 0 | yes | flow refused the request at its security check; nothing was made |
 | `flow.http_error` | 502 | api_error | no | yes | yes | 0 | yes | flow answered with an error before the order was sent |
 
+## `gemini.*`
+
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `gemini.http_error` | 502 | api_error | no | yes | yes | 0 | yes | gemini answered with an error before the order was sent |
+| `gemini.not_entitled` | 502 | api_error | yes | yes | no | 0 | yes | the gemini account cannot make this; the charge is returned |
+| `gemini.refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | gemini answered without an image (a refused prompt or a reached limit); the charge is returned |
+| `gemini.upload_failed` | 502 | api_error | no | yes | yes | 0 | yes | the input image could not be handed to gemini; the order was not sent |
+
 ## `input.*`
 
 | Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
