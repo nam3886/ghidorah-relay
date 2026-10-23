@@ -194,17 +194,24 @@ def test_no_answer_a_timeout_or_a_status_that_is_not_200_is_unknown_and_never_se
 
 
 PLACEHOLDER = "    if not final or IMAGE_PLACEHOLDER in final:\n"
+ERROR_FIRST = ('    if answer.errors:\n        return "unknown", "the answer carried an error item"\n'
+               '    if answer.images:\n        return "done", answer.images\n')
+ERR = '[["er",null,null,null,null,500],["e"'
 
 
 @mutation(SUBMIT_FILE, PLACEHOLDER, "    if not final:\n", expect="an image promised")
 @mutation(SUBMIT_FILE, PLACEHOLDER, "    if IMAGE_PLACEHOLDER in final:\n", expect="an empty answer")
-@mutation(SUBMIT_FILE, '    if answer.errors:\n        return "unknown", "the answer carried an error item"\n', "",
+@mutation(SUBMIT_FILE, ERROR_FIRST, '    if answer.images:\n        return "done", answer.images\n',
           expect="an error item")
-def test_an_answer_with_no_image_record_is_unknown_unless_its_final_text_is_a_plain_answer():
+@mutation(SUBMIT_FILE, ERROR_FIRST, '    if answer.images:\n        return "done", answer.images\n'
+          '    if answer.errors:\n        return "unknown", "the answer carried an error item"\n',
+          expect="an error item beside an image")
+def test_an_answer_with_no_image_record_or_with_an_error_item_is_unknown_unless_a_plain_answer():
     cases = {
         "an image promised": answer("\n\nhttp://googleusercontent.com/image_generation_content/0_1\n\n"),
         "an empty answer": answer(""),
-        "an error item": answer("I can't help with that.").replace('[["e"', '[["er",null,null,null,null,500],["e"'),
+        "an error item": answer("I can't help with that.").replace('[["e"', ERR),
+        "an error item beside an image": answer("", image=True).replace('[["e"', ERR),
     }
     for why, text in cases.items():
         log = []
@@ -298,18 +305,23 @@ WINDOW = "    near = sorted((c for c in listed if start - FIND_BEFORE_S <= c.sta
 @mutation(RESULTS_FILE, "        if turn is not None and same_text(turn.prompt, text):",
           "        if turn is not None:", expect="another chat was taken for the job")
 @mutation(RESULTS_FILE, WINDOW, "    near = sorted((c for c in listed),", expect="a chat outside the send window")
+@mutation(REPLY_FILE, "    return a is not None and a == b",
+          '    return a is not None and " ".join(a.split()) == " ".join(b.split())',
+          expect="another chat was taken for the job")
 def test_a_lost_send_is_found_by_its_exact_text_among_the_chats_started_near_it_never_another():
     other = "c_00000000000000b1"
     ours = "c_00000000000000b2"
     old = "c_00000000000000b3"
+    spaced = "c_00000000000000b4"
 
     def reads(request):
         cid = args_of(request)[0]
-        prompt = {ours: T2I_PROMPT, other: "a different prompt", old: T2I_PROMPT}[cid]
+        prompt = {ours: T2I_PROMPT, other: "a different prompt", old: T2I_PROMPT,
+                  spaced: T2I_PROMPT.replace(" ", "  ")}[cid]
         return chat_read(prompt, "", cid=cid)
     log = []
-    g = Gemini(log, rpc={"MaZiqc": listing((old, START - 3600), (other, START + 1), (ours, START + 2)),
-                         "hNvQHb": reads})
+    g = Gemini(log, rpc={"MaZiqc": listing((old, START - 3600), (spaced, START + 0.5), (other, START + 1),
+                                           (ours, START + 2)), "hNvQHb": reads})
     found = reconcile(g, job())
     assert found == Found(ours, {"chat": ours, "request": None}, True), \
         "another chat was taken for the job: %s" % (found,)
@@ -351,6 +363,15 @@ def test_poll_reads_the_found_chat_an_image_is_done_a_plain_answer_fails_anythin
     waiting = poll(Gemini([], rpc={"hNvQHb": chat_read(T2I_PROMPT, "", image=False)}), job(state=state))
     assert isinstance(waiting.outcome, Pending) and waiting.outcome.next_in_s == 30
     assert poll(Gemini([]), job()).outcome.answered is False
+
+
+@mutation(RESULTS_FILE, "turn.texts, turn.images, turn.errors))", "turn.texts, turn.images, ()))",
+          expect="a chat read with an error item")
+def test_a_chat_read_with_an_error_item_proves_nothing_and_waits():
+    for image in (False, True):
+        text = chat_read(T2I_PROMPT, "I can't make that.", image=image).replace('[["e"', ERR)
+        got = poll(Gemini([], rpc={"hNvQHb": text}), job(state={"chat": T2I_CHAT}))
+        assert isinstance(got.outcome, Pending), "a chat read with an error item became %s" % (got.outcome,)
 
 
 # ---- the reply reader on the recorded answers ---------------------------------------------------------------------

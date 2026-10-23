@@ -166,16 +166,18 @@ def chats(text: str) -> tuple[list[Chat], bool]:
 
 @dataclass(frozen=True)
 class Turn:
-    """One user turn of a chat read (hNvQHb): what was sent, and the answer's final text and images."""
+    """One user turn of a chat read (hNvQHb): what was sent, the answer's final text and images, and the error items
+    the read carried (any one makes the read prove nothing)."""
     prompt: str | None
     texts: tuple[str, ...]
     images: tuple[Image, ...]
+    errors: tuple = ()
 
 
 def turns(text: str) -> tuple[list[Turn], bool]:
     """The turns of a chat read `[[[ [cid, rid], null, [[prompt], ...], [[candidate...]], ... ], ...]]`, and whether
-    the read was clean with one payload."""
-    payloads, _, clean, ended = _items(text)
+    the read was clean, ended, with one payload."""
+    payloads, errors, clean, ended = _items(text)
     if not clean or not ended or len(payloads) != 1 or not isinstance(payloads[0], list):
         return [], False
     rows = payloads[0][0] if payloads[0] and isinstance(payloads[0][0], list) else []
@@ -186,10 +188,11 @@ def turns(text: str) -> tuple[list[Turn], bool]:
         sent = row[2]
         prompt = sent[0][0] if isinstance(sent, list) and sent and isinstance(sent[0], list) and sent[0] \
             and isinstance(sent[0][0], str) else None
-        out.append(Turn(prompt, tuple(_candidate_texts(row[3])), images_in(row[3])))
+        out.append(Turn(prompt, tuple(_candidate_texts(row[3])), images_in(row[3]), tuple(errors)))
     return out, True
 
 
 def same_text(a: str | None, b: str) -> bool:
-    """The sent text and a chat's prompt, white space runs folded (the page may fold them)."""
-    return a is not None and " ".join(a.split()) == " ".join(b.split())
+    """The chat's prompt is the job's sent text, character for character (measured: gemini gives it back as sent).
+    Never folded: two jobs whose texts differ only in white space are two jobs."""
+    return a is not None and a == b

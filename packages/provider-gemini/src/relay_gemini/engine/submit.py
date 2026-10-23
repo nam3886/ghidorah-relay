@@ -131,10 +131,10 @@ def judge(status: int, answer: Answer | None) -> tuple[str, object]:
         return "unknown", "gemini answered %d" % status
     if not answer.clean or not answer.ended:
         return "unknown", "the answer was cut or could not be read"
-    if answer.images:
-        return "done", answer.images
     if answer.errors:
         return "unknown", "the answer carried an error item"
+    if answer.images:
+        return "done", answer.images
     final = answer.texts[-1].strip() if answer.texts else ""
     if not final or IMAGE_PLACEHOLDER in final:
         return "unknown", "the answer named no image record"

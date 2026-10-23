@@ -104,7 +104,7 @@ async def poll(ctx, job, settings, sessions: Sessions, *, transport=None,
         return PollResult(Pending("gemini could not be read (%s)" % type(e).__name__, wait, answered=False))
     if turn is None:
         return PollResult(Pending("the chat could not be read", wait, answered=answered))
-    verdict, what = judge(200, Answer(True, True, (), chat, turn.texts, turn.images, ()))
+    verdict, what = judge(200, Answer(True, True, (), chat, turn.texts, turn.images, turn.errors))
     if verdict == "done":
         return PollResult(Done(outputs_of(what, chat)), effects=(Success(),))
     if verdict == "refused":
