@@ -31,7 +31,7 @@ def test_only_workers_can_see_a_private_key():
             names |= guards._declared_names(DEPLOY / (f + ".example"))
         assert any(guards.is_private_key_var(v) for v in names) == name.startswith("worker-"), name
     assert "CREDENTIAL_SEAL_PUBLIC_KEY" in guards._declared_names(DEPLOY / "api.env.example")
-    for p in ("dola", "vibes", "meta", "flow", "gemini"):
+    for p in ("dola", "vibes", "meta", "flow", "gemini", "qwen"):
         assert PRIVATE in guards._declared_names(DEPLOY / ("worker-%s.env.example" % p))
 
 
@@ -39,8 +39,8 @@ def test_every_service_has_its_own_env_file_and_services_sit_in_their_profiles()
     files = [f for svc in COMPOSE.values() for f in guards._service_env_files(svc)]
     assert sorted(files) == sorted(set(files)) == sorted(
         ["api.env", "migrate.env", "worker-dola.env", "worker-vibes.env", "worker-meta.env", "worker-flow.env",
-         "worker-gemini.env"])
-    for p in ("dola", "vibes", "meta", "flow", "gemini"):
+         "worker-gemini.env", "worker-qwen.env"])
+    for p in ("dola", "vibes", "meta", "flow", "gemini", "qwen"):
         assert COMPOSE["worker-" + p]["profiles"] == [p]
     # a bare `docker compose up` starts only Postgres and MinIO; the app services start on purpose
     assert COMPOSE["api"]["profiles"] == COMPOSE["migrate"]["profiles"] == ["app"]
@@ -51,9 +51,9 @@ def test_images_are_named_per_commit_and_every_worker_gets_a_stop_grace():
     for name, svc in COMPOSE.items():
         if "build" in svc:
             assert svc["image"] == "relay-%s:${GIT_SHA:?set GIT_SHA}" % name
-    for name in ("worker-dola", "worker-meta", "worker-vibes", "worker-flow", "worker-gemini"):
+    for name in ("worker-dola", "worker-meta", "worker-vibes", "worker-flow", "worker-gemini", "worker-qwen"):
         assert int(COMPOSE[name]["stop_grace_period"].rstrip("s")) >= 720, name
-    for name in ("worker-dola", "worker-meta"):
+    for name in ("worker-dola", "worker-meta", "worker-qwen"):
         assert COMPOSE[name]["shm_size"] == "1g"
     assert "healthcheck" in COMPOSE["minio"]
 
@@ -62,7 +62,8 @@ COMPOSE_FILE = "deploy/compose.yml"
 LIMIT_DEFAULTS = {"worker-dola": (8, "12g", 2048), "postgres": (4, "4g", 512), "minio": (2, "2g", 512),
                   "api": (2, "2g", 512), "migrate": (1, "1g", 256)}
 NOT_STARTED = {"worker-meta": (4, "6g", 1024), "worker-vibes": (1, "1g", 256),
-               "worker-flow": (1, "1g", 256), "worker-gemini": (1, "1g", 256)}      # their profiles are off for now
+               "worker-flow": (1, "1g", 256), "worker-gemini": (1, "1g", 256),
+               "worker-qwen": (2, "3g", 1024)}      # their profiles are off for now
 
 
 def _default(value) -> str:
@@ -109,7 +110,7 @@ META_ROOT = "RELAY_PROFILE_ROOT: /profiles\n    volumes"
 @mutation(COMPOSE_FILE, DOLA_ROOT, "RELAY_PROFILE_ROOT: /profiles\n      DOLA_BROWSER_SLOTS_MAX: 4\n    shm_size",
           expect="['DOLA_BROWSER_SLOTS_MAX']")
 def test_the_dola_worker_keeps_warm_profiles_on_its_volume_and_no_service_names_a_slot_ceiling():
-    for p in ("dola", "meta"):
+    for p in ("dola", "meta", "qwen"):
         env = COMPOSE["worker-" + p]["environment"]
         assert env["RELAY_PROFILE_ROOT"] == "/profiles", "profile root of %s" % p
         assert "profiles-%s:/profiles" % p in COMPOSE["worker-" + p]["volumes"]
@@ -122,7 +123,7 @@ def test_the_dola_worker_keeps_warm_profiles_on_its_volume_and_no_service_names_
 
 def test_the_templates_list_port_and_the_profile_root_by_name():
     assert "PORT" in guards._declared_names(DEPLOY / "api.env.example")
-    for p in ("dola", "meta"):
+    for p in ("dola", "meta", "qwen"):
         assert "RELAY_PROFILE_ROOT" in guards._declared_names(DEPLOY / ("worker-%s.env.example" % p)), p
 
 

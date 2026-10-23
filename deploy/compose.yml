@@ -2,8 +2,8 @@
 # No service shares an env file: every service names its own `<service>.env`, copied from its
 # `<service>.env.example` (variable names only). `api` and `migrate` never see the private credential key
 # (I20); tests/test_deploy.py parses this file to keep it so.
-# `migrate` and `api` sit in the profile `app`, provider workers in `dola`, `vibes`, `meta`, `flow` and
-# `gemini`:
+# `migrate` and `api` sit in the profile `app`, provider workers in `dola`, `vibes`, `meta`, `flow`, `gemini` and
+# `qwen`:
 # `docker compose --profile app --profile dola up -d` starts the api and the dola worker, and nothing in this
 # file changes when a provider is enabled. A bare `docker compose up` starts only Postgres and MinIO.
 # Every compose command needs GIT_SHA (and the two passwords) in the environment or in deploy/.env, because
@@ -160,8 +160,27 @@ services:
     mem_limit: ${GEMINI_MEM_LIMIT:-1g}
     pids_limit: ${GEMINI_PIDS_LIMIT:-256}
 
+  worker-qwen:
+    <<: *app
+    profiles: [qwen]
+    image: relay-worker-qwen:${GIT_SHA:?set GIT_SHA}
+    # The browser image: every qwen call is plain HTTP, but Chrome mints the anti-bot pair (bx-ua, bx-umidtoken) the
+    # paid call needs, one browser at a time. Warm profiles on the volume keep chat.qwen.ai's scripts cached.
+    build: {context: .., dockerfile: deploy/Dockerfile, target: browser}
+    env_file: [worker-qwen.env]
+    command: ["relay", "worker", "--provider", "qwen"]
+    shm_size: 1g
+    volumes: ["profiles-qwen:/profiles"]
+    environment:
+      RELAY_PROFILE_ROOT: /profiles
+    stop_grace_period: 780s   # the longest submit timeout (image 720 s) plus a minute to release leases
+    cpus: ${QWEN_CPUS:-2}
+    mem_limit: ${QWEN_MEM_LIMIT:-3g}
+    pids_limit: ${QWEN_PIDS_LIMIT:-1024}
+
 volumes:
   pgdata:
   miniodata:
   profiles-dola:
   profiles-meta:
+  profiles-qwen:
