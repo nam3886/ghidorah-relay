@@ -27,6 +27,7 @@ from psycopg_pool import AsyncConnectionPool
 from relay_core import failpoints, leases, pool
 from relay_core.budget import BrowserBudget, Purpose, Token
 from relay_core.db import AccountInUse, delete_unused_account, tx
+from relay_core.jobs.runctx import Merge, Renewal
 from relay_core.providers import (
     AccountView,
     Caps,
@@ -110,6 +111,7 @@ class AccountCtx:
         self._env, self._lease_id = env, lease_id
         self.account, self.browser_token, self.settings = account, token, env.settings
         self.log = logging.getLogger("relay.engine.%s" % env.provider)
+        self._renewal = Renewal(env.db, account)
 
     async def fence(self) -> None:
         if self._lease_id is not None:        # a read-only call (the title sweep) holds no lease: nothing to lose
@@ -126,6 +128,9 @@ class AccountCtx:
 
     async def evidence(self, name: str, data: bytes, mime: str) -> None:
         self.log.info("evidence %r not kept: an account run has no job to attach evidence to", name)
+
+    async def renew_credential(self, blob: bytes, merge: Merge | None = None) -> bytes | None:
+        return await self._renewal(blob, merge)
 
 
 async def shielded(work: Coroutine) -> Any:
@@ -467,7 +472,10 @@ async def _merge(conn: AsyncConnection, new_id, old_id, lease_id: int, health: H
 
 # ---- the scheduler ----------------------------------------------------------------------------------------------
 class Checks:
-    """Starts due checks as tasks, at most `max_tasks` at once. Drain mode starts none (7.7)."""
+    """Starts due checks as tasks, at most `max_tasks` at once. Drain mode does not stop them (owner, 23/10): a drain
+    stops new jobs only, and a check is what keeps an account's session alive while no job runs (a provider that
+    rotates its session in the check, flow's Google cookies, loses the account within ~20 min without one). A person
+    stops the checks of an account by disabling it."""
 
     def __init__(self, env: Env, *, max_tasks: int = MAX_TASKS):
         self.env, self.max_tasks = env, max_tasks
@@ -475,7 +483,7 @@ class Checks:
 
     async def tick(self) -> list[uuid.UUID]:
         """Start the checks that are due and fit; returns their account ids in start order."""
-        if self.env.drained() or len(self._tasks) >= self.max_tasks:
+        if len(self._tasks) >= self.max_tasks:
             return []
         want = self.max_tasks - len(self._tasks)
         due = await due_accounts(self.env.db, self.env.provider, want + len(self._tasks))

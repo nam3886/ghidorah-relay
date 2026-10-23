@@ -12,7 +12,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[1]
 
-PROVIDER_MODULES = {"relay_dola", "relay_vibes", "relay_meta"}
+PROVIDER_MODULES = {"relay_dola", "relay_vibes", "relay_meta", "relay_flow"}
 BROWSER_ONLY = {"patchright", "playwright"}
 ROUTE_CALLS = {"route", "unroute", "unroute_all", "route_from_har", "route_web_socket"}
 LAUNCH_CALLS = {"launch", "launch_persistent_context", "connect_over_cdp", "connect"}

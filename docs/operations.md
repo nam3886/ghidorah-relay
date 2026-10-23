@@ -108,7 +108,7 @@ pull fails.
 
 - Every compose command needs `GIT_SHA` (and, for postgres and minio, their two passwords) in the environment or in
   `deploy/.env`: compose interpolates the services of inactive profiles too. `export GIT_SHA=$(git rev-parse --short HEAD)`.
-- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta` = the provider workers. A bare `docker compose up`
+- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta`, `flow` = the provider workers. A bare `docker compose up`
   starts only Postgres and MinIO. `docker compose --profile app --profile dola up -d` starts the api and the dola
   worker; enabling a provider later changes no file.
 - Every service has its own env file (`deploy/<service>.env`, gitignored), copied from `deploy/<service>.env.example`
@@ -514,7 +514,7 @@ fails when any other page or `/ui/` file carries the looser one.
 
 ## The worker (`relay worker --provider X`)
 
-One process per provider (`dola`, `vibes`, `meta`; the compose services `worker-<provider>`). It loads
+One process per provider (`dola`, `vibes`, `meta`, `flow`; the compose services `worker-<provider>`). It loads
 `relay_<p>.spec.SPEC` and `relay_<p>.engine.build_engine`, then runs these loops as tasks of one process:
 
 | Loop | Does |
@@ -553,9 +553,11 @@ requeued by a graceful stop is claimed again at once by another worker.
 
 ### Drain mode
 
-Setting `<p>.claims_enabled` (default true). While false, that provider's worker claims no job, runs no account
-check and no command, and does no catalog maintenance. **Still running:** poller, fetcher, reconciler, reaper, the
-title sweep and webhooks, so open jobs finish, fail, refund and notify. Rollback of a provider go-live is drain mode
+Setting `<p>.claims_enabled` (default true). While false, that provider's worker claims no job, runs no queued
+command (an admin Check or Wake waits for the resume), and does no catalog maintenance. **Still running:** the account
+checks at their usual interval (owner, 23/10: they keep sessions alive, e.g. flow's cookie rotation; a dola or meta
+check still opens Chrome while drained), poller, fetcher, reconciler, reaper, the title sweep and webhooks, so open
+jobs finish, fail, refund and notify. To stop the checks of one account, disable it. Rollback of a provider go-live is drain mode
 (there is no fallback system).
 
 ```bash
@@ -772,6 +774,60 @@ The local gates use recorded and fake dola behaviour. These wait for the live ru
 - the health of the supplied account jars;
 - `relay e2e`.
 
+## The flow provider (`relay worker --provider flow`)
+
+Google Flow (flow.google.com) over plain HTTP: no browser. Text to image only for now (`flow-nano-banana-2.1`,
+`flow-nano-banana-pro`, `flow-nano-banana-2-lite`; ratios 1:1, 9:16, 16:9 default, 3:4, 4:3; one image per job). Veo
+video is the next step (TODO in `relay_flow/catalog.py`). The protocol is in `fixtures/flow/FINDINGS.md`.
+
+**What the worker needs.** `deploy/worker-flow.env` (from the `.example`): the usual worker variables plus
+`FLOW_YESCAPTCHA_KEY`, the YesCaptcha client key. It is a secret of this worker only: read once at start, removed from
+the environment, never a setting, never logged. Without it every job is retried as `flow.captcha_failed` and fails
+refunded after its attempts; checks still run. Each account should have a proxy: every call to Google, every result
+download and every call to YesCaptcha's API goes through it (owner, 23/10; direct only for an account with none). The
+token task itself is proxyless: the solver mints the token from its own network.
+
+**Account.** Import a Cookie-Editor JSON export of flow.google.com (a normal browser profile, closed right after the
+export; never sign that profile out: the Google account is shared with Gemini). Only google.com cookies are sealed;
+`__Secure-1PSID` must be there. The first check names the account by its email and makes its Flow project
+(`provider_state.project`, free).
+
+**Session keeping.** `__Secure-1PSIDTS` ages out in about 20 min. Every run of an account (the check every 5 min, a
+submit, a poll, a reconcile) first calls `RotateCookies` when `flow.rotate_interval_s` (600) has passed, and writes the
+rotated jar back into the sealed credential at once (`RunCtx.renew_credential`: same key, compare-and-swap on the exact
+sealed value the run read, only at the credential generation it read, the generation unchanged; when another run
+renewed first, the two jars are merged cookie by cookie, the later rotation winning, and written once more), then
+every cookie a page load refreshed when the run ends. The checks also run while flow is drained (`flow.claims_enabled`
+false, the default), so an imported account is kept signed in before flow takes jobs. A signed-out page is one spaced strike and a rest with a recheck; three counted strikes end the account.
+
+**An image job.** Load the project page; per try: a reCAPTCHA Enterprise token (YesCaptcha
+`RecaptchaV3TaskProxylessM1`, action `IMAGE_GENERATION`, 10-17 s); a new batch id written to the job; marked sent; one
+`ogiZ0b` POST, whose reply flow holds until the image is drawn (13-17 s) and which carries the signed
+`flow-content.google` JPEG link (`Completed`, fetched through the proxy).
+
+- The immediate refusal (HTTP 200, the reply item with no payload and error code 7 `PUBLIC_ERROR_UNUSUAL_ACTIVITY` or
+  8 `..._TOO_MUCH_TRAFFIC`) made nothing and charged nothing (measured): the next try uses a new token and a new batch
+  id after `flow.captcha_retry_gap_s` (60), up to `flow.captcha_max_tries` (5) inside the 900 s submit bound. Then the
+  job goes back to the queue (`flow.captcha_refused`, one attempt).
+- Any other reply that is not a drawn image is `unknown`: the reconciler reads the project listing (`Zzl0ze`) for any
+  batch id the job sent. Listed is found (then `as29s` signs the link); not listed stays unknown (an image is listed
+  about a minute after its reply) until `flow.render_deadline_s` (900) fails the job with its refund. It is never sent
+  again.
+- After any generate the account's image pool rests `flow.account_min_gap_s` (300): YesCaptcha tokens were refused at a
+  fast rate and accepted after a 12-min pause, so measure the accept rate per account and per IP before raising load.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `flow.claims_enabled` | false | drain mode: no new job; the checks (and so the session upkeep) go on |
+| `flow.rotate_interval_s` | 600 | between two `RotateCookies` of one account (120-900) |
+| `flow.captcha_provider` | yescaptcha | the token source; only `yescaptcha` is built |
+| `flow.captcha_max_tries` | 5 | tries of one job against the reCAPTCHA check |
+| `flow.captcha_retry_gap_s` | 60 | between two tries of one job |
+| `flow.account_min_gap_s` | 300 | the pool rest after a generate |
+| `flow.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
+| `flow.poll_interval_s` | 30 | between two reads of a found job |
+| `flow.prices`, `flow.image_budget` | 1 each, 1000 | points per image; images per account per day (not measured) |
+
 ## The box runbook
 
 Relay runs on the LAN box, in its own compose project `relay`, next to projects that are not ours (`portfolio` and
@@ -842,10 +898,13 @@ The manual steps stay below as the reference for what the scripts do.
 3. Start the worker alone, as its own command: `--profile dola up -d worker-dola`. Never `--profile app --profile dola
    up` in one command: the worker would start before step 2.
 4. The drained state and Chrome are checked by the settings read above, by the worker's heartbeat row
-   (`worker_heartbeats`, a fresh `at`, 0 consecutive errors, 0 slots busy) and by `chrome --version` in the image
+   (`worker_heartbeats`, a fresh `at`, 0 consecutive errors; slots may be busy, since a drained worker still runs its
+   account checks, and they open Chrome) and by `chrome --version` in the image
    (`docker exec relay-worker-dola-1 /opt/google/chrome/chrome --version`: 154.0.8037.92), not by the log: the worker logs
-   nothing at the default level while it is idle. The worker has no HTTP port; its health is that heartbeat row.
-   Then `relay provider resume dola` when the accounts are imported (drain also stops account checks).
+   nothing at the default level while it is idle. The worker has no HTTP port; its health is that heartbeat row. No
+   job is in flight while drained: `scripts/deploy.sh` waits for no job of the provider `submitting`, not for 0 busy
+   slots.
+   Then `relay provider resume dola` when the accounts are imported (the account checks run while drained).
 5. `migrate` runs before a new worker: the worker writes `worker_heartbeats.limits`, and before migration 0019 its
    first heartbeat fails.
 6. A worker image older than the settings change must not start under this compose file: it still needs
@@ -879,6 +938,7 @@ go-live log, and only inside the abort threshold.
 | `migrate` (one-shot) | 1 | 1 GB | 256 |
 | `worker-meta` (not started) | 4 | 6 GB | 1024 |
 | `worker-vibes` (not started) | 1 | 1 GB | 256 |
+| `worker-flow` (not started) | 1 | 1 GB | 256 |
 
 **Deployed values (13/10, `deploy/.env` on the box):** `DOLA_CPUS` 8, `POSTGRES_CPUS` 2, `MINIO_CPUS` 1.5, `API_CPUS` 1.5, memory
 and PID limits as in the table. Why: relay's running limits plus the 12-core gate cap plus twice the foreign peak

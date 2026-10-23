@@ -14,8 +14,9 @@ from jobkit import SPEC, account, create, key, run
 
 from relay_core import crypto, failpoints
 from relay_core.budget import BrowserBudget
+from relay_core.db import tx
 from relay_core.jobs import apply, store
-from relay_core.jobs.runctx import load_account_view
+from relay_core.jobs.runctx import Renewal, load_account_view
 from relay_core.providers import Accepted, Completed, Fail, Output, SubmitResult
 from relay_core.testing.fake_provider import FakeEngine, FakeSettings, FakeSpec, sent, unsent
 from relay_core.testing.mutation import mutation
@@ -634,6 +635,133 @@ def test_the_account_view_opens_the_sealed_credential_and_proxy_with_the_workers
     assert (view.label, view.credential, view.credential_gen) == ("main", b"cookie=1", 1)
     assert (view.proxy.host, view.proxy.port, view.proxy.auth) == ("h", 8080, "user:pw")
     assert view.provider_state == {"composer": 1} and view.capacity == {"video": 3}
+
+
+RUNCTX = "packages/relay-core/src/relay_core/jobs/runctx.py"
+CAS = '"WHERE id = %s AND credential_gen = %s AND credential_enc = %s",\n'
+
+
+def merge_json(stored: bytes, mine: bytes) -> bytes:
+    """A provider's merge: every key of both, the newer `at` winning."""
+    a, b = json.loads(stored), json.loads(mine)
+    old, new = (a, b) if a["at"] <= b["at"] else (b, a)
+    return json.dumps({**old, **new}, sort_keys=True).encode()
+
+
+def sealed_account(db, plaintext: bytes):
+    pair, other = crypto.generate_keypair(), crypto.generate_keypair()
+    acct = account(db)
+    db.run("UPDATE accounts SET credential_enc = %s WHERE id = %s", crypto.seal(pair.public, plaintext), acct)
+    return pair, other, acct
+
+
+def stored(db, acct, pair) -> tuple[bytes, int]:
+    sealed, gen = db.one("SELECT credential_enc, credential_gen FROM accounts WHERE id = %s", acct)
+    return crypto.open_blob(bytes(sealed), [pair.private]), gen
+
+
+@mutation(RUNCTX, '"UPDATE accounts SET credential_enc = %s, updated_at',
+          '"UPDATE accounts SET credential_enc = %s, credential_gen = credential_gen + 1, updated_at',
+          expect="a renewal changed the generation")
+@mutation(RUNCTX, "{pool: left for pool, left in caps}, crypto.sealing_key(sealed, keys), sealed,",
+          "{pool: left for pool, left in caps}, crypto.generate_keypair().public, sealed,",
+          expect="the renewed credential is not sealed for the worker's key")
+@mutation(RUNCTX, "                self.sealed, self.plain = sealed, blob\n",
+          "                self.plain = blob\n", expect="a second renewal of one run was refused")
+@mutation(RUNCTX, "                self.sealed, self.plain = sealed, blob\n",
+          "                self.sealed = sealed\n", expect="the run's own newer write was undone")
+def test_a_renewed_credential_replaces_the_sealed_one_with_the_same_key_and_generation(db):
+    """The one credential push (a provider's cookie rotation): sealed with the key that sealed the account's
+    credential, never bumping the generation; a run may renew twice (rotation, then the cookies of its page loads),
+    and a later write of an older copy is merged with the run's own newer write, never undoing it."""
+    pair, other, acct = sealed_account(db, b'{"at": 1}')
+
+    async def scenario(p):
+        view = await load_account_view(p, acct, [other.private, pair.private])
+        renewal = Renewal(p, view)
+        first, second = await renewal(b'{"at": 2}'), await renewal(b'{"at": 3}')
+        newer = await renewal(b'{"at": 10, "k": "x"}', merge_json)
+        older = await renewal(b'{"at": 4, "p": "page"}', merge_json)
+        return view, first, second, newer, older
+
+    view, first, second, newer, older = run(db, scenario)
+    assert view.seal_key == pair.public, "the renewed credential is not sealed for the worker's key"
+    got, gen = stored(db, acct, pair)
+    assert gen == 1, "a renewal changed the generation"
+    assert first and second and newer and older, "a second renewal of one run was refused"
+    assert json.loads(got) == {"at": 10, "k": "x", "p": "page"}, "the run's own newer write was undone: %s" % got
+    assert older == got
+
+
+ALWAYS_MERGE = ("            if merge is not None and self.plain is not None:\n"
+                "                blob = merge(self.plain, blob)")
+MERGE_ON_RETRY_ONLY = ("            if attempt and merge is not None and self.plain is not None:\n"
+                       "                blob = merge(self.plain, blob)")
+
+
+@mutation(RUNCTX, CAS, '"WHERE id = %s AND credential_gen = %s AND %s IS NOT NULL",\n',
+          expect="the later renewal regressed the newer session")
+@mutation(RUNCTX, ALWAYS_MERGE, MERGE_ON_RETRY_ONLY,
+          expect="the stale copy regressed the newer session")
+@mutation(RUNCTX, "            self.sealed, self.key, self.plain = fresh.sealed, fresh.seal_key, fresh.credential",
+          "            self.sealed, self.key = fresh.sealed, fresh.seal_key",
+          expect="the later renewal regressed the newer session")
+@mutation(RUNCTX, "        for attempt in range(2):", "        for attempt in range(1):",
+          expect="the merge was not written")
+def test_two_runs_that_read_one_generation_never_lose_a_rotation_even_when_the_later_writes_its_stale_copy_again(db):
+    """Two runs load generation 1; A renews; B's swap misses (the ciphertext moved), so B reads the account again and
+    writes merge(stored, mine). B then writes its own stale copy once more (a page load refreshed a cookie): that write
+    too is merged with what B knows is stored, so A's newer rotation stays."""
+    pair, other, acct = sealed_account(db, b'{"a": "old", "at": 1, "b": "old", "c": "old"}')
+
+    async def scenario(p):
+        one = await load_account_view(p, acct, [pair.private])
+        two = await load_account_view(p, acct, [pair.private])
+        first = await Renewal(p, one)(b'{"a": "rotated", "at": 5, "b": "old", "c": "old"}')
+        b = Renewal(p, two)
+        second = await b(b'{"a": "old", "at": 3, "b": "old", "c": "page", "d": "new"}', merge_json)
+        mid, _ = stored(db, acct, pair)
+        third = await b(b'{"a": "old", "at": 3, "b": "page-again", "c": "page", "d": "new"}', merge_json)
+        return first, second, mid, third
+
+    first, second, mid, third = run(db, scenario)
+    assert first and second and third, "the merge was not written"
+    assert json.loads(mid) == {"a": "rotated", "at": 5, "b": "old", "c": "old", "d": "new"}, \
+        "the later renewal regressed the newer session: %s" % mid
+    got, gen = stored(db, acct, pair)
+    assert json.loads(got)["a"] == "rotated", "the stale copy regressed the newer session: %s" % got
+    assert third == got and gen == 1, "the call returns exactly what is stored"
+
+
+def test_concurrent_renewals_never_regress_and_without_a_merge_a_lost_swap_writes_nothing(db):
+    pair, other, acct = sealed_account(db, b'{"at": 1}')
+
+    async def concurrent(p):
+        views = [await load_account_view(p, acct, [pair.private]) for _ in range(3)]
+        return await asyncio.gather(*(Renewal(p, v)(b'{"at": %d}' % (10 + i), merge_json)
+                                      for i, v in enumerate(views)))
+
+    results = run(db, concurrent)
+    written = [10 + i for i, ok in enumerate(results) if ok]
+    assert written and json.loads(stored(db, acct, pair)[0])["at"] >= max(written), \
+        "a concurrent renewal regressed the newest session"
+
+    async def no_merge(p):
+        old = await load_account_view(p, acct, [pair.private])
+        assert await Renewal(p, await load_account_view(p, acct, [pair.private]))(b'{"at": 20}')
+        return await Renewal(p, old)(b'{"at": 13}')
+
+    assert run(db, no_merge) is None and json.loads(stored(db, acct, pair)[0])["at"] == 20
+
+    async def stale(p):        # a run that read generation 1, while a re-import moved the account to generation 2
+        old = await load_account_view(p, acct, [pair.private])
+        async with tx(p) as conn:
+            await conn.execute("UPDATE accounts SET credential_enc = %s, credential_gen = 2 WHERE id = %s",
+                               (crypto.seal(pair.public, b'{"at": 0}'), acct))
+        return await Renewal(p, old)(b'{"at": 30}', merge_json)
+
+    assert run(db, stale) is None, "a credential imported meanwhile was overwritten"
+    assert stored(db, acct, pair) == (b'{"at": 0}', 2), "a credential imported meanwhile was overwritten"
 
 
 class BeatAfterCommit:

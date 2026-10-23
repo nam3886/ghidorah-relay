@@ -30,6 +30,7 @@ from relay_core.budget import BrowserBudget, Purpose
 from relay_core.db import delete_unused_account, tx
 from relay_core.jobs import checks
 from relay_core.jobs.checks import Checks, check_account, due_accounts
+from relay_core.jobs.claim import claim_one
 from relay_core.providers import Balance, Cooldown, Health, ProxyBad, ProxyVerdict
 from relay_core.testing.fake_provider import FakeSettings
 from relay_core.testing.mutation import mutation
@@ -406,15 +407,26 @@ def test_the_scheduler_starts_due_checks_as_tasks_up_to_its_limit_and_never_twic
     assert sorted(checked) == sorted(str(i) for i in ids)
 
 
-def test_drain_mode_starts_no_checks(db):
-    new_account(db, checked=False)
+@mutation(CHECKS, "        if len(self._tasks) >= self.max_tasks:",
+          "        if self.env.drained() or len(self._tasks) >= self.max_tasks:",
+          expect="a drained provider stopped its account checks")
+def test_a_drained_provider_still_checks_its_accounts_and_claims_no_job(db):
+    """The owner's ruling (23/10): drain stops new jobs only; the checks go on (they keep sessions alive)."""
+    acct = new_account(db, checked=False)
 
     async def scenario(p):
         engine = KitEngine()
-        sched = Checks(make_env(p, engine, settings=FakeSettings(SPEC, fake__claims_enabled=False)))
-        return await sched.tick(), engine.checked
+        drained = FakeSettings(SPEC, fake__claims_enabled=False)
+        env = make_env(p, engine, settings=drained)
+        sched = Checks(env)
+        started = await sched.tick()
+        await sched.wait()
+        claimed = await claim_one(p, provider=env.provider, caps=env.caps, settings=drained, owner="w1")
+        return started, engine.checked, claimed
 
-    assert worker(db, scenario) == ([], [])
+    started, checked, claimed = worker(db, scenario)
+    assert started == [acct] and checked == [str(acct)], "a drained provider stopped its account checks"
+    assert claimed is None, "a drained provider claimed a job"
 
 
 # ---- the duplicate merge -------------------------------------------------------------------------------------------

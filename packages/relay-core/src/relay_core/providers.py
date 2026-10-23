@@ -1,8 +1,9 @@
 """The provider protocol, trimmed to what the first provider needs.
 
 Pure types: no I/O, no database, no browser. The API imports a provider's spec; only a worker imports its engine.
-Members marked as later additions (pinned jobs, credential push, poll-held leases, per-pool slots,
-bytes outputs, fail-and-refund, maintain, the cooldown strike effect) are deliberately absent.
+Members marked as later additions (pinned jobs, poll-held leases, per-pool slots, bytes outputs, fail-and-refund,
+maintain, the cooldown strike effect) are deliberately absent. Credential push exists in one narrow form:
+`RunCtx.renew_credential`, a renewed copy of the same session (a cookie rotation), never a new identity.
 
 This module is also the one core module that may name providers (the registry); it names none itself.
 """
@@ -476,6 +477,9 @@ class AccountView:
     proxy: Proxy | None
     provider_state: Mapping[str, Any]
     capacity: Mapping[str, int | None]   # pool -> left_n (None = unknown)
+    seal_key: str | None = None          # the public key that sealed the credential (not a secret); None: no renewal
+    sealed: bytes | None = field(default=None, repr=False)        # the ciphertext read: a renewal swaps exactly it
+    reload: "Callable[[], Awaitable[AccountView]] | None" = field(default=None, repr=False, compare=False)
 
 
 @dataclass(frozen=True)
@@ -515,6 +519,15 @@ class RunCtx(Protocol):
     async def event(self, text: str, stage: str, source: str) -> None: ...
 
     async def evidence(self, name: str, data: bytes, mime: str) -> None: ...
+
+    async def renew_credential(self, blob: bytes,
+                               merge: Callable[[bytes, bytes], bytes] | None = None) -> bytes | None:
+        """Replace the account's sealed credential with a renewed copy of the SAME session (an upstream that rotates
+        its cookies), sealed with the key that sealed it, by compare-and-swap on the exact sealed value this run last
+        read or wrote, at the `credential_gen` the run read (never bumped: a credential imported meanwhile is never
+        overwritten). With `merge(stored, mine)` (the provider's) every write is the merge of the stored session with
+        `blob`, and a swap lost to another run is merged with the new stored value and tried once more. Returns the
+        credential now stored (the provider keeps exactly that), None when superseded. The blob is never logged."""
 
 
 @dataclass(frozen=True)

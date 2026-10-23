@@ -251,7 +251,7 @@ def run_py(code: str) -> str:
 # The browser packages count by their top-level name: relay_browser.session or a patchright submodule is the same fact.
 LOADED = ("import sys; print(sorted({m if m.endswith(('.engine', '.e2e')) else m.split('.')[0] "
           "for m in sys.modules if m.split('.')[0] in "
-          "('relay_browser', 'patchright', 'relay_dola', 'relay_vibes', 'relay_meta') and "
+          "('relay_browser', 'patchright', 'relay_dola', 'relay_vibes', 'relay_meta', 'relay_flow') and "
           "(m.endswith('.engine') or m.endswith('.e2e') or m.split('.')[0] in ('relay_browser', 'patchright'))}))")
 
 
@@ -272,6 +272,7 @@ def test_serve_loads_no_engine_and_no_browser():
            expect="loaded_after(\"worker\", \"--provider\", \"vibes\") == \"['relay_vibes.engine']\"")
 def test_http_worker_loads_no_browser():
     assert loaded_after("worker", "--provider", "vibes") == "['relay_vibes.engine']"
+    assert loaded_after("worker", "--provider", "flow") == "['relay_flow.engine']"
 
 
 @mutation(M, 'return importlib.import_module(PROVIDERS[provider] + ".engine")',

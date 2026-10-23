@@ -85,6 +85,17 @@ def open_blob(blob: bytes, private_keys: Iterable[str]) -> bytes:
     raise CryptoError("no private key for %s" % wanted)
 
 
+def sealing_key(blob: bytes, private_keys: Iterable[str]) -> str:
+    """The public key (base64 text, not a secret) of the key that sealed `blob`: a worker re-seals a renewed credential
+    with it, so the blob stays openable by the same private key. CryptoError when none of the keys sealed it."""
+    wanted = blob_key_id(blob)
+    for text in private_keys:
+        public = bytes(PrivateKey(_decode_key(text, "private")).public_key)
+        if key_id_of(public) == wanted:
+            return _b64(public)
+    raise CryptoError("no private key for %s" % wanted)
+
+
 def public_key_from_env(env: Mapping[str, str] = os.environ) -> str:
     key = env.get(PUBLIC_KEY_VAR, "").strip()
     if not key:

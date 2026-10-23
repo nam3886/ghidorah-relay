@@ -9,6 +9,7 @@ dependencies = [
     "relay-dola",
     "relay-vibes",
     "relay-meta",
+    "relay-flow",
     "relay-cli",
 ]
 
@@ -28,6 +29,7 @@ relay-browser = { workspace = true }
 relay-dola = { workspace = true }
 relay-vibes = { workspace = true }
 relay-meta = { workspace = true }
+relay-flow = { workspace = true }
 relay-cli = { workspace = true }
 
 [tool.ruff]
@@ -40,7 +42,7 @@ select = ["E", "F", "W", "I", "B", "UP"]
 ignore = ["UP031"]   # %-formatting is the house style
 
 [tool.ruff.lint.isort]
-known-first-party = ["relay_core", "relay_browser", "relay_dola", "relay_vibes", "relay_meta", "relay_cli"]
+known-first-party = ["relay_core", "relay_browser", "relay_dola", "relay_vibes", "relay_meta", "relay_flow", "relay_cli"]
 known-local-folder = ["guards"]
 
 [tool.pytest.ini_options]

@@ -51,6 +51,14 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `dola.ui_style_select_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the style could not be selected on dola's page |
 | `dola.unknown_status` | 502 | api_error | no | yes | yes | 0 | yes | dola answered with a status that is not understood |
 
+## `flow.*`
+
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `flow.captcha_failed` | 502 | api_error | no | yes | yes | 0 | yes | the security token for flow could not be obtained; the order was not sent |
+| `flow.captcha_refused` | 503 | api_error | no | yes | yes | 0 | yes | flow refused the request at its security check; nothing was made |
+| `flow.http_error` | 502 | api_error | no | yes | yes | 0 | yes | flow answered with an error before the order was sent |
+
 ## `input.*`
 
 | Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |

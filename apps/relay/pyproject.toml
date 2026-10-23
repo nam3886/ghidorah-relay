@@ -3,7 +3,7 @@ name = "relay-cli"
 version = "0.0.0"
 requires-python = ">=3.13,<3.14"
 description = "The relay command: serve, worker, migrate, admin"
-dependencies = ["relay-core", "relay-dola", "relay-vibes", "relay-meta"]
+dependencies = ["relay-core", "relay-dola", "relay-vibes", "relay-meta", "relay-flow"]
 
 [build-system]
 requires = ["uv_build>=0.9,<0.10"]
@@ -17,3 +17,4 @@ relay-core = { workspace = true }
 relay-dola = { workspace = true }
 relay-vibes = { workspace = true }
 relay-meta = { workspace = true }
+relay-flow = { workspace = true }

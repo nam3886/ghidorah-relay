@@ -25,7 +25,7 @@ from relay_core.jobs import store
 from relay_core.jobs.apply import StartupGrace
 from relay_core.jobs.claim import Visible, claim_visible
 from relay_core.jobs.events import add_event
-from relay_core.jobs.runctx import EngineSource, EvidenceSink
+from relay_core.jobs.runctx import EngineSource, EvidenceSink, Merge, Renewal
 from relay_core.leases import fence_once
 from relay_core.providers import AccountView, JobView, Pending, PollResult, ProviderEngine, ProviderSpec
 
@@ -50,6 +50,7 @@ class ReadCtx:
         self._db, self._job_id, self._lease_id, self._evidence = db, job_id, lease_id, evidence_sink
         self.account, self.browser_token, self.settings = account, browser_token, settings
         self.log = logging.getLogger("relay.engine.%s" % provider)
+        self._renewal = Renewal(db, account)
 
     async def fence(self) -> None:
         if self._lease_id is not None:
@@ -72,6 +73,10 @@ class ReadCtx:
             self.log.warning("evidence %r dropped: no evidence sink is wired", name)
             return
         await self._evidence(str(self._job_id), name, data, mime)
+
+    async def renew_credential(self, blob: bytes, merge: Merge | None = None) -> bytes | None:
+        """A renewed session is not a send: a read may keep the account's session alive too."""
+        return await self._renewal(blob, merge)
 
 
 class JobLoop:
