@@ -1,0 +1,62 @@
+[
+ {
+  "path": "/alice/profile/self_brief",
+  "a_bogus": "none",
+  "status": 200,
+  "code": 0,
+  "msg": "",
+  "response_bytes": 999
+ },
+ {
+  "path": "/alice/profile/self_brief",
+  "a_bogus": "bad",
+  "status": 200,
+  "code": 0,
+  "msg": "",
+  "response_bytes": 999
+ },
+ {
+  "path": "/alice/profile/self_brief",
+  "a_bogus": "good",
+  "status": 200,
+  "code": 0,
+  "msg": "",
+  "response_bytes": 1001
+ },
+ {
+  "path": "/alice/user/launch",
+  "a_bogus": "none",
+  "status": 200,
+  "code": 0,
+  "msg": "",
+  "response_bytes": 4379
+ },
+ {
+  "path": "/alice/user/launch",
+  "a_bogus": "bad",
+  "status": 200,
+  "code": 0,
+  "msg": "",
+  "response_bytes": 4379
+ },
+ {
+  "path": "/alice/user/launch",
+  "a_bogus": "good",
+  "status": 200,
+  "code": 0,
+  "msg": "",
+  "response_bytes": 4379
+ },
+ {
+  "path": "/alice/user/get_web_anon_id",
+  "a_bogus": "none (the page sends none)",
+  "status": 200,
+  "code": 0,
+  "response_keys": [
+   "code",
+   "msg",
+   "uid",
+   "web_id"
+  ]
+ }
+]

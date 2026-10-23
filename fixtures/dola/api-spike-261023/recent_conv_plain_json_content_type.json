@@ -1,0 +1,56 @@
+{
+ "method": "POST",
+ "url": "https://www.dola.com/im/chain/recent_conv?version_code=xxxxx&language=xx&device_platform=web&doubao_device_platform=xxx&aid=495671&real_aid=xxxxxx&pkg_type=xxxxxxxxxxxxxxx&device_id=&pc_version=xxxxxx&doubao_pc_version=xxxxxx&web_id=xxxxxxxxxxxxxxxxxxx&tea_uuid=xxxxxxxxxxxxxxxxxxx&region=xx&sys_region=xx&samantha_web=x&web_platform=xxxxxxx&use-olympus-account=x&web_tab_id=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+ "status": 200,
+ "ms": 3483,
+ "request_body": {
+  "cmd": 3200,
+  "uplink_body": {
+   "pull_recent_conv_chain_uplink_body": {
+    "limit": 30,
+    "message_count_per_conv": 1,
+    "api_version": 1,
+    "conv_version": 0,
+    "direction": 3,
+    "option": {
+     "not_need_message": true,
+     "need_complete_conversation": true
+    }
+   }
+  },
+  "sequence_id": "1",
+  "channel": 2,
+  "version": "1"
+ },
+ "response_headers": {
+  "content-type": "application/json; charset=utf-8",
+  "content-length": "150",
+  "tt_stable": "4",
+  "x-tt-agw-login": "1",
+  "x-tt-logid": "20261023143246722C092874DFDEDC83E8",
+  "server-timing": "inner; dur=21,tt_agw; dur=16, cdn-cache; desc=MISS, edge; dur=2, origin; dur=186",
+  "x-tt-trace-host": "010c706cc8c4dd7b1e289e4bd4f2f377cfe746329a100d12582eef706caee931bca67d94a657d57eb4a35893866741190887493a65deded6cc527b2774aac1183d3f3b67a6e9ccf018648ff73ca7864d99bb3f4a7b755b3fe20a91949fd9df54706105f37ca787d5bc241320201e8c4da1a6f8c0a8c5ccc7557d4f47a205bcae20c005085a8f118cdd1f4bd1e88a97846c8077939bb9023d36b75db00eb1d4338e",
+  "x-tt-trace-id": "00-261023143246722C092874DFDEDC83E8-4F04BDE01BC76FC6-00",
+  "server": "TLB",
+  "expires": "Fri, 23 Oct 2026 06:32:46 GMT",
+  "cache-control": "max-age=0, no-cache, no-store",
+  "pragma": "no-cache",
+  "date": "Fri, 23 Oct 2026 06:32:46 GMT",
+  "x-cache": "TCP_MISS from a23-41-167-75.deploy.akamaitechnologies.com (AkamaiGHost/22.7.0-c18a5259117e1d1b2cb0ace70ccfa9bb) (-)",
+  "strict-transport-security": "max-age=31536000 ; includeSubDomains",
+  "x-tt-trace-tag": "id=16;cdn-cache=miss;type=dyn",
+  "x-origin-response-time": "187,23.41.167.75",
+  "x-akamai-request-id": "330ebd5"
+ },
+ "response": {
+  "cmd": 0,
+  "sequence_id": "",
+  "downlink_body": {},
+  "version": "",
+  "status_code": 712012002,
+  "status_desc": "不支持编码类型",
+  "ext": {
+   "tt_stable": "4"
+  }
+ }
+}

@@ -1,0 +1,203 @@
+{
+ "method": "POST",
+ "url": "https://www.dola.com/im/chain/recent_conv?version_code=xxxxx&language=xx&device_platform=web&doubao_device_platform=xxx&aid=495671&real_aid=xxxxxx&pkg_type=xxxxxxxxxxxxxxx&device_id=&pc_version=xxxxxx&doubao_pc_version=xxxxxx&web_id=xxxxxxxxxxxxxxxxxxx&tea_uuid=xxxxxxxxxxxxxxxxxxx&region=xx&sys_region=xx&samantha_web=x&web_platform=xxxxxxx&use-olympus-account=x&web_tab_id=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+ "status": 200,
+ "ms": 2721,
+ "request_body": {
+  "cmd": 3200,
+  "uplink_body": {
+   "pull_recent_conv_chain_uplink_body": {
+    "limit": 30,
+    "message_count_per_conv": 1,
+    "api_version": 1,
+    "conv_version": 0,
+    "direction": 3,
+    "option": {
+     "not_need_message": true,
+     "need_complete_conversation": true
+    }
+   }
+  },
+  "sequence_id": "12c056f2-9cb9-4cac-b86e-45689790ab25",
+  "channel": 2,
+  "version": "1"
+ },
+ "response_headers": {
+  "content-type": "application/json; charset=utf-8",
+  "tt_stable": "2",
+  "x-tt-agw-login": "1",
+  "x-tt-logid": "2026102314351090E4F9BCC7FC09DD4DE7",
+  "server-timing": "inner; dur=102,tt_agw; dur=97, cdn-cache; desc=MISS, edge; dur=1, origin; dur=275",
+  "x-tt-trace-host": "010c706cc8c4dd7b1e289e4bd4f2f377cf34b14291704575b46614b25f9db3dfeff6991865d85cc48284022f3dc31262e0b130840c7575c40e6af79641a2e127caf3cc96f512c343878a8db0444b4272c30e7708c6c377a929d98e9ae1e26b287d6b8833b107906aba7056ea343fb78979c3048d3da407d93bcd804b1fc9754ab03ca631a01a4b76a4bc2ee3651274b50017492a81a24d44e410d29e050bb91b78",
+  "x-tt-trace-id": "00-26102314351090E4F9BCC7FC09DD4DE7-29C5F6F762B4AA7F-00",
+  "server": "TLB",
+  "content-encoding": "gzip",
+  "expires": "Fri, 23 Oct 2026 06:35:10 GMT",
+  "cache-control": "max-age=0, no-cache, no-store",
+  "pragma": "no-cache",
+  "date": "Fri, 23 Oct 2026 06:35:10 GMT",
+  "x-cache": "TCP_MISS from a2-22-52-125.deploy.akamaitechnologies.com (AkamaiGHost/22.6.5-c7f42c2259a85671864b176aefb368af) (-)",
+  "vary": "Accept-Encoding",
+  "strict-transport-security": "max-age=31536000 ; includeSubDomains",
+  "x-tt-trace-tag": "id=16;cdn-cache=miss;type=dyn",
+  "x-origin-response-time": "275,2.22.52.125",
+  "x-akamai-request-id": "5d140bc8"
+ },
+ "response": {
+  "cmd": 3200,
+  "sequence_id": "12c056f2-9cb9-4cac-b86e-45689790ab25",
+  "downlink_body": {
+   "pull_recent_conv_chain_downlink_body": {
+    "messages": [],
+    "next_conv_version": "1791848816208321",
+    "first_conv_version": "1792737254264226",
+    "has_more": false,
+    "cells": [
+     {
+      "conversation_id": "38418214902690065",
+      "cell_keys": [
+       "cell_type",
+       "conversation",
+       "id",
+       "position_version"
+      ],
+      "conversation_keys": [
+       "badge_count",
+       "bot_id",
+       "bot_type",
+       "conv_extra",
+       "conv_version",
+       "conversation_id",
+       "conversation_status",
+       "conversation_type",
+       "create_time",
+       "device_reference",
+       "icon_url",
+       "image",
+       "last_section_id",
+       "latest_artifact",
+       "messages",
+       "name",
+       "project_reference",
+       "read_badge_count",
+       "regen_messages",
+       "tags",
+       "update_time",
+       "user_msg_cursor"
+      ]
+     },
+     {
+      "conversation_id": "38418325590218513",
+      "cell_keys": [
+       "cell_type",
+       "conversation",
+       "id",
+       "position_version"
+      ],
+      "conversation_keys": [
+       "badge_count",
+       "bot_id",
+       "bot_type",
+       "conv_extra",
+       "conv_version",
+       "conversation_id",
+       "conversation_status",
+       "conversation_type",
+       "create_time",
+       "device_reference",
+       "icon_url",
+       "image",
+       "last_section_id",
+       "latest_artifact",
+       "messages",
+       "name",
+       "project_reference",
+       "read_badge_count",
+       "regen_messages",
+       "tags",
+       "update_time",
+       "user_msg_cursor"
+      ]
+     },
+     {
+      "conversation_id": "38418233584948497",
+      "cell_keys": [
+       "cell_type",
+       "conversation",
+       "id",
+       "position_version"
+      ],
+      "conversation_keys": [
+       "badge_count",
+       "bot_id",
+       "bot_type",
+       "conv_extra",
+       "conv_version",
+       "conversation_id",
+       "conversation_status",
+       "conversation_type",
+       "create_time",
+       "device_reference",
+       "icon_url",
+       "image",
+       "last_section_id",
+       "latest_artifact",
+       "messages",
+       "name",
+       "project_reference",
+       "read_badge_count",
+       "regen_messages",
+       "tags",
+       "update_time",
+       "user_msg_cursor"
+      ]
+     },
+     {
+      "conversation_id": "38418116011876369",
+      "cell_keys": [
+       "cell_type",
+       "conversation",
+       "id",
+       "position_version"
+      ],
+      "conversation_keys": [
+       "badge_count",
+       "bot_id",
+       "bot_type",
+       "conv_extra",
+       "conv_version",
+       "conversation_id",
+       "conversation_status",
+       "conversation_type",
+       "create_time",
+       "device_reference",
+       "icon_url",
+       "image",
+       "last_section_id",
+       "latest_artifact",
+       "messages",
+       "name",
+       "pinned_time",
+       "project_reference",
+       "read_badge_count",
+       "regen_messages",
+       "tags",
+       "update_time",
+       "user_msg_cursor"
+      ]
+     }
+    ],
+    "user_id": "1588906284447947875",
+    "extra": {
+     "extra": {}
+    }
+   }
+  },
+  "version": "1",
+  "status_code": 0,
+  "status_desc": "OK",
+  "ext": {
+   "tt_stable": "2"
+  }
+ }
+}

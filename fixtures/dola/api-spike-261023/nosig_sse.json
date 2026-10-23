@@ -1,0 +1,50 @@
+[
+ [
+  4.52,
+  "id: 0"
+ ],
+ [
+  4.52,
+  "event: SSE_HEARTBEAT"
+ ],
+ [
+  4.52,
+  "data: {}"
+ ],
+ [
+  4.52,
+  ""
+ ],
+ [
+  4.52,
+  "id: 0"
+ ],
+ [
+  4.52,
+  "event: STREAM_ERROR"
+ ],
+ [
+  4.52,
+  "data: {\"error_code\":710022004,\"error_msg\":\"rate limited\",\"extra\":{\"ack\":\"1\",\"decision\":\"{\\\"code\\\":\\\"10000\\\",\\\"from\\\":\\\"shark_admin\\\",\\\"version\\\":\\\"\\\",\\\"type\\\":\\\"verify\\\",\\\"region\\\":\\\"i18n-bd\\\",\\\"subtype\\\":\\\"slide\\\",\\\"detail\\\":\\\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"server_sdk_env\\\":\\\"{\\\\\\\"idc\\\\\\\":\\\\\\\"mya\\\\\\\",\\\\\\\"region\\\\\\\":\\\\\\\"Asia-SouthEastBD\\\\\\\",\\\\\\\"server_type\\\\\\\":\\\\\\\"business\\\\\\\"}\\\",\\\"log_id\\\":\\\"20261023143910907ED0C63482D33DE4B0\\\"}\"}}"
+ ],
+ [
+  4.52,
+  ""
+ ],
+ [
+  4.52,
+  "id: 1"
+ ],
+ [
+  4.52,
+  "event: SSE_REPLY_END"
+ ],
+ [
+  4.52,
+  "data: {\"end_type\":3}"
+ ],
+ [
+  4.52,
+  ""
+ ]
+]

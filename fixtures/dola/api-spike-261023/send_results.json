@@ -1,0 +1,56 @@
+[
+ {
+  "label": "first",
+  "sign": "good",
+  "status": 200,
+  "seconds": 20.3,
+  "lines": 80,
+  "error": "",
+  "conversation_created": true
+ },
+ {
+  "label": "badsig",
+  "sign": "bad",
+  "status": 200,
+  "seconds": 7.6,
+  "lines": 12,
+  "error": "",
+  "conversation_created": false
+ },
+ {
+  "label": "nosig",
+  "sign": "none",
+  "status": 200,
+  "seconds": 4.5,
+  "lines": 12,
+  "error": "",
+  "conversation_created": false
+ },
+ {
+  "label": "goodsig2",
+  "sign": "good",
+  "status": 200,
+  "seconds": 17.4,
+  "lines": 184,
+  "error": "",
+  "conversation_created": true
+ },
+ {
+  "label": "replay1",
+  "sign": "good",
+  "status": 200,
+  "seconds": 37.3,
+  "lines": 32,
+  "error": "",
+  "conversation_created": false
+ },
+ {
+  "label": "video5",
+  "sign": "good",
+  "status": 200,
+  "seconds": 10.1,
+  "lines": 244,
+  "error": "",
+  "conversation_created": true
+ }
+]

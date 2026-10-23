@@ -1,0 +1,50 @@
+[
+ [
+  7.32,
+  "id: 0"
+ ],
+ [
+  7.32,
+  "event: SSE_HEARTBEAT"
+ ],
+ [
+  7.57,
+  "data: {}"
+ ],
+ [
+  7.57,
+  ""
+ ],
+ [
+  7.57,
+  "id: 0"
+ ],
+ [
+  7.57,
+  "event: STREAM_ERROR"
+ ],
+ [
+  7.57,
+  "data: {\"error_code\":710022002,\"error_msg\":\"We are experiencing high demand right now. Please try again later.\",\"extra\":{\"ack\":\"1\"}}"
+ ],
+ [
+  7.57,
+  ""
+ ],
+ [
+  7.57,
+  "id: 1"
+ ],
+ [
+  7.57,
+  "event: SSE_REPLY_END"
+ ],
+ [
+  7.57,
+  "data: {\"end_type\":3}"
+ ],
+ [
+  7.57,
+  ""
+ ]
+]

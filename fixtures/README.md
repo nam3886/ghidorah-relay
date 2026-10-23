@@ -246,3 +246,27 @@ the rest follows `vibes/s6-live/t2i_002_generate.json`; ids, times and the promp
 
 - `vibes/refused-261023/t2i_generate_refused.json`
 - `vibes/refused-261023/t2i_download_404.json`
+
+## dola plain-HTTP send spike (23/10/2026)
+
+Redacted sends to `/chat/completion` over plain HTTP with our own `a_bogus` (good, corrupted, none, a replay of the
+first, one video) and the reads around them; `dola/api-spike-261023/README.md` describes each file and
+`packages/provider-dola/FINDINGS.md` ("HTTP send spike 23/10") sums them up.
+
+- `dola/api-spike-261023/badsig_request.json`
+- `dola/api-spike-261023/badsig_sse.json`
+- `dola/api-spike-261023/chain_after_send.json`
+- `dola/api-spike-261023/nosig_sse.json`
+- `dola/api-spike-261023/recent_conv_after.json`
+- `dola/api-spike-261023/recent_conv_before.json`
+- `dola/api-spike-261023/recent_conv_plain_json_content_type.json`
+- `dola/api-spike-261023/replay_request.json`
+- `dola/api-spike-261023/replay_sse.json`
+- `dola/api-spike-261023/send_request.json`
+- `dola/api-spike-261023/send_results.json`
+- `dola/api-spike-261023/send_sse.json`
+- `dola/api-spike-261023/signatures_decoded.json`
+- `dola/api-spike-261023/signed_reads.json`
+- `dola/api-spike-261023/video_chain_final.json`
+- `dola/api-spike-261023/video_request.json`
+- `dola/api-spike-261023/video_sse.json`

@@ -1,0 +1,322 @@
+[
+ [
+  2.29,
+  "id: 0"
+ ],
+ [
+  2.29,
+  "event: SSE_HEARTBEAT"
+ ],
+ [
+  2.29,
+  "data: {}"
+ ],
+ [
+  2.29,
+  ""
+ ],
+ [
+  2.29,
+  "id: 0"
+ ],
+ [
+  2.29,
+  "event: SSE_ACK"
+ ],
+ [
+  2.29,
+  "data: {\"query_list\":[{\"question_id\":\"3764647752455131\",\"local_message_id\":\"850f5333-81dc-4ffa-8c02-1e68b211bc7d\",\"message_index\":1}],\"ack_client_meta\":{\"conversation_id\":\"38418214902690065\",\"local_conversation_id\":\"local_5198965505363367\",\"conversation_type\":3,\"section_id\":\"38418214902690321\",\"conversation_info\":{\"conversation_id\":\"38418214902690065\",\"conversation_type\":3,\"creator_id\":\"1588906284447947875\",\"name\":\"New Chat\",\"image\":{\"image_thumb\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-uo7y4d541q/869e4265ef0402af8645239b846a8520.png~tplv-0es2k971ck-image-qvalue.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"},\"image_ori\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-uo7y4d541q/869e4265ef0402af8645239b846a8520.png~tplv-0es2k971ck-image-qvalue.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}},\"participant_count\":2,\"human_count\":1,\"tenant_id\":0,\"biz_id\":0,\"status\":1,\"create_time\":1792737252,\"update_time\":1792737252,\"extra\":\"{\\\"inner_app_id\\\":\\\"495671\\\",\\\"inner_cluster\\\":\\\"default\\\",\\\"inner_did\\\":\\\"4\\\",\\\"inner_env\\\":\\\"prod\\\",\\\"inner_flow_app_variant\\\":\\\"doubao\\\",\\\"inner_is_tour\\\":\\\"false\\\",\\\"inner_log_id\\\":\\\"2026102314341265F9F58DC8B14ADBC7E1\\\",\\\"inner_pc_version\\\":\\\"3.42.0\\\",\\\"inner_platform\\\":\\\"web\\\",\\\"inner_real_app_id\\\":\\\"495671\\\",\\\"inner_samantha_web\\\":\\\"true\\\",\\\"inner_tea_uuid\\\":\\\"5524932125588551803\\\",\\\"inner_tt_wid\\\":\\\"5524932125588551803\\\",\\\"inner_user_ip\\\":\\\"<pkpksg>\\\",\\\"inner_version_name\\\":\\\"\\\",\\\"is_default_name\\\":\\\"true\\\",\\\"local_conversation_id\\\":\\\"local_5198965505363367\\\",\\\"log_id\\\":\\\"2026102314341265F9F58DC8B14ADBC7E1\\\",\\\"reply_mode\\\":\\\"0\\\"}\",\"msg_cursor\":1,\"bot_type\":3,\"retention_cursor\":1,\"last_read_index\":0,\"latest_index\":0,\"input_left_button_style\":1,\"review_status\":2,\"create_scene\":0,\"create_channel\":0,\"badge_count\":0,\"read_badge_count\":0,\"latest_artifact\":1}},\"timeout_conf\":{\"answer_first_pending_time\":180000,\"packet_interval_time\":120000,\"max_retry_count\":10,\"max_retry_duration_ms\":21600000,\"retry_interval_ms\":1000}}"
+ ],
+ [
+  2.29,
+  ""
+ ],
+ [
+  2.33,
+  "id: 1"
+ ],
+ [
+  2.33,
+  "event: FULL_MSG_NOTIFY"
+ ],
+ [
+  2.48,
+  "data: {\"message\":{\"conversation_id\":\"38418214902690065\",\"message_id\":\"3764647752455131\",\"message_body_version\":1,\"sender_id\":\"1588906284447947875\",\"user_type\":1,\"content_type\":9999,\"content\":\"[{\\\"block_type\\\":10000,\\\"block_id\\\":\\\"3f032fe5-54cf-4e23-8b13-c8c0f3186007\\\",\\\"content\\\":{\\\"text_block\\\":{\\\"text\\\":\\\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\\\"}}}]\",\"index_in_conv\":1,\"create_time\":1792737253,\"biz_content_type\":\"\",\"sec_sender\":\"OU0vBrHMDWCRsX2vMaTbeOdr_k7pcshhIEXsmNX3MUtWOBQqoe_oytLtciABODAkegGv1ongTAzJ\",\"content_block\":[{\"block_type\":10000,\"block_id\":\"3f032fe5-54cf-4e23-8b13-c8c0f3186007\",\"content\":{\"text_block\":{\"text\":\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\"}},\"is_finish\":false}],\"tts_content\":\"\",\"update_time\":1792737253,\"ext\":{\"chat_ability\":\"{\\\"ability_type\\\":3,\\\"ability_param\\\":\\\"{\\\\\\\"ability_param\\\\\\\":{\\\\\\\"model\\\\\\\":\\\\\\\"Seedream 4.5\\\\\\\",\\\\\\\"input_box_content\\\\\\\":{\\\\\\\"user_input_content\\\\\\\":\\\\\\\"a red apple on a white wooden table, soft daylight [spike-http-261023]\\\\\\\",\\\\\\\"reply_message_format\\\\\\\":\\\\\\\"Generate image: %s\\\\\\\"}},\\\\\\\"ability_type\\\\\\\":1}\\\"}\",\"inner_msg_lang_display_code\":\"en\",\"conversation_init_option\":\"{\\\"need_ack_conversation\\\":true}\",\"inner_platform\":\"web\",\"inner_log_id\":\"2026102314341265F9F58DC8B14ADBC7E1\",\"inner_pc_version\":\"3.42.0\",\"inner_samantha_web\":\"true\",\"inner_tea_uuid\":\"5524932125588551803\",\"ugc_voice_id\":\"1047652143833361\",\"chat_next\":\"1\",\"chat_id\":\"3764647752455131\",\"brief\":\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\",\"is_ai_playground\":\"false\",\"commerce_credit_config_enable\":\"0\",\"use_content_block\":\"1\",\"message_from\":\"InputBox\",\"client_report_scene\":\"gui\",\"inner_msg_lang_code\":\"en\",\"speaker_id\":\"multi_female_dacey_uranus_bigtts\",\"fp\":\"<pkpksg>\",\"is_membership\":\"0\",\"group\":\"1792737253\",\"bot_source\":\"BotStudio\",\"inner_msg_lang_confidence\":\"1\",\"model_config\":\"{}\",\"attachment_scene\":\"1\",\"sub_conv_firstmet_type\":\"1\",\"personal_agent\":\"false\",\"inner_user_ip\":\"<pkpksg>\",\"cot_switch\":\"0\",\"inner_msg_lang_exemption\":\"false\",\"search_engine_type\":\"4\",\"update_version_code\":\"0\",\"inner_version_name\":\"\",\"bot_id\":\"1415701759187988918\",\"inner_flow_app_variant\":\"doubao\",\"chat_history_count\":\"0\",\"old_content_type\":\"1\",\"inner_did\":\"4\",\"samantha_context\":\"{\\\"query_context\\\":{}}\",\"inner_terminal_app_id\":\"495671\",\"inner_app_id\":\"495671\",\"pre_read_conv_version\":\"1792725121507609\",\"model_type\":\"1751879255\",\"section_tag_1h\":\"38418214902690321_2026102306\",\"inner_is_dola_agent_hub\":\"1\",\"inner_tt_wid\":\"5524932125588551803\",\"inner_bot_id\":\"1415701759187988918\",\"use_deep_think\":\"0\",\"msg_update_time_ms\":\"1792737253067\",\"memory_reflect\":\"1\",\"read_conv_version\":\"1792737253066928\",\"inner_is_tour\":\"false\",\"input_skill\":\"{\\\"skill_id\\\":\\\"3\\\",\\\"skill_type\\\":3,\\\"template_key\\\":\\\"\\\"}\",\"inner_region\":\"TH\",\"reply_unique_key\":\"1e2a3b6c-d5de-4b3a-8d9d-e37ebd01332d\",\"inner_real_app_id\":\"495671\",\"inner_cluster\":\"default\",\"inner_env\":\"prod\",\"user_question_round\":\"1\",\"is_finish\":\"1\",\"llm_model_type\":\"1751879255\",\"collection_id\":\"9ac312b6-d42e-4730-962e-7987311ab581\",\"inner_libra_versions\":\"72202937,73582984,76233209,77046923,77088043,77332948,77332992,77333044,77333133,77333149,77384790,77392331,71795104,72061060,72168304,76461562,76709907,77360171,77231336,77291377\"},\"local_message_id\":\"850f5333-81dc-4ffa-8c02-1e68b211bc7d\",\"section_id\":\"38418214902690321\",\"bot_reply_message_id\":\"0\",\"fetch_token\":\"3764647752455131\"},\"message_attr\":{\"badge_count\":1,\"read_badge_count\":1,\"read_conv_version\":1792737253066928,\"pre_read_conv_version\":1792725121507609}}"
+ ],
+ [
+  2.48,
+  ""
+ ],
+ [
+  2.48,
+  "id: 2"
+ ],
+ [
+  2.48,
+  "event: DOWNLINK_CMD"
+ ],
+ [
+  2.48,
+  "data: {\"cmd\":310,\"downlink_body\":{\"chunk_update_downlink_body\":{\"interrupt_info\":{\"no_interrupt\":true,\"chat_id\":3764647752455131}}}}"
+ ],
+ [
+  2.48,
+  ""
+ ],
+ [
+  3.48,
+  "id: 3"
+ ],
+ [
+  3.48,
+  "event: STREAM_MSG_NOTIFY"
+ ],
+ [
+  3.49,
+  "data: {\"content\":{\"content_block\":[{\"block_type\":10101,\"block_id\":\"1600350689375505\",\"content\":{\"loading_block\":{\"text\":\"Generating\",\"scene\":1}},\"is_finish\":false,\"patch_type\":2}],\"content_status\":100,\"ext\":{\"inner_tt_wid\":\"5524932125588551803\",\"reply_unique_key\":\"1e2a3b6c-d5de-4b3a-8d9d-e37ebd01332d\",\"attachment_scene\":\"1\",\"inner_did\":\"4\",\"auto_create_creation_asset\":\"0\",\"chat_next\":\"1\",\"inner_flow_app_variant\":\"doubao\",\"input_skill\":\"{\\\"skill_id\\\":\\\"3\\\",\\\"skill_type\\\":3,\\\"template_key\\\":\\\"\\\"}\",\"is_membership\":\"0\",\"memory_reflect\":\"1\",\"model_type\":\"1751879255\",\"inner_libra_versions\":\"72202937,73582984,76233209,77046923,77088043,77332948,77332992,77333044,77333133,77333149,77384790,77392331,71795104,72061060,72168304,76461562,76709907,77360171,77231336,77291377\",\"agent_name\":\"Agent-Creation\",\"ai_creation_show_mode\":\"mixed\",\"auto_create_creation\":\"1\",\"inner_msg_lang_code\":\"en\",\"inner_msg_lang_exemption\":\"false\",\"inner_log_id\":\"2026102314341265F9F58DC8B14ADBC7E1\",\"inner_platform\":\"web\",\"inner_version_name\":\"\",\"old_content_type\":\"9999\",\"chat_history_count\":\"0\",\"client_report_scene\":\"gui\",\"cot_switch\":\"0\",\"regen_no_replace\":\"1\",\"section_tag_1h\":\"38418214902690321_2026102306\",\"ai_creation_layout_type\":\"mixed\",\"before_content_type\":\"9999\",\"inner_tea_uuid\":\"5524932125588551803\",\"tts\":\"\",\"ai_create_show_mode\":\"mixed\",\"llm_model_type\":\"1751879255\",\"update_version_code\":\"0\",\"commerce_feature_key\":\"doubao_create_pe\",\"inner_real_app_id\":\"495671\",\"inner_user_ip\":\"<pkpksg>\",\"user_question_round\":\"1\",\"chat_id\":\"3764647752455131\",\"force_submit_review\":\"1\",\"inner_app_id\":\"495671\",\"inner_msg_lang_display_code\":\"en\",\"inner_pc_version\":\"3.42.0\",\"samantha_context\":\"{\\\"query_context\\\":{}}\",\"use_creation\":\"1\",\"agent_id\":\"747548995167490123\",\"bot_state\":\"{\\\"bot_id\\\":\\\"1415701759187988918\\\",\\\"bot_name\\\":\\\"Dola\\\",\\\"agent_name\\\":\\\"Agent-Creation\\\",\\\"agent_id\\\":\\\"747548995167490123\\\",\\\"agent_psm\\\":\\\"flow.agent.creation\\\"}\",\"inner_cluster\":\"default\",\"inner_samantha_web\":\"true\",\"model_id\":\"1751879255\",\"personal_agent\":\"false\",\"gen_msg_id\":\"5049200238982172\",\"perf_mark\":\"{\\\"marks\\\":[{\\\"ev_name\\\":\\\"loading_first_token\\\",\\\"ev_type\\\":\\\"query_duration\\\"}]}\",\"use_content_block\":\"1\",\"chat_ability\":\"{\\\"ability_type\\\":3,\\\"ability_param\\\":\\\"{\\\\\\\"ability_param\\\\\\\":{\\\\\\\"model\\\\\\\":\\\\\\\"Seedream 4.5\\\\\\\",\\\\\\\"input_box_content\\\\\\\":{\\\\\\\"user_input_content\\\\\\\":\\\\\\\"a red apple on a white wooden table, soft daylight [spike-http-261023]\\\\\\\",\\\\\\\"reply_message_format\\\\\\\":\\\\\\\"Generate image: %s\\\\\\\"}},\\\\\\\"ability_type\\\\\\\":1}\\\"}\",\"inner_is_tour\":\"false\",\"inner_region\":\"TH\",\"is_general_task\":\"0\",\"need_deep_think\":\"0\",\"inner_env\":\"prod\",\"inner_is_dola_agent_hub\":\"1\",\"inner_msg_lang_confidence\":\"1\"},\"content_type\":9999},\"meta\":{\"message_id\":\"5049200238982172\",\"conversation_id\":\"38418214902690065\",\"section_id\":\"38418214902690321\",\"sender_id\":\"1415701759187988918\",\"user_type\":2,\"create_time\":1792737254,\"index_in_conv\":3,\"bot_reply_message_id\":\"3764647752455131\",\"local_conversation_id\":\"local_5198965505363367\"},\"attr\":{\"reply_unique_key\":\"1e2a3b6c-d5de-4b3a-8d9d-e37ebd01332d\"}}"
+ ],
+ [
+  3.49,
+  ""
+ ],
+ [
+  3.75,
+  "id: 4"
+ ],
+ [
+  3.75,
+  "event: DOWNLINK_CMD"
+ ],
+ [
+  3.75,
+  "data: {\"cmd\":310,\"downlink_body\":{\"chunk_update_downlink_body\":{\"interrupt_info\":{\"no_interrupt\":true,\"chat_id\":3764647752455131}}}}"
+ ],
+ [
+  3.75,
+  ""
+ ],
+ [
+  7.08,
+  "id: 4"
+ ],
+ [
+  7.08,
+  "event: SSE_HEARTBEAT"
+ ],
+ [
+  7.08,
+  "data: {}"
+ ],
+ [
+  7.08,
+  ""
+ ],
+ [
+  8.1,
+  "id: 5"
+ ],
+ [
+  8.1,
+  "event: STREAM_CHUNK"
+ ],
+ [
+  8.1,
+  "data: {\"message_id\":\"5049200238982172\",\"patch_op\":[{\"patch_object\":1,\"patch_type\":1,\"patch_value\":{\"content_block\":[{\"block_type\":10101,\"block_id\":\"1600350689375505\",\"content\":{\"loading_block\":{\"text\":\"Generating\",\"scene\":1}},\"is_finish\":false,\"patch_type\":3}]}}]}"
+ ],
+ [
+  8.1,
+  ""
+ ],
+ [
+  8.12,
+  "id: 6"
+ ],
+ [
+  8.12,
+  "event: STREAM_CHUNK"
+ ],
+ [
+  8.12,
+  "data: {\"message_id\":\"5049200238982172\",\"patch_op\":[{\"patch_object\":1,\"patch_type\":1,\"patch_value\":{\"content_block\":[{\"block_type\":2074,\"block_id\":\"1600350689470737\",\"content\":{\"creation_block\":{\"creations\":[{\"type\":1,\"id\":\"40033958348829713\",\"gen_detail\":{\"task_type\":1},\"image\":{\"status\":1,\"placeholder\":{\"width\":2048,\"height\":2048,\"description\":\"Seedream 4.5\"}}},{\"type\":1,\"id\":\"40033958348829969\",\"gen_detail\":{\"task_type\":1},\"image\":{\"status\":1,\"placeholder\":{\"width\":2048,\"height\":2048,\"description\":\"Seedream 4.5\"}}},{\"type\":1,\"id\":\"40033958348830225\",\"gen_detail\":{\"task_type\":1},\"image\":{\"status\":1,\"placeholder\":{\"width\":2048,\"height\":2048,\"description\":\"Seedream 4.5\"}}},{\"type\":1,\"id\":\"40033958348830481\",\"gen_detail\":{\"task_type\":1},\"image\":{\"status\":1,\"placeholder\":{\"width\":2048,\"height\":2048,\"description\":\"Seedream 4.5\"}}}]}},\"is_finish\":false,\"patch_type\":2}]}},{\"patch_object\":50,\"patch_type\":1,\"patch_value\":{\"ext\":{\"tea_tags_time_cost\":\"{\\\"ack_cost_time\\\":\\\"199\\\",\\\"first_packet_cost_time\\\":\\\"6034\\\"}\"}}}]}"
+ ],
+ [
+  8.12,
+  ""
+ ],
+ [
+  12.08,
+  "id: 6"
+ ],
+ [
+  12.08,
+  "event: SSE_HEARTBEAT"
+ ],
+ [
+  12.08,
+  "data: {}"
+ ],
+ [
+  12.08,
+  ""
+ ],
+ [
+  17.08,
+  "id: 6"
+ ],
+ [
+  17.08,
+  "event: SSE_HEARTBEAT"
+ ],
+ [
+  17.08,
+  "data: {}"
+ ],
+ [
+  17.08,
+  ""
+ ],
+ [
+  17.87,
+  "id: 7"
+ ],
+ [
+  17.87,
+  "event: STREAM_CHUNK"
+ ],
+ [
+  19.93,
+  "data: {\"message_id\":\"5049200238982172\",\"patch_op\":[{\"patch_object\":1,\"patch_type\":1,\"patch_value\":{\"content_block\":[{\"block_type\":2074,\"block_id\":\"1600350689470737\",\"content\":{\"creation_block\":{\"creations\":[{\"type\":1,\"id\":\"40033958348829713\",\"gen_detail\":{\"task_type\":1},\"can_publish\":true,\"image\":{\"key\":\"tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg\",\"image_thumb\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-0es2k971ck-downsize_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":384,\"height\":384,\"url_formats\":{\"heic\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_hcg_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}},\"image_ori\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_i_dld_wm_15_marc_b_c:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048},\"image_preview\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048,\"url_formats\":{\"heic\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}},\"image_ori_raw\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_image_raw_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048},\"image_preview_resize\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048,\"url_formats\":{\"heic\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.heic?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}},\"status\":2,\"placeholder\":{\"width\":2048,\"height\":2048,\"description\":\"Seedream 4.5\"},\"tips\":\"\",\"request_id\":\"2026102314341265F9F58DC8B14ADBC7E1\",\"gen_params\":{\"prompt\":\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\",\"ratio\":\"1:1\"}}},{\"type\":1,\"id\":\"40033958348829969\",\"gen_detail\":{\"task_type\":1},\"can_publish\":true,\"image\":{\"key\":\"tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg\",\"image_thumb\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-0es2k971ck-downsize_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":384,\"height\":384,\"url_formats\":{\"heic\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_hcg_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}},\"image_ori\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_i_dld_wm_15_marc_b_c:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048},\"image_preview\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048,\"url_formats\":{\"heic\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}},\"image_ori_raw\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_image_raw_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048},\"image_preview_resize\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048,\"url_formats\":{\"heic\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.heic?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}},\"status\":2,\"placeholder\":{\"width\":2048,\"height\":2048,\"description\":\"Seedream 4.5\"},\"tips\":\"\",\"request_id\":\"2026102314341265F9F58DC8B14ADBC7E1\",\"gen_params\":{\"prompt\":\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\",\"ratio\":\"1:1\"}}},{\"type\":1,\"id\":\"40033958348830225\",\"gen_detail\":{\"task_type\":1},\"can_publish\":true,\"image\":{\"key\":\"tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg\",\"image_thumb\":{\"url\":\"https://p19-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-0es2k971ck-downsize_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":384,\"height\":384,\"url_formats\":{\"heic\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_hcg_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}},\"image_ori\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_i_dld_wm_15_marc_b_c:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048},\"image_preview\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048,\"url_formats\":{\"heic\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}},\"image_ori_raw\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_image_raw_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048},\"image_preview_resize\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048,\"url_formats\":{\"heic\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.heic?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}},\"status\":2,\"placeholder\":{\"width\":2048,\"height\":2048,\"description\":\"Seedream 4.5\"},\"tips\":\"\",\"request_id\":\"2026102314341265F9F58DC8B14ADBC7E1\",\"gen_params\":{\"prompt\":\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\",\"ratio\":\"1:1\"}}},{\"type\":1,\"id\":\"40033958348830481\",\"gen_detail\":{\"task_type\":1},\"can_publish\":true,\"image\":{\"key\":\"tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg\",\"image_thumb\":{\"url\":\"https://p19-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-0es2k971ck-downsize_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":384,\"height\":384,\"url_formats\":{\"heic\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_hcg_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}},\"image_ori\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_i_dld_wm_15_marc_b_c:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048},\"image_preview\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048,\"url_formats\":{\"heic\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}},\"image_ori_raw\":{\"url\":\"https://p19-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_image_raw_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048},\"image_preview_resize\":{\"url\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"width\":2048,\"height\":2048,\"url_formats\":{\"heic\":\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.heic?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}},\"status\":2,\"placeholder\":{\"width\":2048,\"height\":2048,\"description\":\"Seedream 4.5\"},\"tips\":\"\",\"request_id\":\"2026102314341265F9F58DC8B14ADBC7E1\",\"gen_params\":{\"prompt\":\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\",\"ratio\":\"1:1\"}}}]}},\"is_finish\":true,\"patch_type\":2}]}}]}"
+ ],
+ [
+  19.93,
+  ""
+ ],
+ [
+  19.93,
+  "id: 8"
+ ],
+ [
+  19.93,
+  "event: STREAM_CHUNK"
+ ],
+ [
+  19.93,
+  "data: {\"message_id\":\"5049200238982172\",\"patch_op\":[{\"patch_object\":1,\"patch_type\":1,\"patch_value\":{\"content_block\":[{\"block_type\":10000,\"block_id\":\"1600350689529873\",\"content\":{\"text_block\":{\"text\":\"Done\"}},\"is_finish\":false,\"patch_type\":1}]}}]}"
+ ],
+ [
+  19.93,
+  ""
+ ],
+ [
+  19.93,
+  "id: 9"
+ ],
+ [
+  19.93,
+  "event: STREAM_CHUNK"
+ ],
+ [
+  19.93,
+  "data: {\"message_id\":\"5049200238982172\",\"patch_op\":[{\"patch_object\":111,\"patch_type\":1,\"patch_value\":{\"tts_content\":\"Done\"}}]}"
+ ],
+ [
+  19.93,
+  ""
+ ],
+ [
+  19.93,
+  "id: 10"
+ ],
+ [
+  19.93,
+  "event: STREAM_CHUNK"
+ ],
+ [
+  19.93,
+  "data: {\"message_id\":\"5049200238982172\",\"patch_op\":[{\"patch_object\":1,\"patch_type\":1,\"patch_value\":{\"content_block\":[{\"block_type\":10000,\"block_id\":\"1600350689529873\",\"content\":{\"text_block\":{\"text\":\".\"}},\"is_finish\":false,\"patch_type\":1}]}}]}"
+ ],
+ [
+  19.93,
+  ""
+ ],
+ [
+  19.93,
+  "id: 11"
+ ],
+ [
+  19.93,
+  "event: STREAM_CHUNK"
+ ],
+ [
+  19.93,
+  "data: {\"message_id\":\"5049200238982172\",\"patch_op\":[{\"patch_object\":111,\"patch_type\":1,\"patch_value\":{\"tts_content\":\".\"}}]}"
+ ],
+ [
+  19.93,
+  ""
+ ],
+ [
+  19.93,
+  "id: 12"
+ ],
+ [
+  19.93,
+  "event: STREAM_CHUNK"
+ ],
+ [
+  20.34,
+  "data: {\"message_id\":\"5049200238982172\",\"patch_op\":[{\"patch_object\":3,\"patch_type\":2,\"patch_value\":{}},{\"patch_object\":1,\"patch_type\":1,\"patch_value\":{\"content_block\":[{\"block_type\":10000,\"block_id\":\"1600350689529873\",\"content\":{\"text_block\":{}},\"is_finish\":true,\"patch_type\":1}]}},{\"patch_object\":50,\"patch_type\":1,\"patch_value\":{\"ext\":{\"creation_material_info\":\"{\\\"40033958348829713\\\":{\\\"id\\\":\\\"\\\",\\\"material_type\\\":2,\\\"user_id\\\":1588906284447947875,\\\"asset_id\\\":0,\\\"src_id\\\":5049200238982172,\\\"src_type\\\":1,\\\"task_id\\\":40033958348829713,\\\"creation_prompt\\\":\\\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\\\",\\\"ref_objects\\\":null,\\\"result\\\":{\\\"object_type\\\":1,\\\"image\\\":{\\\"uri\\\":\\\"tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg\\\",\\\"image_ori\\\":{\\\"url\\\":\\\"\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"image_thumb\\\":{\\\"url\\\":\\\"\\\",\\\"width\\\":384,\\\"height\\\":384},\\\"preview_img\\\":{\\\"url\\\":\\\"\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"key\\\":\\\"\\\",\\\"request_id\\\":\\\"\\\",\\\"gender\\\":0}},\\\"creation_attr\\\":{\\\"msg_block_id\\\":1600350689470737},\\\"extra\\\":{\\\"enable_multi_ref_img\\\":\\\"false\\\"}},\\\"40033958348829969\\\":{\\\"id\\\":\\\"\\\",\\\"material_type\\\":2,\\\"user_id\\\":1588906284447947875,\\\"asset_id\\\":0,\\\"src_id\\\":5049200238982172,\\\"src_type\\\":1,\\\"task_id\\\":40033958348829969,\\\"creation_prompt\\\":\\\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\\\",\\\"ref_objects\\\":null,\\\"result\\\":{\\\"object_type\\\":1,\\\"image\\\":{\\\"uri\\\":\\\"tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg\\\",\\\"image_ori\\\":{\\\"url\\\":\\\"\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"image_thumb\\\":{\\\"url\\\":\\\"\\\",\\\"width\\\":384,\\\"height\\\":384},\\\"preview_img\\\":{\\\"url\\\":\\\"\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"key\\\":\\\"\\\",\\\"request_id\\\":\\\"\\\",\\\"gender\\\":0}},\\\"creation_attr\\\":{\\\"msg_block_id\\\":1600350689470737},\\\"extra\\\":{\\\"enable_multi_ref_img\\\":\\\"false\\\"}},\\\"40033958348830225\\\":{\\\"id\\\":\\\"\\\",\\\"material_type\\\":2,\\\"user_id\\\":1588906284447947875,\\\"asset_id\\\":0,\\\"src_id\\\":5049200238982172,\\\"src_type\\\":1,\\\"task_id\\\":40033958348830225,\\\"creation_prompt\\\":\\\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\\\",\\\"ref_objects\\\":null,\\\"result\\\":{\\\"object_type\\\":1,\\\"image\\\":{\\\"uri\\\":\\\"tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg\\\",\\\"image_ori\\\":{\\\"url\\\":\\\"\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"image_thumb\\\":{\\\"url\\\":\\\"\\\",\\\"width\\\":384,\\\"height\\\":384},\\\"preview_img\\\":{\\\"url\\\":\\\"\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"key\\\":\\\"\\\",\\\"request_id\\\":\\\"\\\",\\\"gender\\\":0}},\\\"creation_attr\\\":{\\\"msg_block_id\\\":1600350689470737},\\\"extra\\\":{\\\"enable_multi_ref_img\\\":\\\"false\\\"}},\\\"40033958348830481\\\":{\\\"id\\\":\\\"\\\",\\\"material_type\\\":2,\\\"user_id\\\":1588906284447947875,\\\"asset_id\\\":0,\\\"src_id\\\":5049200238982172,\\\"src_type\\\":1,\\\"task_id\\\":40033958348830481,\\\"creation_prompt\\\":\\\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\\\",\\\"ref_objects\\\":null,\\\"result\\\":{\\\"object_type\\\":1,\\\"image\\\":{\\\"uri\\\":\\\"tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg\\\",\\\"image_ori\\\":{\\\"url\\\":\\\"\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"image_thumb\\\":{\\\"url\\\":\\\"\\\",\\\"width\\\":384,\\\"height\\\":384},\\\"preview_img\\\":{\\\"url\\\":\\\"\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"key\\\":\\\"\\\",\\\"request_id\\\":\\\"\\\",\\\"gender\\\":0}},\\\"creation_attr\\\":{\\\"msg_block_id\\\":1600350689470737},\\\"extra\\\":{\\\"enable_multi_ref_img\\\":\\\"false\\\"}}}\",\"include_creation_material\":\"1\",\"is_finish\":\"1\",\"perf_mark\":\"{\\\"marks\\\":[{\\\"ev_name\\\":\\\"task_finish\\\",\\\"ev_type\\\":\\\"query_duration\\\"}]}\",\"ai_creation_fallback_retry\":\"false\",\"ai_creation_tool_list\":\"[{\\\"task_id\\\":40033958348829713,\\\"tool_name\\\":\\\"image_gen\\\",\\\"req_key\\\":\\\"seedream_v43_flow\\\",\\\"task_type\\\":1,\\\"index\\\":0,\\\"status\\\":4,\\\"tool_name_list\\\":[],\\\"dispatcher_agent\\\":\\\"\\\",\\\"based_task_id_list\\\":[],\\\"agent_version\\\":\\\"agent_30\\\",\\\"is_multi_round\\\":false,\\\"fail_code\\\":0,\\\"cache\\\":0,\\\"based_message_id_list\\\":[],\\\"from_agent_round\\\":1},{\\\"task_id\\\":40033958348829969,\\\"tool_name\\\":\\\"image_gen\\\",\\\"req_key\\\":\\\"seedream_v43_flow\\\",\\\"task_type\\\":1,\\\"index\\\":1,\\\"status\\\":4,\\\"tool_name_list\\\":[],\\\"dispatcher_agent\\\":\\\"\\\",\\\"based_task_id_list\\\":[],\\\"agent_version\\\":\\\"agent_30\\\",\\\"is_multi_round\\\":false,\\\"fail_code\\\":0,\\\"cache\\\":0,\\\"based_message_id_list\\\":[],\\\"from_agent_round\\\":1},{\\\"task_id\\\":40033958348830225,\\\"tool_name\\\":\\\"image_gen\\\",\\\"req_key\\\":\\\"seedream_v43_flow\\\",\\\"task_type\\\":1,\\\"index\\\":2,\\\"status\\\":4,\\\"tool_name_list\\\":[],\\\"dispatcher_agent\\\":\\\"\\\",\\\"based_task_id_list\\\":[],\\\"agent_version\\\":\\\"agent_30\\\",\\\"is_multi_round\\\":false,\\\"fail_code\\\":0,\\\"cache\\\":0,\\\"based_message_id_list\\\":[],\\\"from_agent_round\\\":1},{\\\"task_id\\\":40033958348830481,\\\"tool_name\\\":\\\"image_gen\\\",\\\"req_key\\\":\\\"seedream_v43_flow\\\",\\\"task_type\\\":1,\\\"index\\\":3,\\\"status\\\":4,\\\"tool_name_list\\\":[],\\\"dispatcher_agent\\\":\\\"\\\",\\\"based_task_id_list\\\":[],\\\"agent_version\\\":\\\"agent_30\\\",\\\"is_multi_round\\\":false,\\\"fail_code\\\":0,\\\"cache\\\":0,\\\"based_message_id_list\\\":[],\\\"from_agent_round\\\":1}]\",\"intention\":\"agent_creation\",\"is_creation_clarifying\":\"0\",\"text2image_text_finish\":\"1\",\"ai_creation_duration_info\":\"[{\\\"type\\\":1,\\\"task_id\\\":\\\"\\\",\\\"duration_info\\\":[{\\\"step_name\\\":\\\"pre\\\",\\\"duration\\\":0},{\\\"step_name\\\":\\\"pre_prompt_review\\\",\\\"duration\\\":0},{\\\"step_name\\\":\\\"pre_prompt_attachment_review\\\",\\\"duration\\\":127},{\\\"step_name\\\":\\\"rag\\\",\\\"duration\\\":0},{\\\"step_name\\\":\\\"plan\\\",\\\"duration\\\":6582,\\\"round_duration_info\\\":[{\\\"round\\\":1,\\\"duration\\\":5439},{\\\"round\\\":2,\\\"duration\\\":1143}]},{\\\"step_name\\\":\\\"fc\\\",\\\"duration\\\":9754,\\\"round_duration_info\\\":[{\\\"round\\\":1,\\\"duration\\\":9754},{\\\"round\\\":2,\\\"duration\\\":0}]},{\\\"step_name\\\":\\\"simple_task\\\",\\\"duration\\\":0},{\\\"step_name\\\":\\\"total\\\",\\\"duration\\\":16623}],\\\"error_code\\\":0},{\\\"type\\\":2,\\\"task_id\\\":\\\"40033958348829713\\\",\\\"duration_info\\\":[{\\\"step_name\\\":\\\"model\\\",\\\"duration\\\":9720}],\\\"error_code\\\":0},{\\\"type\\\":2,\\\"task_id\\\":\\\"40033958348830225\\\",\\\"duration_info\\\":[{\\\"step_name\\\":\\\"model\\\",\\\"duration\\\":9720}],\\\"error_code\\\":0},{\\\"type\\\":2,\\\"task_id\\\":\\\"40033958348830481\\\",\\\"duration_info\\\":[{\\\"step_name\\\":\\\"model\\\",\\\"duration\\\":9720}],\\\"error_code\\\":0},{\\\"type\\\":2,\\\"task_id\\\":\\\"40033958348829969\\\",\\\"duration_info\\\":[{\\\"step_name\\\":\\\"model\\\",\\\"duration\\\":9720}],\\\"error_code\\\":0}]\",\"ai_creation_res_code\":\"0\",\"brief\":\"[Card]\",\"creation_full_content\":\"[{\\\"PacketMeta\\\":null,\\\"BlockInfo\\\":{\\\"BlockType\\\":10101,\\\"BlockContent\\\":{\\\"block_type\\\":10101,\\\"block_id\\\":\\\"1600350689375505\\\",\\\"content\\\":{\\\"loading_block\\\":{\\\"text\\\":\\\"Generating\\\",\\\"scene\\\":1}}},\\\"BlockContentForTTS\\\":\\\"\\\",\\\"BlockContentForModel\\\":null,\\\"BlockMeta\\\":{\\\"block_id\\\":\\\"1600350689375505\\\",\\\"parent_block_id\\\":\\\"\\\",\\\"is_finish\\\":false,\\\"delete_block\\\":true}},\\\"PacketTxtValue\\\":\\\"\\\",\\\"Ext\\\":null,\\\"CommandContent\\\":null},{\\\"PacketMeta\\\":null,\\\"BlockInfo\\\":{\\\"BlockType\\\":2074,\\\"BlockContent\\\":{\\\"block_type\\\":2074,\\\"block_id\\\":\\\"1600350689470737\\\",\\\"content\\\":{\\\"creation_block\\\":{\\\"creations\\\":[{\\\"type\\\":1,\\\"id\\\":\\\"40033958348829713\\\",\\\"gen_detail\\\":{\\\"task_type\\\":1},\\\"can_publish\\\":true,\\\"image\\\":{\\\"key\\\":\\\"tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg\\\",\\\"image_thumb\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-0es2k971ck-downsize_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":384,\\\"height\\\":384,\\\"url_formats\\\":{\\\"heic\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_hcg_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\"}},\\\"image_ori\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_i_dld_wm_15_marc_b_c:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"image_preview\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048,\\\"url_formats\\\":{\\\"heic\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\"}},\\\"image_ori_raw\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_image_raw_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"image_preview_resize\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048,\\\"url_formats\\\":{\\\"heic\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/1b73afd91d6a45c0a6fcb57297487ecc.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.heic?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\"}},\\\"status\\\":2,\\\"placeholder\\\":{\\\"width\\\":2048,\\\"height\\\":2048,\\\"description\\\":\\\"Seedream 4.5\\\"},\\\"tips\\\":\\\"\\\",\\\"request_id\\\":\\\"2026102314341265F9F58DC8B14ADBC7E1\\\",\\\"gen_params\\\":{\\\"prompt\\\":\\\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\\\",\\\"ratio\\\":\\\"1:1\\\"}}},{\\\"type\\\":1,\\\"id\\\":\\\"40033958348829969\\\",\\\"gen_detail\\\":{\\\"task_type\\\":1},\\\"can_publish\\\":true,\\\"image\\\":{\\\"key\\\":\\\"tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg\\\",\\\"image_thumb\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-0es2k971ck-downsize_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":384,\\\"height\\\":384,\\\"url_formats\\\":{\\\"heic\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_hcg_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\"}},\\\"image_ori\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_i_dld_wm_15_marc_b_c:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"image_preview\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048,\\\"url_formats\\\":{\\\"heic\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\"}},\\\"image_ori_raw\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_image_raw_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"image_preview_resize\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048,\\\"url_formats\\\":{\\\"heic\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/39082b98d56340b798a09d4897357898.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.heic?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\"}},\\\"status\\\":2,\\\"placeholder\\\":{\\\"width\\\":2048,\\\"height\\\":2048,\\\"description\\\":\\\"Seedream 4.5\\\"},\\\"tips\\\":\\\"\\\",\\\"request_id\\\":\\\"2026102314341265F9F58DC8B14ADBC7E1\\\",\\\"gen_params\\\":{\\\"prompt\\\":\\\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\\\",\\\"ratio\\\":\\\"1:1\\\"}}},{\\\"type\\\":1,\\\"id\\\":\\\"40033958348830225\\\",\\\"gen_detail\\\":{\\\"task_type\\\":1},\\\"can_publish\\\":true,\\\"image\\\":{\\\"key\\\":\\\"tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg\\\",\\\"image_thumb\\\":{\\\"url\\\":\\\"https://p19-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-0es2k971ck-downsize_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":384,\\\"height\\\":384,\\\"url_formats\\\":{\\\"heic\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_hcg_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\"}},\\\"image_ori\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_i_dld_wm_15_marc_b_c:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"image_preview\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048,\\\"url_formats\\\":{\\\"heic\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\"}},\\\"image_ori_raw\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_image_raw_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"image_preview_resize\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048,\\\"url_formats\\\":{\\\"heic\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/24e1bbe305f14531b2c92b7dcd59300b.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.heic?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\"}},\\\"status\\\":2,\\\"placeholder\\\":{\\\"width\\\":2048,\\\"height\\\":2048,\\\"description\\\":\\\"Seedream 4.5\\\"},\\\"tips\\\":\\\"\\\",\\\"request_id\\\":\\\"2026102314341265F9F58DC8B14ADBC7E1\\\",\\\"gen_params\\\":{\\\"prompt\\\":\\\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\\\",\\\"ratio\\\":\\\"1:1\\\"}}},{\\\"type\\\":1,\\\"id\\\":\\\"40033958348830481\\\",\\\"gen_detail\\\":{\\\"task_type\\\":1},\\\"can_publish\\\":true,\\\"image\\\":{\\\"key\\\":\\\"tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg\\\",\\\"image_thumb\\\":{\\\"url\\\":\\\"https://p19-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-0es2k971ck-downsize_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":384,\\\"height\\\":384,\\\"url_formats\\\":{\\\"heic\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_hcg_wm_1_5_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\"}},\\\"image_ori\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_i_dld_wm_15_marc_b_c:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"image_preview\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048,\\\"url_formats\\\":{\\\"heic\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\"}},\\\"image_ori_raw\\\":{\\\"url\\\":\\\"https://p19-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_image_raw_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048},\\\"image_preview_resize\\\":{\\\"url\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.png?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\",\\\"width\\\":2048,\\\"height\\\":2048,\\\"url_formats\\\":{\\\"heic\\\":\\\"https://p16-flow-image-sign.ibyteimg.com/tos-mya-i-3rsxbfecgb/rc_gen_image/a2c3650f0a45421ababe53017c731773.jpeg~tplv-3rsxbfecgb-ppe_i_pre_wm_15_marc_b_3:RGwwMjExTkExNWoyeEEybUd6dzY=.heic?rcl=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&rk3s=xxxxxxxx&rrcfp=xxxxxxxx&x-expires=xxxxxxxxxx&x-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\"}},\\\"status\\\":2,\\\"placeholder\\\":{\\\"width\\\":2048,\\\"height\\\":2048,\\\"description\\\":\\\"Seedream 4.5\\\"},\\\"tips\\\":\\\"\\\",\\\"request_id\\\":\\\"2026102314341265F9F58DC8B14ADBC7E1\\\",\\\"gen_params\\\":{\\\"prompt\\\":\\\"Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]\\\",\\\"ratio\\\":\\\"1:1\\\"}}}]}}},\\\"BlockContentForTTS\\\":\\\"\\\",\\\"BlockContentForModel\\\":null,\\\"BlockMeta\\\":{\\\"block_id\\\":\\\"1600350689470737\\\",\\\"parent_block_id\\\":\\\"\\\",\\\"is_finish\\\":true}},\\\"PacketTxtValue\\\":\\\"\\\",\\\"Ext\\\":null,\\\"CommandContent\\\":null},{\\\"PacketMeta\\\":null,\\\"BlockInfo\\\":{\\\"BlockType\\\":10000,\\\"BlockContent\\\":{\\\"block_type\\\":10000,\\\"block_id\\\":\\\"1600350689529873\\\",\\\"content\\\":{\\\"text_block\\\":{\\\"text\\\":\\\"Done.\\\"}}},\\\"BlockContentForTTS\\\":\\\"\\\",\\\"BlockContentForModel\\\":null,\\\"BlockMeta\\\":{\\\"block_id\\\":\\\"1600350689529873\\\",\\\"parent_block_id\\\":\\\"\\\",\\\"is_finish\\\":false}},\\\"PacketTxtValue\\\":\\\"\\\",\\\"Ext\\\":null,\\\"CommandContent\\\":null}]\"}}}]}"
+ ],
+ [
+  20.34,
+  ""
+ ],
+ [
+  20.34,
+  "id: 13"
+ ],
+ [
+  20.34,
+  "event: SSE_REPLY_END"
+ ],
+ [
+  20.34,
+  "data: {\"end_type\":1,\"msg_finish_attr\":{\"msgid\":\"5049200238982172\",\"badge_count\":3,\"read_badge_count\":2,\"read_conv_version\":1792737254254283,\"pre_read_conv_version\":1792737253066928,\"brief\":\"[Card]\"}}"
+ ],
+ [
+  20.34,
+  ""
+ ],
+ [
+  20.34,
+  "id: 14"
+ ],
+ [
+  20.34,
+  "event: SSE_REPLY_END"
+ ],
+ [
+  20.34,
+  "data: {\"end_type\":2,\"answer_finish_attr\":{\"has_suggest\":false}}"
+ ],
+ [
+  20.34,
+  ""
+ ],
+ [
+  20.34,
+  "id: 15"
+ ],
+ [
+  20.34,
+  "event: SSE_REPLY_END"
+ ],
+ [
+  20.34,
+  "data: {\"end_type\":3}"
+ ],
+ [
+  20.34,
+  ""
+ ]
+]

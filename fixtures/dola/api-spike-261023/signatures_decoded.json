@@ -1,0 +1,3443 @@
+[
+ {
+  "source": "capture-0551",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/user/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/profile/self_brief",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/profile/self",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/basic/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/im/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/samantha/skill/recommend",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/user/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/profile/self_brief",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 4,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/profile/self",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/basic/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/im/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/samantha/skill/recommend",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 4,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/user/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/profile/self_brief",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/profile/self",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 4,
+  "tripwire": 3,
+  "ink_minus_now_ms": -2,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/basic/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/im/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/samantha/skill/recommend",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0551",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/user/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/im/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/basic/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 4,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/profile/self_brief",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/profile/self",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/samantha/skill/recommend",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/samantha/skill/recommend",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/im/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/user/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/profile/self_brief",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/basic/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/profile/self",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 4,
+  "tripwire": 3,
+  "ink_minus_now_ms": -2,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/user/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/profile/self_brief",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 4,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/samantha/skill/recommend",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/im/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/basic/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/profile/self",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": false,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-0630-nochip",
+  "path": "/passport/token/beat/web/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 4,
+  "tripwire": 3,
+  "ink_minus_now_ms": -2,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/user/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/profile/self_brief",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/profile/self",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/basic/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/im/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/samantha/skill/recommend",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture-prev-0538",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 14,
+  "nr_flags": 1,
+  "nr_tag": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture",
+  "path": "/alice/slot/action_bar_v3/get_item_conf",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture",
+  "path": "/alice/user/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture",
+  "path": "/alice/profile/self_brief",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture",
+  "path": "/samantha/skill/recommend",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture",
+  "path": "/alice/call/downgrade_config_pc",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture",
+  "path": "/alice/im/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture",
+  "path": "/alice/basic/launch",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture",
+  "path": "/alice/profile/self",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture",
+  "path": "/alice/commerce/sale/subscription/entry/config/",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "capture",
+  "path": "/biz/onboarding/get_nexpulse",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 4,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": true,
+  "binds_user_agent": true
+ },
+ {
+  "source": "our-send",
+  "path": "/chat/completion",
+  "a_bogus_len": 200,
+  "a_bogus_last_param": true,
+  "magic": [
+   3,
+   82
+  ],
+  "sdk_version": [
+   1,
+   0,
+   1,
+   0
+  ],
+  "checksum_ok": true,
+  "aid": 495671,
+  "page_id": 26930,
+  "env_flags": 1,
+  "detect_flags": 8,
+  "nr_flags": 1,
+  "nr_tag": [
+   1,
+   1,
+   1,
+   0
+  ],
+  "call_bucket": 6,
+  "ms_since_sdk_init": 3,
+  "tripwire": 3,
+  "ink_minus_now_ms": -1,
+  "tail_is_now_plus_3": true,
+  "browser_info": "1440|900|1448|1031|1440|900|1440|900|Linux x86_64",
+  "binds_query": true,
+  "binds_body": "not checked (body redacted on disk)",
+  "binds_user_agent": true
+ }
+]

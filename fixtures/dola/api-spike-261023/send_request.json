@@ -1,0 +1,132 @@
+{
+ "method": "POST",
+ "url": "https://www.dola.com/chat/completion?version_code=xxxxx&language=xx&device_platform=web&doubao_device_platform=xxx&aid=495671&real_aid=xxxxxx&pkg_type=xxxxxxxxxxxxxxx&device_id=&pc_version=xxxxxx&doubao_pc_version=xxxxxx&web_id=xxxxxxxxxxxxxxxxxxx&tea_uuid=xxxxxxxxxxxxxxxxxxx&region=xx&sys_region=xx&samantha_web=x&web_platform=xxxxxxx&use-olympus-account=x&web_tab_id=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&tz_name=xxxxxxxxxxxxxxxxxx&a_bogus=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+ "headers": {
+  "accept": "text/event-stream",
+  "accept-language": "en-US",
+  "agw-js-conv": "str",
+  "content-type": "application/json",
+  "origin": "https://www.dola.com",
+  "referer": "https://www.dola.com/chat",
+  "sec-ch-ua": "\"Chromium\";v=\"154\", \"Google Chrome\";v=\"154\", \"Not A(Brand\";v=\"99\"",
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": "\"Linux\"",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin",
+  "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36"
+ },
+ "write_ahead": {
+  "local_conversation_id": "local_5198965505363367",
+  "local_message_id": "850f5333-81dc-4ffa-8c02-1e68b211bc7d",
+  "unique_key": "1e2a3b6c-d5de-4b3a-8d9d-e37ebd01332d",
+  "collect_id": "9ac312b6-d42e-4730-962e-7987311ab581",
+  "text": "Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]"
+ },
+ "body": {
+  "client_meta": {
+   "local_conversation_id": "local_5198965505363367",
+   "conversation_id": "",
+   "bot_id": "1415701759187988918",
+   "last_section_id": "",
+   "last_message_index": null,
+   "local_permissions": []
+  },
+  "messages": [
+   {
+    "local_message_id": "850f5333-81dc-4ffa-8c02-1e68b211bc7d",
+    "content_block": [
+     {
+      "block_type": 10000,
+      "content": {
+       "text_block": {
+        "text": "Generate image: a red apple on a white wooden table, soft daylight [spike-http-261023]",
+        "icon_url": "",
+        "icon_url_dark": "",
+        "summary": ""
+       },
+       "pc_event_block": ""
+      },
+      "block_id": "3f032fe5-54cf-4e23-8b13-c8c0f3186007",
+      "parent_id": "",
+      "meta_info": [],
+      "append_fields": []
+     }
+    ],
+    "message_status": 0
+   }
+  ],
+  "option": {
+   "send_message_scene": "",
+   "create_time_ms": 1792737250952,
+   "collect_id": "9ac312b6-d42e-4730-962e-7987311ab581",
+   "is_audio": false,
+   "answer_with_suggest": false,
+   "tts_switch": false,
+   "need_deep_think": 0,
+   "click_clear_context": false,
+   "from_suggest": false,
+   "is_regen": false,
+   "is_replace": false,
+   "is_from_click_option": false,
+   "is_from_click_softlink": false,
+   "disable_sse_cache": false,
+   "select_text_action": "",
+   "is_select_text": false,
+   "resend_for_regen": false,
+   "scene_type": 0,
+   "unique_key": "1e2a3b6c-d5de-4b3a-8d9d-e37ebd01332d",
+   "start_seq": 0,
+   "need_create_conversation": true,
+   "conversation_init_option": {
+    "need_ack_conversation": true
+   },
+   "regen_query_id": [],
+   "edit_query_id": [],
+   "regen_instruction": "",
+   "no_replace_for_regen": false,
+   "message_from": 0,
+   "shared_app_name": "",
+   "shared_app_id": "",
+   "sse_recv_event_options": {
+    "support_chunk_delta": true
+   },
+   "is_ai_playground": false,
+   "is_old_user": false,
+   "recovery_option": {
+    "is_recovery": false,
+    "req_create_time_sec": 1792737250,
+    "append_sse_event_scene": 0
+   },
+   "message_storage_type": 0,
+   "related_deleted_message_ids": {},
+   "connector_info_list": [],
+   "model_config": {
+    "model_item_key": "",
+    "model_extra_params": {}
+   },
+   "aggregate_params": {
+    "conversation_mode": "",
+    "mode_id": "",
+    "model_item_key": "",
+    "agent_mode": "",
+    "reasoning_effort": "",
+    "provider_id": ""
+   }
+  },
+  "chat_ability": {
+   "ability_type": 3,
+   "ability_param": "{\"ability_param\":{\"model\":\"Seedream 4.5\",\"input_box_content\":{\"user_input_content\":\"a red apple on a white wooden table, soft daylight [spike-http-261023]\",\"reply_message_format\":\"Generate image: %s\"}},\"ability_type\":1}"
+  },
+  "user_context": [],
+  "ext": {
+   "fp": "<pkpksg>",
+   "collection_id": "9ac312b6-d42e-4730-962e-7987311ab581",
+   "commerce_credit_config_enable": "0",
+   "use_deep_think": "0",
+   "sub_conv_firstmet_type": "1",
+   "conversation_init_option": "{\"need_ack_conversation\":true}",
+   "is_finish": "1"
+  }
+ }
+}
