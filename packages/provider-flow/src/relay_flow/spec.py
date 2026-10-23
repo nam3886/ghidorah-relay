@@ -88,7 +88,7 @@ _SETTINGS = dict((
              min=120, max=900),
     _setting("captcha_provider", str, "yescaptcha",
              "Where the reCAPTCHA token of a generate comes from. Its key is the worker's FLOW_YESCAPTCHA_KEY.",
-             rule=CAPTCHA_RULE),
+             rule=CAPTCHA_RULE, basic=True),
     _setting("captcha_max_tries", int, 5,
              "Tries of one job against flow's reCAPTCHA check, each with a new token. A refused try made nothing; "
              "after the last the job goes back to the queue.", min=1, max=10),

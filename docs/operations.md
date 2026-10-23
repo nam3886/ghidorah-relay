@@ -428,7 +428,8 @@ token sent as the `X-Admin-Session` header (no cookie).
   environment variable sets one, and a variable named like a setting is ignored (precedence in `relay_core/settings.py`).
   Each item carries `allowed`, the range or rule the value must meet, `group` (the provider of a `<p>.<name>` key, else
   `core`, as the `fixed` rows) and `basic` (true for the few an admin changes often: a provider's `claims_enabled`,
-  `prices`, budgets, `disabled_models`, dola's `master_quality`; the page may fold the others away). The answer also carries `fixed` (the code
+  `prices`, budgets, `disabled_models`, a browser provider's `browser_slots`, dola's `master_quality`, flow's
+  `captcha_provider`; the page may fold the others away). The answer also carries `fixed` (the code
   constants that shape behaviour, each with a reason; the list is `relay_core/limits.py` and each provider's `LIMITS`)
   and `containers` (the api's and each recently reporting worker's CPU, memory, PID and `/dev/shm` limits, read from
   its cgroup at start, and when each was reported). An item no longer names an environment variable. The boot-only list

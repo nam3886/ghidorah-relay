@@ -81,7 +81,7 @@ _SETTINGS = dict((
     _setting("render_deadline_s", int, 900,
              "Seconds after the send before a meta job that has not delivered is given up.", min=60),
     _setting("browser_slots", int, 2, "Browser sessions at once (live). Lowering retires idle slots.",
-             min=BROWSER_SLOTS_MIN, max=BROWSER_SLOTS_MAX),
+             min=BROWSER_SLOTS_MIN, max=BROWSER_SLOTS_MAX, basic=True),
     _setting("prices", dict, dict(C.DEFAULT_PRICES),
              "Points charged per generation, keyed by model. A model missing here is charged the fallback (1) with a "
              "warning.", rule=PRICES_RULE, basic=True),

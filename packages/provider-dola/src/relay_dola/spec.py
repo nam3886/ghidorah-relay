@@ -146,7 +146,7 @@ _SETTINGS = dict((
              min=60),
     _setting("browser_slots", int, 4,
              "Browser sessions at once (live). Lowering retires idle slots.",
-             min=BROWSER_SLOTS_MIN, max=BROWSER_SLOTS_MAX),
+             min=BROWSER_SLOTS_MIN, max=BROWSER_SLOTS_MAX, basic=True),
     (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 
