@@ -241,6 +241,17 @@ class Failed:
 PollOutcome = Pending | Done | Failed
 
 
+class OutputGone(Exception):
+    """Raised by `engine.fetch` when upstream answers that the output does not exist, so downloading again cannot
+    help: the fetch fails with `code` instead of the retried `render.download_failed`. A terminal `code` fails the job
+    at once with its refund; any other code is retried like every failed download."""
+
+    def __init__(self, code: str, detail: str = ""):
+        _code(code)
+        super().__init__(detail)
+        self.code, self.detail = code, detail
+
+
 @dataclass(frozen=True)
 class PollResult:
     outcome: PollOutcome
@@ -552,7 +563,7 @@ class ProviderEngine(Protocol):
     """Worker only. `poll`, `reconcile` and `probe_proxy` exist exactly when `Caps` says so."""
 
     async def submit(self, ctx: RunCtx, job: JobView) -> SubmitResult: ...
-    def fetch(self, ctx: RunCtx, out: Output) -> AsyncIterator[bytes]: ...   # an async generator, not a coroutine
+    def fetch(self, ctx: RunCtx, out: Output) -> AsyncIterator[bytes]: ...   # an async generator; may raise OutputGone
     async def check_account(self, ctx: RunCtx) -> Health: ...
     async def run_command(self, ctx: RunCtx, kind: str, args: dict) -> dict: ...
     async def poll(self, ctx: RunCtx, job: JobView) -> PollResult: ...

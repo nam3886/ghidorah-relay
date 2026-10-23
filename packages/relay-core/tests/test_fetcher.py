@@ -240,6 +240,26 @@ def test_a_file_that_does_not_probe_fails_the_job_at_once_with_the_refund(db, ob
     assert refunds(db, job_id) == 1 and stored == [], "nothing unreadable is kept in the store"
 
 
+GONE = "        except OutputGone as e:\n            raise FetchFailure(e.code, e.detail) from e\n"
+
+
+@mutation(F, GONE, "", expect="the engine said the file does not exist")
+def test_a_download_the_engine_says_does_not_exist_fails_the_job_at_once_with_its_code_and_refund(db, objects):
+    k, _ = key(db), account(db, left=100)
+
+    async def scenario(p):
+        job_id = await hold_fetching(p, db, k)
+        engine = MediaEngine()
+        engine.mode("gone")
+        await pass_once(fetcher(p, engine, objects))
+        return job_id
+
+    job_id = run(db, scenario)
+    assert row(db, job_id, "status, error_code") == ("failed", "render.file_unreadable"), (
+        "the engine said the file does not exist: the job fails now, never retried until the deadline")
+    assert refunds(db, job_id) == 1 and media(db, job_id) == []
+
+
 def test_an_object_store_failure_is_a_retried_download_not_a_lost_result(db, objects):
     k, _ = key(db), account(db, left=100)
 

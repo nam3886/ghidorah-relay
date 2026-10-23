@@ -12,7 +12,8 @@ Money rules that shape this file (each has a test and a mutation):
   or `NotTaken` (either would put the job back in the queue and send it again).
 - A generate that gives no clear answer (no answer at all, a timeout, a 5xx, a sign-in error, the checkpoint) is
   `Ambiguous`: the job becomes unknown and the reconciler reads its batch. Only a 200 `success: true` is taken; only an
-  explicit refusal from vibes' app (a 4xx JSON other than 401/403/429, or `success: false`) fails the job.
+  explicit refusal from vibes' app (a 4xx JSON other than 401/403/429, or `success: false`) fails the job, and so
+  does a finished image batch whose item vibes refused (`success: true`, but the item has an `error` or no media).
 
 Before `mark_sent` every failure is an ordinary retry: the checkpoint `pool.account_throttled` with the account's
 rest, a signed-out answer `pool.account_logged_out` with a spaced strike, a proxy that cannot reach vibes
@@ -47,7 +48,7 @@ from relay_vibes.constants import (
     UPLOAD_PATH,
     UPLOAD_TIMEOUT_S,
 )
-from relay_vibes.engine.batch import BATCH_KEY, checkpoint_rest, is_done, outputs
+from relay_vibes.engine.batch import BATCH_KEY, checkpoint_rest, is_done, outputs, render_error
 from relay_vibes.engine.check import SIGNED_OUT_STATUSES, doubt_effects
 from relay_vibes.engine.http import Resting, Rests, client_for, is_checkpoint, json_of
 
@@ -157,6 +158,9 @@ class _Run:
         if resp.status_code == 200 and body.get("success") is True:
             done = body.get("updatedBatch")
             if self.kind == "image" and isinstance(done, dict) and is_done(done) and outputs(done, self.kind):
+                why = render_error(done)
+                if why is not None:     # finished, but vibes refused the item: nothing to deliver
+                    return _result(Fail(*why, {BATCH_KEY: batch}), Success())
                 return _result(Completed(outputs(done, self.kind)), Success())
             return _result(Accepted(batch, {BATCH_KEY: batch}, taken=True), Success())
         refused = (resp.status_code == 200 and body.get("success") is False) or (

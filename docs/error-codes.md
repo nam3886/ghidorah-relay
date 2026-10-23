@@ -137,6 +137,8 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 
 | Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
 |---|---|---|---|---|---|---|---|---|
+| `vibes.content_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | vibes could not make this content; try a different prompt; the charge is returned |
 | `vibes.generate_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | vibes refused to make this; the charge is returned |
 | `vibes.http_error` | 502 | api_error | no | yes | yes | 0 | yes | vibes answered with an error before the order was sent |
+| `vibes.output_missing` | 502 | api_error | yes | yes | no | 0 | yes | vibes has no file for this result; the charge is returned |
 | `vibes.render_failed` | 502 | api_error | yes | yes | no | 0 | yes | vibes ended the render with an error and no result; the charge is returned |

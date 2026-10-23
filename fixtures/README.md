@@ -219,3 +219,15 @@ it each time. `vibes/s7-live/README.md` describes them.
 - `vibes/s7-live/oref_web_002_generate.json`
 - `vibes/s7-live/oref_web_003_read_batch.json`
 - `vibes/s7-live/oref_web_004_download_png.json`
+
+## vibes.ai refused image (production job f0176f20, 23/10/2026 09:39 GMT+7)
+
+A text-to-image generate that answered `success: true` with a finished batch (`isComplete: true`, `hasError: false`)
+whose one item vibes refused: `isLoading: false`, no `imageUrl` or `mediaEntId`, `data` the string
+`{"requestId": ...}`, and `error: "This content could not be generated. Please try a different prompt."`; then the PNG
+download of that item answered 404 JSON on every try. Rebuilt from the job's log: the fields above are as recorded,
+the rest follows `vibes/s6-live/t2i_002_generate.json`; ids, times and the prompt are replaced. The log cut the 404's
+`error` text after `Conten`, so `Content not found` is a stand-in.
+
+- `vibes/refused-261023/t2i_generate_refused.json`
+- `vibes/refused-261023/t2i_download_404.json`

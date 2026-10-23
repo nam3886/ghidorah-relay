@@ -18,7 +18,7 @@ from relay_core.jobs.fetcher import Fetcher
 from relay_core.jobs.poller import Poller
 from relay_core.jobs.reaper import Reaper
 from relay_core.jobs.reconcile import Reconciler
-from relay_core.providers import Accepted, AccountView, Ambiguous, Completed, SubmitResult
+from relay_core.providers import Accepted, AccountView, Ambiguous, Completed, OutputGone, SubmitResult
 from relay_core.testing.fake_provider import FakeEngine, FakeSettings, sent
 
 
@@ -51,7 +51,8 @@ def mp4() -> bytes:
 
 class MediaEngine(FakeEngine):
     """FakeEngine whose `fetch` serves a real file of the output's mime. `fetch_modes` is consumed one per output:
-    ok | error | empty | garbage (the last repeats). It also records the browser token each poll and reconcile saw."""
+    ok | error | empty | garbage | gone (the last repeats; gone: upstream says the file does not exist). It also
+    records the browser token each poll and reconcile saw."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -68,6 +69,8 @@ class MediaEngine(FakeEngine):
             raise ConnectionError("upstream said 502")
         if mode == "empty":
             return
+        if mode == "gone":
+            raise OutputGone("render.file_unreadable", "upstream: no such file")
         if mode == "garbage":
             yield b"this is not a media file" * 20
             return

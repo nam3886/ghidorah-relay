@@ -7,7 +7,8 @@ transaction (`store.apply_fetched`) write the media rows and move the job to `do
 its files (I11), and a result whose token is no longer current is dropped.
 
 A download that fails (an error, no bytes, a store error, out of time) is retried every `retry_s` until the render
-deadline, then fails `render.download_failed`; a file that does not probe fails `render.file_unreadable` at once.
+deadline, then fails `render.download_failed`; a file that does not probe fails `render.file_unreadable` at once, and
+a download the engine says is gone for good (`OutputGone`) fails with the engine's code (at once when it is terminal).
 Both fail through the one failing transaction, so the key and the account are refunded with the status (I21).
 """
 
@@ -27,7 +28,7 @@ from relay_core.jobs.apply import apply_fetch_failed, apply_fetched
 from relay_core.jobs.claim import Visible, claim_visible
 from relay_core.jobs.poller import ERROR_RETRY_S, JobLoop, LoadAccount, ReadCtx
 from relay_core.jobs.recheck import StoredOutput
-from relay_core.providers import Output
+from relay_core.providers import Output, OutputGone
 from relay_core.redact import redact_log
 
 log = logging.getLogger(__name__)
@@ -105,6 +106,8 @@ async def store_output(engine, objects: storage.ObjectStore, ctx, job_id, i: int
                 async for chunk in chunks:
                     size += len(chunk)
                     await asyncio.to_thread(sink.write, chunk)
+        except OutputGone as e:
+            raise FetchFailure(e.code, e.detail) from e
         except Exception as e:
             raise FetchFailure(DOWNLOAD_FAILED, "download failed: %s" % type(e).__name__) from e
         finally:

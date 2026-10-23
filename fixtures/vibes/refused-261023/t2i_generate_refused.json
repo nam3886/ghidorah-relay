@@ -1,0 +1,86 @@
+{
+ "t": 1.7,
+ "elapsed_s": 8.1,
+ "step": "generate",
+ "method": "POST",
+ "path": "/api/generate/images",
+ "request": {
+  "batchId": "0b6c7f3e-5a1d-4c2e-9f80-2d4b6a1c9e57",
+  "inputs": [
+   {
+    "type": "variation",
+    "image_prompt": "<prompt>",
+    "original_prompt": "<prompt>",
+    "config": {}
+   }
+  ],
+  "config": {
+   "imageModel": "midjen-base",
+   "aspectRatio": "9:16"
+  },
+  "mg_request_id": "www-7d2e4f1a-3b5c-4e6d-8a9f-0c1b2d3e4f5a"
+ },
+ "status": 200,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "success": true,
+  "data": [],
+  "updatedBatch": {
+   "id": "0b6c7f3e-5a1d-4c2e-9f80-2d4b6a1c9e57",
+   "userId": "<user.id>",
+   "projectId": null,
+   "type": "images",
+   "prompt": "<prompt>",
+   "timestamp": "2026-10-23T02:39:10.000Z",
+   "isComplete": true,
+   "hasError": false,
+   "error": null,
+   "canRetry": true,
+   "config": {
+    "imageModel": "midjen-base",
+    "aspectRatio": "9:16"
+   },
+   "systemPrompt": null,
+   "promptModel": null,
+   "imageModel": "midjen-base",
+   "videoModel": null,
+   "bulkGenId": null,
+   "generationStartTime": "2026-10-23T02:39:10.000Z",
+   "generationEndTime": "2026-10-23T02:39:18.000Z",
+   "creationContext": "legacy",
+   "createdAt": "2026-10-23T02:39:10.000Z",
+   "updatedAt": "2026-10-23T02:39:18.000Z",
+   "content": [
+    {
+     "id": "0b6c7f3e-5a1d-4c2e-9f80-2d4b6a1c9e57-content-0",
+     "userId": "<user.id>",
+     "batchId": "0b6c7f3e-5a1d-4c2e-9f80-2d4b6a1c9e57",
+     "originProjectId": null,
+     "type": "images",
+     "isLoading": false,
+     "isFavorited": false,
+     "data": "{\"requestId\": \"www-7d2e4f1a-3b5c-4e6d-8a9f-0c1b2d3e4f5a\"}",
+     "imageUrl": null,
+     "imageHandle": null,
+     "videoUrl": null,
+     "videoHandle": null,
+     "mediaEntId": null,
+     "prompt": "<prompt>",
+     "imagePrompt": "<prompt>",
+     "videoPrompt": null,
+     "structuredOutput": null,
+     "srefValues": "",
+     "sourceContentItemIds": null,
+     "hasUploadedAncestor": false,
+     "error": "This content could not be generated. Please try a different prompt.",
+     "canRetry": true,
+     "orderIndex": 0,
+     "createdAt": "2026-10-23T02:39:10.000Z",
+     "updatedAt": "2026-10-23T02:39:18.000Z"
+    }
+   ]
+  }
+ }
+}

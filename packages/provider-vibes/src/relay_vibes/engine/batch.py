@@ -6,7 +6,8 @@ A job's batch id is ours (a UUID the submit made) and is written to the job befo
 
 - Done is `isComplete` true AND every content item `isLoading` false. Nothing else counts: `videoUrl`,
   `thumbnailUrl` and the poster `imageUrl` appear, vanish and change path from one read to the next while the render
-  runs, so no URL in a read is taken as a result. The download goes by the content item's id instead.
+  runs, so no URL in a read is taken as a result. The download goes by the content item's id instead. A done batch
+  whose item has an `error` or no media is vibes refusing it: the job fails at once, refunded (`render_error`).
 - Completion is lazy: vibes finalizes a batch when it is READ (the finalizing GET carries `generationEndTime`), so the
   poll keeps reading every `vibes.poll_interval_s` (plus up to half again at random, never faster).
 - Accepted (for reconcile) is `needsPolling` true, or an item with `data` or a `mediaEntId`, or a complete batch.
@@ -29,6 +30,7 @@ from relay_core.providers import (
     Failed,
     Found,
     Output,
+    OutputGone,
     Pending,
     PollResult,
     Reconciled,
@@ -78,15 +80,25 @@ def is_accepted(batch: dict) -> bool:
             or any(c.get("data") or c.get("mediaEntId") for c in items(batch)))
 
 
-def render_error(batch: dict) -> str | None:
-    """Why a finished batch has no result, or None when every item has one."""
+def has_media(item: dict) -> bool:
+    """The item holds a picture or a video. `data` is not media: a refused item keeps `{"requestId": ...}` there."""
+    return bool(item.get("mediaEntId") or item.get("imageUrl") or item.get("videoUrl"))
+
+
+def render_error(batch: dict) -> tuple[str, str] | None:
+    """Why a finished batch delivers nothing, as (code, detail); None when every item has its media. An item with an
+    `error`, or with no media, is vibes refusing it (live 23/10: `isComplete`, `hasError: false`, and one item with
+    `error: "This content could not be generated. ..."`, `data` `{"requestId"}`, no `imageUrl`; its download 404s
+    forever). The job fails at once with its refund. A batch holds one item (the create makes one), so there is no
+    partial result to deliver; were there several, one refused item still fails the whole job: the client is
+    refunded rather than charged in full for part of the order."""
     if batch.get("hasError"):
-        return "vibes ended the batch with an error: %s" % str(batch.get("error") or "no detail")[:200]
+        return errors.RENDER_FAILED, "vibes ended the batch with an error: %s" % str(batch.get("error") or
+                                                                                     "no detail")[:200]
     for c in items(batch):
-        if c.get("error"):
-            return "vibes ended the item with an error: %s" % str(c["error"])[:200]
-        if not (c.get("data") or c.get("mediaEntId")):
-            return "vibes ended the batch with no result"
+        if c.get("error") or not has_media(c):
+            return errors.CONTENT_REFUSED, "vibes refused the item: %s" % str(c.get("error") or
+                                                                              "it ended with no media")[:200]
     return None
 
 
@@ -131,7 +143,7 @@ async def poll(ctx, job, settings, rests: Rests, *, transport=None,
         return PollResult(Pending("", wait), effects=(Success(),))
     why = render_error(found)
     if why is not None:
-        return PollResult(Failed(errors.RENDER_FAILED, why, True), effects=(Success(),))
+        return PollResult(Failed(*why, True), effects=(Success(),))
     return PollResult(Done(outputs(found, job.params["kind"])), effects=(Success(),))
 
 
@@ -159,7 +171,8 @@ async def reconcile(ctx, job, settings, rests: Rests, *, transport=None) -> Reco
 
 # ---- fetch ---------------------------------------------------------------------------------------------------------
 class DownloadError(RuntimeError):
-    """The download did not give the file; the fetcher tries again (never a reason to fail the job at once)."""
+    """The download did not give the file; the fetcher tries again. Only vibes' own JSON 404 `{"error": ...}` (the
+    file does not exist) fails the job at once (`OutputGone`)."""
 
 
 async def fetch(ctx, out: Output, settings, rests: Rests, *, transport=None) -> AsyncIterator[bytes]:
@@ -176,6 +189,14 @@ async def fetch(ctx, out: Output, settings, rests: Rests, *, transport=None) -> 
                 # Only the file itself is delivered: an HTML or JSON page (whatever type it claims) would be probed
                 # as unreadable and end the job, so it raises here and the fetcher tries again.
                 mime = resp.headers.get("content-type", "").split(";")[0].strip().lower()
+                if resp.status_code == 404 and mime == "application/json":
+                    # vibes' app says the file does not exist (live 23/10, a refused item: 404 `{"error": ...}` on
+                    # every try for an hour): trying again cannot help, the job fails now with its refund
+                    await resp.aread()
+                    said = json_of(resp).get("error")
+                    if said:
+                        raise OutputGone(errors.OUTPUT_MISSING, "vibes answered 404 to the download: %s"
+                                         % str(said)[:200])
                 if resp.status_code != 200 or mime != out.mime:
                     raise DownloadError("vibes answered %d (%s) to the download" % (resp.status_code, mime[:40]))
                 chunks = resp.aiter_bytes()

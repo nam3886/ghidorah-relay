@@ -89,6 +89,15 @@ Two more jobs, same account and proxy (`fixtures/vibes/s6-live/`):
 - Reads every 25 s met no checkpoint; `isComplete: true, isLoading: false` came on the read at 320 s.
 - Owner ruling 23/10: until a ratio is proven for video, vibes-video takes no ratio or `9:16` only; any other ratio is refused (`input.bad_ratio`), image to video included.
 
+## Production, 2026-10-23 09:39 GMT+7: a refused image (job f0176f20)
+The image generate answered `success: true` with `updatedBatch` finished (`isComplete: true`, `hasError: false`,
+batch `error: null`), but its one item had `isLoading: false`, no `imageUrl`, `data` = the string
+`{"requestId": ...}` and `error: "This content could not be generated. Please try a different prompt."`.
+`GET /api/download/png?id=<batch>-content-0` then answered 404 `{"error": "Conten..."}` on every try. So a finished
+batch is not a result: an item with an `error` or no media (`mediaEntId`/`imageUrl`/`videoUrl`) is a refusal and the
+job fails at once (`vibes.content_refused`), and a 404 JSON `{"error"}` download fails the job
+(`vibes.output_missing`), both refunded (`fixtures/vibes/refused-261023/`).
+
 ## S7 (2026-10-23, 09:19 GMT+7): image to image
 Question: can `vibes-image` take a customer's image? vibes has two forms; neither is built.
 

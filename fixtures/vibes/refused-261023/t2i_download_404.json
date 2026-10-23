@@ -1,0 +1,15 @@
+{
+ "t": 70.2,
+ "elapsed_s": 0.9,
+ "step": "download_png",
+ "method": "GET",
+ "path": "/api/download/png?id=x",
+ "request": null,
+ "status": 404,
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "body": {
+  "error": "Content not found"
+ }
+}

@@ -24,6 +24,7 @@ from relay_core.providers import (
     Found,
     MediaIn,
     MediaRef,
+    OutputGone,
     Pending,
     ProxyBad,
     Retry,
@@ -370,12 +371,71 @@ def test_a_finished_batch_is_done_with_the_content_item_to_download():
 def test_a_finished_batch_with_an_error_fails_with_its_refund():
     done = rec("s5-live/recheck_001_recheck_batch")["body"]["batch"]
     item = done["content"][0]
-    for bad in ({**done, "hasError": True, "error": "moderation"},
-                {**done, "content": [{**item, "error": "capacity"}]},
-                {**done, "content": [{**item, "data": None, "mediaEntId": None}]}):
+    for bad, code in (({**done, "hasError": True, "error": "moderation"}, errors.RENDER_FAILED),
+                      ({**done, "content": [{**item, "error": "capacity"}]}, errors.CONTENT_REFUSED),
+                      ({**done, "content": [{**item, "mediaEntId": None, "imageUrl": None, "videoUrl": None}]},
+                       errors.CONTENT_REFUSED)):
         result = poll(Vibes([], batch=httpx.Response(200, json={"batch": bad})))
-        assert isinstance(result.outcome, Failed) and result.outcome.code == errors.RENDER_FAILED
+        assert isinstance(result.outcome, Failed) and result.outcome.code == code, result.outcome
         assert result.outcome.taken
+    for code in (errors.RENDER_FAILED, errors.CONTENT_REFUSED, errors.OUTPUT_MISSING):
+        rule = errors.CODES[code]
+        assert rule.terminal and rule.refund and rule.public, code
+
+
+# ---- a finished batch whose item vibes refused (production job f0176f20, 23/10) ----------------------------------
+REFUSED = rec("refused-261023/t2i_generate_refused")
+REFUSED_BATCH = REFUSED["body"]["updatedBatch"]
+REFUSED_TEXT = "This content could not be generated. Please try a different prompt."
+SUBMIT_REFUSAL = "                if why is not None:     # finished, but vibes refused the item: nothing to deliver"
+ITEM_REFUSAL = "        if c.get(\"error\") or not has_media(c):"
+MEDIA_RULE = "    return bool(item.get(\"mediaEntId\") or item.get(\"imageUrl\") or item.get(\"videoUrl\"))"
+OLD_MEDIA_RULE = "    return bool(item.get(\"data\") or item.get(\"mediaEntId\"))"
+COMPLETE_IS_ACCEPTED = "batch.get(\"needsPolling\") is True or batch.get(\"isComplete\") is True"
+
+
+def refused_read(**item) -> httpx.Response:
+    """The refused batch as a batch read answers it, its item changed by `item`."""
+    return httpx.Response(200, json={"batch": {**REFUSED_BATCH,
+                                               "content": [{**REFUSED_BATCH["content"][0], **item}]}})
+
+
+@mutation(SUBMIT_FILE, SUBMIT_REFUSAL, "                if False:", expect="a refused item is never Completed")
+def test_an_image_generate_whose_finished_item_vibes_refused_fails_at_once_with_its_refund():
+    assert REFUSED_BATCH["isComplete"] is True and REFUSED_BATCH["hasError"] is False
+    assert REFUSED_BATCH["content"][0]["error"] == REFUSED_TEXT
+    fake = Vibes([], generate=answer(REFUSED))
+    result, _ = run_submit(fake, job("vibes-image"))
+    assert isinstance(result.job, Fail), "a refused item is never Completed: %s" % (result.job,)
+    assert result.job.code == errors.CONTENT_REFUSED and REFUSED_TEXT in result.job.detail
+    assert "batch" in result.job.state_patch and len(fake.sent("generate")) == 1
+    assert errors.CODES[errors.CONTENT_REFUSED].terminal and errors.CODES[errors.CONTENT_REFUSED].refund
+
+
+@mutation(BATCH_FILE, ITEM_REFUSAL, "        if c.get(\"error\"):", expect="a refused item fails the poll")
+@mutation(BATCH_FILE, ITEM_REFUSAL, "        if not has_media(c):", expect="a refused item fails the poll")
+@mutation(BATCH_FILE, MEDIA_RULE, OLD_MEDIA_RULE, expect="a refused item fails the poll")
+def test_a_poll_that_reads_a_refused_item_fails_the_job_with_its_refund():
+    for item in ({}, {"error": None}, {"error": REFUSED_TEXT, "mediaEntId": "1347", "imageUrl": "https://x/y.jpeg"}):
+        result = poll(Vibes([], batch=refused_read(**item)), job("vibes-image", batch=REFUSED_BATCH["id"]))
+        assert isinstance(result.outcome, Failed) and result.outcome.code == errors.CONTENT_REFUSED, (
+            "a refused item fails the poll: %s %s" % (item, result.outcome))
+        assert result.effects == (Success(),)
+    assert REFUSED_TEXT in poll(Vibes([], batch=refused_read())).outcome.detail
+
+
+@mutation(BATCH_FILE, COMPLETE_IS_ACCEPTED, "batch.get(\"needsPolling\") is True",
+          expect="a refused batch is found, then failed")
+def test_a_reconcile_that_reads_a_refused_batch_finds_it_and_the_next_poll_fails_it():
+    """reconcile cannot fail a job: it finds the order (never unknown until the deadline), and the poll that follows
+    fails it at once with its refund."""
+    j = job("vibes-image", batch=REFUSED_BATCH["id"])
+    for item in ({}, {"data": None}):
+        found = reconcile(Vibes([], batch=refused_read(**item)), j)
+        assert found == Found(REFUSED_BATCH["id"], {"batch": REFUSED_BATCH["id"]}, True), (
+            "a refused batch is found, then failed: %s" % (found,))
+        result = poll(Vibes([], batch=refused_read(**item)), j)
+        assert isinstance(result.outcome, Failed) and result.outcome.code == errors.CONTENT_REFUSED
 
 
 CHECKPOINT_BRANCH = ("    if is_checkpoint(resp):\n        seconds, cooldown = checkpoint_rest(ctx, settings, rests, "
@@ -503,6 +563,44 @@ def test_a_download_that_is_not_the_file_raises_so_the_fetcher_tries_again():
     with pytest.raises(B.DownloadError):
         fetch(Vibes(log), out, rests)
     assert log == []
+
+
+GONE_RULE = "                if resp.status_code == 404 and mime == \"application/json\":"
+GONE_SAID = "                    if said:"
+
+
+@mutation(BATCH_FILE, GONE_RULE, "                if False:", expect="the file does not exist: fail now")
+def test_a_download_vibes_says_does_not_exist_fails_the_job_at_once():
+    gone = rec("refused-261023/t2i_download_404")
+    [out] = B.outputs(REFUSED_BATCH, "image")
+    try:
+        fetch(Vibes([], download=answer(gone)), out)
+    except OutputGone as e:
+        assert e.code == errors.OUTPUT_MISSING and gone["body"]["error"] in e.detail
+    except B.DownloadError as e:
+        raise AssertionError("the file does not exist: fail now, never try again: %s" % e) from None
+    else:
+        raise AssertionError("delivered a file that does not exist")
+    assert errors.CODES[errors.OUTPUT_MISSING].terminal and errors.CODES[errors.OUTPUT_MISSING].refund
+
+
+@mutation(BATCH_FILE, GONE_RULE, "                if mime == \"application/json\":", expect="a transient")
+@mutation(BATCH_FILE, GONE_SAID, "                    if True:", expect="a transient")
+def test_a_transient_download_failure_is_still_tried_again():
+    [out] = B.outputs(REFUSED_BATCH, "image")
+    for bad in (httpx.Response(404, json={}), httpx.Response(404, text="<html>not found</html>"),
+                httpx.Response(404, json=["x"]), httpx.Response(500, json={"error": "Internal"}),
+                httpx.Response(502, text="bad gateway"), answer(CHECKPOINT)):
+        try:
+            fetch(Vibes([], download=bad), out)
+        except B.DownloadError:
+            continue
+        except OutputGone as e:
+            raise AssertionError("a transient failure is tried again, never final: %s %s" % (
+                bad.status_code, e)) from None
+        raise AssertionError("delivered: %s" % bad.status_code)
+    with pytest.raises(httpx.ConnectError):     # the fetcher retries an error from the network
+        fetch(Vibes([], download=httpx.ConnectError("gone")), out)
 
 
 # ---- the engine ----------------------------------------------------------------------------------------------------

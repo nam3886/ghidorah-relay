@@ -12,7 +12,9 @@ from relay_core.errors import Rule
 
 HTTP_ERROR = "vibes.http_error"                # before the send: vibes answered a step with an error; tried again
 GENERATE_REFUSED = "vibes.generate_refused"    # the generate call itself answered no: the job ends, refunded
-RENDER_FAILED = "vibes.render_failed"          # vibes finished the batch with an error or no result
+RENDER_FAILED = "vibes.render_failed"          # vibes finished the batch with a batch-level error
+CONTENT_REFUSED = "vibes.content_refused"      # vibes finished the batch but its item has an error or no media
+OUTPUT_MISSING = "vibes.output_missing"        # the download answered that the finished item's file does not exist
 
 CODES: dict[str, Rule] = {r.code: r for r in (
     # A failure that may pass: one attempt is used, and the job fails (refunded) when they run out.
@@ -23,6 +25,10 @@ CODES: dict[str, Rule] = {r.code: r for r in (
          "vibes refused to make this; the charge is returned"),
     Rule(RENDER_FAILED, 502, "api_error", True, True, False, True, True,
          "vibes ended the render with an error and no result; the charge is returned"),
+    Rule(CONTENT_REFUSED, 422, "invalid_request_error", True, True, False, True, True,
+         "vibes could not make this content; try a different prompt; the charge is returned"),
+    Rule(OUTPUT_MISSING, 502, "api_error", True, True, False, True, True,
+         "vibes has no file for this result; the charge is returned"),
 )}
 
 # A module loaded twice (a test reloading it) keeps its first registration.
