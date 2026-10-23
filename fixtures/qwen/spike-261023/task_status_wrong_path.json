@@ -1,0 +1,41 @@
+{
+ "t": 5.18,
+ "wall": "2026-10-23T07:07:15Z",
+ "step": "task_status",
+ "method": "GET",
+ "path": "/api/v2/tasks/status/00000000-0000-0000-0000-000000000000",
+ "request": null,
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "source": "web",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/c/48a48955-16b0-4143-903e-2b7341a6dc85",
+  "x-request-id": "5eaceeba-467b-401c-9296-9bfd71416573",
+  "Version": "0.3.22",
+  "Timezone": "Fri Oct 23 2026 07:07:15 GMT+0000",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin"
+ },
+ "status": 200,
+ "elapsed_s": 0.54,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 07:07:16 GMT",
+  "Content-Type": "application/json",
+  "Content-Length": "119",
+  "Connection": "keep-alive",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "vary": "Origin"
+ },
+ "set_cookie_names": [],
+ "body": {
+  "success": false,
+  "request_id": "5eaceeba-467b-401c-9296-9bfd71416573",
+  "data": {
+   "code": "not found",
+   "details": "Not Found"
+  }
+ }
+}

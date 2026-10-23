@@ -1,0 +1,87 @@
+{
+ "t": 3.16,
+ "wall": "2026-10-23T06:58:16Z",
+ "step": "verify_t2v_30",
+ "method": "POST",
+ "path": "/api/v2/entitlement/credits/verify",
+ "request": {
+  "chat_type": "t2v",
+  "task_info": {
+   "create_credits": 30
+  }
+ },
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "source": "web",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/",
+  "x-request-id": "acf4435c-b392-46dc-957a-0928c1601d94",
+  "Version": "0.3.22",
+  "Timezone": "Fri Oct 23 2026 06:58:16 GMT+0000",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin"
+ },
+ "status": 200,
+ "elapsed_s": 0.82,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 06:58:17 GMT",
+  "Content-Type": "application/json",
+  "Content-Length": "941",
+  "Connection": "keep-alive",
+  "x-request-id": "acf4435c-b392-46dc-957a-0928c1601d94",
+  "cache-control": "no-cache",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "vary": "Origin, Origin",
+  "x-actual-status-code": "200",
+  "x-frame-options": "SAMEORIGIN"
+ },
+ "set_cookie_names": [
+  "x-ap"
+ ],
+ "body": {
+  "success": true,
+  "request_id": "acf4435c-b392-46dc-957a-0928c1601d94",
+  "data": {
+   "willDeduct": true,
+   "class": "cn.quark.qianwen.resp.HsfCreditsVerifyResp",
+   "msg": "Insufficient generation credits. Upgrade your subscription to unlock more credits.",
+   "recommendInfo": {
+    "mime_type": "multi_load/iframe",
+    "meta_data": {
+     "multi_load": [
+      {
+       "type": "membership_payment_buttons_card",
+       "source_seq": "membership_payment_buttons_card_1",
+       "content": {
+        "user_type": "free",
+        "buttons": [
+         {
+          "biz_type": "payment",
+          "plan_code": "plus",
+          "text": "开通标准套餐"
+         },
+         {
+          "text": "购买加量额度",
+          "biz_type": "bonus_pack",
+          "plan_code": "plus"
+         }
+        ],
+        "paywall_reason": "above_quota",
+        "paywall_scene": "video_generation"
+       }
+      }
+     ]
+    },
+    "content": "本次生成所需额度不足，请开通会员套餐或购买额度后再试[(membership_payment_buttons_card_1)]",
+    "status": "complete"
+   },
+   "access": false,
+   "code": "CREDITS_EMPTY",
+   "proxy_req_id": "1f166cf9e4064f66a2cd8ae411068b28",
+   "traceId": "d742eb8517927386974383467d08ae"
+  }
+ }
+}

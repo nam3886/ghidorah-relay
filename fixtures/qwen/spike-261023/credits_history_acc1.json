@@ -1,0 +1,79 @@
+{
+ "t": 1.76,
+ "wall": "2026-10-23T08:04:39Z",
+ "step": "credits_history",
+ "method": "GET",
+ "path": "https://sg-entitlement.qwen.com/api/entitlement/credits/credits/history?pageNum=x&pageSize=x&biz_id=xxxxxxx&chat_client=xx&device=xx&fr=xx&pr=xxxxxxxxx&la=xxxxx&tz=xxx&wv=xxxxxx",
+ "request": null,
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin"
+ },
+ "status": 200,
+ "elapsed_s": 2.03,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 08:04:41 GMT",
+  "Content-Type": "application/json",
+  "Content-Length": "507",
+  "Connection": "keep-alive",
+  "Vary": "Accept-Encoding",
+  "Server": "Tengine",
+  "Access-Control-Allow-Origin": "https://chat.qwen.ai",
+  "Access-Control-Allow-Methods": "GET,POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
+  "Access-Control-Allow-Headers": "Content-Type,Authorization,x-xsrf-token,x-platform,X-PLATFORM,X-Platform,Connection,connection,x-tw-from,x-b3-traceid,x-b3-spanid,x-b3-sampled,x-tw-canary,x-logintype,login_aliyunid_ticket,tongyi_sso_ticket,Timeout,timeout,request-id,platform,X-DeviceId,vcode,sign_wg,kps_wg,pr,x-uv-code,x-u-vcode,x-u-kps-wg,x-u-sign-wg,accept,accept-encoding,accept-language,admin-enhancing-security,bx-v,cache-control,cookie,pragma,priority,referer,sec-ch-ua,sec-ch-ua-mobile,sec-ch-ua-platform,sec-fetch-dest,sec-fetch-mode,sec-fetch-site,source,timezone,user-agent,version,x-request-id",
+  "Access-Control-Allow-Credentials": "true",
+  "X-Frame-Options": "DENY",
+  "x-req-id": "null_1792742681372",
+  "X-Content-Type-Options": "nosniff",
+  "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
+  "Pragma": "no-cache",
+  "Expires": "0",
+  "Strict-Transport-Security": "max-age=31536000 ; includeSubDomains, max-age=31536000",
+  "Ups-Target-Key": "qwen-entitlement-i18n-prod.vipserver",
+  "X-protocol": "HTTP/1.1",
+  "EagleEye-TraceId": "0babeb2417927426813695276e1563",
+  "s-brt": "26",
+  "s-rt": "27"
+ },
+ "set_cookie_names": [],
+ "body": {
+  "traceId": "0babeb2417927426813695276e1563",
+  "httpCode": 200,
+  "success": true,
+  "errorCode": null,
+  "errorMsg": null,
+  "data": {
+   "totalCredits": 10,
+   "subscriptionCredits": 0,
+   "bonusCredits": 10,
+   "pageNum": 1,
+   "pageSize": 5,
+   "total": 2,
+   "usageList": [
+    {
+     "id": "214011830574524416",
+     "title": "credits.dec.HappyHorse1.1.720P.5s.video",
+     "date": 1792737798000,
+     "unit": "Credits",
+     "amount": 30,
+     "state": "-"
+    },
+    {
+     "id": "213970142028120064",
+     "title": "credits.init.title.daily",
+     "date": 1792732828000,
+     "unit": "Credits",
+     "amount": 40,
+     "state": "+"
+    }
+   ]
+  },
+  "5xxError": false
+ }
+}

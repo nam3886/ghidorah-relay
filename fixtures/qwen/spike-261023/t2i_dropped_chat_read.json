@@ -1,0 +1,233 @@
+{
+ "t": 1.56,
+ "wall": "2026-10-23T08:04:36Z",
+ "step": "chat_read",
+ "method": "GET",
+ "path": "/api/v2/chats/48a48955-16b0-4143-903e-2b7341a6dc85",
+ "request": null,
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "source": "web",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/c/48a48955-16b0-4143-903e-2b7341a6dc85",
+  "x-request-id": "08fa423e-3952-4472-addd-67cb55826d8e",
+  "Version": "0.3.22",
+  "Timezone": "Fri Oct 23 2026 08:04:36 GMT+0000",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin"
+ },
+ "status": 200,
+ "elapsed_s": 1.53,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 08:04:37 GMT",
+  "Content-Type": "application/json",
+  "Transfer-Encoding": "chunked",
+  "Connection": "keep-alive",
+  "Vary": "Accept-Encoding, Origin, Origin",
+  "x-request-id": "08fa423e-3952-4472-addd-67cb55826d8e",
+  "cache-control": "no-cache",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "x-actual-status-code": "200",
+  "x-frame-options": "SAMEORIGIN",
+  "X-Robots-Tag": "noindex",
+  "Content-Encoding": "gzip"
+ },
+ "set_cookie_names": [
+  "x-ap"
+ ],
+ "body": {
+  "success": true,
+  "request_id": "08fa423e-3952-4472-addd-67cb55826d8e",
+  "data": {
+   "id": "48a48955-16b0-4143-903e-2b7341a6dc85",
+   "user_id": "00000000-0000-4000-8000-0000000000a1",
+   "title": "New chat",
+   "chat": {
+    "history": {
+     "messages": {
+      "f73c0cb5-5d67-47a8-8aed-6269a0029060": {
+       "id": "f73c0cb5-5d67-47a8-8aed-6269a0029060",
+       "role": "user",
+       "content": "a green apple on a wooden table, photo",
+       "models": [
+        "qwen3.7-plus"
+       ],
+       "chat_type": "t2i",
+       "sub_chat_type": "t2i",
+       "edited": false,
+       "error": null,
+       "extra": {
+        "meta": {
+         "subChatType": "t2i",
+         "size": "16:9",
+         "model": "qwen-image-3.0"
+        }
+       },
+       "feature_config": {
+        "thinking_enabled": false,
+        "output_schema": "phase",
+        "instructions": null,
+        "research_mode": "normal",
+        "auto_thinking": false,
+        "thinking_mode": "Fast",
+        "auto_search": true
+       },
+       "parentId": null,
+       "turn_id": null,
+       "childrenIds": [
+        "7320e182-05d3-4976-bfcf-44449725ddba"
+       ],
+       "files": [],
+       "timestamp": 1792738701
+      },
+      "7320e182-05d3-4976-bfcf-44449725ddba": {
+       "role": "assistant",
+       "content": "",
+       "reasoning_content": null,
+       "chat_type": "t2i",
+       "sub_chat_type": "t2i",
+       "model": "qwen3.7-plus",
+       "modelName": "Qwen3.7-Plus",
+       "modelIdx": 0,
+       "id": "7320e182-05d3-4976-bfcf-44449725ddba",
+       "parentId": "f73c0cb5-5d67-47a8-8aed-6269a0029060",
+       "childrenIds": [],
+       "feature_config": {
+        "thinking_enabled": false,
+        "output_schema": "phase",
+        "instructions": null,
+        "research_mode": "normal",
+        "auto_thinking": false,
+        "thinking_mode": "Fast",
+        "auto_search": true
+       },
+       "content_list": null,
+       "is_stop": false,
+       "edited": false,
+       "error": null,
+       "meta": {},
+       "extra": {
+        "meta": {
+         "subChatType": "t2i",
+         "size": "16:9",
+         "model": "qwen-image-3.0"
+        }
+       },
+       "feedbackId": null,
+       "turn_id": null,
+       "annotation": null,
+       "done": false,
+       "info": null,
+       "timestamp": 1792738701
+      }
+     },
+     "currentId": "7320e182-05d3-4976-bfcf-44449725ddba",
+     "currentResponseIds": [
+      "7320e182-05d3-4976-bfcf-44449725ddba"
+     ],
+     "pagination": null
+    },
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "messages": [
+     {
+      "id": "f73c0cb5-5d67-47a8-8aed-6269a0029060",
+      "role": "user",
+      "content": "a green apple on a wooden table, photo",
+      "models": [
+       "qwen3.7-plus"
+      ],
+      "chat_type": "t2i",
+      "sub_chat_type": "t2i",
+      "edited": false,
+      "error": null,
+      "extra": {
+       "meta": {
+        "subChatType": "t2i",
+        "size": "16:9",
+        "model": "qwen-image-3.0"
+       }
+      },
+      "feature_config": {
+       "thinking_enabled": false,
+       "output_schema": "phase",
+       "instructions": null,
+       "research_mode": "normal",
+       "auto_thinking": false,
+       "thinking_mode": "Fast",
+       "auto_search": true
+      },
+      "parentId": null,
+      "turn_id": null,
+      "childrenIds": [
+       "7320e182-05d3-4976-bfcf-44449725ddba"
+      ],
+      "files": [],
+      "timestamp": 1792738701
+     },
+     {
+      "role": "assistant",
+      "content": "",
+      "reasoning_content": null,
+      "chat_type": "t2i",
+      "sub_chat_type": "t2i",
+      "model": "qwen3.7-plus",
+      "modelName": "Qwen3.7-Plus",
+      "modelIdx": 0,
+      "id": "7320e182-05d3-4976-bfcf-44449725ddba",
+      "parentId": "f73c0cb5-5d67-47a8-8aed-6269a0029060",
+      "childrenIds": [],
+      "feature_config": {
+       "thinking_enabled": false,
+       "output_schema": "phase",
+       "instructions": null,
+       "research_mode": "normal",
+       "auto_thinking": false,
+       "thinking_mode": "Fast",
+       "auto_search": true
+      },
+      "content_list": null,
+      "is_stop": false,
+      "edited": false,
+      "error": null,
+      "meta": {},
+      "extra": {
+       "meta": {
+        "subChatType": "t2i",
+        "size": "16:9",
+        "model": "qwen-image-3.0"
+       }
+      },
+      "feedbackId": null,
+      "turn_id": null,
+      "annotation": null,
+      "done": false,
+      "info": null,
+      "timestamp": 1792738701
+     }
+    ]
+   },
+   "updated_at": 1792738701,
+   "created_at": 1792738701,
+   "share_id": null,
+   "archived": false,
+   "pinned": false,
+   "meta": {
+    "timestamp": 1792738699730
+   },
+   "folder_id": null,
+   "currentResponseIds": [
+    "7320e182-05d3-4976-bfcf-44449725ddba"
+   ],
+   "currentId": "7320e182-05d3-4976-bfcf-44449725ddba",
+   "chat_type": "t2i",
+   "models": null,
+   "project_id": null,
+   "data_source": null
+  }
+ }
+}

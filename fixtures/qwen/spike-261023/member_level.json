@@ -1,0 +1,63 @@
+{
+ "t": 3.91,
+ "wall": "2026-10-23T05:38:14Z",
+ "step": "member_level",
+ "method": "POST",
+ "path": "https://sg-member.qwen.com/api/member/level/query?biz_id=xxxxxxx&chat_client=xx&device=xx&fr=xx&pr=xxxxxxxxx&la=xxxxx&tz=xxx&wv=xxxxxx",
+ "request": {},
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin"
+ },
+ "status": 200,
+ "elapsed_s": 2.16,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 05:38:16 GMT",
+  "Content-Type": "application/json",
+  "Content-Length": "313",
+  "Connection": "keep-alive",
+  "Vary": "Accept-Encoding",
+  "Server": "Tengine",
+  "Access-Control-Allow-Origin": "https://chat.qwen.ai",
+  "Access-Control-Allow-Methods": "GET,POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
+  "Access-Control-Allow-Headers": "Content-Type,Authorization,X-XSRF-TOKEN,X-Requested-With,X-Platform,X-TW-From,X-B3-TraceId,X-B3-SpanId,X-B3-Sampled,X-TW-Canary,X-LoginType,login_aliyunid_ticket,tongyi-sso-ticket,tongyi_sso_ticket,Timeout,request-id,platform,X-DeviceId,X-U-KPS-WG,X-U-SIGN-WG,X-U-VCODE,X-Sign,X-Timestamp,vcode,sign_wg,kps_wg,pr,source,timezone,user-agent,version,x-request-id",
+  "Access-Control-Allow-Credentials": "true",
+  "X-Frame-Options": "DENY",
+  "x-req-id": "null_1792733896251",
+  "X-Content-Type-Options": "nosniff",
+  "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
+  "Pragma": "no-cache",
+  "Expires": "0",
+  "Strict-Transport-Security": "max-age=31536000 ; includeSubDomains, max-age=0",
+  "Ups-Target-Key": "qwen-member-i18n-prod.vipserver",
+  "X-protocol": "HTTP/1.1",
+  "EagleEye-TraceId": "212e330117927338962488517e17b7",
+  "s-brt": "12",
+  "s-rt": "13"
+ },
+ "set_cookie_names": [],
+ "body": {
+  "traceId": "212e330117927338962488517e17b7",
+  "httpCode": 200,
+  "success": true,
+  "errorCode": null,
+  "errorMsg": null,
+  "data": {
+   "userId": "00000000-0000-4000-8000-0000000000a1",
+   "memberType": "free",
+   "subscribeStatus": 0,
+   "memberName": "Free",
+   "expireTime": null,
+   "productId": null,
+   "productUnit": null,
+   "payChannel": null
+  },
+  "5xxError": false
+ }
+}

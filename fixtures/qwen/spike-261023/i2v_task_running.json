@@ -1,0 +1,80 @@
+{
+ "t": 1.47,
+ "wall": "2026-10-23T06:57:25Z",
+ "step": "task_000",
+ "method": "GET",
+ "path": "/api/v2/task/status/tsk_4895c58dcc05dd2cd0a865db284d3f4f",
+ "request": null,
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "source": "web",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/c/8b6e1b05-7d84-484b-a891-137f7f39e785",
+  "x-request-id": "ad24e564-c3f8-4d9d-9240-5cecc83f3cda",
+  "Version": "0.3.22",
+  "Timezone": "Fri Oct 23 2026 06:57:25 GMT+0000",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin"
+ },
+ "status": 200,
+ "elapsed_s": 1.58,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 06:57:27 GMT",
+  "Content-Type": "application/json",
+  "Transfer-Encoding": "chunked",
+  "Connection": "keep-alive",
+  "Vary": "Accept-Encoding, Origin, Origin",
+  "x-request-id": "ad24e564-c3f8-4d9d-9240-5cecc83f3cda",
+  "cache-control": "no-cache",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "x-actual-status-code": "200",
+  "x-frame-options": "SAMEORIGIN",
+  "Content-Encoding": "gzip"
+ },
+ "set_cookie_names": [
+  "x-ap"
+ ],
+ "body": {
+  "success": true,
+  "request_id": "ad24e564-c3f8-4d9d-9240-5cecc83f3cda",
+  "data": {
+   "chat_type": "i2v",
+   "task_status": "running",
+   "message": "",
+   "remaining_time": "86393",
+   "content": "",
+   "sub_chat_type": "zaodian_generate_video",
+   "duration": null,
+   "quota": {
+    "consume_amount": 30,
+    "entitlement": {
+     "deducted": true,
+     "record_id": "214018894621319168",
+     "transaction_id": "21ce1e76-11dd-4e67-9048-cff9f45e59d7",
+     "code": "video_generation",
+     "biz_code": "create",
+     "create_credits": 30,
+     "country_code": "VN",
+     "via": "credits",
+     "chat_id": "8b6e1b05-7d84-484b-a891-137f7f39e785",
+     "message_id": "d45188de-b11a-4a40-b950-ec20dbfe5f89"
+    },
+    "state": "deducted"
+   },
+   "tool_result": {
+    "record_id": "tsk_4895c58dcc05dd2cd0a865db284d3f4f",
+    "status": "processing",
+    "resource_infos": [
+     {
+      "type": "ref_image",
+      "image": "https://cdn.qwenlm.ai/00000000-0000-4000-8000-0000000000a2/f6fda09d-313a-44b3-9a9d-de4e96608f0a_edit_in.jpg?key=<tok>"
+     }
+    ]
+   },
+   "display_list": []
+  }
+ }
+}

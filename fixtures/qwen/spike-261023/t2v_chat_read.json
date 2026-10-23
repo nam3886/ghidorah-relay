@@ -1,0 +1,323 @@
+{
+ "t": 1.76,
+ "wall": "2026-10-23T08:04:33Z",
+ "step": "chat_read",
+ "method": "GET",
+ "path": "/api/v2/chats/7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+ "request": null,
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "source": "web",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/c/7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+  "x-request-id": "d3f43ec8-357c-43f4-bd53-4f24252b5e00",
+  "Version": "0.3.22",
+  "Timezone": "Fri Oct 23 2026 08:04:33 GMT+0000",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin"
+ },
+ "status": 200,
+ "elapsed_s": 1.51,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 08:04:34 GMT",
+  "Content-Type": "application/json",
+  "Transfer-Encoding": "chunked",
+  "Connection": "keep-alive",
+  "Vary": "Accept-Encoding, Origin, Origin",
+  "x-request-id": "d3f43ec8-357c-43f4-bd53-4f24252b5e00",
+  "cache-control": "no-cache",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "x-actual-status-code": "200",
+  "x-frame-options": "SAMEORIGIN",
+  "X-Robots-Tag": "noindex",
+  "Content-Encoding": "gzip"
+ },
+ "set_cookie_names": [
+  "x-ap"
+ ],
+ "body": {
+  "success": true,
+  "request_id": "d3f43ec8-357c-43f4-bd53-4f24252b5e00",
+  "data": {
+   "id": "7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+   "user_id": "00000000-0000-4000-8000-0000000000a1",
+   "title": "Paper Boat Sunrise",
+   "chat": {
+    "history": {
+     "messages": {
+      "601d3aca-3172-4bbb-b869-18bdea00d1a6": {
+       "id": "601d3aca-3172-4bbb-b869-18bdea00d1a6",
+       "role": "user",
+       "content": "a paper boat drifting on a calm lake at sunrise, gentle ripples",
+       "models": [
+        "qwen3.7-plus"
+       ],
+       "chat_type": "t2v",
+       "sub_chat_type": "zaodian_generate_video",
+       "edited": false,
+       "error": null,
+       "extra": {
+        "meta": {
+         "size": "16:9",
+         "biz_data": "{\"bizScene\":\"genVideo\",\"req\":{\"rootModel\":\"happyhorse11\",\"genMode\":\"vid_gen\",\"params\":{\"resolution\":\"720P\",\"size\":\"16:9\",\"duration\":5,\"audio\":true}}}",
+         "subChatType": "zaodian_generate_video",
+         "videoGenerationMode": "standard"
+        }
+       },
+       "feature_config": {
+        "thinking_enabled": false,
+        "output_schema": "phase",
+        "instructions": null,
+        "research_mode": "normal",
+        "auto_thinking": false,
+        "thinking_mode": "Fast",
+        "auto_search": true
+       },
+       "parentId": null,
+       "turn_id": null,
+       "childrenIds": [
+        "a113934e-5637-40ad-aa41-3754184a0f78"
+       ],
+       "files": [],
+       "timestamp": 1792737795
+      },
+      "a113934e-5637-40ad-aa41-3754184a0f78": {
+       "role": "assistant",
+       "content": "https://cdn.qwenlm.ai/output/00000000-0000-4000-8000-0000000000a1/t2v/a113934e-5637-40ad-aa41-3754184a0f78/tsk_6993c8657bf4a05bc4593e3eca35a1f7.mp4?key=<tok>",
+       "reasoning_content": null,
+       "chat_type": "t2v",
+       "sub_chat_type": "zaodian_generate_video",
+       "model": "qwen3.7-plus",
+       "modelName": "Qwen3.7-Plus",
+       "modelIdx": 0,
+       "id": "a113934e-5637-40ad-aa41-3754184a0f78",
+       "parentId": "601d3aca-3172-4bbb-b869-18bdea00d1a6",
+       "childrenIds": [],
+       "feature_config": {
+        "thinking_enabled": false,
+        "output_schema": "phase",
+        "instructions": null,
+        "research_mode": "normal",
+        "auto_thinking": false,
+        "thinking_mode": "Fast",
+        "auto_search": true
+       },
+       "content_list": [
+        {
+         "content": "Sure, I'm generating your video. This generation uses the HappyHorse 1.1 model at 720P resolution for 5s, consuming 30 Credits. You currently have 10 Credits remaining. I'll notify you once it's ready.",
+         "phase": "answer",
+         "status": "finished",
+         "extra": null,
+         "role": "assistant",
+         "response_id": "a113934e-5637-40ad-aa41-3754184a0f78"
+        }
+       ],
+       "is_stop": false,
+       "edited": false,
+       "error": null,
+       "meta": {},
+       "extra": {
+        "meta": {
+         "size": "16:9",
+         "biz_data": "{\"bizScene\":\"genVideo\",\"req\":{\"rootModel\":\"happyhorse11\",\"genMode\":\"vid_gen\",\"params\":{\"resolution\":\"720P\",\"size\":\"16:9\",\"duration\":5,\"audio\":true}}}",
+         "subChatType": "zaodian_generate_video",
+         "videoGenerationMode": "standard"
+        },
+        "wanx": {
+         "task_id": "tsk_6993c8657bf4a05bc4593e3eca35a1f7",
+         "status": "finish",
+         "chat_type": "t2v",
+         "real_chat_type": "t2v",
+         "model": "happyhorse-1.1-t2v",
+         "proxy_request_id": "req_60a8554dc09c43a287a68ea0391d6f03",
+         "tool_result": {
+          "record_id": "tsk_6993c8657bf4a05bc4593e3eca35a1f7",
+          "status": "finish",
+          "resource_infos": [
+           {
+            "type": "generate_video",
+            "video": "https://cdn.qwenlm.ai/output/00000000-0000-4000-8000-0000000000a1/t2v/a113934e-5637-40ad-aa41-3754184a0f78/tsk_6993c8657bf4a05bc4593e3eca35a1f7.mp4?key=<tok>"
+           }
+          ]
+         }
+        },
+        "quota": {
+         "consume_amount": 30,
+         "entitlement": {
+          "deducted": true,
+          "record_id": "214011830574524416",
+          "transaction_id": "1b7ba683-7a24-4910-b382-68fac8bcdb97",
+          "code": "video_generation",
+          "biz_code": "create",
+          "create_credits": 30,
+          "country_code": "VN",
+          "via": "credits",
+          "chat_id": "7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+          "message_id": "a113934e-5637-40ad-aa41-3754184a0f78"
+         },
+         "state": "settled"
+        }
+       },
+       "feedbackId": null,
+       "turn_id": null,
+       "annotation": null,
+       "done": true,
+       "info": null,
+       "timestamp": 1792737795
+      }
+     },
+     "currentId": "a113934e-5637-40ad-aa41-3754184a0f78",
+     "currentResponseIds": [
+      "a113934e-5637-40ad-aa41-3754184a0f78"
+     ],
+     "pagination": null
+    },
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "messages": [
+     {
+      "id": "601d3aca-3172-4bbb-b869-18bdea00d1a6",
+      "role": "user",
+      "content": "a paper boat drifting on a calm lake at sunrise, gentle ripples",
+      "models": [
+       "qwen3.7-plus"
+      ],
+      "chat_type": "t2v",
+      "sub_chat_type": "zaodian_generate_video",
+      "edited": false,
+      "error": null,
+      "extra": {
+       "meta": {
+        "size": "16:9",
+        "biz_data": "{\"bizScene\":\"genVideo\",\"req\":{\"rootModel\":\"happyhorse11\",\"genMode\":\"vid_gen\",\"params\":{\"resolution\":\"720P\",\"size\":\"16:9\",\"duration\":5,\"audio\":true}}}",
+        "subChatType": "zaodian_generate_video",
+        "videoGenerationMode": "standard"
+       }
+      },
+      "feature_config": {
+       "thinking_enabled": false,
+       "output_schema": "phase",
+       "instructions": null,
+       "research_mode": "normal",
+       "auto_thinking": false,
+       "thinking_mode": "Fast",
+       "auto_search": true
+      },
+      "parentId": null,
+      "turn_id": null,
+      "childrenIds": [
+       "a113934e-5637-40ad-aa41-3754184a0f78"
+      ],
+      "files": [],
+      "timestamp": 1792737795
+     },
+     {
+      "role": "assistant",
+      "content": "https://cdn.qwenlm.ai/output/00000000-0000-4000-8000-0000000000a1/t2v/a113934e-5637-40ad-aa41-3754184a0f78/tsk_6993c8657bf4a05bc4593e3eca35a1f7.mp4?key=<tok>",
+      "reasoning_content": null,
+      "chat_type": "t2v",
+      "sub_chat_type": "zaodian_generate_video",
+      "model": "qwen3.7-plus",
+      "modelName": "Qwen3.7-Plus",
+      "modelIdx": 0,
+      "id": "a113934e-5637-40ad-aa41-3754184a0f78",
+      "parentId": "601d3aca-3172-4bbb-b869-18bdea00d1a6",
+      "childrenIds": [],
+      "feature_config": {
+       "thinking_enabled": false,
+       "output_schema": "phase",
+       "instructions": null,
+       "research_mode": "normal",
+       "auto_thinking": false,
+       "thinking_mode": "Fast",
+       "auto_search": true
+      },
+      "content_list": [
+       {
+        "content": "Sure, I'm generating your video. This generation uses the HappyHorse 1.1 model at 720P resolution for 5s, consuming 30 Credits. You currently have 10 Credits remaining. I'll notify you once it's ready.",
+        "phase": "answer",
+        "status": "finished",
+        "extra": null,
+        "role": "assistant",
+        "response_id": "a113934e-5637-40ad-aa41-3754184a0f78"
+       }
+      ],
+      "is_stop": false,
+      "edited": false,
+      "error": null,
+      "meta": {},
+      "extra": {
+       "meta": {
+        "size": "16:9",
+        "biz_data": "{\"bizScene\":\"genVideo\",\"req\":{\"rootModel\":\"happyhorse11\",\"genMode\":\"vid_gen\",\"params\":{\"resolution\":\"720P\",\"size\":\"16:9\",\"duration\":5,\"audio\":true}}}",
+        "subChatType": "zaodian_generate_video",
+        "videoGenerationMode": "standard"
+       },
+       "wanx": {
+        "task_id": "tsk_6993c8657bf4a05bc4593e3eca35a1f7",
+        "status": "finish",
+        "chat_type": "t2v",
+        "real_chat_type": "t2v",
+        "model": "happyhorse-1.1-t2v",
+        "proxy_request_id": "req_60a8554dc09c43a287a68ea0391d6f03",
+        "tool_result": {
+         "record_id": "tsk_6993c8657bf4a05bc4593e3eca35a1f7",
+         "status": "finish",
+         "resource_infos": [
+          {
+           "type": "generate_video",
+           "video": "https://cdn.qwenlm.ai/output/00000000-0000-4000-8000-0000000000a1/t2v/a113934e-5637-40ad-aa41-3754184a0f78/tsk_6993c8657bf4a05bc4593e3eca35a1f7.mp4?key=<tok>"
+          }
+         ]
+        }
+       },
+       "quota": {
+        "consume_amount": 30,
+        "entitlement": {
+         "deducted": true,
+         "record_id": "214011830574524416",
+         "transaction_id": "1b7ba683-7a24-4910-b382-68fac8bcdb97",
+         "code": "video_generation",
+         "biz_code": "create",
+         "create_credits": 30,
+         "country_code": "VN",
+         "via": "credits",
+         "chat_id": "7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+         "message_id": "a113934e-5637-40ad-aa41-3754184a0f78"
+        },
+        "state": "settled"
+       }
+      },
+      "feedbackId": null,
+      "turn_id": null,
+      "annotation": null,
+      "done": true,
+      "info": null,
+      "timestamp": 1792737795
+     }
+    ]
+   },
+   "updated_at": 1792737800,
+   "created_at": 1792737796,
+   "share_id": null,
+   "archived": false,
+   "pinned": false,
+   "meta": {
+    "timestamp": 1792737794803
+   },
+   "folder_id": null,
+   "currentResponseIds": [
+    "a113934e-5637-40ad-aa41-3754184a0f78"
+   ],
+   "currentId": "a113934e-5637-40ad-aa41-3754184a0f78",
+   "chat_type": "t2v",
+   "models": null,
+   "project_id": null,
+   "data_source": null
+  }
+ }
+}

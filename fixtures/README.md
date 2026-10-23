@@ -349,3 +349,43 @@ and the free reads (models, listing, media); `flow/live-261023/README.md` descri
 - `flow/live-261023/video_status_poll_last.json`
 - `flow/live-261023/video_status_v0.json`
 - `flow/live-261023/video_submit_try1.json`
+
+## chat.qwen.ai live spike (23/10/2026)
+
+Redacted calls of the qwen step-0 spike (auth refresh, WAF answers, t2i, image edit, t2v, i2v, task status, credits);
+`qwen/spike-261023/README.md` describes each file and `fixtures/qwen/FINDINGS.md` sums them up.
+
+- `qwen/spike-261023/auth_refresh.json`
+- `qwen/spike-261023/bx_reuse_T1.json`
+- `qwen/spike-261023/bx_reuse_T2.json`
+- `qwen/spike-261023/bx_reuse_U1.json`
+- `qwen/spike-261023/bx_reuse_U2.json`
+- `qwen/spike-261023/bx_reuse_U3.json`
+- `qwen/spike-261023/chat_read_empty.json`
+- `qwen/spike-261023/chats_new_plain.json`
+- `qwen/spike-261023/credits_history_acc1.json`
+- `qwen/spike-261023/credits_history_acc2.json`
+- `qwen/spike-261023/credits_pricing.json`
+- `qwen/spike-261023/credits_verify_empty.json`
+- `qwen/spike-261023/credits_verify_ok.json`
+- `qwen/spike-261023/edit_chat_read.json`
+- `qwen/spike-261023/edit_send.json`
+- `qwen/spike-261023/i2v_chat_read.json`
+- `qwen/spike-261023/i2v_send.json`
+- `qwen/spike-261023/i2v_task_running.json`
+- `qwen/spike-261023/i2v_task_success.json`
+- `qwen/spike-261023/member_level.json`
+- `qwen/spike-261023/models.json`
+- `qwen/spike-261023/sts_plain.json`
+- `qwen/spike-261023/t2i_chat_read.json`
+- `qwen/spike-261023/t2i_dropped_chat_read.json`
+- `qwen/spike-261023/t2i_dropped_send.json`
+- `qwen/spike-261023/t2i_send.json`
+- `qwen/spike-261023/t2v_chat_read.json`
+- `qwen/spike-261023/t2v_no_credits.json`
+- `qwen/spike-261023/t2v_send.json`
+- `qwen/spike-261023/t2v_task_running.json`
+- `qwen/spike-261023/t2v_task_success.json`
+- `qwen/spike-261023/task_status_wrong_path.json`
+- `qwen/spike-261023/waf_plain_no_bx.json`
+- `qwen/spike-261023/waf_replayed_bx_other_body.json`

@@ -1,0 +1,116 @@
+{
+ "name": "U3",
+ "chat_id": "0b47d19a-963f-4db4-803e-6a743d8eaca4",
+ "request": {
+  "stream": true,
+  "version": "2.1",
+  "incremental_output": true,
+  "chatId": "0b47d19a-963f-4db4-803e-6a743d8eaca4",
+  "parentId": "",
+  "chat_id": "0b47d19a-963f-4db4-803e-6a743d8eaca4",
+  "chat_mode": "normal",
+  "model": "qwen3.7-plus",
+  "parent_id": null,
+  "messages": [
+   {
+    "id": null,
+    "fid": "8ed9d771-0a0c-410f-bfa6-317fde559d00",
+    "parentId": null,
+    "childrenIds": [
+     "840cbc44-691e-417f-8c94-09006c9854f8"
+    ],
+    "role": "user",
+    "content": "a cup of coffee with latte art, top view, photo",
+    "user_action": "chat",
+    "files": [],
+    "timestamp": 1792742583,
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "model": "",
+    "chat_type": "t2i",
+    "feature_config": {
+     "thinking_enabled": false,
+     "output_schema": "phase",
+     "research_mode": "normal",
+     "auto_thinking": false,
+     "thinking_mode": "Fast",
+     "auto_search": true
+    },
+    "extra": {
+     "meta": {
+      "subChatType": "t2i",
+      "size": "16:9",
+      "model": "qwen-image-3.0"
+     }
+    },
+    "sub_chat_type": "t2i",
+    "parent_id": null
+   }
+  ],
+  "timestamp": 1792742583,
+  "size": "16:9"
+ },
+ "request_headers": {
+  "accept": "application/json",
+  "accept-language": "en-US,en;q=0.9",
+  "content-type": "application/json",
+  "origin": "https://chat.qwen.ai",
+  "referer": "https://chat.qwen.ai/c/0b47d19a-963f-4db4-803e-6a743d8eaca4",
+  "timezone": "Fri Oct 23 2026 07:33:00 GMT+0000",
+  "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "version": "0.3.22",
+  "x-accel-buffering": "no",
+  "x-request-id": "006d20cb-bc9f-4eb5-b9ff-ea5285f15ea0",
+  "bx-v": "2.5.37",
+  "sec-ch-ua": "\"Chromium\";v=\"154\", \"Google Chrome\";v=\"154\", \"Not A(Brand\";v=\"99\"",
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": "\"Linux\"",
+  "source": "web"
+ },
+ "bx_age_s": 1802.6,
+ "status": 200,
+ "stream_lines": [
+  [
+   0.98,
+   "data: {\"response.created\":{\"chat_id\": \"0b47d19a-963f-4db4-803e-6a743d8eaca4\", \"parent_id\": \"715c4bf1-ba83-4373-8aab-a7c493126553\", \"response_id\":\"fe7dc1bc-4075-441d-880c-91cbe46617c9\", \"response_index\": \"0\"}} "
+  ],
+  [
+   11.03,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"0b47d19a-963f-4db4-803e-6a743d8eaca4\", \"response_id\": \"fe7dc1bc-4075-441d-880c-91cbe46617c9\", \"timestamp\": 1792742594}}"
+  ],
+  [
+   21.04,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"0b47d19a-963f-4db4-803e-6a743d8eaca4\", \"response_id\": \"fe7dc1bc-4075-441d-880c-91cbe46617c9\", \"timestamp\": 1792742604}}"
+  ],
+  [
+   31.05,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"0b47d19a-963f-4db4-803e-6a743d8eaca4\", \"response_id\": \"fe7dc1bc-4075-441d-880c-91cbe46617c9\", \"timestamp\": 1792742614}}"
+  ],
+  [
+   41.12,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"0b47d19a-963f-4db4-803e-6a743d8eaca4\", \"response_id\": \"fe7dc1bc-4075-441d-880c-91cbe46617c9\", \"timestamp\": 1792742624}}"
+  ],
+  [
+   51.12,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"0b47d19a-963f-4db4-803e-6a743d8eaca4\", \"response_id\": \"fe7dc1bc-4075-441d-880c-91cbe46617c9\", \"timestamp\": 1792742634}}"
+  ],
+  [
+   61.15,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"0b47d19a-963f-4db4-803e-6a743d8eaca4\", \"response_id\": \"fe7dc1bc-4075-441d-880c-91cbe46617c9\", \"timestamp\": 1792742644}}"
+  ],
+  [
+   71.23,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"0b47d19a-963f-4db4-803e-6a743d8eaca4\", \"response_id\": \"fe7dc1bc-4075-441d-880c-91cbe46617c9\", \"timestamp\": 1792742654}}"
+  ],
+  [
+   74.66,
+   "data: {\"choices\": [{\"delta\": {\"role\": \"assistant\", \"content\": \"https://cdn.qwenlm.ai/output/00000000-0000-4000-8000-0000000000a1/t2i/fe7dc1bc-4075-441d-880c-91cbe46617c9/1792742657d8a4.png?key=<tok>\", \"phase\": \"image_gen\", \"extra\": {\"output_image_hw\": [[\"928\", \"1664\"]], \"model\": \"qwen-image-3.0\"}, \"status\": \"typing\"}}], \"response_id\": \"fe7dc1bc-4075-441d-880c-91cbe46617c9\", \"usage\": {}, \"timestamp\": 1792742658}"
+  ],
+  [
+   74.66,
+   "data: {\"choices\": [{\"delta\": {\"content\": \"\", \"role\": \"assistant\", \"status\": \"finished\", \"phase\": \"image_gen\"}}], \"response_id\": \"fe7dc1bc-4075-441d-880c-91cbe46617c9\"}"
+  ]
+ ],
+ "elapsed_s": 75.44
+}

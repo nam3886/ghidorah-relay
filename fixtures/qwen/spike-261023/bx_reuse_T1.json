@@ -1,0 +1,116 @@
+{
+ "name": "T1",
+ "chat_id": "c9d61c1a-ea86-48c9-8ffd-2026847ace7d",
+ "request": {
+  "stream": true,
+  "version": "2.1",
+  "incremental_output": true,
+  "chatId": "c9d61c1a-ea86-48c9-8ffd-2026847ace7d",
+  "parentId": "",
+  "chat_id": "c9d61c1a-ea86-48c9-8ffd-2026847ace7d",
+  "chat_mode": "normal",
+  "model": "qwen3.7-plus",
+  "parent_id": null,
+  "messages": [
+   {
+    "id": null,
+    "fid": "28abb66e-850b-45cd-895d-fd225bc61bc6",
+    "parentId": null,
+    "childrenIds": [
+     "59f713f0-3266-4100-b88c-b33288e710a1"
+    ],
+    "role": "user",
+    "content": "a green apple on a wooden table, photo",
+    "user_action": "chat",
+    "files": [],
+    "timestamp": 1792739846,
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "model": "",
+    "chat_type": "t2i",
+    "feature_config": {
+     "thinking_enabled": false,
+     "output_schema": "phase",
+     "research_mode": "normal",
+     "auto_thinking": false,
+     "thinking_mode": "Fast",
+     "auto_search": true
+    },
+    "extra": {
+     "meta": {
+      "subChatType": "t2i",
+      "size": "16:9",
+      "model": "qwen-image-3.0"
+     }
+    },
+    "sub_chat_type": "t2i",
+    "parent_id": null
+   }
+  ],
+  "timestamp": 1792739846,
+  "size": "16:9"
+ },
+ "request_headers": {
+  "accept": "application/json",
+  "accept-language": "en-US,en;q=0.9",
+  "content-type": "application/json",
+  "origin": "https://chat.qwen.ai",
+  "referer": "https://chat.qwen.ai/c/c9d61c1a-ea86-48c9-8ffd-2026847ace7d",
+  "timezone": "Fri Oct 23 2026 07:17:25 GMT+0000",
+  "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "version": "0.3.22",
+  "x-accel-buffering": "no",
+  "x-request-id": "e9f42811-e971-40b8-8d70-a8179b0fab6a",
+  "bx-v": "2.5.37",
+  "sec-ch-ua": "\"Chromium\";v=\"154\", \"Google Chrome\";v=\"154\", \"Not A(Brand\";v=\"99\"",
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": "\"Linux\"",
+  "source": "web"
+ },
+ "bx_age_s": 1.4,
+ "status": 200,
+ "stream_lines": [
+  [
+   0.86,
+   "data: {\"response.created\":{\"chat_id\": \"c9d61c1a-ea86-48c9-8ffd-2026847ace7d\", \"parent_id\": \"af2bec31-fc1e-4e14-b991-288a98c5a039\", \"response_id\":\"5d2f5daa-a284-48ce-967c-056eab552fbb\", \"response_index\": \"0\"}} "
+  ],
+  [
+   10.87,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"c9d61c1a-ea86-48c9-8ffd-2026847ace7d\", \"response_id\": \"5d2f5daa-a284-48ce-967c-056eab552fbb\", \"timestamp\": 1792739857}}"
+  ],
+  [
+   21.11,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"c9d61c1a-ea86-48c9-8ffd-2026847ace7d\", \"response_id\": \"5d2f5daa-a284-48ce-967c-056eab552fbb\", \"timestamp\": 1792739867}}"
+  ],
+  [
+   31.12,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"c9d61c1a-ea86-48c9-8ffd-2026847ace7d\", \"response_id\": \"5d2f5daa-a284-48ce-967c-056eab552fbb\", \"timestamp\": 1792739877}}"
+  ],
+  [
+   41.44,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"c9d61c1a-ea86-48c9-8ffd-2026847ace7d\", \"response_id\": \"5d2f5daa-a284-48ce-967c-056eab552fbb\", \"timestamp\": 1792739887}}"
+  ],
+  [
+   51.17,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"c9d61c1a-ea86-48c9-8ffd-2026847ace7d\", \"response_id\": \"5d2f5daa-a284-48ce-967c-056eab552fbb\", \"timestamp\": 1792739897}}"
+  ],
+  [
+   61.21,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"c9d61c1a-ea86-48c9-8ffd-2026847ace7d\", \"response_id\": \"5d2f5daa-a284-48ce-967c-056eab552fbb\", \"timestamp\": 1792739907}}"
+  ],
+  [
+   71.22,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"c9d61c1a-ea86-48c9-8ffd-2026847ace7d\", \"response_id\": \"5d2f5daa-a284-48ce-967c-056eab552fbb\", \"timestamp\": 1792739917}}"
+  ],
+  [
+   74.91,
+   "data: {\"choices\": [{\"delta\": {\"role\": \"assistant\", \"content\": \"https://cdn.qwenlm.ai/output/00000000-0000-4000-8000-0000000000a1/t2i/5d2f5daa-a284-48ce-967c-056eab552fbb/1792739920929d.png?key=<tok>\", \"phase\": \"image_gen\", \"extra\": {\"output_image_hw\": [[\"928\", \"1664\"]], \"model\": \"qwen-image-3.0\"}, \"status\": \"typing\"}}], \"response_id\": \"5d2f5daa-a284-48ce-967c-056eab552fbb\", \"usage\": {}, \"timestamp\": 1792739921}"
+  ],
+  [
+   74.92,
+   "data: {\"choices\": [{\"delta\": {\"content\": \"\", \"role\": \"assistant\", \"status\": \"finished\", \"phase\": \"image_gen\"}}], \"response_id\": \"5d2f5daa-a284-48ce-967c-056eab552fbb\"}"
+  ]
+ ],
+ "elapsed_s": 75.67
+}

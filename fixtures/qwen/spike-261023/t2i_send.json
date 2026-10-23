@@ -1,0 +1,424 @@
+{
+ "url": "https://chat.qwen.ai/api/v2/chat/completions?chat_id=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+ "request_headers": {
+  "accept": "application/json",
+  "accept-language": "en-US,en;q=0.9",
+  "content-type": "application/json",
+  "origin": "https://chat.qwen.ai",
+  "referer": "https://chat.qwen.ai/c/41afb3a6-5459-406c-81be-e1f1aaa377ab",
+  "timezone": "Fri Oct 23 2026 06:32:12 GMT+0000",
+  "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "version": "0.3.22",
+  "x-accel-buffering": "no",
+  "x-request-id": "7802fec6-e169-44cc-9f0d-619b3381a3ae",
+  "bx-v": "2.5.37",
+  "sec-ch-ua": "\"Chromium\";v=\"154\", \"Google Chrome\";v=\"154\", \"Not A(Brand\";v=\"99\"",
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": "\"Linux\"",
+  "source": "web"
+ },
+ "request": {
+  "stream": true,
+  "version": "2.1",
+  "incremental_output": true,
+  "chatId": "41afb3a6-5459-406c-81be-e1f1aaa377ab",
+  "parentId": "",
+  "chat_id": "41afb3a6-5459-406c-81be-e1f1aaa377ab",
+  "chat_mode": "normal",
+  "model": "qwen3.7-plus",
+  "parent_id": null,
+  "messages": [
+   {
+    "id": null,
+    "fid": "7d34854e-51ad-4371-9336-c08a1be5ac0d",
+    "parentId": null,
+    "childrenIds": [
+     "49decd8f-baee-48ea-a913-2423ea346172"
+    ],
+    "role": "user",
+    "content": "a red bicycle leaning on a brick wall, photo",
+    "user_action": "chat",
+    "files": [],
+    "timestamp": 1792737131,
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "model": "",
+    "chat_type": "t2i",
+    "feature_config": {
+     "thinking_enabled": false,
+     "output_schema": "phase",
+     "research_mode": "normal",
+     "auto_thinking": false,
+     "thinking_mode": "Fast",
+     "auto_search": true
+    },
+    "extra": {
+     "meta": {
+      "subChatType": "t2i",
+      "size": "16:9",
+      "model": "qwen-image-3.0"
+     }
+    },
+    "sub_chat_type": "t2i",
+    "parent_id": null
+   }
+  ],
+  "timestamp": 1792737132,
+  "size": "16:9"
+ },
+ "page_requests": [
+  {
+   "t": 1792737121.96,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/users/status",
+   "body": {
+    "typarms": {
+     "logId": "ffb4bd77229e8acdb280800e15dec70c0d9b",
+     "timestamp": 1792737121928,
+     "domain": "chat.qwen.ai",
+     "testTag": "compareLogService",
+     "testVersion": "5.0.0",
+     "serviceName": "tongyiLogService",
+     "requestType": "sendBeacon"
+    }
+   }
+  },
+  {
+   "t": 1792737123.18,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/configs/setting-config",
+   "body": null
+  },
+  {
+   "t": 1792737123.18,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/tts/config",
+   "body": null
+  },
+  {
+   "t": 1792737123.21,
+   "method": "GET",
+   "url": "https://auth.qwen.ai/api/v2/auths/refresh",
+   "body": null
+  },
+  {
+   "t": 1792737124.49,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/configs/",
+   "body": null
+  },
+  {
+   "t": 1792737125.05,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/models/",
+   "body": null
+  },
+  {
+   "t": 1792737125.58,
+   "method": "GET",
+   "url": "https://auth.qwen.ai/api/v2/auths/",
+   "body": null
+  },
+  {
+   "t": 1792737126.22,
+   "method": "POST",
+   "url": "https://sg-member.qwen.com/api/member/level/query",
+   "body": null
+  },
+  {
+   "t": 1792737126.22,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/files/customer-service/entry",
+   "body": {}
+  },
+  {
+   "t": 1792737126.22,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/chats/pinned",
+   "body": null
+  },
+  {
+   "t": 1792737126.22,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/credits/pricing",
+   "body": null
+  },
+  {
+   "t": 1792737126.22,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/users/user/settings",
+   "body": null
+  },
+  {
+   "t": 1792737127.66,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/users/status",
+   "body": {
+    "typarms": {
+     "typarm1": "web",
+     "typarm2": "00000000-0000-4000-8000-0000000000a1",
+     "typarm3": "prod",
+     "typarm4": "qwen_chat",
+     "typarm5": "product",
+     "typarm6": "",
+     "orgid": "tongyi",
+     "share_id": "",
+     "project_id": "",
+     "channel_type": "",
+     "community_type": "",
+     "from_id": "",
+     "cdn_version": "0.3.22",
+     "page_id": "//chat.qwen.ai/",
+     "session_id": "",
+     "language": "en-US",
+     "biz_id": "tongyi",
+     "device": "LINUX",
+     "chat_entry": "qwen_web",
+     "init_session_type": "0",
+     "mode_type": "main_chat",
+     "utc_timestamp": "1792737127500",
+     "spmId": "a2ty_o01.29997169",
+     "aemPageId": "//chat.qwen.ai/",
+     "domain": "chat.qwen.ai"
+    }
+   }
+  },
+  {
+   "t": 1792737127.7,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/folders/",
+   "body": null
+  },
+  {
+   "t": 1792737128.25,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/projects/",
+   "body": null
+  },
+  {
+   "t": 1792737129.32,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/library/list",
+   "body": null
+  },
+  {
+   "t": 1792737129.33,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/chats/",
+   "body": null
+  },
+  {
+   "t": 1792737131.73,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/users/status",
+   "body": {
+    "typarms": {
+     "typarm1": "web",
+     "typarm2": "00000000-0000-4000-8000-0000000000a1",
+     "typarm3": "prod",
+     "typarm4": "qwen_chat",
+     "typarm5": "product",
+     "typarm6": "",
+     "orgid": "tongyi",
+     "share_id": "",
+     "project_id": "",
+     "channel_type": "",
+     "community_type": "",
+     "from_id": "",
+     "cdn_version": "0.3.22",
+     "page_id": "//chat.qwen.ai/c/new-chat",
+     "session_id": "",
+     "language": "en-US",
+     "biz_id": "tongyi",
+     "device": "LINUX",
+     "chat_entry": "qwen_web",
+     "init_session_type": "0",
+     "mode_type": "main_chat",
+     "utc_timestamp": "1792737131628",
+     "spmId": "a2ty_o01.29997170",
+     "aemPageId": "//chat.qwen.ai/c/new-chat",
+     "domain": "chat.qwen.ai"
+    }
+   }
+  },
+  {
+   "t": 1792737131.73,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/chats/new",
+   "body": {
+    "chatId": "",
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "project_id": "",
+    "timestamp": 1792737131586,
+    "chat_type": "t2i",
+    "chat_mode": "normal"
+   }
+  },
+  {
+   "t": 1792737132.55,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/users/status",
+   "body": {
+    "typarms": {
+     "typarm1": "web",
+     "typarm2": "00000000-0000-4000-8000-0000000000a1",
+     "typarm3": "prod",
+     "typarm4": "qwen_chat",
+     "typarm5": "product",
+     "typarm6": "",
+     "orgid": "tongyi",
+     "share_id": "",
+     "project_id": "",
+     "channel_type": "",
+     "community_type": "",
+     "from_id": "",
+     "cdn_version": "0.3.22",
+     "page_id": "//chat.qwen.ai/c/",
+     "session_id": "41afb3a6-5459-406c-81be-e1f1aaa377ab",
+     "language": "en-US",
+     "biz_id": "tongyi",
+     "device": "LINUX",
+     "chat_entry": "qwen_web",
+     "init_session_type": "0",
+     "mode_type": "main_chat",
+     "utc_timestamp": "1792737132356",
+     "spmId": "a2ty_o01.29997173",
+     "aemPageId": "//chat.qwen.ai/c/",
+     "domain": "chat.qwen.ai"
+    }
+   }
+  },
+  {
+   "t": 1792737132.55,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/chats/pinned",
+   "body": null
+  },
+  {
+   "t": 1792737132.55,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/chat/completions",
+   "body": {
+    "stream": true,
+    "version": "2.1",
+    "incremental_output": true,
+    "chatId": "41afb3a6-5459-406c-81be-e1f1aaa377ab",
+    "parentId": "",
+    "chat_id": "41afb3a6-5459-406c-81be-e1f1aaa377ab",
+    "chat_mode": "normal",
+    "model": "qwen3.7-plus",
+    "parent_id": null,
+    "messages": [
+     {
+      "id": null,
+      "fid": "7d34854e-51ad-4371-9336-c08a1be5ac0d",
+      "parentId": null,
+      "childrenIds": [
+       "49decd8f-baee-48ea-a913-2423ea346172"
+      ],
+      "role": "user",
+      "content": "a red bicycle leaning on a brick wall, photo",
+      "user_action": "chat",
+      "files": [],
+      "timestamp": 1792737131,
+      "models": [
+       "qwen3.7-plus"
+      ],
+      "model": "",
+      "chat_type": "t2i",
+      "feature_config": {
+       "thinking_enabled": false,
+       "output_schema": "phase",
+       "research_mode": "normal",
+       "auto_thinking": false,
+       "thinking_mode": "Fast",
+       "auto_search": true
+      },
+      "extra": {
+       "meta": {
+        "subChatType": "t2i",
+        "size": "16:9",
+        "model": "qwen-image-3.0"
+       }
+      },
+      "sub_chat_type": "t2i",
+      "parent_id": null
+     }
+    ],
+    "timestamp": 1792737132,
+    "size": "16:9"
+   }
+  },
+  {
+   "t": 1792737132.55,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/chats/",
+   "body": null
+  }
+ ],
+ "status": 200,
+ "headers": {
+  "date": "Fri, 23 Oct 2026 06:32:14 GMT",
+  "content-type": "text/event-stream; charset=utf-8",
+  "transfer-encoding": "chunked",
+  "connection": "keep-alive",
+  "vary": "Accept-Encoding, Origin, Origin",
+  "x-request-id": "7802fec6-e169-44cc-9f0d-619b3381a3ae",
+  "cache-control": "no-cache",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "x-actual-status-code": "200",
+  "x-frame-options": "SAMEORIGIN",
+  "x-robots-tag": "noindex"
+ },
+ "stream_lines": [
+  [
+   1.61,
+   "data: {\"response.created\":{\"chat_id\": \"41afb3a6-5459-406c-81be-e1f1aaa377ab\", \"parent_id\": \"86f15df0-1b63-468e-ac6f-4429de744d5e\", \"response_id\":\"23a3b798-ef34-42d9-82cd-206141402566\", \"response_index\": \"0\"}} "
+  ],
+  [
+   11.62,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"41afb3a6-5459-406c-81be-e1f1aaa377ab\", \"response_id\": \"23a3b798-ef34-42d9-82cd-206141402566\", \"timestamp\": 1792737144}}"
+  ],
+  [
+   21.64,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"41afb3a6-5459-406c-81be-e1f1aaa377ab\", \"response_id\": \"23a3b798-ef34-42d9-82cd-206141402566\", \"timestamp\": 1792737154}}"
+  ],
+  [
+   31.65,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"41afb3a6-5459-406c-81be-e1f1aaa377ab\", \"response_id\": \"23a3b798-ef34-42d9-82cd-206141402566\", \"timestamp\": 1792737164}}"
+  ],
+  [
+   41.65,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"41afb3a6-5459-406c-81be-e1f1aaa377ab\", \"response_id\": \"23a3b798-ef34-42d9-82cd-206141402566\", \"timestamp\": 1792737174}}"
+  ],
+  [
+   51.66,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"41afb3a6-5459-406c-81be-e1f1aaa377ab\", \"response_id\": \"23a3b798-ef34-42d9-82cd-206141402566\", \"timestamp\": 1792737184}}"
+  ],
+  [
+   61.69,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"41afb3a6-5459-406c-81be-e1f1aaa377ab\", \"response_id\": \"23a3b798-ef34-42d9-82cd-206141402566\", \"timestamp\": 1792737194}}"
+  ],
+  [
+   71.7,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"41afb3a6-5459-406c-81be-e1f1aaa377ab\", \"response_id\": \"23a3b798-ef34-42d9-82cd-206141402566\", \"timestamp\": 1792737204}}"
+  ],
+  [
+   81.7,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"41afb3a6-5459-406c-81be-e1f1aaa377ab\", \"response_id\": \"23a3b798-ef34-42d9-82cd-206141402566\", \"timestamp\": 1792737214}}"
+  ],
+  [
+   91.48,
+   "data: {\"choices\": [{\"delta\": {\"role\": \"assistant\", \"content\": \"https://cdn.qwenlm.ai/output/00000000-0000-4000-8000-0000000000a1/t2i/23a3b798-ef34-42d9-82cd-206141402566/179273722248b7.png?key=<tok>\", \"phase\": \"image_gen\", \"extra\": {\"output_image_hw\": [[\"928\", \"1664\"]], \"model\": \"qwen-image-3.0\"}, \"status\": \"typing\"}}], \"response_id\": \"23a3b798-ef34-42d9-82cd-206141402566\", \"usage\": {}, \"timestamp\": 1792737224}"
+  ],
+  [
+   91.48,
+   "data: {\"choices\": [{\"delta\": {\"content\": \"\", \"role\": \"assistant\", \"status\": \"finished\", \"phase\": \"image_gen\"}}], \"response_id\": \"23a3b798-ef34-42d9-82cd-206141402566\"}"
+  ]
+ ],
+ "elapsed_s": 92.52
+}

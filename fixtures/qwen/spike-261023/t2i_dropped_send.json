@@ -1,0 +1,72 @@
+{
+ "name": "S1",
+ "chat_id": "48a48955-16b0-4143-903e-2b7341a6dc85",
+ "request": {
+  "stream": true,
+  "version": "2.1",
+  "incremental_output": true,
+  "chatId": "48a48955-16b0-4143-903e-2b7341a6dc85",
+  "parentId": "",
+  "chat_id": "48a48955-16b0-4143-903e-2b7341a6dc85",
+  "chat_mode": "normal",
+  "model": "qwen3.7-plus",
+  "parent_id": null,
+  "messages": [
+   {
+    "id": null,
+    "fid": "91df18e2-f2aa-4fe6-a894-a2dfa9714950",
+    "parentId": null,
+    "childrenIds": [
+     "af2ac760-56c0-4fc5-b54c-c8b985886963"
+    ],
+    "role": "user",
+    "content": "a green apple on a wooden table, photo",
+    "user_action": "chat",
+    "files": [],
+    "timestamp": 1792738701,
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "model": "",
+    "chat_type": "t2i",
+    "feature_config": {
+     "thinking_enabled": false,
+     "output_schema": "phase",
+     "research_mode": "normal",
+     "auto_thinking": false,
+     "thinking_mode": "Fast",
+     "auto_search": true
+    },
+    "extra": {
+     "meta": {
+      "subChatType": "t2i",
+      "size": "16:9",
+      "model": "qwen-image-3.0"
+     }
+    },
+    "sub_chat_type": "t2i",
+    "parent_id": null
+   }
+  ],
+  "timestamp": 1792738701,
+  "size": "16:9"
+ },
+ "request_headers": {
+  "accept": "application/json",
+  "accept-language": "en-US,en;q=0.9",
+  "content-type": "application/json",
+  "origin": "https://chat.qwen.ai",
+  "referer": "https://chat.qwen.ai/c/48a48955-16b0-4143-903e-2b7341a6dc85",
+  "timezone": "Fri Oct 23 2026 06:58:18 GMT+0000",
+  "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "version": "0.3.22",
+  "x-accel-buffering": "no",
+  "x-request-id": "a259c79b-e3f5-42a2-a3b5-2aced78de4ac",
+  "bx-v": "2.5.37",
+  "sec-ch-ua": "\"Chromium\";v=\"154\", \"Google Chrome\";v=\"154\", \"Not A(Brand\";v=\"99\"",
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": "\"Linux\"",
+  "source": "web"
+ },
+ "bx_age_s": 1.4
+}

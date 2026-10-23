@@ -1,0 +1,61 @@
+{
+ "t": 1.49,
+ "wall": "2026-10-23T05:50:20Z",
+ "step": "bx_browser_ua",
+ "method": "POST",
+ "path": "/api/v2/chat/completions?chat_id=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+ "request": {
+  "stream": false,
+  "version": "2.1",
+  "incremental_output": true,
+  "chat_id": "1c0e5ddd-39ff-4052-8165-5a5a7bfb4cab",
+  "chat_mode": "normal",
+  "model": "qwen3.7-plus",
+  "parent_id": null,
+  "messages": []
+ },
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "source": "web",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/c/1c0e5ddd-39ff-4052-8165-5a5a7bfb4cab",
+  "x-request-id": "e09ea666-34a4-49f2-8aef-1a5c07537261",
+  "Version": "0.3.22",
+  "Timezone": "Fri Oct 23 2026 05:50:20 GMT+0000",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin",
+  "x-accel-buffering": "no",
+  "bx-v": "2.5.37",
+  "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "sec-ch-ua-platform": "\"Linux\"",
+  "sec-ch-ua": "\"Chromium\";v=\"154\", \"Google Chrome\";v=\"154\", \"Not A(Brand\";v=\"99\""
+ },
+ "status": 200,
+ "elapsed_s": 1.62,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 05:50:21 GMT",
+  "Content-Type": "application/json;charset=UTF-8",
+  "Content-Length": "404",
+  "Connection": "keep-alive",
+  "Cache-Control": "no-store",
+  "Access-Control-Allow-Credentials": "true",
+  "Access-Control-Allow-Origin": "https://chat.qwen.ai",
+  "bxuuid": "631ab1434e2132c47ecabd12f256bfc6",
+  "bxpunish": "1"
+ },
+ "set_cookie_names": [
+  "x5secdata",
+  "x5sectag"
+ ],
+ "body": {
+  "ret": [
+   "FAIL_SYS_USER_VALIDATE",
+   "RGV587_ERROR::SM::哎哟喂,被挤爆啦,请稍后重试"
+  ],
+  "data": {
+   "url": "https://chat.qwen.ai:443//api/v2/chat/completions/_____tmd_____/punish?x5secdata=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&x5step=x&action=xxxxxxx&pureCaptcha="
+  }
+ }
+}

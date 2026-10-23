@@ -1,0 +1,56 @@
+{
+ "t": 7.31,
+ "wall": "2026-10-23T05:37:31Z",
+ "step": "chats_new",
+ "method": "POST",
+ "path": "/api/v2/chats/new",
+ "request": {
+  "title": "New Chat",
+  "models": [
+   "qwen3.6-plus"
+  ],
+  "chat_mode": "normal",
+  "chat_type": "t2i",
+  "timestamp": 1792733851325,
+  "project_id": ""
+ },
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "source": "web",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/c/new-chat",
+  "x-request-id": "e29d8d44-ff72-430e-932f-8cd2174adf6f",
+  "Version": "0.3.22",
+  "Timezone": "Fri Oct 23 2026 05:37:31 GMT+0000",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin"
+ },
+ "status": 200,
+ "elapsed_s": 0.81,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 05:37:32 GMT",
+  "Content-Type": "application/json",
+  "Content-Length": "121",
+  "Connection": "keep-alive",
+  "x-request-id": "e29d8d44-ff72-430e-932f-8cd2174adf6f",
+  "cache-control": "no-cache",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "vary": "Origin, Origin",
+  "x-actual-status-code": "200",
+  "x-frame-options": "SAMEORIGIN",
+  "X-Robots-Tag": "noindex"
+ },
+ "set_cookie_names": [
+  "x-ap"
+ ],
+ "body": {
+  "success": true,
+  "request_id": "e29d8d44-ff72-430e-932f-8cd2174adf6f",
+  "data": {
+   "id": "1c0e5ddd-39ff-4052-8165-5a5a7bfb4cab"
+  }
+ }
+}

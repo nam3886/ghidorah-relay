@@ -1,0 +1,116 @@
+{
+ "name": "U2",
+ "chat_id": "44ba4113-fb54-459d-bd6f-ed6aadb92359",
+ "request": {
+  "stream": true,
+  "version": "2.1",
+  "incremental_output": true,
+  "chatId": "44ba4113-fb54-459d-bd6f-ed6aadb92359",
+  "parentId": "",
+  "chat_id": "44ba4113-fb54-459d-bd6f-ed6aadb92359",
+  "chat_mode": "normal",
+  "model": "qwen3.7-plus",
+  "parent_id": null,
+  "messages": [
+   {
+    "id": null,
+    "fid": "6dbe27e5-0645-45b3-91bc-6bebef7f3ed8",
+    "parentId": null,
+    "childrenIds": [
+     "2eddf224-91de-494b-a036-20631df488ff"
+    ],
+    "role": "user",
+    "content": "a lighthouse on a cliff at dusk, photo",
+    "user_action": "chat",
+    "files": [],
+    "timestamp": 1792741683,
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "model": "",
+    "chat_type": "t2i",
+    "feature_config": {
+     "thinking_enabled": false,
+     "output_schema": "phase",
+     "research_mode": "normal",
+     "auto_thinking": false,
+     "thinking_mode": "Fast",
+     "auto_search": true
+    },
+    "extra": {
+     "meta": {
+      "subChatType": "t2i",
+      "size": "16:9",
+      "model": "qwen-image-3.0"
+     }
+    },
+    "sub_chat_type": "t2i",
+    "parent_id": null
+   }
+  ],
+  "timestamp": 1792741683,
+  "size": "16:9"
+ },
+ "request_headers": {
+  "accept": "application/json",
+  "accept-language": "en-US,en;q=0.9",
+  "content-type": "application/json",
+  "origin": "https://chat.qwen.ai",
+  "referer": "https://chat.qwen.ai/c/44ba4113-fb54-459d-bd6f-ed6aadb92359",
+  "timezone": "Fri Oct 23 2026 07:33:00 GMT+0000",
+  "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "version": "0.3.22",
+  "x-accel-buffering": "no",
+  "x-request-id": "006d20cb-bc9f-4eb5-b9ff-ea5285f15ea0",
+  "bx-v": "2.5.37",
+  "sec-ch-ua": "\"Chromium\";v=\"154\", \"Google Chrome\";v=\"154\", \"Not A(Brand\";v=\"99\"",
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": "\"Linux\"",
+  "source": "web"
+ },
+ "bx_age_s": 902.5,
+ "status": 200,
+ "stream_lines": [
+  [
+   0.8,
+   "data: {\"response.created\":{\"chat_id\": \"44ba4113-fb54-459d-bd6f-ed6aadb92359\", \"parent_id\": \"b6b3e8bf-3c82-48c7-897f-3e1961431e17\", \"response_id\":\"211fa0f7-e1c4-4d4d-85a6-32636792136a\", \"response_index\": \"0\"}} "
+  ],
+  [
+   10.81,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"44ba4113-fb54-459d-bd6f-ed6aadb92359\", \"response_id\": \"211fa0f7-e1c4-4d4d-85a6-32636792136a\", \"timestamp\": 1792741694}}"
+  ],
+  [
+   20.85,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"44ba4113-fb54-459d-bd6f-ed6aadb92359\", \"response_id\": \"211fa0f7-e1c4-4d4d-85a6-32636792136a\", \"timestamp\": 1792741704}}"
+  ],
+  [
+   30.83,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"44ba4113-fb54-459d-bd6f-ed6aadb92359\", \"response_id\": \"211fa0f7-e1c4-4d4d-85a6-32636792136a\", \"timestamp\": 1792741714}}"
+  ],
+  [
+   40.84,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"44ba4113-fb54-459d-bd6f-ed6aadb92359\", \"response_id\": \"211fa0f7-e1c4-4d4d-85a6-32636792136a\", \"timestamp\": 1792741724}}"
+  ],
+  [
+   50.85,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"44ba4113-fb54-459d-bd6f-ed6aadb92359\", \"response_id\": \"211fa0f7-e1c4-4d4d-85a6-32636792136a\", \"timestamp\": 1792741734}}"
+  ],
+  [
+   60.86,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"44ba4113-fb54-459d-bd6f-ed6aadb92359\", \"response_id\": \"211fa0f7-e1c4-4d4d-85a6-32636792136a\", \"timestamp\": 1792741744}}"
+  ],
+  [
+   71.1,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"44ba4113-fb54-459d-bd6f-ed6aadb92359\", \"response_id\": \"211fa0f7-e1c4-4d4d-85a6-32636792136a\", \"timestamp\": 1792741754}}"
+  ],
+  [
+   74.44,
+   "data: {\"choices\": [{\"delta\": {\"role\": \"assistant\", \"content\": \"https://cdn.qwenlm.ai/output/00000000-0000-4000-8000-0000000000a1/t2i/211fa0f7-e1c4-4d4d-85a6-32636792136a/1792741756fd52.png?key=<tok>\", \"phase\": \"image_gen\", \"extra\": {\"output_image_hw\": [[\"928\", \"1664\"]], \"model\": \"qwen-image-3.0\"}, \"status\": \"typing\"}}], \"response_id\": \"211fa0f7-e1c4-4d4d-85a6-32636792136a\", \"usage\": {}, \"timestamp\": 1792741758}"
+  ],
+  [
+   74.44,
+   "data: {\"choices\": [{\"delta\": {\"content\": \"\", \"role\": \"assistant\", \"status\": \"finished\", \"phase\": \"image_gen\"}}], \"response_id\": \"211fa0f7-e1c4-4d4d-85a6-32636792136a\"}"
+  ]
+ ],
+ "elapsed_s": 75.34
+}

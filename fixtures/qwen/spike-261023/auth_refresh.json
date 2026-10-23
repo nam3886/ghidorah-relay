@@ -1,0 +1,59 @@
+{
+ "t": 0.0,
+ "wall": "2026-10-23T05:35:19Z",
+ "step": "auths_refresh",
+ "method": "GET",
+ "path": "https://auth.qwen.ai/api/v2/auths/refresh",
+ "request": null,
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "source": "web",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/",
+  "x-request-id": "41217abf-e055-49f4-932f-91f995e4a765",
+  "Version": "0.3.22",
+  "Timezone": "Fri Oct 23 2026 05:35:19 GMT+0000",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin",
+  "x-request-origin": "https://chat.qwen.ai"
+ },
+ "status": 200,
+ "elapsed_s": 1.54,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 05:35:20 GMT",
+  "Content-Type": "application/json",
+  "Transfer-Encoding": "chunked",
+  "Connection": "keep-alive",
+  "Vary": "Accept-Encoding",
+  "x-actual-status-code": "200",
+  "x-request-id": "41217abf-e055-49f4-932f-91f995e4a765",
+  "cache-control": "no-store",
+  "Access-Control-Allow-Origin": "https://chat.qwen.ai",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, x-request-id, x-request-origin, timezone, source, user-agent, version, bx-ua, bx-umidtoken",
+  "Access-Control-Allow-Credentials": "true",
+  "Access-Control-Max-Age": "86400",
+  "Content-Encoding": "gzip"
+ },
+ "set_cookie_names": [
+  "acw_tc"
+ ],
+ "body": {
+  "success": true,
+  "request_id": "41217abf-e055-49f4-932f-91f995e4a765",
+  "data": {
+   "access_token": "<redacted>",
+   "refresh_token": "<redacted>",
+   "id": "00000000-0000-4000-8000-0000000000a1",
+   "email": "<redacted>",
+   "name": "Account One",
+   "role": "user",
+   "profile_image_url": "<redacted>",
+   "birthday": "<redacted>",
+   "is_new_user": false,
+   "merge_status": 0
+  }
+ }
+}

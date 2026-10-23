@@ -1,0 +1,534 @@
+{
+ "url": "https://chat.qwen.ai/api/v2/chat/completions?chat_id=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+ "request_headers": {
+  "accept": "application/json",
+  "accept-language": "en-US,en;q=0.9",
+  "content-type": "application/json",
+  "origin": "https://chat.qwen.ai",
+  "referer": "https://chat.qwen.ai/c/7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+  "timezone": "Fri Oct 23 2026 06:43:15 GMT+0000",
+  "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "version": "0.3.22",
+  "x-accel-buffering": "no",
+  "x-request-id": "2a96759c-18a8-4c0e-b656-820b72bded28",
+  "bx-v": "2.5.37",
+  "sec-ch-ua": "\"Chromium\";v=\"154\", \"Google Chrome\";v=\"154\", \"Not A(Brand\";v=\"99\"",
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": "\"Linux\"",
+  "source": "web"
+ },
+ "request": {
+  "stream": false,
+  "version": "2.1",
+  "incremental_output": true,
+  "chatId": "7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+  "parentId": "",
+  "chat_id": "7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+  "chat_mode": "normal",
+  "model": "qwen3.7-plus",
+  "parent_id": null,
+  "messages": [
+   {
+    "id": null,
+    "fid": "ea601a39-1af0-4d3b-a740-3ac40db143b8",
+    "parentId": null,
+    "childrenIds": [
+     "e2a2f578-7423-460f-9481-b91ce8110e46"
+    ],
+    "role": "user",
+    "content": "a paper boat drifting on a calm lake at sunrise, gentle ripples",
+    "user_action": "chat",
+    "files": [],
+    "timestamp": 1792737794,
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "model": "",
+    "chat_type": "t2v",
+    "feature_config": {
+     "thinking_enabled": false,
+     "output_schema": "phase",
+     "research_mode": "normal",
+     "auto_thinking": false,
+     "thinking_mode": "Fast",
+     "auto_search": true
+    },
+    "extra": {
+     "meta": {
+      "size": "16:9",
+      "biz_data": "{\"bizScene\":\"genVideo\",\"req\":{\"rootModel\":\"happyhorse11\",\"genMode\":\"vid_gen\",\"params\":{\"resolution\":\"720P\",\"size\":\"16:9\",\"duration\":5,\"audio\":true}}}",
+      "subChatType": "zaodian_generate_video",
+      "videoGenerationMode": "standard"
+     }
+    },
+    "sub_chat_type": "zaodian_generate_video",
+    "parent_id": null
+   }
+  ],
+  "timestamp": 1792737795,
+  "size": "16:9"
+ },
+ "page_requests": [
+  {
+   "t": 1792737784.69,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/users/status",
+   "query_keys": [],
+   "auth_bx_headers": [],
+   "body": {
+    "typarms": {
+     "logId": "08352a2f198b95e4b711d0585053523cab4b",
+     "timestamp": 1792737784675,
+     "domain": "chat.qwen.ai",
+     "testTag": "compareLogService",
+     "testVersion": "5.0.0",
+     "serviceName": "tongyiLogService",
+     "requestType": "sendBeacon"
+    }
+   }
+  },
+  {
+   "t": 1792737785.78,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/configs/setting-config",
+   "query_keys": [],
+   "auth_bx_headers": [],
+   "body": null
+  },
+  {
+   "t": 1792737785.78,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/tts/config",
+   "query_keys": [
+    "audio_tts_language",
+    "audio_tts_speakers",
+    "omni_language",
+    "omni_speakers"
+   ],
+   "auth_bx_headers": [],
+   "body": null
+  },
+  {
+   "t": 1792737785.81,
+   "method": "GET",
+   "url": "https://auth.qwen.ai/api/v2/auths/refresh",
+   "query_keys": [],
+   "auth_bx_headers": [],
+   "body": null
+  },
+  {
+   "t": 1792737787.07,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/configs/",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737787.64,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/models/",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737788.16,
+   "method": "GET",
+   "url": "https://auth.qwen.ai/api/v2/auths/",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737788.77,
+   "method": "POST",
+   "url": "https://sg-member.qwen.com/api/member/level/query",
+   "query_keys": [
+    "biz_id",
+    "chat_client",
+    "device",
+    "fr",
+    "la",
+    "pr",
+    "tz",
+    "wv"
+   ],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737788.77,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/files/customer-service/entry",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": {}
+  },
+  {
+   "t": 1792737788.77,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/chats/pinned",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737788.77,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/credits/pricing",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737788.77,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/users/user/settings",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737790.13,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/users/status",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-v"
+   ],
+   "body": {
+    "typarms": {
+     "typarm1": "web",
+     "typarm2": "00000000-0000-4000-8000-0000000000a1",
+     "typarm3": "prod",
+     "typarm4": "qwen_chat",
+     "typarm5": "product",
+     "typarm6": "",
+     "orgid": "tongyi",
+     "share_id": "",
+     "project_id": "",
+     "channel_type": "",
+     "community_type": "",
+     "from_id": "",
+     "cdn_version": "0.3.22",
+     "page_id": "//chat.qwen.ai/",
+     "session_id": "",
+     "language": "en-US",
+     "biz_id": "tongyi",
+     "device": "LINUX",
+     "chat_entry": "qwen_web",
+     "init_session_type": "0",
+     "mode_type": "main_chat",
+     "utc_timestamp": "1792737789998",
+     "spmId": "a2ty_o01.29997169",
+     "aemPageId": "//chat.qwen.ai/",
+     "domain": "chat.qwen.ai"
+    }
+   }
+  },
+  {
+   "t": 1792737791.23,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/folders/",
+   "query_keys": [
+    "exclude_project"
+   ],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-v"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737791.79,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/projects/",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-v"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737791.87,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/library/list",
+   "query_keys": [
+    "type"
+   ],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-v"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737792.15,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/chats/",
+   "query_keys": [
+    "exclude_project",
+    "page"
+   ],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-ua",
+    "bx-umidtoken",
+    "bx-v"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737794.25,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/entitlement/credits/verify",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-v"
+   ],
+   "body": {
+    "chat_type": "t2v",
+    "task_info": {
+     "create_credits": 30
+    }
+   }
+  },
+  {
+   "t": 1792737794.93,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/users/status",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-v"
+   ],
+   "body": {
+    "typarms": {
+     "typarm1": "web",
+     "typarm2": "00000000-0000-4000-8000-0000000000a1",
+     "typarm3": "prod",
+     "typarm4": "qwen_chat",
+     "typarm5": "product",
+     "typarm6": "",
+     "orgid": "tongyi",
+     "share_id": "",
+     "project_id": "",
+     "channel_type": "",
+     "community_type": "",
+     "from_id": "",
+     "cdn_version": "0.3.22",
+     "page_id": "//chat.qwen.ai/c/new-chat",
+     "session_id": "",
+     "language": "en-US",
+     "biz_id": "tongyi",
+     "device": "LINUX",
+     "chat_entry": "qwen_web",
+     "init_session_type": "0",
+     "mode_type": "main_chat",
+     "utc_timestamp": "1792737794850",
+     "spmId": "a2ty_o01.29997170",
+     "aemPageId": "//chat.qwen.ai/c/new-chat",
+     "domain": "chat.qwen.ai"
+    }
+   }
+  },
+  {
+   "t": 1792737794.93,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/chats/new",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-ua",
+    "bx-umidtoken",
+    "bx-v"
+   ],
+   "body": {
+    "chatId": "",
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "project_id": "",
+    "timestamp": 1792737794803,
+    "chat_type": "t2v",
+    "chat_mode": "normal"
+   }
+  },
+  {
+   "t": 1792737795.73,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/users/status",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-v"
+   ],
+   "body": {
+    "typarms": {
+     "typarm1": "web",
+     "typarm2": "00000000-0000-4000-8000-0000000000a1",
+     "typarm3": "prod",
+     "typarm4": "qwen_chat",
+     "typarm5": "product",
+     "typarm6": "",
+     "orgid": "tongyi",
+     "share_id": "",
+     "project_id": "",
+     "channel_type": "",
+     "community_type": "",
+     "from_id": "",
+     "cdn_version": "0.3.22",
+     "page_id": "//chat.qwen.ai/c/",
+     "session_id": "7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+     "language": "en-US",
+     "biz_id": "tongyi",
+     "device": "LINUX",
+     "chat_entry": "qwen_web",
+     "init_session_type": "0",
+     "mode_type": "main_chat",
+     "utc_timestamp": "1792737795536",
+     "spmId": "a2ty_o01.29997173",
+     "aemPageId": "//chat.qwen.ai/c/",
+     "domain": "chat.qwen.ai"
+    }
+   }
+  },
+  {
+   "t": 1792737795.73,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/chats/pinned",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-ua",
+    "bx-umidtoken",
+    "bx-v"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737795.73,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/chat/completions",
+   "query_keys": [
+    "chat_id"
+   ],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-ua",
+    "bx-umidtoken",
+    "bx-v"
+   ],
+   "body": {
+    "stream": false,
+    "version": "2.1",
+    "incremental_output": true,
+    "chatId": "7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+    "parentId": "",
+    "chat_id": "7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+    "chat_mode": "normal",
+    "model": "qwen3.7-plus",
+    "parent_id": null,
+    "messages": [
+     {
+      "id": null,
+      "fid": "ea601a39-1af0-4d3b-a740-3ac40db143b8",
+      "parentId": null,
+      "childrenIds": [
+       "e2a2f578-7423-460f-9481-b91ce8110e46"
+      ],
+      "role": "user",
+      "content": "a paper boat drifting on a calm lake at sunrise, gentle ripples",
+      "user_action": "chat",
+      "files": [],
+      "timestamp": 1792737794,
+      "models": [
+       "qwen3.7-plus"
+      ],
+      "model": "",
+      "chat_type": "t2v",
+      "feature_config": {
+       "thinking_enabled": false,
+       "output_schema": "phase",
+       "research_mode": "normal",
+       "auto_thinking": false,
+       "thinking_mode": "Fast",
+       "auto_search": true
+      },
+      "extra": {
+       "meta": {
+        "size": "16:9",
+        "biz_data": "{\"bizScene\":\"genVideo\",\"req\":{\"rootModel\":\"happyhorse11\",\"genMode\":\"vid_gen\",\"params\":{\"resolution\":\"720P\",\"size\":\"16:9\",\"duration\":5,\"audio\":true}}}",
+        "subChatType": "zaodian_generate_video",
+        "videoGenerationMode": "standard"
+       }
+      },
+      "sub_chat_type": "zaodian_generate_video",
+      "parent_id": null
+     }
+    ],
+    "timestamp": 1792737795,
+    "size": "16:9"
+   }
+  },
+  {
+   "t": 1792737795.73,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/chats/",
+   "query_keys": [
+    "exclude_project",
+    "page"
+   ],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-ua",
+    "bx-umidtoken",
+    "bx-v"
+   ],
+   "body": null
+  }
+ ],
+ "status": 200,
+ "headers": {
+  "date": "Fri, 23 Oct 2026 06:43:20 GMT",
+  "content-type": "application/json",
+  "transfer-encoding": "chunked",
+  "connection": "keep-alive",
+  "vary": "Accept-Encoding, Origin, Origin",
+  "x-request-id": "2a96759c-18a8-4c0e-b656-820b72bded28",
+  "cache-control": "no-cache",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "x-actual-status-code": "200",
+  "x-frame-options": "SAMEORIGIN",
+  "x-robots-tag": "noindex",
+  "content-encoding": "gzip"
+ },
+ "stream_lines": [
+  [
+   3.77,
+   "{\"success\":true,\"request_id\":\"2a96759c-18a8-4c0e-b656-820b72bded28\",\"data\":{\"chat_id\":\"7c9a1694-1d4a-4cea-83b0-ac10c942ad99\",\"parent_id\":\"601d3aca-3172-4bbb-b869-18bdea00d1a6\",\"message_id\":\"a113934e-5637-40ad-aa41-3754184a0f78\",\"messages\":[{\"role\":\"assistant\",\"content\":\"\",\"reasoning_content\":null,\"chat_type\":\"t2v\",\"sub_chat_type\":\"zaodian_generate_video\",\"model\":null,\"modelName\":null,\"modelIdx\":0,\"id\":null,\"parentId\":null,\"childrenIds\":null,\"feature_config\":null,\"content_list\":[{\"content\":\"Sure, I'm generating your video. This generation uses the HappyHorse 1.1 model at 720P resolution for 5s, consuming 30 Credits. You currently have 10 Credits remaining. I'll notify you once it's ready.\",\"phase\":\"answer\",\"status\":\"finished\",\"extra\":null,\"role\":\"assistant\",\"response_id\":\"a113934e-5637-40ad-aa41-3754184a0f78\"}],\"is_stop\":null,\"edited\":false,\"error\":null,\"meta\":null,\"extra\":{\"tool_result\":{\"record_id\":\"tsk_6993c8657bf4a05bc4593e3eca35a1f7\",\"status\":\"processing\"},\"wanx\":{\"task_id\":\"tsk_6993c8657bf4a05bc4593e3eca35a1f7\",\"status\":\"processing\",\"chat_type\":\"t2v\",\"real_chat_type\":\"t2v\",\"model\":\"happyhorse-1.1-t2v\",\"proxy_request_id\":\"req_60a8554dc09c43a287a68ea0391d6f03\",\"tool_result\":{\"record_id\":\"tsk_6993c8657bf4a05bc4593e3eca35a1f7\",\"status\":\"processing\"}},\"quota\":{\"consume_amount\":30,\"entitlement\":{\"deducted\":true,\"record_id\":\"214011830574524416\",\"transaction_id\":\"1b7ba683-7a24-4910-b382-68fac8bcdb97\",\"code\":\"video_generation\",\"biz_code\":\"create\",\"create_credits\":30,\"country_code\":\"VN\",\"via\":\"credits\",\"chat_id\":\"7c9a1694-1d4a-4cea-83b0-ac10c942ad99\",\"message_id\":\"a113934e-5637-40ad-aa41-3754184a0f78\"},\"state\":\"deducted\"},\"intent\":{\"source\":\"scene\",\"scene\":\"zaodian_generate_video\",\"confidence\":1.0}},\"feedbackId\":null,\"turn_id\":null,\"annotation\":null,\"done\":null,\"info\":null,\"timestamp\":null,\"status\":\"finished\",\"size\":\"16:9\",\"function_call\":{\"name\":\"generate_video\",\"arguments\":\"{\\\"prompt\\\": \\\"a paper boat drifting on a calm lake at sunrise, gentle ripples\\\", \\\"biz_data\\\": {\\\"bizScene\\\": \\\"genVideo\\\", \\\"req\\\": {\\\"params\\\": {\\\"ratio\\\": \\\"16:9\\\", \\\"resolution\\\": \\\"720P\\\", \\\"duration\\\": 5, \\\"size\\\": \\\"16:9\\\"}}}}\"}}],\"chat_type\":\"t2v\",\"sub_chat_type\":\"zaodian_generate_video\",\"real_chat_type\":\"t2v\",\"model\":\"happyhorse-1.1-t2v\",\"lang\":\"en-US\",\"id\":\"a113934e-5637-40ad-aa41-3754184a0f78\"}}"
+  ]
+ ],
+ "elapsed_s": 3.77
+}

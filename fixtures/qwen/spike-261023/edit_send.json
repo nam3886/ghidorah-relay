@@ -1,0 +1,695 @@
+{
+ "url": "https://chat.qwen.ai/api/v2/chat/completions?chat_id=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+ "request_headers": {
+  "accept": "application/json",
+  "accept-language": "en-US,en;q=0.9",
+  "content-type": "application/json",
+  "origin": "https://chat.qwen.ai",
+  "referer": "https://chat.qwen.ai/c/f4829917-107f-49fa-bca9-33cb1f53406b",
+  "timezone": "Fri Oct 23 2026 06:40:23 GMT+0000",
+  "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "version": "0.3.22",
+  "x-accel-buffering": "no",
+  "x-request-id": "a7aaef0e-9630-4088-a229-92e6973be69a",
+  "bx-v": "2.5.37",
+  "sec-ch-ua": "\"Chromium\";v=\"154\", \"Google Chrome\";v=\"154\", \"Not A(Brand\";v=\"99\"",
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": "\"Linux\"",
+  "source": "web"
+ },
+ "request": {
+  "stream": true,
+  "version": "2.1",
+  "incremental_output": true,
+  "chatId": "f4829917-107f-49fa-bca9-33cb1f53406b",
+  "parentId": "",
+  "chat_id": "f4829917-107f-49fa-bca9-33cb1f53406b",
+  "chat_mode": "normal",
+  "model": "qwen3.7-plus",
+  "parent_id": null,
+  "messages": [
+   {
+    "id": null,
+    "fid": "51f3d8d5-3ab7-4b4d-9422-b38c1cc151be",
+    "parentId": null,
+    "childrenIds": [
+     "df21585e-eaf7-4744-9595-bb705eb3944c"
+    ],
+    "role": "user",
+    "content": "make the bicycle bright blue, keep everything else unchanged",
+    "user_action": "chat",
+    "files": [
+     {
+      "type": "image",
+      "file": {
+       "created_at": 1792737613858,
+       "data": {},
+       "filename": "edit_in.jpg",
+       "hash": null,
+       "id": "525da7a5-1837-44a3-a03f-2a379cdee60e",
+       "user_id": "00000000-0000-4000-8000-0000000000a2",
+       "meta": {
+        "name": "edit_in.jpg",
+        "size": 198398,
+        "content_type": "image/jpeg"
+       },
+       "update_at": 1792737613858,
+       "lastModified": 1792737308107,
+       "name": "edit_in.jpg",
+       "webkitRelativePath": "",
+       "size": 198398,
+       "type": "image/jpeg"
+      },
+      "id": "525da7a5-1837-44a3-a03f-2a379cdee60e",
+      "url": "https://qwen-webui-prod.oss-accelerate.aliyuncs.com/00000000-0000-4000-8000-0000000000a2/525da7a5-1837-44a3-a03f-2a379cdee60e_edit_in.jpg?x-oss-security-token=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&x-oss-date=xxxxxxxxxxxxxxxx&x-oss-expires=xxx&x-oss-signature-version=xxxxxxxxxxxxxxxx&x-oss-credential=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&x-oss-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "name": "edit_in.jpg",
+      "collection_name": "",
+      "progress": 0,
+      "status": "uploaded",
+      "greenNet": "success",
+      "size": 198398,
+      "error": "",
+      "itemId": "0aedb350-32e6-489d-ae05-e85fdd83d74a",
+      "file_type": "image/jpeg",
+      "showType": "image",
+      "file_class": "vision",
+      "uploadTaskId": "018720a0-de65-4af7-9346-87bae393a4c8"
+     }
+    ],
+    "timestamp": 1792737622,
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "model": "",
+    "chat_type": "t2i",
+    "feature_config": {
+     "thinking_enabled": false,
+     "output_schema": "phase",
+     "research_mode": "normal",
+     "auto_thinking": false,
+     "thinking_mode": "Fast",
+     "auto_search": true
+    },
+    "extra": {
+     "meta": {
+      "subChatType": "t2i",
+      "size": "16:9",
+      "model": "qwen-image-3.0"
+     }
+    },
+    "sub_chat_type": "t2i",
+    "parent_id": null
+   }
+  ],
+  "timestamp": 1792737623,
+  "size": "16:9"
+ },
+ "page_requests": [
+  {
+   "t": 1792737599.37,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/users/status",
+   "query_keys": [],
+   "auth_bx_headers": [],
+   "body": {
+    "typarms": {
+     "logId": "b6e2e2574bfbe5a0cfd3b8e6a363e84deb3d",
+     "timestamp": 1792737599340,
+     "domain": "chat.qwen.ai",
+     "testTag": "compareLogService",
+     "testVersion": "5.0.0",
+     "serviceName": "tongyiLogService",
+     "requestType": "sendBeacon"
+    }
+   }
+  },
+  {
+   "t": 1792737600.64,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/configs/setting-config",
+   "query_keys": [],
+   "auth_bx_headers": [],
+   "body": null
+  },
+  {
+   "t": 1792737600.65,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/tts/config",
+   "query_keys": [
+    "audio_tts_language",
+    "audio_tts_speakers",
+    "omni_language",
+    "omni_speakers"
+   ],
+   "auth_bx_headers": [],
+   "body": null
+  },
+  {
+   "t": 1792737600.69,
+   "method": "GET",
+   "url": "https://auth.qwen.ai/api/v2/auths/refresh",
+   "query_keys": [],
+   "auth_bx_headers": [],
+   "body": null
+  },
+  {
+   "t": 1792737601.91,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/configs/",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737602.81,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/models/",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737603.34,
+   "method": "GET",
+   "url": "https://auth.qwen.ai/api/v2/auths/",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737603.95,
+   "method": "POST",
+   "url": "https://sg-member.qwen.com/api/member/level/query",
+   "query_keys": [
+    "biz_id",
+    "chat_client",
+    "device",
+    "fr",
+    "la",
+    "pr",
+    "tz",
+    "wv"
+   ],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737603.95,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/files/customer-service/entry",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": {}
+  },
+  {
+   "t": 1792737603.95,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/chats/pinned",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737603.95,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/credits/pricing",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737603.95,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/users/user/settings",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737605.04,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/folders/",
+   "query_keys": [
+    "exclude_project"
+   ],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737605.3,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/users/status",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": {
+    "typarms": {
+     "typarm1": "web",
+     "typarm2": "00000000-0000-4000-8000-0000000000a2",
+     "typarm3": "prod",
+     "typarm4": "qwen_chat",
+     "typarm5": "product",
+     "typarm6": "",
+     "orgid": "tongyi",
+     "share_id": "",
+     "project_id": "",
+     "channel_type": "",
+     "community_type": "",
+     "from_id": "",
+     "cdn_version": "0.3.22",
+     "page_id": "//chat.qwen.ai/",
+     "session_id": "",
+     "language": "en-US",
+     "biz_id": "tongyi",
+     "device": "LINUX",
+     "chat_entry": "qwen_web",
+     "init_session_type": "0",
+     "mode_type": "main_chat",
+     "utc_timestamp": "1792737605195",
+     "spmId": "a2ty_o01.29997169",
+     "aemPageId": "//chat.qwen.ai/",
+     "domain": "chat.qwen.ai"
+    }
+   }
+  },
+  {
+   "t": 1792737605.58,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/projects/",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737608.55,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/library/list",
+   "query_keys": [
+    "type"
+   ],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-v"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737608.83,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/chats/",
+   "query_keys": [
+    "exclude_project",
+    "page"
+   ],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-ua",
+    "bx-umidtoken",
+    "bx-v"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737610.66,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/files/getstsToken",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-ua",
+    "bx-umidtoken",
+    "bx-v"
+   ],
+   "body": {
+    "filename": "edit_in.jpg",
+    "filesize": "198398",
+    "filetype": "image"
+   }
+  },
+  {
+   "t": 1792737611.35,
+   "method": "PUT",
+   "url": "https://qwen-webui-prod.oss-accelerate.aliyuncs.com/00000000-0000-4000-8000-0000000000a2/525da7a5-1837-44a3-a03f-2a379cdee60e_edit_in.jpg",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization"
+   ],
+   "body": "<upload>"
+  },
+  {
+   "t": 1792737613.86,
+   "method": "GET",
+   "url": "https://qwen-webui-prod.oss-accelerate.aliyuncs.com/00000000-0000-4000-8000-0000000000a2/525da7a5-1837-44a3-a03f-2a379cdee60e_edit_in.jpg",
+   "query_keys": [
+    "x-oss-credential",
+    "x-oss-date",
+    "x-oss-expires",
+    "x-oss-security-token",
+    "x-oss-signature",
+    "x-oss-signature-version"
+   ],
+   "auth_bx_headers": [],
+   "body": null
+  },
+  {
+   "t": 1792737622.88,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/users/status",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-v"
+   ],
+   "body": {
+    "typarms": {
+     "typarm1": "web",
+     "typarm2": "00000000-0000-4000-8000-0000000000a2",
+     "typarm3": "prod",
+     "typarm4": "qwen_chat",
+     "typarm5": "product",
+     "typarm6": "",
+     "orgid": "tongyi",
+     "share_id": "",
+     "project_id": "",
+     "channel_type": "",
+     "community_type": "",
+     "from_id": "",
+     "cdn_version": "0.3.22",
+     "page_id": "//chat.qwen.ai/c/new-chat",
+     "session_id": "",
+     "language": "en-US",
+     "biz_id": "tongyi",
+     "device": "LINUX",
+     "chat_entry": "qwen_web",
+     "init_session_type": "0",
+     "mode_type": "main_chat",
+     "utc_timestamp": "1792737622754",
+     "spmId": "a2ty_o01.29997170",
+     "aemPageId": "//chat.qwen.ai/c/new-chat",
+     "domain": "chat.qwen.ai"
+    }
+   }
+  },
+  {
+   "t": 1792737622.88,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/chats/new",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-ua",
+    "bx-umidtoken",
+    "bx-v"
+   ],
+   "body": {
+    "chatId": "",
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "project_id": "",
+    "timestamp": 1792737622716,
+    "chat_type": "t2i",
+    "chat_mode": "normal"
+   }
+  },
+  {
+   "t": 1792737623.24,
+   "method": "GET",
+   "url": "https://aplus.qwen.ai/tongyi-sg.qwen_chat.messageImgOnLoadTime",
+   "query_keys": [
+    "_gr_uid_",
+    "_p_url",
+    "cna",
+    "gmkey",
+    "gokey",
+    "logtype",
+    "scr",
+    "spm-cnt",
+    "spm-url",
+    "uidaplus"
+   ],
+   "auth_bx_headers": [],
+   "body": null
+  },
+  {
+   "t": 1792737623.65,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/users/status",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-v"
+   ],
+   "body": {
+    "typarms": {
+     "typarm1": "web",
+     "typarm2": "00000000-0000-4000-8000-0000000000a2",
+     "typarm3": "prod",
+     "typarm4": "qwen_chat",
+     "typarm5": "product",
+     "typarm6": "",
+     "orgid": "tongyi",
+     "share_id": "",
+     "project_id": "",
+     "channel_type": "",
+     "community_type": "",
+     "from_id": "",
+     "cdn_version": "0.3.22",
+     "page_id": "//chat.qwen.ai/c/",
+     "session_id": "f4829917-107f-49fa-bca9-33cb1f53406b",
+     "language": "en-US",
+     "biz_id": "tongyi",
+     "device": "LINUX",
+     "chat_entry": "qwen_web",
+     "init_session_type": "0",
+     "mode_type": "main_chat",
+     "utc_timestamp": "1792737623491",
+     "spmId": "a2ty_o01.29997173",
+     "aemPageId": "//chat.qwen.ai/c/",
+     "domain": "chat.qwen.ai"
+    }
+   }
+  },
+  {
+   "t": 1792737623.65,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/chats/pinned",
+   "query_keys": [],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-ua",
+    "bx-umidtoken",
+    "bx-v"
+   ],
+   "body": null
+  },
+  {
+   "t": 1792737623.65,
+   "method": "POST",
+   "url": "https://chat.qwen.ai/api/v2/chat/completions",
+   "query_keys": [
+    "chat_id"
+   ],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-ua",
+    "bx-umidtoken",
+    "bx-v"
+   ],
+   "body": {
+    "stream": true,
+    "version": "2.1",
+    "incremental_output": true,
+    "chatId": "f4829917-107f-49fa-bca9-33cb1f53406b",
+    "parentId": "",
+    "chat_id": "f4829917-107f-49fa-bca9-33cb1f53406b",
+    "chat_mode": "normal",
+    "model": "qwen3.7-plus",
+    "parent_id": null,
+    "messages": [
+     {
+      "id": null,
+      "fid": "51f3d8d5-3ab7-4b4d-9422-b38c1cc151be",
+      "parentId": null,
+      "childrenIds": [
+       "df21585e-eaf7-4744-9595-bb705eb3944c"
+      ],
+      "role": "user",
+      "content": "make the bicycle bright blue, keep everything else unchanged",
+      "user_action": "chat",
+      "files": [
+       {
+        "type": "image",
+        "file": {
+         "created_at": 1792737613858,
+         "data": {},
+         "filename": "edit_in.jpg",
+         "hash": null,
+         "id": "525da7a5-1837-44a3-a03f-2a379cdee60e",
+         "user_id": "00000000-0000-4000-8000-0000000000a2",
+         "meta": {
+          "name": "edit_in.jpg",
+          "size": 198398,
+          "content_type": "image/jpeg"
+         },
+         "update_at": 1792737613858,
+         "lastModified": 1792737308107,
+         "name": "edit_in.jpg",
+         "webkitRelativePath": "",
+         "size": 198398,
+         "type": "image/jpeg"
+        },
+        "id": "525da7a5-1837-44a3-a03f-2a379cdee60e",
+        "url": "https://qwen-webui-prod.oss-accelerate.aliyuncs.com/00000000-0000-4000-8000-0000000000a2/525da7a5-1837-44a3-a03f-2a379cdee60e_edit_in.jpg?x-oss-security-token=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&x-oss-date=xxxxxxxxxxxxxxxx&x-oss-expires=xxx&x-oss-signature-version=xxxxxxxxxxxxxxxx&x-oss-credential=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&x-oss-signature=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "name": "edit_in.jpg",
+        "collection_name": "",
+        "progress": 0,
+        "status": "uploaded",
+        "greenNet": "success",
+        "size": 198398,
+        "error": "",
+        "itemId": "0aedb350-32e6-489d-ae05-e85fdd83d74a",
+        "file_type": "image/jpeg",
+        "showType": "image",
+        "file_class": "vision",
+        "uploadTaskId": "018720a0-de65-4af7-9346-87bae393a4c8"
+       }
+      ],
+      "timestamp": 1792737622,
+      "models": [
+       "qwen3.7-plus"
+      ],
+      "model": "",
+      "chat_type": "t2i",
+      "feature_config": {
+       "thinking_enabled": false,
+       "output_schema": "phase",
+       "research_mode": "normal",
+       "auto_thinking": false,
+       "thinking_mode": "Fast",
+       "auto_search": true
+      },
+      "extra": {
+       "meta": {
+        "subChatType": "t2i",
+        "size": "16:9",
+        "model": "qwen-image-3.0"
+       }
+      },
+      "sub_chat_type": "t2i",
+      "parent_id": null
+     }
+    ],
+    "timestamp": 1792737623,
+    "size": "16:9"
+   }
+  },
+  {
+   "t": 1792737623.65,
+   "method": "GET",
+   "url": "https://chat.qwen.ai/api/v2/chats/",
+   "query_keys": [
+    "exclude_project",
+    "page"
+   ],
+   "auth_bx_headers": [
+    "authorization",
+    "bx-ua",
+    "bx-umidtoken",
+    "bx-v"
+   ],
+   "body": null
+  }
+ ],
+ "status": 200,
+ "headers": {
+  "date": "Fri, 23 Oct 2026 06:40:25 GMT",
+  "content-type": "text/event-stream; charset=utf-8",
+  "transfer-encoding": "chunked",
+  "connection": "keep-alive",
+  "vary": "Accept-Encoding, Origin, Origin",
+  "x-request-id": "a7aaef0e-9630-4088-a229-92e6973be69a",
+  "cache-control": "no-cache",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "x-actual-status-code": "200",
+  "x-frame-options": "SAMEORIGIN",
+  "x-robots-tag": "noindex"
+ },
+ "stream_lines": [
+  [
+   1.68,
+   "data: {\"response.created\":{\"chat_id\": \"f4829917-107f-49fa-bca9-33cb1f53406b\", \"parent_id\": \"3d4a42e6-191d-4781-8eb4-03466bd51d4c\", \"response_id\":\"bea06bef-ae7b-4506-8be4-58ee06026932\", \"response_index\": \"0\"}} "
+  ],
+  [
+   11.72,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"f4829917-107f-49fa-bca9-33cb1f53406b\", \"response_id\": \"bea06bef-ae7b-4506-8be4-58ee06026932\", \"timestamp\": 1792737635}}"
+  ],
+  [
+   21.72,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"f4829917-107f-49fa-bca9-33cb1f53406b\", \"response_id\": \"bea06bef-ae7b-4506-8be4-58ee06026932\", \"timestamp\": 1792737645}}"
+  ],
+  [
+   31.73,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"f4829917-107f-49fa-bca9-33cb1f53406b\", \"response_id\": \"bea06bef-ae7b-4506-8be4-58ee06026932\", \"timestamp\": 1792737655}}"
+  ],
+  [
+   41.74,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"f4829917-107f-49fa-bca9-33cb1f53406b\", \"response_id\": \"bea06bef-ae7b-4506-8be4-58ee06026932\", \"timestamp\": 1792737665}}"
+  ],
+  [
+   51.74,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"f4829917-107f-49fa-bca9-33cb1f53406b\", \"response_id\": \"bea06bef-ae7b-4506-8be4-58ee06026932\", \"timestamp\": 1792737675}}"
+  ],
+  [
+   61.77,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"f4829917-107f-49fa-bca9-33cb1f53406b\", \"response_id\": \"bea06bef-ae7b-4506-8be4-58ee06026932\", \"timestamp\": 1792737685}}"
+  ],
+  [
+   71.76,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"f4829917-107f-49fa-bca9-33cb1f53406b\", \"response_id\": \"bea06bef-ae7b-4506-8be4-58ee06026932\", \"timestamp\": 1792737695}}"
+  ],
+  [
+   81.77,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"f4829917-107f-49fa-bca9-33cb1f53406b\", \"response_id\": \"bea06bef-ae7b-4506-8be4-58ee06026932\", \"timestamp\": 1792737705}}"
+  ],
+  [
+   92.86,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"f4829917-107f-49fa-bca9-33cb1f53406b\", \"response_id\": \"bea06bef-ae7b-4506-8be4-58ee06026932\", \"timestamp\": 1792737715}}"
+  ],
+  [
+   101.78,
+   "data: {\"response.info\": {\"action\": \"keep_alive\", \"chat_id\": \"f4829917-107f-49fa-bca9-33cb1f53406b\", \"response_id\": \"bea06bef-ae7b-4506-8be4-58ee06026932\", \"timestamp\": 1792737725}}"
+  ],
+  [
+   107.18,
+   "data: {\"choices\": [{\"delta\": {\"role\": \"assistant\", \"content\": \"https://cdn.qwenlm.ai/output/00000000-0000-4000-8000-0000000000a2/t2i/bea06bef-ae7b-4506-8be4-58ee06026932/1792737729d775.png?key=<tok>\", \"phase\": \"image_gen\", \"extra\": {\"output_image_hw\": [[\"928\", \"1664\"]], \"model\": \"qwen-image-3.0\"}, \"status\": \"typing\"}}], \"response_id\": \"bea06bef-ae7b-4506-8be4-58ee06026932\", \"usage\": {}, \"timestamp\": 1792737731}"
+  ],
+  [
+   107.18,
+   "data: {\"choices\": [{\"delta\": {\"content\": \"\", \"role\": \"assistant\", \"status\": \"finished\", \"phase\": \"image_gen\"}}], \"response_id\": \"bea06bef-ae7b-4506-8be4-58ee06026932\"}"
+  ]
+ ],
+ "elapsed_s": 107.96
+}

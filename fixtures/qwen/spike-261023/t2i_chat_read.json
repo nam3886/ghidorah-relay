@@ -1,0 +1,273 @@
+{
+ "t": 1.53,
+ "wall": "2026-10-23T08:04:29Z",
+ "step": "chat_read",
+ "method": "GET",
+ "path": "/api/v2/chats/41afb3a6-5459-406c-81be-e1f1aaa377ab",
+ "request": null,
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "source": "web",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/c/41afb3a6-5459-406c-81be-e1f1aaa377ab",
+  "x-request-id": "166a4b0a-2ec5-40d6-86c6-2fa4be7617ce",
+  "Version": "0.3.22",
+  "Timezone": "Fri Oct 23 2026 08:04:29 GMT+0000",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin"
+ },
+ "status": 200,
+ "elapsed_s": 1.56,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 08:04:31 GMT",
+  "Content-Type": "application/json",
+  "Transfer-Encoding": "chunked",
+  "Connection": "keep-alive",
+  "Vary": "Accept-Encoding, Origin, Origin",
+  "x-request-id": "166a4b0a-2ec5-40d6-86c6-2fa4be7617ce",
+  "cache-control": "no-cache",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "x-actual-status-code": "200",
+  "x-frame-options": "SAMEORIGIN",
+  "X-Robots-Tag": "noindex",
+  "Content-Encoding": "gzip"
+ },
+ "set_cookie_names": [
+  "x-ap"
+ ],
+ "body": {
+  "success": true,
+  "request_id": "166a4b0a-2ec5-40d6-86c6-2fa4be7617ce",
+  "data": {
+   "id": "41afb3a6-5459-406c-81be-e1f1aaa377ab",
+   "user_id": "00000000-0000-4000-8000-0000000000a1",
+   "title": "Red Bicycle Photo",
+   "chat": {
+    "history": {
+     "messages": {
+      "86f15df0-1b63-468e-ac6f-4429de744d5e": {
+       "id": "86f15df0-1b63-468e-ac6f-4429de744d5e",
+       "role": "user",
+       "content": "a red bicycle leaning on a brick wall, photo",
+       "models": [
+        "qwen3.7-plus"
+       ],
+       "chat_type": "t2i",
+       "sub_chat_type": "t2i",
+       "edited": false,
+       "error": null,
+       "extra": {
+        "meta": {
+         "subChatType": "t2i",
+         "size": "16:9",
+         "model": "qwen-image-3.0"
+        }
+       },
+       "feature_config": {
+        "thinking_enabled": false,
+        "output_schema": "phase",
+        "instructions": null,
+        "research_mode": "normal",
+        "auto_thinking": false,
+        "thinking_mode": "Fast",
+        "auto_search": true
+       },
+       "parentId": null,
+       "turn_id": null,
+       "childrenIds": [
+        "23a3b798-ef34-42d9-82cd-206141402566"
+       ],
+       "files": [],
+       "timestamp": 1792737132
+      },
+      "23a3b798-ef34-42d9-82cd-206141402566": {
+       "role": "assistant",
+       "content": "",
+       "reasoning_content": null,
+       "chat_type": "t2i",
+       "sub_chat_type": "t2i",
+       "model": "qwen3.7-plus",
+       "modelName": "Qwen3.7-Plus",
+       "modelIdx": 0,
+       "id": "23a3b798-ef34-42d9-82cd-206141402566",
+       "parentId": "86f15df0-1b63-468e-ac6f-4429de744d5e",
+       "childrenIds": [],
+       "feature_config": {
+        "thinking_enabled": false,
+        "output_schema": "phase",
+        "instructions": null,
+        "research_mode": "normal",
+        "auto_thinking": false,
+        "thinking_mode": "Fast",
+        "auto_search": true
+       },
+       "content_list": [
+        {
+         "content": "https://cdn.qwenlm.ai/output/00000000-0000-4000-8000-0000000000a1/t2i/23a3b798-ef34-42d9-82cd-206141402566/179273722248b7.png?key=<tok>",
+         "phase": "image_gen",
+         "status": "finished",
+         "extra": {
+          "output_image_hw": [
+           [
+            "928",
+            "1664"
+           ]
+          ],
+          "model": "qwen-image-3.0"
+         },
+         "role": "assistant",
+         "response_id": "23a3b798-ef34-42d9-82cd-206141402566",
+         "usage": {},
+         "timestamp": 1792737224
+        }
+       ],
+       "is_stop": false,
+       "edited": false,
+       "error": null,
+       "meta": {},
+       "extra": {
+        "meta": {
+         "subChatType": "t2i",
+         "size": "16:9",
+         "model": "qwen-image-3.0"
+        },
+        "endTime": 1792737224.4778368
+       },
+       "feedbackId": null,
+       "turn_id": null,
+       "annotation": null,
+       "done": true,
+       "info": null,
+       "timestamp": 1792737132
+      }
+     },
+     "currentId": "23a3b798-ef34-42d9-82cd-206141402566",
+     "currentResponseIds": [
+      "23a3b798-ef34-42d9-82cd-206141402566"
+     ],
+     "pagination": null
+    },
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "messages": [
+     {
+      "id": "86f15df0-1b63-468e-ac6f-4429de744d5e",
+      "role": "user",
+      "content": "a red bicycle leaning on a brick wall, photo",
+      "models": [
+       "qwen3.7-plus"
+      ],
+      "chat_type": "t2i",
+      "sub_chat_type": "t2i",
+      "edited": false,
+      "error": null,
+      "extra": {
+       "meta": {
+        "subChatType": "t2i",
+        "size": "16:9",
+        "model": "qwen-image-3.0"
+       }
+      },
+      "feature_config": {
+       "thinking_enabled": false,
+       "output_schema": "phase",
+       "instructions": null,
+       "research_mode": "normal",
+       "auto_thinking": false,
+       "thinking_mode": "Fast",
+       "auto_search": true
+      },
+      "parentId": null,
+      "turn_id": null,
+      "childrenIds": [
+       "23a3b798-ef34-42d9-82cd-206141402566"
+      ],
+      "files": [],
+      "timestamp": 1792737132
+     },
+     {
+      "role": "assistant",
+      "content": "",
+      "reasoning_content": null,
+      "chat_type": "t2i",
+      "sub_chat_type": "t2i",
+      "model": "qwen3.7-plus",
+      "modelName": "Qwen3.7-Plus",
+      "modelIdx": 0,
+      "id": "23a3b798-ef34-42d9-82cd-206141402566",
+      "parentId": "86f15df0-1b63-468e-ac6f-4429de744d5e",
+      "childrenIds": [],
+      "feature_config": {
+       "thinking_enabled": false,
+       "output_schema": "phase",
+       "instructions": null,
+       "research_mode": "normal",
+       "auto_thinking": false,
+       "thinking_mode": "Fast",
+       "auto_search": true
+      },
+      "content_list": [
+       {
+        "content": "https://cdn.qwenlm.ai/output/00000000-0000-4000-8000-0000000000a1/t2i/23a3b798-ef34-42d9-82cd-206141402566/179273722248b7.png?key=<tok>",
+        "phase": "image_gen",
+        "status": "finished",
+        "extra": {
+         "output_image_hw": [
+          [
+           "928",
+           "1664"
+          ]
+         ],
+         "model": "qwen-image-3.0"
+        },
+        "role": "assistant",
+        "response_id": "23a3b798-ef34-42d9-82cd-206141402566",
+        "usage": {},
+        "timestamp": 1792737224
+       }
+      ],
+      "is_stop": false,
+      "edited": false,
+      "error": null,
+      "meta": {},
+      "extra": {
+       "meta": {
+        "subChatType": "t2i",
+        "size": "16:9",
+        "model": "qwen-image-3.0"
+       },
+       "endTime": 1792737224.4778368
+      },
+      "feedbackId": null,
+      "turn_id": null,
+      "annotation": null,
+      "done": true,
+      "info": null,
+      "timestamp": 1792737132
+     }
+    ]
+   },
+   "updated_at": 1792737225,
+   "created_at": 1792737132,
+   "share_id": null,
+   "archived": false,
+   "pinned": false,
+   "meta": {
+    "timestamp": 1792737131586
+   },
+   "folder_id": null,
+   "currentResponseIds": [
+    "23a3b798-ef34-42d9-82cd-206141402566"
+   ],
+   "currentId": "23a3b798-ef34-42d9-82cd-206141402566",
+   "chat_type": "t2i",
+   "models": null,
+   "project_id": null,
+   "data_source": null
+  }
+ }
+}

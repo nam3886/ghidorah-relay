@@ -1,0 +1,73 @@
+{
+ "t": 1.58,
+ "wall": "2026-10-23T06:43:59Z",
+ "step": "task_000",
+ "method": "GET",
+ "path": "/api/v2/task/status/tsk_6993c8657bf4a05bc4593e3eca35a1f7",
+ "request": null,
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "source": "web",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/c/7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+  "x-request-id": "42fce2ef-8eb8-4a95-af64-ad68abf20deb",
+  "Version": "0.3.22",
+  "Timezone": "Fri Oct 23 2026 06:43:59 GMT+0000",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin"
+ },
+ "status": 200,
+ "elapsed_s": 1.56,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 06:44:00 GMT",
+  "Content-Type": "application/json",
+  "Content-Length": "707",
+  "Connection": "keep-alive",
+  "x-request-id": "42fce2ef-8eb8-4a95-af64-ad68abf20deb",
+  "cache-control": "no-cache",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "vary": "Origin, Origin",
+  "x-actual-status-code": "200",
+  "x-frame-options": "SAMEORIGIN"
+ },
+ "set_cookie_names": [
+  "x-ap"
+ ],
+ "body": {
+  "success": true,
+  "request_id": "42fce2ef-8eb8-4a95-af64-ad68abf20deb",
+  "data": {
+   "chat_type": "t2v",
+   "task_status": "running",
+   "message": "",
+   "remaining_time": "86358",
+   "content": "",
+   "sub_chat_type": "zaodian_generate_video",
+   "duration": null,
+   "quota": {
+    "consume_amount": 30,
+    "entitlement": {
+     "deducted": true,
+     "record_id": "214011830574524416",
+     "transaction_id": "1b7ba683-7a24-4910-b382-68fac8bcdb97",
+     "code": "video_generation",
+     "biz_code": "create",
+     "create_credits": 30,
+     "country_code": "VN",
+     "via": "credits",
+     "chat_id": "7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+     "message_id": "a113934e-5637-40ad-aa41-3754184a0f78"
+    },
+    "state": "deducted"
+   },
+   "tool_result": {
+    "record_id": "tsk_6993c8657bf4a05bc4593e3eca35a1f7",
+    "status": "processing"
+   },
+   "display_list": []
+  }
+ }
+}

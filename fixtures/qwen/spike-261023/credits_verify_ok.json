@@ -1,0 +1,58 @@
+{
+ "t": 6.07,
+ "wall": "2026-10-23T05:38:16Z",
+ "step": "verify_t2v_40",
+ "method": "POST",
+ "path": "/api/v2/entitlement/credits/verify",
+ "request": {
+  "chat_type": "t2v",
+  "task_info": {
+   "create_credits": 40
+  }
+ },
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "source": "web",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/",
+  "x-request-id": "91266c8a-7c0e-43df-b201-cd8c67e1fce1",
+  "Version": "0.3.22",
+  "Timezone": "Fri Oct 23 2026 05:38:16 GMT+0000",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin"
+ },
+ "status": 200,
+ "elapsed_s": 1.56,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 05:38:17 GMT",
+  "Content-Type": "application/json",
+  "Content-Length": "299",
+  "Connection": "keep-alive",
+  "x-request-id": "91266c8a-7c0e-43df-b201-cd8c67e1fce1",
+  "cache-control": "no-cache",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "vary": "Origin, Origin",
+  "x-actual-status-code": "200",
+  "x-frame-options": "SAMEORIGIN"
+ },
+ "set_cookie_names": [
+  "x-ap"
+ ],
+ "body": {
+  "success": true,
+  "request_id": "91266c8a-7c0e-43df-b201-cd8c67e1fce1",
+  "data": {
+   "willDeduct": true,
+   "class": "cn.quark.qianwen.resp.HsfCreditsVerifyResp",
+   "msg": null,
+   "recommendInfo": null,
+   "access": true,
+   "code": null,
+   "proxy_req_id": "11d49167b286442e8c6c764f80a9ea0c",
+   "traceId": "2140e25617927338977874075d08b1"
+  }
+ }
+}

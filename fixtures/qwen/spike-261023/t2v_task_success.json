@@ -1,0 +1,80 @@
+{
+ "t": 629.1,
+ "wall": "2026-10-23T06:54:26Z",
+ "step": "task_final",
+ "method": "GET",
+ "path": "/api/v2/task/status/tsk_6993c8657bf4a05bc4593e3eca35a1f7",
+ "request": null,
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "source": "web",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/c/7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+  "x-request-id": "3ac87a8b-385f-41db-9ce0-d1edfbdb88df",
+  "Version": "0.3.22",
+  "Timezone": "Fri Oct 23 2026 06:54:26 GMT+0000",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin"
+ },
+ "status": 200,
+ "elapsed_s": 0.55,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 06:54:27 GMT",
+  "Content-Type": "application/json",
+  "Transfer-Encoding": "chunked",
+  "Connection": "keep-alive",
+  "Vary": "Accept-Encoding, Origin, Origin",
+  "x-request-id": "3ac87a8b-385f-41db-9ce0-d1edfbdb88df",
+  "cache-control": "no-cache",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "x-actual-status-code": "200",
+  "x-frame-options": "SAMEORIGIN",
+  "Content-Encoding": "gzip"
+ },
+ "set_cookie_names": [
+  "x-ap"
+ ],
+ "body": {
+  "success": true,
+  "request_id": "3ac87a8b-385f-41db-9ce0-d1edfbdb88df",
+  "data": {
+   "chat_type": "t2v",
+   "task_status": "success",
+   "message": "",
+   "remaining_time": "",
+   "content": "https://cdn.qwenlm.ai/output/00000000-0000-4000-8000-0000000000a1/t2v/a113934e-5637-40ad-aa41-3754184a0f78/tsk_6993c8657bf4a05bc4593e3eca35a1f7.mp4?key=<tok>",
+   "sub_chat_type": "zaodian_generate_video",
+   "duration": null,
+   "quota": {
+    "consume_amount": 30,
+    "entitlement": {
+     "deducted": true,
+     "record_id": "214011830574524416",
+     "transaction_id": "1b7ba683-7a24-4910-b382-68fac8bcdb97",
+     "code": "video_generation",
+     "biz_code": "create",
+     "create_credits": 30,
+     "country_code": "VN",
+     "via": "credits",
+     "chat_id": "7c9a1694-1d4a-4cea-83b0-ac10c942ad99",
+     "message_id": "a113934e-5637-40ad-aa41-3754184a0f78"
+    },
+    "state": "settled"
+   },
+   "tool_result": {
+    "record_id": "tsk_6993c8657bf4a05bc4593e3eca35a1f7",
+    "status": "finish",
+    "resource_infos": [
+     {
+      "type": "generate_video",
+      "video": "https://cdn.qwenlm.ai/output/00000000-0000-4000-8000-0000000000a1/t2v/a113934e-5637-40ad-aa41-3754184a0f78/tsk_6993c8657bf4a05bc4593e3eca35a1f7.mp4?key=<tok>"
+     }
+    ]
+   },
+   "display_list": []
+  }
+ }
+}

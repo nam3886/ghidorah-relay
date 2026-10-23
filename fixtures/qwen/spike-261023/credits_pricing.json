@@ -1,0 +1,852 @@
+{
+ "t": 3.84,
+ "wall": "2026-10-23T05:37:27Z",
+ "step": "credits_pricing",
+ "method": "GET",
+ "path": "/api/v2/credits/pricing",
+ "request": null,
+ "request_headers": {
+  "Accept": "application/json",
+  "Content-Type": "application/json",
+  "source": "web",
+  "Origin": "https://chat.qwen.ai",
+  "Referer": "https://chat.qwen.ai/",
+  "x-request-id": "ab803b16-ea2c-4490-8eb5-993d85c16706",
+  "Version": "0.3.22",
+  "Timezone": "Fri Oct 23 2026 05:37:27 GMT+0000",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin"
+ },
+ "status": 200,
+ "elapsed_s": 0.55,
+ "headers": {
+  "Date": "Fri, 23 Oct 2026 05:37:28 GMT",
+  "Content-Type": "application/json",
+  "Transfer-Encoding": "chunked",
+  "Connection": "keep-alive",
+  "Vary": "Accept-Encoding, Origin, Origin",
+  "x-request-id": "ab803b16-ea2c-4490-8eb5-993d85c16706",
+  "cache-control": "no-cache",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chat.qwen.ai",
+  "x-actual-status-code": "200",
+  "x-frame-options": "SAMEORIGIN",
+  "Content-Encoding": "gzip"
+ },
+ "set_cookie_names": [
+  "x-ap"
+ ],
+ "body": {
+  "success": true,
+  "request_id": "ab803b16-ea2c-4490-8eb5-993d85c16706",
+  "data": {
+   "user": {
+    "user_id": "00000000-0000-4000-8000-0000000000a1",
+    "is_member": false,
+    "member_type": "free",
+    "member_info_id": null,
+    "member_effect_at": null,
+    "member_expire_at": null
+   },
+   "image_generation": {
+    "credits": 1,
+    "user_type": "all"
+   },
+   "video_generation": [
+    {
+     "scene": "hhT2v720P5s",
+     "desc": "视频生成-HappyHorse-高清-5s",
+     "consumeAmount": 40,
+     "kind": "all"
+    },
+    {
+     "scene": "hhI2v720P5s",
+     "desc": "视频生成-HappyHorse-高清-5s",
+     "consumeAmount": 40,
+     "kind": "all"
+    },
+    {
+     "scene": "hhT2v720P10s",
+     "desc": "视频生成-HappyHorse-高清-10S",
+     "consumeAmount": 80,
+     "kind": "all"
+    },
+    {
+     "scene": "hhI2v720P10s",
+     "desc": "视频生成-HappyHorse-高清-10S",
+     "consumeAmount": 80,
+     "kind": "all"
+    },
+    {
+     "scene": "hhT2v720P15s",
+     "desc": "视频生成-HappyHorse-高清-15S",
+     "consumeAmount": 120,
+     "kind": "all"
+    },
+    {
+     "scene": "hhI2v720P15s",
+     "desc": "视频生成-HappyHorse-高清-15S",
+     "consumeAmount": 120,
+     "kind": "all"
+    },
+    {
+     "scene": "hhT2v1080P5s",
+     "desc": "视频生成-HappyHorse-超清-5s",
+     "consumeAmount": 70,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hhI2v1080P5s",
+     "desc": "视频生成-HappyHorse-超清-5s",
+     "consumeAmount": 70,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hhT2v1080P10s",
+     "desc": "视频生成-HappyHorse-超清-10S",
+     "consumeAmount": 140,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hhI2v1080P10s",
+     "desc": "视频生成-HappyHorse-超清-10S",
+     "consumeAmount": 140,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hhT2v1080P15s",
+     "desc": "视频生成-HappyHorse-超清-15S",
+     "consumeAmount": 210,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hhI2v1080P15s",
+     "desc": "视频生成-HappyHorse-超清-15S",
+     "consumeAmount": 210,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hhVide720P",
+     "desc": "视频编辑-HappyHorse-高清",
+     "consumeAmount": 40,
+     "kind": "all"
+    },
+    {
+     "scene": "hhVide720P10s",
+     "desc": "视频编辑-HappyHorse-高清",
+     "consumeAmount": 80,
+     "kind": "all"
+    },
+    {
+     "scene": "hhVide720P15s",
+     "desc": "视频编辑-HappyHorse-高清",
+     "consumeAmount": 120,
+     "kind": "all"
+    },
+    {
+     "scene": "hhVide1080P",
+     "desc": "视频编辑-HappyHorse-超清",
+     "consumeAmount": 70,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hhVide1080P10s",
+     "desc": "视频编辑-HappyHorse-超清",
+     "consumeAmount": 140,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hhVide1080P15s",
+     "desc": "视频编辑-HappyHorse-超清",
+     "consumeAmount": 210,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hhMultiRef720P",
+     "desc": "视频生成-HappyHorse-高清-5s",
+     "consumeAmount": 40,
+     "kind": "all"
+    },
+    {
+     "scene": "hhMultiRef720P10s",
+     "desc": "视频生成-HappyHorse-高清-10S",
+     "consumeAmount": 80,
+     "kind": "all"
+    },
+    {
+     "scene": "hhMultiRef720P15s",
+     "desc": "视频生成-HappyHorse-高清-15S",
+     "consumeAmount": 120,
+     "kind": "all"
+    },
+    {
+     "scene": "hhMultiRef1080P",
+     "desc": "视频生成-HappyHorse-超清-5s",
+     "consumeAmount": 70,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hhMultiRef1080P10s",
+     "desc": "视频生成-HappyHorse-超清-10S",
+     "consumeAmount": 140,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hhMultiRef1080P15s",
+     "desc": "视频生成-HappyHorse-超清-15S",
+     "consumeAmount": 210,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hh11T2v720P5s",
+     "desc": "视频生成-HappyHorse1.1-高清-5s",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "hh11I2v720P5s",
+     "desc": "视频生成-HappyHorse1.1-高清-5s",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "hh11T2v720P10s",
+     "desc": "视频生成-HappyHorse1.1-高清-10S",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "hh11I2v720P10s",
+     "desc": "视频生成-HappyHorse1.1-高清-10S",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "hh11T2v720P15s",
+     "desc": "视频生成-HappyHorse1.1-高清-15S",
+     "consumeAmount": 90,
+     "kind": "all"
+    },
+    {
+     "scene": "hh11I2v720P15s",
+     "desc": "视频生成-HappyHorse1.1-高清-15S",
+     "consumeAmount": 90,
+     "kind": "all"
+    },
+    {
+     "scene": "hh11T2v1080P5s",
+     "desc": "视频生成-HappyHorse1.1-超清-5s",
+     "consumeAmount": 40,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hh11I2v1080P5s",
+     "desc": "视频生成-HappyHorse1.1-超清-5s",
+     "consumeAmount": 40,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hh11T2v1080P10s",
+     "desc": "视频生成-HappyHorse1.1-超清-10S",
+     "consumeAmount": 80,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hh11I2v1080P10s",
+     "desc": "视频生成-HappyHorse1.1-超清-10S",
+     "consumeAmount": 80,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hh11T2v1080P15s",
+     "desc": "视频生成-HappyHorse1.1-超清-15S",
+     "consumeAmount": 120,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hh11I2v1080P15s",
+     "desc": "视频生成-HappyHorse1.1-超清-15S",
+     "consumeAmount": 120,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hh11Vide720P",
+     "desc": "视频编辑-HappyHorse1.1-高清",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "hh11Vide720P10s",
+     "desc": "视频编辑-HappyHorse1.1-高清",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "hh11Vide720P15s",
+     "desc": "视频编辑-HappyHorse1.1-高清",
+     "consumeAmount": 90,
+     "kind": "all"
+    },
+    {
+     "scene": "hh11Vide1080P",
+     "desc": "视频编辑-HappyHorse1.1-超清",
+     "consumeAmount": 40,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hh11Vide1080P10s",
+     "desc": "视频编辑-HappyHorse1.1-超清",
+     "consumeAmount": 80,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hh11Vide1080P15s",
+     "desc": "视频编辑-HappyHorse1.1-超清",
+     "consumeAmount": 120,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hh11MultiRef720P",
+     "desc": "视频生成-HappyHorse1.1-高清-5s",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "hh11MultiRef720P10s",
+     "desc": "视频生成-HappyHorse1.1-高清-10S",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "hh11MultiRef720P15s",
+     "desc": "视频生成-HappyHorse1.1-高清-15S",
+     "consumeAmount": 90,
+     "kind": "all"
+    },
+    {
+     "scene": "hh11MultiRef1080P",
+     "desc": "视频生成-HappyHorse1.1-超清-5s",
+     "consumeAmount": 40,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hh11MultiRef1080P10s",
+     "desc": "视频生成-HappyHorse1.1-超清-10S",
+     "consumeAmount": 80,
+     "kind": "purchase"
+    },
+    {
+     "scene": "hh11MultiRef1080P15s",
+     "desc": "视频生成-HappyHorse1.1-超清-15S",
+     "consumeAmount": 120,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan27T2v720P5s",
+     "desc": "视频生成-万相2.7-高清-5s",
+     "consumeAmount": 20,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27I2v720P5s",
+     "desc": "视频生成-万相2.7-高清-5s",
+     "consumeAmount": 20,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27T2v720P10s",
+     "desc": "视频生成-万相2.7-高清-10S",
+     "consumeAmount": 40,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27I2v720P10s",
+     "desc": "视频生成-万相2.7-高清-10S",
+     "consumeAmount": 40,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27T2v720P15s",
+     "desc": "视频生成-万相2.7-高清-15S",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27I2v720P15s",
+     "desc": "视频生成-万相2.7-高清-15S",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27T2v1080P5s",
+     "desc": "视频生成-万相2.7-超清-5s",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27I2v1080P5s",
+     "desc": "视频生成-万相2.7-超清-5s",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27T2v1080P10s",
+     "desc": "视频生成-万相2.7-超清-10S",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27I2v1080P10s",
+     "desc": "视频生成-万相2.7-超清-10S",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27T2v1080P15s",
+     "desc": "视频生成-万相2.7-超清-15S",
+     "consumeAmount": 90,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27I2v1080P15s",
+     "desc": "视频生成-万相2.7-超清-15S",
+     "consumeAmount": 90,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Vc720P",
+     "desc": "视频续写-万相2.7-高清-5s",
+     "consumeAmount": 20,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Vc720P10s",
+     "desc": "视频续写-万相2.7-高清-10S",
+     "consumeAmount": 40,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Vc720P15s",
+     "desc": "视频续写-万相2.7-高清-15S",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Vc1080P",
+     "desc": "视频续写-万相2.7-超清-5s",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Vc1080P10s",
+     "desc": "视频续写-万相2.7-超清-10S",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Vc1080P15s",
+     "desc": "视频续写-万相2.7-超清-15S",
+     "consumeAmount": 90,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Ve720P",
+     "desc": "视频编辑-万相2.7-高清",
+     "consumeAmount": 20,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Ve1080P",
+     "desc": "视频编辑-万相2.7-超清",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Ai720P",
+     "desc": "动作模仿-万相2.7-高清",
+     "consumeAmount": 20,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Ai1080P",
+     "desc": "动作模仿-万相2.7-超清",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27FrameI2v720P",
+     "desc": "视频生成-万相2.7-高清-5s",
+     "consumeAmount": 20,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27FrameI2v720P10s",
+     "desc": "视频生成-万相2.7-高清-10S",
+     "consumeAmount": 40,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27FrameI2v720P15s",
+     "desc": "视频生成-万相2.7-高清-15S",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27FrameI2v1080P",
+     "desc": "视频生成-万相2.7-超清-5s",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27FrameI2v1080P10s",
+     "desc": "视频生成-万相2.7-超清-10S",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27FrameI2v1080P15s",
+     "desc": "视频生成-万相2.7-超清-15S",
+     "consumeAmount": 90,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Vide720P",
+     "desc": "视频编辑-万相2.7-高清",
+     "consumeAmount": 20,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Vide720P10s",
+     "desc": "视频编辑-万相2.7-高清",
+     "consumeAmount": 40,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Vide720P15s",
+     "desc": "视频编辑-万相2.7-高清",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Vide1080P",
+     "desc": "视频编辑-万相2.7-超清",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Vide1080P10s",
+     "desc": "视频编辑-万相2.7-超清",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27Vide1080P15s",
+     "desc": "视频编辑-万相2.7-超清",
+     "consumeAmount": 90,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27ActImit720P",
+     "desc": "动作模仿-万相2.7-高清",
+     "consumeAmount": 20,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27ActImit720P10s",
+     "desc": "动作模仿-万相2.7-高清",
+     "consumeAmount": 40,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27ActImit720P15s",
+     "desc": "动作模仿-万相2.7-高清",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27ActImit1080P",
+     "desc": "动作模仿-万相2.7-超清",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27ActImit1080P10s",
+     "desc": "动作模仿-万相2.7-超清",
+     "consumeAmount": 60,
+     "kind": "all"
+    },
+    {
+     "scene": "wan27ActImit1080P15s",
+     "desc": "动作模仿-万相2.7-超清",
+     "consumeAmount": 90,
+     "kind": "all"
+    },
+    {
+     "scene": "wan30T2v480P5s",
+     "desc": "视频生成-万相3.0-标清-5s",
+     "consumeAmount": 15,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30I2v480P5s",
+     "desc": "视频生成-万相3.0-标清-5s",
+     "consumeAmount": 15,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30T2v480P10s",
+     "desc": "视频生成-万相3.0-标清-10S",
+     "consumeAmount": 30,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30I2v480P10s",
+     "desc": "视频生成-万相3.0-标清-10S",
+     "consumeAmount": 30,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30T2v720P5s",
+     "desc": "视频生成-万相3.0-高清-5s",
+     "consumeAmount": 30,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30I2v720P5s",
+     "desc": "视频生成-万相3.0-高清-5s",
+     "consumeAmount": 30,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30T2v720P10s",
+     "desc": "视频生成-万相3.0-高清-10S",
+     "consumeAmount": 60,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30I2v720P10s",
+     "desc": "视频生成-万相3.0-高清-10S",
+     "consumeAmount": 60,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30T2v720P15s",
+     "desc": "视频生成-万相3.0-高清-15S",
+     "consumeAmount": 90,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30I2v720P15s",
+     "desc": "视频生成-万相3.0-高清-15S",
+     "consumeAmount": 90,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30T2v1080P5s",
+     "desc": "视频生成-万相3.0-超清-5s",
+     "consumeAmount": 60,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30I2v1080P5s",
+     "desc": "视频生成-万相3.0-超清-5s",
+     "consumeAmount": 60,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30T2v1080P10s",
+     "desc": "视频生成-万相3.0-超清-10S",
+     "consumeAmount": 120,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30I2v1080P10s",
+     "desc": "视频生成-万相3.0-超清-10S",
+     "consumeAmount": 120,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30T2v1080P15s",
+     "desc": "视频生成-万相3.0-超清-15S",
+     "consumeAmount": 180,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30I2v1080P15s",
+     "desc": "视频生成-万相3.0-超清-15S",
+     "consumeAmount": 180,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeT2v480P5s",
+     "desc": "视频生成-万相3.0-prime-标清-5s",
+     "consumeAmount": 25,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeI2v480P5s",
+     "desc": "视频生成-万相3.0-prime-标清-5s",
+     "consumeAmount": 25,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeT2v480P10s",
+     "desc": "视频生成-万相3.0-prime-标清-10S",
+     "consumeAmount": 50,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeI2v480P10s",
+     "desc": "视频生成-万相3.0-prime-标清-10S",
+     "consumeAmount": 50,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeT2v720P5s",
+     "desc": "视频生成-万相3.0-prime-高清-5s",
+     "consumeAmount": 45,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeI2v720P5s",
+     "desc": "视频生成-万相3.0-prime-高清-5s",
+     "consumeAmount": 45,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeT2v720P10s",
+     "desc": "视频生成-万相3.0-prime-高清-10S",
+     "consumeAmount": 90,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeI2v720P10s",
+     "desc": "视频生成-万相3.0-prime-高清-10S",
+     "consumeAmount": 90,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeT2v720P15s",
+     "desc": "视频生成-万相3.0-prime-高清-15S",
+     "consumeAmount": 135,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeI2v720P15s",
+     "desc": "视频生成-万相3.0-prime-高清-15S",
+     "consumeAmount": 135,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeT2v1080P5s",
+     "desc": "视频生成-万相3.0-prime-超清-5s",
+     "consumeAmount": 90,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeI2v1080P5s",
+     "desc": "视频生成-万相3.0-prime-超清-5s",
+     "consumeAmount": 90,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeT2v1080P10s",
+     "desc": "视频生成-万相3.0-prime-超清-10S",
+     "consumeAmount": 180,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeI2v1080P10s",
+     "desc": "视频生成-万相3.0-prime-超清-10S",
+     "consumeAmount": 180,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeT2v1080P15s",
+     "desc": "视频生成-万相3.0-prime-超清-15S",
+     "consumeAmount": 270,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan30PrimeI2v1080P15s",
+     "desc": "视频生成-万相3.0-prime-超清-15S",
+     "consumeAmount": 270,
+     "kind": "purchase"
+    },
+    {
+     "scene": "wan25PreviewT2v480P5s",
+     "desc": "视频生成-万相2.5-preview-标清-5s",
+     "consumeAmount": 10,
+     "kind": "all"
+    },
+    {
+     "scene": "wan25PreviewI2v480P5s",
+     "desc": "视频生成-万相2.5-preview-标清-5s",
+     "consumeAmount": 10,
+     "kind": "all"
+    },
+    {
+     "scene": "wan25PreviewT2v480P10s",
+     "desc": "视频生成-万相2.5-preview-标清-10S",
+     "consumeAmount": 20,
+     "kind": "all"
+    },
+    {
+     "scene": "wan25PreviewI2v480P10s",
+     "desc": "视频生成-万相2.5-preview-标清-10S",
+     "consumeAmount": 20,
+     "kind": "all"
+    },
+    {
+     "scene": "wan25PreviewT2v720P5s",
+     "desc": "视频生成-万相2.5-preview-高清-5s",
+     "consumeAmount": 15,
+     "kind": "all"
+    },
+    {
+     "scene": "wan25PreviewI2v720P5s",
+     "desc": "视频生成-万相2.5-preview-高清-5s",
+     "consumeAmount": 15,
+     "kind": "all"
+    },
+    {
+     "scene": "wan25PreviewT2v720P10s",
+     "desc": "视频生成-万相2.5-preview-高清-10S",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "wan25PreviewI2v720P10s",
+     "desc": "视频生成-万相2.5-preview-高清-10S",
+     "consumeAmount": 30,
+     "kind": "all"
+    },
+    {
+     "scene": "wan25PreviewT2v1080P5s",
+     "desc": "视频生成-万相2.5-preview-超清-5s",
+     "consumeAmount": 25,
+     "kind": "all"
+    },
+    {
+     "scene": "wan25PreviewI2v1080P5s",
+     "desc": "视频生成-万相2.5-preview-超清-5s",
+     "consumeAmount": 25,
+     "kind": "all"
+    },
+    {
+     "scene": "wan25PreviewT2v1080P10s",
+     "desc": "视频生成-万相2.5-preview-超清-10S",
+     "consumeAmount": 50,
+     "kind": "all"
+    },
+    {
+     "scene": "wan25PreviewI2v1080P10s",
+     "desc": "视频生成-万相2.5-preview-超清-10S",
+     "consumeAmount": 50,
+     "kind": "all"
+    }
+   ]
+  }
+ }
+}

@@ -1,0 +1,62 @@
+{
+ "chat_id": "b071e3d0-b8e5-41ca-beb5-0355cd4ac6d0",
+ "request": {
+  "stream": false,
+  "version": "2.1",
+  "incremental_output": true,
+  "chatId": "b071e3d0-b8e5-41ca-beb5-0355cd4ac6d0",
+  "parentId": "",
+  "chat_id": "b071e3d0-b8e5-41ca-beb5-0355cd4ac6d0",
+  "chat_mode": "normal",
+  "model": "qwen3.7-plus",
+  "parent_id": null,
+  "messages": [
+   {
+    "id": null,
+    "fid": "5ba3c1df-d2b5-413c-8e49-edc55ce8bbb2",
+    "parentId": null,
+    "childrenIds": [
+     "a01bb19f-8f31-4e4a-87f6-9af5da1c8332"
+    ],
+    "role": "user",
+    "content": "a red kite flying over a green hill",
+    "user_action": "chat",
+    "files": [],
+    "timestamp": 1792740884,
+    "models": [
+     "qwen3.7-plus"
+    ],
+    "model": "",
+    "chat_type": "t2v",
+    "feature_config": {
+     "thinking_enabled": false,
+     "output_schema": "phase",
+     "research_mode": "normal",
+     "auto_thinking": false,
+     "thinking_mode": "Fast",
+     "auto_search": true
+    },
+    "extra": {
+     "meta": {
+      "size": "16:9",
+      "biz_data": "{\"bizScene\":\"genVideo\",\"req\":{\"rootModel\":\"happyhorse11\",\"genMode\":\"vid_gen\",\"params\":{\"resolution\":\"720P\",\"size\":\"16:9\",\"duration\":5,\"audio\":true}}}",
+      "subChatType": "zaodian_generate_video",
+      "videoGenerationMode": "standard"
+     }
+    },
+    "sub_chat_type": "zaodian_generate_video",
+    "parent_id": null
+   }
+  ],
+  "timestamp": 1792740884,
+  "size": "16:9"
+ },
+ "status": 200,
+ "elapsed_s": 0.89,
+ "stream_lines": [
+  [
+   0,
+   "{\"success\":true,\"request_id\":\"121ac065-24dd-4458-adec-be945a4537bd\",\"data\":{\"chat_id\":\"b071e3d0-b8e5-41ca-beb5-0355cd4ac6d0\",\"parent_id\":\"2dca58c2-d97c-4383-b4b8-e35ffa1f10e0\",\"message_id\":\"6444c533-059c-4ddd-ac26-c4d4ed098df4\",\"messages\":[{\"role\":\"assistant\",\"content\":\"Insufficient Credits\\nThis generation requires 30 Credits; 10 Credits are currently available. Join Qwen membership to access more video generation benefits.\",\"reasoning_content\":null,\"chat_type\":\"t2v\",\"sub_chat_type\":null,\"model\":null,\"modelName\":null,\"modelIdx\":0,\"id\":null,\"parentId\":null,\"childrenIds\":null,\"feature_config\":null,\"content_list\":null,\"is_stop\":null,\"edited\":false,\"error\":null,\"meta\":null,\"extra\":{\"update_member\":true,\"quota_limit\":true},\"feedbackId\":null,\"turn_id\":null,\"annotation\":null,\"done\":null,\"info\":null,\"timestamp\":null}]}}"
+  ]
+ ]
+}
