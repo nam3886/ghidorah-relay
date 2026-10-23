@@ -275,7 +275,12 @@ NOT what the provider does: a chat read may lag the paid send it would deny. The
 - never calls a lost send "not sent": an empty chat stays unknown and the render deadline fails the job with its
   refund;
 - merges two racing writes of a credential field by field: the pair by `minted_at`, the session cookie by
-  `refreshed_at`.
+  `refreshed_at`;
+- reads a video answer in words with no task as a refusal only when it carries qwen's end marker (`status:
+  "finished"` on the message, as every complete video answer recorded does); without it the job is unknown;
+- refunds a reconciled video whose chat shows words and no task after `qwen.refusal_grace_s` (owner, 23/10).
+  Accepted risk: a task qwen names after the grace still renders and spends the account's credits for nothing; the
+  customer is never charged for it.
 
 ## Open questions
 - What revoked both refresh tokens on 23/10 evening (above), and how to keep a session alive.

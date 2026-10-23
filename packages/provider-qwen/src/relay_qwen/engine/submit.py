@@ -194,7 +194,9 @@ def json_verdict(status: int, body: dict | None) -> tuple[str, Any]:
         return "task", task
     if extra.get("quota_limit") is True:
         return "no_credits", words
-    if msg.get("role") == "assistant" and words and "wanx" not in extra:
+    # A refusal only in a provably complete answer: qwen's own end marker on the message (`status: "finished"`, on
+    # every complete video answer recorded: t2v_send, i2v_send). Words without it may be cut short: unknown.
+    if msg.get("role") == "assistant" and words and "wanx" not in extra and msg.get("status") == "finished":
         return "refused", words
     return "unclear", "qwen answered with no task and no reason"
 

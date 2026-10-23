@@ -288,10 +288,10 @@ def test_insufficient_credits_after_the_send_ends_the_job_refunded_and_empties_t
 
 
 VIDEO_REFUSAL = {"success": True, "data": {"chat_id": CHAT, "messages": [
-    {"role": "assistant", "content": "", "extra": {}, "content_list": [
+    {"role": "assistant", "content": "", "extra": {}, "status": "finished", "content_list": [
         {"content": "I can't make a video of that.", "phase": "answer", "status": "finished"}]}]}}
-REFUSED_BRANCH = ('    if msg.get("role") == "assistant" and words and "wanx" not in extra:\n'
-                  '        return "refused", words\n')
+REFUSED_BRANCH = ('    if msg.get("role") == "assistant" and words and "wanx" not in extra and msg.get("status") == '
+                  '"finished":\n        return "refused", words\n')
 
 
 @mutation(SUBMIT_FILE, REFUSED_BRANCH, '    if False:\n        return "refused", words\n', expect="qwen.refused")
@@ -300,6 +300,17 @@ def test_a_complete_video_answer_in_words_with_no_task_is_a_refusal_refunded_at_
     result = run_submit(Qwen(log, send=VIDEO_REFUSAL), Ctx(log), job(VIDEO))
     assert isinstance(result.job, Fail) and result.job.code == "qwen.refused", result.job
     assert "can't make a video" in result.job.detail and log.count("send") == 1
+
+
+@mutation(SUBMIT_FILE, ' and msg.get("status") == "finished":\n        return "refused", words\n',
+          ':\n        return "refused", words\n', expect="refused without qwen's end marker")
+def test_video_words_without_qwens_finished_marker_are_ambiguous():
+    for status in (None, "typing"):
+        message = {**VIDEO_REFUSAL["data"]["messages"][0], "status": status}
+        log = []
+        answer = {"success": True, "data": {"chat_id": CHAT, "messages": [message]}}
+        result = run_submit(Qwen(log, send=answer), Ctx(log), job(VIDEO))
+        assert isinstance(result.job, Ambiguous), "refused without qwen's end marker: %s" % (result.job,)
 
 
 @mutation(SUBMIT_FILE, "    if status == 200 and finished and not cut:\n", "    if False:\n", expect="qwen.refused")
