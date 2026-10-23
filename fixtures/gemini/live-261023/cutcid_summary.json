@@ -1,0 +1,75 @@
+{
+ "cid_seen": true,
+ "code": "trk-9bc660b719",
+ "cut_at_s": 9.14,
+ "bytes_before_cut": 186,
+ "timeline": [
+  {
+   "t": 25.5,
+   "new_chats": 0
+  },
+  {
+   "t": 42.1,
+   "new_chats": 0
+  },
+  {
+   "t": 59.5,
+   "new_chats": 0
+  },
+  {
+   "t": 75.7,
+   "new_chats": 0
+  },
+  {
+   "t": 92.2,
+   "new_chats": 0
+  },
+  {
+   "t": 108.8,
+   "new_chats": 0
+  },
+  {
+   "t": 125.3,
+   "new_chats": 0
+  },
+  {
+   "t": 141.7,
+   "new_chats": 0
+  },
+  {
+   "t": 158.2,
+   "new_chats": 0
+  },
+  {
+   "t": 174.7,
+   "new_chats": 0
+  },
+  {
+   "t": 191.1,
+   "new_chats": 0
+  },
+  {
+   "t": 207.5,
+   "new_chats": 0
+  },
+  {
+   "t": 223.9,
+   "new_chats": 0
+  },
+  {
+   "t": 240.5,
+   "new_chats": 0
+  },
+  {
+   "t": 256.8,
+   "new_chats": 0
+  },
+  {
+   "t": 273.2,
+   "new_chats": 0
+  }
+ ],
+ "found": false,
+ "t": 279.66,
+ "at_utc": "15:58:27Z"
+}
