@@ -4,7 +4,7 @@ Two accounts, each through its own proxy exiting in Germany, driven by the repo'
 Redacted captures: `fixtures/meta/spike-261023/` (one folder per scenario, see its README).
 
 ## Works from Germany
-Text→image and image→video both work. No region block.
+Text→image, image→video, text→video and image→image all work. No region block.
 
 ## Signing in
 - Both accounts were signed in from their cookie jars; `[data-testid="user-menu-button"]` shows within 4–8 s.
@@ -69,8 +69,41 @@ The engine's own submit, reconcile, poll and fetch, driven on the box with stand
 - Reconcile of that video chat (acc3, second launch): `/prompt/<uuid>` showed the signed-in thread with the DONE answer
   and the same `.mp4` link; `Found` 21 s after launch, nothing typed or sent; the poll handed the link on.
 
+## Text → video and image → image, 23/10 09:15–09:40 (GMT+7)
+acc1 alone, through a third German proxy; a capture (one browser, two chats) then the engine's own submit for each.
+Captures: `t2v-acc1`, `i2i-acc1`.
+- **No video mode.** The composer's mode menu (`composer-mode-dropdown-button`) holds only "Instant" and "Thinking";
+  the attach button opens the file input. A video comes from the words: "Create a short video of a red fox trotting
+  through a snowy forest at dawn" gave one video and no image. A plain description draws an image (the text→image
+  captures), so the engine types `VIDEO_FROM_TEXT` ("Create a short video: ") before the core's text of a
+  `text_to_video` job, and nothing before any other job.
+- Text→video, capture: answer streaming at 13 s, the `<video>` (direct https fbcdn `.mp4`) at 46.6 s, DONE at 48.6 s.
+  MP4: 10.0 s, 1280×720 (landscape for a text prompt), h264 24 fps, AAC mono 24 kHz, 9.4 MB, fetched on the first try.
+  No ask-back; the reply says "10 seconds".
+- Text→video, engine ("A red fox trotting through a snowy forest at dawn [7101]", no word of video in the client
+  text): `warmupConversation` named the chat before Enter as for images, Enter 23.7 s after launch, done 48 s after
+  Enter, one 10.0 s 1280×720 MP4 (12.7 MB) through the fetcher.
+- Image→image, capture: a 646 KB 1280×1920 webp was uploaded (rupload answered after 8.0 s) with "Edit this image: make
+  it a night scene under a full moon, keep everything else the same". A low-res preview (`t58.90637-1`, alt
+  "Inline image") at 16.3 s, the final `t39.105495-1` webp at 17.3 s, DONE at 22.4 s. **One image, the input's size
+  (1280×1920)**; no ask-back.
+- **The edit is not an image tile.** The answer shows a before/after slider
+  (`role="slider"`, `aria-label="Before and after image comparison"`, "Hold to compare"): the edited image is its
+  shown `img` (alt `gallery/image_<date>_<time>.webp`), the input image (an `m1/v/t0.71334-6` fbcdn link) sits under
+  an `aria-hidden="true"` part of the same slider and is never a result. The engine takes as the result only a shown
+  slider image with a generated image's alt (`gallery/`); an image hidden by `aria-hidden` on itself or a parent is
+  never one, and any other shown image in the slider, or a preview link anywhere in the answer, keeps a done answer
+  unknown. A done answer holding only media of the other kind (an image for a video job, a video for an image job)
+  is unknown too, never refunded at once; only an answer with no media at all fails as `meta.no_image`/`no_video`.
+- Image→image, engine (646 KB webp as is, "Make it a night scene under a full moon, keep everything else the same
+  [7101]"): upload answered after 7.1 s, Enter 27.7 s after launch, done 25 s after Enter, one 1280×1920 webp (742 KB)
+  through the fetcher.
+- Reconcile of that edit chat (09:40, a fourth launch, read only): `/prompt/<uuid>` showed the same slider; `Found`
+  5.2 s after launch with the one edited webp (the input image not among the outputs), nothing typed or sent.
+
 ## Not seen yet
-A signed-out page, limit or refusal text, ask-back text, video from text alone, a 503 on the first MP4 fetch.
+A signed-out page, limit or refusal text, ask-back text, a 503 on the first MP4 fetch, more than one image from an
+edit.
 
 ## Fingerprint note
 The browser timezone was Asia/Ho_Chi_Minh while the exit IP was German; meta did not object, but generated file names

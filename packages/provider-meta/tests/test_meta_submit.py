@@ -5,7 +5,9 @@ import asyncio
 import base64
 import contextlib
 import json
+import re
 from datetime import UTC, datetime, timedelta
+from html import unescape
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlsplit
@@ -50,6 +52,13 @@ def capture(folder: str) -> SimpleNamespace:
     answer = final.read_text().split("<!-- composer")[0] if final.exists() else ""
     send = base / "send.json"
     prompt = json.loads(send.read_text())["prompt"] if send.exists() else ""
+    if folder == T2V:
+        # The capture pressed Enter 0.1 s after typing, before meta's `warmupConversation` (1.2-1.5 s after the typing
+        # in every other capture), so it holds none; the engine's own live text->video run saw it (FINDINGS.md). The
+        # call of image-1-acc1 stands in, naming the chat this capture opened.
+        chat = S.chat_id(json.loads((base / "timeline.json").read_text())[0]["url"])
+        warm = next(e for e in capture("image-1-acc1").events if S.warmup_id(e))
+        events.insert(0, SimpleNamespace(**{**vars(warm), "req": warm.req.replace(S.warmup_id(warm), chat)}))
     return SimpleNamespace(events=events, uploads=uploads, signals=signals, answer=answer, prompt=prompt)
 
 
@@ -237,7 +246,10 @@ class Clock:
 INPUT = b"RIFF-webp-560k"     # the input image of a video job, as the object store hands it out
 
 
-def run(page, cap, *, log=None, ctx=None, kind="image", image=(INPUT, "image/webp"), **settings):
+DEFAULT_OP = {"image": "text_to_image", "video": "image_to_video"}
+
+
+def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "image/webp"), **settings):
     log = page.log if log is None else log
     ctx = ctx or Ctx(log)
 
@@ -246,8 +258,10 @@ def run(page, cap, *, log=None, ctx=None, kind="image", image=(INPUT, "image/web
         assert kw["purpose"] == "submit" and kw["images"] is True
         yield SimpleNamespace(page=page, ctx=Cookies(), recorder=Recorder(page.events))
 
+    op = op or DEFAULT_OP[kind]
+
     async def inputs():
-        return [MediaRef(0, "inputs/job/0", image[1], len(image[0]))]
+        return [MediaRef(0, "inputs/job/0", image[1], len(image[0]))] if op in S.FROM_IMAGE else []
 
     async def read_media(ref):
         assert ref.object_key == "inputs/job/0"
@@ -257,7 +271,7 @@ def run(page, cap, *, log=None, ctx=None, kind="image", image=(INPUT, "image/web
     deps = S.Deps(open_session=fake_open, read_media=read_media, sleep=clock.sleep, clock=clock, now=lambda: NOW,
                   signal_wait_s=0, composer_wait_s=1, warmup_wait_s=0, receipt_wait_s=2, tiles_grace_s=3,
                   upload_wait_s=0, attached_wait_s=1)
-    job = SimpleNamespace(params={"kind": kind}, sent_text="%s [7100]" % (cap.prompt or "a lighthouse"),
+    job = SimpleNamespace(params={"kind": kind}, operation=op, sent_text="%s [7100]" % (cap.prompt or "a lighthouse"),
                           inputs=inputs)
     result = asyncio.run(S.submit(ctx, job, FakeSettings(SPEC, **settings), deps=deps))
     return result, ctx
@@ -432,13 +446,19 @@ def test_the_codes_meta_uses_are_registered_with_their_rules():
         assert (r.terminal, r.counts_attempt, r.refund, r.public) == (False, True, True, False), code
 
 
-def test_a_job_of_another_kind_is_refused_before_anything_opens():
+def test_a_job_of_another_kind_or_an_operation_of_another_kind_is_refused_before_anything_opens():
     with pytest.raises(ValueError, match="image or a video"):
         asyncio.run(S.submit(Ctx([]), SimpleNamespace(params={"kind": "audio"}, sent_text="x"), None))
+    for kind, op in (("image", "text_to_video"), ("video", "image_to_image"), ("video", None)):
+        with pytest.raises(ValueError, match="cannot be"):
+            asyncio.run(S.submit(Ctx([]), SimpleNamespace(params={"kind": kind}, operation=op, sent_text="x"), None))
 
 
 # ---- image to video ----------------------------------------------------------------------------------------------
 VIDEO = "i2v-acc2"
+I2I = "i2i-acc1"
+T2V = "t2v-acc1"
+FROM_IMAGE_RUNS = ((VIDEO, "video", "image_to_video"), (I2I, "image", "image_to_image"))   # the jobs that upload
 
 
 def test_the_captured_video_answer_reads_as_done_with_its_mp4_and_the_upload_answer_is_the_post():
@@ -446,7 +466,7 @@ def test_the_captured_video_answer_reads_as_done_with_its_mp4_and_the_upload_ans
     answer = S.read_answer(cap.answer, "video")
     assert answer.done and len(answer.media) == 1 and answer.previews == 0
     assert answer.media[0].startswith("https://scontent.xx.fbcdn.net/v/t39.105495-1/") and ".mp4?" in answer.media[0]
-    assert S.read_answer(cap.answer, "image") == S.Answer(True, (), 0), "a video job's answer holds no image tile"
+    assert S.read_answer(cap.answer, "image") == S.Answer(True, (), 0, 1), "a video job's answer holds no image"
     blob = cap.answer.replace(answer.media[0], "blob:https://www.meta.ai/1234")
     assert S.read_answer(blob, "video") == S.Answer(True, (), 1), "a blob: player source is never delivered"
     assert [S.upload_done(e) for e in cap.uploads] == [False, False, True], "GET, OPTIONS, then the POST {media_id}"
@@ -473,48 +493,53 @@ def test_a_video_job_types_attaches_waits_for_the_upload_then_marks_sent_presses
 @mutation(SUBMIT_FILE, "        if await recorder.wait_for(upload_done, self.deps.upload_wait_s, since=since) is None:",
           "        if False:", expect="upload finished before Enter")
 def test_an_upload_meta_never_answers_sends_nothing():
-    cap = capture(VIDEO)
-    page = Page([], cap, upload_answers=False)
-    result, _ = run(page, cap, kind="video")
-    assert sent(page.log) == ["attach"], "upload finished before Enter: %s" % sent(page.log)
-    assert result.job == Retry("meta.ui_send_failed")
+    for folder, kind, op in FROM_IMAGE_RUNS:
+        cap = capture(folder)
+        page = Page([], cap, upload_answers=False)
+        result, _ = run(page, cap, kind=kind, op=op)
+        assert sent(page.log) == ["attach"], "upload finished before Enter: %s %s" % (op, sent(page.log))
+        assert result.job == Retry("meta.ui_send_failed"), op
 
 
 def test_a_composer_without_exactly_one_attached_image_sends_nothing():
-    cap = capture(VIDEO)
-    for what, page in {"no thumbnail": Page([], cap, thumbnails=0), "two thumbnails": Page([], cap, thumbnails=2),
-                       "no file input": Page([], cap, file_inputs=0)}.items():
-        result, _ = run(page, cap, kind="video")
-        assert "mark_sent" not in page.log and "Enter" not in page.log, "%s: exactly one image: %s" % (what, page.log)
-        assert result.job == Retry("meta.ui_send_failed"), what
+    for folder, kind, op in FROM_IMAGE_RUNS:
+        cap = capture(folder)
+        for what, page in {"no thumbnail": Page([], cap, thumbnails=0), "two thumbnails": Page([], cap, thumbnails=2),
+                           "no file input": Page([], cap, file_inputs=0)}.items():
+            result, _ = run(page, cap, kind=kind, op=op)
+            assert "mark_sent" not in page.log and "Enter" not in page.log, (
+                "%s %s: exactly one image: %s" % (op, what, page.log))
+            assert result.job == Retry("meta.ui_send_failed"), (op, what)
 
 
 @mutation(SUBMIT_FILE, "        if image is not None and (shown := await page.locator(SEL_ATTACHED).count()) != 1:",
           "        if False:", expect="read again before the send")
 def test_a_thumbnail_dropped_or_doubled_after_the_attach_is_read_again_before_the_send_and_nothing_is_sent():
-    cap = capture(VIDEO)
-    for what, counts in (("dropped", [1, 0]), ("doubled", [1, 2])):
-        page = Page([], cap, thumbnails=counts)
-        result, _ = run(page, cap, kind="video")
-        assert "mark_sent" not in page.log and "Enter" not in page.log, (
-            "%s: read again before the send: %s" % (what, sent(page.log)))
-        assert result.job == Retry("meta.ui_send_failed"), what
+    for folder, kind, op in FROM_IMAGE_RUNS:
+        cap = capture(folder)
+        for what, counts in (("dropped", [1, 0]), ("doubled", [1, 2])):
+            page = Page([], cap, thumbnails=counts)
+            result, _ = run(page, cap, kind=kind, op=op)
+            assert "mark_sent" not in page.log and "Enter" not in page.log, (
+                "%s %s: read again before the send: %s" % (op, what, sent(page.log)))
+            assert result.job == Retry("meta.ui_send_failed"), (op, what)
 
 
 @mutation(SUBMIT_FILE, "        if len(data) <= UPLOAD_MAX_BYTES and mime in UPLOAD_AS_IS:", "        if True:",
           expect="re-encoded")
 def test_a_large_input_is_reencoded_by_the_browser_before_meta_loads_and_one_that_cannot_be_sends_nothing():
-    cap = capture(VIDEO)
     big = (b"P" * (S.UPLOAD_MAX_BYTES + 1), "image/png")
-    page = Page([], cap)
-    result, _ = run(page, cap, kind="video", image=big)
-    assert page.chosen == [{"name": "upload.jpg", "mimeType": "image/jpeg", "buffer": b"small-jpeg"}], (
-        "re-encoded: %r" % ([{**c, "buffer": c["buffer"][:12]} for c in page.chosen],))
-    assert page.log.index("shrink") < page.log.index("goto " + S.SITE_URL), "before meta's page loads"
-    assert isinstance(result.job, Completed)
-    page = Page([], cap, shrunk=b"")
-    result, _ = run(page, cap, kind="video", image=big)
-    assert result.job == Retry("meta.ui_send_failed") and sent(page.log) == [] and not page.chosen
+    for folder, kind, op in FROM_IMAGE_RUNS:
+        cap = capture(folder)
+        page = Page([], cap)
+        result, _ = run(page, cap, kind=kind, op=op, image=big)
+        assert page.chosen == [{"name": "upload.jpg", "mimeType": "image/jpeg", "buffer": b"small-jpeg"}], (
+            "re-encoded: %s %r" % (op, [{**c, "buffer": c["buffer"][:12]} for c in page.chosen]))
+        assert page.log.index("shrink") < page.log.index("goto " + S.SITE_URL), "before meta's page loads"
+        assert isinstance(result.job, Completed), op
+        page = Page([], cap, shrunk=b"")
+        result, _ = run(page, cap, kind=kind, op=op, image=big)
+        assert result.job == Retry("meta.ui_send_failed") and sent(page.log) == [] and not page.chosen, op
 
 
 def test_a_video_that_never_finishes_is_unknown_after_one_enter_and_a_done_answer_without_one_fails_refunded():
@@ -527,6 +552,160 @@ def test_a_video_that_never_finishes_is_unknown_after_one_enter_and_a_done_answe
     assert result.job == Fail("meta.no_video", "meta finished its answer with no video")
     r = errors.rule("meta.no_video")
     assert (r.terminal, r.refund) == (True, True)
+
+
+# ---- text to video -----------------------------------------------------------------------------------------------
+def test_the_captured_text_to_video_answer_reads_as_done_with_its_mp4():
+    cap = capture(T2V)
+    answer = S.read_answer(cap.answer, "video")
+    assert answer.done and len(answer.media) == 1 and answer.previews == 0, answer
+    assert answer.media[0].startswith("https://scontent.xx.fbcdn.net/v/t39.105495-1/") and ".mp4?" in answer.media[0]
+    assert cap.uploads == [], "nothing was uploaded"
+
+
+@mutation(SUBMIT_FILE, '        self.text = " ".join(((VIDEO_FROM_TEXT if self.operation == "text_to_video" else "") + '
+          'job.sent_text).split())', '        self.text = " ".join(job.sent_text.split())',
+          expect="asks for a video")
+@mutation(SUBMIT_FILE, "        image = await self._input_image() if self.operation in FROM_IMAGE else None",
+          '        image = await self._input_image() if self.kind == "video" else None', expect="text alone")
+def test_a_video_from_text_alone_asks_for_a_video_attaches_nothing_marks_sent_presses_enter_once_and_delivers_the_mp4():
+    cap = capture(T2V)
+    page = Page([], cap)
+    result, _ = run(page, cap, kind="video", op="text_to_video")
+    uuid = warmed_uuid(cap)
+    assert isinstance(result.job, Completed) and len(result.job.outputs) == 1, "text alone: %r" % (result.job,)
+    assert sent(page.log) == ["report_ref " + uuid, "mark_sent", "Enter"] and not page.chosen, sent(page.log)
+    assert page.typed == {EDITABLE: "Create a short video: %s [7100]" % cap.prompt}, "asks for a video: %r" % (
+        page.typed,)
+    out = result.job.outputs[0]
+    assert (out.mime, out.idx, out.meta) == ("video/mp4", 0, {"conversation_id": uuid}) and S.is_final_video(out.ref)
+    assert result.account == (Success(),)
+
+
+def test_only_a_video_from_text_alone_gets_the_video_wording():
+    for folder, kind, op in (("image-1-acc1", "image", "text_to_image"), *FROM_IMAGE_RUNS):
+        cap = capture(folder)
+        page = Page([], cap)
+        run(page, cap, kind=kind, op=op)
+        assert page.typed == {EDITABLE: "%s [7100]" % cap.prompt}, op
+
+
+def test_a_video_from_text_that_never_finishes_is_unknown_after_one_enter():
+    cap = capture(T2V)
+    page = Page([], cap, answers=[streaming(cap.answer)])
+    result, _ = run(page, cap, kind="video", op="text_to_video", meta__video_submit_timeout_s=120)
+    assert isinstance(result.job, Ambiguous) and page.log.count("Enter") == 1
+
+
+# ---- image to image ----------------------------------------------------------------------------------------------
+# the input image's layer in the captured slider: `aria-hidden` on its wrapper
+HIDDEN_WRAPPER = '<div aria-hidden="true" style="clip-path: inset(0px 100% 0px 0px);"><img alt=""'
+
+
+def edit_shapes(answer: str) -> dict[str, str]:
+    """The captured edit (the input image under an `aria-hidden` wrapper), the same with `aria-hidden` on the input
+    `img` itself, and the same with the input image shown (no `aria-hidden` at all)."""
+    assert answer.count(HIDDEN_WRAPPER) == 1
+    shown = '<div style="clip-path: inset(0px 100% 0px 0px);"><img alt=""'
+    return {"hidden wrapper": answer,
+            "hidden img": answer.replace(HIDDEN_WRAPPER, shown.replace("<img ", '<img aria-hidden="true" ')),
+            "input shown": answer.replace(HIDDEN_WRAPPER, shown)}
+
+
+def edited(cap) -> str:
+    """The edited image's link in the captured slider (its `gallery/` img), read with a plain pattern."""
+    return unescape(re.search(r'<img alt="gallery/[^"]*"[^>]*? src="([^"]+)"', cap.answer).group(1))
+
+
+@mutation(SUBMIT_FILE, '                              slider or (a.get("role") == "slider" and a.get("aria-label") == '
+          'COMPARE_LABEL)))', '                              slider))', expect="the edited image")
+@mutation(SUBMIT_FILE, "            elif hidden:\n", "            elif False:\n", expect="never the input image")
+@mutation(SUBMIT_FILE, '            hidden = hidden or a.get("aria-hidden") == "true"', "            hidden = hidden",
+          expect="never the input image")
+def test_the_captured_edit_reads_as_done_with_the_edited_image_never_the_input_image_in_either_slider_shape():
+    cap = capture(I2I)
+    for shape, html in list(edit_shapes(cap.answer).items())[:2]:
+        answer = S.read_answer(html)
+        assert answer == S.Answer(True, (edited(cap),), 0, 0), (
+            "%s: the edited image, never the input image: %r" % (shape, answer))
+    assert "/t39.105495-1/" in edited(cap) and edited(cap).startswith("https://scontent.xx.fbcdn.net/")
+    drawing = S.read_answer(streaming(cap.answer))
+    assert not drawing.done and drawing.media == () and drawing.previews == 1
+    assert S.read_answer(cap.answer, "video") == S.Answer(True, (), 0, 1), "an edit holds no video"
+
+
+def test_an_edit_delivers_only_the_edited_image_whichever_way_the_input_image_is_hidden():
+    cap = capture(I2I)
+    for shape, html in list(edit_shapes(cap.answer).items())[:2]:
+        page = Page([], cap, answers=[html])
+        result, _ = run(page, cap, kind="image", op="image_to_image")
+        assert isinstance(result.job, Completed), (shape, result.job)
+        assert [o.ref for o in result.job.outputs] == [edited(cap)], shape
+
+
+@mutation(SUBMIT_FILE, '                if (a.get("alt") or "").startswith(RESULT_ALT):', "                if True:",
+          expect="never both")
+def test_a_slider_that_shows_the_input_image_too_is_unknown_never_both_delivered():
+    cap = capture(I2I)
+    html = edit_shapes(cap.answer)["input shown"]
+    answer = S.read_answer(html)
+    assert answer.previews == 1, "never both: %r" % (answer,)
+    page = Page([], cap, answers=[html])
+    result, _ = run(page, cap, kind="image", op="image_to_image")
+    assert isinstance(result.job, Ambiguous), "never both: %r" % (result.job,)
+    assert page.log.count("Enter") == 1
+
+
+def test_an_edit_attaches_the_image_waits_for_the_upload_marks_sent_presses_enter_once_and_delivers_the_edited_image():
+    cap = capture(I2I)
+    page = Page([], cap)
+    result, _ = run(page, cap, kind="image", op="image_to_image")
+    uuid = warmed_uuid(cap)
+    assert uuid == "55165934-9729-4a72-9083-64f3e7a6fc5e"
+    assert sent(page.log) == ["attach", "report_ref " + uuid, "mark_sent", "Enter"], sent(page.log)
+    assert page.chosen == [{"name": "upload.webp", "mimeType": "image/webp", "buffer": INPUT}]
+    assert isinstance(result.job, Completed) and len(result.job.outputs) == 1, result.job
+    out = result.job.outputs[0]
+    assert (out.mime, out.idx, out.meta) == ("image/webp", 0, {"conversation_id": uuid}) and S.is_final_image(out.ref)
+    assert out.ref == S.read_answer(cap.answer).media[0]
+    assert result.account == (Success(),)
+
+
+@mutation(SUBMIT_FILE, "            elif PREVIEW_MARK in urlsplit(src).path:", "            elif False:",
+          expect="a preview outside")
+def test_an_edit_done_with_its_preview_still_shown_is_unknown_never_delivered_nor_failed():
+    cap = capture(I2I)
+    done = 'data-streaming-state="DONE" data-streaming-complete="true"'
+    in_slider = streaming(cap.answer).replace('data-streaming-state="STREAMING"', done)
+    # the preview meta showed before the slider (an "Inline image" at 16 s in the capture), not yet in a slider
+    outside = (cap.answer.split('<div tabindex="0" role="slider"')[0] + '<img alt="Inline image" src="https://'
+               'scontent.xx.fbcdn.net/v/t58.90637-1/x_n.webp?stp=dst-webp"></div>')
+    assert S.read_answer(outside) == S.Answer(True, (), 1), "a preview outside the slider is counted"
+    for what, html in (("in the slider", in_slider), ("a preview outside the slider", outside)):
+        page = Page([], cap, answers=[html])
+        result, _ = run(page, cap, kind="image", op="image_to_image")
+        assert isinstance(result.job, Ambiguous), "%s: %r" % (what, result.job)
+        assert page.log.count("Enter") == 1
+
+
+# ---- an answer of the other kind ---------------------------------------------------------------------------------
+@mutation(SUBMIT_FILE, "        if answer.other:", "        if False:", expect="never a refund at once")
+def test_a_done_answer_with_only_the_other_kind_is_unknown_never_a_refund_and_one_with_nothing_still_fails():
+    image, video, edit = capture("image-1-acc1"), capture(T2V), capture(I2I)
+    cases = (("a video from text answered with an image", T2V, "video", "text_to_video", image.answer),
+             ("a video from an image answered with an edit", VIDEO, "video", "image_to_video", edit.answer),
+             ("an edit answered with a video", I2I, "image", "image_to_image", video.answer),
+             ("an image answered with a video", "image-1-acc1", "image", "text_to_image", video.answer))
+    for what, folder, kind, op, html in cases:
+        cap = capture(folder)
+        assert S.read_answer(html, kind).other >= 1, what
+        page = Page([], cap, answers=[html])
+        result, _ = run(page, cap, kind=kind, op=op)
+        assert isinstance(result.job, Ambiguous), "%s: meta took it, never a refund at once: %r" % (what, result.job)
+        assert page.log.count("Enter") == 1
+    bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
+    result, _ = run(Page([], video, answers=[bare]), video, kind="video", op="text_to_video")
+    assert result.job == Fail("meta.no_video", "meta finished its answer with no video")
 
 
 # ---- fetch -------------------------------------------------------------------------------------------------------

@@ -28,7 +28,10 @@ CHECKPOINT_FAILED_TEXT = "Failed to verify your browser"
 CHECKPOINT_DEAD_REASON = "checkpoint"
 SEL_ASSISTANT = '[data-testid="assistant-message"]'      # `data-streaming-state` INIT -> STREAMING -> DONE
 SEL_IMAGE_TILE = "ur-image-tile"                         # the `data-testid` of a generated image in the answer
-SEL_FILE_INPUT = 'input[type="file"]'                    # the composer's one file input (the image to animate)
+# an edit answers with a before/after slider: the edited image shown, the input image under `aria-hidden="true"`
+COMPARE_LABEL = "Before and after image comparison"     # the slider's `aria-label` (`role="slider"`)
+RESULT_ALT = "gallery/"                                  # the `alt` of a generated image: gallery/image_<date>_...
+SEL_FILE_INPUT = 'input[type="file"]'                    # the composer's one file input (the input image)
 # one per image attached in the composer (a blob: thumbnail inside the Lexical editor)
 SEL_ATTACHED = SEL_COMPOSER + " span[data-inline-image-drag-handle]"
 UPLOAD_PATH = "/gen_ai_document_gen_ai_tenant/"          # rupload.meta.ai: the POST answers `{media_id}` once uploaded

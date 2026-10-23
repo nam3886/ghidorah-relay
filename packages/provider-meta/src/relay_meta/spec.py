@@ -130,7 +130,9 @@ class MetaSpec:
     # ---- plan -----------------------------------------------------------------------------------------------------
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
         """Validate and normalise. Price and timeout come from the settings, NEVER from `req.options`. Raises
-        `InputError`. meta takes neither a ratio nor a duration, so neither is accepted rather than ignored."""
+        `InputError`. meta takes neither a ratio nor a duration, so neither is accepted rather than ignored. Each model
+        takes at most one input image: with one it edits (image) or animates (video) it, without one it draws from the
+        text, which must then show something (a video from an image may come with no text)."""
         kind = C.KIND.get(req.model)
         if kind is None:
             raise _refuse("input.bad_model", "meta's models are %s" % ", ".join(C.KIND), "model")
@@ -138,18 +140,17 @@ class MetaSpec:
             raise _refuse("input.bad_ratio", "meta sets the size itself: send no ratio", "ratio")
         if req.duration is not None:
             raise _refuse("input.bad_duration", "meta sets the length itself: send no duration", "duration")
+        if len(req.images) > 1:
+            raise _refuse("input.too_many_images", "%s takes at most one input image" % req.model, "images")
         if kind == "image":
             if C.is_blank_prompt(req.prompt):
                 raise _refuse("input.empty_prompt", "the prompt shows no visible characters", "prompt")
-            if req.images:
-                raise _refuse("input.too_many_images", "meta-image takes no input image", "images")
-            operation = "text_to_image"
+            operation = "image_to_image" if req.images else "text_to_image"
         else:
-            if len(req.images) > 1:
-                raise _refuse("input.too_many_images", "meta-video animates exactly one image", "images")
-            if not req.images:
-                raise _refuse("input.invalid", "meta-video animates exactly one image: send one", "images")
-            operation = "image_to_video"
+            if not req.images and C.is_blank_prompt(req.prompt):
+                raise _refuse("input.empty_prompt", "a video from text alone needs a prompt that shows something",
+                              "prompt")
+            operation = "image_to_video" if req.images else "text_to_video"
         price, warnings = self._price(settings, req.model)
         return Plan(
             operation=operation, media_type=kind, model=req.model, params={"kind": kind}, completion=Completion.HOLD,

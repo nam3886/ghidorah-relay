@@ -1,0 +1,8 @@
+{
+ "tag": "DIV",
+ "ce": "true",
+ "role": "textbox",
+ "outer": "<div class=\"outline-none undefined\" contenteditable=\"true\" data-testid=\"composer-input\" role=\"textbox\" spellcheck=\"true\" data-composer-focus=\"true\" data-gramm=\"false\" data-gramm_editor=\"false\" data-enable-grammarly=\"false\" data-1p-ignore=\"\" data-lpignore=\"true\" data-bwignore=\"true\" data-form-type=\"other\" data-lexical-editor=\"true\" style=\"user-select: text; white-space: pre-wrap; word-break: break-word;\"><p dir=\"auto\"><br></p></div>",
+ "hydrated_after_s": 7.8,
+ "sel_composer_matches": 1
+}

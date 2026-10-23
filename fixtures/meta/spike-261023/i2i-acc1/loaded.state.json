@@ -1,0 +1,44 @@
+{
+ "signals": {
+  "user_menu_visible": true,
+  "signed_out_signs": [
+   [
+    "[data-testid=\"login-button\"]",
+    false
+   ],
+   [
+    "[data-testid=\"logged-out-signin-card-dismiss-button\"]",
+    false
+   ]
+  ],
+  "visible_testids": {
+   "new-chat-button": 1,
+   "conversation-item": 10,
+   "user-menu-button": 1,
+   "welcome-message": 1,
+   "composer-input": 1,
+   "composer-add-attachment-button": 1,
+   "composer-mode-dropdown-button": 1,
+   "composer-dictation-button": 1,
+   "composer-send-button": 1,
+   "connect-apps-banner": 1,
+   "connect-apps-dismiss-button": 1
+  }
+ },
+ "state": {
+  "url": "https://www.meta.ai/",
+  "title": "Meta AI - Your AI Assistant for Images, Shopping and More",
+  "stop": [],
+  "stream": null,
+  "tiles": [],
+  "vids": [],
+  "nAssist": 0,
+  "page_imgs": [
+   {
+    "src": "https://www.meta.ai/images/meta-ai-orbit-logo-gradient-3d_light.svg",
+    "w": 800,
+    "h": 800
+   }
+  ]
+ }
+}

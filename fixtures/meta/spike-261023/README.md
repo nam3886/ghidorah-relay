@@ -22,5 +22,13 @@ The folders:
 - `i2v-acc2`: a generated image (webp) was uploaded with "Animate this image into a short video: gentle waves". The
   result was an mp4 of 10 s, 1152×768, h264 24 fps, with AAC audio.
 - `i2v-upload-stall-acc1`: a 5 MB PNG whose rupload POST never answered. Enter was ignored and nothing was sent.
+- `t2v-acc1` (later the same day, acc1 through another German proxy): "Create a short video of a red fox trotting
+  through a snowy forest at dawn", text only, gave one mp4 of 10 s, 1280×720, h264 24 fps, with AAC audio. Enter came
+  0.1 s after the typing, so no `warmupConversation` was made (the tests add one).
+- `i2i-acc1` (same browser, next chat): a generated 1280×1920 webp was uploaded with "Edit this image: make it a night
+  scene under a full moon, keep everything else the same". The answer held one image, 1280×1920, in a before/after
+  comparison slider (`role="slider"`), not in an `ur-image-tile`; the input image sits under `aria-hidden="true"` in
+  the same slider.
+  In these two folders `ccb` is redacted too.
 - `checkpoint-acc1`: a later load of acc1 got 403 with meta's `?challenge=3` page, then "Vercel Security Checkpoint —
   Failed to verify your browser, Code 11".

@@ -5,7 +5,22 @@ import asyncio
 import contextlib
 from types import SimpleNamespace
 
-from test_meta_submit import IMAGE_RUNS, VIDEO, Clock, Cookies, Ctx, Page, Recorder, capture, streaming, warmed_uuid
+from test_meta_submit import (
+    I2I,
+    IMAGE_RUNS,
+    T2V,
+    VIDEO,
+    Clock,
+    Cookies,
+    Ctx,
+    Page,
+    Recorder,
+    capture,
+    edit_shapes,
+    edited,
+    streaming,
+    warmed_uuid,
+)
 
 from relay_core.providers import Done, Found, NotSent, Output, Pending, StillUnknown
 from relay_core.testing.fake_provider import FakeSettings
@@ -16,6 +31,7 @@ from relay_meta.engine import submit as S
 from relay_meta.spec import SPEC
 
 RECONCILE_FILE = "packages/provider-meta/src/relay_meta/engine/reconcile.py"
+SUBMIT_FILE = "packages/provider-meta/src/relay_meta/engine/submit.py"
 OTHER = "11111111-2222-3333-4444-555555555555"
 
 
@@ -48,7 +64,7 @@ def sent_nothing(page) -> bool:
           '        await page.goto(SITE_URL + "prompt/" + conversation, wait_until="domcontentloaded",',
           expect="reconcile never sends")
 def test_a_done_answer_in_the_reopened_chat_is_found_with_its_final_links_and_nothing_is_sent():
-    for folder, kind in (*((f, "image") for f, _ in IMAGE_RUNS), (VIDEO, "video")):
+    for folder, kind in (*((f, "image") for f, _ in IMAGE_RUNS), (VIDEO, "video"), (I2I, "image"), (T2V, "video")):
         cap = capture(folder)
         page = Page([], cap, answers=[cap.answer])
         uuid = warmed_uuid(cap)
@@ -73,11 +89,39 @@ def test_an_answer_still_streaming_or_with_a_preview_left_or_without_a_result_is
         "an image still drawing": (image, "image", streaming(image.answer)),
         "a done answer with a preview left": (image, "image", head + "/t58.90637-1/" + tail),
         "a done answer with no video": (cap, "video", bare),
+        "an edit still drawing": (capture(I2I), "image", streaming(capture(I2I).answer)),
     }
     for what, (c, kind, html) in cases.items():
         page = Page([], c, answers=[html])
         got = reconcile(page, c, kind=kind)
         assert got == StillUnknown(answered=True), "unknown while %s: %r" % (what, got)
+        assert sent_nothing(page), what
+
+
+@mutation(SUBMIT_FILE, '            hidden = hidden or a.get("aria-hidden") == "true"', "            hidden = hidden",
+          expect="never the input image")
+@mutation(SUBMIT_FILE, '                if (a.get("alt") or "").startswith(RESULT_ALT):', "                if True:",
+          expect="never both")
+def test_a_reopened_edit_finds_only_the_edited_image_and_a_slider_showing_both_proves_nothing():
+    cap = capture(I2I)
+    uuid = warmed_uuid(cap)
+    for shape, html in edit_shapes(cap.answer).items():
+        page = Page([], cap, answers=[html])
+        got = reconcile(page, cap, kind="image")
+        assert sent_nothing(page), shape
+        if shape == "input shown":
+            assert got == StillUnknown(answered=True), "never both: %r" % (got,)
+        else:
+            assert got == Found(uuid, {"conversation_id": uuid, "outputs": [
+                {"ref": edited(cap), "mime": "image/webp"}]}), "%s: never the input image: %r" % (shape, got)
+
+
+def test_a_reopened_answer_with_only_the_other_kind_is_still_unknown():
+    image, video = capture("image-1-acc1"), capture(T2V)
+    for what, cap, kind, html in (("a video job answered with an image", video, "video", image.answer),
+                                  ("an edit answered with a video", capture(I2I), "image", video.answer)):
+        page = Page([], cap, answers=[html])
+        assert reconcile(page, cap, kind=kind) == StillUnknown(answered=True), what
         assert sent_nothing(page), what
 
 

@@ -1,0 +1,84 @@
+[
+ {
+  "t_from_send": 0.0,
+  "url": "https://www.meta.ai/prompt/55165934-9729-4a72-9083-64f3e7a6fc5e",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": "INIT/false",
+  "tiles": [],
+  "vids": [],
+  "reply_chars": 0
+ },
+ {
+  "t_from_send": 1.0,
+  "url": "https://www.meta.ai/prompt/55165934-9729-4a72-9083-64f3e7a6fc5e",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": "INIT/false",
+  "tiles": [],
+  "vids": [],
+  "reply_chars": 0
+ },
+ {
+  "t_from_send": 5.1,
+  "url": "https://www.meta.ai/prompt/55165934-9729-4a72-9083-64f3e7a6fc5e",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": "STREAMING/false",
+  "tiles": [],
+  "vids": [],
+  "reply_chars": 0
+ },
+ {
+  "t_from_send": 16.2,
+  "url": "https://www.meta.ai/prompt/55165934-9729-4a72-9083-64f3e7a6fc5e",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": "STREAMING/false",
+  "tiles": [],
+  "vids": [],
+  "reply_chars": 233
+ },
+ {
+  "t_from_send": 17.2,
+  "url": "https://www.meta.ai/prompt/55165934-9729-4a72-9083-64f3e7a6fc5e",
+  "stop": [
+   "Stop|composer-stop-button|"
+  ],
+  "stream": "STREAMING/false",
+  "tiles": [],
+  "vids": [],
+  "reply_chars": 262
+ },
+ {
+  "t_from_send": 22.2,
+  "url": "https://www.meta.ai/prompt/55165934-9729-4a72-9083-64f3e7a6fc5e",
+  "stop": [],
+  "stream": "DONE/true",
+  "tiles": [],
+  "vids": [],
+  "reply_chars": 407
+ },
+ {
+  "t_from_send": 25.3,
+  "url": "https://www.meta.ai/prompt/55165934-9729-4a72-9083-64f3e7a6fc5e",
+  "stop": [],
+  "stream": "DONE/true",
+  "tiles": [],
+  "vids": [],
+  "reply_chars": 407
+ },
+ {
+  "t_from_send": 29.3,
+  "url": "https://www.meta.ai/prompt/55165934-9729-4a72-9083-64f3e7a6fc5e",
+  "stop": [],
+  "stream": "DONE/true",
+  "tiles": [],
+  "vids": [],
+  "reply_chars": 407
+ }
+]

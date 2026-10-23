@@ -1,0 +1,318 @@
+{
+ "note": "times are seconds from Enter (or from launch when nothing was sent)",
+ "sent_prompt": "Edit this image: make it a night scene under a full moon, keep everything else the same",
+ "http": [
+  {
+   "t": -19.14,
+   "method": "GET",
+   "url": "https://www.meta.ai/",
+   "status": 200,
+   "mime": "text/html",
+   "failed": null,
+   "body_omitted": "text/html, 454237 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -16.35,
+   "method": "GET",
+   "url": "https://scontent-arn2-1.xx.fbcdn.net/v/t39.30808-6/<tok48>.jpg?_nc_cat=109&ccb=xxx&_nc_sid=x&_nc_ohc=x&_nc_oc=x&_nc_zt=x&_nc_ht=scontent-arn2-1.xx&_nc_gid=x&_nc_ss=x&oh=x&oe=x",
+   "status": 200,
+   "mime": "image/jpeg",
+   "failed": null
+  },
+  {
+   "t": -13.83,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "2b7fcdc841885a7263eccebaab5cfa3e",
+   "variables": {
+    "input": {
+     "logInvitationImpression": false,
+     "conversationId": null,
+     "conversationDepth": 0,
+     "agentType": "think_fast"
+    }
+   },
+   "op": [
+    "checkSbsSurveyEligibility"
+   ],
+   "body": "{\"data\": {\"checkSbsSurveyEligibility\": {\"sbsConfig\": null, \"isEligible\": false}}}"
+  },
+  {
+   "t": -13.82,
+   "method": "GET",
+   "url": "https://www.meta.ai/vibes/?rsid=x&_rsc=x",
+   "status": 200,
+   "mime": "text/x-component",
+   "failed": null,
+   "body_omitted": "text/x-component, 1795 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -10.28,
+   "method": "GET",
+   "url": "blob:https://www.meta.ai/ef7a9d40-9b45-4fc0-b1b4-fefb09b5d828",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": -10.25,
+   "method": "GET",
+   "url": "https://rupload.meta.ai/gen_ai_document_gen_ai_tenant/f0a99ed9-d193-4279-a084-b4ac342a3666",
+   "status": null,
+   "mime": null,
+   "failed": "net::ERR_FAILED"
+  },
+  {
+   "t": -10.25,
+   "method": "OPTIONS",
+   "url": "https://rupload.meta.ai/gen_ai_document_gen_ai_tenant/f0a99ed9-d193-4279-a084-b4ac342a3666",
+   "status": 200,
+   "mime": "",
+   "failed": null
+  },
+  {
+   "t": -10.24,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "e7f802582dbfed8e181b012e010993eb",
+   "variables": {
+    "conversationId": "55165934-9729-4a72-9083-64f3e7a6fc5e"
+   },
+   "op": [
+    "warmupConversation"
+   ],
+   "body": "{\"data\": {\"warmupConversation\": true}}"
+  },
+  {
+   "t": -10.19,
+   "method": "GET",
+   "url": "blob:https://www.meta.ai/fe3fe6c6-e01f-4f02-ab26-07f9fc661998",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": -6.66,
+   "method": "POST",
+   "url": "https://rupload.meta.ai/gen_ai_document_gen_ai_tenant/f0a99ed9-d193-4279-a084-b4ac342a3666",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "body": "{\"media_id\": \"N03aa95ccbad\"}"
+  },
+  {
+   "t": -5.67,
+   "method": "GET",
+   "url": "https://www.meta.ai/vibes/?rsid=x&_rsc=x",
+   "status": 200,
+   "mime": "text/x-component",
+   "failed": null,
+   "body_omitted": "text/x-component, 1795 chars (page/RSC payload, not kept)"
+  },
+  {
+   "t": -3.4,
+   "method": "GET",
+   "url": "https://www.meta.ai/vibes/?rsid=x&_rsc=x",
+   "status": 200,
+   "mime": "text/x-component",
+   "failed": "net::ERR_ABORTED"
+  },
+  {
+   "t": -2.03,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/metaconfig/exposure",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "body": "{\"success\": true, \"logged\": 1}"
+  },
+  {
+   "t": 0.11,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "c32bbe999c48e64e855dc63177d5153f",
+   "variables": {
+    "input": {
+     "conversationId": "55165934-9729-4a72-9083-64f3e7a6fc5e",
+     "mode": "think_fast"
+    }
+   },
+   "op": [
+    "updateConversationMode"
+   ],
+   "body": "{\"data\": {\"updateConversationMode\": {\"__typename\": \"ConversationModeUpdated\", \"conversationModePreference\": {\"lastSelectedMode\": \"think_fast\", \"id\": \"mode_pref:55165934-9729-4a72-9083-64f3e7a6fc5e\", \"conversationId\": \"55165934-9729-4a72-9083-64f3e7a6fc5e\"}}}}"
+  },
+  {
+   "t": 0.12,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "954e9b193487fa4af750af87906e4313",
+   "variables": {},
+   "op": [
+    "triggerHeisenbergCheck"
+   ],
+   "body": "{\"data\": {\"triggerHeisenbergCheck\": {\"triggered\": true, \"isCheckpointed\": false}}}"
+  },
+  {
+   "t": 0.18,
+   "method": "GET",
+   "url": "blob:https://www.meta.ai/ef7a9d40-9b45-4fc0-b1b4-fefb09b5d828",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": 1.16,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "56cdeb43ef88400cd3e19fe43fb7c5d0",
+   "variables": {},
+   "op": [
+    "conversations"
+   ],
+   "body": "{\"data\": {\"conversations\": {\"edges\": [{\"node\": {\"lastSendMessageTimestampMs\": 1792721859448, \"conversationId\": \"55165934-9729-4a72-9083-64f3e7a6fc5e\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"55165934-9729-4a72-9083-64f3e7a6fc5e\", \"updatedAt\": \"2026-10-23T02:17:39.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": true, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1792721802783, \"conversationId\": \"62cdffcc-068c-4097-97d0-f795bf7eeafa\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"62cdffcc-068c-4097-97d0-f795bf7eeafa\", \"updatedAt\": \"2026-10-23T02:16:42.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1792721235125, \"conversationId\": \"7d84339c-6ad8-4e70-9a0d-d53beba3b2c1\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"7d84339c-6ad8-4e70-9a0d-d53beba3b2c1\", \"updatedAt\": \"2026-10-23T02:07:15.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1792721164469, \"conversationId\": \"7292f52f-c9e7-4a4e-a476-56a5092d0f00\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"7292f52f-c9e7-4a4e-a476-56a5092d0f00\", \"updatedAt\": \"2026-10-23T02:06:04.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1792690250474, \"conversationId\": \"84ac1175-7ba5-4a81-8d10-1d97ec7d47a4\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"84ac1175-7ba5-4a81-8d10-1d97ec7d47a4\", \"updatedAt\": \"2026-10-22T17:30:50.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1792690164982, \"conversationId\": \"90308813-ac0b-4fe6-9315-d603c8ddc37b\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"90308813-ac0b-4fe6-9315-d603c8ddc37b\", \"updatedAt\": \"2026-10-22T17:29:24.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1782977990632, \"conversationId\": \"ce609eee-2ffe-4eee-a4a2-7e9f6c0dab8c\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"ce609eee-2ffe-4eee-a4a2-7e9f6c0dab8c\", \"updatedAt\": \"2026-07-02T07:39:50.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1782977970751, \"conversationId\": \"ce6bae63-2daf-47fc-bc42-2b7a8d8a1ca1\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"ce6bae63-2daf-47fc-bc42-2b7a8d8a1ca1\", \"updatedAt\": \"2026-07-02T07:39:30.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1782977759375, \"conversationId\": \"2d9745aa-e3d2-48ec-8462-5c974e1289be\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"2d9745aa-e3d2-48ec-8462-5c974e1289be\", \"updatedAt\": \"2026-07-02T07:35:59.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1782977671050, \"conversationId\": \"0914b0ca-3ac9-458a-a2fc-05a3201869b4\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"0914b0ca-3ac9-458a-a2fc-05a3201869b4\", \"updatedAt\": \"2026-07-02T07:34:31.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}, {\"node\": {\"lastSendMessageTimestampMs\": 1782977417119, \"conversationId\": \"1bdefc1e-d6b1-4a73-b76d-156fd046ff4b\", \"title\": \"<title>\", \"displayTitle\": \"<title>\", \"wearableSurface\": null, \"matchingSnippet\": null, \"matchingSnippets\": null, \"id\": \"1bdefc1e-d6b1-4a73-b76d-156fd046ff4b\", \"updatedAt\": \"2026-07-02T07:30:17.000Z\", \"isPersisted\": true, \"pinned\": false, \"isUnread\": false, \"type\": \"CHAT\"}}]}}}"
+  },
+  {
+   "t": 2.97,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "526f609db8dcba75dabaaeb170268907",
+   "variables": {
+    "id": "55165934-9729-4a72-9083-64f3e7a6fc5e"
+   },
+   "op": [
+    "conversation"
+   ],
+   "body": "{\"data\": {\"conversation\": {\"id\": \"55165934-9729-4a72-9083-64f3e7a6fc5e\", \"viewerActions\": [\"CAN_PIN\", \"DELETE\", \"CREATE_SNAPSHOT_LINK\", \"DELETE_SNAPSHOT_LINK\"], \"snapshotId\": null, \"viewerActionsLive\": [\"CAN_PIN\", \"CREATE_SNAPSHOT_LINK\", \"DELETE\"]}}}"
+  },
+  {
+   "t": 14.83,
+   "method": "GET",
+   "url": "https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": 16.75,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "ecc43cc5adc3443611ed22bd8608a371",
+   "variables": {
+    "mediaId": "N9bc92ade85c"
+   },
+   "op": [
+    "mediaShareMenu"
+   ],
+   "body": "{\"data\": {\"mediaShareMenu\": {\"viewerActions\": [\"IMAGINE_USER_ACTION_ANIMATE\", \"SHARE\"]}}}"
+  },
+  {
+   "t": 16.75,
+   "method": "GET",
+   "url": "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": 16.75,
+   "method": "GET",
+   "url": "blob:https://www.meta.ai/ef7a9d40-9b45-4fc0-b1b4-fefb09b5d828",
+   "status": 200,
+   "mime": "image/webp",
+   "failed": null
+  },
+  {
+   "t": 21.57,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "26999e5d1366c257595b7fafa7822c31",
+   "variables": {
+    "input": {
+     "messageId": "c444dfce-522a-41e5-b9ca-9a25dffab08b",
+     "conversationId": "55165934-9729-4a72-9083-64f3e7a6fc5e",
+     "uniqueMessageId": "N30de7ddad8a",
+     "requestId": "c444dfce-522a-41e5-b9ca-9a25dffab08b",
+     "latencySubmitTime": 1792721858563,
+     "latencySubscriptionStart": 1792721858980,
+     "latencyFirstData": 1792721863213,
+     "latencyFirstContent": 1792721874479,
+     "latencyStreamComplete": 1792721880013,
+     "latencyRenderComplete": 1792721880120
+    }
+   },
+   "op": [
+    "saveMessageLatency"
+   ],
+   "body": "{\"data\": {\"saveMessageLatency\": {\"__typename\": \"MessageLatencySaved\", \"success\": true}}}"
+  },
+  {
+   "t": 22.01,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "6de944233eb92048ebfefd3e67002e61",
+   "variables": {
+    "conversationId": "55165934-9729-4a72-9083-64f3e7a6fc5e",
+    "count": 20
+   },
+   "op": [
+    "conversation"
+   ],
+   "body": "{\"data\": {\"conversation\": {\"latestBranchPath\": \"2\", \"id\": \"55165934-9729-4a72-9083-64f3e7a6fc5e\", \"messages\": {\"edges\": [{\"node\": {\"__typename\": \"UserMessage\", \"turnId\": \"fb568db8-50e2-452b-af3a-66409d532a0d\", \"promptType\": \"initial_prompt\", \"__isMessage\": \"UserMessage\", \"reaction\": null, \"repliedSelectedText\": null, \"repliedMessageId\": null, \"originalUserPrompt\": null, \"mentions\": null, \"promptChips\": null, \"canCopy\": true, \"canEditPrompt\": false, \"canSharePrompt\": true, \"branchPath\": \"1\", \"parentRequestId\": null, \"afterCommentaryIndex\": null, \"sender\": null, \"id\": \"<tok61>\", \"content\": \"Edit this image: make it a night scene under a full moon, keep everything else the same<|attachment:0|>\", \"createdAt\": \"2026-10-23T02:17:40.354Z\", \"conversationId\": \"55165934-9729-4a72-9083-64f3e7a6fc5e\", \"userContent\": \"Edit this image: make it a night scene under a full moon, keep everything else the same<|attachment:0|>\", \"userCreatedAt\": \"2026-10-23T02:17:40.354Z\", \"currentViewer\": {\"id\": \"<id>\"}, \"attachments\": [{\"type\": \"image/jpeg\", \"fileName\": \"image_0.webp\", \"aspectRatio\": null, \"id\": \"N03aa95ccbad\", \"uri\": \"https://scontent-arn2-1.xx.fbcdn.net/m1/v/t0.71334-6/<tok124>?_nc_gid=x&_nc_oc=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\"}]}}, {\"node\": {\"__typename\": \"AssistantMessage\", \"turnId\": \"fb568db8-50e2-452b-af3a-66409d532a0d\", \"streamingState\": \"DONE\", \"lastSeenMessageId\": \"N30de7ddad8a\", \"threadMessageId\": \"e.00qS7eXof2aZ4fngOq63MkYjT\", \"__isMessage\": \"AssistantMessage\", \"uniqueMessageId\": \"N30de7ddad8a\", \"requestId\": \"c444dfce-522a-41e5-b9ca-9a25dffab08b\", \"botFeedbackKind\": null, \"isUserPreferred\": null, \"hasPrivateSocialContent\": false, \"hasSocialTool\": false, \"debugPariscopeUrl\": null, \"debugFbTraceId\": null, \"error\": null, \"branchPath\": \"2\", \"externalMessageId\": \"fb568db8-50e2-452b-af3a-66409d532a0d\", \"id\": \"<tok66>\", \"conversationId\": \"55165934-9729-4a72-9083-64f3e7a6fc5e\", \"content\": \"Here's your night version — same fox, same snowy watercolor forest, now under a full moon:\\n\\n![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)\\n\\nKept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on the snow. Want it darker/more stars or a softer glow?\", \"canShareResponse\": true, \"shareResponseRequiresFriction\": false, \"images\": [], \"videos\": [], \"createdAt\": \"2026-10-23T02:17:59.104Z\", \"assistantCreatedAt\": \"2026-10-23T02:17:59.104Z\", \"comparisonContext\": null, \"canShare\": true, \"canPost\": true, \"contentRenderer\": {\"__typename\": \"UnifiedResponseContentRenderer\", \"hasReceivedUnifiedResponse\": false, \"message\": {\"streamingState\": \"DONE\", \"uniqueMessageId\": \"N30de7ddad8a\", \"id\": \"<tok66>\", \"conversationId\": \"55165934-9729-4a72-9083-64f3e7a6fc5e\", \"sources\": [], \"comparisonContext\": null}, \"unified_response\": {\"__typename\": \"XMSGGenAIUnifiedResponse\", \"nested_responses\": null, \"footer_sections\": null, \"response_id\": \"c444dfce-522a-41e5-b9ca-9a25dffab08b\", \"embedded_screens\": [{\"__typename\": \"FOAUnifiedResponseEmbeddedScreen\", \"title\": null, \"content\": [{\"__typename\": \"FOAEmbeddedScreenContentTabbed\", \"tabs\": [{\"tab_id\": \"steps\", \"tab_header\": \"Steps\", \"sections\": [], \"step_entries\": [{\"__typename\": \"GenAIStepThoughtEntry\", \"body\": \"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\", \"sources\": null, \"artifacts\": null, \"id\": \"genai:step:c444dfce-522a-41e5-b9ca-9a25dffab08b:0:0:0:0\", \"header\": \"Transforming to night scene\"}, {\"__typename\": \"GenAIStepThoughtEntry\", \"body\": \"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\", \"sources\": null, \"id\": \"genai:step:c444dfce-522a-41e5-b9ca-9a25dffab08b:0:0:0:1\", \"header\": \"Rendering moonlit night scene\", \"artifacts\": [{\"__typename\": \"GenAIImagePrimitive\", \"content_hash\": null, \"follow_up_pills\": null, \"source\": {\"source_display_name\": \"gallery/image_20261023_091753.webp\", \"source_url\": null, \"source_subtitle\": null, \"source_timestamp_ms\": null, \"favicon\": null, \"source_author_media\": null, \"id\": \"genai:source:eb2u9ZayCzxN_YoIedvORF-M\"}, \"preview_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 1280, \"height\": 1920, \"media_id\": \"preview:N9bc92ade85c\", \"id\": \"genai:media:preview:N9bc92ade85c\"}, \"full_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 1280, \"height\": 1920, \"media_id\": \"N9bc92ade85c\", \"id\": \"genai:media:N9bc92ade85c\"}}]}]}]}]}], \"sections\": [{\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIBotThinkingStatusPrimitive\", \"auto_close_secondary_screen\": null, \"__isGenAIUXPrimitive\": \"GenAIBotThinkingStatusPrimitive\", \"is_in_progress\": false, \"icon\": \"THINKING\", \"meta_search_apps\": null, \"target_secondary_screen_id\": \"DETAILS\", \"target_secondary_screen_tab_id\": \"STEPS\", \"thought_duration_sec\": null, \"thought_text\": null, \"subagents_cot\": null, \"show_answer_now\": false, \"subtitle_detail\": null, \"subtitle_artifacts\": null, \"sources\": null, \"title\": \"<title>\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIMarkdownTextUXPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIMarkdownTextUXPrimitive\", \"inline_entities\": null, \"html_artifact_sandbox\": null, \"text\": \"Here's your night version — same fox, same snowy watercolor forest, now under a full moon:\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIImagePrimitive\", \"__isGenAIUXPrimitive\": \"GenAIImagePrimitive\", \"content_hash\": \"compare:image_0.webp\", \"source\": {\"source_display_name\": \"gallery/image_20261023_091753.webp\", \"source_url\": null, \"source_subtitle\": null, \"source_timestamp_ms\": null, \"favicon\": null, \"source_author_media\": null, \"id\": \"genai:source:eb2u9ZayCzxN_YoIedvORF-M\"}, \"follow_up_pills\": [{\"destination\": null, \"category\": \"SCENE\", \"prompt_text\": \"Add soft falling snow\"}, {\"destination\": null, \"category\": \"LIGHT\", \"prompt_text\": \"Add subtle aurora glow\"}, {\"destination\": null, \"category\": \"ADD\", \"prompt_text\": \"Give the fox a scarf\"}, {\"destination\": null, \"category\": \"ADD\", \"prompt_text\": \"Add a second fox nearby\"}, {\"destination\": null, \"category\": \"SCENE\", \"prompt_text\": \"Make the sky stormy\"}, {\"destination\": null, \"category\": \"LIGHT\", \"prompt_text\": \"Add a campfire glow\"}], \"preview_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 1280, \"height\": 1920, \"media_id\": \"preview:N9bc92ade85c\", \"id\": \"genai:media:preview:N9bc92ade85c\"}, \"full_image\": {\"url\": \"https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\", \"url_fallback\": null, \"width\": 1280, \"height\": 1920, \"media_id\": \"N9bc92ade85c\", \"id\": \"genai:media:N9bc92ade85c\"}, \"viewerActions\": [\"IMAGINE_USER_ACTION_ANIMATE\", \"SHARE\"]}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIMarkdownTextUXPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIMarkdownTextUXPrimitive\", \"inline_entities\": null, \"html_artifact_sandbox\": null, \"text\": \"Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on the snow. Want it darker/more stars or a softer glow?\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIClippyFollowUpPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIClippyFollowUpPrimitive\", \"display_text\": null, \"destination\": null, \"prompt_type\": null, \"prompt_text\": \"Make the moonlight brighter on the snow\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIClippyFollowUpPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIClippyFollowUpPrimitive\", \"display_text\": null, \"destination\": null, \"prompt_type\": null, \"prompt_text\": \"Add soft falling snowflakes\"}}}, {\"__typename\": \"GenAIUnifiedResponseSection\", \"message_group\": null, \"header\": null, \"view_model\": {\"__typename\": \"GenAISingleLayoutViewModel\", \"__isGenAIUnifiedResponseSectionViewModel\": \"GenAISingleLayoutViewModel\", \"primitive\": {\"__typename\": \"GenAIClippyFollowUpPrimitive\", \"__isGenAIUXPrimitive\": \"GenAIClippyFollowUpPrimitive\", \"display_text\": null, \"destination\": null, \"prompt_type\": null, \"prompt_text\": \"Add northern lights behind the trees\"}}}]}}}}]}}}}"
+  },
+  {
+   "t": 25.27,
+   "method": "GET",
+   "url": "https://scontent-arn2-1.xx.fbcdn.net/m1/v/t0.71334-6/<tok124>?_nc_gid=x&_nc_oc=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+   "status": 200,
+   "mime": "image/jpeg",
+   "failed": null
+  },
+  {
+   "t": 25.27,
+   "method": "POST",
+   "url": "https://www.meta.ai/api/graphql",
+   "status": 200,
+   "mime": "application/json",
+   "failed": null,
+   "doc_id": "0b2cb3a499606dfe326807a2b8b7ee20",
+   "variables": {
+    "input": {
+     "conversationId": "55165934-9729-4a72-9083-64f3e7a6fc5e",
+     "lastSeenMessageId": "N30de7ddad8a"
+    }
+   },
+   "op": [
+    "markConversationLastSeenMessage"
+   ],
+   "body": "{\"data\": {\"markConversationLastSeenMessage\": {\"__typename\": \"ConversationLastSeenMessageMarked\", \"success\": true, \"conversationId\": \"55165934-9729-4a72-9083-64f3e7a6fc5e\", \"lastSeenMessageId\": \"N30de7ddad8a\"}}}"
+  }
+ ]
+}

@@ -1,13 +1,15 @@
-"""Submit for `meta-image` (text to image) and `meta-video` (one image to video), held in the session until meta's
-answer is done.
+"""Submit for `meta-image` (text to image, or one image edited) and `meta-video` (text to video, or one image
+animated), held in the session until meta's answer is done.
 
 One chat per job: load meta.ai (a new chat), read the sign-in state, wait for the composer to hydrate, type the core's
-`sent_text`, for a video attach the one input image and wait for meta's upload answer, take the conversation id meta
-names before Enter, then `mark_sent`, ONE Enter, and wait in the session for the answer to finish
-(`data-streaming-state="DONE"` with `data-streaming-complete="true"`; `thinking-status` stays "in-progress" after done
-and says nothing). The results are the final fbcdn links of the answer: the image tiles, or the `<video>` (a direct
-https `.mp4`, never `blob:`); the fetcher downloads them (fetch.py). The prompt asks for the count and the ratio; the
-plan takes neither.
+`sent_text` (a video from text alone after `VIDEO_FROM_TEXT`: meta has no video mode, its mode menu holds only
+Instant and Thinking, and a plain description draws an image), for a job from an image attach the one input image and
+wait for meta's upload answer, take the conversation id meta names before Enter, then `mark_sent`, ONE Enter, and wait
+in the session for the answer to finish (`data-streaming-state="DONE"` with `data-streaming-complete="true"`;
+`thinking-status` stays "in-progress" after done and says nothing). The results are the final fbcdn links of the
+answer: the image tiles, the edited image of the before/after slider (its input image is never one), or the `<video>`
+(a direct https `.mp4`, never `blob:`); the fetcher downloads them (fetch.py). The prompt asks for the count and the
+ratio; the plan takes neither.
 
 The input image goes through the composer's single file input. meta ignores Enter while the upload is pending, and a
 5 MB PNG never got an answer (FINDINGS.md), so an image over `UPLOAD_MAX_BYTES` (or not a JPEG, PNG or WebP) is first
@@ -16,8 +18,8 @@ re-encoded to a JPEG of at most `UPLOAD_MAX_SIDE` px a side by the browser itsel
 Money rules (each has a test and a mutation):
 - the conversation id (`warmupConversation`, the uuid of `/prompt/<uuid>`) is persisted with `report_ref` BEFORE
   `mark_sent`, so an answer lost after the send can be found again without sending anything;
-- a video is sent only once meta answered the upload (`{media_id}`) and the composer shows exactly one attached image:
-  never the motion text without its image;
+- a job from an image is sent only once meta answered the upload (`{media_id}`) and the composer shows exactly one
+  attached image, read again right before `mark_sent`: never the text without its image;
 - `mark_sent` runs immediately before the single Enter, and nothing presses Enter again: after `mark_sent` the engine
   never returns `Retry`, whatever is unclear is `Ambiguous` (unknown), never a re-send;
 - only the hydrated composer (the Lexical contenteditable) is typed into, never the placeholder textarea rendered
@@ -49,10 +51,12 @@ from relay_meta import errors
 from relay_meta.constants import (
     CHAT_PATH,
     CHECK_SIGNAL_TIMEOUT_S,
+    COMPARE_LABEL,
     GRAPHQL_PATH,
     MEDIA_HOSTS,
     PAGE_LOAD_TIMEOUT_S,
     PREVIEW_MARK,
+    RESULT_ALT,
     SEL_ASSISTANT,
     SEL_ATTACHED,
     SEL_COMPOSER,
@@ -91,6 +95,11 @@ _CHAT_ID = re.compile(r"^%s(%s)/?$" % (re.escape(CHAT_PATH), _UUID))
 _MIMES = {".webp": "image/webp", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 _EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 KINDS = ("image", "video")
+# the job's operation (the plan's) -> its kind; the two from an image upload one input image
+OPERATIONS = {"text_to_image": "image", "image_to_image": "image", "text_to_video": "video", "image_to_video": "video"}
+FROM_IMAGE = ("image_to_image", "image_to_video")
+# typed before the core's text of a video from text alone: without it meta draws an image (FINDINGS.md)
+VIDEO_FROM_TEXT = "Create a short video: "
 
 # The newest assistant message, whole (its attributes, its image tiles, its video); "" when there is none yet.
 ANSWER_JS = """(sel) => {
@@ -150,24 +159,59 @@ def upload_done(ev) -> bool:
 class Answer(NamedTuple):
     done: bool                 # DONE and complete
     media: tuple[str, ...]     # the final links of the job's kind, in page order
-    previews: int              # tiles or videos of that kind that do not show a final link (yet)
+    previews: int              # results of that kind that show no final link (yet), or that cannot be told to be one
+    other: int = 0             # results of the other kind (an image in a video job's answer, a video in an image's)
+
+
+_VOID = frozenset(("area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track",
+                   "wbr"))
 
 
 class _AnswerParser(HTMLParser):
+    """The images of an answer: the tiles of a drawing, the edited image of an edit's before/after slider and any
+    low-res preview shown elsewhere (counted, never delivered). In the slider an image hidden from view (`aria-hidden`
+    on it or on a parent: the input image) is never a result, and a shown one is the result only when it carries a
+    generated image's alt (`RESULT_ALT`); any other shown image there is `unclear`, which keeps the answer unknown:
+    the input image is never delivered beside the edit."""
+
     def __init__(self) -> None:
         super().__init__()
         self.state: tuple[str, str] | None = None
         self.tiles: list[str] = []
         self.videos: list[str] = []
+        self.unclear = 0
+        self.open: list[tuple[str, bool, bool]] = []     # the open elements: (tag, inside aria-hidden, inside slider)
 
     def handle_starttag(self, tag, attrs) -> None:
         a = dict(attrs)
+        hidden, slider = self.open[-1][1:] if self.open else (False, False)
+        if tag not in _VOID:
+            self.open.append((tag, hidden or a.get("aria-hidden") == "true",
+                              slider or (a.get("role") == "slider" and a.get("aria-label") == COMPARE_LABEL)))
+        src = a.get("src") or ""
         if self.state is None and a.get("data-testid") == "assistant-message":
             self.state = (a.get("data-streaming-state") or "", a.get("data-streaming-complete") or "")
-        elif tag == "img" and a.get("data-testid") == SEL_IMAGE_TILE:
-            self.tiles.append(a.get("src") or "")
+        elif tag == "img":
+            hidden = hidden or a.get("aria-hidden") == "true"
+            if a.get("data-testid") == SEL_IMAGE_TILE:
+                self.tiles.append(src)
+            elif hidden:
+                pass
+            elif slider:
+                if (a.get("alt") or "").startswith(RESULT_ALT):
+                    self.tiles.append(src)
+                else:
+                    self.unclear += 1
+            elif PREVIEW_MARK in urlsplit(src).path:
+                self.tiles.append(src)
         elif tag == "video":
-            self.videos.append(a.get("src") or "")
+            self.videos.append(src)
+
+    def handle_endtag(self, tag) -> None:
+        for i in range(len(self.open) - 1, -1, -1):
+            if self.open[i][0] == tag:
+                del self.open[i:]
+                return
 
 
 def is_final_image(url: str) -> bool:
@@ -184,9 +228,12 @@ def read_answer(html: str, kind: str = "image") -> Answer:
     """What the newest assistant message (its outerHTML) says about the media of `kind`."""
     parser = _AnswerParser()
     parser.feed(html or "")
-    found, final = (parser.tiles, is_final_image) if kind == "image" else (parser.videos, is_final_video)
+    if kind == "image":
+        found, final, unclear, other = parser.tiles, is_final_image, parser.unclear, len(parser.videos)
+    else:
+        found, final, unclear, other = parser.videos, is_final_video, 0, len(parser.tiles) + parser.unclear
     finals = [u for u in found if final(u)]
-    return Answer(parser.state == ("DONE", "true"), tuple(finals), len(found) - len(finals))
+    return Answer(parser.state == ("DONE", "true"), tuple(finals), len(found) - len(finals) + unclear, other)
 
 
 def media_outputs(urls, conversation: str, kind: str = "image") -> tuple[Output, ...]:
@@ -246,11 +293,14 @@ class _Run:
         self.kind = job.params.get("kind")
         if self.kind not in KINDS:
             raise ValueError("a meta job is an image or a video job, not %r" % (self.kind,))
+        self.operation = job.operation
+        if OPERATIONS.get(self.operation) != self.kind:
+            raise ValueError("a meta %s job cannot be %r" % (self.kind, self.operation))
         if not job.sent_text:
             raise ValueError("the job has no sent_text: the core composes it")
         self.ctx, self.job, self.settings, self.deps = ctx, job, settings, deps
         # One line: the composer sends on Enter, so a newline would send part of the prompt.
-        self.text = " ".join(job.sent_text.split())
+        self.text = " ".join(((VIDEO_FROM_TEXT if self.operation == "text_to_video" else "") + job.sent_text).split())
         self.started = deps.clock()
         self.signed_in = False      # the sign-in read said signed in: the strike count is cleared
         self.sent = False           # True from the moment `mark_sent` returned: meta may have the order
@@ -271,7 +321,7 @@ class _Run:
             raise _CoreVerdict(exc) from exc
 
     async def run(self) -> SubmitResult:
-        image = await self._input_image() if self.kind == "video" else None     # read before the browser opens
+        image = await self._input_image() if self.operation in FROM_IMAGE else None   # read before the browser opens
         async with self.deps.open_session(META_SITE, self.ctx.account, purpose="submit", token=self.ctx.browser_token,
                                           images=True, redact=redact_text) as session:
             self.session, self.page = session, session.page
@@ -285,7 +335,7 @@ class _Run:
     async def _input_image(self) -> tuple[bytes, str]:
         refs = await self.job.inputs()
         if len(refs) != 1:
-            raise ValueError("a meta video animates exactly one image, the job holds %d" % len(refs))
+            raise ValueError("a meta %s takes exactly one input image, the job holds %d" % (self.operation, len(refs)))
         return await self.deps.read_media(refs[0]), refs[0].mime
 
     async def _shrink(self, data: bytes, mime: str) -> tuple[bytes, str] | None:
@@ -406,6 +456,10 @@ class _Run:
                                        % (answer.previews, self.kind))
         if answer.media:
             return _result(Completed(media_outputs(answer.media, self.conversation, self.kind)), Success())
+        if answer.other:
+            # meta took the order and answered with the other kind: not a refund at once, the deadline decides
+            return await self._unknown("meta's answer is done with no %s but %d result(s) of the other kind"
+                                       % (self.kind, answer.other))
         why = "meta finished its answer with no %s" % self.kind
         await self._say(why, "submit")
         return _result(Fail(errors.NO_IMAGE if self.kind == "image" else errors.NO_VIDEO, why))

@@ -1,0 +1,1618 @@
+[
+ {
+  "t": -13.93,
+  "kind": "open",
+  "url": "wss://gateway.meta.ai/ws/clippy?x-dgw-appid=x&x-dgw-appversion=x&x-dgw-authtype=x&x-dgw-version=x&x-dgw-uuid=x&x-dgw-tier=x&Authorization=x&x-dgw-app-origin=x&x-dgw-app-clippy-request-id=x"
+ },
+ {
+  "t": -12.27,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1,
+   "strings": []
+  }
+ },
+ {
+  "t": 0.12,
+  "kind": "out",
+  "op": 2,
+  "data": {
+   "binary_len": 133,
+   "strings": [
+    "{\"x-dgw-app-x-ecto-conversation-id\": \"55165934-9729-4a72-9083-64f3e7a6fc5e\", \"x-dgw-app-client-payload-type\": \"PROTO_INSIDE_JSON\"}"
+   ]
+  }
+ },
+ {
+  "t": 0.43,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 18,
+   "strings": [
+    "{\"code\": 200}"
+   ]
+  }
+ },
+ {
+  "t": 0.43,
+  "kind": "out",
+  "op": 2,
+  "data": {
+   "binary_len": 1538,
+   "strings": [
+    "{\"req-id\": \"c444dfce-522a-41e5-b9ca-9a25dffab08b\", \"payload\": \"<tok599>/<tok527>+<tok281>+<tok58>\"}"
+   ]
+  }
+ },
+ {
+  "t": 0.74,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 8,
+   "strings": []
+  }
+ },
+ {
+  "t": 0.83,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 129,
+   "strings": [
+    "$c444dfce-522a-41e5-b9ca-9a25dffab08b\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$c444dfce-522a-41e5-b9ca-9a25dffab08b"
+   ]
+  }
+ },
+ {
+  "t": 4.66,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 126,
+   "strings": [
+    "media_subagent",
+    "\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 5.82,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 658,
+   "strings": [
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 6.89,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 781,
+   "strings": [
+    "{\"seq\":0,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 6.91,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 818,
+   "strings": [
+    "{\"seq\":1,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.19,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 840,
+   "strings": [
+    "{\"seq\":2,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.19,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 848,
+   "strings": [
+    "{\"seq\":3,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.19,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 860,
+   "strings": [
+    "{\"seq\":4,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.2,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 866,
+   "strings": [
+    "{\"seq\":5,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.2,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 870,
+   "strings": [
+    "{\"seq\":6,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.2,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 880,
+   "strings": [
+    "{\"seq\":7,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a noct\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a noct\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.2,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 890,
+   "strings": [
+    "{\"seq\":8,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.2,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 906,
+   "strings": [
+    "{\"seq\":9,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.2,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 917,
+   "strings": [
+    "{\"seq\":10,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.2,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 921,
+   "strings": [
+    "{\"seq\":11,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.2,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 931,
+   "strings": [
+    "{\"seq\":12,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.21,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 941,
+   "strings": [
+    "{\"seq\":13,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.38,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 949,
+   "strings": [
+    "{\"seq\":14,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 951,
+   "strings": [
+    "{\"seq\":15,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky,\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 961,
+   "strings": [
+    "{\"seq\":16,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 971,
+   "strings": [
+    "{\"seq\":17,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 987,
+   "strings": [
+    "{\"seq\":18,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1003,
+   "strings": [
+    "{\"seq\":19,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1011,
+   "strings": [
+    "{\"seq\":20,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.39,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1023,
+   "strings": [
+    "{\"seq\":21,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.4,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1025,
+   "strings": [
+    "{\"seq\":22,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees,\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.4,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1033,
+   "strings": [
+    "{\"seq\":23,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.4,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1043,
+   "strings": [
+    "{\"seq\":24,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.4,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1053,
+   "strings": [
+    "{\"seq\":25,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moon\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moon\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.88,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1063,
+   "strings": [
+    "{\"seq\":26,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.88,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1069,
+   "strings": [
+    "{\"seq\":27,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.88,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1077,
+   "strings": [
+    "{\"seq\":28,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.88,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1087,
+   "strings": [
+    "{\"seq\":29,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.88,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1099,
+   "strings": [
+    "{\"seq\":30,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.89,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1115,
+   "strings": [
+    "{\"seq\":31,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.89,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1123,
+   "strings": [
+    "{\"seq\":32,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.89,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1131,
+   "strings": [
+    "{\"seq\":33,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.89,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1133,
+   "strings": [
+    "{\"seq\":34,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox,\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.89,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1143,
+   "strings": [
+    "{\"seq\":35,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.9,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1145,
+   "strings": [
+    "{\"seq\":36,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose,\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.9,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1169,
+   "strings": [
+    "{\"seq\":37,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.9,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1171,
+   "strings": [
+    "{\"seq\":38,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition,\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.9,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1179,
+   "strings": [
+    "{\"seq\":39,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.9,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1191,
+   "strings": [
+    "{\"seq\":40,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and water\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and water\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.9,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1201,
+   "strings": [
+    "{\"seq\":41,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.9,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1213,
+   "strings": [
+    "{\"seq\":42,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.9,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1233,
+   "strings": [
+    "{\"seq\":43,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.91,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1235,
+   "strings": [
+    "{\"seq\":44,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 7.91,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1235,
+   "strings": [
+    "{\"seq\":45,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Transforming to night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Transforming to night scene\",\"subtitle_detail\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.05,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1087,
+   "strings": [
+    "{\"seq\":46,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.05,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1124,
+   "strings": [
+    "{\"seq\":47,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.05,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1146,
+   "strings": [
+    "{\"seq\":48,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.05,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1154,
+   "strings": [
+    "{\"seq\":49,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.06,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1166,
+   "strings": [
+    "{\"seq\":50,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.06,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1182,
+   "strings": [
+    "{\"seq\":51,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.06,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1192,
+   "strings": [
+    "{\"seq\":52,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.06,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1200,
+   "strings": [
+    "{\"seq\":53,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.06,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1210,
+   "strings": [
+    "{\"seq\":54,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.06,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1218,
+   "strings": [
+    "{\"seq\":55,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.06,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1220,
+   "strings": [
+    "{\"seq\":56,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox,\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.06,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1232,
+   "strings": [
+    "{\"seq\":57,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.06,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1234,
+   "strings": [
+    "{\"seq\":58,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees,\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.07,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1242,
+   "strings": [
+    "{\"seq\":59,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.07,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1250,
+   "strings": [
+    "{\"seq\":60,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.07,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1252,
+   "strings": [
+    "{\"seq\":61,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log,\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.07,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1260,
+   "strings": [
+    "{\"seq\":62,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.07,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1272,
+   "strings": [
+    "{\"seq\":63,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.07,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1276,
+   "strings": [
+    "{\"seq\":64,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.07,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1286,
+   "strings": [
+    "{\"seq\":65,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.07,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1296,
+   "strings": [
+    "{\"seq\":66,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.07,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1306,
+   "strings": [
+    "{\"seq\":67,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.07,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1316,
+   "strings": [
+    "{\"seq\":68,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.1,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1326,
+   "strings": [
+    "{\"seq\":69,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.1,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1336,
+   "strings": [
+    "{\"seq\":70,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.1,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1358,
+   "strings": [
+    "{\"seq\":71,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.1,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1360,
+   "strings": [
+    "{\"seq\":72,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights,\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.1,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1374,
+   "strings": [
+    "{\"seq\":73,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.19,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1386,
+   "strings": [
+    "{\"seq\":74,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.19,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1388,
+   "strings": [
+    "{\"seq\":75,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees,\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees,\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.2,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1396,
+   "strings": [
+    "{\"seq\":76,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.2,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1408,
+   "strings": [
+    "{\"seq\":77,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.2,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1420,
+   "strings": [
+    "{\"seq\":78,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.2,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1422,
+   "strings": [
+    "{\"seq\":79,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 12.22,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1422,
+   "strings": [
+    "{\"seq\":80,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\"}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 14.82,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2894,
+   "strings": [
+    "{\"seq\":81,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\",\"subtitle_artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"}}]}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"generated_image_b1212b33b7b06e56.webp\"}}]}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 14.95,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2894,
+   "strings": [
+    "{\"seq\":82,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\",\"subtitle_artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"}}]}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"generated_image_b1212b33b7b06e56.webp\"}}]}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 14.96,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 985,
+   "strings": [
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 15.92,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 389,
+   "strings": [
+    ".reasoning-c444dfce-522a-41e5-b9ca-9a25dffab08b",
+    "We need to output image.\"",
+    "{\"seq\":83,\"type\":\"patch\",\"operations\":[{\"op\":\"replace\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/artifacts/0/source/source_display_name\",\"value\":\"gallery/image_20261023_091753.webp\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 15.92,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 229,
+   "strings": [
+    "<tok49>",
+    "We need to output image.",
+    "\"){\"seq\":84,\"type\":\"patch\",\"operations\":[]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 15.92,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1832,
+   "strings": [
+    "Here's your night version",
+    "Here's your night version ",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":85,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/sections/1\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your night version\"}}}}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 15.97,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1741,
+   "strings": [
+    " same fox, same",
+    ",Here's your night version ",
+    " same fox, same2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":86,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\" ",
+    " same fox, same\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.02,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1738,
+   "strings": [
+    " snowy water",
+    "8Here's your night version ",
+    " same fox, same snowy water2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R}{\"seq\":87,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\" snowy water\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.07,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1790,
+   "strings": [
+    "color forest, now under a",
+    "QHere's your night version ",
+    " same fox, same snowy watercolor forest, now under a2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":88,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\"color forest, now under a\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.1,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1790,
+   "strings": [
+    " full moon:",
+    "![night",
+    "_Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":89,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/1/view_model/primitive/text\",\"value\":\" full moon:\\n\\n!\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.16,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 4670,
+   "strings": [
+    " fox",
+    "iHere's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":90,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Rendering moonlit night scene\",\"is_in_progress\":true,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"thought_text\":\"Rendering moonlit night scene\",\"subtitle_detail\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\",\"subtitle_artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"}}]}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_091753.webp\"}}]}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.71,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1721,
+   "strings": [
+    "](container:///",
+    "xHere's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R){\"seq\":91,\"type\":\"patch\",\"operations\":[]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.71,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1769,
+   "strings": [
+    "mnt/data/gallery/image_20261023",
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_N42ca89bb",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R){\"seq\":92,\"type\":\"patch\",\"operations\":[]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.71,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2953,
+   "strings": [
+    "_091753.webp)",
+    "Kept the",
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":93,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/sections/2\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"content_hash\":\"compare:image_0.webp\",\"full_image\":{\"height\":1920,\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"width\":1280},\"image_type\":\"DEFAULT\",\"preview_image\":{\"height\":1920,\"mime_type\":\"image/webp\",\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"width\":1280},\"source\":{\"source_display_name\":\"gallery/image_20261023_091753.webp\",\"source_type\":\"IMAGE_GEN\"}}}}},{\"op\":\"add\",\"path\":\"/sections/3\",\"value\":{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Kept the\"}}}}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.71,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 3296,
+   "strings": [
+    "{\"seq\":94,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"width\":1280,\"height\":1920},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"width\":1280,\"height\":1920},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_091753.webp\"},\"image_type\":\"DEFAULT\",\"content_hash\":\"compare:image_0.webp\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Kept the\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"generated_image_b1212b33b7b06e56.webp\"}}]}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dh"
+   ]
+  }
+ },
+ {
+  "t": 16.71,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2083,
+   "strings": [
+    " composition, pose, and water",
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and water2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":95,\"type\":\"patch\",\"operations\":[{\"op\":\"replace\",\"path\":\"/embedded_screens/0/content/0/tabs/0/step_entries/1/artifacts/0/source/source_display_name\",\"value\":\"gallery/image_20261023_091753.webp\"},{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" composition, pose, and water\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.71,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1929,
+   "strings": [
+    "color style intact and",
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and watercolor style intact and2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":96,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\"color style intact and\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.72,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1966,
+   "strings": [
+    " just switched the lighting",
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and watercolor style intact and just switched the lighting2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":97,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" just switched the lighting\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.72,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1999,
+   "strings": [
+    " to deep blue night with moon",
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moon2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":98,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" to deep blue night with moon\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.72,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1964,
+   "strings": [
+    "light on",
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}Ry{\"seq\":99,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\"light on\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.72,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 5324,
+   "strings": [
+    " the snow. Want it",
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on the snow. Want it2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":100,\"type\":\"full\",\"response\":{\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N9bc92ade85c\",\"width\":1280,\"height\":1920},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N9bc92ade85c\",\"width\":1280,\"height\":1920},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_091753.webp\"},\"image_type\":\"DEFAULT\",\"content_hash\":\"compare:image_0.webp\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on the snow. Want it\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N9bc92ade85c\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N9bc92ade85c\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_091753.webp\"}}]}]}]}]}]}}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.72,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1988,
+   "strings": [
+    " darker",
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on the snow. Want it darker2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}Ry{\"seq\":101,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" darker\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.73,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 1980,
+   "strings": [
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on the snow. Want it darker/m2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}Rt{\"seq\":102,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\"/m\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.73,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2003,
+   "strings": [
+    "ore stars",
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on the snow. Want it darker/more stars2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R{{\"seq\":103,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\"ore stars\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.76,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2021,
+   "strings": [
+    " or a softer",
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on the snow. Want it darker/more stars or a softer2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R~{\"seq\":104,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" or a softer\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.78,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2012,
+   "strings": [
+    " glow",
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on the snow. Want it darker/more stars or a softer glow2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}Rw{\"seq\":105,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\" glow\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 16.79,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2005,
+   "strings": [
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on the snow. Want it darker/more stars or a softer glow?2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}Rs{\"seq\":106,\"type\":\"patch\",\"operations\":[{\"op\":\"delta\",\"path\":\"/sections/3/view_model/primitive/text\",\"value\":\"?\"}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0dR"
+   ]
+  }
+ },
+ {
+  "t": 17.83,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 2360,
+   "strings": [
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on the snow. Want it darker/more stars or a softer glow?2",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "{\"seq\":107,\"type\":\"patch\",\"operations\":[{\"op\":\"add\",\"path\":\"/sections/2/view_model/primitive/follow_up_pills\",\"value\":[{\"category\":\"SCENE\",\"prompt_text\":\"Add soft falling snow\"},{\"category\":\"LIGHT\",\"prompt_text\":\"Add subtle aurora glow\"},{\"category\":\"ADD\",\"prompt_text\":\"Give the fox a scarf\"},{\"category\":\"ADD\",\"prompt_text\":\"Add a second fox nearby\"},{\"category\":\"SCENE\",\"prompt_text\":\"Make the sky stormy\"},{\"category\":\"LIGHT\",\"prompt_text\":\"Add a campfire glow\"}]}]}\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0d@"
+   ]
+  }
+ },
+ {
+  "t": 21.49,
+  "kind": "in",
+  "op": 2,
+  "data": {
+   "binary_len": 6611,
+   "strings": [
+    "Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:",
+    "![night fox](container:///mnt/data/gallery/image_20261023_091753.webp)",
+    "Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on the snow. Want it darker/more stars or a softer glow?(",
+    "media_subagent",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x",
+    "$GGJiNTNJQ09_df0JAABdkuymrVYHbhecAQBe2",
+    "image/webp:\"gallery/image_20261023_091753.webp\"",
+    "{\"file_path\":\"/mnt/data/gallery/image_20261023_091753.webp\",\"snapshot_handle\":\"GLWVGzMRmEgltlhnAAe87O6g1kkvbg1iAQBj\",\"snapshot_id\":\"vjiy76\",\"status\":\"Generated 1 image(s)\",\"tools_called_tag\":\"\\n[tools_called: generate_image]\"}B",
+    "tool-call-0",
+    "media_subagent",
+    "{\"conversation\":[{\"text\":\"Edit this image: make it a night scene under a full moon, keep everything else the same\\n\\n\"},{\"image\":\"/mnt/data/image_0.webp\"},{\"text\":\"\\nKeep the fox, its pose, colors, fur detail, snowy forest, trees, ferns, pine cones, log, composition, and watercolor painting style exactly the same. Only change the lighting and sky to night: dark blue night sky, full moon visible through the trees, moonlight illuminating the snow, cool nocturnal tones, stars.\"}],\"output_dir\":\"/mnt/data/gallery/\"}R",
+    "${\"response_id\":\"c444dfce-522a-41e5-b9ca-9a25dffab08b\",\"sections\":[{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIBotThinkingStatusPrimitive\",\"title\":\"Show thinking\",\"is_in_progress\":false,\"icon\":\"THINKING\",\"target_secondary_screen_id\":\"DETAILS\",\"target_secondary_screen_tab_id\":\"STEPS\",\"show_answer_now\":false}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Here's your night version ",
+    " same fox, same snowy watercolor forest, now under a full moon:\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N9bc92ade85c\",\"width\":1280,\"height\":1920},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t39.105495-1/Nd105d085_N35c7950227c_N7b827b41d48_n.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=101&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N9bc92ade85c\",\"width\":1280,\"height\":1920},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_091753.webp\"},\"image_type\":\"DEFAULT\",\"content_hash\":\"compare:image_0.webp\",\"follow_up_pills\":[{\"prompt_text\":\"Add soft falling snow\",\"category\":\"SCENE\"},{\"prompt_text\":\"Add subtle aurora glow\",\"category\":\"LIGHT\"},{\"prompt_text\":\"Give the fox a scarf\",\"category\":\"ADD\"},{\"prompt_text\":\"Add a second fox nearby\",\"category\":\"ADD\"},{\"prompt_text\":\"Make the sky stormy\",\"category\":\"SCENE\"},{\"prompt_text\":\"Add a campfire glow\",\"category\":\"LIGHT\"}]}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIMarkdownTextUXPrimitive\",\"text\":\"Kept the composition, pose, and watercolor style intact and just switched the lighting to deep blue night with moonlight on the snow. Want it darker/more stars or a softer glow?\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"48cd342b-5099-5b54-b2e6-54fedbc9234a\",\"prompt_text\":\"Make the moonlight brighter on the snow\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"73c0e31a-45bb-513b-8114-2f8b7a209e40\",\"prompt_text\":\"Add soft falling snowflakes\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}},{\"view_model\":{\"__typename\":\"GenAISingleLayoutViewModel\",\"primitive\":{\"__typename\":\"GenAIClippyFollowUpPrimitive\",\"prompt_id\":\"d7239f9d-f375-5b9c-90a9-bc679329c19c\",\"prompt_text\":\"Add northern lights behind the trees\",\"intent_category\":\"image\",\"attachment_type\":\"NONE\"}}}],\"embedded_screens\":[{\"secondary_screen_id\":1,\"content\":[{\"__typename\":\"FOAEmbeddedScreenContentTabbed\",\"tabs\":[{\"sections\":[],\"tab_header\":\"Steps\",\"id\":\"steps\",\"step_entries\":[{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Transforming to night scene\",\"body\":\"I'm converting the image to a nocturnal version with a dark blue sky, full moon glowing through the trees, and cool moonlight on the snow while keeping the fox, pose, composition, and watercolor style unchanged.\"},{\"__typename\":\"GenAIStepThoughtEntry\",\"header\":\"Rendering moonlit night scene\",\"body\":\"I'm generating the night version with the same fox, trees, and log, now under a full moon with cool blue snow highlights, darker trees, and stars added.\",\"artifacts\":[{\"__typename\":\"GenAIImagePrimitive\",\"preview_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N9bc92ade85c\"},\"full_image\":{\"url\":\"https://scontent.xx.fbcdn.net/v/t58.90637-1/<tok48>.webp?_nc_ht=scontent.xx.fbcdn.net&_nc_cat=108&_nc_ohc=x&sdl=x&ccb=xxxx&oh=x&oe=x&_nc_sid=x\",\"mime_type\":\"image/webp\",\"media_id\":\"N9bc92ade85c\"},\"source\":{\"source_type\":\"IMAGE_GEN\",\"source_display_name\":\"gallery/image_20261023_091753.webp\"}}]}]}]}]}]}",
+    "\"$c444dfce-522a-41e5-b9ca-9a25dffab08b*$fb568db8-50e2-452b-af3a-66409d532a0d2",
+    "e.00qS7eXof2aZ4fngOq63MkYjTJ",
+    "Editing image to nightR",
+    "e.00qS7eXof2aZ4fngOq63MkYjTh"
+   ]
+  }
+ }
+]

@@ -80,8 +80,9 @@ def test_the_registry_takes_meta_beside_dola_and_resolves_both_models():
     reg.register(SPEC)
     assert reg.names() == ["dola", "meta"]
     image, video = reg.resolve("meta-image"), reg.resolve("meta-video")
-    assert image is not None and image[0] is SPEC and image[1].operations == ("text_to_image",)
-    assert video is not None and video[0] is SPEC and video[1].operations == ("image_to_video",)
+    assert image is not None and image[0] is SPEC and image[1].operations == ("text_to_image", "image_to_image")
+    assert video is not None and video[0] is SPEC and video[1].operations == ("text_to_video", "image_to_video")
+    assert image[1].limits["max_images"] == video[1].limits["max_images"] == 1, "one input image, each model"
 
 
 # ---- error rules -----------------------------------------------------------------------------------------------------
@@ -102,11 +103,44 @@ def test_an_image_plan_is_held_in_the_session_and_priced_from_the_settings():
     assert (p.price, p.account_cost, p.submit_timeout_s, p.warnings) == (1, 1, 240, ())
 
 
+@mutation(SPEC_FILE, '            operation = "image_to_video" if req.images else "text_to_video"',
+          '            operation = "text_to_video"', expect="a video from an image")
 def test_a_video_plan_takes_one_image_and_an_optional_motion_text():
     p = plan("meta-video", "", images=(IMG,))
     assert (p.operation, p.media_type, p.wallet_kind, p.pool, p.submit_timeout_s) == (
-        "image_to_video", "video", "video", "video", 420)
+        "image_to_video", "video", "video", "video", 420), "a video from an image: %r" % (p.operation,)
     assert plan("meta-video", "slow pan to the left", images=(IMG,)).completion == Completion.HOLD
+
+
+def test_a_video_plan_from_text_alone_is_text_to_video_held_and_priced_like_one_from_an_image():
+    p = plan("meta-video", "a red fox trotting through snow")
+    assert (p.operation, p.media_type, p.wallet_kind, p.pool, p.submit_timeout_s, p.price) == (
+        "text_to_video", "video", "video", "video", 420, 1)
+    assert (p.completion, p.after_sent, dict(p.params)) == (Completion.HOLD, AfterSent.RECONCILE, {"kind": "video"})
+
+
+@mutation(SPEC_FILE, "            if not req.images and C.is_blank_prompt(req.prompt):", "            if False:",
+          expect="a video from no image and no text")
+def test_a_video_with_neither_an_image_nor_a_visible_text_is_refused():
+    for blank in ("", "   ", "\u200b\u200b"):
+        try:
+            planned = plan("meta-video", blank)
+        except InputError as e:
+            assert (e.code, e.param) == ("input.empty_prompt", "prompt"), (e.code, blank)
+        else:
+            pytest.fail("planned a video from no image and no text: %r -> %r" % (blank, planned))
+
+
+@mutation(SPEC_FILE, '            operation = "image_to_image" if req.images else "text_to_image"',
+          '            operation = "text_to_image"', expect="an edit of the input image")
+def test_an_image_plan_with_one_input_image_is_an_edit_and_still_needs_a_visible_text():
+    p = plan(images=(IMG,))
+    assert (p.operation, p.media_type, p.wallet_kind, p.pool, p.submit_timeout_s) == (
+        "image_to_image", "image", "image", "image", 240), "an edit of the input image: %r" % (p.operation,)
+    assert (p.completion, p.after_sent, dict(p.params)) == (Completion.HOLD, AfterSent.RECONCILE, {"kind": "image"})
+    with pytest.raises(InputError) as caught:
+        plan(prompt=" ", images=(IMG,))
+    assert caught.value.code == "input.empty_prompt"
 
 
 def test_the_price_and_the_timeout_come_from_the_live_settings():
@@ -138,27 +172,15 @@ def test_an_image_prompt_that_shows_nothing_is_refused():
             pytest.fail("an image prompt that shows nothing was planned: %r -> %r" % (blank, planned))
 
 
-@mutation(SPEC_FILE, "            if req.images:\n", "            if False:\n", expect="image with an input image")
-def test_an_image_request_with_an_input_image_is_refused():
-    try:
-        planned = plan(images=(IMG,))
-    except InputError as e:
-        assert (e.code, e.param) == ("input.too_many_images", "images")
-    else:
-        pytest.fail("planned an image with an input image: %r" % (planned,))
-
-
-@mutation(SPEC_FILE, "            if not req.images:\n", "            if False:\n", expect="video without an image")
-@mutation(SPEC_FILE, "            if len(req.images) > 1:", "            if len(req.images) > 2:",
-          expect="video with two images")
-def test_a_video_request_needs_exactly_one_image():
-    for images, what in (((), "video without an image"), ((IMG, IMG), "video with two images")):
+@mutation(SPEC_FILE, "        if len(req.images) > 1:", "        if len(req.images) > 2:", expect="two input images")
+def test_a_request_with_two_input_images_is_refused_by_either_model():
+    for model in ("meta-image", "meta-video"):
         try:
-            planned = plan("meta-video", images=images)
+            planned = plan(model, images=(IMG, IMG))
         except InputError as e:
-            assert e.param == "images" and e.code in ("input.invalid", "input.too_many_images"), (e.code, what)
+            assert (e.code, e.param) == ("input.too_many_images", "images"), (model, e.code)
         else:
-            pytest.fail("planned a %s: %r" % (what, planned))
+            pytest.fail("planned %s with two input images: %r" % (model, planned))
 
 
 @mutation(SPEC_FILE, "        if req.ratio is not None:", "        if False:", expect="a ratio was ignored")
@@ -182,6 +204,8 @@ def test_an_unknown_or_extended_model_name_is_refused():
             planned = plan(name)
         except InputError as e:
             assert (e.code, e.param) == ("input.bad_model", "model"), "an unknown model: %s -> %s" % (name, e.code)
+        except Exception as e:      # noqa: BLE001 - past the model check a text-only plan reaches the settings
+            pytest.fail("an unknown model got past the model check: %s -> %r" % (name, e))
         else:
             pytest.fail("an unknown model was planned: %s -> %r" % (name, planned))
 

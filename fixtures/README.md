@@ -49,6 +49,14 @@ Redacted captures of one live run per scenario (signed CDN query values replaced
 - `meta/spike-261023/checkpoint-acc1/cookies_after.json`
 - `meta/spike-261023/checkpoint-acc1/http.json`
 - `meta/spike-261023/checkpoint-acc1/loaded.state.json`
+- `meta/spike-261023/i2i-acc1/attach_done.state.json`
+- `meta/spike-261023/i2i-acc1/composer.json`
+- `meta/spike-261023/i2i-acc1/final.state.json`
+- `meta/spike-261023/i2i-acc1/http.json`
+- `meta/spike-261023/i2i-acc1/loaded.state.json`
+- `meta/spike-261023/i2i-acc1/send.json`
+- `meta/spike-261023/i2i-acc1/timeline.json`
+- `meta/spike-261023/i2i-acc1/ws.json`
 - `meta/spike-261023/i2v-acc2/attach_done.state.json`
 - `meta/spike-261023/i2v-acc2/composer.json`
 - `meta/spike-261023/i2v-acc2/cookies_after.json`
@@ -105,6 +113,13 @@ Redacted captures of one live run per scenario (signed CDN query values replaced
 - `meta/spike-261023/load-acc2/cookies_after.json`
 - `meta/spike-261023/load-acc2/http.json`
 - `meta/spike-261023/load-acc2/loaded.state.json`
+- `meta/spike-261023/t2v-acc1/composer.json`
+- `meta/spike-261023/t2v-acc1/final.state.json`
+- `meta/spike-261023/t2v-acc1/http.json`
+- `meta/spike-261023/t2v-acc1/loaded.state.json`
+- `meta/spike-261023/t2v-acc1/send.json`
+- `meta/spike-261023/t2v-acc1/timeline.json`
+- `meta/spike-261023/t2v-acc1/ws.json`
 
 ## vibes.ai live run (23/10/2026)
 
