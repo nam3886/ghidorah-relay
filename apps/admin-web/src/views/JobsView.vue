@@ -499,7 +499,7 @@ const subtitle = computed(() =>
             </div>
             <div class="prow__main">
               <div class="prow__top">
-                <span class="prow__title">{{ row.title || "(untitled)" }}</span>
+                <span class="prow__title" :title="row.title ?? ''">{{ row.title || "(untitled)" }}</span>
                 <StatusChip
                   :status="row.status"
                   :step="isRunning(row.status) ? `${progressStep(row.status)}/4` : undefined"
@@ -964,12 +964,17 @@ html.dark .title-link:hover {
   justify-content: space-between;
   gap: 8px;
 }
+/* up to two lines, broken anywhere a word is longer than the line; a title past two lines ends in an ellipsis and its
+   whole text is in the title attribute and the job's detail */
 .prow__title {
+  display: -webkit-box;
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   font-size: 14px;
   font-weight: 500;
   color: var(--rl-fg);

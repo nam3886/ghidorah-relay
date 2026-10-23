@@ -22,7 +22,9 @@ def job(db, k, provider: str, model: str, status: str = "done", title: str = "")
     """A finished (or open) job of a real provider, planted like the fake one's."""
     j = done_job(db, k, ref="%s-%s" % (provider, title), status="done" if status in ("done", "waiting") else status,
                  prompt=title)
-    db.run("UPDATE jobs SET provider = %s, model = %s, title = %s WHERE id = %s", provider, model, title, j)
+    kind = "image" if "image" in model or "seedream" in model else "video"
+    db.run("UPDATE jobs SET provider = %s, model = %s, title = %s, media_type = %s WHERE id = %s",
+           provider, model, title, kind, j)
     if status == "failed":
         db.run("UPDATE jobs SET error_code = 'render.deadline' WHERE id = %s", j)
     if status == "waiting":
@@ -32,8 +34,9 @@ def job(db, k, provider: str, model: str, status: str = "done", title: str = "")
 
 def plant(db) -> None:
     k = new_key(db)
-    job(db, k, "dola", "seedance-2.5", title="Lantern festival in Hoi An, slow pan")
-    job(db, k, "dola", "seedance-2.0", title="Vintage car chase, 1970s film look")
+    job(db, k, "dola", "seedance-2.5", title="Lantern festival in Hoi An at dusk, a slow pan along the river with "
+        "paper boats drifting past the old town and the bridge")       # past two lines on a phone: an ellipsis
+    job(db, k, "dola", "seedance-2.0", title="Vintage car chase, 1970s film look, two coupes")
     job(db, k, "dola", "seedream-4.5", "failed", title="Dragon mascot logo, flat")
     job(db, k, "vibes", "vibes-video", title="Rainy Tokyo street at night, neon")
     job(db, k, "vibes", "vibes-video", "waiting", title="Cat astronaut floating, 3D render")
@@ -72,13 +75,16 @@ def shot(page, name: str) -> None:
 
 
 def no_cut_text(page) -> None:
-    """Nothing in the provider table, the strip's tabs or a job card is cut, and the page never scrolls sideways (a
-    job title alone may end in an ellipsis)."""
+    """Nothing in the provider table, the strip's tabs or a job card is cut, and the page never scrolls sideways. A
+    phone's job title wraps to two lines; one longer still ends in an ellipsis and carries its whole text in its title
+    attribute (and the detail). The desktop title link keeps its one line and its title attribute."""
     cut = page.evaluate("""() => {
         const sel = '[data-testid=provider-table] *, .ptab, .jobs__table li.data-table__item *';
-        return [...document.querySelectorAll(sel)]
-            .filter((el) => el.offsetParent && !el.closest('.prow__title, .title-link, .spark, .mini__bar'))
-            .filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'visible')
+        const seen = (el) => el.offsetParent && !el.closest('.title-link, .spark, .mini__bar');
+        const wide = (el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'visible';
+        const tall = (el) => el.classList.contains('prow__title') && el.scrollHeight > el.clientHeight + 1
+            && el.getAttribute('title') !== el.textContent.trim();
+        return [...document.querySelectorAll(sel)].filter((el) => seen(el) && (wide(el) || tall(el)))
             .map((el) => el.className + ': ' + el.textContent.trim().slice(0, 40));
     }""", isolated_context=False)
     assert cut == [], cut
@@ -102,7 +108,8 @@ def test_the_strip_and_the_jobs_today_table_filter_the_list_by_provider(app, app
     expect(strip.get_by_role("button")).to_have_count(5)            # All + the four registered providers
     expect(strip.get_by_test_id("provider-tab-all")).to_have_attribute("aria-pressed", "true")
     expect(strip.get_by_test_id("provider-tab-flow")).to_contain_text("paused")
-    expect(strip.get_by_test_id("provider-tab-vibes")).to_have_attribute("aria-label", "vibes, 1 unfinished job")
+    expect(strip.get_by_test_id("provider-tab-flow")).to_have_attribute("aria-label", "flow, paused")
+    expect(strip.get_by_test_id("provider-tab-vibes")).to_have_text(re.compile(r"^V\s*vibes\s*$"))  # no count
     expect(page.get_by_role("banner").get_by_test_id("provider-filter")).to_have_count(0)
 
     table = page.get_by_test_id("provider-table")
@@ -115,6 +122,10 @@ def test_the_strip_and_the_jobs_today_table_filter_the_list_by_provider(app, app
     expect(row("flow")).to_contain_text("paused")
     first = job_rows(page).first
     expect(first).to_have_class(re.compile(r"\bp-(dola|vibes|meta)\b"))
+    if width > 767:                                                  # the Model cell names the job's own kind
+        expect(job_rows(page).filter(has_text="matcha")).to_contain_text("image meta-image")
+        expect(job_rows(page).filter(has_text="Dragon")).to_contain_text("image seedream-4.5")
+        expect(job_rows(page).filter(has_text="Tokyo")).to_contain_text("video vibes-video")
     no_cut_text(page)
     shot(page, "%d-all" % width)
 

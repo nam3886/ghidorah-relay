@@ -38,18 +38,13 @@ beforeEach(() => {
 });
 
 describe("the provider strip", () => {
-  it("lists All then the registered providers in the drawn order, each with its unfinished jobs, paused marked", async () => {
+  it("lists All then the registered providers in the drawn order with no count, a paused one marked", async () => {
     await useProvidersStore().refresh();
     const w = mount(ProviderStrip);
     const tabs = w.findAll("button.ptab");
-    expect(tabs.map((t) => t.text().replace(/\s+/g, " "))).toEqual([
-      "All 7",
-      "D dola 5",
-      "V vibes 2",
-      "F flow 0paused",
-    ]);
+    expect(tabs.map((t) => t.text().replace(/\s+/g, " "))).toEqual(["All", "D dola", "V vibes", "F flow paused"]);
     expect(tabs[3]!.get(".ptab__paused").text()).toBe("paused");
-    expect(tabs[3]!.attributes("aria-label")).toBe("flow, 0 unfinished jobs, paused");
+    expect(tabs.map((t) => t.attributes("aria-label"))).toEqual(["All providers", "dola", "vibes", "flow, paused"]);
     expect(tabs[0]!.attributes("aria-pressed")).toBe("true");
   });
 
@@ -64,7 +59,7 @@ describe("the provider strip", () => {
     expect(scope.provider).toBe("");
   });
 
-  it("draws the catalog's providers without counts until the summary arrives", async () => {
+  it("draws the catalog's providers until the summary arrives", async () => {
     useScopeStore().models = [{ id: "m1", owned_by: "meta" }];
     const w = mount(ProviderStrip);
     await flushPromises();

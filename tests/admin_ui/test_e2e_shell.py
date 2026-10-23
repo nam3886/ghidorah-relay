@@ -6,7 +6,7 @@ clear or filter one. The app is opened by `app.url` (`/manage`)."""
 import re
 
 import pytest
-from page_helpers import sideways
+from page_helpers import settle, sideways
 from patchright.sync_api import TimeoutError as PlaywrightTimeout
 from patchright.sync_api import expect
 
@@ -412,7 +412,8 @@ def test_the_current_tab_is_underlined_and_the_provider_trigger_has_the_line_str
     page = app_session
     page.goto(app.url + "#/accounts")              # Jobs filters by its provider strip: no Provider list in the bar
     current = page.get_by_role("tab", selected=True)
-    expect(current).to_have_count(1)
+    expect(current).to_have_text("Accounts", use_inner_text=True)
+    settle(page)                                   # the underline's colour transition onto the new tab has ended
     underline = current.evaluate(
         "el => [getComputedStyle(el).borderBottomWidth, getComputedStyle(el).borderBottomColor]")
     assert underline == ["2px", "rgb(124, 58, 237)"], underline

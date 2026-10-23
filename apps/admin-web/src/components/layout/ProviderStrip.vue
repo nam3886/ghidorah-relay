@@ -7,33 +7,19 @@ import { useProvidersStore } from "@/stores/providers";
 import { useScopeStore } from "@/stores/scope";
 
 // The provider strip under the top bar: THE provider filter of the page that shows it (the top bar's Provider list is
-// hidden there). "All", then every registered provider, each with its unfinished jobs (running + queued) and "paused"
-// when it takes no new job (`<provider>.claims_enabled` off). It sets the shared scope store. Until the summary
-// arrives the catalog's providers are drawn without counts.
+// hidden there). "All", then every registered provider, "paused" when it takes no new job (`<provider>.claims_enabled`
+// off). No counts: the Jobs today table shows running, done and failed. It sets the shared scope store. Until the
+// summary arrives the catalog's providers are drawn.
 const scope = useScopeStore();
 const summary = useProvidersStore();
 const { isPhone, isTablet } = useBreakpoint();
 
-interface Tab {
-  name: string;
-  open: number | null;
-  paused: boolean;
-}
-const tabs = computed<Tab[]>(() => {
+const tabs = computed<Array<{ name: string; paused: boolean }>>(() => {
   const rows = summary.data?.providers;
-  if (!rows) return byProviderOrder(scope.providers).map((name) => ({ name, open: null, paused: false }));
-  const by = new Map(rows.map((p) => [p.provider, p]));
-  return byProviderOrder([...by.keys()]).map((name) => {
-    const p = by.get(name)!;
-    return { name, open: p.running + p.queued, paused: !p.claims_enabled };
-  });
+  if (!rows) return byProviderOrder(scope.providers).map((name) => ({ name, paused: false }));
+  const paused = new Map(rows.map((p) => [p.provider, !p.claims_enabled]));
+  return byProviderOrder([...paused.keys()]).map((name) => ({ name, paused: paused.get(name)! }));
 });
-const allOpen = computed(() =>
-  tabs.value.some((t) => t.open === null) ? null : tabs.value.reduce((n, t) => n + (t.open ?? 0), 0),
-);
-const jobsWord = (n: number) => `${n} unfinished ${n === 1 ? "job" : "jobs"}`;
-const tabLabel = (name: string, open: number | null, paused = false) =>
-  [name, open === null ? "" : jobsWord(open), paused ? "paused" : ""].filter(Boolean).join(", ");
 </script>
 
 <template>
@@ -44,12 +30,11 @@ const tabLabel = (name: string, open: number | null, paused = false) =>
         class="ptab"
         :class="{ 'is-on': scope.provider === '' }"
         :aria-pressed="scope.provider === ''"
-        :aria-label="tabLabel('All providers', allOpen)"
+        aria-label="All providers"
         data-testid="provider-tab-all"
         @click="scope.provider = ''"
       >
         All
-        <span v-if="allOpen !== null" class="ptab__n num">{{ allOpen }}</span>
       </button>
       <button
         v-for="t in tabs"
@@ -58,13 +43,12 @@ const tabLabel = (name: string, open: number | null, paused = false) =>
         class="ptab"
         :class="[providerClass(t.name), { 'is-on': scope.provider === t.name }]"
         :aria-pressed="scope.provider === t.name"
-        :aria-label="tabLabel(t.name, t.open, t.paused)"
+        :aria-label="t.paused ? `${t.name}, paused` : t.name"
         :data-testid="`provider-tab-${t.name}`"
         @click="scope.provider = t.name"
       >
         <ProviderTile :provider="t.name" />
         {{ t.name }}
-        <span v-if="t.open !== null" class="ptab__n num">{{ t.open }}</span>
         <span v-if="t.paused" class="ptab__paused">paused</span>
       </button>
     </div>
@@ -125,16 +109,6 @@ const tabLabel = (name: string, open: number | null, paused = false) =>
   background: var(--ps, var(--rl-raised));
   color: var(--pi, var(--rl-fg));
   font-weight: 600;
-}
-.ptab__n {
-  padding: 1px 6px;
-  border-radius: 6px;
-  background: var(--ps, var(--rl-raised));
-  color: var(--pi, var(--rl-muted));
-  font: 500 11px/16px var(--rl-mono);
-}
-.ptab.is-on .ptab__n {
-  background: var(--rl-surface);
 }
 .ptab__paused {
   font-size: 11px;

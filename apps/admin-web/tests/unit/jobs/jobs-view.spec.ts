@@ -1432,13 +1432,32 @@ describe("providers", () => {
     expect(row.get(".jobs__model").text()).toBe("veo");
   });
 
-  it("a phone row has the provider's side column", async () => {
+  it("the Model cell names each job's own kind: an image model's job says image", async () => {
+    listJobs.mockResolvedValue({
+      items: [
+        job(A, { provider: "meta", media_type: "image", model: "meta-image" }),
+        job(B, { provider: "dola", media_type: "video", model: "seedance-2.5" }),
+      ],
+      total: 2,
+      next_cursor: null,
+    });
+    const { w } = await open();
+    const models = w
+      .findAll(".jobs__table tbody tr:not(.is-day)")
+      .map((r) => r.get(".jobs__kind").element.closest("td")!.textContent!.trim());
+    expect(models).toEqual(["image meta-image", "video seedance-2.5"]);
+  });
+
+  it("a phone row has the provider's side column, and its title wraps to two lines with the whole title kept", async () => {
     stubWidth("phone");
-    listJobs.mockResolvedValue({ items: [job(A, { provider: "meta" })], total: 1, next_cursor: null });
+    const title = "Lantern festival in Hoi An at dusk, a slow pan along the river with paper boats";
+    listJobs.mockResolvedValue({ items: [job(A, { provider: "meta", title })], total: 1, next_cursor: null });
     const { w } = await open();
     const item = w.get("li.data-table__item");
     expect(item.classes()).toContain("p-meta");
     expect(item.get(".prow__side").text()).toBe("Mmeta");
+    expect(item.get(".prow__title").text()).toBe(title);
+    expect(item.get(".prow__title").attributes("title")).toBe(title);
   });
 
   it("reads the provider summary with the list and on every 10-second read; a row of Jobs today picks the provider", async () => {
