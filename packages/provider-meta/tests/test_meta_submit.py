@@ -6,6 +6,7 @@ import base64
 import contextlib
 import json
 import re
+import time
 from datetime import UTC, datetime, timedelta
 from html import unescape
 from pathlib import Path
@@ -14,6 +15,7 @@ from urllib.parse import urlsplit
 
 import pytest
 
+from relay_browser.evidence import EvidenceWriter
 from relay_core import errors, frames
 from relay_core.net import FetchFailed, UnsafeUrl
 from relay_core.providers import Ambiguous, Completed, Cooldown, Dead, Fail, MediaRef, Proxy, Retry, Success, Suspect
@@ -88,6 +90,9 @@ class Recorder:
 
     async def wait_for(self, predicate, timeout, since=0.0):
         return next((e for e in self._events if predicate(e)), None)
+
+    async def dump_async(self, redact, since=0.0):
+        return redact("POST /api/graphql cookie: ecto_1_sess=v-fake-secret")
 
 
 class FileInput:
@@ -174,6 +179,19 @@ class Page:
         self.upload_answers, self.thumbnails, self.file_inputs = upload_answers, thumbnails, file_inputs
         self.chosen, self.uploaded, self.shrunk = [], False, shrunk
         self.lands = None       # where meta sends a goto instead of its address (None: the address itself)
+        self.shot_error = None  # what a screenshot and the page HTML raise (a capture that fails)
+        self.shot_hang_s = 0.0  # how long a screenshot takes
+
+    async def screenshot(self, type="png", **kw):
+        await asyncio.sleep(self.shot_hang_s)
+        if self.shot_error:
+            raise self.shot_error
+        return type.encode()
+
+    async def content(self):
+        if self.shot_error:
+            raise self.shot_error
+        return '<html><script>token="v-fake-secret"</script>' + (self.answers[-1] or "") + "</html>"
 
     async def goto(self, url, **kw):
         self.log.append("goto " + url)
@@ -218,6 +236,13 @@ class Ctx:
                                        provider_state=provider_state or {})
         self.browser_token = object()
         self.events = []
+        self.kept = []              # the debug files: (name, data, mime)
+        self.keep_error = None
+
+    async def evidence(self, name, data, mime):
+        if self.keep_error:
+            raise self.keep_error
+        self.kept.append((name, data, mime))
 
     async def report_ref(self, ref, state):
         self.log.append("report_ref %s" % ref)
@@ -258,7 +283,9 @@ def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "
     @contextlib.asynccontextmanager
     async def fake_open(site, account, **kw):
         assert kw["purpose"] == "submit" and kw["images"] is True
-        yield SimpleNamespace(page=page, ctx=Cookies(), recorder=Recorder(page.events))
+        recorder = Recorder(page.events)
+        yield SimpleNamespace(page=page, ctx=Cookies(), recorder=recorder,
+                              evidence=EvidenceWriter(kw["redact"], recorder, clock=lambda: 1.0))
 
     op = op or DEFAULT_OP[kind]
 
@@ -272,7 +299,7 @@ def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "
     clock = Clock()
     deps = S.Deps(open_session=fake_open, read_media=read_media, sleep=clock.sleep, clock=clock, now=lambda: NOW,
                   signal_wait_s=0, composer_wait_s=1, warmup_wait_s=0, receipt_wait_s=2, tiles_grace_s=3,
-                  upload_wait_s=0, attached_wait_s=1)
+                  upload_wait_s=0, attached_wait_s=1, evidence_wait_s=0.5)
     params = {"kind": kind, **({"ratio": ratio} if ratio else {})}
     sent = "%s [7100]" % (cap.prompt or "a lighthouse") if sent is None else sent
     job = SimpleNamespace(params=params, operation=op, sent_text=sent, inputs=inputs)
@@ -780,3 +807,85 @@ def test_fetch_takes_fbcdn_links_only_through_the_account_proxy_when_it_has_one(
     assert drain(ref, plain) == b"webp-bytes" and plain.routes == [None]
     with pytest.raises(UnsafeUrl):
         drain("https://evil.example/v/t39.105495-1/x.webp", MediaSite(b"x"))
+
+
+# ---- debug files: diagnostics only -------------------------------------------------------------------------------
+UI_ERROR = (".png", ".html.txt", ".network.txt")
+
+
+def failure_shapes(cap):
+    """Each way a run ends without a delivery: its debug-file tag -> (a page that ends so, whether meta's answer was
+    in)."""
+    bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
+    previews = streaming(cap.answer).replace('data-streaming-state="STREAMING"',
+                                             'data-streaming-state="DONE" data-streaming-complete="true"')
+    return {
+        "meta_ui_page_not_ready": (lambda: Page([], cap, hydrates=False), False),
+        "no_receipt": (lambda: Page([], cap, opens=None), False),
+        "not_done": (lambda: Page([], cap, answers=[streaming(cap.answer)]), False),
+        "no_media": (lambda: Page([], cap, answers=[bare]), True),
+        "previews": (lambda: Page([], cap, answers=[previews]), True),
+        "browser_error": (lambda: Page([], cap, press_error=RuntimeError("Target page closed")), False),
+    }
+
+
+@mutation(SUBMIT_FILE, "        await self._evidence(None)      # meta's answer is in", "        pass  #",
+          expect="the after-send picture")
+def test_a_delivered_answer_keeps_one_after_send_jpeg_and_nothing_else():
+    cap = capture("image-1-acc1")
+    result, ctx = run(Page([], cap), cap)
+    assert isinstance(result.job, Completed)
+    assert ctx.kept == [("after-send-1000.jpg", b"jpeg", "image/jpeg")], "the after-send picture: %s" % ctx.kept
+
+
+@mutation(SUBMIT_FILE, "        await self._evidence(code)\n", "", expect="meta_ui_page_not_ready")
+@mutation(SUBMIT_FILE, "        await self._evidence(tag)\n", "", expect="no_receipt")
+@mutation(SUBMIT_FILE, '        await self._evidence("no-media")\n', "", expect="no_media")
+@mutation(SUBMIT_FILE, '                await self._evidence("browser-error")', "                pass",
+          expect="browser_error")
+def test_each_failure_keeps_a_png_the_html_and_the_network_log_and_an_answer_that_is_in_its_jpeg_too():
+    cap = capture("image-1-acc1")
+    for tag, (make, answered) in failure_shapes(cap).items():
+        result, ctx = run(make(), cap)
+        names = [n for n, _, _ in ctx.kept]
+        want = ["ui-error-%s-1000%s" % (tag, ext) for ext in UI_ERROR] + (["after-send-1000.jpg"] if answered else [])
+        assert names == want, "%s: %s" % (tag, names)
+        assert not isinstance(result.job, Completed), tag
+
+
+@mutation(SUBMIT_FILE, "        except Exception as exc:      # noqa: BLE001 - diagnostics never fail the order\n"
+          '            log.warning("evidence', "        except ZeroDivisionError as exc:\n"
+          '            log.warning("evidence', expect="the same verdict")
+@mutation(SUBMIT_FILE, "            async with asyncio.timeout(self.deps.evidence_wait_s):",
+          "            async with asyncio.timeout(None):", expect="bounded")
+def test_a_capture_that_fails_or_hangs_changes_no_verdict_and_holds_it_back_at_most_the_bound():
+    cap = capture("image-1-acc1")
+    shapes = {"delivered": (lambda: Page([], cap), True), **failure_shapes(cap)}
+    for tag, (make, _) in shapes.items():
+        clean = make()
+        want, _ = run(clean, cap)
+        for how in ("screenshot", "store", "hang"):
+            page = make()
+            ctx = Ctx(page.log)
+            if how == "screenshot":
+                page.shot_error = RuntimeError("Target page closed")
+            elif how == "store":
+                ctx.keep_error = RuntimeError("object store down")
+            else:
+                page.shot_hang_s = 5.0
+            t0 = time.monotonic()
+            result, _ = run(page, cap, ctx=ctx)
+            assert time.monotonic() - t0 < 3, "%s/%s: a capture is bounded" % (tag, how)
+            assert (result.job, result.account) == (want.job, want.account), "%s/%s: the same verdict" % (tag, how)
+            assert sent(page.log) == sent(clean.log), "%s/%s: the same sends" % (tag, how)
+
+
+@mutation(SUBMIT_FILE, "images=True, redact=redact_text) as session:", "images=True, redact=str) as session:",
+          expect="redacted")
+def test_the_html_and_the_network_log_go_through_the_core_redactor():
+    cap = capture("image-1-acc1")
+    _, ctx = run(Page([], cap, opens=None), cap)
+    text = {n.split(".", 1)[1]: d.decode() for n, d, _ in ctx.kept if n.endswith(".txt")}
+    assert set(text) == {"html.txt", "network.txt"}, ctx.kept
+    for what, body in text.items():
+        assert "v-fake-secret" not in body and "[redacted]" in body, "%s is redacted: %s" % (what, body[:200])

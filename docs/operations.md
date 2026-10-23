@@ -165,6 +165,9 @@ Used by browser workers only (dola, meta). Everything is read from the environme
   browsing) is answered 502 at the local forwarder, so it never reaches an account proxy. Without a proxy
   there is no forwarder, so nothing is refused. `www.google.com` stays open by default (reCAPTCHA needs it).
   Images and fonts are off by launch flags unless the run attaches or reads images.
+- **Debug files** (Job drawer, "Debug files"): dola and meta keep an after-send JPEG once the site answered, and a PNG,
+  the redacted HTML and the network log (`ui-error-<tag>-*`) when a send fails, gets no receipt, an answer is unclear,
+  refused or holds no media; meta bounds a capture to 10 s and a failed capture is only logged.
 - **Environment**: Chrome gets an allow-list of variables (`PATH HOME USER LOGNAME LANG LANGUAGE TZ DISPLAY
   XAUTHORITY LC_* XDG_* FONTCONFIG_*`, plus its own `TMPDIR`), never the worker's environment. The worker also
   removes `CREDENTIAL_SEAL_PRIVATE_KEY` from its own environment once it has read the key, so nothing started

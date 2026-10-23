@@ -26,6 +26,12 @@ Money rules (each has a test and a mutation):
   before hydration (it ignores input for 7-12 s on a cold load);
 - Vercel's browser checkpoint sends nothing: `Retry(meta.checkpoint)` with a rest and a recheck, no strike, never a
   failed or charged job.
+
+Debug files (`relay_browser.evidence`, text through the core's redactor), diagnostics only, taken once the verdict is
+decided and bounded by `EVIDENCE_WAIT_S`; a failure to capture is logged and skipped:
+- an after-send JPEG once meta's answer is done;
+- a PNG, the redacted HTML and the network log when nothing was sent (`_unsent`), the outcome is unknown (`_unknown`:
+  no receipt, never done, previews or the other kind), the answer holds no media, or the browser raised.
 """
 
 import asyncio
@@ -90,6 +96,7 @@ ATTACHED_WAIT_S = 5.0     # after the upload answer, how long the composer may t
 UPLOAD_MAX_BYTES = 1 << 20    # an input image above this is re-encoded before the upload
 UPLOAD_MAX_SIDE = 2048        # ... to a JPEG at most this many pixels a side (meta's own images are 1920x1280)
 UPLOAD_AS_IS = ("image/jpeg", "image/png", "image/webp")     # sent unchanged when small enough
+EVIDENCE_WAIT_S = 10.0    # the longest a capture of debug files may hold the run's verdict back
 
 _UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 _WARMUP_ID = re.compile(r'"conversationId"\s*:\s*"(%s)"' % _UUID)
@@ -275,6 +282,7 @@ class Deps:
     tiles_grace_s: float = TILES_GRACE_S
     upload_wait_s: float = UPLOAD_WAIT_S
     attached_wait_s: float = ATTACHED_WAIT_S
+    evidence_wait_s: float = EVIDENCE_WAIT_S
 
 
 class _CoreVerdict(Exception):
@@ -319,6 +327,20 @@ class _Run:
         except Exception as exc:      # noqa: BLE001 - diagnostics never fail the order
             log.warning("event %s not recorded: %s", stage, type(exc).__name__)
 
+    async def _evidence(self, tag: str | None) -> None:
+        """The job's debug files: the after-send JPEG (`tag` None), else the UI-error PNG, redacted HTML and network
+        log. Diagnostics only: a failure, or a capture slower than `evidence_wait_s`, is logged and skipped."""
+        if self.page is None:      # the browser is closed
+            return
+        try:
+            async with asyncio.timeout(self.deps.evidence_wait_s):
+                writer = self.session.evidence
+                items = [await writer.after_send(self.page)] if tag is None else await writer.ui_error(self.page, tag)
+                for item in filter(None, items):
+                    await self.ctx.evidence(item.name, item.data, item.mime)
+        except Exception as exc:      # noqa: BLE001 - diagnostics never fail the order
+            log.warning("evidence %s not kept: %s", tag or "after-send", type(exc).__name__)
+
     async def _core(self, fn) -> None:
         try:
             await fn()
@@ -330,12 +352,20 @@ class _Run:
         async with self.deps.open_session(META_SITE, self.ctx.account, purpose="submit", token=self.ctx.browser_token,
                                           images=True, redact=redact_text) as session:
             self.session, self.page = session, session.page
-            if image is not None:
-                image = await self._shrink(*image)
-                if image is None:
-                    return await self._unsent(errors.UI_SEND_FAILED, "the input image could not be made smaller than "
-                                              "%d bytes for meta's upload" % UPLOAD_MAX_BYTES)
-            return await self._order(image)
+            try:
+                if image is not None:
+                    image = await self._shrink(*image)
+                    if image is None:
+                        return await self._unsent(errors.UI_SEND_FAILED, "the input image could not be made smaller "
+                                                  "than %d bytes for meta's upload" % UPLOAD_MAX_BYTES)
+                return await self._order(image)
+            except _CoreVerdict:
+                raise
+            except Exception:
+                await self._evidence("browser-error")      # the verdict (`failed`) comes after: the browser closes
+                raise
+            finally:
+                self.page = None
 
     async def _input_image(self) -> tuple[bytes, str]:
         refs = await self.job.inputs()
@@ -438,7 +468,7 @@ class _Run:
         url_id = await self._receipt()
         if url_id is None:
             return await self._unknown("the page showed no %s address within %g s of Enter"
-                                       % (CHAT_PATH, deps.receipt_wait_s))
+                                       % (CHAT_PATH, deps.receipt_wait_s), "no-receipt")
         if url_id != self.conversation:
             await self._say("meta opened %s, not the warmed-up %s: keeping meta's" % (url_id, self.conversation),
                             "submit")
@@ -448,26 +478,33 @@ class _Run:
         answer = await self._read_answer()
         while not answer.done:
             if deps.clock() - self.started >= hold_s:
-                return await self._unknown("meta's answer was not done within %d s" % hold_s)
+                return await self._unknown("meta's answer was not done within %d s" % hold_s, "not-done")
             await deps.sleep(STEP_S)
             answer = await self._read_answer()
         grace = deps.clock() + deps.tiles_grace_s
         while (answer.previews or not answer.media) and deps.clock() < grace:
             await deps.sleep(STEP_S)
             answer = await self._read_answer()
+        result = await self._done(answer)
+        await self._evidence(None)      # meta's answer is in: the after-send picture, once the verdict is decided
+        return result
+
+    async def _done(self, answer: Answer) -> SubmitResult:
         if answer.previews:
             # a part delivery would lose the media still drawing: unknown, the conversation is read again later
             return await self._unknown("meta's answer is done but %d of its %ss show no final link yet"
-                                       % (answer.previews, self.kind))
+                                       % (answer.previews, self.kind), "previews")
         if answer.media:
             return _result(Completed(media_outputs(answer.media, self.conversation, self.kind)), Success())
         if answer.other:
             # meta took the order and answered with the other kind: not a refund at once, the deadline decides
             return await self._unknown("meta's answer is done with no %s but %d result(s) of the other kind"
-                                       % (self.kind, answer.other))
+                                       % (self.kind, answer.other), "other-kind")
         why = "meta finished its answer with no %s" % self.kind
         await self._say(why, "submit")
-        return _result(Fail(errors.NO_IMAGE if self.kind == "image" else errors.NO_VIDEO, why))
+        result = _result(Fail(errors.NO_IMAGE if self.kind == "image" else errors.NO_VIDEO, why))
+        await self._evidence("no-media")
+        return result
 
     async def _receipt(self) -> str | None:
         waited = 0.0
@@ -489,12 +526,16 @@ class _Run:
     async def _unsent(self, code: str, why: str, *effects) -> SubmitResult:
         """Nothing was sent: the order goes back to the queue (`Retry` is legal only here)."""
         await self._say(why, "submit")
-        return _result(Retry(code), *effects)
+        result = _result(Retry(code), *effects)
+        await self._evidence(code)
+        return result
 
-    async def _unknown(self, why: str) -> SubmitResult:
+    async def _unknown(self, why: str, tag: str = "unknown") -> SubmitResult:
         """After `mark_sent`: the outcome is unknown, never a re-send."""
         await self._say(why, "submit_error")
-        return _result(Ambiguous(why[:500]))
+        result = _result(Ambiguous(why[:500]))
+        await self._evidence(tag)
+        return result
 
     async def failed(self, exc: BaseException) -> SubmitResult:
         """The run raised. Before `mark_sent`: a retry (a network error is the proxy's). After it: unknown."""
