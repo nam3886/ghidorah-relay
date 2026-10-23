@@ -236,7 +236,8 @@ async def test_a_video_ack_keeps_the_conversation_for_the_poll():
     assert (VIDEO_CONV, {}) in ctx.refs and log.count("POST") == 1
 
 
-@mutation(SEND, "            if stream.early is not None:", "            if False:", expect="not taken")
+@mutation(SEND, "            if stream.early is not None and status == 200:", "            if False:",
+          expect="not taken")
 @sync
 async def test_an_error_before_any_ack_is_not_taken():
     log: list = []
