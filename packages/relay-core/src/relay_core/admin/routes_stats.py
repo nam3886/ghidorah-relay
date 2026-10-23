@@ -242,9 +242,9 @@ async def stats_pool(provider: str | None = None, pool: AsyncConnectionPool = De
             "proxy_failed": proxy_failed, "last_full_check_ms": ms(last_check)}
 
 
-# The Jobs page's provider cards. "Today" is the relay's billing day (billing_pin, BILLING_TZ), counted on finished_at.
-_DAY = ("SELECT tz, date_trunc('day', clock_timestamp() AT TIME ZONE tz) AT TIME ZONE tz, clock_timestamp() "
-        "FROM billing_pin")
+# The Jobs page's provider figures. "Today" starts at midnight in the `dashboard_tz` setting (not the billing day:
+# billing and the pools keep their own), counted on finished_at.
+_DAY = "SELECT date_trunc('day', clock_timestamp() AT TIME ZONE %(tz)s) AT TIME ZONE %(tz)s, clock_timestamp()"
 _SUMMARY_JOBS = (
     "SELECT provider, " + _QUEUED + ", " + _RUNNING + ", "
     "count(*) FILTER (WHERE status = 'done'), count(*) FILTER (WHERE status = 'failed') "
@@ -263,11 +263,12 @@ HOUR_MS = 3_600_000
 async def providers_summary(pool: AsyncConnectionPool = Depends(get_pool), settings: Settings = Depends(get_settings),
                             registry: ProviderRegistry = Depends(get_registry)) -> dict:
     """One card per registered provider, in a single call: how it sends now, whether it takes jobs, its open jobs,
-    what finished since the start of the billing day, its usable accounts and each pool's points left; and `hours`,
-    every hour of the billing day so far (oldest first, zero-filled, `h` = its start) with the done and failed jobs of
-    each provider. No alert is computed here (`/stats` does that)."""
+    what finished since the start of the dashboard's day (`dashboard_tz`), its usable accounts and each pool's points
+    left; and `hours`, every hour of that day so far (oldest first, zero-filled, `h` = its start) with the done and
+    failed jobs of each provider. No alert is computed here (`/stats` does that)."""
     async with tx(pool) as conn:
-        tz, start, now = await (await conn.execute(_DAY)).fetchone()
+        tz = settings.get("dashboard_tz")
+        start, now = await (await conn.execute(_DAY, {"tz": tz})).fetchone()
         jobs = {r[0]: r[1:] for r in await (await conn.execute(_SUMMARY_JOBS, {"start": start})).fetchall()}
         hourly = await (await conn.execute(_SUMMARY_HOURS, {"start": start})).fetchall()
         accounts = {r[0]: r[1:] for r in await (await conn.execute(_USABLE)).fetchall()}

@@ -20,8 +20,10 @@ SETTINGS = "packages/relay-core/src/relay_core/settings.py"
 SEND_PATHS = Rule("http or browser", lambda v: None, ("http", "browser"))   # its check lets anything by: choices rule
 TODAY_ONLY = "WHERE status NOT IN ('done', 'failed') OR finished_at >= %(start)s GROUP BY provider"
 EVERY_DAY = "WHERE true GROUP BY provider"
-BILLING_DAY = "date_trunc('day', clock_timestamp() AT TIME ZONE tz) AT TIME ZONE tz, clock_timestamp()"
+DASHBOARD_DAY = "date_trunc('day', clock_timestamp() AT TIME ZONE %(tz)s) AT TIME ZONE %(tz)s, clock_timestamp()"
 UTC_DAY = "date_trunc('day', clock_timestamp()), clock_timestamp()"
+DASHBOARD_TZ = 'tz = settings.get("dashboard_tz")'
+BILLING_TZ = 'tz = "America/New_York"'
 TOTAL = '"total": available + dead + disabled'
 LIVE_EXECUTION = '"execution": settings.get(setting) if setting else spec.caps.execution'
 CAPS_EXECUTION = '"execution": spec.caps.execution'
@@ -30,7 +32,8 @@ ORDER = "queued, running, done, failed = jobs.get(name, (0, 0, 0, 0))"
 HOUR_OF_DAY = "floor(extract(epoch FROM finished_at - %(start)s) / 3600)::int"
 UTC_HOUR = "extract(hour FROM finished_at)::int"
 HOURS_SO_FAR = "range(int((now - start).total_seconds()) // 3600 + 1)"
-TZ = "Asia/Ho_Chi_Minh"                    # UTC+7: its day starts at 17:00 UTC the day before
+TZ = "Asia/Ho_Chi_Minh"                    # the dashboard_tz default, UTC+7: its day starts at 17:00 UTC the day before
+BILLING = "America/New_York"               # a billing day pinned elsewhere, which the dashboard must not follow
 
 
 class Switching(FakeSpec):
@@ -65,9 +68,10 @@ def finish(db, k, ref: str, status: str = "done"):
 
 
 def finished_at(db, job, sql: str) -> None:
-    """Move a finished job's times to `sql` (an expression of the pinned billing tz `tz`)."""
+    """Move a finished job's times to `sql`, an expression of `tz`, the dashboard's zone (TZ)."""
     db.run("UPDATE jobs SET finished_at = (" + sql + "), created_at = (" + sql + ") - interval '10 min', "
-           "sent_at = (" + sql + ") - interval '5 min', updated_at = (" + sql + ") FROM billing_pin WHERE id = %s", job)
+           "sent_at = (" + sql + ") - interval '5 min', updated_at = (" + sql + ") "
+           "FROM (SELECT %s::text AS tz) z WHERE id = %s", TZ, job)
 
 
 @mutation(ROUTES, TODAY_ONLY, EVERY_DAY, expect="done today")
@@ -85,7 +89,7 @@ def test_each_registered_provider_gets_its_open_jobs_today_accounts_pools_and_li
     done_job(db, k, ref="a")
     done_job(db, k, ref="b")
     finish(db, k, "c", "failed")
-    for status in ("done", "failed"):                                # finished before today's billing day began
+    for status in ("done", "failed"):                                # finished before the dashboard's day began
         finished_at(db, finish(db, k, "old-" + status, status),
                     "date_trunc('day', now() AT TIME ZONE tz) AT TIME ZONE tz - interval '1 hour'")
     account(db, left=3)                                              # usable, 3 of 4 left
@@ -107,8 +111,8 @@ def test_each_registered_provider_gets_its_open_jobs_today_accounts_pools_and_li
     fake, sw_card = by_name(first)["fake"], by_name(first)["sw"]
     assert list(by_name(first)) == ["fake", "sw"], "registered providers only"
     assert (fake["running"], fake["queued"]) == (2, 1), "open jobs: running and queued"
-    assert fake["done_today"] == 2, "done today: the billing day's finished jobs only"
-    assert fake["failed_today"] == 1, "failed today: the billing day's failed jobs only"
+    assert fake["done_today"] == 2, "done today: the dashboard day's finished jobs only"
+    assert fake["failed_today"] == 1, "failed today: the dashboard day's failed jobs only"
     assert fake["accounts"] == {"usable": 1, "total": 4}, "accounts: usable of available + dead + disabled"
     assert sw_card["accounts"] == {"usable": 1, "total": 1}, "accounts"
     assert fake["pools"] == [{"pool": "video", "unit": "jobs", "left": 5, "budget": 8},
@@ -120,11 +124,12 @@ def test_each_registered_provider_gets_its_open_jobs_today_accounts_pools_and_li
     assert (sw_card["running"], sw_card["done_today"]) == (0, 0)
 
 
-@mutation(ROUTES, BILLING_DAY, UTC_DAY, expect="billing day")
+@mutation(ROUTES, DASHBOARD_DAY, UTC_DAY, expect="dashboard day")
+@mutation(ROUTES, DASHBOARD_TZ, BILLING_TZ, expect="dashboard day")
 @mutation(ROUTES, HOUR_OF_DAY, UTC_HOUR, expect="hours")
 @mutation(ROUTES, HOURS_SO_FAR, "range(25)", expect="hours so far")
-def test_today_is_the_billing_day_of_the_pinned_timezone_and_hours_split_it(db):
-    db.pin(TZ)
+def test_today_starts_at_midnight_of_the_dashboard_zone_not_the_billing_day_and_hours_split_it(db):
+    db.pin(BILLING)
     k = key(db)
     start = "date_trunc('day', now() AT TIME ZONE tz) AT TIME ZONE tz"
     finished_at(db, done_job(db, k, ref="before"), start + " - interval '1 min'")
@@ -133,13 +138,17 @@ def test_today_is_the_billing_day_of_the_pinned_timezone_and_hours_split_it(db):
     done_job(db, k, ref="now")
 
     async def scenario(env):
-        return await summary(env)
+        first = await summary(env)
+        await env.settings.set("dashboard_tz", "UTC", by="test")
+        return first, await summary(env)
 
-    body = run_app(db, scenario)
+    body, moved = run_app(db, scenario)
     local = datetime.now(ZoneInfo(TZ))
     midnight = local.replace(hour=0, minute=0, second=0, microsecond=0)
-    assert (body["day_tz"], body["day_start_ms"]) == (TZ, int(midnight.timestamp() * 1000)), "billing day"
-    assert by_name(body)["fake"]["done_today"] == 2, "billing day: the job a minute before midnight is yesterday's"
+    assert (body["day_tz"], body["day_start_ms"]) == (TZ, int(midnight.timestamp() * 1000)), "dashboard day"
+    assert by_name(body)["fake"]["done_today"] == 2, "dashboard day: the job a minute before midnight is yesterday's"
+    utc = datetime.now(ZoneInfo("UTC")).replace(hour=0, minute=0, second=0, microsecond=0)
+    assert (moved["day_tz"], moved["day_start_ms"]) == ("UTC", int(utc.timestamp() * 1000)), "dashboard day: live"
     hours = body["hours"]
     so_far = int((local - midnight).total_seconds()) // 3600 + 1
     assert len(hours) == so_far, "hours so far: every hour of the day up to the current one"
@@ -148,7 +157,7 @@ def test_today_is_the_billing_day_of_the_pinned_timezone_and_hours_split_it(db):
     want = [0] * so_far
     want[0] += 1
     want[-1] += 1
-    assert done == want, "hours: done per hour since the billing day's start"
+    assert done == want, "hours: done per hour since the dashboard day's start"
     assert [h["failed"]["fake"] for h in hours] == [1] + [0] * (so_far - 1), "hours: failed per hour"
 
 
@@ -162,7 +171,7 @@ def test_an_empty_relay_gives_zero_figures_and_zero_filled_hours(db):
         "done_today": 0, "failed_today": 0, "accounts": {"usable": 0, "total": 0},
         "pools": [{"pool": "video", "unit": "jobs", "left": 0, "budget": 0},
                   {"pool": "image", "unit": "jobs", "left": 0, "budget": 0}]}]
-    assert body["day_tz"] == "UTC" and body["hours"]
+    assert body["day_tz"] == TZ and body["hours"]
     assert all(h["done"] == {"fake": 0} and h["failed"] == {"fake": 0} for h in body["hours"])
 
 

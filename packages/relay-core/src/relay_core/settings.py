@@ -18,6 +18,7 @@ import logging
 from collections.abc import Callable, Iterable
 from dataclasses import KW_ONLY, dataclass
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import psycopg
 from psycopg_pool import AsyncConnectionPool
@@ -134,6 +135,13 @@ def _filename_pattern(v: str) -> None:
         raise ValueError("must not be empty")
 
 
+def _iana_zone(v: str) -> None:
+    try:
+        ZoneInfo(v)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise ValueError("not an IANA time zone: %r" % v) from None
+
+
 def disabled_models(provider: str, model_ids: Iterable[str]) -> Spec:
     """`<provider>.disabled_models`: the public model ids (catalog ids, not aliases) the door refuses with
     `model.disabled` before any charge. Jobs already accepted run on. An id outside `model_ids` is refused."""
@@ -172,6 +180,10 @@ REGISTRY = Registry(
     Spec("alert_accounts_low", int, 3, "Alert when a provider has fewer usable accounts than this.", min=0),
     Spec("filename_pattern", str, "{prompt}_{duration}", "Download filename template.",
          rule=Rule("not empty", _filename_pattern)),
+    Spec("dashboard_tz", str, "Asia/Ho_Chi_Minh",
+         "The time zone of the admin's \"today\" (the Jobs page's day and hours start at its midnight). Billing and "
+         "the account pools keep their own days.",
+         rule=Rule("an IANA time zone, such as Asia/Ho_Chi_Minh", _iana_zone)),
 )
 
 
