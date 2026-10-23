@@ -232,3 +232,24 @@ Headers: `Authorization`, `bx-ua`, `bx-umidtoken`, `bx-v`, `Version: 0.3.22`, `s
 - The OSS PUT over plain HTTP with the STS (not tried).
 - Does a lost image stream ever finish later (S1 still `done: false` after 1.5 h), and does it count against any quota?
 - `RateLimited` and content-refusal answers: not met.
+
+## v2v spike 24/10
+
+Question: can a customer give chat.qwen.ai a VIDEO and get a new video back? **No in the web app (0.3.22, still the
+live version on 23/10 21:25 GMT+7); the backend price list knows video edit/extend.** No account used, no send.
+
+- **Web app.** The video-generation composer (`t2v`) uploads images only: `Mf[VideoGeneration]` accepts
+  `JPG, JPEG, PNG, BMP, WEBP`, and the request builder keeps only `type === "image"` files as
+  `params.attachments [{type: "image", materialId}]`. Modes: `standard` (1 image), `multi-reference` (up to 9 images,
+  `genMode: "multi_ref"`), `first-last-frame` (2 images, Wan only); `genMode` is only `vid_gen` or `multi_ref`. The
+  chat types are `t2i, t2v, i2v, image_edit, …`; nothing takes a video as a generation input (a video upload in a
+  normal chat is understanding, not generation). The Wan 2.7 card reads "Flexible video editing", but its modes are
+  `standard` and `first-last-frame`.
+- **Backend price list** (`GET /api/v2/credits/pricing`, `credits_pricing.json`) has scenes the web never builds:
+  `hh11Vide720P` 视频编辑 (video edit) HappyHorse 1.1, 30/60/90 credits for 5/10/15 s; `hhVide720P` HappyHorse 1.0
+  40/80/120; `wan27Vide720P` / `wan27Ve720P` video edit Wan 2.7 20/40/60; `wan27Vc720P` 视频续写 (extend) Wan 2.7
+  20/40/60; `wan27ActImit720P` 动作模仿 (motion imitation) 20/40/60; 1080P doubles, HappyHorse 1080P paid only.
+  The `genMode` strings and attachment shape for these are not in the bundle, so a send would be a blind guess at
+  30 credits of a 40-credit day. Not sent.
+
+Revisit when a web version adds a video `attachments` type or a `genMode` beyond `vid_gen`/`multi_ref`.

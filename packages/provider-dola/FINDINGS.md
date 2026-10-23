@@ -124,3 +124,40 @@ conversation, the original still holds 2 messages and 4 pictures. Which id is th
   decision is the captcha a flagged account would meet.
 - Image ratio/style over HTTP (none sent: square default).
 - Why the kit's Chrome cannot send on this account's new UI (matters only if the browser path stays).
+
+## v2v spike 24/10
+
+Question: can a customer give dola a VIDEO and get a new video back? **Yes in the web app (video as a reference for
+Seedance), not proven live.** Account d23-05 (already disabled, the spike account), its production proxy. Run
+23/10 21:25–21:50 GMT+7. No paid send.
+
+**Where in the UI.** The *Create Videos* composer (skill 17, `ability_type 17`) has an upload button
+(`VideoActionUploadFileToolButtonPlugin`, test id `image-creation-chat-input-picture-reference-button`) that opens a
+file picker built on the fly (no `input[type=file]` in the DOM until the click). Its `accept` comes from the selected
+model: images `.jpg,.png,.jpeg,.webp,.apng`, video `.mp4,.mov,video/mp4,video/quicktime`, audio `.mp3,.wav`
+(chunk `async-infra-input-tool-menu-option`, module `qSz`). Also a canvas "edit video" path: an attachment whose
+`from` is `canvas_video_edit` is reported as `video_edit` (`s2-canvas-video-generation-composer`), and the AB keys
+`video_post_processing.is_show_video_edit` / `video_edit_model` exist. So the web app's video input is a
+*reference* to a Seedance generation (restyle/remix by prompt), not a separate edit endpoint.
+
+**Request shape (from the bundle, chat.6745dd6c02 + async chunks fetched through the account proxy).**
+- Upload: not imagex. A media uploader with `useResourcePrepareUpload: true`, `resourcePrepareUploadParams:
+  {tenant_id: "3", scene_id: "46", resource_type: Video}` (audio: scene 47). The result is a VOD-style `vid`.
+- The send is the ordinary `/chat/completion` with `chat_ability` 17 (`ratio`, `model`, `duration`, `resolution`,
+  `input_box_content`), plus one attachment per media, built by the composer:
+  `{type: AttachmentTypeVideo, identifier: <localKey>, media: {vid, duration, size, name, media_type: video|audio,
+  md5?, resource_uri?, path?, cover?}, parse_state, review_state, upload_status: success, progress: 100, src}`.
+  Images keep the known image attachment.
+- Duration of the input is read client-side from the MP4 `moov/mvhd` box.
+
+**Limits.** `get_item_conf` (read, replayed over plain HTTP, 200) carries per-model `ref_media_info`:
+`ref_media_type 5`, `max_ref_video_count 1`, `max_ref_image_count 10`, `max_ref_video_duration 15` (seconds),
+`ref_user_avatar_mode 1` (seen on `seedance_v2.0` and `ic_mini`). Formats mp4/mov. Price with a reference video: not
+measured.
+
+**Why no live proof.** On d23-05 the kit's Chrome still renders a bare composer: no *Create Videos* button
+(`enter_video_mode`: "could not find the 'Create Videos' button"), `/chat/create-image` (the *AI Creation* link)
+renders an empty panel, `/chat/create-video` is "Page not found", and there is no upload button to click (three
+loads, completion fenced by a route abort; nothing reached `/chat/completion`). The HTTP path would need the
+resource prepare-upload + VOD upload chain for the `vid`, which is not built. Open: capture that chain from a
+working browser profile, then one paid send with a ≤15 s mp4 and `ffprobe` the result.

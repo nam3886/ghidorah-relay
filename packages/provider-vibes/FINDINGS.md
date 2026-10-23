@@ -128,3 +128,45 @@ Not tried (each needs more live jobs on the production account): a reference tha
 (the web app drops an `oref_image_ent_id` that is not one of the account's results: "Reference image was deleted —
 regenerating without it"), the `oref_image_handle` (oil handle) form, style references (`sref_*`), and the
 `--oref <url>` prompt flag. The third job left one empty project on acc1.
+
+## v2v spike 24/10
+
+Question: can a customer give vibes a VIDEO and get a new video back? **Partial: edit (v2v) and extend work on a
+video the same account generated; a customer's uploaded video is refused.** Account vibes-acc1 (disabled for the
+run, re-enabled after), its production proxy, plain HTTP. Two sends, 23/10 21:26 and 21:40 GMT+7.
+
+**Where in the UI.** On a generated video: *Edit* (`handleVideoToVideo`, result labelled "Edited") and *Extend*
+(`handleExtendVideo`, "Extended"); the "Video Editing Tools" page has only *Prompt* enabled (*Adjust*, *Restyle*,
+*Effects*, *Angle* are `comingSoon`). The client itself refuses a source without `videoHandle`/`videoGenEntId`:
+"This video cannot be edited because it is missing required metadata. This may happen with older videos or videos
+that were uploaded directly."
+
+**Request shape** (bundle `/create` chunks, the same batch flow as t2v):
+1. `POST /api/generation-batches` with our id (write-ahead), `type: "videos"`, the config below.
+2. `POST /api/generate/videos`:
+   `{inputs: [{type: "video", mediaEntId: <source videoGenEntId>, videoUrl: <source mp4>, prompt, config}],
+   config: {directGeneration: true, videoModel: "midjen-video-edit", imageModel: "midjen-base", editType: "v2v",
+   generationType: "v2v", sourceVideoUrl, sourceVideoHandle?, directPromptImageHandle?: {oil_handle, image_url},
+   sourceContentItemIds: [{id: <source content item>, source: "v2v"}]}, batchId, mg_request_id, projectId}`.
+   Extend: input `{type: "extend", mediaEntId, videoUrl, prompt, extendDirective?}`, `videoModel: "midjen-extend"`,
+   `generationType: "extend"`, `sourceContentItemIds: [{id, source: "extend_video"}]`, audio carried by
+   `audioSourceEntId/Handle/Url` and `reuseOriginalAudio`.
+3. Poll `GET /api/generation-batches/<id>` (25 s), then `GET /api/download/video?id=<batch>-content-0`.
+- Upload of a video: `POST /api/upload-video-direct`, multipart field `video`, answers `{mediaEntId, cdnUrl}`
+  (413 = "File too large"). In the web app it serves only Studio text effects and playable previews.
+
+**Proof.**
+- Send 1 (own video, batch `a82272d5-…`): source = the s6 image→video result (464×832, 5.2 s, a field with birds).
+  Generate answered `success: true, needsPolling: true, videoGenEntIds: [...]` in 2 s; `isComplete` on the read at
+  315 s; download 200: **H.264 464×830, 5.21 s, AAC, 2.78 MB**. Frame 2 s: the same field, trees and birds, repainted
+  as watercolor. The "Meta AI" watermark is on source and output.
+- Send 2 (customer video): a 5.1 s 1280×720 mp4 (not from vibes) uploaded via `upload-video-direct` (200), then the
+  same v2v body with the upload's `mediaEntId`/`cdnUrl`: generate **500** `GENERATION_FAILED` "Couldn't generate",
+  item error *"This video is no longer available. Please use a different video."*; the batch reads `hasError: true`,
+  "All video generation submissions failed", no media. Not re-sent.
+
+**Limits/cost.** Output follows the source (≈5 s, 464×832 portrait). No quota signal moved (`upsell` stays null), as
+for t2v. The extend path was read from the bundle only.
+
+So vibes can sell "edit/extend a video we made for you on the same account" (like image edit, S7: the job must be
+pinned to the account that owns the source), not "upload your video and restyle it".

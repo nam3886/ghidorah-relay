@@ -139,3 +139,25 @@ edit.
 ## Fingerprint note
 The browser timezone was Asia/Ho_Chi_Minh while the exit IP was German; meta did not object, but generated file names
 carry GMT+7 times, which a fingerprint check could notice. Consider matching the timezone to the proxy.
+
+## v2v spike 24/10
+
+Question: can a customer give meta.ai a VIDEO and get a new video back? **No (web, this account, German exit).**
+Account meta-acc1 (disabled for the run, re-enabled after), its production proxy, the repo's meta browser image.
+Run 23/10 21:45–21:50 GMT+7, three launches, one send.
+
+- **The composer takes a video.** `input[type=file]` accepts `video/mp4, video/quicktime` among images and documents;
+  a 5.1 s 1280×720 mp4 uploaded to `rupload.meta.ai/gen_ai_document_gen_ai_tenant/<uuid>` (the same path as images)
+  in 8.4 s and shows as a tile with a play icon above the editor (not inside the contenteditable, unlike an image).
+- **The send:** "Restyle this video as a hand-drawn watercolor painting, keep the same motion" with the clip attached.
+  DONE after 9 s, no media. The answer, verbatim: *"I can't directly restyle your attached video file yet — direct
+  video-to-video editing isn't available right now."* It offered to take a still frame and animate it instead
+  (that is i2v, which already exists). Chat `/prompt/7e43759d-…`. Nothing generated, so nothing charged.
+- **The bundle has the pieces, unshipped here.** Attachment kinds `VIDEO_REMIX`, `VIDEO_PRESET`; trace events
+  `RESTYLE`, `REMIX_CREATION`; the Media page drop handler routes a dropped video to an `"edit-video"` flow; an
+  onboarding card "Extend videos — Make your videos longer with just one click". The Media page (`/media`) shows
+  image templates and no video upload entry for this account. These are the Meta AI app's restyle/extend features;
+  the web chat refuses them today.
+- Note: the account's history already holds a chat titled "Video generation quota exhausted" from an earlier run.
+
+Exists: no. Revisit if meta enables "edit-video" on the web (watch the answer text above and the Media page).
