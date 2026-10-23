@@ -1,5 +1,5 @@
-"""The Jobs list: loading skeleton, rows, the busy Refresh, an hour filter from the 24-hour band, the two selects, a
-ticked row, the bulk confirm, toast."""
+"""The Jobs list: loading skeleton, rows, the busy Refresh, a provider picked in the strip, the two selects, a ticked
+row, the bulk confirm, toast."""
 
 import re
 
@@ -9,7 +9,7 @@ from . import TIMEOUT_MS, cancel_box, close_select, dismiss_box, open_select, re
 
 ROUTE = "jobs"
 STATES = [
-    ("jobs", "loading-skeleton"), ("jobs", "list"), ("jobs", "refresh-busy"), ("jobs", "hour-filter"),
+    ("jobs", "loading-skeleton"), ("jobs", "list"), ("jobs", "refresh-busy"), ("jobs", "provider-picked"),
     ("jobs", "status-select"), ("jobs", "key-select"), ("jobs", "bulk-selected"), ("jobs", "regenerate-confirm"),
     ("jobs", "recheck-toast"),
 ]
@@ -30,12 +30,12 @@ def run(page, app, live, sw, data):
         unslow(page, re.compile(r"/admin/jobs\?"))
     sw.step("jobs", "refresh-busy", refresh_busy)
 
-    def hour_filter():
-        page.get_by_test_id("hour-bar").last.click()
-        expect(page.get_by_test_id("hour-chip")).to_contain_text("Hour ")
+    def provider_picked():
+        page.get_by_test_id("provider-tab-fake").click()
+        expect(page.get_by_test_id("provider-tab-fake")).to_have_attribute("aria-pressed", "true")
         ready(page)
-    sw.step("jobs", "hour-filter", hour_filter,
-            after=lambda: page.get_by_role("button", name="Clear the hour filter").click())
+    sw.step("jobs", "provider-picked", provider_picked,
+            after=lambda: page.get_by_test_id("provider-tab-all").click())
 
     sw.step("jobs", "status-select", lambda: (open_select(page, "Status"), close_select(page, "Status")))
     sw.step("jobs", "key-select", lambda: (open_select(page, "Key"), close_select(page, "Key")))

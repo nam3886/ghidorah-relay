@@ -83,14 +83,3 @@ describe("pager: the drawn values", () => {
     expect(arrow).toContain("height: 44px");
   });
 });
-
-describe("the Jobs band ledger", () => {
-  // The band variant of LedgerList draws the panel, its padding (16 20, phone 14 16) and its rows. A wrapper with a
-  // padding of its own doubled the inset on every Jobs board (T-Jobs showed it as +1 point of mismatch).
-  const BAND = readFileSync(join(process.cwd(), "src/components/jobs/HourBand.vue"), "utf8");
-
-  it("is the shared LedgerList itself: nothing wraps it and no rule of the band pads or fills it again", () => {
-    expect(BAND).toContain('<LedgerList :items="ledger" :columns="isTablet ? 2 : 1" />');
-    expect(BAND).not.toContain("band__ledger");
-  });
-});

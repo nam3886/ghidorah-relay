@@ -16,7 +16,6 @@ import ListPager from "@/components/shared/ListPager.vue";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { RETRY_SAFE_TEXT } from "@/lib/errors";
 import { notify } from "@/lib/notify";
-import { useAuthStore } from "@/stores/auth";
 import { useScopeStore } from "@/stores/scope";
 import { useUiStore } from "@/stores/ui";
 import JobsView from "@/views/JobsView.vue";
@@ -35,7 +34,6 @@ vi.mock("@/api/shell", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api/shell")>();
   return {
     ...actual,
-    getHourlyStats: vi.fn(),
     getStats: vi.fn(),
     getOpenAlertGroups: vi.fn(),
     getNewestReply: vi.fn(),
@@ -56,7 +54,6 @@ beforeAll(() => {
   );
 });
 
-const getHourlyStats = vi.mocked(shell.getHourlyStats);
 const listJobs = vi.mocked(api.listJobs);
 const bulkRecheck = vi.mocked(api.bulkRecheck);
 const bulkRegenerate = vi.mocked(api.bulkRegenerate);
@@ -130,7 +127,6 @@ beforeEach(() => {
     .mockResolvedValue({ items: [{ id: "k1", label: "key-one" }] });
   bulkRecheck.mockReset();
   bulkRegenerate.mockReset();
-  getHourlyStats.mockReset().mockResolvedValue({ hours: [] });
   vi.mocked(shell.getStats).mockReset().mockResolvedValue(STATS);
   vi.mocked(shell.getOpenAlertGroups).mockReset().mockResolvedValue({ items: [] });
   vi.mocked(shell.getProvidersSummary).mockReset().mockResolvedValue(SUMMARY);
@@ -1181,25 +1177,12 @@ describe("bulk regenerate", () => {
   });
 });
 
-describe("the page head and the 24-hour band", () => {
-  const HOUR = 3_600_000;
-  // 24 columns, oldest first; the hour starts are local-time hours so the labels do not depend on the time zone
-  const BASE = new Date(2026, 9, 14, 21).getTime();
-  const hours = (): shell.HourBucket[] =>
-    Array.from({ length: 24 }, (_, i) => ({
-      hour_ms: BASE + i * HOUR,
-      delivered: i === 23 ? 1 : 2,
-      failed: i === 23 ? 1 : 0,
-      in_progress: i === 23 ? 4 : 0,
-    }));
-  const bars = (w: VueWrapper) => w.findAll('[data-testid="hour-bar"]');
+describe("the page head and the 10-second read", () => {
   const hidden = (on: boolean) => Object.defineProperty(document, "hidden", { configurable: true, get: () => on });
   afterEach(() => {
     vi.useRealTimers();
     Reflect.deleteProperty(document, "hidden");
   });
-
-  beforeEach(() => getHourlyStats.mockResolvedValue({ hours: hours() }));
 
   it("heads the page with the title, one sentence, the update time and a Refresh button", async () => {
     const { w } = await open();
@@ -1219,111 +1202,54 @@ describe("the page head and the 24-hour band", () => {
     expect(refresh.attributes("aria-label")).toMatch(/^Refresh, updated \d\d:\d\d:\d\d$/);
   });
 
-  it("draws one titled column per hour, with the legend counts and the job total of the 24 hours", async () => {
-    const { w } = await open();
-    expect(getHourlyStats).toHaveBeenCalledWith("");
-    expect(bars(w)).toHaveLength(24);
-    expect(bars(w)[0]!.attributes("title")).toBe("21:00 · 2 delivered");
-    expect(bars(w)[23]!.attributes("title")).toBe("20:00 · 1 delivered, 1 failed, 4 in progress");
-    const band = w.get('[data-testid="hour-band"]');
-    expect(band.text()).toContain("Last 24 hours · 52 jobs");
-    expect(band.text()).toContain("delivered 47");
-    expect(band.text()).toContain("failed 1");
-    expect(band.text()).toContain("in progress 4");
-  });
-
-  it("the columns are a labelled group, not an image, so every hour link stays reachable", async () => {
-    const { w } = await open();
-    const group = w.get('[role="group"][aria-label^="Jobs per hour over the last 24 hours."]');
-    expect(group.findAll("a[href]")).toHaveLength(24);
-    expect(w.find('[role="img"][aria-label^="Jobs per hour"]').exists()).toBe(false);
-  });
-
-  it("the ledger beside the columns shows the live totals once the stats are read", async () => {
-    const { w } = await open();
-    expect(w.find('[data-testid="ledger-list"]').exists()).toBe(true);
-    await button(w, "Refresh").trigger("click");
-    await flushPromises();
-    const ledger = w.get('[data-testid="ledger-list"]').text();
-    expect(ledger).toContain("Accounts ready");
-    expect(ledger).toContain("7 / 8");
-    expect(ledger).toContain("1,284");
-  });
-
-  it("a column filters the list to its hour, from the first page, and the chip names the hour", async () => {
-    listJobs.mockResolvedValue(page([A], 25));
-    const { w } = await open();
-    w.findComponent(ListPager).vm.$emit("move", 10);
-    await flushPromises();
-    await bars(w)[23]!.trigger("click");
-    await flushPromises();
-    expect(lastQuery()).toEqual(query({ createdFromMs: BASE + 23 * HOUR, createdToMs: BASE + 24 * HOUR }));
-    expect(w.get('[data-testid="hour-chip"]').text()).toBe("Hour 20:00–21:00");
-  });
-
-  it("the chip clears the hour filter, and no list call carries a window without it", async () => {
-    const { w } = await open();
-    expect(listJobs.mock.calls.every(([q]) => q.createdFromMs === undefined && q.createdToMs === undefined)).toBe(true);
-    await bars(w)[3]!.trigger("click");
-    await flushPromises();
-    await w.get('button[aria-label="Clear the hour filter"]').trigger("click");
-    await flushPromises();
-    expect(w.find('[data-testid="hour-chip"]').exists()).toBe(false);
-    expect(lastQuery()).toEqual(query());
-    expect(lastQuery().createdFromMs).toBeUndefined();
-    expect(lastQuery().createdToMs).toBeUndefined();
-  });
-
-  it("an hour filter drops the ticks, and a sign-out clears the hour", async () => {
-    const { w } = await open();
-    await rowTick(w, 0)!.setValue(true);
-    await bars(w)[5]!.trigger("click");
-    await flushPromises();
-    expect(count(w)).toBe("0 selected");
-    expect(w.find('[data-testid="hour-chip"]').exists()).toBe(true);
-    useAuthStore().signOut();
-    await flushPromises();
-    expect(w.find('[data-testid="hour-chip"]').exists()).toBe(false);
-  });
-
-  it("the band follows the provider scope", async () => {
-    await open();
-    useScopeStore().provider = "vibes";
-    await flushPromises();
-    expect(getHourlyStats).toHaveBeenLastCalledWith("vibes");
-  });
-
-  it("the banner comes after the band and before the list", async () => {
+  it("the banner comes after the Jobs today table and before the list", async () => {
     vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [{ kind: "drift" } as AlertGroup] });
+    vi.mocked(shell.getProvidersSummary).mockResolvedValue({
+      ...SUMMARY,
+      providers: [
+        {
+          provider: "dola",
+          execution: "browser",
+          claims_enabled: true,
+          running: 0,
+          queued: 0,
+          done_today: 0,
+          failed_today: 0,
+          accounts: { usable: 0, total: 0 },
+          pools: [],
+        },
+      ],
+    });
     const { w } = await open();
     await button(w, "Refresh").trigger("click");
     await flushPromises();
-    const order = w.findAll('[data-testid="hour-band"], [role="status"], section[aria-label="Job list"]');
+    const order = w.findAll('[data-testid="provider-table"], [role="status"], section[aria-label="Job list"]');
     expect(order.map((n) => n.attributes("data-testid") ?? n.attributes("role") ?? n.attributes("aria-label"))).toEqual(
-      ["hour-band", "status", "Job list"],
+      ["provider-table", "status", "Job list"],
     );
   });
 
-  it("reads the list and the band again every 10 s while the tab is shown, never while it is hidden", async () => {
+  it("reads the list and the provider summary again every 10 s while the tab is shown, never while it is hidden", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     await open();
+    const summary = vi.mocked(shell.getProvidersSummary);
     const lists = listJobs.mock.calls.length;
-    const bands = getHourlyStats.mock.calls.length;
-    const reads = () => [listJobs.mock.calls.length, getHourlyStats.mock.calls.length];
+    const sums = summary.mock.calls.length;
+    const reads = () => [listJobs.mock.calls.length, summary.mock.calls.length];
     vi.advanceTimersByTime(9_999);
     await flushPromises();
-    expect(reads()).toEqual([lists, bands]);
+    expect(reads()).toEqual([lists, sums]);
     vi.advanceTimersByTime(1);
     await flushPromises();
-    expect(reads()).toEqual([lists + 1, bands + 1]);
+    expect(reads()).toEqual([lists + 1, sums + 1]);
     hidden(true);
     vi.advanceTimersByTime(10_000);
     await flushPromises();
-    expect(reads()).toEqual([lists + 1, bands + 1]);
+    expect(reads()).toEqual([lists + 1, sums + 1]);
     hidden(false);
     vi.advanceTimersByTime(10_000);
     await flushPromises();
-    expect(reads()).toEqual([lists + 2, bands + 2]);
+    expect(reads()).toEqual([lists + 2, sums + 2]);
   });
 
   it("coming back to the tab reads at once, and leaving it reads nothing", async () => {

@@ -443,27 +443,27 @@ def test_the_list_and_the_detail_fit_the_screen_at_phone_tablet_and_desktop_widt
 
 
 @pytest.mark.parametrize("width", [390, 768, 1280])
-def test_the_band_draws_its_columns_filters_by_hour_and_breaks_no_csp_rule(app, app_page, live, db, width):
-    """The columns are sized by script (`:style` through the CSSOM): the CSP watch of `app_page` fails the test on any
-    violation, at every width, while the band is drawn, an hour is chosen and the chip is cleared."""
+def test_the_jobs_today_bars_are_sized_by_script_and_break_no_csp_rule(app, app_page, live, db, width):
+    """The hour bars and the pool meters are sized by script (`:style` through the CSSOM): the CSP watch of `app_page`
+    fails the test on any violation, at every width, while the table is drawn, a provider is picked and cleared."""
     page = app_page
     page.set_viewport_size({"width": width, "height": 844})
     k = new_key(db)
     done_job(db, k, new_account(db, label="acct", checked=True), prompt="a cat")
     app.sign_in(page)
     expect(rows(page)).to_have_count(1)
-    bars = page.get_by_test_id("hour-bar")
-    expect(bars).to_have_count(24)
-    expect(page.get_by_role("group", name=re.compile(r"^Jobs per hour over the last 24 hours\."))).to_be_visible()
+    table = page.get_by_test_id("provider-table")
+    expect(table).to_contain_text("1 finished today")
     heights = page.evaluate(
-        "[...document.querySelectorAll('[data-testid=hour-bar] span')].map(s => s.style.height)",
+        "[...document.querySelectorAll('[data-testid=provider-table] .spark__bar')].map(s => s.style.height)",
         isolated_context=False)
-    assert any(h not in ("", "0%") for h in heights), "the current hour has a drawn segment"
-    bars.last.click()
-    expect(page.get_by_test_id("hour-chip")).to_contain_text("Hour ")
+    assert "100%" in heights, "the hour of the finished job has a drawn bar: %r" % heights
+    pick = table.get_by_test_id("provider-row-fake" if width > 860 else "provider-card-fake")
+    pick.click()
+    expect(page.get_by_test_id("provider-tab-fake")).to_have_attribute("aria-pressed", "true")
     expect(rows(page)).to_have_count(1)
-    page.get_by_role("button", name="Clear the hour filter").click()
-    expect(page.get_by_test_id("hour-chip")).to_have_count(0)
+    pick.click()
+    expect(page.get_by_test_id("provider-tab-all")).to_have_attribute("aria-pressed", "true")
 
 
 # ---- server text is text -----------------------------------------------------------------------------------------

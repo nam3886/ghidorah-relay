@@ -10,12 +10,9 @@ import {
   listJobs,
   listKeyOptions,
 } from "@/api/jobs";
-import { getHourlyStats, type HourBucket } from "@/api/shell";
 import AttentionBanner from "@/components/layout/AttentionBanner.vue";
 import PageHeader from "@/components/layout/PageHeader.vue";
-import HourBand from "@/components/jobs/HourBand.vue";
 import ProviderTable from "@/components/jobs/ProviderTable.vue";
-import { HOUR_MS, hourRange } from "@/components/jobs/hour-band";
 import { PAGE_SIZE, PAGE_SIZES } from "@/components/jobs/paging";
 import { ALL, fromSelect, rememberedStatus, toSelect } from "@/components/jobs/job-filters";
 import { jobChanges } from "@/components/jobs/job-changes";
@@ -32,7 +29,7 @@ import RegenerateControl from "@/components/jobs/RegenerateControl.vue";
 import { pickedIds } from "@/components/jobs/selection";
 import DataTable from "@/components/shared/DataTable.vue";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
-import { IconClose, IconRefresh } from "@/components/shared/icons";
+import { IconRefresh } from "@/components/shared/icons";
 import ListPager from "@/components/shared/ListPager.vue";
 import MoneyCell from "@/components/shared/MoneyCell.vue";
 import ProviderTile from "@/components/shared/ProviderTile.vue";
@@ -48,22 +45,20 @@ import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
 import { bulkAction } from "@/lib/operation-key";
 import { providerClass } from "@/lib/providers";
-import { useAuthStore } from "@/stores/auth";
 import { useProvidersStore } from "@/stores/providers";
 import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 import { useUiStore } from "@/stores/ui";
 
-// Newest first, 10 a page by offset with the server's total, grouped by day. The provider scope, the status filter
-// (kept in memory), the key filter and the hour filter (a column of the 24-hour band) all restart the paging. A job
-// opens in the shared detail dialog through ui.openJob. The list and the band read again every 10 s while the tab is
+// Newest first, 10 a page by offset with the server's total, grouped by day. The provider scope (the strip, or a row of
+// "Jobs today"), the status filter (kept in memory) and the key filter all restart the paging. A job opens in the
+// shared detail dialog through ui.openJob. The list and the provider summary read again every 10 s while the tab is
 // shown.
 const route = useRoute();
 const scope = useScopeStore();
 const ui = useUiStore();
 const stats = useStatsStore();
 const providers = useProvidersStore();
-const auth = useAuthStore();
 const { isPhone, isTablet } = useBreakpoint();
 
 const POLL_MS = 10_000;
@@ -125,8 +120,6 @@ const keyOptions = computed(() => [
 const keyNames = computed(() => new Map(keys.value.map((k) => [k.id, keyName(k)])));
 const keyLabel = (job: JobSummary): string =>
   job.key_label?.trim() || keyNames.value.get(job.key_id) || shortId(job.key_id);
-// The start (epoch ms, one UTC hour) of the band column that filters the list; null = no hour filter.
-const hour = ref<number | null>(null);
 
 // The ticked jobs: what the bulk buttons act on is always the ticks on screen.
 // - The table keeps its ticks when its rows are replaced (keep-selection), so it reports only real changes: a click,
@@ -169,8 +162,6 @@ async function load(at: number = offset.value): Promise<void> {
       status: status.value,
       provider: scope.provider,
       keyId: keyId.value,
-      createdFromMs: hour.value ?? undefined,
-      createdToMs: hour.value === null ? undefined : hour.value + HOUR_MS,
       tz: zone,
       offset: at,
       limit: limit.value,
@@ -197,19 +188,6 @@ async function load(at: number = offset.value): Promise<void> {
   }
 }
 
-// The 24 columns of the band follow the provider scope; a failed read keeps the columns on screen.
-const hours = shallowRef<HourBucket[]>([]);
-const hoursLatest = useLatest();
-async function loadHours(): Promise<void> {
-  const ticket = hoursLatest.next();
-  try {
-    const out = await getHourlyStats(scope.provider);
-    if (hoursLatest.isCurrent(ticket)) hours.value = out.hours;
-  } catch (err) {
-    if (hoursLatest.isCurrent(ticket)) notify.error(errorText(err));
-  }
-}
-
 // A new page size starts again from the first page.
 function onSize(size: number): void {
   limit.value = size;
@@ -220,17 +198,13 @@ function onSize(size: number): void {
 applyQuery();
 // A filter drops the ticks at once, on the table too: the old rows still on screen until the new list arrives show
 // none.
-watch([status, keyId, hour, () => scope.provider], () => {
+watch([status, keyId, () => scope.provider], () => {
   offset.value = 0;
   clearPicked();
   // the totals belong to the old filters: until the new answer lands the headers count the rows on screen
   dayTotals.value = {};
   void load(0);
 });
-watch(
-  () => scope.provider,
-  () => void loadHours(),
-);
 watch(() => route.query, applyQuery);
 watch(jobChanges, () => void load());
 
@@ -238,7 +212,6 @@ watch(jobChanges, () => void load());
 let timer: ReturnType<typeof setInterval> | undefined;
 function refreshAll(): void {
   void load();
-  void loadHours();
   void stats.refresh();
   void providers.refresh();
 }
@@ -249,13 +222,9 @@ function poll(): void {
 const onVisible = (): void => {
   if (!document.hidden) poll();
 };
-const forgetSignOut = auth.onSignOut(() => {
-  hour.value = null;
-});
 
 onMounted(() => {
   void load(0);
-  void loadHours();
   void providers.refresh();
   listKeyOptions().then(
     (out) => (keys.value = out.items),
@@ -268,7 +237,6 @@ onBeforeUnmount(() => {
   widthWatch?.disconnect();
   clearInterval(timer);
   document.removeEventListener("visibilitychange", onVisible);
-  forgetSignOut();
 });
 
 const { busy: rechecking, run } = useBusy();
@@ -377,11 +345,10 @@ function measureColumns(): void {
 }
 watch([grouped, isPhone, isTablet], () => nextTick(measureColumns), { flush: "post" });
 
-const filtered = computed(() => !!(status.value || keyId.value || hour.value !== null));
+const filtered = computed(() => !!(status.value || keyId.value));
 function clearFilters(): void {
   status.value = "";
   keyId.value = "";
-  hour.value = null;
 }
 
 // A read under way while rows are on screen: the rows dim (DataTable) and the head says so (B-States, refreshing).
@@ -418,8 +385,6 @@ const subtitle = computed(() =>
 
     <ProviderTable :summary="providers.data" :selected="scope.provider" @pick="(p: string) => (scope.provider = p)" />
 
-    <HourBand :hours="hours" :stats="stats.data" @pick="(ms: number) => (hour = ms)" />
-
     <AttentionBanner />
 
     <section class="card" aria-label="Job list">
@@ -438,12 +403,6 @@ const subtitle = computed(() =>
           :options="keyOptions"
           @update:model-value="(v) => (keyId = fromSelect(String(v)))"
         />
-        <span v-if="hour !== null" class="chip" data-testid="hour-chip">
-          {{ hourRange(hour) }}
-          <button type="button" class="chip__clear" aria-label="Clear the hour filter" @click="hour = null">
-            <IconClose :size="isPhone ? 14 : 12" :stroke="2.2" />
-          </button>
-        </span>
         <!-- with nothing ticked: "0 selected" alone on desktop and tablet (no count when the list is empty), no bar on
              a phone, never the buttons, as the canvas draws each -->
         <div
@@ -653,46 +612,6 @@ const subtitle = computed(() =>
   white-space: nowrap;
   border-bottom: 1px solid var(--rl-line);
 }
-/* the hour filter chip */
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 6px 0 10px;
-  border-radius: 14px;
-  background: var(--rl-primary-soft);
-  color: var(--rl-fg);
-  font-size: 12px;
-  flex: none;
-}
-/* the browser's own button padding is kept, as drawn: it leaves the 12 px cross 8 px of room in the 20 px button */
-.chip__clear {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 1px 6px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--rl-muted);
-  cursor: pointer;
-}
-.jobs--phone .chip {
-  gap: 4px;
-  height: 44px;
-  padding: 0 4px 0 12px;
-  border-radius: 22px;
-  font-size: 13px;
-}
-.jobs--phone .chip__clear {
-  width: 44px;
-  height: 44px;
-  border-radius: 22px;
-}
-
 /* bulk actions: right of the filters; on a phone a bar fixed to the bottom of the screen */
 .jobs__bulk {
   display: flex;

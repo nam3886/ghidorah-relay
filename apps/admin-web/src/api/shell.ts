@@ -42,18 +42,6 @@ export interface Stats {
 
 export const getStats = (provider: string): Promise<Stats> => request("/stats", { query: { provider } });
 
-// One bucket per UTC hour: jobs submitted in that hour, split by their current outcome.
-export interface HourBucket {
-  hour_ms: number;
-  delivered: number;
-  failed: number;
-  in_progress: number;
-}
-
-// 24 buckets, oldest first, the current hour last, zero-filled.
-export const getHourlyStats = (provider: string): Promise<{ hours: HourBucket[] }> =>
-  request("/stats/hourly", { query: { provider } });
-
 // One entry per pool of the provider(s). Only `available` accounts count (not dead, not disabled); a pool with no
 // budget has every account unknown. `drift` counts accounts whose counted points disagree with the ledger.
 export interface PoolFigures {
