@@ -846,7 +846,7 @@ const groupCount = computed(() => `${shownGroups.value.length} ${shownGroups.val
 /* the condition's provider, a tile at the start of its line */
 .live__text .live__tile {
   margin-right: 8px;
-  vertical-align: -4px;
+  vertical-align: middle;
 }
 .g-time {
   font-family: var(--rl-mono);
