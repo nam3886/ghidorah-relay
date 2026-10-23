@@ -1,7 +1,8 @@
 """Fetch: the bytes of one output. An async generator, as the core expects.
 
-The link in `Output.ref` is a signed CDN link with no cookie: it is fetched DIRECT first and through the account proxy
-only when the direct route fails (a flaky proxy once gave 7 MB in 300 s against 1.5 s direct). Video: with the setting
+The link in `Output.ref` is a signed CDN link with no cookie: it is fetched through the account proxy when the account
+has one, never direct then (owner rule 23/10: the CDN must not see the box's address; a failed or slow proxy is a
+failed fetch the fetcher retries later), and direct only for an account with no proxy. Video: with the setting
 `dola.master_quality` the H.264 master (~12 Mbit/s, no watermark) replaces the lighter rendition: the cell's own
 `fallback_api` gives it, the token in it is decoded (qAAB). Any failure there silently keeps the rendition. Images: the
 clean `image_ori_raw` link only, which is what the poll put in `ref`.
@@ -34,7 +35,7 @@ log = logging.getLogger("relay.dola.fetch")
 MEDIA_HOSTS = ("dola.com", "ibyteimg.com")
 MEDIA_HTTP_HOSTS = ("v16-dola.dola.com", "v19-dola.dola.com")
 MEDIA_MAX_BYTES = 256 * 2**20
-MEDIA_DEADLINE_S = 300      # both routes, a master of ~60 MB over a slow proxy
+MEDIA_DEADLINE_S = 300      # a master of ~60 MB over a slow proxy
 
 # The AES key material for qAAB tokens (cracked and verified 260916: 1280x720 H.264 12.2 Mbit/s, the file the vendor's
 # own page downloads). MUST be all 64 bytes: a 16-byte cut decodes to garbage.
@@ -152,11 +153,11 @@ async def _master_for(http: DolaHttp, out) -> str | None:
 
 async def fetch(ctx, out, settings, *, http: DolaHttp | None = None, media_transport=None,
                 media_resolver=system_resolver) -> AsyncIterator[bytes]:
-    """The bytes of `out`, streamed: direct then through the account proxy (`net.stream_download`). Raises when neither
-    route gives bytes. `media_transport` and `media_resolver` are the test seams of the media download. A master link
-    that the download refuses (a host outside the media list, a non-default port, a redirect off the list, a
-    malformed link) is not used: the rendition is downloaded instead, unless a byte of the master was already handed
-    over."""
+    """The bytes of `out`, streamed by `net.stream_download`: through the account proxy when it has one, else direct.
+    Raises when that route gives no bytes. `media_transport` and `media_resolver` are the test seams of the media
+    download. A master link that the download refuses (a host outside the media list, a non-default port, a redirect
+    off the list, a malformed link) is not used: the rendition is downloaded instead, unless a byte of the master was
+    already handed over."""
     http = http or DolaHttp.for_account(ctx.account)
     urls = [out.ref]
     if str(out.mime).startswith("video/") and settings.get("dola.master_quality"):

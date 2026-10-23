@@ -1,8 +1,8 @@
 """Fetch: the bytes of one meta image. An async generator, as the core expects.
 
 `Output.ref` is the final signed fbcdn link the answer showed (`scontent.xx.fbcdn.net/v/t39.105495-1/..._n.webp`); it
-carries no cookie. `net.stream_download` takes it direct first and through the account's proxy when the direct route
-fails, on fbcdn.net hosts only.
+carries no cookie. `net.stream_download` takes it, on fbcdn.net hosts only, through the account's proxy when the account
+has one (never direct then: a failed proxy is a failed fetch, retried later) and direct only when it has none.
 """
 
 import contextlib

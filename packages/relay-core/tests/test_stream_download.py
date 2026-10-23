@@ -35,7 +35,7 @@ def sync(test):
 
 
 def options(site, **kw):
-    return {"hosts": HOSTS, "proxy": PROXY, "max_bytes": 1 << 30, "deadline_s": 30.0, "transport": site,
+    return {"hosts": HOSTS, "proxy": None, "max_bytes": 1 << 30, "deadline_s": 30.0, "transport": site,
             "resolver": public_resolver} | kw
 
 
@@ -75,25 +75,49 @@ async def test_a_200_mb_body_streams_in_bounded_memory_and_arrives_intact():
 
 
 # ---- routes ------------------------------------------------------------------------------------------------------
-@mutation(SRC, "routes = [None] if proxy is None else [None, proxy]",
-          "routes = [None] if proxy is None else [proxy, None]",
-          expect="the media download goes through the account proxy first")
+@mutation(SRC, "aclosing(_download(url, allowed, proxy,", "aclosing(_download(url, allowed, None,",
+          expect="a direct connection was made although the account has a proxy")
 @sync
-async def test_the_direct_route_goes_first_and_the_proxy_is_never_contacted_when_it_works():
-    site = MediaSite(b"video", b"other")
-    got = await drain(site)
-    assert site.routes == [None], "the media download goes through the account proxy first: %r" % site.routes
+async def test_with_a_proxy_every_request_goes_through_it_and_none_is_direct():
+    """The owner's rule (23/10): the provider and its CDN never see this machine's address when the account has a
+    proxy. Every hop of a redirect chain goes through the proxy too."""
+    def hops(request):
+        return redirect("/second") if request.url.path == "/v/clip.mp4" else b"video"
+
+    site = MediaSite(b"direct", hops)
+    got = await drain(site, proxy=PROXY)
+    assert site.routes == [PROXY, PROXY], \
+        "a direct connection was made although the account has a proxy: %r" % site.routes
     assert got == b"video"
+
+
+@mutation(SRC, "proxy=None if transport else proxy,", "proxy=None,",
+          expect="the real client was built without the account proxy")
+@sync
+async def test_the_real_client_is_built_with_the_account_proxy(clients):
+    with pytest.raises(FetchFailed):
+        await drain(None, proxy=PROXY, transport=None)
+    (_, kw), = clients
+    assert kw["proxy"] == PROXY and kw["transport"] is None, "the real client was built without the account proxy"
+
+
+@sync
+async def test_without_a_proxy_the_download_goes_direct():
+    site = MediaSite(b"video")
+    assert await drain(site) == b"video" and site.routes == [None]
+    with pytest.raises(FetchFailed):
+        await drain(MediaSite(403))
 
 
 GOOD = data(3 * MIB + 17)
 
 
-@mutation(SRC, 'if handed or e.reason in _FINAL_REASONS or i == len(routes) - 1:',
-          'if handed or e.reason in _FINAL_REASONS or True:',
-          expect="a failed direct route did not try the account proxy")
-@pytest.mark.parametrize("why,direct", [
+@mutation(SRC, "aclosing(_download(url, allowed, proxy,", "aclosing(_download(url, allowed, None,",
+          expect="a failed proxy went direct")
+@pytest.mark.parametrize("why,via_proxy", [
+    ("proxy refused", httpx.ProxyError("refused")),
     ("connect error", httpx.ConnectError("refused")),
+    ("407 from the proxy", 407),
     ("403", 403),
     ("empty body", b""),
     ("stall past the read timeout", Answer(body=Body.of(GOOD), stall_after=0)),
@@ -101,40 +125,16 @@ GOOD = data(3 * MIB + 17)
     ("shorter than its Content-Length", Answer(body=Body.of(GOOD[:MIB // 2]), content_length=MIB)),
 ])
 @sync
-async def test_a_direct_failure_before_the_first_chunk_goes_to_the_proxy_and_gives_the_same_bytes(why, direct):
-    site = MediaSite(direct, GOOD)
+async def test_a_proxy_failure_is_a_fetch_failure_and_never_goes_direct(why, via_proxy):
+    """The fetcher retries the output later; nothing falls back to the direct route."""
+    site = MediaSite(GOOD, via_proxy)
     try:
-        got = await drain(site)
-    except FetchFailed as e:
-        raise AssertionError("a failed direct route did not try the account proxy (%s): %s" % (why, e.reason)) from None
-    assert got == GOOD and site.routes == [None, PROXY], "%s: %r" % (why, site.routes)
-
-
-@mutation(SRC, "                    handed = True\n", "                    handed = False\n",
-          expect="a failure after the first chunk went to the proxy")
-@sync
-async def test_a_failure_after_the_first_chunk_raises_and_never_goes_to_the_proxy():
-    site = MediaSite(Answer(body=Body(4 * MIB), fail_after=int(2.5 * MIB)), Body(4 * MIB))
-    got = []
-    try:
-        async with contextlib.aclosing(stream_download(URL, **options(site))) as parts:
-            async for chunk in parts:
-                got.append(chunk)
+        await drain(site, proxy=PROXY)
     except FetchFailed:
         pass
     else:
-        raise AssertionError("a failure after the first chunk went to the proxy: %r" % site.routes)
-    assert got and site.routes == [None], "a failure after the first chunk went to the proxy: %r" % site.routes
-
-
-@sync
-async def test_with_no_proxy_a_direct_failure_raises():
-    site = MediaSite(403, GOOD)
-    with pytest.raises(FetchFailed):
-        await drain(site, proxy=None)
-    assert site.routes == [None]
-    with pytest.raises(FetchFailed):                       # both routes failing raises too
-        await drain(MediaSite(500, 500))
+        raise AssertionError("a failed proxy went direct (%s): %r" % (why, site.routes))
+    assert site.routes and set(site.routes) == {PROXY}, "a failed proxy went direct (%s): %r" % (why, site.routes)
 
 
 # ---- bounds ------------------------------------------------------------------------------------------------------
@@ -197,7 +197,7 @@ async def test_the_deadline_stops_a_slow_body_as_a_fetch_failure():
         assert e.reason == "timeout" and time.monotonic() - start < 1.3, (e.reason, time.monotonic() - start)
     else:
         raise AssertionError("the deadline did not stop a slow body")
-    assert site.routes == [None], "an expired deadline went on to the proxy route"
+    assert site.routes == [None]
 
 
 @sync
@@ -226,12 +226,13 @@ async def test_a_link_outside_the_list_is_refused_before_any_request():
     site = MediaSite(b"video", b"video")
     for url in ("https://evil.example/x.mp4", "https://media.test.evil.example/x", "https://notmedia.test/x",
                 "https://media.test@evil.example/x", "https://user:pw@cdn.media.test/x"):
-        try:
-            await drain(site, url)
-        except UnsafeUrl as e:
-            assert e.reason == "host", url
-        else:
-            raise AssertionError("a link outside the allowed hosts was fetched: %s" % url)
+        for proxy in (None, PROXY):
+            try:
+                await drain(site, url, proxy=proxy)
+            except UnsafeUrl as e:
+                assert e.reason == "host", url
+            else:
+                raise AssertionError("a link outside the allowed hosts was fetched: %s" % url)
     assert site.requests == []
 
 
@@ -253,13 +254,16 @@ async def test_the_scheme_rule_and_the_host_forms():
           expect="a redirect off the allowed hosts was followed")
 @sync
 async def test_every_redirect_hop_is_checked_and_at_most_four_are_followed():
-    site = MediaSite(lambda r: redirect("https://evil.example/x") if r.url.path == "/v/clip.mp4" else b"video", b"v")
-    try:
-        await drain(site)
-    except UnsafeUrl as e:
-        assert e.reason == "host" and site.routes == [None], "a refused hop went to the proxy route too"
-    else:
-        raise AssertionError("a redirect off the allowed hosts was followed")
+    """On both routes: through the proxy the host list is the only guard of a hop."""
+    off = lambda r: redirect("https://evil.example/x") if r.url.path == "/v/clip.mp4" else b"video"  # noqa: E731
+    for proxy in (None, PROXY):
+        site = MediaSite(off, off)
+        try:
+            await drain(site, proxy=proxy)
+        except UnsafeUrl as e:
+            assert e.reason == "host" and site.routes == [proxy], (proxy, site.routes)
+        else:
+            raise AssertionError("a redirect off the allowed hosts was followed (proxy %s)" % proxy)
 
     def chain(request):                                       # /r0 -> /r1 -> ... within the list, then the body
         n = int(request.url.path.removeprefix("/r") or 0) if request.url.path.startswith("/r") else 0
@@ -279,8 +283,9 @@ async def test_every_redirect_hop_is_checked_and_at_most_four_are_followed():
 # ---- headers, environment, close, transactions -------------------------------------------------------------------
 @sync
 async def test_no_cookie_or_authorization_is_sent():
-    site = MediaSite(b"video")
-    await drain(site, URL, proxy=None)
+    site = MediaSite(b"video", b"video")
+    await drain(site, URL)
+    await drain(site, URL, proxy=PROXY)
     names = {k.lower() for _, q in site.requests for k in q.headers}
     assert not names & {"cookie", "authorization", "proxy-authorization"}, names
 
@@ -363,61 +368,73 @@ def resolving(*addresses):
 @mutation(SRC, "if not all(is_public_ip(a) for a in addresses):", "if False:",
           expect="a host that resolves to a private address was connected to")
 @mutation(SRC, '_UNUSABLE = {"unresolvable": "dns", "private_address": "private"}',
-          '_UNUSABLE = {"unresolvable": "dns"}', expect="a private answer did not fall back to the proxy")
+          '_UNUSABLE = {"unresolvable": "dns"}', expect="a private answer was not a fetch failure")
 @pytest.mark.parametrize("answer", [["10.0.0.5"], ["127.0.0.1"], ["0.0.0.0"], ["169.254.169.254"], ["::1"],
                                     ["fe80::1"], ["93.184.216.34", "10.0.0.5"]])
 @sync
-async def test_a_private_answer_makes_the_direct_route_fail_without_a_connection_and_the_proxy_delivers(answer):
-    """A filtering resolver on the LAN answers exactly this for a listed host: no direct connection is made, the
-    proxy (which resolves in its own network) delivers."""
-    site = MediaSite(b"video", b"video")
-    try:
-        got = await drain(site, resolver=resolving(*answer))
-    except UnsafeUrl:
-        raise AssertionError("a private answer did not fall back to the proxy: %r" % answer) from None
-    assert site.routes == [PROXY], "a host that resolves to a private address was connected to: %r" % site.routes
-    assert got == b"video"
-    assert all(q.url.host not in answer for _, q in site.requests)
-
-
-@sync
-async def test_a_private_answer_with_no_proxy_fails_the_download_and_nothing_is_requested():
+async def test_without_a_proxy_a_private_answer_fails_the_download_and_nothing_is_requested(answer):
+    """A filtering resolver on the LAN answers exactly this for a listed host: a fetch failure (retried later), no
+    connection."""
     site = MediaSite(b"video")
-    with pytest.raises(FetchFailed) as info:
-        await drain(site, proxy=None, resolver=resolving("10.0.0.5"))
-    assert info.value.reason == "private" and site.requests == [], site.requests
+    try:
+        await drain(site, resolver=resolving(*answer))
+    except UnsafeUrl:
+        raise AssertionError("a private answer was not a fetch failure: %r" % answer) from None
+    except FetchFailed as e:
+        assert e.reason == "private", e.reason
+    else:
+        raise AssertionError("a host that resolves to a private address was connected to: %r" % answer)
+    assert site.requests == [], "a host that resolves to a private address was connected to: %r" % site.requests
+
+
+@mutation(SRC, "            if proxy is None:\n                try:", "            if True:\n                try:",
+          expect="the proxy route resolved the name here")
+@sync
+async def test_through_the_proxy_nothing_is_resolved_here_and_the_proxy_gets_the_name():
+    """The proxy resolves in its own network: a local answer (private, or none at all) does not matter there."""
+    asked = []
+
+    async def private(host, port):
+        asked.append(host)
+        return ["10.0.0.5"]
+
+    site = MediaSite(b"direct", b"video")
+    try:
+        got = await drain(site, proxy=PROXY, resolver=private)
+    except net.NetError as e:
+        raise AssertionError("the proxy route resolved the name here: %s" % e.reason) from None
+    assert got == b"video" and asked == [], "the proxy route resolved the name here: %r" % asked
+    (_, request), = site.requests
+    assert request.url.host == "cdn.media.test", request.url
 
 
 @sync
-async def test_a_redirect_hop_that_resolves_to_a_private_address_fails_the_direct_route_the_same_way():
+async def test_a_redirect_hop_that_resolves_to_a_private_address_fails_the_direct_download_the_same_way():
     async def resolver(host, port):
         return ["10.0.0.5"] if host == "cdn.other.test" else ["93.184.216.34"]
 
     def direct(r):
         return redirect("https://cdn.other.test/y") if r.headers["host"] == "cdn.media.test" else b"v"
 
-    site = MediaSite(direct, b"video")
-    assert await drain(site, resolver=resolver) == b"video"
-    assert site.routes == [None, PROXY] and all(q.url.host != "10.0.0.5" for _, q in site.requests), site.routes
-    alone = MediaSite(direct)
+    site = MediaSite(direct)
     with pytest.raises(FetchFailed) as info:
-        await drain(alone, proxy=None, resolver=resolver)
-    assert info.value.reason == "private" and alone.routes == [None]
+        await drain(site, resolver=resolver)
+    assert info.value.reason == "private" and site.routes == [None]
+    assert all(q.url.host != "10.0.0.5" for _, q in site.requests), site.requests
 
 
 @mutation(SRC, "request_url, headers, extensions = _pinned(target)", "pass",
           expect="the direct route did not connect to the checked address")
 @sync
-async def test_the_direct_route_connects_to_the_checked_address_and_the_proxy_route_to_the_name():
-    site = MediaSite(403, b"video")
+async def test_the_direct_route_connects_to_the_checked_address():
+    site = MediaSite(b"video")
     assert await drain(site, resolver=resolving("93.184.216.34")) == b"video"
-    (_, direct), (_, via_proxy) = site.requests
+    (_, direct), = site.requests
     assert direct.url.host == "93.184.216.34" and direct.headers["host"] == "cdn.media.test" \
         and direct.extensions["sni_hostname"] == "cdn.media.test" and direct.url.path == "/v/clip.mp4", \
         "the direct route did not connect to the checked address: %s" % direct.url
-    assert via_proxy.url.host == "cdn.media.test", "the proxy resolves the name itself: %s" % via_proxy.url
     plain = MediaSite(b"video")
-    await drain(plain, "http://cdn.media.test/x?a=1", proxy=None, http_hosts=("cdn.media.test",),
+    await drain(plain, "http://cdn.media.test/x?a=1", http_hosts=("cdn.media.test",),
                 resolver=resolving("93.184.216.34"))
     (_, request), = plain.requests
     assert str(request.url) == "http://93.184.216.34/x?a=1" and request.headers["host"] == "cdn.media.test", \
@@ -425,24 +442,26 @@ async def test_the_direct_route_connects_to_the_checked_address_and_the_proxy_ro
 
 
 @mutation(SRC, "if not _default_port(urlsplit(current)):", "if False:", expect="a non-default port was used")
-@mutation(SRC, "if not _default_port(urlsplit(current)):", "if route is None and not _default_port(urlsplit(current)):",
+@mutation(SRC, "if not _default_port(urlsplit(current)):", "if proxy is None and not _default_port(urlsplit(current)):",
           expect="a non-default port was used on the proxy route")
 @sync
 async def test_only_default_ports_are_used_on_both_routes_also_after_a_redirect():
     site = MediaSite(b"video", b"video")
     for url in ("https://cdn.media.test:8443/x", "http://cdn.media.test:443/x", "https://cdn.media.test:80/x"):
-        try:
-            await drain(site, url, http_hosts=("cdn.media.test",))
-        except UnsafeUrl as e:
-            assert e.reason == "port", url
-        else:
-            raise AssertionError("a non-default port was used: %s" % url)
+        for proxy in (None, PROXY):
+            try:
+                await drain(site, url, http_hosts=("cdn.media.test",), proxy=proxy)
+            except UnsafeUrl as e:
+                assert e.reason == "port", url
+            else:
+                raise AssertionError("a non-default port was used on the proxy route: %s %s" % (proxy, url))
     assert site.requests == []
-    assert await drain(MediaSite(b"video"), "https://cdn.media.test:443/x", proxy=None) == b"video"
+    assert await drain(MediaSite(b"video"), "https://cdn.media.test:443/x") == b"video"
     to_8443 = lambda r: redirect("https://cdn.media.test:8443/y")  # noqa: E731
-    for site, served_by in ((MediaSite(to_8443, b"video"), "direct"), (MediaSite(403, to_8443), "proxy")):
+    for proxy, served_by in ((None, "direct"), (PROXY, "proxy")):
+        site = MediaSite(to_8443, to_8443)
         try:
-            await drain(site)
+            await drain(site, proxy=proxy)
         except UnsafeUrl as e:
             assert e.reason == "port", "a non-default port was used on the proxy route: %s %s" % (served_by, e.reason)
         else:
@@ -462,44 +481,22 @@ def test_host_allowed_can_refuse_non_default_ports():
 
 
 @mutation(SRC, '_UNUSABLE = {"unresolvable": "dns", "private_address": "private"}',
-          '_UNUSABLE = {"private_address": "private"}', expect="an unresolvable name did not fall back to the proxy")
+          '_UNUSABLE = {"private_address": "private"}', expect="an unresolvable name was not a fetch failure")
 @sync
-async def test_a_name_the_direct_route_cannot_resolve_may_still_be_fetched_through_the_proxy():
+async def test_without_a_proxy_a_name_that_does_not_resolve_is_a_fetch_failure():
     async def nothing(host, port):
         raise OSError("no such host")
 
-    site = MediaSite(b"x", b"video")
+    site = MediaSite(b"x")
     try:
-        got = await drain(site, resolver=nothing)
+        await drain(site, resolver=nothing)
     except UnsafeUrl:
-        raise AssertionError("an unresolvable name did not fall back to the proxy") from None
-    assert got == b"video" and site.routes == [PROXY]
-
-
-@mutation(SRC, "            if e.reason in _UNUSABLE.values():", "            if False:",
-          expect="a direct route unusable for dns or private did not warn")
-@mutation(SRC, "            if e.reason in _UNUSABLE.values():", "            if True:",
-          expect="an ordinary direct failure warned")
-@sync
-async def test_a_direct_route_unusable_for_dns_or_private_warns_with_the_host_before_the_proxy(caplog):
-    async def nothing(host, port):
-        raise OSError("no such host")
-
-    for reason, resolver in (("dns", nothing), ("private", resolving("10.0.0.5"))):
-        caplog.clear()
-        with caplog.at_level(logging.DEBUG, logger="relay.net"):
-            await drain(MediaSite(b"x", b"video"), resolver=resolver)
-        warned = [r.getMessage() for r in caplog.records if r.name == "relay.net" and r.levelno == logging.WARNING]
-        assert len(warned) == 1 and reason in warned[0] and "cdn.media.test" in warned[0], \
-            "a direct route unusable for dns or private did not warn: %r" % ((reason, warned),)
-        assert "sig=x" not in warned[0] and "clip.mp4" not in warned[0] and "proxy.invalid" not in warned[0], warned
-    caplog.clear()
-    with caplog.at_level(logging.DEBUG, logger="relay.net"):
-        await drain(MediaSite(503, b"video"))
-    assert [r for r in caplog.records if r.name == "relay.net" and r.levelno >= logging.WARNING] == [], \
-        "an ordinary direct failure warned"
-    info = [r.getMessage() for r in caplog.records if r.name == "relay.net" and r.levelno == logging.INFO]
-    assert len(info) == 1 and "status" in info[0] and "cdn.media.test" not in info[0], info
+        raise AssertionError("an unresolvable name was not a fetch failure") from None
+    except FetchFailed as e:
+        assert e.reason == "dns", e.reason
+    else:
+        raise AssertionError("an unresolvable name was fetched")
+    assert site.requests == []
 
 
 @mutation(SRC, "except (httpx.InvalidURL, ValueError):", "except httpx.InvalidURL:",
@@ -578,8 +575,9 @@ def test_host_names_are_plain_letters_digits_hyphens_and_dots():
           expect="the request did not ask for an identity body")
 @sync
 async def test_the_request_asks_for_an_identity_body_on_both_routes():
-    site = MediaSite(403, b"video")
+    site = MediaSite(b"video", b"video")
     await drain(site)
+    await drain(site, proxy=PROXY)
     asked = [q.headers["accept-encoding"] for _, q in site.requests]
     assert asked == ["identity", "identity"], "the request did not ask for an identity body: %r" % asked
 
@@ -589,16 +587,14 @@ async def test_the_request_asks_for_an_identity_body_on_both_routes():
 @sync
 async def test_a_compressed_response_is_refused_so_the_wire_size_never_hides_the_memory_cost():
     squeezed = Answer(body=Body.of(gzip.compress(bytes(MIB))), headers={"content-encoding": "gzip"})
-    site = MediaSite(squeezed, GOOD)
-    got = await drain(site)
-    assert got == GOOD and site.routes == [None, PROXY], "a compressed response was accepted"
-    try:
-        await drain(MediaSite(squeezed, squeezed))
-    except FetchFailed as e:
-        assert e.reason == "encoding"
-    else:
-        raise AssertionError("a compressed response was accepted")
-    assert await drain(MediaSite(Answer(body=b"v", headers={"content-encoding": "identity"})), proxy=None) == b"v"
+    for proxy in (None, PROXY):
+        try:
+            await drain(MediaSite(squeezed, squeezed), proxy=proxy)
+        except FetchFailed as e:
+            assert e.reason == "encoding"
+        else:
+            raise AssertionError("a compressed response was accepted")
+    assert await drain(MediaSite(Answer(body=b"v", headers={"content-encoding": "identity"}))) == b"v"
 
 
 @mutation(SRC, 'if not expected.isdigit() and "chunked" not in resp.headers.get("transfer-encoding", "").lower():',
@@ -606,41 +602,18 @@ async def test_a_compressed_response_is_refused_so_the_wire_size_never_hides_the
 @sync
 async def test_a_body_with_neither_content_length_nor_chunked_framing_is_a_failed_route():
     bare = Answer(body=Body.of(GOOD), no_length=True)
-    site = MediaSite(bare, GOOD)
-    got = await drain(site)
-    assert got == GOOD and site.routes == [None, PROXY], "a body with no length framing was accepted: %r" % site.routes
-    with pytest.raises(FetchFailed) as info:
-        await drain(MediaSite(bare, bare))
-    assert info.value.reason == "no_length"
+    for proxy in (None, PROXY):
+        try:
+            await drain(MediaSite(bare, bare), proxy=proxy)
+        except FetchFailed as e:
+            assert e.reason == "no_length", e.reason
+        else:
+            raise AssertionError("a body with no length framing was accepted")
     chunked = MediaSite(Answer(body=Body.of(GOOD), chunked=True), b"x")
     assert await drain(chunked) == GOOD and chunked.routes == [None]
 
 
-@mutation(SRC, "e.reason in _FINAL_REASONS", 'e.reason == "timeout"', expect="a cap error went on to the proxy")
-@sync
-async def test_a_body_over_the_cap_is_final_and_never_goes_to_the_proxy():
-    site = MediaSite(Body(1500), Body(100))
-    try:
-        await drain(site, chunk_size=1000, max_bytes=500)
-    except FetchFailed as e:
-        assert e.reason == "too_large" and site.routes == [None], "a cap error went on to the proxy: %r" % site.routes
-    else:
-        raise AssertionError("a cap error went on to the proxy")
-
-
-# ---- the held-back chunk boundary, the deadline pre-check, logging, close ----------------------------------------
-@sync
-async def test_a_failure_in_the_second_chunk_still_falls_back_but_one_in_the_third_does_not():
-    """With 1 MiB chunks the first is held back until the second is complete: a failure at 1.5 MiB has handed nothing
-    over (the proxy delivers the same bytes); one at 2.5 MiB has (it raises, the proxy is not tried)."""
-    early = MediaSite(Answer(body=Body.of(GOOD), fail_after=MIB + MIB // 2), GOOD)
-    assert await drain(early) == GOOD and early.routes == [None, PROXY]
-    late = MediaSite(Answer(body=Body.of(GOOD), fail_after=2 * MIB + MIB // 2), GOOD)
-    with pytest.raises(FetchFailed):
-        await drain(late)
-    assert late.routes == [None]
-
-
+# ---- the deadline pre-check, logging, close -----------------------------------------------------------------------
 @mutation(SRC, "if asyncio.get_running_loop().time() >= deadline:", "if False:",
           expect="a request was made after the deadline")
 @sync
@@ -686,7 +659,7 @@ async def test_no_log_record_from_any_logger_carries_a_path_a_query_or_the_pinne
 
     with caplog.at_level(logging.INFO):
         await drain(MediaSite(hop, hop), proxy=None)                            # direct, with a redirect hop
-        await drain(MediaSite(b"x", hop), resolver=nothing)                     # through the proxy route
+        await drain(MediaSite(b"x", hop), proxy=PROXY, resolver=nothing)        # through the proxy route
         await net.request("GET", "https://cdn.media.test/p/secret?q=tok", resolver=public_resolver,
                           transport=httpx.MockTransport(lambda request: httpx.Response(200, content=b"ok")))
     text = " ".join(r.getMessage() for r in caplog.records)
@@ -712,8 +685,6 @@ async def test_a_close_that_never_ends_does_not_hang_the_helper(monkeypatch):
 
 
 @mutation(SRC, "self.left -= loop.time() - start", "pass", expect="closes were bounded one by one, not in total")
-@mutation(SRC, "resolver, closing)) as parts:", "resolver, _CloseBudget())) as parts:",
-          expect="each route had its own close budget")
 @sync
 async def test_all_the_closes_of_one_download_share_one_budget(monkeypatch):
     """Three redirect hops and the final response all close slowly: together they get one budget, not one each."""
@@ -735,16 +706,3 @@ async def test_all_the_closes_of_one_download_share_one_budget(monkeypatch):
         raise AssertionError("closes were bounded one by one, not in total: no end in 10 s") from None
     took = time.monotonic() - start
     assert site.closed >= 4 and took < 0.3 + 0.7, "closes were bounded one by one, not in total: %.2f s" % took
-
-    # a direct failure whose close hangs, then a proxy body whose close hangs: one budget over both routes
-    monkeypatch.setattr(net, "CLOSE_TIMEOUT_S", 1.0)
-    both = MediaSite(Answer(503, hang_close=True), Answer(body=Body(4 * MIB), hang_close=True))
-    start = time.monotonic()
-    try:
-        async with asyncio.timeout(10):
-            async with contextlib.aclosing(stream_download(URL, **options(both))) as parts:
-                await anext(parts)
-    except TimeoutError:
-        raise AssertionError("each route had its own close budget: no end in 10 s") from None
-    took = time.monotonic() - start
-    assert both.routes == [None, PROXY] and took < 1.0 + 0.6, "each route had its own close budget: %.2f s" % took

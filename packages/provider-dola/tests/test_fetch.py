@@ -1,4 +1,4 @@
-"""Fetch (coverage RES14, RES26, RES16): direct first, then through the account proxy; master
+"""Fetch (coverage RES14, RES26, RES16): through the account proxy only (direct only without one); master
 quality through the cell's own `fallback_api` and the qAAB token; silent fallback; images take only the clean link."""
 
 import asyncio
@@ -105,28 +105,31 @@ def video_out(vid="v1", url=RENDITION % "v1", conversation=CONV):
     return Output(url, "video/mp4", 0, vid, {"conversation_id": conversation, "source": "main_url"})
 
 
-# ---- direct first, proxy only as the fallback (RES26): the route rules themselves are proven in the core ------------
-def test_the_download_goes_direct_first_and_never_touches_the_proxy_when_direct_works():
-    media = MediaSite(b"video", b"other")
+# ---- the account proxy only, direct only without one (RES26): the route rules themselves are proven in the core -----
+@mutation(FETCH, "proxy=credential.proxy_url(ctx.account.proxy),", "proxy=None,",
+          expect="the media download went direct although the account has a proxy")
+def test_the_download_goes_through_the_account_proxy_and_never_direct():
+    media = MediaSite(b"direct", b"video")
     body, transport = collect(Ctx(), video_out(), media=media)
-    assert body == b"video" and media.routes == [None], "the media download went through the account proxy first"
+    assert body == b"video" and media.routes == [PROXY_URL], \
+        "the media download went direct although the account has a proxy: %r" % media.routes
+    assert PROXY_URL == credential.proxy_url(account().proxy)
     assert not transport.gets, "the media link must not go through the cookie transport"
     assert not {"cookie", "authorization"} & seen(media)[0]["headers"], "the signed CDN link carries no cookie"
 
 
-def test_a_failed_direct_download_falls_back_to_the_account_proxy():
-    media = MediaSite(403, b"video")
-    body, _ = collect(Ctx(), video_out(), media=media)
-    assert body == b"video" and media.routes == [None, PROXY_URL], \
-        "a failed direct download does not fall back to the proxy: %r" % media.routes
-    assert PROXY_URL == credential.proxy_url(account().proxy)
+def test_a_failed_proxy_download_is_an_error_and_never_goes_direct():
+    media = MediaSite(b"video", 403)
+    with pytest.raises(FetchFailed):
+        collect(Ctx(), video_out(), media=media)
+    assert media.routes == [PROXY_URL], "a failed proxy download went direct: %r" % media.routes
 
 
-def test_a_failed_download_with_no_proxy_is_an_error_and_with_both_failing_too():
+def test_with_no_proxy_the_download_goes_direct_and_a_failure_is_an_error():
+    media = MediaSite(b"video")
+    assert collect(Ctx(account(proxy=False)), video_out(), media=media)[0] == b"video" and media.routes == [None]
     with pytest.raises(FetchFailed):
         collect(Ctx(account(proxy=False)), video_out(), media=MediaSite(403))
-    with pytest.raises(FetchFailed):
-        collect(Ctx(), video_out(), media=MediaSite(500, 500))
 
 
 def test_an_empty_body_and_a_transport_exception_are_failed_attempts_not_a_video():
@@ -135,8 +138,7 @@ def test_an_empty_body_and_a_transport_exception_are_failed_attempts_not_a_video
         collect(Ctx(account(proxy=False)), video_out(), media=MediaSite(b""))
     assert info.value.reason == "empty"
     with pytest.raises(FetchFailed):
-        collect(Ctx(), video_out(), media=MediaSite(RESET, RESET))
-    assert collect(Ctx(), video_out(), media=MediaSite(RESET, b"video"))[0] == b"video"
+        collect(Ctx(), video_out(), media=MediaSite(b"video", RESET))
 
 
 @mutation(FETCH,

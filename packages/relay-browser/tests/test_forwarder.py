@@ -15,6 +15,7 @@ from relay_browser.session import open_session
 from relay_core.testing.mutation import mutation
 
 F = "packages/relay-browser/src/relay_browser/forwarder.py"
+S = "packages/relay-browser/src/relay_browser/session.py"
 AUTH = b"Proxy-Authorization: Basic eDp5"
 UNREACHABLE = ("                cw.write(_BAD_GATEWAY)\n                await cw.drain()\n                return\n"
                "            self._writers.add(uw)")
@@ -230,3 +231,41 @@ async def test_a_rejected_proxy_login_fails_the_page_at_once_instead_of_hanging(
                 await s.page.goto("http://relay-proxy-test.invalid/", timeout=30000)
             assert time.monotonic() - t0 < 20, "a rejected proxy login hung the page"
     assert up.heads, "the request never reached the upstream proxy"
+
+
+GATHER_JS = """async () => {
+    const pc = new RTCPeerConnection({iceServers: []});
+    pc.createDataChannel("probe");
+    const found = [];
+    const done = new Promise(resolve => {
+        pc.onicecandidate = e => e.candidate ? found.push(e.candidate.candidate) : resolve();
+        setTimeout(resolve, 8000);
+    });
+    await pc.setLocalDescription(await pc.createOffer());
+    await done;
+    pc.close();
+    return found;
+}"""
+
+
+def leaking(candidates: list[str]) -> list[str]:
+    """The ICE candidates that name an address of this machine (host) or its public one (srflx)."""
+    return [c for c in candidates if " typ host" in c or " typ srflx" in c]
+
+
+@mutation(S, "                if proxy:       # here, so that", "                if False:       # here, so that",
+          expect="a page script learned this machine's address through WebRTC")
+@mutation(S, 'PROXY_PREFERENCES = {"webrtc": {"ip_handling_policy": "disable_non_proxied_udp"}}',
+          "PROXY_PREFERENCES = {}", expect="a page script learned this machine's address through WebRTC")
+@pytest.mark.browser
+@sync
+async def test_with_a_proxy_a_page_script_gathers_no_webrtc_candidate_and_without_one_it_does(tmp_path, token):
+    """No STUN server is needed: a host candidate is gathered from the local interfaces alone. Without a proxy one
+    appears (the control: the probe can see a leak); with one, none does."""
+    async with open_session(site_for(tmp_path), Account(), purpose="submit", token=token, redact=redact) as s:
+        plain = await s.page.evaluate(GATHER_JS)
+    assert leaking(plain), "the probe found no host candidate even without a proxy: %r" % plain
+    account = Account(id="acct-2", proxy=Proxy("127.0.0.1", 9))     # the upstream is never reached: not needed
+    async with open_session(site_for(tmp_path), account, purpose="submit", token=token, redact=redact) as s:
+        proxied = await s.page.evaluate(GATHER_JS)
+    assert not leaking(proxied), "a page script learned this machine's address through WebRTC: %r" % proxied

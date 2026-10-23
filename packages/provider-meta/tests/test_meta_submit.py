@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 import pytest
 
 from relay_core import errors
-from relay_core.net import UnsafeUrl
+from relay_core.net import FetchFailed, UnsafeUrl
 from relay_core.providers import Ambiguous, Completed, Cooldown, Dead, Fail, MediaRef, Proxy, Retry, Success, Suspect
 from relay_core.testing.fake_media import MediaSite, public_resolver
 from relay_core.testing.fake_provider import FakeSettings
@@ -29,6 +29,7 @@ FIX = Path(__file__).resolve().parents[3] / "fixtures" / "meta" / "spike-261023"
 SUBMIT_FILE = "packages/provider-meta/src/relay_meta/engine/submit.py"
 CONSTANTS = "packages/provider-meta/src/relay_meta/constants.py"
 ERRORS_FILE = "packages/provider-meta/src/relay_meta/errors.py"
+FETCH_FILE = "packages/provider-meta/src/relay_meta/engine/fetch.py"
 NOW = datetime(2026, 10, 23, 8, 0, tzinfo=UTC)
 JAR = json.dumps({"cookies": [{"name": "ecto_1_sess", "value": "v-fake", "domain": ".meta.ai", "session": True}]})
 EDITABLE, TEXTAREA = "the hydrated composer", "the placeholder textarea"
@@ -718,11 +719,20 @@ def drain(ref, site, proxy=None) -> bytes:
     return asyncio.run(go())
 
 
-def test_fetch_takes_fbcdn_links_only_and_falls_back_to_the_account_proxy():
+@mutation(FETCH_FILE, "proxy=proxy_url(ctx.account.proxy),", "proxy=None,",
+          expect="the meta media went direct although the account has a proxy")
+def test_fetch_takes_fbcdn_links_only_through_the_account_proxy_when_it_has_one():
     ref = S.read_answer(capture("image-1-acc1").answer).media[0]
-    site = MediaSite(500, b"webp-bytes")
+    site = MediaSite(b"direct-bytes", b"webp-bytes")
     proxy = Proxy("proxy.example", 8080, "user:p@ss")
-    assert drain(ref, site, proxy) == b"webp-bytes"
-    assert site.routes == [None, "http://user:p%40ss@proxy.example:8080"]
+    assert drain(ref, site, proxy) == b"webp-bytes" and site.routes == ["http://user:p%40ss@proxy.example:8080"], \
+        "the meta media went direct although the account has a proxy: %r" % site.routes
+    failing = MediaSite(b"direct-bytes", 500)
+    with pytest.raises(FetchFailed):
+        drain(ref, failing, proxy)
+    assert failing.routes == ["http://user:p%40ss@proxy.example:8080"], \
+        "the meta media went direct although the account has a proxy: %r" % failing.routes
+    plain = MediaSite(b"webp-bytes")
+    assert drain(ref, plain) == b"webp-bytes" and plain.routes == [None]
     with pytest.raises(UnsafeUrl):
         drain("https://evil.example/v/t39.105495-1/x.webp", MediaSite(b"x"))

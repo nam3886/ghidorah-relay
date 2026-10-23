@@ -10,6 +10,8 @@ The server fetches URLs a client chose (input images, webhooks), so a URL must l
   TLS server name and `Host` stay the original host so the certificate is still verified against it;
 - follow redirects by hand and re-check every hop (at most 4); a webhook follows none.
 
+A provider's media (`stream_download`) goes through the account's proxy when the account has one, never direct.
+
 Proxy strings: `ip:port`, `ip:port:user:pass`, `user:pass@ip:port`, `scheme://user:pass@ip:port`.
 """
 
@@ -207,9 +209,9 @@ async def safe_post(url: str, content: bytes, **kw) -> SafeResponse:
 # ---- media download ---------------------------------------------------------------
 CLOSE_TIMEOUT_S = 5.0      # closing a response or client is best effort and never hangs the helper
 _HOST_NAME = re.compile(r"[a-z0-9-]+(\.[a-z0-9-]+)*")      # letters, digits, "-" and "." only: no backslash, "%", IDN
-_FINAL_REASONS = ("timeout", "too_large")                  # a failure the proxy route cannot cure
-# a refusal that only costs the direct route: the proxy resolves in its own network (a filtering resolver on this
-# network answers 0.0.0.0 or a LAN address for a listed host). No direct connection is made either way.
+# With no proxy the download resolves the name itself: a name that does not resolve, or an answer that is not public
+# (a filtering resolver on this network answers 0.0.0.0 or a LAN address for a listed host), fails it as a transfer
+# failure the fetcher retries later; nothing is connected.
 _UNUSABLE = {"unresolvable": "dns", "private_address": "private"}
 
 
@@ -290,15 +292,15 @@ class _CloseBudget:
             self.left -= loop.time() - start
 
 
-async def _one_route(url, allowed, route, deadline, max_bytes, chunk_size, transport, resolver,
-                     closing) -> AsyncIterator[bytes]:
-    """The download over one route. One chunk is held back so that a body that turns out empty or truncated fails
-    before anything was handed over (and the proxy route can still be tried). The direct route (`route` None)
-    resolves and checks every hop itself and connects to the checked address; the proxy route resolves nothing
-    (the proxy does), so there the host list is the only guard. Both routes use default ports only."""
-    client = httpx.AsyncClient(transport=transport(route) if transport else None, proxy=None if transport else route,
+async def _download(url, allowed, proxy, deadline, max_bytes, chunk_size, transport,
+                    resolver) -> AsyncIterator[bytes]:
+    """The download over its one route. One chunk is held back so that a body that turns out empty or truncated fails
+    before its last chunk was handed over. Without a proxy every hop is resolved and checked here and the connection
+    goes to the checked address; through the proxy nothing is resolved here (the proxy resolves the name in its own
+    network, so there is no address to check or pin), and the host list on every hop is the guard."""
+    client = httpx.AsyncClient(transport=transport(proxy) if transport else None, proxy=None if transport else proxy,
                                timeout=httpx.Timeout(30.0, connect=10.0), follow_redirects=False, trust_env=False)
-    resp = None
+    closing, resp = _CloseBudget(), None
     try:
         current = url
         for hop in range(MAX_REDIRECTS + 1):
@@ -307,7 +309,7 @@ async def _one_route(url, allowed, route, deadline, max_bytes, chunk_size, trans
             if not _default_port(urlsplit(current)):
                 _refuse(current, "port")
             request_url, headers, extensions = current, {}, {}
-            if route is None:
+            if proxy is None:
                 try:
                     target = await _wait(deadline, check_url, current, resolver, http_ok=True)
                 except UnsafeUrl as e:
@@ -371,40 +373,31 @@ async def stream_download(url: str, *, hosts: tuple[str, ...], proxy: str | None
                           ) -> AsyncIterator[bytes]:
     """`chunk_size` chunks of a media file on one of `hosts`, with no cookie and no `Authorization`, uncompressed
     (`Accept-Encoding: identity`; a response that is compressed anyway is refused). https only, except for the hosts in
-    `http_hosts` (or all of them with `https_only=False`, tests). The direct route first: every hop is resolved with
-    `resolver` and the connection goes to the checked address; a name that does not resolve, or any answer that is
-    not public, makes the direct route fail (FetchFailed "dns"/"private", nothing is connected). Only default ports
-    (80, 443) are used, on both routes. The `proxy` route only when the direct one failed before the first chunk was
-    handed over (a failure after that raises, the caller retries the whole output); it cannot pin an address, so only
-    the host list guards it. All the closes of one download share one CLOSE_TIMEOUT_S budget. More than `max_bytes` ->
-    FetchFailed("too_large"), final; a body shorter than its Content-Length -> "truncated";
-    a 2xx with neither Content-Length nor chunked framing -> "no_length"; past `deadline_s` (one deadline
-    over both routes, every redirect and the body) -> "timeout", never CancelledError. A refused link (host, scheme,
-    port, malformed, also on a redirect hop) -> UnsafeUrl, which never goes to the proxy route. `transport`
-    (tests) builds the transport of each route from its proxy URL. Close it early with `contextlib.aclosing`: the
-    upstream stream is closed at once. The final failure is logged with its reason and host name only."""
+    `http_hosts` (or all of them with `https_only=False`, tests). Only default ports (80, 443).
+    ONE route, never a second: with a `proxy` (the account's) every request goes through it and nothing is ever
+    connected from here, so the provider and its CDN never see this machine's address; a proxy that fails is a
+    FetchFailed like any transfer failure (the caller retries later), never a reason to go direct. The proxy resolves
+    the name, so no address is checked or pinned on that route: the host list, checked on every redirect hop, is its
+    guard. Without a proxy the request goes direct: every hop is resolved with `resolver` and the connection goes to
+    the checked address; a name that does not resolve, or any answer that is not public, fails the download
+    (FetchFailed "dns"/"private", nothing is connected). All the closes of one download share one CLOSE_TIMEOUT_S
+    budget. More than `max_bytes` -> FetchFailed("too_large"); a body shorter than its Content-Length -> "truncated";
+    a 2xx with neither Content-Length nor chunked framing -> "no_length"; past `deadline_s` (one deadline over every
+    redirect and the body) -> "timeout", never CancelledError. A refused link (host, scheme, port, malformed, also on
+    a redirect hop) -> UnsafeUrl, raised before that link is requested. `transport` (tests) builds the transport of
+    the route from its proxy URL (None = direct). Close it early with `contextlib.aclosing`: the upstream stream is
+    closed at once. A failure is logged with its reason and host name only."""
     assert_no_tx()
     deadline = asyncio.get_running_loop().time() + deadline_s
     allowed = functools.partial(host_allowed, hosts=hosts, https_only=https_only, http_hosts=http_hosts)
-    routes = [None] if proxy is None else [None, proxy]
-    closing, handed = _CloseBudget(), False
-    for i, route in enumerate(routes):
-        try:
-            async with contextlib.aclosing(_one_route(url, allowed, route, deadline, max_bytes, chunk_size, transport,
-                                                      resolver, closing)) as parts:
-                async for part in parts:
-                    handed = True
-                    yield part
-            return
-        except FetchFailed as e:
-            if handed or e.reason in _FINAL_REASONS or i == len(routes) - 1:
-                log.warning("media download failed (%s): %s", e.reason, url_host(url))
-                raise
-            if e.reason in _UNUSABLE.values():     # the proxy resolves the name itself: worth a look at the host
-                log.warning("media host unusable on the direct route (%s), trying the proxy: %s", e.reason,
-                            url_host(url))
-            else:
-                log.info("media download failed on the direct route (%s); trying the proxy", e.reason)
+    try:
+        async with contextlib.aclosing(_download(url, allowed, proxy, deadline, max_bytes, chunk_size, transport,
+                                                 resolver)) as parts:
+            async for part in parts:
+                yield part
+    except FetchFailed as e:
+        log.warning("media download failed (%s): %s", e.reason, url_host(url))
+        raise
 
 
 # ---- proxy strings ----------------------------------------------------------------------------------------------

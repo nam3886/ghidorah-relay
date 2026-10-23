@@ -350,6 +350,16 @@ def test_chrome_flags(tmp_path):
     assert not any("imagesEnabled" in a for a in sess.launch_args(site_for(tmp_path, block_images=False)))
 
 
+def test_an_account_with_a_proxy_gets_the_webrtc_preference_on_top_of_the_seed(tmp_path):
+    claim = sess.claim_profile(str(tmp_path), "a-g1", site_for(tmp_path))
+    prefs = tmp_path / "a-g1" / "Default" / "Preferences"
+    assert json.loads(prefs.read_text()) == sess.SEED_PREFERENCES, "an account with no proxy keeps the plain seed"
+    sess.seed_proxy_preferences(claim.path)
+    assert json.loads(prefs.read_text()) == {**sess.SEED_PREFERENCES,
+                                             "webrtc": {"ip_handling_policy": "disable_non_proxied_udp"}}
+    sess.release_profile(claim)
+
+
 @mutation(S, "    if site.headless is not None:\n        return site.headless\n", "",
           expect="an explicit headless setting must win")
 @mutation(S, 'return os.environ.get("RELAY_BROWSER_HEADLESS") == "1"', "return False",

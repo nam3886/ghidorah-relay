@@ -5,7 +5,8 @@ here runs through `asyncio.to_thread`. The transport is a seam: tests pass an in
 socket on import (curl_cffi is imported on first real use).
 
 Every poll, reconcile read, title lookup and master lookup goes through `DolaHttp`; it never spends credits.
-The media bytes do not: `relay_core.net.stream_download` fetches those (plain httpx, no cookie).
+The media bytes do not: `relay_core.net.stream_download` fetches those (plain httpx, no cookie, through the same
+account proxy when there is one, never direct then).
 """
 
 import asyncio

@@ -521,7 +521,7 @@ One process per provider (`dola`, `vibes`, `meta`; the compose services `worker-
 |---|---|
 | claims | takes the oldest queued job across pools and submits it |
 | poller | polls running jobs (only for providers with `has_poll`) |
-| fetcher | downloads finished output into MinIO |
+| fetcher | downloads finished output into MinIO; every provider and CDN call of an account with a proxy goes through that proxy only (a failed proxy is a failed fetch, retried later, never a direct download); an account with no proxy goes direct |
 | reconciler | proves `unknown` jobs against the account (only for providers with `has_reconcile`) |
 | reaper | requeues or fails jobs whose lease expired; the daily ledger drift pass |
 | commands | runs queued worker commands, the account checks, the title sweep and the catalog refresh |

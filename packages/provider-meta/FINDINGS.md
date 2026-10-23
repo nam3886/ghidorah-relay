@@ -65,7 +65,8 @@ The engine's own submit, reconcile, poll and fetch, driven on the box with stand
 - Image→video (acc3) from a 14 MB 2560×3840 PNG: the browser re-encoded it to a 626 KB JPEG before meta's page loaded;
   the upload was answered 10.6 s after the file choice, the typed text survived the attach, Enter came 35 s after
   launch and the answer was done 47 s after Enter. The MP4: 10.0 s, 768×1152 (follows the input's orientation), h264
-  24 fps, AAC mono 24 kHz, 5.8 MB, fetched direct on the first try.
+  24 fps, AAC mono 24 kHz, 5.8 MB, fetched direct on the first try (the fetcher then went direct first; since
+  23/10 an account with a proxy downloads through it only).
 - Reconcile of that video chat (acc3, second launch): `/prompt/<uuid>` showed the signed-in thread with the DONE answer
   and the same `.mp4` link; `Found` 21 s after launch, nothing typed or sent; the poll handed the link on.
 

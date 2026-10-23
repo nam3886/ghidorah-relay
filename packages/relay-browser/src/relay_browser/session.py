@@ -11,7 +11,8 @@ Proven 30/09. What it keeps and why:
   token keys are stripped from Local Storage with the site's scripts stopped first (a site that writes its token back
   on a timer would otherwise restore it); when that cannot be done the whole directory goes. A crash leaves a marker,
   and the next open then drops Local Storage whole because nothing could strip it.
-- A proxy goes through the local `ProxyForwarder` (see forwarder.py).
+- A proxy goes through the local `ProxyForwarder` (see forwarder.py), and WebRTC then sends no UDP outside it
+  (`seed_proxy_preferences`): a page script cannot learn the box's address from an ICE candidate.
 - A non-blocking flock on the profile; a run that finds it held gets a throwaway profile (slower, never a second Chrome
   inside the first one's profile).
 - A launch that fails wipes the profile and tries once more; a failure after that is a `BrowserLaunchError`.
@@ -80,6 +81,10 @@ CHROME_BACKGROUND_HOSTS = ("accounts.google.com", "update.googleapis.com", "andr
 # suggestions and network prediction otherwise open connections to the default search provider (www.google.com) at once.
 SEED_PREFERENCES = {"safebrowsing": {"enabled": False, "enhanced": False}, "search": {"suggest_enabled": False},
                     "net": {"network_prediction_options": 2}}
+# Added when the account has a proxy: WebRTC may send UDP only through a proxy, which an HTTP proxy never carries.
+# Measured 23/10 on Chrome 154: the switch --force-webrtc-ip-handling-policy is ignored (a host candidate still came
+# out); this preference is the one Chrome reads.
+PROXY_PREFERENCES = {"webrtc": {"ip_handling_policy": "disable_non_proxied_udp"}}
 
 
 # The Chrome the box runs: `CHROME_VERSION` in deploy/Dockerfile without its package revision (a test keeps them equal).
@@ -271,6 +276,19 @@ def seed_preferences(profile: str) -> None:
     os.makedirs(os.path.join(profile, "Default"), exist_ok=True)
     with open(os.path.join(profile, "Default", "Preferences"), "w", encoding="utf-8") as f:
         json.dump(SEED_PREFERENCES, f)
+
+
+def seed_proxy_preferences(profile: str) -> None:
+    """Add `PROXY_PREFERENCES` to the seeded preferences of an account with a proxy, so that everything goes through the
+    proxy (the owner's rule): a page's RTCPeerConnection gathers no host or srflx candidate and STUN never leaves the
+    box directly. Fingerprint effect: a page that probes WebRTC sees no local or public address at all, as with
+    Chrome's own WebRtcIPHandling policy; the alternative is an address that differs from the proxy's exit, which gives
+    the proxy away. An account with no proxy keeps the plain seed."""
+    path = os.path.join(profile, "Default", "Preferences")
+    with open(path, encoding="utf-8") as f:
+        prefs = json.load(f)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(prefs | PROXY_PREFERENCES, f)
 
 
 def mark_open(profile: str) -> None:
@@ -607,6 +625,8 @@ async def open_session(site: SiteProfile, account, *, purpose, token, images: bo
         kw = launch_kwargs(site, await fwd.start() if fwd else proxy, images, scratch)
         async with async_playwright() as pw:
             async def launch(path: str):
+                if proxy:       # here, so that a profile wiped and seeded again by the retry gets it too
+                    seed_proxy_preferences(path)
                 return await pw.chromium.launch_persistent_context(path, **kw)
 
             ctx = await launch_with_retry(launch, claim)
