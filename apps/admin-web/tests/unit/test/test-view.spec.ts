@@ -5,6 +5,7 @@ import { defineComponent, h, KeepAlive } from "vue";
 import * as api from "@/api/test";
 import { DROPPED_NOTE, FILE_STORE, type FileStore, NOT_SAVED_NOTE, type StoredFile } from "@/lib/test-files";
 import { useAuthStore } from "@/stores/auth";
+import { useScopeStore } from "@/stores/scope";
 import { useUiStore } from "@/stores/ui";
 import FilterSelect, { type SelectOption } from "@/components/shared/FilterSelect.vue";
 import TestView from "@/views/TestView.vue";
@@ -60,10 +61,15 @@ async function loadModels(key = "rk-1") {
   await button("Load models").trigger("click");
   await flushPromises();
 }
-async function pickModel(id: string) {
+// A model chip is named by its id (its title); a model of another provider is picked after that provider's tab.
+async function pickModel(id: string, provider?: string) {
+  if (provider) {
+    useScopeStore().only = provider;
+    await flushPromises();
+  }
   await wrapper!
     .findAll('[data-testid="test-model"]')
-    .find((b) => b.text().startsWith(id))!
+    .find((b) => b.attributes("title") === id)!
     .trigger("click");
   await flushPromises();
 }
@@ -606,7 +612,7 @@ describe("the model picker and the wallet", () => {
     await loadModels();
     await pickModel("imagen-4");
     await choose("Ratio", "2:3");
-    await pickModel("veo-3");
+    await pickModel("veo-3", "flow");
     expect(fieldValue("Ratio")).toBe("16:9");
     expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "").ratio).toBe("16:9");
     await wrapper!.find("#test-prompt").setValue("a cat");
@@ -704,11 +710,11 @@ describe("the model picker and the wallet", () => {
     vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
     await open();
     await loadModels();
-    await pickModel("veo-3");
+    await pickModel("veo-3", "flow");
     await choose("Ratio", "16:9");
     await wrapper!.find("#test-refs").setValue("https://example.com/a.png");
     await attach(new File(["x"], "a.png", { type: "image/png" }));
-    await pickModel("meta-image");
+    await pickModel("meta-image", "meta");
     expect(selectField("Ratio")).toBeUndefined();
     expect(selectField("Style")).toBeUndefined();
     expect(wrapper!.find("#test-refs").exists()).toBe(false);
@@ -720,7 +726,7 @@ describe("the model picker and the wallet", () => {
     expect(body).toEqual({ model: "meta-image", prompt: "a cat" });
     // the saved values stay in the form for the next model that takes them
     expect(fieldValue("Ratio")).toBeUndefined();
-    await pickModel("veo-3");
+    await pickModel("veo-3", "flow");
     expect(fieldValue("Ratio")).toBe("16:9");
   });
 
@@ -742,7 +748,7 @@ describe("the model picker and the wallet", () => {
     expect((vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>).options).toEqual({
       resolution: "720p",
     });
-    await pickModel("imagen-4");
+    await pickModel("imagen-4", "flow");
     expect(selectField("Resolution")).toBeUndefined();
   });
 
@@ -756,18 +762,53 @@ describe("the model picker and the wallet", () => {
     expect(fieldOptions("Style").map((o) => o.value)).toEqual(["", "anime", "pixel"]);
   });
 
-  it("a model that names a display name shows it with its id under it; one without shows the id alone", async () => {
-    vi.mocked(api.listModels).mockResolvedValue({ data: [{ ...video, name: "Veo Three" }, image] });
+  it("a model chip shows its display name, else its id; the chosen one has a check and what it sends below", async () => {
+    vi.mocked(api.listModels).mockResolvedValue({
+      data: [{ ...video, name: "Veo Three", prices: { "5s": 2, "10s": 4 }, limits: { durations: [5, 10] } }, image],
+    });
     await open();
     await loadModels();
-    const named = models().find((m) => m.text().includes("veo-3"))!;
-    const plain = models().find((m) => m.text().startsWith("imagen-4"))!;
-    expect(named.find(".model__title").text()).toBe("Veo Three");
-    expect(named.find(".model__id").text()).toContain("veo-3");
-    expect(plain.find(".model__title").text()).toBe("imagen-4");
-    expect(plain.find(".model__id").exists()).toBe(false);
-    // the phone's third line: the kind as the group heading writes it, then the owner
-    expect(named.find(".model__kind").text()).toBe("Video · flow");
+    expect(models().map((m) => m.text())).toEqual(["Veo Three", "imagen-4"]);
+    expect(models()[0]!.attributes("title")).toBe("veo-3");
+    await pickModel("veo-3");
+    expect(models()[0]!.text()).toBe("✓Veo Three");
+    expect(models()[0]!.classes()).toEqual(expect.arrayContaining(["is-active", "p-flow"]));
+    expect(wrapper!.find('[data-testid="test-chosen"]').text()).toBe("Sends Veo Three · 2–4 points · 5–10 s · veo-3");
+  });
+});
+
+describe("the provider strip", () => {
+  const dola = { id: "seedream", kind: "image", owned_by: "dola", prices: { default: 1 }, limits: {} };
+
+  it("starts on the first provider in the drawn order that has a model, shows its models only, and a paused one is a disabled chip", async () => {
+    vi.mocked(api.listModels).mockResolvedValue({ data: [video, image] });
+    await open();
+    useScopeStore().models = [
+      { id: "veo-3", owned_by: "flow", kind: "video" },
+      { id: "veo-free", owned_by: "flow", kind: "video" },
+      { id: "veo-old", name: "Veo Old", owned_by: "flow", kind: "video", disabled: true },
+    ];
+    await loadModels();
+    expect(useScopeStore().only).toBe("flow");
+    expect(models().map((m) => m.text())).toEqual(["veo-3", "Veo OldPaused", "imagen-4"]);
+    expect(models()[1]!.attributes("disabled")).toBeDefined();
+    expect(wrapper!.findAll('[data-testid="test-models"] h2').map((g) => g.text())).toEqual(["Video", "Image"]);
+  });
+
+  it("another provider shows its models and picks its first; a provider the key has none of says so", async () => {
+    vi.mocked(api.listModels).mockResolvedValue({ data: [video, image, dola] });
+    await open();
+    await loadModels();
+    expect(useScopeStore().only).toBe("dola");
+    await pickModel("veo-3", "flow");
+    useScopeStore().only = "dola";
+    await flushPromises();
+    expect(models().map((m) => m.attributes("title"))).toEqual(["seedream"]);
+    expect(wrapper!.find('[data-testid="test-chosen"]').text()).toBe("Sends seedream · 1 point · seedream");
+    useScopeStore().only = "meta";
+    await flushPromises();
+    expect(wrapper!.find('[data-testid="test-models-none"]').text()).toBe("This key may use no meta model.");
+    expect(wrapper!.find('[data-testid="test-chosen"]').exists()).toBe(false);
   });
 });
 

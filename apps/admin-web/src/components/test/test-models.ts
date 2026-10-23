@@ -49,6 +49,23 @@ export function durationsPhrase(durations: number[]): string {
   return `${head ? `${head} or ` : ""}${last} s`;
 }
 
+// What a model costs and makes, the quiet line under the model picker: "2–4 points · 5–30 s", "1 point",
+// "1 point · 480p or 720p". From the catalog's default prices (`prices`: one per length, or one `default`) and limits.
+export function modelMeta(m: PublicModel | null): string {
+  const prices = m?.prices && typeof m.prices === "object" ? Object.values(m.prices as Record<string, unknown>) : [];
+  const points = prices.filter((p): p is number => typeof p === "number");
+  const lo = Math.min(...points);
+  const hi = Math.max(...points);
+  const cost = !points.length ? "" : lo === hi ? `${lo} ${lo === 1 ? "point" : "points"}` : `${lo}–${hi} points`;
+  const lengths = durationsOf(m);
+  const short = Math.min(...lengths);
+  const long = Math.max(...lengths);
+  const length = !lengths.length ? "" : short === long ? `${short} s` : `${short}–${long} s`;
+  const sizes = resolutionsOf(m);
+  const size = sizes.length > 1 ? `${sizes.slice(0, -1).join(", ")} or ${sizes[sizes.length - 1]}` : (sizes[0] ?? "");
+  return [cost, length, size].filter(Boolean).join(" · ");
+}
+
 interface Wallet {
   day_limit: number | null;
   used_day: number;

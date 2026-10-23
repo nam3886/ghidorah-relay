@@ -3,7 +3,7 @@
 // the loaded models and the form survive tab switches; the script block also gives KeepAlive the name TestView.
 // Where things are kept: the form in localStorage, the images in IndexedDB, the key in sessionStorage only after a
 // successful model load (see lib/test-form.ts, lib/test-files.ts and components/test/test-key.ts).
-import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from "vue";
+import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from "vue";
 import { getOptions, type PublicModel, type Template } from "@/api/test";
 import TestImages from "@/components/test/TestImages.vue";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
@@ -13,6 +13,7 @@ import {
   defaultRatioOf,
   durationsOf,
   durationsPhrase,
+  modelMeta,
   ratiosOf,
   resolutionsOf,
   stylesOf,
@@ -48,9 +49,12 @@ import {
   readForm,
   saveForm,
 } from "@/lib/test-form";
+import { byProviderOrder, providerClass } from "@/lib/providers";
 import { useAuthStore } from "@/stores/auth";
+import { useScopeStore } from "@/stores/scope";
 
 const auth = useAuthStore();
+const scope = useScopeStore();
 const store = inject(FILE_STORE, idbStore);
 const session = useTestSession();
 const generate = useGenerate(session);
@@ -80,13 +84,54 @@ function setField(name: FormField, value: string): void {
   persist();
 }
 
+// The provider strip (one provider at a time, shared with Prompt frames) picks the provider; the picker shows its models
+// the key may use, then its models the admin paused (from the admin catalog: the key's list leaves them out), which
+// can never be chosen. Until a provider is picked, the one of the saved model, else the first that has a model.
+const provider = computed(() => scope.only);
+interface Choice {
+  model: PublicModel;
+  paused: boolean;
+}
+const choices = computed<Choice[]>(() => {
+  const mine = models.value.filter((m) => m.owned_by === provider.value);
+  const paused = (scope.models ?? []).filter(
+    (m) => m.owned_by === provider.value && m.disabled === true && !mine.some((x) => x.id === m.id),
+  );
+  return [
+    ...mine.map((model) => ({ model, paused: false })),
+    ...paused.map((m) => ({ model: { ...m, kind: String(m.kind ?? "") } as PublicModel, paused: true })),
+  ];
+});
 const groups = computed(() => {
-  const byKind = new Map<string, PublicModel[]>();
-  for (const m of models.value) byKind.set(m.kind, [...(byKind.get(m.kind) ?? []), m]);
+  const byKind = new Map<string, Choice[]>();
+  for (const c of choices.value) byKind.set(c.model.kind, [...(byKind.get(c.model.kind) ?? []), c]);
   // video first, as drawn
   return [...byKind.keys()]
     .sort((a, b) => Number(b === "video") - Number(a === "video") || a.localeCompare(b))
     .map((kind) => ({ kind, models: byKind.get(kind) ?? [] }));
+});
+watch(
+  models,
+  (list) => {
+    if (!list.length || list.some((m) => m.owned_by === scope.only)) return;
+    const saved = list.find((m) => m.id === form.model);
+    scope.only = saved?.owned_by ?? byProviderOrder([...new Set(list.map((m) => m.owned_by))])[0] ?? "";
+  },
+  { immediate: true },
+);
+// Another provider: the model chosen for the last one goes, the new one's first model is picked (the form never sends
+// a model the picker does not show).
+watch(provider, (p) => {
+  if (!chosen.value || chosen.value.owned_by === p) return;
+  const first = choices.value.find((c) => !c.paused);
+  if (first) void pick(first.model);
+  else {
+    chosen.value = null;
+    pickLatest.invalidate();
+    ratios.value = [];
+    styles.value = [];
+    templates.value = [];
+  }
 });
 const durations = computed(() => durationsOf(chosen.value));
 // The heading's second line: `<kind> · ` then the lengths the model takes ("5, 10, 20, 25 or 30 s"), or its owner.
@@ -133,6 +178,8 @@ async function pick(model: PublicModel): Promise<void> {
   const ticket = pickLatest.next();
   chosen.value = model;
   form.model = model.id;
+  // the strip shows the provider of the model the form sends
+  scope.only = model.owned_by;
   // a ratio the model does not take is never sent: its own default (or none) takes its place
   const own = ratiosOf(model);
   if (own.length && form.ratio && !own.includes(form.ratio)) form.ratio = defaultRatioOf(model);
@@ -298,43 +345,36 @@ onMounted(async () => {
 
     <div class="grid">
       <section class="models" aria-label="Models" data-testid="test-models">
-        <p v-if="!groups.length" class="models__empty" data-testid="test-models-empty">No models loaded.</p>
-        <!-- the phone draws one row of every model, the scroller itself is the group -->
-        <div
-          class="models__scroll"
-          :role="isPhone && groups.length ? 'group' : undefined"
-          :aria-label="isPhone && groups.length ? 'Models' : undefined"
-        >
-          <div
-            v-for="g in groups"
-            :key="g.kind"
-            :role="isPhone ? undefined : 'group'"
-            :aria-label="isPhone ? undefined : `${capital(g.kind)} models`"
-            class="models__group"
-          >
-            <h2>{{ capital(g.kind) }}</h2>
+        <p v-if="!models.length" class="models__empty" data-testid="test-models-empty">No models loaded.</p>
+        <p v-else-if="!groups.length" class="models__empty" data-testid="test-models-none">
+          This key may use no {{ provider }} model.
+        </p>
+        <!-- picker C: the models as chips, a row per kind under its small label; the chosen one tinted with a check -->
+        <div v-for="g in groups" :key="g.kind" class="models__group">
+          <h2>{{ capital(g.kind) }}</h2>
+          <div class="chips2" role="group" :aria-label="`${capital(g.kind)} models`">
             <button
-              v-for="m in g.models"
-              :key="m.id"
+              v-for="c in g.models"
+              :key="c.model.id"
               type="button"
-              class="model"
-              :class="{ 'is-active': chosen?.id === m.id }"
-              :aria-pressed="chosen?.id === m.id"
+              class="mchip"
+              :class="[providerClass(c.model.owned_by), { 'is-active': chosen?.id === c.model.id }]"
+              :aria-pressed="chosen?.id === c.model.id"
+              :disabled="c.paused"
+              :title="c.model.id"
               data-testid="test-model"
-              @click="pick(m)"
+              @click="pick(c.model)"
             >
-              <span class="model__main">
-                <span class="model__title">{{ titleOf(m) }}</span>
-                <!-- the tablet writes the owner on the id line, as one text -->
-                <span v-if="titleOf(m) !== m.id" class="model__id">{{
-                  isTablet ? `${m.id} · ${m.owned_by}` : m.id
-                }}</span>
-                <span class="model__kind">{{ capital(m.kind) }} · {{ m.owned_by }}</span>
-              </span>
-              <span class="model__owner">{{ m.owned_by }}</span>
+              <span v-if="chosen?.id === c.model.id" class="mchip__check" aria-hidden="true">✓</span
+              >{{ titleOf(c.model) }}<small v-if="c.paused" class="mchip__paused">Paused</small>
             </button>
           </div>
         </div>
+        <p v-if="chosen" class="models__chosen" data-testid="test-chosen">
+          Sends <b>{{ titleOf(chosen) }}</b
+          ><template v-if="modelMeta(chosen)"> · {{ modelMeta(chosen) }}</template> ·
+          <span class="models__id">{{ chosen.id }}</span>
+        </p>
         <details v-if="points" class="test-tab__points-box">
           <summary>
             Wallet limits
@@ -625,13 +665,12 @@ onMounted(async () => {
 
 /* models */
 .models {
-  flex: 1 1 260px;
-  max-width: 320px;
+  flex: 1 1 100%;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px;
+  gap: 12px;
+  padding: 16px 20px;
   background: var(--rl-surface);
   border: 1px solid var(--rl-line);
   border-radius: 16px;
@@ -641,68 +680,80 @@ onMounted(async () => {
   font-size: 13px;
   color: var(--rl-muted);
 }
-.models__scroll {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
 .models__group {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
+/* the kind: a small label over its chips */
 .models__group h2 {
-  margin: 0 0 2px 4px;
-  font-size: 12px;
+  margin: 0;
+  font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--rl-muted);
 }
-.model {
-  box-sizing: border-box;
+.chips2 {
   display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mchip {
+  box-sizing: border-box;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: transparent;
+  gap: 6px;
+  max-width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 16px;
+  background: var(--rl-surface);
   color: var(--rl-fg);
   font: inherit;
+  font-size: 13px;
   line-height: normal;
-  text-align: left;
+  white-space: nowrap;
   cursor: pointer;
 }
-.model:hover {
-  background: var(--rl-raised);
+.mchip:hover:not(:disabled) {
+  border-color: var(--rl-control);
 }
-.model.is-active {
-  border-color: var(--rl-primary);
-  background: var(--rl-primary-soft);
-}
-.model__main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.model__title {
-  font-size: 14px;
+/* the chosen model: the provider's tint, a border in its tone, a check */
+.mchip.is-active {
+  border-color: color-mix(in oklab, var(--pc) 40%, transparent);
+  background: var(--ps);
   font-weight: 500;
 }
-.model__id {
+.mchip__check {
+  color: var(--pi);
+  font-size: 12px;
+  font-weight: 700;
+}
+.mchip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.mchip__paused {
+  font-size: 11px;
+  color: var(--rl-muted);
+}
+/* what the chosen model sends: quiet text under the chips */
+.models__chosen {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px dashed var(--rl-line-strong);
+  font-size: 12px;
+  color: var(--rl-muted);
+  overflow-wrap: anywhere;
+}
+.models__chosen b {
+  font-weight: 500;
+  color: var(--rl-fg);
+}
+.models__id {
   font-family: var(--rl-mono);
-  font-size: 12px;
-  color: var(--rl-faint);
-}
-.model__kind {
-  display: none;
-  font-size: 12px;
-  color: var(--rl-muted);
-}
-.model__owner {
-  font-size: 12px;
-  color: var(--rl-muted);
 }
 .test-tab__points-box {
   padding-top: 12px;
@@ -900,43 +951,7 @@ onMounted(async () => {
   }
   .models {
     flex: none;
-    max-width: none;
-    gap: 12px;
     padding: 12px 16px;
-  }
-  .models__scroll {
-    flex-direction: row;
-    align-items: center;
-    gap: 20px;
-    overflow-x: auto;
-    padding: 4px 0;
-  }
-  .models__group {
-    flex: none;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-  }
-  .models__group h2 {
-    margin: 0 4px 0 0;
-  }
-  .model {
-    flex: none;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0;
-    width: auto;
-    min-height: 52px;
-    padding: 6px 12px;
-    border-color: var(--rl-line-strong);
-    white-space: nowrap;
-  }
-  .model__owner {
-    display: none;
-  }
-  /* the tablet and the phone draw the texts straight in the button */
-  .model__main {
-    display: contents;
   }
   .test-tab__points-box summary {
     min-height: 28px;
@@ -1014,58 +1029,12 @@ onMounted(async () => {
   }
   .models {
     flex: none;
-    max-width: none;
-    gap: 4px;
-    padding: 12px 0 4px;
-    overflow: hidden;
+    padding: 16px;
   }
-  .models__empty {
-    padding: 0 16px 8px;
-  }
-  .models__scroll {
-    flex-direction: row;
-    gap: 8px;
-    padding: 0 16px 8px;
-    overflow-x: auto;
-  }
-  .models__group {
-    display: contents;
-  }
-  .models__group h2 {
-    display: none;
-  }
-  .model {
-    flex: none;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: center;
-    gap: 1px;
-    width: 172px;
-    min-height: 64px;
-    padding: 8px 12px;
-    border-color: var(--rl-line-strong);
-    border-radius: 12px;
-    background: var(--rl-surface);
-  }
-  .model__main {
-    display: contents;
-  }
-  .model__title {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .model__id {
-    white-space: nowrap;
-  }
-  .model__owner {
-    display: none;
-  }
-  .model__kind {
-    display: block;
-  }
-  .test-tab__points-box {
-    padding: 0 16px;
+  /* a touch target: 40 px chips, still in a wrap */
+  .mchip {
+    height: 40px;
+    border-radius: 20px;
   }
   .test-tab__points-box summary {
     min-height: 44px;
