@@ -223,7 +223,7 @@ def test_help_describes_both_scripts():
           expect="built after the rotation")
 @mutation(DEPLOY, 'cp -p "$f"', 'cp "$f"', expect="an env file was not copied as it was")
 @mutation(DEPLOY, 'sed -i "s/^GIT_SHA=.*/GIT_SHA=$sha/"', "true", expect="the deploy failed")
-@mutation(DEPLOY, 'case "$p" in dola | meta) echo', 'case "$p" in nothing) echo', expect="no Chrome version")
+@mutation(DEPLOY, 'case "$p" in dola | meta | qwen) echo', 'case "$p" in nothing) echo', expect="no Chrome version")
 def test_a_deploy_builds_first_rotates_starts_the_api_then_drains_waits_restarts_and_resumes_each_worker(tmp_path):
     box = Box(tmp_path)
     run = box.deploy(box.b, "--workers", "dola", STUB_SUBMITTING="2 0")

@@ -140,8 +140,8 @@ def test_what_qwen_cannot_make_is_refused_before_any_charge(kw, want):
     assert refusal(**kw) == want
 
 
-@mutation(CATALOG_FILE, '    return model if duration is None else "%s@%ds" % (model, duration)',
-          "    return model", expect="price key")
+@mutation(SPEC_FILE, 'self._price(settings, C.price_key(req.model, params.get("duration")))',
+          "self._price(settings, req.model)", expect="price key")
 def test_a_video_is_priced_by_model_and_seconds_and_a_missing_key_warns():
     cfg = FakeSettings(SPEC, qwen__prices={"qwen-image-3.0": 2, "qwen-happyhorse-1.1@5s": 7})
     assert plan(cfg=cfg).price == 2
