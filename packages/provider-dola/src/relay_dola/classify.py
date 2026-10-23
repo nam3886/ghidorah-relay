@@ -231,6 +231,36 @@ _LIKENESS_REFUSAL_MARKERS = (
 )
 
 
+# The whole replies dola sends as a PLAIN-TEXT assistant message (`content {"text": ...}`, user_type 2), 23/10 live,
+# HTTP-sent Seedance 2.5. Such a message counts as a refusal only when it IS one of these, whole (anchored): a
+# plain-text message that holds refusal words AND anything else (a question, an offer to adjust and proceed) is not
+# read as a refusal (`resolver.message_texts`).
+_WHOLE_PLAIN_REFUSALS = (
+    "I can't generate the requested content. Try something else.",
+    "I can't generate the requested content.",
+    "I can't generate the requested images. Try something else.",
+    "I can't generate the requested images.",
+)
+
+
+def _bare(text: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", plain(text)).split())
+
+
+_WHOLE_PLAIN_BARE = frozenset(_bare(s) for s in _WHOLE_PLAIN_REFUSALS)
+
+
+def is_whole_plain_refusal(text: str) -> bool:
+    """Is this whole message (case, punctuation and white space aside) one of dola's known plain-text refusals?"""
+    return _bare(text) in _WHOLE_PLAIN_BARE
+
+
+def says_refusal(text: str) -> bool:
+    """Does the text hold any refusal wording at all (`refusal_markers`)?"""
+    low = plain(text)
+    return any(marker in low for marker in refusal_markers())
+
+
 def refusal_markers() -> tuple:
     """Every wording that makes a reply a CONTENT REFUSAL: the monitoring layer counts with the classifier's own
     vocabulary (a count query that copied two phrases once missed the "can't generate" branch)."""

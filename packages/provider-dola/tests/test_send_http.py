@@ -257,9 +257,24 @@ async def test_a_drop_before_the_ack_is_unknown_and_after_it_is_still_taken():
     _, before = await run(Dola(log, stream=IMAGE_SSE[:4], drop=TimeoutError("cut")))
     assert isinstance(before.job, Ambiguous)
     ack_end = next(i for i, line in enumerate(IMAGE_SSE) if line.startswith("data:") and "ack_client_meta" in line)
-    _, after = await run(Dola(log, stream=IMAGE_SSE[:ack_end + 2], drop=TimeoutError("cut")))
-    assert isinstance(after.job, Completed), "taken despite the drop: %r" % (after.job,)
+    ctx, after = await run(Dola(log, stream=IMAGE_SSE[:ack_end + 2], drop=TimeoutError("cut")))
+    assert type(after.job).__name__ == "Accepted" and after.job.taken and after.job.ref == IMAGE_CONV, \
+        "taken despite the drop: %r" % (after.job,)
+    assert (IMAGE_CONV, {}) in ctx.refs
     assert log.count("POST") == 2
+
+
+@mutation(SEND, "        if failure:\n            # Acknowledged, then the stream was cut", "        if False:\n"
+          "            # Acknowledged, then the stream was cut", expect="the poll decides")
+@sync
+async def test_a_stream_cut_after_the_ack_never_completes_or_fails_the_job_from_what_it_read():
+    """Codex 32fb5a6..d9dae39: the partial stream (here: a refusal after the ack, and a finished image grid in the
+    conversation) decides nothing once the stream was cut; the order is taken and the poll reads it whole."""
+    for stream in (REFUSED_AFTER_ACK, IMAGE_SSE[:-4]):
+        log: list = []
+        _, result = await run(Dola(log, stream=stream, drop=TimeoutError("cut")))
+        assert type(result.job).__name__ == "Accepted" and result.job.taken, "the poll decides: %r" % (result.job,)
+        assert log.count("POST") == 1
 
 
 @sync
@@ -552,3 +567,28 @@ async def test_a_plain_text_refusal_of_dola_is_read_and_ends_the_job():
     assert isinstance(result.job, Fail) and result.job.code == errors.CONTENT_REFUSED, \
         "a plain-text refusal: %r" % (result.job,)
     assert log.count("POST") == 1
+
+
+
+PLAIN_REFUSAL = "I can\u2019t generate the requested content. Try something else."
+PLAIN_ASKS = "I can't generate the requested content as written; would you like me to adjust it and proceed?"
+
+
+def _plain_bot(text: str) -> dict:
+    return {"user_type": 2, "content_type": 1, "content": json.dumps({"text": text})}
+
+
+@mutation(RESOLVER, "        if classify.says_refusal(text) and not classify.is_whole_plain_refusal(text):",
+          "        if False:", expect="anchored refusal")
+@mutation("packages/provider-dola/src/relay_dola/classify.py", "    return _bare(text) in _WHOLE_PLAIN_BARE",
+          "    return True", expect="anchored refusal")
+def test_a_plain_text_message_is_a_refusal_only_when_it_is_the_whole_known_sentence():
+    from relay_dola import classify
+    from relay_dola.engine import resolver
+    assert resolver.message_texts(_plain_bot(PLAIN_REFUSAL)) == [PLAIN_REFUSAL], "anchored refusal"
+    assert resolver.message_texts(_plain_bot(" i can't generate the requested content ")) != [], "anchored refusal"
+    assert resolver.message_texts(_plain_bot(PLAIN_ASKS)) == [], "anchored refusal: a question is not a refusal"
+    assert resolver.message_texts(_plain_bot("Your video is ready.")) == ["Your video is ready."]
+    body = {"downlink_body": {"pull_singe_chain_downlink_body": {"messages": [_plain_bot(PLAIN_ASKS)]}}}
+    verdict = classify.classify_reply(resolver.conversation_text(body))
+    assert verdict.outcome is not classify.SubmitOutcome.CONTENT_REFUSED, "anchored refusal"

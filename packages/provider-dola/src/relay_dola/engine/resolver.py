@@ -220,7 +220,11 @@ def message_texts(msg: dict) -> list[str]:
         if msg.get("user_type") not in (ASSISTANT_TYPE, str(ASSISTANT_TYPE)):
             return []
         text = content.get("text")
-        return [text] if isinstance(text, str) and text.strip() else []
+        if not isinstance(text, str) or not text.strip():
+            return []
+        if classify.says_refusal(text) and not classify.is_whole_plain_refusal(text):
+            return []       # refusal words plus anything else: no verdict from it (unclear: the poll decides)
+        return [text]
     return _block_texts(content) if isinstance(content, list) else []
 
 

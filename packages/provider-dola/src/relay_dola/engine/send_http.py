@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from typing import NamedTuple
 from urllib.parse import urlencode
 
-from relay_core.providers import NotTaken, Retry
+from relay_core.providers import Accepted, NotTaken, Retry, Success
 from relay_dola import credential, errors
 from relay_dola.catalog import DEFAULT_RATIO, IMAGE_MODEL_LABELS
 from relay_dola.engine import resolver
@@ -452,6 +452,12 @@ class HttpRun(_Run):
         ALARM.acknowledged()
         conversation = self.conversation = stream.conversation
         await self.ctx.report_ref(conversation, {})
+        if failure:
+            # Acknowledged, then the stream was cut: the order is taken, and nothing in a partial stream completes
+            # or fails the job. The poll reads the whole conversation and decides.
+            await self._say("dola acknowledged the order (conversation %s), then the stream was cut (%s): the poll "
+                            "decides" % (conversation, failure), "submit", "engine")
+            return _outcome(Accepted(conversation, taken=True), Success())
         error = stream_error(text)
         if error is not None and error.code == REFUSED_CODE:     # acknowledged, then refused: as the browser path
             return await self._refused_by_code(text, conversation)
