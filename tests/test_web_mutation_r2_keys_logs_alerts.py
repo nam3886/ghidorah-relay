@@ -233,7 +233,7 @@ def test_the_keys_view_draws_the_callout_the_switch_the_bars_and_the_delete_conf
 @mutation(KEYS, '"Unfinished · jobs"', '"Unfinished / max"',
           expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
                               "unfinished cells")
-@mutation(KEYS, 'k.models.join(" · ")', 'k.models.join(", ")',
+@mutation(KEYS, 'class="p-key__models-list" :models="row.models"', 'class="p-key__models-list" :models="[]"',
           expect=KEYS_SMALL + "a phone lists each key as a block with its models, wallets, counts and the two row "
                               "buttons")
 @pytest.mark.web_unit
@@ -581,7 +581,8 @@ DIMS = ALERT_LISTS + "dims a group with nothing open, marks the opened one, and 
 
 @mutation(ALERTS, 'row.open_count === 0 ? "a-dim" : ""', 'row.open_count !== 0 ? "a-dim" : ""', expect=DIMS)
 @mutation(ALERTS, 'isOpened(row) ? "a-selected" : ""', '!isOpened(row) ? "a-selected" : ""', expect=DIMS)
-@mutation(ALERTS, 'groups.value.length === 1 ? "group" : "groups"', 'groups.value.length === 2 ? "group" : "groups"',
+@mutation(ALERTS, 'shownGroups.value.length === 1 ? "group" : "groups"',
+          'shownGroups.value.length === 2 ? "group" : "groups"',
           expect=DIMS)
 @pytest.mark.web_unit
 def test_the_alerts_view_marks_and_counts_its_groups():

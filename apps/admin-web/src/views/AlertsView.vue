@@ -23,17 +23,20 @@ import DetailDrawer from "@/components/shared/DetailDrawer.vue";
 import DataTable from "@/components/shared/DataTable.vue";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { IconRefresh } from "@/components/shared/icons";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useBusy } from "@/composables/use-busy";
 import { useLatest } from "@/composables/use-latest";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
+import { providerClass } from "@/lib/providers";
+import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 import { useUiStore } from "@/stores/ui";
 
 // Alerts: every stored alert kind grouped by the hub API, with an acknowledge per group, and beside them the live
-// conditions the dashboard computes (no acknowledge: they clear themselves). The groups ignore the provider filter.
+// conditions the dashboard computes (no acknowledge: they clear themselves). The provider strip filters both.
 // Titles and reply texts hold customer-influenced words, so every one reaches the page as text.
 //
 // `asked` is what the operator asked for last (the filters and the group whose detail is open); what is drawn (`groups`,
@@ -46,6 +49,7 @@ import { useUiStore } from "@/stores/ui";
 // The drawer is shown while a detail is asked for (`asked.open`), reads while it loads and keeps the error of a read
 // that failed. The loading, error and empty states of the list are the shared table's (B-States).
 const stats = useStatsStore();
+const scope = useScopeStore();
 const ui = useUiStore();
 const { run } = useBusy();
 const latest = useLatest();
@@ -66,7 +70,16 @@ const writing = ref(false);
 // write is in flight nothing is.
 const locked = computed(() => writing.value || loading.value > 0);
 // A group is named by its kind and its own key; a list wants one unique id per row.
-const groupRows = computed(() => groups.value.map((g) => ({ ...g, id: `${g.kind}/${g.group}` })));
+// The provider strip filters the groups and the live conditions here, in the page.
+const shownGroups = computed(() =>
+  scope.provider ? groups.value.filter((g) => g.provider === scope.provider) : groups.value,
+);
+const shownLive = computed(() =>
+  scope.provider ? live.value.filter((a) => a.provider === scope.provider) : live.value,
+);
+// a group or a condition of no provider is the relay's own, in grey
+const providerOf = (p: string | null | undefined): string => p || "relay";
+const groupRows = computed(() => shownGroups.value.map((g) => ({ ...g, id: `${g.kind}/${g.group}` })));
 type GroupRow = (typeof groupRows.value)[number];
 
 // The columns the shared table's loading skeleton draws (the list itself is the plain table below); a phone draws
@@ -79,9 +92,9 @@ const columns = computed(() =>
         { key: "openrows", label: "Open / Rows", align: "right" as const },
       ]
     : [
+        { key: "provider", label: "Provider" },
         { key: "severity", label: "Severity" },
         { key: "title", label: "Alert" },
-        { key: "provider", label: "Provider" },
         { key: "first", label: "First seen" },
         { key: "last", label: "Last seen" },
         { key: "count", label: "Rows", align: "right" as const },
@@ -177,12 +190,19 @@ function pick(filter: "status" | "kind", value: string | number): void {
 // The group whose detail is open, as the table and the phone list mark it.
 const isOpened = (g: AlertGroup): boolean => asked.value.open?.kind === g.kind && asked.value.open.group === g.group;
 const rowClass = ({ row }: { row: GroupRow }): string =>
-  [row.open_count === 0 ? "a-dim" : "", isOpened(row) ? "a-selected" : ""].filter(Boolean).join(" ");
+  [
+    row.open_count === 0 ? "a-dim" : "",
+    isOpened(row) ? "a-selected" : "",
+    "g-rail",
+    providerClass(providerOf(row.provider)),
+  ]
+    .filter(Boolean)
+    .join(" ");
 
 // The state of the list: the shared table draws loading (nothing yet), the error and the empty list; the rows are
 // drawn here, dimmed while the next answer is on its way.
 const listState = computed(() =>
-  error.value ? "error" : groups.value.length ? (loading.value > 0 ? "refreshing" : "ready") : "other",
+  error.value ? "error" : shownGroups.value.length ? (loading.value > 0 ? "refreshing" : "ready") : "other",
 );
 
 // the opener: where focus goes back when the drawer is gone; if it is not there any more (a click on a row, no
@@ -264,7 +284,7 @@ async function acknowledge(g: AlertGroup) {
   });
 }
 
-const groupCount = computed(() => `${groups.value.length} ${groups.value.length === 1 ? "group" : "groups"}`);
+const groupCount = computed(() => `${shownGroups.value.length} ${shownGroups.value.length === 1 ? "group" : "groups"}`);
 </script>
 
 <template>
@@ -296,10 +316,12 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
         <h2>Live conditions</h2>
         <span class="live__note">Computed now. These cannot be acknowledged; they clear when the condition does.</span>
       </div>
-      <ul v-if="live.length" class="live__list" data-testid="alerts-live">
-        <li v-for="a in live" :key="`${a.kind}:${a.message}`">
+      <ul v-if="shownLive.length" class="live__list" data-testid="alerts-live">
+        <li v-for="a in shownLive" :key="`${a.kind}:${a.message}`">
           <StatusChip :status="a.severity" class="live__pill" />
           <span class="live__text"
+            ><ProviderTile :provider="providerOf(a.provider)" class="live__tile" /><span class="sr-only"
+              >{{ providerOf(a.provider) }}: </span
             ><span class="live__kind">{{ liveWord(a.kind) }}:</span> {{ a.message }}</span
           >
         </li>
@@ -346,34 +368,43 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
             v-for="g in groupRows"
             :key="g.id"
             class="p-group"
-            :class="{ 'a-dim': g.open_count === 0, 'is-selected': isOpened(g) }"
+            :class="[
+              providerClass(providerOf(g.provider)),
+              { 'a-dim': g.open_count === 0, 'is-selected': isOpened(g) },
+            ]"
             @click="rowClick($event, g)"
           >
-            <StatusChip :status="g.severity" class="p-group__pill" />
-            <button
-              type="button"
-              class="p-group__title g-open-btn"
-              aria-haspopup="dialog"
-              :disabled="writing"
-              :aria-label="`Details of ${alertTitle(g)}`"
-              @click="openGroup(g)"
-            >
-              {{ alertTitle(g) }}
-            </button>
-            <span class="p-group__kind">{{ g.kind }}</span>
-            <span v-if="oneCustomer(g)" class="p-group__note">{{ ONE_CUSTOMER_NOTE }}</span>
-            <span class="p-group__range">first {{ alertTime(g.first_ms) }} → last {{ alertTime(g.last_ms) }}</span>
-            <span class="p-group__counts"
-              ><span>rows {{ g.count }}</span
-              ><span aria-hidden="true">·</span
-              ><span class="p-group__open" :class="{ 'is-faint': g.open_count === 0 }">open {{ g.open_count }}</span
-              ><span aria-hidden="true">·</span><span>keys {{ g.keys }}</span></span
-            >
-            <span v-if="g.open_count > 0" class="p-group__actions">
-              <button type="button" class="al-btn p-group__btn" :disabled="locked" @click="acknowledge(g)">
-                Acknowledge
+            <div class="p-group__side">
+              <ProviderTile :provider="providerOf(g.provider)" />
+              <small class="p-group__pname">{{ providerOf(g.provider) }}</small>
+            </div>
+            <div class="p-group__main">
+              <StatusChip :status="g.severity" class="p-group__pill" />
+              <button
+                type="button"
+                class="p-group__title g-open-btn"
+                aria-haspopup="dialog"
+                :disabled="writing"
+                :aria-label="`Details of ${alertTitle(g)}`"
+                @click="openGroup(g)"
+              >
+                {{ alertTitle(g) }}
               </button>
-            </span>
+              <span class="p-group__kind">{{ g.kind }}</span>
+              <span v-if="oneCustomer(g)" class="p-group__note">{{ ONE_CUSTOMER_NOTE }}</span>
+              <span class="p-group__range">first {{ alertTime(g.first_ms) }} → last {{ alertTime(g.last_ms) }}</span>
+              <span class="p-group__counts"
+                ><span>rows {{ g.count }}</span
+                ><span aria-hidden="true">·</span
+                ><span class="p-group__open" :class="{ 'is-faint': g.open_count === 0 }">open {{ g.open_count }}</span
+                ><span aria-hidden="true">·</span><span>keys {{ g.keys }}</span></span
+              >
+              <span v-if="g.open_count > 0" class="p-group__actions">
+                <button type="button" class="al-btn p-group__btn" :disabled="locked" @click="acknowledge(g)">
+                  Acknowledge
+                </button>
+              </span>
+            </div>
           </li>
         </ul>
       </div>
@@ -385,6 +416,7 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
         </caption>
         <thead>
           <tr>
+            <th scope="col" class="g-th-provider">Provider</th>
             <th scope="col" class="g-th-sev">Severity</th>
             <th scope="col">Alert</th>
             <th scope="col" class="is-right">Open / Rows</th>
@@ -399,6 +431,13 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
             :class="rowClass({ row: g })"
             @click="rowClick($event, g)"
           >
+            <td class="g-pcell">
+              <span class="g-pwrap"
+                ><ProviderTile :provider="providerOf(g.provider)" /><span class="g-pname">{{
+                  providerOf(g.provider)
+                }}</span></span
+              >
+            </td>
             <td class="g-sev"><StatusChip :status="g.severity" /></td>
             <td class="g-alert">
               <button
@@ -411,7 +450,7 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
               >
                 {{ alertTitle(g) }}
               </button>
-              <span class="g-kind">{{ g.kind }} · {{ g.provider }}</span>
+              <span class="g-kind">{{ g.kind }}</span>
               <span class="g-range">{{ alertTime(g.first_ms) }} → {{ alertTime(g.last_ms) }}</span>
               <span v-if="oneCustomer(g)" class="g-note">{{ ONE_CUSTOMER_NOTE }}</span>
             </td>
@@ -439,9 +478,9 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
         <table class="g-table" :data-state="listState">
           <thead>
             <tr>
+              <th scope="col" class="g-th-provider">Provider</th>
               <th scope="col" class="g-th-sev">Severity</th>
               <th scope="col">Alert</th>
-              <th scope="col">Provider</th>
               <th scope="col">First seen</th>
               <th scope="col">Last seen</th>
               <th scope="col" class="is-right">Rows</th>
@@ -458,6 +497,13 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
               :class="rowClass({ row: g })"
               @click="rowClick($event, g)"
             >
+              <td class="g-pcell">
+                <span class="g-pwrap"
+                  ><ProviderTile :provider="providerOf(g.provider)" /><span class="g-pname">{{
+                    providerOf(g.provider)
+                  }}</span></span
+                >
+              </td>
               <td class="g-sev"><StatusChip :status="g.severity" /></td>
               <td class="g-alert">
                 <button
@@ -473,7 +519,6 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
                 <span class="g-kind">{{ g.kind }}</span>
                 <span v-if="oneCustomer(g)" class="g-note">{{ ONE_CUSTOMER_NOTE }}</span>
               </td>
-              <td class="g-provider">{{ g.provider }}</td>
               <td class="g-time">{{ alertTime(g.first_ms) }}</td>
               <td class="g-time">{{ alertTime(g.last_ms) }}</td>
               <td class="g-num">{{ g.count }}</td>
@@ -725,7 +770,7 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   text-align: right;
 }
 .g-table .g-th-sev {
-  padding: 0 12px 0 16px;
+  padding: 0 12px;
 }
 .g-table .g-th-actions {
   padding: 0 16px 0 12px;
@@ -745,7 +790,7 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
 }
 .g-table .g-sev {
   height: 64px;
-  padding: 0 12px 0 16px;
+  padding: 0 12px;
   white-space: nowrap;
 }
 .g-table .g-alert {
@@ -766,9 +811,42 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   font-size: 12px;
   color: var(--rl-muted);
 }
-.g-provider {
-  font-size: 13px;
-  color: var(--rl-muted);
+/* the provider: a rail in its tone on the row's left edge and its tinted cell with the tile and the name; the cell
+   keeps its tint on hover and when the row is open */
+.g-row.g-rail td:first-child {
+  box-shadow: inset 4px 0 0 var(--pc);
+}
+.g-table .g-pcell,
+.g-row:hover td.g-pcell,
+.g-row.a-selected td.g-pcell {
+  width: 1%;
+  padding: 0 12px 0 16px;
+  background: var(--ps);
+  white-space: nowrap;
+}
+.g-table .g-th-provider {
+  padding: 0 12px 0 16px;
+}
+.g-pwrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.g-pname {
+  color: var(--pi);
+  font-size: 12px;
+  font-weight: 600;
+}
+.is-tablet .g-table .g-pcell {
+  padding: 12px 8px 12px 16px;
+}
+.is-tablet .g-table .g-th-provider {
+  padding: 0 8px 0 16px;
+}
+/* the condition's provider, a tile at the start of its line */
+.live__text .live__tile {
+  margin-right: 8px;
+  vertical-align: -4px;
 }
 .g-time {
   font-family: var(--rl-mono);
@@ -804,7 +882,7 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   padding: 0 8px;
 }
 .is-tablet .g-table .g-th-sev {
-  padding: 0 8px 0 16px;
+  padding: 0 8px;
 }
 .is-tablet .g-table .g-th-actions {
   padding: 0 16px 0 8px;
@@ -817,7 +895,7 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
 }
 .is-tablet .g-table .g-sev {
   height: auto;
-  padding: 12px 8px 12px 16px;
+  padding: 12px 8px;
 }
 .is-tablet .g-table .g-alert {
   max-width: none;
@@ -857,12 +935,37 @@ const groupCount = computed(() => `${groups.value.length} ${groups.value.length 
   padding: 0;
   list-style: none;
 }
+/* a block: the provider's side column (its rail, its tint, the tile and the name), then the group */
 .p-group {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 12px;
+  border-top: 1px solid var(--rl-line);
+}
+.p-group__side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 16px;
+  background: var(--ps);
+  box-shadow: inset 4px 0 0 var(--pc);
+}
+.p-group__pname {
+  max-width: 40px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--pi);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 12px;
+}
+.p-group__main {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 14px 16px;
-  border-top: 1px solid var(--rl-line);
+  min-width: 0;
+  padding: 14px 16px 14px 0;
 }
 .p-group.a-dim {
   opacity: 0.55;

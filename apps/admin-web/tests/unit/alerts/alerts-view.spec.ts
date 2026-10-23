@@ -7,6 +7,7 @@ import { ApiError } from "@/api/client";
 import * as shell from "@/api/shell";
 import { EMPTY_WORDING_TITLE } from "@/components/alerts/alerts-model";
 import { notify } from "@/lib/notify";
+import { useScopeStore } from "@/stores/scope";
 import { useUiStore } from "@/stores/ui";
 import AlertsView from "@/views/AlertsView.vue";
 
@@ -161,6 +162,49 @@ afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
   document.body.replaceChildren();
+});
+
+describe("the provider strip", () => {
+  beforeEach(() => {
+    list.mockResolvedValue({
+      items: [
+        group({ group: "a", provider: "dola", title: "dola clamp" }),
+        group({ group: "b", provider: "meta", title: "meta reply" }),
+        group({ group: "c", provider: "dola", title: "dola drift" }),
+      ],
+    });
+    vi.mocked(shell.getStats).mockResolvedValue({
+      jobs: { queued: 0, in_progress: 0, done: 0, failed: 0, pre_job_failures_24h: 0 },
+      made: { videos: 0, images: 0 },
+      accounts: { usable: 1, available: 1, dead: 0, disabled: 0 },
+      keys: 1,
+      alerts: [
+        { kind: "accounts_low", severity: "warning", message: "meta has 1 usable account", provider: "meta" },
+        { kind: "disk_low", severity: "error", message: "2.0 GB free", provider: null },
+      ],
+    });
+  });
+
+  it("the rows and live conditions carry their provider tile, none is the relay", async () => {
+    const w = await open();
+    const rows = w.findAll("tbody tr");
+    expect(rows[0]!.classes()).toEqual(expect.arrayContaining(["g-rail", "p-dola"]));
+    expect(rows[0]!.find(".g-pcell").text()).toBe("Ddola");
+    expect(w.findAll('[data-testid="alerts-live"] li').map((li) => li.find(".live__text").text())).toEqual([
+      "Mmeta: pool: meta has 1 usable account",
+      expect.stringMatching(/^Rrelay: .*2\.0 GB free$/),
+    ]);
+  });
+
+  it("a provider keeps its own groups and live conditions, and the count says so", async () => {
+    const w = await open();
+    useScopeStore().provider = "dola";
+    await settle();
+    expect(w.findAll("tbody tr").map((r) => r.find(".g-title").text())).toEqual(["dola clamp", "dola drift"]);
+    expect(w.find('[data-testid="alerts-count"]').text()).toBe("2 groups");
+    expect(w.find('[data-testid="alerts-live"]').exists()).toBe(false);
+    expect(w.text()).toContain("No live condition right now.");
+  });
 });
 
 describe("the lists", () => {
@@ -900,13 +944,20 @@ describe("the detail as the design draws it", () => {
 });
 
 describe("the tablet and the phone", () => {
-  it("a tablet shows Severity, Alert and Open / Rows, with the kind, provider and span under the title", async () => {
+  it("a tablet shows Provider, Severity, Alert and Open / Rows, with the kind and span under the title", async () => {
     showAt(768);
     list.mockResolvedValue({ items: [group({ kind: "unclear_reply", provider: "dola", count: 6, open_count: 4 })] });
     const w = await open();
-    expect(w.findAll("thead th").map((h) => h.text())).toEqual(["Severity", "Alert", "Open / Rows", "Actions"]);
+    expect(w.findAll("thead th").map((h) => h.text())).toEqual([
+      "Provider",
+      "Severity",
+      "Alert",
+      "Open / Rows",
+      "Actions",
+    ]);
     const row = w.find("tbody tr");
-    expect(row.find(".g-kind").text()).toBe("unclear_reply · dola");
+    expect(row.find(".g-pcell").text()).toBe("Ddola");
+    expect(row.find(".g-kind").text()).toBe("unclear_reply");
     expect(row.find(".g-range").text()).toContain("→");
     expect(row.find(".g-open").text()).toBe("4");
     expect(row.text()).toContain("4 / 6");
