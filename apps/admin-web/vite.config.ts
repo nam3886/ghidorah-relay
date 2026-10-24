@@ -22,7 +22,7 @@ export default defineConfig({
     outDir: fileURLToPath(new URL("../../packages/relay-core/src/relay_core/admin/static/app", import.meta.url)),
     emptyOutDir: true,
     sourcemap: false,
-    // The CSP has no img-src (it falls back to 'self'), so a data: URI would be blocked: ship every asset as a file.
+    // The CSP's img-src is 'self' and blob: only, so a data: URI would be blocked: ship every asset as a file.
     assetsInlineLimit: 0,
   },
   test: {

@@ -192,7 +192,7 @@ async def account_history(account_id: uuid.UUID, pool: AsyncConnectionPool = Dep
             (account_id, HISTORY_DAYS))).fetchall()
         errors = await (await conn.execute(
             "SELECT e.at, e.code, e.job_id, j.error_code, j.error FROM account_errors e "
-            "LEFT JOIN jobs j ON j.id = e.job_id WHERE e.account_id = %s ORDER BY e.id DESC", (account_id,))
+            "LEFT JOIN jobs j ON j.id = e.job_id WHERE e.account_id = %s ORDER BY e.at DESC, e.id DESC", (account_id,))
         ).fetchall()
     return {"hours": [[ms(h), w] for h, w in hours],
             "errors": [{"at_ms": ms(at), "code": code, "job_id": None if job is None else str(job),

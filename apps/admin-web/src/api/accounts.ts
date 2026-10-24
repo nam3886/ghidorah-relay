@@ -42,10 +42,35 @@ export interface Account {
   tier_read?: boolean;
   cycle_start?: string | null;
   in_use: boolean;
+  // the jobs that hold it now (live job leases)
+  jobs_in_use?: number;
   has_screenshot: boolean;
+  // when the screenshot was taken
+  screenshot_ms?: number | null;
   composer: string | null;
   capacity: Capacity[];
   made: { video: number; image: number };
+  // the jobs it took since the start of the admin's day, and how many of them failed
+  jobs_today?: { total: number; failed: number };
+  // what the last check measured through its proxy: the exit address, one request's time in ms, and when
+  proxy_exit_ip?: string | null;
+  proxy_latency_ms?: number | null;
+  proxy_exit_ms?: number | null;
+  // the last check that could not read it; a later read clears it
+  check_failed_ms?: number | null;
+}
+
+// The detail's history: the health per UTC hour of the last 14 days ([hour_ms, 0 usable | 1 asleep | 2 down]) and
+// the newest errors with the job each came from.
+export interface AccountHistory {
+  hours: [number, 0 | 1 | 2][];
+  errors: {
+    at_ms: number;
+    code: string;
+    job_id: string | null;
+    job_error_code: string | null;
+    job_error: string | null;
+  }[];
 }
 
 export interface AccountPage {
@@ -66,7 +91,7 @@ export interface QueuedCommand {
 
 export interface ImportBody {
   provider: string;
-  items: { credential: string; proxy?: string }[];
+  items: { credential: string; proxy?: string; identity?: string }[];
 }
 
 export interface ImportResult {
@@ -90,6 +115,9 @@ const accountCommand = (id: string, name: "check" | "wake" | "proxy-recheck"): P
 export const checkAccount = (id: string) => accountCommand(id, "check");
 export const wakeAccount = (id: string) => accountCommand(id, "wake");
 export const recheckProxy = (id: string) => accountCommand(id, "proxy-recheck");
+
+export const accountHistory = (id: string): Promise<AccountHistory> =>
+  request(`/accounts/${encodeURIComponent(id)}/history`);
 
 export const accountScreenshot = async (id: string): Promise<Blob> =>
   (await requestRaw(`/accounts/${encodeURIComponent(id)}/screenshot`)).blob();

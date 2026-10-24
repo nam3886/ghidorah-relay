@@ -7,7 +7,7 @@ import { byProviderOrder, providerClass } from "@/lib/providers";
 import { useScopeStore } from "@/stores/scope";
 import AccountDialog from "./AccountDialog.vue";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
-import { importBody, rejectedText } from "./account-model";
+import { IDENTITY_PROVIDERS, importBody, rejectedText } from "./account-model";
 
 // Import accounts (AccountImport, ImportPhone): one credential per line beside a line-number gutter, an optional proxy
 // for all of them, and the result of the answer. A rejected line is named by its number and reason only: the
@@ -25,11 +25,16 @@ const { busy, run } = useBusy();
 const provider = ref("");
 const credentials = ref("");
 const proxy = ref("");
+// gemini only: the Google account the session belongs to, stored as the account's identity
+const email = ref("");
+const asksEmail = computed(() => IDENTITY_PROVIDERS.has(provider.value));
 const result = ref<ImportResult | null>(null);
 
 const providers = computed(() => scope.providers);
 // something pasted that a close would lose (a submitted import has been wiped, so it is clean)
-const dirty = computed(() => credentials.value.trim() !== "" || proxy.value.trim() !== "");
+const dirty = computed(
+  () => credentials.value.trim() !== "" || proxy.value.trim() !== "" || (asksEmail.value && email.value.trim() !== ""),
+);
 watch(dirty, (d) => emit("update:dirty", d), { immediate: true });
 watch(busy, (b) => emit("update:busy", b));
 const providerOptions = computed(() => byProviderOrder(providers.value).map((name) => ({ value: name, label: name })));
@@ -50,6 +55,7 @@ const importedNames = computed(() => {
 function wipe(): void {
   credentials.value = "";
   proxy.value = "";
+  email.value = "";
 }
 
 // Each opening starts from the filter (the provider the operator is looking at), else the first provider.
@@ -61,7 +67,7 @@ watch(open, (isOpen) => {
 });
 
 async function submit() {
-  const body = importBody(provider.value, credentials.value, proxy.value);
+  const body = importBody(provider.value, credentials.value, proxy.value, asksEmail.value ? email.value : "");
   if (!body) {
     notify.error("Paste at least one credential");
     return;
@@ -101,6 +107,20 @@ async function submit() {
         :options="providerOptions"
         @update:model-value="(v) => (provider = String(v))"
       />
+      <div v-if="asksEmail" class="acct-field">
+        <label class="acct-field__label" for="acct-import-email"
+          >Google account email <span class="acct-field__opt">gemini only</span></label
+        >
+        <input
+          id="acct-import-email"
+          v-model="email"
+          type="email"
+          class="acct-input"
+          autocomplete="off"
+          aria-label="Google account email"
+        />
+        <span class="acct-field__help">gemini keeps one session per Google account; the email picks it.</span>
+      </div>
       <div class="acct-field">
         <div class="acct-field__head">
           <label class="acct-field__label" for="acct-import-cred">Credentials</label>
@@ -129,7 +149,7 @@ async function submit() {
         <input
           id="acct-import-proxy"
           v-model="proxy"
-          class="acct-input acct-input--mono"
+          class="acct-input"
           placeholder="host:port:user:pass"
           autocomplete="off"
           aria-label="Proxy for all"

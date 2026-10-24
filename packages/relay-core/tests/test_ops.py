@@ -84,8 +84,8 @@ def test_drain_and_resume_say_whether_the_stored_value_changed(db):
     assert resumed_twice is False
 
 
-COMPARE = "SELECT value IS DISTINCT FROM %s::jsonb FROM settings_kv"
-COMPARE_INVERTED = "SELECT value IS NOT DISTINCT FROM %s::jsonb FROM settings_kv"
+COMPARE = "SELECT value IS DISTINCT FROM %s::jsonb, value FROM settings_kv"
+COMPARE_INVERTED = "SELECT value IS NOT DISTINCT FROM %s::jsonb, value FROM settings_kv"
 
 
 @mutation(SETTINGS, COMPARE, COMPARE_INVERTED, expect="a stored 1 rewritten to true was not a change")

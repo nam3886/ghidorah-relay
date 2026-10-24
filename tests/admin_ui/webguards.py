@@ -50,7 +50,7 @@ STYLE_ATTRIBUTE = re.compile(r"""\sstyle\s*=\s*["']""")
 # A data: URL in a CSS url() or at the start of a quoted string, in every form the URI scheme allows: with a media type
 # (`data:text/plain,..`, `data:image/png;base64,..`), with a parameter only (`data:;base64,..`) or with none
 # (`data:,..`).
-# The admin CSP has no img-src (it falls back to 'self'): blocked.
+# The admin CSP's img-src is 'self' and blob: only: blocked.
 DATA_URL = re.compile(r"""url\(\s*["']?data:[^)]*\)|["'`]data:(?:[a-z]+/|[;,])""", re.I)
 # Any data: in a stylesheet at all: the build strips Element Plus's data: masks (vite.config.ts), so none may ship.
 CSS_DATA = re.compile(r"data:")

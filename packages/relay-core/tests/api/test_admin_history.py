@@ -110,8 +110,8 @@ def test_an_import_stores_the_given_identity_unless_another_account_already_has_
 
 @mutation(SETTINGS, "            if changed:\n                await self._history(", "            if False:\n"
           "                await self._history(", expect="each change is a row")
-@mutation(SETTINGS_ROUTES, "stored = await settings.delete(key, by=request.state.admin_user.username)",
-          "stored = await settings.delete(key)", expect="the reset names who made it")
+@mutation(SETTINGS_ROUTES, "stored = await settings.delete(key, by=user)", "stored = await settings.delete(key)",
+          expect="the reset names who made it")
 def test_each_change_and_reset_is_a_history_row_and_the_list_says_when_and_by_whom_it_was_last_saved(db):
     async def scenario(env):
         h = await env.admin_headers()

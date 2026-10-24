@@ -4,6 +4,10 @@ import {
   accountChanges,
   accountSub,
   ago,
+  andList,
+  healthCells,
+  healthSummary,
+  unanswered,
   asleepInfo,
   asleepLine,
   checkSummary,
@@ -363,5 +367,80 @@ describe("healthOf, the Show chips and the summary", () => {
     expect(accountChanges(account(), "main", "10.0.0.1:8080", false)).toEqual({ enabled: false });
     expect(accountChanges(account({ state: "disabled" }), "main", "10.0.0.1:8080", true)).toEqual({ enabled: true });
     expect(accountChanges(account(), "main", "10.0.0.1:8080")).toBeNull();
+  });
+});
+
+describe("the history the API now serves", () => {
+  const t = Date.UTC(2026, 9, 24, 7, 30);
+
+  it("In use counts the jobs that hold the account; a check alone is plain In use", () => {
+    expect(healthOf(account({ in_use: true, jobs_in_use: 2 }), false, t).label).toBe("In use · 2 jobs");
+    expect(healthOf(account({ in_use: true, jobs_in_use: 1 }), false, t).label).toBe("In use · 1 job");
+    expect(healthOf(account({ in_use: true, jobs_in_use: 0 }), false, t).label).toBe("In use");
+  });
+
+  it("an account whose last check could not read it is Unknown with its last answer, and is re-checked", () => {
+    const h = healthOf(account({ check_failed_ms: t, last_checked_ms: t - 3_600_000 }), false, t);
+    expect([h.kind, h.label, h.why]).toEqual(["unknown", "Unknown", `last answer ${hhmm(t - 3_600_000)}`]);
+    expect(rowAction(h)).toBe("check");
+    expect(inIssue("look", h)).toBe(true);
+    expect(healthOf(account({ check_failed_ms: t - 1, last_checked_ms: t }), false, t).kind).toBe("ok");
+    expect(healthOf(account({ state: "dead", check_failed_ms: t }), false, t).kind).toBe("dead");
+  });
+
+  it("the partial banner names the providers, the oldest last answer, and timed out only for time limits", () => {
+    const rows = [
+      account({
+        provider: "flow",
+        check_failed_ms: t,
+        last_checked_ms: t - 9,
+        last_error: "the check ran past its time limit",
+      }),
+      account({
+        provider: "qwen",
+        check_failed_ms: t,
+        last_checked_ms: t - 5,
+        last_error: "the check ran past its time limit",
+      }),
+      account({ provider: "dola" }),
+      account({ provider: "meta", state: "disabled", check_failed_ms: t }),
+    ];
+    expect(unanswered(rows)).toEqual({ providers: ["flow", "qwen"], since: t - 9, timedOut: true });
+    expect(unanswered([account({ check_failed_ms: t, last_error: "boom" })]).timedOut).toBe(false);
+    expect(andList(["flow", "qwen"])).toBe("flow and qwen");
+    expect(andList(["a", "b", "c"])).toBe("a, b and c");
+  });
+
+  it("the import sends the email as every line's identity, and nothing when it is empty", () => {
+    expect(importBody("gemini", "c1\nc2", "", " me@x.com ")?.items).toEqual([
+      { credential: "c1", identity: "me@x.com" },
+      { credential: "c2", identity: "me@x.com" },
+    ]);
+    expect(importBody("dola", "c1", "h:1", "")?.items).toEqual([{ credential: "c1", proxy: "h:1" }]);
+  });
+
+  it("the health cells are local days and today's hours, each the worst it saw", () => {
+    const now = new Date(2026, 9, 24, 14, 32).getTime();
+    const at = (day: number, hour: number) => new Date(2026, 9, day, hour, 0).getTime();
+    const { days, hours, first, middle } = healthCells(
+      [
+        [at(24, 9), 0],
+        [at(24, 13), 1],
+        [at(24, 13), 0],
+        [at(17, 3), 2],
+        [at(17, 8), 0],
+        [at(5, 1), 2],
+      ],
+      now,
+    );
+    expect(days.length).toBe(14);
+    expect(days[13]).toBe(1);
+    expect(days[6]).toBe(2);
+    expect(days.filter((d) => d !== null).length).toBe(2);
+    expect([hours[9], hours[13], hours[15]]).toEqual([0, 1, null]);
+    expect([new Date(first).getDate(), new Date(middle).getDate()]).toEqual([11, 17]);
+    expect(healthSummary(days)).toBe(
+      "14 days: 0 usable, 1 partly asleep, 1 with a dead session or its proxy down, 12 with no record",
+    );
   });
 });

@@ -54,7 +54,25 @@ export interface SettingsList {
   env_only: EnvOnlyItem[];
   fixed: FixedLimit[];
   containers: ContainerRow[];
+  // the newest change of any setting, null before the first one
+  last_saved?: { at_ms: number; by: string | null } | null;
 }
+
+// One change: who changed which key, from what stored value to what (null = none stored: the default applies), and
+// when. A secret setting's row says only that it changed (`secret`, both values null).
+export interface SettingChange {
+  id: number;
+  at_ms: number;
+  key: string;
+  by: string | null;
+  old: unknown;
+  new: unknown;
+  secret: boolean;
+}
+
+// Newest first; `before` (a row id) pages back, `next` is null at the end.
+export const getSettingsHistory = (before?: number): Promise<{ items: SettingChange[]; next: number | null }> =>
+  request("/settings/history", { query: { limit: 100, before } });
 
 export interface PriceRow {
   provider: string;

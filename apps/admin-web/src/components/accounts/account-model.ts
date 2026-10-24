@@ -26,17 +26,28 @@ export function accountChanges(a: Account, label: string, proxy: string, enabled
   return Object.keys(body).length ? body : null;
 }
 
-// One credential per line; blank lines are dropped. The proxy, when given, applies to every line.
-// Returns null when there is no credential at all.
-export function importBody(provider: string, text: string, proxy: string): ImportBody | null {
+// One credential per line; blank lines are dropped. The proxy, when given, applies to every line, and so does the
+// account's identity (gemini's Google account email). Returns null when there is no credential at all.
+export function importBody(provider: string, text: string, proxy: string, identity = ""): ImportBody | null {
   const lines = text
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
   if (!lines.length) return null;
   const shared = proxy.trim();
-  return { provider, items: lines.map((credential) => (shared ? { credential, proxy: shared } : { credential })) };
+  const who = identity.trim();
+  return {
+    provider,
+    items: lines.map((credential) => ({
+      credential,
+      ...(shared ? { proxy: shared } : {}),
+      ...(who ? { identity: who } : {}),
+    })),
+  };
 }
+
+// The providers whose import names the account (the email picks gemini's session).
+export const IDENTITY_PROVIDERS = new Set(["gemini"]);
 
 // Why a pasted line was rejected, in a sentence as the canvas writes it. Only the known codes are named; anything else
 // gets one fixed sentence, so no text the server sends back (which could carry a pasted secret) is ever shown.
@@ -224,7 +235,16 @@ export const lowPool = (a: Pick<Account, "capacity">): Account["capacity"][numbe
     return left !== null && left < LOW_SHARE;
   });
 
-export type HealthKind = "off" | "dead" | "proxy" | "asleep" | "low" | "inuse" | "paused" | "ok";
+export type HealthKind = "off" | "dead" | "proxy" | "unknown" | "asleep" | "low" | "inuse" | "paused" | "ok";
+
+// The last check could not read the account (a time limit, an engine error) and no check has read it since: the row
+// shows its last answer, which may be old.
+export const checkUnanswered = (a: Pick<Account, "check_failed_ms" | "last_checked_ms">): boolean =>
+  !!a.check_failed_ms && (!a.last_checked_ms || a.check_failed_ms > a.last_checked_ms);
+
+// "In use · 2 jobs", "In use · 1 job", or "In use" when only a check or a command holds it.
+export const inUseLabel = (jobs: number | undefined): string =>
+  jobs ? `In use · ${jobs} ${jobs === 1 ? "job" : "jobs"}` : "In use";
 export interface Health {
   kind: HealthKind;
   // the pill's words: "Dead", "Asleep until 15:10", "In use"
@@ -252,23 +272,36 @@ export function healthOf(a: Account, paused = false, now: number = Date.now()): 
     const status = proxyStatus(a, now).text;
     return h("proxy", "Proxy failing", "bad", status.replace(/^failed · /, ""));
   }
+  if (checkUnanswered(a)) {
+    return h("unknown", "Unknown", "neutral", a.last_checked_ms ? `last answer ${hhmm(a.last_checked_ms)}` : "");
+  }
   const asleep = asleepInfo(a, now);
   if (asleep) return h("asleep", `Asleep until ${asleep.until}`, "warn", asleep.why ?? "", `Asleep · ${asleep.until}`);
   const low = lowPool(a);
   if (low) return h("low", "Low credits", "warn", `${low.pool} ${low.left_today ?? 0} of ${low.budget} left`);
-  if (a.in_use) return h("inuse", "In use", "info");
+  if (a.in_use) return h("inuse", inUseLabel(a.jobs_in_use), "info");
   if (paused) return h("paused", "Paused", "neutral");
   return h("ok", "Available", "ok");
 }
 
 // The order of the list: what needs a look first, then the rest; the server's order inside each.
-const RANK: Record<HealthKind, number> = { dead: 0, proxy: 1, asleep: 2, low: 3, inuse: 4, ok: 5, paused: 6, off: 7 };
+const RANK: Record<HealthKind, number> = {
+  dead: 0,
+  proxy: 1,
+  unknown: 2,
+  asleep: 3,
+  low: 4,
+  inuse: 5,
+  ok: 6,
+  paused: 7,
+  off: 8,
+};
 export const healthRank = (h: Health): number => RANK[h.kind];
 
 // The Show chips: an issue and the healths it holds. A phone draws no Switched off chip.
 export type Issue = "look" | "dead" | "proxy" | "asleep" | "low" | "off" | "all";
 export const ISSUES: { key: Issue; label: string; kinds: HealthKind[] | null }[] = [
-  { key: "look", label: "Needs a look", kinds: ["dead", "proxy", "asleep", "low"] },
+  { key: "look", label: "Needs a look", kinds: ["dead", "proxy", "unknown", "asleep", "low"] },
   { key: "dead", label: "Dead", kinds: ["dead"] },
   { key: "proxy", label: "Proxy failing", kinds: ["proxy"] },
   { key: "asleep", label: "Asleep", kinds: ["asleep"] },
@@ -298,7 +331,27 @@ export function issueLine(healths: Health[]): string {
 
 // The row's one action: Re-check a dead, proxy-failing or low account, Wake an asleep one; none for the others.
 export const rowAction = (h: Health): "check" | "wake" | null =>
-  h.kind === "asleep" ? "wake" : h.kind === "dead" || h.kind === "proxy" || h.kind === "low" ? "check" : null;
+  h.kind === "asleep"
+    ? "wake"
+    : h.kind === "dead" || h.kind === "proxy" || h.kind === "unknown" || h.kind === "low"
+      ? "check"
+      : null;
+
+// The providers whose accounts a check could not read (AccountsStates "Partial"): their names in the provider order
+// of `rows`, when the oldest last answer among them was, and whether every failure was the check's time limit.
+export function unanswered(accounts: Account[]): { providers: string[]; since: number | null; timedOut: boolean } {
+  const rows = accounts.filter((a) => a.state !== "disabled" && checkUnanswered(a));
+  const times = rows.map((a) => a.last_checked_ms).filter((t): t is number => !!t);
+  return {
+    providers: [...new Set(rows.map((a) => a.provider))],
+    since: times.length ? Math.min(...times) : null,
+    timedOut: rows.length > 0 && rows.every((a) => /time limit/.test(a.last_error ?? "")),
+  };
+}
+
+// "flow and qwen", "dola, flow and qwen"
+export const andList = (names: string[]): string =>
+  names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 
 // The proxy's check line under its address: `ok · 4 min ago`, `failed · 5 min ago`, `not checked`, or `no proxy`.
 export const proxyLine = (a: Account, now: number = Date.now()): string =>
@@ -307,6 +360,47 @@ export const proxyLine = (a: Account, now: number = Date.now()): string =>
 // The tablet's account line: the proxy, then the reason when there is one.
 export const tabletSub = (a: Account, h: Health): string =>
   [a.proxy_host ? proxyText(a) : "no proxy", h.why].filter(Boolean).join(" · ");
+
+// ---- the detail's health history ---------------------------------------------------------------------------------
+export type Cell = 0 | 1 | 2 | null;
+const localDay = (ms: number): string => {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+};
+
+// The server's hours ([UTC hour start ms, worst]) as the drawer draws them in the browser's time: the last 14 local
+// days ending today (each the worst of its hours, null when nothing was recorded) and today's 24 local hours (null for
+// an hour with nothing recorded, the hours to come included). `first` and `middle` are the starts of the first and the
+// 7th day, for the axis.
+export function healthCells(hours: [number, number][], now: number = Date.now()) {
+  const worst = (a: Cell, b: number): Cell => (a === null || b > a ? (b as Cell) : a);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const starts = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - 13 + i);
+    return d.getTime();
+  });
+  const index = new Map(starts.map((s, i) => [localDay(s), i]));
+  const days: Cell[] = starts.map(() => null);
+  const byHour: Cell[] = Array.from({ length: 24 }, () => null);
+  for (const [at, w] of hours) {
+    const i = index.get(localDay(at));
+    if (i !== undefined) days[i] = worst(days[i] ?? null, w);
+    if (i === 13) {
+      const h = new Date(at).getHours();
+      byHour[h] = worst(byHour[h] ?? null, w);
+    }
+  }
+  return { days, hours: byHour, first: starts[0]!, middle: starts[6]! };
+}
+
+// The history in one sentence for a screen reader: "14 days: 11 usable, 2 partly asleep, 1 with a dead session or
+// its proxy down, 0 with no record".
+export function healthSummary(days: Cell[]): string {
+  const n = (v: Cell) => days.filter((d) => d === v).length;
+  return `${days.length} days: ${n(0)} usable, ${n(1)} partly asleep, ${n(2)} with a dead session or its proxy down, ${n(null)} with no record`;
+}
 
 // "2 Oct", a day of the month.
 export const dayMonth = (ms: number): string =>

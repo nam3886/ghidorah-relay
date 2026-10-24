@@ -139,13 +139,7 @@ function recheck() {
     <div class="acct-field">
       <label class="acct-field__label" for="acct-edit-proxy">Proxy</label>
       <div class="acct-proxy-row">
-        <input
-          id="acct-edit-proxy"
-          v-model="proxy"
-          class="acct-input acct-input--mono"
-          autocomplete="off"
-          aria-label="Proxy"
-        />
+        <input id="acct-edit-proxy" v-model="proxy" class="acct-input" autocomplete="off" aria-label="Proxy" />
         <!-- while a check runs a click asks nothing more (recheck); its chip says it is running -->
         <IconButton icon="proxy" label="Check proxy" class="acct-proxy-check" @click="recheck" />
       </div>

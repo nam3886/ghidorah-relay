@@ -157,7 +157,13 @@ const ICONS = {
 
     <!-- a phone: one row per account -->
     <div v-else-if="phone" class="at__list" :data-state="props.loading ? 'refreshing' : 'ready'">
-      <div v-for="r in props.rows" :key="r.a.id" class="p-row acct-row" :data-account="r.a.id">
+      <div
+        v-for="r in props.rows"
+        :key="r.a.id"
+        class="p-row acct-row"
+        :class="providerClass(r.a.provider)"
+        :data-account="r.a.id"
+      >
         <span class="p-row__top">
           <span class="acct-pill" :class="`tone-${r.h.tone}`">{{ r.h.label }}</span>
           <span class="acct-pchip" :class="providerClass(r.a.provider)">{{ r.a.provider }}</span>
@@ -245,7 +251,7 @@ const ICONS = {
             v-for="r in props.rows"
             :key="r.a.id"
             class="acct-row"
-            :class="{ 'is-ticked': props.selected.has(r.a.id) }"
+            :class="[providerClass(r.a.provider), { 'is-ticked': props.selected.has(r.a.id) }]"
             :data-account="r.a.id"
           >
             <td class="tick">
@@ -264,9 +270,12 @@ const ICONS = {
               <button type="button" class="at__open t-name" :title="r.a.label" @click="emit('open', r.a)">
                 {{ r.a.label }}
               </button>
-              <span class="mono t-sub" :class="(r.h.kind === 'dead' || r.h.kind === 'proxy') && 'tone-bad'">{{
-                tabletSub(r.a, r.h)
-              }}</span>
+              <span
+                class="mono t-sub"
+                :class="(r.h.kind === 'dead' || r.h.kind === 'proxy') && 'tone-bad'"
+                :title="tabletSub(r.a, r.h)"
+                >{{ tabletSub(r.a, r.h) }}</span
+              >
             </td>
             <td>
               <span class="acct-pchip" :class="providerClass(r.a.provider)">{{ r.a.provider }}</span>
@@ -326,7 +335,7 @@ const ICONS = {
             v-for="r in props.rows"
             :key="r.a.id"
             class="acct-row"
-            :class="{ 'is-ticked': props.selected.has(r.a.id) }"
+            :class="[providerClass(r.a.provider), { 'is-ticked': props.selected.has(r.a.id) }]"
             :data-account="r.a.id"
           >
             <td class="tick">
@@ -660,10 +669,17 @@ const ICONS = {
 }
 .t-sub {
   display: block;
+  overflow: hidden;
   font-size: 11px;
   line-height: 16px;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--rl-faint);
+}
+/* the account column takes the room left and its lines end in "…" (AccountsTablet: one line each) */
+.t-acct {
+  width: 100%;
+  max-width: 0;
 }
 .t-sub.tone-bad {
   color: var(--rl-bad);

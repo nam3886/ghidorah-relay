@@ -11,8 +11,12 @@ import {
   type PriceRow,
   putSetting,
   type SettingItem,
+  type SettingsList,
 } from "@/api/settings";
 import ContainerLimits from "@/components/settings/ContainerLimits.vue";
+import SettingsHistory from "@/components/settings/SettingsHistory.vue";
+import { SHOWN_OFFSET_MIN } from "@/components/settings/settings-pools";
+import IconButton from "@/components/shared/IconButton.vue";
 import PasswordForm from "@/components/settings/PasswordForm.vue";
 import ProviderSettings from "@/components/settings/ProviderSettings.vue";
 import SettingField from "@/components/settings/SettingField.vue";
@@ -50,6 +54,17 @@ const items = ref<SettingItem[]>([]);
 const envOnly = ref<EnvOnlyItem[]>([]);
 const fixed = ref<FixedLimit[]>([]);
 const containers = ref<ContainerRow[]>([]);
+// "Last saved 14:02 GMT+7 by admin": the newest change of any setting, on the page's GMT+7 clock (settings-pools)
+const saved = ref<SettingsList["last_saved"]>(null);
+const lastSaved = computed(() =>
+  saved.value
+    ? {
+        at: `${new Date(saved.value.at_ms + SHOWN_OFFSET_MIN * 60_000).toISOString().slice(11, 16)} GMT+7`,
+        by: saved.value.by ?? "the relay",
+      }
+    : null,
+);
+const historyOpen = ref(false);
 type KeyedPrice = PriceRow & { id: string };
 const prices = ref<KeyedPrice[]>([]);
 const settingsLoading = ref(false);
@@ -70,6 +85,7 @@ async function loadSettings(): Promise<void> {
     envOnly.value = data.env_only;
     fixed.value = data.fixed;
     containers.value = data.containers;
+    saved.value = data.last_saved ?? null;
     settingsError.value = null;
   } catch (err) {
     // worded as B-States draws a failed load: "Could not load the settings: the relay answered 502 (bad gateway)."
@@ -226,10 +242,28 @@ const EMPTY_ICON = ["M3 13h5l1.5 3h5L16 13h5", "M5 5h14l2 8v6H3v-6z"];
 <template>
   <section class="settings" :class="{ 'is-tablet': isTablet, 'is-phone': isPhone }">
     <div v-if="!compact" class="settings__head">
-      <h1 class="settings__title">Settings</h1>
-      <p class="settings__subtitle">Changes apply to jobs claimed after you save.</p>
+      <div class="settings__head-text">
+        <h1 class="settings__title">Settings</h1>
+        <p class="settings__subtitle">
+          Changes apply to jobs claimed after you save.<template v-if="lastSaved">
+            Last saved <span class="num">{{ lastSaved.at }}</span> by {{ lastSaved.by }}.</template
+          >
+        </p>
+      </div>
+      <span class="settings__head-btns">
+        <IconButton icon="history" label="Change history" @click="historyOpen = true" />
+      </span>
     </div>
-    <h1 v-else class="settings__title sr-only">Settings</h1>
+    <template v-else>
+      <h1 class="settings__title sr-only">Settings</h1>
+      <div class="settings__compact-head">
+        <span v-if="lastSaved" class="settings__subtitle"
+          >Last saved <span class="num">{{ lastSaved.at }}</span> by {{ lastSaved.by }}.</span
+        >
+        <IconButton icon="history" label="Change history" @click="historyOpen = true" />
+      </div>
+    </template>
+    <SettingsHistory v-model="historyOpen" />
 
     <nav class="stabs" :class="{ 'stabs--chips': compact }" aria-label="Settings areas">
       <ArrowScroller label="Settings areas" :active-key="tab">
@@ -421,8 +455,28 @@ const EMPTY_ICON = ["M3 13h5l1.5 3h5L16 13h5", "M5 5h14l2 8v6H3v-6z"];
 }
 .settings__head {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+.settings__head-text {
+  display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.settings__head-btns {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.settings__compact-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settings__compact-head :deep(.ib-wrap),
+.settings__compact-head > :last-child {
+  margin-left: auto;
 }
 .settings__title {
   margin: 0;

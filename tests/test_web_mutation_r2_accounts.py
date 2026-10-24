@@ -208,8 +208,8 @@ def test_the_account_drawers_on_the_page():
     vitest(ACCOUNTS_VIEW_SPEC)
 
 
-@mutation(IMPORT, "  const body = importBody(provider.value, credentials.value, proxy.value);\n",
-          "  wipe();\n  const body = importBody(provider.value, credentials.value, proxy.value);\n",
+@mutation(IMPORT, "  const body = importBody(provider.value, credentials.value, proxy.value, asksEmail",
+          "  wipe();\n  const body = importBody(provider.value, credentials.value, proxy.value, asksEmail",
           expect=WIPE + "after a success both fields are empty, and the request still carried both")
 @mutation(IMPORT, "watch(open, (isOpen) => {\n  wipe();\n  if (!isOpen) return;",
           "watch(open, (isOpen) => {\n  if (!isOpen) return;\n  wipe();",

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 // No native date input anywhere in the app: the Logs days are Element Plus date pickers (typed `YYYY-MM-DD`, one look in
 // both themes). And the picker's own template and style sheet carry nothing the CSP blocks: no `style=` attribute and no
-// `data:` URL (the policy has no `img-src`, so it falls back to 'self').
+// `data:` URL (the policy's `img-src` is 'self' and blob: only).
 const SRC = join(process.cwd(), "src");
 const NATIVE = /type=["']date["']/i;
 const sources = (readdirSync(SRC, { recursive: true }) as string[])

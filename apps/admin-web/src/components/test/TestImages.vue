@@ -5,8 +5,7 @@ import { sizeText } from "./test-result-model";
 
 // The attached images (Test.dc.html, Reference images): one tile per file (a picture glyph, the name and the size, a
 // round remove button on its corner) and the dashed Add image tile; a file dropped on the block attaches too. Nothing
-// is ever uploaded. There is no thumbnail on purpose: a preview of a file that is not uploaded is a blob: URL, which
-// the page's CSP blocks (it has no img-src for it). The limits and the storage are the parent's (lib/test-files.ts);
+// is ever uploaded. There is no thumbnail, as the canvas draws none. The limits and the storage are the parent's (lib/test-files.ts);
 // this only reports the choice and shows what the parent kept.
 defineProps<{ files: StoredFile[]; note: string }>();
 const emit = defineEmits<{ add: [files: File[]]; remove: [index: number] }>();

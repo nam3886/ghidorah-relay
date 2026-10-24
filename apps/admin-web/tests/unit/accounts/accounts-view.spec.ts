@@ -21,6 +21,7 @@ vi.mock("@/api/accounts", () => ({
   wakeAccount: vi.fn(),
   recheckProxy: vi.fn(),
   accountScreenshot: vi.fn(),
+  accountHistory: vi.fn(() => Promise.resolve({ hours: [], errors: [] })),
   importAccounts: vi.fn(),
   checkAll: vi.fn(),
   refreshCatalog: vi.fn(),

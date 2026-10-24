@@ -123,5 +123,6 @@ async def put_setting(key: str, body: SettingPut, request: Request,
 @router.delete("/settings/{key}")
 async def delete_setting(key: str, request: Request, settings: Settings = Depends(get_settings)) -> dict:
     _known(settings, key)
-    stored = await settings.delete(key, by=request.state.admin_user.username)
+    user = request.state.admin_user.username
+    stored = await settings.delete(key, by=user)
     return {**_item(settings, key), "deleted": stored}

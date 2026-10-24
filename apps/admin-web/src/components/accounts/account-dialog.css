@@ -128,10 +128,6 @@
   color: var(--rl-fg);
   font: inherit;
 }
-.acct-input--mono {
-  font-family: var(--rl-mono);
-  font-size: 13px;
-}
 .acct-input::placeholder,
 .acct-area::placeholder {
   color: var(--rl-faint);
@@ -149,7 +145,8 @@
 .rl-drawer .acct-provider.filter-field {
   gap: 6px;
 }
-.rl-drawer .acct-provider .filter-field__label {
+.rl-drawer .acct-provider .filter-field__label,
+.rl-drawer .acct-provider.filter-field.is-block .filter-field__label {
   font-size: 13px;
   font-weight: 700;
   line-height: inherit;
@@ -360,6 +357,10 @@
 @media (max-width: 767px) {
   .acct-input {
     height: 44px;
+  }
+  /* ImportPhone: the credentials box has no line-number gutter */
+  .acct-gutter {
+    display: none;
   }
   .rl-drawer.is-full .rl-drawer__foot {
     flex-wrap: wrap;

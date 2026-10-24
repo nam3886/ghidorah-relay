@@ -18,8 +18,11 @@ import AccountDetail from "@/components/accounts/AccountDetail.vue";
 import AccountsHeader, { type Summary } from "@/components/accounts/AccountsHeader.vue";
 import AccountsTable, { type Row } from "@/components/accounts/AccountsTable.vue";
 import {
+  andList,
   AUTO_REFRESH_MS,
   type ChipState,
+  hhmm,
+  unanswered,
   checkSummary,
   chipsAfterRead,
   commandChip,
@@ -385,7 +388,10 @@ watch(
 const shownIssue = computed<Issue>(() => issue.value ?? "all");
 const rows = computed(() => all.value.filter((r) => inIssue(shownIssue.value, r.h)));
 const issueChips = computed(() =>
-  ISSUES.filter((i) => !(isPhone.value && i.key === "off")).map((i) => ({
+  // a phone draws no Switched off chip; a tablet neither that nor Proxy failing (AccountsTablet), Needs a look holds it
+  ISSUES.filter(
+    (i) => !(isPhone.value && i.key === "off") && !(isTablet.value && (i.key === "off" || i.key === "proxy")),
+  ).map((i) => ({
     ...i,
     n: all.value.filter((r) => inIssue(i.key, r.h)).length,
   })),
@@ -436,6 +442,17 @@ const summary = computed<Summary | null>(() => {
 });
 
 const pausedHere = computed(() => (scope.provider && pausedOf(scope.provider) ? scope.provider : ""));
+// AccountsStates "Partial": the providers whose last check could not read an account; their rows show the last answer
+const partial = computed(() => unanswered(items.value));
+const partialText = computed(() => {
+  const p = partial.value;
+  if (!p.providers.length) return "";
+  const since = p.since ? `, from ${hhmm(p.since)}` : "";
+  return `The health check of ${andList(p.providers)} ${p.timedOut ? "timed out" : "failed"}. Their rows show the last answer${since}.`;
+});
+const badProviders = computed(() => new Set(partial.value.providers));
+// Check again: Check all, for the providers the banner names only
+const checkAgain = () => forEachProvider(runCheckAll, "Check all", "checkAll", checkAll, partial.value.providers);
 const empty = computed(() => {
   if (!items.value.length && !scope.provider) {
     return {
@@ -482,11 +499,12 @@ async function forEachProvider(
   label: string,
   key: string,
   start: (provider: string) => Promise<QueuedCommand>,
+  names?: string[],
 ) {
   await runner(() =>
     withChip(key, async () => {
       let ended: CommandStatus | null = null;
-      for (const name of await providerNames()) {
+      for (const name of names ?? (await providerNames())) {
         const command = await queue(start(name), `${label} ${name}`, false);
         if (ended?.status !== "failed") ended = command;
       }
@@ -548,6 +566,7 @@ function move(to: number): void {
           </span>
         </template>
         <template v-else>
+          <b v-if="isTablet" class="av-title" aria-hidden="true">Accounts</b>
           <ArrowScroller label="Show" :active-key="shownIssue" class="av-row av-row--show">
             <button
               v-for="c in issueChips"
@@ -575,7 +594,7 @@ function move(to: number): void {
               :key="p"
               type="button"
               class="av-chip"
-              :class="providerClass(p)"
+              :class="[providerClass(p), { 'is-bad': badProviders.has(p) }]"
               :aria-pressed="scope.provider === p ? 'true' : 'false'"
               @click="pickProvider(p)"
             >
@@ -585,7 +604,44 @@ function move(to: number): void {
         </template>
       </div>
 
+      <div v-if="partialText" class="av-banner av-banner--warn" role="status" data-testid="accounts-partial">
+        <svg
+          class="av-banner__icon"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+          <path d="M12 9v4" />
+          <path d="M12 17h.01" />
+        </svg>
+        <span>{{ partialText }}</span>
+        <button type="button" class="av-banner__btn" :disabled="checkingAll" @click="checkAgain">Check again</button>
+      </div>
+
       <div v-if="pausedHere" class="av-banner" role="status">
+        <svg
+          class="av-banner__icon"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+          <path d="M12 9v4" />
+          <path d="M12 17h.01" />
+        </svg>
         <span
           ><b>{{ pausedHere }} is paused in Settings.</b> Its accounts stay healthy but take no jobs; checks still
           run.</span
@@ -828,6 +884,28 @@ function move(to: number): void {
   color: var(--rl-brand-ink);
   font-size: 13px;
   line-height: 19px;
+}
+.av-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 700;
+}
+.av-banner__icon {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+.av-banner--warn {
+  background: var(--rl-warn-bg);
+  color: var(--rl-warn);
+}
+.av-chip.is-bad {
+  border-color: var(--rl-bad);
+  color: var(--rl-bad);
+}
+.av-chip.is-bad .av-chip__dot {
+  background: var(--rl-bad);
 }
 .av-banner > span {
   flex: 1;

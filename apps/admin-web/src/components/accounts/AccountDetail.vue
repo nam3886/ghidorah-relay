@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import "./account-dialog.css";
-import { computed } from "vue";
-import type { Account } from "@/api/accounts";
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { type Account, type AccountHistory, accountHistory, accountScreenshot } from "@/api/accounts";
 import CommandChip from "@/components/shared/CommandChip.vue";
 import IconButton from "@/components/shared/IconButton.vue";
 import SideDrawer from "@/components/shared/overlays/SideDrawer.vue";
-import { fmtTime } from "@/lib/format";
 import { providerClass } from "@/lib/providers";
 import {
   accountSub,
+  type Cell,
   type ChipState,
   chipProps,
   dayMonth,
-  extraError,
+  healthCells,
   healthOf,
+  healthSummary,
   hhmm,
-  madeLine,
   poolFigure,
   poolLeft,
   poolsInOrder,
@@ -27,10 +27,11 @@ import {
 } from "./account-model";
 
 // One account in the right-hand drawer (AccountDetail): the label in mono, its health pill, provider chip and who it is;
-// a banner that says why it needs a look; four facts; its pools; its proxy with Check proxy; its last errors; its
-// screenshot. The footer: Delete (red on hover) apart, Edit, Re-check · R, and Wake now while it sleeps. The drawer
-// only asks; the view runs every command. What the API does not serve (the health history, the pools' windows, the
-// proxy's exit address and latency, the errors' times and jobs, an inline screenshot) is left out.
+// a banner that says why it needs a look; four facts (tier, cycle start, jobs today, added); its health history (the
+// last 14 days, then today by hour); its pools; its proxy with Check proxy, the exit address and the latency the last
+// check measured through it; its last errors with their times and jobs; its screenshot, inline. The footer: Delete
+// (red on hover) apart, Edit, Re-check · R, and Wake now while it sleeps. The drawer only asks; the view runs every
+// command. The history and the screenshot are read when the drawer opens and again after each check of the account.
 const open = defineModel<boolean>({ required: true });
 const props = defineProps<{
   account: Account | null;
@@ -54,12 +55,25 @@ const banner = computed(() => {
     case "asleep": {
       const strikes = acc.strikes > 0 ? ` after ${acc.strikes} ${acc.strikes === 1 ? "strike" : "strikes"}` : "";
       const until = h.label.replace("Asleep until ", "");
+      // AccountDetail: "dola refused 3 prompts (dola.content_refused). It takes jobs again at 15:10, ..."
+      const cause =
+        acc.strikes > 0
+          ? `${acc.provider} refused ${acc.strikes} ${acc.strikes === 1 ? "prompt" : "prompts"}${why}. `
+          : h.why
+            ? `${h.why}. `
+            : "";
       return {
         tone: "warn",
         title: `Resting${strikes}.`,
-        text: `It takes jobs again at ${until}${why}, or now if you wake it.`,
+        text: `${cause}It takes jobs again at ${until}, or now if you wake it.`,
       };
     }
+    case "unknown":
+      return {
+        tone: "neutral",
+        title: "The last check did not answer.",
+        text: `What is shown is its last answer${h.why ? ` (${h.why.replace("last answer ", "from ")})` : ""}. Re-check it.`,
+      };
     case "dead":
       return {
         tone: "bad",
@@ -83,7 +97,6 @@ const banner = computed(() => {
   }
 });
 
-const total = (m: Account["made"]) => m.video + m.image;
 const stats = computed(() => {
   const acc = a.value;
   if (!acc) return [];
@@ -96,7 +109,11 @@ const stats = computed(() => {
       value: acc.cycle_start ? dayMonth(Date.parse(`${acc.cycle_start}T00:00:00Z`)) : "—",
       note: acc.cycle_start ? "the paid cycle" : "no paid cycle",
     },
-    { label: "Made", value: String(total(acc.made)), note: madeLine(acc.made) },
+    {
+      label: "Jobs today",
+      value: String(acc.jobs_today?.total ?? 0),
+      note: acc.jobs_today?.failed ? `${acc.jobs_today.failed} failed` : "none failed",
+    },
     {
       label: "Added",
       value: acc.created_ms ? dayMonth(acc.created_ms) : "—",
@@ -131,23 +148,93 @@ const pools = computed(() =>
 const proxyFacts = computed(() => {
   const acc = a.value;
   if (!acc?.proxy_host) return [{ label: "Address", value: "direct, no proxy" }];
+  const measured = acc.proxy_exit_ms ? ` · checked ${hhmm(acc.proxy_exit_ms)}` : "";
   return [
     { label: "Address", value: proxyText(acc) },
     { label: "User", value: acc.has_proxy_auth ? "password stored" : "none" },
-    { label: "Last check", value: acc.proxy_checked_ms ? fmtTime(acc.proxy_checked_ms) : "never" },
+    {
+      label: "Exit IP",
+      value: acc.proxy_exit_ip ?? (acc.proxy_exit_ms ? "no answer through the proxy" : "not measured yet"),
+    },
+    {
+      label: "Latency",
+      value:
+        acc.proxy_latency_ms !== null && acc.proxy_latency_ms !== undefined
+          ? `${acc.proxy_latency_ms} ms${measured}`
+          : `—${measured}`,
+    },
   ];
 });
 
-// the errors on hand: the dead session's reason and the last error when it adds to it
-const errors = computed(() => {
+// ---- what the drawer reads for itself: the history and the screenshot ----------------------------------------------
+const history = shallowRef<AccountHistory | null>(null);
+const shot = ref<{ url: string; size: string } | null>(null);
+let ticket = 0;
+function dropShot(): void {
+  if (shot.value) URL.revokeObjectURL(shot.value.url);
+  shot.value = null;
+}
+// Read again when the drawer opens on an account and after each check of it (the times move); a newer read wins.
+watch(
+  () =>
+    open.value && a.value
+      ? [a.value.id, a.value.last_checked_ms, a.value.check_failed_ms, a.value.screenshot_ms]
+      : null,
+  async (key, before) => {
+    if (!key || !a.value) return;
+    const acc = a.value;
+    const mine = ++ticket;
+    if (!before || before[0] !== key[0]) {
+      history.value = null;
+      dropShot();
+    }
+    // a failed read leaves its part empty: the drawer still shows everything the list gave
+    const quiet = async <T,>(read: () => Promise<T>): Promise<T | null> => {
+      try {
+        return await read();
+      } catch {
+        return null;
+      }
+    };
+    const [got, blob] = await Promise.all([
+      quiet(() => accountHistory(acc.id)),
+      acc.has_screenshot ? quiet(() => accountScreenshot(acc.id)) : null,
+    ]);
+    if (mine !== ticket) return;
+    history.value = got ?? null;
+    dropShot();
+    if (blob instanceof Blob) shot.value = { url: URL.createObjectURL(blob), size: "" };
+  },
+  { immediate: true },
+);
+onBeforeUnmount(dropShot);
+function shotLoaded(event: Event): void {
+  const img = event.target as HTMLImageElement;
+  if (shot.value) shot.value = { ...shot.value, size: `${img.naturalWidth}×${img.naturalHeight}` };
+}
+const shotLine = computed(() => {
   const acc = a.value;
-  if (!acc) return [];
-  const out: { code: string; tone: string }[] = [];
-  if (acc.state === "dead" && acc.state_reason) out.push({ code: acc.state_reason, tone: "bad" });
-  const extra = extraError(acc);
-  if (extra) out.push({ code: extra, tone: extra.startsWith("proxy") ? "warn" : "bad" });
-  return out;
+  if (!acc?.has_screenshot) return "none yet";
+  return [acc.screenshot_ms ? hhmm(acc.screenshot_ms) : "", shot.value?.size ?? ""].filter(Boolean).join(" · ");
 });
+
+const cells = computed(() => healthCells(history.value?.hours ?? []));
+const CELL = ["ok", "warn", "bad"] as const;
+const cellClass = (c: Cell): string => (c === null ? "is-none" : `is-${CELL[c]}`);
+const nowLine = computed(() => hhmm(Date.now()));
+
+// The newest errors, each with its time (the clock today, the day before), its code, the job's own error when it
+// adds to the code, and the job it came from.
+const errors = computed(() =>
+  (history.value?.errors ?? []).map((e) => ({
+    key: `${e.at_ms}-${e.code}`,
+    at: Date.now() - e.at_ms < 86_400_000 ? hhmm(e.at_ms) : dayMonth(e.at_ms),
+    code: e.code,
+    tone: e.code.startsWith("proxy") ? "warn" : "bad",
+    text: e.job_error && e.job_error !== e.code ? e.job_error : "",
+    job: e.job_id,
+  })),
+);
 
 const act = (name: RowAction): void => {
   if (a.value) emit("action", name, a.value);
@@ -198,6 +285,31 @@ const act = (name: RowAction): void => {
           <span class="num ad__help clip" :title="s.note">{{ s.note }}</span>
         </div>
       </div>
+
+      <section class="ad__sec ad__hist" aria-labelledby="ad-health" data-testid="account-health">
+        <div class="ad__hist-head">
+          <h3 id="ad-health">Health history</h3>
+          <span class="ad__help">last 14 days, then today by hour</span>
+          <span class="ad__legend" aria-hidden="true"
+            ><i class="is-ok" />usable <i class="is-warn" />asleep <i class="is-bad" />dead or proxy down</span
+          >
+        </div>
+        <div role="img" :aria-label="healthSummary(cells.days)" class="ad__days">
+          <span v-for="(c, i) in cells.days" :key="i" class="ad__cell" :class="cellClass(c)" />
+        </div>
+        <div class="num ad__axis">
+          <span>{{ dayMonth(cells.first) }}</span
+          ><span>{{ dayMonth(cells.middle) }}</span
+          ><span>today</span>
+        </div>
+        <div role="img" aria-label="Today by hour" class="ad__hours">
+          <span v-for="(c, i) in cells.hours" :key="i" class="ad__cell ad__cell--h" :class="cellClass(c)" />
+        </div>
+        <div class="num ad__axis">
+          <span>00:00</span><span>06:00</span><span>12:00</span><span>{{ nowLine }}</span
+          ><span>24:00</span>
+        </div>
+      </section>
 
       <section v-if="pools.length" class="ad__sec" :class="providerClass(a.provider)" aria-labelledby="ad-pools">
         <h3 id="ad-pools">Pools</h3>
@@ -250,21 +362,43 @@ const act = (name: RowAction): void => {
         </dl>
       </section>
 
-      <section v-if="errors.length" class="ad__sec" aria-labelledby="ad-errors">
+      <section class="ad__sec" aria-labelledby="ad-errors">
         <h3 id="ad-errors">Last errors</h3>
-        <ul class="ad__errors">
-          <li v-for="e in errors" :key="e.code">
-            <span class="mono ad__code" :class="`tone-${e.tone}`">{{ e.code }}</span>
+        <ul v-if="errors.length" class="ad__errors">
+          <li v-for="e in errors" :key="e.key">
+            <span class="num mono ad__help">{{ e.at }}</span>
+            <span class="ad__err">
+              <span class="mono ad__code" :class="`tone-${e.tone}`">{{ e.code }}</span>
+              <span v-if="e.text" class="ad__err-text">{{ e.text }}</span>
+            </span>
+            <RouterLink
+              v-if="e.job"
+              class="mono ad__job"
+              :to="{ name: 'jobs', query: { job: e.job } }"
+              :aria-label="`Open job ${e.job.slice(0, 8)}`"
+              >{{ e.job.slice(0, 8) }}</RouterLink
+            >
+            <span v-else />
           </li>
         </ul>
+        <span v-else class="ad__help">{{ history ? "No error recorded." : "" }}</span>
       </section>
 
       <section class="ad__sec" aria-labelledby="ad-shot">
         <div class="ad__head">
           <h3 id="ad-shot">Last screenshot</h3>
-          <span class="ad__help">{{ a.has_screenshot ? "opens in a new tab" : "none yet" }}</span>
+          <span class="num ad__help">{{ shotLine }}</span>
           <IconButton v-if="a.has_screenshot" icon="expand" label="Open full size" @click="act('shot')" />
         </div>
+        <button
+          v-if="shot"
+          type="button"
+          class="ad__shot"
+          aria-label="Open the screenshot full size"
+          @click="act('shot')"
+        >
+          <img :src="shot.url" alt="" @load="shotLoaded" />
+        </button>
       </section>
     </template>
 
@@ -500,8 +634,120 @@ const act = (name: RowAction): void => {
   border-radius: 12px;
 }
 .ad__errors li {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
   padding: 10px 14px;
   border-top: 1px solid var(--rl-rule);
+}
+.ad__err {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ad__err-text {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--rl-muted);
+  overflow-wrap: anywhere;
+}
+.ad__job {
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--rl-brand-ink);
+}
+.ad__job:hover {
+  text-decoration: underline;
+}
+/* the health history (AccountDetail): 14 day cells, then today's 24 hours */
+.ad__hist {
+  --cell-ok: #32b37a;
+  --cell-warn: #f5b544;
+  --cell-bad: #e04f43;
+  --cell-none: var(--rl-track);
+}
+:global(html.dark) .ad__hist {
+  --cell-ok: #2f9e6e;
+  --cell-warn: #d39b20;
+  --cell-bad: #e0574a;
+}
+.ad__hist-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.ad__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--rl-faint);
+}
+.ad__legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.ad__legend i:not(:first-child) {
+  margin-left: 6px;
+}
+.ad__days {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  gap: 4px;
+}
+.ad__hours {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 2px;
+}
+.ad__cell {
+  display: block;
+  height: 18px;
+  border-radius: 4px;
+}
+.ad__cell--h {
+  height: 12px;
+  border-radius: 3px;
+}
+.ad__hist .is-ok {
+  background: var(--cell-ok);
+}
+.ad__hist .is-warn {
+  background: var(--cell-warn);
+}
+.ad__hist .is-bad {
+  background: var(--cell-bad);
+}
+.ad__hist .is-none {
+  background: var(--cell-none);
+}
+.ad__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -4px;
+  font-size: 11px;
+  color: var(--rl-faint);
+}
+.ad__shot {
+  display: block;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--rl-line);
+  border-radius: 12px;
+  background: var(--rl-head);
+  cursor: zoom-in;
+}
+.ad__shot img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 .ad__errors li:first-child {
   border-top: 0;
