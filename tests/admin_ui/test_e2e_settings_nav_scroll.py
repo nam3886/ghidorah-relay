@@ -15,7 +15,7 @@ SETTINGS = "apps/admin-web/src/views/SettingsView.vue"
 TIMEOUT_MS = 10_000
 SECTIONS = (("Change password", "password"), ("Boot-only values", "boot"), ("Measured prices", "prices"),
             ("Fixed limits", "limits"), ("Containers", "containers"))
-LINKS = '[data-testid="settings-card-core"] .scard__links'
+LINKS = '[data-testid="settings-card-core"] .glinks'
 
 # What every ancestor of the card except the page scroll area (and the window) has scrolled.
 MOVED_JS = """(id) => {
@@ -55,7 +55,7 @@ WIDE_JS = """() => {
 def open_settings(app, page, width: int, height: int) -> None:
     page.set_viewport_size({"width": width, "height": height})
     page.goto(app.url + "#/settings")
-    expect(page.locator("h1.settings__title")).to_be_visible()
+    expect(page.locator("#settings [data-state=ready]")).to_be_visible()
     page.wait_for_load_state("networkidle")
     expect(page.locator("[aria-busy=true]")).to_have_count(0, timeout=TIMEOUT_MS)
     settle(page)

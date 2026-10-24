@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ArrowScroller from "@/components/shared/ArrowScroller.vue";
 import { computed } from "vue";
 import type { PriceRow } from "@/api/settings";
 import StatusChip from "@/components/shared/StatusChip.vue";
@@ -87,7 +88,7 @@ const second = (row: PriceRow): string =>
       </li>
     </ul>
 
-    <div v-else-if="!error && (rows.length || skeleton)" class="scroll">
+    <ArrowScroller v-else-if="!error && (rows.length || skeleton)" class="scroll" label="Measured prices" table>
       <table class="table">
         <thead>
           <tr v-if="isTablet">
@@ -163,7 +164,7 @@ const second = (row: PriceRow): string =>
           </tr>
         </tbody>
       </table>
-    </div>
+    </ArrowScroller>
   </div>
 </template>
 
@@ -174,9 +175,6 @@ const second = (row: PriceRow): string =>
 }
 .prices.is-tablet {
   --set-skel-row: 57px;
-}
-.scroll {
-  overflow-x: auto;
 }
 .table {
   width: 100%;
@@ -191,10 +189,10 @@ const second = (row: PriceRow): string =>
   height: 38px;
   padding: 0 12px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   text-align: left;
-  color: var(--rl-muted);
-  background: var(--rl-raised);
+  color: var(--rl-faint);
+  background: var(--rl-head);
 }
 .table th.first {
   padding-left: 16px;
@@ -208,7 +206,7 @@ const second = (row: PriceRow): string =>
 }
 .table td {
   padding: 0 12px;
-  border-bottom: 1px solid var(--rl-line);
+  border-bottom: 1px solid var(--rl-rule);
 }
 /* as drawn: the first cell is 44 px of content, so a row is 45 with its line */
 .table td.first {
@@ -224,7 +222,7 @@ const second = (row: PriceRow): string =>
   display: block;
 }
 .table tbody tr:hover td {
-  background: var(--rl-raised);
+  background: var(--rl-head);
 }
 .mono {
   font-family: var(--rl-mono);
@@ -254,7 +252,7 @@ const second = (row: PriceRow): string =>
   gap: 4px;
   min-height: 72px;
   padding: 10px 16px;
-  border-top: 1px solid var(--rl-line);
+  border-top: 1px solid var(--rl-rule);
 }
 .list__line {
   display: flex;

@@ -2,158 +2,278 @@
 import { computed } from "vue";
 import type { SettingItem } from "@/api/settings";
 import HintTip from "@/components/shared/HintTip.vue";
+import IconButton from "@/components/shared/IconButton.vue";
+import PathIcon from "@/components/shared/icons/PathIcon.vue";
 import ToggleSwitch from "@/components/shared/ToggleSwitch.vue";
 import { fieldLabel } from "./settings-cards";
 import { fullDefault, isLongDefault } from "./settings-value";
 
-// One setting on a card: its label and "edited" while the draft differs from the stored value, the input (a switch
-// for a true/false one), the description, what it allows, then its key, where the value comes from and the default,
-// with Reset when the database holds a value. A refusal of the last Save is written under it.
-const props = defineProps<{
-  item: SettingItem;
-  draft: string;
-  edited: boolean;
-  error?: string;
-  busy: boolean;
-}>();
+// One setting (SettingsForms). `card`: its own card, the label with "edited" while the draft differs from the stored
+// value, the input (a switch for a true/false one), the description, what it allows, a refusal of the last Save, then
+// its key, where the value comes from and the default, with Reset (an icon button) when the database holds a value.
+// `row`: one line of a section card (Settings, "Taking jobs"): the label and its help at the left, "Changed", the input
+// and Reset at the right.
+const props = withDefaults(
+  defineProps<{
+    item: SettingItem;
+    draft: string;
+    edited: boolean;
+    error?: string;
+    busy: boolean;
+    layout?: "card" | "row";
+  }>(),
+  { error: "", layout: "card" },
+);
 const emit = defineEmits<{ "update:draft": [text: string]; reset: [] }>();
 
 const shownDefault = computed(() => JSON.stringify(props.item.default));
 const longDefault = computed(() => isLongDefault(shownDefault.value));
 const id = computed(() => `set-${props.item.key.replace(/[^\w-]/g, "-")}`);
+const bool = computed(() => props.item.type === "bool");
+// Reset is offered for a value the database holds
+const resettable = computed(() => props.item.source === "db");
+const wide = computed(() => ["str", "list", "dict"].includes(props.item.type));
+const ALERT = ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 8v4", "M12 16h.01"];
 </script>
 
 <template>
-  <div class="field" :class="{ 'is-edited': edited, 'has-error': !!error }" :data-key="item.key">
-    <label class="field__label" :for="item.type === 'bool' ? undefined : id"
-      >{{ fieldLabel(item) }}<span v-if="edited" class="tag">edited</span></label
-    >
-    <div class="field__input">
+  <div
+    class="field"
+    :class="[`field--${layout}`, { 'is-edited': edited, 'has-error': !!error, 'is-busy': busy }]"
+    :data-key="item.key"
+  >
+    <div class="field__text">
+      <label class="field__label" :for="bool ? undefined : id"
+        >{{ fieldLabel(item) }}<span v-if="edited && layout === 'card'" class="tag">edited</span></label
+      >
+      <span v-if="layout === 'row'" class="help">{{ item.description }}</span>
+      <span v-if="layout === 'row' && item.allowed" class="help allowed">Allowed: {{ item.allowed }}</span>
+      <span v-if="layout === 'row' && error" class="error" role="alert"
+        ><PathIcon :paths="ALERT" :size="14" :stroke="2.2" />{{ error }}</span
+      >
+    </div>
+    <span v-if="layout === 'row' && edited" class="changed">Changed</span>
+    <div class="field__input" :class="{ 'is-bool': bool }">
       <ToggleSwitch
-        v-if="item.type === 'bool'"
+        v-if="bool"
+        size="md"
         :model-value="draft === 'true'"
         :label="`Value of ${item.key}`"
         :disabled="busy"
         @change="(on: boolean) => emit('update:draft', String(on))"
       />
+      <span v-if="bool && layout === 'card'" class="help">{{ draft === "true" ? "On" : "Off" }}</span>
       <input
-        v-else
+        v-if="!bool"
         :id="id"
         class="input"
-        :class="{ 'input--wide': item.type === 'str' || item.type === 'list' || item.type === 'dict' }"
+        :class="{ 'input--wide': wide, mono: layout === 'card' || wide }"
         :value="draft"
         :aria-label="`Value of ${item.key}`"
         :aria-invalid="error ? 'true' : undefined"
         :disabled="busy"
+        inputmode="text"
         autocomplete="off"
         spellcheck="false"
         @input="emit('update:draft', ($event.target as HTMLInputElement).value)"
       />
-    </div>
-    <span class="help">{{ item.description }}</span>
-    <span v-if="item.allowed" class="help allowed">Allowed: {{ item.allowed }}</span>
-    <span v-if="error" class="error" role="alert">{{ error }}</span>
-    <span class="key">
-      <span class="key__name">{{ item.key }}</span>
-      <span class="key__default" :class="{ 'is-long': longDefault }"
-        >{{ item.source }} · default
-        <HintTip v-if="longDefault" mono :text="fullDefault(item.default)">{{ shownDefault }}</HintTip
-        ><template v-else>{{ shownDefault }}</template></span
-      >
-      <button
-        v-if="item.source === 'db'"
-        type="button"
-        class="reset"
+      <IconButton
+        v-if="layout === 'row' && resettable"
+        icon="reset"
+        :label="`Reset ${item.key}`"
         :disabled="busy"
-        :aria-label="`Reset ${item.key}`"
+        placement="top-end"
         @click="emit('reset')"
+      />
+    </div>
+    <template v-if="layout === 'card'">
+      <span class="desc">{{ item.description }}</span>
+      <span v-if="item.allowed" class="help allowed mono">Allowed: {{ item.allowed }}</span>
+      <span v-if="error" class="error" role="alert"
+        ><PathIcon :paths="ALERT" :size="14" :stroke="2.2" />{{ error }}</span
       >
-        Reset
-      </button>
-    </span>
+      <div class="key">
+        <span class="key__name mono">{{ item.key }}</span>
+        <span class="key__default help" :class="{ 'is-long': longDefault }"
+          >{{ item.source }} · default
+          <HintTip v-if="longDefault" mono :text="fullDefault(item.default)"
+            ><span class="mono key__value">{{ shownDefault }}</span></HintTip
+          ><span v-else class="mono key__value">{{ shownDefault }}</span></span
+        >
+        <IconButton
+          v-if="resettable"
+          icon="reset"
+          :label="`Reset ${item.key}`"
+          :disabled="busy"
+          placement="top-end"
+          @click="emit('reset')"
+        />
+      </div>
+    </template>
   </div>
 </template>
 
 <style scoped>
 .field {
+  min-width: 0;
+}
+.field--card {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: var(--rl-surface);
+  box-shadow: var(--rl-shadow-card);
+}
+.field--row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--rl-rule);
+}
+.field--row:first-child {
+  border-top: 0;
+}
+.field__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
+}
+.field--row .field__text {
+  flex: 1 1 auto;
+  margin-right: auto;
 }
 .field__label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.field--row .field__label {
+  font-size: 14px;
 }
 .tag {
+  flex: none;
   padding: 1px 6px;
-  border-radius: 6px;
+  border-radius: 999px;
   background: var(--rl-primary-soft);
-  color: var(--rl-primary-hover);
+  color: var(--rl-brand-ink);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 700;
+}
+.changed {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--rl-brand-ink);
 }
 .field__input {
   display: flex;
   align-items: center;
-  min-height: 34px;
+  gap: 10px;
+  min-width: 0;
+}
+.field--row .field__input {
+  flex: none;
+  gap: 8px;
 }
 .input {
   box-sizing: border-box;
   width: 100%;
-  max-width: 160px;
-  height: 34px;
-  padding: 0 10px;
+  height: 40px;
+  padding: 0 12px;
   border: 1px solid var(--rl-line-strong);
   border-radius: 10px;
-  background: var(--rl-surface);
+  background: var(--rl-input);
   color: var(--rl-fg);
-  font-family: var(--rl-mono);
+  font: inherit;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
-@media (max-width: 767px) {
-  .input {
-    max-width: none;
-    height: 44px;
-    font-size: 14px;
-  }
+.input:focus-visible {
+  outline: none;
+  border-color: var(--rl-brand);
+  box-shadow: 0 0 0 3px var(--rl-focus-halo);
 }
-.input--wide {
-  max-width: none;
+.field--row .input {
+  width: 72px;
+  height: 34px;
+  border-radius: 8px;
+  padding: 0 8px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+.field--row .input--wide {
+  width: 220px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 400;
 }
 .is-edited .input {
-  border-color: var(--rl-primary);
+  border-color: var(--rl-brand);
+  box-shadow: 0 0 0 3px var(--rl-focus-halo);
+}
+.field--row.is-edited .input {
+  background: var(--rl-primary-soft);
 }
 .has-error .input {
   border-color: var(--rl-bad);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rl-bad) 12%, transparent);
+}
+.is-busy .input {
+  opacity: 0.6;
+  cursor: wait;
+}
+.desc {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--rl-muted);
+  overflow-wrap: anywhere;
 }
 .help {
-  color: var(--rl-muted);
   font-size: 12px;
-  line-height: 17px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--rl-faint);
   overflow-wrap: anywhere;
 }
 .error {
-  color: var(--rl-bad);
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--rl-bad);
   overflow-wrap: anywhere;
+}
+.error :deep(svg) {
+  flex: none;
 }
 .key {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px 8px;
+  gap: 4px 10px;
   min-width: 0;
-  color: var(--rl-faint);
-  font-family: var(--rl-mono);
-  font-size: 11px;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rl-rule);
 }
 .key__name {
+  font-size: 12px;
+  color: var(--rl-body);
   overflow-wrap: anywhere;
+}
+.key__value {
+  font-size: 12px;
+  color: var(--rl-body);
 }
 .key__default {
   font-variant-numeric: tabular-nums;
@@ -172,18 +292,51 @@ const id = computed(() => `set-${props.item.key.replace(/[^\w-]/g, "-")}`);
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.reset {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--rl-primary);
-  font: inherit;
-  font-family: var(--rl-font);
-  font-size: 12px;
-  cursor: pointer;
+.key__default.is-long .key__value {
+  border-bottom: 1px dashed var(--rl-faint);
 }
-.reset:disabled {
-  color: var(--rl-faint);
-  cursor: default;
+.mono {
+  font-family: var(--rl-mono);
+}
+
+/* a tablet and a phone: the row's label stacks over its input (JobsTablet `field`), the inputs at the touch height */
+@media (max-width: 1279px) {
+  .field--row {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding: 14px 20px;
+  }
+  .field--row .field__text {
+    flex-basis: 100%;
+    order: 0;
+  }
+  .field--row .field__input {
+    flex: 1 1 auto;
+    order: 2;
+  }
+  .field--row .changed {
+    order: 3;
+  }
+  .field--row .input,
+  .field--row .input--wide {
+    flex: 1;
+    width: auto;
+    height: 44px;
+    border-radius: 10px;
+    text-align: left;
+    padding: 0 12px;
+  }
+  .field--row .field__input.is-bool {
+    flex: none;
+  }
+}
+@media (max-width: 767px) {
+  .field--row {
+    padding: 14px 16px;
+  }
+  .input {
+    height: 44px;
+    font-size: 14px;
+  }
 }
 </style>

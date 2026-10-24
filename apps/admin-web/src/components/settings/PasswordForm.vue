@@ -3,6 +3,7 @@ import { computed, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { changePassword } from "@/api/settings";
 import { IconAlertCircleShort } from "@/components/shared/icons";
+import SettingsCard from "./SettingsCard.vue";
 import { newPasswordProblem } from "./settings-value";
 import { ApiError } from "@/api/client";
 import { errorText } from "@/lib/errors";
@@ -47,131 +48,122 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <section id="password" class="password" aria-labelledby="password-title">
-    <h2 id="password-title">Change password</h2>
+  <SettingsCard
+    id="password"
+    title="Change password"
+    note="Every session ends, this one included: you sign in again."
+    pad
+  >
     <form class="password__form" @submit.prevent="submit">
-      <div class="password__fields">
-        <div class="password__field">
-          <label for="old-password">Current password</label>
-          <input
-            id="old-password"
-            v-model="oldPassword"
-            type="password"
-            autocomplete="current-password"
-            :aria-invalid="fieldErrors.old_password !== ''"
-            :aria-describedby="fieldErrors.old_password ? 'old-password-error' : undefined"
-            :class="{ 'is-invalid': fieldErrors.old_password !== '' }"
-          />
-          <span v-if="fieldErrors.old_password" id="old-password-error" class="password__error" role="alert"
-            ><IconAlertCircleShort :size="14" />{{ fieldErrors.old_password }}</span
-          >
-        </div>
-        <div class="password__field">
-          <label for="new-password">New password</label>
-          <input
-            id="new-password"
-            v-model="newPassword"
-            type="password"
-            autocomplete="new-password"
-            :aria-invalid="fieldErrors.new_password !== ''"
-            :aria-describedby="fieldErrors.new_password ? 'new-password-error' : undefined"
-            :class="{ 'is-invalid': fieldErrors.new_password !== '' }"
-          />
-          <span v-if="fieldErrors.new_password" id="new-password-error" class="password__error" role="alert"
-            ><IconAlertCircleShort :size="14" />{{ fieldErrors.new_password }}</span
-          >
-        </div>
+      <div class="password__field">
+        <label for="old-password">Current password</label>
+        <input
+          id="old-password"
+          v-model="oldPassword"
+          type="password"
+          autocomplete="current-password"
+          :aria-invalid="fieldErrors.old_password !== ''"
+          :aria-describedby="fieldErrors.old_password ? 'old-password-error' : undefined"
+          :class="{ 'is-invalid': fieldErrors.old_password !== '' }"
+        />
+        <span v-if="fieldErrors.old_password" id="old-password-error" class="password__error" role="alert"
+          ><IconAlertCircleShort :size="14" />{{ fieldErrors.old_password }}</span
+        >
       </div>
-      <div>
+      <div class="password__field">
+        <label for="new-password">New password</label>
+        <input
+          id="new-password"
+          v-model="newPassword"
+          type="password"
+          autocomplete="new-password"
+          :aria-invalid="fieldErrors.new_password !== ''"
+          :aria-describedby="fieldErrors.new_password ? 'new-password-error' : undefined"
+          :class="{ 'is-invalid': fieldErrors.new_password !== '' }"
+        />
+        <span v-if="fieldErrors.new_password" id="new-password-error" class="password__error" role="alert"
+          ><IconAlertCircleShort :size="14" />{{ fieldErrors.new_password }}</span
+        >
+      </div>
+      <div class="password__act">
         <button type="submit" class="password__save" :disabled="!ready || busy" aria-describedby="password-ends">
           Save
         </button>
         <span id="password-ends" class="sr-only">Every session ends, this one included: you sign in again.</span>
       </div>
     </form>
-  </section>
+  </SettingsCard>
 </template>
 
 <style scoped>
-.password {
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 20px;
-  background: var(--rl-surface);
-  border: 1px solid var(--rl-line);
-  border-radius: 16px;
-  scroll-margin-top: var(--settings-anchor, 16px);
-}
-.password h2 {
-  margin: 0;
-  font-size: 15px;
-  line-height: 22px;
-  font-weight: 600;
-}
 .password__form {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  align-items: start;
   gap: 16px;
-}
-.password__fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  max-width: 720px;
+  margin: 0;
 }
 .password__field {
-  flex: 1 1 280px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 .password__field label {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
 }
 .password__field input {
   box-sizing: border-box;
   width: 100%;
-  height: 36px;
+  height: 40px;
   padding: 0 12px;
   border: 1px solid var(--rl-line-strong);
   border-radius: 10px;
-  background: var(--rl-surface);
+  background: var(--rl-input);
   color: var(--rl-fg);
   font: inherit;
-  font-size: 14px;
-  line-height: normal;
+  font-size: 13px;
+}
+.password__field input:focus-visible {
+  outline: none;
+  border-color: var(--rl-brand);
+  box-shadow: 0 0 0 3px var(--rl-focus-halo);
 }
 .password__field input.is-invalid {
   border-color: var(--rl-bad);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rl-bad) 12%, transparent);
 }
 .password__error {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
   color: var(--rl-bad);
 }
+/* the button sits level with the inputs on their row, under their labels; alone on a row of its own it has no gap */
+.password__act {
+  align-self: end;
+}
 .password__save {
-  height: 36px;
-  padding: 0 16px;
+  height: 40px;
+  padding: 0 20px;
   border: 0;
   border-radius: 10px;
   background: var(--rl-primary);
-  color: #ffffff;
+  color: var(--rl-on-primary);
   font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: normal;
+  font-weight: 700;
   cursor: pointer;
 }
 .password__save:hover:not(:disabled) {
   background: var(--rl-primary-hover);
 }
 .password__save:disabled {
-  opacity: 0.45;
+  background: var(--rl-track);
+  color: var(--rl-faint);
   cursor: not-allowed;
 }
 .sr-only {
@@ -182,32 +174,13 @@ async function submit(): Promise<void> {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
-@media (min-width: 768px) and (max-width: 1279px) {
-  .password__fields {
-    align-items: flex-start;
-    max-width: none;
-  }
-}
 @media (max-width: 767px) {
-  .password {
-    padding: 16px;
-  }
-  .password__fields {
-    flex-direction: column;
-    max-width: none;
-  }
-  .password__field {
-    flex: none;
-  }
-  .password__field input {
+  .password__field input,
+  .password__save {
     height: 44px;
   }
-  /* the drawn phone Save sets no padding: the browser's 1px 6px */
   .password__save {
     width: 100%;
-    height: 44px;
-    padding: 1px 6px;
-    font-size: 14px;
   }
 }
 </style>

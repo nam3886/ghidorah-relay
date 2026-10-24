@@ -42,16 +42,17 @@ def test_settings_edit_marks_the_field_saves_and_reset_returns_to_the_default(ap
     open_tab(page, "Settings")
     row = page.locator('#settings .field[data-key="log_retention_days"]')
     source = row.locator(".key__default")
-    save = page.get_by_role("button", name="Save General", exact=True)
+    bar = page.get_by_role("region", name="Unsaved changes")
     expect(source).to_contain_text("default · default 30")
-    expect(save).to_be_disabled()
+    expect(bar).to_have_count(0)
     page.get_by_label("Value of log_retention_days").fill("45")
     expect(row).to_contain_text("edited")
-    expect(page.get_by_test_id("settings-card-core")).to_contain_text("1 change not saved")
-    save.click()
+    expect(bar).to_contain_text("1 unsaved change")
+    expect(bar).to_contain_text("Log retention days: 30 → 45")
+    bar.get_by_role("button", name="Save changes").click()
     expect(page.locator(".el-message")).to_contain_text("Saved")
     expect(source).to_contain_text("db · default 30")
-    expect(save).to_be_disabled()
+    expect(bar).to_have_count(0)
     assert db.one("SELECT value FROM settings_kv WHERE key = 'log_retention_days'")[0] in (45, "45")
     page.get_by_role("button", name="Reset log_retention_days").click()
     expect(source).to_contain_text("default · default 30")
@@ -64,13 +65,13 @@ def test_settings_refuses_a_bad_value_with_the_server_text_and_the_field(app_ses
     page = app_session
     open_tab(page, "Settings")
     page.get_by_label("Value of log_retention_days").fill("not a number")
-    page.get_by_role("button", name="Save General", exact=True).click()
+    page.get_by_role("button", name="Save changes", exact=True).click()
     expect(page.locator(".el-message--error")).to_contain_text("(value)")
     # the refusal stays under the field with what was typed, until Discard
     field = page.locator('#settings .field[data-key="log_retention_days"]')
     expect(field.get_by_role("alert")).to_contain_text("(value)")
     expect(page.get_by_label("Value of log_retention_days")).to_have_value("not a number")
-    page.get_by_role("button", name="Discard General changes", exact=True).click()
+    page.get_by_role("button", name="Discard changes", exact=True).click()
     expect(page.get_by_label("Value of log_retention_days")).to_have_value("30")
     assert db.one("SELECT count(*) FROM settings_kv WHERE key = 'log_retention_days'")[0] == 0
     page.problems.clear()                                    # the 400 is a console line
@@ -118,7 +119,7 @@ def test_measured_prices_are_read_from_the_real_route_and_follow_the_provider_fi
     expect(rows.nth(1)).to_contain_text("other-image")
 
     with page.expect_response(lambda r: r.url.endswith("/admin/prices?provider=fake")) as scoped:
-        page.get_by_role("navigation", name="Provider").get_by_test_id("provider-tab-fake").click()
+        page.get_by_role("navigation", name="Settings areas").get_by_test_id("settings-tab-fake").click()
     assert [i["provider"] for i in scoped.value.json()["items"]] == ["fake"]
     expect(rows).to_have_count(1)
     expect(rows.first).to_contain_text("fake-video")
@@ -1080,8 +1081,8 @@ def test_frames_settings_and_test_fit_a_phone_and_a_tablet_with_their_main_actio
         expect(page.get_by_test_id("frame-editor")).to_be_visible()
         main = page.get_by_role("button", name="Save", exact=True)
     elif route == "settings":
-        expect(page.get_by_label("Value of log_retention_days")).to_be_visible()
-        main = page.get_by_role("button", name="Save General", exact=True)
+        page.get_by_label("Value of log_retention_days").fill("45")
+        main = page.get_by_role("region", name="Unsaved changes").get_by_role("button", name="Save changes")
     else:
         main = page.get_by_role("button", name="Load models")
     main.first.scroll_into_view_if_needed()

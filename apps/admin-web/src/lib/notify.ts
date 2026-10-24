@@ -51,15 +51,20 @@ function drawn(foot: Element): boolean {
     r.left < window.innerWidth
   );
 }
+// A drawer's footer, else the Settings page's unsaved-changes bar (`.sbar`, which floats above the foot of the window).
 const drawnFooter = (): Element | undefined =>
-  typeof document === "undefined" ? undefined : [...document.querySelectorAll(".detail-drawer__foot")].find(drawn);
+  typeof document === "undefined"
+    ? undefined
+    : [...document.querySelectorAll(".detail-drawer__foot, .sbar")].find(drawn);
 
 // How far up the toasts go: the footer's height on a desktop (the default gap of Element Plus, 16 px, stays above it);
-// on a phone, where toasts already sit 72 px up, only what the footer needs beyond that (a wrapped footer).
+// on a phone, where toasts already sit 72 px up, only what the footer needs beyond that (a wrapped footer). A bar that
+// does not sit on the foot of the window counts from its top down to that foot.
 export function toastLift(): number {
   const foot = drawnFooter();
   if (!foot) return 0;
-  const height = Math.round(foot.getBoundingClientRect().height);
+  const r = foot.getBoundingClientRect();
+  const height = Math.round(foot.classList.contains("sbar") ? window.innerHeight - r.top : r.height);
   return isPhoneNow() ? Math.max(0, height + TOAST_GAP_PX - PHONE_OFFSET_PX) : height;
 }
 let measured: Element | undefined;

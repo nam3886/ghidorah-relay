@@ -3,7 +3,6 @@
    skeleton. A phone gets `set-list` blocks in place of the table. */
 .set-scroll {
   --set-skel-row: 45px;
-  overflow-x: auto;
 }
 .set-table {
   width: 100%;
@@ -14,10 +13,10 @@
   height: 38px;
   padding: 0 12px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   text-align: left;
-  color: var(--rl-muted);
-  background: var(--rl-raised);
+  color: var(--rl-faint);
+  background: var(--rl-head);
 }
 .set-table th:first-child,
 .set-table td:first-child {
@@ -29,14 +28,14 @@
 }
 .set-table td {
   padding: 12px;
-  border-bottom: 1px solid var(--rl-line);
+  border-bottom: 1px solid var(--rl-rule);
   vertical-align: top;
   font-family: var(--rl-mono);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
 .set-table tbody tr:hover td {
-  background: var(--rl-raised);
+  background: var(--rl-head);
 }
 /* a name is one line: it is what the eye looks up */
 .set-table td.set-table__name {
@@ -51,7 +50,7 @@
 /* one band per group of a table that has groups */
 .set-table tr.set-table__group th {
   height: 32px;
-  border-top: 1px solid var(--rl-line);
+  border-top: 1px solid var(--rl-rule);
   font-weight: 600;
 }
 .set-table tr.set-table__group:first-child th {
@@ -68,7 +67,7 @@
   height: auto;
   padding: 12px;
   padding-left: 16px;
-  border-bottom: 1px solid var(--rl-line);
+  border-bottom: 1px solid var(--rl-rule);
   background: transparent;
   font-family: var(--rl-mono);
   font-size: 13px;
@@ -78,11 +77,11 @@
   vertical-align: top;
 }
 .set-table--matrix tbody tr:hover th {
-  background: var(--rl-raised);
+  background: var(--rl-head);
 }
 /* the matrix's bands keep the band look over its row-header cells */
 .set-table--matrix tbody tr.set-table__group th {
-  background: var(--rl-raised);
+  background: var(--rl-head);
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
@@ -124,7 +123,7 @@
   flex-direction: column;
   gap: 2px;
   padding: 10px 16px;
-  border-top: 1px solid var(--rl-line);
+  border-top: 1px solid var(--rl-rule);
 }
 .set-list__name {
   font-family: var(--rl-mono);
@@ -145,8 +144,8 @@
 .set-list__group {
   margin: 0;
   padding: 10px 16px 6px;
-  border-top: 1px solid var(--rl-line);
-  background: var(--rl-raised);
+  border-top: 1px solid var(--rl-rule);
+  background: var(--rl-head);
   font-size: 12px;
   font-weight: 600;
   line-height: 18px;
@@ -154,13 +153,13 @@
 }
 .set-block__head {
   padding: 10px 16px 6px;
-  border-top: 1px solid var(--rl-line);
-  background: var(--rl-raised);
+  border-top: 1px solid var(--rl-rule);
+  background: var(--rl-head);
 }
 .set-block__none {
   margin: 0;
   padding: 10px 16px;
-  border-top: 1px solid var(--rl-line);
+  border-top: 1px solid var(--rl-rule);
   font-size: 13px;
   color: var(--rl-muted);
 }

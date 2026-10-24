@@ -100,6 +100,13 @@ describe("notify", () => {
       expect(lift()).toBe("0px");
     });
 
+    it("lifts above the Settings bar from its top to the foot of the window, as it floats above that foot", () => {
+      width(false);
+      const { foot } = footer({ height: 57, top: 600 });
+      foot.className = "sbar";
+      expect(lift()).toBe(`${window.innerHeight - 600}px`);
+    });
+
     it("lifts a toast of every kind the same way and moves none of them: only the page-wide lift changes", () => {
       const { message, notify } = stub();
       width(false);

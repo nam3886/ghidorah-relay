@@ -15,14 +15,28 @@ import {
 import * as shell from "@/api/shell";
 import {
   cardsOf,
+  changeLines,
   costLabel,
   fieldLabel,
+  kindsText,
+  marginOf,
   otherPrices,
   priceInputs,
   tableKeys,
+  tierColumns,
+  tierHead,
   withModelOn,
   withPrice,
 } from "@/components/settings/settings-cards";
+import {
+  budgetText,
+  nextResetText,
+  poolsOf,
+  resetText,
+  tzForReset,
+  withBudget,
+  withTz,
+} from "@/components/settings/settings-pools";
 import { notify } from "@/lib/notify";
 import { TEST_KEY, TOKEN_KEY, USER_KEY } from "@/lib/session";
 import { useAuthStore } from "@/stores/auth";
@@ -217,8 +231,8 @@ describe("the settings page", () => {
     await open();
     const tables = wrapper!.findAll("table");
     expect(tables).toHaveLength(4);
-    // the settings cards wait as one card of bars
-    expect(wrapper!.findAll("#settings [data-state=loading] .set-skel")).toHaveLength(5);
+    // the settings wait as three sections of flat bars
+    expect(wrapper!.findAll("#settings [data-state=loading] .sskel__sec")).toHaveLength(3);
     for (const table of tables) {
       expect(table.find("thead").exists()).toBe(true);
       const body = table.find("tbody");
@@ -236,63 +250,79 @@ describe("the settings page", () => {
 
 const card = (group: string) => wrapper!.find(`[data-testid="settings-card-${group}"]`);
 const field = (key: string) => wrapper!.find(`.field[data-key="${key}"]`);
+const tabButton = (name: string) => wrapper!.find(`[data-testid="settings-tab-${name}"]`);
+const bar = () => wrapper!.find('[role="region"][aria-label="Unsaved changes"]');
+const saveAll = async () => {
+  await bar().find('[aria-label="Save changes"]').trigger("click");
+  await flushPromises();
+};
+async function openDola() {
+  const router = await open();
+  await tabButton("dola").trigger("click");
+  await flushPromises();
+  return router;
+}
 
-describe("the cards", () => {
-  it("draws General first, then a card per provider; a strip pick shows one card, General its own", async () => {
+describe("the tabs", () => {
+  it("draws General first, then a tab per provider; a pick shows that provider's sections, General its own", async () => {
     await open();
-    expect(wrapper!.findAll(".scard").map((c) => c.attributes("data-testid"))).toEqual([
-      "settings-card-core",
-      "settings-card-dola",
-    ]);
-    const scope = useScopeStore();
-    scope.provider = "dola";
+    expect(wrapper!.findAll(".stab").map((t) => t.text())).toEqual(["General", "dola"]);
+    expect(tabButton("general").attributes("aria-pressed")).toBe("true");
+    expect(card("core").exists()).toBe(true);
+    expect(card("dola").exists()).toBe(false);
+    expect(wrapper!.find("#password").exists()).toBe(true);
+    await tabButton("dola").trigger("click");
     await flushPromises();
-    expect(wrapper!.findAll(".scard").map((c) => c.attributes("data-testid"))).toEqual(["settings-card-dola"]);
+    // the tab is the shared provider filter
+    expect(useScopeStore().provider).toBe("dola");
+    expect(card("dola").exists()).toBe(true);
+    expect(card("core").exists()).toBe(false);
     // a provider keeps its measured prices; the password and the boot-only values go with General
     expect(wrapper!.find("#prices").exists()).toBe(true);
     expect(wrapper!.find("#password").exists()).toBe(false);
-    scope.provider = "";
-    scope.general = true;
+    await tabButton("general").trigger("click");
     await flushPromises();
-    expect(wrapper!.findAll(".scard").map((c) => c.attributes("data-testid"))).toEqual(["settings-card-core"]);
-    expect(wrapper!.find("#password").exists()).toBe(true);
+    expect(useScopeStore().provider).toBe("");
+    expect(card("core").exists()).toBe(true);
   });
 
-  it("a provider card's header: its tile, how it sends, the models on, and the Taking jobs switch", async () => {
-    await open();
-    const head = card("dola").find(".scard__head");
-    expect(head.find(".ptile").text()).toBe("D");
-    expect(head.find(".scard__sub").text()).toBe("browser · 2/3 models on");
-    expect(head.find("[role=switch]").attributes("aria-checked")).toBe("true");
-    expect(head.text()).toContain("Taking jobs");
-    expect(head.text()).toContain("dola.claims_enabled");
-    await head.find("[role=switch]").trigger("click");
-    expect(head.text()).toContain("Paused");
-    expect(head.text()).toContain("edited");
+  it("a provider's line says how it sends, its accounts and today's jobs; Taking jobs holds the claims switch", async () => {
+    await openDola();
+    expect(card("dola").find(".pline").text()).toContain("Browser path · 1 accounts, 1 usable · 0 jobs today");
+    const claims = card("dola").find(".claims");
+    expect(claims.find("[role=switch]").attributes("aria-checked")).toBe("true");
+    expect(claims.text()).toContain("Claiming · 0 in flight");
+    await claims.find("[role=switch]").trigger("click");
+    expect(claims.text()).toContain("Paused");
+    expect(claims.text()).toContain("Changed");
+    expect(bar().text()).toContain("dola · Claims enabled: on → off");
   });
 
-  it("Models & prices: a row per model with its switch and price inputs, a paused one dimmed, other keys apart", async () => {
-    await open();
-    const rows = card("dola").findAll(".mrow");
-    expect(rows.map((r) => r.attributes("data-model"))).toEqual(["seedance-2.5", "seedance-1.0", "seedream-4.5", ""]);
-    expect(rows[0]!.find(".mrow__name").text()).toBe("Dreamina Seedance 2.5video · seedance-2.5");
-    expect(rows[0]!.findAll("label").map((l) => l.text())).toEqual(["5 s", "10 s"]);
-    expect(rows[1]!.classes()).toContain("is-off");
-    expect(rows[1]!.find("small").text()).toBe("video · seedance-1.0 · Paused");
-    expect(rows[1]!.find("[role=switch]").attributes("aria-checked")).toBe("false");
-    expect(rows[2]!.findAll("label").map((l) => l.text())).toEqual(["points"]);
-    expect(rows[3]!.text()).toContain("old-model");
+  it("Models and prices: a table per kind, a row per model with its switch and tier inputs, other keys apart", async () => {
+    await openDola();
+    const video = card("dola").findAll("table.mp__table")[0]!;
+    expect(video.findAll("tbody tr").map((r) => r.attributes("data-model"))).toEqual(["seedance-2.5", "seedance-1.0"]);
+    expect(video.findAll("th.tier").map((t) => t.text())).toEqual(["5 s", "10 s", "5 s", "10 s"]);
+    const off = video.find('tr[data-model="seedance-1.0"]');
+    expect(off.classes()).toContain("is-off");
+    expect(off.find("[role=switch]").attributes("aria-checked")).toBe("false");
+    // seedance-1.0 has no price key: dashes, no inputs
+    expect(off.findAll("input")).toHaveLength(0);
+    const image = card("dola").findAll("table.mp__table")[1]!;
+    expect(image.find('tr[data-model="seedream-4.5"]').find("input.price").element).toBeDefined();
+    expect(card("dola").find(".mp__others").text()).toContain("old-model");
   });
 
   it("a model switch and a price input edit the drafts; Save sends each changed setting, then reads again", async () => {
-    await open();
+    await openDola();
     await card("dola").find('[aria-label="Offer seedance-1.0"]').trigger("click");
     await card("dola").find('[aria-label="seedance-2.5 5 s price"]').setValue("3");
-    expect(card("dola").find(".scard__changed").text()).toBe("2 changes not saved");
+    expect(bar().text()).toContain("2 unsaved changes");
+    expect(bar().text()).toContain("seedance_v2.5@5s: 2 → 3 points");
+    expect(bar().text()).toContain("seedance-1.0 offered: off → on");
     vi.mocked(api.putSetting).mockResolvedValue(items()[0]!);
     vi.mocked(api.getSettings).mockClear();
-    await card("dola").find('[aria-label="Save dola"]').trigger("click");
-    await flushPromises();
+    await saveAll();
     expect(api.putSetting).toHaveBeenCalledWith("dola.disabled_models", []);
     expect(api.putSetting).toHaveBeenCalledWith("dola.prices", {
       "seedance_v2.5@5s": 3,
@@ -302,23 +332,26 @@ describe("the cards", () => {
     });
     expect(api.getSettings).toHaveBeenCalledTimes(1);
     expect(notify.success).toHaveBeenCalledWith("Saved");
-    expect(card("dola").find('[aria-label="Save dola"]').attributes("disabled")).toBeDefined();
+    expect(bar().exists()).toBe(false);
   });
 
-  it("basic settings show on the card, the rest folded under Advanced", async () => {
-    await open();
+  it("basic settings are rows of Taking jobs, the rest folded under Advanced", async () => {
+    await openDola();
     const dola = card("dola");
-    expect(dola.find(".blk .fields").find('[data-key="dola.video_budget"]').exists()).toBe(true);
-    expect(dola.find("details.adv").attributes("open")).toBeUndefined();
-    expect(dola.find("details.adv").find('[data-key="dola.render_deadline_s"]').exists()).toBe(true);
-    expect(dola.find("details.adv summary").text()).toContain("1 settings");
-    // General marks none basic: its settings are all shown, none folded
-    expect(card("core").find("details.adv").exists()).toBe(false);
-    expect(card("core").find('[data-key="session_ttl_s"]').exists()).toBe(true);
+    expect(dola.find(".field--row[data-key='dola.video_budget']").exists()).toBe(true);
+    const disclosure = dola.find("button.disclosure");
+    expect(disclosure.attributes("aria-expanded")).toBe("false");
+    expect(disclosure.text()).toContain("Show 1 advanced setting");
+    expect(dola.find(".adv-fields").attributes("style")).toContain("display: none");
+    await disclosure.trigger("click");
+    expect(dola.find(".adv-fields").attributes("style") ?? "").not.toContain("display: none");
+    expect(dola.find(".adv-fields [data-key='dola.render_deadline_s']").exists()).toBe(true);
   });
 
   it("shows each setting with its value, source and default, and the boot-only values with - for none", async () => {
     await open();
+    // General marks none basic: its settings are all shown as cards
+    expect(card("core").find('[data-key="session_ttl_s"]').classes()).toContain("field--card");
     const text = field("session_ttl_s").text();
     expect(text).toContain("Session ttl (s)");
     expect(text).toContain("How long a session lasts");
@@ -336,15 +369,14 @@ describe("the cards", () => {
 
   it("Save is disabled until a value changed, the field says edited, and an edit back disables it again", async () => {
     await open();
-    const save = () => card("core").find('[aria-label="Save General"]');
-    expect(save().attributes("disabled")).toBeDefined();
+    expect(bar().exists()).toBe(false);
     expect(wrapper!.text()).not.toContain("edited");
     await valueInput("session_ttl_s").setValue("7200");
-    expect(save().attributes("disabled")).toBeUndefined();
+    expect(bar().text()).toContain("1 unsaved change");
+    expect(bar().text()).toContain("Session ttl (s): 3600 → 7200");
     expect(field("session_ttl_s").text()).toContain("edited");
-    expect(card("dola").find('[aria-label="Save dola"]').attributes("disabled")).toBeDefined();
     await valueInput("session_ttl_s").setValue("3600");
-    expect(save().attributes("disabled")).toBeDefined();
+    expect(bar().exists()).toBe(false);
   });
 
   it("Save sends the parsed value, reloads both lists and says Saved", async () => {
@@ -354,8 +386,7 @@ describe("the cards", () => {
     vi.mocked(api.putSetting).mockResolvedValue(items()[0]!);
     vi.mocked(api.getSettings).mockClear();
     vi.mocked(api.getPrices).mockClear();
-    await card("core").find('[aria-label="Save General"]').trigger("click");
-    await flushPromises();
+    await saveAll();
     expect(api.putSetting).toHaveBeenCalledWith("session_ttl_s", 7200);
     // text that is not JSON goes as the string it is
     expect(api.putSetting).toHaveBeenCalledWith("billing_label", "my label");
@@ -364,24 +395,40 @@ describe("the cards", () => {
     expect(notify.success).toHaveBeenCalledWith("Saved");
   });
 
+  it("keeps the drafts of every tab and the bar counts them all", async () => {
+    await open();
+    await valueInput("session_ttl_s").setValue("7200");
+    await tabButton("dola").trigger("click");
+    await flushPromises();
+    await card("dola").find('[aria-label="seedream-4.5 points price"]').setValue("2");
+    expect(bar().text()).toContain("2 unsaved changes");
+    vi.mocked(api.putSetting).mockResolvedValue(items()[0]!);
+    await saveAll();
+    expect(api.putSetting).toHaveBeenCalledWith("session_ttl_s", 7200);
+    expect(api.putSetting).toHaveBeenCalledWith("dola.prices", expect.objectContaining({ "seedream-4.5": 2 }));
+  });
+
   it("Discard puts the stored values back", async () => {
     await open();
     await valueInput("session_ttl_s").setValue("7200");
-    await card("core").find('[aria-label="Discard General changes"]').trigger("click");
+    await bar().find('[aria-label="Discard changes"]').trigger("click");
     expect((valueInput("session_ttl_s").element as HTMLInputElement).value).toBe("3600");
-    expect(card("core").find('[aria-label="Save General"]').attributes("disabled")).toBeDefined();
+    expect(bar().exists()).toBe(false);
   });
 
   it("Reset is offered for a stored value only, deletes it and says Reset", async () => {
     await open();
     expect(button("Reset session_ttl_s").exists()).toBe(true);
     expect(button("Reset billing_label").exists()).toBe(false);
-    expect(button("Reset dola.disabled_models").exists()).toBe(true);
     vi.mocked(api.deleteSetting).mockResolvedValue({});
     await button("Reset session_ttl_s").trigger("click");
     await flushPromises();
     expect(api.deleteSetting).toHaveBeenCalledWith("session_ttl_s");
     expect(notify.success).toHaveBeenCalledWith("Reset");
+    await tabButton("dola").trigger("click");
+    await flushPromises();
+    expect(button("Reset dola.disabled_models").exists()).toBe(true);
+    expect(button("Reset dola.prices").exists()).toBe(false);
   });
 
   it("a refused value is a toast and a line under the field, keeps what was typed, and no Saved", async () => {
@@ -390,14 +437,38 @@ describe("the cards", () => {
     vi.mocked(api.putSetting).mockRejectedValue(
       new ApiError(400, { error: { code: "input.invalid", message: "bad value", param: "value" } }),
     );
-    await card("core").find('[aria-label="Save General"]').trigger("click");
-    await flushPromises();
+    await saveAll();
     expect(notify.error).toHaveBeenCalledWith("bad value (value)");
     expect(notify.success).not.toHaveBeenCalled();
     expect(field("session_ttl_s").find("[role=alert]").text()).toBe("bad value (value)");
     expect((valueInput("session_ttl_s").element as HTMLInputElement).value).toBe("nope");
-    await card("core").find('[aria-label="Discard General changes"]').trigger("click");
+    await bar().find('[aria-label="Discard changes"]').trigger("click");
     expect(field("session_ttl_s").find("[role=alert]").exists()).toBe(false);
+  });
+
+  it("a refused price shows under the models block", async () => {
+    await openDola();
+    await card("dola").find('[aria-label="seedream-4.5 points price"]').setValue("1.5");
+    vi.mocked(api.putSetting).mockRejectedValue(
+      new ApiError(400, { error: { code: "input.invalid", message: "not a whole number", param: "value" } }),
+    );
+    await saveAll();
+    expect(card("dola").find(".mp__foot [role=alert]").text()).toBe("not a whole number (value)");
+  });
+
+  it("a provider whose claims are off says so and offers to turn them on", async () => {
+    vi.mocked(api.getSettings).mockImplementation(async () => ({
+      items: items().map((i) => (i.key === "dola.claims_enabled" ? { ...i, value: false, source: "db" as const } : i)),
+      env_only: [],
+      fixed: [],
+      containers: [],
+    }));
+    await openDola();
+    const banner = card("dola").find(".banner");
+    expect(banner.text()).toContain("Taking jobs is off for dola.");
+    await banner.find("button").trigger("click");
+    expect(card("dola").find(".claims [role=switch]").attributes("aria-checked")).toBe("true");
+    expect(card("dola").find(".banner button").exists()).toBe(false);
   });
 
   it("shows an empty list and a failed load with Retry", async () => {
@@ -411,10 +482,11 @@ describe("the cards", () => {
     );
     vi.mocked(api.getPrices).mockRejectedValueOnce(new TypeError("Failed to fetch"));
     await open();
-    // each card's failed read, worded as B-States draws a failed load
-    const alerts = wrapper!.findAll('[role="alert"]').map((a) => a.find(".state__text").text());
+    // each section's failed read, worded as B-States draws a failed load
+    const alerts = wrapper!.findAll('[role="alert"]').map((a) => a.find(".state__text, .sbox__text").text());
     expect(alerts).toContain("Could not load the settings: the relay answered 500 (db down).");
     expect(alerts).toContain("Could not load the measured prices: network error, please try again.");
+    expect(wrapper!.find("#settings [role=alert]").text()).toContain("GET /admin/settings");
     expect(wrapper!.text()).toContain("Retry");
   });
 });
@@ -496,8 +568,111 @@ describe("the card rules", () => {
   });
 });
 
+describe("the model tables and the bar", () => {
+  it("put the pools and the send path in their own place", () => {
+    const pools = setting({ key: "dola.pools", value: { video: {} }, type: "dict", description: "Pools." });
+    const path = setting({ key: "dola.send_path", value: "browser", description: "Send path." });
+    const dola = cardsOf([...items(), pools, path])[1]!;
+    expect(Object.keys(dola.own).sort()).toEqual(["claims_enabled", "disabled_models", "pools", "prices", "send_path"]);
+    expect(dola.advanced.map((i) => i.key)).toEqual(["dola.render_deadline_s"]);
+  });
+
+  it("word a model's operations, head a tier and order the tiers shortest first", () => {
+    expect(kindsText({ kind: "video", operations: ["text_to_video", "image_to_video"] })).toBe(
+      "Text and image to video",
+    );
+    expect(kindsText({ kind: "image", operations: ["generate"] })).toBe("image");
+    expect(tierHead("10s", "Per job")).toBe("10 s");
+    expect(tierHead("4s|720p", "Per job")).toBe("4 s · 720p");
+    expect(tierHead("points", "Per job")).toBe("Per job");
+    const table = { "seedance_v2.5@10s": 1, "seedance_v2.5@5s": 1, "seedance_v2.5@30s": 1 };
+    expect(tierColumns(models(), [[table, Object.keys(table)]])).toEqual(["5 s", "10 s", "30 s"]);
+  });
+
+  it("count the margin over the tiers that have both a sale price and a cost, toned by the lowest", () => {
+    expect(
+      marginOf([
+        ["2", "1"],
+        ["3", "1"],
+        ["5", "2"],
+      ]),
+    ).toEqual({ text: "+1 to +3 pts", tone: "ok" });
+    expect(marginOf([["3", "2"]])).toEqual({ text: "+1 pt", tone: "ok" });
+    expect(
+      marginOf([
+        ["1", "1"],
+        ["4", "2"],
+      ]),
+    ).toEqual({ text: "+0 to +2 pts", tone: "warn" });
+    expect(marginOf([["1", "2"]])).toEqual({ text: "-1 pt", tone: "bad" });
+    expect(
+      marginOf([
+        ["2", undefined],
+        ["", "1"],
+        ["1.5", "1"],
+      ]),
+    ).toEqual({ text: "—", tone: "" });
+  });
+
+  it("word each change of the bar: a price key, a model's offer, a budget, a plain value", () => {
+    const prices = items()[4]!;
+    expect(changeLines(prices, withPrice(undefined, prices, "seedream-4.5", "2"))).toEqual([
+      "seedream-4.5: 1 → 2 points",
+    ]);
+    expect(changeLines(items()[3]!, "[]")).toEqual(["seedance-1.0 offered: off → on"]);
+    expect(changeLines(items()[0]!, "7200")).toEqual(["Session ttl (s): 3600 → 7200"]);
+    expect(changeLines(items()[2]!, "false")).toEqual(["dola · Claims enabled: on → off"]);
+    const pools = setting({ key: "dola.pools", value: POOLS, type: "dict" });
+    const next = withBudget(undefined, pools, "video", "free", "5");
+    expect(changeLines(pools, next)).toEqual(["dola video free budget: 4 → 5"]);
+  });
+});
+
+const POOLS = {
+  video: { combine: "sum", windows: [{ name: "day", kind: "day", tz: "UTC", budget: { free: 4 } }] },
+  image: { combine: "sum", windows: [] },
+};
+
+describe("the pools editor", () => {
+  const pools = () => setting({ key: "dola.pools", value: POOLS, type: "dict" });
+
+  it("reads a tier's budget, blank for none, and writes a whole number as a number", () => {
+    const p = poolsOf(undefined, pools());
+    expect(budgetText(p, "video", "free")).toBe("4");
+    expect(budgetText(p, "video", "pro")).toBe("");
+    expect(budgetText(p, "image", "free")).toBe("");
+    const next = JSON.parse(withBudget(undefined, pools(), "video", "pro", " 50 "));
+    expect(next.video.windows[0].budget).toEqual({ free: 4, pro: 50 });
+    expect(JSON.parse(withBudget(undefined, pools(), "video", "free", "1.5")).video.windows[0].budget.free).toBe("1.5");
+  });
+
+  it("drops an emptied tier, gives a pool with no window a day window in the shared zone, and an edit back is no change", () => {
+    expect(JSON.parse(withBudget(undefined, pools(), "video", "free", "")).video.windows[0].budget).toEqual({});
+    const image = JSON.parse(withBudget(undefined, pools(), "image", "free", "40")).image;
+    expect(image.windows).toEqual([{ name: "day", kind: "day", tz: "UTC", budget: { free: 40 } }]);
+    // an empty input on a pool with no window changes nothing
+    expect(withBudget(undefined, pools(), "image", "free", "")).toBe(JSON.stringify(POOLS));
+    const away = withBudget(undefined, pools(), "video", "free", "");
+    expect(withBudget(away, pools(), "video", "free", "4")).toBe(JSON.stringify(POOLS));
+  });
+
+  it("tells the reset on the GMT+7 clock and stores the zone of a whole hour", () => {
+    expect(resetText("UTC")).toBe("07:00");
+    expect(resetText("Etc/GMT-7")).toBe("00:00");
+    expect(tzForReset("07:00")).toBe("UTC");
+    expect(tzForReset("0")).toBe("Etc/GMT-7");
+    expect(tzForReset("19:00")).toBe("Etc/GMT+12");
+    expect(tzForReset("20:00")).toBe("Etc/GMT-11");
+    expect(tzForReset("07:30")).toBeNull();
+    expect(tzForReset("soon")).toBeNull();
+    const all = JSON.parse(withTz(undefined, pools(), "Etc/GMT-7"));
+    expect(all.video.windows[0].tz).toBe("Etc/GMT-7");
+    expect(nextResetText("UTC", new Date(Date.UTC(2026, 9, 24, 7, 32)))).toBe("Next reset in 16 h 28 min.");
+  });
+});
+
 describe("the General links", () => {
-  const links = () => card("core").findAll(".scard__links a");
+  const links = () => card("core").findAll(".glinks a");
   it("lists the five other sections in order, marks the first as current and moves the mark on a click", async () => {
     await open();
     expect(links().map((a) => a.text())).toEqual([

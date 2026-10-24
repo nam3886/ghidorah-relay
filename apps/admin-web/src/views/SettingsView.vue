@@ -14,15 +14,18 @@ import {
 } from "@/api/settings";
 import ContainerLimits from "@/components/settings/ContainerLimits.vue";
 import PasswordForm from "@/components/settings/PasswordForm.vue";
-import SectionState from "@/components/settings/SectionState.vue";
-import SettingsGroupCard from "@/components/settings/SettingsGroupCard.vue";
+import ProviderSettings from "@/components/settings/ProviderSettings.vue";
+import SettingField from "@/components/settings/SettingField.vue";
 import "@/components/settings/settings-skeleton.css";
-import { cardsOf } from "@/components/settings/settings-cards";
+import { cardsOf, changeLines } from "@/components/settings/settings-cards";
 import ValueTable from "@/components/settings/ValueTable.vue";
+import ArrowScroller from "@/components/shared/ArrowScroller.vue";
+import PathIcon from "@/components/shared/icons/PathIcon.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { loadFailedText } from "@/components/jobs/job-text";
 import { bootValue, parseValue, valueText } from "@/components/settings/settings-value";
 import { errorText } from "@/lib/errors";
+import { providerClass } from "@/lib/providers";
 import PricesTable from "@/components/settings/PricesTable.vue";
 import SettingsCard from "@/components/settings/SettingsCard.vue";
 import { useBusy } from "@/composables/use-busy";
@@ -31,14 +34,16 @@ import { notify } from "@/lib/notify";
 import { useProvidersStore } from "@/stores/providers";
 import { useScopeStore } from "@/stores/scope";
 
-// Settings (final.html): the provider strip picks All providers, General or one provider. A card per provider (its
-// "Taking jobs" switch, its models and prices, its basic settings, the rest under Advanced) and General (the
-// relay-wide settings, with links to the page's other sections). Every value is a draft until its card's Save; a
-// refused value keeps what was typed and says why under it.
+// Settings (B Ledger): a row of tabs picks General or one provider (the shared provider filter: "" is General). A
+// provider's tab holds its sections (Taking jobs, Send path, Models and prices, Pools and budgets, Advanced) and its
+// measured prices; General holds the relay-wide settings, the password, what the relay was started with, the measured
+// prices of every provider, the fixed limits and the containers, reached from its links. Every value is a draft until
+// the page's bar saves them all; a refused value keeps what was typed and says why under it.
 const scope = useScopeStore();
 const providers = useProvidersStore();
 const router = useRouter();
 const { isPhone, isTablet } = useBreakpoint();
+const compact = computed(() => isPhone.value || isTablet.value);
 const { busy, run } = useBusy();
 
 const items = ref<SettingItem[]>([]);
@@ -50,6 +55,7 @@ const prices = ref<KeyedPrice[]>([]);
 const settingsLoading = ref(false);
 const pricesLoading = ref(false);
 const settingsError = ref<string | null>(null);
+const settingsFailedAt = ref("");
 const pricesError = ref<string | null>(null);
 const settingsLatest = useLatest();
 const pricesLatest = useLatest();
@@ -67,7 +73,10 @@ async function loadSettings(): Promise<void> {
     settingsError.value = null;
   } catch (err) {
     // worded as B-States draws a failed load: "Could not load the settings: the relay answered 502 (bad gateway)."
-    if (settingsLatest.isCurrent(ticket)) settingsError.value = loadFailedText(err, errorText(err), "the settings");
+    if (settingsLatest.isCurrent(ticket)) {
+      settingsError.value = loadFailedText(err, errorText(err), "the settings");
+      settingsFailedAt.value = new Date().toLocaleTimeString("en-GB", { hour12: false });
+    }
   } finally {
     if (settingsLatest.isCurrent(ticket)) settingsLoading.value = false;
   }
@@ -91,7 +100,7 @@ async function loadPrices(): Promise<void> {
   }
 }
 
-const reload = () => Promise.all([loadSettings(), loadPrices()]);
+const reload = () => Promise.all([loadSettings(), loadPrices(), providers.refresh()]);
 
 // The draft of every setting (the text its input holds) and the refusal of its last Save. A read of the settings gives
 // each draft its stored value, except a refused one: what was typed stays, with the reason under it.
@@ -108,8 +117,8 @@ const edited = (key: string): boolean => {
   return !!item && drafts[key] !== valueText(item);
 };
 
-// Save sends each changed setting of the card, the input text parsed as JSON (or the raw string when it is not JSON),
-// one after another; a refusal is kept on its field and toasted, the others still go. Then both lists are read again.
+// Save sends each changed setting of the page, the input text parsed as JSON (or the raw string when it is not JSON),
+// one after another; a refusal is kept on its field and toasted, the others still go. Then the lists are read again.
 const save = (keys: string[]) =>
   run(async () => {
     let refused = 0;
@@ -145,8 +154,9 @@ const reset = (key: string) =>
   });
 
 onMounted(() => {
-  void reload();
-  // the models of each provider card, and how each provider sends (its header)
+  void loadSettings();
+  void loadPrices();
+  // the models of each provider tab, and how each provider sends (its line)
   void scope.loadCatalog().catch((err: unknown) => notify.error(errorText(err)));
   void providers.refresh();
 });
@@ -155,8 +165,8 @@ watch(() => scope.provider, loadPrices);
 // A row is one (provider, model, duration): that is its table key.
 const withKey = (row: PriceRow): KeyedPrice => ({ ...row, id: `${row.provider}/${row.model}/${row.duration}` });
 
-// The page's other sections, reached from the General card's footer: in-page anchors. The app routes by hash, so a
-// click scrolls to the card instead of changing it.
+// General's other sections, reached from its links: in-page anchors. The app routes by hash, so a click scrolls to the
+// section instead of changing it.
 const SECTIONS = [
   { id: "password", label: "Change password" },
   { id: "boot", label: "Boot-only values" },
@@ -166,24 +176,38 @@ const SECTIONS = [
 ] as const;
 const current = ref<string>("password");
 
-// What the strip picked: one provider's card, General alone, or every card (General first). The other sections show
-// with General and with All; a provider keeps its measured prices.
+// The tabs: General, then a provider per group of settings. The open one is the provider filter's when it has a tab,
+// else General.
 const cards = computed(() => cardsOf(items.value));
-const shown = computed(() =>
-  cards.value.filter((c) => (scope.provider ? c.group === scope.provider : scope.general ? c.group === "core" : true)),
-);
+const groups = computed(() => cards.value.map((c) => c.group));
+const tab = computed(() => (groups.value.includes(scope.provider) ? scope.provider : "core"));
+const shown = computed(() => cards.value.find((c) => c.group === tab.value) ?? null);
+function choose(group: string): void {
+  scope.provider = group === "core" ? "" : group;
+}
 const modelsOf = (group: string) => (scope.models ?? []).filter((m) => m.owned_by === group);
 const summaryOf = (group: string) => providers.data?.providers.find((p) => p.provider === group) ?? null;
-function frames(group: string): void {
+function accounts(group: string): void {
   scope.provider = group;
-  void router.push({ name: "frames" });
+  void router.push({ name: "accounts" });
 }
-// the first read: one card of flat bars
+// the first read: flat bars
 const skeleton = computed(() => settingsLoading.value && !items.value.length && !settingsError.value);
 const bootRows = computed(() => envOnly.value.map((row) => ({ name: row.name, value: bootValue(row.value) })));
+
+// The unsaved-changes bar: every edited setting of every tab, a line per change in words.
+const changed = computed(() => items.value.filter((i) => edited(i.key)));
+const lines = computed(() => changed.value.flatMap((i) => changeLines(i, drafts[i.key] ?? "")));
+const count = computed(() => Math.max(lines.value.length, changed.value.length));
+const barText = computed(() => {
+  const more = lines.value.length - 3;
+  return lines.value.slice(0, 3).join(" · ") + (more > 0 ? ` · ${more} more` : "");
+});
+const changedKeys = computed(() => changed.value.map((i) => i.key));
+
 // Scrolls the page's own scroll area (the window on a phone) and nothing else: scrollIntoView would also scroll the
-// overflow-hidden ancestors once a card cannot reach the top, shifting and clipping the layout. The area clamps the
-// target, so a card too near the end just scrolls as far as it can.
+// overflow-hidden ancestors once a section cannot reach the top, shifting and clipping the layout. The area clamps the
+// target, so a section too near the end just scrolls as far as it can.
 function go(id: string): void {
   current.value = id;
   const card = document.getElementById(id);
@@ -195,98 +219,191 @@ function go(id: string): void {
   if (area) area.scrollTo({ top: area.scrollTop + offset });
   else window.scrollTo({ top: window.scrollY + offset });
 }
+const ERROR_ICON = ["M7 18a5 5 0 0 1-.9-9.9A6 6 0 0 1 17.7 8 4.5 4.5 0 0 1 18 18z", "m3 3 18 18"];
+const EMPTY_ICON = ["M3 13h5l1.5 3h5L16 13h5", "M5 5h14l2 8v6H3v-6z"];
 </script>
 
 <template>
   <section class="settings" :class="{ 'is-tablet': isTablet, 'is-phone': isPhone }">
-    <div>
+    <div v-if="!compact" class="settings__head">
       <h1 class="settings__title">Settings</h1>
-      <p class="settings__subtitle">
-        A card per provider: its models and prices, its budgets, the rest folded under Advanced. General holds the
-        relay-wide values, your password and what the relay was started with.
-      </p>
+      <p class="settings__subtitle">Changes apply to jobs claimed after you save.</p>
     </div>
+    <h1 v-else class="settings__title sr-only">Settings</h1>
 
-    <section id="settings" class="settings__cards" aria-label="Settings" :aria-busy="settingsLoading">
-      <SettingsCard v-if="settingsError || !items.length" id="settings-state" title="Settings">
-        <SectionState :error="settingsError" :empty="!settingsLoading" empty-text="No settings" @retry="loadSettings" />
-        <div v-if="skeleton" class="set-skel-card" data-state="loading" aria-hidden="true">
-          <i v-for="n in 5" :key="n" class="set-skel" :style="{ width: `${40 + n * 9}%` }" />
+    <nav class="stabs" :class="{ 'stabs--chips': compact }" aria-label="Settings areas">
+      <ArrowScroller label="Settings areas" :active-key="tab">
+        <button
+          v-for="g in groups.length ? groups : ['core']"
+          :key="g"
+          type="button"
+          class="stab"
+          :class="g === 'core' ? 'stab--general' : providerClass(g)"
+          :aria-pressed="tab === g"
+          :data-testid="`settings-tab-${g === 'core' ? 'general' : g}`"
+          @click="choose(g)"
+        >
+          <span v-if="g !== 'core'" class="stab__dot" aria-hidden="true"></span>{{ g === "core" ? "General" : g }}
+        </button>
+      </ArrowScroller>
+    </nav>
+
+    <section id="settings" class="settings__body" aria-label="Settings" :aria-busy="settingsLoading">
+      <div v-if="settingsError" class="sbox" role="alert" data-state="error">
+        <span class="sbox__icon is-bad"><PathIcon :paths="ERROR_ICON" :size="22" :stroke="1.8" /></span>
+        <b class="sbox__title">Could not load the settings</b>
+        <span class="sbox__text">{{ settingsError }}</span>
+        <span class="sbox__detail mono num">GET /admin/settings · {{ settingsFailedAt }}</span>
+        <div class="sbox__btns"><button type="button" class="sbox__primary" @click="loadSettings">Retry</button></div>
+      </div>
+      <div v-else-if="skeleton" class="sskel" data-state="loading" aria-hidden="true">
+        <div v-for="n in 3" :key="n" class="sskel__sec">
+          <div class="sskel__head">
+            <i class="set-skel" :style="{ width: '120px' }" /><i class="set-skel" :style="{ width: '200px' }" />
+          </div>
+          <div class="sskel__card">
+            <i v-for="r in 4" :key="r" class="set-skel" :style="{ width: `${40 + r * 12}%` }" />
+          </div>
+        </div>
+      </div>
+      <div v-else-if="!items.length" class="sbox" role="status" data-state="empty">
+        <span class="sbox__icon is-brand"><PathIcon :paths="EMPTY_ICON" :size="22" :stroke="1.8" /></span>
+        <b class="sbox__title">No settings</b>
+        <span class="sbox__text">The relay sent no settings. It may be an older build; update the box and reload.</span>
+        <div class="sbox__btns"><button type="button" class="sbox__primary" @click="loadSettings">Reload</button></div>
+      </div>
+
+      <ProviderSettings
+        v-else-if="shown && shown.group !== 'core'"
+        :key="shown.group"
+        data-state="ready"
+        :card="shown"
+        :drafts="drafts"
+        :errors="errors"
+        :models="modelsOf(shown.group)"
+        :summary="summaryOf(shown.group)"
+        :busy="busy"
+        @draft="(key: string, text: string) => (drafts[key] = text)"
+        @reset="reset"
+        @accounts="accounts(shown.group)"
+      />
+
+      <SettingsCard
+        v-else-if="shown"
+        id="relay"
+        data-state="ready"
+        title="Relay"
+        note="Relay-wide values: every provider reads them."
+        bare
+        data-testid="settings-card-core"
+      >
+        <template #head>
+          <nav class="glinks" aria-label="General sections">
+            <a
+              v-for="l in SECTIONS"
+              :key="l.id"
+              :href="`#${l.id}`"
+              :aria-current="current === l.id ? 'true' : undefined"
+              @click.prevent="go(l.id)"
+              >{{ l.label }}</a
+            >
+          </nav>
+        </template>
+        <div class="gfields">
+          <SettingField
+            v-for="item in shown.basic"
+            :key="item.key"
+            :item="item"
+            :draft="drafts[item.key] ?? ''"
+            :edited="edited(item.key)"
+            :error="errors[item.key]"
+            :busy="busy"
+            @update:draft="(t: string) => (drafts[item.key] = t)"
+            @reset="reset(item.key)"
+          />
         </div>
       </SettingsCard>
-      <div v-else class="sboard" :class="{ 'sboard--single': shown.length === 1 }" data-state="ready">
-        <SettingsGroupCard
-          v-for="card in shown"
-          :key="card.group"
-          :card="card"
-          :drafts="drafts"
-          :errors="errors"
-          :models="modelsOf(card.group)"
-          :summary="summaryOf(card.group)"
-          :busy="busy"
-          :links="card.group === 'core' ? SECTIONS : undefined"
-          :current="current"
-          @draft="(key: string, text: string) => (drafts[key] = text)"
-          @save="save"
-          @discard="discard"
-          @reset="reset"
-          @go="go"
-          @frames="frames(card.group)"
-        />
-      </div>
     </section>
 
-    <div class="settings__content">
-      <PasswordForm v-if="!scope.provider" />
+    <PasswordForm v-if="tab === 'core'" />
 
-      <SettingsCard
-        v-if="!scope.provider"
-        id="boot"
-        title="Boot-only values"
-        note="Read once when the relay starts. Change them in the environment and restart. Secrets are never listed."
-      >
-        <!-- read with the settings: their failure and their wait are this card's too -->
-        <ValueTable
-          :rows="bootRows"
-          :loading="settingsLoading"
-          :error="settingsError"
-          label="Boot-only values"
-          @retry="loadSettings"
-        />
-      </SettingsCard>
+    <SettingsCard
+      v-if="tab === 'core'"
+      id="boot"
+      title="Boot-only values"
+      note="Read once when the relay starts. Change them in the environment and restart. Secrets are never listed."
+    >
+      <!-- read with the settings: their failure and their wait are this section's too -->
+      <ValueTable
+        :rows="bootRows"
+        :loading="settingsLoading"
+        :error="settingsError"
+        label="Boot-only values"
+        @retry="loadSettings"
+      />
+    </SettingsCard>
 
-      <SettingsCard
-        id="prices"
-        title="Measured prices"
-        note="What upstream reported per job, against what the relay charges."
-      >
-        <PricesTable :rows="prices" :loading="pricesLoading" :error="pricesError" @retry="loadPrices" />
-      </SettingsCard>
+    <SettingsCard
+      id="prices"
+      title="Measured prices"
+      note="What upstream reported per job, against what the relay charges."
+    >
+      <PricesTable :rows="prices" :loading="pricesLoading" :error="pricesError" @retry="loadPrices" />
+    </SettingsCard>
 
-      <SettingsCard
-        v-if="!scope.provider"
-        id="limits"
-        title="Fixed limits"
-        note="Constants in the code that shape behaviour. They change only with a new release."
-      >
-        <ValueTable
-          :rows="fixed"
-          :loading="settingsLoading"
-          :error="settingsError"
-          label="Fixed limits"
-          reasons
-          @retry="loadSettings"
-        />
-      </SettingsCard>
+    <SettingsCard
+      v-if="tab === 'core'"
+      id="limits"
+      title="Fixed limits"
+      note="Constants in the code that shape behaviour. They change only with a new release."
+    >
+      <ValueTable
+        :rows="fixed"
+        :loading="settingsLoading"
+        :error="settingsError"
+        label="Fixed limits"
+        reasons
+        @retry="loadSettings"
+      />
+    </SettingsCard>
 
-      <SettingsCard
-        v-if="!scope.provider"
-        id="containers"
-        title="Containers"
-        note="Each relay service's own limits, read from its cgroup when it started. A worker that stopped cleanly is not listed."
-      >
-        <ContainerLimits :rows="containers" :loading="settingsLoading" :error="settingsError" @retry="loadSettings" />
-      </SettingsCard>
+    <SettingsCard
+      v-if="tab === 'core'"
+      id="containers"
+      title="Containers"
+      note="Each relay service's own limits, read from its cgroup when it started. A worker that stopped cleanly is not listed."
+    >
+      <ContainerLimits :rows="containers" :loading="settingsLoading" :error="settingsError" @retry="loadSettings" />
+    </SettingsCard>
+
+    <div v-if="changedKeys.length" class="sbar" role="region" aria-label="Unsaved changes">
+      <span class="sbar__dot" aria-hidden="true"></span>
+      <div class="sbar__text">
+        <b
+          ><span class="num">{{ count }}</span> unsaved {{ count === 1 ? "change" : "changes" }}</b
+        >
+        <span v-if="!isPhone" class="sbar__lines num">{{ barText }}</span>
+      </div>
+      <span class="sbar__btns">
+        <button
+          type="button"
+          class="sbar__ghost"
+          :disabled="busy"
+          aria-label="Discard changes"
+          @click="discard(changedKeys)"
+        >
+          Discard
+        </button>
+        <button
+          type="button"
+          class="sbar__primary"
+          :disabled="busy"
+          aria-label="Save changes"
+          @click="save(changedKeys)"
+        >
+          {{ isPhone ? "Save" : "Save changes" }}
+        </button>
+      </span>
     </div>
   </section>
 </template>
@@ -296,75 +413,378 @@ function go(id: string): void {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  /* a section reached from a General link stops 16 px under the top of the page area; on a phone the window scrolls
+     and the sticky top bar (102 px) is added. ponytail: the phone bar height written here; a variable from the top
+     bar when it gets one. */
+  --settings-bar: 0px;
+  --settings-anchor: calc(var(--settings-bar) + 16px);
+}
+.settings__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .settings__title {
   margin: 0;
   font-size: 28px;
   line-height: 36px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 .settings__subtitle {
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--rl-muted);
 }
-.settings__content {
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.settings__body {
   display: flex;
   flex-direction: column;
-  gap: 20px;
   min-width: 0;
 }
-.sboard {
+.mono {
+  font-family: var(--rl-mono);
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* the tabs: an underline row on a desktop (its own 1 px rule under the active 2 px line), pill chips below 1280 */
+.stabs {
+  min-width: 0;
+}
+.stabs :deep(.asc__row) {
+  padding-bottom: 0;
+  box-shadow: inset 0 -1px 0 var(--rl-line);
+}
+.stab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--rl-muted);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.stab[aria-pressed="true"] {
+  border-bottom-color: var(--rl-brand);
+  color: var(--rl-fg);
+}
+.stab:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+.stab__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pc);
+}
+.stabs--chips :deep(.asc__row) {
+  padding-bottom: 4px;
+  box-shadow: none;
+}
+.stabs--chips .stab {
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 999px;
+  background: var(--rl-surface);
+  color: var(--rl-body);
+  font-size: 13px;
+}
+.stabs--chips .stab[aria-pressed="true"] {
+  border-color: var(--rl-brand);
+  background: var(--rl-primary-soft);
+  color: var(--rl-brand-ink);
+}
+.is-phone .stabs--chips .stab {
+  height: 44px;
+}
+
+/* General: the relay-wide fields as cards, the links in the label column */
+.gfields {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  align-items: start;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
   gap: 16px;
+  align-items: start;
 }
-.sboard--single {
-  grid-template-columns: minmax(0, 760px);
+.glinks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
 }
-.set-skel-card {
+.glinks a {
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--rl-link);
+}
+.glinks a:hover {
+  color: var(--rl-link-hover);
+}
+.glinks a[aria-current="true"] {
+  color: var(--rl-fg);
+}
+@media (max-width: 967px) {
+  .glinks {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+  }
+}
+
+/* a failed or empty read: a box in the page's frame (JobsStates) */
+.sbox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 40px 24px;
+  border-radius: 16px;
+  text-align: center;
+  background: var(--rl-surface);
+  box-shadow: var(--rl-shadow-card);
+}
+.sbox__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+}
+.sbox__icon.is-bad {
+  background: var(--rl-bad-bg);
+  color: var(--rl-bad);
+}
+.sbox__icon.is-brand {
+  background: var(--rl-primary-soft);
+  color: var(--rl-brand-ink);
+}
+.sbox__title {
+  font-size: 15px;
+}
+.sbox__text {
+  max-width: 420px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--rl-muted);
+}
+.sbox__detail {
+  padding: 3px 8px;
+  border: 1px solid var(--rl-rule);
+  border-radius: 6px;
+  font-size: 11px;
+  background: var(--rl-head);
+  color: var(--rl-faint);
+  overflow-wrap: anywhere;
+}
+.sbox__btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.sbox__primary {
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--rl-primary);
+  color: var(--rl-on-primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.is-phone .sbox__primary {
+  min-width: 44px;
+  height: 44px;
+}
+.sskel {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.sskel__sec {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 40px;
+  padding-top: 28px;
+  border-top: 1px solid var(--rl-line);
+}
+.sskel__head {
+  flex: 1 1 240px;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sskel__card {
+  flex: 999 1 640px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 0 16px 18px;
+  padding: 20px 24px;
+  border-radius: 16px;
+  background: var(--rl-surface);
+  box-shadow: var(--rl-shadow-card);
 }
 
-/* A card reached from a General link stops 16 px under the top of the page area; on a phone the window scrolls and the
-   sticky top bar (102 px) is added. ponytail: the phone bar height written here; a variable from the top bar when it
-   gets one. */
-.settings {
-  --settings-bar: 0px;
-  --settings-anchor: calc(var(--settings-bar) + 16px);
+/* the unsaved-changes bar: dark and floating at the foot of the page area on a desktop; on a tablet and a phone the
+   page's footer (JobsTablet `footer`), edge to edge over the bottom bar */
+.sbar {
+  position: sticky;
+  bottom: 20px;
+  z-index: 2;
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 14px 16px 14px 20px;
+  border: 1px solid #3a3d4d;
+  border-radius: 14px;
+  background: #1a1b25;
+  color: #ffffff;
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.24);
 }
-@media (min-width: 768px) and (max-width: 1279px) {
-  .settings__title {
-    font-size: 24px;
-    line-height: 32px;
-    letter-spacing: -0.012em;
+:global(html.dark) .sbar {
+  border-color: #3a3d52;
+  background: #262838;
+  color: #ecedf3;
+}
+.sbar__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #a78bfa;
+}
+:global(html.dark) .sbar__dot {
+  background: #c4b2ff;
+}
+.sbar__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.sbar__lines {
+  font-size: 12px;
+  line-height: 18px;
+  color: #c3c6d4;
+  overflow-wrap: anywhere;
+}
+:global(html.dark) .sbar__lines {
+  color: #a3a6b8;
+}
+.sbar__btns {
+  display: flex;
+  gap: 12px;
+}
+.sbar__ghost,
+.sbar__primary {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sbar__ghost {
+  border: 1px solid #3a3d4d;
+  background: transparent;
+  color: inherit;
+}
+.sbar__primary {
+  padding: 0 16px;
+  border: 0;
+  background: var(--rl-primary);
+  color: #ffffff;
+  font-weight: 700;
+}
+.sbar button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+@media (max-width: 1279px) {
+  .settings {
+    gap: 16px;
   }
-  .settings__subtitle {
-    margin-top: 2px;
+  .sbar {
+    bottom: 0;
+    margin: 12px -24px -24px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px 24px;
+    border: 0;
+    border-top: 1px solid var(--rl-rule);
+    border-radius: 0;
+    background: var(--rl-surface);
+    color: var(--rl-fg);
+    box-shadow: none;
+  }
+  :global(html.dark) .sbar {
+    background: var(--rl-surface);
+    color: var(--rl-fg);
+  }
+  .sbar__dot {
+    display: none;
+  }
+  .sbar__text {
+    flex: none;
+  }
+  .sbar__text b {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--rl-body);
+  }
+  .sbar__lines,
+  :global(html.dark) .sbar__lines {
+    font-size: 13px;
+    color: var(--rl-body);
+  }
+  .sbar__btns {
+    gap: 8px;
+  }
+  .sbar__ghost,
+  .sbar__primary {
+    flex: 1;
+    height: 44px;
+  }
+  .sbar__ghost {
+    border-color: var(--rl-line-strong);
+    background: var(--rl-surface);
+    color: var(--rl-fg);
   }
 }
 @media (max-width: 767px) {
   .settings {
     --settings-bar: 102px;
-    gap: 16px;
+    gap: 14px;
   }
-  .settings__title {
-    font-size: 22px;
-    line-height: 30px;
-    letter-spacing: -0.01em;
-  }
-  .settings__subtitle {
-    margin-top: 2px;
-  }
-  .settings__content {
-    gap: 16px;
-  }
-  .sboard {
-    grid-template-columns: minmax(0, 1fr);
+  .sbar {
+    bottom: 64px;
+    margin: 12px -16px -20px;
+    padding: 12px 16px;
   }
 }
 </style>

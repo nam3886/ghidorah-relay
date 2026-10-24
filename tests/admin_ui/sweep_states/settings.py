@@ -21,12 +21,12 @@ def run(page, app, live, sw, data):
         page.get_by_label("Value of log_retention_days").fill("45"),
         expect(page.locator('#settings .field[data-key="log_retention_days"]')).to_contain_text("edited")))
     sw.step("settings", "saved-toast", lambda: (
-        page.get_by_role("button", name="Save General", exact=True).click(),
+        page.get_by_role("button", name="Save changes", exact=True).click(),
         expect(page.locator(".el-message--success").first).to_be_visible()))
 
     def error_toast():
         page.get_by_label("Value of log_retention_days").fill("not a number")
-        page.get_by_role("button", name="Save General", exact=True).click()
+        page.get_by_role("button", name="Save changes", exact=True).click()
         expect(page.locator(".el-message--error").first).to_be_visible()
     sw.step("settings", "error-toast", error_toast)
     sw.step("settings", "password-form", lambda: expect(page.get_by_label("Current password")).to_be_visible())

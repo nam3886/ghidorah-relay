@@ -1,14 +1,15 @@
-// Pure rules of the Settings cards (final.html "settings cards"): which setting goes where on a card, and how the model
-// switches and the price and cost inputs of a provider edit the text draft of `<p>.disabled_models`, `<p>.prices` and
-// `<p>.costs`.
+// Pure rules of the Settings page (B Ledger): which setting goes where on a tab, how the model switches and the price
+// and cost inputs of a provider edit the text draft of `<p>.disabled_models`, `<p>.prices` and `<p>.costs`, the model
+// tables' columns and margins, and the words of the unsaved-changes bar.
 import type { SettingItem } from "@/api/settings";
 import type { CatalogModel } from "@/api/shell";
 import { byProviderOrder } from "@/lib/providers";
 import { valueText } from "./settings-value";
 
-// The settings a provider card draws in its own place: the header's "Taking jobs" switch, the model switches, the
-// price inputs (points) and the cost inputs (what one job costs the upstream account). They are never plain fields.
-export const OWN_PLACE = ["claims_enabled", "disabled_models", "prices", "costs"] as const;
+// The settings a provider tab draws in its own place: the "Claim new jobs" switch, the model switches, the price inputs
+// (points), the cost inputs (what one job costs the upstream account), the pool budgets and the send path. They are
+// never plain fields.
+export const OWN_PLACE = ["claims_enabled", "disabled_models", "prices", "costs", "pools", "send_path"] as const;
 type Own = (typeof OWN_PLACE)[number];
 
 // The name of a setting inside its group: `dola.render_deadline_s` is `render_deadline_s`.
@@ -140,4 +141,120 @@ export function withModelOn(
   const stored = Array.isArray(item.value) ? (item.value as string[]) : [];
   const same = next.length === stored.length && next.every((m) => stored.includes(m));
   return same ? valueText(item) : JSON.stringify(next);
+}
+
+// ---- the Models and prices tables ------------------------------------------------------------------------------
+
+// The words of a model's operations: "Text and image to video" (text_to_video, image_to_video); its kind when it has none.
+export function kindsText(m: Record<string, unknown>): string {
+  const ops = Array.isArray(m.operations) ? (m.operations as string[]) : [];
+  const by = new Map<string, string[]>();
+  for (const op of ops) {
+    const [from, to] = op.split("_to_");
+    if (!from || !to) continue;
+    by.set(to, [...(by.get(to) ?? []), from]);
+  }
+  const text = [...by].map(([to, from]) => `${from.join(" and ")} to ${to}`).join(" · ");
+  return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : typeof m.kind === "string" ? m.kind : "";
+}
+
+// A tier as a column head: "5 s", "4 s · 720p"; the one price of a whole job is `whole` ("Per job").
+export const tierHead = (label: string, whole: string): string =>
+  label === "points" ? whole : label.replace(/(\d+)s\b/g, "$1 s").replace(/\|/g, " · ");
+
+// The columns of a model table: every tier any of its models has a price or cost input for, shortest first.
+export function tierColumns(
+  models: readonly CatalogModel[],
+  tables: ReadonlyArray<[Record<string, unknown>, string[]]>,
+): string[] {
+  const labels = new Set<string>();
+  for (const m of models) {
+    for (const [table, keys] of tables) for (const p of priceInputs(m, table, keys)) labels.add(p.label);
+  }
+  const lead = (s: string): number => (/^\d+/.test(s) ? parseInt(s, 10) : Number.MAX_SAFE_INTEGER);
+  return [...labels].sort((a, b) => lead(a) - lead(b) || a.localeCompare(b));
+}
+
+const wholeOf = (text: string | undefined): number | null => (text && /^\d+$/.test(text.trim()) ? Number(text) : null);
+
+// A model's margin: sale points less the upstream cost at each tier that has both (1 credit or 1 use is 1 point),
+// "+1 to +3 pts" over its tiers, toned by the lowest: below 0 bad, 0 warn, above ok. No tier with both: a dash.
+export function marginOf(pairs: ReadonlyArray<[string | undefined, string | undefined]>): {
+  text: string;
+  tone: "ok" | "warn" | "bad" | "";
+} {
+  const d: number[] = [];
+  for (const [s, c] of pairs) {
+    const a = wholeOf(s);
+    const b = wholeOf(c);
+    if (a !== null && b !== null) d.push(a - b);
+  }
+  if (!d.length) return { text: "—", tone: "" };
+  const lo = Math.min(...d);
+  const hi = Math.max(...d);
+  const f = (x: number): string => `${x >= 0 ? "+" : ""}${x}`;
+  const unit = Math.abs(lo) === 1 ? "pt" : "pts";
+  const text = lo === hi ? `${f(lo)} ${unit}` : `${f(lo)} to ${f(hi)} pts`;
+  return { text, tone: lo < 0 ? "bad" : lo === 0 ? "warn" : "ok" };
+}
+
+// ---- the unsaved-changes bar ------------------------------------------------------------------------------------
+
+const shortText = (v: unknown): string => {
+  const s = v === undefined ? "—" : typeof v === "string" ? v : JSON.stringify(v);
+  return s.length > 24 ? `${s.slice(0, 23)}…` : s;
+};
+const objectOf = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+type PoolsShape = Record<string, { windows?: Array<{ tz?: string; budget?: Record<string, unknown> }> }>;
+
+// One line per change a Save would send, in words: "seedance_v2.0@10s: 2 → 3 points", "seedance-1.0 offered: on →
+// off", "dola video free budget: 4 → 5", "Log retention days: 30 → 45".
+export function changeLines(item: SettingItem, draft: string): string[] {
+  const name = shortKey(item);
+  const own = item.group !== "core";
+  let next: unknown;
+  try {
+    next = JSON.parse(draft);
+  } catch {
+    next = draft;
+  }
+  if (own && (name === "prices" || name === "costs")) {
+    const a = objectOf(item.value);
+    const b = objectOf(next);
+    const what = name === "costs" ? " cost" : "";
+    const unit = name === "prices" ? " points" : "";
+    return [...new Set([...Object.keys(a), ...Object.keys(b)])]
+      .filter((k) => a[k] !== b[k])
+      .map((k) => `${k}${what}: ${shortText(a[k])} → ${shortText(b[k])}${unit}`);
+  }
+  if (own && name === "disabled_models" && Array.isArray(next)) {
+    const was = Array.isArray(item.value) ? (item.value as string[]) : [];
+    const now = next as string[];
+    return [
+      ...now.filter((m) => !was.includes(m)).map((m) => `${m} offered: on → off`),
+      ...was.filter((m) => !now.includes(m)).map((m) => `${m} offered: off → on`),
+    ];
+  }
+  if (own && name === "pools") {
+    const a = objectOf(item.value) as PoolsShape;
+    const b = objectOf(next) as PoolsShape;
+    const out: string[] = [];
+    for (const pool of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      const wa = a[pool]?.windows?.[0];
+      const wb = b[pool]?.windows?.[0];
+      for (const tier of new Set([...Object.keys(wa?.budget ?? {}), ...Object.keys(wb?.budget ?? {})])) {
+        const x = wa?.budget?.[tier];
+        const y = wb?.budget?.[tier];
+        if (x !== y) out.push(`${item.group} ${pool} ${tier} budget: ${shortText(x)} → ${shortText(y)}`);
+      }
+      if (wa && wb && wa.tz !== wb.tz)
+        out.push(`${item.group} ${pool} reset: ${shortText(wa.tz)} → ${shortText(wb.tz)}`);
+    }
+    return out.length ? out : [`${item.group} pools changed`];
+  }
+  const word = (v: unknown): unknown => (v === true ? "on" : v === false ? "off" : v);
+  return [
+    `${own ? `${item.group} · ` : ""}${fieldLabel(item)}: ${shortText(word(item.value))} → ${shortText(word(next))}`,
+  ];
 }

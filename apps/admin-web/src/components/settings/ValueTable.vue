@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ArrowScroller from "@/components/shared/ArrowScroller.vue";
 import { computed } from "vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import SectionState from "./SectionState.vue";
@@ -67,7 +68,7 @@ const columns = computed(() => (props.reasons ? 3 : 2));
       </template>
     </template>
 
-    <div v-else-if="!error && (rows.length || skeleton)" class="set-scroll">
+    <ArrowScroller v-else-if="!error && (rows.length || skeleton)" class="set-scroll" :label="label" table>
       <table class="set-table" :aria-label="label">
         <thead>
           <tr>
@@ -96,6 +97,6 @@ const columns = computed(() => (props.reasons ? 3 : 2));
           </template>
         </tbody>
       </table>
-    </div>
+    </ArrowScroller>
   </div>
 </template>

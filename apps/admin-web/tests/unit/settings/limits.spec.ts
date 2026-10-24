@@ -8,6 +8,7 @@ import * as shell from "@/api/shell";
 import ContainerLimits from "@/components/settings/ContainerLimits.vue";
 import SettingField from "@/components/settings/SettingField.vue";
 import ValueTable from "@/components/settings/ValueTable.vue";
+import { useScopeStore } from "@/stores/scope";
 import SettingsView from "@/views/SettingsView.vue";
 
 vi.mock("@/api/settings");
@@ -165,9 +166,11 @@ describe("the allowed text", () => {
     expect(wrapper.find(".allowed").exists()).toBe(false);
   });
 
-  it("shows the allowed text of every bounded setting on its card", async () => {
+  it("shows the allowed text of every bounded setting on its tab", async () => {
     phone(true);
     await open();
+    useScopeStore().provider = "dola";
+    await flushPromises();
     expect(wrapper!.findAll("#settings .allowed").map((l) => l.text())).toEqual(["Allowed: 1–12"]);
     expect(wrapper!.find('#settings .field[data-key="dola.browser_slots"]').text()).toContain("Allowed: 1–12");
   });
@@ -376,7 +379,7 @@ describe("the containers card", () => {
 });
 
 describe("the page", () => {
-  const links = () => wrapper!.findAll('[data-testid="settings-card-core"] .scard__links a');
+  const links = () => wrapper!.findAll('[data-testid="settings-card-core"] .glinks a');
 
   it("lists the five sections in the General card and moves the mark to Fixed limits on a click", async () => {
     phone(false);
@@ -399,11 +402,11 @@ describe("the page", () => {
     ]);
   });
 
-  it("puts the settings cards first, then Change password ahead of the other sections", async () => {
+  it("puts the settings first, then Change password ahead of the other sections", async () => {
     phone(false);
     await open();
-    expect(wrapper!.find(".settings > #settings").exists()).toBe(true);
-    expect(wrapper!.findAll(".settings__content > section").map((c) => c.attributes("id"))).toEqual([
+    expect(wrapper!.findAll(".settings > section").map((c) => c.attributes("id"))).toEqual([
+      "settings",
       "password",
       "boot",
       "prices",

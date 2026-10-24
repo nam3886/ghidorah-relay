@@ -1,7 +1,7 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw, type RouterHistory } from "vue-router";
 import { getToken } from "@/lib/session";
 
-export type StripMode = "all" | "general" | "only";
+export type StripMode = "all" | "only";
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -10,8 +10,7 @@ declare module "vue-router" {
     // Reachable without a session (the login page).
     public?: boolean;
     // Filtered by the provider strip under the top bar (ProviderStrip) instead of the top bar's Provider list, in one
-    // of its modes: "all" (All, then each provider: a filter), "general" (All providers, General, then each provider:
-    // Settings) or "only" (the providers alone: the page works on one at a time).
+    // of its modes: "all" (All, then each provider: a filter) or "only" (the providers alone: the page works on one at a time).
     providerStrip?: StripMode;
   }
 }
@@ -35,7 +34,6 @@ const STRIP_TABS: Record<string, StripMode> = {
   accounts: "all",
   keys: "all",
   alerts: "all",
-  settings: "general",
   test: "only",
 };
 

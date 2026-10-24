@@ -24,7 +24,7 @@ CLIPPED_JS = """(el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight >
 def open_settings(app, page, width: int, height: int) -> None:
     page.set_viewport_size({"width": width, "height": height})
     page.goto(app.url + "#/settings")
-    expect(page.locator("h1.settings__title")).to_be_visible()
+    expect(page.locator("#settings [data-state=ready]")).to_be_visible()
     page.wait_for_load_state("networkidle")
     expect(page.locator("[aria-busy=true]")).to_have_count(0, timeout=TIMEOUT_MS)
     settle(page)
@@ -51,11 +51,13 @@ def limit_cell(page, service: str, label: str):
 
 
 def row_of(page, key: str):
-    """A setting's field on its card; one under Advanced is shown first."""
+    """A setting's field on its tab (General, or the provider its key names); one under Advanced is shown first."""
+    group = key.split(".")[0] if "." in key else "general"
+    page.get_by_role("navigation", name="Settings areas").get_by_test_id("settings-tab-%s" % group).click()
     field = page.locator('#settings .field[data-key="%s"]' % key)
-    fold = page.locator("#settings details.adv").filter(has=field)
-    if fold.count() and fold.first.get_attribute("open") is None:
-        fold.first.locator("summary").click()
+    fold = page.locator("#settings button.disclosure[aria-expanded=false]")
+    if fold.count() and not field.first.is_visible():
+        fold.first.click()
     return field
 
 
@@ -77,7 +79,7 @@ def test_a_value_over_its_bound_is_refused_and_the_stored_value_stays(app, app_s
     open_settings(app, page, width, height)
     row_of(page, "fake.browser_slots")
     page.get_by_label("Value of fake.browser_slots").fill("31")
-    page.get_by_role("button", name="Save fake", exact=True).click()
+    page.get_by_role("region", name="Unsaved changes").get_by_role("button", name="Save changes").click()
     expect(page.locator(".el-message--error")).to_contain_text("(value)")
     assert db.one("SELECT count(*) FROM settings_kv WHERE key = 'fake.browser_slots'")[0] == 0
     page.problems.clear()                                    # the 400 is a console line

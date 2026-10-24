@@ -12,7 +12,6 @@ import { useScopeStore } from "@/stores/scope";
 // hidden there). Every registered provider, "paused" when it takes no new job (`<provider>.claims_enabled` off). No
 // counts: the Jobs today table shows running, done and failed. Its mode is the route's (meta providerStrip):
 // - "all": "All" first; it sets the shared filter `provider` (Jobs, Accounts, API keys, Request logs, Alerts).
-// - "general": "All providers" and "General" (the relay-wide card, `scope.general`) first (Settings).
 // - "only": the providers alone, for a page that works on one at a time (Prompt frames, Test); it sets `only`, and is
 //   off while the page holds `stripLocked` (a write in flight).
 // Until the summary arrives the catalog's providers are drawn; a page that does not read the summary itself has the
@@ -32,17 +31,14 @@ const tabs = computed<Array<{ name: string; paused: boolean }>>(() => {
   const paused = new Map(rows.map((p) => [p.provider, !p.claims_enabled]));
   return byProviderOrder([...paused.keys()]).map((name) => ({ name, paused: paused.get(name)! }));
 });
-const general = computed(() => props.mode === "general");
-const onAll = computed(() => scope.provider === "" && !(general.value && scope.general));
-const onGeneral = computed(() => general.value && scope.provider === "" && scope.general);
+const onAll = computed(() => scope.provider === "");
 const isOn = (name: string): boolean => (props.mode === "only" ? scope.only : scope.provider) === name;
-function choose(name: string, toGeneral = false): void {
+function choose(name: string): void {
   if (props.mode === "only") {
     scope.only = name;
     return;
   }
   scope.provider = name;
-  scope.general = toGeneral;
 }
 </script>
 
@@ -65,19 +61,7 @@ function choose(name: string, toGeneral = false): void {
           data-testid="provider-tab-all"
           @click="choose('')"
         >
-          {{ general ? "All providers" : "All" }}
-        </button>
-        <button
-          v-if="general"
-          type="button"
-          class="ptab"
-          :class="{ 'is-on': onGeneral }"
-          :aria-pressed="onGeneral"
-          aria-label="General"
-          data-testid="provider-tab-general"
-          @click="choose('', true)"
-        >
-          General
+          All
         </button>
         <button
           v-for="t in tabs"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ArrowScroller from "@/components/shared/ArrowScroller.vue";
 import { computed } from "vue";
 import type { ContainerRow } from "@/api/settings";
 import { ago } from "@/components/accounts/account-model";
@@ -95,7 +96,7 @@ const SKELETON = ["96px", "72px", "64px", "128px", "88px"];
       </section>
     </template>
 
-    <div v-else-if="!error && (rows.length || skeleton)" class="set-scroll">
+    <ArrowScroller v-else-if="!error && (rows.length || skeleton)" class="set-scroll" label="Container limits" table>
       <table class="set-table set-table--matrix" aria-label="Container limits">
         <thead>
           <tr v-if="skeleton">
@@ -141,6 +142,6 @@ const SKELETON = ["96px", "72px", "64px", "128px", "88px"];
           </template>
         </tbody>
       </table>
-    </div>
+    </ArrowScroller>
   </div>
 </template>

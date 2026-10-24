@@ -67,7 +67,7 @@ describe("the provider strip", () => {
     expect(w.findAll("button.ptab").map((t) => t.text().replace(/\s+/g, " "))).toEqual(["All", "M meta"]);
   });
 
-  it("is shown on the tabs that filter by provider, in each one's mode; Request logs draws its own provider chips", () => {
+  it("is shown on the tabs that filter by provider, in each one's mode; Request logs and Settings draw their own", () => {
     const routes = createAppRouter().getRoutes();
     const strip = Object.fromEntries(
       routes.filter((r) => r.meta.providerStrip).map((r) => [r.name, r.meta.providerStrip]),
@@ -77,31 +77,8 @@ describe("the provider strip", () => {
       accounts: "all",
       keys: "all",
       alerts: "all",
-      settings: "general",
       test: "only",
     });
-  });
-
-  it("on Settings starts with All providers and General, draws no counts, and General is its own pick", async () => {
-    await useProvidersStore().refresh();
-    const w = mount(ProviderStrip, { props: { mode: "general" } });
-    const scope = useScopeStore();
-    expect(w.findAll("button.ptab").map((t) => t.text().replace(/\s+/g, " "))).toEqual([
-      "All providers",
-      "General",
-      "D dola",
-      "V vibes",
-      "F flow paused",
-    ]);
-    await w.get('[data-testid="provider-tab-general"]').trigger("click");
-    expect([scope.provider, scope.general]).toEqual(["", true]);
-    expect(w.get('[data-testid="provider-tab-general"]').attributes("aria-pressed")).toBe("true");
-    expect(w.get('[data-testid="provider-tab-all"]').attributes("aria-pressed")).toBe("false");
-    await w.get('[data-testid="provider-tab-dola"]').trigger("click");
-    expect([scope.provider, scope.general]).toEqual(["dola", false]);
-    await w.get('[data-testid="provider-tab-general"]').trigger("click");
-    await w.get('[data-testid="provider-tab-all"]').trigger("click");
-    expect([scope.provider, scope.general]).toEqual(["", false]);
   });
 
   it("for a one-provider page lists the providers alone, picks `only` (not the filter) and is off while locked", async () => {

@@ -24,7 +24,7 @@ SESSION = f"{SRC}/components/test/use-test-session.ts"
 GENERATE = f"{SRC}/components/test/use-generate.ts"
 TEST_VIEW = f"{SRC}/views/TestView.vue"
 SETTING_VALUE = f"{SRC}/components/settings/settings-value.ts"
-SETTINGS_CARD = f"{SRC}/components/settings/SettingsGroupCard.vue"
+SETTINGS_POOLS = f"{SRC}/components/settings/settings-pools.ts"
 SETTING_FIELD = f"{SRC}/components/settings/SettingField.vue"
 SETTINGS_CARDS = f"{SRC}/components/settings/settings-cards.ts"
 SETTINGS_VIEW = f"{SRC}/views/SettingsView.vue"
@@ -346,7 +346,7 @@ def test_test_view_option_values():
 # ---- Settings: the value parse, the dirty rule, the scope, the password change -------------------------------------
 PARSE = SETTINGS_SPEC + "setting values > are parsed as JSON first and fall back to the raw string"
 TEXT = SETTINGS_SPEC + "setting values > start in the input as the string itself, or JSON for anything else"
-TABLE = SETTINGS_SPEC + "the cards > "
+TABLE = SETTINGS_SPEC + "the tabs > "
 DIRTY = TABLE + "Save is disabled until a value changed, the field says edited, and an edit back disables it again"
 SAVE_SENDS = TABLE + "Save sends the parsed value, reloads both lists and says Saved"
 SCOPE = (SETTINGS_SPEC
@@ -361,7 +361,8 @@ NAV_WINDOW = (SETTINGS_SPEC + "the General links > scrolls the window where the 
 REFUSED = TABLE + "a refused value is a toast and a line under the field, keeps what was typed, and no Saved"
 MODELS_SAVE = TABLE + ("a model switch and a price input edit the drafts; Save sends each changed setting, then "
                        "reads again")
-STRIP_PICK = TABLE + "draws General first, then a card per provider; a strip pick shows one card, General its own"
+STRIP_PICK = TABLE + ("draws General first, then a tab per provider; a pick shows that provider's sections, "
+                      "General its own")
 RULES = SETTINGS_SPEC + "the card rules > "
 PRICES_SPEC = SETTINGS_SPEC + "measured prices > "
 PRICES_FIGURES = PRICES_SPEC + "shows duration as Ns or -, flags a disagreement and shows 0 for none"
@@ -369,20 +370,27 @@ PASSWORD_SPEC = SETTINGS_SPEC + "change password > "
 LOGIN = PASSWORD_SPEC + "sends both passwords, ends the session here and lands on login"
 OLD_FIELD = PASSWORD_SPEC + "shows a refusal that names old_password on that field, and stays"
 NEW_FIELD = PASSWORD_SPEC + "shows a refusal that names new_password on that field"
+MARGIN = (SETTINGS_SPEC + "the model tables and the bar > count the margin over the tiers that have both a sale "
+          + "price and a cost, toned by the lowest")
+POOLS_RESET = (SETTINGS_SPEC + "the pools editor > tells the reset on the GMT+7 clock and stores the zone of "
+               + "a whole hour")
+POOLS_EMPTY = (SETTINGS_SPEC + "the pools editor > drops an emptied tier, gives a pool with no window a day window "
+               + "in the shared zone, and an edit back is no change")
 STRING_VALUE = 'typeof item.value === "string" ? item.value : JSON.stringify(item.value)'
 BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
 
 
 @mutation(SETTING_VALUE, "return text;", "return null;", expect=PARSE)
 @mutation(SETTING_VALUE, STRING_VALUE, "JSON.stringify(item.value)", expect=TEXT)
-@mutation(SETTINGS_CARD, "props.drafts[item.key] !== valueText(item)", "true", expect=DIRTY)
-@mutation(SETTING_FIELD, "v-if=\"item.source === 'db'\"", 'v-if="true"', expect=RESET_RULE)
+@mutation(SETTINGS_VIEW, "return !!item && drafts[key] !== valueText(item);", "return !!item;", expect=DIRTY)
+@mutation(SETTING_FIELD, 'props.item.source === "db"', "true", expect=RESET_RULE)
 @mutation(SETTINGS_VIEW, "        errors[key] = errorText(err);\n", "", expect=REFUSED)
 @mutation(SETTINGS_VIEW, "for (const item of list) if (!(item.key in errors)) drafts[item.key]",
           "for (const item of list) if (true) drafts[item.key]", expect=REFUSED)
 @mutation(SETTINGS_VIEW, "for (const key of keys.filter(edited)) {", "for (const key of keys.slice(0, 1)) {",
           expect=MODELS_SAVE)
-@mutation(SETTINGS_VIEW, 'scope.general ? c.group === "core" : true', "true", expect=STRIP_PICK)
+@mutation(SETTINGS_VIEW, 'groups.value.includes(scope.provider) ? scope.provider : "core"', '"core"',
+          expect=STRIP_PICK)
 @mutation(SETTINGS_CARDS, "if (!card.basic.length) [card.basic, card.advanced] = [card.advanced, []];", "",
           expect=RULES + "put the claims switch, the models and the prices in their own place, basic first, the rest "
                          "under Advanced")
@@ -391,7 +399,7 @@ BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
           expect=RULES + "draw a blank input for every declared option the table does not hold")
 @mutation(SETTINGS_CARDS, "  if (!text.trim()) return JSON.stringify(rest);\n", "",
           expect=RULES + "draw a blank input for every declared option the table does not hold")
-@mutation(SETTINGS_CARDS, '"prices", "costs"] as const', '"prices"] as const',
+@mutation(SETTINGS_CARDS, '"costs", "pools", "send_path"] as const', '"pools", "send_path"] as const',
           expect=RULES + "put the costs in their own place beside the prices")
 @mutation(SETTINGS_CARDS, '(input.label === "points" ? "cost" : `${input.label} cost`)', "input.label",
           expect=RULES + "put the costs in their own place beside the prices")
@@ -415,6 +423,11 @@ BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
 @mutation(SETTINGS_VIEW, "watch(() => scope.provider, loadPrices);", "watch(() => scope.provider, () => undefined);",
           expect=SCOPE)
 @mutation(SETTINGS_VIEW, "getPrices(scope.provider)", 'getPrices("")', expect=SCOPE)
+@mutation(SETTINGS_CARDS, 'tone: lo < 0 ? "bad" : lo === 0 ? "warn" : "ok"', 'tone: "ok"', expect=MARGIN)
+@mutation(SETTINGS_POOLS, "if (!text.trim()) delete w.budget[tier];", "if (!text.trim()) w.budget[tier] = 0;",
+          expect=POOLS_EMPTY)
+@mutation(SETTINGS_POOLS, "  if (off < -12 * 60) off += DAY_MIN;\n", "", expect=POOLS_RESET)
+@mutation(SETTINGS_POOLS, "if (!had && !text.trim()) return finish(pools, item);", "", expect=POOLS_EMPTY)
 @mutation(PASSWORD, "auth.signOut();", "", expect=LOGIN)
 @mutation(PASSWORD, 'await router.replace({ name: "login" });', "", expect=LOGIN)
 @mutation(PASSWORD, "fieldErrors[err.param] = err.message;", "notify.error(err.message);", expect=OLD_FIELD)
