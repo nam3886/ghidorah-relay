@@ -399,14 +399,15 @@ describe("the list", () => {
     expect(chip(2).find(".dot").exists()).toBe(true);
   });
 
-  it("a failed job is tinted and an unknown one is not", async () => {
+  it("no job row is tinted, a failed one neither: its pill says it", async () => {
     listJobs.mockResolvedValue({
       items: [job(A, { status: "failed" }), job(B, { status: "unknown" }), job(C)],
       total: 3,
       next_cursor: null,
     });
     const { w } = await open();
-    expect(rows(w)[0]!.classes()).toContain("row-tone-bad");
+    expect(rows(w)[0]!.classes().join(" ")).not.toContain("row-tone");
+    expect(rows(w)[0]!.find('[data-tone="bad"]').exists()).toBe(true);
     expect(rows(w)[1]!.classes().join(" ")).not.toContain("row-tone");
     expect(rows(w)[2]!.classes().join(" ")).not.toContain("row-tone");
   });

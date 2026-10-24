@@ -473,8 +473,6 @@ def test_the_logs_range_fields_and_page_size_reach_the_query():
 
 
 # ---- Request logs: colour is for exceptions, the day header, the drawer --------------------------------------------
-@mutation(LOGS, 'isServerError(row.status_code) ? "bad" : undefined', 'row.status_code >= 400 ? "bad" : undefined',
-          expect=LOGS_LIST + "only a 5xx row is filled red; a 4xx row and a fine row are not tinted")
 @mutation(LOGS, 'isServerError(row.status_code) ? "is-bad" : "is-muted"', 'true ? "is-bad" : "is-muted"',
           expect=LOGS_LIST + "the error code is plain mono text, red on a 5xx row and muted otherwise, never a chip")
 @mutation(LOGS, "  detailOpen.value = false;\n  ui.openJob(id);", "  ui.openJob(id);",

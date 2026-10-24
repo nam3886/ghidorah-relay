@@ -152,9 +152,6 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
           expect=FV + "filters > a job whose key has no label shows the key as the Key filter names it")
 @mutation(VIEW, "label: s.charAt(0).toUpperCase() + s.slice(1)", "label: s",
           expect=FV + "filters > the status options read as drawn")
-@mutation(VIEW, '(job.status === "failed" ? "bad" : undefined)',
-          '(job.status === "failed" || job.status === "unknown" ? "bad" : undefined)',
-          expect=FV + "the list > a failed job is tinted and an unknown one is not")
 @mutation(VIEW, "note: (n) => `${jobs(n)} shown`", "note: (n) => jobs(n)",
           expect=FV + "the list > groups the rows under one header per day, with the jobs shown for that day")
 @mutation(VIEW, "  dayTotals.value = {};\n  void load(0);", "  void load(0);",

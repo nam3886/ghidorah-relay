@@ -151,7 +151,7 @@ describe("the list", () => {
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 
-  it("only a 5xx row is filled red; a 4xx row and a fine row are not tinted", async () => {
+  it("no row is tinted, a 5xx neither: its red pill and code say it", async () => {
     list.mockResolvedValue({
       items: [
         row({ id: "a", status_code: 503 }),
@@ -163,8 +163,7 @@ describe("the list", () => {
     });
     const { w } = await open();
     const classes = w.findAll("tbody tr:not(.is-day)").map((r) => r.classes().join(" "));
-    expect(classes[0]).toContain("row-tone-bad");
-    expect(classes[0]).toContain("row-tone-fill");
+    expect(classes[0]).not.toContain("row-tone");
     expect(classes[1]).not.toContain("row-tone");
     expect(classes[2]).not.toContain("row-tone");
     expect(classes[3]).not.toContain("row-tone");

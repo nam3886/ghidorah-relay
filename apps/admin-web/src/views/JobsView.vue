@@ -34,7 +34,6 @@ import ListPager from "@/components/shared/ListPager.vue";
 import MoneyCell from "@/components/shared/MoneyCell.vue";
 import ProviderTile from "@/components/shared/ProviderTile.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
-import type { Tone } from "@/components/shared/status-tones";
 import type { Column } from "@/components/shared/types";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { autoColumns, sameColumns, type ColumnWidths } from "@/components/jobs/auto-columns";
@@ -281,8 +280,8 @@ const regenerateConfirm = computed(() => ({
 // tinted side column).
 const rowClass = ({ row }: { row: JobSummary }): string => `jobs-row ${providerClass(row.provider)}`;
 
-// A failed job is tinted; an unknown one is not (the design draws only the failed fill).
-const rowTone = (job: JobSummary): Tone | undefined => (job.status === "failed" ? "bad" : undefined);
+// A failed job is not tinted (owner, 24/10): its red "failed" pill and red error code say it; the row keeps its provider's
+// colours.
 
 // Day headers. Today's says how many of its jobs are on this page ("8 jobs shown"), as the canvas draws it. Every
 // earlier day says how many jobs that day has under the current filters (the server's day_totals, counted in the same
@@ -440,8 +439,6 @@ const subtitle = computed(() =>
         row-clickable
         selectable
         keep-selection
-        tone-fill
-        :row-tone="rowTone"
         :row-class-name="rowClass"
         :row-label="(job: JobSummary) => `Open job ${shortId(job.id)}, ${job.title || '(untitled)'}`"
         :select-label="(job: JobSummary) => `Select job ${shortId(job.id)}`"

@@ -24,7 +24,6 @@ import { IconChevronRight, IconMoreCircles, IconTrashClear } from "@/components/
 import ListPager from "@/components/shared/ListPager.vue";
 import ProviderTile from "@/components/shared/ProviderTile.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
-import type { Tone } from "@/components/shared/status-tones";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useBusy } from "@/composables/use-busy";
@@ -57,8 +56,8 @@ const error = ref<string | null>(null);
 const detail = shallowRef<LogDetail | null>(null);
 const detailOpen = ref(false);
 
-// Only a server error fills its row; a client error is told by its amber code alone.
-const rowTone = (row: LogRow): Tone | undefined => (isServerError(row.status_code) ? "bad" : undefined);
+// No row is tinted (owner, 24/10): a server error is told by its red status pill and red error code, a client error by
+// its amber pill and muted code.
 
 // Every request carries its provider's colours: a rail on the row's left edge and the tinted provider cell (phone: the
 // tinted side column). A request no provider handled (a model list, a refused call) is the relay's own, in grey.
@@ -270,8 +269,6 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
         :error="error"
         :empty-text="filtered ? 'No requests match these filters.' : 'No requests yet.'"
         row-clickable
-        tone-fill
-        :row-tone="rowTone"
         :row-class-name="rowClass"
         :tablet-columns="TABLET_COLUMNS"
         :skeleton-columns="isPhone ? PHONE_SKELETON_COLUMNS : SKELETON_COLUMNS"
