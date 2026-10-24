@@ -235,10 +235,7 @@ const state = computed(() =>
 const isData = (index: number): boolean => index >= 0;
 
 function rowClasses(row: T, rowIndex: number): string {
-  return [
-    selectedKeys.value.has(keyOf(row)) ? "is-selected" : "",
-    props.rowClassName?.({ row, rowIndex }) ?? "",
-  ]
+  return [selectedKeys.value.has(keyOf(row)) ? "is-selected" : "", props.rowClassName?.({ row, rowIndex }) ?? ""]
     .filter(Boolean)
     .join(" ");
 }

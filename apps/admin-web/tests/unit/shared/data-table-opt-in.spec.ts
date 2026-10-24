@@ -450,5 +450,4 @@ describe("DataTable phone list", () => {
     expect(w.find(".data-table__empty").text()).toContain("No jobs");
     expect(w.find(".act").exists()).toBe(true);
   });
-
 });
