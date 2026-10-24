@@ -121,21 +121,24 @@ def test_each_change_and_reset_is_a_history_row_and_the_list_says_when_and_by_wh
                                          headers=h)).status_code == 200
         assert (await env.client.delete("/admin/settings/log_retention_days", headers=h)).status_code == 200
         page = (await env.client.get("/admin/settings/history?limit=2", headers=h)).json()
-        rest = (await env.client.get("/admin/settings/history?before=%d" % page["next"], headers=h)).json()
+        rest = {"items": [], "next": None}
+        if page["next"] is not None:
+            rest = (await env.client.get("/admin/settings/history?before=%d" % page["next"], headers=h)).json()
         saved = (await env.client.get("/admin/settings", headers=h)).json()["last_saved"]
         bad = await env.client.get("/admin/settings/history?limit=0", headers=h)
         return empty, page, rest, saved, bad.status_code
 
     empty, page, rest, saved, bad = run_app(db, scenario)
-    assert empty is None and bad == 400
     rows = page["items"] + rest["items"]
     assert [(r["old"], r["new"]) for r in rows] == [(9, None), (7, 9), (None, 7)], "each change is a row"
+    assert empty is None and bad == 400
     assert [r["by"] for r in rows] == [ADMIN_USER] * 3, "the reset names who made it"
     assert {r["key"] for r in rows} == {"log_retention_days"} and rest["next"] is None
     assert saved == {"at_ms": rows[0]["at_ms"], "by": ADMIN_USER}
 
 
-@mutation(SETTINGS, "        if secret:\n            old = new = None\n", "", expect="a secret value was kept")
+# without the code's rule the table's own check refuses the row: two guards, the mutation meets the second
+@mutation(SETTINGS, "        if secret:\n            old = new = None\n", "", expect="settings_history_check")
 def test_a_secret_setting_keeps_only_that_it_changed(db):
     registry = Registry(Spec("relay_token", str, "", "A token.", secret=True), Spec("plain_word", str, "", "A word."))
 

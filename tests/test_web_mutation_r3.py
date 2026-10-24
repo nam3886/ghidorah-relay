@@ -487,7 +487,7 @@ QUIET_EDITOR = (QUIET + "drops an answer for a frame that was replaced while it 
 QUIET_NOTHING = QUIET + "sends nothing while a load or a write is on, or for a kind with no model"
 QUIET_REFUSED = QUIET + "shows no refusal and no toast: a draft the server refuses just has no preview"
 QUIET_BUSY = QUIET_NOTHING
-DIRTY = FRAMES_VIEW_SPEC + "Save is disabled until the draft differs from the loaded text, and 'unsaved' says so"
+FRAMES_DIRTY = FRAMES_VIEW_SPEC + "Save is disabled until the draft differs from the loaded text, and 'unsaved' says so"
 SAME_FRAME = EDITOR_SPEC + "picking the frame that is already in the editor does nothing"
 SETTLES = (FRAMES_SPEC + "opening > falls back to the first kind when the one it had is gone, "
            + "and to the default when its model is gone")
@@ -587,7 +587,7 @@ LEAVE = FRAMES_VIEW_SPEC + "leaving the page asks only for a typed draft, and is
 
 
 @mutation(FRAMES_VIEW, "() => frames.dirty,", "() => false,", expect=LEAVE)
-@mutation(FRAMES, "shown.value !== null && draft.value !== loaded.value", "false", expect=DIRTY)
+@mutation(FRAMES, "shown.value !== null && draft.value !== loaded.value", "false", expect=FRAMES_DIRTY)
 @mutation(FRAMES_VIEW, "() => frames.busy,", "() => false,", expect=LEAVE)
 @pytest.mark.web_unit
 def test_frames_view_rules():
