@@ -3,6 +3,7 @@ exit and failed-check stamps; the detail's hours and errors; an import that name
 changed which setting from what to what (a secret only "changed")."""
 
 import asyncio
+import dataclasses
 import uuid
 
 import pytest
@@ -92,20 +93,26 @@ def test_the_history_serves_14_days_of_hours_oldest_first_and_the_newest_errors_
 
 
 @mutation(ROUTES, '(item.identity or "").strip() or None', "None", expect="the email is the identity")
+@mutation(ROUTES, 'row = await (await conn.execute(_INSERT, {**values, "i": None})).fetchone()',
+          "raise", expect="a taken identity aborted the import")
 def test_an_import_stores_the_given_identity_unless_another_account_already_has_it(db, pair):
+    """The unique index decides, in a savepoint per row: an identity already taken (by an older account, an earlier
+    row of the batch, or an import committed meanwhile, which meets the same index) leaves that row without it and the
+    rest of the batch goes in."""
     account(db, label="old", identity="taken@example.com")
 
     async def scenario(env):
         body = {"provider": "fake", "items": [{"credential": "c1", "identity": " me@example.com "},
                                               {"credential": "c2", "identity": "taken@example.com"},
-                                              {"credential": "c3"}]}
+                                              {"credential": "c3"},
+                                              {"credential": "c4", "identity": "me@example.com"}]}
         r = await env.client.post("/admin/accounts/import", json=body, headers=await env.admin_headers())
-        assert r.status_code == 200, r.text
-        return [uuid.UUID(i["id"]) for i in r.json()["imported"]]
+        return r.status_code, r.json()
 
-    ids = run_app(db, scenario)
-    got = [db.one("SELECT identity FROM accounts WHERE id = %s", i)[0] for i in ids]
-    assert got == ["me@example.com", None, None], "the email is the identity: %r" % got
+    status, out = run_app(db, scenario)
+    assert status == 200, "a taken identity aborted the import: %r" % (out,)
+    got = [db.one("SELECT identity FROM accounts WHERE id = %s", uuid.UUID(i["id"]))[0] for i in out["imported"]]
+    assert got == ["me@example.com", None, None, None], "the email is the identity: %r" % got
 
 
 @mutation(SETTINGS, "            if changed:\n                await self._history(", "            if False:\n"
@@ -135,6 +142,27 @@ def test_each_change_and_reset_is_a_history_row_and_the_list_says_when_and_by_wh
     assert [r["by"] for r in rows] == [ADMIN_USER] * 3, "the reset names who made it"
     assert {r["key"] for r in rows} == {"log_retention_days"} and rest["next"] is None
     assert saved == {"at_ms": rows[0]["at_ms"], "by": ADMIN_USER}
+
+
+@mutation(SETTINGS_ROUTES, "hidden = secret or key not in specs or specs[key].secret", "hidden = secret",
+          expect="a value of a setting made secret later was shown")
+def test_the_history_masks_a_key_that_is_secret_now_or_no_longer_known(db):
+    db.run("INSERT INTO settings_history (key, by, old_value, new_value) VALUES "
+           "('log_retention_days', 'admin', '7', '9'), ('a_retired_key', 'admin', '\"old\"', '\"new\"')")
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        before = (await env.client.get("/admin/settings/history", headers=h)).json()["items"]
+        registry = env.settings._registry
+        registry.specs["log_retention_days"] = dataclasses.replace(registry.specs["log_retention_days"], secret=True)
+        after = (await env.client.get("/admin/settings/history", headers=h)).json()["items"]
+        return before, after
+
+    before, after = run_app(db, scenario)
+    shown = {r["key"]: (r["old"], r["new"], r["secret"]) for r in before}
+    assert shown == {"log_retention_days": (7, 9, False), "a_retired_key": (None, None, True)}
+    masked = {r["key"]: (r["old"], r["new"], r["secret"]) for r in after}
+    assert masked["log_retention_days"] == (None, None, True), "a value of a setting made secret later was shown"
 
 
 # without the code's rule the table's own check refuses the row: two guards, the mutation meets the second

@@ -66,6 +66,8 @@ _TODAY = ("SELECT account_id, count(*), count(*) FILTER (WHERE status = 'failed'
           "AND created_at >= date_trunc('day', clock_timestamp() AT TIME ZONE %(tz)s) AT TIME ZONE %(tz)s "
           "GROUP BY account_id")
 HISTORY_DAYS = 14
+_INSERT = ("INSERT INTO accounts (provider, label, identity, credential_enc, proxy_host, proxy_port, proxy_auth_enc, "
+           "check_due_at) VALUES (%(p)s, %(l)s, %(i)s, %(c)s, %(h)s, %(o)s, %(a)s, clock_timestamp()) RETURNING id")
 
 
 class ImportItem(Strict):
@@ -121,14 +123,14 @@ async def import_accounts(body: ImportBody, request: Request, pool: AsyncConnect
         async with tx(pool) as conn:
             for index, label, sealed, proxy, identity in ready:
                 host, port, auth = proxy if proxy else (None, None, None)
-                # an identity another account of the provider already has is left for the first check to merge
-                row = await (await conn.execute(
-                    "INSERT INTO accounts (provider, label, identity, credential_enc, proxy_host, proxy_port, "
-                    "proxy_auth_enc, check_due_at) VALUES (%(p)s, %(l)s, CASE WHEN NOT EXISTS (SELECT 1 FROM accounts "
-                    "WHERE provider = %(p)s AND identity = %(i)s::text) THEN %(i)s::text END, %(c)s, %(h)s, %(o)s, "
-                    "%(a)s, clock_timestamp()) RETURNING id",
-                    {"p": body.provider, "l": label, "i": identity, "c": sealed, "h": host, "o": port, "a": auth})
-                ).fetchone()
+                values = {"p": body.provider, "l": label, "i": identity, "c": sealed, "h": host, "o": port, "a": auth}
+                try:
+                    async with conn.transaction():          # a savepoint: a taken identity undoes this row only
+                        row = await (await conn.execute(_INSERT, values)).fetchone()
+                except psycopg.errors.UniqueViolation:
+                    # another account of the provider has the identity (an earlier import, or one committed while
+                    # this one ran): the row goes in without it, and the first check merges it into that account
+                    row = await (await conn.execute(_INSERT, {**values, "i": None})).fetchone()
                 imported.append({"index": index, "id": str(row[0]), "label": label})
     log.info("account import: provider=%s count=%d rejected=%d", body.provider, len(imported), len(rejected))
     request.state.provider = body.provider

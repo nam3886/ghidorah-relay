@@ -93,10 +93,13 @@ async def list_settings(request: Request, pool: AsyncConnectionPool = Depends(ge
 
 @router.get("/settings/history")
 async def settings_history(limit: int = 100, before: int | None = None,
-                           pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
+                           pool: AsyncConnectionPool = Depends(get_pool),
+                           settings: Settings = Depends(get_settings)) -> dict:
     """The change history, newest first: who changed which key, from what stored value to what (null = none stored:
-    the default), and when. A secret setting's row says only that it changed (`secret`, both values null). `before`
-    (an id) pages back; `next` is the id to pass for the next page, null at the end."""
+    the default), and when. A secret setting's row says only that it changed (`secret`, both values null): a row is
+    masked when it was written for a secret, and also when the key is secret NOW or no longer known (a setting made
+    secret later must not show the values it once kept). `before` (an id) pages back; `next` is the id to pass for the
+    next page, null at the end."""
     if not 1 <= limit <= MAX_PAGE:
         raise ApiError("input.invalid", "limit")
     async with tx(pool) as conn:
@@ -104,8 +107,12 @@ async def settings_history(limit: int = 100, before: int | None = None,
             "SELECT id, at, key, by, old_value, new_value, secret FROM settings_history "
             "WHERE (%(b)s::bigint IS NULL OR id < %(b)s) ORDER BY id DESC LIMIT %(n)s",
             {"b": before, "n": limit + 1})).fetchall()
-    items = [{"id": r[0], "at_ms": ms(r[1]), "key": r[2], "by": r[3], "old": r[4], "new": r[5], "secret": r[6]}
-             for r in rows[:limit]]
+    specs = settings.specs()
+    items = []
+    for row_id, at, key, by, old, new, secret in rows[:limit]:
+        hidden = secret or key not in specs or specs[key].secret
+        items.append({"id": row_id, "at_ms": ms(at), "key": key, "by": by, "old": None if hidden else old,
+                      "new": None if hidden else new, "secret": hidden})
     return {"items": items, "next": items[-1]["id"] if len(rows) > limit else None}
 
 
