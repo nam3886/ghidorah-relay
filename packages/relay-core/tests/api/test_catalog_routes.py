@@ -3,10 +3,12 @@ calling key sees them."""
 
 import dataclasses
 import json
+import uuid
 
 from apikit import NewApiKey, run_app
+from conftest import JOB_INSERT, job_args
 
-from relay_core import keys
+from relay_core import billing, keys
 from relay_core.db import tx
 from relay_core.providers import ModelSpec
 from relay_core.testing.fake_provider import FAKE_MAX_PROMPT_CHARS, FakeSpec
@@ -234,6 +236,56 @@ def test_points_route_shows_the_wallet_and_the_caps_and_a_new_day_starts_at_zero
     assert yesterday["points"]["used_total"] == 40
 
 
+SPENT_NET = "COALESCE(sum(c.amount), 0) - COALESCE(sum(r.amount), 0)"
+TOTAL_LEFT = '"total": _left(star["total_limit"], star["used_total"])}'
+
+
+async def charged_job(env, db, key_id, points, *, failed=False, days_back=0):
+    """A job charged to the key's points wallet and its fake cap as creation charges it; `failed` refunds both rows
+    as a failure does, `days_back` moves the charge to an earlier billing day (and its day counters with it, as the
+    owner: the api may not rewrite the ledger)."""
+    job_id = uuid.uuid4()
+    async with tx(env.pool) as conn:
+        charge = await billing.charge(conn, key_id, "fake", points, job_id)
+        await conn.execute(JOB_INSERT, job_args(job_id, key_id, provider="fake", price=points))
+    if days_back:
+        db.run("UPDATE ledger SET billing_day = billing_day - %s WHERE job_id = %s", days_back, job_id)
+        db.run("UPDATE key_wallets SET used_day = used_day - %s WHERE key_id = %s", points, key_id)
+    async with tx(env.pool) as conn:
+        if failed:
+            for row in charge.ledger_ids:
+                await billing.refund(conn, row)
+            await conn.execute("UPDATE jobs SET status = 'failed', error_code = 'render.deadline', "
+                               "finished_at = clock_timestamp() WHERE id = %s", (job_id,))
+
+
+@mutation(CATALOG, SPENT_NET, "COALESCE(sum(c.amount), 0)", expect="a refund gives the spend back")
+@mutation(CATALOG, "AND c.billing_day = (clock_timestamp()", "AND c.billing_day <= (clock_timestamp()",
+          expect="an earlier day's charge is not today's spend")
+@mutation(CATALOG, "WHERE c.key_id = %s AND c.scope = '*'", "WHERE c.key_id = %s AND true",
+          expect="the cap's rows repeat the points wallet's")
+@mutation(CATALOG, TOTAL_LEFT, '"total": star["total_limit"]}', expect="the total limit less what was used")
+@mutation(CATALOG, '"name": key.label or None', '"name": key.label', expect="a key without a label has no name")
+def test_points_name_the_key_and_show_what_the_limits_leave_and_todays_spend_net_of_refunds(db):
+    async def scenario(env):
+        mine = await make_key(env, wallets={"*": (100, 1000), "fake": (None, None)})
+        bare = await make_key(env, wallets={"*": (None, None), "fake": (None, None)})
+        db.run("UPDATE api_keys SET label = 'Shop A' WHERE id = %s", mine.id)
+        await charged_job(env, db, mine.id, 7)
+        await charged_job(env, db, mine.id, 5, failed=True)
+        await charged_job(env, db, mine.id, 3, days_back=1)
+        return [(await env.client.get("/v1/points", headers=k.headers)).json() for k in (mine, bare)]
+
+    mine, bare = run_app(db, scenario)
+    assert mine["name"] == "Shop A" and bare["name"] is None, "a key without a label has no name"
+    assert mine["points"] == {"day_limit": 100, "used_day": 7, "total_limit": 1000, "used_total": 10}
+    assert mine["points_left"] == {"day": 93, "total": 990}, "the total limit less what was used"
+    assert mine["spent_today"] == 7, "a refund gives the spend back; an earlier day's charge is not today's spend"
+    assert bare["points_left"] == {"day": None, "total": None} and bare["spent_today"] == 0
+    assert set(mine) >= {"points", "providers", "models", "unfinished_jobs", "max_unfinished_jobs"}, \
+        "the existing fields stay"
+
+
 @mutation(
     CATALOG, 'status NOT IN (\'done\', \'failed\')', "status NOT IN ('done')",
     expect="finished jobs are not unfinished")
@@ -289,3 +341,23 @@ def test_models_show_the_live_sale_price_and_null_when_unset(db):
         assert prices["fake-video"] == {"default": 3}, "the live price: %s" % prices
         assert prices["fake-image"] == {"default": 1}, "an option the stored table does not name keeps its default"
         assert prices["np-image"] == {"default": None}, "an option with no price shows null: %s" % prices
+
+
+ADMIN_KEYS = "packages/relay-core/src/relay_core/admin/routes_keys.py"
+
+
+@mutation(ADMIN_KEYS, 'table = settings.get(spec.name + ".costs")', 'table = settings.get(spec.name + ".prices")',
+          expect="the upstream cost")
+def test_the_admin_catalog_shows_each_options_upstream_cost_and_its_unit_and_the_public_one_never_does(db):
+    async def scenario(env):
+        key = await make_key(env)
+        await env.settings.set("fake.costs", {"fake-video": 4})
+        listed = (await env.client.get("/v1/models", headers=key.headers)).json()
+        admin = (await env.client.get("/admin/models", headers=await env.admin_headers())).json()
+        return listed, admin
+
+    listed, admin = run_app(db, scenario)
+    costs = {m["id"]: (m["costs"], m["cost_unit"]) for m in admin["data"]}
+    assert costs == {"fake-video": ({"default": 4}, "jobs"), "fake-image": ({"default": 1}, "jobs")}, \
+        "the upstream cost: %s" % costs
+    assert not any({"costs", "cost_unit"} & set(m) for m in listed["data"]), "a customer never sees the upstream cost"

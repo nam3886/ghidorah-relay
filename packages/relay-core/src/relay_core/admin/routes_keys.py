@@ -22,7 +22,7 @@ from relay_core.api.doors import model_disabled
 from relay_core.api.errors_http import ApiError
 from relay_core.api.routes_catalog import model_entry
 from relay_core.db import tx
-from relay_core.providers import ProviderRegistry
+from relay_core.providers import ModelSpec, ProviderRegistry, ProviderSpec
 from relay_core.settings import Settings
 
 router = APIRouter()
@@ -32,10 +32,19 @@ router = APIRouter()
 async def list_models(registry: ProviderRegistry = Depends(get_registry),
                       settings: Settings = Depends(get_settings)) -> dict:
     """Every model of every provider, unfiltered: the choices of a key's allow-list and of `<p>.disabled_models` (the
-    admin has no API key to read `/v1/models` with). The public catalog's entries plus `disabled` (paused)."""
+    admin has no API key to read `/v1/models` with). The public catalog's entries plus `disabled` (paused), and, for
+    the admin only, `costs` (option label -> the upstream cost in `<p>.costs`, null when unset) in `cost_unit` (the unit
+    of the pool of the model's media type, null when the provider declares no such pool)."""
     specs = [registry.spec(name) for name in registry.names()]
-    return {"object": "list", "data": [{**model_entry(s, m, settings), "disabled": model_disabled(settings, s, m)}
+    return {"object": "list", "data": [{**model_entry(s, m, settings), "disabled": model_disabled(settings, s, m),
+                                        **_costs(s, m, settings)}
                                        for s in specs for m in s.catalog()]}
+
+
+def _costs(spec: ProviderSpec, m: ModelSpec, settings: Settings) -> dict:
+    table = settings.get(spec.name + ".costs")
+    return {"costs": {label: table.get(key) for label, key in m.price_keys.items()},
+            "cost_unit": next((p.unit for p in spec.caps.pools if p.name == m.media_type), None)}
 
 Limits = tuple[int | None, int | None]       # (day_limit, total_limit)
 

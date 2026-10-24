@@ -269,6 +269,7 @@ def test_the_admin_lists_every_model_of_every_provider_for_the_key_form(db):
     assert anonymous.status_code == 401
     data = admin.json()["data"]
     assert all(m.pop("disabled") is False for m in data), "nothing is paused"
+    assert all(m.pop("costs") is not None and m.pop("cost_unit") for m in data), "the admin alone sees the cost"
     assert len(data) >= 2 and data == public.json()["data"], "every model of every provider: %r" % data
     assert all(m["prices"] is not None and "owned_by" in m for m in data)
 

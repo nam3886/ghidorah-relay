@@ -27,6 +27,19 @@ SELECT w.scope, w.day_limit, w.total_limit,
        (SELECT (clock_timestamp() AT TIME ZONE (SELECT tz FROM billing_pin))::date AS today) d
  WHERE w.key_id = %s ORDER BY (w.scope <> '*'), w.scope
 """
+# What the key spent today from its points wallet, read from the ledger: the charges of today's billing day less the
+# refunds of those same charges (a refund of an earlier day's charge gives back that day's spend, not today's).
+_SPENT_TODAY = """
+SELECT COALESCE(sum(c.amount), 0) - COALESCE(sum(r.amount), 0)
+  FROM ledger c LEFT JOIN ledger r ON r.refund_of = c.id
+ WHERE c.key_id = %s AND c.scope = '*' AND c.entry = 'charge'
+   AND c.billing_day = (clock_timestamp() AT TIME ZONE (SELECT tz FROM billing_pin))::date
+"""
+
+
+def _left(limit: int | None, used: int) -> int | None:
+    """What a limit leaves: None for no limit (unlimited), never below 0."""
+    return None if limit is None else max(limit - used, 0)
 
 
 def _allowed(registry: ProviderRegistry, key: ApiKey, settings: Settings) -> list[tuple[ProviderSpec, ModelSpec]]:
@@ -110,14 +123,23 @@ async def points(key: ApiKey = Depends(require_key), pool: AsyncConnectionPool =
     """`points` (the key's one points wallet) and `providers` (`{provider: cap}`, each a provider's cap on top of it),
     both `{day_limit, used_day, total_limit, used_total}`, plus `models` (the key's allow-list), `unfinished_jobs` and
     `max_unfinished_jobs` (null = no cap). A limit of null is unlimited, 0 is closed. A job is charged to the points
-    wallet and to its provider's cap, so it needs both open."""
+    wallet and to its provider's cap, so it needs both open.
+
+    Read-only additions for a person: `name` (the key's label, null when it has none), `points_left` (what the points
+    wallet's day and total limits leave, `{day, total}`, each null when that limit is unlimited; null with no points
+    wallet) and `spent_today` (points net of refunds charged today, from the ledger)."""
     async with pool.connection() as conn:
         wallets = await (await conn.execute(_WALLETS, (key.id,))).fetchall()
         unfinished = (await (await conn.execute(
             "SELECT count(*) FROM jobs WHERE key_id = %s AND status NOT IN ('done', 'failed')",
             (key.id,))).fetchone())[0]
+        spent = (await (await conn.execute(_SPENT_TODAY, (key.id,))).fetchone())[0]
     cap = settings.get("max_unfinished_default") if key.max_unfinished is None else key.max_unfinished
     rows = {scope: {"day_limit": day_limit, "used_day": used_day, "total_limit": total_limit,
                     "used_total": used_total} for scope, day_limit, total_limit, used_day, used_total in wallets}
-    return {"points": rows.pop(billing.STAR, None), "providers": rows, "models": list(key.models),
-            "unfinished_jobs": unfinished, "max_unfinished_jobs": cap or None}
+    star = rows.pop(billing.STAR, None)
+    left = None if star is None else {"day": _left(star["day_limit"], star["used_day"]),
+                                      "total": _left(star["total_limit"], star["used_total"])}
+    return {"points": star, "providers": rows, "models": list(key.models),
+            "unfinished_jobs": unfinished, "max_unfinished_jobs": cap or None,
+            "name": key.label or None, "points_left": left, "spent_today": spent}
