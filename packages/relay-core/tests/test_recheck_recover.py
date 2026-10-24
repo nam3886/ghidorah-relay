@@ -129,7 +129,7 @@ def test_a_provider_cap_refusal_inside_recheck_leaves_the_star_wallet_untouched(
     assert ledger(db, job_id) == (1, 1)
 
 
-@mutation(RC, NET_ALL_SCOPES, NET_UNFILTERED, expect="assert recharged == 10")
+@mutation(RC, NET_ALL_SCOPES, NET_UNFILTERED, expect="assert 0 == 10")
 def test_recheck_reads_what_was_refunded_from_the_points_wallet_rows_alone(db):
     k, _ = key(db), account(db)
 

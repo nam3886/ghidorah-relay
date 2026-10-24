@@ -127,7 +127,8 @@ mutation(B, "if len(rows) < len(scopes):", "if len(rows) < 1:")(
     test_a_charge_takes_the_star_wallet_and_the_provider_cap_together_or_neither)
 
 
-@mutation(B, "async with conn.transaction():", "if True:", expect="assert (3, 3) == (0, 0)")
+@mutation(B, "async with conn.transaction():", "if True:",
+          expect="used_total 3, ledger says 0")
 def test_a_refused_charge_that_the_caller_survives_leaves_no_trace_in_its_transaction(db):
     # `recheck` catches QuotaExceeded and goes on in the same transaction: the savepoint of the charge must undo the
     # points wallet's half of the statement

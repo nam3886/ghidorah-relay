@@ -85,7 +85,7 @@ def test_every_table_has_a_decision_and_the_grants_match_the_matrix(db):
 @mutation("packages/relay-core/src/relay_core/db/migrations/0008_account_restrict.sql",
           "cooldown_reason, check_due_at)", "cooldown_reason)", expect="assert {'check_due_a")
 @mutation(MONEY, "GRANT UPDATE (tier, cycle_start) ON accounts TO relay_api;",
-          "GRANT UPDATE (tier, tier_read_at, cycle_start) ON accounts TO relay_api;", expect="assert {'tier_read_at'")
+          "GRANT UPDATE (tier, tier_read_at, cycle_start) ON accounts TO relay_api;", expect="assert {'cycle_start")
 def test_the_api_cannot_update_a_credential_or_worker_owned_account_columns(db):
     with db.connect() as c:
         cols = {r[0] for r in c.execute("SELECT column_name FROM information_schema.columns "

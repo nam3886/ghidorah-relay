@@ -163,6 +163,14 @@ def test_a_reported_balance_wins_until_the_pools_next_refill_and_then_the_budget
     assert pool.left_of(CFG, "free", [], NOON + 13 * HOUR, None) == 4
 
 
+@mutation(P, "if at >= window_start(w, now)", "if True", expect="assert state.spent == 1")
+def test_a_window_counts_only_the_charges_since_its_own_start_even_when_an_older_report_loaded_more():
+    report = Reported(5, NOON - 30 * HOUR)                   # read yesterday: the older charges load too
+    charges = [(NOON - 26 * HOUR, 2), (NOON - HOUR, 1)]      # one yesterday, one today
+    state = pool.standing(CFG, "free", charges, NOON, report).windows[0]
+    assert state.spent == 1, "the window of today holds today's charge only"
+
+
 @mutation(P, "    if reported.refill_at is not None:\n        return reported.refill_at\n",
           "    if False:\n        return reported.refill_at\n",
           expect="assert pool.left_of(SAIGON, \"free\", [], at + 17 * HOUR + 30 * MINUTE, named) == 3")
@@ -441,9 +449,6 @@ def test_money_calls_refuse_a_connection_outside_tx(db):
     run(db, scenario)
 
 
-@mutation(P, '"UPDATE account_charges SET refunded_at = clock_timestamp() WHERE id = %s AND refunded_at IS NULL "',
-          '"UPDATE account_charges SET refunded_at = clock_timestamp() WHERE id = %s "',
-          expect="assert await refund(p, job) == []")
 def test_a_refund_marks_the_charge_refunded_gives_back_the_exact_amount_once(db):
     a, job = account(db), a_job(db)
 

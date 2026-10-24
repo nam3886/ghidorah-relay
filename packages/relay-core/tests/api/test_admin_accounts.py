@@ -276,7 +276,7 @@ def test_the_list_shows_state_capacity_and_use_and_no_secret(db, pair):
 
 
 @mutation("packages/relay-core/src/relay_core/admin/routes_common.py", '"left_today": st.left,', '"left_today": None,',
-          expect="the budget after its refill")
+          expect="gives way to the budget")
 def test_the_list_shows_what_the_next_claim_will_see_a_report_until_its_refill_and_the_budget_after_it(db, pair):
     a = new_account(db, label="alpha", checked=True)
     db.run("INSERT INTO account_pools (account_id, pool, reported_left, reported_at, refill_at) VALUES "

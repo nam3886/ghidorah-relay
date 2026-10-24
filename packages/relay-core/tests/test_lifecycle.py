@@ -152,8 +152,7 @@ def test_completed_outputs_are_all_kept_in_one_transaction_with_the_status_move(
 
 
 # ---- taken or not (I7) -----------------------------------------------------------------------------------------
-@mutation(A, CHARGE_IF_TAKEN, CHARGE_ALWAYS,
-          expect="assert charges(db, got.job_id) == [] and left(db) == (4, \"reset\")")
+@mutation(A, CHARGE_IF_TAKEN, CHARGE_ALWAYS, expect="assert ([(2, False)] == []")
 def test_an_order_not_yet_proven_taken_charges_no_account_and_stores_no_facts(db):
     k, _ = key(db), account(db)
     token = uuid.uuid4()

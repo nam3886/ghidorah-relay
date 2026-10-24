@@ -25,8 +25,8 @@ CUT_JS = """() => [...document.querySelectorAll('.lane *, .ptab, [data-testid=pr
 
 
 def pool(db, account, name: str, left: int) -> None:
-    db.run("INSERT INTO account_capacity (account_id, pool, left_n, source, day_anchor) "
-           "VALUES (%s, %s, %s, 'reported', (clock_timestamp() AT TIME ZONE 'UTC')::date)", account, name, left)
+    db.run("INSERT INTO account_pools (account_id, pool, reported_left, reported_at) "
+           "VALUES (%s, %s, %s, clock_timestamp())", account, name, left)
 
 
 def plant(db) -> None:

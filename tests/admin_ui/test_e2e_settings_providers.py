@@ -19,6 +19,7 @@ SHOTS = os.environ.get("RELAY_SCREENSHOTS_DIR")
 
 CUT_JS = """() => [...document.querySelectorAll('.scard *, .ptab')]
     .filter((el) => el.offsetParent && !el.closest('.hint-tip'))
+    .filter((el) => !el.matches('input'))      // a long value scrolls inside its input: not cut text
     .filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'visible')
     .map((el) => el.className + ': ' + el.textContent.trim().slice(0, 40))"""
 

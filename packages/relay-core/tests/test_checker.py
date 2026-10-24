@@ -41,7 +41,7 @@ def test_a_job_charged_on_the_points_wallet_and_its_cap_is_not_counted_twice(db)
     assert check(db) == []
 
 
-@mutation(CHECKER, " OR count(DISTINCT net) > 1", "", expect="['I8 job")
+@mutation(CHECKER, " OR count(DISTINCT net) > 1", "", expect="AssertionError: []")
 def test_a_job_refunded_on_its_cap_but_not_on_its_points_wallet_is_reported(db):
     key = db.key(("p1", None, None))
     job = db.job(key, price=7)

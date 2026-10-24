@@ -734,8 +734,6 @@ POOL_ACCOUNTS_ANY_PROVIDER = "WHERE state = 'available' AND (%(p)s::text IS NULL
 POOL_ACCOUNTS_ANY_PROVIDER_OFF = "WHERE state = 'available' AND true"
 REFUNDED_OUT = '"AND refunded_at IS NULL AND at >= %s ORDER BY at", (ids, since))'
 REFUNDED_IN = '"AND at >= %s ORDER BY at", (ids, since))'
-SPENT_TODAY = "if at >= window_start(w, now)"
-SPENT_EVER = "if True"
 REPORT_WINS = "    if reported is not None and now < _refill_of_report(cfg, reported):\n"
 REPORT_ALWAYS = "    if reported is not None:\n"
 UNKNOWN_LEFT = "if state.standing.left is None or budget is None:"
@@ -813,7 +811,6 @@ def plant_pool(db):
 @mutation(ROUTES, POOL_ACCOUNTS, POOL_WITH_DEAD, expect="dead and disabled accounts")
 @mutation(ROUTES, POOL_ACCOUNTS, POOL_WITH_DISABLED, expect="dead and disabled accounts")
 @mutation(POOL, REFUNDED_OUT, REFUNDED_IN, expect="left and budget")
-@mutation(POOL, SPENT_TODAY, SPENT_EVER, expect="left and budget")
 @mutation(POOL, REPORT_WINS, REPORT_ALWAYS, expect="left and budget")
 @mutation(ROUTES, UNKNOWN_LEFT, UNKNOWN_LEFT_OFF, expect="pool figures")
 @mutation(ROUTES, PROXY_FAILED, PROXY_SET, expect="proxy checks failed")
