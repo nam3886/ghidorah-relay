@@ -16,7 +16,7 @@ TABLES = {
     "account_charges", "leases", "account_shots", "admin_login_attempts", "commands", "settings_kv", "admin_users",
     "admin_sessions", "request_logs", "worker_heartbeats", "provider_snapshots", "schema_migrations",
     "billing_pin", "billing_alerts", "prompt_frames", "prompt_frame_locks", "unclear_replies",
-    "account_health", "account_errors", "settings_history",
+    "account_health", "account_errors", "settings_history", "alert_rules",
 }
 # the unique indexes the money and lease rules stand on
 INDEXES = {

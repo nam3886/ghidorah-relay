@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query
 from psycopg_pool import AsyncConnectionPool
 
+from relay_core import alerts as alert_hub
 from relay_core.admin.routes_common import ms, pool_budget
 from relay_core.api.deps import get_pool, get_registry, get_settings
 from relay_core.api.errors_http import ApiError
@@ -337,7 +338,9 @@ async def stats(provider: str | None = None, pool: AsyncConnectionPool = Depends
             {"p": provider})).fetchone())[0]
         keys = (await (await conn.execute("SELECT count(*) FROM api_keys WHERE enabled")).fetchone())[0]
         usable = {name: row[0] for name, row in accounts.items()}
-        alerts = await live_alerts(conn, settings, registry, usable)
+        # the admin's rules (Alerts > Alert rules): a kind turned off is not raised, a muted one is listed apart
+        alerts, muted = alert_hub.apply_live(await live_alerts(conn, settings, registry, usable),
+                                             await alert_hub.rule_rows(conn))
     chosen = [row for name, row in accounts.items() if provider in (None, name)]
     return {
         "jobs": {"queued": queued, "in_progress": running, "done": done, "failed": failed,
@@ -348,4 +351,5 @@ async def stats(provider: str | None = None, pool: AsyncConnectionPool = Depends
                      "in_use": sum(r[4] for r in chosen), "asleep": sum(r[5] for r in chosen)},
         "keys": keys,
         "alerts": alerts,
+        "muted_alerts": muted,
     }

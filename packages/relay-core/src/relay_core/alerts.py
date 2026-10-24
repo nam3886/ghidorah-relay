@@ -250,9 +250,16 @@ def kinds(sources=None) -> tuple[str, ...]:
     return tuple(k for s in (sources or SOURCES) for k in s.kinds)
 
 
+# The end of a stored kind's mute (`alert_rules`, 0023), only while it is still ahead on the database clock.
+MUTED = ("(SELECT r.muted_until FROM alert_rules r WHERE r.source = 'stored' AND r.kind = g.kind "
+         "AND r.muted_until > clock_timestamp()) AS muted_until")
+# A stored kind the admin turned off is left out of the list (its rows stay; the detail still reads them).
+NOT_OFF = "kind NOT IN (SELECT r.kind FROM alert_rules r WHERE r.source = 'stored' AND NOT r.enabled)"
+
+
 def _groups_sql(where: str, sources) -> str:
     union = " UNION ALL ".join("(%s)" % s.groups for s in sources)
-    return ("SELECT " + ", ".join(GROUP_COLUMNS) + " FROM (" + union + ") g" + where
+    return ("SELECT " + ", ".join(GROUP_COLUMNS) + ", " + MUTED + " FROM (" + union + ") g" + where
             + " ORDER BY (open_count > 0) DESC, " + RANK + ", last_at DESC, newest_id DESC")
 
 
@@ -261,14 +268,16 @@ def _ms(moment) -> int:
 
 
 def group_view(row: tuple) -> dict:
-    """One group in the common shape `G`."""
-    g = dict(zip(GROUP_COLUMNS, row, strict=True))
+    """One group in the common shape `G`, with `muted_until_ms` (null unless its kind is muted now)."""
+    g = dict(zip(GROUP_COLUMNS, row[:-1], strict=True))
+    muted = row[-1]
     return {"kind": g["kind"], "group": g["grp"], "severity": g["severity"], "title": g["title"],
             "provider": g["provider"], "first_ms": _ms(g["first_at"]), "last_ms": _ms(g["last_at"]),
             "count": g["count"], "open_count": g["open_count"], "keys": g["keys"], "newest_id": g["newest_id"],
             "reply": g["reply"], "key_label": g["key_label"],
             "status": "open" if g["open_count"] > 0 else "acknowledged",
-            "detail": "/admin/alerts/groups/%s/%s" % (g["kind"], g["grp"])}
+            "detail": "/admin/alerts/groups/%s/%s" % (g["kind"], g["grp"]),
+            "muted_until_ms": None if muted is None else _ms(muted)}
 
 
 async def _groups(conn, where: str, params: dict, limit: int | None, sources) -> list[dict]:
@@ -278,8 +287,9 @@ async def _groups(conn, where: str, params: dict, limit: int | None, sources) ->
 
 
 async def list_groups(conn, *, status: str, kind: str | None, limit: int, sources=None) -> list[dict]:
-    """The groups of every stored kind: open first, then the severity rank, then the newest."""
-    where = [] if status == "all" else ["open_count %s 0" % (">" if status == "open" else "=")]
+    """The groups of every stored kind the admin has not turned off: open first, then the severity rank, then the
+    newest."""
+    where = [NOT_OFF] + ([] if status == "all" else ["open_count %s 0" % (">" if status == "open" else "=")])
     params: dict = {}
     if kind is not None:
         where.append("kind = %(kind)s")
@@ -376,7 +386,11 @@ async def unclear_outcomes(conn, group: str) -> dict:
         if status == "failed":
             codes[code] = codes.get(code, 0) + n
         media.add(kind)
-    return {"outcomes": outcomes, "failed_codes": codes, "media": media.pop() if len(media) == 1 else None}
+    # the distinct accounts that heard the wording (the detail's Accounts fact)
+    accounts = (await (await conn.execute(
+        "SELECT count(DISTINCT account_id) FROM unclear_replies WHERE group_id = %s", (group,))).fetchone())[0]
+    return {"outcomes": outcomes, "failed_codes": codes, "media": media.pop() if len(media) == 1 else None,
+            "accounts": accounts}
 
 
 async def acknowledge(conn, kind: str, group: str, through_id: int, user: str) -> int:
@@ -396,3 +410,75 @@ async def acknowledge(conn, kind: str, group: str, through_id: int, user: str) -
     log.info("alert group acknowledged: user=%s kind=%s group=%s through_id=%s count=%s", user, kind, group,
              through_id, cur.rowcount)
     return cur.rowcount
+
+
+# ---- resolved today ---------------------------------------------------------------------------------------------
+# The groups that had a row acknowledged on the relay's billing day (`billing_pin`), the newest first: the hub's only
+# record of something resolved. A live condition clears without leaving a row, so it is never counted here.
+_RESOLVED = """
+SELECT kind, grp, max(at), (array_agg(by ORDER BY at DESC))[1], count(*) FROM (
+    SELECT alert AS kind, key_id::text || '.' || scope AS grp, acknowledged_at AS at, acknowledged_by AS by
+      FROM billing_alerts WHERE alert IN ('clamp', 'drift') AND acknowledged_at >= %(start)s
+    UNION ALL
+    SELECT 'unclear_reply', group_id, acknowledged_at, acknowledged_by
+      FROM unclear_replies WHERE acknowledged_at >= %(start)s) r
+ GROUP BY kind, grp ORDER BY max(at) DESC, kind, grp LIMIT %(limit)s"""
+_DAY_START = ("SELECT date_trunc('day', clock_timestamp() AT TIME ZONE p.tz) AT TIME ZONE p.tz, p.tz "
+              "FROM billing_pin p")
+
+
+async def resolved_today(conn, limit: int) -> dict:
+    """`count` (groups, at most `limit`), `day_start_ms`, `tz` and `items`: each group in the shape `G` plus
+    `resolved_ms`, `resolved_by` and `resolved_rows` (its rows acknowledged today)."""
+    start, tz = await (await conn.execute(_DAY_START)).fetchone()
+    rows = await (await conn.execute(_RESOLVED, {"start": start, "limit": limit})).fetchall()
+    items = []
+    for kind, grp, at, by, n in rows:
+        found = await get_group(conn, kind, grp)
+        if found is not None:
+            items.append({**found, "resolved_ms": _ms(at), "resolved_by": by, "resolved_rows": n})
+    return {"count": len(items), "day_start_ms": _ms(start), "tz": tz, "items": items}
+
+
+# ---- the rules: the admin's switch and mute per kind (`alert_rules`, 0023) ---------------------------------------
+MAX_MUTE_MIN = 7 * 24 * 60
+
+
+async def rule_rows(conn) -> dict[tuple[str, str], dict]:
+    """Every stored rule row: (source, kind) -> `enabled`, `muted_until_ms` (null once the mute is over),
+    `updated_by`, `updated_ms`. A kind with no row is on and not muted."""
+    rows = await (await conn.execute(
+        "SELECT source, kind, enabled, CASE WHEN muted_until > clock_timestamp() THEN muted_until END, updated_by, "
+        "updated_at FROM alert_rules")).fetchall()
+    return {(s, k): {"enabled": on, "muted_until_ms": None if m is None else _ms(m), "updated_by": by,
+                     "updated_ms": _ms(at)} for s, k, on, m, by, at in rows}
+
+
+async def set_rule(conn, source: str, kind: str, user: str, *, enabled: bool | None,
+                   mute_minutes: int | None) -> None:
+    """Turn a kind on or off and/or mute it for `mute_minutes` from now on the database clock (0 ends a mute). What is
+    not given stays as it was. One INFO line records who and what."""
+    await conn.execute(
+        "INSERT INTO alert_rules AS r (source, kind, enabled, muted_until, updated_by) "
+        "VALUES (%(s)s, %(k)s, COALESCE(%(on)s, true), "
+        "CASE WHEN %(min)s::int > 0 THEN clock_timestamp() + make_interval(mins => %(min)s::int) END, %(by)s) "
+        "ON CONFLICT (source, kind) DO UPDATE SET enabled = COALESCE(%(on)s, r.enabled), "
+        "muted_until = CASE WHEN %(min)s::int IS NULL THEN r.muted_until WHEN %(min)s::int > 0 "
+        "THEN clock_timestamp() + make_interval(mins => %(min)s::int) END, "
+        "updated_by = %(by)s, updated_at = clock_timestamp()",
+        {"s": source, "k": kind, "on": enabled, "min": mute_minutes, "by": user})
+    log.info("alert rule changed: user=%s source=%s kind=%s enabled=%s mute_minutes=%s", user, source, kind, enabled,
+             mute_minutes)
+
+
+def apply_live(live: list[dict], rules: dict[tuple[str, str], dict]) -> tuple[list[dict], list[dict]]:
+    """The live conditions split by the rules: (raised, muted). A kind turned off is dropped; a muted one goes to the
+    second list with its `muted_until_ms`."""
+    raised, muted = [], []
+    for alert in live:
+        rule = rules.get(("live", alert["kind"]))
+        if rule is None or (rule["enabled"] and rule["muted_until_ms"] is None):
+            raised.append(alert)
+        elif rule["enabled"]:
+            muted.append({**alert, "muted_until_ms": rule["muted_until_ms"]})
+    return raised, muted

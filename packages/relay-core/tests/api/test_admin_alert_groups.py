@@ -97,7 +97,7 @@ def test_one_list_holds_a_clamp_a_drift_and_an_unclear_group_in_the_common_shape
     by_kind = {i["kind"]: i for i in items}
     assert set(by_kind["unclear_reply"]) == {"kind", "group", "severity", "title", "provider", "first_ms", "last_ms",
                                             "count", "open_count", "keys", "newest_id", "reply", "key_label",
-                                            "status", "detail"}
+                                            "status", "detail", "muted_until_ms"}
     assert by_kind["clamp"]["group"] == "%s.*" % k and by_kind["clamp"]["newest_id"] == clamp
     assert by_kind["drift"]["newest_id"] == drift and by_kind["clamp"]["keys"] == 1
     unclear = by_kind["unclear_reply"]
@@ -242,6 +242,8 @@ def test_an_unclear_detail_says_the_one_media_type_of_its_jobs_and_none_when_the
 
 
 # ---- the detail -------------------------------------------------------------------------------------------------
+@mutation(ALERTS, "SELECT count(DISTINCT account_id) FROM unclear_replies", "SELECT count(*) FROM unclear_replies",
+          expect="the distinct accounts that heard it")
 def test_an_unclear_detail_lists_its_rows_newest_first_with_the_jobs_outcomes_and_a_deleted_accounts_label_is_null(db):
     k = key(db)
     acc = account(db)
@@ -264,6 +266,7 @@ def test_an_unclear_detail_lists_its_rows_newest_first_with_the_jobs_outcomes_an
     assert [i["id"] for i in body["items"]] == [gone, third, second, first]
     assert body["outcomes"] == {"done": 1, "failed": 2, "open": 1}
     assert body["failed_codes"] == {"dola.no_video": 1, "render.deadline": 1}
+    assert body["accounts"] == 2, "the distinct accounts that heard it (no account is not one)"
     assert body["count"] == 4 and body["kind"] == "unclear_reply" and body["group"] == group
     by_id = {i["id"]: i for i in body["items"]}
     assert by_id[first]["account_label"] == "acc-1" and by_id[second]["account_label"] is None

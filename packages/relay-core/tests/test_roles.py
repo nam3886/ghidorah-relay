@@ -15,6 +15,7 @@ GRANTS = "packages/relay-core/src/relay_core/db/migrations/0006_grants.sql"
 MONEY = "packages/relay-core/src/relay_core/db/migrations/0020_money_v2.sql"
 UNCLEAR = "packages/relay-core/src/relay_core/db/migrations/0015_unclear_replies.sql"
 STRIKE_AT = "packages/relay-core/src/relay_core/db/migrations/0016_account_strike_at.sql"
+ALERT_RULES = "packages/relay-core/src/relay_core/db/migrations/0023_alert_rules.sql"
 S, INS, U, D = "SELECT", "INSERT", "UPDATE", "DELETE"
 ALL = (S, INS, U, D)
 
@@ -28,6 +29,7 @@ API = {
     "billing_pin": (S,), "billing_alerts": (S, INS), "prompt_frames": (S, INS), "prompt_frame_locks": (S, INS),
     "unclear_replies": (S,),                       # UPDATE of the two acknowledge columns is column-level, below
     "account_health": (S,), "account_errors": (S,), "settings_history": (S, INS, D),
+    "alert_rules": (S, INS, U),                    # the admin's switch and mute per alert kind
 }
 WORKER = {
     "api_keys": (S,), "key_wallets": (S, U), "ledger": (S, INS), "jobs": (S, INS, U),
@@ -38,6 +40,7 @@ WORKER = {
     "billing_alerts": (S, INS), "prompt_frames": (), "prompt_frame_locks": (),
     "unclear_replies": (INS,),                     # append only: the writers insert with ON CONFLICT DO NOTHING
     "account_health": ALL, "account_errors": ALL, "settings_history": (S, INS, D),
+    "alert_rules": (),                             # read by the admin routes only
 }
 API_ACCOUNT_COLUMNS = {"label", "proxy_host", "proxy_port", "proxy_auth_enc", "state", "state_reason", "updated_at",
                        "tier", "cycle_start"}
@@ -79,6 +82,9 @@ def as_role(db, role, statements):
 @mutation(UNCLEAR, "GRANT INSERT ON unclear_replies TO relay_worker;",
           "GRANT INSERT, UPDATE ON unclear_replies TO relay_worker;",
           expect="'unclear_replies': ('INSERT', 'UPDATE')")
+@mutation(ALERT_RULES, "GRANT SELECT, INSERT, UPDATE ON alert_rules TO relay_api;",
+          "GRANT SELECT, INSERT, UPDATE, DELETE ON alert_rules TO relay_api;",
+          expect="'alert_rules': ('DELETE', 'INSERT', 'SELECT', 'UPDATE')")
 def test_every_table_has_a_decision_and_the_grants_match_the_matrix(db):
     api, worker = privileges(db, "relay_api"), privileges(db, "relay_worker")
     assert set(api) == set(API) == set(WORKER), "a table has no entry in the matrix: %s" % (set(api) ^ set(API))
@@ -166,6 +172,8 @@ def test_every_statement_the_api_makes_runs_under_relay_api(db):
         ("SELECT * FROM leases, account_pools, account_charges, worker_heartbeats, account_shots, "
          "provider_snapshots, ledger", ()),
         ("DELETE FROM job_events WHERE at < now()", ()),
+        ("INSERT INTO alert_rules (source, kind, updated_by) VALUES ('live', 'disk_low', 'admin') "
+         "ON CONFLICT (source, kind) DO UPDATE SET muted_until = now()", ()),
     ]
     assert as_role(db, "relay_api", statements) == []
 
