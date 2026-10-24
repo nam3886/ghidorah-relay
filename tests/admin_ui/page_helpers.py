@@ -25,6 +25,8 @@ def settle(page) -> None:
 def click_tab(page, name: str, exact: bool = True) -> None:
     """A page tab of the bar; on a phone the tabs past the bar's four sit behind its More tab (a bottom sheet)."""
     tab = page.get_by_role("tab", name=name, exact=exact)
+    # right after a resize the bar can be mid-swap (top tabs hidden, bottom bar not mounted yet): wait for one of them
+    tab.or_(page.get_by_role("tab", name="More")).first.wait_for()
     if tab.count():
         tab.click()
         return

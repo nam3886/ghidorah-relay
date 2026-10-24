@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from accountkit import done_job, new_account
 from jobkit import key as new_key
-from page_helpers import click_tab, sideways
+from page_helpers import click_tab, settle, sideways
 from patchright.sync_api import expect
 from test_admin_alert_groups import group_of, plant_unclear, stamp
 from test_admin_alerts import plant
@@ -911,6 +911,7 @@ def test_the_phone_request_drawer_actions_are_at_least_44_px_square(app, app_ses
     request_buttons(page).first.click()
     drawer = page.get_by_test_id("request-drawer")
     expect(drawer).to_be_visible()
+    settle(page)   # measured mid slide-in, a 44 px button read 43.99997
     for target in (drawer.get_by_role("button", name="Copy request body"),
                    drawer.get_by_role("button", name="Copy answer body"),
                    drawer.locator(".rd__link")):
