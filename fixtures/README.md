@@ -370,6 +370,17 @@ the full answers are the `.txt` beside each `.json`). Each folder's README.md de
 - `gemini/spike-261023/anon_003_stream_text_signed_out.json`
 - `gemini/spike-261023/probe_001_probe.json`
 
+## Gemini Omni video on the AI Pro account (24/10/2026)
+
+The live t2v and i2v sends on the Pro account (`/u/4`), the refused i2v tries (error 1100) and the web app's own i2v
+request captured unsent (`gemini/live-261024/`; the full answers are the `.txt` beside each `.json`). Its README.md
+describes each file and `fixtures/gemini/FINDINGS.md` sums them up.
+
+- `gemini/live-261024/i2v_accepted_reply.json`
+- `gemini/live-261024/i2v_error_1100_reply.json`
+- `gemini/live-261024/t2v_accepted_reply.json`
+- `gemini/live-261024/web_request_i2v.json`
+
 ## chat.qwen.ai live spike (23/10/2026)
 
 Redacted calls of the qwen step-0 spike (auth refresh, WAF answers, t2i, image edit, t2v, i2v, task status, credits);
