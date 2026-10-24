@@ -1,8 +1,12 @@
-"""Submit: one image job to gemini (`StreamGenerate` with the image tool), and what gemini said as a `SubmitResult`.
+"""Submit: one job to gemini (`StreamGenerate` with the image or the video tool), and what gemini said as a
+`SubmitResult`.
 
-The steps: load gemini's page (session rotated first when due); for an edit, upload the one input image (free); write
-the job's request id to the job (`ctx.report_ref`); `ctx.mark_sent()`; the ONE send. gemini streams its answer until
-the image is drawn (25-28 s measured), so a good answer is `Completed` with the image's `/gg-dl/` link (HOLD).
+The steps: load gemini's page at the account's `/u/N` (session rotated first when due); check it is the Google account
+the credential names; for an edit or an image to video, upload the one input image (free); write the job's request id
+to the job (`ctx.report_ref`); `ctx.mark_sent()`; the ONE send. An image send streams its answer until the image is
+drawn (25-28 s measured), so a good answer is `Completed` with the image's `/gg-dl/` link (HOLD). A video send answers
+in 10-33 s that it is "generating your video" (FINDINGS 7): `Accepted` with the chat, which the poll then reads until
+the video is there (1-2 min measured, DETACH).
 
 Money rules that shape this file (each has a test and a mutation):
 - The job is on record as sent BEFORE its send leaves: `report_ref` then `mark_sent` immediately before the one POST.
@@ -11,19 +15,23 @@ Money rules that shape this file (each has a test and a mutation):
   code typed into the prompt is drawn into the image, so the text goes verbatim and the reconciler matches it.
 - One send per job, never a second: nothing after `mark_sent` returns `Retry` or `NotTaken`.
 - Only a complete answer is a verdict: clean (every line read) and closed by gemini's end item (`Answer.ended`).
-  Complete with an image: `Completed`. Complete with a final text and no image: gemini answered for good, the job fails
-  with its refund (`gemini.not_entitled` when the text is the "upgrade your subscription" answer, `gemini.refused`
-  otherwise, the text kept in the detail). Anything else (no answer, a timeout, a cut or unreadable answer, a status
-  that is not 200, an error item, an empty or image-promising final text with no image) is `Ambiguous`: the job becomes
-  unknown and the reconciler looks for it; it is never sent again.
-- After every send the account's pool rests `gemini.account_min_gap_s`.
+  Complete with the job's media: `Completed`. A video send complete with the "generating" item and a chat: `Accepted`.
+  Complete with a final text and no media: gemini answered for good, the job fails with its refund
+  (`gemini.not_entitled` for the "upgrade your subscription" answer, `gemini.video_limit` for "I can't create more
+  videos for you today" with the account's video pool rested `gemini.video_limit_rest_s`, `gemini.refused` otherwise,
+  the text kept in the detail). Anything else (no answer, a timeout, a cut or unreadable answer, a status that is not
+  200, an error item, an empty or media-promising final text with no media, a "generating" answer with no chat) is
+  `Ambiguous`: the job becomes unknown and the reconciler looks for it; it is never sent again.
+- After every send the account's pools rest `gemini.account_min_gap_s`.
 
 Before `mark_sent` every failure is an ordinary retry: a signed-out page `pool.account_logged_out` with a spaced strike,
-a proxy that cannot reach gemini `pool.proxy_failed`, an error answer `gemini.http_error`, an upload not taken
-`gemini.upload_failed`.
+a page of another Google account than the credential names (or an account the check has not resolved yet: no mode
+known) `gemini.account_unresolved` with a rest and a recheck, a proxy that cannot reach gemini `pool.proxy_failed`, an
+error answer `gemini.http_error`, an upload not taken `gemini.upload_failed`.
 """
 
 import json
+import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -32,6 +40,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 
 from relay_core.providers import (
+    Accepted,
     Ambiguous,
     Completed,
     Cooldown,
@@ -49,20 +58,23 @@ from relay_gemini.constants import (
     CAPABILITIES,
     GENERATE_TIMEOUT_S,
     IMAGE_TOOL,
-    MODE_AUTO,
     NETWORK_REST_S,
     NOT_ENTITLED_LINK,
+    VIDEO_LIMIT_TEXT,
+    VIDEO_TOOL,
 )
 from relay_gemini.engine.check import doubt_effects, signed_out_why
 from relay_gemini.engine.http import Sessions, Site
-from relay_gemini.engine.reply import Answer, Image, read_answer
+from relay_gemini.engine.reply import Answer, Image, Video, read_answer
 
 REQUEST_KEY = "request"      # provider_state: the request id of the send (also the job's external_ref until the chat)
 CHAT_KEY = "chat"            # provider_state: gemini's conversation id, once known
 LOGGED_OUT = "pool.account_logged_out"
 PROXY_FAILED = "pool.proxy_failed"
-POOLS = ("image",)
+POOLS = ("image", "video")
 IMAGE_PLACEHOLDER = "googleusercontent.com/image_generation_content/"   # the text of an answer that holds an image
+VIDEO_PLACEHOLDER = "googleusercontent.com/generated_video_content/"    # ... and of one that holds a video
+_MODE = re.compile(r"[0-9a-f]{16}")
 
 _store = None
 
@@ -82,10 +94,26 @@ def _result(job, *effects) -> SubmitResult:
 
 
 def pacing(settings, now: datetime) -> tuple[Rest, ...]:
-    """After a send the account's pool rests `gemini.account_min_gap_s` (0: no rest)."""
+    """After a send the account's pools rest `gemini.account_min_gap_s` (0: no rest)."""
     gap = int(settings.get("gemini.account_min_gap_s"))
     return tuple(Rest(pool, now + timedelta(seconds=gap), "gemini pacing between two sends")
                  for pool in POOLS) if gap > 0 else ()
+
+
+def limit_rest(settings, now: datetime) -> Rest:
+    """gemini said the account makes no more videos for now: its video pool rests `gemini.video_limit_rest_s`."""
+    until = now + timedelta(seconds=int(settings.get("gemini.video_limit_rest_s")))
+    return Rest("video", until, "gemini answered the account's video limit is reached")
+
+
+def is_video(job) -> bool:
+    return job.operation in ("text_to_video", "image_to_video")
+
+
+def mode_of(account) -> str | None:
+    """The account's mode id the check read (otAQ7b); None until a check has."""
+    mode = (account.provider_state or {}).get("mode")
+    return mode if isinstance(mode, str) and _MODE.fullmatch(mode) else None
 
 
 def sent_text(job) -> str:
@@ -93,24 +121,33 @@ def sent_text(job) -> str:
     return job.prompt if job.frame_id is None or job.sent_text is None else job.sent_text
 
 
-def request(text: str, ratio: str | None, image: tuple[str, str, str] | None, rid: str) -> tuple[list, dict]:
+def request(text: str, ratio: str | None, image: tuple[str, str, str] | None, rid: str, mode: str, *,
+            video: bool = False) -> tuple[list, dict]:
     """The send's `inner` and headers, as the web app builds them with the image tool chosen (captured 23/10,
-    fixtures/gemini/live-261023/web_request_*.json). The anti-bot token the page puts at inner[3] is not needed. A
-    ratio goes in the message (`[9][6]`) and as its option id (`[55]`); an edit names the uploaded file at `[3]`."""
+    fixtures/gemini/live-261023/web_request_*.json) or the video tool (24/10, live-261024/web_request_i2v.json). The
+    anti-bot token the page puts at inner[3] is not needed. An image ratio goes in the message (`[9][6]`) and as its
+    option id (`[55]`); an edit names the uploaded file at `[3]`. A video always names its ratio option (`[55]`); a text
+    to video carries the ratio in the message too, an image to video the web app's `[[null, null, null, 1]]` there and
+    the file at `[3]` in the shorter entry the video tool sends."""
     content: list = [text, 0, None, None, None, None, 0]
     if image is not None:
         path, mime, name = image
-        content[3] = [[[path, 1, None, mime, str(uuid.uuid4())], name, None, None, None, None, None, None, [0]]]
-    if ratio:
+        entry = [path, 1, None, mime, str(uuid.uuid4())]
+        content[3] = [[entry, name]] if video else [[entry, name, None, None, None, None, None, None, [0]]]
+    if video:
+        content += [None, None, [None, None, None, None, None, None,
+                                 [[None, None, None, 1]] if image is not None else [None, [None, ratio]]]]
+    elif ratio:
         content += [None, None, [None, None, None, None, None, None, [None, [None, ratio]]]]
+    option = [[C.VIDEO_RATIO_IDS[ratio]]] if video else [[C.RATIO_IDS[ratio]]] if ratio else []
     inner: list = [None] * 99
     for i, v in {0: content, 1: ["en"], 2: ["", "", "", None, None, None, None, None, None, ""], 4: uuid.uuid4().hex,
-                 6: [0], 7: 1, 10: 1, 11: 0, 17: [[0]], 18: 0, 27: 1, 30: [4, 16, 19], 41: [1], 49: IMAGE_TOOL,
-                 53: 0, 54: [], 55: [[C.RATIO_IDS[ratio]]] if ratio else [], 59: rid, 61: [], 67: 0, 68: 1, 79: 6,
-                 80: 1, 91: 1, 96: 0, 98: 1}.items():
+                 6: [0], 7: 1, 10: 1, 11: 0, 17: [[0]], 18: 0, 27: 1, 30: [4, 16, 19], 41: [1],
+                 49: VIDEO_TOOL if video else IMAGE_TOOL, 53: 0, 54: [], 55: option, 59: rid, 61: [], 67: 0, 68: 1,
+                 79: 6, 80: 1, 91: 1, 96: 0, 98: 1}.items():
         inner[i] = v
     headers = {
-        "x-goog-ext-525001261-jspb": json.dumps([1, None, None, None, MODE_AUTO, None, None, 0, CAPABILITIES, None,
+        "x-goog-ext-525001261-jspb": json.dumps([1, None, None, None, mode, None, None, 0, CAPABILITIES, None,
                                                  None, 1, None, None, 6, 1, rid]),
         "x-goog-ext-525005358-jspb": json.dumps([rid, 1]),
         "x-goog-ext-73010989-jspb": "[0]",
@@ -119,39 +156,54 @@ def request(text: str, ratio: str | None, image: tuple[str, str, str] | None, ri
     return inner, headers
 
 
-def outputs_of(images: tuple[Image, ...], chat: str | None) -> tuple[Output, ...]:
-    return tuple(Output(img.link, img.mime, i, img.name, {"chat": chat, "width": img.width, "height": img.height})
-                 for i, img in enumerate(images))
+def outputs_of(media: tuple[Image | Video, ...], chat: str | None) -> tuple[Output, ...]:
+    def meta(m):
+        extra = {"duration_s": m.duration_s} if isinstance(m, Video) else {}
+        return {"chat": chat, "width": m.width, "height": m.height, **extra}
+    return tuple(Output(m.link, m.mime, i, m.name, meta(m)) for i, m in enumerate(media))
 
 
-def judge(status: int, answer: Answer | None) -> tuple[str, object]:
-    """What a send's (or a chat read's) answer means: ("done", images) / ("refused", (code, text)) / ("unknown", why).
-    Only a complete answer (200, clean, ended) is ever "done" or "refused"."""
+def judge(status: int, answer: Answer | None, *, video: bool = False) -> tuple[str, object]:
+    """What a send's (or a chat read's) answer means: ("done", media) / ("taken", None) / ("refused", (code, text)) /
+    ("unknown", why). Only a complete answer (200, clean, ended) is ever "done", "taken" or "refused". `video`: the
+    job's media is a video, and a "generating your video" answer is "taken" (sent and accepted, not done)."""
     if status != 200 or answer is None:
         return "unknown", "gemini answered %d" % status
     if not answer.clean or not answer.ended:
         return "unknown", "the answer was cut or could not be read"
     if answer.errors:
         return "unknown", "the answer carried an error item"
-    if answer.images:
-        return "done", answer.images
+    media = answer.videos if video else answer.images
+    if media:
+        return "done", media
+    if video and answer.generating:
+        return "taken", None
     final = answer.texts[-1].strip() if answer.texts else ""
-    if not final or IMAGE_PLACEHOLDER in final:
-        return "unknown", "the answer named no image record"
+    if not final or IMAGE_PLACEHOLDER in final or VIDEO_PLACEHOLDER in final:
+        return "unknown", "the answer named no %s record" % ("video" if video else "image")
     if NOT_ENTITLED_LINK in final:
         return "refused", (errors.NOT_ENTITLED, final)
+    if video and VIDEO_LIMIT_TEXT in final:
+        return "refused", (errors.VIDEO_LIMIT, final)
     return "refused", (errors.REFUSED, final)
 
 
-def answer_result(status: int, answer: Answer | None, settings, now: datetime) -> SubmitResult:
+def answer_result(status: int, answer: Answer | None, settings, now: datetime, *, video: bool = False,
+                  rid: str | None = None) -> SubmitResult:
     """A send's verdict. Never `Retry` or `NotTaken`: the job was sent."""
     rest = pacing(settings, now)
-    verdict, what = judge(status, answer)
+    verdict, what = judge(status, answer, video=video)
     if verdict == "done":
         return _result(Completed(outputs_of(what, answer.cid)), Success(), *rest)
+    if verdict == "taken":
+        if not answer.cid:
+            return _result(Ambiguous("gemini took the video but named no chat"), *rest)
+        return _result(Accepted(answer.cid, {REQUEST_KEY: rid, CHAT_KEY: answer.cid}), Success(), *rest)
     if verdict == "refused":
         code, text = what
-        return _result(Fail(code, "gemini answered: %s" % text[:300], {CHAT_KEY: answer.cid}), Success(), *rest)
+        limited = (limit_rest(settings, now),) if code == errors.VIDEO_LIMIT else ()
+        return _result(Fail(code, "gemini answered: %s" % text[:300], {CHAT_KEY: answer.cid}), Success(), *rest,
+                       *limited)
     return _result(Ambiguous(what), *rest)
 
 
@@ -161,7 +213,7 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
                  wall: Callable[[], float] = time.time) -> SubmitResult:
     """Send the job. Exceptions of `ctx.report_ref` and `ctx.mark_sent` (a lost lease, a stopping worker) reach the
     core unchanged. The keyword arguments are seams for tests."""
-    sent = False
+    sent, video = False, is_video(job)
     try:
         async with Site(ctx, sessions, settings, transport=transport, clock=wall) as site:
             page = await site.load()
@@ -169,8 +221,13 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
                 return _result(Retry(errors.HTTP_ERROR))
             if not page.signed_in:
                 return _result(Retry(LOGGED_OUT), *doubt_effects(signed_out_why(site), now()))
+            mode = mode_of(ctx.account)
+            if mode is None or (site.email and (page.email or "").lower() != site.email):
+                why = "gemini's page is not the account's Google account, or the account was not checked yet"
+                return _result(Retry(errors.UNRESOLVED),
+                               Cooldown(why, now() + timedelta(seconds=NETWORK_REST_S), recheck=True))
             image = None
-            if job.operation == "image_to_image":
+            if job.operation in ("image_to_image", "image_to_video"):
                 ref = (await job.inputs())[0]
                 name = "input.%s" % (ref.mime.split("/")[-1] or "png")
                 path = await site.upload(name, await read_media(ref))
@@ -178,7 +235,8 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
                     return _result(Retry(errors.UPLOAD_FAILED))
                 image = (path, ref.mime, name)
             rid = str(uuid.uuid4()).upper()
-            inner, headers = request(sent_text(job), job.params.get("ratio"), image, rid)
+            ratio = job.params.get("ratio") or (C.VIDEO_RATIO if video else None)
+            inner, headers = request(sent_text(job), ratio, image, rid, mode, video=video)
             await ctx.report_ref(rid, {REQUEST_KEY: rid})
             await ctx.mark_sent()
             sent = True
@@ -190,7 +248,7 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
             answer = read_answer(body)          # judged with its status, never instead of it
             if status == 200 and answer.cid:
                 await ctx.report_ref(answer.cid, {REQUEST_KEY: rid, CHAT_KEY: answer.cid})
-            return answer_result(status, answer, settings, now())
+            return answer_result(status, answer, settings, now(), video=video, rid=rid)
     except httpx.HTTPError as e:
         why = "gemini could not be reached (%s)" % type(e).__name__     # the text may carry the proxy URL
         if sent:       # never reached: the send's own errors are caught above. Kept as the money guard.

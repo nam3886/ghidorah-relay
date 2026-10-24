@@ -1,0 +1,198 @@
+{
+ "inner": [
+  [
+   "The apple slowly turns on the table",
+   0,
+   null,
+   [
+    [
+     [
+      "/contrib_service/ttl_1d/REDACTED",
+      1,
+      null,
+      "image/png",
+      "9c6838c2-5d0f-4e88-8c71-f55165c6264f"
+     ],
+     "input.png"
+    ]
+   ],
+   null,
+   null,
+   0,
+   null,
+   null,
+   [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    [
+     [
+      null,
+      null,
+      null,
+      1
+     ]
+    ]
+   ]
+  ],
+  [
+   "en"
+  ],
+  null,
+  "!<token>",
+  "74cdc67b930163c873c15a7156a8fb0d",
+  null,
+  [
+   0
+  ],
+  1,
+  null,
+  null,
+  1,
+  0,
+  null,
+  null,
+  null,
+  null,
+  null,
+  [
+   [
+    0
+   ]
+  ],
+  0,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  1,
+  null,
+  null,
+  [
+   4,
+   16,
+   19
+  ],
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  [
+   1
+  ],
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  11,
+  null,
+  null,
+  null,
+  0,
+  [],
+  [
+   [
+    16
+   ]
+  ],
+  null,
+  null,
+  null,
+  "5D0FEEA4-EC26-4325-907F-4785DEDCBDA6",
+  null,
+  [],
+  null,
+  null,
+  null,
+  null,
+  null,
+  0,
+  1,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  6,
+  1,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  1,
+  null,
+  null,
+  null,
+  null,
+  0,
+  null,
+  1
+ ],
+ "headers": {
+  "x-goog-ext-525001261-jspb": "[1,null,null,null,\"8c46e95b1a07cecc\",null,null,0,[4,5,6,8,16,19,20,4,5,6,8,16,19,20],null,null,2,null,null,6,1,\"4D9CFAAB-F45A-4EE0-8A22-7D241B40B4E1\",[\"boq_gemini-web-uiserver_20261022.15_p0\"],null,[[2,696500000],[1792804677,484000000]]]",
+  "x-goog-ext-525005358-jspb": "[\"5D0FEEA4-EC26-4325-907F-4785DEDCBDA6\",1]",
+  "x-goog-ext-73010989-jspb": "[0]",
+  "x-goog-ext-73010990-jspb": "[0,0,0]",
+  "x-same-domain": "1"
+ },
+ "uploads": [
+  {
+   "upload": "https://push.clients6.google.com/upload/",
+   "query": [
+    "authuser"
+   ],
+   "body_len": 20,
+   "method": "POST",
+   "headers": {
+    "push-id": "feeds/mcudyrk2a4khkz",
+    "x-goog-upload-command": "start",
+    "x-goog-upload-header-content-length": "1178053",
+    "x-goog-upload-protocol": "resumable",
+    "x-tenant-id": "bard-storage"
+   }
+  },
+  {
+   "upload": "https://push.clients6.google.com/upload/",
+   "query": [
+    "authuser",
+    "upload_id",
+    "upload_protocol"
+   ],
+   "body_len": 1178053,
+   "method": "POST",
+   "headers": {
+    "push-id": "feeds/mcudyrk2a4khkz",
+    "x-goog-upload-command": "upload, finalize",
+    "x-goog-upload-offset": "0",
+    "x-tenant-id": "bard-storage"
+   }
+  }
+ ]
+}

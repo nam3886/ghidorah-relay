@@ -13,17 +13,20 @@ from geminikit import (
     AT_TOKEN,
     BLOB,
     EMAIL,
+    MODE_FLASH_LITE,
     NEW_PSIDTS,
+    PRO_MODES,
     PSID,
     PSIDTS,
     Ctx,
     Gemini,
+    blob_for,
     settings,
 )
 
 from relay_core.providers import Cooldown, Dead, Proxy, Suspect
 from relay_core.testing.mutation import mutation
-from relay_gemini.credential import dump, jar_of
+from relay_gemini.credential import dump, email_of, jar_of
 from relay_gemini.engine import GeminiEngine, build_engine
 from relay_gemini.engine import http as H
 from relay_gemini.engine.check import check_account
@@ -199,8 +202,85 @@ def test_a_signed_in_page_is_alive_with_the_email_and_the_check_sends_nothing():
     log = []
     health = check(Gemini(log), Ctx(log))
     assert health.identity == EMAIL, "the identity is the email"
-    assert (health.state, health.display_name, health.state_patch) == ("alive", EMAIL, {})
+    assert (health.state, health.display_name) == ("alive", EMAIL)
+    assert health.state_patch == {"authuser": 0, "mode": "cf41b0e0dd7d53e5"}     # no email named: /u/0, its mode
     assert "SEND" not in log and not any(s.startswith("upload") for s in log)
+
+
+FIND = "            if (page.email or \"\").lower() == email:\n                return n\n"
+LIST_END = "            if not page.signed_in:\n                return None\n"
+MISMATCH = '            if site.email and (page.email or "").lower() != site.email:'
+
+
+@mutation(CHECK_FILE, MISMATCH, "            if False:", expect="the account named by email was not looked for")
+@mutation(HTTP_FILE, FIND, "", expect="the account named by email was not looked for")
+@mutation(CHECK_FILE, '            patch = {"authuser": site.authuser,', '            patch = {"authuser": 0,',
+          expect="the index found was not kept")
+@mutation(CHECK_FILE, "                page = site.page\n", "", expect="the identity is the account found")
+def test_the_check_finds_the_index_of_the_account_the_credential_names_and_keeps_it_with_its_mode():
+    log = []
+    fake = Gemini(log, accounts=["a@example.com", "b@example.com", "Owner.Pro@example.com", "c@example.com"],
+                  rpc={"otAQ7b": PRO_MODES})
+    health = check(fake, Ctx(log, blob=blob_for("owner.pro@example.com")))
+    assert health.state == "alive"
+    assert health.state_patch.get("authuser") == 2, \
+        "the account named by email was not looked for, or the index found was not kept: %s" % (health.state_patch,)
+    assert health.state_patch["mode"] == MODE_FLASH_LITE
+    assert health.identity == "Owner.Pro@example.com", "the identity is the account found: %s" % health.identity
+    pages = [r.url.path for r in fake.seen if r.method == "GET" and r.url.host == "gemini.google.com"]
+    assert pages == ["/app", "/app", "/u/1/app", "/u/2/app"], pages
+    mode_read = next(r for r in fake.seen if "otAQ7b" in str(r.url))
+    assert mode_read.url.path.startswith("/u/2/"), "the mode was read on another account"
+    # resolved already: one page load at that index, nothing looked through
+    log = []
+    fake = Gemini(log, accounts=["a@example.com", "b@example.com", "owner.pro@example.com"], rpc={"otAQ7b": PRO_MODES})
+    health = check(fake, Ctx(log, blob=blob_for("owner.pro@example.com"), state={"authuser": 2}))
+    assert health.state_patch["authuser"] == 2 and log.count("page") == 1
+
+
+@mutation(HTTP_FILE, LIST_END, "", expect="past the last account")
+def test_an_email_no_account_of_the_session_has_is_a_rest_and_a_recheck_never_a_strike():
+    log = []
+    fake = Gemini(log, accounts=["a@example.com", "b@example.com"])
+    health = check(fake, Ctx(log, blob=blob_for("owner.pro@example.com")))
+    assert health.state == "unknown" and [type(e) for e in health.effects] == [Cooldown], health
+    assert health.effects[0].recheck and health.effects[0].until == NOW + timedelta(seconds=600)
+    assert "owner.pro" not in health.effects[0].reason
+    pages = [r.url.path for r in fake.seen if r.method == "GET"]
+    assert pages == ["/app", "/app", "/u/1/app", "/u/2/app"], "looked past the last account: %s" % pages
+    assert "SEND" not in log
+
+
+@mutation(HTTP_FILE, "            if not jar.email:\n                self.authuser = 0",
+          "            if False:\n                self.authuser = 0", expect="not /u/0")
+def test_a_credential_with_no_email_goes_to_u0_whatever_an_older_check_kept():
+    log = []
+    fake = Gemini(log, accounts=["a@example.com", "b@example.com"])
+    health = check(fake, Ctx(log, state={"authuser": 1, "mode": "cf41b0e0dd7d53e5"}))
+    assert health.state_patch["authuser"] == 0 and health.identity == "a@example.com", "not /u/0: %s" % (health,)
+    assert [r.url.path for r in fake.seen if r.method == "GET"] == ["/app"]
+
+
+@mutation(HTTP_FILE, "            self._before, self.email = jar, jar.email\n",
+          "            self._before, self.email = jar, None\n", expect="the email was dropped")
+@mutation(HTTP_FILE, "    return Jar({**old.cookies, **new.cookies}, new.rotated_at, a.email).blob()",
+          "    return Jar({**old.cookies, **new.cookies}, new.rotated_at).blob()", expect="the email was dropped")
+def test_the_named_account_survives_every_rotation_and_merge_of_the_session():
+    log = []
+    ctx = Ctx(log, blob=blob_for("owner.pro@example.com"))
+    ctx.stored_as = lambda mine: H.merge_blobs(blob_for("owner.pro@example.com"), mine)
+    check(Gemini(log, accounts=["owner.pro@example.com"]), ctx)
+    assert ctx.renewed and all(email_of(b) == "owner.pro@example.com" for b in ctx.renewed), \
+        "the email was dropped from a written-back jar"
+    assert email_of(H.merge_blobs(blob_for("owner.pro@example.com"), BLOB)) == "owner.pro@example.com", \
+        "the email was dropped by a merge"
+    site = Site(Ctx([], blob=blob_for("owner.pro@example.com"), state={"authuser": 3}), Sessions(), settings(),
+                clock=lambda: 0.0)
+
+    async def enter():
+        async with site:
+            return site.email, site.authuser
+    assert asyncio.run(enter()) == ("owner.pro@example.com", 3), "the email was dropped on entering a run"
 
 
 def test_the_engine_is_built_with_the_settings_and_one_session_store():

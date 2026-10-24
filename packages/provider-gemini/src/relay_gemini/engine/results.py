@@ -8,24 +8,38 @@ Reads only: nothing here sends, so nothing here can spend.
   so no other send of the account starts in that window. Not found is `StillUnknown(answered=True)`, never `NotSent`:
   a send cut before its answer ended left no chat in the spike (FINDINGS 4), but that is not proof, so the render
   deadline ends such a job with its refund and it is never sent again.
-- Poll (a job `Found`): the chat read, judged like a send's answer (`submit.judge`): an image is `Done`; a final text
-  and no image is `Failed` (refunded); anything else `Pending`.
-- Fetch: the result link resolved to the original file's bytes link with the session (`Site.resolve`), then those
-  bytes from lh3 with no cookie, through the account's proxy (never direct when it has one).
+- Poll (a job `Found`, or a video job `Accepted`): the chat read, judged like a send's answer (`submit.judge`): the
+  job's media (an image, or a video) is `Done`; a final text and no media is `Failed` (refunded; the video limit
+  answer also rests the account's video pool); anything else, "generating your video" included, `Pending`.
+- Fetch: the result link resolved to the file's bytes link with the session (`Site.resolve`: an image's original, a
+  video's 720p MP4), then those bytes from lh3 (an image) or googlevideo.com (a video) with no cookie, through the
+  account's proxy (never direct when it has one).
 """
 
 import contextlib
 import random
 from collections.abc import AsyncIterator, Callable
+from datetime import UTC, datetime
 
 import httpx
 
 from relay_core.net import stream_download, system_resolver
 from relay_core.providers import Done, Failed, Found, Output, Pending, PollResult, Reconciled, StillUnknown, Success
-from relay_gemini.constants import BYTES_HOST, FIND_AFTER_S, FIND_BEFORE_S, LIST_PAGE, MEDIA_DEADLINE_S, MEDIA_MAX_BYTES
+from relay_gemini import errors
+from relay_gemini.constants import (
+    BYTES_HOST,
+    FIND_AFTER_S,
+    FIND_BEFORE_S,
+    FULL_SIZE,
+    LIST_PAGE,
+    MEDIA_DEADLINE_S,
+    MEDIA_MAX_BYTES,
+    VIDEO_BYTES_HOST,
+    VIDEO_SIZE,
+)
 from relay_gemini.engine.http import Sessions, Site, proxy_url
-from relay_gemini.engine.reply import Answer, Turn, chats, same_text, turns
-from relay_gemini.engine.submit import CHAT_KEY, REQUEST_KEY, judge, outputs_of, sent_text
+from relay_gemini.engine.reply import Turn, chats, same_text, turns
+from relay_gemini.engine.submit import CHAT_KEY, REQUEST_KEY, is_video, judge, limit_rest, outputs_of, sent_text
 
 LIST_CHATS = "MaZiqc"
 READ_CHAT = "hNvQHb"
@@ -90,7 +104,8 @@ def interval_s(settings, rand: Callable[[], float] = random.random) -> int:
 
 
 async def poll(ctx, job, settings, sessions: Sessions, *, transport=None,
-               rand: Callable[[], float] = random.random) -> PollResult:
+               rand: Callable[[], float] = random.random,
+               now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> PollResult:
     """The found chat's answer, judged like a send's."""
     chat, wait = (job.provider_state or {}).get(CHAT_KEY), interval_s(settings, rand)
     if not chat:
@@ -104,26 +119,29 @@ async def poll(ctx, job, settings, sessions: Sessions, *, transport=None,
         return PollResult(Pending("gemini could not be read (%s)" % type(e).__name__, wait, answered=False))
     if turn is None:
         return PollResult(Pending("the chat could not be read", wait, answered=answered))
-    verdict, what = judge(200, Answer(True, True, (), chat, turn.texts, turn.images, turn.errors))
+    verdict, what = judge(200, turn.answer(chat), video=is_video(job))
     if verdict == "done":
         return PollResult(Done(outputs_of(what, chat)), effects=(Success(),))
     if verdict == "refused":
         code, text = what
-        return PollResult(Failed(code, "gemini answered: %s" % text[:300]))
-    return PollResult(Pending(what, wait))
+        limited = (limit_rest(settings, now()),) if code == errors.VIDEO_LIMIT else ()
+        return PollResult(Failed(code, "gemini answered: %s" % text[:300]), effects=limited)
+    return PollResult(Pending("gemini is generating the video" if verdict == "taken" else what, wait))
 
 
 async def fetch(ctx, out: Output, settings, sessions: Sessions, *, transport=None, media_transport=None,
                 media_resolver=system_resolver) -> AsyncIterator[bytes]:
     """The bytes of `out`: its link resolved with the session (cookies only where their domain covers a hop), then
-    streamed from lh3 with no cookie. Both through the account's proxy. A link that does not resolve raises (the
-    fetcher retries; the render deadline bounds it)."""
+    streamed with no cookie from lh3 (an image) or googlevideo.com (a video). Both through the account's proxy. A link
+    that does not resolve raises (the fetcher retries; the render deadline bounds it)."""
+    video = out.mime.startswith("video/")
     async with Site(ctx, sessions, settings, transport=transport) as site:
-        link = await site.resolve(out.ref)
+        link = await site.resolve(out.ref, VIDEO_SIZE if video else FULL_SIZE)
     if link is None:
-        raise RuntimeError("the result link did not resolve to the image")
+        raise RuntimeError("the result link did not resolve to the file")
     async with contextlib.aclosing(stream_download(
-            link, hosts=(BYTES_HOST,), proxy=proxy_url(ctx.account.proxy), max_bytes=MEDIA_MAX_BYTES,
+            link, hosts=(VIDEO_BYTES_HOST,) if video else (BYTES_HOST,), proxy=proxy_url(ctx.account.proxy),
+            max_bytes=MEDIA_MAX_BYTES,
             deadline_s=MEDIA_DEADLINE_S, resolver=media_resolver, transport=media_transport)) as parts:
         async for part in parts:
             yield part

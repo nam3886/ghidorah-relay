@@ -6,13 +6,21 @@ conversation, the next ones repeat it with the candidate at `[4][0]`: `[rcid, [t
 A drawn image is a record `[null, 1, <file name>, "https://lh3.googleusercontent.com/gg-dl/...", null, <token>, ...,
 "image/png", ..., [width, height, bytes]]` under the candidate's `[12]` (a chat read carries the same record with a
 `/gg/` link). The record is found by its shape anywhere in the payload, not by a fixed path (the paths drift).
+
+A video send answers only that it was taken: a payload `{"7": ["I'm generating your video...", ["video_generation",
+...]]}` and no candidate (FINDINGS 7). The video shows up later in the chat read, a record `[null, 2, "video.mp4", null,
+null, <token>, null, [<lh3 /gg/ link>, <contribution link>, <poster link>], ..., "video/mp4", ..., [[secs, nanos],
+width, height], ..., bytes]` under the candidate.
 """
 
 import json
 import re
 from dataclasses import dataclass
 
+from relay_gemini.constants import GENERATING_MARK
+
 _CID = re.compile(r"c_[0-9a-f]{8,}")
+_MODE = re.compile(r"[0-9a-f]{16}")
 LINK_PREFIX = "https://lh3.googleusercontent.com/gg"     # /gg-dl/ (a send's answer) or /gg/ (a chat read)
 
 
@@ -27,11 +35,23 @@ class Image:
 
 
 @dataclass(frozen=True)
+class Video:
+    link: str
+    mime: str
+    name: str | None
+    width: int | None
+    height: int | None
+    duration_s: float | None
+    size: int | None
+
+
+@dataclass(frozen=True)
 class Answer:
     """What one answer said. `clean`: every line was the guard, a length or a JSON frame (nothing cut or unreadable).
     `cid`: the conversation it names (None: none). `texts`: every candidate text, in order (the last is the final
-    one). `images`: the drawn images of the LAST payload that has a candidate (each payload repeats the whole answer so
-    far). `errors`: error items (`["er", ...]`) or error codes a payload carried."""
+    one). `images`, `videos`: the media of the LAST payload that has a candidate (each payload repeats the whole answer
+    so far). `generating`: some payload carries the "generating your video" item. `errors`: error items (`["er", ...]`)
+    or error codes a payload carried."""
     clean: bool
     ended: bool
     payloads: tuple
@@ -39,6 +59,8 @@ class Answer:
     texts: tuple[str, ...]
     images: tuple[Image, ...]
     errors: tuple
+    videos: tuple[Video, ...] = ()
+    generating: bool = False
 
 
 def _items(text: str) -> tuple[list, list, bool, bool]:
@@ -110,6 +132,38 @@ def images_in(node) -> tuple[Image, ...]:
     return tuple(out)
 
 
+def video_of(record) -> Video | None:
+    """One video record, by its shape: a list with a `video/...` type whose [7] is a list of links led by an lh3 `/gg`
+    link; its size `[[secs, nanos], width, height]` and its byte count (the last item) when they are there."""
+    if not isinstance(record, list) or len(record) < 8 or not isinstance(record[7], list) or not record[7] \
+            or not isinstance(record[7][0], str) or not record[7][0].startswith(LINK_PREFIX):
+        return None
+    mime = next((x for x in record if isinstance(x, str) and x.startswith("video/")), None)
+    if mime is None:
+        return None
+    size = next((x for x in record if isinstance(x, list) and len(x) == 3 and isinstance(x[0], list)
+                 and len(x[0]) == 2 and all(type(v) is int for v in (*x[0], x[1], x[2]))), None)
+    width, height, duration = (size[1], size[2], size[0][0] + size[0][1] / 1e9) if size else (None, None, None)
+    name = record[2] if isinstance(record[2], str) else None
+    return Video(record[7][0], mime, name, width, height, duration, record[-1] if type(record[-1]) is int else None)
+
+
+def videos_in(node) -> tuple[Video, ...]:
+    """Every distinct video record anywhere in `node`, in order (a link once)."""
+    out, seen = [], set()
+    for n in _walk(node):
+        vid = video_of(n)
+        if vid is not None and vid.link not in seen:
+            seen.add(vid.link)
+            out.append(vid)
+    return tuple(out)
+
+
+def generating(node) -> bool:
+    """Does `node` carry the "I'm generating your video" item (`["video_generation", ...]`)?"""
+    return any(n == GENERATING_MARK for n in _walk(node))
+
+
 def _candidate_texts(node) -> list[str]:
     """The text of every candidate `[rcid, [text, ...], ...]` in `node`."""
     out = []
@@ -134,7 +188,7 @@ def read_answer(text: str) -> Answer:
             last = p
     texts = tuple(_candidate_texts(last)) if last is not None else ()
     return Answer(clean, ended, tuple(payloads), cid, texts, images_in(last) if last is not None else (),
-                  tuple(errors))
+                  tuple(errors), videos_in(last) if last is not None else (), generating(payloads))
 
 
 # ---- the chat list and a chat read ---------------------------------------------------------------------------------
@@ -166,12 +220,19 @@ def chats(text: str) -> tuple[list[Chat], bool]:
 
 @dataclass(frozen=True)
 class Turn:
-    """One user turn of a chat read (hNvQHb): what was sent, the answer's final text and images, and the error items
-    the read carried (any one makes the read prove nothing)."""
+    """One user turn of a chat read (hNvQHb): what was sent, the answer's final text, images and videos, whether it is
+    still "generating your video", and the error items the read carried (any one makes the read prove nothing). Only
+    the answer (`turn[3]`) is searched: an input image sits in what was sent (`turn[2]`)."""
     prompt: str | None
     texts: tuple[str, ...]
     images: tuple[Image, ...]
     errors: tuple = ()
+    videos: tuple[Video, ...] = ()
+    generating: bool = False
+
+    def answer(self, cid: str) -> Answer:
+        """The turn as a complete answer, judged like a send's."""
+        return Answer(True, True, (), cid, self.texts, self.images, self.errors, self.videos, self.generating)
 
 
 def turns(text: str) -> tuple[list[Turn], bool]:
@@ -188,8 +249,21 @@ def turns(text: str) -> tuple[list[Turn], bool]:
         sent = row[2]
         prompt = sent[0][0] if isinstance(sent, list) and sent and isinstance(sent[0], list) and sent[0] \
             and isinstance(sent[0][0], str) else None
-        out.append(Turn(prompt, tuple(_candidate_texts(row[3])), images_in(row[3]), tuple(errors)))
+        out.append(Turn(prompt, tuple(_candidate_texts(row[3])), images_in(row[3]), tuple(errors),
+                        videos_in(row[3]), generating(row[3])))
     return out, True
+
+
+def first_mode(text: str) -> str | None:
+    """The account's first mode id (the mode menu's default: "Auto" on a free plan, "Flash-Lite" on AI Pro, measured
+    24/10) from an otAQ7b answer: payload[15] lists the modes `[id, name, ...]`. None when it cannot be read."""
+    payloads, _, clean, ended = _items(text)
+    if not clean or not ended or len(payloads) != 1:
+        return None
+    p = payloads[0]
+    modes = p[15] if isinstance(p, list) and len(p) > 15 else None
+    mode = modes[0][0] if isinstance(modes, list) and modes and isinstance(modes[0], list) and modes[0] else None
+    return mode if isinstance(mode, str) and _MODE.fullmatch(mode) else None
 
 
 def same_text(a: str | None, b: str) -> bool:

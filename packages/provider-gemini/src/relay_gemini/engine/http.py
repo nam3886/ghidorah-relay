@@ -31,9 +31,11 @@ from relay_core.providers import Proxy
 from relay_gemini.constants import (
     API_TIMEOUT_S,
     BASE_URL,
+    BYTES_HOST,
     FULL_SIZE,
     LINK_HOPS,
     LINK_HOSTS,
+    MAX_ACCOUNTS,
     ROTATE_BODY,
     ROTATE_URL,
     RPC_PATH,
@@ -42,8 +44,10 @@ from relay_gemini.constants import (
     UPLOAD_TENANT,
     UPLOAD_URL,
     USER_AGENT,
+    VIDEO_BYTES_HOST,
 )
-from relay_gemini.credential import dump, jar_of
+from relay_gemini.credential import dump, email_of, jar_of
+from relay_gemini.engine.reply import first_mode
 
 log = logging.getLogger(__name__)
 _AT = re.compile(r'"SNlM0e":"([^"]+)"')
@@ -66,25 +70,27 @@ def proxy_url(proxy: Proxy | None) -> str | None:
 # ---- the jar ------------------------------------------------------------------------------------------------------
 @dataclass
 class Jar:
-    """One account's cookies, keyed (domain, path, name), and when the session was last rotated (unix s)."""
+    """One account's cookies, keyed (domain, path, name), when the session was last rotated (unix s), and the Google
+    account it is meant for (the credential's optional email)."""
     cookies: dict[tuple[str, str, str], str]
     rotated_at: float
+    email: str | None = None
 
     @classmethod
     def of(cls, blob: bytes) -> "Jar":
         cookies, rotated_at = jar_of(blob)
-        return cls({(c["domain"], c["path"], c["name"]): c["value"] for c in cookies}, rotated_at)
+        return cls({(c["domain"], c["path"], c["name"]): c["value"] for c in cookies}, rotated_at, email_of(blob))
 
     @classmethod
-    def of_client(cls, jar: httpx.Cookies, rotated_at: float) -> "Jar":
-        return cls({(c.domain, c.path or "/", c.name): c.value or "" for c in jar.jar}, rotated_at)
+    def of_client(cls, jar: httpx.Cookies, rotated_at: float, email: str | None = None) -> "Jar":
+        return cls({(c.domain, c.path or "/", c.name): c.value or "" for c in jar.jar}, rotated_at, email)
 
     def copy(self) -> "Jar":
-        return Jar(dict(self.cookies), self.rotated_at)
+        return Jar(dict(self.cookies), self.rotated_at, self.email)
 
     def blob(self) -> bytes:
         return dump([{"name": n, "value": v, "domain": d, "path": p} for (d, p, n), v in self.cookies.items()],
-                    self.rotated_at)
+                    self.rotated_at, self.email)
 
     def client_cookies(self) -> httpx.Cookies:
         out = httpx.Cookies()
@@ -137,7 +143,7 @@ def merge_blobs(stored: bytes, mine: bytes) -> bytes:
     later wins (a tie: the stored one); a cookie only one of them has is kept."""
     a, b = Jar.of(stored), Jar.of(mine)
     old, new = (a, b) if a.rotated_at < b.rotated_at else (b, a)
-    return Jar({**old.cookies, **new.cookies}, new.rotated_at).blob()
+    return Jar({**old.cookies, **new.cookies}, new.rotated_at, a.email).blob()      # the stored account stays
 
 
 # ---- the page ----------------------------------------------------------------------------------------------------
@@ -163,15 +169,25 @@ def read_page(status: int, html: str) -> Page:
 
 
 # ---- one run of one account ---------------------------------------------------------------------------------------
+def authuser_of(account) -> int:
+    """The `/u/N` index of the account's Google account in its session: the one the check resolved from the
+    credential's email (`provider_state.authuser`), else 0."""
+    n = (account.provider_state or {}).get("authuser")
+    return n if type(n) is int and 0 <= n < MAX_ACCOUNTS else 0
+
+
 class Site:
-    """One run of one account against flow: its client (cookies, proxy, no redirects), the session rotation when due,
-    the page load and the RPCs. Use as `async with Site(...) as site:`; leaving it writes the changed cookies back."""
+    """One run of one account against gemini: its client (cookies, proxy, no redirects), the session rotation when
+    due, the page load and the RPCs. Use as `async with Site(...) as site:`; leaving it writes the changed cookies back.
+    Every gemini call goes to the account's `/u/N` (`authuser`; none for 0, FINDINGS 6)."""
 
     def __init__(self, ctx, sessions: Sessions, settings, *, transport: httpx.AsyncBaseTransport | None = None,
                  clock: Callable[[], float] = time.time):
         self.ctx, self.sessions, self.settings, self.clock = ctx, sessions, settings, clock
         self.account = ctx.account
         self.transport = transport
+        self.authuser = authuser_of(self.account)
+        self.email: str | None = None          # the Google account the credential names (None: none named)
         self.page: Page | None = None
         self.rotation: int | None = None      # the status of this run's RotateCookies; None: none was due
         self._before: Jar | None = None
@@ -181,7 +197,9 @@ class Site:
         inner = self.transport or httpx.AsyncHTTPTransport(proxy=proxy_url(self.account.proxy), trust_env=False)
         async with self.sessions.lock(self.account.id):
             jar = self.sessions.current(self.account)
-            self._before = jar
+            self._before, self.email = jar, jar.email
+            if not jar.email:
+                self.authuser = 0            # no account named: `/u/0`, whatever an older credential resolved
             self.client = httpx.AsyncClient(
                 cookies=jar.client_cookies(), transport=inner, timeout=API_TIMEOUT_S, follow_redirects=False,
                 trust_env=False, headers={"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"})
@@ -228,10 +246,31 @@ class Site:
         finally:
             await self.client.aclose()
 
+    def _url(self, path: str) -> str:
+        return BASE_URL + ("/u/%d" % self.authuser if self.authuser else "") + path
+
     async def load(self, path: str = "/app") -> Page:
-        resp = await self.client.get(BASE_URL + path, headers={"Accept": "text/html,application/xhtml+xml"})
+        resp = await self.client.get(self._url(path), headers={"Accept": "text/html,application/xhtml+xml"})
         self.page = read_page(resp.status_code, resp.text if resp.status_code == 200 else "")
         return self.page
+
+    async def find_account(self, email: str) -> int | None:
+        """Load `/u/0`, `/u/1`, ... until the page names `email`; that index becomes this run's `authuser`. None when
+        no signed-in account of the session has it (the first index that is not a signed-in page ends the list:
+        measured, `/u/5` of a 5-account session answers 302)."""
+        for n in range(MAX_ACCOUNTS):
+            self.authuser = n
+            page = await self.load()
+            if not page.signed_in:
+                return None
+            if (page.email or "").lower() == email:
+                return n
+        return None
+
+    async def mode(self) -> str | None:
+        """The account's default mode id (otAQ7b), sent with every order: the modes differ by plan (FINDINGS 6)."""
+        status, body = await self.rpc("otAQ7b", [])
+        return first_mode(body) if status == 200 else None
 
     def _query(self, **extra) -> str:
         page = self.page
@@ -244,17 +283,17 @@ class Site:
     async def rpc(self, rpcid: str, args, path: str = "/app") -> tuple[int, str]:
         """One batchexecute read; the page must be loaded (signed in). HTTP errors propagate."""
         resp = await self.client.post(
-            "%s%s?%s" % (BASE_URL, RPC_PATH, self._query(rpcids=rpcid, **{"source-path": path})),
+            "%s?%s" % (self._url(RPC_PATH), self._query(rpcids=rpcid, **{"source-path": path})),
             content=self._form([[[rpcid, json.dumps(args, separators=(",", ":")), None, "generic"]]]),
             headers={"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8", "Origin": BASE_URL,
                      "Referer": BASE_URL + path, "X-Same-Domain": "1", "Accept": "*/*"})
         return resp.status_code, resp.text
 
     async def send(self, inner: list, headers: dict, timeout: float) -> tuple[int, str]:
-        """The ONE StreamGenerate POST of a job, its whole answer read (it ends when the image is drawn). HTTP errors
-        and timeouts propagate: the caller decides what they mean."""
+        """The ONE StreamGenerate POST of a job, its whole answer read (it ends when the image is drawn, or when a video
+        is taken). HTTP errors and timeouts propagate: the caller decides what they mean."""
         resp = await self.client.post(
-            "%s%s?%s" % (BASE_URL, STREAM_PATH, self._query()),
+            "%s?%s" % (self._url(STREAM_PATH), self._query()),
             content=self._form([None, json.dumps(inner, separators=(",", ":"))]), timeout=timeout,
             headers={"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8", "Origin": BASE_URL,
                      "Referer": BASE_URL + "/app", "X-Same-Domain": "1", "Accept": "*/*", **headers})
@@ -262,9 +301,12 @@ class Site:
 
     async def upload(self, name: str, data: bytes) -> str | None:
         """The web app's resumable upload of one input image (free): `start`, then the bytes with `upload,
-        finalize`. The storage path the send names the image by, or None when a step was not answered with one."""
+        finalize`. The storage path the send names the image by, or None when a step was not answered with one. On
+        `/u/N` the upload names the account (`?authuser=N`) as the web app does: a file uploaded without it was
+        refused by that account's send (FINDINGS 7)."""
         base = {"Origin": BASE_URL, "Referer": BASE_URL + "/", "Push-ID": UPLOAD_PUSH_ID, "X-Tenant-Id": UPLOAD_TENANT}
-        start = await self.client.post(UPLOAD_URL, content="File name: " + name, headers={
+        url = UPLOAD_URL + ("?authuser=%d" % self.authuser if self.authuser else "")
+        start = await self.client.post(url, content="File name: " + name, headers={
             **base, "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8", "X-Goog-Upload-Command": "start",
             "X-Goog-Upload-Header-Content-Length": str(len(data)), "X-Goog-Upload-Protocol": "resumable"})
         target = start.headers.get("x-goog-upload-url") if start.status_code == 200 else None
@@ -277,15 +319,19 @@ class Site:
         path = done.text.strip() if done.status_code == 200 else ""
         return path if path.startswith("/contrib_service/") else None
 
-    async def resolve(self, link: str) -> str | None:
-        """A result link (`/gg-dl/` of a reply, `/gg/` of a chat read) to the link of the original file's bytes: the
-        link with `=d-I` and `alr=yes` answers the next link as text, the session's cookies going only where their
-        domain covers the host (FINDINGS 3). Every hop must be https on `LINK_HOSTS`. None when a hop is not, or the
-        chain does not end, inside `LINK_HOPS`, in an answer that is not text."""
-        current = re.sub(r"=[A-Za-z0-9-]+$", "", link) + FULL_SIZE + "?alr=yes"
+    async def resolve(self, link: str, size: str = FULL_SIZE) -> str | None:
+        """A result link (`/gg-dl/` of a reply, `/gg/` of a chat read) to the link of the file's bytes: the link with
+        `size` (`=d-I` an image's original, `=m22` a video's 720p MP4) and `alr=yes` answers the next link as text, the
+        session's cookies going only where their domain covers the host (FINDINGS 3, 7). On `/u/N` the first link and
+        every hop off lh3.googleusercontent.com name the account (`authuser=N`): without it the last hop is 403. Every
+        hop must be https on `LINK_HOSTS` or, for a video's bytes, a googlevideo.com host. None when a hop is not, or
+        the chain does not end, inside `LINK_HOPS`, in an answer that is not text."""
+        au = "&authuser=%d" % self.authuser if self.authuser else ""
+        current = re.sub(r"=[A-Za-z0-9-]+$", "", link) + size + "?alr=yes" + au
         for _ in range(LINK_HOPS):
             parts = urlsplit(current)
-            if parts.scheme != "https" or parts.hostname not in LINK_HOSTS:
+            host = parts.hostname or ""
+            if parts.scheme != "https" or (host not in LINK_HOSTS and not host.endswith("." + VIDEO_BYTES_HOST)):
                 return None
             async with self.client.stream("GET", current, headers={"Referer": BASE_URL + "/"}) as resp:
                 if resp.status_code != 200:
@@ -295,7 +341,8 @@ class Site:
                 text = (await resp.aread()).decode("utf-8", "replace").strip()
             if not text.startswith("https://"):
                 return None
-            current = text
+            current = text if not au or urlsplit(text).hostname == BYTES_HOST \
+                else text + ("&" if "?" in text else "?") + au[1:]
         return None
 
 

@@ -1,6 +1,6 @@
 """A fake gemini.google.com (an `httpx.MockTransport`, no network) fed gemini's recorded answers from
-fixtures/gemini/live-261023, a RunCtx that writes every platform step to the same log as the calls, and a
-Cookie-Editor export with planted values."""
+fixtures/gemini/live-261023 (the free account, images) and live-261024 (the AI Pro account at /u/4, videos), a RunCtx
+that writes every platform step to the same log as the calls, and a Cookie-Editor export with planted values."""
 
 import json
 from datetime import UTC, datetime
@@ -15,6 +15,7 @@ from relay_gemini.credential import parse_credential
 from relay_gemini.spec import SPEC
 
 FIX = Path(__file__).resolve().parents[3] / "fixtures" / "gemini" / "live-261023"
+FIX_PRO = FIX.parent / "live-261024"
 PSID = "g.a000PLANTED-PSID-value_0123456789"            # planted values: never in a log, an error or an event
 PSIDTS = "sidts-PLANTED-OLD-0123456789"
 NEW_PSIDTS = "sidts-PLANTED-NEW-9876543210"
@@ -27,6 +28,10 @@ def fixture(name: str) -> str:
     return (FIX / name).read_text(encoding="utf-8")
 
 
+def pro(name: str) -> str:
+    return (FIX_PRO / name).read_text(encoding="utf-8")
+
+
 T2I = fixture("t2i_16x9_reply.txt")               # a complete answer with one 1408x768 image
 I2I = fixture("i2i_reply.txt")
 NOT_ENTITLED = fixture("t2v_not_entitled_reply.txt")   # "If you upgrade your subscription, ..."
@@ -37,6 +42,21 @@ T2I_PROMPT = "A red apple on a white table, studio photo"
 T2I_LINK = "https://lh3.googleusercontent.com/gg-dl/IMAGE1"
 READ_LINK = "https://lh3.googleusercontent.com/gg/IMAGE7"
 UPLOADED = "/contrib_service/ttl_1d/REDACTED"
+MODES = fixture("account_otAQ7b.txt")             # the free account: one mode, "Auto"
+MODE_AUTO = "cf41b0e0dd7d53e5"
+# the AI Pro account (/u/4), 24/10
+PRO_MODES = pro("account_pro_otAQ7b.txt")          # first mode "Flash-Lite"
+MODE_FLASH_LITE = "8c46e95b1a07cecc"
+T2V_ACCEPTED = pro("t2v_accepted_reply.txt")      # "I'm generating your video..." and the chat id, no candidate
+I2V_ACCEPTED = pro("i2v_accepted_reply.txt")
+I2V_ERROR = pro("i2v_error_1100_reply.txt")       # error 13 / BardErrorInfo 1100 in 1.3 s, no chat (not taken)
+T2V_PENDING = pro("t2v_pending_read_hNvQHb.txt")  # the chat read while the video is made
+T2V_DONE = pro("t2v_done_read_hNvQHb.txt")        # ... and once it is there: one 1280x720 10 s video record
+I2V_PENDING = pro("i2v_pending_read_hNvQHb.txt")  # holds the input image (in what was sent), no result yet
+I2V_DONE = pro("i2v_done_read_hNvQHb.txt")
+VIDEO_LIMIT = pro("video_limit_read_hNvQHb.txt")  # "I can't create more videos for you today, ..."
+T2V_PROMPT = "A paper boat drifting across a calm pond at sunrise, gentle ripples, soft golden light"
+I2V_PROMPT = "The apple slowly turns on the table while soft morning light sweeps across it"
 
 
 def frames(*payloads, end: bool = True, rpcid=None) -> str:
@@ -75,12 +95,17 @@ def chat_read(prompt: str, text: str, *, image: bool = True, cid: str = "c_00000
     return frames([[turn]], rpcid="hNvQHb")
 
 
-def page(signed_in: bool = True) -> str:
+def page(signed_in: bool = True, address: str = EMAIL) -> str:
     """The parts of gemini's page the provider reads (the recorded page is not kept: it held the session)."""
     at = '"SNlM0e":"%s",' % AT_TOKEN if signed_in else ""
-    email = '"oPEP7c":"%s",' % EMAIL if signed_in else '"oPEP7c":"",'
+    email = '"oPEP7c":"%s",' % address if signed_in else '"oPEP7c":"",'
     return ('<html><script>window.WIZ_global_data = {%s"FdrFJe":"-1234567890123456789",'
             '"cfb2h":"boq_gemini-web-uiserver_20261022.15_p0",%s"x":1};</script></html>' % (at, email))
+
+
+def blob_for(email: str | None) -> bytes:
+    """The sealed credential of `export()` naming the Google account `email`."""
+    return parse_credential(json.dumps({"cookies": export(), "email": email}).encode()).blob
 
 
 def export(**extra) -> list[dict]:
@@ -113,14 +138,16 @@ def _take(table, key):
 class Gemini:
     """A fake gemini.google.com + accounts.google.com + push.clients6 + the lh3 link chain. `send` and `rpc[rpcid]`
     are a response text, an `httpx.Response`, an exception, a callable of the request, or a list of those taken in
-    order (the last one repeats). `log` is shared with the ctx."""
+    order (the last one repeats). `log` is shared with the ctx. `accounts`: the emails of a session signed in to
+    several Google accounts, by `/u/N` index (an index past the last answers 302); None: one account, any path."""
 
     def __init__(self, log: list, *, signed_in=True, page_status=200, rotate=200, send=None, rpc=None,
                  upload_url="https://push.clients6.google.com/upload/?upload_id=u1", upload_body=UPLOADED,
-                 chain=None):
+                 chain=None, accounts=None):
         self.log, self.seen = log, []
         self.signed_in, self.page_status, self.rotate = signed_in, page_status, rotate
-        self.send, self.rpc = send, dict(rpc or {})
+        self.send, self.rpc = send, {"otAQ7b": MODES, **(rpc or {})}
+        self.accounts = accounts
         self.upload_url, self.upload_body = upload_url, upload_body
         # the link chain: host -> (status, content-type, body)
         self.chain = chain if chain is not None else {
@@ -162,12 +189,21 @@ class Gemini:
             if "rd-gg-dl" in url.path:
                 return httpx.Response(200, headers={"content-type": "image/png"}, content=b"\x89PNG")
             return httpx.Response(status, headers={"content-type": kind}, text=body)
+        if url.netloc.endswith(".googlevideo.com"):      # a video's bytes (the fetcher downloads them)
+            self.log.append("link:googlevideo")
+            return httpx.Response(200, headers={"content-type": "video/mp4"}, content=b"\0\0\0\x18ftypmp42")
         if url.netloc != "gemini.google.com":
             self.log.append("off:" + url.netloc)
             return httpx.Response(404, text="not here")
         if request.method == "GET":
             self.log.append("page")
-            return httpx.Response(self.page_status, text=page(self.signed_in), headers=[
+            address = EMAIL
+            if self.accounts is not None:
+                n = int(url.path.split("/")[2]) if url.path.startswith("/u/") else 0
+                if n >= len(self.accounts):
+                    return httpx.Response(302, headers={"location": "https://accounts.google.com/"})
+                address = self.accounts[n]
+            return httpx.Response(self.page_status, text=page(self.signed_in, address), headers=[
                 ("set-cookie", "SIDCC=sidcc-from-page; Domain=.google.com; Path=/; Secure")])
         if url.path.endswith("/StreamGenerate"):
             self.log.append("SEND")
@@ -197,9 +233,10 @@ class Ctx:
     """The RunCtx an engine sees. Every platform step goes to the shared log; `renewed` keeps each written jar."""
 
     def __init__(self, log: list, *, blob: bytes = BLOB, gen: int = 1, proxy: Proxy | None = None,
-                 account_id: str = "acc-1", renew_ok: bool = True):
+                 account_id: str = "acc-1", renew_ok: bool = True, state=None):
         self.log = log
-        self.account = AccountView(account_id, "acc", blob, gen, proxy, {}, {"image": None}, "pk")
+        state = {"mode": MODE_AUTO} if state is None else state      # what the account check keeps
+        self.account = AccountView(account_id, "acc", blob, gen, proxy, state, {"image": None, "video": None}, "pk")
         self.refs: list[tuple[str, dict]] = []
         self.events: list[str] = []
         self.renewed: list[bytes] = []
@@ -230,14 +267,15 @@ class Ctx:
 
 
 def job(prompt=T2I_PROMPT, *, ratio=None, images=0, state=None, sent_at=SENT_AT, sent=None, frame_id=1,
-        ref=None) -> JobView:
+        ref=None, model="gemini-nano-banana-2") -> JobView:
     """A job as the core hands it to the engine: planned by the spec, `sent_text` the verbatim frame render."""
     from relay_core import frames
     from relay_core.providers import MediaIn
-    req = CreateRequest(model="gemini-nano-banana-2", prompt=prompt, ratio=ratio,
+    req = CreateRequest(model=model, prompt=prompt, ratio=ratio,
                         images=tuple(MediaIn("0" * 64, "image/png", 10) for _ in range(images)))
     plan = SPEC.plan(req, settings(), {})
-    text = frames.render(SPEC.frames.defaults["image"], prompt, "7100", SPEC.frames.verbatim) if sent is None else sent
+    text = frames.render(SPEC.frames.defaults[plan.media_type], prompt, "7100", SPEC.frames.verbatim) \
+        if sent is None else sent
 
     async def inputs():
         return [MediaRef(0, "jobs/j1/input/0.png", "image/png", 10)] if images else []

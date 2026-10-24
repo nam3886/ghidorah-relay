@@ -1,12 +1,14 @@
 """gemini credentials: a Google cookie session, imported from a Cookie-Editor export of gemini.google.com.
 
-Accepted input: a JSON list of cookies, `{"url": ..., "cookies": [...]}`, or the sealed shape itself. Only cookies of
-google.com and its subdomains are kept (the .google.com session set and the .gemini.google.com cookies);
-`__Secure-1PSID` must be there. Everything becomes ONE sealed shape:
-`{"cookies": [{name, value, domain, path}], "rotated_at": <unix s>}`. A domain that starts with "." is a domain cookie,
-one without is host-only. `rotated_at` is when the provider last rotated the session (0 on import: the first use
-rotates). The engine writes the rotated jar back in this same shape (`RunCtx.renew_credential`). No function here logs
-or raises with a cookie value.
+Accepted input: a JSON list of cookies, `{"url": ..., "cookies": [...], "email": ...}`, or the sealed shape itself.
+Only cookies of google.com and its subdomains are kept (the .google.com session set and the .gemini.google.com
+cookies); `__Secure-1PSID` must be there. Everything becomes ONE sealed shape:
+`{"cookies": [{name, value, domain, path}], "rotated_at": <unix s>, "email": <optional>}`. A domain that starts with
+"." is a domain cookie, one without is host-only. `rotated_at` is when the provider last rotated the session (0 on
+import: the first use rotates). `email` (optional, lowercased) names the Google account to use in a session signed in
+to several: the account check finds its `/u/N` index (FINDINGS 6); without one the jobs go to `/u/0`. The engine writes
+the rotated jar back in this same shape (`RunCtx.renew_credential`). No function here logs or raises with a cookie
+value.
 """
 
 import json
@@ -22,6 +24,7 @@ MAX_COOKIES = 300   # far above a real export (about 20 Google cookies); a longe
 # RFC 6265 cookie value characters: the value can never break out of the `Cookie:` header it is sent in.
 _COOKIE_VALUE = re.compile(r"[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*")
 _COOKIE_NAME = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+")
+_EMAIL = re.compile(r"[^@\s\"]+@[^@\s\"]+\.[^@\s\"]+")
 
 
 def on_google(domain: str) -> bool:
@@ -65,10 +68,20 @@ def _cookies(data: object) -> tuple[list[dict], float]:
     return [_cookie(c, default) for c in data], rotated_at
 
 
-def dump(cookies: list[dict], rotated_at: float) -> bytes:
+def _email(data: object) -> str | None:
+    """The optional `email` of an import or a sealed credential, lowercased. ValueError when it is not an address."""
+    raw = data.get("email") if isinstance(data, Mapping) else None
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or len(raw) > 254 or not _EMAIL.fullmatch(raw.strip()):
+        raise ValueError("the email is not an email address")
+    return raw.strip().lower()
+
+
+def dump(cookies: list[dict], rotated_at: float, email: str | None = None) -> bytes:
     """The sealed shape."""
-    return json.dumps({"cookies": cookies, "rotated_at": rotated_at}, separators=(",", ":"),
-                      ensure_ascii=False).encode()
+    data = {"cookies": cookies, "rotated_at": rotated_at, **({"email": email} if email else {})}
+    return json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode()
 
 
 def parse_credential(raw: bytes) -> ParsedCredential:
@@ -81,16 +94,27 @@ def parse_credential(raw: bytes) -> ParsedCredential:
     except ValueError:
         raise ValueError("the credential is not a JSON cookie export") from None
     cookies, rotated_at = _cookies(data)
+    email = _email(data)
     cookies = [c for c in cookies if on_google(c["domain"])]
     if not any(c["name"] == SESSION_COOKIE and c["value"] for c in cookies):
         raise ValueError("the credential has no google.com %s cookie" % SESSION_COOKIE)
     # the hint is stored in plain text: no part of the session goes into it (the first check names the account)
-    return ParsedCredential(blob=dump(cookies, rotated_at), hint="gemini")
+    return ParsedCredential(blob=dump(cookies, rotated_at, email), hint="gemini")
+
+
+def _sealed(blob: bytes):
+    try:
+        data = json.loads(blob)
+        return _cookies(data), _email(data)
+    except (ValueError, TypeError):
+        raise ValueError("the sealed gemini credential is not readable") from None
 
 
 def jar_of(blob: bytes) -> tuple[list[dict], float]:
     """(cookies, rotated_at) of a sealed credential. ValueError (no value in it) when the blob is not one."""
-    try:
-        return _cookies(json.loads(blob))
-    except (ValueError, TypeError):
-        raise ValueError("the sealed gemini credential is not readable") from None
+    return _sealed(blob)[0]
+
+
+def email_of(blob: bytes) -> str | None:
+    """The Google account a sealed credential names (None: none, the jobs go to `/u/0`)."""
+    return _sealed(blob)[1]

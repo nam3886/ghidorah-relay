@@ -16,10 +16,16 @@ redacted (conversation ids replaced, geo cut, signed links and tokens replaced, 
 | t2v | 1 | Veo tool (inner[49] = 11) | **refused**: "If you upgrade your subscription, I can create that video for you today." |
 | i2v | 0 | — | not sent: the account is not entitled to video (t2v answer above) |
 
-**The exported session is a FREE Gemini plan, not AI Pro.** The jar holds four signed-in Google accounts (`/u/0`..`/u/3`);
-on every one the mode menu shows "3.1 Pro" locked (`upsell_MODE_CATEGORY_PRO`), an "Upgrade" button, no video tool,
-and `jSf9Qc` tier 1 (5 h window 600, week 12096, nothing used). Video (t2v/i2v) needs a session of an account whose
-Gemini plan includes Veo; the provider ships images only until that is measured.
+23/10 the sends above went to `/u/0`, a FREE account. **24/10 (section 6, 7): the jar holds FIVE signed-in accounts and
+the owner's AI Pro account is `/u/4`**; on it video works:
+
+| kind (24/10, `/u/4`, AI Pro) | sent | answer | output measured (ffprobe of the `=m22` MP4) |
+|---|---|---|---|
+| t2v, 16:9, mode Flash | 1 (01:07:43Z) | taken in 10.3 s ("I'm generating your video") | ready ≤ 42 s after the send; 1280×720 h264 24 fps + aac 44.1 kHz, **10.01 s**, 2,200,820 B (the record names 10.005 s, 3,748,734 B original) |
+| i2v (the 23/10 t2i PNG in), 16:9 | 1 (01:18:41Z) | taken in 33.3 s | ready 69-102 s after the send; 1280×720 h264 + aac, **10.01 s**, 1,459,119 B (record 2,132,282 B) |
+| i2v, two earlier tries | 2 (01:12:39Z, 01:13:59Z) | error 13 / `BardErrorInfo [1100]` in 1.3 s, no chat | not taken: no chat listed, the usage read unmoved. The upload lacked `?authuser=4` (and the file entry was the image tool's long one) |
+
+Each video used 453 units of the account's usage windows (5 h: 2400 → 1949 → 1496; week: 48384 → 47933 → 47480).
 
 ## 1. Auth and session
 - `GET /app` → 200; signed in ⇔ `SNlM0e` (`at`); `FdrFJe` (`f.sid`) and `cfb2h` (`bl`, `boq_gemini-web-uiserver_20261022.15_p0`)
@@ -76,8 +82,42 @@ Gemini plan includes Veo; the provider ships images only until that is measured.
 - `otAQ7b` (`/app`): `[14]` null = available; the mode list and the tool options (image ratio tool 248, video tool 185
   ratios, "Video gallery").
 
+## 6. Several Google accounts in one session (24/10, live-261024)
+- Read-only: `/u/N/app` for N = 0..5, each page's `oPEP7c` compared with the owner's email (no other email printed):
+  `/u/0`..`/u/3` free (tier 1, mode "Auto" only), **`/u/4` = the AI Pro account** (`jSf9Qc` tier 2, 5 h window 2400,
+  week 48384; the web app's footer "Pro"), `/u/5` answers 302 (no 6th account). No "Upgrade" on `/u/4`; its modes
+  (`otAQ7b` payload[15]) are Flash-Lite `8c46e95b1a07cecc` (the default, first), Flash `56fdd199312815e2`, Pro
+  `e6fa609c3fa255c0`, Argon; each lists tool 185 (video). The free accounts' "Auto" id does not exist on `/u/4`: the
+  send must carry the account's own mode id (header `x-goog-ext-525001261-jspb`[4]).
+- `/u/N` prefixes every gemini call (page, batchexecute, StreamGenerate). The upload names the account with
+  `?authuser=N` (captured from the web app). A result link's hops on lh3.google.com need `authuser=N` (without it the
+  last hop answered 403); added to the first link and every hop that is not lh3.googleusercontent.com.
+- The provider: the credential may carry `email`; the account check finds its index (stops at the first index that is
+  not a signed-in page), keeps it in `provider_state.authuser` with the default mode in `provider_state.mode`, and a
+  submit whose page is not that email (or an account not checked yet) is a retry before anything is sent.
+
+## 7. Video (Gemini Omni, AI Pro)
+- The send: inner[49] = 11 (video tool), inner[55] = [[16]] (Landscape; 17 = Portrait, not measured), the message's
+  `[9][6]` = `[null, [null, "16:9"]]` for text, `[[null, null, null, 1]]` with an image (web app capture
+  `web_request_i2v.json`); an image to video names the file `[[[path, 1, null, mime, uuid], name]]` (shorter than the
+  image tool's entry). The anti-bot token at inner[3] was again not needed.
+- The answer of a taken video ends in 10-33 s with a payload `{"7": ["I'm generating your video. This could take a few
+  minutes...", ["video_generation", ...]]}`, the chat id, and the end item; no candidate. Then the chat read
+  (`hNvQHb`) shows the same item and an empty candidate (status `[1]`) until the video is there: the candidate text
+  "Your video is ready!\n\nhttp://googleusercontent.com/generated_video_content/…" (status `[2]`) and the record
+  `[null, 2, "video.mp4", null, null, $token, null, [lh3 /gg/ link, contribution link, poster link], 2, [secs, nanos],
+  null, "video/mp4", …, [[10, 5000000], 1280, 720], …, bytes]`; model `models/omni_1p2_pro_gemini_app`.
+- Download: the `/gg/` link + `=m22?alr=yes&authuser=N` → 3 text hops (lh3, lh3.google.com, lh3) → a
+  `*.googlevideo.com/videoplayback` MP4 (no cookie): 720p h264 + aac. `=m18` is the 640×360 one, `=d-I` only the
+  poster JPEG, `=dv` and `=m22-dv` answered 500, the contribution link 400.
+- The daily limit answer (an older chat of the owner's, 23/10): a complete answer with the text "I can't create more
+  videos for you today, but I can still find videos from the web." and no video (`gemini.video_limit`, refunded, the
+  account's video pool rests `gemini.video_limit_rest_s`, 5 h).
+- An error answer with no chat (`[13, …, BardErrorInfo [1100]]`) left nothing in two tries; still treated as unknown
+  (reconciled, refunded at the deadline), never as not taken.
+
 ## Open questions
-- Video: needs a session whose Gemini plan includes Veo (the send shape reaches Veo; status, result link and length
-  are unmeasured).
-- The free plan's daily image limit and its refusal text; rate limits per account.
+- Portrait (9:16) video, and image jobs on the AI Pro account (`/u/4`, mode Flash-Lite): not sent yet.
+- The free plan's daily image limit and its refusal text; rate limits per account; the exact video quota (453 units
+  of 2400 per 5 h suggests 5 per 5 h).
 - Whether a cut stream can ever still produce an image (two cuts produced none).

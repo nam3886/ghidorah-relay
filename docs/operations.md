@@ -922,11 +922,13 @@ deadline with its refund. Both pools rest after any generate.
 
 ## The gemini provider (`relay worker --provider gemini`)
 
-Gemini web (gemini.google.com) over plain HTTP: no browser, no token service. One model, `gemini-nano-banana-2`
+Gemini web (gemini.google.com) over plain HTTP: no browser, no token service. Two models. `gemini-nano-banana-2`
 (Nano Banana 2): an image from text (ratios 1:1, 9:16, 3:4, 4:3, 16:9, or none: gemini picks), or one input image edited
-as the text asks (its shape kept, no ratio). One image per job, about 30 s, a 1408x768 PNG for 16:9 with Gemini's
-visible watermark. Veo video is not sold: the only session measured is on the free plan, which refuses video (TODO in
-`relay_gemini/catalog.py`). The protocol is in `fixtures/gemini/FINDINGS.md`.
+as the text asks (its shape kept, no ratio); one image per job, about 30 s, a 1408x768 PNG for 16:9 with Gemini's
+visible watermark. `gemini-omni-video` (Gemini Omni, the web app's "Create video"): a 10 s 1280x720 MP4 with sound from
+text, or from one image and text; 16:9 only (portrait is not measured); about 1-2 min. Video needs an account whose plan
+includes it (AI Pro measured; a free account answers `gemini.not_entitled`, refunded). The protocol is in
+`fixtures/gemini/FINDINGS.md`.
 
 **What the worker needs.** `deploy/worker-gemini.env` (from the `.example`): the usual worker variables, no secret of its
 own. Each account should have a proxy: every call to Google and every result download goes through it (owner, 23/10;
@@ -934,8 +936,13 @@ direct only for an account with none).
 
 **Account.** Import a Cookie-Editor JSON export of gemini.google.com from a browser profile used for gemini ALONE
 (owner, 24/10: one independent Google session per provider; flow has its own). Only google.com cookies are sealed;
-`__Secure-1PSID` must be there. A profile signed in to several Google accounts sends jobs to the first (`/u/0`): check
-that it is the account meant. The first check names the account by its email. Before the import, stop anything else
+`__Secure-1PSID` must be there. A profile signed in to several Google accounts: wrap the export in a JSON object with
+the export under `cookies` and the address of the Google account meant under `email`. The check then finds that
+account's `/u/N` index (the owner's 24/10 session: five accounts, the AI Pro one at `/u/4`) and keeps it with the account's default mode in the
+account's provider state; every job goes there. Without `email` the jobs go to `/u/0`. An email the session does not
+hold makes the check unknown with a 10-min rest and a recheck (no strike). A job on an account whose page is not that
+email, or that no check has resolved yet, is retried before anything is sent (`gemini.account_unresolved`). The check
+names the account by its email. Before the import, stop anything else
 that rotates that session (the spike's keeper container `gemini-spike-keeper` on the box): two rotators end it.
 
 **Session keeping.** As flow: every run (the check every 5 min, a submit, a poll, a reconcile, a fetch) first calls
@@ -945,23 +952,28 @@ then every cookie a page load refreshed when the run ends. The checks also run w
 (`gemini.claims_enabled` false, the default). A signed-out page is one spaced strike and a rest with a recheck; three
 counted strikes end the account.
 
-**An image job.** Load the page; for an edit, upload the input image (`push.clients6.google.com`, free; not taken:
-`gemini.upload_failed`, retried); write the job's request id; mark sent; ONE `StreamGenerate` POST with the image tool
-and the customer's words verbatim (a tracking code typed in the prompt was drawn into the image, so the core frame
-renders none). The answer streams until the image is drawn.
+**A job.** Load the page at the account's `/u/N`; for an edit or an image to video, upload the input image
+(`push.clients6.google.com`, free, `?authuser=N`; not taken: `gemini.upload_failed`, retried); write the job's request
+id; mark sent; ONE `StreamGenerate` POST with the image or the video tool, the account's mode and the customer's words
+verbatim (a tracking code typed in the prompt was drawn into the image, so the core frame renders none). An image
+answer streams until the image is drawn; a video answer says in 10-33 s that the video is being made.
 
 - A complete answer (every line read, closed by gemini's end item) with an image is `Completed`: the image's link is
-  resolved with the session (`=d-I`, a few text hops on lh3/work.fife/lh3.google.com) and the PNG downloaded from lh3
-  through the proxy.
-- A complete answer with a final text and no image fails the job with its refund: `gemini.not_entitled` for the
-  "upgrade your subscription" answer, `gemini.refused` for any other (a refused prompt, a reached limit), the text kept.
+  resolved with the session (`=d-I`, a few text hops on lh3/work.fife/lh3.google.com, `authuser=N` on `/u/N`) and the
+  PNG downloaded from lh3 through the proxy.
+- A complete video answer with the "generating your video" item and a chat is accepted; the poll reads the chat every
+  `gemini.poll_interval_s` until the video record is there (done), and the fetch resolves its link with `=m22` to the
+  720p MP4 on a googlevideo.com host, downloaded through the proxy with no cookie.
+- A complete answer with a final text and no result fails the job with its refund: `gemini.not_entitled` for the
+  "upgrade your subscription" answer, `gemini.video_limit` for "I can't create more videos for you today" (the account's
+  video pool also rests `gemini.video_limit_rest_s`), `gemini.refused` for any other, the text kept.
 - Anything else (no answer, a timeout, a cut or unreadable answer, a status that is not 200, an error item, an answer
   that promises an image with no record) is `unknown`. The reconciler reads the chat the answer named, or else the
   chat list (`MaZiqc`, the newest 13): a chat started within 60 s before / 300 s after the send whose prompt is the job's
   exact text is the job's (found: the poll reads it, an image is done, a plain answer fails refunded). Not found stays
   unknown until `gemini.render_deadline_s` (900) fails the job with its refund (a cut send left no chat in the spike).
   It is never sent again.
-- After any send the account's image pool rests `gemini.account_min_gap_s` (30).
+- After any send the account's image and video pools rest `gemini.account_min_gap_s` (30).
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -970,7 +982,9 @@ renders none). The answer streams until the image is drawn.
 | `gemini.account_min_gap_s` | 30 | the pool rest after a send (gemini's own rate limit not measured) |
 | `gemini.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
 | `gemini.poll_interval_s` | 30 | between two reads of a found job |
-| `gemini.prices`, `gemini.image_budget` | 1, 100 | points per image; images per account per day (not measured) |
+| `gemini.prices`, `gemini.image_budget` | 1 (image), 2 (video), 100 | points per image or video; images per account per day (not measured) |
+| `gemini.video_budget` | 15 | videos per account per day (AI Pro: a video uses 453 of 2400 units per 5 h, 48384 per week) |
+| `gemini.video_limit_rest_s` | 18000 | the video pool's rest after the "no more videos today" answer |
 | `gemini.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
 ## The qwen provider (`relay worker --provider qwen`)

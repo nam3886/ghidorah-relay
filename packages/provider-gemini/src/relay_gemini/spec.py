@@ -83,10 +83,16 @@ _SETTINGS = dict((
              "Minimum seconds between two sends of one gemini account: after a send the account's pool rests this "
              "long (not measured: gemini's own rate limit is unknown).", min=0, max=3600),
     _setting("prices", dict, dict(C.DEFAULT_PRICES),
-             "Points charged per image, keyed by model. A model missing here is charged the fallback (1) with a "
-             "warning.", rule=PRICES_RULE, basic=True),
+             "Points charged per image or video, keyed by model. A model missing here is charged the fallback (1) "
+             "with a warning.", rule=PRICES_RULE, basic=True),
     _setting("image_budget", int, 100, "Images each gemini account may make per day (not measured yet).", min=1,
              basic=True),
+    _setting("video_budget", int, 15,
+             "Videos each gemini account may make per day. Measured on AI Pro (24/10): one 10 s video uses 453 of "
+             "2400 units per 5 h and of 48384 per week, so about 5 per 5 h and 106 per week.", min=1, basic=True),
+    _setting("video_limit_rest_s", int, 18000,
+             "Seconds an account's video pool rests after gemini answers it can make no more videos for now (the "
+             "short usage window is 5 h).", min=600, max=7 * 86400),
     (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 
@@ -94,7 +100,7 @@ _SETTINGS = dict((
 # The shipped default: the core frame rendered verbatim. gemini draws what the prompt says, and a tracking code typed
 # into the prompt was drawn into the image (23/10: "[7134]" painted on the duck, FINDINGS 4), so the code renders as
 # nothing and a lost send is found by its exact text and its start time instead.
-FRAMES = FrameRules(defaults={"image": frames.CORE_FRAME}, warnings=lambda kind, text: (),
+FRAMES = FrameRules(defaults={"image": frames.CORE_FRAME, "video": frames.CORE_FRAME}, warnings=lambda kind, text: (),
                     max_sent_chars=PROMPT_MAX_CHARS + frames.FRAME_MAX, verbatim=True)
 
 
@@ -103,7 +109,8 @@ class GeminiSpec:
     frames = FRAMES
     max_prompt_chars = PROMPT_MAX_CHARS
     caps = Caps(
-        execution="http", wallet_kinds=("image",), pools=(PoolSpec("image", "UTC", "gemini.image_budget"),),
+        execution="http", wallet_kinds=("image", "video"),
+        pools=(PoolSpec("image", "UTC", "gemini.image_budget"), PoolSpec("video", "UTC", "gemini.video_budget")),
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
         strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=False,
         titles=False, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)
@@ -135,27 +142,44 @@ class GeminiSpec:
 
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
         """Validate and normalise. Price and timeout come from the settings and the constants, NEVER from
-        `req.options`. Raises `InputError`. One image per job; with one input image it is edited (its shape kept, so
-        no ratio), without one it is drawn from the text (a ratio of `RATIO_IDS`, or none: gemini picks)."""
-        if req.model != C.IMAGE_MODEL:
-            raise _refuse("input.bad_model", "gemini's model is %s" % C.IMAGE_MODEL, "model")
-        if req.duration is not None:
-            raise _refuse("input.bad_duration", "an image has no duration", "duration")
+        `req.options`. Raises `InputError`. One result per job. An image: with one input image it is edited (its shape
+        kept, so no ratio), without one it is drawn from the text (a ratio of `RATIO_IDS`, or none: gemini picks). A
+        video: 10 s, 16:9, from the text or from one input image and the text."""
+        if req.model not in (C.IMAGE_MODEL, C.VIDEO_MODEL):
+            raise _refuse("input.bad_model", "gemini's models are %s, %s" % (C.IMAGE_MODEL, C.VIDEO_MODEL), "model")
         if len(req.images) > 1:
             raise _refuse("input.too_many_images", "%s takes at most one input image" % req.model, "images")
         if req.n not in (None, 1):
-            raise _refuse("input.invalid", "gemini makes one image per request", "n")
+            raise _refuse("input.invalid", "gemini makes one result per request", "n")
+        if C.is_blank_prompt(req.prompt):
+            raise _refuse("input.empty_prompt", "the prompt shows no visible characters", "prompt")
+        if req.model == C.VIDEO_MODEL:
+            return self._video(req, settings)
+        if req.duration is not None:
+            raise _refuse("input.bad_duration", "an image has no duration", "duration")
         if req.ratio is not None and (req.images or req.ratio not in C.RATIO_IDS):
             raise _refuse("input.bad_ratio", "%s takes the ratios %s from text alone (or none); an edited image keeps "
                           "its shape" % (req.model, ", ".join(C.RATIO_IDS)), "ratio")
-        if C.is_blank_prompt(req.prompt):
-            raise _refuse("input.empty_prompt", "the prompt shows no visible characters", "prompt")
         price, warnings = self._price(settings, req.model)
         return Plan(
             operation="image_to_image" if req.images else "text_to_image", media_type="image", model=req.model,
             params={"ratio": req.ratio} if req.ratio else {}, completion=Completion.HOLD,
             after_sent=AfterSent.RECONCILE, wallet_kind="image", price=price, pool="image",
             account_cost=ACCOUNT_COST, submit_timeout_s=SUBMIT_TIMEOUT_S, warnings=tuple(warnings))
+
+    def _video(self, req: CreateRequest, settings: Any) -> Plan:
+        if req.duration not in (None, C.VIDEO_DURATION):
+            raise _refuse("input.bad_duration", "%s makes %d s clips" % (req.model, C.VIDEO_DURATION), "duration")
+        ratio = C.VIDEO_RATIO if req.ratio is None else req.ratio
+        if ratio not in C.VIDEO_RATIO_IDS:
+            raise _refuse("input.bad_ratio", "%s takes the ratio %s (or none)"
+                          % (req.model, ", ".join(C.VIDEO_RATIO_IDS)), "ratio")
+        price, warnings = self._price(settings, req.model)
+        return Plan(
+            operation="image_to_video" if req.images else "text_to_video", media_type="video", model=req.model,
+            params={"ratio": ratio, "duration": C.VIDEO_DURATION}, completion=Completion.DETACH,
+            after_sent=AfterSent.RECONCILE, wallet_kind="video", price=price, pool="video", account_cost=ACCOUNT_COST,
+            submit_timeout_s=SUBMIT_TIMEOUT_S, warnings=tuple(warnings))
 
     @staticmethod
     def _price(settings: Any, model: str) -> tuple[int, list[Warning]]:

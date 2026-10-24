@@ -91,7 +91,7 @@ NOT_SHOWN = {
     **excuse("the catalog a customer reads from GET /v1/models",
              "relay_dola.catalog.DURATIONS_BY_MODEL", "relay_dola.catalog.VALID_DURATIONS",
              "relay_qwen.catalog.DURATIONS", "relay_qwen.catalog.DEFAULT_DURATION",
-             "relay_flow.catalog.VIDEO_DURATION"),
+             "relay_flow.catalog.VIDEO_DURATION", "relay_gemini.catalog.VIDEO_DURATION"),
     **excuse("the default of the provider's prices setting, which the page already shows",
              "relay_dola.catalog.DEFAULT_PRICES", "relay_meta.catalog.DEFAULT_PRICES",
              "relay_vibes.catalog.DEFAULT_PRICES", "relay_flow.catalog.DEFAULT_PRICES",
@@ -105,7 +105,8 @@ NOT_SHOWN = {
              "relay_flow.catalog.VIDEO_ASPECTS"),
     **excuse("an upstream protocol code (gemini's tool and ratio option ids, the web app's capability list), not a "
              "bound", "relay_gemini.catalog.RATIO_IDS", "relay_gemini.constants.IMAGE_TOOL",
-             "relay_gemini.constants.CAPABILITIES"),
+             "relay_gemini.constants.CAPABILITIES", "relay_gemini.catalog.VIDEO_RATIO_IDS",
+             "relay_gemini.constants.VIDEO_TOOL"),
     **excuse("the page size of gemini's own chat list (the web app's), not ours to change",
              "relay_gemini.constants.LIST_PAGE"),
     **excuse("a unit size used to print a value", "limits.MIB", "limits.KIB", "cgroup.GIB", "cgroup.MIB",
