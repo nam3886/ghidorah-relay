@@ -681,3 +681,27 @@ LOADING_ROWS = (SETTINGS_SPEC + "the settings page > draws the first read as the
 @pytest.mark.web_unit
 def test_settings_errors_as_drawn():
     vitest("tests/unit/settings/settings.spec.ts")
+
+
+WALLET_TIMELINE = VIEW_SPEC + "the wallet beside the key and the timeline > "
+ONE_OUTPUT = (VIEW_SPEC + "the form's foot and checks > a model that returns one output says so, is never sent a "
+              "count, and the cost line adds the upstream cost")
+
+
+@mutation(TEST_VIEW, 'count: maxOut.value > 1 ? String(outputs.value) : "",', "count: String(outputs.value),",
+          expect=ONE_OUTPUT)
+@mutation(TEST_MODELS, 'return typeof n === "number" && n >= 1 ? Math.floor(n) : 1;', "return 4;",
+          expect=ONE_OUTPUT)
+@mutation(TEST_MODELS, 'const one = (duration ? at(`${duration}s`) : undefined) ?? at("default") ?? '
+          '(all.length === 1 ? all[0] : undefined);\n  if (one === undefined) return "";',
+          'const one = undefined as number | undefined;\n  if (one === undefined) return "";', expect=ONE_OUTPUT)
+@mutation(TEST_MODELS, "const left = room ? (num(room.total) ?? num(room.day)) : null;",
+          "const left = room ? num(room.day) : null;",
+          expect=WALLET_TIMELINE + "names the key, shows what its points wallet has left and today's spend")
+@mutation(TEST_RESULT_MODEL, "reached: d.sent_ms !== null,", "reached: true,",
+          expect=WALLET_TIMELINE + "draws the steps of the shown job from its admin detail, the claim without a time")
+@mutation(TEST_RESULT_MODEL, "reached: d.account_id !== null,", "reached: false,",
+          expect=WALLET_TIMELINE + "draws the steps of the shown job from its admin detail, the claim without a time")
+@pytest.mark.web_unit
+def test_the_test_tab_shows_the_wallet_the_outputs_most_the_upstream_cost_and_the_timeline():
+    vitest("tests/unit/test/test-view.spec.ts")

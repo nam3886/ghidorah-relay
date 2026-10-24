@@ -4,6 +4,7 @@
 // Where things are kept: the form in localStorage, the images in IndexedDB, the key in sessionStorage only after a
 // successful model load (see lib/test-form.ts, lib/test-files.ts and components/test/test-key.ts).
 import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from "vue";
+import { getJob as getJobDetail, type JobDetail } from "@/api/jobs-detail";
 import { getOptions, type PublicModel, type Template } from "@/api/test";
 import TestImages from "@/components/test/TestImages.vue";
 import ArrowScroller from "@/components/shared/ArrowScroller.vue";
@@ -14,15 +15,19 @@ import {
   defaultRatioOf,
   durationsOf,
   durationsPhrase,
+  maxOutputsOf,
   modelMeta,
   optionsCheck,
+  outputsHint,
   pointsFor,
   ratiosOf,
   resolutionsOf,
   stylesOf,
   takesImages,
   titleOf,
+  upstreamFor,
   walletRows,
+  walletStrip,
 } from "@/components/test/test-models";
 import { useGenerate } from "@/components/test/use-generate";
 import { useTestSession } from "@/components/test/use-test-session";
@@ -142,6 +147,8 @@ const durations = computed(() => durationsOf(chosen.value));
 // The heading's second line: `<kind> · ` then the lengths the model takes ("5, 10, 20, 25 or 30 s"), or its owner.
 const infoTail = computed(() => durationsPhrase(durations.value) || chosen.value?.owned_by || "");
 const wallet = computed(() => walletRows(points.value));
+// the wallet beside the key: its name, what is left and today's spend
+const strip = computed(() => walletStrip(points.value));
 // A saved value the list no longer has stays selectable, so choosing a model never silently changes the form.
 const withSaved = (list: string[], saved: string): string[] =>
   saved && !list.includes(saved) ? [...list, saved] : list;
@@ -179,16 +186,25 @@ const resolutionOptions = computed(() => [
   ...withSaved(resolutionsOf(chosen.value), form.resolution).map((r) => ({ value: r, label: r })),
 ]);
 
-// The form's foot: how many outputs, and what the job costs at the catalog's prices.
-const outputs = computed(() => Math.max(1, Math.floor(Number(form.count) || 1)));
-const cost = computed(() => pointsFor(chosen.value, form.duration, form.count));
+// The form's foot: how many outputs, what the job costs at the catalog's prices and what the upstream takes for it.
+// A model returns at most `maxOut` (the stepper is drawn only above 1).
+const maxOut = computed(() => maxOutputsOf(chosen.value));
+const outputs = computed(() => Math.min(maxOut.value, Math.max(1, Math.floor(Number(form.count) || 1))));
+const cost = computed(() => pointsFor(chosen.value, form.duration, String(outputs.value)));
 const costText = computed(() => {
   const n = `${outputs.value} ${outputs.value === 1 ? "output" : "outputs"}`;
   return cost.value === null ? n : `${n} · `;
 });
-// the Outputs stepper: one fewer, one more (never under 1)
+// the admin catalog's entry of the chosen model (it alone carries the upstream cost)
+const adminEntry = computed(() => (scope.models ?? []).find((m) => m.id === chosen.value?.id) ?? null);
+const upstream = computed(() => upstreamFor(adminEntry.value, form.duration, outputs.value));
+const unit = computed(() => {
+  const u = adminEntry.value?.cost_unit;
+  return typeof u === "string" ? u : null;
+});
+// the Outputs stepper: one fewer, one more (never under 1 or over the model's most)
 function step(by: number): void {
-  setField("count", String(Math.max(1, outputs.value + by)));
+  setField("count", String(Math.min(maxOut.value, Math.max(1, outputs.value + by))));
 }
 const extraCheck = computed(() => optionsCheck(form.options));
 // the prompt's counter: what is typed against the model's limit, when the catalog names one
@@ -293,6 +309,8 @@ async function generateNow(): Promise<void> {
   const images = hasImages.value;
   const sent = {
     ...form,
+    // a model that returns one output is never sent a count
+    count: maxOut.value > 1 ? String(outputs.value) : "",
     ratio: hasRatio.value ? form.ratio : "",
     style: hasStyle.value ? form.style : "",
     images: images ? form.images : "",
@@ -304,6 +322,30 @@ async function generateNow(): Promise<void> {
   });
 }
 
+// The timeline of the shown job comes from the ADMIN job detail (it stores the send time and the account; the public
+// status does not): read again whenever the job's status or stage changes, the newest read winning. A failed read
+// leaves the timeline out; the Result card still draws the public answer.
+const detail = shallowRef<JobDetail | null>(null);
+const detailLatest = useLatest();
+watch(
+  () => (job.value ? `${job.value.id}/${job.value.status}/${job.value.stage ?? ""}` : ""),
+  async (at) => {
+    const ticket = detailLatest.next();
+    if (!at) {
+      detail.value = null;
+      return;
+    }
+    const id = job.value?.id ?? "";
+    if (detail.value?.id !== id) detail.value = null;
+    try {
+      const read = await getJobDetail(id);
+      if (detailLatest.isCurrent(ticket)) detail.value = read;
+    } catch {
+      /* the timeline is a convenience: the public answer is drawn without it */
+    }
+  },
+);
+
 // Sign-out and a 401 end the running job and drop the key and the models.
 const offSignOut = auth.onSignOut(() => {
   generate.stop();
@@ -312,6 +354,7 @@ const offSignOut = auth.onSignOut(() => {
 onBeforeUnmount(() => {
   generate.stop();
   pickLatest.invalidate();
+  detailLatest.invalidate();
   offSignOut();
 });
 
@@ -354,6 +397,13 @@ onMounted(async () => {
               spellcheck="false"
               @keyup.enter="loadModels"
             />
+            <div v-if="strip" class="key__wallet" data-testid="test-wallet">
+              <span class="key__wallet-name">{{ strip.name }}</span>
+              <span class="num key__wallet-left"
+                >{{ strip.left }}<span v-if="/\d/.test(strip.left)" class="key__wallet-unit"> pts</span></span
+              >
+              <span class="num key__wallet-spent">{{ strip.spent }}</span>
+            </div>
             <button
               type="button"
               class="btn key__load"
@@ -422,8 +472,7 @@ onMounted(async () => {
                 data-testid="test-model"
                 @click="pick(c.model)"
               >
-                <span v-if="chosen?.id === c.model.id" class="mchip__check" aria-hidden="true">✓</span
-                >{{ titleOf(c.model) }}<small v-if="c.paused" class="mchip__paused">Paused</small>
+                {{ titleOf(c.model) }}<small v-if="c.paused" class="mchip__paused">Paused</small>
               </button>
             </ArrowScroller>
           </div>
@@ -517,7 +566,10 @@ onMounted(async () => {
           </div>
           <div class="opt">
             <span id="test-out" class="lbl">Outputs</span>
-            <div class="stepper" role="group" aria-labelledby="test-out" aria-describedby="test-out-hint">
+            <span v-if="maxOut <= 1" class="one-out num" aria-describedby="test-out-hint" data-testid="test-one-output"
+              >1 output</span
+            >
+            <div v-else class="stepper" role="group" aria-labelledby="test-out" aria-describedby="test-out-hint">
               <button type="button" aria-label="One output fewer" :disabled="outputs <= 1" @click="step(-1)">
                 <svg
                   width="14"
@@ -542,7 +594,7 @@ onMounted(async () => {
                 :value="form.count"
                 @input="setField('count', ($event.target as HTMLInputElement).value)"
               />
-              <button type="button" aria-label="One output more" @click="step(1)">
+              <button type="button" aria-label="One output more" :disabled="outputs >= maxOut" @click="step(1)">
                 <svg
                   width="14"
                   height="14"
@@ -557,7 +609,7 @@ onMounted(async () => {
                 </svg>
               </button>
             </div>
-            <span id="test-out-hint" class="help">How many images or videos this one job returns</span>
+            <span id="test-out-hint" class="help">{{ outputsHint(chosen) }}</span>
           </div>
           <FilterSelect
             v-if="resolutionsOf(chosen).length"
@@ -641,8 +693,8 @@ onMounted(async () => {
               <path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
             </svg>
             <span class="num"
-              >{{ costText
-              }}<b v-if="cost !== null">{{ thousands(cost) }} {{ cost === 1 ? "point" : "points" }}</b></span
+              >{{ costText }}<b v-if="cost !== null">{{ thousands(cost) }} {{ cost === 1 ? "point" : "points" }}</b
+              ><template v-if="upstream"> · {{ upstream }}</template></span
             >
           </span>
           <button type="button" class="send" :disabled="!chosen || submitting" @click="generateNow">
@@ -651,7 +703,14 @@ onMounted(async () => {
         </div>
       </section>
 
-      <TestResult :status="status" :job="job" :kind="jobKind" :loaded="models.length > 0" />
+      <TestResult
+        :status="status"
+        :job="job"
+        :kind="jobKind"
+        :loaded="models.length > 0"
+        :detail="detail?.id === job?.id ? detail : null"
+        :unit="unit"
+      />
     </div>
   </section>
 </template>
@@ -780,6 +839,72 @@ onMounted(async () => {
 .key__input {
   flex: 1 1 280px;
   min-width: 0;
+}
+/* the wallet beside the key (Test.dc.html): name, points left, today's spend on the head fill */
+.key__wallet {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: flex-start;
+  max-width: 100%;
+  height: 44px;
+  box-sizing: border-box;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--rl-head);
+  border: 1px solid var(--rl-rule);
+}
+.key__wallet-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--rl-brand-ink);
+}
+.key__wallet-left {
+  font-weight: 800;
+  white-space: nowrap;
+}
+.key__wallet-unit {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rl-faint);
+}
+.key__wallet-spent {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--rl-muted);
+}
+/* a phone (TestPhone): the wallet is one quiet line under the key's row, `Studio Saigon · 12,480 pts · −1,240 today` */
+.is-phone .key__wallet {
+  order: 3;
+  flex: 1 1 100%;
+  gap: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.is-phone .key__wallet > span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--rl-faint);
+}
+.is-phone .key__wallet > span + span::before {
+  content: " · ";
+  white-space: pre;
+}
+.is-phone .key__wallet-unit {
+  font-weight: 500;
+}
+.one-out {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  font-weight: 700;
 }
 .btn {
   box-sizing: border-box;
@@ -927,15 +1052,13 @@ onMounted(async () => {
 .mchip:hover:not(:disabled) {
   border-color: var(--rl-faint);
 }
-.mchip.is-active {
-  border-color: var(--rl-brand);
-  background: var(--rl-primary-soft);
-  color: var(--rl-fg);
+/* the chosen model, as drawn: filled with its provider's colour */
+.mchip.is-active,
+.mchip.is-active:hover:not(:disabled) {
+  border-color: var(--pi);
+  background: var(--pi);
+  color: var(--rl-surface);
   font-weight: 700;
-}
-.mchip__check {
-  color: var(--rl-brand-ink);
-  font-weight: 800;
 }
 .mchip:disabled {
   background: var(--rl-head);

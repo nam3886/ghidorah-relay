@@ -19,6 +19,8 @@ vi.mock("@/api/test", async (original) => ({
   getJob: vi.fn(),
 }));
 vi.mock("@/lib/notify", () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+// the admin detail of the shown job (the timeline): refused unless a test answers it
+vi.mock("@/api/jobs-detail", () => ({ getJob: vi.fn(() => Promise.reject(new Error("no admin detail"))) }));
 
 // Built in two parts: the lint rule that bans script URLs reads literals.
 const SCRIPT_URL = "java" + "script:alert(1)";
@@ -275,7 +277,9 @@ describe("the empty state", () => {
     expect(box.find("summary").text()).toBe("Wallet limits");
     expect(box.element.open).toBe(false);
     expect(box.find("pre").text()).toContain('"points": 9');
-    expect(wrapper!.find("#test-count").attributes("placeholder")).toBe("1");
+    // no model picked: no model returns more than one, so no stepper
+    expect(wrapper!.find("#test-count").exists()).toBe(false);
+    expect(wrapper!.find('[data-testid="test-one-output"]').text()).toBe("1 output");
     // no model picked: no list of ratios, so no Ratio field (there is no free-text one)
     expect(wrapper!.find("#test-ratio").exists()).toBe(false);
     // no model names lengths yet: no Duration field of any kind
@@ -784,7 +788,7 @@ describe("the model picker and the wallet", () => {
     expect(fieldOptions("Style").map((o) => o.value)).toEqual(["", "anime", "pixel"]);
   });
 
-  it("a model chip shows its display name, else its id; the chosen one has a check and what it sends below", async () => {
+  it("a model chip shows its display name, else its id; the chosen one is filled and what it sends is below", async () => {
     vi.mocked(api.listModels).mockResolvedValue({
       data: [{ ...video, name: "Veo Three", prices: { "5s": 2, "10s": 4 }, limits: { durations: [5, 10] } }, image],
     });
@@ -793,7 +797,7 @@ describe("the model picker and the wallet", () => {
     expect(models().map((m) => m.text())).toEqual(["Veo Three", "imagen-4"]);
     expect(models()[0]!.attributes("title")).toBe("veo-3");
     await pickModel("veo-3");
-    expect(models()[0]!.text()).toBe("✓Veo Three");
+    expect(models()[0]!.text()).toBe("Veo Three");
     expect(models()[0]!.classes()).toEqual(expect.arrayContaining(["is-active", "p-flow"]));
     expect(wrapper!.find('[data-testid="test-chosen"]').text()).toBe("Sends Veo Three · 2–4 points · 5–10 s · veo-3");
   });
@@ -1029,19 +1033,45 @@ describe("the result card frames", () => {
 describe("the form's foot and checks", () => {
   it("says the outputs and what the job costs at the chosen length, and the stepper never goes under 1", async () => {
     vi.mocked(api.listModels).mockResolvedValue({
-      data: [{ ...video, prices: { "5s": 2, "10s": 4 }, limits: { durations: [5, 10] } }, image],
+      data: [{ ...video, prices: { "5s": 2, "10s": 4 }, limits: { durations: [5, 10], max_outputs: 2 } }, image],
     });
     await open();
     await loadModels();
     await pickModel("veo-3");
     await choose("Duration", "10");
     expect(wrapper!.find(".cost").text()).toBe("1 output · 4 points");
+    expect(wrapper!.find("#test-out-hint").text()).toBe("How many images/videos this one job returns · 1–2 for veo-3");
     await button("One output more").trigger("click");
     expect(wrapper!.find(".cost").text()).toBe("2 outputs · 8 points");
     expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "").count).toBe("2");
+    expect(button("One output more").attributes("disabled")).toBeDefined();
     await button("One output fewer").trigger("click");
     await button("One output fewer").trigger("click");
     expect((wrapper!.find("#test-count").element as HTMLInputElement).value).toBe("1");
+  });
+
+  it("a model that returns one output says so, is never sent a count, and the cost line adds the upstream cost", async () => {
+    vi.mocked(api.listModels).mockResolvedValue({
+      data: [{ ...video, prices: { "8s": 10 }, limits: { durations: [8] } }, image],
+    });
+    vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
+    // a count saved for another model is never sent to this one
+    localStorage.setItem("relay_test_form", JSON.stringify({ count: "3" }));
+    await open();
+    useScopeStore().models = [
+      { id: "veo-3", name: "veo-3", owned_by: "flow", costs: { "8s": 20 }, cost_unit: "credits" },
+    ];
+    await loadModels();
+    await pickModel("veo-3");
+    await choose("Duration", "8");
+    expect(wrapper!.find('[data-testid="test-one-output"]').text()).toBe("1 output");
+    expect(wrapper!.find("#test-out-hint").text()).toBe(
+      "How many images/videos this one job returns · veo-3 returns 1",
+    );
+    expect(wrapper!.find(".cost").text()).toBe("1 output · 10 points · flow upstream 20 credits");
+    await button("Send test job").trigger("click");
+    await flushPromises();
+    expect(vi.mocked(api.createJob).mock.calls[0]?.[2]).not.toHaveProperty("n");
   });
 
   it("checks the extra options as they are typed", async () => {
@@ -1054,5 +1084,70 @@ describe("the form's foot and checks", () => {
     expect(box.attributes("aria-invalid")).toBe("true");
     await box.setValue("");
     expect(wrapper!.find(".json-check").exists()).toBe(false);
+  });
+});
+
+describe("the wallet beside the key and the timeline", () => {
+  it("names the key, shows what its points wallet has left and today's spend", async () => {
+    vi.mocked(api.getPoints).mockResolvedValue({
+      points: { day_limit: null, used_day: 1240, total_limit: 13720, used_total: 1240 },
+      providers: {},
+      name: "Studio Saigon",
+      points_left: { day: null, total: 12480 },
+      spent_today: 1240,
+    });
+    await open();
+    await loadModels();
+    const strip = wrapper!.find('[data-testid="test-wallet"]');
+    expect(strip.find(".key__wallet-name").text()).toBe("Studio Saigon");
+    expect(strip.find(".key__wallet-left").text()).toBe("12,480 pts");
+    expect(strip.find(".key__wallet-spent").text()).toBe("−1,240 today");
+  });
+
+  it("draws the steps of the shown job from its admin detail, the claim without a time", async () => {
+    const detail = await import("@/api/jobs-detail");
+    vi.mocked(api.createJob).mockResolvedValue({ id: "3a90cc5e-0000", status: "queued" });
+    vi.mocked(detail.getJob).mockResolvedValue({
+      id: "3a90cc5e-0000",
+      provider: "flow",
+      model: "veo-3",
+      media_type: "video",
+      status: "waiting",
+      price: 20,
+      net_charged: 20,
+      account_id: "a1",
+      account_label: "flow-01",
+      claims: 1,
+      created_ms: Date.UTC(2026, 9, 24, 7, 30, 33),
+      sent_ms: Date.UTC(2026, 9, 24, 7, 30, 36),
+      finished_ms: null,
+      params: { duration: 8, ratio: "16:9" },
+      upstream_price: null,
+      account_cost: 20,
+      error_code: null,
+      callback: { status: null, attempts: null, last: null },
+      events: [],
+      media: [],
+    } as never);
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    await button("Send test job").trigger("click");
+    await flushPromises();
+    await flushPromises();
+    const steps = wrapper!.findAll('[data-testid="test-timeline"] .tl');
+    expect(steps.map((s) => s.find(".tl__label").text())).toEqual([
+      "Accepted",
+      "Charged 20 points",
+      "Claimed by flow-01",
+      "Sent upstream",
+      "Upstream done",
+      "Delivered",
+    ]);
+    expect(steps.map((s) => s.classes().includes("is-reached"))).toEqual([true, true, true, true, false, false]);
+    expect(steps[2]!.find(".tl__time").text()).toBe("");
+    expect(steps[3]!.find(".tl__note").text()).toBe("veo-3 · 8 s · 16:9");
+    expect(steps[4]!.find(".tl__note").text()).toBe("expected 20; flow reported no figure");
+    expect(wrapper!.find(".result__sub").text()).toBe("job 3a90cc5e · flow-01");
   });
 });

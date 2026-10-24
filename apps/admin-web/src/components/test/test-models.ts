@@ -78,6 +78,61 @@ export function pointsFor(m: PublicModel | null, duration: string, count: string
   return one * Math.max(1, Math.floor(Number(count) || 1));
 }
 
+// The most outputs one job of the model returns: the catalog's `limits.max_outputs` where a model names it, else 1
+// (every provider refuses `n` above 1 today, and no catalog names a larger figure).
+export function maxOutputsOf(m: PublicModel | null): number {
+  const n = (m?.limits as { max_outputs?: unknown } | undefined)?.max_outputs;
+  return typeof n === "number" && n >= 1 ? Math.floor(n) : 1;
+}
+
+// The Outputs hint, as drawn: `… · 1–4 for veo-3.1-fast`, or `… · seedance-2.0 returns 1`.
+export function outputsHint(m: PublicModel | null): string {
+  const lead = "How many images/videos this one job returns";
+  if (!m) return lead;
+  const max = maxOutputsOf(m);
+  return max > 1 ? `${lead} · 1–${max} for ${titleOf(m)}` : `${lead} · ${titleOf(m)} returns 1`;
+}
+
+// The upstream part of the cost line (` · flow upstream 20 credits`), from the ADMIN catalog entry of the model: its
+// `<p>.costs` figure for the chosen length (or its one figure) in its pool's unit, times the outputs. Empty when the
+// catalog stores no cost for it.
+export function upstreamFor(
+  entry: { owned_by: string; costs?: unknown; cost_unit?: unknown } | null | undefined,
+  duration: string,
+  count: number,
+): string {
+  const costs = entry?.costs && typeof entry.costs === "object" ? (entry.costs as Record<string, unknown>) : null;
+  if (!entry || !costs) return "";
+  const at = (k: string): number | undefined => (typeof costs[k] === "number" ? (costs[k] as number) : undefined);
+  const all = Object.values(costs).filter((c): c is number => typeof c === "number");
+  const one = (duration ? at(`${duration}s`) : undefined) ?? at("default") ?? (all.length === 1 ? all[0] : undefined);
+  if (one === undefined) return "";
+  const unit = typeof entry.cost_unit === "string" ? ` ${entry.cost_unit}` : "";
+  return `${entry.owned_by} upstream ${(one * Math.max(1, count)).toLocaleString("en-US")}${unit}`;
+}
+
+// The wallet beside the key (Test.dc.html): the key's name, what its points wallet has left (the total limit's room,
+// else the day's, else "unlimited") and today's spend, from /v1/points. Null when the text is not that answer.
+export function walletStrip(points: string): { name: string; left: string; spent: string } | null {
+  let data: unknown;
+  try {
+    data = JSON.parse(points);
+  } catch {
+    return null;
+  }
+  if (!data || typeof data !== "object" || !("points_left" in data)) return null;
+  const a = data as { name?: unknown; points_left?: { day?: unknown; total?: unknown } | null; spent_today?: unknown };
+  const room = a.points_left;
+  const num = (v: unknown): number | null => (typeof v === "number" ? v : null);
+  const left = room ? (num(room.total) ?? num(room.day)) : null;
+  const spent = num(a.spent_today) ?? 0;
+  return {
+    name: typeof a.name === "string" && a.name ? a.name : "Unnamed key",
+    left: !room ? "no points wallet" : left === null ? "unlimited" : left.toLocaleString("en-US"),
+    spent: spent ? `−${spent.toLocaleString("en-US")} today` : "0 today",
+  };
+}
+
 // What the Extra options box says about its text: nothing while it is empty, else whether it is a JSON object.
 export function optionsCheck(text: string): { ok: boolean; text: string } | null {
   if (!text.trim()) return null;

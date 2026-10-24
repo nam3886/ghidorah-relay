@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
+import type { JobDetail } from "@/api/jobs-detail";
 import type { PublicJob } from "@/api/test";
 import { highlight } from "@/components/logs/log-json";
 import { copyText } from "@/components/shared/clipboard";
@@ -20,6 +21,7 @@ import {
   shortJobId,
   statusWord,
   stepOf,
+  timelineSteps,
   tookText,
 } from "./test-result-model";
 
@@ -29,7 +31,20 @@ import {
 // /m/ share link; any other (a script URL, another host) is shown as text, never as a source. A video is a box with a
 // play button until it is played: nothing is fetched before. `loaded` is whether the key has models: an idle tab
 // without them says how to start.
-const props = defineProps<{ status: string; job: PublicJob | null; kind: string; loaded: boolean }>();
+// `detail` is the admin detail of the same job (null until read): the timeline's times and the account; `unit` the
+// unit of its model's pool, for the upstream figure.
+const props = withDefaults(
+  defineProps<{
+    status: string;
+    job: PublicJob | null;
+    kind: string;
+    loaded: boolean;
+    detail?: JobDetail | null;
+    unit?: string | null;
+  }>(),
+  { detail: null, unit: null },
+);
+const steps = computed(() => timelineSteps(props.detail, props.unit));
 const ui = useUiStore();
 
 const media = computed(() =>
@@ -59,9 +74,12 @@ const openJob = (): void => {
 };
 
 // The head: what the job is (its kind and model) and, once it is over, how long it took.
-const subline = computed(() =>
-  props.job ? [props.kind, typeof props.job.model === "string" ? props.job.model : ""].filter(Boolean).join(" · ") : "",
-);
+// As drawn, `job 3a90cc5e · flow-01` once the admin detail names the account; before, its kind and model.
+const subline = computed(() => {
+  if (!props.job) return "";
+  if (props.detail?.account_label) return `job ${shortJobId(props.job.id)} · ${props.detail.account_label}`;
+  return [props.kind, typeof props.job.model === "string" ? props.job.model : ""].filter(Boolean).join(" · ");
+});
 const took = computed(() => (props.job ? tookText(props.job.created_at, props.job.finished_at) : ""));
 
 // The answer as the API sent it, coloured; a phone shows it behind a button (TestPhone, "Show the JSON answer").
@@ -114,6 +132,25 @@ async function copyAnswer(): Promise<void> {
         "
       />
     </div>
+
+    <!-- the steps of the job, from the admin detail: filled once reached, the last one solid -->
+    <ol v-if="job && steps.length" class="result__timeline" data-testid="test-timeline">
+      <li
+        v-for="(s, i) in steps"
+        :key="s.label"
+        class="tl"
+        :class="{ 'is-reached': s.reached, 'is-bad': s.bad, 'is-last': i === steps.length - 1 }"
+      >
+        <span class="tl__rail" aria-hidden="true"><span class="tl__dot" /><span class="tl__line" /></span>
+        <span class="tl__body">
+          <span class="tl__top"
+            ><span class="tl__label">{{ s.label }}</span
+            ><span class="tl__time num">{{ s.time }}</span></span
+          >
+          <span v-if="s.note" class="tl__note num">{{ s.note }}</span>
+        </span>
+      </li>
+    </ol>
 
     <div v-if="!job" class="result__empty">
       <p class="test-result__status" role="status">{{ line }}</p>
@@ -281,6 +318,91 @@ async function copyAnswer(): Promise<void> {
 }
 .result__took {
   flex: none;
+}
+/* the timeline (Test.dc.html): a 20 px dot per step on a 2 px rail, the label and its time on one line */
+.result__timeline {
+  list-style: none;
+  margin: 0;
+  padding: 18px 20px 6px;
+}
+.tl {
+  display: flex;
+  gap: 12px;
+}
+.tl__rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+}
+.tl__dot {
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--rl-line);
+  background: var(--rl-surface);
+}
+.tl.is-reached .tl__dot {
+  border: 0;
+  background: var(--rl-ok-bg);
+  box-shadow:
+    inset 0 0 0 6px var(--rl-ok-bg),
+    inset 0 0 0 10px var(--rl-ok);
+}
+.tl.is-reached.is-last .tl__dot {
+  background: var(--rl-ok);
+  box-shadow: none;
+}
+.tl.is-bad .tl__dot {
+  background: var(--rl-bad);
+  box-shadow: none;
+}
+.tl__line {
+  flex: 1;
+  width: 2px;
+  min-height: 18px;
+  margin: 2px 0;
+  background: var(--rl-rule);
+}
+.tl.is-last .tl__line {
+  display: none;
+}
+.tl__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 12px;
+}
+.tl__top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.tl__label {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.tl:not(.is-reached) .tl__label {
+  color: var(--rl-faint);
+}
+.tl.is-bad .tl__label {
+  color: var(--rl-bad);
+}
+.tl__time {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rl-muted);
+  white-space: nowrap;
+}
+.tl__note {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--rl-faint);
+  overflow-wrap: anywhere;
 }
 .result__empty {
   padding: 44px 24px 52px;

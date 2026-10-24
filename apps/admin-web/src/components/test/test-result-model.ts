@@ -1,3 +1,4 @@
+import type { JobDetail } from "@/api/jobs-detail";
 import type { PublicJob } from "@/api/test";
 import { fmtTook } from "@/components/jobs/job-text";
 
@@ -83,4 +84,110 @@ export function doneLedger(job: PublicJob): Array<{ label: string; value: string
   const took = tookText(job.created_at, job.finished_at);
   if (took) rows.push({ label: "Took", value: took });
   return rows;
+}
+
+// One step of the Result card's timeline (Test.dc.html): reached steps are filled, the next ones hollow; a failure
+// ends it in red. `time` is "" for a step that has not happened, or whose time the relay does not store.
+export interface TimelineStep {
+  label: string;
+  time: string;
+  note: string;
+  reached: boolean;
+  bad?: boolean;
+}
+
+const clockOfMs = (ms: number | null | undefined): string => {
+  if (!ms) return "";
+  const d = new Date(ms);
+  return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;
+};
+
+const plural = (n: number, one: string): string => `${n} ${one}${n === 1 ? "" : "s"}`;
+
+// What the upstream took, from what the job stores: the figure the provider reported (`upstream_price`) against the
+// expected one (`account_cost`), in the unit of the model's pool. Empty when neither is stored.
+export function upstreamNote(
+  d: Pick<JobDetail, "provider" | "upstream_price" | "account_cost">,
+  unit: string | null,
+): string {
+  const u = unit ? ` ${unit}` : "";
+  if (d.upstream_price !== null) {
+    const expected =
+      d.account_cost === null
+        ? ""
+        : d.account_cost === d.upstream_price
+          ? ", as expected"
+          : `, expected ${d.account_cost}`;
+    return `${d.provider} took ${d.upstream_price}${u}${expected}`;
+  }
+  return d.account_cost === null ? "" : `expected ${d.account_cost}${u}; ${d.provider} reported no figure`;
+}
+
+// The timeline of a job from the ADMIN job detail (the public status stores no claim and no send time): Accepted and
+// Charged at its creation, Claimed by its account (the claim time is not stored: no time), Sent upstream at `sent_ms`,
+// Upstream done at its first `completed` event, Delivered at `finished_ms`. A failed job ends with Failed instead of
+// the steps it never reached.
+export function timelineSteps(d: JobDetail | null, unit: string | null): TimelineStep[] {
+  if (!d) return [];
+  const at = (stage: string): number | null => d.events.find((e) => e.stage === stage)?.at_ms ?? null;
+  const params = (d.params && typeof d.params === "object" ? d.params : {}) as Record<string, unknown>;
+  const shape = [
+    d.model,
+    typeof params.duration === "number" ? `${params.duration} s` : "",
+    typeof params.ratio === "string" ? params.ratio : "",
+  ];
+  const outputs = d.media.filter((m) => m.role === "output").length;
+  const doneAt = at("completed");
+  const steps: TimelineStep[] = [
+    {
+      label: "Accepted",
+      time: clockOfMs(d.created_ms),
+      note: `POST ${d.media_type === "image" ? "/v1/images/generations" : "/v1/video/generations"}`,
+      reached: true,
+    },
+    {
+      label: `Charged ${plural(d.price, "point")}`,
+      time: clockOfMs(d.created_ms),
+      note: d.price !== d.net_charged ? `${d.net_charged} kept after refunds` : "",
+      reached: true,
+    },
+    {
+      label: d.account_label ? `Claimed by ${d.account_label}` : "Claimed by an account",
+      time: "",
+      note: d.claims > 1 ? `claimed ${d.claims} times` : "",
+      reached: d.account_id !== null,
+    },
+    {
+      label: "Sent upstream",
+      time: clockOfMs(d.sent_ms),
+      note: shape.filter(Boolean).join(" · "),
+      reached: d.sent_ms !== null,
+    },
+    {
+      label: "Upstream done",
+      time: clockOfMs(doneAt),
+      note: upstreamNote(d, unit),
+      reached: doneAt !== null || d.status === "done",
+    },
+    {
+      label: "Delivered",
+      time: d.status === "done" ? clockOfMs(d.finished_ms) : "",
+      note:
+        d.status === "done"
+          ? [
+              plural(outputs, d.media_type === "image" ? "image" : "video"),
+              d.callback.status ? `webhook ${d.callback.status}` : "",
+            ]
+              .filter(Boolean)
+              .join(" · ")
+          : "",
+      reached: d.status === "done",
+    },
+  ];
+  if (d.status !== "failed") return steps;
+  const kept = steps.filter((s) => s.reached);
+  return [
+    ...kept,
+    { label: "Failed", time: clockOfMs(d.finished_ms), note: d.error_code ?? "", reached: true, bad: true },
+  ];
 }
