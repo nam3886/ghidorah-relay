@@ -1,6 +1,7 @@
 """The provider side of API keys, Request logs, Alerts, Prompt frames and Test in Chrome against the real app with the
 four real provider specs (browser tier). Keys, Request logs and Alerts have the strip with "All" as their provider
-filter; Prompt frames and Test have the strip of the providers alone, which picks the one provider they work on. Rows
+filter; Test has the strip of the providers alone, which picks the one provider it works on, and Prompt frames has its
+own list of providers (chips on a tablet and a phone) for the same purpose. Rows
 carry their provider's tile (a grey "relay" tile for none). At a desktop's 1440 px, a tablet's 820 px and a phone's
 390 px no text is cut and the page never scrolls sideways. With RELAY_SCREENSHOTS_DIR set, each state is saved as
 <page>-<width>-<state>.png (the top of the page, then the list scrolled into view)."""
@@ -154,26 +155,26 @@ def test_keys_logs_and_alerts_filter_by_the_strip_and_draw_each_provider(app, ap
 
 
 @pytest.mark.parametrize("width", WIDTHS)
-def test_frames_and_test_work_on_the_one_provider_their_strip_picks(app, app_page, live, db, real_providers, width):
+def test_frames_and_test_work_on_the_one_provider_they_pick(app, app_page, live, db, real_providers, width):
     page = app_page
     size(page, width)
     app.sign_in(page)
     setting(page, "dola.disabled_models", ["seedance-1.0"])
     page.reload()
 
-    # Prompt frames: the providers alone, no All; each kind writes out its default with the markers picked out
+    # Prompt frames: its own list of providers (chips on a tablet and a phone), no strip, no All; the editor is inline
     open_tab(page, "Prompt frames")
-    expect(strip(page).get_by_test_id("provider-tab-all")).to_have_count(0)
+    expect(page.get_by_role("navigation", name="Provider")).to_have_count(0)
     expect(page.get_by_role("banner").get_by_test_id("provider-filter")).to_have_count(0)
-    strip(page).get_by_test_id("provider-tab-dola").click()
-    expect(strip(page).get_by_test_id("provider-tab-dola")).to_have_attribute("aria-pressed", "true")
-    video = page.locator("[data-frame-kind=video]")
-    expect(video.get_by_test_id("frame-default-text").locator("em")).to_have_count(2)
-    expect(video.locator(".kind__paused")).to_have_count(1)
+    pick = page.get_by_test_id("provider-tab-dola")
+    pick.click()
+    expect(pick).to_have_attribute("aria-pressed" if width < 1280 else "aria-expanded", "true")
+    expect(page.get_by_test_id("frame-models").locator(".fm__paused")).to_have_count(1)
+    expect(page.get_by_test_id("frame-editor").locator(".fed__ph")).to_have_count(2)
     no_cut_text(page, ".frames *")
-    shot(page, "frames-%d-dola" % width, "[data-frame-kind=video] .kind__table, [data-frame-kind=video] .kind__list")
-    strip(page).get_by_test_id("provider-tab-vibes").click()
-    expect(page.get_by_test_id("frames-verbatim")).to_contain_text("vibes sends the text as written")
+    shot(page, "frames-%d-dola" % width, "[data-testid=frame-models]")
+    page.get_by_test_id("provider-tab-vibes").click()
+    expect(page.get_by_test_id("frame-verbatim")).to_contain_text("vibes sends the text as written")
     shot(page, "frames-%d-vibes" % width)
 
     # Test: the strip's provider (shared with Prompt frames) shows its models as chips by kind; a paused one is off

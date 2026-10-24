@@ -384,14 +384,14 @@ describe("the shell", () => {
     expect(wrapper.find("main section").element).not.toBe(first);
   });
 
-  it("has no Provider list in the top bar: every tab filters by provider in its strip", async () => {
+  it("has no Provider list in the top bar: every tab but Request logs and Prompt frames, which have their own lists, filters by provider in its strip", async () => {
     const { wrapper, router } = await open("/jobs");
     for (const name of ["jobs", "accounts", "keys", "logs", "alerts", "frames", "settings", "test"]) {
       await router.push(`/${name}`);
       await flushPromises();
       expect(wrapper.find('[data-testid="provider-filter"]').exists()).toBe(false);
-      // Request logs has its provider chips in its own card
-      expect(wrapper.find("nav.pstrip").exists()).toBe(name !== "logs");
+      // Request logs and Prompt frames have their provider chips in their own card
+      expect(wrapper.find("nav.pstrip").exists()).toBe(name !== "logs" && name !== "frames");
     }
   });
 

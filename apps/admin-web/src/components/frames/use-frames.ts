@@ -22,7 +22,11 @@ import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
 import {
   DEFAULT_TARGET,
+  defaultTargetOf,
+  FRAME_MAX,
+  kindsInOrder,
   loadedText,
+  markerChecks,
   NO_PREVIEW_MODEL_TEXT,
   refusalText,
   SAMPLE_PROMPT,
@@ -40,7 +44,8 @@ interface Asked {
   kind: string;
   target: string;
 }
-// What one read of the table and the open editor answered.
+// What one read of the table and the open editor answered. `kind` and `target` are what the read settled on: the one
+// asked for when the provider still has it, else the first kind's own frame or default.
 interface View extends Asked {
   data: FramesList | null;
   info: FrameInfo | null;
@@ -48,11 +53,12 @@ interface View extends Asked {
 
 // The state and the actions of the Prompt frames view, the most stateful one.
 //
-// `gen` moves whenever the operator opens another editor or provider. Every answer, and every error, of a call made
+// The editor is inline: there is always one frame in it (a kind and a target) once a provider's table is read.
+// `gen` moves whenever the operator picks another frame or provider. Every answer, and every error, of a call made
 // before that is dropped (`current`): the operator has moved on. While a load or a write is in flight the draft is
-// read-only and every control is off, except (during a load only) the Edit buttons and the provider select, which are
-// how the view being loaded is replaced. A write that is refused with a 4xx shows beside the editor; anything else is a
-// toast. A lock toggle redraws the table but keeps the typed draft.
+// read-only and every control is off, except (during a load only) the pickers, which are how the view being loaded is
+// replaced. Picking another frame or provider over an unsaved draft asks first. A write that is refused with a 4xx
+// shows beside the editor; anything else is a toast. A lock toggle redraws the table but keeps the typed draft.
 export function useFrames() {
   const provider = ref(memory.provider);
   let kind = memory.kind;
@@ -62,9 +68,7 @@ export function useFrames() {
   const providers = ref<string[]>([]);
   const listed = ref("");
   const data = shallowRef<FramesList | null>(null);
-  // The editor drawer is open. Separate from `shown` (the editor drawn): a reload that finds no such frame empties
-  // `shown` but leaves the drawer, and the draft in it, where they are. Only `edit` opens it and only `close` shuts it.
-  const open = ref(false);
+  // The frame in the editor (kind and target), once its read landed.
   const shown = shallowRef<FrameTarget | null>(null);
   const info = shallowRef<FrameInfo | null>(null);
   const loaded = ref("");
@@ -78,24 +82,33 @@ export function useFrames() {
   const preview = shallowRef<PreviewResult | null>(null);
 
   const noFrames = computed(() => listed.value !== "" && data.value === null);
+  // A read that failed (a toast says so too): the page draws the failure with Retry. Cleared by the next read.
+  const failed = ref("");
+  const kinds = computed(() => kindsInOrder(data.value?.kinds ?? []));
+  const dirty = computed(() => shown.value !== null && draft.value !== loaded.value);
   const kindOf = (name: string): FrameKind | undefined => data.value?.kinds.find((k) => k.kind === name);
   const shownModel = computed<FrameModel | undefined>(() => {
     const t = shown.value;
     return t && t.target !== DEFAULT_TARGET ? kindOf(t.kind)?.models.find((m) => m.model === t.target) : undefined;
   });
-  // Controls: all off during a load or a write; Edit and the provider select off only during a write.
+  // Controls: all off during a load or a write; the pickers off only during a write.
   const controlsOff = computed(() => busy.value || loading.value > 0);
   const opensOff = computed(() => busy.value);
   // Save is for a change: an untouched draft would only store the text already in force, and give a model that follows
   // the default a frame of its own.
   const canSave = computed(() => !controlsOff.value && draft.value !== loaded.value);
 
-  function openTarget(p: string, k: string, t: string): void {
-    gen++;
+  // What the operator is on, and what a return to the page remembers.
+  function settle(p: string, k: string, t: string): void {
     provider.value = p;
     kind = k;
     target = t;
     Object.assign(memory, { provider: p, kind: k, target: t });
+  }
+  // The operator picked another frame or provider: answers still on their way are dropped.
+  function openTarget(p: string, k: string, t: string): void {
+    gen++;
+    settle(p, k, t);
   }
 
   // Asks, then draws only if no other editor or provider was opened meanwhile. A stale failure is dropped as quietly as
@@ -121,7 +134,9 @@ export function useFrames() {
     }
   }
 
-  // The table and the open editor, read together so they are drawn together. A provider with no frames answers 404.
+  // The table and the editor's frame, read together so they are drawn together. A provider with no frames answers 404.
+  // A kind the provider no longer has (or none asked for) settles on the first kind; a target it no longer has settles
+  // on the kind's own frame, else its default.
   async function readView(at: Asked): Promise<View> {
     let list: FramesList;
     try {
@@ -130,8 +145,15 @@ export function useFrames() {
       if (!(err instanceof ApiError) || err.status !== 404) throw err;
       return { ...at, data: null, info: null };
     }
-    const open = list.kinds.some((k) => k.kind === at.kind);
-    return { ...at, data: list, info: open ? await getFrame(at) : null };
+    const row = list.kinds.find((k) => k.kind === at.kind) ?? kindsInOrder(list.kinds)[0];
+    if (!row) return { ...at, data: list, info: null };
+    const known = at.target === DEFAULT_TARGET || row.models.some((m) => m.model === at.target);
+    const settled = {
+      provider: at.provider,
+      kind: row.kind,
+      target: row.kind === at.kind && known ? at.target : defaultTargetOf(row),
+    };
+    return { ...settled, data: list, info: await getFrame(settled) };
   }
 
   // Draws an editor (history and all). The draft is the stored text of the current version, or the typed one when the
@@ -153,8 +175,9 @@ export function useFrames() {
   function drawView(view: View, keep: { key: string; draft: string } | null): void {
     data.value = view.data;
     listed.value = view.provider;
-    if (!view.data) return drawEditor({ ...view, info: null }, null);
-    drawEditor(view, keep);
+    failed.value = "";
+    if (view.data && view.info) settle(view.provider, view.kind, view.target);
+    drawEditor(view, view.data ? keep : null);
   }
 
   // Reloads the table and the editor of `at` (what was asked for last, unless a write names its own target). Answers
@@ -210,46 +233,54 @@ export function useFrames() {
     }
   }
 
+  // Follow, Roll back and picking another frame reload the editor from the server, which drops what was typed: with an
+  // unsaved draft they ask first. Keep editing leaves everything as it is.
+  const keepsDraft = async (): Promise<boolean> => dirty.value && !(await askDiscard());
+
+  // A read of the table that fails is a toast and a card with Retry.
+  async function reading(fn: () => Promise<void>): Promise<void> {
+    try {
+      await fn();
+    } catch (err) {
+      failed.value = errorText(err);
+      notify.error(failed.value);
+    }
+  }
+
   // ---- the view ---------------------------------------------------------------------------------------------------
   async function init(names: string[], preferred: string): Promise<void> {
     providers.value = names;
     if (!provider.value || !names.includes(provider.value)) {
       provider.value = names.includes(preferred) ? preferred : (names[0] ?? "");
+      kind = target = memory.kind = memory.target = "";
     }
-    // the provider chosen last is kept, an open editor is not: the page always starts with its drawer shut
-    kind = target = memory.kind = memory.target = "";
     gen++;
-    if (provider.value) await act(async () => void (await loadFrames()));
+    if (provider.value) await reading(async () => void (await loadFrames()));
   }
 
-  // Shuts the drawer and forgets the editor: answers still on their way are dropped and nothing is remembered.
-  function close(): void {
-    openTarget(provider.value, "", "");
-    open.value = false;
-    shown.value = null;
-    info.value = null;
-    loaded.value = "";
-    draft.value = "";
-    refusal.value = "";
-    warnings.value = [];
-    applied.value = null;
-    preview.value = null;
-  }
+  // Reads the provider's table again (Retry).
+  const reload = (): Promise<void> => reading(async () => void (await loadFrames(true)));
 
   // Leaving the view: nothing that is still in flight may draw.
   const dispose = (): void => void gen++;
 
+  // Another provider, another kind or another model: over an unsaved draft the operator is asked first, and Keep
+  // editing leaves everything as it is. Picking the frame that is already in the editor does nothing.
   const openProvider = (p: string): Promise<void> =>
-    act(async () => {
+    reading(async () => {
+      if (p === provider.value && !failed.value) return;
+      if (dirty.value && !(await askDiscard())) return;
       openTarget(p, "", "");
       await loadFrames();
     });
 
   const edit = (editKind: string, editTarget: string): Promise<void> =>
     act(async () => {
+      if (shown.value?.kind === editKind && shown.value.target === editTarget) return;
+      if (dirty.value && !(await askDiscard())) return;
       const at = { provider: listed.value, kind: editKind, target: editTarget };
+      const before = { kind, target };
       openTarget(at.provider, at.kind, at.target);
-      open.value = true;
       const mine = gen;
       try {
         await current(
@@ -257,11 +288,17 @@ export function useFrames() {
           (view) => drawEditor(view, null),
         );
       } catch (err) {
-        // the read failed (a toast says so): a drawer with nothing in it and nothing typed has no reason to stay
-        if (mine === gen && !shown.value) open.value = false;
+        // the read failed (a toast says so): the editor still holds the frame it had
+        if (mine === gen) settle(at.provider, before.kind, before.target);
         throw err;
       }
     });
+
+  // A kind opens on its first own frame, else its default.
+  const openKind = (name: string): Promise<void> => {
+    const row = kindOf(name);
+    return row ? edit(name, defaultTargetOf(row)) : Promise.resolve();
+  };
 
   // ---- writes -----------------------------------------------------------------------------------------------------
   const save = (): Promise<void> =>
@@ -279,10 +316,6 @@ export function useFrames() {
       );
       if (done) notify.success(done.unchanged ? "Nothing changed" : "Saved: applies to jobs created from now on");
     });
-
-  // Follow and Roll back reload the editor from the server, which drops what was typed: with an unsaved draft they ask
-  // first, with the question a close asks. Keep editing leaves everything as it is.
-  const keepsDraft = async (): Promise<boolean> => draft.value !== loaded.value && !(await askDiscard());
 
   const follow = (): Promise<void> =>
     act(async () => {
@@ -363,12 +396,16 @@ export function useFrames() {
       if (drew) applied.value = answer;
     });
 
+  // The model a preview is made for: the open model, or for a default the first model of the kind.
+  const previewModel = (t: FrameTarget): string | undefined =>
+    t.target === DEFAULT_TARGET ? kindOf(t.kind)?.models[0]?.model : t.target;
+
   // The answer belongs to the editor and the draft that asked: another editor, or another draft, drops it.
   const previewNow = (): Promise<void> =>
     act(async () => {
       const t = shown.value;
       if (!t) return;
-      const model = t.target === DEFAULT_TARGET ? kindOf(t.kind)?.models[0]?.model : t.target;
+      const model = previewModel(t);
       if (!model) {
         notify.error(NO_PREVIEW_MODEL_TEXT);
         return;
@@ -383,6 +420,32 @@ export function useFrames() {
       warnings.value = answer.warnings;
     });
 
+  // The preview kept up with the draft as it is typed: the same call, with no refusal and no toast. A draft that
+  // visibly breaks a rule (a marker not in once, over the length, a blank sample prompt) has nothing to show and is not
+  // sent: the editor says which rule. The answer belongs to the frame, the draft and the sample prompt that asked.
+  const previewQuiet = async (): Promise<void> => {
+    const t = shown.value;
+    if (!t || controlsOff.value) return;
+    const model = previewModel(t);
+    if (!model) return;
+    const text = draft.value;
+    const prompt = previewPrompt.value;
+    if (!markerChecks(text).ok || text.length > FRAME_MAX || !prompt.trim()) {
+      preview.value = null;
+      return;
+    }
+    const mine = gen;
+    const stillAsked = () => draft.value === text && previewPrompt.value === prompt && mine === gen;
+    try {
+      const answer = await previewFrame(model, prompt, text);
+      if (!stillAsked()) return;
+      preview.value = answer;
+      warnings.value = answer.warnings;
+    } catch {
+      if (stillAsked()) preview.value = null;
+    }
+  };
+
   // The inputs of the editor are bound through these, so the components never assign into the controller they were given.
   const setDraft = (text: string): void => void (draft.value = text);
   const setPreviewPrompt = (text: string): void => void (previewPrompt.value = text);
@@ -392,8 +455,9 @@ export function useFrames() {
     setPreviewPrompt,
     provider,
     providers,
-    open,
-    close,
+    failed,
+    kinds,
+    dirty,
     listed,
     data,
     shown,
@@ -416,6 +480,8 @@ export function useFrames() {
     init,
     dispose,
     openProvider,
+    openKind,
+    reload,
     edit,
     save,
     follow,
@@ -424,6 +490,7 @@ export function useFrames() {
     setLock,
     applyAll,
     previewNow,
+    previewQuiet,
   });
 }
 

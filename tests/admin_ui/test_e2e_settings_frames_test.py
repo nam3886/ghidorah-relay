@@ -5,16 +5,18 @@ API key must be in sessionStorage only, and gone after sign-out and a 401."""
 
 import base64
 import json
+import os
 import re
 import uuid
 
 import pytest
 from accountkit import new_account
 from jobkit import key as new_key
-from page_helpers import click_tab, sideways
+from page_helpers import click_tab, settle, sideways
 from patchright.sync_api import TimeoutError as PlaywrightTimeout
 from patchright.sync_api import expect
 from test_admin_prices import fabricated, priced
+from test_e2e_form_drawers import goto_keys
 from test_frame_plan import put
 
 from relay_core.testing.fake_provider import FAKE_FRAMES
@@ -22,7 +24,6 @@ from relay_core.testing.mutation import mutation
 
 pytestmark = pytest.mark.browser
 
-VIDEO = '[data-frame-kind="video"]'
 HOSTILE = '<img src=x onerror="window.__pwned=1"> {{tracking_code}} {{client_prompt}}'
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==")
@@ -133,16 +134,332 @@ def frame_texts(db, model):
 
 
 def frames_page(page, db, own: str | None = None):
-    """A signed-in Prompt frames tab: the video and image defaults, and optionally an own frame for fake-video."""
+    """A signed-in Prompt frames tab: the video and image defaults, and optionally an own frame for fake-video (then
+    the page opens on it, else on the video default). Returns the models card, fake-video's row, the frame text box and
+    the editor's heading."""
     put(db, "video", None, FAKE_FRAMES.defaults["video"])
     put(db, "image", None, FAKE_FRAMES.defaults["image"])
     if own:
         put(db, "video", "fake-video", own)
     open_tab(page, "Prompt frames")
-    video = page.locator(VIDEO)
-    expect(video).to_be_visible()
-    return video, video.locator("tbody tr", has_text="fake-video"), page.get_by_label("Frame text"), \
-        page.get_by_role("dialog").get_by_role("heading", level=2)
+    editor = page.get_by_test_id("frame-editor")
+    expect(editor).to_be_visible()
+    models = page.get_by_test_id("frame-models")
+    return models, models.locator("tbody tr", has_text="fake-video"), page.get_by_label("Frame text"), \
+        editor.get_by_role("heading", level=2)
+
+
+def pick_frame(page, label: str) -> None:
+    """Put another frame in the editor through its 'Frame for' list (the default, or a model)."""
+    page.get_by_role("combobox", name="Frame for").click()
+    page.get_by_role("option", name=re.compile(label)).click()
+
+
+def frame_for(page):
+    """The value of the 'Frame for' control, as text."""
+    return page.locator(".filter-select__value")
+
+
+def asked(page):
+    """The discard question over a typed draft."""
+    return page.locator(".el-message-box")
+
+
+def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all(app_session, db, framed):
+    page = app_session
+    default = FAKE_FRAMES.defaults["video"]
+    models, row, text, heading = frames_page(page, db)
+    source = row.locator(".fm__pill").first
+    save = page.get_by_role("button", name="Save", exact=True)
+    expect(source).to_have_text("default")
+    # the page opens on the kind's default, inline: no drawer, no dialog
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    expect(frame_for(page)).to_have_text("Default · all video models")
+    expect(text).to_have_value(default)
+    row.get_by_role("button", name="Edit frame for fake-video").click()
+    expect(frame_for(page)).to_have_text("fake-video · follows default")
+    expect(text).to_have_value(default)
+    expect(page.get_by_text("This model follows the default.")).to_be_visible()
+    expect(save).to_be_disabled()
+
+    # a save with a warning: saved, the warning shown, the model has its own frame
+    first = "Own words. {{tracking_code}} {{client_prompt}}"
+    text.fill(first)
+    expect(save).to_be_enabled()
+    expect(page.get_by_test_id("frame-unsaved")).to_be_visible()
+    save.click()
+    expect(page.get_by_test_id("frame-warnings")).to_contain_text("asks for no single result")
+    expect(page.locator(".el-message").first).to_be_visible()
+    expect(source).to_have_text("own")
+    expect(frame_for(page)).to_have_text(re.compile(r"^fake-video · own frame v\d+$"))
+    assert frame_texts(db, "fake-video") == [first]
+    expect(save).to_be_disabled()
+    expect(page.get_by_test_id("frame-unsaved")).to_have_count(0)
+
+    # a refused save shows its param beside the editor and stores nothing
+    text.fill("no placeholders at all")
+    expect(page.get_by_test_id("frame-check")).to_contain_text("is in 0 times")
+    save.click()
+    refusal = page.locator("#frame-refusal")
+    expect(refusal).to_have_text(re.compile(r"\(\{\{(client_prompt|tracking_code)\}\}\)$"))
+    assert frame_texts(db, "fake-video") == [first]
+    page.problems.clear()                                    # the 4xx of a refused save is a console line
+
+    # the preview follows the draft as it is typed, and the Preview button renders it at once; neither stores anything
+    text.fill("Draft single. {{tracking_code}} {{client_prompt}}")
+    shown = page.get_by_test_id("frame-preview")
+    expect(shown).to_contain_text("Draft single.")
+    expect(shown).to_contain_text("a cat on a sofa")
+    page.get_by_role("button", name="Preview", exact=True).click()
+    expect(shown).to_contain_text("Draft single.")
+    expect(page.get_by_text(re.compile(r"^\d+ characters$"))).to_be_visible()
+    # what the preview was made with is a note on the menu surface, reached by the keyboard as well as the pointer
+    count = page.get_by_text(re.compile(r"^\d+ characters$"))
+    expect(count).not_to_have_attribute("title", re.compile(".*"))
+    count.focus()
+    expect(page.get_by_role("tooltip")).to_have_text("Shown with the sample tracking code (draft frame).")
+    page.keyboard.press("Escape")                            # Escape dismisses it while the focus stays on the text
+    expect(page.get_by_role("tooltip")).to_have_count(0)
+    expect(count).to_be_focused()
+    assert frame_texts(db, "fake-video") == [first]
+    # a blank sample prompt: no preview, and the Preview button shows the server's refusal
+    page.get_by_label("Sample prompt").fill("")
+    expect(shown).to_have_count(0)
+    page.get_by_role("button", name="Preview", exact=True).click()
+    expect(refusal).to_contain_text("(prompt)")
+    page.problems.clear()
+    page.get_by_label("Sample prompt").fill("a cat on a sofa")
+
+    # a second version, then a rollback to the first
+    second = "Second single. {{tracking_code}} {{client_prompt}}"
+    text.fill(second)
+    save.click()
+    history = page.get_by_test_id("frame-history").locator("li")
+    expect(history).to_have_count(2)
+    expect(page.get_by_test_id("frame-warnings")).to_have_count(0)
+    # only an older version has a Roll back: the first text is the one below the current
+    history.get_by_role("button", name=re.compile("Roll back")).click()
+    expect(history).to_have_count(3)
+    expect(text).to_have_value(first)
+    assert frame_texts(db, "fake-video") == [first, second, first]
+    assert db.one("SELECT restored_from FROM prompt_frames WHERE model = 'fake-video' ORDER BY id DESC LIMIT 1")[0]
+
+    # follow the default again
+    page.get_by_role("button", name="Follow the default").click()
+    expect(source).to_have_text("default")
+    assert frame_texts(db, "fake-video")[-1] is None
+
+    # the default differs from the shipped one: the flag, then the reset
+    pick_frame(page, "Default")
+    expect(frame_for(page)).to_have_text("Default · all video models")
+    text.fill("Changed single. {{tracking_code}} {{client_prompt}}")
+    page.get_by_role("button", name="Preview", exact=True).click()           # a preview from the default's editor
+    expect(shown).to_contain_text("Changed single.")
+    save.click()
+    flag = page.get_by_text("differs from the shipped default")
+    expect(flag).to_be_visible()
+    page.get_by_role("button", name="Reset to the shipped default").click()
+    expect(flag).to_have_count(0)
+    assert frame_texts(db, None)[-1] == default
+
+    # a lock keeps a model's own text when a default is applied to all; unlocked, it takes it
+    row.get_by_role("button", name="Edit frame for fake-video").click()
+    expect(frame_for(page)).to_have_text("fake-video · follows default")
+    mine = "Mine single. {{tracking_code}} {{client_prompt}}"
+    text.fill(mine)
+    save.click()
+    expect(source).to_have_text("own")
+    row.get_by_role("checkbox").click()
+    expect(row.locator("label")).to_have_attribute("title", re.compile(r"^Locked \d+ \w{3} by "))
+    pick_frame(page, "Default")
+    everywhere = "All single. {{tracking_code}} {{client_prompt}}"
+    text.fill(everywhere)
+    page.get_by_role("button", name="Apply to all models of this kind").click()
+    applied = page.get_by_test_id("frame-applied")
+    expect(applied).to_contain_text("Applied: -. Kept (locked): fake-video.")
+    assert frame_texts(db, "fake-video")[-1] == mine
+    row.get_by_role("checkbox").click()
+    expect(row.locator("label")).to_have_attribute("title", re.compile(r"^Unlocked \d+ \w{3} by "))
+    text.fill(everywhere)
+    page.get_by_role("button", name="Apply to all models of this kind").click()
+    expect(applied).to_contain_text("Applied: fake-video.")
+    assert frame_texts(db, "fake-video")[-1] == everywhere
+    text.fill(everywhere)                                    # the same text again: the model already has it
+    page.get_by_role("button", name="Apply to all models of this kind").click()
+    expect(applied).to_contain_text("Applied: -. Kept (locked): -. Unchanged: fake-video.")
+
+
+def test_a_late_answer_for_a_frame_that_was_replaced_is_dropped(app_session, db, framed):
+    page = app_session
+    own = "Own of A single. {{tracking_code}} {{client_prompt}}"
+    models, row, text, heading = frames_page(page, db, own=own)
+    expect(text).to_have_value(own)                          # the page opens on the model's own frame
+    held = []
+
+    def hold(route):
+        if route.request.method == "GET" and not held:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route(re.compile(r"/admin/frames/fake/video/default(\?|$)"), hold)
+    pick_frame(page, "Default")
+    for _ in range(250):
+        if held:
+            break
+        page.wait_for_timeout(20)
+    assert held, "the request was not sent"
+    # the editor still holds the frame it had, and cannot be written in while the next one is read
+    expect(text).to_have_attribute("readonly", "")
+    expect(text).to_have_value(own)
+    # the operator picks the image kind before the answer comes; the late answer must change nothing
+    page.get_by_test_id("frame-kind-image").click()
+    expect(frame_for(page)).to_have_text("Default · all image models")
+    expect(text).to_have_value(FAKE_FRAMES.defaults["image"])
+    held[0].continue_()
+    page.wait_for_timeout(500)
+    expect(frame_for(page)).to_have_text("Default · all image models")
+    expect(text).to_have_value(FAKE_FRAMES.defaults["image"])
+
+
+def test_the_frames_page_opens_on_a_frame_and_a_typed_draft_asks_before_it_is_lost(app_session, db, framed):
+    page = app_session
+    own = "Own of A single. {{tracking_code}} {{client_prompt}}"
+    models, row, text, heading = frames_page(page, db, own=own)
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    expect(text).to_have_value(own)
+    # a clean editor lets another frame in at once; one with typing in it asks, and Keep editing leaves it as typed
+    typed = "Typed single. {{tracking_code}} {{client_prompt}}"
+    text.fill(typed)
+    pick_frame(page, "Default")
+    expect(asked(page)).to_contain_text("Discard what you typed?")
+    page.keyboard.press("Escape")
+    expect(asked(page)).to_have_count(0)
+    expect(text).to_have_value(typed)
+    expect(frame_for(page)).to_have_text(re.compile(r"^fake-video · own frame"))
+    # leaving the page with the draft asks too (a browser Back changes the address like this), and Keep editing stays
+    page.evaluate("window.location.hash = '#/jobs'", isolated_context=False)
+    expect(asked(page)).to_contain_text("Discard what you typed?")
+    asked(page).get_by_role("button", name="Keep editing").click()
+    expect(asked(page)).to_have_count(0)
+    expect(text).to_have_value(typed)
+    # Discard lets the other frame in
+    pick_frame(page, "Default")
+    asked(page).get_by_role("button", name="Discard").click()
+    expect(frame_for(page)).to_have_text("Default · all video models")
+    expect(text).to_have_value(FAKE_FRAMES.defaults["video"])
+    # a draft left behind is not restored when the operator comes back (they chose to discard to leave)
+    row.get_by_role("button", name="Edit frame for fake-video").click()
+    text.fill(typed)
+    page.evaluate("window.location.hash = '#/jobs'", isolated_context=False)
+    asked(page).get_by_role("button", name="Discard").click()
+    expect(page).to_have_url(re.compile(r"#/jobs$"))
+    open_tab(page, "Prompt frames")
+    expect(page.get_by_test_id("frame-editor")).to_be_visible()
+    expect(text).to_have_value(own)
+    assert db.one("SELECT count(*) FROM prompt_frames WHERE model = 'fake-video'")[0] == 1
+
+
+@pytest.mark.parametrize(("width", "height"), [(1440, 900), (820, 1100), (390, 844)])
+def test_the_editor_is_inline_at_the_three_widths_with_its_actions_in_reach_and_no_sideways_scroll(
+        app_session, db, framed, width, height):
+    page = app_session
+    page.set_viewport_size({"width": width, "height": height})
+    models, _row, text, heading = frames_page(page, db, own="Own of A single. {{tracking_code}} {{client_prompt}}")
+    editor = page.get_by_test_id("frame-editor")
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    expect(heading).to_have_text("fake Video")
+    expect(text).to_have_value("Own of A single. {{tracking_code}} {{client_prompt}}")
+    expect(page.get_by_role("heading", name="Prompt frames", level=1)).to_be_visible()
+    # the list of providers and kinds is on the left of a desktop; a tablet and a phone have chips and a segmented row
+    nav, picker = page.get_by_test_id("frames-nav"), page.get_by_test_id("frames-picker")
+    if width >= 1280:
+        expect(nav).to_be_visible()
+        expect(picker).to_have_count(0)
+        assert box_of(editor)["x"] > box_of(nav)["x"] + box_of(nav)["width"], "the editor is beside the list"
+    else:
+        expect(nav).to_have_count(0)
+        expect(picker).to_be_visible()
+        assert box_of(editor)["y"] > box_of(picker)["y"], "the editor stacks under the picker"
+    if width >= 768:
+        assert button_names(page.locator(".fed__foot")) == [
+            "Save", "Follow the default", "Apply to all models of this kind", "Preview"]
+    else:
+        # the phone: Follow and Save in a bar above the tab bar, 44 px buttons; Apply and Preview in the card
+        bar = page.locator(".fed__bar")
+        assert button_names(bar) == ["Follow the default", "Save"]
+        assert all(b.bounding_box()["height"] >= 43.5 for b in bar.get_by_role("button").all())
+        assert box_of(bar)["y"] + box_of(bar)["height"] <= height - 64 + 1, "the bar is above the tab bar"
+        assert button_names(page.locator(".fed__phone-actions")) == ["Apply to all models of this kind", "Preview"]
+    assert sideways(page) <= 0
+
+
+def box_of(locator):
+    box = locator.bounding_box()
+    assert box is not None
+    return box
+
+
+def button_names(locator) -> list[str]:
+    """The buttons inside, by their text, or by their name when they are an icon."""
+    return [b.inner_text().strip() or b.get_attribute("aria-label") for b in locator.get_by_role("button").all()]
+
+
+@pytest.mark.parametrize(("width", "height"), [(1440, 900), (390, 844)])
+def test_the_text_box_picks_out_the_markers_lies_over_its_mirror_inserts_at_the_caret_and_keeps_one_line(
+        app_session, db, framed, width, height):
+    page = app_session
+    page.set_viewport_size({"width": width, "height": height})
+    models, _row, text, heading = frames_page(page, db, own="Scene. {{client_prompt}} then {{tracking_code}}")
+    mirror = page.locator(".fed__mirror")
+    expect(mirror.locator(".fed__ph")).to_have_text(["{{client_prompt}}", "{{tracking_code}}"])
+    expect(page.get_by_test_id("frame-check")).to_contain_text("once each")
+    # the text box lies exactly over the mirror that draws the markers
+    assert all(abs(box_of(mirror)[k] - box_of(text)[k]) <= 1 for k in ("x", "y", "width", "height"))
+    # Insert puts a marker at the caret
+    text.fill("ab")
+    text.evaluate("el => el.setSelectionRange(1, 1)")
+    page.get_by_role("button", name="Insert {{tracking_code}}").click()
+    expect(text).to_have_value("a{{tracking_code}}b")
+    # the editor is one line: Enter adds nothing
+    text.press("Enter")
+    expect(text).to_have_value("a{{tracking_code}}b")
+    # a long frame wraps, and the box and its mirror grow with it
+    text.fill("word " * 150)
+    expect(page.get_by_test_id("frame-check")).to_contain_text("is in 0 times")
+    assert box_of(text)["height"] > 100
+    assert abs(box_of(mirror)["height"] - box_of(text)["height"]) <= 1
+    assert sideways(page) <= 0
+
+
+def test_the_models_and_the_history_follow_the_frame_in_the_editor(app_session, db, framed):
+    page = app_session
+    put(db, "video", "fake-video", "Older single. {{tracking_code}} {{client_prompt}}")
+    models, row, text, heading = frames_page(page, db, own="Newer single. {{tracking_code}} {{client_prompt}}")
+    history = page.get_by_test_id("frame-history-card")
+    expect(history.get_by_role("heading")).to_contain_text("History · fake-video")
+    expect(history.locator("li")).to_have_count(2)
+    expect(row).to_have_class(re.compile("is-selected"))
+    pick_frame(page, "Default")
+    expect(history.get_by_role("heading")).to_contain_text("History · default")
+    expect(row).not_to_have_class(re.compile("is-selected"))
+    row.get_by_role("button", name="Edit frame for fake-video").click()
+    expect(row).to_have_class(re.compile("is-selected"))
+    expect(models.locator("thead th")).to_have_text(["Model", "Source", "Version", "Keep own"])
+
+
+WATCH = "apps/admin-web/src/lib/notify.ts"
+
+
+def keys_toast_page(app, page, db, width, height):
+    """The API keys list with one key whose enable switch the server refuses (500): an error toast with no drawer open.
+    The New key form is the drawer that has a footer."""
+    key = new_key(db)
+    db.run("UPDATE api_keys SET label = %s WHERE id = %s", "toast key", key)
+    goto_keys(app, page, width, height)
+    page.route(re.compile(r"/admin/keys/[^/]+/(enable|disable)$"), lambda route: route.fulfill(
+        status=500, content_type="application/json", body='{"error": {"code": "server.error", "message": "no"}}')
+        if route.request.method == "POST" else route.continue_())
 
 
 SETTLED_BOXES_JS = """async () => {
@@ -160,252 +477,10 @@ SETTLED_BOXES_JS = """async () => {
   return {toast: box(toast), foot: box(foot)};
 }"""
 
-
-def press(page, button) -> None:
-    """Click a footer button and nothing more: the toast of the last write is above the footer (own assertions
-    check that), so no wait for it is needed."""
-    button.click()
-
-
-def close_editor(page) -> None:
-    """Close the editor drawer by its X (a clean editor closes at once) and wait until it is gone: the list behind it
-    cannot be reached while it is open."""
-    page.get_by_role("dialog").get_by_role("button", name=re.compile(r"^(Close|Back)")).last.click()   # Back on a sheet
-    expect(page.get_by_role("dialog")).to_have_count(0)
-
-
-def test_frames_save_refuse_preview_roll_back_follow_reset_lock_and_apply_to_all(app_session, db, framed):
-    page = app_session
-    default = FAKE_FRAMES.defaults["video"]
-    video, row, text, heading = frames_page(page, db)
-    source = row.locator(".status-chip")
-    save = page.get_by_role("button", name="Save", exact=True)
-    expect(source).to_have_text("default")
-    row.get_by_role("button", name="Edit frame for fake-video").click()
-    expect(heading).to_have_text("Editing video / fake-video")
-    expect(text).to_have_value(default)
-    expect(page.get_by_text("This model follows the default.")).to_be_visible()
-    expect(save).to_be_disabled()
-
-    # a save with a warning: saved, the warning shown, the model has its own frame
-    first = "Own words. {{tracking_code}} {{client_prompt}}"
-    text.fill(first)
-    expect(save).to_be_enabled()
-    press(page, save)
-    expect(page.get_by_test_id("frame-warnings")).to_contain_text("asks for no single result")
-    # the toast of the save sits above the footer: it covers none of its buttons
-    expect(page.locator(".el-message").first).to_be_visible()
-    boxes = page.evaluate(SETTLED_BOXES_JS, isolated_context=False)
-    assert boxes["toast"]["bottom"] <= boxes["foot"]["y"] + 1, boxes
-    expect(source).to_have_text("own")
-    assert frame_texts(db, "fake-video") == [first]
-    expect(save).to_be_disabled()
-
-    # a refused save shows its param beside the editor and stores nothing
-    text.fill("no placeholders at all")
-    press(page, save)
-    refusal = page.locator("#frame-refusal")
-    expect(refusal).to_have_text(re.compile(r"\(\{\{(client_prompt|tracking_code)\}\}\)$"))
-    assert frame_texts(db, "fake-video") == [first]
-    page.problems.clear()                                    # the 4xx of a refused save is a console line
-
-    # the preview renders the draft, with its length, and stores nothing
-    text.fill("Draft single. {{tracking_code}} {{client_prompt}}")
-    press(page, page.get_by_role("button", name="Preview", exact=True))
-    shown = page.get_by_test_id("frame-preview")
-    expect(shown).to_contain_text("Draft single.")
-    expect(shown).to_contain_text("a cat on a sofa")
-    expect(page.get_by_text(re.compile(r"^\d+ characters$"))).to_be_visible()
-    # what the preview was made with is a note on the menu surface, reached by the keyboard as well as the pointer
-    count = page.get_by_text(re.compile(r"^\d+ characters$"))
-    expect(count).not_to_have_attribute("title", re.compile(".*"))
-    count.focus()
-    expect(page.get_by_role("tooltip")).to_have_text("Shown with the sample tracking code (draft frame).")
-    page.keyboard.press("Escape")                            # Escape dismisses it while the focus stays on the text
-    expect(page.get_by_role("tooltip")).to_have_count(0)
-    expect(count).to_be_focused()
-    assert frame_texts(db, "fake-video") == [first]
-    # a refused preview (a blank sample prompt) shows its refusal and clears the old render
-    page.get_by_label("Sample prompt").fill("")
-    press(page, page.get_by_role("button", name="Preview", exact=True))
-    expect(refusal).to_contain_text("(prompt)")
-    expect(shown).to_have_count(0)
-    page.problems.clear()
-    page.get_by_label("Sample prompt").fill("a cat on a sofa")
-
-    # a second version, then a rollback to the first
-    second = "Second single. {{tracking_code}} {{client_prompt}}"
-    text.fill(second)
-    press(page, save)
-    history = page.get_by_test_id("frame-history").locator("li")
-    expect(history).to_have_count(2)
-    expect(page.get_by_test_id("frame-warnings")).to_have_count(0)
-    # only an older version has a Roll back: the first text is the one below the current
-    history.get_by_role("button", name=re.compile("Roll back")).click()
-    expect(history).to_have_count(3)
-    expect(text).to_have_value(first)
-    assert frame_texts(db, "fake-video") == [first, second, first]
-    assert db.one("SELECT restored_from FROM prompt_frames WHERE model = 'fake-video' ORDER BY id DESC LIMIT 1")[0]
-
-    # follow the default again
-    press(page, page.get_by_role("button", name="Follow the default"))
-    expect(source).to_have_text("default")
-    assert frame_texts(db, "fake-video")[-1] is None
-
-    # the default differs from the shipped one: the flag, then the reset
-    close_editor(page)
-    video.get_by_role("button", name="Edit the default").click()
-    expect(heading).to_have_text("Editing video / default")
-    text.fill("Changed single. {{tracking_code}} {{client_prompt}}")
-    press(page, page.get_by_role("button", name="Preview", exact=True))      # a preview from the default's editor
-    expect(shown).to_contain_text("Changed single.")
-    press(page, save)
-    flag = video.get_by_text("differs from the shipped default")
-    expect(flag).to_be_visible()
-    close_editor(page)
-    video.get_by_role("button", name="Reset to the shipped default").click()
-    expect(flag).to_have_count(0)
-    assert frame_texts(db, None)[-1] == default
-
-    # a lock keeps a model's own text when a default is applied to all; unlocked, it takes it. The list is behind the
-    # drawer while an editor is open, so each lock is toggled with the drawer shut.
-    row.get_by_role("button", name="Edit frame for fake-video").click()
-    expect(heading).to_have_text("Editing video / fake-video")
-    mine = "Mine single. {{tracking_code}} {{client_prompt}}"
-    text.fill(mine)
-    press(page, save)
-    expect(source).to_have_text("own")
-    close_editor(page)
-    row.get_by_role("checkbox").click()
-    expect(row).to_contain_text(re.compile(r"locked \d\d/\d\d by"))
-    video.get_by_role("button", name="Edit the default").click()
-    everywhere = "All single. {{tracking_code}} {{client_prompt}}"
-    text.fill(everywhere)
-    press(page, page.get_by_role("button", name="Apply to all models of this kind"))
-    applied = page.get_by_test_id("frame-applied")
-    expect(applied).to_contain_text("Applied: -. Kept (locked): fake-video.")
-    assert frame_texts(db, "fake-video")[-1] == mine
-    close_editor(page)
-    row.get_by_role("checkbox").click()
-    expect(row).to_contain_text(re.compile(r"unlocked \d\d/\d\d by"))
-    video.get_by_role("button", name="Edit the default").click()
-    expect(heading).to_have_text("Editing video / default")
-    text.fill(everywhere)
-    press(page, page.get_by_role("button", name="Apply to all models of this kind"))
-    expect(applied).to_contain_text("Applied: fake-video.")
-    assert frame_texts(db, "fake-video")[-1] == everywhere
-    text.fill(everywhere)                                    # the same text again: the model already has it
-    press(page, page.get_by_role("button", name="Apply to all models of this kind"))
-    expect(applied).to_contain_text("Applied: -. Kept (locked): -. Unchanged: fake-video.")
-
-
-def test_a_late_answer_for_an_editor_that_was_closed_is_dropped_and_the_drawer_opens_at_once(
-        app_session, db, framed):
-    page = app_session
-    video, row, text, heading = frames_page(page, db, own="Own of A single. {{tracking_code}} {{client_prompt}}")
-    default = FAKE_FRAMES.defaults["video"]
-
-    held = []
-
-    def hold(route):
-        if route.request.method == "GET" and not held:
-            held.append(route)
-        else:
-            route.continue_()
-
-    page.route(re.compile(r"/admin/frames/fake/video/fake-video(\?|$)"), hold)
-    row.get_by_role("button", name="Edit frame for fake-video").click()
-    for _ in range(250):
-        if held:
-            break
-        page.wait_for_timeout(20)
-    assert held, "the request was not sent"
-    # Edit gives its answer at once: the drawer is open and says it is loading; nothing can be written yet
-    dialog = page.get_by_role("dialog")
-    expect(dialog).to_be_visible()
-    expect(dialog).to_contain_text("Loading the frame")
-    expect(text).to_have_count(0)
-    expect(page.get_by_role("button", name="Save", exact=True)).to_have_count(0)
-    # the operator shuts it before the answer comes, and opens the default; the late answer must change nothing
-    close_editor(page)
-    held[0].continue_()
-    page.wait_for_timeout(500)
-    expect(page.get_by_role("dialog")).to_have_count(0)
-    video.get_by_role("button", name="Edit the default").click()
-    expect(heading).to_have_text("Editing video / default")
-    expect(text).to_have_value(default)
-
-
-def test_the_frames_page_opens_with_no_drawer_and_a_typed_draft_asks_before_it_is_lost(app_session, db, framed):
-    page = app_session
-    video, row, text, heading = frames_page(page, db, own="Own of A single. {{tracking_code}} {{client_prompt}}")
-    expect(page.get_by_role("dialog")).to_have_count(0)
-    expect(page.get_by_text("Pick a model or a default")).to_have_count(0)
-    row.get_by_role("button", name="Edit frame for fake-video").click()
-    expect(heading).to_have_text("Editing video / fake-video")
-    # a clean editor closes at once; one with typing in it asks, and Keep editing leaves it as typed
-    typed = "Typed single. {{tracking_code}} {{client_prompt}}"
-    text.fill(typed)
-    page.keyboard.press("Escape")
-    box = page.locator(".el-message-box")
-    expect(box).to_contain_text("Discard what you typed?")
-    page.keyboard.press("Escape")
-    expect(box).to_have_count(0)
-    expect(text).to_have_value(typed)
-    # leaving the page with the draft asks too (the tabs are behind the scrim: the address changes, as a browser Back
-    # does), and Keep editing stays on the page with the draft
-    page.evaluate("window.location.hash = '#/jobs'", isolated_context=False)
-    expect(box).to_contain_text("Discard what you typed?")
-    box.get_by_role("button", name="Keep editing").click()
-    expect(box).to_have_count(0)
-    expect(text).to_have_value(typed)
-    # Discard shuts it; coming back to the page, no drawer is open and the provider stays
-    page.keyboard.press("Escape")
-    box.get_by_role("button", name="Discard").click()
-    expect(page.get_by_role("dialog")).to_have_count(0)
-    open_tab(page, "Jobs")
-    open_tab(page, "Prompt frames")
-    expect(video).to_be_visible()
-    expect(page.get_by_role("dialog")).to_have_count(0)
-    # a draft left in an open drawer is not restored when the operator comes back (they chose to discard to leave)
-    row.get_by_role("button", name="Edit frame for fake-video").click()
-    expect(heading).to_have_text("Editing video / fake-video")
-    expect(text).to_have_value("Own of A single. {{tracking_code}} {{client_prompt}}")
-    assert db.one("SELECT count(*) FROM prompt_frames WHERE model = 'fake-video'")[0] == 1
-
-
-@pytest.mark.parametrize(("width", "height"), [(1440, 900), (768, 1024), (390, 844)])
-def test_the_editor_drawer_is_named_by_its_heading_keeps_its_buttons_in_the_footer_and_gives_focus_back(
-        app_session, db, framed, width, height):
-    page = app_session
-    page.set_viewport_size({"width": width, "height": height})
-    video, _row, text, heading = frames_page(page, db, own="Own of A single. {{tracking_code}} {{client_prompt}}")
-    opener = page.get_by_role("button", name="Edit frame for fake-video")     # a table row, or a card on a phone
-    opener.focus()
-    opener.click()
-    drawer = page.get_by_role("dialog", name="Editing video / fake-video")
-    expect(drawer).to_be_visible()
-    expect(text).to_have_value("Own of A single. {{tracking_code}} {{client_prompt}}")
-    # the list runs across the page: it is not squeezed beside an editor
-    assert video.bounding_box()["width"] > width - 200
-    footer = drawer.locator(".detail-drawer__foot")
-    names = [b.inner_text().strip() for b in footer.get_by_role("button").all()]
-    assert names == ["Save", "Follow the default", "Preview"], names
-    assert drawer.locator(".detail-drawer__body").get_by_role("button", name="Save", exact=True).count() == 0
-    if width < 768:
-        # the phone sheet: a Back button to the page and a footer of 44 px buttons
-        expect(drawer.get_by_role("button", name="Back to Prompt frames")).to_be_visible()
-        assert all(b.bounding_box()["height"] >= 44 for b in footer.get_by_role("button").all())
-    assert sideways(page) <= 0
-    # a clean editor closes on Escape and the page gets its focus back on the button that opened it
-    page.keyboard.press("Escape")
-    expect(page.get_by_role("dialog")).to_have_count(0)
-    expect(opener).to_be_focused()
-
-
 TOAST_AND_FOOTER_JS = """() => {
   const toast = document.querySelector('.el-message');
-  const foot = document.querySelector('.detail-drawer__foot');
+  // a drawer that was shut keeps its footer in the page, undrawn: only a footer with a box counts
+  const foot = [...document.querySelectorAll('.detail-drawer__foot')].find((f) => f.getClientRects().length);
   const bottom = (el) => el.getBoundingClientRect().bottom;
   return {
     toast: toast ? bottom(toast) : null,
@@ -435,21 +510,14 @@ def toast_settles_above_footer(page, what: str) -> dict:
     return boxes
 
 
-WATCH = "apps/admin-web/src/lib/notify.ts"
-
-
 @mutation(WATCH, "watchDrawerFooter();\n\nconst base", "const base", expect="the toast did not slide above the footer")
 @pytest.mark.parametrize(("width", "height", "default_gap"), [(1440, 900, 16), (390, 844, 72)])
 def test_a_toast_showing_when_a_drawer_opens_slides_above_its_footer_and_back_when_it_closes(
-        app_session, db, framed, width, height, default_gap):
+        app, app_session, db, width, height, default_gap):
     page = app_session
-    page.set_viewport_size({"width": width, "height": height})
-    video, row, text, heading = frames_page(page, db, own="Own single. {{tracking_code}} {{client_prompt}}")
-    # an error toast (5 s) from a lock the server refuses, raised with no drawer on the page
-    page.route(re.compile(r"/admin/frames/fake/video/fake-video/lock$"), lambda route: route.fulfill(
-        status=500, content_type="application/json",
-        body='{"error": {"code": "server.error", "message": "lock failed"}}'))
-    page.get_by_label("Keep own frame of fake-video").first.click()
+    keys_toast_page(app, page, db, width, height)
+    # an error toast (5 s) from an enable switch the server refuses, raised with no drawer on the page
+    page.get_by_role("switch").first.click()
     expect(page.locator(".el-message--error")).to_be_visible()
     page.problems.clear()                                    # the 500 is a console line
     page.wait_for_function("""(gap) => {                  // it slides in, then sits at its default place
@@ -457,11 +525,12 @@ def test_a_toast_showing_when_a_drawer_opens_slides_above_its_footer_and_back_wh
       return t && Math.abs(innerHeight - t.getBoundingClientRect().bottom - gap) <= 6;
     }""", arg=default_gap, timeout=3000)
     # the drawer opens while the toast is showing: the toast slides above the footer, none closes early
-    video.get_by_role("button", name="Edit the default").click()
+    page.get_by_role("button", name="New key").first.click()
     expect(page.get_by_role("dialog")).to_be_visible()
     toast_settles_above_footer(page, "slide above the footer")
     # the drawer closes: the toast comes back down to its default place
-    close_editor(page)
+    page.get_by_role("dialog").get_by_role("button", name="Cancel", exact=True).click()
+    expect(page.get_by_role("dialog")).to_have_count(0)
     page.wait_for_function("""(gap) => {
       const t = document.querySelector('.el-message');
       return t && Math.abs(innerHeight - t.getBoundingClientRect().bottom - gap) <= 6;
@@ -471,19 +540,14 @@ def test_a_toast_showing_when_a_drawer_opens_slides_above_its_footer_and_back_wh
 
 
 @mutation(WATCH, "if (foot) sizes?.observe(foot);", "", expect="the toast did not follow the footer that grew")
-def test_a_toast_follows_a_drawer_footer_that_grows(app_session, db, framed):
+def test_a_toast_follows_a_drawer_footer_that_grows(app, app_session, db):
     page = app_session
-    video, _row, text, _heading = frames_page(page, db)
-    video.get_by_role("button", name="Edit the default").click()
-    expect(text).to_be_visible()
-    text.fill("Grow single. {{tracking_code}} {{client_prompt}}")
-    page.route(re.compile(r"/admin/frames/fake/video/default$"), lambda route: route.fulfill(
-        status=500, content_type="application/json",
-        body='{"error": {"code": "server.error", "message": "save failed"}}')
-        if route.request.method == "PUT" else route.continue_())
-    page.get_by_role("button", name="Save", exact=True).click()
+    keys_toast_page(app, page, db, 1440, 900)
+    page.get_by_role("switch").first.click()
     expect(page.locator(".el-message--error")).to_be_visible()
     page.problems.clear()                                    # the 500 is a console line
+    page.get_by_role("button", name="New key").first.click()
+    expect(page.get_by_role("dialog")).to_be_visible()
     before = toast_settles_above_footer(page, "slide above the footer")
     # the footer grows by script (a CSSOM write, as a wrapping footer would): the toast follows it
     page.evaluate("document.querySelector('.detail-drawer__foot').style.minHeight = '160px'", isolated_context=False)
@@ -491,18 +555,15 @@ def test_a_toast_follows_a_drawer_footer_that_grows(app_session, db, framed):
     assert after["foot"]["height"] > before["foot"]["height"] + 40, (before, after)
 
 
-def test_on_a_phone_the_toast_after_a_save_does_not_cover_the_default_editors_footer(app_session, db, framed):
+def test_on_a_phone_a_toast_does_not_cover_the_forms_footer(app, app_session, db):
     page = app_session
-    page.set_viewport_size({"width": 390, "height": 844})
-    video, _row, text, _heading = frames_page(page, db)
-    video.get_by_role("button", name="Edit the default").click()
-    expect(text).to_be_visible()
-    text.fill("Phone single. {{tracking_code}} {{client_prompt}}")
-    page.get_by_role("button", name="Save", exact=True).click()
-    expect(page.locator(".el-message").first).to_be_visible()
+    keys_toast_page(app, page, db, 390, 844)
+    page.get_by_role("switch").first.click()
+    expect(page.locator(".el-message--error")).to_be_visible()
+    page.problems.clear()                                    # the 500 is a console line
+    page.get_by_role("button", name="New key").first.click()
+    expect(page.get_by_role("dialog")).to_be_visible()
     boxes = page.evaluate(SETTLED_BOXES_JS, isolated_context=False)
-    # the sheet footer holds three buttons and wraps to two rows (117 px at 390): the toast clears all of it
-    assert boxes["foot"]["height"] > 100, boxes
     assert boxes["toast"]["bottom"] <= boxes["foot"]["y"] + 1, boxes
 
 
@@ -510,10 +571,9 @@ def test_follow_the_default_and_roll_back_over_an_unsaved_draft_ask_first(app_se
     page = app_session
     older = "Older single. {{tracking_code}} {{client_prompt}}"
     put(db, "video", "fake-video", older)
-    video, row, text, heading = frames_page(page, db, own="Newer single. {{tracking_code}} {{client_prompt}}")
-    box = page.locator(".el-message-box")
-    row.get_by_role("button", name="Edit frame for fake-video").click()
-    expect(heading).to_have_text("Editing video / fake-video")
+    models, row, text, heading = frames_page(page, db, own="Newer single. {{tracking_code}} {{client_prompt}}")
+    box = asked(page)
+    expect(frame_for(page)).to_have_text(re.compile(r"^fake-video · own frame"))
     before = frame_texts(db, "fake-video")
     typed = "Typed single. {{tracking_code}} {{client_prompt}}"
     text.fill(typed)
@@ -531,7 +591,7 @@ def test_follow_the_default_and_roll_back_over_an_unsaved_draft_ask_first(app_se
     assert len(frame_texts(db, "fake-video")) == len(before) + 1
     # Follow the default: the same question; a clean draft acts at once
     text.fill(typed)
-    press(page, page.get_by_role("button", name="Follow the default"))
+    page.get_by_role("button", name="Follow the default").click()
     expect(box).to_contain_text("Discard what you typed?")
     box.get_by_role("button", name="Keep editing").click()
     expect(box).to_have_count(0)
@@ -539,38 +599,16 @@ def test_follow_the_default_and_roll_back_over_an_unsaved_draft_ask_first(app_se
     assert frame_texts(db, "fake-video")[-1] == older
     page.get_by_role("button", name="Follow the default").click()
     box.get_by_role("button", name="Discard").click()
-    expect(row.locator(".status-chip")).to_have_text("default")
+    expect(row.locator(".fm__pill").first).to_have_text("default")
     assert frame_texts(db, "fake-video")[-1] is None
     expect(box).to_have_count(0)
 
 
-def test_a_click_on_the_scrim_acts_like_escape(app_session, db, framed):
-    page = app_session
-    video, row, text, heading = frames_page(page, db, own="Own of A single. {{tracking_code}} {{client_prompt}}")
-    row.get_by_role("button", name="Edit frame for fake-video").click()
-    expect(heading).to_have_text("Editing video / fake-video")
-    page.mouse.click(20, 300)                                # beside the drawer: on the scrim
-    expect(page.get_by_role("dialog")).to_have_count(0)
-    row.get_by_role("button", name="Edit frame for fake-video").click()
-    text.fill("Typed single. {{tracking_code}} {{client_prompt}}")
-    page.mouse.click(20, 300)
-    box = page.locator(".el-message-box")
-    expect(box).to_contain_text("Discard what you typed?")
-    box.get_by_role("button", name="Keep editing").click()
-    expect(box).to_have_count(0)
-    expect(text).to_have_value("Typed single. {{tracking_code}} {{client_prompt}}")
-    page.mouse.click(20, 300)
-    expect(box).to_contain_text("Discard what you typed?")
-    box.get_by_role("button", name="Discard").click()
-    expect(box).to_have_count(0)
-    expect(page.get_by_role("dialog")).to_have_count(0)
-
-
 def test_frame_text_with_markup_is_text_in_the_editor_the_history_and_the_preview(app_session, db, framed):
     page = app_session
-    video, row, text, heading = frames_page(page, db)
+    models, row, text, heading = frames_page(page, db)
     row.get_by_role("button", name="Edit frame for fake-video").click()
-    expect(heading).to_have_text("Editing video / fake-video")
+    expect(frame_for(page)).to_have_text("fake-video · follows default")
     text.fill(HOSTILE)
     page.get_by_role("button", name="Preview", exact=True).click()
     expect(page.get_by_test_id("frame-preview")).to_contain_text("<img src=x")
@@ -582,21 +620,21 @@ def test_frame_text_with_markup_is_text_in_the_editor_the_history_and_the_previe
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
-def test_a_provider_without_frames_says_the_core_frame_applies_and_the_provider_strip_lists_it(
+def test_a_provider_without_frames_says_the_core_frame_applies_and_the_list_names_it(
         app_session, db, color_scheme):
     page = app_session
     open_tab(page, "Prompt frames")
     expect(page.get_by_text("This provider has no prompt frames: the core frame applies.")).to_be_visible()
-    strip = page.get_by_role("navigation", name="Provider")
-    expect(strip.get_by_test_id("provider-tab-fake")).to_have_attribute("aria-pressed", "true")
-    expect(strip.get_by_test_id("provider-tab-all")).to_have_count(0)        # one provider at a time: no All
+    nav = page.get_by_role("navigation", name="Providers and kinds")
+    expect(nav.get_by_test_id("provider-tab-fake")).to_have_attribute("aria-expanded", "true")
+    expect(page.get_by_role("navigation", name="Provider", exact=True)).to_have_count(0)    # no strip: its own list
     expect(page.get_by_role("banner").get_by_test_id("provider-filter")).to_have_count(0)
     page.problems.clear()                                    # the 404 is a console line
 
 
 def test_every_provider_has_its_own_frames_and_a_vibes_edit_previews_verbatim_and_touches_no_other(
         app_session, db, real_providers):
-    """The real dola, meta, vibes and flow specs, their shipped defaults seeded: each provider is in the select and
+    """The real dola, meta, vibes and flow specs, their shipped defaults seeded: each provider is in the list and
     draws its own kinds; a vibes frame previews as written (no tracking code) and its save adds one row, for vibes
     only."""
     import os
@@ -608,41 +646,73 @@ def test_every_provider_has_its_own_frames_and_a_vibes_edit_previews_verbatim_an
     page = app_session
     page.set_viewport_size({"width": 1440, "height": 900})
     open_tab(page, "Prompt frames")
-    strip = page.get_by_role("navigation", name="Provider")
+    nav = page.get_by_role("navigation", name="Providers and kinds")
     kinds = {"dola": ["video", "image"], "meta": ["video", "image"], "vibes": ["video", "image"],
              "flow": ["video", "image"]}
     for name, drawn in kinds.items():
         if name == "dola":
             for listed in kinds:
-                expect(strip.get_by_test_id("provider-tab-%s" % listed)).to_have_count(1)
-        strip.get_by_test_id("provider-tab-%s" % name).click()
-        expect(strip.get_by_test_id("provider-tab-%s" % name)).to_have_attribute("aria-pressed", "true")
+                expect(nav.get_by_test_id("provider-tab-%s" % listed)).to_have_count(1)
+        nav.get_by_test_id("provider-tab-%s" % name).click()
+        expect(nav.get_by_test_id("provider-tab-%s" % name)).to_have_attribute("aria-expanded", "true")
         if name == "dola":
             shoot("frames-providers.png")
         expect(page.get_by_text("This provider has no prompt frames: the core frame applies.")).to_have_count(0)
-        expect(page.locator("[data-frame-kind]")).to_have_count(len(drawn))
-        assert page.locator("[data-frame-kind]").evaluate_all("els => els.map(e => e.dataset.frameKind)") == drawn
+        expect(nav.locator("[data-testid^=frame-kind-]")).to_have_count(len(drawn))
+        assert nav.locator("[data-testid^=frame-kind-]").evaluate_all(
+            "els => els.map(e => e.dataset.testid.replace('frame-kind-', ''))") == drawn
     before = db.all("SELECT provider, kind, model, text FROM prompt_frames ORDER BY id")
     assert sorted({r[0] for r in before}) == ["dola", "flow", "meta", "vibes"]
-    strip.get_by_test_id("provider-tab-vibes").click()
-    expect(page.get_by_test_id("frames-verbatim")).to_contain_text("vibes sends the text as written")
-    video = page.locator(VIDEO)
-    video.get_by_role("button", name="Edit frame for vibes-video").click()
-    expect(page.get_by_role("dialog").get_by_role("heading", level=2)).to_have_text("Editing video / vibes-video")
+    nav.get_by_test_id("provider-tab-vibes").click()
+    expect(page.get_by_test_id("frame-verbatim")).to_contain_text("vibes sends the text as written")
+    page.get_by_test_id("frame-models").get_by_role("button", name="Edit frame for vibes-video").click()
+    expect(page.locator(".filter-select__value")).to_contain_text("vibes-video")
     expect(page.get_by_test_id("frame-verbatim")).to_contain_text("vibes sends the text as written")
     page.get_by_label("Frame text").fill("Cinematic, {{client_prompt}} {{tracking_code}}")
-    press(page, page.get_by_role("button", name="Preview", exact=True))
+    page.get_by_role("button", name="Preview", exact=True).click()
     expect(page.get_by_test_id("frame-preview")).to_have_text("Cinematic, a cat on a sofa")
     shoot("frames-vibes-editor.png")
-    press(page, page.get_by_role("button", name="Save", exact=True))
+    page.get_by_role("button", name="Save", exact=True).click()
     expect(page.get_by_role("button", name="Save", exact=True)).to_be_disabled()      # saved: the draft is the text
     after = db.all("SELECT provider, kind, model, text FROM prompt_frames ORDER BY id")
     assert after == before + [("vibes", "video", "vibes-video", "Cinematic, {{client_prompt}} {{tracking_code}}")]
-    close_editor(page)
-    strip.get_by_test_id("provider-tab-meta").click()
-    page.locator(VIDEO).get_by_role("button", name="Edit frame for meta-video").click()
+    nav.get_by_test_id("provider-tab-meta").click()
+    page.get_by_test_id("frame-models").get_by_role("button", name="Edit frame for meta-video").click()
     expect(page.get_by_label("Frame text")).to_have_value("{{client_prompt}} {{tracking_code}}")
     expect(page.get_by_test_id("frame-verbatim")).to_have_count(0)
+
+
+SHOTS = os.environ.get("RELAY_SCREENSHOTS_DIR")
+
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+@pytest.mark.parametrize(("width", "height"), [(1440, 1300), (820, 1560), (390, 1640)])
+def test_the_frames_page_fits_each_width_in_both_themes_the_list_and_an_inline_edit(
+        app_session, db, framed, color_scheme, width, height):
+    """The page as the design draws it at 1440, 820 and 390 px, light and dark: no sideways scroll, and (with
+    RELAY_SCREENSHOTS_DIR set) a shot of the list and one with an inline edit open."""
+    page = app_session
+    page.set_viewport_size({"width": width, "height": height})
+    models, row, text, heading = frames_page(page, db, own=FRAMES_SHOT_OWN)
+    page.get_by_test_id("frame-history").wait_for()
+    expect(page.get_by_test_id("frame-preview")).to_be_visible()           # the preview has been read
+    settle(page)
+    assert sideways(page) <= 0
+    if SHOTS:
+        page.screenshot(path=os.path.join(SHOTS, "%d-%s-frames-list.png" % (width, color_scheme)), full_page=False)
+    text.click()
+    text.press("ControlOrMeta+End")
+    text.type(" Keep camera moves smooth.")
+    expect(page.get_by_test_id("frame-unsaved")).to_be_visible()
+    expect(page.get_by_test_id("frame-preview")).to_contain_text("Keep camera moves smooth.")
+    settle(page)
+    assert sideways(page) <= 0
+    if SHOTS:
+        page.screenshot(path=os.path.join(SHOTS, "%d-%s-frames-edit.png" % (width, color_scheme)), full_page=False)
+
+
+FRAMES_SHOT_OWN = ("Create one single video from the scene below. Do not ask questions and do not split it into parts. "
+                   "Scene: {{client_prompt}} {{tracking_code}}")
 
 
 # ---- Test tab -------------------------------------------------------------------------------------------------------
@@ -1007,10 +1077,8 @@ def test_frames_settings_and_test_fit_a_phone_and_a_tablet_with_their_main_actio
     open_tab(page, name)
     expect(heading(page)).to_be_visible()
     if route == "frames":
-        expect(page.locator(VIDEO)).to_be_visible()
-        page.locator(VIDEO).get_by_role("button", name="Edit frame for fake-video").first.click()
-        main = page.get_by_role("button", name="Follow the default").or_(
-            page.get_by_role("button", name="Save", exact=True))
+        expect(page.get_by_test_id("frame-editor")).to_be_visible()
+        main = page.get_by_role("button", name="Save", exact=True)
     elif route == "settings":
         expect(page.get_by_label("Value of log_retention_days")).to_be_visible()
         main = page.get_by_role("button", name="Save General", exact=True)

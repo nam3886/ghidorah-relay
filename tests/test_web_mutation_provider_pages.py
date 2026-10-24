@@ -15,7 +15,7 @@ LOGS_TABLE = SRC + "/components/logs/LogsTable.vue"
 ALERTS = SRC + "/views/AlertsView.vue"
 FRAMES_VIEW = SRC + "/views/FramesView.vue"
 FRAMES_MODEL = SRC + "/components/frames/frames-model.ts"
-FRAME_KIND = SRC + "/components/frames/FrameKindSection.vue"
+FRAME_MODELS = SRC + "/components/frames/FrameModels.vue"
 TEST_VIEW = SRC + "/views/TestView.vue"
 
 STRIP_SPEC = "tests/unit/provider-strip.spec.ts"
@@ -32,7 +32,7 @@ GROUPS = f"FAILED {KEY_SPEC} > modelGroups > "
 KEYS_STRIP = f"FAILED {KEYS_SPEC} > the provider strip > "
 LOGS_PROVIDER = f"FAILED {LOGS_SPEC} > the provider of a request > "
 ALERTS_STRIP = f"FAILED {ALERTS_SPEC} > the provider strip > "
-FRAMES = f"FAILED {FRAMES_SPEC} > the view > "
+FRAMES = f"FAILED {FRAMES_SPEC} > "
 TEST_STRIP = f"FAILED {TEST_SPEC} > the provider strip > "
 
 
@@ -76,14 +76,12 @@ def test_the_alerts_page_by_provider():
     vitest(ALERTS_SPEC)
 
 
-@mutation(FRAMES_VIEW, "watchEffect(() => (scope.stripLocked = frames.opensOff));", "",
-          expect=FRAMES + "during a write: everything is off, Edit buttons and the provider strip too")
 @mutation(FRAMES_MODEL, r"marker: /^\{\{\w+\}\}$/.test(part)", "marker: false",
-          expect=FRAMES + "writes out each kind's default with its markers picked out, and an own model's text under "
-                          "it")
-@mutation(FRAME_KIND, "m.owned_by === props.frames.listed && m.disabled === true",
+          expect=FRAMES + "the editor > picks the markers out of the frame, and says whether each is in once")
+@mutation(FRAME_MODELS, "m.owned_by === props.frames.listed && m.disabled === true",
           "m.owned_by === props.frames.listed",
-          expect=FRAMES + "marks a model the admin paused")
+          expect=FRAMES + "the models of the kind > writes a model's name under its id only when it differs, "
+                          "and marks a model the admin paused")
 @pytest.mark.web_unit
 def test_the_frames_page_by_provider():
     vitest(FRAMES_SPEC)

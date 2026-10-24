@@ -19,11 +19,12 @@ const saved = (over: Partial<api.SavedFrame> = {}): api.SavedFrame => ({
   ...over,
 });
 
+// The page opens on the first kind's first own frame (m1); any other target is picked after that.
 async function opened(target = "m1", text: string | null = "own1") {
   const f = useFrames();
-  await f.init(["flow", "other"], "flow");
   vi.mocked(api.getFrame).mockResolvedValue(frameInfo(text));
-  await f.edit("video", target);
+  await f.init(["flow", "other"], "flow");
+  if (target !== "m1") await f.edit("video", target);
   return f;
 }
 
@@ -60,25 +61,53 @@ describe("opening", () => {
     expect(again.provider).toBe("other");
   });
 
-  it("starts closed when it comes back, whatever editor it had", async () => {
+  it("comes back to the frame it had", async () => {
     const f = await opened("m2", null);
     expect(f.shown).toEqual({ provider: "flow", kind: "video", target: "m2" });
-    expect(f.open).toBe(true);
-    vi.mocked(api.getFrame).mockClear();
     const again = useFrames();
     await again.init(["flow"], "flow");
-    expect(again.open).toBe(false);
-    expect(again.shown).toBeNull();
+    expect(again.shown).toEqual({ provider: "flow", kind: "video", target: "m2" });
     expect(again.data?.kinds).toHaveLength(2);
-    expect(api.getFrame).not.toHaveBeenCalled();
   });
 
-  it("loads the table and no editor until one is opened", async () => {
+  it("falls back to the first kind when the one it had is gone, and to the default when its model is gone", async () => {
+    await opened("m2", null);
+    vi.mocked(api.listFrames).mockImplementation(async () => {
+      const list = framesList();
+      list.kinds[0]!.models = list.kinds[0]!.models.filter((m) => m.model !== "m2");
+      return list;
+    });
+    const gone = useFrames();
+    await gone.init(["flow"], "flow");
+    expect(gone.shown?.target).toBe("m1");
+    vi.mocked(api.listFrames).mockImplementation(async () => {
+      const list = framesList();
+      return { ...list, kinds: list.kinds.filter((k) => k.kind === "image") };
+    });
+    const other = useFrames();
+    await other.init(["flow"], "flow");
+    expect(other.shown).toEqual({ provider: "flow", kind: "image", target: "default" });
+  });
+
+  it("loads the table and opens video first, on its first own frame", async () => {
     const f = useFrames();
     await f.init(["flow"], "flow");
     expect(f.data?.kinds.map((k) => k.kind)).toEqual(["video", "image"]);
-    expect(f.shown).toBeNull();
-    expect(api.getFrame).not.toHaveBeenCalled();
+    expect(f.kinds.map((k) => k.kind)).toEqual(["video", "image"]);
+    expect(f.shown).toEqual({ provider: "flow", kind: "video", target: "m1" });
+    expect(api.getFrame).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a kind with no own frame on its default, and video first whatever order the server lists", async () => {
+    vi.mocked(api.listFrames).mockImplementation(async () => {
+      const list = framesList();
+      list.kinds[0]!.models[0]!.source = "default";
+      return { ...list, kinds: [...list.kinds].reverse() };
+    });
+    const f = useFrames();
+    await f.init(["flow"], "flow");
+    expect(f.kinds.map((k) => k.kind)).toEqual(["video", "image"]);
+    expect(f.shown).toEqual({ provider: "flow", kind: "video", target: "default" });
   });
 
   it("says the provider has no frames on a 404", async () => {
@@ -100,6 +129,19 @@ describe("opening", () => {
     await f.init(["flow"], "flow");
     expect(notify.error).toHaveBeenCalledWith("boom");
     expect(f.noFrames).toBe(false);
+    expect(f.failed).toBe("boom");
+  });
+
+  it("Retry reads the table again and clears the failure", async () => {
+    vi.mocked(api.listFrames).mockRejectedValueOnce(
+      new ApiError(500, { error: { code: "server.error", message: "boom" } }),
+    );
+    const f = useFrames();
+    await f.init(["flow"], "flow");
+    expect(f.failed).toBe("boom");
+    await f.reload();
+    expect(f.failed).toBe("");
+    expect(f.shown?.target).toBe("m1");
   });
 
   it("the draft starts as the current text, else the text in force, and Save waits for a change", async () => {
@@ -116,86 +158,97 @@ describe("opening", () => {
   });
 });
 
-describe("the drawer", () => {
-  it("opens at once on Edit, while the read runs, and holds the draft once it lands", async () => {
-    const f = useFrames();
-    await f.init(["flow"], "flow");
-    expect(f.open).toBe(false);
+describe("the editor", () => {
+  it("keeps the frame it holds while the read of the next one runs, then shows the next", async () => {
+    const f = await opened("m1", "own1");
     const slow = deferred<api.FrameInfo>();
     vi.mocked(api.getFrame).mockReturnValue(slow.promise);
-    const reading = f.edit("video", "m1");
-    expect(f.open).toBe(true);
-    expect(f.shown).toBeNull();
-    slow.resolve(frameInfo("own1"));
+    const reading = f.edit("video", "m2");
+    expect(f.shown?.target).toBe("m1");
+    expect(f.loading).toBe(1);
+    slow.resolve(frameInfo("second"));
     await reading;
-    expect(f.open).toBe(true);
-    expect(f.draft).toBe("own1");
+    expect(f.shown?.target).toBe("m2");
+    expect(f.draft).toBe("second");
   });
 
-  it("stays open, with its draft, when a reload finds no such frame any more", async () => {
+  it("picking the frame that is already in the editor does nothing", async () => {
+    const f = await opened("m1", "own1");
+    vi.mocked(api.getFrame).mockClear();
+    await f.edit("video", "m1");
+    expect(api.getFrame).not.toHaveBeenCalled();
+  });
+
+  it("opens a kind on its first own frame, else its default", async () => {
+    const f = await opened("m1", "own1");
+    vi.mocked(api.getFrame).mockResolvedValue(frameInfo("D"));
+    await f.openKind("image");
+    expect(f.shown).toEqual({ provider: "flow", kind: "image", target: "default" });
+    await f.openKind("video");
+    expect(f.shown).toEqual({ provider: "flow", kind: "video", target: "m1" });
+  });
+
+  it("keeps its draft when a reload finds no such frame any more", async () => {
     const f = await opened("m1", "own1");
     f.setDraft("typed, not saved");
     vi.mocked(api.listFrames).mockImplementation(async () => ({ ...framesList(), kinds: [] }));
     vi.mocked(api.lockFrame).mockResolvedValue({});
     await f.setLock("video", "m1", true);
     expect(f.shown).toBeNull();
-    expect(f.open).toBe(true);
     expect(f.draft).toBe("typed, not saved");
     expect(f.loaded).toBe("own1");
   });
 
-  it("closes the drawer and forgets the editor, the draft and what the last write said", async () => {
+  it("asks before another frame replaces an unsaved draft; Keep editing changes nothing, Discard picks it", async () => {
     const f = await opened("m1", "own1");
-    f.setDraft("typed");
-    f.close();
-    expect(f.open).toBe(false);
-    expect(f.shown).toBeNull();
-    expect(f.info).toBeNull();
-    expect(f.draft).toBe("");
-    expect(f.loaded).toBe("");
-    expect(f.refusal).toBe("");
-    expect(f.warnings).toEqual([]);
-    expect(f.preview).toBeNull();
-    // the provider stays, the target does not
+    f.setDraft("typed, not saved");
+    vi.mocked(api.getFrame).mockClear();
+    vi.mocked(askDiscard).mockResolvedValueOnce(false);
+    await f.edit("video", "m2");
+    expect(askDiscard).toHaveBeenCalledTimes(1);
+    expect(api.getFrame).not.toHaveBeenCalled();
+    expect(f.shown?.target).toBe("m1");
+    expect(f.draft).toBe("typed, not saved");
+    vi.mocked(api.getFrame).mockResolvedValue(frameInfo("second"));
+    await f.edit("video", "m2");
+    expect(f.shown?.target).toBe("m2");
+    expect(f.draft).toBe("second");
+  });
+
+  it("asks before another provider replaces an unsaved draft too, and a clean draft goes at once", async () => {
+    const f = await opened("m1", "own1");
+    f.setDraft("typed, not saved");
+    vi.mocked(askDiscard).mockResolvedValueOnce(false);
+    await f.openProvider("other");
     expect(f.provider).toBe("flow");
-    const again = useFrames();
-    await again.init(["flow"], "flow");
-    expect(again.shown).toBeNull();
+    expect(api.listFrames).toHaveBeenCalledTimes(1);
+    vi.mocked(askDiscard).mockClear();
+    f.setDraft("own1");
+    await f.openProvider("other");
+    expect(askDiscard).not.toHaveBeenCalled();
+    expect(f.provider).toBe("other");
   });
 
-  it("drops a read that lands after the drawer was closed, and does not reopen it", async () => {
-    const f = useFrames();
-    await f.init(["flow"], "flow");
-    const slow = deferred<api.FrameInfo>();
-    vi.mocked(api.getFrame).mockReturnValue(slow.promise);
-    const reading = f.edit("video", "m1");
-    f.close();
-    slow.resolve(frameInfo("own1"));
-    await reading;
-    expect(f.open).toBe(false);
-    expect(f.shown).toBeNull();
-    expect(f.draft).toBe("");
-  });
-
-  it("shuts a drawer whose read failed and holds nothing, after the toast", async () => {
-    const f = useFrames();
-    await f.init(["flow"], "flow");
+  it("keeps the frame it had, after the toast, when the read of the next one fails", async () => {
+    const f = await opened("m1", "own1");
     vi.mocked(api.getFrame).mockRejectedValue(new ApiError(500, { error: { code: "server.error", message: "no" } }));
-    await f.edit("video", "m1");
+    await f.edit("video", "m2");
     expect(notify.error).toHaveBeenCalledWith("no");
-    expect(f.open).toBe(false);
+    expect(f.shown?.target).toBe("m1");
+    const again = useFrames();
+    vi.mocked(api.getFrame).mockResolvedValue(frameInfo("own1"));
+    await again.init(["flow"], "flow");
+    expect(again.shown?.target).toBe("m1");
   });
 
-  it("stays open after Save and after Roll back: the reload redraws it", async () => {
+  it("stays on its frame after Save and after Roll back: the reload redraws it", async () => {
     const f = await opened();
     f.setDraft("x");
     vi.mocked(api.putFrame).mockResolvedValue(saved());
     await f.save();
-    expect(f.open).toBe(true);
     expect(f.shown?.target).toBe("m1");
     vi.mocked(api.rollbackFrame).mockResolvedValue(saved());
     await f.rollback(4);
-    expect(f.open).toBe(true);
     expect(f.shown?.target).toBe("m1");
   });
 });
@@ -206,14 +259,14 @@ describe("stale answers", () => {
     await f.init(["flow"], "flow");
     const slow = deferred<api.FrameInfo>();
     vi.mocked(api.getFrame).mockImplementation((t) =>
-      t.target === "m1" ? slow.promise : Promise.resolve(frameInfo("second")),
+      t.target === "m2" ? slow.promise : Promise.resolve(frameInfo("second")),
     );
-    const first = f.edit("video", "m1");
-    const second = f.edit("video", "m2");
+    const first = f.edit("video", "m2");
+    const second = f.edit("video", "default");
     await second;
     slow.resolve(frameInfo("first"));
     await first;
-    expect(f.shown?.target).toBe("m2");
+    expect(f.shown?.target).toBe("default");
     expect(f.draft).toBe("second");
   });
 
@@ -222,21 +275,21 @@ describe("stale answers", () => {
     await f.init(["flow"], "flow");
     const slow = deferred<api.FrameInfo>();
     vi.mocked(api.getFrame).mockImplementation((t) =>
-      t.target === "m1" ? slow.promise : Promise.resolve(frameInfo("second")),
+      t.target === "m2" ? slow.promise : Promise.resolve(frameInfo("second")),
     );
-    const first = f.edit("video", "m1");
-    await f.edit("video", "m2");
+    const first = f.edit("video", "m2");
+    await f.edit("video", "default");
     slow.reject(new ApiError(500, { error: { code: "server.error", message: "late failure" } }));
     await first;
     expect(notify.error).not.toHaveBeenCalled();
-    expect(f.shown?.target).toBe("m2");
+    expect(f.shown?.target).toBe("default");
   });
 
   it("still shows the failure of the editor that is current", async () => {
     const f = useFrames();
     await f.init(["flow"], "flow");
     vi.mocked(api.getFrame).mockRejectedValue(new ApiError(500, { error: { code: "server.error", message: "now" } }));
-    await f.edit("video", "m1");
+    await f.edit("video", "m2");
     expect(notify.error).toHaveBeenCalledWith("now");
   });
 
@@ -257,12 +310,12 @@ describe("stale answers", () => {
 });
 
 describe("busy states", () => {
-  it("a load turns every control off except Edit and the provider select", async () => {
+  it("a load turns every control off except the pickers", async () => {
     const f = useFrames();
     await f.init(["flow"], "flow");
     const slow = deferred<api.FrameInfo>();
     vi.mocked(api.getFrame).mockReturnValue(slow.promise);
-    const loading = f.edit("video", "m1");
+    const loading = f.edit("video", "m2");
     expect(f.loading).toBe(1);
     expect(f.controlsOff).toBe(true);
     expect(f.opensOff).toBe(false);
@@ -272,7 +325,7 @@ describe("busy states", () => {
     expect(f.controlsOff).toBe(false);
   });
 
-  it("a write turns every control off, Edit and the provider select included, and the draft read-only", async () => {
+  it("a write turns every control off, the pickers included, and the draft read-only", async () => {
     const f = await opened();
     f.setDraft("changed");
     const slow = deferred<api.SavedFrame>();
@@ -619,8 +672,86 @@ describe("preview", () => {
     await f.previewNow();
     expect(f.preview?.text).toBe("rendered");
     vi.mocked(api.getFrame).mockResolvedValue(frameInfo("own1"));
-    await f.edit("video", "m1");
+    await f.reload();
     expect(f.previewPrompt).toBe("a cat on a sofa");
     expect(f.preview).toBeNull();
+  });
+});
+
+describe("the quiet preview", () => {
+  const answer = (text: string): api.PreviewResult => ({
+    text,
+    length: text.length,
+    frame_id: null,
+    source: "draft",
+    warnings: ["w"],
+  });
+
+  it("sends the draft and the sample prompt for the open model, and shows the answer and its warnings", async () => {
+    const f = await opened("m1", "own1");
+    f.setDraft("draft {{client_prompt}} {{tracking_code}}");
+    vi.mocked(api.previewFrame).mockResolvedValue(answer("rendered"));
+    await f.previewQuiet();
+    expect(api.previewFrame).toHaveBeenCalledWith("m1", "a cat on a sofa", "draft {{client_prompt}} {{tracking_code}}");
+    expect(f.preview?.text).toBe("rendered");
+    expect(f.warnings).toEqual(["w"]);
+  });
+
+  it("shows no refusal and no toast: a draft the server refuses just has no preview", async () => {
+    const f = await opened("m1", "own {{client_prompt}} {{tracking_code}}");
+    vi.mocked(api.previewFrame).mockResolvedValueOnce(answer("rendered")).mockRejectedValueOnce(refused());
+    await f.previewQuiet();
+    expect(f.preview?.text).toBe("rendered");
+    f.setDraft("bad {{client_prompt}} {{tracking_code}}");
+    await f.previewQuiet();
+    expect(f.preview).toBeNull();
+    expect(f.refusal).toBe("");
+    expect(notify.error).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing while a load or a write is on, or for a kind with no model", async () => {
+    const f = await opened("m1", "own1");
+    const slow = deferred<api.SavedFrame>();
+    vi.mocked(api.putFrame).mockReturnValue(slow.promise);
+    f.setDraft("x {{client_prompt}} {{tracking_code}}");
+    const writing = f.save();
+    await f.previewQuiet();
+    slow.resolve(saved());
+    await writing;
+    vi.mocked(api.getFrame).mockResolvedValue(frameInfo("D"));
+    await f.edit("image", "default");
+    await f.previewQuiet();
+    expect(api.previewFrame).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing for a draft that visibly breaks a rule, and clears the old preview", async () => {
+    const f = await opened("m1", "own {{client_prompt}} {{tracking_code}}");
+    vi.mocked(api.previewFrame).mockResolvedValue(answer("rendered"));
+    await f.previewQuiet();
+    expect(f.preview?.text).toBe("rendered");
+    vi.mocked(api.previewFrame).mockClear();
+    for (const text of ["no markers", `{{client_prompt}} {{tracking_code}} ${"x".repeat(1000)}`]) {
+      f.setDraft(text);
+      await f.previewQuiet();
+      expect(f.preview).toBeNull();
+    }
+    f.setDraft("fine {{client_prompt}} {{tracking_code}}");
+    f.setPreviewPrompt("   ");
+    await f.previewQuiet();
+    expect(f.preview).toBeNull();
+    expect(api.previewFrame).not.toHaveBeenCalled();
+  });
+
+  it("drops an answer for a draft that was replaced while it was on its way", async () => {
+    const f = await opened();
+    const slow = deferred<api.PreviewResult>();
+    vi.mocked(api.previewFrame).mockReturnValue(slow.promise);
+    f.setDraft("first {{client_prompt}} {{tracking_code}}");
+    const asking = f.previewQuiet();
+    f.setDraft("second {{client_prompt}} {{tracking_code}}");
+    slow.resolve(answer("for the first"));
+    await asking;
+    expect(f.preview).toBeNull();
+    expect(f.warnings).toEqual([]);
   });
 });

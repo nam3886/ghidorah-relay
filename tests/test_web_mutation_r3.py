@@ -49,7 +49,7 @@ GEN_SPEC = FAILED + "test/use-generate.spec.ts > generating > "
 VIEW_SPEC = FAILED + "test/test-view.spec.ts > "
 SETTINGS_SPEC = FAILED + "settings/settings.spec.ts > "
 FRAMES_SPEC = FAILED + "frames/use-frames.spec.ts > "
-FRAMES_VIEW_SPEC = FAILED + "frames/frames-view.spec.ts > the view > "
+FRAMES_VIEW_SPEC = FAILED + "frames/frames-view.spec.ts > the editor > "
 MODEL_SPEC = FAILED + "frames/frames-model.spec.ts > frame lines > "
 
 # ---- the image limits, on restore and before every write ---------------------------------------------------------
@@ -427,7 +427,7 @@ def test_settings_rules():
 STALE_ANSWER = FRAMES_SPEC + "stale answers > drops the answer of an editor that was replaced before it came back"
 STALE_FAILURE = (FRAMES_SPEC
                  + "stale answers > drops the failure of an editor that was replaced as quietly as its answer")
-LOAD_OFF = FRAMES_SPEC + "busy states > a load turns every control off except Edit and the provider select"
+LOAD_OFF = FRAMES_SPEC + "busy states > a load turns every control off except the pickers"
 SAVE_NEEDS_CHANGE = (FRAMES_SPEC
                      + "opening > the draft starts as the current text, else the text in force, "
                      + "and Save waits for a change")
@@ -457,19 +457,30 @@ RESET_KIND = (FRAMES_SPEC + "writes > Reset to the shipped default posts the kin
               + "and keeps the open editor")
 REDRAWN = PREVIEW + "an editor that is redrawn starts with the sample prompt and no preview"
 WRITE_FAILS = FRAMES_SPEC + "busy states > clears the busy flags when a write fails"
-DRAWER_SPEC = FRAMES_SPEC + "the drawer > "
-LATE_READ = DRAWER_SPEC + "drops a read that lands after the drawer was closed, and does not reopen it"
-OPENS_AT_ONCE = DRAWER_SPEC + "opens at once on Edit, while the read runs, and holds the draft once it lands"
-CLOSE_FORGETS = DRAWER_SPEC + "closes the drawer and forgets the editor, the draft and what the last write said"
+EDITOR_SPEC = FRAMES_SPEC + "the editor > "
+ASKS_FRAME = (EDITOR_SPEC + "asks before another frame replaces an unsaved draft; Keep editing changes nothing, "
+              + "Discard picks it")
+ASKS_PROVIDER = (EDITOR_SPEC + "asks before another provider replaces an unsaved draft too, "
+                 + "and a clean draft goes at once")
+READ_FAILED_KEEPS = EDITOR_SPEC + "keeps the frame it had, after the toast, when the read of the next one fails"
 RELOAD_ASKS = FRAMES_SPEC + "an action that reloads the editor over an unsaved draft > "
-STARTS_CLOSED = FRAMES_SPEC + "opening > starts closed when it comes back, whatever editor it had"
-READ_FAILED_SHUTS = DRAWER_SPEC + "shuts a drawer whose read failed and holds nothing, after the toast"
+COMES_BACK = FRAMES_SPEC + "opening > comes back to the frame it had"
+FORGETS_FRAME = FRAMES_SPEC + "opening > forgets the remembered frame when the remembered provider is gone"
 PREVIEW_MODEL = "t.target === DEFAULT_TARGET ? kindOf(t.kind)?.models[0]?.model : t.target"
+QUIET = FRAMES_SPEC + "the quiet preview > "
+QUIET_DRAFT = QUIET + "drops an answer for a draft that was replaced while it was on its way"
+QUIET_EDITOR = QUIET + "sends nothing while a load or a write is on, or for a kind with no model"
+QUIET_REFUSED = QUIET + "shows no refusal and no toast: a draft that breaks a rule just has no preview"
+QUIET_BUSY = QUIET_EDITOR
+DIRTY = FRAMES_VIEW_SPEC + "Save is disabled until the draft differs from the loaded text, and 'unsaved' says so"
+SAME_FRAME = EDITOR_SPEC + "picking the frame that is already in the editor does nothing"
+SETTLES = (FRAMES_SPEC + "opening > falls back to the first kind when the one it had is gone, "
+           + "and to the default when its model is gone")
 
 
 @mutation(FRAMES, STALE_ERROR_GUARD, "throw err;", expect=STALE_FAILURE)
 @mutation(FRAMES, STALE_ANSWER_GUARD, "draw(answer);", expect=STALE_ANSWER)
-@mutation(FRAMES, "gen++;\n    provider.value = p;", "provider.value = p;", expect=STALE_ANSWER)
+@mutation(FRAMES, "gen++;\n    settle(p, k, t);", "settle(p, k, t);", expect=STALE_ANSWER)
 @mutation(FRAMES, OPENS_OFF, "const opensOff = computed(() => busy.value || loading.value > 0);", expect=LOAD_OFF)
 @mutation(FRAMES, CONTROLS_OFF, "const controlsOff = computed(() => busy.value);", expect=LOAD_OFF)
 @mutation(FRAMES, "!controlsOff.value && draft.value !== loaded.value", "!controlsOff.value", expect=SAVE_NEEDS_CHANGE)
@@ -481,19 +492,34 @@ PREVIEW_MODEL = "t.target === DEFAULT_TARGET ? kindOf(t.kind)?.models[0]?.model 
           expect=REFUSAL_MOVED)
 @mutation(FRAMES, "mine === gen && draft.value === text", "draft.value === text", expect=PREVIEW_EDITOR)
 @mutation(FRAMES, "mine === gen && draft.value === text", "mine === gen", expect=PREVIEW_DRAFT)
+@mutation(FRAMES, "draft.value === text && previewPrompt.value === prompt && mine === gen",
+          "previewPrompt.value === prompt && mine === gen", expect=QUIET_DRAFT)
+@mutation(FRAMES, "draft.value === text && previewPrompt.value === prompt && mine === gen",
+          "draft.value === text && previewPrompt.value === prompt", expect=QUIET_EDITOR)
+@mutation(FRAMES, "} catch {\n      if (stillAsked()) preview.value = null;", "} catch {", expect=QUIET_REFUSED)
+@mutation(FRAMES, "if (!t || controlsOff.value) return;\n    const model = previewModel(t);",
+          "if (!t) return;\n    const model = previewModel(t);", expect=QUIET_BUSY)
 @mutation(FRAMES, "if (drew) applied.value = answer;", "applied.value = answer;", expect=APPLY_MOVED)
 @mutation(FRAMES, "drew = await loadFrames(false, t, started);", "drew = await loadFrames(false, t);",
           expect=APPLY_MOVED)
 @mutation(FRAMES, PREVIEW_MODEL, "t.target", expect=PREVIEW_DEFAULT)
 @mutation(FRAMES, "Object.assign(memory, { provider: p, kind: k, target: t });", "", expect=OWN_PROVIDER)
 @mutation(FRAMES, 'names.includes(preferred) ? preferred : (names[0] ?? "")', 'names[0] ?? ""', expect=START_PROVIDER)
-@mutation(FRAMES, 'openTarget(provider.value, "", "");\n    open.value = false;', "open.value = false;",
-          expect=LATE_READ)
-@mutation(FRAMES, 'kind = target = memory.kind = memory.target = "";', "", expect=STARTS_CLOSED)
-@mutation(FRAMES, "draft.value !== loaded.value && !(await askDiscard())", "false",
+@mutation(FRAMES, "Object.assign(memory, { provider: p, kind: k, target: t });", "", expect=COMES_BACK)
+@mutation(FRAMES, 'kind = target = memory.kind = memory.target = "";', "", expect=FORGETS_FRAME)
+@mutation(FRAMES, "=> dirty.value && !(await askDiscard());", "=> false;",
           expect=RELOAD_ASKS + "Follow the default asks first, and Keep editing leaves the draft and sends nothing")
-@mutation(FRAMES, "draft.value !== loaded.value && !(await askDiscard())", "draft.value !== loaded.value",
+@mutation(FRAMES, "=> dirty.value && !(await askDiscard());", "=> dirty.value;",
           expect=RELOAD_ASKS + "Roll back asks first, and Keep editing leaves the draft and sends nothing")
+@mutation(FRAMES, "shown.value.target === editTarget) return;\n      if (dirty.value && !(await askDiscard())) return;",
+          "shown.value.target === editTarget) return;", expect=ASKS_FRAME)
+@mutation(FRAMES, "!failed.value) return;\n      if (dirty.value && !(await askDiscard())) return;",
+          "!failed.value) return;", expect=ASKS_PROVIDER)
+@mutation(FRAMES, "shown.value !== null && draft.value !== loaded.value", "false", expect=DIRTY)
+@mutation(FRAMES, "shown.value?.kind === editKind && shown.value.target === editTarget",
+          "false", expect=SAME_FRAME)
+@mutation(FRAMES, 'target: row.kind === at.kind && known ? at.target : defaultTargetOf(row),',
+          "target: at.target,", expect=SETTLES)
 @mutation(FRAMES, "if (await keepsDraft()) return;\n      const started = gen;\n" +
           "      const done = await changing(() =>\n"
           "        guarded(async () => {\n          await putFrame(t, null);",
@@ -506,9 +532,7 @@ PREVIEW_MODEL = "t.target === DEFAULT_TARGET ? kindOf(t.kind)?.models[0]?.model 
           "const started = gen;\n      const done = await changing(() =>\n        guarded(async () => {\n"
           "          const answer = await rollbackFrame",
           expect=RELOAD_ASKS + "Roll back asks first, and Keep editing leaves the draft and sends nothing")
-@mutation(FRAMES, "open.value = true;\n      const mine = gen;", "const mine = gen;", expect=OPENS_AT_ONCE)
-@mutation(FRAMES, "    loaded.value = \"\";\n    draft.value = \"\";\n", "", expect=CLOSE_FORGETS)
-@mutation(FRAMES, "if (mine === gen && !shown.value) open.value = false;", "", expect=READ_FAILED_SHUTS)
+@mutation(FRAMES, "if (mine === gen) settle(at.provider, before.kind, before.target);", "", expect=READ_FAILED_KEEPS)
 @mutation(FRAMES, "previewFrame(model, previewPrompt.value, text)",
           "previewFrame(model, previewPrompt.value, loaded.value)", expect=PREVIEW_SENDS)
 @mutation(FRAMES, "warnings.value = saved.warnings;", "warnings.value = [];", expect=SAVE_WARNS)
@@ -545,21 +569,10 @@ def test_frames_write_calls():
 
 
 # ---- Prompt frames: what the view enables and shows ------------------------------------------------------------
-VIDEO_FIRST = FRAMES_VIEW_SPEC + "draws video before image whatever order the server lists them in"
-DRAWER_VIEW = FAILED + "frames/frames-view.spec.ts > the editor drawer > "
-ASKS = DRAWER_VIEW + "asks before it closes over a typed draft, and keeps it on Keep editing"
-FOCUS_VIEW = DRAWER_VIEW + "focus after the drawer is gone > "
-LEAVE = (DRAWER_VIEW + "leaving the page asks only for a typed draft in an open drawer, "
-         + "and is refused during a write")
+LEAVE = FRAMES_VIEW_SPEC + "leaving the page asks only for a typed draft, and is refused during a write"
 
 
-@mutation(FRAMES_VIEW, 'Number(b.kind === "video") - Number(a.kind === "video")', "0", expect=VIDEO_FIRST)
-@mutation(FRAME_EDITOR, "props.frames.draft !== props.frames.loaded", "false", expect=ASKS)
-@mutation(FRAMES_VIEW, "if (opener?.isConnected && opener !== document.body) return;", "if (true) return;",
-          expect=FOCUS_VIEW + "goes to the page's scroll area when the button that opened the editor is gone")
-@mutation(FRAMES_VIEW, "if (opener?.isConnected && opener !== document.body) return;", "if (false) return;",
-          expect=FOCUS_VIEW + "is left alone while the button that opened the editor is still on the page")
-@mutation(FRAMES_VIEW, "() => frames.open && frames.draft !== frames.loaded", "() => false", expect=LEAVE)
+@mutation(FRAMES_VIEW, "() => frames.dirty,", "() => false,", expect=LEAVE)
 @mutation(FRAMES_VIEW, "() => frames.busy,", "() => false,", expect=LEAVE)
 @pytest.mark.web_unit
 def test_frames_view_rules():
@@ -582,13 +595,31 @@ def test_the_frames_history_runs_newest_first():
 # ---- Prompt frames: the lines and texts ------------------------------------------------------------------------
 LOADED_TEXT = MODEL_SPEC + "the text the editor starts with is the current own text, else the text in force, else empty"
 SUMMARY = MODEL_SPEC + "the apply-to-all summary lists applied, kept and unchanged, with - for none"
+KINDS_SPEC = FAILED + "frames/frames-model.spec.ts > the kinds > "
+VIDEO_FIRST = KINDS_SPEC + "video comes first and the input is left alone"
+KIND_OPENS = KINDS_SPEC + "a kind opens on its first own frame, else its default; the counts say who follows"
+TEXT_SPEC = FAILED + "frames/frames-model.spec.ts > the frame text > "
+CHECKS = TEXT_SPEC + "each marker must be in once; the checks count them"
+PICKS = TEXT_SPEC + "picks the sample prompt and the tracking code out of a preview, in the order they occur"
 
 
 @mutation(FRAMES_MODEL, ': "no version"', ': "none"', expect=MODEL_SPEC + "version tag")
-@mutation(FRAMES_MODEL, '"unlocked"} ${shortDay(', '"locked"} ${shortDay(',
-          expect=MODEL_SPEC + "lock line and lock history")
-@mutation(FRAMES_MODEL, "two(d.getMonth() + 1)", "two(d.getMonth())",
-          expect=MODEL_SPEC + "day and time are day first, two digits each, in the browser time zone")
+@mutation(FRAMES_MODEL, '"unlocked"} ${dayMonth(', '"locked"} ${dayMonth(',
+          expect=MODEL_SPEC + "lock cell, lock sentence and lock history")
+@mutation(FRAMES_MODEL, '"Unlocked"} ${dayMonth(', '"Locked"} ${dayMonth(',
+          expect=MODEL_SPEC + "lock cell, lock sentence and lock history")
+@mutation(FRAMES_MODEL, "MONTHS[d.getMonth()]", "MONTHS[d.getMonth() + 1]",
+          expect=MODEL_SPEC + "day and time are day, month name and a two digit clock, in the browser time zone")
+@mutation(FRAMES_MODEL, "two(d.getHours())}:${two(d.getMinutes())", "two(d.getMinutes())}:${two(d.getHours())",
+          expect=MODEL_SPEC + "day and time are day, month name and a two digit clock, in the browser time zone")
+@mutation(FRAMES_MODEL, 'Number(b.kind === "video") - Number(a.kind === "video")', "0", expect=VIDEO_FIRST)
+@mutation(FRAMES_MODEL, 'kind.models.find((m) => m.source === "own")?.model ?? DEFAULT_TARGET',
+          "DEFAULT_TARGET", expect=KIND_OPENS)
+@mutation(FRAMES_MODEL, "kind.models.length - ownCount(kind)", "kind.models.length", expect=KIND_OPENS)
+@mutation(FRAMES_MODEL, "return { prompt, tracking, ok: prompt === 1 && tracking === 1 };",
+          "return { prompt, tracking, ok: prompt >= 1 && tracking >= 1 };", expect=CHECKS)
+@mutation(FRAMES_MODEL, "if (f.at < from) continue;", "", expect=PICKS)
+@mutation(FRAMES_MODEL, ".filter((n) => n)\n", "\n", expect=PICKS)
 @mutation(FRAMES_MODEL, "info.current && info.current.text !== null", "info.current && true", expect=LOADED_TEXT)
 @mutation(FRAMES_MODEL, "`${err.message} (${err.param})` : err.message", "err.message : err.message",
           expect=MODEL_SPEC + "a refusal carries its field")
@@ -599,7 +630,8 @@ def test_frames_lines():
 
 
 # ---- page-frames-settings round: the drawn section titles, a refusal as a field error, the password error's field ---
-TITLES = FRAMES_VIEW_SPEC + "titles each kind's section as drawn: Video, Image"
+TITLES = (FAILED + "frames/frames-view.spec.ts > the page > lists the provider with its kinds on the left: "
+          + "Video and Image, where each text comes from, the open kind marked")
 
 
 @mutation(FRAMES_MODEL, "kind.charAt(0).toUpperCase() + kind.slice(1)", "kind", expect=TITLES)
