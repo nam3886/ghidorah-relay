@@ -14,8 +14,8 @@ SCANNED = (".html", ".css", ".js")
 
 # The fonts the design uses (DESIGN section 4): family -> (subsets, weights). They come from two exact-pinned fontsource
 # packages and ship as hashed woff2 files of the dist; nothing is vendored in public/ and nothing is inlined as data:.
-FONTS = {"be-vietnam-pro": (("latin", "vietnamese"), (400, 500, 600, 700)),
-         "ibm-plex-mono": (("latin", "vietnamese"), (400, 500))}
+FONTS = {"manrope": (("latin", "vietnamese"), (400, 500, 600, 700, 800)),
+         "jetbrains-mono": (("latin", "vietnamese"), (400, 500))}
 FONT_SUFFIXES = (".woff", ".woff2", ".ttf", ".otf", ".eot")
 
 

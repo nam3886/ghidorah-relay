@@ -115,7 +115,7 @@ const diagnostics = computed<Fact[]>(() => {
 }
 .tech__fact dd {
   margin: 2px 0 0;
-  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-family: var(--rl-mono, "JetBrains Mono", ui-monospace, monospace);
   overflow-wrap: anywhere;
 }
 </style>

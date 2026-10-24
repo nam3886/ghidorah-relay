@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
+import ArrowScroller from "@/components/shared/ArrowScroller.vue";
 import ProviderTile from "@/components/shared/ProviderTile.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { byProviderOrder, providerClass } from "@/lib/providers";
@@ -53,46 +54,48 @@ function choose(name: string, toGeneral = false): void {
     :data-mode="mode"
   >
     <div class="pstrip__row">
-      <button
-        v-if="mode !== 'only'"
-        type="button"
-        class="ptab"
-        :class="{ 'is-on': onAll }"
-        :aria-pressed="onAll"
-        aria-label="All providers"
-        data-testid="provider-tab-all"
-        @click="choose('')"
-      >
-        {{ general ? "All providers" : "All" }}
-      </button>
-      <button
-        v-if="general"
-        type="button"
-        class="ptab"
-        :class="{ 'is-on': onGeneral }"
-        :aria-pressed="onGeneral"
-        aria-label="General"
-        data-testid="provider-tab-general"
-        @click="choose('', true)"
-      >
-        General
-      </button>
-      <button
-        v-for="t in tabs"
-        :key="t.name"
-        type="button"
-        class="ptab"
-        :class="[providerClass(t.name), { 'is-on': isOn(t.name) }]"
-        :aria-pressed="isOn(t.name)"
-        :aria-label="t.paused ? `${t.name}, paused` : t.name"
-        :disabled="mode === 'only' && scope.stripLocked"
-        :data-testid="`provider-tab-${t.name}`"
-        @click="choose(t.name)"
-      >
-        <ProviderTile :provider="t.name" />
-        {{ t.name }}
-        <span v-if="t.paused" class="ptab__paused">paused</span>
-      </button>
+      <ArrowScroller label="Provider">
+        <button
+          v-if="mode !== 'only'"
+          type="button"
+          class="ptab"
+          :class="{ 'is-on': onAll }"
+          :aria-pressed="onAll"
+          aria-label="All providers"
+          data-testid="provider-tab-all"
+          @click="choose('')"
+        >
+          {{ general ? "All providers" : "All" }}
+        </button>
+        <button
+          v-if="general"
+          type="button"
+          class="ptab"
+          :class="{ 'is-on': onGeneral }"
+          :aria-pressed="onGeneral"
+          aria-label="General"
+          data-testid="provider-tab-general"
+          @click="choose('', true)"
+        >
+          General
+        </button>
+        <button
+          v-for="t in tabs"
+          :key="t.name"
+          type="button"
+          class="ptab"
+          :class="[providerClass(t.name), { 'is-on': isOn(t.name) }]"
+          :aria-pressed="isOn(t.name)"
+          :aria-label="t.paused ? `${t.name}, paused` : t.name"
+          :disabled="mode === 'only' && scope.stripLocked"
+          :data-testid="`provider-tab-${t.name}`"
+          @click="choose(t.name)"
+        >
+          <ProviderTile :provider="t.name" />
+          {{ t.name }}
+          <span v-if="t.paused" class="ptab__paused">paused</span>
+        </button>
+      </ArrowScroller>
     </div>
   </nav>
 </template>
@@ -111,8 +114,12 @@ function choose(name: string, toGeneral = false): void {
   max-width: 1360px;
   margin: 0 auto;
   padding: 0 28px;
-  overflow-x: auto;
-  scrollbar-width: none;
+}
+/* the tabs sit on the strip's bottom line: the scroller keeps no padding of its own here */
+.pstrip__row :deep(.asc__row) {
+  gap: 4px;
+  padding: 0;
+  align-items: stretch;
 }
 .pstrip--tablet .pstrip__row {
   max-width: none;

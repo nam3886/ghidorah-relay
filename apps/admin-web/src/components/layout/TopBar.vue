@@ -1,47 +1,35 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import BrandLogo from "@/components/layout/BrandLogo.vue";
+import { useNavCounts } from "@/components/layout/nav-counts";
 import { IconChevronDown, IconFileText, IconLogOut, IconMoon } from "@/components/shared/icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { placePopup, type PopupAlign } from "@/lib/popup-place";
 import { useBusy } from "@/composables/use-busy";
 import { TABS } from "@/router";
 import { useAuthStore } from "@/stores/auth";
-import { useStatsStore } from "@/stores/stats";
 import { useUiStore } from "@/stores/ui";
 
-// The top bar, as drawn in the canvas (specs/shell.md): logo, the eight tabs (Jobs, Accounts and Alerts carry a count),
-// the theme toggle and the account menu (API docs, Sign out). One row of 64 px from 1280 px up; below that two rows
-// (logo and tools, then the tabs, which scroll sideways when they do not fit). The account menu is our own popover, not
-// Element Plus, so every size and colour is the drawn one. No Provider list: every tab filters by provider in its
-// provider strip (ProviderStrip), under this bar.
+// The top bar of the Ledger shell (Ledger, JobsTablet, MenusToasts). Desktop (1280 px up): one 60 px row, the logo,
+// the eight tabs (the current one dark with a 2 px brand underline; Accounts carries "usable/total" in a purple pill,
+// Alerts the open count in an amber pill), then Live and the account menu. Tablet and phone: the tabs move to the
+// bottom bar (BottomNav); the bar keeps the logo, the page title, Live (tablet) and the avatar, 60 px high on a tablet
+// and 56 px on a phone. The account menu (Signed in as, API docs, Dark theme, Sign out) is our own popover.
 const auth = useAuthStore();
-const stats = useStatsStore();
 const ui = useUiStore();
 const route = useRoute();
 const router = useRouter();
 const { busy, run } = useBusy();
 const { isPhone, isTablet } = useBreakpoint();
+// below the desktop the tabs live in the bottom bar
 const stacked = computed(() => isPhone.value || isTablet.value);
 
 const initial = computed(() => (auth.user || "?").charAt(0).toUpperCase());
+const title = computed(() => (route.meta.label as string | undefined) ?? "");
 
-// Three tabs carry a count: Jobs the jobs still to finish, Accounts "usable/available" (as the stats serve them),
-// Alerts the open alert groups. The count is aria-hidden, so the tab's name stays the plain label.
-const accountsCount = computed(() => {
-  const a = stats.data?.accounts;
-  return a && a.available > 0 ? `${a.usable}/${a.available}` : 0;
-});
-const counts = computed<Record<string, number | string>>(() => ({
-  jobs: stats.data ? stats.data.jobs.in_progress + stats.data.jobs.queued : 0,
-  accounts: accountsCount.value,
-  alerts: stats.openGroups,
-}));
-// A number above 999 reads 999+.
-function countText(value: number | string): string | number {
-  return typeof value === "number" && value > 999 ? "999+" : value;
-}
+// The tab counts (nav-counts.ts); aria-hidden, so the tab's name stays the plain label.
+const { counts, countText } = useNavCounts();
 
 // The popover; a click outside or Escape closes it and gives the focus back to its trigger.
 type Popup = "account";
@@ -147,143 +135,102 @@ function openDocs(): void {
   closePopup();
   window.open("/reference", "_blank", "noopener");
 }
-
-// The current tab stays in view when the tabs scroll sideways (tablet and phone): on a tab switch, and when a count
-// arrives or changes, as the counts widen the tabs before it (they come after the bar is drawn); and once the web fonts
-// have loaded, as they change the width of every tab (the bar can be drawn in the fallback font first). That late one
-// is skipped when the user has moved the strip since (a wheel, a touch, a press or a key on it, or the focus entering
-// it, which scrolls the focused tab into view: a scroll we start ourselves sends none of these), and when the bar is
-// gone.
-const navEl = ref<HTMLElement | null>(null);
-let userMovedTabs = false;
-let unmounted = false;
-function onTabsMoved(): void {
-  userMovedTabs = true;
-}
-async function revealCurrent(): Promise<void> {
-  await nextTick();
-  const current = navEl.value?.querySelector<HTMLElement>('[aria-current="page"]');
-  if (current && typeof current.scrollIntoView === "function") {
-    current.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }
-}
-onMounted(() => {
-  void revealCurrent();
-  void document.fonts?.ready.then(() => {
-    if (unmounted || userMovedTabs) return;
-    void revealCurrent();
-  });
-});
-onBeforeUnmount(() => {
-  unmounted = true;
-});
-watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" ")], revealCurrent);
 </script>
 
 <template>
   <header class="topbar" :class="{ 'topbar--stacked': stacked, 'topbar--phone': isPhone }">
-    <div class="topbar__row">
-      <router-link class="topbar__home" :to="{ name: 'jobs' }" aria-label="Ghidorah admin home">
-        <BrandLogo />
-      </router-link>
+    <router-link class="topbar__home" :to="{ name: 'jobs' }" aria-label="Ghidorah admin home">
+      <BrandLogo />
+    </router-link>
 
-      <nav
-        ref="navEl"
-        class="topbar__nav"
-        aria-label="Main"
-        @wheel.passive="onTabsMoved"
-        @touchstart.passive="onTabsMoved"
-        @pointerdown="onTabsMoved"
-        @keydown="onTabsMoved"
-        @focusin="onTabsMoved"
-      >
-        <ul class="tabs" role="tablist">
-          <li v-for="tab in TABS" :key="tab.name" role="presentation">
-            <router-link
-              class="tab"
-              :class="{ 'tab--current': route.name === tab.name }"
-              :to="{ name: tab.name }"
-              role="tab"
-              :aria-selected="route.name === tab.name"
-              :aria-current="route.name === tab.name ? 'page' : undefined"
+    <span v-if="stacked" class="topbar__title" data-testid="page-title">{{ title }}</span>
+
+    <nav v-else class="topbar__nav" aria-label="Main">
+      <ul class="tabs" role="tablist">
+        <li v-for="tab in TABS" :key="tab.name" role="presentation">
+          <router-link
+            class="tab"
+            :class="{ 'tab--current': route.name === tab.name }"
+            :to="{ name: tab.name }"
+            role="tab"
+            :aria-selected="route.name === tab.name"
+            :aria-current="route.name === tab.name ? 'page' : undefined"
+          >
+            <span class="tab-label">{{ tab.label }}</span>
+            <span
+              v-if="counts[tab.name]"
+              class="tab-count num"
+              :class="tab.name === 'alerts' ? 'tab-count--warn' : 'tab-count--brand'"
+              :data-testid="`tab-count-${tab.name}`"
+              aria-hidden="true"
+              >{{ countText(counts[tab.name] ?? 0) }}</span
             >
-              <span class="tab-label">{{ tab.label }}</span>
-              <span
-                v-if="counts[tab.name]"
-                class="tab-count num"
-                :class="{
-                  'tab-count--current': route.name === tab.name && tab.name !== 'alerts',
-                  'tab-count--warn': tab.name === 'alerts',
-                }"
-                :data-testid="`tab-count-${tab.name}`"
-                aria-hidden="true"
-                >{{ countText(counts[tab.name] ?? 0) }}</span
-              >
-            </router-link>
-          </li>
-        </ul>
-      </nav>
+          </router-link>
+        </li>
+      </ul>
+    </nav>
 
-      <div class="topbar__tools">
+    <div class="topbar__tools">
+      <span v-if="!isPhone" class="live" data-testid="live"
+        ><span class="live__dot" aria-hidden="true"></span>Live</span
+      >
+
+      <div ref="accountWrap" class="pop pop--account">
         <button
           type="button"
-          class="theme-toggle"
-          aria-label="Switch theme"
-          data-testid="theme-toggle"
-          @click="ui.toggleTheme()"
+          class="account-button"
+          :class="{ 'is-open': open === 'account' }"
+          :aria-label="`Account menu, ${auth.user}`"
+          aria-haspopup="menu"
+          :aria-expanded="open === 'account'"
+          :disabled="busy"
+          data-testid="account-menu"
+          @click="toggle('account')"
+          @keydown="onTriggerKey($event, 'account')"
         >
-          <IconMoon :size="isPhone ? 18 : 16" />
+          <span class="account-avatar" aria-hidden="true">{{ initial }}</span>
+          <span v-if="!stacked" class="account-name" data-testid="whoami">{{ auth.user }}</span>
+          <IconChevronDown v-if="!stacked" class="account-chevron" :size="14" :stroke="2" />
         </button>
-
-        <div ref="accountWrap" class="pop pop--account">
+        <div
+          v-if="open === 'account'"
+          class="menu menu--account"
+          :style="popupStyle"
+          role="menu"
+          aria-label="Account"
+          @keydown="onPopupKey"
+        >
+          <span class="menu-head" role="presentation"
+            >Signed in as <b>{{ auth.user }}</b> · LAN only</span
+          >
           <button
             type="button"
-            class="account-button"
-            :class="{ 'is-open': open === 'account' }"
-            :aria-label="`Account menu, ${auth.user}`"
-            aria-haspopup="menu"
-            :aria-expanded="open === 'account'"
-            :disabled="busy"
-            data-testid="account-menu"
-            @click="toggle('account')"
-            @keydown="onTriggerKey($event, 'account')"
+            class="menu-item"
+            role="menuitem"
+            tabindex="-1"
+            data-testid="api-docs"
+            @click="openDocs"
           >
-            <span class="account-avatar" aria-hidden="true">{{ initial }}</span>
-            <span v-if="!stacked" class="account-name" data-testid="whoami">{{ auth.user }}</span>
-            <IconChevronDown v-if="!stacked" class="account-chevron" :size="14" :stroke="2" />
+            <IconFileText class="menu-item__icon" :size="16" :stroke="2" />
+            <span class="menu-item__text">API docs</span>
           </button>
-          <div
-            v-if="open === 'account'"
-            class="menu menu--account"
-            :style="popupStyle"
-            role="menu"
-            aria-label="Account"
-            @keydown="onPopupKey"
+          <button
+            type="button"
+            class="menu-item"
+            role="menuitem"
+            tabindex="-1"
+            data-testid="theme-toggle"
+            @click="ui.toggleTheme()"
           >
-            <button
-              type="button"
-              class="menu-item"
-              role="menuitem"
-              tabindex="-1"
-              data-testid="api-docs"
-              @click="openDocs"
-            >
-              <IconFileText class="menu-item__icon" :size="16" />
-              <span class="menu-item__text">API docs</span>
-            </button>
-            <div class="menu-separator" role="separator"></div>
-            <button
-              type="button"
-              class="menu-item"
-              role="menuitem"
-              tabindex="-1"
-              data-testid="sign-out"
-              @click="signOut"
-            >
-              <IconLogOut class="menu-item__icon" :size="16" />
-              <span class="menu-item__text">Sign out</span>
-            </button>
-          </div>
+            <IconMoon class="menu-item__icon" :size="16" :stroke="2" />
+            <span class="menu-item__text">Dark theme</span>
+            <span class="menu-item__hint">{{ ui.theme === "dark" ? "on" : "off" }}</span>
+          </button>
+          <div class="menu-separator" role="separator"></div>
+          <button type="button" class="menu-item" role="menuitem" tabindex="-1" data-testid="sign-out" @click="signOut">
+            <IconLogOut class="menu-item__icon" :size="16" :stroke="2" />
+            <span class="menu-item__text">Sign out</span>
+          </button>
         </div>
       </div>
     </div>
@@ -291,26 +238,19 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
 </template>
 
 <style scoped>
+/* Desktop: one 60 px row (61 with its hairline), 32 px of padding, the surface. */
 .topbar {
-  --ctl: 34px;
-  --tab-height: 64px;
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--rl-topbar);
-  border-bottom: 1px solid var(--rl-line);
-}
-/* Desktop: one row, 1360 px at most, 28 px of padding, 64 px high. */
-.topbar__row {
-  box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 28px;
-  max-width: 1360px;
-  min-height: 64px;
-  margin: 0 auto;
-  padding: 0 28px;
+  gap: 12px 28px;
+  min-height: 60px;
+  padding: 0 32px;
+  background: var(--rl-topbar);
+  border-bottom: 1px solid var(--rl-line);
 }
 .topbar__home {
   display: flex;
@@ -319,33 +259,24 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
   text-decoration: none;
 }
 .topbar__nav {
-  flex: 1 1 560px;
   min-width: 0;
-  overflow-x: auto;
-  /* the tab row scrolls without a bar, as drawn (on a desktop browser narrower than the tabs a bar would add 15 px
-     under them): touch, trackpad and shift-wheel still scroll it, and the current tab is kept in view */
-  scrollbar-width: none;
-}
-.topbar__nav::-webkit-scrollbar {
-  display: none;
 }
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
-  white-space: nowrap;
 }
 .tab {
   box-sizing: border-box;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: var(--tab-height);
+  height: 60px;
   padding: 0 10px;
-  font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  white-space: nowrap;
   color: var(--rl-muted);
   text-decoration: none;
   border-bottom: 2px solid transparent;
@@ -355,97 +286,92 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
 }
 .tab--current,
 .tab--current:hover {
-  font-weight: 600;
   color: var(--rl-fg);
-  border-bottom-color: var(--rl-primary);
+  border-bottom-color: var(--rl-brand);
 }
 .tab-count {
-  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
   font-size: 11px;
-  line-height: 16px;
-  border-radius: 8px;
-  color: var(--rl-muted);
-  background: var(--rl-neutral-bg);
+  font-weight: 800;
+}
+.tab-count--brand {
+  background: var(--rl-primary-soft);
+  color: var(--rl-brand-ink);
 }
 .tab-count--warn {
-  color: var(--rl-warn);
-  background: var(--rl-warn-bg);
-}
-.tab-count--current {
-  color: var(--rl-on-primary);
-  background: var(--rl-primary);
+  background: var(--rl-alert-badge-bg);
+  color: var(--rl-alert-badge);
 }
 
 .topbar__tools {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  margin-left: auto;
+}
+.live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--rl-muted);
+}
+.live__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rl-live);
 }
 .pop {
   position: relative;
 }
 
-/* Theme toggle. */
-.theme-toggle {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--ctl);
-  height: var(--ctl);
-  padding: 1px 6px;
-  border: 1px solid var(--rl-line-strong);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--rl-muted);
-  cursor: pointer;
-}
-.theme-toggle:hover {
-  background: var(--rl-raised);
-}
-
-/* Account trigger. */
+/* The account trigger: avatar, name and chevron on a desktop (MenusToasts "Top bar · account menu"). */
 .account-button {
   box-sizing: border-box;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: var(--ctl);
-  padding: 0 8px 0 4px;
-  border: 0;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px 0 6px;
+  border: 1px solid var(--rl-line-strong);
   border-radius: 10px;
-  background: transparent;
+  background: var(--rl-surface);
   color: var(--rl-fg);
   font: inherit;
-  font-size: 13px;
+  font-weight: 600;
   line-height: normal;
   cursor: pointer;
 }
-.account-button.is-open {
-  background: var(--rl-raised);
+.account-button.is-open,
+.account-button:hover {
+  background: var(--rl-menu-hover);
 }
 .account-button:disabled {
   cursor: progress;
   opacity: 0.6;
 }
 .account-avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
   background: var(--rl-primary-soft);
-  color: var(--rl-primary);
-  font-size: 12px;
-  font-weight: 600;
+  color: var(--rl-brand-ink);
+  font-size: 11px;
+  font-weight: 700;
 }
 .account-chevron {
   flex: none;
 }
 
-/* Popovers. */
-/* placed by the popup rule once measured; this is where it is measured, under the trigger's left edge */
+/* The popover: 220 px, 6 px of padding, radius 12, the menu surface with the lift. */
 .menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -453,14 +379,24 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
   z-index: 2;
   overflow-y: auto;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 220px;
   padding: 6px;
-  border: 1px solid var(--rl-line);
   border-radius: 12px;
-  background: var(--rl-surface);
+  background: var(--rl-pop);
   box-shadow: var(--rl-shadow-pop);
 }
-.menu--account {
-  width: 200px;
+.menu-head {
+  margin-bottom: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rl-menu-rule);
+  font-size: 12px;
+  color: var(--rl-faint);
+}
+.menu-head b {
+  color: var(--rl-fg);
 }
 .menu-item {
   box-sizing: border-box;
@@ -475,111 +411,79 @@ watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(" 
   background: transparent;
   color: var(--rl-fg);
   font: inherit;
-  font-size: 13px;
+  font-weight: 600;
   line-height: normal;
   text-align: left;
   cursor: pointer;
 }
 .menu-item:hover {
-  background: var(--rl-raised);
+  background: var(--rl-menu-hover);
 }
 .menu-item__text {
   flex: 1;
 }
 .menu-item__icon {
   flex: none;
-  color: var(--rl-muted);
+}
+.menu-item__hint {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--rl-faint);
 }
 .menu-separator {
   height: 1px;
-  margin: 6px 4px;
-  background: var(--rl-line);
+  margin: 4px 6px;
+  background: var(--rl-menu-rule);
 }
 
-/* Below 1280 px: row 1 is the logo and the tools, row 2 the tabs (own top border). */
-.topbar--stacked .topbar__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "home tools"
-    "nav nav";
-  gap: 0 8px;
-  max-width: none;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-}
-.topbar--stacked .topbar__home {
-  grid-area: home;
-  min-width: 0;
+/* Tablet: 60 px, 24 px in from the left, 16 px from the right; the logo, the page title, Live and the avatar. */
+.topbar--stacked {
+  flex-wrap: nowrap;
+  gap: 10px;
   height: 60px;
-  padding-left: 24px;
+  min-height: 0;
+  padding: 0 16px 0 24px;
+}
+.topbar__title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--rl-fg);
 }
 .topbar--stacked .topbar__tools {
-  grid-area: tools;
-  padding-right: 16px;
+  gap: 12px;
 }
-.topbar--stacked .topbar__nav {
-  grid-area: nav;
-  border-top: 1px solid var(--rl-line);
-}
-.topbar--stacked .tabs {
-  padding: 0 14px;
-}
-.topbar--stacked {
-  --ctl: 36px;
-  --tab-height: 48px;
-}
-/* the browser's own button padding, as the canvas draws it: it squeezes the 30 px avatar to 28 x 30 in the 40 px
-   button (a phone's 44 px button leaves its 32 px avatar whole) */
+/* the avatar alone: a 30 px circle in a 44 px target */
 .topbar--stacked .account-button {
-  width: 40px;
-  height: 40px;
-  padding: 1px 6px;
   justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
 }
 .topbar--stacked .account-avatar {
   width: 30px;
   height: 30px;
-  border-radius: 15px;
-}
-.topbar--stacked .menu--account {
-  width: 220px;
+  font-size: 12px;
 }
 .topbar--stacked .menu-item {
-  height: 40px;
-  font-size: 14px;
+  height: 44px;
 }
 
-/* Phone: 56 px brand row, 44 px tabs, 44 px controls. */
+/* Phone: 56 px, 16 px in from the left and 6 px from the right; the title is 20 px. */
 .topbar--phone {
-  --ctl: 44px;
-  --tab-height: 44px;
-}
-.topbar--phone .topbar__home {
   height: 56px;
-  padding-left: 16px;
+  padding: 0 6px 0 16px;
 }
-.topbar--phone .topbar__tools {
-  padding-right: 8px;
-}
-.topbar--phone .tabs {
-  padding: 0 8px;
-}
-.topbar--phone .theme-toggle {
-  border: 0;
-}
-.topbar--phone .account-button {
-  width: 44px;
-  height: 44px;
-}
-.topbar--phone .account-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 16px;
-  font-size: 13px;
-}
-.topbar--phone .menu-item {
-  height: 44px;
+.topbar--phone .topbar__title {
+  font-size: 20px;
 }
 </style>

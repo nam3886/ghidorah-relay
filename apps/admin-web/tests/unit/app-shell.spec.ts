@@ -210,22 +210,20 @@ describe("the shell", () => {
     expect(wrapper.find("header nav").attributes("aria-label")).toBe("Main");
   });
 
-  it("counts the unfinished jobs on the Jobs tab and the open groups on Alerts, only when above zero", async () => {
+  it("counts the open groups on Alerts and nothing on Jobs or Keys, only when above zero", async () => {
     vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 4 }, () => group()) });
     const { wrapper } = await open("/jobs");
-    expect(wrapper.find('[data-testid="tab-count-jobs"]').text()).toBe("5");
     expect(wrapper.find('[data-testid="tab-count-alerts"]').text()).toBe("4");
+    expect(wrapper.find('[data-testid="tab-count-jobs"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="tab-count-keys"]').exists()).toBe(false);
     // the count is not part of the tab's accessible name
-    expect(wrapper.find('[data-testid="tab-count-jobs"]').attributes("aria-hidden")).toBe("true");
+    expect(wrapper.find('[data-testid="tab-count-alerts"]').attributes("aria-hidden")).toBe("true");
   });
 
   it("shows no count while the numbers are zero", async () => {
-    vi.mocked(shell.getStats).mockResolvedValue(
-      stats({ jobs: { queued: 0, in_progress: 0, done: 1, failed: 0, pre_job_failures_24h: 0 } }),
-    );
+    vi.mocked(shell.getStats).mockResolvedValue(stats({ accounts: { usable: 0, available: 0, dead: 0, disabled: 0 } }));
     const { wrapper } = await open("/jobs");
-    expect(wrapper.find('[data-testid="tab-count-jobs"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="tab-count-accounts"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="tab-count-alerts"]').exists()).toBe(false);
   });
 
@@ -431,21 +429,23 @@ describe("the shell", () => {
     await wrapper.find('[data-testid="account-menu"]').trigger("click");
     await flushPromises();
     const items = wrapper.findAll('[role="menuitem"]').map((o) => o.element);
-    expect(items).toHaveLength(2);
+    expect(items).toHaveLength(3);
     expect(document.activeElement).toBe(items[0]);
     const down = await press(items[0]!, "ArrowDown");
     expect(document.activeElement).toBe(items[1]);
     expect(down.defaultPrevented).toBe(true);
     await press(items[1]!, "ArrowDown");
-    expect(document.activeElement).toBe(items[1]);
-    await press(items[1]!, "Home");
+    expect(document.activeElement).toBe(items[2]);
+    await press(items[2]!, "ArrowDown");
+    expect(document.activeElement).toBe(items[2]);
+    await press(items[2]!, "Home");
     expect(document.activeElement).toBe(items[0]);
     await press(items[0]!, "ArrowUp");
     expect(document.activeElement).toBe(items[0]);
     await press(items[0]!, "End");
+    expect(document.activeElement).toBe(items[2]);
+    await press(items[2]!, "ArrowUp");
     expect(document.activeElement).toBe(items[1]);
-    await press(items[1]!, "ArrowUp");
-    expect(document.activeElement).toBe(items[0]);
     // a key it does not own is left alone
     const other = new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true });
     items[0]!.dispatchEvent(other);
@@ -461,8 +461,8 @@ describe("the shell", () => {
     const items = wrapper.findAll('[role="menuitem"]').map((i) => i.element);
     expect(document.activeElement).toBe(items[0]);
     await press(items[0]!, "End");
-    expect(document.activeElement).toBe(items[1]);
-    const escape = await press(items[1]!, "Escape");
+    expect(document.activeElement).toBe(items[2]);
+    const escape = await press(items[2]!, "Escape");
     expect(escape.defaultPrevented).toBe(true);
     expect(wrapper.find('[role="menu"]').exists()).toBe(false);
     expect(document.activeElement).toBe(trigger.element);
@@ -534,23 +534,24 @@ describe("the shell", () => {
       restore();
     }
   });
-  it("hides the scrollbar of the header's tab row only: the row keeps the drawn height and still scrolls", () => {
-    const source = readFileSync(join(process.cwd(), "src/components/layout/TopBar.vue"), "utf8");
-    expect(source).toMatch(/\.topbar__nav \{[^}]*overflow-x: auto;[^}]*scrollbar-width: none;\s*\}/);
-    expect(source).toMatch(/\.topbar__nav::-webkit-scrollbar \{\s*display: none;\s*\}/);
-  });
-
-  it("draws the account menu as API docs, a separator, Sign out", async () => {
+  it("draws the account menu as who is signed in, API docs, Dark theme, a separator, Sign out", async () => {
     const { wrapper } = await open("/jobs");
     await wrapper.find('[data-testid="account-menu"]').trigger("click");
     const menu = wrapper.find('[role="menu"]');
     expect(menu.attributes("aria-label")).toBe("Account");
     expect([...menu.element.children].map((el) => el.getAttribute("role"))).toEqual([
+      "presentation",
+      "menuitem",
       "menuitem",
       "separator",
       "menuitem",
     ]);
-    expect(menu.findAll('[role="menuitem"]').map((i) => i.text())).toEqual(["API docs", "Sign out"]);
+    expect(menu.find(".menu-head").text()).toBe("Signed in as owner · LAN only");
+    expect(menu.findAll('[role="menuitem"] .menu-item__text').map((i) => i.text())).toEqual([
+      "API docs",
+      "Dark theme",
+      "Sign out",
+    ]);
   });
 
   it("opens the API reference in a new tab from the account menu, and nowhere else", async () => {
@@ -572,14 +573,17 @@ describe("the shell", () => {
     expect(button.find(".account-avatar").text()).toBe("O");
   });
 
-  it("toggles the theme and remembers it", async () => {
+  it("toggles the theme from the account menu, says whether it is on, and remembers it", async () => {
     const { wrapper } = await open("/jobs");
+    expect(wrapper.find('[data-testid="theme-toggle"]').exists()).toBe(false);
+    await wrapper.find('[data-testid="account-menu"]').trigger("click");
     const toggle = wrapper.find('[data-testid="theme-toggle"]');
-    expect(toggle.attributes("aria-label")).toBe("Switch theme");
+    expect(toggle.find(".menu-item__hint").text()).toBe("off");
     await toggle.trigger("click");
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(localStorage.getItem(THEME_KEY)).toBe("dark");
-    // the moon is drawn in both themes
+    // the menu stays open, so the hint shows the new state
+    expect(wrapper.find('[data-testid="theme-toggle"] .menu-item__hint').text()).toBe("on");
     expect(wrapper.find('[data-testid="theme-toggle"] path').attributes("d")).toBe(
       "M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z",
     );
@@ -625,172 +629,43 @@ describe("the shell", () => {
 });
 
 describe("the top bar", () => {
-  it("marks the count of the current tab as primary and the Alerts count as warn", async () => {
+  it("draws Accounts in the purple pill and Alerts in the amber one, current or not", async () => {
     vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [group(), group()] });
-    const { wrapper } = await open("/jobs");
-    const jobs = wrapper.find('[data-testid="tab-count-jobs"]');
-    const alerts = wrapper.find('[data-testid="tab-count-alerts"]');
-    expect(jobs.classes()).toContain("tab-count--current");
-    expect(jobs.classes()).not.toContain("tab-count--warn");
-    expect(alerts.classes()).toContain("tab-count--warn");
-    expect(alerts.classes()).not.toContain("tab-count--current");
-  });
-
-  it("moves the primary count with the current tab", async () => {
-    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [group()] });
     const { wrapper, router } = await open("/jobs");
-    await router.push("/alerts");
-    await flushPromises();
-    expect(wrapper.find('[data-testid="tab-count-jobs"]').classes()).not.toContain("tab-count--current");
-    // Alerts keeps its warn pill, current or not
-    expect(wrapper.find('[data-testid="tab-count-alerts"]').classes()).not.toContain("tab-count--current");
-    expect(wrapper.find('[data-testid="tab-count-alerts"]').classes()).toContain("tab-count--warn");
+    for (const at of ["/jobs", "/alerts", "/accounts"]) {
+      await router.push(at);
+      await flushPromises();
+      expect(wrapper.find('[data-testid="tab-count-accounts"]').classes(), at).toContain("tab-count--brand");
+      expect(wrapper.find('[data-testid="tab-count-alerts"]').classes(), at).toContain("tab-count--warn");
+    }
   });
 
   it("shows ready over total on the Accounts tab, and nothing without accounts", async () => {
     const { wrapper } = await open("/jobs");
-    expect(wrapper.find('[data-testid="tab-count-accounts"]').text()).toBe("4/6");
+    expect(wrapper.find('[data-testid="tab-count-accounts"]').text()).toBe("4/7");
     expect(wrapper.find('[data-testid="tab-count-accounts"]').attributes("aria-hidden")).toBe("true");
     wrapper.unmount();
-    vi.mocked(shell.getStats).mockResolvedValue(stats({ accounts: { usable: 1, available: 1, dead: 0, disabled: 0 } }));
+    vi.mocked(shell.getStats).mockResolvedValue(stats({ accounts: { usable: 1, available: 1, dead: 1, disabled: 1 } }));
     const one = await open("/jobs");
-    expect(one.wrapper.find('[data-testid="tab-count-accounts"]').text()).toBe("1/1");
+    expect(one.wrapper.find('[data-testid="tab-count-accounts"]').text()).toBe("1/3");
     one.wrapper.unmount();
+    vi.mocked(shell.getStats).mockResolvedValue(stats({ accounts: { usable: 1, available: 1, dead: 0, disabled: 0 } }));
+    const single = await open("/jobs");
+    expect(single.wrapper.find('[data-testid="tab-count-accounts"]').text()).toBe("1/1");
+    single.wrapper.unmount();
     vi.mocked(shell.getStats).mockResolvedValue(stats({ accounts: { usable: 0, available: 0, dead: 0, disabled: 0 } }));
     const none = await open("/jobs");
     expect(none.wrapper.find('[data-testid="tab-count-accounts"]').exists()).toBe(false);
   });
 
   it("shows 999+ for a count above 999 and the number itself at 999", async () => {
-    vi.mocked(shell.getStats).mockResolvedValue(
-      stats({ jobs: { queued: 500, in_progress: 499, done: 0, failed: 0, pre_job_failures_24h: 0 } }),
-    );
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 999 }, () => group()) });
     const { wrapper } = await open("/jobs");
-    expect(wrapper.find('[data-testid="tab-count-jobs"]').text()).toBe("999");
+    expect(wrapper.find('[data-testid="tab-count-alerts"]').text()).toBe("999");
     wrapper.unmount();
-    vi.mocked(shell.getStats).mockResolvedValue(
-      stats({ jobs: { queued: 500, in_progress: 500, done: 0, failed: 0, pre_job_failures_24h: 0 } }),
-    );
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: Array.from({ length: 1000 }, () => group()) });
     const again = await open("/jobs");
-    expect(again.wrapper.find('[data-testid="tab-count-jobs"]').text()).toBe("999+");
-  });
-
-  // the web fonts load when the test says so: returns the function that loads them
-  const fontsLoadLater = (): (() => void) => {
-    let loaded: () => void = () => undefined;
-    const ready = new Promise<void>((resolve) => (loaded = resolve));
-    Object.defineProperty(document, "fonts", { configurable: true, value: { ready } });
-    return loaded;
-  };
-
-  it("keeps the current tab in view: on a tab switch, and again when the counts arrive and widen the tabs before it", async () => {
-    const shown: string[] = [];
-    const original = HTMLElement.prototype.scrollIntoView;
-    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
-      shown.push(this.textContent?.trim() ?? "");
-    };
-    fontsLoadLater();
-    let answer: (value: Stats) => void = () => undefined;
-    vi.mocked(shell.getStats).mockReturnValue(new Promise<Stats>((resolve) => (answer = resolve)));
-    try {
-      const { router } = await open("/test");
-      expect(shown).toEqual(["Test"]);
-      answer(stats());
-      await flushPromises();
-      expect(shown).toEqual(["Test", "Test"]);
-      await router.push("/settings");
-      await flushPromises();
-      expect(shown).toEqual(["Test", "Test", "Settings"]);
-    } finally {
-      HTMLElement.prototype.scrollIntoView = original;
-      delete (document as { fonts?: unknown }).fonts;
-    }
-  });
-
-  it("brings the current tab into view again once the web fonts have loaded, as they change every tab's width", async () => {
-    const shown: string[] = [];
-    const original = HTMLElement.prototype.scrollIntoView;
-    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
-      shown.push(this.textContent?.trim() ?? "");
-    };
-    const loaded = fontsLoadLater();
-    try {
-      const { wrapper } = await open("/test");
-      const before = shown.length;
-      expect(shown.at(-1)).toBe("Test");
-      // the strip scrolling by itself (our own reveal) is not the user moving it
-      await wrapper.find("nav").trigger("scroll");
-      loaded();
-      await flushPromises();
-      expect(shown).toHaveLength(before + 1);
-      expect(shown.at(-1)).toBe("Test");
-    } finally {
-      HTMLElement.prototype.scrollIntoView = original;
-      delete (document as { fonts?: unknown }).fonts;
-    }
-  });
-
-  it("leaves the tab strip where the user put it when they moved it before the web fonts loaded", async () => {
-    const shown: string[] = [];
-    const original = HTMLElement.prototype.scrollIntoView;
-    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
-      shown.push(this.textContent?.trim() ?? "");
-    };
-    const loaded = fontsLoadLater();
-    try {
-      const { wrapper } = await open("/test");
-      const before = shown.length;
-      await wrapper.find("nav").trigger("wheel");
-      loaded();
-      await flushPromises();
-      expect(shown).toHaveLength(before);
-    } finally {
-      HTMLElement.prototype.scrollIntoView = original;
-      delete (document as { fonts?: unknown }).fonts;
-    }
-  });
-
-  it("leaves the tab strip alone when the focus entered it before the web fonts loaded", async () => {
-    const shown: string[] = [];
-    const original = HTMLElement.prototype.scrollIntoView;
-    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
-      shown.push(this.textContent?.trim() ?? "");
-    };
-    const loaded = fontsLoadLater();
-    try {
-      const { wrapper } = await open("/test");
-      const before = shown.length;
-      // the focus moves onto the first tab, as Tab from the logo does: the browser scrolls the strip to it
-      (wrapper.find("nav a.tab").element as HTMLElement).focus();
-      expect(document.activeElement?.textContent?.trim()).toMatch(/^Jobs/);
-      loaded();
-      await flushPromises();
-      expect(shown).toHaveLength(before);
-    } finally {
-      HTMLElement.prototype.scrollIntoView = original;
-      delete (document as { fonts?: unknown }).fonts;
-    }
-  });
-
-  it("does nothing when the bar is gone before the web fonts load", async () => {
-    const shown: string[] = [];
-    const original = HTMLElement.prototype.scrollIntoView;
-    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
-      shown.push(this.textContent?.trim() ?? "");
-    };
-    const loaded = fontsLoadLater();
-    try {
-      const { wrapper: bar } = await open("/test");
-      const before = shown.length;
-      bar.unmount();
-      wrapper = null;
-      loaded();
-      await flushPromises();
-      expect(shown).toHaveLength(before);
-    } finally {
-      HTMLElement.prototype.scrollIntoView = original;
-      delete (document as { fonts?: unknown }).fonts;
-    }
+    expect(again.wrapper.find('[data-testid="tab-count-alerts"]').text()).toBe("999+");
   });
 
   it("links the logo to Jobs and names it", async () => {
@@ -802,7 +677,7 @@ describe("the top bar", () => {
     await until(() => expect(router.currentRoute.value.name).toBe("jobs"));
   });
 
-  it("is one row on a desktop, and two rows on a tablet and on a phone, with the user's name only on the desktop", async () => {
+  it("has the tabs in the bar on a desktop and in the bottom bar on a tablet (8) and a phone (4 and More), with the title and the user's name where drawn", async () => {
     const stub = (matching: string[]) =>
       vi.stubGlobal("matchMedia", (query: string) => ({
         matches: matching.includes(query),
@@ -822,6 +697,12 @@ describe("the top bar", () => {
         stacked: header.classes().includes("topbar--stacked"),
         phone: header.classes().includes("topbar--phone"),
         name: view.wrapper.find('[data-testid="whoami"]').exists(),
+        title: view.wrapper.find('[data-testid="page-title"]').exists()
+          ? view.wrapper.find('[data-testid="page-title"]').text()
+          : null,
+        barTabs: header.findAll('[role="tab"]').length,
+        bottomTabs: view.wrapper.findAll('nav.bnav [role="tab"]').map((t) => t.attributes("aria-label")),
+        live: view.wrapper.find('[data-testid="live"]').exists(),
         main: view.wrapper
           .find("main")
           .classes()
@@ -829,17 +710,35 @@ describe("the top bar", () => {
       };
       return out;
     };
-    expect(await classesOf([])).toEqual({ stacked: false, phone: false, name: true, main: [] });
+    const all = ["Jobs", "Accounts", "API keys", "Request logs", "Alerts", "Prompt frames", "Settings", "Test"];
+    expect(await classesOf([])).toEqual({
+      stacked: false,
+      phone: false,
+      name: true,
+      title: null,
+      barTabs: 8,
+      bottomTabs: [],
+      live: true,
+      main: [],
+    });
     expect(await classesOf([TABLET_QUERY])).toEqual({
       stacked: true,
       phone: false,
       name: false,
+      title: "Request logs",
+      barTabs: 0,
+      bottomTabs: all,
+      live: true,
       main: ["app-main--tablet"],
     });
     expect(await classesOf([PHONE_QUERY])).toEqual({
       stacked: true,
       phone: true,
       name: false,
+      title: "Request logs",
+      barTabs: 0,
+      bottomTabs: ["Jobs", "Accounts", "Request logs", "Alerts", "More"],
+      live: false,
       main: ["app-main--phone"],
     });
   });

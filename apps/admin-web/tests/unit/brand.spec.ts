@@ -64,9 +64,11 @@ describe("the brand logo", () => {
 describe("the colours", () => {
   const css = read("src/styles/theme.css");
 
-  it("the primary is the brand purple in both themes, hover #6d28d9, white text on a solid button", () => {
-    expect(css.match(/--rl-primary: #7c3aed;/g)).toHaveLength(2);
-    expect(css.match(/--rl-primary-hover: #6d28d9;/g)).toHaveLength(2);
+  it("the brand is #6a35e8 (#8b5cf6 dark), a filled button #6a35e8 (#7c3aed dark) with white text", () => {
+    expect(css.match(/--rl-brand: #6a35e8;/g)).toHaveLength(1);
+    expect(css.match(/--rl-brand: #8b5cf6;/g)).toHaveLength(1);
+    expect(css.match(/--rl-primary: #6a35e8;/g)).toHaveLength(1);
+    expect(css.match(/--rl-primary: #7c3aed;/g)).toHaveLength(1);
     expect(css).toContain("--el-color-primary: var(--rl-primary);");
     expect(css).toContain("--el-button-hover-bg-color: var(--rl-primary-hover);");
     expect(css.match(/--rl-on-primary: #ffffff;/g)).toHaveLength(2);
@@ -74,26 +76,16 @@ describe("the colours", () => {
   });
 
   it("the dark surfaces are the kit's", () => {
-    for (const hex of [
-      "#0e0b16",
-      "#171222",
-      "#211a30",
-      "#130e1f",
-      "#2a2140",
-      "#3e3356",
-      "#82738f",
-      "#f5f3ff",
-      "#b9aec9",
-    ]) {
+    for (const hex of ["#0d0e14", "#15161f", "#1b1d28", "#181a24", "#262838", "#1f2130", "#2e3142", "#ecedf3"]) {
       expect(css).toContain(hex);
     }
   });
 
-  it("the brand radii are 10 px for controls, 16 px for cards and dialogs, 12 px for chips", () => {
+  it("the radii are 10 px for controls, 16 px for cards and dialogs, a full pill for chips", () => {
     // one shared rule for both themes
     expect(css.match(/--el-border-radius-base: 10px;/g)).toHaveLength(1);
     expect(css.match(/--el-card-border-radius: 16px;/g)).toHaveLength(1);
-    expect(css.match(/--el-tag-border-radius: 12px;/g)).toHaveLength(1);
+    expect(css.match(/--el-tag-border-radius: 999px;/g)).toHaveLength(1);
   });
 
   it("there is no gradient and no glow", () => {

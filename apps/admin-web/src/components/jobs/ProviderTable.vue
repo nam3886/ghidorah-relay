@@ -182,11 +182,11 @@ const finished = (p: ProviderSummary) => p.done_today + p.failed_today;
         </div>
       </div>
       <div class="pcard pcard--sum">
-        All · {{ totals.done + totals.failed }} finished · {{ totals.running }} running ·
-        <span :class="{ ptable__bad: totals.failed }">{{ totals.failed }} failed</span> · {{ totals.usable }}/{{
-          totals.accounts
-        }}
-        accounts
+        <b>All</b>
+        <span>{{ totals.done + totals.failed }} finished</span>
+        <span>{{ totals.running }} running</span>
+        <span :class="{ ptable__bad: totals.failed }">{{ totals.failed }} failed</span>
+        <span>{{ totals.usable }}/{{ totals.accounts }} accounts</span>
       </div>
     </div>
   </section>
@@ -447,7 +447,16 @@ const finished = (p: ProviderSummary) => p.done_today + p.failed_today;
 .pcard__pools .mini {
   text-align: left;
 }
+/* the totals are separate pieces that wrap whole, with a gap and no dots between them (a dot could end up at the
+   start or the end of a line) */
+.pcard--sum b {
+  color: var(--rl-fg);
+  font-weight: 600;
+}
 .pcard--sum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
   cursor: default;
   font-size: 12px;
   color: var(--rl-muted);

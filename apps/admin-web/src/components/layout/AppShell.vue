@@ -2,6 +2,7 @@
 import type { ScrollbarInstance } from "element-plus";
 import { onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
+import BottomNav from "@/components/layout/BottomNav.vue";
 import ProviderStrip from "@/components/layout/ProviderStrip.vue";
 import TopBar from "@/components/layout/TopBar.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
@@ -11,8 +12,10 @@ import { useAuthStore } from "@/stores/auth";
 import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 
-// Everything around the routed view: the top bar, the provider strip (a route with meta providerStrip) and the page
-// frame (centred, 1360 px at most, padding 28 px, 24 px on a tablet, 16 px on a phone). Mounted only while signed in.
+// Everything around the routed view: the top bar, the provider strip (a route with meta providerStrip), the page frame
+// (Ledger: centred, 1360 px at most, padding 28 px 32 px 48 px and 24 px gaps; 24 px all round and 20 px gaps on a
+// tablet; 14 px 16 px 20 px and 14 px gaps on a phone) and, below the desktop, the bottom bar (BottomNav) with the
+// tabs. Mounted only while signed in.
 // On a tablet and a desktop the page scrolls in its own area under the bar and the strip (the style block below); on a
 // phone the window scrolls, as the bar sticks.
 const route = useRoute();
@@ -68,7 +71,7 @@ defineExpose({ focusPage });
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'app-shell--bnav': isPhone || isTablet }">
     <TopBar />
     <ProviderStrip v-if="route.meta.providerStrip" :mode="route.meta.providerStrip" />
     <el-scrollbar
@@ -83,6 +86,7 @@ defineExpose({ focusPage });
         <slot />
       </main>
     </el-scrollbar>
+    <BottomNav v-if="isPhone || isTablet" :phone="isPhone" />
   </div>
 </template>
 
@@ -91,22 +95,23 @@ defineExpose({ focusPage });
   display: flex;
   flex-direction: column;
   flex: 1;
-  gap: 20px;
+  gap: 24px;
   box-sizing: border-box;
   width: 100%;
   max-width: 1360px;
   min-width: 0;
   margin: 0 auto;
-  padding: 28px 28px 48px;
+  padding: 28px 32px 48px;
 }
 .app-main--tablet {
   max-width: none;
-  padding: 24px 24px 40px;
+  gap: 20px;
+  padding: 24px;
 }
 .app-main--phone {
   max-width: none;
-  gap: 16px;
-  padding: 16px 16px 24px;
+  gap: 14px;
+  padding: 14px 16px 20px;
 }
 </style>
 
@@ -122,30 +127,39 @@ defineExpose({ focusPage });
   overflow: hidden;
 }
 .app-shell > .topbar,
-.app-shell > .pstrip {
+.app-shell > .pstrip,
+.app-shell > .bnav {
   flex: none;
 }
-/* the pill: 9 px, the strong line colour, 3 px from the edge, always drawn, no track; it overlays the page, so the top
-   bar and the content share one axis */
+/* what a page's own bar fixed to the foot of the window (the Jobs bulk bar on a phone) sits on: the bottom bar */
+.app-shell--bnav {
+  --rl-bottom-bar: max(64px, calc(53px + env(safe-area-inset-bottom)));
+}
+/* the page's bar is the global scrollbar of the Ledger: 8 px with a 1 px clear edge, the thumb #d0d4de (#3a3d50 dark),
+   darker under the pointer, always drawn, no track; it overlays the page, so the top bar and the content share one
+   axis */
 .app-shell .el-scrollbar.app-scroll {
   --el-scrollbar-opacity: 1;
-  --el-scrollbar-bg-color: var(--rl-line-strong);
+  --el-scrollbar-bg-color: var(--rl-scroll-thumb);
   --el-scrollbar-hover-opacity: 1;
-  --el-scrollbar-hover-bg-color: var(--rl-line-strong);
+  --el-scrollbar-hover-bg-color: var(--rl-scroll-thumb-hover);
   flex: 1 1 0;
   min-height: 0;
 }
 .app-shell .app-scroll .el-scrollbar__bar.is-vertical {
   top: 0;
-  right: 3px;
+  right: 0;
   bottom: 0;
-  width: 9px;
+  width: 8px;
 }
 .app-shell .app-scroll .el-scrollbar__bar.is-horizontal {
   display: none;
 }
 .app-shell .app-scroll .el-scrollbar__thumb {
+  box-sizing: border-box;
+  border: 1px solid transparent;
   border-radius: 8px;
+  background-clip: padding-box;
 }
 /* the app moves focus here by script on load and on a tab change, so the keys scroll the page; Chrome counts that as
    :focus-visible, and the page area draws no ring in any focus state (the global ring stays for controls) */

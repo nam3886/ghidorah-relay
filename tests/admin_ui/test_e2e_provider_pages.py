@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 import pytest
-from page_helpers import settle, sideways
+from page_helpers import click_tab, settle, sideways
 from patchright.sync_api import expect
 from test_admin_alert_groups import plant_unclear
 
@@ -38,7 +38,7 @@ def setting(page, key: str, value) -> None:
 
 
 def open_tab(page, label: str) -> None:
-    page.get_by_role("tab", name=label, exact=True).click()
+    click_tab(page, label)
     expect(page.get_by_role("heading", name=label, level=1)).to_be_visible()
 
 

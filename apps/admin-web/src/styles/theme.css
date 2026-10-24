@@ -1,239 +1,227 @@
 /*
- * Theme: direction B "Ledger" of the Ghidorah admin (DESIGN.md sections 3 to 7).
- * Light is the signature look, dark is a full theme. Flat surfaces: only overlays have a shadow. No gradient, no glow.
+ * Theme: "B · Ledger", the approved redesign of the Ghidorah admin. Every colour is copied from the canvas token objects
+ * (K, S/ST, PF and PB of Ledger, Accounts, Settings, MenusToasts, Dialogs, KeyDialogs and JobsTablet), light and dark.
  * Loaded AFTER the Element Plus CSS. `html:root` (light) and `html.dark:root` (dark) outrank Element Plus's own
  * `:root` and `html.dark` blocks, whatever order the on-demand component styles end up in.
- * Every raw token and every Element Plus ladder is set in both themes. Pairs are at least 4.5:1 (text) or 3:1 (the
- * control border), see DESIGN section 3. Status colour is never alone: the word and the dot always stay.
+ * The older token names (--rl-fg, --rl-line, --rl-raised...) stay, pointed at the Ledger values, so every page takes the
+ * new look before it is redrawn. Status colour is never alone: the word and the dot always stay.
  * Breakpoints: phone is below 768 px, tablet 768 to 1279 px (composables/use-breakpoint.ts). A style sheet cannot read
  * the composable, so the media queries below repeat its number: 767 px is the last phone width.
  */
 html:root {
   color-scheme: light;
 
-  /* Layers */
-  --rl-bg: #f7f5fb;
+  /* Layers (K) */
+  --rl-bg: #f5f6fa;
   --rl-surface: #ffffff;
-  --rl-raised: #f3effa;
+  --rl-pop: #ffffff;
+  --rl-head: #fafbfd;
+  --rl-raised: #eceef4;
+  --rl-track: #eceef4;
+  --rl-seg-on: #ffffff;
+  --rl-input: #ffffff;
+  --rl-code: #fafbfd;
+  --rl-skel: #e9ebf1;
   --rl-topbar: #ffffff;
-  --rl-line: #ece6f3;
-  --rl-line-strong: #ddd5e8;
-  --rl-control: #85758f;
-  --rl-scrim: rgb(23 19 33 / 42%);
+  --rl-line: #e6e8ef;
+  --rl-rule: #eef0f5;
+  --rl-line-strong: #e0e3ea;
+  --rl-control: #e0e3ea;
+  --rl-scrim: rgba(16, 18, 28, 0.42);
+  --rl-scrim-modal: rgba(16, 18, 28, 0.55);
 
   /* Text */
-  --rl-fg: #171321;
-  --rl-muted: #655a75;
-  --rl-faint: #76698a;
+  --rl-fg: #1a1b25;
+  --rl-body: #4a4d5c;
+  --rl-muted: #5d6070;
+  --rl-faint: #6b6e7f;
 
-  /* Brand */
-  --rl-primary: #7c3aed;
-  --rl-primary-hover: #6d28d9;
-  --rl-primary-soft: #ede9fe;
-  --rl-focus: #7c3aed;
+  /* Brand: --rl-brand marks (underline, ring, selected edge), --rl-primary fills a button */
+  --rl-brand: #6a35e8;
+  --rl-primary: #6a35e8;
+  --rl-primary-hover: #5b2fd6;
+  --rl-primary-soft: #efe9ff;
+  --rl-brand-ink: #5b2fd6;
+  --rl-focus: #6a35e8;
+  --rl-focus-halo: rgba(106, 53, 232, 0.1);
+  --rl-link: #5b2fd6;
+  --rl-link-hover: #43209f;
+  --rl-on-primary: #ffffff;
 
-  /* Status: text colour and chip fill */
-  --rl-ok: #047857;
-  --rl-ok-bg: #e2f4ec;
-  --rl-warn: #92400e;
-  --rl-warn-bg: #fdf1df;
-  --rl-bad: #be123c;
-  --rl-bad-bg: #fde7ec;
-  --rl-bad-solid: #be123c;
-  --rl-info: #6d28d9;
-  --rl-info-bg: #efe9fd;
-  --rl-neutral: #655a75;
-  --rl-neutral-bg: #f1eef5;
+  /* Status (S): text colour and fill */
+  --rl-ok: #067647;
+  --rl-ok-bg: #dcfae6;
+  --rl-warn: #b54708;
+  --rl-warn-bg: #fef0c7;
+  --rl-bad: #b42318;
+  --rl-bad-bg: #fee4e2;
+  --rl-bad-solid: #c8322a;
+  --rl-info: #5b2fd6;
+  --rl-info-bg: #efe9ff;
+  --rl-neutral: #475467;
+  --rl-neutral-bg: #f2f4f7;
+  --rl-amber: #f79009;
+  --rl-alert-badge: #93370d;
+  --rl-alert-badge-bg: #fef0c7;
+  --rl-live: #12b76a;
+
+  /* Tooltip, scrollbars, shadows */
+  --rl-menu-hover: #f5f6fa;
+  --rl-menu-rule: #eef0f5;
+  --rl-tip: #1a1b25;
+  --rl-tip-fg: #ffffff;
+  --rl-tip-shadow: 0 4px 12px rgba(16, 24, 40, 0.18);
+  --rl-scroll-thumb: #d0d4de;
+  --rl-scroll-thumb-hover: #a9afbf;
+  --rl-handle: #d0d4de;
+  --rl-shadow-card: 0 1px 2px rgba(16, 24, 40, 0.05), 0 0 0 1px #e6e8ef;
+  --rl-shadow-pop: 0 0 0 1px rgba(16, 24, 40, 0.08), 0 16px 40px rgba(16, 24, 40, 0.14);
+  --rl-shadow-drawer: 0 0 0 1px rgba(16, 24, 40, 0.06), 0 24px 64px rgba(16, 24, 40, 0.22);
+  --rl-shadow-sheet: 0 -8px 32px rgba(16, 24, 40, 0.18), 0 -1px 0 rgba(16, 24, 40, 0.04);
+  --rl-shadow-arrow: 0 1px 3px rgba(16, 24, 40, 0.18), 0 0 0 1px #e6e8ef;
 
   /* The 24-hour band */
-  --rl-bar-done: #7c3aed;
-  --rl-bar-fail: #e11d48;
-  --rl-bar-run: #c4b5fd;
+  --rl-bar-done: #6a35e8;
+  --rl-bar-fail: #b42318;
+  --rl-bar-run: #efe9ff;
 
-  /* Canvas values with no earlier name (specs/shared.md 12a.7) */
-  --rl-on-primary: #ffffff;
-  --rl-link: var(--rl-primary);
+  /* Values of pages not redrawn yet: they go with their page */
   --rl-tile-1: #e9e2f5;
   --rl-tile-2: #e2ecee;
   --rl-tile-3: #f2e9df;
   --rl-tile-4: #e6e2ec;
   --rl-tile-ink: #655a75;
   --rl-media: #1b1626;
-  --rl-media-badge: rgb(0 0 0 / 60%);
-  --rl-shadow-pop: 0 12px 32px rgb(10 6 20 / 18%);
-  --rl-shadow-drawer: -16px 0 48px rgb(10 6 20 / 28%);
-
-  /* Element Plus ladders: the tints are mixed with white, the dark step with black; pinned, never computed */
-  --el-color-primary-light-3: #a375f2;
-  --el-color-primary-light-5: #be9cf6;
-  --el-color-primary-light-7: #d8c4fa;
-  --el-color-primary-light-8: #e5d8fb;
-  --el-color-primary-light-9: #ede9fe;
-  --el-color-primary-dark-2: #632ebe;
-  --el-color-success-light-3: #4fa089;
-  --el-color-success-light-5: #82bcab;
-  --el-color-success-light-7: #b4d6cd;
-  --el-color-success-light-8: #e2f4ec;
-  --el-color-success-light-9: #e2f4ec;
-  --el-color-success-dark-2: #036046;
-  --el-color-warning-light-3: #b37956;
-  --el-color-warning-light-5: #c8a086;
-  --el-color-warning-light-7: #dec6b7;
-  --el-color-warning-light-8: #fdf1df;
-  --el-color-warning-light-9: #fdf1df;
-  --el-color-warning-dark-2: #75330b;
-  --el-color-danger-light-3: #d25976;
-  --el-color-danger-light-5: #de889e;
-  --el-color-danger-light-7: #ecb8c4;
-  --el-color-danger-light-8: #fde7ec;
-  --el-color-danger-light-9: #fde7ec;
-  --el-color-danger-dark-2: #980e30;
-  --el-color-info-light-3: #938c9e;
-  --el-color-info-light-5: #b2acba;
-  --el-color-info-light-7: #d1ced6;
-  --el-color-info-light-8: #f1eef5;
-  --el-color-info-light-9: #f1eef5;
-  --el-color-info-dark-2: #51485e;
-
-  /* Names the views used before the redesign; each points at a token above and goes when the last view is moved */
+  --rl-media-badge: rgba(0, 0, 0, 0.6);
   --rl-surface-2: var(--rl-raised);
   --rl-accent: var(--rl-focus);
   --rl-accent-hover: var(--rl-primary-hover);
-  --rl-brand: var(--rl-bar-done);
 
-  /* Providers (palette A, jewel tones): the tone fills the tile and the rail, `-soft` is the tint behind a
-     provider's cell, `-ink` its text. Light: the tint is the tone at 9 % on white, the ink the tone itself.
-     Dark: the tint is the tone at 22 % on the surface, the ink the tone lifted toward white. */
-  --p-dola: #087f98;
-  --p-dola-soft: color-mix(in oklab, var(--p-dola) 9%, #ffffff);
-  --p-dola-ink: var(--p-dola);
-  --p-meta: #2c4aad;
-  --p-meta-soft: color-mix(in oklab, var(--p-meta) 9%, #ffffff);
-  --p-meta-ink: var(--p-meta);
-  --p-vibes: #8e1b5c;
-  --p-vibes-soft: color-mix(in oklab, var(--p-vibes) 9%, #ffffff);
-  --p-vibes-ink: var(--p-vibes);
-  --p-flow: #666b1f;
-  --p-flow-soft: color-mix(in oklab, var(--p-flow) 9%, #ffffff);
-  --p-flow-ink: var(--p-flow);
-  --p-qwen: #0b5c80;
-  --p-qwen-soft: color-mix(in oklab, var(--p-qwen) 9%, #ffffff);
-  --p-qwen-ink: var(--p-qwen);
-  --p-gemini: #1c70d3;
-  --p-gemini-soft: color-mix(in oklab, var(--p-gemini) 9%, #ffffff);
-  --p-gemini-ink: var(--p-gemini);
+  /* Providers (PF the ink, PB the fill): --p-<name> and -ink are the ink, -soft the fill */
+  --p-dola: #0f766e;
+  --p-dola-soft: #ddf6f2;
+  --p-dola-ink: #0f766e;
+  --p-meta: #1d4ed8;
+  --p-meta-soft: #e3ecfd;
+  --p-meta-ink: #1d4ed8;
+  --p-vibes: #be185d;
+  --p-vibes-soft: #fce4f0;
+  --p-vibes-ink: #be185d;
+  --p-flow: #4d7c0f;
+  --p-flow-soft: #ebf5d6;
+  --p-flow-ink: #4d7c0f;
+  --p-gemini: #c2410c;
+  --p-gemini-soft: #feebdc;
+  --p-gemini-ink: #c2410c;
+  --p-qwen: #8a6700;
+  --p-qwen-soft: #fbf1d0;
+  --p-qwen-ink: #8a6700;
 }
 
 html.dark:root {
   color-scheme: dark;
 
-  --rl-bg: #0e0b16;
-  --rl-surface: #171222;
-  --rl-raised: #211a30;
-  --rl-topbar: #130e1f;
-  --rl-line: #2a2140;
-  --rl-line-strong: #3e3356;
-  --rl-control: #82738f;
-  --rl-scrim: rgb(5 3 10 / 60%);
+  --rl-bg: #0d0e14;
+  --rl-surface: #15161f;
+  --rl-pop: #1b1d28;
+  --rl-head: #181a24;
+  --rl-raised: #262838;
+  --rl-track: #262838;
+  --rl-seg-on: #2f3244;
+  --rl-input: #101119;
+  --rl-code: #101119;
+  --rl-skel: #1d1f2c;
+  --rl-topbar: #15161f;
+  --rl-line: #262838;
+  --rl-rule: #1f2130;
+  --rl-line-strong: #2e3142;
+  --rl-control: #2e3142;
+  --rl-scrim: rgba(5, 6, 10, 0.66);
+  --rl-scrim-modal: rgba(5, 6, 10, 0.72);
 
-  --rl-fg: #f5f3ff;
-  --rl-muted: #b9aec9;
-  --rl-faint: #8e82a3;
+  --rl-fg: #ecedf3;
+  --rl-body: #c3c6d4;
+  --rl-muted: #a3a6b8;
+  --rl-faint: #8d90a3;
 
+  --rl-brand: #8b5cf6;
   --rl-primary: #7c3aed;
-  --rl-primary-hover: #6d28d9;
-  --rl-primary-soft: #2e1d4b;
-  --rl-focus: #a78bfa;
+  --rl-primary-hover: #8b5cf6;
+  --rl-primary-soft: #2a1f4d;
+  --rl-brand-ink: #c4b2ff;
+  --rl-focus: #8b5cf6;
+  --rl-focus-halo: rgba(139, 92, 246, 0.22);
+  --rl-link: #c4b2ff;
+  --rl-link-hover: #c4b2ff;
+  --rl-on-primary: #ffffff;
 
-  --rl-ok: #34d399;
-  --rl-ok-bg: rgb(52 211 153 / 13%);
-  --rl-warn: #fbbf24;
-  --rl-warn-bg: rgb(251 191 36 / 13%);
-  --rl-bad: #fb7185;
-  --rl-bad-bg: rgb(251 113 133 / 14%);
-  --rl-bad-solid: #e11d48;
-  --rl-info: #c4b5fd;
-  --rl-info-bg: rgb(139 92 246 / 20%);
-  --rl-neutral: #b9aec9;
-  --rl-neutral-bg: rgb(185 174 201 / 12%);
+  --rl-ok: #7ee2b8;
+  --rl-ok-bg: #0f2c1d;
+  --rl-warn: #fcd34d;
+  --rl-warn-bg: #3a2a0a;
+  --rl-bad: #ff9c92;
+  --rl-bad-bg: #3d1512;
+  --rl-bad-solid: #c8322a;
+  --rl-info: #c4b2ff;
+  --rl-info-bg: #2a1f4d;
+  --rl-neutral: #a3a6b8;
+  --rl-neutral-bg: #22242f;
+  --rl-amber: #fbbf24;
+  --rl-alert-badge: #fcd34d;
+  --rl-alert-badge-bg: #3a2a0a;
+  --rl-live: #12b76a;
+
+  --rl-menu-hover: #202232;
+  --rl-menu-rule: #26283a;
+  --rl-tip: #ecedf3;
+  --rl-tip-fg: #15161f;
+  --rl-tip-shadow: 0 4px 12px rgba(16, 24, 40, 0.18);
+  --rl-scroll-thumb: #3a3d50;
+  --rl-scroll-thumb-hover: #565b74;
+  --rl-handle: #3a3d50;
+  --rl-shadow-card: 0 0 0 1px #262838;
+  --rl-shadow-pop: 0 0 0 1px #2e3142, 0 16px 40px rgba(0, 0, 0, 0.5);
+  --rl-shadow-drawer: 0 0 0 1px #2e3142, 0 24px 64px rgba(0, 0, 0, 0.55);
+  --rl-shadow-sheet: 0 -8px 32px rgba(16, 24, 40, 0.18), 0 -1px 0 rgba(16, 24, 40, 0.04);
+  --rl-shadow-arrow: 0 1px 3px rgba(16, 24, 40, 0.5), 0 0 0 1px #262838;
 
   --rl-bar-done: #8b5cf6;
-  --rl-bar-fail: #fb7185;
-  --rl-bar-run: #4c3a73;
+  --rl-bar-fail: #ff9c92;
+  --rl-bar-run: #2a1f4d;
 
-  --rl-on-primary: #ffffff;
-  --rl-link: #c4b5fd;
   --rl-tile-1: #2a2140;
   --rl-tile-2: #1d2a2e;
   --rl-tile-3: #2e241c;
   --rl-tile-4: #251f30;
   --rl-tile-ink: #b9aec9;
   --rl-media: #0a0710;
-  --rl-media-badge: rgb(0 0 0 / 60%);
-  --rl-shadow-pop: 0 12px 32px rgb(10 6 20 / 18%);
-  --rl-shadow-drawer: -16px 0 48px rgb(10 6 20 / 28%);
-
-  /* the same hues; the tints are mixed with the dark ground instead of white, the dark step with white */
-  --el-color-primary-light-3: #5b2cac;
-  --el-color-primary-light-5: #452282;
-  --el-color-primary-light-7: #2f1956;
-  --el-color-primary-light-8: #241441;
-  --el-color-primary-light-9: #2e1d4b;
-  --el-color-primary-dark-2: #9661f1;
-  --el-color-success-light-3: #299772;
-  --el-color-success-light-5: #216f58;
-  --el-color-success-light-7: #19473d;
-  --el-color-success-light-8: rgb(52 211 153 / 13%);
-  --el-color-success-light-9: rgb(52 211 153 / 13%);
-  --el-color-success-dark-2: #5ddcad;
-  --el-color-warning-light-3: #b48920;
-  --el-color-warning-light-5: #84651d;
-  --el-color-warning-light-7: #55411a;
-  --el-color-warning-light-8: rgb(251 191 36 / 13%);
-  --el-color-warning-light-9: rgb(251 191 36 / 13%);
-  --el-color-warning-dark-2: #fccc50;
-  --el-color-danger-light-3: #b45264;
-  --el-color-danger-light-5: #843e4e;
-  --el-color-danger-light-7: #552a37;
-  --el-color-danger-light-8: rgb(251 113 133 / 14%);
-  --el-color-danger-light-9: rgb(251 113 133 / 14%);
-  --el-color-danger-dark-2: #fc8d9d;
-  --el-color-info-light-3: #867d93;
-  --el-color-info-light-5: #645c70;
-  --el-color-info-light-7: #413c4c;
-  --el-color-info-light-8: rgb(185 174 201 / 12%);
-  --el-color-info-light-9: rgb(185 174 201 / 12%);
-  --el-color-info-dark-2: #c7bed4;
-
+  --rl-media-badge: rgba(0, 0, 0, 0.6);
   --rl-surface-2: var(--rl-raised);
   --rl-accent: var(--rl-focus);
-  --rl-accent-hover: var(--rl-info);
-  --rl-brand: var(--rl-bar-done);
+  --rl-accent-hover: var(--rl-primary-hover);
 
-  /* Providers: see the light block */
-  --p-dola: #087f98;
-  --p-dola-soft: color-mix(in oklab, var(--p-dola) 22%, #171222);
-  --p-dola-ink: color-mix(in oklab, var(--p-dola) 55%, #ffffff);
-  --p-meta: #2c4aad;
-  --p-meta-soft: color-mix(in oklab, var(--p-meta) 22%, #171222);
-  --p-meta-ink: color-mix(in oklab, var(--p-meta) 55%, #ffffff);
-  --p-vibes: #8e1b5c;
-  --p-vibes-soft: color-mix(in oklab, var(--p-vibes) 22%, #171222);
-  --p-vibes-ink: color-mix(in oklab, var(--p-vibes) 55%, #ffffff);
-  --p-flow: #666b1f;
-  --p-flow-soft: color-mix(in oklab, var(--p-flow) 22%, #171222);
-  --p-flow-ink: color-mix(in oklab, var(--p-flow) 55%, #ffffff);
-  --p-qwen: #0b5c80;
-  --p-qwen-soft: color-mix(in oklab, var(--p-qwen) 22%, #171222);
-  --p-qwen-ink: color-mix(in oklab, var(--p-qwen) 55%, #ffffff);
-  --p-gemini: #1c70d3;
-  --p-gemini-soft: color-mix(in oklab, var(--p-gemini) 22%, #171222);
-  --p-gemini-ink: color-mix(in oklab, var(--p-gemini) 55%, #ffffff);
+  --p-dola: #5eead4;
+  --p-dola-soft: #0f2e2b;
+  --p-dola-ink: #5eead4;
+  --p-meta: #93b4ff;
+  --p-meta-soft: #16234a;
+  --p-meta-ink: #93b4ff;
+  --p-vibes: #f9a8d4;
+  --p-vibes-soft: #3a1428;
+  --p-vibes-ink: #f9a8d4;
+  --p-flow: #bef264;
+  --p-flow-soft: #22300c;
+  --p-flow-ink: #bef264;
+  --p-gemini: #fdba74;
+  --p-gemini-soft: #3a1e0c;
+  --p-gemini-ink: #fdba74;
+  --p-qwen: #fde047;
+  --p-qwen-soft: #33290a;
+  --p-qwen-ink: #fde047;
 }
 
-/* A provider's colours, by class (lib/providers.ts `providerClass`): --pc the tone, --ps the tint, --pi the ink.
-   A provider is always a square letter tile (ProviderTile) and a status always a pill with a dot: a mark never
-   carries both. A provider with no tone of its own is neutral. */
+/* A provider's colours, by class (lib/providers.ts `providerClass`): --pc and --pi the ink (PF), --ps the fill (PB).
+   A provider with no tone of its own is neutral. */
 .p-dola {
   --pc: var(--p-dola);
   --ps: var(--p-dola-soft);
@@ -270,13 +258,46 @@ html.dark:root {
   --pi: var(--rl-muted);
 }
 
-/* Fonts: Be Vietnam Pro for the interface, IBM Plex Mono for data only (ids, times, quantities, routes, JSON). */
+/* Fonts: Manrope for the interface, JetBrains Mono for ids and codes. */
 html:root,
 html.dark:root {
-  --rl-font: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --rl-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --rl-font: Manrope, system-ui, -apple-system, sans-serif;
+  --rl-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
 
-  /* Element Plus mapping (DESIGN section 7), the same in both themes */
+  /* Element Plus ladders, mixed from the theme's own colours (the canvas draws none of these steps), so each theme
+     gets its own from one rule */
+  --el-color-primary-light-3: color-mix(in srgb, var(--rl-primary) 70%, var(--rl-surface));
+  --el-color-primary-light-5: color-mix(in srgb, var(--rl-primary) 50%, var(--rl-surface));
+  --el-color-primary-light-7: color-mix(in srgb, var(--rl-primary) 30%, var(--rl-surface));
+  --el-color-primary-light-8: var(--rl-primary-soft);
+  --el-color-primary-light-9: var(--rl-primary-soft);
+  --el-color-primary-dark-2: var(--rl-primary-hover);
+  --el-color-success-light-3: color-mix(in srgb, var(--rl-ok) 70%, var(--rl-surface));
+  --el-color-success-light-5: color-mix(in srgb, var(--rl-ok) 50%, var(--rl-surface));
+  --el-color-success-light-7: color-mix(in srgb, var(--rl-ok) 30%, var(--rl-surface));
+  --el-color-success-light-8: var(--rl-ok-bg);
+  --el-color-success-light-9: var(--rl-ok-bg);
+  --el-color-success-dark-2: var(--rl-ok);
+  --el-color-warning-light-3: color-mix(in srgb, var(--rl-warn) 70%, var(--rl-surface));
+  --el-color-warning-light-5: color-mix(in srgb, var(--rl-warn) 50%, var(--rl-surface));
+  --el-color-warning-light-7: color-mix(in srgb, var(--rl-warn) 30%, var(--rl-surface));
+  --el-color-warning-light-8: var(--rl-warn-bg);
+  --el-color-warning-light-9: var(--rl-warn-bg);
+  --el-color-warning-dark-2: var(--rl-warn);
+  --el-color-danger-light-3: color-mix(in srgb, var(--rl-bad) 70%, var(--rl-surface));
+  --el-color-danger-light-5: color-mix(in srgb, var(--rl-bad) 50%, var(--rl-surface));
+  --el-color-danger-light-7: color-mix(in srgb, var(--rl-bad) 30%, var(--rl-surface));
+  --el-color-danger-light-8: var(--rl-bad-bg);
+  --el-color-danger-light-9: var(--rl-bad-bg);
+  --el-color-danger-dark-2: var(--rl-bad);
+  --el-color-info-light-3: color-mix(in srgb, var(--rl-neutral) 70%, var(--rl-surface));
+  --el-color-info-light-5: color-mix(in srgb, var(--rl-neutral) 50%, var(--rl-surface));
+  --el-color-info-light-7: color-mix(in srgb, var(--rl-neutral) 30%, var(--rl-surface));
+  --el-color-info-light-8: var(--rl-neutral-bg);
+  --el-color-info-light-9: var(--rl-neutral-bg);
+  --el-color-info-dark-2: var(--rl-neutral);
+
+  /* Element Plus mapping, the same in both themes */
   --el-color-primary: var(--rl-primary);
   --el-color-success: var(--rl-ok);
   --el-color-warning: var(--rl-warn);
@@ -297,49 +318,53 @@ html.dark:root {
   --el-font-size-extra-small: 12px;
   --el-border-radius-base: 10px;
   --el-border-radius-small: 8px;
-  --el-border-radius-round: 12px;
+  --el-border-radius-round: 999px;
   --el-card-border-radius: 16px;
-  --el-tag-border-radius: 12px;
+  --el-tag-border-radius: 999px;
 
   /* layers and text */
   --el-bg-color: var(--rl-surface);
   --el-bg-color-page: var(--rl-bg);
-  --el-bg-color-overlay: var(--rl-surface);
-  --el-fill-color-blank: var(--rl-surface);
-  --el-fill-color-lighter: var(--rl-raised);
-  --el-fill-color-light: var(--rl-raised);
-  --el-fill-color: var(--rl-raised);
+  --el-bg-color-overlay: var(--rl-pop);
+  --el-fill-color-blank: var(--rl-input);
+  --el-fill-color-lighter: var(--rl-head);
+  --el-fill-color-light: var(--rl-head);
+  --el-fill-color: var(--rl-track);
   --el-text-color-primary: var(--rl-fg);
-  --el-text-color-regular: var(--rl-fg);
+  --el-text-color-regular: var(--rl-body);
   --el-text-color-secondary: var(--rl-muted);
   --el-text-color-placeholder: var(--rl-faint);
   --el-border-color: var(--rl-line-strong);
   --el-border-color-light: var(--rl-line);
-  --el-border-color-lighter: var(--rl-line);
-  --el-border-color-extra-light: var(--rl-line);
+  --el-border-color-lighter: var(--rl-rule);
+  --el-border-color-extra-light: var(--rl-rule);
   --el-overlay-color: var(--rl-scrim);
   --el-overlay-color-light: var(--rl-scrim);
   --el-overlay-color-lighter: var(--rl-scrim);
+  --el-mask-color: color-mix(in srgb, var(--rl-surface) 90%, transparent);
 
-  /* flat: cards carry no shadow, only overlays do (set on them below) */
-  --el-box-shadow: none;
-  --el-box-shadow-light: none;
+  /* cards carry the drawn hairline shadow; overlays the lift (set on them below) */
+  --el-box-shadow: var(--rl-shadow-card);
+  --el-box-shadow-light: var(--rl-shadow-card);
+  --el-box-shadow-lighter: var(--rl-shadow-card);
+  --el-box-shadow-dark: var(--rl-shadow-drawer);
 
-  /* disabled: a grey fill, never a washed-out accent */
-  --el-disabled-bg-color: var(--rl-raised);
-  --el-disabled-text-color: var(--rl-muted);
+  /* disabled: the track fill and the faint text */
+  --el-disabled-bg-color: var(--rl-track);
+  --el-disabled-text-color: var(--rl-faint);
   --el-disabled-border-color: var(--rl-line);
-  --el-button-disabled-bg-color: var(--rl-raised);
-  --el-button-disabled-text-color: var(--rl-muted);
+  --el-button-disabled-bg-color: var(--rl-track);
+  --el-button-disabled-text-color: var(--rl-faint);
   --el-button-disabled-border-color: var(--rl-line);
 
-  /* table */
-  --el-table-header-bg-color: var(--rl-raised);
-  --el-table-header-text-color: var(--rl-muted);
-  --el-table-row-hover-bg-color: var(--rl-raised);
+  /* table: the head fill and faint 12 px header, rows split by the rule */
+  --el-table-header-bg-color: var(--rl-head);
+  --el-table-header-text-color: var(--rl-faint);
+  --el-table-row-hover-bg-color: var(--rl-head);
   --el-table-current-row-bg-color: var(--rl-primary-soft);
-  --el-table-border-color: var(--rl-line);
-  --el-table-border: 1px solid var(--rl-line);
+  --el-table-border-color: var(--rl-rule);
+  --el-table-border: 1px solid var(--rl-rule);
+  --el-table-text-color: var(--rl-body);
 
   /* one control scale: 36 px from the tablet width up, 44 px on a phone; 28 px inside table cells */
   --el-component-size: 36px;
@@ -360,7 +385,7 @@ html .el-button:not(.el-button--small):not(.el-button--large) {
   height: var(--el-button-size);
 }
 
-/* A solid purple button: white text (5.7:1 on #7C3AED), hover #6D28D9. */
+/* A filled purple button: white text, the hover step of the brand. */
 html .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):not(.is-disabled) {
   --el-button-text-color: var(--rl-on-primary);
   --el-button-hover-text-color: var(--rl-on-primary);
@@ -370,7 +395,7 @@ html .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):not(.is-disa
   --el-button-active-bg-color: var(--rl-primary-hover);
   --el-button-active-border-color: var(--rl-primary-hover);
 }
-/* A solid destructive button: the solid red fill, white text (at least 4.5:1 in both themes). */
+/* A solid destructive button: the solid red fill (#c8322a in both themes), white text. */
 html .el-button--danger:not(.is-plain):not(.is-text):not(.is-link):not(.is-disabled) {
   --el-button-bg-color: var(--rl-bad-solid);
   --el-button-border-color: var(--rl-bad-solid);
@@ -383,27 +408,27 @@ html .el-button--danger:not(.is-plain):not(.is-text):not(.is-link):not(.is-disab
   --el-button-active-border-color: color-mix(in srgb, var(--rl-bad-solid) 85%, #000000);
 }
 
-/* Purple used as text takes the focus colour (readable on every surface of its theme). */
+/* Purple used as text is the brand ink (readable on every surface of its theme). */
 html .el-button--primary.is-plain,
 html .el-button--primary.is-text,
 html .el-button--primary.is-link {
-  --el-button-text-color: var(--rl-focus);
-  --el-button-hover-text-color: var(--rl-focus);
-  --el-button-active-text-color: var(--rl-focus);
+  --el-button-text-color: var(--rl-brand-ink);
+  --el-button-hover-text-color: var(--rl-brand-ink);
+  --el-button-active-text-color: var(--rl-brand-ink);
 }
 html .el-link.el-link--primary {
-  --el-link-text-color: var(--rl-focus);
-  --el-link-hover-text-color: var(--rl-focus);
+  --el-link-text-color: var(--rl-brand-ink);
+  --el-link-hover-text-color: var(--rl-brand-ink);
 }
 html .el-select-dropdown__item.is-selected,
 html .el-checkbox__input.is-checked + .el-checkbox__label,
 html .el-pagination.is-background .el-pager li:not(.is-disabled):hover {
-  color: var(--rl-focus);
+  color: var(--rl-brand-ink);
 }
 
-/* Tabs (the top bar and the drawer tabs): quiet text, the current one dark with a 2 px primary underline. */
+/* Tabs (the drawer tabs): quiet text, the current one dark with a 2 px brand underline. */
 html .el-tabs__item {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--rl-muted);
 }
 html .el-tabs__item:hover {
@@ -415,34 +440,36 @@ html .el-tabs__item.is-active {
 }
 html .el-tabs__active-bar {
   height: 2px;
-  background-color: var(--rl-primary);
+  background-color: var(--rl-brand);
 }
 
-/* Element Plus sets the disabled colours again on each button type, so the grey fill is set per type as well. */
+/* Element Plus sets the disabled colours again on each button type, so the fill is set per type as well. */
 html .el-button--primary.is-disabled,
 html .el-button--danger.is-disabled,
 html .el-button--success.is-disabled,
 html .el-button--warning.is-disabled,
 html .el-button--info.is-disabled {
-  --el-button-disabled-bg-color: var(--rl-raised);
-  --el-button-disabled-text-color: var(--rl-muted);
+  --el-button-disabled-bg-color: var(--rl-track);
+  --el-button-disabled-text-color: var(--rl-faint);
   --el-button-disabled-border-color: var(--rl-line);
 }
 
-/*
- * Form controls draw their edge in --rl-control (at least 3:1 against the surface); buttons keep --rl-line-strong.
- * Element Plus sets these variables on the component, so the override sits on the component class.
- */
+/* Form controls: the line edge on the input fill; Element Plus sets these on the component, so the override sits on
+   the component class. */
 html .el-input,
 html .el-textarea {
+  --el-input-bg-color: var(--rl-input);
   --el-input-border-color: var(--rl-control);
-  --el-input-hover-border-color: var(--rl-muted);
+  --el-input-hover-border-color: var(--rl-control);
+  --el-input-border-radius: 10px;
 }
 html .el-select__wrapper {
+  background-color: var(--rl-input);
+  border-radius: 10px;
   box-shadow: 0 0 0 1px var(--rl-control) inset;
 }
 html .el-select__wrapper:hover {
-  box-shadow: 0 0 0 1px var(--rl-muted) inset;
+  box-shadow: 0 0 0 1px var(--rl-control) inset;
 }
 html .el-select__wrapper.is-disabled {
   box-shadow: 0 0 0 1px var(--rl-line) inset;
@@ -455,17 +482,24 @@ html .el-textarea.is-disabled {
   --el-input-border-color: var(--rl-line);
 }
 
-/* Only overlays have a shadow (DESIGN section 5); in the dark theme they also carry an edge so they leave the page. */
+/* Overlays carry the lift (one hairline ring and the drop shadow); a card the drawn hairline. */
 html .el-drawer {
   box-shadow: var(--rl-shadow-drawer);
 }
-html .el-message-box,
+html .el-dialog,
+html .el-message-box {
+  border-radius: 16px;
+  box-shadow: var(--rl-shadow-drawer);
+}
 html .el-message,
-html .el-popper.is-light {
+html .el-popper.is-light,
+html .el-dropdown__popper,
+html .el-select__popper {
   box-shadow: var(--rl-shadow-pop);
 }
-html.dark .el-message-box {
-  border: 1px solid var(--rl-line-strong);
+html .el-card {
+  border: 0;
+  box-shadow: var(--rl-shadow-card);
 }
 /* A toast carries an edge in its own status colour, so it never reads as floating text. */
 .el-message--success {
@@ -481,13 +515,13 @@ html.dark .el-message-box {
   border-color: color-mix(in srgb, var(--rl-info) 35%, transparent);
 }
 
-/* One focus ring: a 2 px outline 2 px away in the focus colour; Element Plus draws the field's edge itself. */
+/* A focused field: the brand edge and a 3 px halo (the canvas's selected field). */
 .el-input__wrapper.is-focus,
 .el-select__wrapper.is-focused,
 .el-textarea__inner:focus {
-  box-shadow: 0 0 0 1px var(--rl-focus) inset !important;
-  outline: 2px solid var(--rl-focus);
-  outline-offset: 2px;
+  box-shadow:
+    0 0 0 1px var(--rl-brand) inset,
+    0 0 0 3px var(--rl-focus-halo) !important;
 }
 .el-input__inner:focus-visible,
 .el-textarea__inner:focus-visible {
@@ -506,16 +540,16 @@ input[type="file"]::file-selector-button {
   padding: 4px 12px;
   font: inherit;
   color: var(--rl-fg);
-  background: var(--rl-raised);
+  background: var(--rl-surface);
   border: 1px solid var(--rl-line-strong);
   border-radius: var(--el-border-radius-base);
   cursor: pointer;
 }
 
 /*
- * Tables: header 12 px / 500 in the muted colour on the raised fill, no vertical borders, body 14/20. A header is one
- * quiet line (never a split word); a cell breaks at spaces first and inside a long token (an id, a URL) only when it
- * has to, so a date, kept whole by fmtTime, never wraps by itself.
+ * Tables: header 12 px / 600 in the faint colour on the head fill, no vertical borders, body 14/20 in the body colour.
+ * A header is one quiet line (never a split word); a cell breaks at spaces first and inside a long token (an id, a URL)
+ * only when it has to, so a date, kept whole by fmtTime, never wraps by itself.
  */
 .el-table {
   width: 100%;
@@ -524,7 +558,7 @@ input[type="file"]::file-selector-button {
   white-space: nowrap;
   font-size: 12px;
   line-height: 16px;
-  font-weight: 500;
+  font-weight: 600;
 }
 .el-table th.el-table__cell {
   height: 36px;
@@ -570,9 +604,7 @@ input[type="file"]::file-selector-button {
   }
 }
 
-/* No font smoothing, text rendering or font feature setting here: the canvas sets none, and on a Mac
-   `-webkit-font-smoothing: antialiased` draws every glyph visibly thinner than the canvas (Linux Chrome ignores it, so
-   no photo shows it; element_diff compares the computed values). */
+/* No font smoothing, text rendering or font feature setting here: the canvas sets none. */
 body {
   margin: 0;
   background: var(--rl-bg);
@@ -593,27 +625,23 @@ html .el-select-dropdown.is-multiple .el-select-dropdown__item.is-selected::afte
   background: transparent;
   width: 5px;
   height: 10px;
-  border: solid var(--rl-focus);
+  border: solid var(--rl-brand-ink);
   border-width: 0 2px 2px 0;
   transform: translateY(-65%) rotate(45deg);
 }
 
-/* Bare links: --rl-link, the hover step in light only (in dark the colour stays). Zero specificity, so any link with a class keeps its own colour. */
+/* Bare links: the brand ink, its hover step. Zero specificity, so any link with a class keeps its own colour. */
 :where(a) {
   color: var(--rl-link);
 }
 :where(a:hover) {
-  color: var(--rl-primary-hover);
-}
-html.dark :where(a:hover) {
-  color: var(--rl-link);
+  color: var(--rl-link-hover);
 }
 ::selection {
   background: var(--rl-primary-soft);
 }
 
-/* Controls and links take the page font, as the canvas's `.gd button, .gd input, .gd select, .gd textarea, .gd a` rule
-   does; the browser's own size, line height and padding stay (the canvas draws on them). */
+/* Controls and links take the page font; the browser's own size, line height and padding stay. */
 button,
 input,
 select,
@@ -623,37 +651,44 @@ a {
 }
 
 /*
- * Scrollbars: a --rl-line-strong thumb on a transparent track on every scrolling element, the page included (the
- * canvas's `.gd *` rule). Safari does not read scrollbar-color, so it gets the bar Chrome draws for that rule (a 9 px
- * pill, 3 px inside a 15 px track) through its own pseudo-elements; Chrome and Firefox ignore those wherever
- * scrollbar-color is set.
+ * Scrollbars, every scrolling element and the page (the canvas's global rule): thin, an 8 px bar with a rounded thumb
+ * (#d0d4de light, #3a3d50 dark) on a transparent track, darker under the pointer. Firefox and current Chrome read
+ * scrollbar-width and scrollbar-color; Safari the WebKit pseudo-elements.
  */
 * {
-  scrollbar-color: var(--rl-line-strong) transparent;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rl-scroll-thumb) transparent;
 }
 ::-webkit-scrollbar {
-  width: 15px;
-  height: 15px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track,
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
+  border: 1px solid transparent;
   border-radius: 8px;
-  background: var(--rl-line-strong) padding-box;
+  background-color: var(--rl-scroll-thumb);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--rl-scroll-thumb-hover);
 }
 
-/* One focus ring for everything that takes the keyboard. */
+/* One focus ring for everything that takes the keyboard: 2 px brand, 2 px away. */
 :focus-visible {
   outline: 2px solid var(--rl-focus);
   outline-offset: 2px;
 }
 
-/* Numbers: tabular figures, as the canvas's `.num`; a number column aligns its own cells. */
+/* Numbers: tabular figures; ids and codes: the mono face. */
 .num {
   font-variant-numeric: tabular-nums;
+}
+.mono {
+  font-family: var(--rl-mono);
 }
 
 /* Visually hidden, still read by screen readers and still focusable text (clipboard fallback helper). */

@@ -621,7 +621,7 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
   overflow: auto;
   border-radius: 12px;
   background: var(--rl-raised);
-  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-family: var(--rl-mono, "JetBrains Mono", ui-monospace, monospace);
   font-size: 12px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;

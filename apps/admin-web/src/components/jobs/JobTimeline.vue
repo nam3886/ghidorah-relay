@@ -80,7 +80,7 @@ const props = defineProps<{ events: readonly JobEvent[] }>();
   padding-bottom: 18px;
 }
 .timeline__time {
-  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-family: var(--rl-mono, "JetBrains Mono", ui-monospace, monospace);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--rl-faint);

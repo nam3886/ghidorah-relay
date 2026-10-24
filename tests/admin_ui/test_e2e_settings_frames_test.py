@@ -11,7 +11,7 @@ import uuid
 import pytest
 from accountkit import new_account
 from jobkit import key as new_key
-from page_helpers import sideways
+from page_helpers import click_tab, sideways
 from patchright.sync_api import TimeoutError as PlaywrightTimeout
 from patchright.sync_api import expect
 from test_admin_prices import fabricated, priced
@@ -30,7 +30,7 @@ SCRIPT_URL = "java" + "script:alert(1)"
 
 
 def open_tab(page, name: str) -> None:
-    page.get_by_role("tab", name=name).click()
+    click_tab(page, name, exact=False)
 
 
 # ---- Settings -------------------------------------------------------------------------------------------------------

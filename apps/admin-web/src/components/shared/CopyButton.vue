@@ -84,7 +84,7 @@ async function copy() {
   padding: 0 8px;
   border-radius: 8px;
   background: transparent;
-  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-family: var(--rl-mono, "JetBrains Mono", ui-monospace, monospace);
   font-size: 12px;
 }
 .copy-button.is-tiny:hover,

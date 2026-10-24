@@ -7,7 +7,7 @@ export interface LedgerItem {
   value: string | number;
   // colours the value; `neutral` or none keeps the text colour
   tone?: Tone;
-  // IBM Plex Mono for data (ids, times, quantities); labels are never mono
+  // JetBrains Mono for data (ids, times, quantities); labels are never mono
   mono?: boolean;
   // an old value shown struck through before the value (`1 → 0`), and a short word after it in the ok colour
   was?: string | number;
@@ -101,7 +101,7 @@ const props = withDefaults(
 .ledger--band .ledger__value,
 .ledger--result .ledger__value,
 .ledger__value.is-mono {
-  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-family: var(--rl-mono, "JetBrains Mono", ui-monospace, monospace);
   font-weight: 500;
 }
 .ledger--drawer .ledger__value.is-mono {

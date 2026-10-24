@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from accountkit import done_job, new_account
 from jobkit import key as new_key
-from page_helpers import sideways
+from page_helpers import click_tab, sideways
 from patchright.sync_api import expect
 from test_admin_alert_groups import group_of, plant_unclear, stamp
 from test_admin_alerts import plant
@@ -23,7 +23,7 @@ PLAIN_REPLY = "Plain wording of one key"
 
 
 def open_tab(page, label):
-    page.get_by_role("tab", name=label, exact=True).click()
+    click_tab(page, label)
     # the page title (an empty or failed card repeats the name in its own heading, as drawn)
     expect(page.get_by_role("heading", name=label, level=1)).to_be_visible()
 

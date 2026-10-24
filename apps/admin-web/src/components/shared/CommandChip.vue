@@ -97,7 +97,7 @@ const errorText = computed(() => (props.message ? `error · ${props.message}` : 
   background: var(--rl-info);
 }
 .command-chip__time {
-  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-family: var(--rl-mono, "JetBrains Mono", ui-monospace, monospace);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }

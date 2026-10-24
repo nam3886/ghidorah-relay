@@ -116,7 +116,7 @@ def test_the_strip_and_the_jobs_today_table_filter_the_list_by_provider(app, app
     expect(job_rows(page)).to_have_count(6)
 
     strip = page.get_by_role("navigation", name="Provider")
-    expect(strip.get_by_role("button")).to_have_count(5)            # All + the four registered providers
+    expect(strip.locator("[data-testid^=provider-tab-]")).to_have_count(5)     # All + the four registered providers (the scroller's arrows are no tab)
     expect(strip.get_by_test_id("provider-tab-all")).to_have_attribute("aria-pressed", "true")
     expect(strip.get_by_test_id("provider-tab-flow")).to_contain_text("paused")
     expect(strip.get_by_test_id("provider-tab-flow")).to_have_attribute("aria-label", "flow, paused")

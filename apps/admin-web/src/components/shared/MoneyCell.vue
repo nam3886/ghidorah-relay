@@ -30,7 +30,7 @@ const netText = computed(() => (typeof props.net === "number" ? String(props.net
 .money {
   white-space: nowrap;
   color: var(--rl-fg);
-  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-family: var(--rl-mono, "JetBrains Mono", ui-monospace, monospace);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }

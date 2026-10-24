@@ -308,19 +308,19 @@ def test_the_banner_rules():
 
 # ---- the top bar: the behaviours the old header and tab bar guarded, now in TopBar --------------------------------
 TOP_BAR = f"{SRC}/components/layout/TopBar.vue"
+NAV_COUNTS = f"{SRC}/components/layout/nav-counts.ts"
 POPOVERS = SHELL_FAILED + "closes the account menu on Escape and on a click outside, not on a press inside it"
 SIGN_OUT_ITEM = SHELL_FAILED + "signs out through the menu item: server revoke first, then every sign-out hook"
 BAR_FAILED = "FAILED tests/unit/app-shell.spec.ts > the top bar > "
 SIGN_OUT_ITEM_ESC = SHELL_FAILED + (
     "opens a popup with ArrowDown on its trigger, puts the focus on the first menu item and returns it on Escape")
 WALK = SHELL_FAILED + "moves the focus into the account menu on open and walks it with Arrow, Home and End"
-LAYOUT = BAR_FAILED + ("is one row on a desktop, and two rows on a tablet and on a phone, "
-                       "with the user's name only on the desktop")
+LAYOUT = BAR_FAILED + ("has the tabs in the bar on a desktop and in the bottom bar on a tablet (8) and a phone "
+                       "(4 and More), with the title and the user's name where drawn")
 
 
-@mutation(TOP_BAR, "stats.data.jobs.in_progress + stats.data.jobs.queued", "stats.data.jobs.in_progress",
-          expect=SHELL_FAILED + "counts the unfinished jobs on the Jobs tab and the open groups on Alerts, "
-                 "only when above zero")
+@mutation(NAV_COUNTS, "alerts: stats.openGroups,", "alerts: 0,",
+          expect=SHELL_FAILED + "counts the open groups on Alerts and nothing on Jobs or Keys, only when above zero")
 @mutation(TOP_BAR, 'if (event.key !== "Escape" || !open.value) return;\n  event.preventDefault();',
           'if (event.key !== "Escape" || !open.value) return;', expect=SIGN_OUT_ITEM_ESC)
 @mutation(TOP_BAR, 'if (event.key !== "Escape" || !open.value) return;', 'if (event.key !== "Escape") return;',
@@ -347,11 +347,13 @@ def test_the_top_bar_keeps_the_count_and_the_popover_rules():
     vitest("tests/unit/app-shell.spec.ts")
 
 
-@mutation(TOP_BAR, 'value > 999 ? "999+"', 'value > 1000 ? "999+"',
+@mutation(NAV_COUNTS, 'value > 999 ? "999+"', 'value > 1000 ? "999+"',
           expect=BAR_FAILED + "shows 999+ for a count above 999 and the number itself at 999")
-@mutation(TOP_BAR, "a.available > 0", "a.available > 1",
+@mutation(NAV_COUNTS, "total > 0", "total > 1",
           expect=BAR_FAILED + "shows ready over total on the Accounts tab, and nothing without accounts")
-@mutation(TOP_BAR, "`${a.usable}/${a.available}`", "`${a.available}/${a.usable}`",
+@mutation(NAV_COUNTS, "`${a.usable}/${total}`", "`${total}/${a.usable}`",
+          expect=BAR_FAILED + "shows ready over total on the Accounts tab, and nothing without accounts")
+@mutation(NAV_COUNTS, "a.available + a.dead + a.disabled", "a.available",
           expect=BAR_FAILED + "shows ready over total on the Accounts tab, and nothing without accounts")
 @mutation(TOP_BAR, "await auth.logout();", "void 0;", expect=SIGN_OUT_ITEM)
 @mutation(TOP_BAR, 'await router.replace({ name: "login" });', "void 0;",
@@ -412,7 +414,7 @@ def test_the_breakpoint_composable():
     vitest("tests/unit/theme.spec.ts")
 
 
-@mutation(f"{SRC}/main.ts", "be-vietnam-pro/latin-500.css", "be-vietnam-pro/latin-300.css",
+@mutation(f"{SRC}/main.ts", "manrope/latin-500.css", "manrope/latin-300.css",
           expect=FONTS + "load the latin and vietnamese subsets of the weights the design uses, and nothing else")
 @mutation(f"{SRC}/components/layout/BrandLogo.vue", 'ui.theme === "dark" ? logoDark : logoLight',
           'ui.theme === "dark" ? logoLight : logoDark',
@@ -463,29 +465,7 @@ def test_the_build_strips_data_urls_from_vendor_css():
     vitest("tests/unit/strip-data-urls.spec.ts")
 
 
-# ---- page-shell: the canvas's global rules and the current tab kept in view ----------------------------------------
-REVEAL = BAR_FAILED + ("keeps the current tab in view: on a tab switch, and again when the counts arrive and widen "
-                       "the tabs before it")
-
-
-@mutation(TOP_BAR, "watch([() => route.name, () => TABS.map((tab) => counts.value[tab.name]).join(\" \")], "
-                   "revealCurrent);",
-          "watch(() => route.name, revealCurrent);", expect=REVEAL)
-@mutation(TOP_BAR, "onMounted(() => {\n  void revealCurrent();\n", "onMounted(() => {\n", expect=REVEAL)
-@mutation(TOP_BAR, "    if (unmounted || userMovedTabs) return;\n    void revealCurrent();\n", "",
-          expect=BAR_FAILED + "brings the current tab into view again once the web fonts have loaded, as they change "
-                              "every tab's width")
-@mutation(TOP_BAR, "if (unmounted || userMovedTabs) return;", "if (unmounted) return;",
-          expect=BAR_FAILED + "leaves the tab strip where the user put it when they moved it before the web fonts "
-                              "loaded")
-# No marker on the `unmounted` guard: Vue clears the strip's template ref on unmount, so without the guard the late
-# reveal still finds no strip and scrolls nothing (the mutant is equivalent). "does nothing when the bar is gone before
-# the web fonts load" holds the outcome.
-@mutation(TOP_BAR, "current.scrollIntoView({ block: \"nearest\", inline: \"nearest\" });", "void current;",
-          expect=REVEAL)
-@pytest.mark.web_unit
-def test_the_current_tab_stays_in_view():
-    vitest("tests/unit/app-shell.spec.ts")
+# ---- page-shell: the canvas's global rules (the top bar no longer scrolls its tabs: they wrap on a desktop) -----
 
 
 PLACE = SHELL_FAILED + ("places the open account menu by the popup rule, relative to its trigger, and again when the "

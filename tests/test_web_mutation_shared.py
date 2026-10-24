@@ -428,3 +428,52 @@ def test_the_field_select_can_be_a_form_field():
 @pytest.mark.web_unit
 def test_the_field_opens_over_a_dialog_and_keeps_its_escape():
     vitest(FIELD_SPEC)
+
+
+# ---- the Ledger kit (D0): the arrow scroller, the icon button and its tooltip, the cap chip -------------------------
+KIT_SPEC = "tests/unit/shared/ledger-kit.spec.ts"
+SCROLLER = f"{SHARED}/ArrowScroller.vue"
+ICON_BUTTON = f"{SHARED}/IconButton.vue"
+CAP = f"{SHARED}/CapChip.vue"
+THRESHOLDS = "shows an arrow once 8 px remain, hides it below 2 px, and keeps its state in between"
+
+
+@mutation(SCROLLER, "  if (!seen.far.end) right.value = true;\n  else if (seen.near.end) right.value = false;",
+          "  right.value = !seen.far.end;", expect=THRESHOLDS)
+@mutation(SCROLLER, "else if (seen.near.start) left.value = false;", "else left.value = false;", expect=THRESHOLDS)
+@mutation(SCROLLER, '["far", "0px 7px 0px 7px"],', '["far", "0px 1px 0px 1px"],',
+          expect="watches two 1 px sentinels in the row")
+@mutation(SCROLLER, "Math.round(el.clientWidth * 0.8)", "el.clientWidth",
+          expect="scrolls 80% of the visible width per arrow click")
+@mutation(SCROLLER, "props.count !== undefined && props.count <= 5", "props.count !== undefined && props.count <= 6",
+          expect="wraps a phone set of 5 or fewer")
+@mutation(SCROLLER, "watch(() => props.activeKey, revealActive);", "",
+          expect="scrolls the active item into view on mount and when it changes")
+@mutation(SCROLLER, "  for (const io of observers) io.disconnect();\n", "", expect="stops watching when it is gone")
+@pytest.mark.web_unit
+def test_the_arrow_scroller_keeps_its_thresholds_and_steps():
+    vitest(KIT_SPEC)
+
+
+@mutation(ICON_BUTTON, "export const SHOW_DELAY_MS = 400;", "export const SHOW_DELAY_MS = 0;",
+          expect="shows the tooltip 400 ms after the pointer enters")
+@mutation(ICON_BUTTON, "function hide(): void {\n  clearTimeout(timer);\n  open.value = false;",
+          "function hide(): void {\n  open.value = false;", expect="shows the tooltip 400 ms after the pointer enters")
+@mutation(ICON_BUTTON, "  if (pressed) {\n    pressed = false;\n    event.preventDefault();\n    return;\n  }\n", "",
+          expect="a long press shows the tooltip and swallows the click")
+@mutation(ICON_BUTTON, '`${props.label} · ${props.shortcut}`', '`${props.label} (${props.shortcut})`',
+          expect="is named by its tooltip, word for word")
+@pytest.mark.web_unit
+def test_the_icon_button_tooltip_keeps_its_timing_and_name():
+    vitest(KIT_SPEC)
+
+
+@mutation(CAP, 'share.value >= 0.8 ? "near"', 'share.value > 0.8 ? "near"',
+          expect="puts a static amber dot at 80% and a pulsing red one at 100%")
+@mutation(CAP, 'share.value >= 1 ? "full"', 'share.value > 1 ? "full"',
+          expect="puts a static amber dot at 80% and a pulsing red one at 100%")
+@mutation(CAP, "Math.min(100, Math.round(share.value * 100))", "Math.round(share.value * 100)",
+          expect="puts a static amber dot at 80% and a pulsing red one at 100%")
+@pytest.mark.web_unit
+def test_the_cap_chip_levels():
+    vitest(KIT_SPEC)

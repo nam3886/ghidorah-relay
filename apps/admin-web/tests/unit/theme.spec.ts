@@ -108,9 +108,30 @@ describe("ui store theme", () => {
     expect(ui.theme).toBe("dark");
     expect(isDark()).toBe(true);
   });
+  it("follows a change of the OS setting while nothing is stored, and not after a manual choice", () => {
+    let listener: ((event: { matches: boolean }) => void) | undefined;
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: (_: string, fn: (event: { matches: boolean }) => void) => {
+        if (query === "(prefers-color-scheme: dark)") listener = fn;
+      },
+      removeEventListener: () => undefined,
+    }));
+    const ui = useUiStore();
+    listener?.({ matches: true });
+    expect(ui.theme).toBe("dark");
+    expect(isDark()).toBe(true);
+    listener?.({ matches: false });
+    expect(ui.theme).toBe("light");
+    ui.setTheme("dark");
+    listener?.({ matches: false });
+    expect(ui.theme).toBe("dark");
+    expect(isDark()).toBe(true);
+  });
 });
 
-// ---- the C2 tokens, pinned: the values of DESIGN section 3 -----------------------------------------------------------
+// ---- the Ledger tokens, pinned: the values of the canvas token objects (K, S, PF, PB) --------------------------------
 const css = readFileSync(join(process.cwd(), "src/styles/theme.css"), "utf8");
 
 function declarations(block: string): Record<string, string> {
@@ -119,138 +140,95 @@ function declarations(block: string): Record<string, string> {
 const lightBlock = declarations(css.match(/\nhtml:root \{([^}]*)\}/)?.[1] ?? "");
 const darkBlock = declarations(css.match(/\nhtml\.dark:root \{([^}]*)\}/)?.[1] ?? "");
 
-const LIGHT: Record<string, string> = {
-  "--rl-bg": "#f7f5fb",
-  "--rl-surface": "#ffffff",
-  "--rl-raised": "#f3effa",
-  "--rl-topbar": "#ffffff",
-  "--rl-line": "#ece6f3",
-  "--rl-line-strong": "#ddd5e8",
-  "--rl-control": "#85758f",
-  "--rl-fg": "#171321",
-  "--rl-muted": "#655a75",
-  "--rl-faint": "#76698a",
-  "--rl-primary": "#7c3aed",
-  "--rl-primary-hover": "#6d28d9",
-  "--rl-primary-soft": "#ede9fe",
-  "--rl-focus": "#7c3aed",
-  "--rl-ok": "#047857",
-  "--rl-ok-bg": "#e2f4ec",
-  "--rl-warn": "#92400e",
-  "--rl-warn-bg": "#fdf1df",
-  "--rl-bad": "#be123c",
-  "--rl-bad-bg": "#fde7ec",
-  "--rl-bad-solid": "#be123c",
-  "--rl-info": "#6d28d9",
-  "--rl-info-bg": "#efe9fd",
-  "--rl-neutral": "#655a75",
-  "--rl-neutral-bg": "#f1eef5",
-  "--rl-bar-done": "#7c3aed",
-  "--rl-bar-fail": "#e11d48",
-  "--rl-bar-run": "#c4b5fd",
-  "--rl-scrim": "rgb(23 19 33 / 42%)",
-  "--rl-on-primary": "#ffffff",
-  "--rl-link": "var(--rl-primary)",
-  "--rl-tile-1": "#e9e2f5",
-  "--rl-tile-2": "#e2ecee",
-  "--rl-tile-3": "#f2e9df",
-  "--rl-tile-4": "#e6e2ec",
-  "--rl-tile-ink": "#655a75",
-  "--rl-media": "#1b1626",
-  "--rl-media-badge": "rgb(0 0 0 / 60%)",
-  "--rl-shadow-pop": "0 12px 32px rgb(10 6 20 / 18%)",
-  "--rl-shadow-drawer": "-16px 0 48px rgb(10 6 20 / 28%)",
+// [light, dark], copied from the canvas
+const TOKENS: Record<string, [string, string]> = {
+  "--rl-bg": ["#f5f6fa", "#0d0e14"],
+  "--rl-surface": ["#ffffff", "#15161f"],
+  "--rl-pop": ["#ffffff", "#1b1d28"],
+  "--rl-head": ["#fafbfd", "#181a24"],
+  "--rl-track": ["#eceef4", "#262838"],
+  "--rl-input": ["#ffffff", "#101119"],
+  "--rl-line": ["#e6e8ef", "#262838"],
+  "--rl-rule": ["#eef0f5", "#1f2130"],
+  "--rl-line-strong": ["#e0e3ea", "#2e3142"],
+  "--rl-fg": ["#1a1b25", "#ecedf3"],
+  "--rl-body": ["#4a4d5c", "#c3c6d4"],
+  "--rl-muted": ["#5d6070", "#a3a6b8"],
+  "--rl-faint": ["#6b6e7f", "#8d90a3"],
+  "--rl-brand": ["#6a35e8", "#8b5cf6"],
+  "--rl-primary": ["#6a35e8", "#7c3aed"],
+  "--rl-primary-soft": ["#efe9ff", "#2a1f4d"],
+  "--rl-brand-ink": ["#5b2fd6", "#c4b2ff"],
+  "--rl-focus": ["#6a35e8", "#8b5cf6"],
+  "--rl-link": ["#5b2fd6", "#c4b2ff"],
+  "--rl-ok": ["#067647", "#7ee2b8"],
+  "--rl-ok-bg": ["#dcfae6", "#0f2c1d"],
+  "--rl-warn": ["#b54708", "#fcd34d"],
+  "--rl-warn-bg": ["#fef0c7", "#3a2a0a"],
+  "--rl-bad": ["#b42318", "#ff9c92"],
+  "--rl-bad-bg": ["#fee4e2", "#3d1512"],
+  "--rl-bad-solid": ["#c8322a", "#c8322a"],
+  "--rl-neutral": ["#475467", "#a3a6b8"],
+  "--rl-neutral-bg": ["#f2f4f7", "#22242f"],
+  "--rl-amber": ["#f79009", "#fbbf24"],
+  "--rl-alert-badge": ["#93370d", "#fcd34d"],
+  "--rl-alert-badge-bg": ["#fef0c7", "#3a2a0a"],
+  "--rl-tip": ["#1a1b25", "#ecedf3"],
+  "--rl-tip-fg": ["#ffffff", "#15161f"],
+  "--rl-scroll-thumb": ["#d0d4de", "#3a3d50"],
+  "--rl-scroll-thumb-hover": ["#a9afbf", "#565b74"],
+  "--rl-scrim": ["rgba(16, 18, 28, 0.42)", "rgba(5, 6, 10, 0.66)"],
+  "--rl-scrim-modal": ["rgba(16, 18, 28, 0.55)", "rgba(5, 6, 10, 0.72)"],
+  "--rl-shadow-card": ["0 1px 2px rgba(16, 24, 40, 0.05), 0 0 0 1px #e6e8ef", "0 0 0 1px #262838"],
+  "--rl-shadow-pop": [
+    "0 0 0 1px rgba(16, 24, 40, 0.08), 0 16px 40px rgba(16, 24, 40, 0.14)",
+    "0 0 0 1px #2e3142, 0 16px 40px rgba(0, 0, 0, 0.5)",
+  ],
+  "--rl-shadow-drawer": [
+    "0 0 0 1px rgba(16, 24, 40, 0.06), 0 24px 64px rgba(16, 24, 40, 0.22)",
+    "0 0 0 1px #2e3142, 0 24px 64px rgba(0, 0, 0, 0.55)",
+  ],
 };
-const DARK: Record<string, string> = {
-  "--rl-bg": "#0e0b16",
-  "--rl-surface": "#171222",
-  "--rl-raised": "#211a30",
-  "--rl-topbar": "#130e1f",
-  "--rl-line": "#2a2140",
-  "--rl-line-strong": "#3e3356",
-  "--rl-control": "#82738f",
-  "--rl-fg": "#f5f3ff",
-  "--rl-muted": "#b9aec9",
-  "--rl-faint": "#8e82a3",
-  "--rl-primary": "#7c3aed",
-  "--rl-primary-hover": "#6d28d9",
-  "--rl-primary-soft": "#2e1d4b",
-  "--rl-focus": "#a78bfa",
-  "--rl-ok": "#34d399",
-  "--rl-ok-bg": "rgb(52 211 153 / 13%)",
-  "--rl-warn": "#fbbf24",
-  "--rl-warn-bg": "rgb(251 191 36 / 13%)",
-  "--rl-bad": "#fb7185",
-  "--rl-bad-bg": "rgb(251 113 133 / 14%)",
-  "--rl-bad-solid": "#e11d48",
-  "--rl-info": "#c4b5fd",
-  "--rl-info-bg": "rgb(139 92 246 / 20%)",
-  "--rl-neutral": "#b9aec9",
-  "--rl-neutral-bg": "rgb(185 174 201 / 12%)",
-  "--rl-bar-done": "#8b5cf6",
-  "--rl-bar-fail": "#fb7185",
-  "--rl-bar-run": "#4c3a73",
-  "--rl-scrim": "rgb(5 3 10 / 60%)",
-  "--rl-on-primary": "#ffffff",
-  "--rl-link": "#c4b5fd",
-  "--rl-tile-1": "#2a2140",
-  "--rl-tile-2": "#1d2a2e",
-  "--rl-tile-3": "#2e241c",
-  "--rl-tile-4": "#251f30",
-  "--rl-tile-ink": "#b9aec9",
-  "--rl-media": "#0a0710",
-  "--rl-media-badge": "rgb(0 0 0 / 60%)",
-  "--rl-shadow-pop": "0 12px 32px rgb(10 6 20 / 18%)",
-  "--rl-shadow-drawer": "-16px 0 48px rgb(10 6 20 / 28%)",
+const PF = {
+  dola: ["#0f766e", "#5eead4"],
+  meta: ["#1d4ed8", "#93b4ff"],
+  vibes: ["#be185d", "#f9a8d4"],
+  flow: ["#4d7c0f", "#bef264"],
+  gemini: ["#c2410c", "#fdba74"],
+  qwen: ["#8a6700", "#fde047"],
+};
+const PB = {
+  dola: ["#ddf6f2", "#0f2e2b"],
+  meta: ["#e3ecfd", "#16234a"],
+  vibes: ["#fce4f0", "#3a1428"],
+  flow: ["#ebf5d6", "#22300c"],
+  gemini: ["#feebdc", "#3a1e0c"],
+  qwen: ["#fbf1d0", "#33290a"],
 };
 
-describe("the C2 tokens", () => {
-  it("light has the value of DESIGN section 3 for every token", () => {
-    for (const [name, value] of Object.entries(LIGHT)) expect(lightBlock[name], name).toBe(value);
-  });
-
-  it("dark has the value of DESIGN section 3 for every token", () => {
-    for (const [name, value] of Object.entries(DARK)) expect(darkBlock[name], name).toBe(value);
+describe("the Ledger tokens", () => {
+  it("light and dark have the canvas value of every token", () => {
+    for (const [name, [light, dark]] of Object.entries(TOKENS)) {
+      expect(lightBlock[name], `light ${name}`).toBe(light);
+      expect(darkBlock[name], `dark ${name}`).toBe(dark);
+    }
   });
 
   it("the two themes set the same names, so a token can never exist in one theme only", () => {
     const names = (block: Record<string, string>) => Object.keys(block).sort();
     expect(names(darkBlock)).toEqual(names(lightBlock));
-    expect(Object.keys(LIGHT)).toHaveLength(40);
   });
 
-  it("every Element Plus ladder step is set explicitly in each theme and differs between them", () => {
-    for (const hue of ["primary", "success", "warning", "danger", "info"]) {
-      for (const step of ["light-3", "light-5", "light-7", "light-8", "light-9", "dark-2"]) {
-        const name = `--el-color-${hue}-${step}`;
-        // a literal in each block, never a reference to another variable
-        expect(lightBlock[name], `light ${name}`).toMatch(/^(#[0-9a-f]{6}|rgb\([0-9 /%]+\))$/);
-        expect(darkBlock[name], `dark ${name}`).toMatch(/^(#[0-9a-f]{6}|rgb\([0-9 /%]+\))$/);
-        expect(darkBlock[name], name).not.toBe(lightBlock[name]);
-      }
+  it("each provider has its PF ink and PB fill in both themes, and a class that names them", () => {
+    for (const name of Object.keys(PF) as (keyof typeof PF)[]) {
+      expect([lightBlock[`--p-${name}`], darkBlock[`--p-${name}`]], name).toEqual(PF[name]);
+      expect([lightBlock[`--p-${name}-ink`], darkBlock[`--p-${name}-ink`]], name).toEqual(PF[name]);
+      expect([lightBlock[`--p-${name}-soft`], darkBlock[`--p-${name}-soft`]], name).toEqual(PB[name]);
+      expect(css).toContain(`.p-${name} {\n  --pc: var(--p-${name});\n  --ps: var(--p-${name}-soft);`);
     }
   });
 
-  it("the two light steps of each Element Plus ladder are the fill of its token", () => {
-    const fills = {
-      primary: "--rl-primary-soft",
-      success: "--rl-ok-bg",
-      warning: "--rl-warn-bg",
-      danger: "--rl-bad-bg",
-      info: "--rl-neutral-bg",
-    };
-    for (const [hue, token] of Object.entries(fills)) {
-      for (const step of ["light-8", "light-9"]) {
-        const name = `--el-color-${hue}-${step}`;
-        // light-8 of the primary is its own tint; every other step 8 and every step 9 is the token's fill
-        if (hue === "primary" && step === "light-8") continue;
-        expect(lightBlock[name], `light ${name}`).toBe(LIGHT[token]);
-        expect(darkBlock[name], `dark ${name}`).toBe(DARK[token]);
-      }
-    }
-  });
-
-  it("maps the Element Plus colours onto the status tokens, with error as an alias of danger", () => {
+  it("maps the Element Plus colours onto the tokens, with error as an alias of danger", () => {
     const mapped = declarations(css.match(/\nhtml:root,\nhtml\.dark:root \{([^}]*)\}/)?.[1] ?? "");
     expect(mapped["--el-color-primary"]).toBe("var(--rl-primary)");
     expect(mapped["--el-color-success"]).toBe("var(--rl-ok)");
@@ -258,14 +236,19 @@ describe("the C2 tokens", () => {
     expect(mapped["--el-color-danger"]).toBe("var(--rl-bad)");
     expect(mapped["--el-color-error"]).toBe("var(--rl-bad)");
     expect(mapped["--el-color-error-light-9"]).toBe("var(--el-color-danger-light-9)");
-    expect(mapped["--el-color-error-light-8"]).toBe("var(--el-color-danger-light-8)");
-    // the steps of the ladders are never set again in the shared block (it would win over a theme block)
-    expect(Object.keys(mapped).filter((n) => /^--el-color-(primary|success|warning|danger|info)-/.test(n))).toEqual([]);
-    expect(mapped["--el-color-error-dark-2"]).toBe("var(--el-color-danger-dark-2)");
     expect(mapped["--el-color-info"]).toBe("var(--rl-neutral)");
     expect(mapped["--el-font-family"]).toBe("var(--rl-font)");
     expect(mapped["--el-font-size-base"]).toBe("14px");
-    expect(mapped["--el-border-radius-round"]).toBe("12px");
+    expect(mapped["--el-border-radius-base"]).toBe("10px");
+    expect(mapped["--el-card-border-radius"]).toBe("16px");
+    expect(mapped["--el-table-header-bg-color"]).toBe("var(--rl-head)");
+    expect(mapped["--el-bg-color-overlay"]).toBe("var(--rl-pop)");
+    // every ladder step comes from the theme's own colours, so it is right in both themes
+    for (const hue of ["primary", "success", "warning", "danger", "info"]) {
+      for (const step of ["light-3", "light-5", "light-7", "light-8", "light-9", "dark-2"]) {
+        expect(mapped[`--el-color-${hue}-${step}`], `${hue} ${step}`).toMatch(/var\(--rl-/);
+      }
+    }
   });
 
   it("controls are 36 px high from the tablet width and 44 px below it", () => {
@@ -281,40 +264,40 @@ describe("the C2 tokens", () => {
     );
   });
 
-  it("form controls take the control border colour and the focus ring is two pixels", () => {
-    expect(css).toMatch(/html \.el-input,\s*html \.el-textarea \{\s*--el-input-border-color: var\(--rl-control\);/);
-    expect(css).toMatch(/html \.el-select__wrapper \{\s*box-shadow: 0 0 0 1px var\(--rl-control\) inset;/);
-    expect(css).toMatch(/--el-checkbox-input-border: 1px solid var\(--rl-control\);/);
+  it("a focused field takes the brand edge and the 3 px halo; everything else the 2 px ring", () => {
+    expect(css).toMatch(/0 0 0 1px var\(--rl-brand\) inset,\s*0 0 0 3px var\(--rl-focus-halo\) !important;/);
+    expect(lightBlock["--rl-focus-halo"]).toBe("rgba(106, 53, 232, 0.1)");
+    expect(darkBlock["--rl-focus-halo"]).toBe("rgba(139, 92, 246, 0.22)");
     expect(css).toMatch(/:focus-visible \{\s*outline: 2px solid var\(--rl-focus\);\s*outline-offset: 2px;/);
   });
 
   it("a solid destructive button is the solid red with white text", () => {
-    expect(css).toMatch(/--el-button-bg-color: var\(--rl-bad-solid\);/);
     expect(css).toMatch(
       /--el-button-bg-color: var\(--rl-bad-solid\);[^}]*--el-button-text-color: var\(--rl-on-primary\);/,
     );
   });
 
-  it("disabled controls are a grey fill", () => {
-    expect(css).toContain("--el-disabled-bg-color: var(--rl-raised);");
-    expect(css).toContain("--el-button-disabled-bg-color: var(--rl-raised);");
+  it("overlays carry the lift and a dialog the 16 px radius", () => {
+    expect(css).toMatch(/html \.el-drawer \{\s*box-shadow: var\(--rl-shadow-drawer\);/);
+    expect(css).toMatch(/html \.el-message-box \{\s*border-radius: 16px;\s*box-shadow: var\(--rl-shadow-drawer\);/);
   });
 
   it("reduced motion stops the animations", () => {
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^]*animation-duration: 0\.01ms !important;/);
   });
 
-  it("the two fonts come from one variable each, and the mono stack is written once", () => {
-    expect(css.match(/--rl-font: "Be Vietnam Pro",/g)).toHaveLength(1);
-    expect(css.match(/--rl-mono: "IBM Plex Mono",/g)).toHaveLength(1);
-    expect(css.match(/"IBM Plex Mono"/g)).toHaveLength(1);
+  it("the two fonts come from one variable each", () => {
+    expect(css.match(/--rl-font: Manrope, system-ui, -apple-system, sans-serif;/g)).toHaveLength(1);
+    expect(css.match(/--rl-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;/g)).toHaveLength(1);
+    expect(css).not.toMatch(/Be Vietnam Pro|IBM Plex Mono/);
   });
 
-  it("repeats no query of the old 639 and 640 px and keeps no data: URL or gradient", () => {
+  it("keeps no data: URL or gradient in the shell's own style sheets", () => {
     for (const file of [
       "src/styles/theme.css",
       "src/components/layout/AppShell.vue",
       "src/components/layout/TopBar.vue",
+      "src/components/layout/BottomNav.vue",
       "src/components/layout/BrandLogo.vue",
     ]) {
       // comments may name what the code avoids
@@ -327,27 +310,6 @@ describe("the C2 tokens", () => {
   });
 });
 
-describe("the provider palette (A, jewel tones)", () => {
-  const TONES = {
-    dola: "#087f98",
-    meta: "#2c4aad",
-    vibes: "#8e1b5c",
-    flow: "#666b1f",
-    qwen: "#0b5c80",
-    gemini: "#1c70d3",
-  };
-
-  it("each provider has its tone in both themes, a tint at 9 % on white in light, and a class that names them", () => {
-    for (const [name, tone] of Object.entries(TONES)) {
-      expect(lightBlock[`--p-${name}`], name).toBe(tone);
-      expect(darkBlock[`--p-${name}`], name).toBe(tone);
-      expect(lightBlock[`--p-${name}-soft`], name).toBe(`color-mix(in oklab, var(--p-${name}) 9%, #ffffff)`);
-      expect(lightBlock[`--p-${name}-ink`], name).toBe(`var(--p-${name})`);
-      expect(css).toContain(`.p-${name} {\n  --pc: var(--p-${name});\n  --ps: var(--p-${name}-soft);`);
-    }
-  });
-});
-
 describe("the fonts", () => {
   const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
     dependencies: Record<string, string>;
@@ -356,18 +318,23 @@ describe("the fonts", () => {
   const vite = readFileSync(join(process.cwd(), "vite.config.ts"), "utf8");
 
   it("are two exact-pinned fontsource packages", () => {
-    expect(pkg.dependencies["@fontsource/be-vietnam-pro"]).toBe("5.3.0");
-    expect(pkg.dependencies["@fontsource/ibm-plex-mono"]).toBe("5.3.0");
+    expect(pkg.dependencies["@fontsource/manrope"]).toBe("5.3.0");
+    expect(pkg.dependencies["@fontsource/jetbrains-mono"]).toBe("5.3.0");
+    expect(
+      Object.keys(pkg.dependencies)
+        .filter((d) => d.startsWith("@fontsource/"))
+        .sort(),
+    ).toEqual(["@fontsource/jetbrains-mono", "@fontsource/manrope"]);
   });
 
   it("load the latin and vietnamese subsets of the weights the design uses, and nothing else", () => {
     const imports = [...main.matchAll(/import "(@fontsource\/[^"]+)";/g)].map((m) => m[1]);
     const want = [
       ...["latin", "vietnamese"].flatMap((subset) =>
-        [400, 500, 600, 700].map((w) => `@fontsource/be-vietnam-pro/${subset}-${w}.css`),
+        [400, 500, 600, 700, 800].map((w) => `@fontsource/manrope/${subset}-${w}.css`),
       ),
       ...["latin", "vietnamese"].flatMap((subset) =>
-        [400, 500].map((w) => `@fontsource/ibm-plex-mono/${subset}-${w}.css`),
+        [400, 500].map((w) => `@fontsource/jetbrains-mono/${subset}-${w}.css`),
       ),
     ];
     expect(imports.sort()).toEqual(want.sort());
@@ -378,7 +345,6 @@ describe("the fonts", () => {
   });
 
   it("are drawn as the canvas draws them: no style sets font smoothing, text rendering or font features", () => {
-    // the canvas sets none of these; on a Mac the antialiased smoothing draws every glyph thinner than the canvas
     const RENDERING =
       /(-webkit-font-smoothing|-moz-osx-font-smoothing|text-rendering|font-synthesis|font-feature-settings|font-variation-settings|font-optical-sizing|font-kerning)\s*:/;
     const src = join(process.cwd(), "src");
@@ -489,7 +455,7 @@ describe("useBreakpoint", () => {
   });
 });
 
-// ---- the canvas's global rules (its `.gd` stylesheet), rule by rule -------------------------------------------------
+// ---- the canvas's global rules, rule by rule ---------------------------------------------------------------------------
 const ruleOf = (selector: string): string => {
   const at = css.indexOf(`\n${selector} {`);
   return at < 0 ? "" : css.slice(at, css.indexOf("}", at));
@@ -500,28 +466,33 @@ describe("the canvas's global rules", () => {
     expect(ruleOf("button,\ninput,\nselect,\ntextarea,\na")).toMatch(/\{\s*font-family: inherit;\s*$/);
   });
 
-  it("draws every scrollbar as a line-strong thumb on a transparent track", () => {
-    expect(ruleOf("*")).toMatch(/\{\s*scrollbar-color: var\(--rl-line-strong\) transparent;\s*$/);
+  it("draws every scrollbar thin, the thumb on a transparent track (Firefox and current Chrome)", () => {
+    expect(ruleOf("*")).toMatch(
+      /\{\s*scrollbar-width: thin;\s*scrollbar-color: var\(--rl-scroll-thumb\) transparent;\s*$/,
+    );
   });
 
-  it("gives Safari the same thumb through its own scrollbar pseudo-elements, rounded, on a transparent track", () => {
+  it("gives WebKit the 8 px bar: a rounded thumb with a 1 px clear edge, darker under the pointer", () => {
+    expect(ruleOf("::-webkit-scrollbar")).toMatch(/width: 8px;\s*height: 8px;/);
     const thumb = ruleOf("::-webkit-scrollbar-thumb");
-    expect(thumb).toContain("background: var(--rl-line-strong) padding-box;");
-    expect(thumb).toContain("border: 3px solid transparent;");
+    expect(thumb).toContain("border: 1px solid transparent;");
     expect(thumb).toContain("border-radius: 8px;");
+    expect(thumb).toContain("background-color: var(--rl-scroll-thumb);");
+    expect(thumb).toContain("background-clip: padding-box;");
+    expect(ruleOf("::-webkit-scrollbar-thumb:hover")).toContain("background-color: var(--rl-scroll-thumb-hover);");
     expect(ruleOf("::-webkit-scrollbar-track,\n::-webkit-scrollbar-corner")).toContain("background: transparent;");
-    expect(ruleOf("::-webkit-scrollbar")).toMatch(/width: 15px;\s*height: 15px;/);
   });
 
-  it("gives a number its tabular figures and nothing else: a number column aligns its own cells", () => {
+  it("gives a number its tabular figures and an id the mono face", () => {
     expect(ruleOf(".num")).toMatch(/\{\s*font-variant-numeric: tabular-nums;\s*$/);
+    expect(ruleOf(".mono")).toMatch(/\{\s*font-family: var\(--rl-mono\);\s*$/);
   });
 
-  it("selects text on the soft primary and draws bare links in the link colour, the hover step in light only", () => {
+  it("selects text on the soft brand and draws bare links in the brand ink with its hover step", () => {
     expect(ruleOf("::selection")).toContain("background: var(--rl-primary-soft);");
     expect(ruleOf(":where(a)")).toContain("color: var(--rl-link);");
-    expect(ruleOf(":where(a:hover)")).toContain("color: var(--rl-primary-hover);");
-    expect(ruleOf("html.dark :where(a:hover)")).toContain("color: var(--rl-link);");
+    expect(ruleOf(":where(a:hover)")).toContain("color: var(--rl-link-hover);");
+    expect(lightBlock["--rl-link-hover"]).toBe("#43209f");
   });
 });
 

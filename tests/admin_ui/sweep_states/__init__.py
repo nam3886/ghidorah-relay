@@ -19,8 +19,16 @@ TABS = {"jobs": "Jobs", "accounts": "Accounts", "keys": "API keys", "logs": "Req
 
 
 def tab(page, route):
-    page.get_by_role("tab", name=TABS[route], exact=True).click()
-    expect(page.get_by_role("tab", name=TABS[route], exact=True)).to_have_attribute("aria-selected", "true")
+    """Open a route by its tab; on a phone the pages beyond the first four are under More (a bottom sheet)."""
+    target = page.get_by_role("tab", name=TABS[route], exact=True)
+    if target.count():
+        target.click()
+        expect(target).to_have_attribute("aria-selected", "true")
+        return
+    page.get_by_role("tab", name="More", exact=True).click()
+    page.get_by_role("dialog", name="More").get_by_role("link", name=TABS[route], exact=True).click()
+    expect(page).to_have_url(re.compile(r"#/%s(\?.*)?$" % route))
+    expect(page.get_by_role("tab", name="More", exact=True)).to_have_attribute("aria-selected", "true")
 
 
 def slow(page, pattern, ms=1200):

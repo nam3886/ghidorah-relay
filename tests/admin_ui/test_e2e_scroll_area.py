@@ -23,9 +23,11 @@ TIMEOUT_MS = 10_000
 STATE_JS = """() => {
   const w = document.querySelector('.app-scroll__wrap'), d = document.documentElement;
   return {doc: d.scrollHeight, view: innerHeight, docWidth: d.clientWidth, view_width: innerWidth,
-          // the fixed chrome over the area: the top bar, and the provider strip on a page that has one
+          // the chrome around the area: the top bar, the provider strip on a page that has one, and the bottom bar of a
+          // tablet and a phone
           bar: document.querySelector('header.topbar').getBoundingClientRect().height
-            + (document.querySelector('nav.pstrip')?.getBoundingClientRect().height ?? 0),
+            + (document.querySelector('nav.pstrip')?.getBoundingClientRect().height ?? 0)
+            + (document.querySelector('nav.bnav')?.getBoundingClientRect().height ?? 0),
           wrapHeight: w.clientHeight, wrapRoom: w.scrollHeight - w.clientHeight, top: w.scrollTop, windowY: scrollY,
           active: document.activeElement === w, root: getComputedStyle(w.parentElement).overflowY,
           wrapOverflow: getComputedStyle(w).overflowY};
@@ -81,21 +83,22 @@ THUMB_JS = """() => {
   const r = t.getBoundingClientRect(), s = getComputedStyle(t), root = getComputedStyle(document.documentElement);
   return {right: innerWidth - r.right, width: r.width, color: s.backgroundColor, opacity: s.opacity,
           shown: r.height > 0 && getComputedStyle(t.parentElement).display !== 'none',
-          radius: parseFloat(s.borderTopLeftRadius), line: root.getPropertyValue('--rl-line-strong').trim()};
+          radius: parseFloat(s.borderTopLeftRadius), line: root.getPropertyValue('--rl-scroll-thumb').trim()};
 }"""
 
 
 @pytest.mark.parametrize("color_scheme", ("light", "dark"))
 def test_the_page_bar_is_the_signed_off_pill(app, app_session, color_scheme):
-    """9 px wide, the strong line colour at full strength, 3 px from the edge, rounded, drawn without hovering."""
+    """8 px wide (the thin scrollbar of the redesign), the scrollbar thumb colour at full strength, at the edge,
+    rounded, drawn without hovering."""
     page = app_session
     go(app, page, "settings", 1440)
     got = page.evaluate(THUMB_JS, isolated_context=False)
     h = got["line"].lstrip("#")
     line = "rgb(%d, %d, %d)" % tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
-    assert got["shown"] and got["width"] == 9 and got["right"] == 3, "the pill is 9 px wide and 3 px in: %r" % got
+    assert got["shown"] and got["width"] == 8 and got["right"] == 0, "the pill is 8 px wide and at the edge: %r" % got
     assert got["color"] == line and got["opacity"] == "1" and got["radius"] >= 4.5, (
-        "the pill is the strong line colour at full strength, rounded: %r" % got)
+        "the pill is the thumb colour at full strength, rounded: %r" % got)
 
 
 # ---- the keyboard and the top of the page --------------------------------------------------------------------------
@@ -271,9 +274,11 @@ SAMPLE_JS = """() => {
 }"""
 MEASURE_JS = """() => {
   const w = document.querySelector('.app-scroll__wrap'), m = document.querySelector('main').getBoundingClientRect();
-  // the fixed chrome over the scroll area: the top bar, and the provider strip on a page that has one (Jobs)
-  const strip = document.querySelector('nav.pstrip');
-  return {bar: document.querySelector('header.topbar').offsetHeight + (strip ? strip.offsetHeight : 0),
+  // the chrome around the scroll area: the top bar, the provider strip on a page that has one (Jobs), and the bottom
+  // bar of a tablet and a phone
+  const strip = document.querySelector('nav.pstrip'), bottom = document.querySelector('nav.bnav');
+  return {bar: document.querySelector('header.topbar').offsetHeight + (strip ? strip.offsetHeight : 0)
+                 + (bottom ? bottom.offsetHeight : 0),
           wrap: w.scrollHeight,
           doc: document.documentElement.scrollHeight, left: m.left, width: m.width};
 }"""

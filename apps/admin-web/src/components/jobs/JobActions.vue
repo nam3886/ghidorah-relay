@@ -225,7 +225,7 @@ async function regenerate(): Promise<void> {
   border-radius: 10px;
   background: var(--rl-surface);
   color: var(--rl-fg);
-  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-family: var(--rl-mono, "JetBrains Mono", ui-monospace, monospace);
   font-size: 13px;
 }
 .job-actions__help {

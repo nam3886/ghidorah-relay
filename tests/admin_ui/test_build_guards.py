@@ -108,11 +108,11 @@ def test_the_fonts_are_hashed_woff2_files_of_the_dist_and_none_is_vendored_or_in
     assert webguards.missing_fonts(names) == [], "missing font files of the dist: %s" % webguards.missing_fonts(names)
     assert webguards.vendored_fonts() == [], "font files vendored in public/: %s" % webguards.vendored_fonts()
     css = "".join(text for name, text in dist_files().items() if name.endswith(".css"))
-    for family in ("Be Vietnam Pro", "IBM Plex Mono"):
+    for family in ("Manrope", "JetBrains Mono"):
         assert family in css, "no @font-face for %s in the built css" % family
 
 
-@mutation(LIB, '(400, 500, 600, 700)', '(400, 500, 600)', expect="font check: the full set passes")
+@mutation(LIB, '(400, 500, 600, 700, 800)', '(400, 500, 600, 700)', expect="font check: the full set passes")
 @mutation(LIB, '("latin", "vietnamese"), (400, 500))', '("latin",), (400, 500))',
           expect="font check: the full set passes")
 @mutation(LIB, "-normal-[A-Za-z0-9_-]+", "-[a-z]+-[A-Za-z0-9_-]+", expect="font check: only the normal style counts")
@@ -124,14 +124,14 @@ def test_the_font_check_finds_what_is_missing_and_what_is_vendored(tmp_path, mon
         return "assets/%s-%s-%d-%s-AbC123_-.%s" % (family, subset, weight, style, ext)
 
     full = [file(f, s, w) for f, (subsets, weights) in webguards.FONTS.items() for s in subsets for w in weights]
-    assert len(full) == 12 and webguards.missing_fonts(full) == [], "font check: the full set passes"
-    assert len(webguards.missing_fonts([])) == 12, "font check: a missing file is reported"
-    assert webguards.missing_fonts([n for n in full if "ibm-plex-mono-vietnamese-500" not in n]) == [
-        "ibm-plex-mono vietnamese 500"], "font check: every subset is required"
-    assert webguards.missing_fonts([n for n in full if "be-vietnam-pro-latin-700" not in n]) == [
-        "be-vietnam-pro latin 700"], "font check: every weight is required"
-    italic = [n.replace("-normal-", "-italic-") if "be-vietnam-pro-latin-400" in n else n for n in full]
-    assert webguards.missing_fonts(italic) == ["be-vietnam-pro latin 400"], "font check: only the normal style counts"
+    assert len(full) == 14 and webguards.missing_fonts(full) == [], "font check: the full set passes"
+    assert len(webguards.missing_fonts([])) == 14, "font check: a missing file is reported"
+    assert webguards.missing_fonts([n for n in full if "jetbrains-mono-vietnamese-500" not in n]) == [
+        "jetbrains-mono vietnamese 500"], "font check: every subset is required"
+    assert webguards.missing_fonts([n for n in full if "manrope-latin-800" not in n]) == [
+        "manrope latin 800"], "font check: every weight is required"
+    italic = [n.replace("-normal-", "-italic-") if "manrope-latin-400" in n else n for n in full]
+    assert webguards.missing_fonts(italic) == ["manrope latin 400"], "font check: only the normal style counts"
     assert webguards.missing_fonts([n.replace(".woff2", ".woff") for n in full]) != [], "font check: only woff2 counts"
     public = tmp_path / "public"
     (public / "brand").mkdir(parents=True)

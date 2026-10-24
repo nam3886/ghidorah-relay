@@ -44,7 +44,7 @@ const text = computed(() => props.label ?? labelOf(props.status));
   background: var(--chip-fg);
 }
 .step {
-  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-family: var(--rl-mono, "JetBrains Mono", ui-monospace, monospace);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }

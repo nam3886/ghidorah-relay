@@ -276,8 +276,8 @@ const regenerateConfirm = computed(() => ({
   danger: true,
 }));
 
-// Every job row carries its provider's colours: a rail on its left edge and the tinted provider cell (phone: the
-// tinted side column).
+// Every job row carries its provider class (the tile takes its colour from it); the row has no rail and the provider
+// cell no tint.
 const rowClass = ({ row }: { row: JobSummary }): string => `jobs-row ${providerClass(row.provider)}`;
 
 // A failed job is not tinted (owner, 24/10): its red "failed" pill and red error code say it; the row keeps its provider's
@@ -675,7 +675,7 @@ const subtitle = computed(() =>
 .jobs--phone .jobs__bulk {
   position: fixed;
   right: 0;
-  bottom: 0;
+  bottom: var(--rl-bottom-bar, 0px);
   left: 0;
   z-index: 5;
   box-sizing: border-box;
@@ -865,14 +865,7 @@ html.dark .title-link:hover {
 .jobs__kind {
   color: var(--rl-muted);
 }
-/* the provider: a rail in its tone on the row's left edge, its tinted cell with the tile and the name, the model name
-   in its ink. The cell keeps its tint on hover, on a tick and on a failed row */
-.jobs__table :deep(.el-table tr.jobs-row > td.el-table__cell:first-child) {
-  box-shadow: inset 4px 0 0 var(--pc);
-}
-.jobs__table :deep(.el-table tr.jobs-row > td.el-table__cell.col-provider) {
-  background: var(--ps);
-}
+/* the provider: its tile and the name in plain ink, no rail on the row and no tinted cell (Ledger); the model is not coloured */
 .jobs__pcell {
   display: inline-flex;
   align-items: center;
@@ -880,12 +873,11 @@ html.dark .title-link:hover {
   white-space: nowrap;
 }
 .jobs__pname {
-  color: var(--pi);
+  color: var(--rl-muted);
   font-size: 12px;
   font-weight: 600;
 }
 .jobs__model {
-  color: var(--pi);
   font-weight: 600;
 }
 .jobs__differs {
@@ -919,10 +911,7 @@ html.dark .title-link:hover {
   color: var(--rl-muted);
 }
 
-/* the phone's rows: cards with the provider's rail on the left edge and a tinted side column (tile and name) */
-.jobs__table :deep(.data-table__item.jobs-row) {
-  box-shadow: inset 4px 0 0 var(--pc);
-}
+/* the phone's rows: cards with a side column (tile and name), no rail and no tint */
 .prow {
   display: grid;
   flex: 1 1 auto;
@@ -935,15 +924,13 @@ html.dark .title-link:hover {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  margin: -10px 0;
-  padding-top: 12px;
-  background: var(--ps);
+  padding-top: 2px;
 }
 .prow__pname {
   max-width: 40px;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--pi);
+  color: var(--rl-muted);
   font-size: 9px;
   font-weight: 600;
   line-height: 12px;

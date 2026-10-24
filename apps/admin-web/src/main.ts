@@ -1,16 +1,18 @@
 // Fonts: only the latin and vietnamese subsets, self-hosted from the packages (the CSP allows 'self' only).
-import "@fontsource/be-vietnam-pro/latin-400.css";
-import "@fontsource/be-vietnam-pro/latin-500.css";
-import "@fontsource/be-vietnam-pro/latin-600.css";
-import "@fontsource/be-vietnam-pro/latin-700.css";
-import "@fontsource/be-vietnam-pro/vietnamese-400.css";
-import "@fontsource/be-vietnam-pro/vietnamese-500.css";
-import "@fontsource/be-vietnam-pro/vietnamese-600.css";
-import "@fontsource/be-vietnam-pro/vietnamese-700.css";
-import "@fontsource/ibm-plex-mono/latin-400.css";
-import "@fontsource/ibm-plex-mono/latin-500.css";
-import "@fontsource/ibm-plex-mono/vietnamese-400.css";
-import "@fontsource/ibm-plex-mono/vietnamese-500.css";
+import "@fontsource/manrope/latin-400.css";
+import "@fontsource/manrope/latin-500.css";
+import "@fontsource/manrope/latin-600.css";
+import "@fontsource/manrope/latin-700.css";
+import "@fontsource/manrope/latin-800.css";
+import "@fontsource/manrope/vietnamese-400.css";
+import "@fontsource/manrope/vietnamese-500.css";
+import "@fontsource/manrope/vietnamese-600.css";
+import "@fontsource/manrope/vietnamese-700.css";
+import "@fontsource/manrope/vietnamese-800.css";
+import "@fontsource/jetbrains-mono/latin-400.css";
+import "@fontsource/jetbrains-mono/latin-500.css";
+import "@fontsource/jetbrains-mono/vietnamese-400.css";
+import "@fontsource/jetbrains-mono/vietnamese-500.css";
 // Element Plus base and dark variables first, then our theme (it overrides them).
 import "element-plus/theme-chalk/dark/css-vars.css";
 import "@/styles/theme.css";

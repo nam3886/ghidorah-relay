@@ -282,7 +282,7 @@ function play(idx: number): void {
   gap: 6px;
 }
 .media__meta {
-  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-family: var(--rl-mono, "JetBrains Mono", ui-monospace, monospace);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -342,7 +342,7 @@ function play(idx: number): void {
   border-radius: 6px;
   background: var(--rl-media-badge);
   color: var(--rl-on-primary);
-  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-family: var(--rl-mono, "JetBrains Mono", ui-monospace, monospace);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -351,7 +351,7 @@ function play(idx: number): void {
   flex-wrap: wrap;
   gap: 4px 14px;
   padding: 10px 14px;
-  font-family: var(--rl-mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-family: var(--rl-mono, "JetBrains Mono", ui-monospace, monospace);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--rl-muted);

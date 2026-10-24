@@ -22,6 +22,16 @@ def settle(page) -> None:
     page.wait_for_function(AT_REST_JS, timeout=TIMEOUT_MS)
 
 
+def click_tab(page, name: str, exact: bool = True) -> None:
+    """A page tab of the bar; on a phone the tabs past the bar's four sit behind its More tab (a bottom sheet)."""
+    tab = page.get_by_role("tab", name=name, exact=exact)
+    if tab.count():
+        tab.click()
+        return
+    page.get_by_role("tab", name="More").click()
+    page.get_by_role("dialog", name="More").get_by_role("link", name=name, exact=exact).click()
+
+
 @contextmanager
 def flow(page):
     """The page laid out as one block (the phone layout: no scroll area, the document scrolls), so an element read sees
