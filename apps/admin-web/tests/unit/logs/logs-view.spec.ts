@@ -11,6 +11,7 @@ import * as confirm from "@/components/shared/confirm-dialog";
 import { notify } from "@/lib/notify";
 import { useScopeStore } from "@/stores/scope";
 import { useUiStore } from "@/stores/ui";
+import LogsStats from "@/components/logs/LogsStats.vue";
 import LogsView from "@/views/LogsView.vue";
 
 vi.mock("@/api/logs", () => ({ listLogs: vi.fn(), getLog: vi.fn(), clearLogs: vi.fn() }));
@@ -376,11 +377,16 @@ describe("the list", () => {
     expect(rowsOf(w)).toHaveLength(1);
   });
 
-  it("the page says what the API does not give yet instead of drawing the day's numbers", async () => {
+  it("draws no day numbers, and no developer sentence, until the API serves them", async () => {
     const { w } = await open();
-    const stats = w.find('[data-testid="logs-stats"]');
-    expect(stats.attributes("aria-label")).toBe("Today in numbers");
-    expect(stats.text()).toContain("not served by the API yet");
+    expect(w.find('[data-testid="logs-stats"]').exists()).toBe(false);
+    expect(w.text()).not.toContain("not served");
+  });
+
+  it("the stats card, kept for when the numbers come, names itself and says what is missing", () => {
+    const card = mount(LogsStats);
+    expect(card.attributes("aria-label")).toBe("Today in numbers");
+    expect(card.text()).toContain("not served by the API yet");
   });
 });
 

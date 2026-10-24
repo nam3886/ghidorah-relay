@@ -6,6 +6,7 @@ import { loadFailedText } from "@/components/jobs/job-text";
 import LogDetailDrawer from "@/components/logs/LogDetailDrawer.vue";
 import LogsDatesField from "@/components/logs/LogsDatesField.vue";
 import LogsFilterForm from "@/components/logs/LogsFilterForm.vue";
+import LogsStats from "@/components/logs/LogsStats.vue";
 import LogsTable from "@/components/logs/LogsTable.vue";
 import { isLogStatus, logQuery, PAGE_SIZE, thousands } from "@/components/logs/log-window";
 import { useLogsFilters } from "@/components/logs/logs-filters";
@@ -147,6 +148,9 @@ const more = () => {
   void load(true);
 };
 
+// The day numbers of the design: off the page until the API serves them (LogsStats says so when it is shown).
+const statsServed = false;
+
 // A tablet or phone folds the search and the dates behind two buttons of the head.
 const searchOpen = ref(false);
 const filtersOpen = ref(false);
@@ -180,11 +184,7 @@ async function toggleSearch(): Promise<void> {
       </span>
     </div>
 
-    <!-- the design's day counts (requests, 2xx, 4xx, 5xx, p95) need an API that does not exist yet -->
-    <section class="lv-stats" aria-label="Today in numbers" data-testid="logs-stats">
-      <b>Today in numbers</b>
-      <span>Requests by status and the 95th-percentile duration are not served by the API yet.</span>
-    </section>
+    <LogsStats v-if="statsServed" />
 
     <section class="lv-card" aria-label="Request log list">
       <LogsFilterForm :search-open="showSearch" @search="search" />
@@ -274,24 +274,6 @@ async function toggleSearch(): Promise<void> {
 .lv-head.is-compact {
   justify-content: flex-end;
   gap: 0;
-}
-
-/* the day numbers: an empty state until the API serves them */
-.lv-stats {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  padding: 14px 20px;
-  border-radius: 16px;
-  background: var(--rl-surface);
-  box-shadow: var(--rl-shadow-card);
-  font-size: 13px;
-  color: var(--rl-muted);
-}
-.lv-stats b {
-  color: var(--rl-fg);
-  font-size: 15px;
 }
 
 .lv-card {

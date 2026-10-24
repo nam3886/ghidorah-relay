@@ -508,6 +508,32 @@ def test_the_toolbar_is_one_row_on_a_desktop_and_chips_with_search_and_dates_beh
     assert sideways(page) <= 1, "the page scrolls sideways"
 
 
+CODE_FIT_JS = """() => [...document.querySelectorAll('[data-testid=request-drawer] pre')]
+  .map((p) => [p.scrollWidth, p.clientWidth, getComputedStyle(p).overflowX])"""
+
+
+@pytest.mark.parametrize("width", (1440, 820, 390))
+def test_a_long_json_value_wraps_inside_the_code_block(app, app_session, db, width):
+    """Nothing is clipped and nothing scrolls sideways: a long string wraps and the indentation stays."""
+    page = app_session
+    page.set_viewport_size({"width": width, "height": 900})
+    k = new_key(db)
+    prompt = "Neon alley in the rain, handheld, reflections on wet asphalt, a cyclist passes " * 3
+    log(db, k, "POST /v1/videos", 402, error="wallet.empty", request={"prompt": prompt, "token": "x" * 160})
+    db.run("UPDATE request_logs SET response_redacted = %s::jsonb", json.dumps({"error": {"message": prompt}}))
+    open_tab(page, "Request logs")
+    request_buttons(page).first.click()
+    expect(page.get_by_test_id("request-drawer")).to_be_visible()
+    page.wait_for_timeout(500)
+    blocks = page.evaluate(CODE_FIT_JS, isolated_context=False)
+    assert len(blocks) == 2, blocks
+    for scroll, client, overflow in blocks:
+        assert scroll <= client, "a code block is wider than its box at %d: %r" % (width, blocks)
+        assert overflow != "scroll", blocks
+    assert "  \"prompt\"" in page.get_by_test_id("request-drawer").locator("pre").first.inner_text(), "indentation kept"
+    assert sideways(page) <= 1
+
+
 def test_log_text_with_markup_is_shown_as_text(app, app_session, db):
     page = app_session
     k = new_key(db)

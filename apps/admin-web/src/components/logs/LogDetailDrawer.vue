@@ -345,14 +345,15 @@ async function copy(which: "request" | "answer"): Promise<void> {
   margin: 0;
   max-height: 300px;
   padding: 12px 14px;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--rl-line-strong);
   border-radius: 12px;
   background: var(--rl-code);
   color: var(--rl-body);
   font-size: 12px;
   line-height: 20px;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   --rl-json-num: #c2410c;
 }
 :global(html.dark) .rd__pre {
