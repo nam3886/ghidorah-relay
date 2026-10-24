@@ -399,8 +399,8 @@ async def sse_on_send(name):
 
 
 @mutation(SUB, "        until = self.deps.now() + timedelta(seconds=constants.THROTTLE_COOLDOWN_S)\n"
-               "        return _outcome(NotTaken(POOL_THROTTLED)",
-          "        until = self.deps.now()\n        return _outcome(NotTaken(POOL_THROTTLED)", expect="1800")
+               "        return await self._refusal_outcome(POOL_THROTTLED",
+          "        until = self.deps.now()\n        return await self._refusal_outcome(POOL_THROTTLED", expect="1800")
 @STREAMS
 @sync
 async def test_a_throttle_code_in_the_stream_cools_the_account_down_for_30_minutes(name, code):
@@ -1670,12 +1670,12 @@ async def test_a_failed_last_read_keeps_dolas_last_words_not_the_pages_sidebar()
 
 # ---- no conversation: page text never decides ---
 NO_CONV_PAGE_OFF = ("        code = self._sse_error()\n        if code in THROTTLE_CODES:\n"
-                    "            return self._throttled(code)\n")
+                    "            return await self._throttled(code)\n")
 NO_CONV_PAGE_ON = ("        text = await self.driver.page_text(self.page)\n"
                    "        if classify.looks_out_of_credit(text):\n"
                    "            return await self._out_of_points(classify.read_credits_left(text), text)\n"
                    "        code = self._sse_error()\n        if code in THROTTLE_CODES:\n"
-                   "            return self._throttled(code)\n")
+                   "            return await self._throttled(code)\n")
 
 
 @mutation(SUB, NO_CONV_PAGE_OFF, NO_CONV_PAGE_ON, expect="page text decided an order with no conversation")
