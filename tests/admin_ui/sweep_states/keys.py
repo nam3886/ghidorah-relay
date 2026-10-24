@@ -1,5 +1,5 @@
 """The API keys tab: skeleton, rows, the new-key drawer (its discard question and its scrolling body), the one-time
-callout, edit and delete."""
+key modal, edit and delete (both from the row menu)."""
 
 import re
 
@@ -24,11 +24,17 @@ STATES = [
 SHORT_HEIGHT = 460          # a window too short for the form: its body scrolls inside the drawer
 
 
+def key_menu(page, name, item):
+    """Pick an item of a key's row menu (More actions for <name>)."""
+    page.get_by_role("button", name="More actions for %s" % name).first.click()
+    page.get_by_role("menuitem", name=item, exact=True).click()
+
+
 def run(page, app, live, sw, data):
     skeleton_step(sw, "keys", re.compile(r"/admin/keys"))
     sw.step("keys", "list", lambda: ready(page))
     sw.step("keys", "new-dialog", lambda: (
-        page.get_by_role("button", name="New key").click(),
+        page.get_by_role("button", name=re.compile(r"^(Create|New) key$")).first.click(),
         expect_dialog(page, "New API key")))
 
     window = {}
@@ -36,7 +42,7 @@ def run(page, app, live, sw, data):
     def short_window():
         window["size"] = page.viewport_size
         page.set_viewport_size({"width": window["size"]["width"], "height": SHORT_HEIGHT})
-        body = page.locator(".detail-drawer__body")
+        body = page.locator('[data-testid="key-drawer"] .el-drawer__body')
         expect(body).to_be_visible()
         assert body.evaluate("el => el.scrollHeight > el.clientHeight"), "the form body does not scroll"
         body.evaluate("el => { el.scrollTop = el.scrollHeight; }")
@@ -60,16 +66,19 @@ def run(page, app, live, sw, data):
         new.get_by_role("button", name="Create key").click()
         expect(page.get_by_test_id("new-key")).to_be_visible()
     sw.step("keys", "one-time-callout", callout)
-    page.get_by_test_id("new-key").get_by_role("button", name="Dismiss").click()
+    secret = page.get_by_test_id("new-key")
+    secret.get_by_role("button", name="Copy").click()       # Done unlocks once the key was copied
+    secret.get_by_role("button", name="Done").click()
+    expect(secret).to_have_count(0)
 
     def key_edit():
-        page.get_by_role("button", name="Edit key sweep key").click()
-        expect_dialog(page, "Edit API key")
+        key_menu(page, "sweep key", "Edit key")
+        expect_dialog(page, "Edit key · sweep key")
     sw.step("keys", "edit-dialog", key_edit)
-    close_dialog(page, "Edit API key")
+    close_dialog(page, "Edit key · sweep key")
 
     def key_delete():
-        page.get_by_role("button", name="Delete key sweep key").click()
+        key_menu(page, "sweep key", "Delete key")
         expect(cancel_box(page)).to_be_visible()
     sw.step("keys", "delete-confirm", key_delete)
     dismiss_box(page)
