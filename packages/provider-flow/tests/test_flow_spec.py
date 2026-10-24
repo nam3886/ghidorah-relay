@@ -1,5 +1,6 @@
 """The flow spec (caps, settings, catalog, error rules, `plan()`) and the credential import."""
 
+import dataclasses
 import json
 
 import pytest
@@ -20,6 +21,7 @@ from relay_core.providers import (
 from relay_core.testing.fake_provider import FakeSettings
 from relay_core.testing.mutation import mutation
 from relay_dola.spec import SPEC as DOLA
+from relay_flow import catalog as FC
 from relay_flow import credential as cred
 from relay_flow.spec import SPEC
 from relay_meta.spec import SPEC as META
@@ -71,7 +73,7 @@ def test_flow_stays_drained_by_default_and_declares_its_tunables():
     assert (s["flow.captcha_max_tries"].default, s["flow.captcha_retry_gap_s"].default) == (5, 60)
     assert s["flow.account_min_gap_s"].default == 300 and s["flow.captcha_provider"].default == "yescaptcha"
     assert s["flow.prices"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 2}
-    assert s["flow.costs"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 10}
+    assert s["flow.costs"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 10, **FC.TABLE_ONLY_COSTS}
     assert s["flow.video_budget"].default == 50
     assert all(s[k].description for k in s) and _problems(SPEC) == []
     assert not [k for k in s if "key" in k.lower()], "a secret is never a setting"
@@ -145,6 +147,36 @@ def test_what_flow_cannot_do_yet_is_refused_rather_than_ignored():
     for name in ("flow-veo-3.1", "BELUGA", "nano-banana-pro", "flow"):
         assert refusal(name) == ("input.bad_model", "model"), name
     assert plan(n=1).params["aspect"] == 3
+
+
+TABLE_ONLY = "+ tuple(TABLE_ONLY_COSTS)"
+CATALOG_FILE = "packages/provider-flow/src/relay_flow/catalog.py"
+
+
+@mutation(CATALOG_FILE, TABLE_ONLY, "+ ()", expect="not an option")
+def test_the_table_only_options_are_costed_priceable_and_refused_until_priced():
+    """Veo 3.1 Fast and Quality and Gemini Omni Flash (720p and 360p by length) are not sold yet: their Flow credits
+    are known (the official table), the owner may price them ahead, and a job naming one is refused while unpriced."""
+    costs = SPEC.settings()["flow.costs"].default
+    assert (costs["flow-veo-3.1-fast@8s"], costs["flow-veo-3.1-quality@8s"]) == (20, 100)
+    assert [costs["flow-omni-flash-720p@%ds" % d] for d in (4, 6, 8, 10)] == [7, 10, 12, 15]
+    assert [costs["flow-omni-flash-360p@%ds" % d] for d in (4, 6, 8, 10)] == [4, 5, 6, 7]
+    prices = SPEC.settings()["flow.prices"]
+    assert not set(FC.TABLE_ONLY_COSTS) & set(prices.default), "a table-only option has no default price"
+    assert prices.validate({"flow-veo-3.1-fast@8s": 5}) == {"flow-veo-3.1-fast@8s": 5}, "not an option"
+    quality = dataclasses.replace(plan(VIDEO), price_key="flow-veo-3.1-quality@8s")
+    with pytest.raises(pricing.Unpriced):
+        pricing.price_plan(SPEC, quality, FakeSettings(SPEC))
+
+
+@mutation(SPEC_FILE, 'renamed={"flow-veo-3.1-lite": ("flow-veo-3.1-lite@8s",)}', "renamed={}",
+          expect="the stored video price")
+def test_a_price_table_stored_by_the_earlier_build_keeps_the_videos_price():
+    """The earlier build keyed the video by its model alone (`flow-veo-3.1-lite`): the stored price moves to its key
+    with the length, and every option the stored table does not name keeps its default."""
+    loaded = SPEC.settings()["flow.prices"].on_load({"flow-veo-3.1-lite": 7, "flow-nano-banana-pro": 4})
+    assert loaded == {**dict.fromkeys(MODELS, 1), "flow-nano-banana-pro": 4, VIDEO + "@8s": 7}, (
+        "the stored video price was lost: %s" % loaded)
 
 
 def test_the_price_comes_from_the_settings_and_a_missing_one_is_refused():

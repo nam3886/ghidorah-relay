@@ -157,6 +157,15 @@ def test_a_video_job_is_ten_seconds_landscape_detached_on_the_video_pool_from_te
     assert refusal(VIDEO, prompt=" ") == ("input.empty_prompt", "prompt")
 
 
+@mutation(SPEC_FILE, 'renamed={"gemini-omni-video": ("gemini-omni-video@10s",)}', "renamed={}",
+          expect="the stored video price")
+def test_a_price_table_stored_by_the_earlier_build_keeps_the_videos_price():
+    """The earlier build keyed the video by its model alone: the stored price moves to `gemini-omni-video@10s`, and
+    the image keeps its default."""
+    loaded = SPEC.settings()["gemini.prices"].on_load({"gemini-omni-video": 3})
+    assert loaded == {MODEL: 1, VIDEO + "@10s": 3}, "the stored video price was lost: %s" % loaded
+
+
 def test_the_price_comes_from_the_settings_and_a_missing_one_is_refused():
     cfg = FakeSettings(SPEC, gemini__prices={MODEL: 4})
     assert priced(cfg=cfg).price == 4 and priced(options={"price": 0}).price == 1

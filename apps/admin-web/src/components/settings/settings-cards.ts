@@ -66,43 +66,58 @@ export interface PriceInput {
   key: string;
   // "5 s", or "points" for a model with one price (a cost input says "cost" instead: `costLabel`)
   label: string;
-  // what the input shows
+  // what the input shows: "" for a key the table does not hold yet (an option with no price), to be filled in
   text: string;
 }
 
-// The price inputs of one model: every key of the table that names the model (its id or an alias), alone or with a
-// tier after "@" ("seedance_v2.5@5s" is the 5 s tier of seedance-2.5).
+// The keys a price or cost input is drawn for: every key the setting declares it may hold (`keys`, so an option the
+// table does not hold yet gets an empty input), then any other key the table holds.
+export const tableKeys = (item: SettingItem | undefined, table: Record<string, unknown>): string[] => [
+  ...new Set([...(item?.keys ?? []), ...Object.keys(table)]),
+];
+
+const textOf = (table: Record<string, unknown>, key: string): string => (key in table ? String(table[key]) : "");
+
+// The price inputs of one model: every key (of the table, or the declared `keys`) that names the model (its id or an
+// alias), alone or with a tier after "@" ("seedance_v2.5@5s" is the 5 s tier of seedance-2.5).
 export function priceInputs(
   model: Pick<CatalogModel, "id"> & { aliases?: unknown },
   table: Record<string, unknown>,
+  keys: readonly string[] = Object.keys(table),
 ): PriceInput[] {
   const names = [model.id, ...(Array.isArray(model.aliases) ? (model.aliases as string[]) : [])];
-  return Object.keys(table)
+  return keys
     .filter((k) => names.includes(k.split("@")[0]!))
     .map((key) => {
       const tier = key.includes("@") ? key.slice(key.indexOf("@") + 1) : "";
-      return { key, label: tier ? tier.replace(/^(\d+)s$/, "$1 s") : "points", text: String(table[key]) };
+      return { key, label: tier ? tier.replace(/^(\d+)s$/, "$1 s") : "points", text: textOf(table, key) };
     });
 }
 
 // A cost input's label: "5 s cost", or "cost" for a model with one option.
 export const costLabel = (input: PriceInput): string => (input.label === "points" ? "cost" : `${input.label} cost`);
 
-// The keys of the table that name no model of the catalog (a model since retired): drawn on a row of their own.
-export function otherPrices(models: readonly CatalogModel[], table: Record<string, unknown>): PriceInput[] {
-  const owned = new Set(models.flatMap((m) => priceInputs(m, table).map((p) => p.key)));
-  return Object.keys(table)
-    .filter((k) => !owned.has(k))
-    .map((key) => ({ key, label: key, text: String(table[key]) }));
+// The keys that name no model of the catalog (a model since retired, or an option the provider prices ahead of
+// selling it): drawn on a row of their own.
+export function otherPrices(
+  models: readonly CatalogModel[],
+  table: Record<string, unknown>,
+  keys: readonly string[] = Object.keys(table),
+): PriceInput[] {
+  const owned = new Set(models.flatMap((m) => priceInputs(m, table, keys).map((p) => p.key)));
+  return keys.filter((k) => !owned.has(k)).map((key) => ({ key, label: key, text: textOf(table, key) }));
 }
 
 export const priceTable = (draft: string | undefined, item: SettingItem): Record<string, unknown> =>
   parsed<Record<string, unknown>>(draft, item) ?? {};
 
 // The draft after one price input changed: a whole number is sent as a number, anything else as the text typed, so
-// the server names the fault ("the price for … is not a whole number").
+// the server names the fault ("the price for … is not a whole number"). An emptied input leaves the key out: the
+// option takes its shipped default again, or stays unpriced when it has none.
 export function withPrice(draft: string | undefined, item: SettingItem, key: string, text: string): string {
-  const table = { ...priceTable(draft, item), [key]: /^\d+$/.test(text.trim()) ? Number(text.trim()) : text };
+  const { [key]: _old, ...rest } = priceTable(draft, item);
+  if (!text.trim()) return JSON.stringify(rest);
+  const table = { ...rest, [key]: /^\d+$/.test(text.trim()) ? Number(text.trim()) : text };
   return JSON.stringify(table);
 }
 

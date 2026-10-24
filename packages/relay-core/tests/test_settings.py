@@ -8,6 +8,7 @@ import os
 import pytest
 
 from relay_core.db import open_pool
+from relay_core.pricing import table_setting
 from relay_core.settings import (
     REGISTRY,
     Registry,
@@ -397,3 +398,32 @@ def test_a_stored_pause_list_keeps_its_known_ids_when_one_was_retired_and_a_writ
         assert (s.get("p1.disabled_models"), s.source("p1.disabled_models")) == ([], "default"), "not a list"
 
     run(db, scenario, registry=Registry(*REGISTRY.specs.values(), paused))
+
+
+PRICING = "packages/relay-core/src/relay_core/pricing.py"
+
+
+@mutation(PRICING, "        return {**default, **stored}", "        return stored", expect="the upgrade lost")
+@mutation(PRICING, "                    stored.setdefault(new, v[old])", "                    pass",
+          expect="the upgrade lost")
+def test_a_price_table_stored_before_the_price_keys_changed_keeps_its_prices_after_the_upgrade(db):
+    """Rows an earlier build wrote (keys by model alone, no length or resolution, and no entry for an option it did not
+    have) load as the new table: an old key's price moves to the key(s) that replaced it, every option the row does not
+    name keeps its default, and nothing becomes unpriced on the deploy. A write after it stays strict."""
+    prices = table_setting("p1.prices", "Points.", ("p1-image", "p1-video@8s", "p1-clip@480p", "p1-clip@720p"),
+                           {"p1-image": 1, "p1-video@8s": 2, "p1-clip@480p": 1, "p1-clip@720p": 1}, unit="points",
+                           renamed={"p1-video": ("p1-video@8s",), "p1-clip": ("p1-clip@480p", "p1-clip@720p")})
+
+    async def scenario(s, pool):
+        with db.connect() as c:          # as the earlier build stored it
+            c.execute("INSERT INTO settings_kv (key, value) VALUES (%s, %s::jsonb)",
+                      ("p1.prices", json.dumps({"p1-video": 7, "p1-clip": 3})))
+        await s.reload()
+        assert (s.get("p1.prices"), s.source("p1.prices")) == (
+            {"p1-image": 1, "p1-video@8s": 7, "p1-clip@480p": 3, "p1-clip@720p": 3}, "db"), "the upgrade lost a price"
+        with pytest.raises(SettingsError, match="p1-video"):
+            await s.set("p1.prices", {"p1-video": 7})
+        await s.set("p1.prices", {"p1-video@8s": 9})
+        assert s.get("p1.prices") == {"p1-image": 1, "p1-video@8s": 9, "p1-clip@480p": 1, "p1-clip@720p": 1}
+
+    run(db, scenario, registry=Registry(*REGISTRY.specs.values(), prices))

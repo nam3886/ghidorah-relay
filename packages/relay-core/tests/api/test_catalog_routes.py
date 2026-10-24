@@ -264,11 +264,21 @@ def test_points_count_unfinished_jobs_and_show_the_cap_and_the_allow_list(db):
 LIVE_PRICES = '"prices": pricing.option_prices(spec, m, settings), "is_alias": False}'
 
 
+class NoImagePrice(FakeSpec):
+    """A provider whose image has no default price: the owner has not priced it yet."""
+
+    def settings(self):
+        out = super().settings()
+        out[self.name + ".prices"] = dataclasses.replace(out[self.name + ".prices"], default={self.name + "-video": 10})
+        return out
+
+
 @mutation(CATALOG, LIVE_PRICES, '"prices": {"default": 10}, "is_alias": False}', expect="the live price")
 def test_models_show_the_live_sale_price_and_null_when_unset(db):
     """The catalog shows `<p>.prices` as it is now (the owner edits it), and null for an option that has no price: a
     request for it is refused (model.unpriced)."""
     async def scenario(env):
+        env.add_provider(NoImagePrice("np"))
         key = await make_key(env)
         await env.settings.set("fake.prices", {"fake-video": 3})
         listed = (await env.client.get("/v1/models", headers=key.headers)).json()
@@ -279,4 +289,5 @@ def test_models_show_the_live_sale_price_and_null_when_unset(db):
     for body in (listed, admin):
         prices = {m["id"]: m["prices"] for m in body["data"]}
         assert prices["fake-video"] == {"default": 3}, "the live price: %s" % prices
-        assert prices["fake-image"] == {"default": None}, "an option with no price shows null: %s" % prices
+        assert prices["fake-image"] == {"default": 1}, "an option the stored table does not name keeps its default"
+        assert prices["np-image"] == {"default": None}, "an option with no price shows null: %s" % prices

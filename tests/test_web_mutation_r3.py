@@ -385,6 +385,11 @@ BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
 @mutation(SETTINGS_CARDS, "if (!card.basic.length) [card.basic, card.advanced] = [card.advanced, []];", "",
           expect=RULES + "put the claims switch, the models and the prices in their own place, basic first, the rest "
                          "under Advanced")
+@mutation(SETTINGS_CARDS, "...new Set([...(item?.keys ?? []), ...Object.keys(table)]),",
+          "...new Set([...Object.keys(table)]),",
+          expect=RULES + "draw a blank input for every declared option the table does not hold")
+@mutation(SETTINGS_CARDS, "  if (!text.trim()) return JSON.stringify(rest);\n", "",
+          expect=RULES + "draw a blank input for every declared option the table does not hold")
 @mutation(SETTINGS_CARDS, '"prices", "costs"] as const', '"prices"] as const',
           expect=RULES + "put the costs in their own place beside the prices")
 @mutation(SETTINGS_CARDS, '(input.label === "points" ? "cost" : `${input.label} cost`)', "input.label",

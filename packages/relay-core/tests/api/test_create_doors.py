@@ -2,6 +2,7 @@
 input check happens before the charge, and the status of a job is the one shape of the contract."""
 
 import base64
+import dataclasses
 import uuid
 
 import httpx
@@ -607,18 +608,31 @@ def test_a_title_is_one_line_up_to_200_characters_and_comes_back_in_status(db):
 PRICE_STEP = "        return spec, pricing.price_plan(spec, plan, gate.settings)"
 
 
-@mutation(DOORS, PRICE_STEP, "        return spec, plan", expect="unpriced:")
+class NoDefaults(FakeSpec):
+    """A provider whose shipped tables leave an option out: its video has no default price, its image no default
+    cost (an option sold before anyone priced it). A stored table is read over the defaults, so only an option with no
+    default can be missing."""
+
+    def settings(self):
+        out = super().settings()
+        n = self.name
+        prices, costs = out[n + ".prices"], out[n + ".costs"]
+        out[n + ".prices"] = dataclasses.replace(prices, default={n + "-image": 1})
+        out[n + ".costs"] = dataclasses.replace(costs, default={n + "-video": 1})
+        return out
+
+
+@mutation(DOORS, PRICE_STEP, "        return spec, plan", expect="expected an error")
 def test_an_option_with_no_price_or_no_cost_is_refused_and_a_queued_job_keeps_its_price(db):
     """No fallback price and no guessed cost: the door refuses, nothing is charged; a job already made keeps the
-    price it was charged when the owner later changes or removes it."""
+    price it was charged when the owner later changes it."""
     async def scenario(env):
+        env.add_provider(NoDefaults("np"))
         key = await env.new_key()
         made = (await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)).json()["id"]
-        await env.settings.set("fake.prices", {"fake-image": 1})
-        unpriced = await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)
+        unpriced = await env.client.post(VIDEO_PATH, json=video(model="np-video"), headers=key.headers)
+        uncosted = await env.client.post(IMAGE_PATH, json={"model": "np-image", "prompt": "a cat"}, headers=key.headers)
         await env.settings.set("fake.prices", {"fake-video": 25, "fake-image": 1})
-        await env.settings.set("fake.costs", {"fake-image": 1})
-        uncosted = await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)
         await env.settings.set("fake.costs", {"fake-video": 9, "fake-image": 1})
         too_costly = await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)   # fake.video_budget is 4
         status = (await env.client.get("%s/%s" % (VIDEO_PATH, made), headers=key.headers)).json()

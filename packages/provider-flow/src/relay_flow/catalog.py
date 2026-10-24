@@ -35,14 +35,22 @@ def price_key(model: str) -> str:
     return "%s@%ds" % (model, VIDEO_DURATION) if model in VIDEO_MODELS else model
 
 
-PRICE_KEYS = tuple(price_key(m) for m in (*MODELS, *VIDEO_MODELS))
+# Options flow sells nothing of yet (no live capture of their request): their Flow credits from the official table
+# (support.google.com/flow 16526234, the non-Ultra column), so the owner can see and price them ahead; a job of one
+# cannot be planned until its model is in the catalog, and an option with no price is refused even then.
+TABLE_ONLY_COSTS = {
+    **{"flow-veo-3.1-fast@%ds" % d: 20 for d in (4, 6, 8)},
+    "flow-veo-3.1-quality@8s": 100,
+    **{"flow-omni-flash-720p@%ds" % d: c for d, c in ((4, 7), (6, 10), (8, 12), (10, 15))},
+    **{"flow-omni-flash-360p@%ds" % d: c for d, c in ((4, 4), (6, 5), (8, 6), (10, 7))},
+}
+PRICE_KEYS = tuple(price_key(m) for m in (*MODELS, *VIDEO_MODELS)) + tuple(TABLE_ONLY_COSTS)
 # What one job costs the account, in the unit of its pool (the default of `flow.costs`): an image takes no Flow credit
 # (50 -> 50 measured) and counts one job; a Veo 3.1 Lite 8 s video takes 10 Flow credits on tiers 1 and 2 (GetModels
-# `HTrJv`; spent 50 -> 40, 23/10). Not offered until captured, the official table (support.google.com/flow 16526234)
-# reads: Veo 3.1 Fast 20, Quality 100, Gemini Omni Flash 720p 4/6/8/10 s 7/10/12/15, 360p 4/5/6/7.
-DEFAULT_COSTS = {**dict.fromkeys(MODELS, 1), price_key("flow-veo-3.1-lite"): 10}
+# `HTrJv`; spent 50 -> 40, 23/10); the table-only options above.
+DEFAULT_COSTS = {**dict.fromkeys(MODELS, 1), price_key("flow-veo-3.1-lite"): 10, **TABLE_ONLY_COSTS}
 # The sale price in points, the default of `flow.prices` (the owner edits it): an image costs nothing upstream and
-# sells at 1 point (owner 24/10).
+# sells at 1 point (owner 24/10). The table-only options have no default price.
 DEFAULT_PRICES = {**dict.fromkeys(MODELS, 1), **{price_key(m): 2 for m in VIDEO_MODELS}}
 
 

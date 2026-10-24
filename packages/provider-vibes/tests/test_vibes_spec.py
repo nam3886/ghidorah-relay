@@ -219,6 +219,15 @@ def test_an_unknown_or_foreign_model_name_is_refused():
 VIDEO_KEY = "price_key=C.price_key(req.model, resolution)"
 
 
+@mutation(SPEC_FILE, 'renamed={"vibes-video": ("vibes-video@480p", "vibes-video@720p")}', "renamed={}",
+          expect="the stored video price")
+def test_a_price_table_stored_by_the_earlier_build_prices_both_resolutions():
+    """The earlier build keyed the video by its model alone: the stored price moves to both its resolutions."""
+    loaded = SPEC.settings()["vibes.prices"].on_load({"vibes-video": 3})
+    assert loaded == {"vibes-image": 1, "vibes-video@480p": 3, "vibes-video@720p": 3}, (
+        "the stored video price was lost: %s" % loaded)
+
+
 @mutation(SPEC_FILE, VIDEO_KEY, "price_key=C.price_key(req.model, None)",
           expect="no price for vibes-video@None")
 def test_the_price_comes_from_the_live_settings_by_resolution_never_the_options():

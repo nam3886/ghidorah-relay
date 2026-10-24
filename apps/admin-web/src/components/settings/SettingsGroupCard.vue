@@ -13,6 +13,7 @@ import {
   pausedModels,
   priceInputs,
   priceTable,
+  tableKeys,
   withModelOn,
   withPrice,
 } from "./settings-cards";
@@ -68,9 +69,12 @@ const paused = computed(
 const prices = computed(() =>
   own.value.prices ? priceTable(props.drafts[own.value.prices.key], own.value.prices) : {},
 );
-const others = computed(() => otherPrices(props.models, prices.value));
+// every option the provider declares gets an input, a blank one for an option its table does not hold yet
+const priceKeys = computed(() => tableKeys(own.value.prices, prices.value));
+const others = computed(() => otherPrices(props.models, prices.value, priceKeys.value));
 const costs = computed(() => (own.value.costs ? priceTable(props.drafts[own.value.costs.key], own.value.costs) : {}));
-const otherCosts = computed(() => otherPrices(props.models, costs.value));
+const costKeys = computed(() => tableKeys(own.value.costs, costs.value));
+const otherCosts = computed(() => otherPrices(props.models, costs.value, costKeys.value));
 const onCount = computed(() => props.models.filter((m) => !paused.value.has(m.id)).length);
 const kindOf = (m: CatalogModel) => (typeof m.kind === "string" ? m.kind : "");
 
@@ -161,8 +165,8 @@ const changedWord = computed(() =>
           :disabled="busy"
           @change="(on: boolean) => setModel(m.id, on)"
         />
-        <span v-if="own.prices && priceInputs(m, prices).length" class="mrow__prices">
-          <label v-for="p in priceInputs(m, prices)" :key="p.key"
+        <span v-if="own.prices && priceInputs(m, prices, priceKeys).length" class="mrow__prices">
+          <label v-for="p in priceInputs(m, prices, priceKeys)" :key="p.key"
             >{{ p.label
             }}<input
               class="price"
@@ -174,8 +178,8 @@ const changedWord = computed(() =>
               @input="setPrice(p.key, ($event.target as HTMLInputElement).value)"
           /></label>
         </span>
-        <span v-if="own.costs && priceInputs(m, costs).length" class="mrow__prices mrow__costs">
-          <label v-for="c in priceInputs(m, costs)" :key="c.key"
+        <span v-if="own.costs && priceInputs(m, costs, costKeys).length" class="mrow__prices mrow__costs">
+          <label v-for="c in priceInputs(m, costs, costKeys)" :key="c.key"
             >{{ costLabel(c)
             }}<input
               class="cost"

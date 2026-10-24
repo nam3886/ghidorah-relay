@@ -15,6 +15,8 @@ export interface SettingItem {
   description: string;
   // What the value may be, in words ("at least 60", "1–12", "true or false"); null when anything of its type goes.
   allowed: string | null;
+  // the keys a dict setting may hold (a provider's price options), null for any other setting
+  keys?: string[] | null;
 }
 
 export interface EnvOnlyItem {

@@ -37,11 +37,17 @@ class TooCostly(PricingRefused):
 
 
 def table_setting(key: str, description: str, keys: Iterable[str], default: Mapping[str, int], *, unit: str,
-                  basic: bool = False) -> Spec:
+                  basic: bool = False, renamed: Mapping[str, tuple[str, ...]] | None = None) -> Spec:
     """A table of option key -> whole number of `unit`, 0 or more (`<p>.prices` in points, `<p>.costs` in upstream
-    units). A key the provider does not offer is refused on a write and dropped (logged) when a stored table is loaded,
-    so an option retired since keeps none of its old entries."""
+    units). A key the provider does not offer is refused on a write.
+
+    A stored table is read OVER the shipped defaults, key by key: an option the stored table does not name keeps its
+    default, so an option added by a later build (or a key the owner never wrote) is never refused for want of a stored
+    entry. `renamed` maps a key an earlier build stored to the key(s) that replace it (a model that gained a length or a
+    resolution in its key); its value carries over unless the stored table names the new key itself. Any other key the
+    provider no longer offers is dropped and logged, so a retired option keeps none of its old entries."""
     known = tuple(keys)
+    renamed = dict(renamed or {})
 
     def check(v: dict) -> None:
         for k, n in v.items():
@@ -52,17 +58,22 @@ def table_setting(key: str, description: str, keys: Iterable[str], default: Mapp
             if n < 0:
                 raise ValueError("the entry for %s is negative" % k)
 
-    def keep_known(v: Any) -> Any:
+    def upgrade(v: Any) -> Any:
         if type(v) is not dict:
             return v                    # validate refuses it
-        retired = [k for k in v if k not in known]
+        stored = {k: n for k, n in v.items() if k in known}
+        for old, new_keys in renamed.items():
+            if old in v:
+                for new in new_keys:
+                    stored.setdefault(new, v[old])
+        retired = [k for k in v if k not in known and k not in renamed]
         if retired:
             log.error("stored setting %s: dropped keys that are no option: %s", key, ", ".join(map(repr, retired)))
-        return {k: n for k, n in v.items() if k in known}
+        return {**default, **stored}
 
     return Spec(key, dict, dict(default), description,
                 rule=Rule("each entry: an option key of this provider and a whole number of %s, 0 or more" % unit,
-                          check), basic=basic, on_load=keep_known)
+                          check), basic=basic, on_load=upgrade, keys=known)
 
 
 def _budget(spec: ProviderSpec, pool: str | None, settings: Any) -> int | None:

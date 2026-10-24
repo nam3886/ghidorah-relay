@@ -54,11 +54,13 @@ class SettingPut(Strict):
 
 
 def _item(settings: Settings, key: str) -> dict:
-    """`group`: the provider of a namespaced key (`<p>.<name>`), else "core", as in `fixed`. `basic`: shown first."""
+    """`group`: the provider of a namespaced key (`<p>.<name>`), else "core", as in `fixed`. `basic`: shown first.
+    `keys`: the keys a dict setting may hold (a provider's price options), null for any other setting."""
     spec = settings.specs()[key]
     return {"key": key, "group": key.partition(".")[0] if "." in key else "core", "basic": spec.basic,
             "type": spec.type.__name__, "value": settings.get(key), "source": settings.source(key),
-            "default": spec.default, "description": spec.description, "allowed": spec.allowed, "read_only": False}
+            "default": spec.default, "description": spec.description, "allowed": spec.allowed, "read_only": False,
+            "keys": None if spec.keys is None else list(spec.keys)}
 
 
 def _known(settings: Settings, key: str) -> None:

@@ -58,7 +58,9 @@ class Spec:
     The same fields drive the refusal and the `allowed` text, so the page never shows a bound the code does not hold.
     `basic`: one the admin changes often (a switch, a price, a budget); the settings page shows the others on demand.
     `on_load`: turns a STORED value into one `validate` accepts before the cache takes it (a write is still checked
-    strictly); it may drop what a newer catalog no longer knows, so the rest of the stored value keeps its effect."""
+    strictly); it may drop what a newer catalog no longer knows, so the rest of the stored value keeps its effect.
+    `keys`: for a dict setting whose keys are a fixed list (a provider's price options), that list, so the settings page
+    can draw an input for a key the value does not hold yet."""
 
     key: str
     type: type
@@ -70,6 +72,7 @@ class Spec:
     rule: Rule | None = None
     basic: bool = False
     on_load: Callable[[Any], Any] | None = None
+    keys: tuple[str, ...] | None = None
 
     @property
     def allowed(self) -> str | None:

@@ -19,6 +19,7 @@ import {
   fieldLabel,
   otherPrices,
   priceInputs,
+  tableKeys,
   withModelOn,
   withPrice,
 } from "@/components/settings/settings-cards";
@@ -457,6 +458,23 @@ describe("the card rules", () => {
     const table = costs.value as Record<string, unknown>;
     expect(priceInputs(models()[0]!, table).map(costLabel)).toEqual(["5 s cost"]);
     expect(priceInputs(models()[2]!, table).map(costLabel)).toEqual(["cost"]);
+  });
+
+  it("draw a blank input for every declared option the table does not hold, and an emptied one leaves the key out", () => {
+    const prices = { ...items()[4]!, keys: ["seedance_v2.5@5s", "seedance_v2.5@10s", "seedance_v2.5@30s", "fast@8s"] };
+    const table = { "seedance_v2.5@5s": 2 };
+    const keys = tableKeys(prices, table);
+    expect(priceInputs(models()[0]!, table, keys).map((p) => [p.key, p.text])).toEqual([
+      ["seedance_v2.5@5s", "2"],
+      ["seedance_v2.5@10s", ""],
+      ["seedance_v2.5@30s", ""],
+    ]);
+    expect(otherPrices(models(), table, keys).map((p) => [p.key, p.text])).toEqual([["fast@8s", ""]]);
+    expect(JSON.parse(withPrice(JSON.stringify(table), prices, "seedance_v2.5@5s", " "))).toEqual({});
+    expect(JSON.parse(withPrice(JSON.stringify(table), prices, "fast@8s", "6"))).toEqual({
+      "seedance_v2.5@5s": 2,
+      "fast@8s": 6,
+    });
   });
 
   it("send a whole price as a number and anything else as typed", () => {

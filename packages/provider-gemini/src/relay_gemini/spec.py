@@ -71,7 +71,7 @@ _SETTINGS = dict((
     (PROVIDER + ".prices", table_setting(
         PROVIDER + ".prices", "Points charged per job: an image by its model, a video as '<model>@10s'. An option "
         "missing here is refused (model.unpriced), never charged a guess.", C.PRICE_KEYS, C.DEFAULT_PRICES,
-        unit="points", basic=True)),
+        unit="points", basic=True, renamed={"gemini-omni-video": ("gemini-omni-video@10s",)})),
     (PROVIDER + ".costs", table_setting(
         PROVIDER + ".costs", "What one job costs the gemini account: one use of its image or its video budget "
         "(the quota is relative; no per-job figure exists). An option missing here is refused (model.uncosted).",

@@ -74,7 +74,8 @@ _SETTINGS = dict((
              "download, check); Vercel blocked ~45 calls in 5.5 min.", min=2, max=60),
     (PROVIDER + ".prices", table_setting(
         PROVIDER + ".prices", "Points charged per job, keyed by its option. An option missing here is refused "
-        "(model.unpriced), never charged a guess.", C.PRICE_KEYS, C.DEFAULT_PRICES, unit="points", basic=True)),
+        "(model.unpriced), never charged a guess.", C.PRICE_KEYS, C.DEFAULT_PRICES, unit="points", basic=True,
+        renamed={"vibes-video": ("vibes-video@480p", "vibes-video@720p")})),
     (PROVIDER + ".costs", table_setting(
         PROVIDER + ".costs", "What one job costs the vibes account: one job of its daily budget (vibes shows only "
         "a used-up flag). An option missing here is refused (model.uncosted).",
