@@ -112,9 +112,7 @@ const counts = computed(() =>
 );
 const filtered = computed(() => items.value.length > 0);
 const emptyText = computed(() =>
-  q.value.trim() || show.value !== "all"
-    ? "No key matches these filters"
-    : `No key may use a ${scope.provider} model.`,
+  q.value.trim() || show.value !== "all" ? "No key matches these filters" : `No key may use a ${scope.provider} model.`,
 );
 function clearFilters(): void {
   show.value = "all";
@@ -293,14 +291,7 @@ function formClosed(): void {
           :disabled="busy"
           @click="openForm(null)"
         />
-        <button
-          v-else
-          ref="newKey"
-          type="button"
-          class="kv-primary"
-          :disabled="busy"
-          @click="openForm(null)"
-        >
+        <button v-else ref="newKey" type="button" class="kv-primary" :disabled="busy" @click="openForm(null)">
           <IconPlus v-if="isTablet" :size="15" :stroke="2" />{{ isTablet ? "New key" : "Create key" }}
         </button>
       </span>
@@ -309,13 +300,7 @@ function formClosed(): void {
       {{ summary.head }} {{ summary.rest }}
     </p>
 
-    <ArrowScroller
-      v-if="isPhone"
-      class="kv-chips"
-      label="Show"
-      :count="KEY_FILTERS.length"
-      :active-key="show"
-    >
+    <ArrowScroller v-if="isPhone" class="kv-chips" label="Show" :count="KEY_FILTERS.length" :active-key="show">
       <button
         v-for="f in KEY_FILTERS"
         :key="f.value"

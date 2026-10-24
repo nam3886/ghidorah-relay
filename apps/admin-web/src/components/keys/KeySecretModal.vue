@@ -106,13 +106,21 @@ function closed(open: boolean): void {
             <path d="M6 11h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z" />
             <path d="M8 11V7a4 4 0 0 1 8 0v4" />
           </svg>
-          <span v-if="isPhone">Done unlocks after you copy the key. Back, swipe and tapping outside do nothing until then.</span>
+          <span v-if="isPhone"
+            >Done unlocks after you copy the key. Back, swipe and tapping outside do nothing until then.</span
+          >
           <span v-else>Done unlocks after you copy the key. Esc and clicking outside do nothing until then.</span>
         </p>
       </div>
     </template>
     <template #footer>
-      <button type="button" class="ks__done" :class="{ 'is-phone': isPhone }" :disabled="!unlocked" @click="emit('dismiss')">
+      <button
+        type="button"
+        class="ks__done"
+        :class="{ 'is-phone': isPhone }"
+        :disabled="!unlocked"
+        @click="emit('dismiss')"
+      >
         Done
       </button>
     </template>

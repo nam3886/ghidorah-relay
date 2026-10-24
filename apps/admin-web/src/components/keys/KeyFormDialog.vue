@@ -154,8 +154,7 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
         <div class="kf__whead">
           <h3 class="kf__h3">Points wallet</h3>
           <span v-if="props.editing" class="kf__help num"
-            >balance
-            <b class="kf__strong">{{ balanceText(balance) }}{{ balance.left === null ? "" : " pts" }}</b
+            >balance <b class="kf__strong">{{ balanceText(balance) }}{{ balance.left === null ? "" : " pts" }}</b
             ><template v-if="todayText(saved(POINTS))"> · {{ todayText(saved(POINTS)) }}</template></span
           >
         </div>
@@ -182,8 +181,10 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
                 :value="points.mode === 'limit' ? points.day : ''"
                 :disabled="points.mode !== 'limit'"
                 aria-label="points per day"
-                @input="points.day = typed($event)" /><span class="kf__unit">pts</span></span
-          ></label>
+                @input="points.day = typed($event)"
+              /><span class="kf__unit">pts</span></span
+            ></label
+          >
           <label class="kf__field"
             ><span class="kf__label">{{ props.editing ? "Total" : "Starting points" }}</span>
             <span class="kf__suffix" :class="{ 'is-off': points.mode !== 'limit' }"
@@ -196,8 +197,10 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
                 :value="points.mode === 'limit' ? points.total : ''"
                 :disabled="points.mode !== 'limit'"
                 aria-label="points total"
-                @input="points.total = typed($event)" /><span class="kf__unit">pts</span></span
-          ></label>
+                @input="points.total = typed($event)"
+              /><span class="kf__unit">pts</span></span
+            ></label
+          >
         </div>
         <span id="kf-wallet-help" class="kf__help"
           >The balance is the total less what was used. Limits apply in limit mode; empty = no limit on that side.
@@ -211,7 +214,13 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
           ><input v-model="form.any" type="checkbox" class="kf__check" /><span class="kf__anyword">Any model</span
           ><span class="kf__help">includes models added later</span></label
         >
-        <div class="kf__models" role="group" aria-label="Pick models" :aria-disabled="form.any" :class="{ 'is-off': form.any }">
+        <div
+          class="kf__models"
+          role="group"
+          aria-label="Pick models"
+          :aria-disabled="form.any"
+          :class="{ 'is-off': form.any }"
+        >
           <div v-for="g in groups" :key="g.provider" class="kf__group">
             <span class="kf__ghead" :class="providerClass(g.provider)"
               ><span class="kf__gdot" aria-hidden="true" />{{ g.provider }}</span

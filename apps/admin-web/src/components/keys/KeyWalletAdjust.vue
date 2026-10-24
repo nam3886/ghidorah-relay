@@ -25,7 +25,9 @@ const CHANGES: ReadonlyArray<{ value: WalletChange; label: string }> = [
 const n = (x: number): string => x.toLocaleString("en-US");
 // "5,000" and "5000" are the same amount
 const typedAmount = computed(() => (amount.value.trim() === "" ? NaN : Number(amount.value.replace(/[,\s]/g, ""))));
-const plan = computed(() => planChange(props.keyRow ? pointsWallet(props.keyRow) : undefined, change.value, typedAmount.value));
+const plan = computed(() =>
+  planChange(props.keyRow ? pointsWallet(props.keyRow) : undefined, change.value, typedAmount.value),
+);
 const unlimited = computed(() => props.keyRow !== null && pointsWallet(props.keyRow)?.mode === "unlimited");
 const primaryText = computed(() => {
   const what = change.value === "top" ? "Top up" : "Deduct";

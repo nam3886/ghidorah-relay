@@ -289,9 +289,9 @@ describe("the Show chips and the search", () => {
 
   it("each chip counts its keys and shows only them", async () => {
     const w = await open();
-    expect([...document.body.querySelectorAll(".kchip")].map((b) => b.textContent?.replace(/\s+/g, " ").trim())).toEqual(
-      ["All 3", "Active 2", "Low or empty 1", "Paused 1"],
-    );
+    expect(
+      [...document.body.querySelectorAll(".kchip")].map((b) => b.textContent?.replace(/\s+/g, " ").trim()),
+    ).toEqual(["All 3", "Active 2", "Low or empty 1", "Paused 1"]);
     chip("Low or empty").click();
     await settle();
     expect(names(w)).toEqual(["Hanoi"]);
@@ -611,7 +611,9 @@ describe("the page as the design draws it", () => {
   it("has the title, the sentence, Create key, the chip note, and no Refresh, no Updated line, no pager", async () => {
     const w = await open();
     expect(w.find("h1").text()).toBe("API keys");
-    expect(w.find('[data-testid="keys-summary"]').text()).toBe("1 key, 0 used today. 0 points spent today; 1 wallet is empty.");
+    expect(w.find('[data-testid="keys-summary"]').text()).toBe(
+      "1 key, 0 used today. 0 points spent today; 1 wallet is empty.",
+    );
     expect(pagePrimary().textContent?.trim()).toBe("Create key");
     expect(w.text()).not.toContain("Updated");
     expect(w.text()).not.toContain("Refresh");
