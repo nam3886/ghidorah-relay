@@ -65,6 +65,10 @@ const lastSaved = computed(() =>
     : null,
 );
 const historyOpen = ref(false);
+// A phone's page button goes to the top bar when the shell drew its target (the view alone, in a spec, keeps its row).
+const barThere = ref(false);
+onMounted(() => (barThere.value = !!document.getElementById("topbar-actions")));
+const inBar = computed(() => isPhone.value && barThere.value);
 type KeyedPrice = PriceRow & { id: string };
 const prices = ref<KeyedPrice[]>([]);
 const settingsLoading = ref(false);
@@ -256,12 +260,16 @@ const EMPTY_ICON = ["M3 13h5l1.5 3h5L16 13h5", "M5 5h14l2 8v6H3v-6z"];
     </div>
     <template v-else>
       <h1 class="settings__title sr-only">Settings</h1>
-      <div class="settings__compact-head">
+      <!-- a phone's Change history sits in the top bar (SettingsPhone has no head row); a tablet keeps the row -->
+      <div v-if="!inBar" class="settings__compact-head">
         <span v-if="lastSaved" class="settings__subtitle"
           >Last saved <span class="num">{{ lastSaved.at }}</span> by {{ lastSaved.by }}.</span
         >
         <IconButton icon="history" label="Change history" @click="historyOpen = true" />
       </div>
+      <Teleport v-else to="#topbar-actions" defer>
+        <IconButton icon="history" label="Change history" placement="bottom-end" @click="historyOpen = true" />
+      </Teleport>
     </template>
     <SettingsHistory v-model="historyOpen" />
 

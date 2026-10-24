@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import CommandChip from "@/components/shared/CommandChip.vue";
 import IconButton from "@/components/shared/IconButton.vue";
 import { type ChipState, chipProps } from "./account-model";
@@ -8,7 +8,7 @@ import { type ChipState, chipProps } from "./account-model";
 // what needs a look; at the right Re-check all accounts and Refresh catalog as icon buttons and Import accounts.
 // Tablet (AccountsTablet): the title is the top bar's; Refresh catalog, Check all and Import sit in a row at the right,
 // then a banner says how many need a look. Phone (AccountsPhone): Filter by provider, Check all accounts, Refresh
-// catalog and Import accounts as icon buttons at the right, then the summary card with its bars. Each page command
+// catalog and Import accounts as icon buttons in the top bar, then the summary card with its bars. Each page command
 // locks only its own control while it runs, and has its command chip under the controls.
 export interface Summary {
   usable: number;
@@ -28,6 +28,10 @@ const props = defineProps<{
   refreshChip?: ChipState | null;
 }>();
 const emit = defineEmits<{ import: []; checkAll: []; refreshCatalog: []; filter: [] }>();
+// A phone's actions go to the top bar when the shell drew its target (the header alone, in a spec, keeps them here).
+const barThere = ref(false);
+onMounted(() => (barThere.value = !!document.getElementById("topbar-actions")));
+const inBar = computed(() => props.size === "phone" && barThere.value);
 const pageChips = computed(() =>
   [
     { key: "checkAll", chip: props.checkAllChip },
@@ -54,51 +58,54 @@ const bars = computed(() => {
     </div>
     <h1 v-else class="sr-only">Accounts</h1>
 
-    <div class="head__side">
-      <span class="head__actions">
-        <IconButton
-          v-if="props.size === 'phone'"
-          icon="filter"
-          label="Filter by provider"
-          placement="bottom"
-          @click="emit('filter')"
-        />
-        <IconButton
-          v-if="props.size !== 'tablet'"
-          icon="recheck"
-          :label="props.size === 'phone' ? 'Check all accounts' : 'Re-check all accounts'"
-          :disabled="props.checkingAll"
-          placement="bottom"
-          @click="emit('checkAll')"
-        />
-        <IconButton
-          icon="rotate"
-          label="Refresh catalog"
-          :disabled="props.readingCatalogs"
-          placement="bottom"
-          @click="emit('refreshCatalog')"
-        />
-        <button
-          v-if="props.size === 'tablet'"
-          type="button"
-          class="head__btn"
-          :aria-disabled="props.checkingAll ? 'true' : undefined"
-          @click="!props.checkingAll && emit('checkAll')"
-        >
-          Check all
-        </button>
-        <IconButton
-          v-if="props.size === 'phone'"
-          icon="plus"
-          label="Import accounts"
-          placement="bottom-end"
-          class="head__plus"
-          @click="emit('import')"
-        />
-        <button v-else type="button" class="head__primary" @click="emit('import')">
-          {{ props.size === "tablet" ? "Import" : "Import accounts" }}
-        </button>
-      </span>
+    <div class="head__side" :class="{ 'is-bar': inBar }">
+      <!-- a phone draws its actions in the top bar (AccountsPhone), the shell's teleport target -->
+      <Teleport to="#topbar-actions" :disabled="!inBar" defer>
+        <span class="head__actions" :class="{ 'is-phone': props.size === 'phone' }">
+          <IconButton
+            v-if="props.size === 'phone'"
+            icon="filter"
+            label="Filter by provider"
+            placement="bottom"
+            @click="emit('filter')"
+          />
+          <IconButton
+            v-if="props.size !== 'tablet'"
+            icon="recheck"
+            :label="props.size === 'phone' ? 'Check all accounts' : 'Re-check all accounts'"
+            :disabled="props.checkingAll"
+            placement="bottom"
+            @click="emit('checkAll')"
+          />
+          <IconButton
+            icon="rotate"
+            label="Refresh catalog"
+            :disabled="props.readingCatalogs"
+            placement="bottom"
+            @click="emit('refreshCatalog')"
+          />
+          <button
+            v-if="props.size === 'tablet'"
+            type="button"
+            class="head__btn"
+            :aria-disabled="props.checkingAll ? 'true' : undefined"
+            @click="!props.checkingAll && emit('checkAll')"
+          >
+            Check all
+          </button>
+          <IconButton
+            v-if="props.size === 'phone'"
+            icon="plus"
+            label="Import accounts"
+            placement="bottom-end"
+            class="head__plus"
+            @click="emit('import')"
+          />
+          <button v-else type="button" class="head__primary" @click="emit('import')">
+            {{ props.size === "tablet" ? "Import" : "Import accounts" }}
+          </button>
+        </span>
+      </Teleport>
       <span v-if="pageChips.length" class="head__cmds">
         <CommandChip v-for="c in pageChips" :key="c.key" v-bind="chipProps(c.chip)" />
       </span>
@@ -225,10 +232,14 @@ const bars = computed(() => {
 .head--phone {
   gap: 14px;
 }
-.head--phone .head__actions {
+.head__actions.is-phone {
   gap: 2px;
 }
-.head--phone .head__actions :deep(.ib) {
+/* in the top bar the side keeps only the command chips: nothing to draw without one */
+.head__side.is-bar:not(:has(.head__cmds)) {
+  display: none;
+}
+.head__actions.is-phone :deep(.ib) {
   width: 44px;
   height: 44px;
   border-radius: 12px;
