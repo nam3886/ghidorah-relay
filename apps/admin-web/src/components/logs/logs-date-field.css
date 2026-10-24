@@ -96,7 +96,9 @@ html:root .el-popper.rl-date-popper .el-date-table td.end-date .el-date-table-ce
     gap: 2px;
     width: auto;
     padding: 6px 6px;
-    overflow: hidden;
+    /* five quick options are wider than one month: the row scrolls sideways, one line as every chip row */
+    overflow-x: auto;
+    scrollbar-width: none;
     border-right: 0;
     border-bottom: 1px solid var(--rl-line);
   }

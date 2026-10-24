@@ -182,11 +182,11 @@ describe("the query", () => {
 });
 
 describe("logKey", () => {
-  it("names a request's key by its label, else its prefix (a label of spaces is no label), a dash for none", () => {
+  it("names a request's key by its label, else its prefix (a label of spaces is no label), unknown key for none", () => {
     const row = (key_label: string | null) => ({ key_id: "0123456789", key_label, key_prefix: "rk_1" });
     expect(logKey(row("main"))).toBe("main");
     expect(logKey(row(""))).toBe("rk_1");
     expect(logKey(row("   "))).toBe("rk_1");
-    expect(logKey({ key_id: null, key_label: null, key_prefix: null })).toBe("—");
+    expect(logKey({ key_id: null, key_label: null, key_prefix: null })).toBe("unknown key");
   });
 });

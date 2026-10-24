@@ -150,7 +150,9 @@ describe("the shell", () => {
       "Test",
     ]);
     expect(tabs[0]?.attributes("aria-selected")).toBe("true");
-    expect(wrapper.find('[data-testid="whoami"]').text()).toBe("owner");
+    // the avatar letter alone (Ledger); the name is the trigger's accessible name
+    expect(wrapper.find('[data-testid="account-menu"]').text()).toBe("O");
+    expect(wrapper.find('[data-testid="account-menu"]').attributes("aria-label")).toBe("Account menu, owner");
     expect(wrapper.find("h2").text()).toBe("Jobs");
   });
 
@@ -247,10 +249,10 @@ describe("the shell", () => {
     await flushPromises();
     const toasts = [...document.body.querySelectorAll(".el-message")];
     expect(toasts.map((t) => t.querySelector(".rl-toast__text")?.textContent)).toEqual(["boom", "fine"]);
-    // the merged one counts its repeats in the drawn pill; only the error has the drawn X
+    // the merged one counts its repeats in the drawn pill; every toast has the drawn Dismiss X
     expect(toasts.map((t) => t.querySelector(".rl-toast__count")?.textContent ?? "")).toEqual(["×2", ""]);
-    expect(toasts[0]?.querySelector('button[aria-label="Close message"]')).not.toBeNull();
-    expect(toasts[1]?.querySelector('button[aria-label="Close message"]')).toBeNull();
+    expect(toasts[0]?.querySelector('button[aria-label="Dismiss"]')).not.toBeNull();
+    expect(toasts[1]?.querySelector('button[aria-label="Dismiss"]')).not.toBeNull();
     notify.clear();
   });
 
@@ -692,7 +694,7 @@ describe("the top bar", () => {
     await until(() => expect(router.currentRoute.value.name).toBe("jobs"));
   });
 
-  it("has the tabs in the bar on a desktop and in the bottom bar on a tablet (8) and a phone (4 and More), with the title and the user's name where drawn", async () => {
+  it("has the tabs in the bar on a desktop and in the bottom bar on a tablet (8) and a phone (4 and More), with the title where drawn and the avatar alone", async () => {
     const stub = (matching: string[]) =>
       vi.stubGlobal("matchMedia", (query: string) => ({
         matches: matching.includes(query),
@@ -729,7 +731,7 @@ describe("the top bar", () => {
     expect(await classesOf([])).toEqual({
       stacked: false,
       phone: false,
-      name: true,
+      name: false,
       title: null,
       barTabs: 8,
       bottomTabs: [],

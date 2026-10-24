@@ -57,6 +57,9 @@ export const ICON_SHAPES = {
     ],
   },
   trashClear: { nodes: [p("M3 6h18"), p("M8 6V4h8v2"), p("M6 6l1 14h10l1-14")] },
+  // the tone tiles of the confirm box (Dialogs): the bin with its two lines, and the calm "i"
+  trashConfirm: { nodes: [p("M3 6h18"), p("M8 6V4h8v2"), p("M6 6l1 14h10l1-14"), p("M10 11v6"), p("M14 11v6")] },
+  info: { nodes: [c(12, 12, 9), p("M12 11v5"), p("M12 8h.01")] },
   trashMenu: { nodes: [p("M4 7h16"), p("M9 7V4h6v3"), p("M6 7l1 13h10l1-13")] },
   eye: { nodes: [p("M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"), c(12, 12, 3)] },
   search: { nodes: [c(11, 11, 7), p("m20 20-3.5-3.5")] },

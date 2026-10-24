@@ -200,19 +200,21 @@ describe("notify", () => {
     expect(drawn.find("b").exists()).toBe(false);
   });
 
-  it("draws the body as B-States: the text, an X close button on an error only", async () => {
+  it("draws the body as MenusToasts: the text, then the Dismiss X on every toast", async () => {
     const { message, close, notify } = stub();
     notify.success("Saved");
     const saved = body(lastOptions(message));
     expect(saved.find(".rl-toast__text").text()).toBe("Saved");
     expect(saved.find(".rl-toast__count").exists()).toBe(false);
-    expect(saved.find("button").exists()).toBe(false);
+    expect(saved.find('button[aria-label="Dismiss"]').exists()).toBe(true);
+    notify.info("Queued");
+    expect(body(lastOptions(message)).find('button[aria-label="Dismiss"]').exists()).toBe(true);
     notify.error("Check failed: connect timeout after 8 s");
     const failed = body(lastOptions(message));
-    const x = failed.get('button[aria-label="Close message"]');
+    const x = failed.get('button[aria-label="Dismiss"]');
     expect(x.find("svg path").attributes("d")).toBe("M18 6 6 18M6 6l12 12");
     expect(x.find("svg").attributes("width")).toBe("14");
-    expect(x.find("svg").attributes("stroke-width")).toBe("2");
+    expect(x.find("svg").attributes("stroke-width")).toBe("2.4");
     await x.trigger("click");
     expect(close).toHaveBeenCalledTimes(1);
   });
@@ -263,7 +265,7 @@ describe("notify", () => {
     const { message, close, notify } = stub();
     notify.error("Check failed");
     const closing = lastOptions(message);
-    await body(closing).get('button[aria-label="Close message"]').trigger("click");
+    await body(closing).get('button[aria-label="Dismiss"]').trigger("click");
     expect(close).toHaveBeenCalledTimes(1);
     // the clicked toast is still leaving: the same error must not count into it
     notify.error("Check failed");

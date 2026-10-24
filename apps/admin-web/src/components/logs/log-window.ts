@@ -58,9 +58,10 @@ export const statusTone = (code: number): "ok" | "warn" | "bad" => (code >= 500 
 // failed behind a 200).
 export const errorTone = (code: number): "warn" | "bad" => (code >= 400 ? (statusTone(code) as "warn" | "bad") : "bad");
 
-// A row's key as Jobs names it: its label, else its prefix; a dash for a row with no key.
+// A row's key as Jobs names it: its label, else its prefix; "unknown key" for a row whose key the relay did not know
+// (Logs: an auth.invalid_key request).
 export const logKey = (row: Pick<LogRow, "key_id" | "key_label" | "key_prefix">): string =>
-  row.key_id ? keyName({ id: row.key_id, label: row.key_label, prefix: row.key_prefix }) : "—";
+  row.key_id ? keyName({ id: row.key_id, label: row.key_label, prefix: row.key_prefix }) : "unknown key";
 
 export interface LogFilters {
   q: string;
@@ -100,6 +101,7 @@ export const RANGE_SHORTCUTS: ReadonlyArray<{ text: string; value: () => [Date, 
   { text: "Yesterday", value: () => [daysAgo(1), daysAgo(1)] },
   { text: "Last 7 days", value: () => [daysAgo(6), daysAgo(0)] },
   { text: "Last 30 days", value: () => [daysAgo(29), daysAgo(0)] },
+  { text: "This month", value: () => [daysAgo(new Date().getDate() - 1), daysAgo(0)] },
 ];
 
 export function isLogStatus(value: unknown): value is LogStatus {

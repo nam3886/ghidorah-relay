@@ -97,34 +97,38 @@ describe("skin: tooltip", () => {
 });
 
 describe("confirm and toasts", () => {
-  it("the confirm box is 440 wide, padded 20 20 16, radius 16, with a hairline and a 20/28 title", () => {
+  it("the confirm box is 440 wide, padded 22 with room for the 40 px tile, radius 16, the lift and a 16/24 title", () => {
     const box = rule(CONFIRM, ".rl-confirm.el-message-box {");
     expect(box).toContain("width: min(440px, 100%)");
-    expect(box).toContain("padding: 20px 20px 16px");
+    expect(box).toContain("padding: 22px 22px 22px 76px");
     expect(box).toContain("border-radius: 16px");
-    expect(box).toContain("border: 1px solid var(--rl-line)");
+    expect(box).toContain("box-shadow: var(--rl-shadow-drawer)");
+    const tile = rule(CONFIRM, ".rl-confirm .el-message-box__status {");
+    expect(tile).toContain("width: 40px");
+    expect(tile).toContain("border-radius: 12px");
     const title = rule(CONFIRM, ".rl-confirm .el-message-box__title {");
-    expect(title).toContain("font-size: 20px");
-    expect(title).toContain("line-height: 28px");
+    expect(title).toContain("font-size: 16px");
+    expect(title).toContain("line-height: 24px");
+    expect(title).toContain("font-weight: 800");
     expect(rule(CONFIRM, ".rl-confirm .el-message-box__btns {")).toContain("justify-content: flex-end");
-    expect(rule(CONFIRM, ".rl-confirm .el-message-box__headerbtn,")).toContain("display: none");
+    expect(rule(CONFIRM, ".rl-confirm .el-message-box__headerbtn {")).toContain("display: none");
   });
 
-  it("a toast is 260 wide, padded 12 16, radius 12, on the surface with a plain hairline in every tone", () => {
+  it("a toast is 260 to 420 wide, padded 12 12 12 14, radius 12, on the popover surface with the lift", () => {
     const toast = rule(TOAST, ".el-message {");
     expect(toast).toContain("min-width: 260px");
-    expect(toast).toContain("padding: 12px 16px");
+    expect(toast).toContain("max-width: min(420px, calc(100% - 24px))");
+    expect(toast).toContain("padding: 12px 12px 12px 14px");
     expect(toast).toContain("border-radius: 12px");
-    expect(rule(TOAST, "html:root .el-message {")).toContain("border-color: var(--rl-line)");
-    expect(rule(TOAST, "html:root .el-message {")).toContain("background-color: var(--rl-surface)");
-    expect(rule(TOAST, ".el-message.is-closable {")).toContain("padding: 12px 8px 12px 16px");
+    expect(toast).toContain("box-shadow: var(--rl-shadow-pop)");
+    expect(rule(TOAST, "html:root .el-message {")).toContain("background-color: var(--rl-pop)");
   });
 
-  it("the close button is 28 square with radius 8; the grouping badge is a 20 high pill inside the toast", () => {
+  it("the Dismiss button is 28 square with radius 6; the grouping badge is a 20 high pill inside the toast", () => {
     const close = rule(TOAST, ".rl-toast__close {");
     expect(close).toContain("width: 28px");
     expect(close).toContain("height: 28px");
-    expect(close).toContain("border-radius: 8px");
+    expect(close).toContain("border-radius: 6px");
     const badge = rule(TOAST, ".rl-toast__count {");
     expect(badge).toContain("height: 20px");
     expect(badge).toContain("border-radius: 10px");
@@ -133,15 +137,20 @@ describe("confirm and toasts", () => {
     expect(rule(TOAST, ".el-message .el-message__closeBtn {")).toContain("display: none");
   });
 
-  it("a toast outranks Element Plus: 46 high with an 18 px icon, the text in --rl-fg in every tone", () => {
+  it("a toast outranks Element Plus: a 28 px tone tile with a 16 px glyph, the bold text in --rl-fg in every tone", () => {
     const toast = rule(TOAST, "html .el-message {");
-    expect(toast).toContain("padding: 12px 16px");
+    expect(toast).toContain("padding: 12px 12px 12px 14px");
     expect(toast).toContain("border-radius: 12px");
     const content = rule(TOAST, "html .el-message .el-message__content {");
     expect(content).toContain("color: var(--rl-fg)");
     expect(content).toContain("line-height: 20px");
-    expect(rule(TOAST, "html .el-message .el-message__icon {")).toContain("font-size: 18px");
+    const tile = rule(TOAST, "html .el-message .el-message__icon {");
+    expect(tile).toContain("width: 28px");
+    expect(tile).toContain("border-radius: 8px");
+    expect(tile).toContain("font-size: 16px");
+    expect(rule(TOAST, ".el-message--success .el-message__icon {")).toContain("background: var(--rl-ok-bg)");
     expect(rule(TOAST, ".rl-toast__text {")).toContain("color: var(--rl-fg)");
+    expect(rule(TOAST, ".rl-toast__text {")).toContain("font-weight: 700");
   });
 });
 
@@ -167,11 +176,13 @@ describe("confirm position and ledger line height", () => {
     expect(box["--el-messagebox-width"]).toBe("440px");
   });
 
-  it("the confirm's buttons are padded 0 16 in the browser's line height; the destructive one has no edge", () => {
+  it("the confirm's Cancel is padded 0 14 and the action 0 16, in the browser's line height; the action has no edge", () => {
     const buttons = decls(CONFIRM, "html:root .rl-confirm .el-message-box__btns .el-button {");
-    expect(buttons.padding).toBe("0 16px");
+    expect(buttons.padding).toBe("0 14px");
     expect(buttons["line-height"]).toBe("normal");
-    expect(decls(CONFIRM, "html:root .rl-confirm .el-message-box__btns .el-button--danger {").border).toBe("0");
+    const action = decls(CONFIRM, "html:root .rl-confirm .el-message-box__btns .el-button--primary {");
+    expect(action.padding).toBe("0 16px");
+    expect(action.border).toBe("0");
   });
 
   it("the picture viewer is the scrim with buttons on the menu surface", () => {

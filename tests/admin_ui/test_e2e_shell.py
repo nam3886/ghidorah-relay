@@ -494,10 +494,10 @@ def sizes(locator):
         "el => { const r = el.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }")
 
 
-# The account trigger: avatar 24 with the name on a desktop (MenusToasts), the 30 px avatar alone in a 44 px target
-# below it (JobsTablet); the menu is 220 px with 36 px items (44 below the desktop) and the menu lift.
+# The account trigger: the 30 px avatar letter alone (Ledger), in a 36 px target on a desktop and a 44 px one below it
+# (JobsTablet); the menu is 220 px with 36 px items (44 below the desktop) and the menu lift.
 @pytest.mark.parametrize("width, account, avatar, item_h", [
-    (1440, (None, 36), (24, 24), 36),
+    (1440, (36, 36), (30, 30), 36),
     (820, (44, 44), (30, 30), 44),
     (390, (44, 44), (30, 30), 44)])
 def test_the_top_bar_and_its_popovers_have_the_drawn_sizes(app, app_session, width, account, avatar, item_h):

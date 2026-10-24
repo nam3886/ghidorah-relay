@@ -13,6 +13,7 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { fetchDownload, type JobDetail } from "@/api/jobs-detail";
 import ArrowScroller from "@/components/shared/ArrowScroller.vue";
 import IconButton from "@/components/shared/IconButton.vue";
+import { IconPlay } from "@/components/shared/icons";
 import { useBusy } from "@/composables/use-busy";
 import { saveBlob } from "./blob-actions";
 import { fmtBytes, shortId } from "./job-text";
@@ -360,7 +361,7 @@ const G = {
               @click="at = i"
             >
               <img v-if="it.kind === 'image'" :src="it.src" alt="" />
-              <span v-else class="mv__thumb-video" aria-hidden="true">▶</span>
+              <span v-else class="mv__thumb-video" aria-hidden="true"><IconPlay :size="16" /></span>
             </button>
           </ArrowScroller>
         </div>
@@ -402,14 +403,18 @@ const G = {
   gap: 8px;
   margin-left: auto;
 }
+/* MediaViewer: the picture (or the player), Previous and Next 24 px from its sides, the tools 32 px under it, the
+   strip under the tools; the whole group in the middle of the space under the top bar. A zoomed or turned picture
+   may spill out of its box, under the arrows and the tools, which stay on top. */
 .mv {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   height: 100%;
   min-height: 0;
 }
 .mv__stage {
-  flex: 1;
+  flex: 0 1 auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -417,18 +422,22 @@ const G = {
   min-height: 0;
   padding: 0 24px;
 }
+.mv__stage > :deep(.ib-wrap),
+.mv__foot {
+  position: relative;
+  z-index: 1;
+}
 .mv__frame {
   display: grid;
-  flex: 1;
+  flex: 0 1 auto;
   place-items: center;
-  align-self: stretch;
   min-width: 0;
-  overflow: hidden;
 }
 .mv__img {
   display: block;
   max-width: 100%;
-  max-height: 100%;
+  /* the window less the top bar (80), the tools and the strip under it, and the gaps */
+  max-height: calc(100vh - 280px);
   border-radius: 6px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   transition: transform 120ms ease;
@@ -437,7 +446,7 @@ const G = {
   position: relative;
   width: 1040px;
   max-width: 100%;
-  max-height: 100%;
+  max-height: calc(100vh - 200px);
   aspect-ratio: 16 / 9;
   margin: 0;
   overflow: hidden;
@@ -545,7 +554,7 @@ const G = {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: 12px 24px 24px;
+  padding: 31px 24px 24px;
 }
 .mv__tools {
   display: flex;

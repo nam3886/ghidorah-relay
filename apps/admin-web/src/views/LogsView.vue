@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { clearLogs, getLog, type LogDetail, listLogs, type LogRow } from "@/api/logs";
 import { loadFailedText } from "@/components/jobs/job-text";
@@ -153,6 +153,10 @@ const statsServed = false;
 
 // A tablet or phone folds the search and the dates behind two buttons of the head.
 const searchOpen = ref(false);
+// A phone's actions go to the top bar when the shell drew its target (the view alone, in a spec, keeps them here).
+const barThere = ref(false);
+onMounted(() => (barThere.value = !!document.getElementById("topbar-actions")));
+const inBar = computed(() => isPhone.value && barThere.value);
 const filtersOpen = ref(false);
 const showSearch = computed(() => searchOpen.value || !!filters.q.trim());
 async function toggleSearch(): Promise<void> {
@@ -165,23 +169,47 @@ async function toggleSearch(): Promise<void> {
 
 <template>
   <section class="logs-view">
-    <div class="lv-head" :class="{ 'is-compact': compact }">
+    <div class="lv-head" :class="{ 'is-compact': compact, 'is-bar': inBar }">
       <div v-if="!compact" class="lv-head__text">
         <h1>Request logs</h1>
         <p>Every call to the relay API, newest first.</p>
       </div>
       <h1 v-else class="sr-only">Request logs</h1>
-      <span class="lv-head__actions">
-        <IconButton v-if="compact" icon="search" label="Search requests" placement="bottom" @click="toggleSearch" />
-        <IconButton
-          v-if="compact"
-          icon="filter"
-          label="Filters: dates"
-          placement="bottom"
-          @click="filtersOpen = true"
-        />
-        <IconButton icon="delete" label="Clear logs" danger placement="bottom-end" @click="clear" />
-      </span>
+      <!-- a phone draws its actions in the top bar (LogsPhone), the shell's teleport target -->
+      <Teleport to="#topbar-actions" :disabled="!inBar" defer>
+        <span class="lv-head__actions">
+          <!-- a tablet draws the two as text buttons at the head of the page (LogsTablet), a phone as icons -->
+          <template v-if="isTablet">
+            <button
+              type="button"
+              class="lv-text-btn"
+              aria-label="Search requests"
+              :aria-expanded="showSearch"
+              @click="toggleSearch"
+            >
+              Search requests
+            </button>
+            <button
+              type="button"
+              class="lv-text-btn"
+              aria-label="Filters: dates"
+              aria-haspopup="dialog"
+              @click="filtersOpen = true"
+            >
+              Filters: dates
+            </button>
+          </template>
+          <IconButton v-if="isPhone" icon="search" label="Search requests" placement="bottom" @click="toggleSearch" />
+          <IconButton
+            v-if="isPhone"
+            icon="filter"
+            label="Filters: dates"
+            placement="bottom"
+            @click="filtersOpen = true"
+          />
+          <IconButton icon="delete" label="Clear logs" danger placement="bottom-end" @click="clear" />
+        </span>
+      </Teleport>
     </div>
 
     <LogsStats v-if="statsServed" />
@@ -274,6 +302,34 @@ async function toggleSearch(): Promise<void> {
 .lv-head.is-compact {
   justify-content: flex-end;
   gap: 0;
+}
+/* the actions moved to the top bar: the head keeps only the hidden heading and takes no row */
+.lv-head.is-bar {
+  display: contents;
+}
+.lv-head__actions {
+  align-items: center;
+}
+/* the tablet's secondary text buttons: 40 high, padding 0 16, radius 10, 700 */
+.lv-text-btn {
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.lv-text-btn:hover {
+  background: var(--rl-raised);
+}
+.lv-text-btn:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
 }
 
 .lv-card {

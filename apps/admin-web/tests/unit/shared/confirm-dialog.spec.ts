@@ -71,4 +71,17 @@ describe("confirmDialog", () => {
     await confirmDialog({ title: "t", message: "m" }, plain);
     expect((plain.confirm.mock.calls[0] as unknown[])[2]).toMatchObject({ type: "info", confirmButtonText: "Confirm" });
   });
+
+  it("draws the tone tile's glyph (the bin when destructive, the i otherwise) over the modal scrim", async () => {
+    const options = async (danger: boolean) => {
+      const b = box("resolve");
+      await confirmDialog({ title: "t", message: "m", danger }, b);
+      return (b.confirm.mock.calls[0] as unknown[])[2] as Record<string, unknown>;
+    };
+    const [red, calm] = [await options(true), await options(false)];
+    expect(red.icon).toBeTruthy();
+    expect(calm.icon).toBeTruthy();
+    expect(red.icon).not.toBe(calm.icon);
+    expect(red.modalClass).toBe("rl-confirm-scrim");
+  });
 });

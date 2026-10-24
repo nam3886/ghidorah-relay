@@ -47,8 +47,8 @@ const { isPhone, isTablet } = useBreakpoint();
   margin: 0;
   font-size: 28px;
   line-height: 36px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 .page-header--tablet .page-header__title {
   font-size: 24px;

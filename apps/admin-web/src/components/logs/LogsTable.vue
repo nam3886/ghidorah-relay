@@ -44,8 +44,7 @@ const codeText = (row: LogRow): string =>
 // the folded line of a tablet or phone row: the error code, else the job's title, then the key
 function lineOf(row: LogRow): string {
   const lead = row.error_code ? codeText(row) : (row.job_title ?? (row.job_id ? row.job_id.slice(0, 8) : ""));
-  const key = logKey(row);
-  return [lead, key === "—" ? "" : key].filter(Boolean).join(" · ");
+  return [lead, logKey(row)].filter(Boolean).join(" · ");
 }
 
 // inbox, search-x, cloud-off (JobsStates)
@@ -162,7 +161,7 @@ const ICONS = {
             <td class="t-req">
               <button
                 type="button"
-                class="row-open mono"
+                class="row-open"
                 :aria-label="`Open request ${r.id}`"
                 :title="r.route"
                 @click.stop="emit('open', r)"
@@ -352,6 +351,7 @@ const ICONS = {
   font-size: 12px;
   white-space: nowrap;
 }
+.lt__table td.slow,
 .slow {
   color: var(--rl-warn);
   font-weight: 700;
@@ -387,10 +387,13 @@ const ICONS = {
   white-space: nowrap;
   cursor: pointer;
 }
+/* a tablet's request line is the title cell of JobsTablet: the body face at 14/600, the folded line under it in mono */
 .t-req .row-open {
   display: block;
   max-width: 100%;
   overflow: hidden;
+  font-family: inherit;
+  font-size: 14px;
   font-weight: 600;
   text-overflow: ellipsis;
 }

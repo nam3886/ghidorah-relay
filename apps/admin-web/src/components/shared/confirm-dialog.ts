@@ -1,4 +1,10 @@
+import { defineComponent, h, markRaw } from "vue";
+import { IconInfo, IconTrashConfirm } from "@/components/shared/icons";
 import "./confirm-dialog.css";
+
+// The tone tile's glyph (Dialogs): the bin on a destructive question, the calm "i" on any other; 18 px at stroke 2.
+const DangerGlyph = markRaw(defineComponent({ render: () => h(IconTrashConfirm, { size: 18, stroke: 2 }) }));
+const CalmGlyph = markRaw(defineComponent({ render: () => h(IconInfo, { size: 18, stroke: 2 }) }));
 
 export interface ConfirmOptions {
   title: string;
@@ -29,6 +35,8 @@ export async function confirmDialog(options: ConfirmOptions, box: MessageBoxLike
       // the canvas draws no close X: Cancel, Esc and the backdrop are the ways out
       showClose: false,
       type: options.danger ? "warning" : "info",
+      icon: options.danger ? DangerGlyph : CalmGlyph,
+      modalClass: "rl-confirm-scrim",
       confirmButtonClass: options.danger ? "el-button--danger" : undefined,
     });
     return true;

@@ -31,6 +31,8 @@ const EXPECTED: Record<string, string> = {
     "path:M3 6h18|path:M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2|path:M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6|path:M10 11v6M14 11v6",
   IconTrashClear: "path:M3 6h18|path:M8 6V4h8v2|path:M6 6l1 14h10l1-14",
   IconTrashMenu: "path:M4 7h16|path:M9 7V4h6v3|path:M6 7l1 13h10l1-13",
+  IconTrashConfirm: "path:M3 6h18|path:M8 6V4h8v2|path:M6 6l1 14h10l1-14|path:M10 11v6|path:M14 11v6",
+  IconInfo: "circle:12,12,9|path:M12 11v5|path:M12 8h.01",
   IconEye: "path:M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z|circle:12,12,3",
   IconSearch: "circle:11,11,7|path:m20 20-3.5-3.5",
   IconCamera:

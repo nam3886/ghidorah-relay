@@ -2,19 +2,20 @@
 // Toasts sit at the bottom right (bottom centre, above the bulk bar, on a phone); equal repeats merge into one with a
 // counter, and an error stays 5 s and can be closed. A toast belongs to the tab that raised it: `clear` closes them
 // all when the route changes (the shell calls it).
-// Element Plus keeps the stack, the timers and the grouping; the body is drawn as B-States draws it: the text, a "×3"
-// pill once it repeats, and on an error the X close button. Element Plus groups a repeat by the identical `message`,
-// so each open toast keeps one body function, found again by its type and text until the toast closes, and its count
-// is ours (Element Plus's own round badge and close glyph are hidden by notify.css).
+// Element Plus keeps the stack, the timers and the grouping; the body is drawn as MenusToasts draws it: the text as the
+// bold line, a "×3" pill once it repeats, and the Dismiss X on every toast. Element Plus groups a repeat by the
+// identical `message`, so each open toast keeps one body function, found again by its type and text until the toast
+// closes, and its count is ours (Element Plus's own round badge and close glyph are hidden by notify.css).
 import { defineComponent, h, type PropType, ref, type Ref } from "vue";
-import { IconAlertCircle, IconCheckCircle, IconClose } from "@/components/shared/icons";
+import { IconAlertCircleShort, IconCheck, IconClose, IconInfo } from "@/components/shared/icons";
 // the shared skin (buttons, checkbox, menus) rides with the one module every view already imports
 import "@/components/shared/skin.css";
 import "./notify.css";
 
-// the toast icons are 18 px, the canvas size (the default icon of a component is 16)
-const SuccessIcon = defineComponent({ render: () => h(IconCheckCircle, { size: 18 }) });
-const ErrorIcon = defineComponent({ render: () => h(IconAlertCircle, { size: 18 }) });
+// the glyphs of the 28 px tone tile (notify.css draws the tile): a tick, the "!" circle, the "i" circle, 16 px
+const SuccessIcon = defineComponent({ render: () => h(IconCheck, { size: 16, stroke: 2.6 }) });
+const ErrorIcon = defineComponent({ render: () => h(IconAlertCircleShort, { size: 16, stroke: 2.4 }) });
+const InfoIcon = defineComponent({ render: () => h(IconInfo, { size: 16, stroke: 2.4 }) });
 
 const DURATION_MS = 2500;
 const ERROR_DURATION_MS = 5000;
@@ -132,8 +133,8 @@ export const ToastBody = defineComponent({
       props.onDismiss
         ? h(
             "button",
-            { type: "button", class: "rl-toast__close", "aria-label": "Close message", onClick: props.onDismiss },
-            h(IconClose, { size: 14, stroke: 2 }),
+            { type: "button", class: "rl-toast__close", "aria-label": "Dismiss", onClick: props.onDismiss },
+            h(IconClose, { size: 14, stroke: 2.4 }),
           )
         : null,
     ];
@@ -188,10 +189,10 @@ export function makeNotify(message: MessageLike) {
   }
 
   return {
-    success: (text: string) => toast("success", text, { icon: SuccessIcon, duration: DURATION_MS }, false),
+    success: (text: string) => toast("success", text, { icon: SuccessIcon, duration: DURATION_MS }, true),
     error: (text: string) =>
       toast("error", text, { icon: ErrorIcon, duration: ERROR_DURATION_MS, showClose: true }, true),
-    info: (text: string) => toast("info", text, { duration: DURATION_MS }, false),
+    info: (text: string) => toast("info", text, { icon: InfoIcon, duration: DURATION_MS }, true),
     // A closing toast is still in Element Plus's list until it has left: forget the bodies first, so the same words shown
     // right after (on the next page) are a new toast, not a repeat of one that is going away.
     clear: () => {

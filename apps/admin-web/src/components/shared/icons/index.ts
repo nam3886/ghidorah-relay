@@ -45,3 +45,5 @@ export const IconZoomIn = defineIcon("IconZoomIn", ICON_SHAPES.zoomIn);
 export const IconZoomOut = defineIcon("IconZoomOut", ICON_SHAPES.zoomOut);
 export const IconRotateLeft = defineIcon("IconRotateLeft", ICON_SHAPES.rotateLeft);
 export const IconFit = defineIcon("IconFit", ICON_SHAPES.fit);
+export const IconTrashConfirm = defineIcon("IconTrashConfirm", ICON_SHAPES.trashConfirm);
+export const IconInfo = defineIcon("IconInfo", ICON_SHAPES.info);

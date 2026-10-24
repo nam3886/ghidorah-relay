@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import BrandLogo from "@/components/layout/BrandLogo.vue";
 import { useNavCounts } from "@/components/layout/nav-counts";
-import { IconChevronDown, IconFileText, IconLogOut, IconMoon } from "@/components/shared/icons";
+import { IconFileText, IconLogOut, IconMoon } from "@/components/shared/icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { placePopup, type PopupAlign } from "@/lib/popup-place";
 import { useBusy } from "@/composables/use-busy";
@@ -15,7 +15,9 @@ import { useUiStore } from "@/stores/ui";
 // the eight tabs (the current one dark with a 2 px brand underline; Accounts carries "usable/total" in a purple pill,
 // Alerts the open count in an amber pill), then Live and the account menu. Tablet and phone: the tabs move to the
 // bottom bar (BottomNav); the bar keeps the logo, the page title, Live (tablet) and the avatar, 60 px high on a tablet
-// and 56 px on a phone. The account menu (Signed in as, API docs, Dark theme, Sign out) is our own popover.
+// and 56 px on a phone. The account trigger is the round avatar letter at every width (Ledger); the user's name is in
+// its accessible name and the menu's head. The account menu (Signed in as, API docs, Dark theme, Sign out) is our own
+// popover.
 const auth = useAuthStore();
 const ui = useUiStore();
 const route = useRoute();
@@ -171,6 +173,9 @@ function openDocs(): void {
     </nav>
 
     <div class="topbar__tools">
+      <!-- a phone page puts its search, filter or plus here (JobsTablet `phoneActions`): a teleport target, empty
+           on a wider screen -->
+      <div id="topbar-actions" class="topbar__actions"></div>
       <span v-if="!isPhone" class="live" data-testid="live"
         ><span class="live__dot" aria-hidden="true"></span>Live</span
       >
@@ -189,8 +194,6 @@ function openDocs(): void {
           @keydown="onTriggerKey($event, 'account')"
         >
           <span class="account-avatar" aria-hidden="true">{{ initial }}</span>
-          <span v-if="!stacked" class="account-name" data-testid="whoami">{{ auth.user }}</span>
-          <IconChevronDown v-if="!stacked" class="account-chevron" :size="14" :stroke="2" />
         </button>
         <div
           v-if="open === 'account'"
@@ -331,26 +334,39 @@ function openDocs(): void {
   position: relative;
 }
 
-/* The account trigger: avatar, name and chevron on a desktop (MenusToasts "Top bar · account menu"). */
+/* a phone page's actions in the bar: 44 px icon buttons 2 px apart */
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.topbar__actions:empty {
+  display: none;
+}
+
+/* The account trigger: the 30 px avatar letter alone (Ledger), in a 36 px round target on a desktop. */
 .account-button {
   box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
   height: 36px;
-  padding: 0 12px 0 6px;
-  border: 1px solid var(--rl-line-strong);
-  border-radius: 10px;
-  background: var(--rl-surface);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
   color: var(--rl-fg);
   font: inherit;
-  font-weight: 600;
   line-height: normal;
   cursor: pointer;
 }
 .account-button.is-open,
 .account-button:hover {
   background: var(--rl-menu-hover);
+}
+.account-button:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
 }
 .account-button:disabled {
   cursor: progress;
@@ -359,16 +375,13 @@ function openDocs(): void {
 .account-avatar {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: var(--rl-primary-soft);
   color: var(--rl-brand-ink);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-}
-.account-chevron {
-  flex: none;
 }
 
 /* The popover: 220 px, 6 px of padding, radius 12, the menu surface with the lift. */

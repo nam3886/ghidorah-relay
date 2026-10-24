@@ -275,7 +275,7 @@ describe("the list", () => {
       total: 3,
     });
     const { w } = await open();
-    expect(w.findAll("tbody .t-key").map((k) => k.text())).toEqual(["shop", "rk-q7mfz2kd", "—"]);
+    expect(w.findAll("tbody .t-key").map((k) => k.text())).toEqual(["shop", "rk-q7mfz2kd", "unknown key"]);
   });
 
   it("a row with no job says so with a dash and has no job link; a job's title opens that job", async () => {
@@ -469,6 +469,7 @@ describe("filters", () => {
     ["Yesterday", "2026-02-28", "2026-02-28"],
     ["Last 7 days", "2026-02-23", "2026-03-01"],
     ["Last 30 days", "2026-01-31", "2026-03-01"],
+    ["This month", "2026-03-01", "2026-03-01"],
   ])("the quick option %s searches from %s to %s", async (text, first, last) => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 2, 1, 12, 0, 0));
@@ -506,7 +507,7 @@ describe("filters", () => {
     expect(list.mock.calls[0]![0].until_ms).toBeUndefined();
   });
 
-  it("the quick options are listed in the order Today, Yesterday, Last 7 days, Last 30 days", async () => {
+  it("the quick options are listed in the order Today, Yesterday, Last 7 days, Last 30 days, This month", async () => {
     const { w } = await open();
     await openPanel(w);
     expect([...rangePanel().querySelectorAll(".el-picker-panel__shortcut")].map((b) => b.textContent?.trim())).toEqual([
@@ -514,6 +515,7 @@ describe("filters", () => {
       "Yesterday",
       "Last 7 days",
       "Last 30 days",
+      "This month",
     ]);
   });
 
