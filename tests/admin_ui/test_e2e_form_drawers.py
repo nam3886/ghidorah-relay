@@ -154,7 +154,7 @@ def test_the_edit_key_form_is_named_by_its_heading_too(app, app_session, db):
     key_menu(page, "rk-plain", "Edit key")
     expect(page.get_by_role("dialog", name="Edit key · plain")).to_be_visible()
     expect(form(page).get_by_role("heading", name="Edit key · plain")).to_be_visible()
-    expect(form(page)).to_contain_text("rk-plain•••• · created")
+    expect(form(page)).to_contain_text("rk-plain•••••••• · created")
 
 
 def test_on_a_phone_the_form_is_a_full_screen_sheet_with_44_px_footer_buttons(app, app_session, db):
@@ -250,7 +250,7 @@ def test_focus_goes_to_the_new_key_button_when_the_row_that_opened_the_form_is_g
                if r.request.method == "GET" else r.continue_())
     form(page).get_by_role("button", name="Save").click()
     expect(form(page)).to_have_count(0)
-    expect(page.get_by_text("No API keys yet.")).to_be_visible()
+    expect(page.get_by_text("No API keys yet")).to_be_visible()
     expect(new_key_button(page)).to_be_focused()
 
 

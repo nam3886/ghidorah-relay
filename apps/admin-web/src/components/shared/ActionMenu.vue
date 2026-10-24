@@ -279,8 +279,21 @@ onBeforeUnmount(() => clearTimeout(tipTimer));
   line-height: 20px;
   color: var(--rl-fg);
 }
+/* the row menu as MenusToasts draws it: 220 wide, 14 px items in 600, 2 px apart, the rule 4 px over and under */
 .menu-pop--row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 220px;
   padding: 6px;
+  font-size: 14px;
+}
+.menu-pop--row .menu-pop__item {
+  font-weight: 600;
+}
+.menu-pop--row .menu-pop__sep {
+  margin: 4px 6px;
+  background: var(--rl-rule);
 }
 .menu-pop--header {
   padding: 6px;

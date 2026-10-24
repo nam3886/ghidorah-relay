@@ -100,7 +100,7 @@ const arrowStyle = computed(() => ({ left: `${at.value.arrow}px` }));
     v-if="isPhone"
     :model-value="open"
     :title="keyRow ? `Adjust wallet · ${keyName(keyRow)}` : 'Adjust wallet'"
-    :sub="keyRow && keyRow.label.trim() ? keyRow.prefix : ''"
+    :sub="keyRow && keyRow.label.trim() ? `${keyRow.prefix}••••` : ''"
     testid="wallet-sheet"
     @update:model-value="(v: boolean) => !v && !busy && emit('close')"
   >

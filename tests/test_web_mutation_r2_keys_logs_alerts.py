@@ -153,13 +153,11 @@ def test_the_key_body_sends_what_the_form_means():
           expect=BALANCE + "a day limit alone is what is left of today's")
 @mutation(KEY_MODEL, "? `−${n(w.used_day)} of ${n(w.day_limit)} today`", "? `−${n(w.used_day)} today`",
           expect=TODAY + "says what was spent today, against the day limit when there is one")
-@mutation(KEY_MODEL, 'd.toDateString() === new Date(now).toDateString()',
-          'd.getFullYear() === new Date(now).getFullYear()',
-          expect=CREATED + "a key of an earlier day shows day/month/year")
-@mutation(KEY_MODEL, "return `${date}/${d.getFullYear()}`;", "return date;",
-          expect=CREATED + "a key of an earlier day shows day/month/year")
-@mutation(KEY_MODEL, 'padStart(2, "0")', 'padStart(1, "0")',
-          expect=CREATED + "a key made at midnight today still reads as today, one a minute before as yesterday's date")
+@mutation(KEY_MODEL, "d.getFullYear() === new Date(now).getFullYear() ? date :", "true ? date :",
+          expect=CREATED + "a key of an earlier year adds the year")
+@mutation(KEY_MODEL, "const date = `${d.getDate()} ${MONTHS[d.getMonth()]}`;",
+          "const date = `${d.getDate()} ${MONTHS[d.getMonth() + 1]}`;",
+          expect=CREATED + "a key of this year shows the day and the month, as KeyForm writes it")
 @pytest.mark.web_unit
 def test_the_balance_the_line_of_today_and_the_created_date_are_written_right():
     vitest(KEY_SPEC)

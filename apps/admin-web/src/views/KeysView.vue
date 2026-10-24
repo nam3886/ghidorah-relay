@@ -31,7 +31,7 @@ import {
 } from "@/components/keys/key-model";
 import ArrowScroller from "@/components/shared/ArrowScroller.vue";
 import IconButton from "@/components/shared/IconButton.vue";
-import { IconPlus, IconSearch } from "@/components/shared/icons";
+import { IconSearch } from "@/components/shared/icons";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { useRouteLeaveGuard } from "@/components/shared/use-leave-guard";
 import { useBreakpoint } from "@/composables/use-breakpoint";
@@ -292,7 +292,7 @@ function formClosed(): void {
           @click="openForm(null)"
         />
         <button v-else ref="newKey" type="button" class="kv-primary" :disabled="busy" @click="openForm(null)">
-          <IconPlus v-if="isTablet" :size="15" :stroke="2" />{{ isTablet ? "New key" : "Create key" }}
+          {{ isTablet ? "New key" : "Create key" }}
         </button>
       </span>
     </div>
@@ -310,7 +310,7 @@ function formClosed(): void {
         :aria-pressed="show === f.value"
         @click="show = f.value"
       >
-        {{ f.label }} <span class="num kchip__n">{{ counts[f.value] }}</span>
+        {{ f.label }}<span class="num kchip__n">{{ compact ? " · " : " " }}{{ counts[f.value] }}</span>
       </button>
     </ArrowScroller>
     <label v-if="isPhone && showSearch" class="kv-search is-row">
@@ -320,6 +320,7 @@ function formClosed(): void {
 
     <section class="kv-card" aria-label="Key list">
       <div v-if="!isPhone" class="kv-toolbar">
+        <h2 v-if="isTablet" class="kv-cardtitle">Keys</h2>
         <ArrowScroller class="kv-chips" label="Show" :count="KEY_FILTERS.length" :active-key="show">
           <button
             v-for="f in KEY_FILTERS"
@@ -330,7 +331,7 @@ function formClosed(): void {
             :aria-pressed="show === f.value"
             @click="show = f.value"
           >
-            {{ f.label }} <span class="num kchip__n">{{ counts[f.value] }}</span>
+            {{ f.label }}<span class="num kchip__n">{{ compact ? " · " : " " }}{{ counts[f.value] }}</span>
           </button>
         </ArrowScroller>
         <label v-if="showSearch" class="kv-search" :class="{ 'is-row': compact }">
@@ -506,6 +507,12 @@ function formClosed(): void {
   padding: 14px 20px;
   border-bottom: 1px solid var(--rl-rule);
 }
+.kv-cardtitle {
+  margin: 0 0 4px;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 700;
+}
 .kv-toolbar .kv-chips {
   flex: 0 1 auto;
   min-width: 0;
@@ -564,7 +571,7 @@ function formClosed(): void {
   padding: 0 12px;
   border: 1px solid var(--rl-line-strong);
   border-radius: 10px;
-  background: var(--rl-input);
+  background: transparent;
   color: var(--rl-faint);
 }
 .kv-search:focus-within {
@@ -579,7 +586,6 @@ function formClosed(): void {
   background: transparent;
   color: var(--rl-fg);
   font: inherit;
-  font-size: 13px;
 }
 .kv-search input::placeholder {
   color: var(--rl-faint);

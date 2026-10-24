@@ -18,11 +18,12 @@ import {
   keyState,
   pointsWallet,
   STATE_PILL,
+  DAY_RESET,
   todayText,
   unfinishedText,
 } from "./key-model";
 
-// The key list, drawn as Keys.dc.html (a desktop: Key, Wallet, Providers and caps today, Jobs and the row menu),
+// The key list, drawn as Keys.dc.html (a desktop: Key, Wallet, Providers and caps today, Last used and the row menu),
 // KeysTablet (the same table, scrolling sideways in its box) and KeysPhone (one block per key with its pill, balance,
 // caps and row buttons), with the states of KeysStates: a first read as flat bars, no key yet, none under the filters,
 // and a failed read. The wallet figure is a button that opens Adjust wallet. Server strings reach the page as text.
@@ -102,7 +103,7 @@ const ICONS = {
               <th>Key</th>
               <th class="r">Wallet</th>
               <th class="t-provs">Providers and caps today</th>
-              <th>Jobs</th>
+              <th>Last used</th>
               <th class="t-act" />
             </tr>
           </thead>
@@ -111,7 +112,7 @@ const ICONS = {
               <td><span class="bar bar--name" /></td>
               <td class="r"><span class="bar bar--bal" /></td>
               <td class="t-provs"><span class="bar bar--caps" /></td>
-              <td><span class="bar bar--jobs" /></td>
+              <td><span class="bar bar--last" /></td>
               <td class="t-act" />
             </tr>
           </tbody>
@@ -123,6 +124,7 @@ const ICONS = {
     <div v-else-if="error" class="kl__box" role="alert">
       <span class="kl__icon is-bad"><PathIcon :paths="ICONS.cloud" :size="22" :stroke="1.8" /></span>
       <b class="kl__title">{{ error }}</b>
+      <span class="kl__text">The last good read stays hidden so stale numbers are not mistaken for live ones.</span>
       <div class="kl__btns"><button type="button" class="kl__primary" @click="emit('retry')">Retry</button></div>
     </div>
 
@@ -138,7 +140,7 @@ const ICONS = {
       </template>
       <template v-else>
         <span class="kl__icon is-brand"><PathIcon :paths="ICONS.inbox" :size="22" :stroke="1.8" /></span>
-        <b class="kl__title">No API keys yet.</b>
+        <b class="kl__title">No API keys yet</b>
         <span class="kl__text"
           >A key lets a customer call the relay. Each key has one points wallet and per-provider caps.</span
         >
@@ -169,7 +171,14 @@ const ICONS = {
           ><template v-if="k.label.trim()"> · </template>{{ jobsText(k) }}</span
         >
         <span v-if="caps(k).length" class="p-key__caps">
-          <CapChip v-for="c in caps(k)" :key="c.provider" :provider="c.provider" :used="c.used" :cap="c.cap" />
+          <CapChip
+            v-for="c in caps(k)"
+            :key="c.provider"
+            :provider="c.provider"
+            :used="c.used"
+            :cap="c.cap"
+            :resets="DAY_RESET"
+          />
         </span>
         <span class="p-key__actions">
           <button
@@ -212,7 +221,7 @@ const ICONS = {
             <th>Key</th>
             <th class="r">Wallet</th>
             <th class="t-provs">Providers and caps today</th>
-            <th>Jobs</th>
+            <th>Last used</th>
             <th class="t-act"><span class="sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -225,10 +234,12 @@ const ICONS = {
           >
             <td class="t-key">
               <div class="t-key__line">
-                <span class="k-label" :class="{ 'k-label--prefix mono': !k.label.trim() }">{{ keyName(k) }}</span>
+                <span class="k-label" :class="{ 'k-label--prefix mono': !k.label.trim() }" :title="keyName(k)">{{
+                  keyName(k)
+                }}</span>
                 <span v-if="!k.enabled" class="pill tone-neutral">Paused</span>
               </div>
-              <div v-if="k.label.trim()" class="meta mono">{{ k.prefix }}••••</div>
+              <div v-if="k.label.trim()" class="meta mono">{{ k.prefix }}{{ isTablet ? "••••" : "••••••••" }}</div>
             </td>
             <td class="r t-wallet">
               <button
@@ -260,13 +271,21 @@ const ICONS = {
             </td>
             <td class="t-provs">
               <div v-if="caps(k).length" class="t-caps">
-                <CapChip v-for="c in caps(k)" :key="c.provider" :provider="c.provider" :used="c.used" :cap="c.cap" />
+                <CapChip
+                  v-for="c in caps(k)"
+                  :key="c.provider"
+                  :provider="c.provider"
+                  :used="c.used"
+                  :cap="c.cap"
+                  :resets="DAY_RESET"
+                />
               </div>
               <span v-else class="meta">no provider open</span>
             </td>
-            <td class="t-jobs">
-              <div class="t-jobs__n num">{{ jobsText(k) }}</div>
-              <div class="meta num">{{ unfinishedText(k) }} unfinished</div>
+            <!-- the relay keeps no time of a key's last call: an honest dash, the key's jobs under it -->
+            <td class="t-last">
+              <div class="t-last__n" title="The relay does not record when a key was last used">—</div>
+              <div class="meta num">{{ jobsText(k) }} · {{ unfinishedText(k) }} unfinished</div>
             </td>
             <td class="t-act">
               <ActionMenu
@@ -363,6 +382,15 @@ tr.is-new td {
 .t-key .meta {
   margin-top: 2px;
 }
+/* a long label is cut to one line, its full text on hover (KeysStates, long text) */
+.kl__table td.t-key {
+  max-width: 0;
+}
+.t-key .k-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .k-label {
   min-width: 0;
   font-weight: 700;
@@ -383,10 +411,10 @@ tr.is-new td {
   flex-wrap: wrap;
   gap: 6px;
 }
-.t-jobs {
+.t-last {
   white-space: nowrap;
 }
-.t-jobs__n {
+.t-last__n {
   font-weight: 600;
   color: var(--rl-body);
 }
@@ -586,7 +614,7 @@ tr.is-new td {
 .bar--caps {
   width: 140px;
 }
-.bar--jobs {
+.bar--last {
   width: 80px;
 }
 .p-key--skel .bar--a {

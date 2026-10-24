@@ -8,15 +8,18 @@ import { byProviderOrder } from "@/lib/providers";
 // What a key is called wherever a person reads it: its label, else its prefix (a label of spaces is no label).
 export const keyName = (k: Pick<ApiKey, "label" | "prefix">): string => k.label.trim() || k.prefix;
 
-// `03/09/2026`; a key made today shows the hour instead of the year: `15/10 20:54`. Local time.
+// `2 Sep` as KeyForm writes it; a key of an earlier year adds the year: `2 Sep 2025`. Local time.
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 export function createdText(ms: number | null, now: number = Date.now()): string {
   if (!ms) return "-";
   const d = new Date(ms);
-  const two = (n: number): string => String(n).padStart(2, "0");
-  const date = `${two(d.getDate())}/${two(d.getMonth() + 1)}`;
-  if (d.toDateString() === new Date(now).toDateString()) return `${date} ${two(d.getHours())}:${two(d.getMinutes())}`;
-  return `${date}/${d.getFullYear()}`;
+  const date = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return d.getFullYear() === new Date(now).getFullYear() ? date : `${date} ${d.getFullYear()}`;
 }
+
+// When a key's day counters start again, on the GMT+7 clock: the billing day is 00:00 UTC (billing.DEFAULT_TZ).
+// ponytail: fixed text; a deployment that pins another BILLING_TZ needs the zone served by the API to say it right.
+export const DAY_RESET = "07:00";
 
 // The list's failed load, worded as the canvas words a failed list (B-States): "Could not load the API keys: the relay
 // answered 502 (bad gateway)." `said` is the app's own text for the failure (errorText); with no answer from the relay

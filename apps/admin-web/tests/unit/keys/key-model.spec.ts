@@ -74,15 +74,12 @@ describe("modelGroups", () => {
 
 describe("createdText", () => {
   const now = new Date(2026, 9, 15, 20, 55, 2).getTime();
-  it("a key of an earlier day shows day/month/year", () => {
-    expect(createdText(new Date(2026, 8, 3, 9, 0).getTime(), now)).toBe("03/09/2026");
+  it("a key of this year shows the day and the month, as KeyForm writes it", () => {
+    expect(createdText(new Date(2026, 8, 2, 9, 0).getTime(), now)).toBe("2 Sep");
+    expect(createdText(new Date(2026, 9, 15, 20, 54).getTime(), now)).toBe("15 Oct");
   });
-  it("a key made today shows day/month and the hour and minute", () => {
-    expect(createdText(new Date(2026, 9, 15, 20, 54).getTime(), now)).toBe("15/10 20:54");
-  });
-  it("a key made at midnight today still reads as today, one a minute before as yesterday's date", () => {
-    expect(createdText(new Date(2026, 9, 15, 0, 0).getTime(), now)).toBe("15/10 00:00");
-    expect(createdText(new Date(2026, 9, 14, 23, 59).getTime(), now)).toBe("14/10/2026");
+  it("a key of an earlier year adds the year", () => {
+    expect(createdText(new Date(2025, 11, 31, 23, 59).getTime(), now)).toBe("31 Dec 2025");
   });
   it("no time is a dash", () => {
     expect(createdText(null, now)).toBe("-");

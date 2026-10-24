@@ -639,7 +639,7 @@ describe("the page as the design draws it", () => {
   it("an empty list says so and offers New key, with no chip note", async () => {
     list.mockResolvedValue({ items: [] });
     const w = await open();
-    expect(w.text()).toContain("No API keys yet.");
+    expect(w.text()).toContain("No API keys yet");
     expect(buttonOf("New key")).toBeDefined();
     expect(w.text()).not.toContain("A chip = the key may use that provider");
   });
@@ -693,14 +693,12 @@ describe("the key form as the design draws it", () => {
     const dialog = document.body.querySelector('[role="dialog"]')!;
     expect(dialog.hasAttribute("aria-label")).toBe(false);
     expect(document.getElementById(dialog.getAttribute("aria-labelledby")!)).toBe(drawerEl().querySelector("h2"));
-    expect(drawerEl().textContent).toContain("rk_abcd•••• · created");
+    expect(drawerEl().textContent).toContain("rk_abcd•••••••• · created");
     expect(drawerEl().textContent).toContain("1,912 jobs");
     expect(drawerEl().textContent).toContain("balance 3,905 pts · −860 today");
     expect(drawerEl().textContent).toContain("total 14 / 200");
     expect(drawerEl().textContent).toContain("unlimited · 9 used today");
-    expect(drawerEl().textContent).toContain(
-      "A job needs the points wallet and its provider's cap both open. Caps apply in limit mode. Per day resets at midnight.",
-    );
+    expect(drawerEl().textContent).toContain("Caps apply in limit mode. Per day resets at 07:00 GMT+7.");
   });
 
   it("a new key has a plain title and says nothing of use", async () => {
@@ -883,7 +881,7 @@ describe("a key with no label in the list", () => {
   it("a labelled key shows its label with the prefix under it", async () => {
     const w = await open();
     expect(w.find("tbody tr .k-label").text()).toBe("shop");
-    expect(w.find("tbody tr .t-key .meta").text()).toBe("rk_abcd••••");
+    expect(w.find("tbody tr .t-key .meta").text()).toBe("rk_abcd••••••••");
   });
 
   it("the phone block shows the prefix once, as the name", async () => {
@@ -1142,7 +1140,7 @@ describe("the tablet and the phone", () => {
       "Key",
       "Wallet",
       "Providers and caps today",
-      "Jobs",
+      "Last used",
       "Actions",
     ]);
     expect(pagePrimary().textContent?.trim()).toBe("New key");

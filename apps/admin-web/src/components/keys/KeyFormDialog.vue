@@ -15,6 +15,7 @@ import {
   changedCount,
   type CreateError,
   createdText,
+  DAY_RESET,
   jobsText,
   keyBody,
   keyForm,
@@ -72,7 +73,11 @@ const drawer = useTemplateRef<InstanceType<typeof SideDrawer>>("drawer");
 
 // the points wallet first, then one cap per provider
 const points = computed(() => form.wallets.find((w) => w.scope === POINTS));
-const caps = computed(() => form.wallets.filter((w) => w.scope !== POINTS));
+// the caps in the drawn provider order, as the list's chips
+const caps = computed(() => {
+  const by = new Map(form.wallets.filter((w) => w.scope !== POINTS).map((w) => [w.scope, w]));
+  return byProviderOrder([...by.keys()]).map((p) => by.get(p)!);
+});
 const saved = (scope: string) => props.editing?.wallets.find((w) => w.scope === scope);
 const balance = computed(() => balanceOf(saved(POINTS)));
 
@@ -97,14 +102,16 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
     :back-label="isPhone ? '' : 'Back to API keys'"
     :dirty="dirty"
     :busy="props.busy"
+    :panel-class="isPhone ? 'kf-drawer is-sheet-head' : 'kf-drawer'"
     full
     @back="drawer?.close()"
     @closed="emit('closed')"
   >
     <template #sub>
       <span v-if="props.editing" class="kf__sub"
-        ><span class="mono">{{ props.editing.prefix }}••••</span> · created
-        {{ createdText(props.editing.created_ms) }} · {{ jobsText(props.editing) }}</span
+        ><span class="mono">{{ props.editing.prefix }}{{ isPhone ? "••••" : "••••••••" }}</span
+        >{{ " "
+        }}<span>· created {{ createdText(props.editing.created_ms) }} · {{ jobsText(props.editing) }}</span></span
       >
       <span v-else class="kf__sub">One points wallet, shared by every provider</span>
     </template>
@@ -138,7 +145,7 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
             :value="form.maxUnfinished"
             @input="form.maxUnfinished = typed($event)"
           />
-          <span class="kf__help">empty = default 5, 0 = unlimited</span>
+          <span class="kf__help">empty = 5, 0 = unlimited</span>
         </div>
       </div>
 
@@ -249,10 +256,7 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
 
       <fieldset class="kf__set" :class="{ 'is-error': flagged('wallets') }">
         <legend class="kf__legend">Daily caps per provider</legend>
-        <span class="kf__help"
-          >A job needs the points wallet and its provider's cap both open. Caps apply in limit mode. Per day resets at
-          midnight.</span
-        >
+        <span class="kf__help">Caps apply in limit mode. Per day resets at {{ DAY_RESET }} GMT+7.</span>
         <div class="kf__caps">
           <div v-if="!isPhone" class="kf__crow kf__chead" aria-hidden="true">
             <span>Wallet</span><span>Mode</span><span>Per day</span><span>Total</span>
@@ -271,6 +275,7 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
                   :provider="w.scope"
                   :used="saved(w.scope)?.used_day ?? 0"
                   :cap="saved(w.scope)?.mode === 'limit' ? saved(w.scope)!.day_limit : null"
+                  :resets="DAY_RESET"
                 />
               </span>
               <span class="kf__help num">{{ props.editing ? capLine(saved(w.scope)) : "new key: nothing used" }}</span>
@@ -309,6 +314,13 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
           </div>
         </div>
       </fieldset>
+
+      <p v-if="!props.editing" class="kf__notice">
+        <span
+          ><b>Shown once.</b> The full key appears right after you create it, and must be copied before that screen
+          closes.</span
+        >
+      </p>
     </form>
 
     <template #footer="{ close }">
@@ -342,9 +354,31 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
   font-variant-numeric: tabular-nums;
 }
 .kf__sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
   font-size: 12px;
   line-height: 18px;
   color: var(--rl-faint);
+}
+/* the key drawer's head as KeyForm draws it: the title 18/26 in 800, 4 px over the line under it */
+.kf-drawer:not(.is-sheet-head) .rl-drawer__head {
+  gap: 4px;
+}
+.kf-drawer:not(.is-sheet-head) .rl-drawer__title {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.kf__notice {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--rl-primary-soft);
+  color: var(--rl-brand-ink);
+  font-size: 13px;
+  line-height: 19px;
 }
 .kf__error {
   display: flex;
@@ -733,7 +767,7 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
   margin-left: 0;
 }
 /* the phone footer: 10 px over and under the two buttons, 16 px at the sides (KeyCreatePhone) */
-.rl-drawer__foot:has(.kf__buttons.is-phone) {
+.rl-drawer.kf-drawer .rl-drawer__foot:has(.kf__buttons.is-phone) {
   padding: 10px 16px;
 }
 .kf__buttons.is-phone .kf__btn {

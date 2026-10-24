@@ -63,7 +63,7 @@ function closed(open: boolean): void {
   <ModalCard
     :model-value="true"
     :title="`Key created for ${props.label}`"
-    tone="ok"
+    :tone="isPhone ? 'none' : 'ok'"
     :locked="!unlocked"
     width="480px"
     testid="new-key"
@@ -88,13 +88,14 @@ function closed(open: boolean): void {
               @copy="unlocked = true"
             ></textarea>
             <button type="button" class="ks__copy" @click="copy">
-              <IconCopy :size="15" />{{ copied ? "Copied" : isPhone ? "Copy key" : "Copy" }}
+              <IconCopy v-if="!isPhone" :size="15" />{{ copied ? "Copied" : isPhone ? "Copy key" : "Copy" }}
             </button>
           </div>
           <span class="ks__help">Send it in the header <span class="mono">Authorization: Bearer …</span></span>
         </div>
         <p v-if="!unlocked" class="ks__lock" role="note">
           <svg
+            v-if="!isPhone"
             width="16"
             height="16"
             viewBox="0 0 24 24"
@@ -164,7 +165,7 @@ function closed(open: boolean): void {
   border-radius: 10px;
   background: var(--rl-head);
   color: var(--rl-fg);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 20px;
   resize: none;
   overflow: hidden;
