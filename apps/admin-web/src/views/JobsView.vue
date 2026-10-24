@@ -218,7 +218,10 @@ const onVisible = (): void => {
   if (!document.hidden) poll();
 };
 
+// A phone's buttons go to the top bar when the shell drew its target (the view alone, in a spec, keeps them here).
+const barThere = ref(false);
 onMounted(() => {
+  barThere.value = !!document.getElementById("topbar-actions");
   void load(0);
   void providers.refresh();
   listKeyOptions().then(
@@ -358,16 +361,19 @@ function openInNewTab(id: string): void {
           {{ r.label }}
         </button>
       </div>
-      <template v-if="isPhone">
-        <IconButton
-          icon="search"
-          label="Search jobs"
-          placement="bottom-end"
-          :class="{ 'is-on': searchOpen }"
-          @click="searchOpen = !searchOpen"
-        />
-        <IconButton icon="plus" label="New test job" placement="bottom-end" @click="newTest" />
-      </template>
+      <!-- a phone (JobsPhone): search and plus in the shell's top bar when it drew its slot -->
+      <Teleport v-if="isPhone" to="#topbar-actions" :disabled="!barThere" defer>
+        <span class="jobs__bar-actions">
+          <IconButton
+            icon="search"
+            label="Search jobs"
+            placement="bottom-end"
+            :class="{ 'is-on': searchOpen }"
+            @click="searchOpen = !searchOpen"
+          />
+          <IconButton icon="plus" label="New test job" placement="bottom-end" @click="newTest" />
+        </span>
+      </Teleport>
       <template v-else>
         <!-- a tablet (JobsTablet): Search jobs beside New test job opens the search box in the toolbar -->
         <button
@@ -585,8 +591,13 @@ function openInNewTab(id: string): void {
   outline: 2px solid var(--rl-focus);
   outline-offset: 2px;
 }
-.jobs__range + :deep(.ib-wrap) {
+.jobs__range + .jobs__bar-actions {
   margin-left: auto;
+}
+.jobs__bar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .jobs--phone .jobs__head {
   margin: -6px 0 -4px;
@@ -594,7 +605,10 @@ function openInNewTab(id: string): void {
 .jobs__head :deep(.ib) {
   color: var(--rl-brand-ink);
 }
-.jobs__head :deep(.ib-wrap:first-of-type .ib) {
+.jobs__bar-actions :deep(.ib) {
+  color: var(--rl-brand-ink);
+}
+.jobs__bar-actions :deep(.ib-wrap:first-child .ib) {
   color: var(--rl-body);
 }
 
