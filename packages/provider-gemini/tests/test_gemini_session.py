@@ -222,7 +222,7 @@ def test_the_check_finds_the_index_of_the_account_the_credential_names_and_keeps
     fake = Gemini(log, accounts=["a@example.com", "b@example.com", "Owner.Pro@example.com", "c@example.com"],
                   rpc={"otAQ7b": PRO_MODES})
     health = check(fake, Ctx(log, blob=blob_for("owner.pro@example.com")))
-    assert health.state == "alive"
+    assert health.state == "alive", "the account named by email was not looked for: %s" % (health,)
     assert health.state_patch.get("authuser") == 2, \
         "the account named by email was not looked for, or the index found was not kept: %s" % (health.state_patch,)
     assert health.state_patch["mode"] == MODE_FLASH_LITE

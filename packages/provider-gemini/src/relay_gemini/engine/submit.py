@@ -176,9 +176,9 @@ def judge(status: int, answer: Answer | None, *, video: bool = False) -> tuple[s
     media = answer.videos if video else answer.images
     if media:
         return "done", media
-    if video and answer.generating:
-        return "taken", None
     final = answer.texts[-1].strip() if answer.texts else ""
+    if video and answer.generating and not final:      # the free plan's "upgrade" answer carries the item too
+        return "taken", None
     if not final or IMAGE_PLACEHOLDER in final or VIDEO_PLACEHOLDER in final:
         return "unknown", "the answer named no %s record" % ("video" if video else "image")
     if NOT_ENTITLED_LINK in final:

@@ -88,7 +88,8 @@ def cid_of(text: str) -> str:
 
 
 # ---- the send -----------------------------------------------------------------------------------------------------
-TAKEN = '    if video and answer.generating:\n        return "taken", None\n'
+TAKEN_IF = "    if video and answer.generating and not final:"
+TAKEN = TAKEN_IF + '      # the free plan\'s "upgrade" answer carries the item too\n        return "taken", None\n'
 
 
 @mutation(SUBMIT_FILE, TAKEN, "", expect="a taken video")
@@ -112,7 +113,8 @@ def test_a_text_to_video_is_on_record_and_marked_sent_before_its_one_send_and_a_
 def test_the_video_send_is_the_web_apps_request_on_the_accounts_index_with_its_mode():
     log = []
     g = pro_site(log, send=T2V_ACCEPTED)
-    run(g, pro_ctx(log), video_job())
+    result = run(g, pro_ctx(log), video_job())
+    assert g.sends(), "nothing sent: the page went to another account (%s)" % (result.job,)
     send = g.sends()[0]
     gemini_calls = [r.url.path for r in g.seen if r.url.host == "gemini.google.com"]
     assert all(p.startswith("/u/4/") for p in gemini_calls), "a call went to another account: %s" % gemini_calls
@@ -175,6 +177,7 @@ LIMIT_REST = "        limited = (limit_rest(settings, now),) if code == errors.V
 
 
 @mutation(SUBMIT_FILE, LIMIT, "    if False:\n", expect="the video limit")
+@mutation(SUBMIT_FILE, TAKEN_IF, "    if video and answer.generating:", expect="the upgrade answer")
 @mutation(SUBMIT_FILE, LIMIT_REST, "        limited = ()\n", expect="the video pool did not rest")
 def test_the_video_limit_answer_fails_with_its_refund_and_rests_the_accounts_video_pool():
     text = "I can't create more videos for you today, but I can still find videos from the web."
@@ -189,7 +192,9 @@ def test_the_video_limit_answer_fails_with_its_refund_and_rests_the_accounts_vid
     log = []
     assert run(pro_site(log, send=answer(text)), pro_ctx(log), job()).job.code == errors.REFUSED
     log = []
-    assert run(pro_site(log, send=NOT_ENTITLED), pro_ctx(log), video_job()).job.code == errors.NOT_ENTITLED
+    upgrade = run(pro_site(log, send=NOT_ENTITLED), pro_ctx(log), video_job()).job
+    assert isinstance(upgrade, Fail) and upgrade.code == errors.NOT_ENTITLED, \
+        "the upgrade answer became %s" % (upgrade,)
 
 
 # ---- before the send: the right Google account -------------------------------------------------------------------
