@@ -6,14 +6,16 @@ clamps, unclear replies) come from the alerts routes, not from here.
 """
 
 import shutil
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from psycopg_pool import AsyncConnectionPool
 
 from relay_core.admin.routes_common import ms, pool_budget
 from relay_core.api.deps import get_pool, get_registry, get_settings
+from relay_core.api.errors_http import ApiError
 from relay_core.db import tx
 from relay_core.pool import pool_configs, pool_states
 from relay_core.providers import ProviderRegistry
@@ -236,21 +238,49 @@ _SUMMARY_HOURS = (
     "SELECT floor(extract(epoch FROM finished_at - %(start)s) / 3600)::int, provider, "
     "count(*) FILTER (WHERE status = 'done'), count(*) FILTER (WHERE status = 'failed') "
     "FROM jobs WHERE status IN ('done', 'failed') AND finished_at >= %(start)s GROUP BY 1, 2")
+# A longer range is cut in local days of the same zone: the day index since the range's first day.
+_SUMMARY_DAYS = (
+    "SELECT ((finished_at AT TIME ZONE %(tz)s)::date - (%(start)s AT TIME ZONE %(tz)s)::date)::int, provider, "
+    "count(*) FILTER (WHERE status = 'done'), count(*) FILTER (WHERE status = 'failed') "
+    "FROM jobs WHERE status IN ('done', 'failed') AND finished_at >= %(start)s GROUP BY 1, 2")
+# The jobs done over the same stretch one range earlier: today against yesterday up to the same clock, 7 days against
+# the 7 days before them.
+_PREV_DONE = ("SELECT count(*) FROM jobs WHERE status = 'done' AND finished_at >= %(start)s - %(span)s "
+              "AND finished_at < %(now)s - %(span)s")
 HOUR_MS = 3_600_000
+RANGES = {"today": 1, "7d": 7, "30d": 30}             # the Jobs page's range switch: its length in local days
+
+
+def range_start(day_start: datetime, tz: str, days: int) -> datetime:
+    """Midnight `days - 1` local days before the day that starts at `day_start`, in `tz` (a DST change is kept)."""
+    zone = ZoneInfo(tz)
+    first = day_start.astimezone(zone).date() - timedelta(days=days - 1)
+    return datetime.combine(first, time(), tzinfo=zone)
 
 
 @router.get("/providers/summary")
-async def providers_summary(pool: AsyncConnectionPool = Depends(get_pool), settings: Settings = Depends(get_settings),
+async def providers_summary(span: str = Query("today", alias="range"), pool: AsyncConnectionPool = Depends(get_pool),
+                            settings: Settings = Depends(get_settings),
                             registry: ProviderRegistry = Depends(get_registry)) -> dict:
     """One card per registered provider, in a single call: how it sends now, whether it takes jobs, its open jobs,
     what finished since the start of the dashboard's day (`dashboard_tz`), its usable accounts and each pool's points
     left; and `hours`, every hour of that day so far (oldest first, zero-filled, `h` = its start) with the done and
-    failed jobs of each provider. No alert is computed here (`/stats` does that)."""
+    failed jobs of each provider. No alert is computed here (`/stats` does that).
+    `range` (`today`, `7d`, `30d`) widens "finished" to that many local days ending today (`range_start_ms`):
+    `done_today` and `failed_today` then count the whole range and `hours` holds one entry per local day (`bucket`
+    says which). `prev_done` counts the jobs done over the same stretch one range earlier."""
+    if span not in RANGES:
+        raise ApiError("input.invalid", "range")
+    days = RANGES[span]
     async with tx(pool) as conn:
         tz = settings.get("dashboard_tz")
-        start, now = await (await conn.execute(_DAY, {"tz": tz})).fetchone()
+        day_start, now = await (await conn.execute(_DAY, {"tz": tz})).fetchone()
+        start = day_start if days == 1 else range_start(day_start, tz, days)
         jobs = {r[0]: r[1:] for r in await (await conn.execute(_SUMMARY_JOBS, {"start": start})).fetchall()}
-        hourly = await (await conn.execute(_SUMMARY_HOURS, {"start": start})).fetchall()
+        hourly = await (await conn.execute(_SUMMARY_HOURS if days == 1 else _SUMMARY_DAYS,
+                                           {"start": start, "tz": tz})).fetchall()
+        prev_done = (await (await conn.execute(_PREV_DONE, {
+            "start": start, "now": now, "span": timedelta(days=days)})).fetchone())[0]
         accounts = {r[0]: r[1:] for r in await (await conn.execute(_USABLE)).fetchall()}
         per = await _pool_points(conn, settings, registry, None)
     cards = []
@@ -270,13 +300,17 @@ async def providers_summary(pool: AsyncConnectionPool = Depends(get_pool), setti
                       for p, f in per.get(name, {}).items()],
         })
     names = registry.names()
-    day_ms = int(start.timestamp() * 1000)
-    hours = [{"h": day_ms + i * HOUR_MS, "done": dict.fromkeys(names, 0), "failed": dict.fromkeys(names, 0)}
-             for i in range(int((now - start).total_seconds()) // 3600 + 1)]
+    day_ms = int(day_start.timestamp() * 1000)
+    if days == 1:
+        starts = [day_ms + i * HOUR_MS for i in range(int((now - start).total_seconds()) // 3600 + 1)]
+    else:
+        starts = [int(range_start(day_start, tz, days - i).timestamp() * 1000) for i in range(days)]
+    hours = [{"h": h, "done": dict.fromkeys(names, 0), "failed": dict.fromkeys(names, 0)} for h in starts]
     for i, name, done, failed in hourly:
         if name in names and i < len(hours):         # a finish stamped after the read's clock waits for the next read
             hours[i]["done"][name], hours[i]["failed"][name] = done, failed
-    return {"day_tz": tz, "day_start_ms": day_ms, "providers": cards, "hours": hours}
+    return {"day_tz": tz, "day_start_ms": day_ms, "range": span, "range_start_ms": int(start.timestamp() * 1000),
+            "bucket": "hour" if days == 1 else "day", "prev_done": prev_done, "providers": cards, "hours": hours}
 
 
 @router.get("/stats")

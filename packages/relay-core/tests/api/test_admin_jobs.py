@@ -10,6 +10,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import psycopg
+from accountkit import done_job
 from apikit import run_app
 from jobkit import POOLS, PROVIDER, account, claim, create, key, run, submit
 
@@ -32,6 +33,7 @@ def op() -> dict:
     return {"json": {"operation_key": uuid.uuid4().hex}}
 
 ROUTES = "packages/relay-core/src/relay_core/admin/routes_jobs.py"
+STATUS_FILTER = "(%(status)s::text[] IS NULL OR j.status = ANY(%(status)s))"
 NEWEST_FIRST = "ORDER BY j.created_at DESC, j.id DESC LIMIT %(limit)s"
 OLDEST_FIRST = "ORDER BY j.created_at ASC, j.id DESC LIMIT %(limit)s"
 OFFSET_CHECK = "if offset is not None and (not 0 <= offset <= MAX_OFFSET or cursor is not None):"
@@ -121,7 +123,7 @@ def test_the_list_is_newest_first_filters_by_status_and_pages_without_a_gap_or_a
 
 
 @mutation(ROUTES, "LIMIT %(limit)s OFFSET %(offset)s", "LIMIT %(limit)s", expect="the offset slice")
-@mutation(ROUTES, "(%(status)s::text IS NULL OR j.status = %(status)s)", "(true)", expect="total follows status")
+@mutation(ROUTES, STATUS_FILTER, "(true)", expect="total follows status")
 @mutation(ROUTES, "j.provider = %(provider)s)", "true)", expect="total follows provider")
 @mutation(ROUTES, "(%(key)s::uuid IS NULL OR j.key_id = %(key)s)", "(true)", expect="total follows key")
 @mutation(ROUTES, '_COUNT = "SELECT count(*) FROM jobs j WHERE " + _FILTERS',
@@ -388,7 +390,7 @@ def test_day_totals_count_every_job_of_a_local_day_not_only_those_on_the_page(db
 @mutation(ROUTES, DAY_TOTALS_SQL, DAY_TOTALS_UNFILTERED, expect="totals follow the filters")
 @mutation(ROUTES, "j.provider = %(provider)s)", "true)", expect="totals follow the filters")
 @mutation(ROUTES, "(%(key)s::uuid IS NULL OR j.key_id = %(key)s)", "(true)", expect="totals follow the filters")
-@mutation(ROUTES, "(%(status)s::text IS NULL OR j.status = %(status)s)", "(true)", expect="totals follow the filters")
+@mutation(ROUTES, STATUS_FILTER, "(true)", expect="totals follow the filters")
 def test_every_filter_of_the_list_changes_the_day_totals_the_way_it_changes_the_list(db):
     k, other_key = key(db), key(db)
     account(db)
@@ -430,13 +432,14 @@ def test_without_tz_the_answer_has_no_day_totals_and_a_bad_tz_is_refused(db):
     db.run("UPDATE api_keys SET label = 'Golden key' WHERE id = %s", k)
     job = db.job(k, provider=PROVIDER)
     place(db, job, "2026-03-10", "10:00")
-    # the answer a client without `tz` has always got, byte for byte (key order and compact separators included)
+    # the answer a client without `tz` gets, byte for byte (key order and compact separators included): no day_totals
     golden = {"items": [{
         "id": str(job), "provider": PROVIDER, "key_id": str(k), "key_label": "Golden key", "operation": "generate",
         "media_type": "video", "model": "m", "title": "a prompt", "status": "queued", "error_code": None, "price": 0,
         "account_id": None, "account_label": None, "external_ref": None, "created_ms": saigon_ms("2026-03-10", "10:00"),
         "finished_ms": None, "error_status": None, "can_recheck": False, "outputs": 0, "inputs": 0, "net_charged": 0,
-        "model_substituted": False}], "total": 1, "next_cursor": None}
+        "model_substituted": False}], "total": 1, "status_counts": {"queued": 1}, "has_jobs": True,
+        "next_cursor": None}
 
     async def scenario(env):
         h = await env.admin_headers()
@@ -1002,3 +1005,111 @@ def test_a_debug_file_the_store_cannot_read_is_not_available_never_a_server_erro
         return r.status_code, code_of(r)
 
     assert run_app(db, scenario) == (404, "resource.not_found"), "a store that is down became a server error"
+
+
+# ---- the Ledger Jobs page: range, search, status groups and the drawer's raw facts --------------------------------
+SEARCH_PROMPT = " OR j.prompt ILIKE %(q)s"
+SEARCH_KEY = "sk.label ILIKE %(q)s"
+SEARCH_ACCOUNT = "sa.label ILIKE %(q)s"
+LIKE_ESCAPE = r'like = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")'
+RANGE_FLOOR = 'if floor is not None and (window["from"] is None or window["from"] < floor):'
+COUNTS_NO_STATUS = '_STATUS_COUNTS = "SELECT j.status, count(*) FROM jobs j WHERE " + _NO_STATUS'
+
+
+@mutation(ROUTES, SEARCH_PROMPT, " OR false", expect="prompt")
+@mutation(ROUTES, SEARCH_KEY, "false", expect="key label")
+@mutation(ROUTES, SEARCH_ACCOUNT, "false", expect="account label")
+@mutation(ROUTES, LIKE_ESCAPE, "like = q", expect="a literal %")
+@mutation(ROUTES, RANGE_FLOOR, "if False:", expect="range")
+@mutation(ROUTES, COUNTS_NO_STATUS, '_STATUS_COUNTS = "SELECT j.status, count(*) FROM jobs j WHERE " + _FILTERS',
+          expect="status counts")
+def test_the_list_takes_a_range_a_search_and_several_statuses_and_counts_each_status(db):
+    k, other = key(db), key(db)
+    db.run("UPDATE api_keys SET label = 'Studio Saigon' WHERE id = %s", k)
+    acct = account(db)
+    db.run("UPDATE accounts SET label = 'dola-n11-01' WHERE id = %s", acct)
+    lantern = done_job(db, k, acct, ref="a", prompt="Lantern festival on the river")
+    pho = done_job(db, other, ref="b", status="failed", prompt="A bowl of pho, 100% steam")
+    db.run("UPDATE jobs SET error_code = 'render.deadline' WHERE id = %s", pho)
+    queued = db.job(other, provider=PROVIDER, prompt="talking head")
+    old = done_job(db, other, ref="c", prompt="an old lantern")
+    db.run("UPDATE jobs SET created_at = now() - interval '3 days' WHERE id = %s", old)
+    asked = ("range=today", "range=7d", "range=30d&q=lantern", "range=today&q=lantern", "range=7d&q=saigon",
+             "range=7d&q=N11", "range=7d&q=" + str(pho)[:8], "range=7d&q=100%25", "range=7d&q=_",
+             "range=7d&status=failed,queued", "range=7d&status=done")
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        get = lambda q: env.client.get("/admin/jobs?" + q, headers=h)  # noqa: E731
+        got = {q: (await get(q)).json() for q in asked}
+        return got, (await get("range=year")).status_code, (await get("q=" + "x" * 201)).status_code
+
+    got, bad, long = run_app(db, scenario)
+    ids = lambda q: sorted(i["id"] for i in got[q]["items"])  # noqa: E731
+    check = Soft()
+    check(ids("range=today") == sorted(map(str, (lantern, pho, queued))), "range: today only")
+    check(len(ids("range=7d")) == 4, "range: 7 days")
+    check(ids("range=30d&q=lantern") == sorted(map(str, (lantern, old))), "prompt")
+    check(ids("range=today&q=lantern") == [str(lantern)], "range: the search stays in it")
+    check(ids("range=7d&q=saigon") == [str(lantern)], "key label")
+    check(ids("range=7d&q=N11") == [str(lantern)], "account label")
+    check(ids("range=7d&q=" + str(pho)[:8]) == [str(pho)], "the start of the job id")
+    check(ids("range=7d&q=100%25") == [str(pho)] and ids("range=7d&q=_") == [], "a literal % and _")
+    check(ids("range=7d&status=failed,queued") == sorted(map(str, (pho, queued))), "several statuses")
+    counts = got["range=7d&status=done"]["status_counts"]
+    check(counts == {"done": 2, "failed": 1, "queued": 1}, "status counts: every status, not only the chosen one")
+    check(got["range=7d&status=done"]["total"] == 2, "the total follows the status")
+    check((bad, long) == (400, 400), "a bad range or an overlong search is refused")
+    check.done()
+
+
+SECRETS = ("sk-live-0123456789abcdef", "abc.def.ghi", "zzzsession", "pw-proxy-9", "hook-pass", "SEKRET42",
+           "state-token-7", "rk-0123456789abcdefABCD")
+RAW_REQUEST_REDACTED = '{"route": logged[0], "status_code": logged[1], "body": redact_log(logged[2])}'
+RAW_STATE_REDACTED = '"diagnostics": redact_log(state),'
+
+
+@mutation(ROUTES, RAW_REQUEST_REDACTED, '{"route": logged[0], "status_code": logged[1], "body": logged[2]}',
+          expect="a secret reached the drawer")
+@mutation(ROUTES, RAW_STATE_REDACTED, '"diagnostics": state,', expect="a secret reached the drawer")
+@mutation(ROUTES, "AND job_id = %(id)s AND route NOT LIKE 'GET %%' ", "AND route NOT LIKE 'GET %%' ",
+          expect="the creating request")
+def test_the_drawers_raw_request_response_and_diagnostics_never_show_a_secret(db):
+    k = key(db)
+    acct = account(db)
+    db.run("UPDATE accounts SET proxy_host = '203.0.113.24', proxy_port = 8080, proxy_auth_enc = '\\x01' "
+           "WHERE id = %s", acct)
+
+    job = run(db, lambda p: waiting_job(p, k, "a lantern"))
+    other = run(db, lambda p: create(p, k, "another")).job_id
+    state = {"chat": "c_9f31", "token": SECRETS[6], "note": "cookie: sessionid=%s" % SECRETS[2]}
+    db.run("UPDATE jobs SET upstream_price = 4, provider_state = %s::jsonb WHERE id = %s", json.dumps(state), job)
+    ref, used = db.one("SELECT external_ref, account_id FROM jobs WHERE id = %s", job)
+    assert ref and used == acct
+    body = {"model": "fake-video", "api_key": SECRETS[0],
+            "headers": {"Authorization": "Bearer " + SECRETS[1], "Cookie": "sessionid=" + SECRETS[2]},
+            "proxy_url": "http://user:%s@203.0.113.24:8080" % SECRETS[3],
+            "callback_url": "https://hook:%s@hooks.example.com/x?token=%s" % (SECRETS[4], SECRETS[5]),
+            "note": "key " + SECRETS[7]}
+    for job_id, at in ((other, "now() - interval '1 second'"), (job, "now()")):   # another job's row comes first
+        db.run("INSERT INTO request_logs (at, key_id, provider, route, status_code, job_id, duration_ms, "
+               "body_redacted) VALUES (" + at + ", %s, %s, 'POST /v1/video/generations', 201, %s, 5, %s::jsonb)",
+               k, PROVIDER, job_id, json.dumps({**body, "prompt": str(job_id)}))
+
+    async def scenario(env):
+        r = await env.client.get("/admin/jobs/%s" % job, headers=await env.admin_headers())
+        return r.status_code, r.text, r.json()
+
+    status, text, d = run_app(db, scenario)
+    assert status == 200, text
+    leaked = [s for s in SECRETS if s in text]
+    assert not leaked, "a secret reached the drawer: %s" % leaked
+    raw = d["raw_request"]
+    assert (raw["route"], raw["status_code"]) == ("POST /v1/video/generations", 201)
+    assert raw["body"]["prompt"] == str(job), "the creating request: this job's row, not another's"
+    assert d["raw_response"]["route"] == "GET /v1/video/generations/%s" % job
+    assert d["raw_response"]["body"]["id"] == str(job) and d["raw_response"]["status_code"] == 200
+    assert d["proxy"] == "203.0.113.24:8080", "host and port, never the proxy's credentials"
+    assert (d["conversation"], d["provider_task_id"]) == ("c_9f31", ref)
+    assert d["diagnostics"]["chat"] == "c_9f31"
+    assert d["net_charged"] > 0 and (d["upstream_cost"], d["margin"]) == (4, d["net_charged"] - 4)

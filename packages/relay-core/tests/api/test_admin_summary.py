@@ -1,7 +1,7 @@
 """GET /admin/providers/summary: the Jobs page's provider figures in one call, today counted on the billing day."""
 
 import dataclasses
-from datetime import datetime
+from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -173,6 +173,45 @@ def test_an_empty_relay_gives_zero_figures_and_zero_filled_hours(db):
                   {"pool": "image", "unit": "jobs", "left": 0, "budget": 0}]}]
     assert body["day_tz"] == TZ and body["hours"]
     assert all(h["done"] == {"fake": 0} and h["failed"] == {"fake": 0} for h in body["hours"])
+
+
+@mutation(ROUTES, '"AND finished_at < %(now)s - %(span)s")', '"AND finished_at < %(now)s")', expect="prev_done")
+@mutation(ROUTES, "first = day_start.astimezone(zone).date() - timedelta(days=days - 1)",
+          "first = day_start.astimezone(zone).date() - timedelta(days=days)", expect="range start")
+@mutation(ROUTES, "_SUMMARY_HOURS if days == 1 else _SUMMARY_DAYS", "_SUMMARY_HOURS", expect="days")
+def test_a_range_widens_the_finished_jobs_to_local_days_and_counts_the_stretch_before_it(db):
+    k = key(db)
+    start = "date_trunc('day', now() AT TIME ZONE tz) AT TIME ZONE tz"
+    done_job(db, k, ref="today")
+    for ref, days in (("yesterday", 1), ("three", 3), ("ten", 10)):     # just after a midnight that many days ago
+        finished_at(db, done_job(db, k, ref=ref), "%s - interval '%d days' + interval '1 min'" % (start, days))
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        got = [await env.client.get("/admin/providers/summary?range=" + r, headers=h) for r in ("7d", "30d", "year")]
+        return await summary(env), got[0].json(), got[1].json(), got[2].status_code
+
+    today, week, month, bad = run_app(db, scenario)
+    midnight = datetime.now(ZoneInfo(TZ)).replace(hour=0, minute=0, second=0, microsecond=0)
+    days = [(midnight.date() - timedelta(days=6 - i)) for i in range(7)]
+    check = []
+    if (today["range"], today["bucket"], by_name(today)["fake"]["done_today"], today["prev_done"]) != (
+            "today", "hour", 1, 1):
+        check.append("prev_done: today against yesterday up to the same clock")
+    if (week["bucket"], by_name(week)["fake"]["done_today"]) != ("day", 3):
+        check.append("days: 7 days count today, yesterday and three days ago")
+    if week["range_start_ms"] != int(datetime.combine(days[0], time(), ZoneInfo(TZ)).timestamp() * 1000):
+        check.append("range start: midnight six local days ago")
+    if [h["h"] for h in week["hours"]] != [int(datetime.combine(d, time(), ZoneInfo(TZ)).timestamp() * 1000)
+                                           for d in days]:
+        check.append("days: one entry per local day, oldest first")
+    if [h["done"]["fake"] for h in week["hours"]] != [0, 0, 0, 1, 0, 1, 1]:
+        check.append("days: done per local day")
+    if week["prev_done"] != 1 or (by_name(month)["fake"]["done_today"], month["prev_done"]) != (4, 0):
+        check.append("prev_done: the stretch one range earlier")
+    if bad != 400:
+        check.append("a bad range is refused")
+    assert not check, "; ".join(check)
 
 
 @mutation(PROVIDERS, "if execution_setting is not None and execution_setting not in keys:", "if False:",

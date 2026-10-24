@@ -14,14 +14,15 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import psycopg
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from psycopg_pool import AsyncConnectionPool
 from pydantic import Field
 
 from relay_core import billing, storage
 from relay_core.admin.routes_common import MAX_PAGE, Strict, enqueue, ms
+from relay_core.admin.routes_stats import _DAY, RANGES, range_start
 from relay_core.api.deps import get_pool, get_registry, get_settings, get_store
-from relay_core.api.doors import Gate, checked_prompt, plan_job, prompt_cap
+from relay_core.api.doors import Gate, checked_prompt, job_status, plan_job, prompt_cap, public_base
 from relay_core.api.errors_http import ApiError
 from relay_core.api.routes_media import serve_job_media
 from relay_core.db import tx
@@ -32,6 +33,7 @@ from relay_core.jobs.create import InputMedia
 from relay_core.jobs.shares import PgShareTable
 from relay_core.jobs.titles import SHOWN_TITLE
 from relay_core.providers import CreateRequest, MediaIn, Plan, ProviderRegistry
+from relay_core.redact import redact_log, redact_text
 from relay_core.settings import Settings
 from relay_core.storage import ObjectStore
 
@@ -45,8 +47,18 @@ MAX_BULK = 100
 MAX_OFFSET = 1_000_000                               # a deeper page is a scan nobody reads; use the cursor
 DEBUG_READ_MAX = 8 * 1024 * 1024
 _RASTER = ("image/png", "image/jpeg", "image/webp", "image/gif")
-_FILTERS = ("(%(status)s::text IS NULL OR j.status = %(status)s) AND (%(provider)s::text IS NULL OR "
-            "j.provider = %(provider)s) AND (%(key)s::uuid IS NULL OR j.key_id = %(key)s)")
+_NO_STATUS = ("(%(provider)s::text IS NULL OR j.provider = %(provider)s) AND "
+              "(%(key)s::uuid IS NULL OR j.key_id = %(key)s)")
+_FILTERS = "(%(status)s::text[] IS NULL OR j.status = ANY(%(status)s)) AND " + _NO_STATUS
+# Search: the start of the job id, the prompt or title, the key's label, the account's label; case-insensitive. Never
+# unbounded: a search always rides on a created_at window (MAX_SEARCH_DAYS when none is given).
+_SEARCH = (" AND (j.id::text LIKE %(q_id)s OR j.prompt ILIKE %(q)s OR j.title ILIKE %(q)s"
+           " OR EXISTS (SELECT 1 FROM api_keys sk WHERE sk.id = j.key_id AND sk.label ILIKE %(q)s)"
+           " OR EXISTS (SELECT 1 FROM accounts sa WHERE sa.id = j.account_id AND sa.label ILIKE %(q)s))")
+MAX_SEARCH_DAYS = 30
+SEARCH_MAX = 200
+_ANY_JOB = "SELECT EXISTS (SELECT 1 FROM jobs)"         # one index probe: an empty page under a range is no match
+_STATUS_COUNTS = "SELECT j.status, count(*) FROM jobs j WHERE " + _NO_STATUS
 # The created_at window is added only when a bound is given, so the planner always sees a plain range on
 # jobs_created_at_idx (a nullable `IS NULL OR` branch would stop a generic plan from using it).
 _FROM = " AND j.created_at >= %(from)s"
@@ -97,7 +109,16 @@ _DETAIL = (
     "j.params, j.completion, j.price_key, j.pool, j.account_cost, j.attempts, j.claims, j.sent_at, j.render_since, "
     "j.upstream_price, j.upstream_model, j.error, j.warnings, j.callback_status, j.callback_attempts, k.key_prefix, "
     "j.callback_last, j.updated_at, j.provider_state, j.frame_id, j.sent_text "
+    ", j.request, a.proxy_host, a.proxy_port "
     "FROM jobs j LEFT JOIN api_keys k ON k.id = j.key_id LEFT JOIN accounts a ON a.id = j.account_id WHERE j.id = %s")
+# The request that made the job, as the request log kept it (redacted when written): the job's first write, looked for
+# around its creation only, so the read stays on request_logs_at.
+_CREATE_LOG = ("SELECT route, status_code, body_redacted FROM request_logs WHERE at >= %(at)s - interval '1 minute' "
+               "AND at < %(at)s + interval '10 minutes' AND job_id = %(id)s AND route NOT LIKE 'GET %%' "
+               "ORDER BY at, id LIMIT 1")
+# Providers whose external_ref is the upstream conversation (dola adopts the conversation as the job's reference); for
+# the others it is the upstream's task, batch or request id.
+_REF_IS_CONVERSATION = ("dola",)
 _SUMMARY = ("id", "provider", "key_id", "key_label", "operation", "media_type", "model", "title", "status",
             "error_code", "price", "account_id", "account_label", "external_ref", "created_at", "finished_at")
 _NET = ("SELECT COALESCE(sum(CASE entry WHEN 'charge' THEN amount ELSE -amount END), 0) FROM ledger "
@@ -124,6 +145,19 @@ def _summary(row: tuple) -> dict[str, Any]:
     item["error_status"] = http_status(code) if status == "failed" and code else None
     item["can_recheck"] = status in RECHECKABLE and external_ref is not None
     return item
+
+
+def _upstream_ids(provider: str, external_ref: str | None, state: dict) -> tuple[str | None, str | None]:
+    """(conversation, task id) as the provider keeps them: the chat or conversation in its state (dola's is the
+    job's external_ref), the task, batch or request id in its state, else the external_ref when it is not the
+    conversation."""
+    text = lambda v: str(v) if v not in (None, "") else None  # noqa: E731
+    conversation = text(state.get("chat") or state.get("conversation_id")) or (
+        text(external_ref) if provider in _REF_IS_CONVERSATION else None)
+    task = text(state.get("task") or state.get("batch") or state.get("request"))
+    if task is None and provider not in _REF_IS_CONVERSATION and text(external_ref) != conversation:
+        task = text(external_ref)
+    return conversation, task
 
 
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
@@ -157,30 +191,58 @@ def _window_bound(value: int | None, param: str) -> datetime | None:
 async def list_jobs(status: str | None = None, provider: str | None = None, key_id: uuid.UUID | None = None,
                     limit: int = 50, cursor: str | None = None, offset: int | None = None,
                     created_from_ms: int | None = None, created_to_ms: int | None = None, tz: str | None = None,
-                    pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
+                    span: str | None = Query(None, alias="range"), q: str | None = None,
+                    pool: AsyncConnectionPool = Depends(get_pool), settings: Settings = Depends(get_settings)) -> dict:
     """Newest first. `next_cursor` is None on the last page; pass it back as `cursor` for the next one. `offset`
     (>= 0) pages by position instead and cannot be combined with `cursor`. `created_from_ms` (inclusive) and
-    `created_to_ms` (exclusive) bound `created_at`, epoch ms, from < to. `total` counts the jobs that match the
-    same filters, read in the same transaction as the page. With `tz` (an IANA zone) the answer also holds
-    `day_totals`: for each local day (`YYYY-MM-DD`) on the page, the jobs of that day matching the same filters."""
+    `created_to_ms` (exclusive) bound `created_at`, epoch ms, from < to. `range` (`today`, `7d`, `30d`) starts the
+    window at the provider summary's range start (local midnight in `dashboard_tz`), the later of it and
+    `created_from_ms`. `status` is one status or several, comma-separated. `q` searches the start of the job id, the
+    prompt, the title, the key's label and the account's label, case-insensitively, inside the window (the last
+    MAX_SEARCH_DAYS days when there is none). `total` counts the jobs that match the same filters, read in the same
+    transaction as the page; `status_counts` the same filters but the status, per status. With `tz` (an IANA zone)
+    the answer also holds `day_totals`: for each local day (`YYYY-MM-DD`) on the page, the jobs of that day matching
+    the same filters."""
     if not 1 <= limit <= MAX_PAGE:
         raise ApiError("input.invalid", "limit")
     if offset is not None and (not 0 <= offset <= MAX_OFFSET or cursor is not None):
         raise ApiError("input.invalid", "offset")
+    if span is not None and span not in RANGES:
+        raise ApiError("input.invalid", "range")
+    q = (q or "").strip() or None
+    if q is not None and len(q) > SEARCH_MAX:
+        raise ApiError("input.invalid", "q")
     window = {"from": _window_bound(created_from_ms, "created_from_ms"),
               "to": _window_bound(created_to_ms, "created_to_ms")}
-    if window["from"] is not None and window["to"] is not None and window["from"] >= window["to"]:
-        raise ApiError("input.invalid", "created_to_ms")
     zone = None if tz is None else _zone(tz)
     at, cid = _cursor(cursor) if cursor is not None else (None, None)
-    bounds = _window_sql(window)
-    given = {k: v for k, v in window.items() if v is not None}
-    args = {"status": status, "provider": provider, "key": key_id, **given}
+    statuses = [s for s in (status or "").split(",") if s] or None
+    args: dict[str, Any] = {"status": statuses, "provider": provider, "key": key_id}
     day_totals: dict[str, int] = {}
     async with tx(pool) as conn:
+        floor = None
+        if span is not None:
+            dashboard = settings.get("dashboard_tz")
+            day_start, _now = await (await conn.execute(_DAY, {"tz": dashboard})).fetchone()
+            floor = day_start if RANGES[span] == 1 else range_start(day_start, dashboard, RANGES[span])
+        elif q is not None and window["from"] is None:
+            floor = (await (await conn.execute("SELECT clock_timestamp()")).fetchone())[0] - timedelta(
+                days=MAX_SEARCH_DAYS)
+        if floor is not None and (window["from"] is None or window["from"] < floor):
+            window["from"] = floor
+        if window["from"] is not None and window["to"] is not None and window["from"] >= window["to"]:
+            raise ApiError("input.invalid", "created_to_ms")
+        bounds = _window_sql(window)
+        if q is not None:
+            like = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            bounds += _SEARCH
+            args.update({"q": "%" + like + "%", "q_id": like.lower() + "%"})
+        args.update({k: v for k, v in window.items() if v is not None})
         rows = await (await conn.execute(_LIST_HEAD + bounds + _LIST_TAIL, {
             **args, "at": at, "cid": cid, "limit": limit + 1, "offset": offset or 0})).fetchall()
         total = (await (await conn.execute(_COUNT + bounds, args)).fetchone())[0]
+        status_counts = dict(await (await conn.execute(_STATUS_COUNTS + bounds + " GROUP BY 1", args)).fetchall())
+        has_jobs = bool(status_counts) or (await (await conn.execute(_ANY_JOB)).fetchone())[0]
         page = rows[:limit]
         if zone is not None and page:
             days = [r[14].astimezone(zone).date() for r in page]
@@ -190,7 +252,7 @@ async def list_jobs(status: str | None = None, provider: str | None = None, key_
     more = len(rows) > limit
     out = {"items": [{**_summary(r[:16]), "outputs": r[16], "inputs": r[17], "net_charged": r[18],
                       "model_substituted": r[19]} for r in page],
-           "total": total,
+           "total": total, "status_counts": status_counts, "has_jobs": has_jobs,
            "next_cursor": _cursor_text(page[-1][14], page[-1][0]) if more else None}
     if zone is not None:
         out["day_totals"] = day_totals
@@ -198,12 +260,19 @@ async def list_jobs(status: str | None = None, provider: str | None = None, key_
 
 
 @router.get("/jobs/{job_id}")
-async def job_detail(job_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
+async def job_detail(job_id: uuid.UUID, request: Request, pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
+    """The job, its events, media and debug files, plus what the drawer's Overview and Technical tabs draw: `margin`
+    (net points charged less the upstream cost, a unit counted as a point; null while that cost is unknown), `proxy`
+    (the account's host:port, never its credentials), `conversation` and `provider_task_id` (the upstream's ids),
+    `raw_request` (the request log's row of the creating call, else the stored request), `raw_response` (what
+    GET /v1/<media>/generations/<id> answers the job's key now) and `diagnostics` (the provider's own state of the
+    job). Everything raw goes through the redactor."""
     async with tx(pool) as conn:
         row = await (await conn.execute(_DETAIL, (job_id,))).fetchone()
         if row is None:
             raise ApiError("resource.not_found")
         net = (await (await conn.execute(_NET, (job_id,))).fetchone())[0]
+        logged = await (await conn.execute(_CREATE_LOG, {"at": row[14], "id": job_id})).fetchone()
         events = await (await conn.execute(
             "SELECT id, at, source, stage, text FROM job_events WHERE job_id = %s ORDER BY at, id",
             (job_id,))).fetchall()
@@ -213,7 +282,13 @@ async def job_detail(job_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_
     item = _summary(row[:16])
     (prompt, marker, params, completion, price_key, pool_name, account_cost, attempts, claims, sent_at, render_since,
      upstream_price, upstream_model, error, warnings, callback_status, callback_attempts, key_prefix, callback_last,
-     updated_at, state, frame_id, sent_text) = row[16:]
+     updated_at, state, frame_id, sent_text, stored_request, proxy_host, proxy_port) = row[16:]
+    try:
+        answer = await job_status(pool, public_base(request), row[2], item["id"])
+    except ApiError:                         # the job went away between the two reads
+        answer = None
+    conversation, task_id = _upstream_ids(item["provider"], item["external_ref"], state)
+    cost = upstream_price if upstream_price is not None else account_cost if item["status"] == "done" else None
     item.update({
         "key_prefix": key_prefix, "prompt": prompt, "marker": marker, "params": params, "completion": completion,
         "price_key": price_key,
@@ -224,6 +299,17 @@ async def job_detail(job_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_
         "callback": {"status": callback_status, "attempts": callback_attempts, "last": callback_last},
         "net_charged": net, "no_recheck": state.get("no_recheck") is True,
         "frame_id": frame_id, "sent_text": sent_text,
+        "upstream_cost": cost, "margin": None if cost is None else net - cost,
+        "proxy": None if not proxy_host else redact_text("%s:%s" % (proxy_host, proxy_port) if proxy_port
+                                                         else proxy_host),
+        "conversation": conversation, "provider_task_id": task_id,
+        "raw_request": ({"route": logged[0], "status_code": logged[1], "body": redact_log(logged[2])} if logged
+                        else None if stored_request is None
+                        else {"route": None, "status_code": None, "body": redact_log(stored_request)}),
+        "raw_response": None if answer is None else {
+            "route": "GET /v1/%s/generations/%s" % ("video" if item["media_type"] == "video" else "images", item["id"]),
+            "status_code": 200, "body": redact_log(answer)},
+        "diagnostics": redact_log(state),
         "events": [{"id": e[0], "at_ms": ms(e[1]), "source": e[2], "stage": e[3], "text": e[4]} for e in events],
         # only same-origin `/m/` links are ever handed to the page; a revoked or expired token has none
         "media": [{"role": m[0], "idx": m[1], "mime": m[2], "size": m[3], "width": m[4], "height": m[5],
