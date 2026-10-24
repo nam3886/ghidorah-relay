@@ -1,7 +1,8 @@
 """The provider tabs of the Settings page in Chrome against the real app with the four real provider specs (browser
 tier): a row of tabs offers General and each provider (no provider strip); a provider's tab has its line, Taking jobs
 with the claims switch, Models and prices (a row per model with its switch and its sale and cost inputs; below 968 px a
-read-only table on a tablet and a row per model on a phone, each model edited in a bottom sheet), Pools and budgets and the rest under Advanced; the page's bar saves every change. At a desktop width, a
+read-only table on a tablet and a row per model on a phone, each model edited in a bottom sheet), Pools and budgets
+and the rest under Advanced; the page's bar saves every change. At a desktop width, a
 tablet's 820 px and a phone's 390 px, in both themes, where no text may be cut. With RELAY_SCREENSHOTS_DIR set, the
 page, a form open and the states are saved as settings-<width>-<theme>-<what>.png."""
 
