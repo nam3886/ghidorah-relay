@@ -133,13 +133,13 @@ def chat_ability(spec) -> tuple[dict, str]:
       "Generate image: <text>, 16:9", and the page config's selector key `image_creation_ratio` beside the model.
       Delivered: Seedream 4.5 no ratio 2048x2048, 4.5 16:9 2848x1600, 5.0 Pro 9:16 1600x2848. Without the text tail
       the key alone was ignored (16:9 asked, 2048x2048 made). A style is not built (`browser_only`).
-    - Video: the bare text and the parameters in `ability_param` (spike and live check: Seedance 2.0, 5 s, 16:9).
-      The ratio is NOT honoured this way (9:16 asked: dola stored it, replied "16:9", made 1280x720), so a video in
-      another ratio goes by browser (`browser_only`). The browser's own form ("Generated video: <text>, 9:16" plus
-      `reply_message_format`, fixtures/dola/chains) was sent twice on Seedance 2.5 (9:16, 21:9) and both times dola
-      answered "I can't generate the requested content." (the account then had no video credit left that day: the
-      cause, form, model or credit, is not known), so it is not used. UNPROVEN: `duration` other than 5,
-      `seedance_v1.0`."""
+    - Video: the bare text and the parameters in `ability_param` (spike and live checks: Seedance 2.0 at 5 s and
+      10 s, 16:9). The ratio is NOT honoured this way (9:16 asked: dola stored it, replied "16:9", made 1280x720), so a
+      video in another ratio goes by browser (`browser_only`). The browser's own form ("Generated video: <text>, 9:16"
+      plus `reply_message_format`, fixtures/dola/chains) is not used: on Seedance 2.5 (9:16, 21:9, 23/10) dola answered
+      "I can't generate the requested content."; on Seedance 2.0 9:16 (24/10, the day's first send) it acknowledged,
+      then ended "I can't generate the video and didn't use any credit" (`ai_creation_res_code` 710082023). Seedance
+      1.0 in this form (24/10) was refused at once ("I can't generate the requested content.")."""
     text = spec.sent_text
     if spec.kind == "image":
         inner = {"model": IMAGE_MODEL_LABELS[spec.model]}
@@ -515,9 +515,10 @@ class HttpRun(_Run):
 
 
 REFERENCE_OPERATIONS = ("image_to_video", "image_to_image")
-# The only video (model, seconds) delivered over HTTP (spike and live check 23/10, 16:9). Seedance 2.5 was not
-# testable (two sends answered "I can't generate the requested content."), 1.0 and other lengths were not tried.
-PROVEN_VIDEO = frozenset({("seedance_v2.0", 5)})
+# The video (model, seconds) delivered over HTTP at 16:9, the length measured with ffprobe: Seedance 2.0 5 s (spike
+# and live check 23/10, 5.09 s) and 10 s (24/10, 10.04 s, 1280x720). Not proven: Seedance 2.5 (23/10: "I can't
+# generate the requested content."), Seedance 1.0 (24/10: the same answer at once), 2.0 15 s (not tried).
+PROVEN_VIDEO = frozenset({("seedance_v2.0", 5), ("seedance_v2.0", 10)})
 
 
 def browser_only(job) -> str | None:

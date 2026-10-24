@@ -623,7 +623,7 @@ Registered by `spec.py`; read and written on the admin Settings page, live.
 | `dola.alert_content_refused_rate` | drift alert: share of the last 24 h submits refused for content (0 to 1) | 0.5 |
 | `dola.disabled_models` | public model ids paused for every key (see "Paused models") | `[]` |
 | `dola.browser_slots` | browser sessions at once, 1 to 12 (code constants `BROWSER_SLOTS_MIN`, `BROWSER_SLOTS_MAX` in `relay_dola/constants.py`, sized to the dola container: 8 CPUs, 12 GiB); lowering retires idle slots | 4 |
-| `dola.send_path` | how an order is sent: `browser` (Chrome) or `http` (one signed POST, no browser); read per job at the send; a job with reference images, an image with a style, or any video but Seedance 2.0 5 s 16:9 always goes by browser | browser |
+| `dola.send_path` | how an order is sent: `browser` (Chrome) or `http` (one signed POST, no browser); read per job at the send; a job with reference images, an image with a style, or any video but Seedance 2.0 5 s or 10 s at 16:9 always goes by browser | browser |
 | `dola.signer_alarm_accounts` | HTTP send only: this many different accounts refused (710022002/710022004) before an acknowledgement within the window = relay's signature is suspect (at least 2) | 3 |
 | `dola.signer_alarm_window_s` | HTTP send only: that window, and how long HTTP sends pause after the alarm (at least 60) | 900 |
 
@@ -663,20 +663,24 @@ is read per job at the send; flipping it never moves a job that is already sent.
 - **Before the send** nothing is ever moved to the other path: a proxy that cannot reach dola is `pool.proxy_failed`, a
   bootstrap or signer failure `dola.http_setup_failed`, both ordinary retries under the same setting.
 - **Proven over HTTP (23/10, d23-05, delivered files measured):** Seedream 4.5 with no ratio (2048x2048) and at 16:9
-  (2848x1600), Seedream 5.0 Pro at 9:16 (1600x2848), Seedance 2.0 5 s 16:9 (1280x720). An image ratio rides in the
-  message text as the page writes it ("Generate image: <prompt>, 16:9") plus the page config's `image_creation_ratio`;
-  the key alone was ignored (16:9 asked, 2048x2048 made).
+  (2848x1600), Seedream 5.0 Pro at 9:16 (1600x2848), Seedance 2.0 5 s 16:9 (1280x720, 5.09 s); 24/10: Seedance 2.0
+  10 s 16:9 (1280x720, 10.04 s). An image ratio rides in the message text as the page writes it ("Generate image:
+  <prompt>, 16:9") plus the page config's `image_creation_ratio`; the key alone was ignored (16:9 asked, 2048x2048
+  made). The live table is FINDINGS.md "HTTP video live check 24/10".
 - **Always by browser, whatever the setting** (with a line in the timeline): reference images (i2v, i2i: the HTTP
-  upload is not built), an image with a style (not tried), and every video but Seedance 2.0 5 s 16:9
+  upload is not built), an image with a style (not tried), and every video but Seedance 2.0 5 s or 10 s at 16:9
   (`send_http.PROVEN_VIDEO`):
   - a ratio other than 16:9: Seedance 2.0 asked 9:16 in `ability_param.ratio` with the bare prompt: dola stored it,
     replied "16:9" and made 1280x720. The page's own form ("Generated video: <prompt>, 9:16" with
-    `reply_message_format`) is untested on a working account: on d23-05 it met the day's video limit, and on n11-07
-    every send (page form and the proven bare form alike, two prompts) was refused 710022002 with no message before
-    any acknowledgement, so that account could not send over HTTP at all;
+    `reply_message_format`) on Seedance 2.0 9:16 (24/10, d23-05, the day's first send) was acknowledged, then ended
+    "I can't generate the video and didn't use any credit for this generation." (no video, no charge); on n11-07 every
+    send (page form and the bare form alike) was refused 710022002 before any acknowledgement. 1:1 and 21:9: not
+    tried (the day's video limit came first);
   - Seedance 2.5: untested (owner, 23/10). Two sends in the page form on d23-05 were answered "I can't generate the
     requested content.";
-  - Seedance 1.0 and lengths other than 5 s: not tried.
+  - Seedance 1.0: 5 s 16:9 in the bare form (24/10) was answered at once "I can't generate the requested content.
+    Try something else." (no video);
+  - Seedance 2.0 15 s: not tried.
 
 There is no setting for image templates or for extra reply phrases. Image templates are not creation parameters: a
 request with `options.template` or `options.template_category` is refused 400 (no charge); a UI reads the template

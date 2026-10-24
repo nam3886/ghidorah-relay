@@ -425,7 +425,9 @@ async def test_the_setting_picks_the_path_per_job_and_reference_images_stay_on_t
                           (HTTP_ON, make_job("image", ratio=None, style="anime")),
                           (HTTP_ON, make_job("video", duration=5, ratio="9:16", model="seedance_v2.0")),
                           (HTTP_ON, make_job("video", duration=5, ratio="16:9", model="seedance_v2.5")),
-                          (HTTP_ON, make_job("video", duration=10, ratio="16:9", model="seedance_v2.0")),
+                          (HTTP_ON, make_job("video", duration=15, ratio="16:9", model="seedance_v2.0")),
+                          (HTTP_ON, make_job("video", duration=10, ratio="9:16", model="seedance_v2.0")),
+                          (HTTP_ON, make_job("video", duration=5, ratio="1:1", model="seedance_v2.0")),
                           (HTTP_ON, make_job("video", duration=5, ratio="16:9", model="seedance_v1.0"))):
         log: list = []
         dola = Dola(log)
@@ -441,6 +443,21 @@ async def test_the_setting_picks_the_path_per_job_and_reference_images_stay_on_t
     dola = Dola(log)
     await run(dola)
     assert len(dola.sends) == 1
+
+
+@mutation(SEND, 'PROVEN_VIDEO = frozenset({("seedance_v2.0", 5), ("seedance_v2.0", 10)})',
+          'PROVEN_VIDEO = frozenset({("seedance_v2.0", 5)})', expect="2.0 10 s 16:9 goes over HTTP")
+@sync
+async def test_seedance_2_0_ten_seconds_at_16_9_goes_over_http_with_its_length():
+    """Live 24/10 (d23-05): Seedance 2.0 10 s 16:9 in the bare form delivered 1280x720, 10.04 s (ffprobe)."""
+    job = make_job("video", duration=10, ratio="16:9", model="seedance_v2.0", sent_text=VIDEO_TEXT)
+    assert send_http.browser_only(job) is None, "2.0 10 s 16:9 goes over HTTP"
+    log: list = []
+    dola = Dola(log, stream=VIDEO_SSE)
+    await run(dola, job)
+    assert len(dola.sends) == 1
+    param = json.loads(json.loads(dola.sends[0][1])["chat_ability"]["ability_param"])
+    assert (param["model"], param["duration"], param["ratio"]) == ("seedance_v2.0", 10, "16:9")
 
 
 # ---- before the send -------------------------------------------------------------------------------------------------

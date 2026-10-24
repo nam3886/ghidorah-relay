@@ -44,7 +44,7 @@ def test_twenty_and_twenty_five_seconds_are_real_levels_priced_like_thirty():
         assert plan(duration=real).price == 2
 
 
-@mutation(CATALOG_FILE, '"seedance_v2.5": (5, 10, 20, 25, 30),', '"seedance_v2.5": (5, 10, 15, 20, 25, 30),',
+@mutation(SPEC_FILE, "        if duration not in C.DURATIONS_BY_MODEL[gen.model]:", "        if False:",
           expect="DID NOT RAISE")
 def test_unknown_durations_are_refused_not_rounded():
     for bad in (7, 15, 0, -1, 60):

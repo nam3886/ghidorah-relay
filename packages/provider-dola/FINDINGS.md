@@ -125,6 +125,31 @@ conversation, the original still holds 2 messages and 4 pictures. Which id is th
 - Image ratio/style over HTTP (none sent: square default).
 - Why the kit's Chrome cannot send on this account's new UI (matters only if the browser path stays).
 
+## HTTP video live check 24/10
+
+Question: which video orders deliver exactly what was asked over the HTTP send? Account d23-05 (disabled in
+production, checked with `ro.sh` before the run), its production proxy, the production image `relay-worker-dola:f170653`
+(its own `submit` + `poll` + `fetch`, `browser_only` bypassed for the probe), 24/10 07:06–07:16 GMT+7, after dola's
+07:00 daily reset. One send per row, none re-sent; every delivered file measured with `ffprobe`. Prompt: "a paper kite
+rising over green rice fields, slow tilt up. Generate it now as a single video in one go. Do not ask questions.
+[marker]".
+
+| # | Form | Model | Asked | dola | Measured |
+|---|------|-------|-------|------|----------|
+| 1 | page ("Generated video: <p>, 9:16" + `reply_message_format`, `ability_param.ratio` 9:16) | Seedance 2.0 | 5 s 9:16 | ACK; "will be generated using the Seedance 2.0 model in 1-3 minutes ... daily free credits", then ~2 min later "I can't generate the video and didn't use any credit for this generation." (`ai_creation_res_code` 710082023) | no video (relay: `dola.content_refused`) |
+| 2 | bare (the engine's) | Seedance 2.0 | 10 s 16:9 | ACK; "Dreamina Seedance 2.0 Fast model in 5 minutes ... daily free credits"; "Your video is ready." | H.264 1280x720, 10.04 s (AAC 10.08 s) |
+| 3 | bare | Seedance 1.0 | 5 s 16:9 | at once "I can't generate the requested content. Try something else." | no video |
+| 4 | page | Seedance 2.0 | 5 s 1:1 | "You've reached the daily free usage limit for Video generation." | not taken (`pool.account_out_of_points`) |
+| – | page | Seedance 2.0 | 5 s 21:9 | not sent: the day's limit | – |
+
+So the account's daily video budget was 2 credits (row 2 at 2 credits; rows 1 and 3 charged nothing).
+
+Routing (`send_http.PROVEN_VIDEO`): Seedance 2.0 at 10 s 16:9 joins 5 s 16:9 on HTTP. Every other ratio, Seedance 1.0
+and 2.5, and 2.0 15 s stay on the browser. Not known: whether row 1 failed for the page form, the 9:16 ratio over
+HTTP, or dola's own refusal of this prompt (the same prompt in the bare form at 16:9 delivered); row 3's model id may
+not be offered to this account over HTTP (the browser path names 1.0 by its chip label). A next live day should try
+the bare form with the ratio in the text ("<p>, 9:16") and 1:1/21:9 before any non-16:9 video moves to HTTP.
+
 ## v2v spike 24/10
 
 Question: can a customer give dola a VIDEO and get a new video back? **Yes in the web app (video as a reference for
