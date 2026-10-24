@@ -3,9 +3,14 @@
 -- api_keys, accounts, settings_kv, prompt_frames*, admin_*, provider_snapshots, request_logs, billing_pin,
 -- worker_heartbeats. Media objects of the wiped jobs become orphans the existing orphan sweep removes.
 
--- 1. The job history. CASCADE takes every table that names a job: job_events, job_media, leases, unclear_replies,
---    commands, ledger (and billing_alerts, which names the ledger) and account_charges.
+-- 1. The job history. Commands that name a job go; an account command (wake, check, refresh_catalog: job_id NULL) is
+--    kept as it is, so the foreign key of commands.job_id is dropped around the TRUNCATE and put back. CASCADE takes
+--    the other tables that name a job: job_events, job_media, leases (all of them: every service is stopped),
+--    unclear_replies, ledger (and billing_alerts, which names the ledger) and account_charges.
+DELETE FROM commands WHERE job_id IS NOT NULL;
+ALTER TABLE commands DROP CONSTRAINT commands_job_id_fkey;
 TRUNCATE jobs RESTART IDENTITY CASCADE;
+ALTER TABLE commands ADD CONSTRAINT commands_job_id_fkey FOREIGN KEY (job_id) REFERENCES jobs(id);
 
 -- 2. The old money schema goes, with no shim.
 DROP TABLE billing_alerts, ledger, key_wallets, account_charges, account_capacity CASCADE;
@@ -45,6 +50,22 @@ CREATE TABLE ledger (
     CHECK ((entry = 'refund') = (refund_of IS NOT NULL)),
     CHECK (entry = 'adjust' OR amount >= 0), CHECK ((entry = 'adjust') = (job_id IS NULL)));
 CREATE UNIQUE INDEX ledger_one_refund ON ledger (refund_of);
+-- A refund is the full reversal of one charge: the same key, scope, job, provider and amount (the amount keeps the
+-- charge's sign: both are positive). The code writes it that way; this makes the database refuse any other row.
+CREATE FUNCTION ledger_refund_matches() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE c ledger%ROWTYPE;
+BEGIN
+    SELECT * INTO c FROM ledger WHERE id = NEW.refund_of AND entry = 'charge';
+    IF NOT FOUND
+       OR (c.key_id, c.scope, c.job_id, c.provider, c.amount)
+          IS DISTINCT FROM (NEW.key_id, NEW.scope, NEW.job_id, NEW.provider, NEW.amount) THEN
+        RAISE EXCEPTION 'ledger: a refund must equal the charge it refunds (ledger %)', NEW.refund_of
+            USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END $$;
+CREATE TRIGGER ledger_refund_matches BEFORE INSERT ON ledger
+    FOR EACH ROW WHEN (NEW.entry = 'refund') EXECUTE FUNCTION ledger_refund_matches();
 CREATE INDEX ledger_job ON ledger (job_id);
 ALTER TABLE ledger ADD CONSTRAINT ledger_job_fk FOREIGN KEY (job_id) REFERENCES jobs(id)
     DEFERRABLE INITIALLY DEFERRED;

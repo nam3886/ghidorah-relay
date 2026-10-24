@@ -80,9 +80,11 @@ def test_a_day_counter_that_drifted_from_the_ledger_is_reported(db):
 def test_a_refund_that_does_not_undo_its_charge_is_reported(db):
     key = db.key(("p1", None, None))
     charge_id = charge_once(db, key, 7)
+    db.run("ALTER TABLE ledger DISABLE TRIGGER ledger_refund_matches")      # the database refuses this row otherwise
     db.one("INSERT INTO ledger (key_id, scope, job_id, provider, entry, amount, billing_day, refund_of) "
            "SELECT key_id, scope, job_id, provider, 'refund', 3, billing_day, id FROM ledger WHERE id = %s "
            "RETURNING 1", charge_id)
+    db.run("ALTER TABLE ledger ENABLE TRIGGER ledger_refund_matches")
     found = check(db)
     db.reset()
     assert any(line.startswith("I4 refund row") for line in found), found

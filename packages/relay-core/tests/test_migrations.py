@@ -197,7 +197,33 @@ def _plant_the_0019_schema(c):
     c.execute("INSERT INTO prompt_frames (provider, kind, model, text, created_by) "
               "VALUES ('p1', 'video', NULL, '{{client_prompt}} {{tracking_code}}', 'me')")
     c.execute("INSERT INTO request_logs (route, status_code, duration_ms) VALUES ('/v1/x', 200, 1)")
+    c.execute("INSERT INTO commands (id, provider, kind, account_id, args, status, attempts) "
+              "VALUES (%s, 'p1', 'wake', %s, '{\"why\": \"owner\"}', 'queued', 2)", (ACCOUNT_COMMAND, account))
+    admin = c.execute("INSERT INTO admin_users (username, password_hash) VALUES ('boss', 'hash') RETURNING id"
+                      ).fetchone()[0]
+    c.execute("INSERT INTO admin_sessions (token_hash, user_id, expires_at) "
+              "VALUES ('tok', %s, now() + interval '1 day')", (admin,))
+    c.execute("INSERT INTO admin_login_attempts (ip) VALUES ('203.0.113.9')")
+    c.execute("INSERT INTO provider_snapshots (provider, name, data) VALUES ('p1', 'catalog', '{\"m\": 1}')")
+    c.execute("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at, slots_busy) "
+              "VALUES ('w1', 'p1', now(), now(), 3)")
     return key, account
+
+
+ACCOUNT_COMMAND = uuid.UUID("00000000-0000-4000-8000-0000000000c1")
+# the rows 0020 keeps: (table, where) read back by their own key
+KEPT = (("api_keys", "key_prefix = 'rk-x'"), ("accounts", "provider = 'p1'"), ("settings_kv", "key = 'p1.prices'"),
+        ("settings_kv", "key = 'log_retention_days'"), ("prompt_frames", "provider = 'p1'"),
+        ("commands", "id = '%s'" % ACCOUNT_COMMAND), ("admin_users", "username = 'boss'"),
+        ("admin_sessions", "token_hash = 'tok'"), ("admin_login_attempts", "ip = '203.0.113.9'"),
+        ("provider_snapshots", "name = 'catalog'"), ("worker_heartbeats", "worker_id = 'w1'"),
+        ("request_logs", "route = '/v1/x'"))
+
+
+def _rows(c, table, where):
+    cur = c.execute("SELECT * FROM %s WHERE %s" % (table, where))
+    names = [d.name for d in cur.description]
+    return [dict(zip(names, r, strict=True)) for r in cur.fetchall()]
 
 
 def test_0020_wipes_jobs_and_money_and_keeps_keys_accounts_settings_frames(tmp_path, monkeypatch):
@@ -205,16 +231,19 @@ def test_0020_wipes_jobs_and_money_and_keeps_keys_accounts_settings_frames(tmp_p
         _below_0020(tmp_path, monkeypatch, dsn)
         with _owner(dsn) as c:
             key, account = _plant_the_0019_schema(c)
+            before = {(t, w): _rows(c, t, w) for t, w in KEPT}
         assert run_migrations(dsn) == [20]
         with _owner(dsn) as c:
+            after = {(t, w): _rows(c, t, w) for t, w in KEPT}
             def count(table):
                 return c.execute("SELECT count(*) FROM %s" % table).fetchone()[0]
-            wiped = {t: count(t) for t in ("jobs", "job_events", "job_media", "leases", "commands", "unclear_replies",
+            wiped = {t: count(t) for t in ("jobs", "job_events", "job_media", "leases", "unclear_replies",
                                            "ledger", "billing_alerts", "account_charges", "account_pools")}
             kept = {t: count(t) for t in ("api_keys", "accounts", "prompt_frames", "request_logs", "billing_pin")}
             stored = c.execute("SELECT key FROM settings_kv ORDER BY key").fetchall()
             jobs_columns = {r[0] for r in c.execute("SELECT column_name FROM information_schema.columns "
                                                     "WHERE table_schema = 'relay' AND table_name = 'jobs'")}
+            commands = count("commands")
             tier = c.execute("SELECT tier, tier_read_at, cycle_start FROM accounts").fetchone()
             first_ledger = c.execute("INSERT INTO ledger (key_id, scope, entry, amount, billing_day) "
                                      "VALUES (%s, '*', 'adjust', 1, current_date) RETURNING id", (key,)
@@ -225,7 +254,27 @@ def test_0020_wipes_jobs_and_money_and_keeps_keys_accounts_settings_frames(tmp_p
     assert "wallet_kind" not in jobs_columns and {"price_key", "cost_source"} <= jobs_columns
     assert tier == (None, None, None), "an account has no tier until it is read or set"
     assert first_ledger == 1, "the ledger starts again from 1"
-    assert account
+    for (table, where), rows in before.items():
+        assert len(rows) == 1, "planted: %s %s" % (table, where)
+        assert len(after[table, where]) == 1, "kept: %s %s" % (table, where)
+        gone = {k: (v, after[table, where][0].get(k)) for k, v in rows[0].items() if after[table, where][0].get(k) != v}
+        assert not gone, "%s changed (before, after): %r" % (table, gone)
+    assert after["commands", "id = '%s'" % ACCOUNT_COMMAND][0]["attempts"] == 2, "the account command keeps its fields"
+    assert commands == 1, "only the account command is left"
+
+
+def test_0020_deletes_the_commands_that_name_a_job_and_keeps_the_rest(tmp_path, monkeypatch):
+    with disposable_database() as dsn:
+        _below_0020(tmp_path, monkeypatch, dsn)
+        with _owner(dsn) as c:
+            _plant_the_0019_schema(c)
+        run_migrations(dsn)
+        with _owner(dsn) as c:
+            kinds = c.execute("SELECT kind, job_id FROM commands ORDER BY kind").fetchall()
+            fk = c.execute("SELECT count(*) FROM pg_constraint WHERE conname = 'commands_job_id_fkey' "
+                           "AND confrelid = 'relay.jobs'::regclass").fetchone()[0]
+    assert kinds == [("wake", None)], "the 'recover' command of the wiped job is gone, the account command stays"
+    assert fk == 1, "commands.job_id names a job again"
 
 
 def test_0020_leaves_every_key_with_closed_star_and_provider_rows(tmp_path, monkeypatch):
@@ -257,3 +306,39 @@ def test_0020_drops_the_budget_settings(tmp_path, monkeypatch):
         with _owner(dsn) as c:
             keys = [r[0] for r in c.execute("SELECT key FROM settings_kv ORDER BY key")]
     assert keys == ["log_retention_days", "p1.pools", "p1.prices", "p1.video_budget_note"]
+
+
+REFUND_TRIGGER = "packages/relay-core/src/relay_core/db/migrations/0020_money_v2.sql"
+
+
+@mutation(REFUND_TRIGGER, "(NEW.key_id, NEW.scope, NEW.job_id, NEW.provider, NEW.amount) THEN",
+          "(NEW.key_id, NEW.scope, NEW.job_id, NEW.provider, c.amount) THEN",
+          expect="DID NOT RAISE")
+@mutation(REFUND_TRIGGER, "(NEW.key_id, NEW.scope, NEW.job_id, NEW.provider, NEW.amount) THEN",
+          "(NEW.key_id, NEW.scope, c.job_id, NEW.provider, NEW.amount) THEN", expect="DID NOT RAISE")
+@mutation(REFUND_TRIGGER, "(NEW.key_id, NEW.scope, NEW.job_id, NEW.provider, NEW.amount) THEN",
+          "(NEW.key_id, c.scope, NEW.job_id, NEW.provider, NEW.amount) THEN", expect="DID NOT RAISE")
+@mutation(REFUND_TRIGGER, "(NEW.key_id, NEW.scope, NEW.job_id, NEW.provider, NEW.amount) THEN",
+          "(c.key_id, NEW.scope, NEW.job_id, NEW.provider, NEW.amount) THEN", expect="DID NOT RAISE")
+@mutation(REFUND_TRIGGER, "(NEW.key_id, NEW.scope, NEW.job_id, NEW.provider, NEW.amount) THEN",
+          "(NEW.key_id, NEW.scope, NEW.job_id, c.provider, NEW.amount) THEN", expect="DID NOT RAISE")
+@mutation(REFUND_TRIGGER, "WHERE id = NEW.refund_of AND entry = 'charge';", "WHERE id = NEW.refund_of;",
+          expect="DID NOT RAISE")
+def test_the_ledger_refuses_a_refund_that_is_not_the_full_reversal_of_its_charge(db):
+    key, other = db.key(("p1", None, None)), db.key(("p1", None, None))
+    job, other_job = db.job(key, price=5), db.job(key, price=0)
+    charge = db.one("INSERT INTO ledger (key_id, scope, job_id, provider, entry, amount, billing_day) "
+                    "VALUES (%s, '*', %s, 'p1', 'charge', 5, current_date) RETURNING id", key, job)[0]
+    insert = ("INSERT INTO ledger (key_id, scope, job_id, provider, entry, amount, billing_day, refund_of) "
+              "VALUES (%s, %s, %s, %s, 'refund', %s, current_date, %s)")
+    wrong = {"amount 50": (key, "*", job, "p1", 50), "another job": (key, "*", other_job, "p1", 5),
+             "another scope": (key, "p1", job, "p1", 5), "another key": (other, "*", job, "p1", 5),
+             "another provider": (key, "*", job, "p2", 5)}
+    for what, row in wrong.items():
+        with pytest.raises(psycopg.errors.CheckViolation):
+            db.run(insert, *row, charge)
+        assert db.one("SELECT count(*) FROM ledger WHERE entry = 'refund'")[0] == 0, what + " was accepted"
+    refund = db.one(insert + " RETURNING id", key, "*", job, "p1", 5, charge)[0]
+    with pytest.raises(psycopg.errors.CheckViolation):
+        db.run(insert, key, "*", job, "p1", 5, refund)         # a refund of a refund: a refund is of a charge only
+    assert db.one("SELECT count(*) FROM ledger WHERE entry = 'refund'")[0] == 1
