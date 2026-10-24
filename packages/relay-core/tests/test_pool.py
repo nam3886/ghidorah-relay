@@ -582,6 +582,14 @@ def test_a_strike_keeps_its_reason_over_the_cooldown_that_comes_with_it(db):
     assert last_error("throttled")
 
 
+@mutation(P, "any(isinstance(e, (Suspect, ProxyBad)) for e in effects)", "any(isinstance(e, Suspect) for e in effects)",
+          expect="assert db.one(\"SELECT last_error FROM accounts WHERE id = %s\", a)[0] == \"region blocked: CN\"")
+def test_a_bad_proxy_keeps_its_reason_over_the_cooldown_that_comes_with_it(db):
+    a = account(db)
+    run(db, lambda p: effects(p, a, ProxyBad("region blocked: CN"), Cooldown("region blocked", FUTURE)))
+    assert db.one("SELECT last_error FROM accounts WHERE id = %s", a)[0] == "region blocked: CN"
+
+
 # ---- effects: strikes, Dead, Revive ----------------------------------------------------------------------------
 def state(db, a):
     return db.one("SELECT state, state_reason, strikes FROM accounts WHERE id = %s", a)
