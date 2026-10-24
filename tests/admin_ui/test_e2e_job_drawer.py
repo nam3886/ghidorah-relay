@@ -44,18 +44,19 @@ def confirm_inline(page, name: str) -> None:
 
 
 def open_row(page, job) -> None:
-    rows(page).filter(has_text=str(job)[:8]).locator("a.title-link, .prow").first.click()
+    page.locator('.jobs__table [data-id="%s"]' % job).click()
     expect(drawer(page)).to_be_visible()
 
 
 def close_drawer(page) -> None:
-    drawer(page).get_by_role("button", name="Close", exact=True).click()
+    drawer(page).get_by_role("button", name="Close · Esc", exact=True).click()
     expect(drawer(page)).to_be_hidden()          # EP keeps the closed panel in the DOM, hidden
 
 
 def pick(page, tab: str) -> None:
-    drawer(page).get_by_role("tab", name=tab, exact=True).click()
-    expect(drawer(page).get_by_role("tab", name=tab, exact=True)).to_have_attribute("aria-selected", "true")
+    name = re.compile(r"^%s( \d+)?$" % tab)     # Timeline carries its count
+    drawer(page).get_by_role("tab", name=name).click()
+    expect(drawer(page).get_by_role("tab", name=name)).to_have_attribute("aria-selected", "true")
 
 
 def sent_keys(page, suffix: str) -> list:
@@ -133,10 +134,12 @@ def test_a_drawer_header_with_a_tab_row_has_no_padding_under_it(app, app_page, l
     open_row(page, job)
     expect(drawer(page).get_by_role("tab", name="Overview", exact=True)).to_be_visible()
     got = page.evaluate("""() => {
-      const head = document.querySelector('[data-testid=job-drawer] .detail-drawer__head');
-      const tabs = head.querySelector('.detail-drawer__tabs');
-      return {padding: parseFloat(getComputedStyle(head).paddingBottom),
-              gap: Math.round(head.getBoundingClientRect().bottom - 1 - tabs.getBoundingClientRect().bottom)};
+      const header = document.querySelector('[data-testid=job-drawer] .el-drawer__header');
+      const head = header.querySelector('.rl-drawer__head');
+      const tabs = head.querySelector('.rl-drawer__tabs');
+      const pad = (el) => parseFloat(getComputedStyle(el).paddingBottom);
+      return {padding: pad(head) + pad(header),
+              gap: Math.round(header.getBoundingClientRect().bottom - 1 - tabs.getBoundingClientRect().bottom)};
     }""", isolated_context=False)
     assert got == {"padding": 0, "gap": 0}, "the tab row does not sit on the line: %r" % got
 
@@ -198,7 +201,7 @@ def test_drawer_recheck_resend_and_revoke_each_toast_and_change_the_job(app, app
     assert db.one("SELECT callback_status FROM jobs WHERE id = %s", job)[0] == "pending"
     expect(panel.get_by_role("button", name="Resend webhook")).to_have_count(0)
     pick(page, "Overview")
-    panel.get_by_role("button", name="Re-check", exact=True).click()
+    panel.get_by_role("button", name="Re-check job · R", exact=True).click()
     expect(page.get_by_text("Re-checked")).to_be_visible()
     pick(page, "Technical")
     panel.get_by_role("button", name="Revoke share links").click()
@@ -225,13 +228,13 @@ def test_drawer_recover_and_fetch_title_queue_a_command_and_poll_it(app, app_pag
     app.sign_in(page)
     open_row(page, job)
     panel = drawer(page)
+    pick(page, "Technical")
     panel.get_by_role("button", name="Recover").click()
     expect(page.get_by_text("Enter the account id or label to recover from")).to_be_visible()
-    panel.get_by_placeholder("Account id or label, e.g. acct-n11-01").fill("acct-r")
+    panel.get_by_placeholder("Account id or label, e.g. dola-n11-01").fill("acct-r")
     panel.get_by_role("button", name="Recover").click()
     expect(page.get_by_text("Recover done")).to_be_visible()
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'recover' AND job_id = %s", job)[0] == 1
-    pick(page, "Technical")
     panel.get_by_role("button", name="Fetch title").click()
     expect(page.get_by_text("Fetch title done")).to_be_visible()
     assert db.one("SELECT count(*) FROM commands WHERE kind = 'titles' AND job_id = %s", job)[0] == 1
@@ -418,7 +421,7 @@ def test_results_show_from_share_links_download_and_open_through_the_proxy_once_
     page.wait_for_function("() => document.querySelector('[data-testid=job-drawer] img').naturalWidth === 1")
     expect(panel.locator("[data-section=results]").get_by_role("button", name="Open", exact=True)).to_have_count(0)
     with page.expect_download() as download:
-        panel.get_by_role("button", name="Download", exact=True).click()
+        panel.get_by_role("button", name="Download · D", exact=True).click()
     assert download.value.suggested_filename.startswith("job-%s-0" % str(job)[:8])
     pick(page, "Technical")
     panel.get_by_role("button", name="File 0 (text/html)").click()
@@ -450,11 +453,14 @@ def test_a_click_on_a_result_image_opens_the_viewer_and_escape_closes_it(app, ap
     image = drawer(page).locator("[data-section=results] img")
     expect(image).to_be_visible()
     image.click()
-    viewer = page.locator(".el-image-viewer__wrapper")
+    viewer = page.locator(".el-dialog.rl-viewer")
     expect(viewer).to_be_visible()
-    expect(viewer.locator("img.el-image-viewer__img")).to_have_attribute("src", re.compile(r"^/m/"))
+    expect(viewer.locator("img.mv__img")).to_have_attribute("src", re.compile(r"^/m/"))
+    expect(viewer.locator(".mv__file")).to_have_text("job-%s-0.png" % str(job)[:8])
+    viewer.get_by_role("button", name="Zoom in · +").click()
+    expect(viewer.locator(".mv__zoom")).to_have_text("125%")
     page.keyboard.press("Escape")
-    expect(viewer).to_have_count(0)
+    expect(viewer).to_be_hidden()
     expect(drawer(page)).to_be_visible()
 
 
@@ -469,7 +475,7 @@ def test_the_timeline_lists_the_newest_event_first(app, app_page, live, db):
     app.sign_in(page)
     open_row(page, job)
     pick(page, "Timeline")
-    items = drawer(page).locator("[data-section=timeline] .timeline__item")
+    items = drawer(page).locator("[data-section=timeline] .tl__row")
     expect(items.first).to_contain_text("the late one")
     expect(items.last).to_contain_text("the early one")
 

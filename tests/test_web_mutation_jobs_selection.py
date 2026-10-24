@@ -1,10 +1,9 @@
-"""Mutation markers for the Jobs selection: what a bulk button sends is always the ticks on screen. The table keeps its
-ticks when its rows are replaced (keep-selection), so every report it makes is a real change, made at once, and the
-view takes each as is; the view ticks its copy again once new rows are drawn (rows that left drop out, a table drawn
-anew after an error gets its ticks back), clears the ticks on the table too for another page or a filter, shows none
-while an error hides the table, and a Regenerate confirmed with nothing ticked sends nothing. Each mutant must turn the
-Vitest spec red, with the exact failed test; `webunit.vitest` runs the specs and scripts/mutate.py does the mutating.
-A plain `check.sh` deselects these tests."""
+"""Mutation markers for the Jobs selection: what a bulk button sends is always the ticks on screen. The view owns the
+ticks and the table only reports a click, so a table drawn anew (after an error) shows them as they are; a load keeps
+the ticks of the jobs still on the page and another page starts with none, a filter or a page size drops them at once,
+none count while an error hides the table, and a Regenerate confirmed with nothing ticked sends nothing. Each mutant
+must turn the Vitest spec red, with the exact failed test; `webunit.vitest` runs the spec and scripts/mutate.py does the
+mutating. A plain `check.sh` deselects these tests."""
 
 import pytest
 from webunit import vitest
@@ -14,27 +13,18 @@ from relay_core.testing.mutation import mutation
 SRC = "apps/admin-web/src"
 VIEW = f"{SRC}/views/JobsView.vue"
 VIEW_SPEC = "tests/unit/jobs/jobs-view.spec.ts"
-TABLE_SPEC = "tests/unit/shared/data-table-selection.spec.ts"
 FV = "FAILED " + VIEW_SPEC + " > what is sent is what is ticked on screen (desktop) > "
 
 HIDDEN_BY_ERROR = "error.value ? [] : "
-RE_TICK = "table.value?.setSelection([...picked.value])"
-RE_TICK_CALL = "    void reTick();\n  } catch"
 PRUNE = "picked.value = new Set(pickedIds(out.items, picked.value));"
 PAGE_CLEAR = "if (at !== offset.value) clearPicked();"
 SIZE_CLEAR = "  limit.value = size;\n  clearPicked();\n"
-CLEAR_TABLE = "table.value?.setSelection([]);"
+FILTER_CLEAR = "  offset.value = 0;\n  clearPicked();\n"
 CLEAR_COPY = "picked.value = new Set();"
 NOTHING_TICKED = "if (!ids.value.length) {"
 
 
 @mutation(VIEW, HIDDEN_BY_ERROR, "",
-          expect=FV + "an error hides the table: nothing can be sent until Retry draws the ticks again, "
-                      "and then they are what is sent")
-@mutation(VIEW, RE_TICK, "void picked.value",
-          expect=FV + "an error hides the table: nothing can be sent until Retry draws the ticks again, "
-                      "and then they are what is sent")
-@mutation(VIEW, RE_TICK_CALL, "  } catch",
           expect=FV + "an error hides the table: nothing can be sent until Retry draws the ticks again, "
                       "and then they are what is sent")
 @mutation(VIEW, PRUNE, "picked.value = picked.value;",
@@ -44,7 +34,7 @@ NOTHING_TICKED = "if (!ids.value.length) {"
                       "a tick there is what is sent")
 @mutation(VIEW, SIZE_CLEAR, "  limit.value = size;\n",
           expect=FV + "a page-size change unticks the rows at once, before the new page arrives")
-@mutation(VIEW, CLEAR_TABLE, "void 0;",
+@mutation(VIEW, FILTER_CLEAR, "  offset.value = 0;\n",
           expect=FV + "a filter change unticks the old rows at once, before the new list arrives")
 @mutation(VIEW, CLEAR_COPY, "void 0;",
           expect=FV + "a filter change while an error hides the table: the new list starts with nothing ticked")
@@ -52,7 +42,7 @@ NOTHING_TICKED = "if (!ids.value.length) {"
           expect=FV + "a confirm answered after a failed reload hid the table sends nothing")
 @pytest.mark.web_unit
 def test_a_bulk_action_sends_exactly_the_ticks_on_screen():
-    vitest(VIEW_SPEC, TABLE_SPEC)
+    vitest(VIEW_SPEC)
 
 
 # ---- the guards around the bulk request: the confirm, the lock against a second click, the body ------------------

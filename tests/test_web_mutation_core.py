@@ -389,6 +389,16 @@ def test_the_page_scroll_area():
     vitest("tests/unit/app-shell.spec.ts")
 
 
+# ---- the provider strip of Jobs: below the desktop only (the desktop's provider cards pick the provider) -------------
+@mutation(SHELL_VUE, "(!route.meta.stripCompactOnly || isPhone || isTablet)", "true",
+          expect="has no Provider list in the top bar")
+@mutation(SHELL_VUE, "(!route.meta.stripCompactOnly || isPhone || isTablet)", "!route.meta.stripCompactOnly",
+          expect="Jobs draws the provider strip on a tablet and a phone")
+@pytest.mark.web_unit
+def test_the_jobs_strip_shows_below_the_desktop_only():
+    vitest("tests/unit/app-shell.spec.ts")
+
+
 # ---- breakpoints, tokens, fonts and the brand ----------------------------------------------------------------------
 BREAKPOINT = f"{SRC}/composables/use-breakpoint.ts"
 USE_BP = "FAILED tests/unit/theme.spec.ts > useBreakpoint > "

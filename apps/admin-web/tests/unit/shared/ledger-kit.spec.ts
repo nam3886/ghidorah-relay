@@ -140,20 +140,33 @@ describe("the arrow scroller", () => {
   });
 
   it("scrolls the active item into view on mount and when it changes", async () => {
-    const shown: string[] = [];
+    // the row is 0..300 px wide; the pressed chip sits at 400..480 until the row scrolls by its overflow
+    const pageMoves: string[] = [];
     const original = HTMLElement.prototype.scrollIntoView;
-    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement, arg?: boolean | ScrollIntoViewOptions) {
-      shown.push(`${this.textContent} ${JSON.stringify(arg)}`);
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      pageMoves.push(this.textContent ?? "");
     };
+    const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const row = this.classList.contains("asc__row");
+      const shift = row ? 0 : (this.parentElement?.scrollLeft ?? 0);
+      return (row ? { left: 0, right: 300 } : { left: 400 - shift, right: 480 - shift }) as DOMRect;
+    });
     try {
       const w = mountScroller({ activeKey: 1 });
       await flushPromises();
-      expect(shown).toEqual(['Chip 6 {"block":"nearest","inline":"nearest"}']);
+      const el = w.find(".asc__row").element as HTMLElement;
+      expect(el.scrollLeft).toBe(180);
+      el.scrollLeft = 0;
       await w.setProps({ activeKey: 2 });
       await flushPromises();
-      expect(shown).toHaveLength(2);
+      expect(el.scrollLeft).toBe(180);
+      // only the row moves: the page is never scrolled to it (a row below the fold stays below it)
+      expect(pageMoves).toEqual([]);
     } finally {
       HTMLElement.prototype.scrollIntoView = original;
+      rect.mockRestore();
     }
   });
 

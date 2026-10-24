@@ -22,9 +22,17 @@ def detail(page):
     return page.get_by_role("dialog").and_(page.get_by_test_id("job-drawer"))
 
 
+def job_row(page, text):
+    """The first job row holding `text`: a table row on a desktop or tablet (a click opens it), a phone's row button."""
+    rows = page.locator(".jobs__table tbody tr.is-row, .jobs__table button.p-row")
+    by_id = rows.and_(page.locator('[data-id^="%s"]' % text))
+    return (by_id if re.fullmatch(r"[0-9a-f]{8}", text) else rows.filter(has_text=text)).first
+
+
 def pick_tab(page, name):
-    detail(page).get_by_role("tab", name=name, exact=True).click()
-    expect(detail(page).get_by_role("tab", name=name, exact=True)).to_have_attribute("aria-selected", "true")
+    tab = re.compile(r"^%s( \d+)?$" % name)     # Timeline carries its count
+    detail(page).get_by_role("tab", name=tab).click()
+    expect(detail(page).get_by_role("tab", name=tab)).to_have_attribute("aria-selected", "true")
 
 
 def close_drawer(page):
@@ -78,7 +86,7 @@ def run(page, app, live, sw, data):
     def detail_loading():
         pattern = re.compile(r"/admin/jobs/[0-9a-f-]{36}$")
         slow(page, pattern)
-        page.locator("tbody tr, li").filter(has_text=failed).locator("a.title-link, .prow").first.click()
+        job_row(page, failed).click()
         expect(detail(page).locator("[data-state=loading]")).to_be_visible()
         expect(detail(page).locator("[data-section=conclusion]")).to_be_visible(timeout=TIMEOUT_MS * 2)
         unslow(page, pattern)
@@ -104,7 +112,7 @@ def run(page, app, live, sw, data):
     close_drawer(page)
 
     # ---- what the boards do not draw ----
-    failed_title = page.locator("tbody tr, li").filter(has_text=failed).locator("a.title-link, .prow").first
+    failed_title = job_row(page, failed)
     page.route(JOB, tamper)
     page.route(DEBUG, debug_file)
     page.route(SWEEP_LINK, sweep_picture)
@@ -137,7 +145,7 @@ def run(page, app, live, sw, data):
     page.unroute(SWEEP_LINK, sweep_picture)
 
     def recover_done():
-        page.locator("tbody tr, li").filter(has_text="done").locator("a.title-link, .prow").first.click()
+        job_row(page, "Done").click()
         expect(detail(page).locator("[data-section=conclusion]")).to_be_visible(timeout=TIMEOUT_MS * 2)
         pick_tab(page, "Technical")
         show(page, "[data-section=more-actions]")

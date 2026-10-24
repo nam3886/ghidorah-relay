@@ -23,8 +23,12 @@ const props = withDefaults(
     danger?: boolean;
     disabled?: boolean;
     placement?: "top" | "bottom" | "top-end" | "bottom-end";
+    // a glyph of a surface's own (the media viewer's tools and player), drawn in place of `icon`, at `glyph` px
+    paths?: readonly string[];
+    glyph?: number;
+    toggled?: boolean;
   }>(),
-  { shortcut: "", danger: false, disabled: false, placement: "top" },
+  { shortcut: "", danger: false, disabled: false, placement: "top", paths: undefined, glyph: 16, toggled: undefined },
 );
 const emit = defineEmits<{ click: [event: MouseEvent] }>();
 
@@ -118,13 +122,14 @@ defineExpose({ open });
         class="ib"
         :class="{ 'ib--danger': props.danger }"
         :aria-label="text"
+        :aria-pressed="props.toggled"
         :disabled="props.disabled"
         @focus="onFocus"
         @blur="hide"
         @keydown.esc="hide"
         @click="onClick"
       >
-        <PathIcon :paths="IB_ICONS[props.icon]" :size="16" :stroke="1.75" />
+        <PathIcon :paths="props.paths ?? IB_ICONS[props.icon]" :size="props.glyph" :stroke="props.paths ? 2 : 1.75" />
       </button>
     </span>
   </el-tooltip>

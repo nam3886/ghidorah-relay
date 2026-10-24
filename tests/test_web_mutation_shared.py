@@ -449,6 +449,8 @@ THRESHOLDS = "shows an arrow once 8 px remain, hides it below 2 px, and keeps it
           expect="wraps a phone set of 5 or fewer")
 @mutation(SCROLLER, "watch(() => props.activeKey, revealActive);", "",
           expect="scrolls the active item into view on mount and when it changes")
+@mutation(SCROLLER, "  else if (item.right > box.right) el.scrollLeft += item.right - box.right;\n", "",
+          expect="scrolls the active item into view on mount and when it changes")
 @mutation(SCROLLER, "  for (const io of observers) io.disconnect();\n", "", expect="stops watching when it is gone")
 @pytest.mark.web_unit
 def test_the_arrow_scroller_keeps_its_thresholds_and_steps():

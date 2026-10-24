@@ -198,15 +198,15 @@ describe("the shell", () => {
   });
 
   it("frames the page: the top bar first, then the scroll area around one main with the view inside", async () => {
-    const { wrapper } = await open("/jobs");
+    const { wrapper } = await open("/accounts");
     const shellEl = wrapper.find(".app-shell");
-    // Jobs has the provider strip between the bar and the scroll area, outside the scroll area
+    // Accounts has the provider strip between the bar and the scroll area, outside the scroll area
     expect([...shellEl.element.children].map((el) => el.tagName)).toEqual(["HEADER", "NAV", "DIV"]);
     expect(shellEl.element.children[1]?.classList.contains("pstrip")).toBe(true);
     expect(shellEl.element.children[2]?.classList.contains("app-scroll")).toBe(true);
     expect(wrapper.find(".app-scroll__wrap > .app-scroll__view > main").exists()).toBe(true);
     expect(wrapper.find("header").element.closest(".app-scroll")).toBeNull();
-    expect(wrapper.find("main h2").text()).toBe("Jobs");
+    expect(wrapper.find("main h2").text()).toBe("Accounts");
     expect(wrapper.find("header nav").attributes("aria-label")).toBe("Main");
   });
 
@@ -384,15 +384,28 @@ describe("the shell", () => {
     expect(wrapper.find("main section").element).not.toBe(first);
   });
 
-  it("has no Provider list in the top bar: every tab but Request logs, Prompt frames and Settings, which have their own lists, filters by provider in its strip", async () => {
+  it("has no Provider list in the top bar: every tab but Request logs, Prompt frames and Settings, which have their own lists, filters by provider in its strip, and Jobs only below the desktop", async () => {
     const { wrapper, router } = await open("/jobs");
     for (const name of ["jobs", "accounts", "keys", "logs", "alerts", "frames", "settings", "test"]) {
       await router.push(`/${name}`);
       await flushPromises();
       expect(wrapper.find('[data-testid="provider-filter"]').exists()).toBe(false);
-      // Request logs, Prompt frames and Settings have their provider chips or tabs in the page
-      expect(wrapper.find("nav.pstrip").exists()).toBe(name !== "logs" && name !== "frames" && name !== "settings");
+      // Request logs, Prompt frames and Settings have their provider chips or tabs in the page; Jobs its provider cards
+      expect(wrapper.find("nav.pstrip").exists()).toBe(
+        name !== "logs" && name !== "frames" && name !== "settings" && name !== "jobs",
+      );
     }
+  });
+
+  it("Jobs draws the provider strip on a tablet and a phone, where it has no provider cards", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: /1279/.test(query),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    const { wrapper } = await open("/jobs");
+    expect(wrapper.find("nav.pstrip").exists()).toBe(true);
   });
 
   it("closes the account menu on Escape and on a click outside, not on a press inside it", async () => {

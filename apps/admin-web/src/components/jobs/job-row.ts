@@ -24,3 +24,41 @@ export const isRunning = (status: string): boolean => RUNNING.has(status);
 // dash), not a zero.
 export const netPoints = (job: Pick<JobSummary, "status" | "net_charged">): number | null =>
   isRunning(job.status) && job.net_charged === 0 ? null : job.net_charged;
+
+// "59 s", "28 m", "3 h", "3 d 4 h": how long ago a job was made (Ledger's Age column). A missing time is a dash.
+export function age(ms: number | null | undefined, now: number): string {
+  if (!ms) return "—";
+  const s = Math.max(0, Math.floor((now - ms) / 1000));
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} h`;
+  const d = Math.floor(h / 24);
+  return h % 24 ? `${d} d ${h % 24} h` : `${d} d`;
+}
+
+// A queued job that has waited this long draws its age in the warning ink (Ledger: "28 m", bold amber).
+export const SLOW_QUEUE_MS = 10 * 60_000;
+export const isSlow = (job: Pick<JobSummary, "status" | "created_ms">, now: number): boolean =>
+  job.status === "queued" && !!job.created_ms && now - job.created_ms >= SLOW_QUEUE_MS;
+
+export type PillTone = "brand" | "neutral" | "ok" | "bad" | "warn";
+
+// The status pill of a row (Ledger): a job on its way says what it is doing and its step of four ("Rendering 2/4"),
+// a queued one waits in grey, the rest say their word with a capital.
+const STEP: Record<string, number> = { submitting: 2, waiting: 2, fetching: 3 };
+const WORD: Record<string, string> = { submitting: "Submitting", waiting: "Rendering", fetching: "Fetching" };
+const TONE: Record<string, PillTone> = { queued: "neutral", done: "ok", failed: "bad", unknown: "warn" };
+export function statusPill(status: string): { text: string; tone: PillTone } {
+  if (WORD[status]) return { text: `${WORD[status]} ${STEP[status]}/4`, tone: "brand" };
+  return { text: status.charAt(0).toUpperCase() + status.slice(1), tone: TONE[status] ?? "neutral" };
+}
+
+// The Points cell: the net the key kept, "net / price" when that is not the whole price ("0 / 2" refunded), a dash
+// for a job on its way that has charged nothing yet.
+export function pointsText(job: Pick<JobSummary, "status" | "net_charged" | "price">): string {
+  const net = netPoints(job);
+  if (net === null) return "—";
+  return net === job.price ? String(net) : `${net} / ${job.price}`;
+}

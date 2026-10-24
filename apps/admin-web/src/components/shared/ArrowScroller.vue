@@ -75,12 +75,17 @@ function by(direction: -1 | 1): void {
 }
 
 const ACTIVE = '[aria-current="page"], [aria-current="true"], [aria-pressed="true"], [aria-selected="true"]';
+// Only the row scrolls, sideways: scrollIntoView would also scroll the page to a row below the fold (Jobs on a short
+// window jumped down to its chips when it opened).
 async function revealActive(): Promise<void> {
   await nextTick();
-  const active = row.value?.querySelector<HTMLElement>(ACTIVE);
-  if (active && typeof active.scrollIntoView === "function") {
-    active.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }
+  const el = row.value;
+  const active = el?.querySelector<HTMLElement>(ACTIVE);
+  if (!el || !active) return;
+  const box = el.getBoundingClientRect();
+  const item = active.getBoundingClientRect();
+  if (item.left < box.left) el.scrollLeft -= box.left - item.left;
+  else if (item.right > box.right) el.scrollLeft += item.right - box.right;
 }
 
 onMounted(() => {

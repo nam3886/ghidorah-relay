@@ -22,8 +22,6 @@ PICK_SPEC = "tests/unit/jobs/selection.spec.ts"
 TEXT_SPEC = "tests/unit/jobs/job-text.spec.ts"
 API_SPEC = "tests/unit/jobs/jobs-api.spec.ts"
 VIEW_SPEC = "tests/unit/jobs/jobs-view.spec.ts"
-GROWS = "on a desktop the Key column grows to its longest value up to 120 px, and Job gives up the room"
-AUTO = f"{SRC}/components/jobs/auto-columns.ts"
 
 # the start of every failed-test line, by spec (the describe and the title follow)
 FG = "FAILED " + PAGING_SPEC + " > "
@@ -106,8 +104,8 @@ def test_the_bulk_toasts_and_the_progress_bar_keep_their_rules():
 
 
 # ---- the Jobs view------------------------------------------------------------------------------------------------
-AT_REST = (FV + "selection > with nothing ticked the toolbar says 0 selected and has no bulk buttons; a tick shows "
-                "them, and the count follows")
+AT_REST = (FV + "selection > with nothing ticked there is no bulk bar; a tick shows it with the count and both "
+                "buttons, and the count follows")
 TICKED = FV + "bulk regenerate > sends the ticked ids, says made, already made and failed, and clears the ticks"
 KEEPS = (FV + "bulk regenerate > keeps the selection after a failure that is safe to retry, "
          "and the retry sends the same ids")
@@ -121,12 +119,12 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
 @mutation(VIEW, "limit.value = size;", "void size;",
           expect=FV + "paging > a new page size starts again from the first page, with the new limit")
 @mutation(VIEW, "load(at: number = offset.value)", "load(at: number = 0)",
-          expect=FV + "paging > a reload (Refresh, a bulk action) stays on the page on screen")
+          expect=FV + "paging > a reload (a change from the detail, a bulk action) stays on the page on screen")
 @mutation(VIEW, "    offset.value = at;", "    offset.value = offset.value;",
           expect=FV + "paging > a picked page asks for its offset, and the pager follows the page that arrived")
 @mutation(FILTERS, "(value: string): string => value || ALL", "(value: string): string => value",
-          expect=FV + "filters > shows All, not the placeholder, while nothing is filtered, "
-                      "after the word Status or Key")
+          expect=FV + "filters > shows All while nothing is filtered: the All chip pressed, the Key filter All "
+                      "after its word")
 @mutation(FILTERS, 'value === ALL ? "" : value', "value",
           expect=FV + "filters > choosing All again sends no filter, and the label follows a real choice")
 @mutation(VIEW, "offset.value = 0;", "void 0;",
@@ -144,12 +142,9 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
           expect=FV + "bulk re-check > posts the ticked ids in table order, says how many, and clears the ticks")
 @mutation(VIEW, "Regenerate ${ids.value.length} job(s)? ", "Regenerate job(s)? ",
           expect=FV + "bulk regenerate > asks first, naming the count, today's price and the charge")
-@mutation(VIEW, "picked.value = new Set(rows.map((r) => r.id));", "picked.value = picked.value;",
-          expect=AT_REST)
+@mutation(VIEW, "picked.value = next;", "void next;", expect=AT_REST)
 @mutation(VIEW, "label: keyName(k) }", "label: k.label }",
           expect=FV + "filters > every key option is readable: its label, else its prefix, else the start of its id")
-@mutation(VIEW, "keyNames.value.get(job.key_id) || ", "",
-          expect=FV + "filters > a job whose key has no label shows the key as the Key filter names it")
 @mutation(VIEW, "label: s.charAt(0).toUpperCase() + s.slice(1)", "label: s",
           expect=FV + "filters > the status options read as drawn")
 @mutation(VIEW, "note: (n) => `${jobs(n)} shown`", "note: (n) => jobs(n)",
@@ -167,14 +162,10 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
           'new Intl.DateTimeFormat("en-CA", { timeZone: "UTC" }).format(ms)',
           expect=FV + "time zones > asks for the day totals in the zone of the browser, exactly as the browser "
                       "reports it (America/Los_Angeles), and puts each on its own day's header")
-@mutation(VIEW, '"Every generation job across keys, by day."', '"Every generation job across keys, grouped by day."',
-          expect=FV + "the page head and the 10-second read > a phone says 'by day' and has an icon-only Refresh "
-                      "that names the update time")
-@mutation(VIEW, "if (!sameColumns(next, columnWidths.value)) columnWidths.value = next;", "columnWidths.value = null;",
-          expect=GROWS)
-@mutation(VIEW, "    if (body) widthWatch?.observe(body);\n", "",
-          expect=FV + "the list > the widths follow the table element's own width")
-@mutation(f"{SRC}/components/shared/DataTable.vue", '      emit("rows-drawn");\n', "", expect=GROWS)
+@mutation(VIEW, "if (typeof route.query.job === \"string\" && route.query.job) ui.openJob(route.query.job);", "",
+          expect=FV + "the list > a link with a job id opens its drawer")
+@mutation(VIEW, 'window.open(href, "_blank", "noopener");', 'window.open(href, "_blank");',
+          expect=FV + "the list > a row opens its job; Copy job id copies the whole id; Open in new tab opens its link")
 @pytest.mark.web_unit
 def test_the_jobs_view_pages_filters_selects_and_sends_what_is_ticked():
     vitest(VIEW_SPEC)
@@ -217,14 +208,49 @@ def test_the_row_text_clock_running_steps_and_net_points():
     vitest(ROW_SPEC)
 
 
-@mutation(AUTO, "Math.min(COLUMN_CAP, need.key)", "need.key", expect="neither column grows over the cap")
-@mutation(AUTO, "Math.max(drawn.account, Math.min(COLUMN_CAP, need.account))", "Math.min(COLUMN_CAP, need.account)",
-          expect="values that fit their drawn widths move nothing")
-@mutation(AUTO, "Math.max(drawn.key, Math.min(COLUMN_CAP, need.key))", "Math.min(COLUMN_CAP, need.key)",
-          expect="a drawn width over the cap is kept")
-@mutation(AUTO, "job: drawn.job - (account - drawn.account) - (key - drawn.key)", "job: drawn.job",
-          expect="Job gives up exactly that room")
-@mutation(AUTO, "Math.abs(a.job - b.job) < 0.5", "Math.abs(a.job - b.job) < 5", expect="within half a pixel")
+# ---- the Ledger row: age, the slow queue, the pill and the points ------------------------------------------------
+FL = "FAILED " + ROW_SPEC + " > ledger row cells > "
+
+
+@mutation(ROW, "  if (h < 24) return `${h} h`;\n", "",
+          expect=FL + "age counts back from now in s, m, h, then days and hours")
+@mutation(ROW, "return h % 24 ? `${d} d ${h % 24} h` : `${d} d`;", "return `${d} d`;",
+          expect=FL + "age counts back from now in s, m, h, then days and hours")
+@mutation(ROW, "export const SLOW_QUEUE_MS = 10 * 60_000;", "export const SLOW_QUEUE_MS = 20 * 60_000;",
+          expect=FL + "only a queued job that waited 10 min or more is slow")
+@mutation(ROW, 'job.status === "queued" && !!job.created_ms', "!!job.created_ms",
+          expect=FL + "only a queued job that waited 10 min or more is slow")
+@mutation(ROW, 'waiting: "Rendering"', 'waiting: "Waiting"',
+          expect=FL + "the pill says what a job on its way is doing with its step, the others their word")
+@mutation(ROW, 'queued: "neutral"', 'queued: "brand"',
+          expect=FL + "the pill says what a job on its way is doing with its step, the others their word")
+@mutation(ROW, "net === job.price ? String(net) : `${net} / ${job.price}`", "String(net)",
+          expect=FL + "points: the net, net / price when part of it was given back, a dash before any charge")
 @pytest.mark.web_unit
-def test_the_account_and_key_columns_grow_to_their_values_up_to_the_cap():
-    vitest("tests/unit/jobs/auto-columns.spec.ts")
+def test_the_ledger_row_cells_keep_their_rules():
+    vitest(ROW_SPEC)
+
+
+# ---- the Today section ---------------------------------------------------------------------------------------------
+TODAY_SRC = f"{SRC}/components/jobs/today.ts"
+TODAY_SPEC = "tests/unit/jobs/today.spec.ts"
+FS = "FAILED " + TODAY_SPEC + " > the Today section > "
+
+
+@mutation(TODAY_SRC, "Math.max(2, Math.round(((h.done[p] ?? 0) / peak) * height))",
+          "Math.round(((h.done[p] ?? 0) / peak) * height)",
+          expect=FS + "a provider with one job in a busy hour is still 2 px high")
+@mutation(TODAY_SRC, "now: i === s.hours.length - 1,", "now: false,",
+          expect=FS + "stacks each hour's done jobs by provider on one scale, then flat stubs for the hours to come")
+@mutation(TODAY_SRC, ".filter((p) => (h.done[p] ?? 0) > 0)", "",
+          expect=FS + "stacks each hour's done jobs by provider on one scale, then flat stubs for the hours to come")
+@mutation(TODAY_SRC, "p.failed_today / Math.max(1, p.done_today + p.failed_today) > 0.03",
+          "p.failed_today / Math.max(1, p.done_today) > 0.05",
+          expect=FS + "a provider fails a lot above 3% of what it finished")
+@mutation(TODAY_SRC, '!p.claims_enabled ? "Paused" : ', "",
+          expect=FS + "names the send path, Paused when it takes no new job, and the usable share")
+@mutation(TODAY_SRC, "alerts?.find((a) => a.provider === provider)?.message", "alerts?.[0]?.message",
+          expect=FS + "a card's cause is the first live alert about its provider")
+@pytest.mark.web_unit
+def test_the_today_section_stacks_the_hours_and_words_the_cards():
+    vitest(TODAY_SPEC)

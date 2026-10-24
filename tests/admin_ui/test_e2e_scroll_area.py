@@ -228,7 +228,7 @@ def test_an_open_filter_list_follows_its_trigger_while_the_area_scrolls(app, app
     for n in range(3):
         done_job(db, key, new_account(db, label="a%d" % n, checked=True), ref="r%d" % n)
     go(app, page, "jobs", 1440, 420)
-    trigger = page.get_by_role("combobox", name="Status", exact=True)
+    trigger = page.get_by_role("combobox", name="Key", exact=True)
     trigger.click()
     popup = page.get_by_role("listbox")
     expect(popup).to_be_visible()

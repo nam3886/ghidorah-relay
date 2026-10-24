@@ -12,6 +12,8 @@ declare module "vue-router" {
     // Filtered by the provider strip under the top bar (ProviderStrip) instead of the top bar's Provider list, in one
     // of its modes: "all" (All, then each provider: a filter) or "only" (the providers alone: the page works on one at a time).
     providerStrip?: StripMode;
+    // The strip only below the desktop: the page draws its own provider picker at 1280 px and up (Jobs: the cards).
+    stripCompactOnly?: boolean;
   }
 }
 
@@ -44,7 +46,7 @@ const routes: RouteRecordRaw[] = [
     path: `/${tab.name}`,
     name: tab.name,
     component: tab.component,
-    meta: { label: tab.label, providerStrip: STRIP_TABS[tab.name] },
+    meta: { label: tab.label, providerStrip: STRIP_TABS[tab.name], stripCompactOnly: tab.name === "jobs" },
   })),
   // Anything else (a mistyped hash) lands on the default tab.
   { path: "/:rest(.*)*", redirect: { name: "jobs" } },

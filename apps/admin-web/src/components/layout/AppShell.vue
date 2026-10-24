@@ -73,7 +73,10 @@ defineExpose({ focusPage });
 <template>
   <div class="app-shell" :class="{ 'app-shell--bnav': isPhone || isTablet }">
     <TopBar />
-    <ProviderStrip v-if="route.meta.providerStrip" :mode="route.meta.providerStrip" />
+    <ProviderStrip
+      v-if="route.meta.providerStrip && (!route.meta.stripCompactOnly || isPhone || isTablet)"
+      :mode="route.meta.providerStrip"
+    />
     <el-scrollbar
       ref="scroller"
       class="app-scroll"

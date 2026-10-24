@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { fetchDownload, getJob, type JobDetail, renameJob } from "@/api/jobs-detail";
 import { saveBlob } from "@/components/jobs/blob-actions";
 import { announceJobChange } from "@/components/jobs/job-changes";
-import { isRunning } from "@/components/jobs/job-row";
+import { isRunning, statusPill } from "@/components/jobs/job-row";
 import {
   fmtDayClock,
   fmtTook,
@@ -19,33 +19,32 @@ import {
 import JobActions from "@/components/jobs/JobActions.vue";
 import JobCopy from "@/components/jobs/JobCopy.vue";
 import JobDebugFiles from "@/components/jobs/JobDebugFiles.vue";
-import {
-  IconAlertCircle,
-  IconAlertCircleJoined,
-  IconAlertTriangle,
-  IconCheck,
-  IconDownload,
-} from "@/components/shared/icons";
+import JobLedger, { type LedgerRow } from "@/components/jobs/JobLedger.vue";
 import JobMedia from "@/components/jobs/JobMedia.vue";
 import JobTechnical from "@/components/jobs/JobTechnical.vue";
 import JobTimeline from "@/components/jobs/JobTimeline.vue";
-import type { CopyOutcome } from "@/components/shared/clipboard";
-import DetailDrawer from "@/components/shared/DetailDrawer.vue";
-import DrawerPanel from "@/components/shared/DrawerPanel.vue";
-import DrawerTabs from "@/components/shared/DrawerTabs.vue";
-import LedgerList, { type LedgerItem } from "@/components/shared/LedgerList.vue";
-import StatusChip from "@/components/shared/StatusChip.vue";
+import { copyText } from "@/components/shared/clipboard";
+import { drawerPanelId, drawerTabId } from "@/components/shared/drawer-tab-ids";
+import IconButton from "@/components/shared/IconButton.vue";
+import { IconAlertCircleJoined, IconAlertTriangle, IconCheck } from "@/components/shared/icons";
+import SideDrawer from "@/components/shared/overlays/SideDrawer.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useBusy } from "@/composables/use-busy";
 import { useLatest } from "@/composables/use-latest";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
+import { providerClass } from "@/lib/providers";
+import { safeMediaUrl } from "@/lib/safe-media-url";
 import { useUiStore } from "@/stores/ui";
 
-// Mounted once in the shell; Jobs and Alerts open it through ui.openJob(id). Every string from the server (title,
-// prompt, error, events, params, account names) is drawn as text. A later answer for a job that is no longer the open
-// one is dropped. The drawer's name is "Job <8-char id>"; its visible heading is the job's title.
-// `backLabel`: what the phone sheet's Back button says, the page it goes back to (the shell passes it)
+// The job detail (JobDetail.dc.html, JobDetailTabs, JobDetailTablet, JobDetailPhone), mounted once in the shell; Jobs
+// and Alerts open it through ui.openJob(id). A right-hand drawer on a desktop, the width less a 48 px gutter on a
+// tablet, the whole screen on a phone (Back only, the sections as a segmented control, the facts in cards, Regenerate…
+// and Download all at its foot). Its head: Back, the title, Close · Esc; the status pill, the provider chip, one mono
+// line and the id chip; the Overview, Timeline (with its count) and Technical tabs. Keys while it is open: D downloads
+// every result, R re-checks the job. Every string from the server (title, prompt, error, events, params, account
+// names) is drawn as text. A later answer for a job that is no longer the open one is dropped.
+// `backLabel`: what Back says, the page it goes back to (the shell passes it)
 const props = withDefaults(defineProps<{ backLabel?: string }>(), { backLabel: "Back to Jobs" });
 const ui = useUiStore();
 const { isPhone } = useBreakpoint();
@@ -112,19 +111,6 @@ const rename = () =>
     refresh();
   });
 
-const promptBlock = ref<HTMLElement | null>(null);
-
-// JobCopy already says what to do when no copy path worked; success gets the toast.
-function onCopied(outcome: CopyOutcome): void {
-  if (outcome === "clipboard" || outcome === "exec") notify.success("Prompt copied");
-}
-
-const TABS = [
-  { key: "overview", label: "Overview" },
-  { key: "timeline", label: "Timeline" },
-  { key: "technical", label: "Technical" },
-];
-
 const outputs = computed(() => job.value?.media.filter((m) => m.role === "output") ?? []);
 const references = computed(() => job.value?.media.filter((m) => m.role === "input") ?? []);
 // The detail answer has no `outputs` count of its own: the stored results are the count, the list's number a fallback.
@@ -132,35 +118,47 @@ const outputCount = computed(() => outputs.value.length || Number(param("count",
 const events = computed(() => newestFirst(job.value?.events ?? []));
 const failed = computed(() => job.value?.status === "failed");
 const done = computed(() => job.value?.status === "done");
-// The action row (the phone's footer) holds Download (results), Re-check (a job that can be) or Regenerate… (a done
-// job; a failed one has its Actions card): JobActions' rules. A job with none of them draws no row and no empty
-// footer (a queued, submitting or fetching job).
-const hasRow = computed(() => Boolean(outputs.value.length || job.value?.can_recheck || done.value));
+const finished = computed(() => done.value || failed.value);
+const pill = computed(() => (job.value ? statusPill(job.value.status) : { text: "", tone: "neutral" }));
 
+const TABS = computed(() => [
+  { key: "overview", label: "Overview", count: 0 },
+  { key: "timeline", label: "Timeline", count: events.value.length },
+  { key: "technical", label: "Technical", count: 0 },
+]);
+function moveTab(from: number, by: number, event: KeyboardEvent): void {
+  const next = TABS.value[(from + by + TABS.value.length) % TABS.value.length]!;
+  tab.value = next.key;
+  const list = (event.currentTarget as HTMLElement).parentElement;
+  list?.querySelectorAll<HTMLElement>("[role='tab']")[TABS.value.indexOf(next)]?.focus();
+}
+
+// "t2v · seedance-2.0 · 2 outputs": the count once the job has ended
 const context = computed(() => {
   const j = job.value;
   if (!j) return "";
-  // the count once the job has ended (a job on its way has no results to count); the phone sheet draws the line
-  // without it (it has no room for it beside the id chip)
   const line = `${j.operation} · ${j.model}`;
-  return isPhone.value || !(done.value || failed.value) ? line : `${line} · ${plural(outputCount.value, "output")}`;
+  return finished.value ? `${line} · ${plural(outputCount.value, "output")}` : line;
 });
-// The header's chip: a job on its way shows its step instead of the dot, as the list does ("3/4 fetching").
-const step = computed(() =>
-  job.value && isRunning(job.value.status) ? `${progressStep(job.value.status)}/4` : undefined,
-);
+// the phone's one line under the title: "Done · dola · t2v · seedance-2.0 · 9c41e7b2"
+const phoneSub = computed(() => {
+  const j = job.value;
+  return j ? [pill.value.text, j.provider, j.operation, j.model, shortId(j.id)].join(" · ") : "";
+});
 
-// "Delivered 4 images" + "net charged 1 point · 1 min 35 s".
+// "Delivered 4 images" + "· net charged 1 point · 1 min 35 s".
 const delivered = computed(() => {
   const j = job.value;
   if (!j) return { lead: "", rest: "" };
-  const count = outputCount.value;
   const noun = j.media_type === "image" ? "image" : j.media_type === "video" ? "video" : "file";
   const took = j.created_ms && j.finished_ms ? ` · ${fmtTook(j.finished_ms - j.created_ms)}` : "";
-  return { lead: `Delivered ${plural(count, noun)}`, rest: `· net charged ${plural(j.net_charged, "point")}${took}` };
+  return {
+    lead: `Delivered ${plural(outputCount.value, noun)}`,
+    rest: `· net charged ${plural(j.net_charged, "point")}${took}`,
+  };
 });
-// A job on its way, in the done banner's pattern: what it is doing, then its step (as the list's bar), what it has
-// charged and how long it has run so far. "Fetching the result" + "· step 3 of 4 · charged 2 points · 4 min so far".
+// A job on its way, in the done banner's pattern: what it is doing, then its step, what it has charged and how long
+// it has run so far. "Fetching the result" + "· step 3 of 4 · charged 2 points · 4 min so far".
 const onItsWay = computed(() => {
   const j = job.value;
   if (!j) return { lead: "", rest: "" };
@@ -186,8 +184,34 @@ const onItsWay = computed(() => {
 const asText = (v: unknown): string => (v === undefined || v === null || v === "" ? "" : String(v));
 const param = (...names: string[]): string => jobParam(job.value?.params, ...names);
 
-// The ledger of the Overview. A refund shows the price struck, an arrow and what was kept.
-const summary = computed<LedgerItem[]>(() => {
+// Money: what was charged, what went back, what the account paid upstream. A figure the server does not have is left
+// out (a provider margin needs the upstream cost in points: the API does not give it).
+const money = computed(() => {
+  const j = job.value;
+  if (!j) return [];
+  const back = Math.max(0, j.price - j.net_charged);
+  const rows = [
+    { label: "Charged", value: `${j.price} pts`, note: j.model, tone: "" },
+    {
+      label: "Refunded",
+      value: `${back} pts`,
+      note: isRefunded(j) ? "refunded" : back ? "partly refunded" : "nothing refunded",
+      tone: "",
+    },
+  ];
+  if (j.account_cost)
+    rows.push({
+      label: "Upstream cost",
+      value: plural(j.account_cost, "credit"),
+      note: [j.provider, j.pool, j.pool ? "pool" : ""].filter(Boolean).join(" "),
+      tone: "",
+    });
+  return rows;
+});
+const moneyRows = computed<LedgerRow[]>(() => money.value.map((m) => ({ label: m.label, value: m.value })));
+
+// The facts of the Overview (the ledger under Money).
+const facts = computed<LedgerRow[]>(() => {
   const j = job.value;
   if (!j) return [];
   const ratio = param("ratio", "aspect_ratio");
@@ -195,27 +219,35 @@ const summary = computed<LedgerItem[]>(() => {
     param("duration", "duration_s", "seconds") ||
     asText(outputs.value[0]?.duration_s && Math.round(outputs.value[0].duration_s));
   const count = param("count", "n") || String(outputCount.value);
-  // a refund is the list's rule (a failed job that was charged and paid back); a lower net on another job is not
-  const refunded = isRefunded(j);
-  return [
+  const media =
+    j.media_type === "video"
+      ? [j.media_type, length ? `${length} s` : "", ratio].filter(Boolean).join(" · ")
+      : [j.media_type, ratio, count ? `×${count}` : ""].filter(Boolean).join(" · ");
+  const callback = j.callback.status ? [j.callback.status, plural(j.callback.attempts ?? 0, "try")].join(" · ") : "";
+  const rows: LedgerRow[] = [
     { label: "Operation", value: j.operation },
     { label: "Model", value: j.model_substituted ? `${j.model} (model differs)` : j.model, mono: true },
-    j.media_type === "video"
-      ? { label: "Media", value: [j.media_type, length ? `${length} s` : "", ratio].filter(Boolean).join(" · ") }
-      : { label: "Ratio · count", value: [ratio, count].filter(Boolean).join(" · ") },
-    refunded
-      ? { label: "Points", was: String(j.price), value: j.net_charged, note: "refunded" }
-      : {
-          label: "Points",
-          value: j.net_charged === j.price ? `${j.net_charged} charged · 0 refunded` : `${j.net_charged} charged`,
-        },
+    { label: "Media", value: media },
     { label: "Account", value: asText(j.account_label) || "—", mono: true },
     // named as the list names it: the label, else the prefix, else the start of the id
-    { label: "Key", value: keyName({ id: j.key_id, label: j.key_label, prefix: j.key_prefix }) },
+    {
+      label: "Key",
+      value: [
+        keyName({ id: j.key_id, label: j.key_label, prefix: j.key_prefix }),
+        j.key_label?.trim() ? j.key_prefix : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    },
+    { label: "Prompt frame", value: asText(j.frame_id) && `${j.media_type} v${j.frame_id}`, mono: true },
+    { label: "Webhook", value: callback },
     { label: "Created", value: fmtDayClock(j.created_ms), mono: true },
     { label: "Finished", value: fmtDayClock(j.finished_ms), mono: true },
   ];
+  return rows.filter((r) => r.value !== "");
 });
+// the phone's Details card: the facts that are not in its head line
+const phoneFacts = computed(() => facts.value.filter((r) => r.label !== "Operation"));
 
 // Download all: every result, one file each, named job-<id8>-<idx>.
 const { busy: downloading, run: runDownload } = useBusy();
@@ -226,184 +258,593 @@ const downloadAll = () =>
       saveBlob(await fetchDownload(job.value.id, m.idx), `job-${shortId(job.value.id)}-${m.idx}`);
   });
 const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" : "Download"));
+
+// Copy share link: the same-origin /m/ link of every result, one a line.
+const links = computed(() =>
+  outputs.value
+    .map((m) => safeMediaUrl(m.url))
+    .filter((u): u is string => !!u)
+    .map((u) => new URL(u, window.location.origin).href),
+);
+async function copy(text: string, what: string): Promise<void> {
+  const outcome = await copyText(text);
+  if (outcome === "clipboard" || outcome === "exec") notify.success(`${what} copied`);
+  else notify.error("Could not copy: select the text and copy it by hand");
+}
+
+// D and R: only while the drawer is the top layer and no field has the keys
+const actions = ref<{ recheck: () => unknown } | null>(null);
+function onKey(event: KeyboardEvent): void {
+  if (!visible.value || !job.value || event.ctrlKey || event.metaKey || event.altKey) return;
+  const el = event.target instanceof Element ? event.target : null;
+  if (el?.closest("input, textarea, select, [contenteditable=true]")) return;
+  if (document.querySelector(".el-dialog.rl-viewer, .el-message-box")) return;
+  const k = event.key.toLowerCase();
+  if (k === "d" && outputs.value.length) void downloadAll();
+  else if (k === "r") actions.value?.recheck();
+}
+onMounted(() => document.addEventListener("keydown", onKey));
+onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 </script>
 
 <template>
-  <DetailDrawer v-model="visible" :title="name" :heading="heading" :back-label="props.backLabel" testid="job-drawer">
-    <template v-if="job" #chips>
-      <StatusChip :status="job.status" :step="step" />
-      <span>{{ context }}</span>
-      <JobCopy variant="id" :text="shortId(job.id)" :label="`Copy job id ${shortId(job.id)}`" />
+  <SideDrawer
+    v-model="visible"
+    :title="heading"
+    :back-label="props.backLabel"
+    testid="job-drawer"
+    panel-class="rl-job-drawer"
+    sheet
+    @back="visible = false"
+  >
+    <template v-if="job" #sub>
+      <span v-if="isPhone" class="jd-phone-sub">{{ phoneSub }}</span>
+      <template v-else>
+        <span class="jd-pill" :class="`tone-${pill.tone}`">{{ pill.text }}</span>
+        <span class="jd-chip" :class="providerClass(job.provider)">{{ job.provider }}</span>
+        <span class="mono jd-help">{{ context }}</span>
+        <JobCopy :text="shortId(job.id)" :label="`Copy job id ${shortId(job.id)}`" />
+      </template>
     </template>
-    <template #tabs>
-      <DrawerTabs v-model="tab" :tabs="TABS" id-prefix="job" label="Job sections" />
+    <template v-if="!isPhone" #tabs>
+      <div class="jd-tabs" role="tablist" aria-label="Job sections">
+        <button
+          v-for="(t, i) in TABS"
+          :id="drawerTabId('job', t.key)"
+          :key="t.key"
+          type="button"
+          role="tab"
+          class="jd-tab"
+          :class="{ 'is-on': tab === t.key }"
+          :aria-selected="tab === t.key"
+          :aria-controls="drawerPanelId('job', t.key)"
+          :tabindex="tab === t.key ? 0 : -1"
+          @click="tab = t.key"
+          @keydown.right.prevent="moveTab(i, 1, $event)"
+          @keydown.left.prevent="moveTab(i, -1, $event)"
+        >
+          {{ t.label }}<span v-if="t.count" class="num jd-tab__count">{{ t.count }}</span>
+        </button>
+      </div>
     </template>
 
-    <!-- a failed read and the loading bars take the list's drawn patterns (B-States: error, loading) -->
+    <!-- a failed read and the loading bars take the list's patterns -->
     <div v-if="error" class="jd-error" role="alert">
-      <IconAlertCircle class="jd-error__icon" :size="18" />
+      <IconAlertCircleJoined :size="18" :stroke="2" />
       <span class="jd-error__text">{{ error }}</span>
-      <button type="button" class="jd-retry" @click="refresh">Retry</button>
+      <button type="button" class="jd-btn" @click="refresh">Retry</button>
     </div>
     <div v-else-if="!job" class="jd-skeleton" data-state="loading" aria-busy="true" aria-label="Loading the job">
       <span v-for="n in 8" :key="n" class="jd-skeleton__bar" />
     </div>
 
-    <div v-else class="jd" :class="{ 'is-refreshing': loading }" :aria-busy="loading">
-      <DrawerPanel id-prefix="job" name="overview" :selected="tab" class="jd-panel">
-        <template v-if="tab === 'overview'">
-          <div v-if="done" class="jd-banner jd-banner--ok" data-section="conclusion">
-            <IconCheck :size="16" :stroke="2.2" />
-            <!-- the phone wraps the two as one line of text (P-JobDetail); the desktop sets them 10 px apart -->
-            <span v-if="isPhone"
-              ><strong>{{ delivered.lead }}</strong> <span class="jd-num jd-muted">{{ delivered.rest }}</span></span
-            >
-            <template v-else>
-              <strong>{{ delivered.lead }}</strong>
-              <span class="jd-num jd-muted">{{ delivered.rest }}</span>
-            </template>
-          </div>
-          <div v-else-if="failed" class="jd-banner jd-banner--bad" role="alert" data-section="conclusion">
-            <IconAlertCircleJoined :size="16" :stroke="2.2" />
-            <span class="jd-banner__text"
-              ><strong
-                >Failed<template v-if="job.error_code"> · {{ job.error_code }}</template></strong
-              ><template v-if="job.error"> — {{ job.error }}</template></span
-            >
-          </div>
-          <div v-else class="jd-banner jd-banner--plain" data-section="conclusion">
-            <span v-if="isPhone"
-              ><strong>{{ onItsWay.lead }}</strong> <span class="jd-num jd-muted">{{ onItsWay.rest }}</span></span
-            >
-            <template v-else>
-              <strong>{{ onItsWay.lead }}</strong>
-              <span class="jd-num jd-muted">{{ onItsWay.rest }}</span>
-            </template>
-          </div>
-          <div v-if="job.warnings && job.warnings.length" class="jd-banner jd-banner--warn" data-section="warnings">
-            <IconAlertTriangle :size="16" :stroke="2.2" />
-            <span class="jd-banner__text">warnings: {{ JSON.stringify(job.warnings) }}</span>
-          </div>
+    <div v-else class="jd" :class="{ 'is-refreshing': loading, 'is-phone': isPhone }" :aria-busy="loading">
+      <!-- a phone: the sections as a segmented control -->
+      <div v-if="isPhone" class="jd-seg" role="tablist" aria-label="Job sections">
+        <button
+          v-for="(t, i) in TABS"
+          :id="drawerTabId('job', t.key)"
+          :key="t.key"
+          type="button"
+          role="tab"
+          class="jd-seg__btn"
+          :class="{ 'is-on': tab === t.key }"
+          :aria-selected="tab === t.key"
+          :aria-controls="drawerPanelId('job', t.key)"
+          :tabindex="tab === t.key ? 0 : -1"
+          @click="tab = t.key"
+          @keydown.right.prevent="moveTab(i, 1, $event)"
+          @keydown.left.prevent="moveTab(i, -1, $event)"
+        >
+          {{ t.label }}
+        </button>
+      </div>
 
-          <section v-if="outputs.length" data-section="results" aria-label="Results">
-            <JobMedia :job="job" role="output" />
-          </section>
-          <section v-if="references.length" class="jd-section" data-section="references" aria-labelledby="jd-refs">
-            <h3 id="jd-refs" class="jd-h">
-              References <span class="jd-num jd-muted">· {{ references.length }}</span>
-            </h3>
-            <JobMedia :job="job" role="input" />
-          </section>
+      <div
+        v-if="tab === 'overview'"
+        :id="drawerPanelId('job', 'overview')"
+        role="tabpanel"
+        :aria-labelledby="drawerTabId('job', 'overview')"
+        class="jd-panel"
+      >
+        <div v-if="done" class="jd-banner is-ok" role="status" data-section="conclusion">
+          <IconCheck :size="16" :stroke="2.4" />
+          <span
+            ><b>{{ delivered.lead }}</b> <span class="num">{{ delivered.rest }}</span></span
+          >
+        </div>
+        <div v-else-if="failed" class="jd-banner is-bad" role="alert" data-section="conclusion">
+          <IconAlertCircleJoined :size="16" :stroke="2.2" />
+          <span class="jd-banner__text"
+            ><b
+              >Failed<template v-if="job.error_code"> · {{ job.error_code }}</template></b
+            ><template v-if="job.error"> — {{ job.error }}</template></span
+          >
+        </div>
+        <div v-else class="jd-banner is-plain" role="status" data-section="conclusion">
+          <span
+            ><b>{{ onItsWay.lead }}</b> <span class="num">{{ onItsWay.rest }}</span></span
+          >
+        </div>
+        <div v-if="job.warnings && job.warnings.length" class="jd-banner is-warn" data-section="warnings">
+          <IconAlertTriangle :size="16" :stroke="2.2" />
+          <span class="jd-banner__text">warnings: {{ JSON.stringify(job.warnings) }}</span>
+        </div>
 
-          <div v-if="!failed && !isPhone && hasRow" data-section="actions">
-            <JobActions :job="job" zone="row" @reload="refresh">
-              <template v-if="outputs.length" #before>
-                <button type="button" class="jd-primary" :disabled="downloading" @click="downloadAll">
-                  <IconDownload :size="15" :stroke="2" />{{ downloadLabel }}
-                </button>
-              </template>
-            </JobActions>
-          </div>
+        <section v-if="outputs.length" class="jd-section" data-section="results" aria-labelledby="jd-res">
+          <h3 id="jd-res" class="jd-h">
+            Results <span class="num jd-h__n">· {{ outputs.length }}</span>
+          </h3>
+          <JobMedia :job="job" role="output" />
+        </section>
+        <section v-if="references.length" class="jd-section" data-section="references" aria-labelledby="jd-refs">
+          <h3 id="jd-refs" class="jd-h">
+            References <span class="num jd-h__n">· {{ references.length }}</span>
+          </h3>
+          <JobMedia :job="job" role="input" />
+        </section>
 
-          <div class="jd-summary" data-section="summary"><LedgerList :items="summary" variant="drawer" /></div>
-
-          <div v-if="failed" data-section="actions">
-            <JobActions :job="job" zone="card" @reload="refresh" />
-          </div>
-
-          <section class="jd-section" data-section="prompt" aria-labelledby="jd-prompt">
-            <div class="jd-prompt__head">
-              <h3 id="jd-prompt" class="jd-h">Prompt</h3>
-              <JobCopy
-                variant="prompt"
-                :text="job.prompt"
-                :label="isPhone ? 'Copy' : 'Copy prompt'"
-                :select-from="() => promptBlock"
-                @copied="onCopied"
+        <div
+          v-if="(outputs.length && !isPhone) || job.can_recheck || (finished && !isPhone) || links.length"
+          data-section="actions"
+        >
+          <JobActions ref="actions" :job="job" zone="row" :with-regenerate="!isPhone" @reload="refresh">
+            <template v-if="outputs.length && !isPhone" #before>
+              <IconButton
+                icon="download"
+                :label="downloadLabel"
+                shortcut="D"
+                :disabled="downloading"
+                @click="downloadAll"
               />
-            </div>
-            <p ref="promptBlock" class="jd-prompt__text">{{ job.prompt }}</p>
-          </section>
-        </template>
-      </DrawerPanel>
+            </template>
+            <template v-if="links.length" #after>
+              <IconButton icon="link" label="Copy share link" @click="copy(links.join('\n'), 'Share link')" />
+            </template>
+          </JobActions>
+        </div>
 
-      <DrawerPanel id-prefix="job" name="timeline" :selected="tab" class="jd-panel">
-        <section v-if="tab === 'timeline'" data-section="timeline" aria-label="Timeline">
+        <section v-if="isPhone" class="jd-card" data-section="money" aria-labelledby="jd-money">
+          <h3 id="jd-money" class="jd-h">Money</h3>
+          <JobLedger :items="moneyRows" stacked />
+        </section>
+        <section v-else class="jd-money" data-section="money" aria-labelledby="jd-money">
+          <h3 id="jd-money" class="jd-h">Money</h3>
+          <div class="jd-money__grid">
+            <div v-for="m in money" :key="m.label" class="jd-money__cell">
+              <span class="jd-help">{{ m.label }}</span>
+              <span class="num jd-money__value">{{ m.value }}</span>
+              <span class="num jd-help">{{ m.note }}</span>
+            </div>
+          </div>
+        </section>
+
+        <section v-if="isPhone" class="jd-card" data-section="summary" aria-labelledby="jd-details">
+          <h3 id="jd-details" class="jd-h">Details</h3>
+          <JobLedger :items="phoneFacts" stacked />
+        </section>
+        <div v-else data-section="summary"><JobLedger :items="facts" /></div>
+
+        <section class="jd-section" :class="{ 'jd-card': isPhone }" data-section="prompt" aria-labelledby="jd-prompt">
+          <div class="jd-prompt__head">
+            <h3 id="jd-prompt" class="jd-h">Prompt</h3>
+            <IconButton icon="copy" label="Copy prompt" placement="top-end" @click="copy(job.prompt, 'Prompt')" />
+          </div>
+          <p class="jd-prompt__text">{{ job.prompt }}</p>
+        </section>
+
+        <section v-if="isPhone && events.length" class="jd-card" data-section="steps" aria-labelledby="jd-steps">
+          <h3 id="jd-steps" class="jd-h">Latest steps</h3>
+          <JobTimeline :events="events.slice(0, 4)" compact />
+        </section>
+      </div>
+
+      <div
+        v-else-if="tab === 'timeline'"
+        :id="drawerPanelId('job', 'timeline')"
+        role="tabpanel"
+        :aria-labelledby="drawerTabId('job', 'timeline')"
+        class="jd-panel"
+      >
+        <section data-section="timeline" aria-label="Timeline">
           <JobTimeline :events="events" />
         </section>
-      </DrawerPanel>
+      </div>
 
-      <DrawerPanel id-prefix="job" name="technical" :selected="tab" class="jd-panel">
-        <template v-if="tab === 'technical'">
-          <section data-section="technical" aria-label="Technical">
-            <JobTechnical :job="job" :phone="isPhone" />
-          </section>
-          <section class="jd-section" data-section="title" aria-labelledby="jd-title">
-            <h3 id="jd-title" class="jd-h">Title</h3>
-            <div class="jd-line">
-              <input
-                v-model="title"
-                class="jd-input"
-                type="text"
-                maxlength="2000"
-                placeholder="(untitled)"
-                aria-label="Title"
-                @keyup.enter="rename"
-              />
-              <button type="button" class="jd-btn" :disabled="renaming" @click="rename">Rename</button>
-            </div>
-          </section>
-          <section data-section="more-actions" aria-label="More actions">
-            <JobActions :job="job" zone="more" @reload="refresh" />
-          </section>
-          <section class="jd-section" data-section="debug" aria-labelledby="jd-debug">
-            <h3 id="jd-debug" class="jd-h">Debug files</h3>
-            <JobDebugFiles :job="job" />
-          </section>
-          <section class="jd-section" data-section="sent" aria-labelledby="jd-sent">
-            <h3 id="jd-sent" class="jd-h">Text sent upstream</h3>
-            <p class="jd-muted jd-note">The prompt in its frame, with this job's marker.</p>
-            <pre class="jd-pre" data-field="sent-text">{{ job.sent_text === null ? "—" : job.sent_text }}</pre>
-          </section>
-        </template>
-      </DrawerPanel>
+      <div
+        v-else
+        :id="drawerPanelId('job', 'technical')"
+        role="tabpanel"
+        :aria-labelledby="drawerTabId('job', 'technical')"
+        class="jd-panel"
+      >
+        <section data-section="technical" aria-label="Technical">
+          <JobTechnical :job="job" :phone="isPhone" />
+        </section>
+        <section class="jd-section" data-section="title" aria-labelledby="jd-title">
+          <label id="jd-title" for="jd-title-input" class="jd-h">Title</label>
+          <div class="jd-line">
+            <input
+              id="jd-title-input"
+              v-model="title"
+              class="jd-input"
+              type="text"
+              maxlength="2000"
+              placeholder="(untitled)"
+              @keyup.enter="rename"
+            />
+            <button type="button" class="jd-btn" :disabled="renaming" @click="rename">Rename</button>
+          </div>
+        </section>
+        <section data-section="more-actions" aria-label="More actions">
+          <JobActions :job="job" zone="more" @reload="refresh" />
+        </section>
+        <section class="jd-section" data-section="debug" aria-labelledby="jd-debug">
+          <h3 id="jd-debug" class="jd-h">Debug files</h3>
+          <JobDebugFiles :job="job" />
+        </section>
+        <section class="jd-section" data-section="sent" aria-labelledby="jd-sent">
+          <h3 id="jd-sent" class="jd-h">Text sent upstream</h3>
+          <span class="jd-help">The prompt in its frame, with this job's marker.</span>
+          <pre class="jd-pre" data-field="sent-text">{{ job.sent_text === null ? "—" : job.sent_text }}</pre>
+        </section>
+      </div>
     </div>
 
-    <template v-if="job && isPhone && !failed && hasRow" #footer>
-      <JobActions :job="job" zone="row" @reload="refresh">
-        <template v-if="outputs.length" #before>
-          <button type="button" class="jd-primary jd-primary--phone" :disabled="downloading" @click="downloadAll">
-            <IconDownload :size="16" :stroke="2" />{{ downloadLabel }}
-          </button>
-        </template>
-      </JobActions>
+    <template v-if="job && isPhone && (finished || outputs.length)" #footer>
+      <JobActions :job="job" zone="footer" @reload="refresh" />
+      <button v-if="outputs.length" type="button" class="jd-primary" :disabled="downloading" @click="downloadAll">
+        {{ downloadLabel }}
+      </button>
     </template>
-  </DetailDrawer>
+  </SideDrawer>
 </template>
 
 <style scoped>
-.jd {
+.mono {
+  font-family: var(--rl-mono);
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.jd-help {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--rl-faint);
+}
+.jd-phone-sub {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--rl-faint);
+  overflow-wrap: anywhere;
+}
+.jd-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tone-brand {
+  background: var(--rl-info-bg);
+  color: var(--rl-info);
+}
+.tone-neutral {
+  background: var(--rl-neutral-bg);
+  color: var(--rl-neutral);
+}
+.tone-ok {
+  background: var(--rl-ok-bg);
+  color: var(--rl-ok);
+}
+.tone-bad {
+  background: var(--rl-bad-bg);
+  color: var(--rl-bad);
+}
+.tone-warn {
+  background: var(--rl-warn-bg);
+  color: var(--rl-warn);
+}
+.jd-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--ps);
+  color: var(--pi);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* the tabs at the foot of the head */
+.jd-tabs {
   display: flex;
-  flex-direction: column;
-  gap: 20px;
+  gap: 4px;
 }
-.jd-summary :deep(.ledger) {
-  /* the board sets its rows in the body line height (20), so a row is 28 apart */
-  line-height: 20px;
+.jd-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  margin-bottom: -1px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--rl-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }
+.jd-tab.is-on {
+  border-bottom-color: var(--rl-brand);
+  color: var(--rl-fg);
+  font-weight: 700;
+}
+.jd-tab:focus-visible,
+.jd-seg__btn:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: -2px;
+}
+.jd-tab__count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--rl-track);
+  color: var(--rl-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.jd-seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--rl-track);
+}
+.jd-seg__btn {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--rl-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.jd-seg__btn.is-on {
+  background: var(--rl-seg-on);
+  color: var(--rl-fg);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.1);
+}
+
+.jd,
 .jd-panel {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
+.jd.is-phone,
+.jd.is-phone .jd-panel {
+  gap: 14px;
+}
 .jd.is-refreshing {
   opacity: 0.6;
 }
-.jd-num {
-  font-variant-numeric: tabular-nums;
+.jd-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.jd-muted {
-  color: var(--rl-muted);
+.jd-h {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.jd-h__n {
+  font-weight: 600;
+  color: var(--rl-faint);
+}
+.jd-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  line-height: 20px;
+}
+.jd-banner svg {
+  flex: none;
+}
+.jd-banner.is-ok {
+  background: var(--rl-ok-bg);
+  color: var(--rl-ok);
+}
+.jd-banner.is-bad {
+  align-items: flex-start;
+  background: var(--rl-bad-bg);
+  color: var(--rl-bad);
+}
+.jd-banner.is-bad svg {
+  margin-top: 2px;
+}
+.jd-banner.is-plain {
+  background: var(--rl-info-bg);
+  color: var(--rl-info);
+}
+.jd-banner.is-warn {
+  background: var(--rl-warn-bg);
+  color: var(--rl-warn);
+}
+.jd-banner__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.jd-money {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--rl-rule);
+  border-radius: 12px;
+  background: var(--rl-head);
+}
+.jd-money__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.jd-money__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.jd-money__value {
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.jd-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--rl-surface);
+  box-shadow: var(--rl-shadow-card);
+}
+.jd-prompt__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.jd-prompt__text {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--rl-rule);
+  border-radius: 12px;
+  background: var(--rl-head);
+  color: var(--rl-body);
+  line-height: 22px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.jd-card .jd-prompt__text {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 1.55;
+}
+.jd-line {
+  display: flex;
+  gap: 8px;
+}
+.jd-input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-input);
+  color: var(--rl-fg);
+  font: inherit;
+  font-size: 13px;
+}
+.jd-input:focus {
+  outline: none;
+  border-color: var(--rl-brand);
+  box-shadow: 0 0 0 3px var(--rl-focus-halo);
+}
+.jd-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.jd-btn:hover {
+  background: var(--rl-head);
+}
+.jd-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.jd-btn:focus-visible,
+.jd-primary:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
+}
+.jd-pre {
+  margin: 0;
+  max-height: 160px;
+  padding: 12px 14px;
+  overflow: auto;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 12px;
+  background: var(--rl-code);
+  color: var(--rl-body);
+  font-family: var(--rl-mono);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.jd-primary {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--rl-primary);
+  color: var(--rl-on-primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.jd-primary:disabled {
+  opacity: 0.6;
 }
 .jd-error {
   display: flex;
@@ -413,35 +854,14 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
   padding: 12px 16px;
   border-radius: 12px;
   background: var(--rl-bad-bg);
-}
-.jd-error__icon {
-  flex: none;
   color: var(--rl-bad);
 }
 .jd-error__text {
   flex: 1;
-  min-width: 220px;
+  min-width: 200px;
   color: var(--rl-fg);
   overflow-wrap: anywhere;
 }
-/* Retry: the danger outline, 32 high, 13/500, raised on hover (B-States, error) */
-.jd-retry {
-  box-sizing: border-box;
-  height: 32px;
-  padding: 0 14px;
-  border: 1px solid var(--rl-bad);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--rl-bad);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.jd-retry:hover {
-  background: var(--rl-raised);
-}
-/* the loading bars: raised, 12 high, radius 6, no animation, at the list skeleton's widths (B-States, loading) */
 .jd-skeleton {
   display: flex;
   flex-direction: column;
@@ -450,7 +870,7 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
 .jd-skeleton__bar {
   height: 12px;
   border-radius: 6px;
-  background: var(--rl-raised);
+  background: var(--rl-skel);
 }
 .jd-skeleton__bar:nth-child(5n + 1) {
   width: 62%;
@@ -467,176 +887,43 @@ const downloadLabel = computed(() => (outputs.value.length > 1 ? "Download all" 
 .jd-skeleton__bar:nth-child(5n) {
   width: 56%;
 }
-.jd-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 13px;
-}
-.jd-banner--ok {
-  background: var(--rl-ok-bg);
-}
-.jd-banner--ok strong {
-  flex: none;
-}
-.jd-banner--ok svg {
-  color: var(--rl-ok);
-}
-.jd-banner--bad {
-  align-items: flex-start;
-  padding: 12px 14px;
-  background: var(--rl-bad-bg);
-  line-height: 20px;
-}
-.jd-banner--bad svg {
-  flex: none;
-  margin-top: 2px;
-  color: var(--rl-bad);
-}
-.jd-banner--bad strong {
-  color: var(--rl-bad);
-}
-.jd-banner--plain {
-  background: var(--rl-neutral-bg);
-}
-.jd-banner strong {
-  font-weight: 600;
-}
-.jd-banner__text {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.jd-banner--warn {
-  background: var(--rl-warn-bg);
-}
-.jd-banner--warn svg {
-  flex: none;
-  color: var(--rl-warn);
-}
-.jd-banner--warn .jd-banner__text {
-  color: var(--rl-fg);
-}
-.jd-warn {
-  margin: 0;
-  font-size: 12px;
-  color: var(--rl-warn);
-}
-.jd-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.jd-h {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-.jd-h .jd-muted {
-  font-weight: 400;
-}
-.jd-prompt__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.jd-prompt__text {
-  margin: 0;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--rl-raised);
-  line-height: 22px;
-  /* the prompt's own line breaks are kept; a line wraps as the canvas's paragraph does (no space hangs at its end) */
-  white-space: pre-line;
-  overflow-wrap: anywhere;
-}
-.jd-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--rl-primary);
-  color: var(--rl-on-primary);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.jd-primary:hover {
-  background: var(--rl-primary-hover);
-}
-.jd-primary:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.jd-primary--phone {
-  flex: 1;
-  height: 44px;
-  font-size: 14px;
-}
-.jd-line {
-  display: flex;
-  gap: 8px;
-}
-.jd-input {
-  flex: 1;
-  min-width: 0;
-  height: 36px;
-  padding: 0 12px;
-  box-sizing: border-box;
-  border: 1px solid var(--rl-line-strong);
-  border-radius: 10px;
-  background: var(--rl-surface);
-  color: var(--rl-fg);
-  font-family: inherit;
-  font-size: 13px;
-}
-.jd-btn {
-  height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--rl-line-strong);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--rl-fg);
-  font-family: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-.jd-btn:hover {
-  background: var(--rl-raised);
-}
-.jd-note {
-  margin: 0;
-  font-size: 12px;
-}
-.jd-pre {
-  margin: 0;
-  padding: 12px 14px;
-  max-height: 14rem;
-  overflow: auto;
-  border-radius: 12px;
-  background: var(--rl-raised);
-  font-family: var(--rl-mono, "JetBrains Mono", ui-monospace, monospace);
-  font-size: 12px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-@media (max-width: 767.98px) {
-  .jd,
-  .jd-panel {
-    gap: 16px;
+@media (max-width: 767px) {
+  .jd-input,
+  .jd-btn {
+    height: 44px;
   }
-  .jd-banner--ok {
-    align-items: flex-start;
-  }
-  .jd-banner--ok svg {
-    flex: none;
-    margin-top: 2px;
-  }
+}
+</style>
+
+<!-- Not scoped: the drawer is teleported. The job drawer's title is 800 (JobDetail); a phone sheet's 17 px and the
+     page fill under its cards, its foot on the surface. -->
+<style>
+html:root .rl-job-drawer .rl-drawer__title {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+html:root .rl-job-drawer.is-sheet .el-drawer__header {
+  padding: 10px 8px 10px;
+  border-bottom-color: var(--rl-rule);
+}
+html:root .rl-job-drawer.is-sheet .rl-drawer__head {
+  gap: 2px;
+  padding-bottom: 0;
+}
+html:root .rl-job-drawer.is-sheet .rl-drawer__title {
+  font-size: 17px;
+  line-height: 24px;
+}
+html:root .rl-job-drawer.is-sheet .rl-drawer__sub {
+  padding: 0 4px 0 48px;
+}
+html:root .rl-job-drawer.is-sheet .el-drawer__body {
+  background: var(--rl-bg);
+}
+html:root .rl-job-drawer.is-sheet .rl-drawer__body {
+  padding: 14px 16px 20px;
+}
+html:root .rl-job-drawer.is-sheet .rl-drawer__foot {
+  padding: 12px 16px 20px;
 }
 </style>

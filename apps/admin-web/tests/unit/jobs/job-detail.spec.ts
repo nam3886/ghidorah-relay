@@ -7,6 +7,7 @@ import type { JobDetail, JobMediaItem } from "@/api/jobs-detail";
 import { openBlob, saveBlob } from "@/components/jobs/blob-actions";
 import { jobChanges } from "@/components/jobs/job-changes";
 import JobDetailDrawer from "@/components/jobs/JobDetailDrawer.vue";
+import MediaViewer from "@/components/jobs/MediaViewer.vue";
 import { copyText } from "@/components/shared/clipboard";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { notify } from "@/lib/notify";
@@ -105,7 +106,7 @@ const media = (over: Partial<JobMediaItem> = {}): JobMediaItem => ({
 });
 
 const body = () => new DOMWrapper(document.body);
-// A button is found by its text, or by its aria-label when it is an icon button.
+// A button is found by its aria-label when it has one (an icon button), else by its text.
 const nameOf = (b: DOMWrapper<Element>): string => b.attributes("aria-label") ?? b.text();
 const button = (text: string) =>
   body()
@@ -117,12 +118,14 @@ const sectionNames = () =>
     .findAll("[data-section]")
     .map((s) => s.attributes("data-section"));
 const buttonsIn = (name: string) => section(name).findAll("button").map(nameOf);
+const ledger = (where: DOMWrapper<Element>) =>
+  where.findAll(".jl-ledger__row").map((r) => [r.find("dt").text(), r.find("dd").text()]);
 const mounted: VueWrapper[] = [];
 
 async function goTo(label: "Overview" | "Timeline" | "Technical") {
   await body()
     .findAll("[role=tab]")
-    .find((t) => t.text() === label)!
+    .find((t) => t.text().startsWith(label))!
     .trigger("click");
   await flushPromises();
 }
@@ -179,68 +182,71 @@ describe("opening", () => {
   it("reads the job that was opened and names the drawer by its heading", async () => {
     await show();
     expect(getJob).toHaveBeenCalledWith(A);
-    // the drawer is named by its visible heading (the job's title), not by its short id
     const named = body().find("[role=dialog]");
     expect(named.attributes("aria-label")).toBeUndefined();
     expect(document.getElementById(named.attributes("aria-labelledby")!)!.textContent).toBe(body().find("h2").text());
   });
 
-  // The three heading tests need DetailDrawer's `heading` prop (the visible h2), which F2 adds.
   it("the drawer is headed with the job's title", async () => {
     await show();
-    expect(body().find(".detail-drawer__title").text()).toBe("My title");
+    expect(body().find(".rl-drawer__title").text()).toBe("My title");
   });
 
   it("a job with no title is headed (untitled)", async () => {
     await show(detail({ title: null }));
-    expect(body().find(".detail-drawer__title").text()).toBe("(untitled)");
+    expect(body().find(".rl-drawer__title").text()).toBe("(untitled)");
   });
 
   it("a title with markup is text in the heading", async () => {
     const planted = `<img src=x onerror="window.__pwned=1">`;
     await show(detail({ title: planted }));
-    expect(body().find(".detail-drawer__title").text()).toBe(planted);
-    expect(body().find(".detail-drawer__title img").exists()).toBe(false);
+    expect(body().find(".rl-drawer__title").text()).toBe(planted);
+    expect(body().find(".rl-drawer__title img").exists()).toBe(false);
   });
 
-  it("the header says status, what it is and a copy chip with the short id", async () => {
+  it("the head says the status, the provider, what it is and a copy chip with the short id", async () => {
     await show(detail({ media_type: "image", operation: "image", media: [media(), media({ idx: 1 })] }));
-    const chips = body().find(".detail-drawer__chips");
-    expect(chips.text()).toContain("done");
-    expect(chips.text()).toContain("image · veo · 2 outputs");
-    expect(chips.find("button").attributes("aria-label")).toBe("Copy job id aaaaaaaa");
-    expect(chips.find("button").text()).toBe("aaaaaaaa");
-    await chips.find("button").trigger("click");
+    const sub = body().find(".rl-drawer__sub");
+    expect(sub.find(".jd-pill").text()).toBe("Done");
+    expect(sub.find(".jd-chip").text()).toBe("dola");
+    expect(sub.find(".jd-chip").classes()).toContain("p-dola");
+    expect(sub.text()).toContain("image · veo · 2 outputs");
+    const chip = sub.find("button.job-copy");
+    expect(chip.attributes("aria-label")).toBe("Copy job id aaaaaaaa");
+    expect(chip.text()).toBe("aaaaaaaa");
+    await chip.trigger("click");
     await flushPromises();
     expect(vi.mocked(copyText).mock.calls[0]![0]).toBe("aaaaaaaa");
   });
 
-  it("a phone header says what it is without the count", async () => {
+  it("a phone is the whole screen: Back alone, and one line under the title", async () => {
     stubPhone();
     await show(detail({ media: [media()] }));
-    expect(body().find(".detail-drawer__chips").text()).toContain("video · veo");
-    expect(body().find(".detail-drawer__chips").text()).not.toContain("output");
+    expect(body().find(".rl-drawer__sub").text()).toBe("Done · dola · video · veo · aaaaaaaa");
+    expect(button("Close · Esc")).toBeUndefined();
+    expect(button("Back to Jobs")).toBeDefined();
+    expect(body().find(".rl-job-drawer").classes()).toContain("is-sheet");
   });
 
-  it("the phone sheet's Back names the page it goes back to", async () => {
-    stubPhone();
-    const { w } = await show();
+  it("Back names the page it goes back to and closes the drawer", async () => {
+    const { w, ui } = await show();
     expect(button("Back to Jobs")).toBeDefined();
     await w.setProps({ backLabel: "Back to Alerts" });
-    expect(button("Back to Alerts")).toBeDefined();
+    await button("Back to Alerts")!.trigger("click");
+    expect(ui.openJobId).toBeNull();
   });
 
   it("an answer with no outputs count still says how many results there are", async () => {
     await show(detail({ outputs: undefined as unknown as number, media: [] }));
-    expect(body().find(".detail-drawer__chips").text()).toContain("video · veo · 0 outputs");
+    expect(body().find(".rl-drawer__sub").text()).toContain("video · veo · 0 outputs");
   });
 
-  it("has Overview, Timeline and Technical tabs, Overview first and selected", async () => {
-    await show();
+  it("has Overview, Timeline and Technical tabs, Overview first and selected; Timeline carries its count", async () => {
+    await show(detail({ events: [{ id: 1, at_ms: 1, source: "engine", stage: "done", text: "" }] }));
     const tabs = body().findAll("[role=tab]");
     expect(tabs.map((t) => [t.text(), t.attributes("aria-selected")])).toEqual([
       ["Overview", "true"],
-      ["Timeline", "false"],
+      ["Timeline1", "false"],
       ["Technical", "false"],
     ]);
     await goTo("Technical");
@@ -251,18 +257,34 @@ describe("opening", () => {
     ).toEqual(["false", "false", "true"]);
   });
 
+  it("a phone shows the sections as a segmented control in the body", async () => {
+    stubPhone();
+    await show();
+    const seg = body().find(".jd-seg");
+    expect(seg.attributes("role")).toBe("tablist");
+    expect(seg.findAll("[role=tab]").map((t) => t.text())).toEqual(["Overview", "Timeline", "Technical"]);
+  });
+
   it("each tab has its own sections, in order", async () => {
     await show();
-    expect(sectionNames()).toEqual(["conclusion", "actions", "summary", "prompt"]);
+    expect(sectionNames()).toEqual(["conclusion", "actions", "money", "summary", "prompt"]);
     await goTo("Timeline");
     expect(sectionNames()).toEqual(["timeline"]);
     await goTo("Technical");
     expect(sectionNames()).toEqual(["technical", "title", "more-actions", "debug", "sent"]);
   });
 
+  it("a phone draws Money, Details, Prompt and Latest steps as cards", async () => {
+    stubPhone();
+    await show(detail({ events: [{ id: 1, at_ms: 1, source: "engine", stage: "done", text: "stored" }] }));
+    expect(sectionNames()).toEqual(["conclusion", "money", "summary", "prompt", "steps"]);
+    expect(section("money").classes()).toContain("jd-card");
+    expect(section("steps").text()).toContain("stored");
+  });
+
   it("Close shuts it", async () => {
     const { ui } = await show();
-    await button("Close")!.trigger("click");
+    await button("Close · Esc")!.trigger("click");
     expect(ui.openJobId).toBeNull();
   });
 
@@ -274,7 +296,6 @@ describe("opening", () => {
     await flushPromises();
     // worded as the list's failed load is drawn, naming the job
     expect(body().find("[role=alert]").text()).toContain("Could not load the job: the relay answered 404 (Not found).");
-    expect(body().find(".el-skeleton").exists()).toBe(false);
     getJob.mockResolvedValueOnce(detail());
     await button("Retry")!.trigger("click");
     await flushPromises();
@@ -335,7 +356,7 @@ describe("conclusion, ledger, prompt and technical", () => {
     );
     expect(section("conclusion").text()).toContain("Delivered 2 images");
     expect(section("conclusion").text()).toContain("· net charged 1 point · 1 min 35 s");
-    expect(section("conclusion").classes()).toContain("jd-banner--ok");
+    expect(section("conclusion").classes()).toContain("is-ok");
   });
 
   it("a failed job says code and reason in an alert, and warnings follow", async () => {
@@ -360,11 +381,10 @@ describe("conclusion, ledger, prompt and technical", () => {
   });
 
   it("a job on its way says what it is doing, its step, its charge and how long so far", async () => {
-    // the done banner's pattern: a bold lead, then the facts muted
     vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000 + 4 * 60_000);
     const said = async (over: Partial<JobDetail>) => {
       await show(detail(over));
-      return [section("conclusion").find("strong").text(), section("conclusion").find(".jd-muted").text()];
+      return [section("conclusion").find("b").text(), section("conclusion").find(".num").text()];
     };
     expect(await said({ status: "queued", net_charged: 0 })).toEqual([
       "Waiting for an account",
@@ -390,47 +410,41 @@ describe("conclusion, ledger, prompt and technical", () => {
     vi.restoreAllMocks();
   });
 
-  it("a job on its way shows its step in the header chip, as the list does, and no count of results", async () => {
+  it("a job on its way shows its step in the head's pill, as the list does, and no count of results", async () => {
     await show(detail({ status: "fetching" }));
-    const chips = body().find(".detail-drawer__chips");
-    expect(chips.find(".step").text()).toBe("3/4");
-    expect(chips.text()).toContain("video · veo");
-    expect(chips.text()).not.toContain("output");
+    const sub = body().find(".rl-drawer__sub");
+    expect(sub.find(".jd-pill").text()).toBe("Fetching 3/4");
+    expect(sub.text()).toContain("video · veo");
+    expect(sub.text()).not.toContain("output");
     await show(detail({ status: "unknown" }));
-    expect(body().find(".detail-drawer__chips .step").exists()).toBe(false);
-    await show(detail({ status: "done" }));
-    expect(body().find(".detail-drawer__chips .step").exists()).toBe(false);
+    expect(body().find(".rl-drawer__sub .jd-pill").text()).toBe("Unknown");
   });
 
   it("a value that is not set is the list's empty-cell dash", async () => {
     await show(detail({ status: "queued", account_label: null, finished_ms: null }));
-    const value = (k: string) => rows().find(([label]) => label === k)?.[1];
+    const value = (k: string) => ledger(section("summary")).find(([label]) => label === k)?.[1];
     expect(value("Account")).toBe("—");
     expect(value("Finished")).toBe("—");
   });
 
-  const rows = () =>
-    section("summary")
-      .findAll(".ledger__row")
-      .map((r) => [r.find("dt").text(), r.find("dd").text()]);
-
-  it("the ledger of a done video job: model, media, points and the short times", async () => {
+  it("the facts of a done video job: model, media, account, key, frame, webhook and the short times", async () => {
     await show(
       detail({
         created_ms: new Date(2026, 9, 15, 20, 41, 12).getTime(),
         finished_ms: new Date(2026, 9, 15, 20, 45, 24).getTime(),
-        net_charged: 10,
-        price: 10,
         params: { ratio: "16:9", duration: 30 },
+        frame_id: 4,
+        callback: { status: "delivered", attempts: 1, last: "HTTP 200" },
       }),
     );
-    expect(rows()).toEqual([
+    expect(ledger(section("summary"))).toEqual([
       ["Operation", "video"],
       ["Model", "veo"],
       ["Media", "video · 30 s · 16:9"],
-      ["Points", "10 charged · 0 refunded"],
       ["Account", "acct-1"],
-      ["Key", "key-one"],
+      ["Key", "key-one · rk-key1"],
+      ["Prompt frame", "video v4"],
+      ["Webhook", "delivered · 1 try"],
       ["Created", "15/10 20:41:12"],
       ["Finished", "15/10 20:45:24"],
     ]);
@@ -438,12 +452,26 @@ describe("conclusion, ledger, prompt and technical", () => {
 
   it("a key without a label is named by its prefix, as the list names it", async () => {
     await show(detail({ key_label: null }));
-    expect(rows().find(([k]) => k === "Key")).toEqual(["Key", "rk-key1"]);
+    expect(ledger(section("summary")).find(([k]) => k === "Key")).toEqual(["Key", "rk-key1"]);
     await show(detail({ key_label: " ", key_prefix: null }));
-    expect(rows().find(([k]) => k === "Key")).toEqual(["Key", "k1"]);
+    expect(ledger(section("summary")).find(([k]) => k === "Key")).toEqual(["Key", "k1"]);
   });
 
-  it("a refund strikes the price: the struck price, an arrow and what was kept", async () => {
+  const money = () =>
+    section("money")
+      .findAll(".jd-money__cell")
+      .map((c) => c.text());
+
+  it("Money: what was charged, what went back and what the account paid upstream", async () => {
+    await show(detail({ price: 3, net_charged: 3, account_cost: 1 }));
+    expect(money()).toEqual([
+      "Charged3 ptsveo",
+      "Refunded0 ptsnothing refunded",
+      "Upstream cost1 creditdola video pool",
+    ]);
+  });
+
+  it("a failed job charged and paid back says refunded; an image's media names its ratio and count", async () => {
     await show(
       detail({
         media_type: "image",
@@ -451,31 +479,22 @@ describe("conclusion, ledger, prompt and technical", () => {
         status: "failed",
         price: 1,
         net_charged: 0,
+        account_cost: 0,
         params: { ratio: "2:3", count: 1 },
       }),
     );
-    const points = section("summary")
-      .findAll(".ledger__row")
-      .find((r) => r.find("dt").text() === "Points")!;
-    expect(points.find("s").text()).toBe("1");
-    expect(points.find("dd").text()).toBe("1 → 0 refunded");
-    expect(rows()[2]).toEqual(["Ratio · count", "2:3 · 1"]);
-    const unrefunded = await show(detail({ price: 1, net_charged: 1 }));
-    expect(unrefunded.w.find("s").exists()).toBe(false);
+    expect(money()).toEqual(["Charged1 ptsveo", "Refunded1 ptsrefunded"]);
+    expect(ledger(section("summary"))[2]).toEqual(["Media", "image · 2:3 · ×1"]);
   });
 
   it("a done job with a net below its price shows what was charged and no refund", async () => {
     await show(detail({ status: "done", price: 10, net_charged: 4 }));
-    const points = section("summary")
-      .findAll(".ledger__row")
-      .find((r) => r.find("dt").text() === "Points")!;
-    expect(points.find("dd").text()).toBe("4 charged");
-    expect(points.find("s").exists()).toBe(false);
+    expect(money()[1]).toBe("Refunded6 ptspartly refunded");
   });
 
   it("a substituted model says so in the ledger", async () => {
     await show(detail({ model_substituted: true }));
-    expect(rows()[1]).toEqual(["Model", "veo (model differs)"]);
+    expect(ledger(section("summary"))[1]).toEqual(["Model", "veo (model differs)"]);
   });
 
   it("the prompt is the customer's words and Copy prompt copies exactly that", async () => {
@@ -487,31 +506,29 @@ describe("conclusion, ledger, prompt and technical", () => {
     expect(notify.success).toHaveBeenCalledWith("Prompt copied");
   });
 
-  it("no toast when nothing could be copied", async () => {
+  it("no success toast when nothing could be copied", async () => {
     vi.mocked(copyText).mockResolvedValue("failed");
     await show();
     await button("Copy prompt")!.trigger("click");
     await flushPromises();
     expect(notify.success).not.toHaveBeenCalled();
+    expect(notify.error).toHaveBeenCalled();
   });
 
-  const facts = (id: string) =>
-    body()
-      .findAll(`[data-testid=${id}] .tech__fact`)
-      .map((f) => [f.find("dt").text(), f.find("dd").text()]);
+  const facts = () => ledger(body().find("[data-testid=job-facts]"));
 
   it("lists the technical facts, leaving out what the server does not have", async () => {
     await show(detail({ callback: { status: "failed", attempts: 3, last: null }, frame_id: 7 }), "Technical");
-    expect(facts("job-facts")).toEqual([
+    expect(facts()).toEqual([
       ["Job id", A],
       ["Provider / pool", "dola / video"],
       ["Wallet", "dola prepaid"],
+      ["Key", "key-one · rk-key1"],
+      ["Account", "acct-1"],
       ["Attempts / claims", "2 / 3"],
       ["Account cost", "1 credit"],
       ["Prompt frame", "video v7"],
       ["Callback", "failed · 3 attempts"],
-    ]);
-    expect(facts("job-diagnostics")).toEqual([
       ["Sent", expect.stringMatching(/2023/)],
       ["Updated", expect.stringMatching(/2023/)],
       ["Params", '{"ratio":"16:9"}'],
@@ -519,7 +536,7 @@ describe("conclusion, ledger, prompt and technical", () => {
   });
 
   it("words a delivered webhook by its HTTP code, a retry by its state and code, and leaves out a cost of 0", async () => {
-    const fact = (name: string) => facts("job-facts").find(([k]) => k === name)?.[1];
+    const fact = (name: string) => facts().find(([k]) => k === name)?.[1];
     await show(detail({ callback: { status: "sent", attempts: 1, last: "HTTP 200" }, account_cost: 2 }), "Technical");
     expect(fact("Callback")).toBe("200 · 1 attempt");
     expect(fact("Account cost")).toBe("2 credits");
@@ -536,17 +553,9 @@ describe("conclusion, ledger, prompt and technical", () => {
   it("a phone lists Key and Account among the facts too", async () => {
     stubPhone();
     await show(detail(), "Technical");
-    expect(facts("job-facts").map(([k]) => k)).toEqual([
-      "Job id",
-      "Provider / pool",
-      "Wallet",
-      "Key",
-      "Account",
-      "Attempts / claims",
-      "Account cost",
-    ]);
-    expect(facts("job-facts")[3]).toEqual(["Key", "key-one · rk-key1"]);
-    expect(body().find("[data-testid=job-facts]").classes()).toContain("is-phone");
+    expect(facts()[3]).toEqual(["Key", "key-one · rk-key1"]);
+    expect(facts()[4]).toEqual(["Account", "acct-1"]);
+    expect(body().find("[data-testid=job-facts]").classes()).toContain("is-stacked");
   });
 
   it("shows the text sent upstream, or a dash when none was sent", async () => {
@@ -628,20 +637,20 @@ describe("which actions show, and where", () => {
     await goTo("Technical");
     expect(buttonsIn("more-actions")).toEqual(["Recover"]);
     expect(section("more-actions").find("input").attributes("placeholder")).toBe(
-      "Account id or label, e.g. acct-n11-01",
+      "Account id or label, e.g. dola-n11-01",
     );
+    expect(section("more-actions").text()).toContain("Looks for a finished result of this job on that account.");
   });
 
-  it("a failed job has the Actions card: Recover with its input, then Regenerate… and a helper line", async () => {
+  it("a failed job offers Regenerate… in the row too, and Recover only under More actions", async () => {
     await show(detail({ status: "failed" }));
-    expect(section("actions").find("h3").text()).toBe("Actions");
-    expect(buttonsIn("actions")).toEqual(["Recover", "Regenerate…"]);
-    expect(section("actions").find("input").attributes("placeholder")).toBe("Account id or label, e.g. acct-n11-01");
-    expect(section("actions").text()).toContain("Looks for a finished result of this job on that account.");
-    expect(section("actions").text()).toContain("Makes a new job at today’s price.");
+    expect(buttonsIn("actions")).toEqual(["Regenerate…"]);
+    expect(section("actions").find("input").exists()).toBe(false);
+    await goTo("Technical");
+    expect(buttonsIn("more-actions")).toEqual(["Recover"]);
   });
 
-  it("More actions is a card with its own heading, drawn only when it has a button", async () => {
+  it("More actions has its own heading, drawn only when it has a button", async () => {
     await show(detail({ status: "queued" }), "Technical");
     expect(section("more-actions").find("h3").exists()).toBe(false);
     await show(detail({ status: "done" }), "Technical");
@@ -655,26 +664,13 @@ describe("which actions show, and where", () => {
     expect(section("warnings").exists()).toBe(false);
   });
 
-  it("Recover is in one place only: the card for a failed job, More actions for a done one", async () => {
-    await show(detail({ status: "failed" }), "Technical");
-    expect(buttonsIn("more-actions")).toEqual([]);
-    expect(section("more-actions").find("input").exists()).toBe(false);
-    await goTo("Overview");
-    expect(section("actions").findAll("input")).toHaveLength(1);
-    await show(detail({ status: "done" }));
-    expect(section("actions").find("input").exists()).toBe(false);
-    await goTo("Technical");
-    expect(buttonsIn("more-actions")).toEqual(["Recover"]);
-    expect(section("more-actions").findAll("input")).toHaveLength(1);
-  });
-
   it("a job still running offers neither Recover nor Regenerate…", async () => {
     await show(detail({ status: "queued" }));
     // with nothing to offer there is no action row at all (an empty one would double the gap)
     expect(section("actions").exists()).toBe(false);
     // one that has a row (it can be re-checked) still offers no Regenerate…
     await show(detail({ status: "unknown", can_recheck: true }));
-    expect(buttonsIn("actions")).toEqual(["Re-check"]);
+    expect(buttonsIn("actions")).toEqual(["Re-check job · R"]);
     await show(detail({ status: "queued" }));
     await goTo("Technical");
     expect(buttonsIn("more-actions")).toEqual([]);
@@ -683,14 +679,26 @@ describe("which actions show, and where", () => {
 
   it("Re-check only when the server says the job can be", async () => {
     await show(detail({ status: "unknown", can_recheck: true }));
-    expect(buttonsIn("actions")).toEqual(["Re-check"]);
+    expect(buttonsIn("actions")).toEqual(["Re-check job · R"]);
+    await show(detail({ status: "unknown", can_recheck: false, media: [media()] }));
+    expect(buttonsIn("actions")).not.toContain("Re-check job · R");
   });
 
   it("Download sits first in the row of a job with results, and says all for more than one", async () => {
     await show(detail({ media: [media()] }));
-    expect(buttonsIn("actions")).toEqual(["Download", "Regenerate…"]);
+    expect(buttonsIn("actions")).toEqual(["Download · D", "Regenerate…", "Copy share link"]);
     await show(detail({ media: [media(), media({ idx: 1 })] }));
-    expect(buttonsIn("actions")).toEqual(["Download all", "Regenerate…"]);
+    expect(buttonsIn("actions")).toEqual(["Download all · D", "Regenerate…", "Copy share link"]);
+  });
+
+  it("Copy share link copies the full link of every result that has one, one a line", async () => {
+    await show(
+      detail({ media: [media({ url: "/m/a" }), media({ idx: 1, url: null }), media({ idx: 2, url: "/m/b" })] }),
+    );
+    await button("Copy share link")!.trigger("click");
+    await flushPromises();
+    expect(vi.mocked(copyText).mock.calls[0]![0]).toBe(`${location.origin}/m/a\n${location.origin}/m/b`);
+    expect(notify.success).toHaveBeenCalledWith("Share link copied");
   });
 
   it("Resend webhook only for a failed callback", async () => {
@@ -708,7 +716,6 @@ describe("which actions show, and where", () => {
     expect(buttonsIn("more-actions")).toEqual(["Revoke share links"]);
     await show(detail({ status: "queued", media: [media({ url: null })] }), "Technical");
     expect(buttonsIn("more-actions")).toEqual([]);
-    // another button keeps the card, and still no Revoke without a link
     await show(
       detail({
         status: "queued",
@@ -729,24 +736,21 @@ describe("which actions show, and where", () => {
     expect(buttonsIn("more-actions")).toEqual(["Fetch title"]);
   });
 
-  it("on a phone the row moves to a sticky footer, and a failed job keeps its card in the body", async () => {
+  it("on a phone Regenerate… and Download sit in the foot; the row keeps the icons", async () => {
     stubPhone();
     await show(detail({ media: [media()] }));
     const footer = body().find(".el-drawer__footer");
-    expect(footer.findAll("button").map(nameOf)).toEqual(["Download", "Regenerate…"]);
-    expect(section("actions").exists()).toBe(false);
-    // a failed job that can be re-checked keeps everything in its card, Re-check included: no footer
-    await show(detail({ status: "failed", can_recheck: true }));
-    expect(body().find(".el-drawer__footer").exists()).toBe(false);
-    expect(buttonsIn("actions")).toEqual(["Recover", "Re-check", "Regenerate…"]);
+    expect(footer.findAll("button").map(nameOf)).toEqual(["Regenerate…", "Download"]);
+    expect(buttonsIn("actions")).toEqual(["Copy share link"]);
   });
 
-  it("on a phone a job with nothing to offer has no footer, and one that can be re-checked has it", async () => {
+  it("on a phone a job with nothing to offer has no foot, and one that can be re-checked has it in the row", async () => {
     stubPhone();
     await show(detail({ status: "queued" }));
     expect(body().find(".el-drawer__footer").exists()).toBe(false);
     await show(detail({ status: "waiting", can_recheck: true }));
-    expect(body().find(".el-drawer__footer").findAll("button").map(nameOf)).toEqual(["Re-check"]);
+    expect(body().find(".el-drawer__footer").exists()).toBe(false);
+    expect(buttonsIn("actions")).toEqual(["Re-check job · R"]);
   });
 });
 
@@ -771,19 +775,38 @@ describe("what each action sends and says", () => {
       .mockResolvedValueOnce({ id: A, recharged: true });
     const before = jobChanges.value;
     await show(detail({ status: "unknown", can_recheck: true }));
-    await button("Re-check")!.trigger("click");
+    await button("Re-check job · R")!.trigger("click");
     await flushPromises();
     expect(api.recheckJob).toHaveBeenCalledWith(A);
     expect(notify.success).toHaveBeenLastCalledWith("Re-checked");
     expect(getJob).toHaveBeenCalledTimes(2);
     expect(jobChanges.value).toBe(before + 1);
-    await button("Re-check")!.trigger("click");
+    await button("Re-check job · R")!.trigger("click");
     await flushPromises();
     expect(notify.success).toHaveBeenLastCalledWith("Re-checked: charged again");
   });
 
+  it("R re-checks and D downloads while the drawer is open, but not from a field", async () => {
+    vi.mocked(api.recheckJob).mockResolvedValue({ id: A, recharged: false });
+    vi.mocked(api.fetchDownload).mockResolvedValue(new Blob(["1"]));
+    await show(detail({ status: "unknown", can_recheck: true, media: [media()] }), "Technical");
+    body()
+      .find("[data-section=title] input")
+      .element.dispatchEvent(new KeyboardEvent("keydown", { key: "d", bubbles: true }));
+    await flushPromises();
+    expect(saveBlob).not.toHaveBeenCalled();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "d" }));
+    await flushPromises();
+    expect(saveBlob).toHaveBeenCalledTimes(1);
+    // R is the Overview's Re-check job · R
+    await goTo("Overview");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "r" }));
+    await flushPromises();
+    expect(api.recheckJob).toHaveBeenCalledWith(A);
+  });
+
   it("Recover with an empty account sends nothing", async () => {
-    await show(detail({ status: "failed" }));
+    await show(detail({ status: "failed" }), "Technical");
     await button("Recover")!.trigger("click");
     await flushPromises();
     expect(api.recoverJob).not.toHaveBeenCalled();
@@ -792,8 +815,8 @@ describe("what each action sends and says", () => {
 
   it("Recover sends the trimmed account, polls the command and reads the job again", async () => {
     vi.mocked(api.recoverJob).mockResolvedValue({ command_id: "cmd-1" });
-    await show(detail({ status: "failed" }));
-    await section("actions").find("input").setValue("  acct-9 ");
+    await show(detail({ status: "failed" }), "Technical");
+    await section("more-actions").find("input").setValue("  acct-9 ");
     await button("Recover")!.trigger("click");
     await flushPromises();
     expect(api.recoverJob).toHaveBeenCalledWith(A, "acct-9");
@@ -829,7 +852,6 @@ describe("what each action sends and says", () => {
     await button("Revoke share links")!.trigger("click");
     await vi.waitFor(() => expect(body().text()).toContain("Every share link of this job stops working. Continue?"));
     expect(api.revokeLinks).not.toHaveBeenCalled();
-    // worded as every confirm: Cancel, then the destructive action
     expect(
       body()
         .findAll(".el-popconfirm__action .el-button")
@@ -909,7 +931,7 @@ describe("what each action sends and says", () => {
     const second = new Blob(["2"]);
     vi.mocked(api.fetchDownload).mockResolvedValueOnce(first).mockResolvedValueOnce(second);
     await show(detail({ media: [media({ idx: 3 }), media({ idx: 5 })] }));
-    await button("Download all")!.trigger("click");
+    await button("Download all · D")!.trigger("click");
     await flushPromises();
     expect(api.fetchDownload).toHaveBeenNthCalledWith(1, A, 3);
     expect(api.fetchDownload).toHaveBeenNthCalledWith(2, A, 5);
@@ -922,7 +944,7 @@ describe("what each action sends and says", () => {
       new ApiError(404, { error: { code: "resource.not_found", message: "Not found" } }),
     );
     await show(detail({ media: [media()] }));
-    await button("Download")!.trigger("click");
+    await button("Download · D")!.trigger("click");
     await flushPromises();
     expect(notify.error).toHaveBeenCalledWith("Not found");
     expect(saveBlob).not.toHaveBeenCalled();
@@ -931,6 +953,7 @@ describe("what each action sends and says", () => {
 
 describe("results and references", () => {
   const view = (name: string) => section(name);
+  const viewer = () => mounted[0]!.findAllComponents(MediaViewer);
 
   it("draws an image and a video from a same-origin share link, with their facts", async () => {
     await show(
@@ -941,41 +964,35 @@ describe("results and references", () => {
         ],
       }),
     );
+    expect(view("results").find("h3").text()).toBe("Results · 2");
     expect(view("results").find("img").attributes("src")).toBe("/m/tok1");
     const video = view("results").find("video");
     expect(video.attributes("src")).toBe("/m/tok2");
     expect(video.attributes("controls")).toBeUndefined();
-    expect(view("results").find(".media__badge").text()).toBe("0:30");
+    expect(view("results").find(".media__badge").text()).toBe("30.1 s");
     expect(
       view("results")
-        .findAll(".media__facts span")
+        .findAll(".media__facts")
         .map((f) => f.text()),
-    ).toEqual(["video/mp4", "5.0 KB", "1280×720", "30.08 s"]);
+    ).toEqual(["1×1 · 120 B · png", "30.1 s · 1280×720 · 5.0 KB · mp4"]);
     expect(button("Open")).toBeUndefined();
-    await view("results").find(".media__play").trigger("click");
-    expect(view("results").find("video").attributes("controls")).toBeDefined();
-    expect(view("results").find(".media__play").exists()).toBe(false);
   });
 
-  it("a video card is named Result and its button Play video, numbered only when there are several", async () => {
+  it("every video's button is Play video N, and it opens the viewer on that result", async () => {
     const video = (idx: number) => media({ idx, mime: "video/mp4", url: `/m/v${idx}` });
-    await show(detail({ media: [video(0)] }));
-    expect(view("results").find("figure").attributes("aria-label")).toBe("Result");
-    expect(view("results").find(".media__play").attributes("aria-label")).toBe("Play video");
     await show(detail({ media: [video(0), video(1)] }));
-    expect(
-      view("results")
-        .findAll("figure")
-        .map((f) => f.attributes("aria-label")),
-    ).toEqual(["Result 1", "Result 2"]);
     expect(
       view("results")
         .findAll(".media__play")
         .map((b) => b.attributes("aria-label")),
     ).toEqual(["Play video 1", "Play video 2"]);
+    await view("results").findAll(".media__play")[1]!.trigger("click");
+    await flushPromises();
+    expect(viewer()[0]!.props("modelValue")).toBe(1);
+    expect(body().find(".rl-viewer video").attributes("src")).toBe("/m/v1");
   });
 
-  it("an image is a tile whose viewer lists every previewable image of the list, and a video is left out", async () => {
+  it("an image is a tile whose viewer lists every previewable result, a video included, an item with no link left out", async () => {
     await show(
       detail({
         media: [
@@ -986,18 +1003,17 @@ describe("results and references", () => {
         ],
       }),
     );
-    expect(mounted[0]!.findAllComponents({ name: "ElImage" })).toHaveLength(2);
-    // each image is a named button, as drawn; pressing the second opens the viewer on it
     const tiles = view("results").findAll("button.media__tile");
     expect(tiles.map((t) => t.attributes("aria-label"))).toEqual([
-      "Open image 1 in the viewer",
-      "Open image 2 in the viewer",
+      "Open result 1 in the viewer",
+      "Open result 3 in the viewer",
     ]);
-    expect(mounted[0]!.findComponent({ name: "ElImageViewer" }).exists()).toBe(false);
+    expect(body().find(".rl-viewer").exists()).toBe(false);
     await tiles[1]!.trigger("click");
-    const viewer = mounted[0]!.findComponent({ name: "ElImageViewer" });
-    expect(viewer.props("urlList")).toEqual(["/m/tok1", "/m/tok3"]);
-    expect(viewer.props("initialIndex")).toBe(1);
+    await flushPromises();
+    const items = viewer()[0]!.props("items") as Array<{ src: string }>;
+    expect(items.map((i) => i.src)).toEqual(["/m/tok1", "/m/tok2", "/m/tok3"]);
+    expect(viewer()[0]!.props("modelValue")).toBe(2);
   });
 
   it("a tile takes its picture's shape: the stored size, else the job's ratio, else 2:3", async () => {
@@ -1009,7 +1025,6 @@ describe("results and references", () => {
     expect(ratios()).toEqual(["aspect-ratio: 2304 / 1728;"]);
     await show(detail({ media: [media({ width: null, height: null })], params: { ratio: "16:9" } }));
     expect(ratios()).toEqual(["aspect-ratio: 16 / 9;"]);
-    // a job that stores its ratio as aspect_ratio, as the ledger also reads it
     await show(
       detail({
         media_type: "image",
@@ -1019,47 +1034,82 @@ describe("results and references", () => {
       }),
     );
     expect(ratios()).toEqual(["aspect-ratio: 4 / 3;"]);
-    const ledger = section("summary")
-      .findAll(".ledger__row")
-      .map((r) => [r.find("dt").text(), r.find("dd").text()]);
-    expect(ledger.find(([k]) => k === "Ratio · count")?.[1]).toContain("4:3");
+    expect(ledger(section("summary")).find(([k]) => k === "Media")?.[1]).toContain("4:3");
     await show(detail({ media: [media({ width: null, height: null })], params: {} }));
     expect(ratios()).toEqual(["aspect-ratio: 2 / 3;"]);
   });
 
-  it("the viewer's buttons are ours, in the canvas's glyphs: no Element Plus icon is left", async () => {
-    await show(detail({ media: [media({ idx: 0, url: "/m/a" }), media({ idx: 1, url: "/m/b" })] }));
+  it("the viewer's buttons are ours with tooltips: the file, Download, Close, the steps, the tools and the strip", async () => {
+    await show(
+      detail({
+        media: [
+          media({ idx: 0, url: "/m/a", width: 1024, height: 1536, size: 2_400_000 }),
+          media({ idx: 1, url: "/m/b" }),
+        ],
+      }),
+    );
     await view("results").findAll("button.media__tile")[0]!.trigger("click");
     await flushPromises();
-    const names = body()
-      .findAll(".el-image-viewer__wrapper button")
-      .map((b) => b.attributes("aria-label"));
-    expect(names).toEqual([
-      "Zoom out",
-      "Zoom in",
+    const wrap = body().find(".rl-viewer");
+    expect(wrap.find(".mv__file").text()).toBe("job-aaaaaaaa-0.png");
+    expect(wrap.find(".mv__facts").text()).toBe("Result 1 of 2 · 1024×1536 · 2.4 MB · veo");
+    expect(wrap.findAll("button").map(nameOf)).toEqual([
+      "Download · D",
+      "Close · Esc",
+      "Previous result",
+      "Next result",
+      "Zoom out · −",
+      "Zoom in · +",
       "Fit or actual size",
       "Rotate left",
       "Rotate right",
-      "Close",
-      "Previous image",
-      "Next image",
+      "Show result 1",
+      "Show result 2",
+      "Scroll all results left",
+      "Scroll all results right",
     ]);
-    expect(body().find(".el-image-viewer__actions .el-icon").exists()).toBe(false);
-    const viewer = mounted[0]!.findComponent({ name: "ElImageViewer" });
-    // Next steps on from the picture shown, and wraps around
-    const next = () => body().find(".el-image-viewer__wrapper [aria-label='Next image']").trigger("click");
-    await next();
-    expect(viewer.emitted("switch")?.at(-1)).toEqual([1]);
-    await next();
-    expect(viewer.emitted("switch")?.at(-1)).toEqual([0]);
-    await body().find(".el-image-viewer__wrapper [aria-label='Close']").trigger("click");
-    expect(mounted[0]!.findComponent({ name: "ElImageViewer" }).exists()).toBe(false);
+    expect(button("Previous result")!.attributes("disabled")).toBeDefined();
+    await button("Zoom in · +")!.trigger("click");
+    expect(wrap.find(".mv__zoom").text()).toBe("125%");
+    await button("Next result")!.trigger("click");
+    expect(body().find(".rl-viewer .mv__facts").text()).toContain("Result 2 of 2");
+    expect(body().find(".rl-viewer .mv__zoom").text()).toBe("100%");
+    expect(button("Next result")!.attributes("disabled")).toBeDefined();
+    vi.mocked(api.fetchDownload).mockResolvedValue(new Blob(["x"]));
+    await button("Download · D")!.trigger("click");
+    await flushPromises();
+    expect(api.fetchDownload).toHaveBeenCalledWith(A, 1);
+    expect(saveBlob).toHaveBeenCalledWith(expect.any(Blob), "job-aaaaaaaa-1.png");
+    await body().find(".rl-viewer [aria-label='Close · Esc']").trigger("click");
+    await flushPromises();
+    expect(viewer()[0]!.props("modelValue")).toBeNull();
+    expect(body().find("[data-testid=job-drawer]").exists()).toBe(true);
+  });
+
+  it("a video plays in our own controls, no browser chrome", async () => {
+    await show(detail({ media: [media({ idx: 0, mime: "video/mp4", url: "/m/v" })] }));
+    await view("results").find(".media__play").trigger("click");
+    await flushPromises();
+    const wrap = body().find(".rl-viewer");
+    expect(wrap.find("video").attributes("controls")).toBeUndefined();
+    expect(wrap.findAll(".mv__row button").map(nameOf)).toEqual([
+      "Play",
+      "Back 5 seconds",
+      "Mute",
+      "Playback speed",
+      "Loop",
+      "Full screen",
+    ]);
+    expect(wrap.find("input[aria-label=Seek]").exists()).toBe(true);
+    await button("Playback speed")!.trigger("click");
+    expect(button("Playback speed")!.text()).toBe("1.5×");
+    expect(button("Loop")!.attributes("aria-pressed")).toBe("true");
   });
 
   it("a tile's name is on the tile itself, not on its picture, so a picture that does not load keeps it", async () => {
     await show(detail({ media: [media({ idx: 0, url: "/m/tok1" })] }));
     const tile = view("results").find("button.media__tile");
-    expect(tile.attributes("aria-label")).toBe("Open image 1 in the viewer");
+    expect(tile.attributes("aria-label")).toBe("Open result 1 in the viewer");
     expect(tile.find("[aria-label], [role]").exists()).toBe(false);
   });
 
@@ -1099,10 +1149,10 @@ describe("results and references", () => {
     await flushPromises();
     expect(api.fetchMediaBlob).toHaveBeenCalledWith(A, "input", 1);
     expect(view("results").exists()).toBe(false);
-    expect(button("Download")).toBeUndefined();
+    expect(button("Download · D")).toBeUndefined();
   });
 
-  it("a tile reads Open image N, a reference tile Open reference N", async () => {
+  it("a tile reads Open result N, a reference tile Open reference N", async () => {
     await show(
       detail({ status: "failed", media: [media({ role: "input", idx: 0 }), media({ role: "input", idx: 1 })] }),
     );
@@ -1187,14 +1237,19 @@ describe("timeline", () => {
       }),
       "Timeline",
     );
-    const items = section("timeline").findAll(".timeline__item");
+    const items = section("timeline").findAll(".tl__row");
     expect(items).toHaveLength(2);
-    expect(items[0]!.find(".timeline__time").text()).toBe("19:41:44");
-    expect(items[0]!.find(".timeline__what").text()).toBe("recovered from history");
+    expect(items[0]!.find(".tl__clock").text()).toBe("19:41:44");
+    expect([items[0]!.find(".tl__stage").text(), items[0]!.find(".tl__what").text()]).toEqual([
+      "recovered",
+      "from history",
+    ]);
     expect(items[0]!.attributes("data-tone")).toBe("ok");
-    expect(items[0]!.find(".timeline__dot").classes()).toContain("tone-ok");
-    expect(items[1]!.find(".timeline__time").text()).toBe("19:40:02");
-    expect(items[1]!.find(".timeline__what").text()).toBe("submitted sent");
+    expect(items[0]!.find(".tl__dot").classes()).toContain("tone-ok");
+    expect(items[0]!.find(".tl__line").exists()).toBe(true);
+    expect(items[1]!.find(".tl__clock").text()).toBe("19:40:02");
+    expect(items[1]!.find(".tl__stage").text()).toBe("submitted");
     expect(items[1]!.attributes("data-tone")).toBe("neutral");
+    expect(items[1]!.find(".tl__line").exists()).toBe(false);
   });
 });

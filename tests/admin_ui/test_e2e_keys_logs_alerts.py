@@ -615,7 +615,7 @@ OVERLAP_WATCH_JS = """() => {
   window.__jobOpened = false;
   new MutationObserver(() => {
     const alert = document.querySelector('[data-testid="alert-detail"] .detail-drawer__body');
-    const job = document.querySelector('[data-testid="job-drawer"] .detail-drawer__body');
+    const job = document.querySelector('[data-testid="job-drawer"] .rl-drawer__body');
     if (job) window.__jobOpened = true;
     if (alert && job) window.__overlap = true;
   }).observe(document.body, {childList: true, subtree: true});

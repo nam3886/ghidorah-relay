@@ -500,8 +500,12 @@ def test_a_key_with_no_label_is_named_by_its_prefix_everywhere(app, app_session,
     log(db, key_id, "POST /v1/video/generations", 200)
     unclear = "Words under a key with no label"
     plant_unclear(db, key_id, unclear)
-    open_tab(page, "Jobs")
-    expect(page.locator(".el-table__body").first).to_contain_text(prefix)
+    open_tab(page, "Jobs")                          # the Ledger list draws no key: the job's detail names it
+    page.locator(".jobs__table tbody tr.is-row").first.click()
+    detail = page.get_by_test_id("job-drawer")
+    expect(detail.locator("[data-section=summary]")).to_contain_text(prefix)
+    detail.get_by_role("button", name="Close · Esc").click()
+    expect(detail).to_be_hidden()
     open_tab(page, "Request logs")
     expect(page.get_by_test_id("logs-table")).to_contain_text(prefix)
     api = app.url.rsplit("/manage", 1)[0]

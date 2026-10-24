@@ -65,6 +65,13 @@ PASSES = [(width, theme) for width in WIDTHS for theme in THEMES]
 # The route modules in the order the sweep walks them, and everything they open, as (route, state).
 MODULES = (login, jobs, job_drawer, accounts, keys, logs, alerts, frames, settings, test_tab, shell)
 OPENS = [state for module in MODULES for state in module.STATES]
+# The states only a desktop and a tablet draw (a module's WIDE_ONLY: the Jobs bulk bar, a phone has no tick boxes).
+WIDE_ONLY = set().union(*(getattr(module, "WIDE_ONLY", set()) for module in MODULES))
+
+
+def opens(width):
+    """What a pass at this width opens: every state, less the wide-only ones on a phone."""
+    return [state for state in OPENS if width >= 768 or state not in WIDE_ONLY]
 
 
 def shot_name(width, theme, route, state):
@@ -186,7 +193,7 @@ def test_every_dialog_popper_toast_and_loading_state_runs_under_the_csp_at_every
     app_page.set_viewport_size({"width": width, "height": WIDTHS[width]})
     data = seed(app, db, live)
     data["raw_key"] = live.call(live.env.new_key()).raw
-    run_sweep(app_page, app, live, Sweep(app_page, color_scheme, width=width), data)
+    run_sweep(app_page, app, live, Sweep(app_page, color_scheme, expected=opens(width), width=width), data)
     # the sweep provokes a refused save, which the browser logs as a failed load; nothing else may be in the list
     unexpected = [p for p in app_page.problems if "Failed to load resource" not in p]
     assert not unexpected, unexpected
@@ -211,11 +218,13 @@ def test_the_sweep_runs_at_desktop_tablet_and_phone_widths():
 
 @mutation(SELF, "assert not " "twice,", "assert True or twice,", expect="DID NOT RAISE")
 def test_the_screenshot_names_are_the_exact_cross_product_of_widths_themes_and_states():
-    names = shot_names(PASSES, OPENS)
+    names = [n for width, theme in PASSES for n in shot_names([(width, theme)], opens(width))]
     assert len(PASSES) == len(set(PASSES)) == len(WIDTHS) * len(THEMES)
-    assert len(names) == len(WIDTHS) * len(THEMES) * len(OPENS)
-    assert set(names) == {"%d-%s-%s-%s.png" % (w, t, r, s) for w in WIDTHS for t in THEMES for r, s in OPENS}
+    assert len(names) == len(set(names)) == sum(len(opens(w)) for w in WIDTHS) * len(THEMES)
+    assert set(names) == {"%d-%s-%s-%s.png" % (w, t, r, s) for w in WIDTHS for t in THEMES for r, s in opens(w)}
     assert "390-dark-login-form.png" in names and "1280-light-shell-multiple-select-tick.png" in names
+    assert WIDE_ONLY and WIDE_ONLY <= set(OPENS), "a wide-only state is one the sweep lists"
+    assert "390-light-jobs-bulk-selected.png" not in names and "768-light-jobs-bulk-selected.png" in names
     with pytest.raises(AssertionError, match="two states write the same screenshot"):
         shot_names(PASSES, OPENS + [OPENS[0]])
 

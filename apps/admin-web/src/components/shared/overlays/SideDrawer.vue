@@ -7,9 +7,19 @@ import { useBreakpoint } from "@/composables/use-breakpoint";
 // optional Back, the title (18/26, 500; `mono` for an id) and Close · Esc, then the `sub` slot (chips and one line of
 // context) under the title, ruled off from the body. The body (20 px 24 px 28 px, 22 px gaps) scrolls; the `footer`
 // slot sits on the head fill under a rule. Element Plus keeps the focus inside and closes it on Escape and the scrim.
+// Opt-in: the `tabs` slot (a tab row at the foot of the head, on its rule: JobDetail), `sheet` (on a phone the drawer
+// is the whole screen with Back alone, JobDetailPhone) and `panelClass` (a class on the panel, for a page's own rules).
 const props = withDefaults(
-  defineProps<{ modelValue: boolean; title: string; mono?: boolean; backLabel?: string; testid?: string }>(),
-  { mono: false, backLabel: "", testid: undefined },
+  defineProps<{
+    modelValue: boolean;
+    title: string;
+    mono?: boolean;
+    backLabel?: string;
+    testid?: string;
+    sheet?: boolean;
+    panelClass?: string;
+  }>(),
+  { mono: false, backLabel: "", testid: undefined, sheet: false, panelClass: "" },
 );
 const emit = defineEmits<{ "update:modelValue": [open: boolean]; back: []; closed: [] }>();
 const { isPhone, isTablet } = useBreakpoint();
@@ -19,10 +29,10 @@ const close = (): void => emit("update:modelValue", false);
 <template>
   <el-drawer
     :model-value="props.modelValue"
-    class="rl-drawer"
+    :class="['rl-drawer', props.panelClass, { 'is-sheet': props.sheet && isPhone }]"
     modal-class="rl-drawer-scrim"
     direction="rtl"
-    :size="isPhone || isTablet ? 'calc(100% - 48px)' : 'min(640px, 100%)'"
+    :size="props.sheet && isPhone ? '100%' : isPhone || isTablet ? 'calc(100% - 48px)' : 'min(640px, 100%)'"
     :show-close="false"
     :data-testid="props.testid"
     destroy-on-close
@@ -31,7 +41,7 @@ const close = (): void => emit("update:modelValue", false);
     @closed="emit('closed')"
   >
     <template #header="{ titleId }">
-      <div class="rl-drawer__head">
+      <div class="rl-drawer__head" :class="{ 'has-tabs': !!$slots.tabs }">
         <div class="rl-drawer__bar">
           <IconButton
             v-if="props.backLabel"
@@ -41,10 +51,20 @@ const close = (): void => emit("update:modelValue", false);
             @click="emit('back')"
           />
           <h2 :id="titleId" class="rl-drawer__title" :class="{ mono: props.mono }">{{ props.title }}</h2>
-          <IconButton icon="close" label="Close" shortcut="Esc" placement="bottom-end" @click="close" />
+          <IconButton
+            v-if="!(props.sheet && isPhone)"
+            icon="close"
+            label="Close"
+            shortcut="Esc"
+            placement="bottom-end"
+            @click="close"
+          />
         </div>
         <div v-if="$slots.sub" class="rl-drawer__sub" :class="{ 'has-back': !!props.backLabel }">
           <slot name="sub" />
+        </div>
+        <div v-if="$slots.tabs" class="rl-drawer__tabs" :class="{ 'has-back': !!props.backLabel }">
+          <slot name="tabs" />
         </div>
       </div>
     </template>
@@ -79,6 +99,12 @@ html:root .rl-drawer .el-drawer__header {
   width: 100%;
   min-width: 0;
   padding-bottom: 14px;
+}
+.rl-drawer__head.has-tabs {
+  padding-bottom: 0;
+}
+.rl-drawer__tabs.has-back {
+  padding-left: 36px;
 }
 .rl-drawer__bar {
   display: flex;
