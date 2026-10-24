@@ -1,43 +1,30 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
-import { useRoute } from "vue-router";
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { clearLogs, getLog, type LogDetail, listLogs, type LogRow } from "@/api/logs";
 import { loadFailedText } from "@/components/jobs/job-text";
-import PageHeader from "@/components/layout/PageHeader.vue";
 import LogDetailDrawer from "@/components/logs/LogDetailDrawer.vue";
+import LogsDatesField from "@/components/logs/LogsDatesField.vue";
 import LogsFilterForm from "@/components/logs/LogsFilterForm.vue";
-import {
-  clockTime,
-  dayKey,
-  dayNote,
-  isLogStatus,
-  isServerError,
-  logKey,
-  logQuery,
-  PAGE_SIZE,
-  thousands,
-} from "@/components/logs/log-window";
+import LogsTable from "@/components/logs/LogsTable.vue";
+import { isLogStatus, logQuery, PAGE_SIZE, thousands } from "@/components/logs/log-window";
 import { useLogsFilters } from "@/components/logs/logs-filters";
-import "@/components/logs/lane-controls.css";
-import DataTable from "@/components/shared/DataTable.vue";
-import { IconChevronRight, IconMoreCircles, IconTrashClear } from "@/components/shared/icons";
-import ListPager from "@/components/shared/ListPager.vue";
-import ProviderTile from "@/components/shared/ProviderTile.vue";
-import StatusChip from "@/components/shared/StatusChip.vue";
+import IconButton from "@/components/shared/IconButton.vue";
+import BottomSheet from "@/components/shared/overlays/BottomSheet.vue";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useBusy } from "@/composables/use-busy";
 import { useLatest } from "@/composables/use-latest";
-import { type DayRow, groupByDay, isDayRow } from "@/lib/day-rows";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
-import { providerClass } from "@/lib/providers";
 import { useScopeStore } from "@/stores/scope";
 import { useUiStore } from "@/stores/ui";
 
 // Request logs: one row per request a known key made. The date window is the viewer's own midnights (half-open on the
 // server). The filters are kept in memory across tab visits; the page offset starts at the first page on each visit.
+// A desktop and a tablet page through the rows (Newer and Older); a phone loads older rows under the ones it has.
 const route = useRoute();
+const router = useRouter();
 const scope = useScopeStore();
 const ui = useUiStore();
 const filters = useLogsFilters();
@@ -45,6 +32,7 @@ const { run } = useBusy();
 const latest = useLatest();
 const detailLatest = useLatest();
 const { isPhone, isTablet } = useBreakpoint();
+const compact = computed(() => isPhone.value || isTablet.value);
 
 const items = shallowRef<LogRow[]>([]);
 const total = ref(0);
@@ -56,72 +44,15 @@ const error = ref<string | null>(null);
 const detail = shallowRef<LogDetail | null>(null);
 const detailOpen = ref(false);
 
-// No row is tinted (owner, 24/10): a server error is told by its red status pill and red error code, a client error by
-// its amber pill and muted code.
-
-// Every request carries its provider's colours: a rail on the row's left edge and the tinted provider cell (phone: the
-// tinted side column). A request no provider handled (a model list, a refused call) is the relay's own, in grey.
-const providerOf = (row: LogRow): string => row.provider || "relay";
-const rowClass = ({ row }: { row: LogRow | DayRow }): string =>
-  isDayRow(row) ? "" : `logs-row ${providerClass(providerOf(row))}`;
-
-// The desktop columns; a tablet keeps five of them and folds the rest into those cells. The canvas lays the table out by
-// its content; the drawn shares of its width are set in the style block below, and these minimums are those shares of
-// the narrowest table (1080 px desktop, 600 px tablet), so every column is flexible and the shares decide.
-const columns = computed(() => {
-  const tablet = isTablet.value;
-  return [
-    { key: "provider", label: "Provider", minWidth: tablet ? 75 : 81, className: "col-provider" },
-    { key: "time", label: "Time", minWidth: tablet ? 65 : 88 },
-    { key: "status", label: "Status", minWidth: tablet ? 116 : 79, skeleton: "pill" as const },
-    { key: "route", label: "Route", minWidth: tablet ? 178 : 213, skeleton: "title" as const },
-    { key: "key", label: "Key", minWidth: tablet ? 60 : 82 },
-    { key: "job", label: "Job", minWidth: 250 },
-    { key: "error", label: "Error code", minWidth: 164 },
-    { key: "duration", label: "Duration", align: "right" as const, minWidth: tablet ? 67 : 73 },
-  ];
-});
-const TABLET_COLUMNS = ["provider", "time", "status", "route", "key", "duration"];
-// The loading skeleton, after the drawn Jobs one (B-States, loading): four columns, the time, the status pill, the route
-// with the job under it, the duration; a phone leaves the duration out, so the route keeps some room.
-const SKELETON_COLUMNS = ["time", "status", "route", "duration"];
-const PHONE_SKELETON_COLUMNS = ["time", "status", "route"];
-
-// Day headers: the newest request's day first, then each earlier one. The note counts the rows on this page.
-const dayTotals = shallowRef<Record<string, number>>({});
-const rows = computed(() => {
-  const grouped = groupByDay(items.value, { at: (r) => r.at_ms }).items;
-  // each header counts its rows on this page against the day's total from the server
-  let header: DayRow | null = null;
-  let shown = 0;
-  let key = "";
-  const close = () => {
-    if (header) header.note = dayNote(shown, dayTotals.value[key]);
-  };
-  for (const item of grouped) {
-    if (isDayRow(item)) {
-      close();
-      header = item;
-      shown = 0;
-      key = "";
-    } else {
-      if (!key && item.at_ms) key = dayKey(item.at_ms);
-      shown += 1;
-    }
-  }
-  close();
-  return grouped;
-});
-
-async function load(): Promise<void> {
+// `more`: the next page is added under the rows on hand (a phone's Load older), else it replaces them
+async function load(more = false): Promise<void> {
   const ticket = latest.next();
   loading.value = true;
   try {
     const out = await listLogs(logQuery(filters, scope.provider, offset.value, limit.value));
     if (!latest.isCurrent(ticket)) return;
-    items.value = out.items;
+    items.value = more ? [...items.value, ...out.items] : out.items;
     total.value = out.total;
-    dayTotals.value = out.day_totals ?? {};
     error.value = null;
   } catch (err) {
     if (!latest.isCurrent(ticket)) return;
@@ -150,36 +81,18 @@ watch(
   () => scope.provider,
   () => search(),
 );
-
-// The More menu of a tablet or phone: one item, Clear logs.
-const menuOpen = ref(false);
-const menuWrap = ref<HTMLElement | null>(null);
-function onDocumentPointer(event: Event): void {
-  if (menuOpen.value && !menuWrap.value?.contains(event.target as Node)) menuOpen.value = false;
-}
-function onDocumentKey(event: KeyboardEvent): void {
-  if (event.key === "Escape") menuOpen.value = false;
-}
-onMounted(() => {
-  document.addEventListener("pointerdown", onDocumentPointer);
-  document.addEventListener("keydown", onDocumentKey);
-});
 onBeforeUnmount(() => {
-  document.removeEventListener("pointerdown", onDocumentPointer);
-  document.removeEventListener("keydown", onDocumentKey);
   latest.invalidate();
   detailLatest.invalidate();
 });
 
-// A new search starts at the first page; Refresh reads the same page again.
+// A new search starts at the first page.
 function search(): void {
   offset.value = 0;
-  // totals follow the filters and the data, not the page: a new search drops them until its answer lands
-  dayTotals.value = {};
   void load();
 }
 
-// An empty list under a filter offers to clear it, as the Jobs list does (B-States, no results).
+// An empty list under a filter offers to clear it, as the Jobs list does (LogsStates, no match).
 const filtered = computed(() => !!(filters.q.trim() || filters.status !== "all" || filters.from || filters.to));
 function clearFilters(): void {
   filters.reset();
@@ -187,7 +100,6 @@ function clearFilters(): void {
 }
 
 async function clear() {
-  menuOpen.value = false;
   const ok = await confirmDialog({
     title: "Clear every request log row?",
     message: "Jobs, the ledger and alerts are kept.",
@@ -198,8 +110,6 @@ async function clear() {
   await run(async () => {
     const out = await clearLogs();
     notify.success(`Cleared ${out.deleted} rows`);
-    // totals follow the filters and the data, not the page: the data is gone, so are the old totals
-    dayTotals.value = {};
     offset.value = 0;
     await load();
   });
@@ -221,185 +131,101 @@ function openJobFromDrawer(id: string): void {
   ui.openJob(id);
 }
 
-const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is-bad" : "is-muted");
+// Paging: Showing a–b of N, Newer and Older (a desktop and a tablet); a phone's Load older adds the next page.
+const first = computed(() => (items.value.length ? offset.value + 1 : 0));
+const last = computed(() => offset.value + items.value.length);
+const newer = () => {
+  offset.value = Math.max(0, offset.value - limit.value);
+  void load();
+};
+const older = () => {
+  offset.value += limit.value;
+  void load();
+};
+const more = () => {
+  offset.value += limit.value;
+  void load(true);
+};
+
+// A tablet or phone folds the search and the dates behind two buttons of the head.
+const searchOpen = ref(false);
+const filtersOpen = ref(false);
+const showSearch = computed(() => searchOpen.value || !!filters.q.trim());
+async function toggleSearch(): Promise<void> {
+  searchOpen.value = !searchOpen.value;
+  if (!searchOpen.value) return;
+  await nextTick();
+  document.getElementById("logs-q")?.focus();
+}
 </script>
 
 <template>
   <section class="logs-view">
-    <PageHeader title="Request logs" subtitle="Every API request and its HTTP outcome. Jobs are listed separately.">
-      <template #actions>
-        <button v-if="!isPhone && !isTablet" type="button" class="kla-btn kla-btn--danger logs-clear" @click="clear">
-          <IconTrashClear :size="15" />Clear logs
-        </button>
-        <div v-else ref="menuWrap" class="logs-more">
-          <button
-            type="button"
-            class="kla-btn logs-more__btn"
-            :class="{ 'is-phone': isPhone }"
-            aria-label="More actions"
-            aria-haspopup="menu"
-            :aria-expanded="menuOpen"
-            @click="menuOpen = !menuOpen"
-          >
-            <IconMoreCircles :size="18" />
-          </button>
-          <div
-            v-if="menuOpen"
-            class="logs-more__menu"
-            :class="{ 'is-phone': isPhone }"
-            role="menu"
-            aria-label="More actions"
-          >
-            <button type="button" role="menuitem" class="logs-more__item" @click="clear">
-              <IconTrashClear :size="16" />Clear logs
-            </button>
-          </div>
-        </div>
-      </template>
-    </PageHeader>
+    <div class="lv-head" :class="{ 'is-compact': compact }">
+      <div v-if="!compact" class="lv-head__text">
+        <h1>Request logs</h1>
+        <p>Every call to the relay API, newest first.</p>
+      </div>
+      <h1 v-else class="sr-only">Request logs</h1>
+      <span class="lv-head__actions">
+        <IconButton v-if="compact" icon="search" label="Search requests" placement="bottom" @click="toggleSearch" />
+        <IconButton
+          v-if="compact"
+          icon="filter"
+          label="Filters: dates"
+          placement="bottom"
+          @click="filtersOpen = true"
+        />
+        <IconButton icon="delete" label="Clear logs" danger placement="bottom-end" @click="clear" />
+      </span>
+    </div>
 
-    <section class="kla-card logs-card" aria-label="Request log list">
-      <LogsFilterForm @search="search" />
-      <DataTable
-        class="logs-table"
-        :actions-width="isTablet ? 40 : 48"
-        :columns="columns"
-        :rows="rows"
+    <!-- the design's day counts (requests, 2xx, 4xx, 5xx, p95) need an API that does not exist yet -->
+    <section class="lv-stats" aria-label="Today in numbers" data-testid="logs-stats">
+      <b>Today in numbers</b>
+      <span>Requests by status and the 95th-percentile duration are not served by the API yet.</span>
+    </section>
+
+    <section class="lv-card" aria-label="Request log list">
+      <LogsFilterForm :search-open="showSearch" @search="search" />
+      <LogsTable
+        :rows="items"
         :loading="loading"
         :error="error"
-        :empty-text="filtered ? 'No requests match these filters.' : 'No requests yet.'"
-        row-clickable
-        :row-class-name="rowClass"
-        :tablet-columns="TABLET_COLUMNS"
-        :skeleton-columns="isPhone ? PHONE_SKELETON_COLUMNS : SKELETON_COLUMNS"
-        :row-label="(r: LogRow) => `Open request ${r.id}`"
-        @row-click="openDetail"
-        @retry="load"
-      >
-        <template #cell-time="{ row }"
-          ><span class="l-time kla-mono">{{ clockTime(row.at_ms) }}</span></template
-        >
-        <template #cell-status="{ row }">
-          <StatusChip :status="row.status_code" class="l-pill" />
-          <!-- a code breaks only after its dots (quota. / too_many_queued), never inside a word -->
-          <span
-            v-if="isTablet && row.error_code"
-            class="l-code kla-mono"
-            :class="errorTone(row)"
-            :title="row.error_code"
-            ><template v-for="(part, i) in row.error_code.split('.')" :key="i"
-              ><template v-if="i">.<wbr /></template>{{ part }}</template
-            ></span
-          >
-        </template>
-        <template #cell-route="{ row }">
-          <span class="l-route kla-mono" :title="row.route">{{ row.route }}</span>
-          <template v-if="isTablet">
-            <button
-              v-if="row.job_id"
-              type="button"
-              class="l-job-link"
-              :title="row.job_title ?? undefined"
-              @click="ui.openJob(row.job_id)"
-            >
-              {{ row.job_title || row.job_id.slice(0, 8) }}
-            </button>
-            <span v-else class="l-nojob">no job</span>
-          </template>
-        </template>
-        <template #cell-provider="{ row }">
-          <span class="l-pcell"
-            ><ProviderTile :provider="providerOf(row)" /><span class="l-pname">{{ providerOf(row) }}</span></span
-          >
-        </template>
-        <template #cell-key="{ row }"
-          ><span class="l-key" :title="logKey(row)">{{ logKey(row) }}</span></template
-        >
-        <template #cell-job="{ row }">
-          <div class="l-job-cell">
-            <template v-if="row.job_id">
-              <button
-                type="button"
-                class="l-job-link"
-                :title="row.job_title ?? undefined"
-                @click="ui.openJob(row.job_id)"
-              >
-                {{ row.job_title || row.job_id.slice(0, 8) }}
-              </button>
-              <span class="l-job-id kla-mono">{{ row.job_id.slice(0, 8) }}</span>
-            </template>
-            <span v-else class="l-nojob">no job</span>
-          </div>
-        </template>
-        <!-- always an element: an empty slot would show the table's dash, and the design leaves the cell empty -->
-        <template #cell-error="{ row }">
-          <span v-if="row.error_code" class="l-err kla-mono" :class="errorTone(row)" :title="row.error_code">{{
-            row.error_code
-          }}</span>
-          <span v-else class="l-err-none" />
-        </template>
-        <template #cell-duration="{ row }"
-          ><span class="l-dur kla-mono">{{ thousands(row.duration_ms) }} ms</span></template
-        >
-        <template #actions="{ row }">
-          <button
-            type="button"
-            class="kla-icon-btn l-open"
-            :aria-label="`Open details of request ${row.id}`"
-            @click="openDetail(row)"
-          >
-            <IconChevronRight :size="16" />
-          </button>
-        </template>
-
-        <!-- the phone list: the provider's side column, then four short lines per request -->
-        <template #row="{ row }">
-          <div class="p-req__side">
-            <ProviderTile :provider="providerOf(row)" />
-            <small class="p-req__pname">{{ providerOf(row) }}</small>
-          </div>
-          <div class="p-req">
-            <div class="p-req__line">
-              <StatusChip :status="row.status_code" class="l-pill" />
-              <span class="p-req__route kla-mono" :title="row.route">{{ row.route }}</span>
-            </div>
-            <div class="p-req__job">
-              <span v-if="row.job_id" class="p-req__title" :title="row.job_title ?? undefined">{{
-                row.job_title || row.job_id.slice(0, 8)
-              }}</span>
-              <span v-else class="l-nojob">no job</span>
-            </div>
-            <div class="p-req__meta">
-              <span class="p-req__when"
-                ><span class="kla-mono">{{ clockTime(row.at_ms) }}</span> · {{ logKey(row) }}</span
-              >
-              <span class="p-req__dur kla-mono">{{ thousands(row.duration_ms) }} ms</span>
-            </div>
-            <div v-if="row.error_code" class="p-req__err kla-mono" :class="errorTone(row)">{{ row.error_code }}</div>
-          </div>
-        </template>
-        <template v-if="filtered" #empty-action>
-          <button type="button" class="kla-btn logs-clear-filters" @click="clearFilters">Clear filters</button>
-        </template>
-      </DataTable>
-      <ListPager
-        :offset="offset"
-        :limit="limit"
-        :total="total"
-        @move="
-          (o: number) => {
-            offset = o;
-            void load();
-          }
-        "
-        @size="
-          (s: number) => {
-            limit = s;
-            search();
-          }
-        "
+        :filtered="filtered"
+        @open="openDetail"
+        @job="ui.openJob"
+        @retry="() => load()"
+        @clear-filters="clearFilters"
+        @send-test="router.push({ name: 'test' })"
       />
+      <div v-if="!isPhone && !error && total > 0" class="lv-foot">
+        <span class="lv-foot__text"
+          >Showing {{ thousands(first) }}–{{ thousands(last) }} of {{ thousands(total) }}</span
+        >
+        <span class="lv-foot__btns">
+          <IconButton icon="prev" label="Newer page" :disabled="offset === 0 || loading" @click="newer" />
+          <IconButton icon="next" label="Older page" :disabled="last >= total || loading" @click="older" />
+        </span>
+      </div>
     </section>
+
+    <button
+      v-if="isPhone && !error && items.length > 0 && items.length < total"
+      type="button"
+      class="lv-more"
+      :disabled="loading"
+      @click="more"
+    >
+      Load older
+    </button>
+
+    <BottomSheet v-model="filtersOpen" title="Filters" sub="Dates" testid="logs-filters-sheet">
+      <LogsDatesField label="Dates" @search="search" />
+      <template #footer>
+        <button type="button" class="lv-done" @click="filtersOpen = false">Done</button>
+      </template>
+    </BottomSheet>
 
     <LogDetailDrawer v-model="detailOpen" :log="detail" @open-job="openJobFromDrawer" />
   </section>
@@ -413,404 +239,110 @@ const errorTone = (row: LogRow): string => (isServerError(row.status_code) ? "is
 }
 @media (max-width: 767px) {
   .logs-view {
-    gap: 16px;
+    gap: 14px;
   }
 }
-/* the head: the tablet and phone More button sits at the top of the title block, as drawn */
-.logs-view > :deep(.page-header--tablet),
-.logs-view > :deep(.page-header--phone) {
-  align-items: flex-start;
-}
-/* Clear logs fills with the error tint on hover */
-.logs-clear:hover {
-  background: var(--rl-bad-bg);
-}
-.logs-card {
-  min-width: 0;
-}
-/* a tablet draws a hairline between the filters and the table; a desktop does not */
-.logs-table.is-tablet {
-  border-top: 1px solid var(--rl-line);
-}
-.logs-table :deep(.el-table) {
-  min-width: 1080px;
-}
-.logs-table.is-tablet :deep(.el-table) {
-  min-width: 0;
-}
-/* The canvas lays the table out by its content (the browser's auto layout); at 1440 the columns come to these widths
-   of the 1302 px table: 106.3, 95.2, 256.8, 87.1, 99.4, 311.5, 197.5, 88.2 and 60 (the 48 px details column plus its
-   12 px padding); at 768 to these of the 718 px table: 88.3, 160.1, 259.3, 82.8, 79.6 and 48. Element Plus lays out
-   fixed columns, so each takes the same share of the table's width. The provider column (the redesign) comes first:
-   7.5 % on a desktop (its old 6.7 and 0.8 from Job; Key takes 2 more from Job), 12.5 % on a tablet (from Route,
-   Status, Time and Key; a tablet's Key then takes 3 more from Route). */
-.logs-table:not(.is-tablet) :deep(col:nth-child(1)) {
-  width: 7.5%;
-}
-.logs-table:not(.is-tablet) :deep(col:nth-child(2)) {
-  width: 8.1644%;
-}
-.logs-table:not(.is-tablet) :deep(col:nth-child(3)) {
-  width: 7.3118%;
-}
-.logs-table:not(.is-tablet) :deep(col:nth-child(4)) {
-  width: 19.7235%;
-}
-.logs-table:not(.is-tablet) :deep(col:nth-child(5)) {
-  width: 9.6344%;
-}
-.logs-table:not(.is-tablet) :deep(col:nth-child(6)) {
-  width: 21.1144%;
-}
-.logs-table:not(.is-tablet) :deep(col:nth-child(7)) {
-  width: 15.169%;
-}
-.logs-table:not(.is-tablet) :deep(col:nth-child(8)) {
-  width: 6.7742%;
-}
-.logs-table:not(.is-tablet) :deep(col:nth-child(9)) {
-  width: 4.6083%;
-}
-.logs-table.is-tablet :deep(col:nth-child(1)) {
-  width: 12.5%;
-}
-.logs-table.is-tablet :deep(col:nth-child(2)) {
-  width: 10.7981%;
-}
-.logs-table.is-tablet :deep(col:nth-child(3)) {
-  width: 19.2981%;
-}
-.logs-table.is-tablet :deep(col:nth-child(4)) {
-  width: 26.6142%;
-}
-.logs-table.is-tablet :deep(col:nth-child(5)) {
-  width: 13.018%;
-}
-.logs-table.is-tablet :deep(col:nth-child(6)) {
-  width: 11.0864%;
-}
-.logs-table.is-tablet :deep(col:nth-child(7)) {
-  width: 6.6852%;
-}
-/* a row is as high as its content: the first cell holds it at 49 (the canvas's `height: 48px` on the first td plus its
-   1 px border: Element Plus's cells are border-box), a row with a job is higher. A tablet cell is padded 8 and starts
-   at the top. */
-.logs-table :deep(.el-table .el-table__row:not(.is-day) > td.el-table__cell) {
-  height: auto;
-  padding: 0;
-}
-.logs-table :deep(.el-table .el-table__row:not(.is-day) > td.el-table__cell:first-child) {
-  height: 49px;
-}
-.logs-table.is-tablet :deep(.el-table .el-table__row:not(.is-day) > td.el-table__cell) {
-  height: auto;
-  padding: 8px 0;
-  vertical-align: top;
-}
-.logs-table :deep(td.el-table__cell:first-child .cell),
-.logs-table :deep(th.el-table__cell:first-child .cell) {
-  padding-left: 16px;
-}
-.logs-table :deep(th.data-table__actions .cell) {
-  font-size: 0;
-}
-.logs-table :deep(.el-table td.data-table__actions .cell) {
-  padding: 0 12px 0 0;
-}
-.logs-table.is-tablet :deep(.el-table .el-table__row:not(.is-day) > td.data-table__actions) {
-  padding: 6px 0 0;
-}
-.logs-table.is-tablet :deep(.el-table td.data-table__actions .cell) {
-  padding: 0 8px 0 0;
-}
-/* the skeleton's four columns: Time 84, Status 110 (the drawn pill column), Route the rest, Duration 84 (a phone's
-   last column is the route, which takes the rest too) */
-.logs-table :deep(.data-table__skeleton.is-drawn th:nth-child(2)) {
-  width: 110px;
-}
-.logs-table :deep(.data-table__skeleton.is-drawn th:nth-child(3)) {
-  width: auto;
-}
-/* a key label wraps (anywhere, as a long one has no space) rather than being cut by its cell */
-/* the key on one line: a long one ends in an ellipsis, its whole text in the title */
-.l-key {
-  display: block;
-  overflow: hidden;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.is-tablet .l-key {
-  line-height: 24px;
-}
-/* tabular figures on the time and the duration only, as the canvas sets them */
-.l-time {
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  color: var(--rl-muted);
-  white-space: nowrap;
-}
-.is-tablet .l-time {
-  font-size: 12px;
-  line-height: 24px;
-}
-.l-route {
-  font-size: 12px;
-  white-space: nowrap;
-}
-.is-tablet .l-route {
-  display: block;
-  line-height: 24px;
-}
-.l-pill {
-  font-variant-numeric: tabular-nums;
-}
-/* the provider: a rail in its tone on the row's left edge and its tinted cell with the tile and the name; the cell
-   keeps its tint on hover and on a 5xx row */
-.logs-table :deep(.el-table tr.logs-row > td.el-table__cell:first-child) {
-  box-shadow: inset 4px 0 0 var(--pc);
-}
-.logs-table :deep(.el-table tr.logs-row > td.el-table__cell.col-provider) {
-  background: var(--ps);
-}
-.l-pcell {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-.l-pname {
-  color: var(--pi);
-  font-size: 12px;
-  font-weight: 600;
-}
-.l-job-cell {
-  padding: 6px 0;
-}
-.is-tablet .l-job-cell {
-  padding: 0;
-}
-.l-job-link {
-  display: block;
-  max-width: 280px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--rl-fg);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-}
-.is-tablet .l-job-link {
-  font-size: 13px;
-}
-/* the canvas's tablet title is a bare link: the link colour in dark (its `.th-dark a`); the desktop one sets the text
-   colour itself */
-html.dark .is-tablet .l-job-link {
-  color: var(--rl-link);
-}
-.l-job-link:hover,
-html.dark .is-tablet .l-job-link:hover {
-  color: var(--rl-primary);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-/* the id sits on its own line after the block title, inline, as drawn */
-.l-job-id {
-  font-size: 12px;
-  color: var(--rl-faint);
-}
-.l-nojob {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: 8px;
-  background: var(--rl-neutral-bg);
-  color: var(--rl-neutral);
-  font-size: 11px;
-  line-height: 16px;
-}
-.l-err {
-  font-size: 12px;
-  white-space: nowrap;
-}
-.l-code {
-  display: block;
-  margin-top: 3px;
-  font-size: 11px;
-  line-height: 16px;
-}
-.is-bad {
-  color: var(--rl-bad);
-}
-.is-muted {
-  color: var(--rl-muted);
-}
-.l-dur {
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.is-tablet .l-dur {
-  font-size: 12px;
-  line-height: 24px;
-}
-.l-open {
-  color: var(--rl-muted);
-}
 
-/* the More menu (tablet, phone) */
-.logs-more {
-  position: relative;
-  flex: none;
-}
-.logs-more__btn {
-  width: 40px;
-  height: 40px;
-  padding: 0;
-}
-.logs-more__btn.is-phone {
-  width: 44px;
-  height: 44px;
-}
-.logs-more__menu {
-  position: absolute;
-  top: 46px;
-  right: 0;
-  z-index: 5;
-  box-sizing: border-box;
-  width: 200px;
-  padding: 6px;
-  border: 1px solid var(--rl-line);
-  border-radius: 12px;
-  background: var(--rl-surface);
-  box-shadow: 0 12px 32px rgb(10 6 20 / 18%);
-}
-.logs-more__menu.is-phone {
-  top: 50px;
-}
-.logs-more__item {
+/* the head: the title and one muted sentence, the icon buttons at the right */
+.lv-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  height: 40px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--rl-bad);
-  font: inherit;
-  font-size: 14px;
-  line-height: normal;
-  text-align: left;
-  cursor: pointer;
+  gap: 12px 16px;
 }
-.is-phone .logs-more__item {
-  height: 44px;
-}
-.logs-more__item:hover {
-  background: var(--rl-bad-bg);
-}
-
-/* phone: the day header is 12/16 (the Jobs one 12/20), a row is raised on hover */
-.logs-card :deep(.data-table__main) {
-  flex-direction: row;
-  justify-content: flex-start;
-  gap: 12px;
-  padding: 12px 16px 12px 0 !important;
-}
-/* the provider's side column: its rail, its tint, the tile and the name, as high as the row */
-.p-req__side {
+.lv-head__text {
   display: flex;
-  flex: none;
   flex-direction: column;
-  align-items: center;
   gap: 4px;
-  box-sizing: border-box;
-  width: 44px;
-  margin: -12px 0;
-  padding-top: 14px;
-  background: var(--ps);
-  box-shadow: inset 4px 0 0 var(--pc);
 }
-.p-req__pname {
-  max-width: 40px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--pi);
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 12px;
+.lv-head h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
-.logs-card :deep(.data-table__day .data-table__day-label) {
-  line-height: 16px;
+.lv-head p {
+  margin: 0;
+  color: var(--rl-muted);
 }
-.logs-card :deep(.data-table__item:hover) {
-  background: var(--rl-raised);
-}
-.p-req {
+.lv-head__actions {
   display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
+  gap: 8px;
+  margin-left: auto;
 }
-.p-req__line {
+.lv-head.is-compact {
+  justify-content: flex-end;
+  gap: 0;
+}
+
+/* the day numbers: an empty state until the API serves them */
+.lv-stats {
   display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.p-req__line :deep(.status-chip) {
-  flex: none;
-}
-.p-req__route {
-  flex: 1;
-  min-width: 0;
-  font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.p-req__job {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-.p-req__title {
-  min-width: 0;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.p-req__meta {
-  display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-.p-req__when {
+  gap: 4px 12px;
+  padding: 14px 20px;
+  border-radius: 16px;
+  background: var(--rl-surface);
+  box-shadow: var(--rl-shadow-card);
   font-size: 13px;
   color: var(--rl-muted);
-  white-space: nowrap;
+}
+.lv-stats b {
+  color: var(--rl-fg);
+  font-size: 15px;
+}
+
+.lv-card {
+  min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
+  border-radius: 16px;
+  background: var(--rl-surface);
+  box-shadow: var(--rl-shadow-card);
 }
-.p-req__when .kla-mono {
+.lv-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--rl-rule);
+}
+.lv-foot__text {
   font-size: 12px;
+  line-height: 18px;
+  color: var(--rl-faint);
   font-variant-numeric: tabular-nums;
 }
-.p-req__dur {
-  flex: none;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
+.lv-foot__btns {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
 }
-.p-req__err {
-  font-size: 12px;
+
+/* the phone's Load older, and the sheet's Done: full-width text buttons at the touch height */
+.lv-more,
+.lv-done {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.lv-more {
+  border: 1px solid var(--rl-line-strong);
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+}
+.lv-more:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.lv-done {
+  border: 0;
+  background: var(--rl-primary);
+  color: var(--rl-on-primary);
 }
 </style>

@@ -5,7 +5,7 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import { ApiError } from "@/api/client";
 import * as logs from "@/api/logs";
 import type { LogRow } from "@/api/logs";
-import { dayAfter, dayStart, viewerZone } from "@/components/logs/log-window";
+import { dayAfter, dayStart } from "@/components/logs/log-window";
 import { useLogsFilters } from "@/components/logs/logs-filters";
 import * as confirm from "@/components/shared/confirm-dialog";
 import { notify } from "@/lib/notify";
@@ -48,30 +48,34 @@ const settle = async () => {
 async function open(path = "/logs") {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: "/logs", name: "logs", component: LogsView }],
+    routes: [
+      { path: "/logs", name: "logs", component: LogsView },
+      { path: "/test", name: "test", component: { render: () => null } },
+    ],
   });
   await router.push(path);
   wrapper = mount(LogsView, { global: { plugins: [pinia, router] }, attachTo: document.body });
   await settle();
   return { w: wrapper, router };
 }
-const button = (w: VueWrapper, text: string) =>
-  text === "Next" ? w.find("button.btn-next") : w.findAll("button").find((b) => b.text() === text)!;
+const button = (w: VueWrapper, text: string) => w.findAll("button").find((b) => b.text() === text)!;
+const named = (w: VueWrapper, label: string) => w.find<HTMLButtonElement>(`button[aria-label="${label}"]`);
+const older = (w: VueWrapper) => named(w, "Older page");
 const lastQuery = () => list.mock.calls.at(-1)![0];
-// The Status field (FilterSelect's field variant): a combobox whose list opens in the body.
-const statusField = (w: VueWrapper) => w.find('.lf__status [role="combobox"]');
-const statusShown = (w: VueWrapper) => w.find(".lf__status .is-current").text();
-async function statusWords(w: VueWrapper): Promise<string[]> {
-  await statusField(w).trigger("click");
-  const words = [...document.querySelectorAll('[role="option"]')].map((o) => o.textContent?.trim() ?? "");
-  await statusField(w).trigger("click");
-  return words;
-}
+// The Status choices: segments on a desktop, chips on a tablet and a phone.
+const statusButtons = (w: VueWrapper) => w.findAll(".lf__seg-btn, .lf [role='group'][aria-label='Status'] .chip");
+const statusShown = (w: VueWrapper) =>
+  statusButtons(w)
+    .filter((b) => b.attributes("aria-pressed") === "true")
+    .map((b) => b.text());
+const statusWords = (w: VueWrapper): string[] => statusButtons(w).map((b) => b.text());
 async function chooseStatus(w: VueWrapper, word: string): Promise<void> {
-  await statusField(w).trigger("click");
-  [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.trim() === word)!.click();
+  await statusButtons(w)
+    .find((b) => b.text() === word)!
+    .trigger("click");
   await settle();
 }
+const rowsOf = (w: VueWrapper) => w.findAll("tbody tr");
 // The range picker's two inputs, From then To.
 const picker = (w: VueWrapper, which: "From" | "To") => w.find<HTMLInputElement>(`input[aria-label="${which}"]`);
 // What the operator does with the range: clicks into it (the panel opens), types the two days and presses Enter. The picker reports the change when the panel closes, against the range it had when it opened.
@@ -143,15 +147,25 @@ describe("the list", () => {
       total: 1,
     });
     const { w } = await open();
-    const text = w.find("tbody tr:not(.is-day)").text();
-    expect(text).toContain("01234567");
-    expect(w.find("tbody .l-dur").text()).toBe("42 ms");
+    expect(w.find('[data-testid="logs-table"]').attributes("data-state")).toBe("ready");
+    const text = rowsOf(w)[0]!.text();
+    expect(w.findAll("thead th").map((h) => h.text())).toEqual([
+      "Time",
+      "Status",
+      "Request",
+      "Job",
+      "Provider",
+      "Key",
+      "Error code",
+      "Duration",
+    ]);
+    expect(rowsOf(w)[0]!.findAll("td")[7]!.text()).toBe("42 ms");
     expect(text).toContain(PLANTED);
     expect(w.find("img").exists()).toBe(false);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 
-  it("no row is tinted, a 5xx neither: its red pill and code say it", async () => {
+  it("no row is tinted, whatever its status: the pill and the code carry it", async () => {
     list.mockResolvedValue({
       items: [
         row({ id: "a", status_code: 503 }),
@@ -162,96 +176,80 @@ describe("the list", () => {
       total: 4,
     });
     const { w } = await open();
-    const classes = w.findAll("tbody tr:not(.is-day)").map((r) => r.classes().join(" "));
-    expect(classes[0]).not.toContain("row-tone");
-    expect(classes[1]).not.toContain("row-tone");
-    expect(classes[2]).not.toContain("row-tone");
-    expect(classes[3]).not.toContain("row-tone");
+    expect(rowsOf(w).map((r) => r.classes())).toEqual([["is-row"], ["is-row"], ["is-row"], ["is-row"]]);
   });
 
-  it("the error code is plain mono text, red on a 5xx row and muted otherwise, never a chip", async () => {
+  it("the status pill is ok below 400, a warning from 400, bad from 500", async () => {
+    list.mockResolvedValue({
+      items: [
+        row({ id: "a", status_code: 503 }),
+        row({ id: "b", status_code: 422 }),
+        row({ id: "c", status_code: 399 }),
+      ],
+      total: 3,
+    });
+    const { w } = await open();
+    expect(w.findAll("tbody .pill").map((p) => [p.text(), p.classes()[2]])).toEqual([
+      ["503", "tone-bad"],
+      ["422", "tone-warn"],
+      ["399", "tone-ok"],
+    ]);
+  });
+
+  it("the error code is plain mono text, red on a 5xx row, amber on a 4xx one, red behind a 200, never a chip", async () => {
     list.mockResolvedValue({
       items: [
         row({ id: "a", status_code: 503, error_code: "upstream_down" }),
         row({ id: "b", status_code: 422, error_code: "input.bad" }),
-        row({ id: "c", status_code: 200, error_code: null }),
+        row({ id: "c", status_code: 200, error_code: "dola.content_refused" }),
+        row({ id: "d", status_code: 200, error_code: null }),
       ],
-      total: 3,
+      total: 4,
     });
     const { w } = await open();
-    const codes = w.findAll("tbody .l-err");
-    expect(codes.map((c) => [c.text(), c.classes().includes("is-bad"), c.classes().includes("is-muted")])).toEqual([
-      ["upstream_down", true, false],
-      ["input.bad", false, true],
+    const codes = w.findAll("tbody .t-err span:not(.faint)");
+    expect(codes.map((c) => [c.text(), c.classes()[0]])).toEqual([
+      ["upstream_down", "tone-bad"],
+      ["input.bad", "tone-warn"],
+      ["dola.content_refused", "tone-bad"],
     ]);
     expect(codes[0]!.find("[data-tone]").exists()).toBe(false);
-    // on a desktop the code has its own column: nothing of it sits under the status pill
-    expect(w.find(".l-code").exists()).toBe(false);
-    // no error: an empty cell, not a dash
-    expect(w.findAll("tbody tr:not(.is-day)")[2]!.find(".l-err").exists()).toBe(false);
+    // no error: a dash
+    expect(rowsOf(w)[3]!.find(".t-err").text()).toBe("—");
   });
 
-  it("a duration has a thousands comma and no unit on a desktop", async () => {
-    list.mockResolvedValue({ items: [row({ duration_ms: 1980 })], total: 1 });
-    const { w } = await open();
-    expect(w.find("tbody .l-dur").text()).toBe("1,980 ms");
-  });
-
-  it("requests are grouped under a day header that counts the rows of the page", async () => {
-    const now = Date.now();
+  it("a duration is in ms, and from one second in seconds with two decimals, in amber", async () => {
     list.mockResolvedValue({
-      items: [
-        row({ id: "a", at_ms: now }),
-        row({ id: "b", at_ms: now - 1000 }),
-        row({ id: "c", at_ms: now - 3 * 86_400_000 }),
-      ],
-      total: 3,
+      items: [row({ id: "a", duration_ms: 1840 }), row({ id: "b", duration_ms: 412 })],
+      total: 2,
     });
     const { w } = await open();
-    const days = w.findAll('[data-testid="day-row"]').map((d) => d.text().replace(/\s+/g, " "));
-    expect(days[0]).toMatch(/^Today · \d+ \w+ · 2 requests shown$/);
-    expect(days[1]).toMatch(/· 1 request shown$/);
+    const [slow, quick] = rowsOf(w).map((r) => r.findAll("td")[7]!);
+    expect([slow!.text(), slow!.classes()]).toEqual(["1.84 s", expect.arrayContaining(["slow"])]);
+    expect([quick!.text(), quick!.classes()]).toEqual(["412 ms", expect.not.arrayContaining(["slow"])]);
   });
 
-  it("a new search drops the old day total at once: the header counts the page's rows until the answer lands", async () => {
-    const now = Date.now();
-    const key = new Date(now);
-    const todayKey = `${key.getFullYear()}-${String(key.getMonth() + 1).padStart(2, "0")}-${String(key.getDate()).padStart(2, "0")}`;
-    list.mockResolvedValueOnce({
-      items: [row({ id: "a", at_ms: now }), row({ id: "b", at_ms: now - 1000 })],
-      total: 4812,
-      day_totals: { [todayKey]: 4761 },
-    });
-    const { w } = await open();
-    const header = () => w.find('[data-testid="day-row"]').text().replace(/\s+/g, " ");
-    expect(header()).toMatch(/· 4,761 requests shown$/);
-    let answer!: (v: Awaited<ReturnType<typeof logs.listLogs>>) => void;
-    list.mockReturnValueOnce(new Promise((r) => (answer = r)));
-    await chooseStatus(w, "Errors");
-    await settle();
-    expect(header()).toMatch(/· 2 requests shown$/);
-    expect(header()).not.toContain("4,761");
-    answer({ items: [row({ id: "a", at_ms: now })], total: 1, day_totals: { [todayKey]: 9 } });
-    await settle();
-    expect(header()).toMatch(/· 9 requests shown$/);
-  });
-
-  it("a header shows the day's total from the server, not the rows of the page", async () => {
-    const now = Date.now();
-    const key = new Date(now);
-    const todayKey = `${key.getFullYear()}-${String(key.getMonth() + 1).padStart(2, "0")}-${String(key.getDate()).padStart(2, "0")}`;
+  it("the time shows its milliseconds beside the clock; the method is told apart from the path", async () => {
     list.mockResolvedValue({
-      items: [row({ id: "a", at_ms: now }), row({ id: "b", at_ms: now - 1000 })],
-      total: 4812,
-      day_totals: { [todayKey]: 4761 },
+      items: [row({ at_ms: new Date(2026, 9, 5, 8, 4, 9, 7).getTime(), route: "POST /v1/videos" })],
+      total: 1,
     });
     const { w } = await open();
-    expect(w.find('[data-testid="day-row"]').text().replace(/\s+/g, " ")).toMatch(/· 4,761 requests shown$/);
+    expect(rowsOf(w)[0]!.find(".t-clock").text()).toBe("08:04:09.007");
+    expect(rowsOf(w)[0]!.find(".ms").text()).toBe(".007");
+    const route = rowsOf(w)[0]!.find(".t-route");
+    expect(route.find(".method").text()).toBe("POST");
+    expect(route.find(".method").classes()).toContain("post");
+    expect(route.text()).toBe("POST /v1/videos");
   });
 
-  it("a row opens its details from a chevron button named by the request id", async () => {
+  it("a row opens its details from a button named by the request id, and from a click on the row", async () => {
+    vi.mocked(logs.getLog).mockResolvedValue({ ...row(), request: {}, response: null });
     const { w } = await open();
-    expect(w.find('tbody button[aria-label="Open details of request l1"]').exists()).toBe(true);
+    expect(w.find('tbody button[aria-label="Open request l1"]').exists()).toBe(true);
+    await rowsOf(w)[0]!.trigger("click");
+    await settle();
+    expect(logs.getLog).toHaveBeenCalledWith("l1");
   });
 
   it("a value that may end in an ellipsis carries its whole text as its title: route, job title, error code", async () => {
@@ -260,10 +258,10 @@ describe("the list", () => {
       total: 1,
     });
     const { w } = await open();
-    const cells = w.find("tbody tr:not(.is-day)");
-    expect(cells.find(".l-route").attributes("title")).toBe("POST /v1/video/generations");
-    expect(cells.find(".l-job-link").attributes("title")).toBe("a title");
-    expect(cells.find(".l-err").attributes("title")).toBe("dola.content_refused_by_review");
+    const cells = rowsOf(w)[0]!;
+    expect(cells.find(".row-open").attributes("title")).toBe("POST /v1/video/generations");
+    expect(cells.find(".job-link").attributes("title")).toBe("a title");
+    expect(cells.find(".t-err span").attributes("title")).toBe("dola.content_refused_by_review");
   });
 
   it("the Key cell names a key by its label, else by its prefix as Jobs does; a dash only when there is no key", async () => {
@@ -276,54 +274,86 @@ describe("the list", () => {
       total: 3,
     });
     const { w } = await open();
-    expect(w.findAll("tbody .l-key").map((k) => k.text())).toEqual(["shop", "rk-q7mfz2kd", "—"]);
+    expect(w.findAll("tbody .t-key").map((k) => k.text())).toEqual(["shop", "rk-q7mfz2kd", "—"]);
   });
 
-  it("a row with no job says so", async () => {
-    list.mockResolvedValue({ items: [row({ job_id: null, job_title: null })], total: 1 });
+  it("a row with no job says so with a dash and has no job link; a job's title opens that job", async () => {
+    list.mockResolvedValue({
+      items: [row({ id: "a", job_id: null, job_title: null }), row({ id: "b" })],
+      total: 2,
+    });
     const { w } = await open();
-    expect(w.find("tbody tr:not(.is-day)").text()).toContain("no job");
+    expect(rowsOf(w)[0]!.find(".t-job").text()).toBe("—");
+    expect(rowsOf(w)[0]!.find(".job-link").exists()).toBe(false);
+    await rowsOf(w)[1]!.find(".job-link").trigger("click");
+    expect(useUiStore(pinia).openJobId).toBe("0123456789abcdef");
+  });
+
+  it("a request no provider handled shows a dash in the provider cell", async () => {
+    list.mockResolvedValue({ items: [row({ provider: null })], total: 1 });
+    const { w } = await open();
+    expect(rowsOf(w)[0]!.findAll("td")[4]!.text()).toBe("—");
+  });
+
+  it("the provider is a chip in its own colours", async () => {
+    const { w } = await open();
+    const chip = rowsOf(w)[0]!.find(".pchip");
+    expect(chip.text()).toBe("vibes");
+    expect(chip.classes()).toContain("p-vibes");
   });
 
   it("the first load asks for 50 rows, all statuses, no dates", async () => {
     await open();
-    expect(lastQuery()).toEqual({ limit: 50, offset: 0, status: "all", tz: viewerZone() });
+    expect(lastQuery()).toEqual({ limit: 50, offset: 0, status: "all" });
   });
 
-  it("a failed load says what failed and what the relay answered", async () => {
+  it("a failed load says what failed and what the relay answered; Retry reads again", async () => {
     list.mockRejectedValue(new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } }));
     const { w } = await open();
     expect(w.find('[role="alert"]').text()).toContain(
       "Could not load the request logs: the relay answered 502 (bad gateway).",
     );
+    const calls = list.mock.calls.length;
+    list.mockResolvedValue({ items: [row()], total: 1 });
+    await button(w, "Retry").trigger("click");
+    await settle();
+    expect(list.mock.calls.length).toBe(calls + 1);
+    expect(w.find('[role="alert"]').exists()).toBe(false);
+    expect(rowsOf(w)).toHaveLength(1);
   });
 
-  it("the loading skeleton draws four columns: the time, the status pill, the route over its job, the duration", async () => {
+  it("the loading skeleton draws four columns of flat bars: the time, the status pill, the request, the duration", async () => {
     list.mockReturnValue(new Promise(() => undefined));
     const { w } = await open();
-    const skeleton = w.find(".data-table__skeleton");
-    expect(skeleton.findAll("th").map((th) => th.text())).toEqual(["Time", "Status", "Route", "Duration"]);
-    const bars = skeleton
-      .findAll("tbody tr")[0]!
-      .findAll("td")
-      .map((td) => td.findAll("i").map((i) => i.classes()[1]));
-    expect(bars).toEqual([["skel--time"], ["skel--pill-0"], ["skel--title-0", "skel--sub"], ["skel--net"]]);
+    const skeleton = w.find('[data-testid="logs-skeleton"]');
+    expect(skeleton.attributes("aria-busy")).toBe("true");
+    expect(w.find('[data-testid="logs-table"]').attributes("data-state")).toBe("loading");
+    expect(skeleton.findAll("th").map((th) => th.text())).toEqual(["Time", "Status", "Request", "Duration"]);
+    expect(skeleton.findAll("tbody tr")).toHaveLength(5);
+    expect(
+      skeleton
+        .find("tbody tr")
+        .findAll("td")
+        .map((td) => td.find(".bar").classes()[1]),
+    ).toEqual(["bar--time", "bar--pill", "bar--route", "bar--dur"]);
   });
 
-  it("a phone's loading skeleton leaves the duration out", async () => {
+  it("a phone's loading skeleton is a list of bars", async () => {
     showAt(390);
     list.mockReturnValue(new Promise(() => undefined));
     const { w } = await open();
-    const skeleton = w.find(".data-table__skeleton");
-    expect(skeleton.findAll("th").map((th) => th.text())).toEqual(["Time", "Status", "Route"]);
-    expect(skeleton.find("tbody tr").findAll("td")[2]!.find(".skel--sub").exists()).toBe(true);
+    expect(w.find("table").exists()).toBe(false);
+    expect(w.findAll(".p-row--skel")).toHaveLength(5);
   });
 
-  it("an empty list with no filter says there are no requests yet, and offers nothing", async () => {
+  it("an empty list with no filter says there are no requests yet and offers a test job", async () => {
     list.mockResolvedValue({ items: [], total: 0 });
-    const { w } = await open();
-    expect(w.find(".data-table__empty").text()).toBe("No requests yet.");
-    expect(w.find(".logs-clear-filters").exists()).toBe(false);
+    const { w, router } = await open();
+    expect(w.find(".lt__title").text()).toBe("No requests yet");
+    expect(button(w, "Clear filters")).toBeUndefined();
+    await button(w, "Send a test job").trigger("click");
+    await settle();
+    expect(router.currentRoute.value.name).toBe("test");
   });
 
   it("an empty list under a filter says so; Clear filters clears every filter and searches from the first page", async () => {
@@ -331,20 +361,26 @@ describe("the list", () => {
     list.mockResolvedValue({ items: [], total: 0 });
     // a status alone is a filter
     await chooseStatus(w, "Errors");
-    await settle();
-    expect(w.find(".data-table__empty").text()).toContain("No requests match these filters.");
-    expect(w.find(".logs-clear-filters").exists()).toBe(true);
+    expect(w.find(".lt__title").text()).toBe("No requests match these filters");
+    expect(button(w, "Clear filters")).toBeDefined();
     await w.find<HTMLInputElement>('input[aria-label="Search"]').setValue("nothing");
     await setRange(w, "2026-10-01", "2026-10-02");
     list.mockResolvedValue({ items: [row()], total: 1 });
-    await w.find(".logs-clear-filters").trigger("click");
+    await button(w, "Clear filters").trigger("click");
     await settle();
-    expect(lastQuery()).toEqual({ limit: 50, offset: 0, status: "all", tz: viewerZone() });
+    expect(lastQuery()).toEqual({ limit: 50, offset: 0, status: "all" });
     expect(w.find<HTMLInputElement>('input[aria-label="Search"]').element.value).toBe("");
-    expect(statusShown(w)).toBe("All");
+    expect(statusShown(w)).toEqual(["All"]);
     expect(picker(w, "From").element.value).toBe("");
     expect(picker(w, "To").element.value).toBe("");
-    expect(w.findAll("tbody tr:not(.is-day)")).toHaveLength(1);
+    expect(rowsOf(w)).toHaveLength(1);
+  });
+
+  it("the page says what the API does not give yet instead of drawing the day's numbers", async () => {
+    const { w } = await open();
+    const stats = w.find('[data-testid="logs-stats"]');
+    expect(stats.attributes("aria-label")).toBe("Today in numbers");
+    expect(stats.text()).toContain("not served by the API yet");
   });
 });
 
@@ -354,7 +390,6 @@ describe("filters", () => {
     await setRange(w, "2026-10-01", "2026-10-15");
     expect(lastQuery()).toEqual({
       limit: 50,
-      tz: viewerZone(),
       offset: 0,
       status: "all",
       since_ms: dayStart("2026-10-01"),
@@ -494,13 +529,15 @@ describe("filters", () => {
     const { w } = await open();
     const input = w.find<HTMLInputElement>('input[aria-label="Search"]');
     await input.setValue("  abc ");
-    await w.find("form").trigger("submit");
+    await input.trigger("keydown", { key: "Enter" });
     await settle();
     expect(lastQuery().q).toBe("abc");
   });
 
   it("the provider filter is sent and a change of it searches again from the first page", async () => {
     const { w } = await open();
+    await older(w).trigger("click");
+    await settle();
     useScopeStore(pinia).provider = "dola";
     await settle();
     expect(lastQuery()).toMatchObject({ provider: "dola", offset: 0 });
@@ -521,7 +558,7 @@ describe("filters", () => {
     const { w } = await open();
     await w.find<HTMLInputElement>('input[aria-label="Search"]').setValue("keep me");
     await setRange(w, "2026-10-01", "2026-10-02");
-    await button(w, "Next").trigger("click");
+    await older(w).trigger("click");
     await settle();
     expect(lastQuery().offset).toBe(50);
     w.unmount();
@@ -533,101 +570,82 @@ describe("filters", () => {
   });
 });
 
-describe("paging and refresh", () => {
-  it("a page size from the pager is asked for and starts again at the first page", async () => {
+describe("paging", () => {
+  it("says which rows are shown of how many, with a thousands comma", async () => {
+    list.mockResolvedValue({ items: [row({ id: "a" }), row({ id: "b" })], total: 18442 });
     const { w } = await open();
-    await button(w, "Next").trigger("click");
+    expect(w.find(".lv-foot__text").text()).toBe("Showing 1–2 of 18,442");
+    await older(w).trigger("click");
     await settle();
-    expect(lastQuery().offset).toBe(50);
-    w.findComponent({ name: "ListPager" }).vm.$emit("size", 100);
-    await settle();
-    expect(lastQuery()).toMatchObject({ limit: 100, offset: 0 });
+    expect(w.find(".lv-foot__text").text()).toBe("Showing 51–52 of 18,442");
   });
 
-  it("Search goes back to the first page; there is no Refresh and no Updated line", async () => {
+  it("Older goes on by a page, Newer goes back, Newer is off on the first page and Older on the last", async () => {
+    // a page is 50 rows, the last one what is left of 120
+    list.mockImplementation(async (q) => ({
+      items: Array.from({ length: Math.min(50, 120 - q.offset) }, (_, i) => row({ id: `r${q.offset + i}` })),
+      total: 120,
+    }));
     const { w } = await open();
-    await button(w, "Next").trigger("click");
+    expect(named(w, "Newer page").attributes("disabled")).toBeDefined();
+    expect(older(w).attributes("disabled")).toBeUndefined();
+    await older(w).trigger("click");
+    await settle();
+    expect(lastQuery().offset).toBe(50);
+    expect(named(w, "Newer page").attributes("disabled")).toBeUndefined();
+    await older(w).trigger("click");
+    await settle();
+    expect(lastQuery().offset).toBe(100);
+    expect(older(w).attributes("disabled")).toBeDefined();
+    await named(w, "Newer page").trigger("click");
+    await settle();
+    expect(lastQuery().offset).toBe(50);
+  });
+
+  it("an empty page has no pager", async () => {
+    list.mockResolvedValue({ items: [], total: 0 });
+    const { w } = await open();
+    expect(w.find(".lv-foot").exists()).toBe(false);
+  });
+
+  it("a search goes back to the first page; there is no Refresh and no Updated line", async () => {
+    const { w } = await open();
+    await older(w).trigger("click");
     await settle();
     expect(lastQuery().offset).toBe(50);
     expect(button(w, "Refresh")).toBeUndefined();
     expect(w.text()).not.toContain("Updated");
-    await button(w, "Search").trigger("click");
+    await w.find('input[aria-label="Search"]').trigger("keydown", { key: "Enter" });
     await settle();
     expect(lastQuery().offset).toBe(0);
   });
 
   it("a status choice searches at once from the first page", async () => {
     const { w } = await open();
-    await button(w, "Next").trigger("click");
+    await older(w).trigger("click");
     await settle();
     await chooseStatus(w, "Errors");
-    await settle();
     expect(lastQuery()).toMatchObject({ status: "error", offset: 0 });
-    expect(await statusWords(w)).toEqual(["All", "OK below 400", "Errors", "Failed before a job"]);
-  });
-});
-
-describe("day totals while another answer is on its way", () => {
-  const todayKey = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  };
-  const first = () =>
-    list.mockResolvedValueOnce({
-      items: [row({ id: "a", at_ms: Date.now() }), row({ id: "b", at_ms: Date.now() - 1000 })],
-      total: 120,
-      day_totals: { [todayKey()]: 4761 },
-    });
-  const delayed = () => {
-    let answer!: (v: Awaited<ReturnType<typeof logs.listLogs>>) => void;
-    list.mockReturnValueOnce(new Promise((r) => (answer = r)));
-    return (v: Awaited<ReturnType<typeof logs.listLogs>>) => answer(v);
-  };
-  const header = (w: VueWrapper) => w.find('[data-testid="day-row"]').text().replace(/\s+/g, " ");
-
-  it("Clear logs drops the old total at once: the data is gone, so are its totals", async () => {
-    first();
-    vi.mocked(confirm.confirmDialog).mockResolvedValue(true);
-    vi.mocked(logs.clearLogs).mockResolvedValue({ deleted: 17 });
-    const { w } = await open();
-    expect(header(w)).toMatch(/· 4,761 requests shown$/);
-    const answer = delayed();
-    await button(w, "Clear logs").trigger("click");
-    await settle();
-    expect(header(w)).toMatch(/· 2 requests shown$/);
-    expect(header(w)).not.toContain("4,761");
-    answer({ items: [row({ id: "c", at_ms: Date.now() })], total: 1, day_totals: { [todayKey()]: 1 } });
-    await settle();
-    expect(header(w)).toMatch(/· 1 request shown$/);
-  });
-
-  it("a page move keeps the total of the same filters while the next page loads", async () => {
-    first();
-    const { w } = await open();
-    const answer = delayed();
-    await button(w, "Next").trigger("click");
-    await settle();
-    expect(header(w)).toMatch(/· 4,761 requests shown$/);
-    answer({ items: [row({ id: "d", at_ms: Date.now() })], total: 120, day_totals: { [todayKey()]: 4761 } });
-    await settle();
-    expect(header(w)).toMatch(/· 4,761 requests shown$/);
+    expect(statusWords(w)).toEqual(["All", "OK below 400", "Errors", "Failed before a job"]);
+    expect(statusShown(w)).toEqual(["Errors"]);
   });
 });
 
 describe("clear logs", () => {
-  it("asks first, then says how many rows went and goes to the first page", async () => {
+  it("is an icon button that asks first, then says how many rows went and goes to the first page", async () => {
     vi.mocked(confirm.confirmDialog).mockResolvedValue(true);
     vi.mocked(logs.clearLogs).mockResolvedValue({ deleted: 17 });
     const { w } = await open();
-    await button(w, "Next").trigger("click");
+    await older(w).trigger("click");
     await settle();
-    await button(w, "Clear logs").trigger("click");
+    await named(w, "Clear logs").trigger("click");
     await settle();
     expect(confirm.confirmDialog).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Clear every request log row?",
         message: "Jobs, the ledger and alerts are kept.",
         confirmText: "Clear logs",
+        danger: true,
       }),
     );
     expect(notify.success).toHaveBeenCalledWith("Cleared 17 rows");
@@ -637,7 +655,7 @@ describe("clear logs", () => {
   it("a cancel deletes nothing", async () => {
     vi.mocked(confirm.confirmDialog).mockResolvedValue(false);
     const { w } = await open();
-    await button(w, "Clear logs").trigger("click");
+    await named(w, "Clear logs").trigger("click");
     await settle();
     expect(logs.clearLogs).not.toHaveBeenCalled();
   });
@@ -650,27 +668,35 @@ describe("the detail", () => {
     response: { ok: true },
     ...over,
   });
-
-  it("shows the request and the answer as text, titled with the id", async () => {
-    vi.mocked(logs.getLog).mockResolvedValue(detail());
+  const openOne = async (log: logs.LogDetail) => {
+    vi.mocked(logs.getLog).mockResolvedValue(log);
     const { w } = await open();
-    await w.find('tbody button[aria-label="Open details of request l1"]').trigger("click");
+    await w.find('tbody button[aria-label="Open request l1"]').trigger("click");
     await settle();
+    return { w, drawer: document.body.querySelector('[data-testid="request-drawer"]')! };
+  };
+
+  it("shows the request and the answer as text, titled with the prompt", async () => {
+    const { drawer } = await openOne(detail());
     expect(logs.getLog).toHaveBeenCalledWith("l1");
-    const dialog = document.body.querySelector('[data-testid="request-drawer"]')!;
-    expect(dialog.getAttribute("role")).toBe("dialog");
-    expect(dialog.textContent).toContain("Request l1");
-    expect(dialog.textContent).toContain(PLANTED);
-    expect(dialog.querySelector("img")).toBeNull();
-    expect(dialog.textContent).toContain('"ok": true');
+    expect(drawer.getAttribute("role")).toBe("dialog");
+    expect(drawer.querySelector("h2")!.textContent).toBe(PLANTED);
+    expect(drawer.textContent).toContain("planted");
+    expect(drawer.querySelector("img")).toBeNull();
+    expect(drawer.textContent).toContain('"ok": true');
+  });
+
+  it("is titled with the job's title when the body carries no prompt, else with the request id", async () => {
+    const withJob = await openOne(detail({ request: {} }));
+    expect(withJob.drawer.querySelector("h2")!.textContent).toBe("a title");
+    withJob.w.unmount();
+    wrapper = null;
+    const bare = await openOne(detail({ request: {}, job_title: null }));
+    expect(bare.drawer.querySelector("h2")!.textContent).toBe("Request l1");
   });
 
   it("names a key with no label by its prefix", async () => {
-    vi.mocked(logs.getLog).mockResolvedValue(detail({ key_label: "", key_prefix: "rk-q7mfz2kd" }));
-    const { w } = await open();
-    await w.find('tbody button[aria-label="Open details of request l1"]').trigger("click");
-    await settle();
-    const drawer = document.body.querySelector('[data-testid="request-drawer"]')!;
+    const { drawer } = await openOne(detail({ key_label: "", key_prefix: "rk-q7mfz2kd" }));
     const key = [...drawer.querySelectorAll('[data-testid="request-facts"] .rd__row')].find(
       (r) => r.querySelector("dt")!.textContent === "Key",
     );
@@ -678,41 +704,71 @@ describe("the detail", () => {
   });
 
   it("an answer that was not kept says so", async () => {
-    vi.mocked(logs.getLog).mockResolvedValue(detail({ response: null }));
-    const { w } = await open();
-    await w.find('tbody button[aria-label="Open details of request l1"]').trigger("click");
-    await settle();
-    const drawer = document.body.querySelector('[data-testid="request-drawer"]')!;
+    const { drawer } = await openOne(detail({ response: null }));
     expect(drawer.textContent).toContain("(none kept)");
-    expect(drawer.querySelector('button[aria-label="Copy Answer body"]')).toBeNull();
+    expect(drawer.querySelector('button[aria-label="Copy answer body"]')).toBeNull();
   });
 
   it("lists the facts as a ledger and gives each body its own Copy", async () => {
-    vi.mocked(logs.getLog).mockResolvedValue(
-      detail({ status_code: 422, error_code: "dola.content_refused", duration_ms: 1980, job_id: "5a0f3c88aaaa" }),
+    const { drawer } = await openOne(
+      detail({
+        status_code: 422,
+        error_code: "dola.content_refused",
+        duration_ms: 1980,
+        job_id: "5a0f3c88aaaa",
+        at_ms: new Date(2026, 9, 24, 14, 31, 58, 903).getTime(),
+      }),
     );
-    const { w } = await open();
-    await w.find('tbody button[aria-label="Open details of request l1"]').trigger("click");
-    await settle();
-    const drawer = document.body.querySelector('[data-testid="request-drawer"]')!;
     const facts = [...drawer.querySelectorAll('[data-testid="request-facts"] .rd__row')].map((r) => [
       r.querySelector("dt")!.textContent,
       r.querySelector("dd")!.textContent!.trim(),
     ]);
-    expect(facts.map((f) => f[0])).toEqual(["Time", "Provider", "Key", "Job", "Error", "Duration"]);
+    expect(facts.map((f) => f[0])).toEqual(["Time", "Duration", "Provider", "Key", "Job", "Error"]);
+    expect(facts.find((f) => f[0] === "Time")![1]).toBe("24 Oct 14:31:58.903");
     expect(facts.find((f) => f[0] === "Job")![1]).toBe("5a0f3c88");
     expect(facts.find((f) => f[0] === "Error")![1]).toBe("dola.content_refused");
-    expect(facts.find((f) => f[0] === "Duration")![1]).toBe("1,980 ms");
-    expect(drawer.querySelector('button[aria-label="Copy Request body"]')).not.toBeNull();
-    expect(drawer.querySelector('button[aria-label="Copy Answer body"]')).not.toBeNull();
+    expect(facts.find((f) => f[0] === "Duration")![1]).toBe("1.98 s");
+    expect(drawer.querySelector('button[aria-label="Copy request body"]')).not.toBeNull();
+    expect(drawer.querySelector('button[aria-label="Copy answer body"]')).not.toBeNull();
     expect(drawer.querySelectorAll("pre")).toHaveLength(2);
   });
 
-  it("the job link closes the drawer and opens the job drawer", async () => {
-    vi.mocked(logs.getLog).mockResolvedValue(detail());
-    const { w } = await open();
-    await w.find('tbody button[aria-label="Open details of request l1"]').trigger("click");
+  it("shows the status pill and the route under the title, the method told apart", async () => {
+    const { drawer } = await openOne(detail({ status_code: 402, route: "POST /v1/videos" }));
+    expect(drawer.querySelector(".rd__pill")!.textContent).toBe("402");
+    expect(drawer.querySelector(".rd__pill")!.className).toContain("tone-warn");
+    expect(drawer.querySelector(".rd__route")!.textContent!.replace(/\s+/g, " ").trim()).toBe("POST /v1/videos");
+    expect(drawer.querySelector(".rd__method")!.className).toContain("post");
+  });
+
+  it("says what the API does not keep: the request headers, and the upstream exchange", async () => {
+    const { drawer } = await openOne(detail());
+    expect(drawer.textContent).toContain("The API does not keep the upstream exchange yet.");
+    const headers = [...drawer.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
+      (t) => t.textContent?.trim() === "Headers",
+    )!;
+    headers.click();
     await settle();
+    expect(drawer.textContent).toContain("The API does not keep request headers yet.");
+    expect(drawer.querySelectorAll("pre")).toHaveLength(1);
+  });
+
+  it("a request that made no job says it ended at the relay", async () => {
+    const { drawer } = await openOne(detail({ job_id: null, job_title: null, provider: "vibes" }));
+    expect(drawer.textContent).toContain("The request ended at the relay: no job was made, so nothing reached vibes.");
+  });
+
+  it("colours the JSON of a body: keys, strings, numbers and literals each in their own class", async () => {
+    const { drawer } = await openOne(detail({ request: { prompt: "a cat", n: 1, ok: true } }));
+    const pre = drawer.querySelector("pre")!;
+    expect([...pre.querySelectorAll(".key")].map((e) => e.textContent)).toEqual(['"prompt"', '"n"', '"ok"']);
+    expect([...pre.querySelectorAll(".str")].map((e) => e.textContent)).toEqual(['"a cat"']);
+    expect([...pre.querySelectorAll(".num")].map((e) => e.textContent)).toEqual(["1"]);
+    expect([...pre.querySelectorAll(".lit")].map((e) => e.textContent)).toEqual(["true"]);
+  });
+
+  it("the job link closes the drawer and opens the job drawer", async () => {
+    const { w } = await openOne(detail());
     document.body.querySelector<HTMLButtonElement>('[data-testid="request-facts"] .rd__link')!.click();
     await settle();
     expect(useUiStore(pinia).openJobId).toBe("0123456789abcdef");
@@ -720,12 +776,17 @@ describe("the detail", () => {
   });
 
   it("a request with no job shows no job link", async () => {
-    vi.mocked(logs.getLog).mockResolvedValue(detail({ job_id: null, job_title: null }));
-    const { w } = await open();
-    await w.find('tbody button[aria-label="Open details of request l1"]').trigger("click");
-    await settle();
+    const { drawer } = await openOne(detail({ job_id: null, job_title: null }));
     expect(document.body.querySelector(".rd__link")).toBeNull();
-    expect(document.body.querySelector('[data-testid="request-facts"]')!.textContent).toContain("no job");
+    expect(drawer.querySelector('[data-testid="request-facts"]')!.textContent).toContain("no job");
+  });
+
+  it("Back and Close both leave the drawer", async () => {
+    const { w, drawer } = await openOne(detail());
+    expect(drawer.querySelector('button[aria-label="Close · Esc"]')).not.toBeNull();
+    drawer.querySelector<HTMLButtonElement>('button[aria-label="Back to Request logs"]')!.click();
+    await settle();
+    expect(w.findComponent({ name: "LogDetailDrawer" }).props("modelValue")).toBe(false);
   });
 });
 
@@ -739,92 +800,94 @@ describe("the tablet", () => {
       total: 2,
     });
 
-  it("keeps six columns, the provider first, folds the error code under the pill and the job under the route, and writes the unit", async () => {
+  it("keeps five columns, the status first, folds the error code or the job title, and the key, under the route", async () => {
     showAt(768);
     rich();
     const { w } = await open();
-    expect(w.findAll("thead th").map((h) => h.text())).toEqual([
-      "Provider",
-      "Time",
-      "Status",
-      "Route",
-      "Key",
-      "Duration",
-      "Actions",
-    ]);
-    const [first, second] = w.findAll("tbody tr:not(.is-day)");
-    expect(first!.find(".l-code").text()).toBe("account.dead_session");
-    // it breaks only after its dot, and says itself whole in its title
-    expect(first!.find(".l-code").findAll("wbr")).toHaveLength(1);
-    expect(first!.find(".l-code").attributes("title")).toBe("account.dead_session");
-    expect(first!.find(".l-key").attributes("title")).toBe(first!.find(".l-key").text());
-    expect(first!.find(".l-code").classes()).toContain("is-bad");
-    expect(first!.find(".l-job-link").text()).toBe("a title");
-    expect(first!.find(".l-dur").text()).toBe("2,140 ms");
-    expect(second!.find(".l-nojob").text()).toBe("no job");
-    expect(second!.find(".l-code").exists()).toBe(false);
+    expect(w.findAll("thead th").map((h) => h.text())).toEqual(["Status", "Time", "Request", "Provider", "Duration"]);
+    const [first, second] = rowsOf(w);
+    expect(first!.find(".row-open").text()).toBe("POST /v1/video/generations");
+    expect(first!.find(".t-sub").text()).toBe("account.dead_session · shop");
+    expect(first!.find(".t-sub").classes()).toContain("tone-bad");
+    expect(first!.findAll("td")[4]!.text()).toBe("2.14 s");
+    expect(second!.find(".t-sub").text()).toBe("shop");
   });
 
-  it("puts Clear logs in a More menu: closed at first, one item, closed again by Escape and by a click outside", async () => {
+  it("puts the job's title in that line when there is no error, and says 'job failed' behind a 200", async () => {
     showAt(768);
+    list.mockResolvedValue({
+      items: [row({ id: "a" }), row({ id: "b", status_code: 200, error_code: "dola.content_refused" })],
+      total: 2,
+    });
     const { w } = await open();
-    expect(w.findAll("button").some((b) => b.text() === "Clear logs")).toBe(false);
-    const more = w.find('button[aria-label="More actions"]');
-    expect(more.attributes("aria-haspopup")).toBe("menu");
-    expect(more.attributes("aria-expanded")).toBe("false");
-    await more.trigger("click");
-    expect(more.attributes("aria-expanded")).toBe("true");
-    // named as drawn: the menu after its button, the card it sits beside
-    expect(w.find('[role="menu"]').attributes("aria-label")).toBe("More actions");
-    expect(w.find("section.logs-card").attributes("aria-label")).toBe("Request log list");
-    expect(w.findAll('[role="menuitem"]').map((i) => i.text())).toEqual(["Clear logs"]);
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-    await settle();
-    expect(w.find('[role="menu"]').exists()).toBe(false);
-    await more.trigger("click");
-    document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
-    await settle();
-    expect(w.find('[role="menu"]').exists()).toBe(false);
+    expect(rowsOf(w)[0]!.find(".t-sub").text()).toBe("a title · shop");
+    expect(rowsOf(w)[1]!.find(".t-sub").text()).toBe("job failed: dola.content_refused · shop");
   });
 
-  it("the menu item asks first, like the desktop button", async () => {
+  it("Clear logs is the same icon button, there is no More menu, and the title is left to the top bar", async () => {
     showAt(768);
     vi.mocked(confirm.confirmDialog).mockResolvedValue(false);
     const { w } = await open();
-    await w.find('button[aria-label="More actions"]').trigger("click");
-    await w.find('[role="menuitem"]').trigger("click");
+    expect(w.find('button[aria-label="More actions"]').exists()).toBe(false);
+    expect(w.find("h1").classes()).toContain("sr-only");
+    await named(w, "Clear logs").trigger("click");
     await settle();
     expect(confirm.confirmDialog).toHaveBeenCalledWith(expect.objectContaining({ confirmText: "Clear logs" }));
     expect(logs.clearLogs).not.toHaveBeenCalled();
-    expect(w.find('[role="menu"]').exists()).toBe(false);
+  });
+
+  it("holds the search behind the Search button and the dates behind Filters", async () => {
+    showAt(768);
+    const { w } = await open();
+    expect(w.find('input[aria-label="Search"]').exists()).toBe(false);
+    expect(w.find('input[aria-label="From"]').exists()).toBe(false);
+    await named(w, "Search requests").trigger("click");
+    await settle();
+    expect(w.find('input[aria-label="Search"]').exists()).toBe(true);
+    await named(w, "Filters: dates").trigger("click");
+    await settle();
+    const sheet = document.body.querySelector('[data-testid="logs-filters-sheet"]')!;
+    expect(sheet.querySelector('input[aria-label="From"]')).not.toBeNull();
+    expect(sheet.querySelector('input[aria-label="To"]')).not.toBeNull();
+  });
+
+  it("a search typed stays visible after the Search button is pressed again", async () => {
+    showAt(768);
+    const { w } = await open();
+    await named(w, "Search requests").trigger("click");
+    await w.find<HTMLInputElement>('input[aria-label="Search"]').setValue("abc");
+    await named(w, "Search requests").trigger("click");
+    await settle();
+    expect(w.find('input[aria-label="Search"]').exists()).toBe(true);
   });
 });
 
 describe("the provider of a request", () => {
-  beforeEach(() => {
+  it("is a chip in its tone; a request no provider handled has none, a dash in a table", async () => {
+    showAt(768);
     list.mockResolvedValue({ items: [row({ id: "a" }), row({ id: "b", provider: null })], total: 2 });
-  });
-
-  it("is the first column: a tile and the name in a tinted cell, the row railed; none is the relay, grey", async () => {
     const { w } = await open();
-    expect(w.findAll("thead th")[0]!.text()).toBe("Provider");
-    const [vibes, relay] = w.findAll("tbody tr:not(.is-day)");
-    expect(vibes!.classes()).toEqual(expect.arrayContaining(["logs-row", "p-vibes"]));
-    expect(vibes!.find("td.col-provider").text()).toBe("Vvibes");
-    expect(relay!.classes()).toContain("p-other");
-    expect(relay!.find("td.col-provider").text()).toBe("Rrelay");
+    const [vibes, none] = rowsOf(w);
+    expect(vibes!.find(".pchip").classes()).toContain("p-vibes");
+    expect(none!.find(".pchip").exists()).toBe(false);
+    expect(none!.findAll("td")[3]!.text()).toBe("—");
   });
 
-  it("a phone row has the provider's side column", async () => {
+  it("a phone row has the chip too, and none when there is no provider", async () => {
     showAt(390);
+    list.mockResolvedValue({ items: [row({ id: "a" }), row({ id: "b", provider: null })], total: 2 });
     const { w } = await open();
-    expect(w.findAll(".p-req__side").map((s) => s.text())).toEqual(["Vvibes", "Rrelay"]);
-    expect(w.findAll(".data-table__item")[1]!.classes()).toContain("p-other");
+    const [vibes, none] = w.findAll(".p-row");
+    expect([vibes!.find(".pchip").text(), vibes!.find(".pchip").classes().includes("p-vibes")]).toEqual([
+      "vibes",
+      true,
+    ]);
+    expect(none!.find(".pchip").exists()).toBe(false);
   });
 });
 
 describe("the phone", () => {
-  it("lists a request as four short lines, the whole row opening the details", async () => {
+  it("lists a request as short lines, the whole row opening the details", async () => {
     showAt(390);
     list.mockResolvedValue({
       items: [row({ status_code: 502, error_code: "account.dead_session", duration_ms: 2140 })],
@@ -833,26 +896,27 @@ describe("the phone", () => {
     vi.mocked(logs.getLog).mockResolvedValue({ ...row(), request: {}, response: null });
     const { w } = await open();
     expect(w.find("table").exists()).toBe(false);
-    const item = w.find(".p-req");
-    expect(item.find(".p-req__route").text()).toBe("POST /v1/video/generations");
-    expect(item.find(".p-req__job").text()).toBe("a title");
-    expect(item.find(".p-req__dur").text()).toBe("2,140 ms");
-    expect(item.find(".p-req__err").classes()).toContain("is-bad");
+    const item = w.find(".p-row");
+    expect(item.find(".p-row__route").text()).toBe("POST /v1/video/generations");
+    expect(item.find(".p-row__right").text()).toMatch(/^\d\d:\d\d:\d\d · 2\.14 s$/);
+    expect(item.find(".p-row__sub").text()).toBe("account.dead_session · shop");
+    expect(item.find(".p-row__sub").classes()).toContain("tone-bad");
     expect(w.find('[aria-label="Open request l1"]').exists()).toBe(true);
     await w.find('[aria-label="Open request l1"]').trigger("click");
     await settle();
     expect(logs.getLog).toHaveBeenCalledWith("l1");
   });
 
-  it("has no Search button: a choice in Status searches at once, and typing searches after a pause", async () => {
+  it("wraps its four status chips on one set and has no Search button: a choice searches at once, typing after a pause", async () => {
     showAt(390);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
       const { w } = await open();
-      expect(w.findAll("button").some((b) => b.text() === "Search")).toBe(false);
+      expect(button(w, "Search")).toBeUndefined();
+      expect(w.find('[data-testid="arrow-scroller"]').classes()).toContain("asc--wrap");
       await chooseStatus(w, "Errors");
-      await settle();
       expect(lastQuery().status).toBe("error");
+      await named(w, "Search requests").trigger("click");
       const calls = list.mock.calls.length;
       await w.find<HTMLInputElement>('input[aria-label="Search"]').setValue("abc");
       expect(list.mock.calls.length).toBe(calls);
@@ -864,17 +928,38 @@ describe("the phone", () => {
     }
   });
 
-  it("puts the More button 44 high and keeps the same single menu item", async () => {
+  it("Load older adds the next page under the rows it has, and goes once every row is there", async () => {
     showAt(390);
+    list.mockResolvedValueOnce({ items: [row({ id: "a" }), row({ id: "b" })], total: 3 });
     const { w } = await open();
-    await w.find('button[aria-label="More actions"]').trigger("click");
-    expect(w.find('[role="menu"]').classes()).toContain("is-phone");
-    expect(w.findAll('[role="menuitem"]').map((i) => i.text())).toEqual(["Clear logs"]);
+    expect(w.find(".lv-foot").exists()).toBe(false);
+    list.mockResolvedValueOnce({ items: [row({ id: "c" })], total: 3 });
+    await button(w, "Load older").trigger("click");
+    await settle();
+    expect(lastQuery().offset).toBe(50);
+    expect(w.findAll(".p-row").map((r) => r.attributes("aria-label"))).toEqual([
+      "Open request a",
+      "Open request b",
+      "Open request c",
+    ]);
+    expect(button(w, "Load older")).toBeUndefined();
+  });
+
+  it("a new search starts the list again from the first page, not under the old rows", async () => {
+    showAt(390);
+    list.mockResolvedValueOnce({ items: [row({ id: "a" })], total: 99 });
+    const { w } = await open();
+    list.mockResolvedValueOnce({ items: [row({ id: "b" })], total: 99 });
+    await button(w, "Load older").trigger("click");
+    await settle();
+    list.mockResolvedValueOnce({ items: [row({ id: "z" })], total: 1 });
+    await chooseStatus(w, "Errors");
+    expect(w.findAll(".p-row").map((r) => r.attributes("aria-label"))).toEqual(["Open request z"]);
   });
 });
 
 describe("typing on a desktop", () => {
-  it("does not search by itself: the Search button or Enter does", async () => {
+  it("does not search by itself: Enter does", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
       const { w } = await open();
@@ -899,21 +984,26 @@ describe("the request drawer, in detail", () => {
   const openDrawer = async (log: logs.LogDetail) => {
     vi.mocked(logs.getLog).mockResolvedValue(log);
     const { w } = await open();
-    await w.find('tbody button[aria-label="Open details of request l1"]').trigger("click");
+    await w.find('tbody button[aria-label="Open request l1"]').trigger("click");
     await settle();
     return document.body.querySelector('[data-testid="request-drawer"]')!;
   };
   const writeText = vi.fn(async (_text: string) => undefined);
 
-  it("an error code is red on a server error and on a client error alike, as drawn for a 422", async () => {
+  it("an error code is amber on a client error, red on a server error and behind a 200", async () => {
     const errorLine = (drawer: Element) =>
       [...drawer.querySelectorAll(".rd__row")].find((r) => r.querySelector("dt")?.textContent === "Error")!;
-    const bad = await openDrawer(detail({ status_code: 502, error_code: "account.dead_session" }));
-    expect(errorLine(bad).querySelector("dd")!.className).toBe("kla-mono rd__bad");
-    wrapper!.unmount();
-    wrapper = null;
-    const client = await openDrawer(detail({ status_code: 422, error_code: "dola.content_refused" }));
-    expect(errorLine(client).querySelector("dd")!.className).toBe("kla-mono rd__bad");
+    const tone = async (status: number) => {
+      const drawer = await openDrawer(detail({ status_code: status, error_code: "x.y" }));
+      const out = errorLine(drawer).querySelector("dd")!.className;
+      wrapper!.unmount();
+      wrapper = null;
+      document.body.replaceChildren();
+      return out;
+    };
+    expect(await tone(502)).toContain("tone-bad");
+    expect(await tone(422)).toContain("tone-warn");
+    expect(await tone(200)).toContain("tone-bad");
   });
 
   it("a request with no error has no Error line", async () => {
@@ -923,30 +1013,33 @@ describe("the request drawer, in detail", () => {
 
   it("a body that is already text is shown as it is, not quoted", async () => {
     const drawer = await openDrawer(detail({ request: "plain text body", response: "an answer in words" }));
-    const [request, answer] = [...drawer.querySelectorAll("pre")].map((p) => p.textContent);
+    const [request, answer] = [...drawer.querySelectorAll("pre")].map((p) => p.textContent!.trim());
     expect(request).toBe("plain text body");
     expect(answer).toBe("an answer in words");
   });
 
-  it("each Copy copies its own body and says Copied", async () => {
+  it("each Copy copies its own body and says so", async () => {
     Object.defineProperty(window, "isSecureContext", { value: true, configurable: true });
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     writeText.mockClear();
     const drawer = await openDrawer(detail());
     const copy = (label: string) => drawer.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
-    copy("Copy Request body").click();
+    copy("Copy request body").click();
     await settle();
     expect(writeText).toHaveBeenLastCalledWith(JSON.stringify({ prompt: "a cat" }, null, 2));
-    expect(copy("Copy Request body").textContent!.trim()).toBe("Copied");
-    expect(copy("Copy Answer body").textContent!.trim()).toBe("Copy");
-    copy("Copy Answer body").click();
+    expect(notify.success).toHaveBeenLastCalledWith("Copied the request body");
+    // the copied one shows a tick for a moment, the other keeps its copy icon
+    expect(copy("Copy request body").querySelector("path")!.getAttribute("d")).toBe("M20 6 9 17l-5-5");
+    expect(copy("Copy answer body").querySelector("path")!.getAttribute("d")).toMatch(/^M9 9h10/);
+    copy("Copy answer body").click();
     await settle();
     expect(writeText).toHaveBeenLastCalledWith(JSON.stringify({ ok: true }, null, 2));
+    expect(notify.success).toHaveBeenLastCalledWith("Copied the answer body");
   });
 });
 
 describe("the request drawer on a phone", () => {
-  it("is a sheet whose way back names the page it returns to", async () => {
+  it("is a drawer whose way back names the page it returns to", async () => {
     showAt(390);
     vi.mocked(logs.getLog).mockResolvedValue({ ...row(), request: {}, response: null });
     const { w } = await open();
@@ -954,6 +1047,5 @@ describe("the request drawer on a phone", () => {
     await settle();
     const drawer = document.body.querySelector('[data-testid="request-drawer"]')!;
     expect(drawer.querySelector('button[aria-label="Back to Request logs"]')).not.toBeNull();
-    expect(drawer.querySelector('button[aria-label="Close"]')).toBeNull();
   });
 });

@@ -19,7 +19,7 @@ describe("no native date", () => {
   });
 
   it("the date picker's form and style sheet have no style attribute and no data URL", () => {
-    for (const f of ["components/logs/LogsFilterForm.vue", "components/logs/logs-date-field.css"]) {
+    for (const f of ["components/logs/LogsDatesField.vue", "components/logs/logs-date-field.css"]) {
       const text = read(f);
       expect(text, f).not.toMatch(/\sstyle=/);
       expect(text, f).not.toMatch(/url\(\s*["']?data:/i);

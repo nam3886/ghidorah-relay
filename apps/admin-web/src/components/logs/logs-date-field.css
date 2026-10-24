@@ -1,18 +1,15 @@
-/* The Logs date range (one Element Plus date range picker) drawn as the page's own `.kla-control` box: 34 high (36 on a
-   tablet, a borderless 40 inside the phone chip), 10 px padding, a 1 px `--rl-line-strong` edge, radius 10, 13 px text
-   on `--rl-surface`. The range editor is its own wrapper and draws its edge as an inset shadow, so it is set here for
-   every state; the focus ring is the page's one 2 px outline 2 px away (`lane-controls.css`). No inline style and no
-   `data:` URL: the CSP has no `img-src` and the picker draws its icons as inline svg. The span of the field is what the
-   canvas's From and To fields take together: 148 + 12 + 148 on a desktop; a tablet fills its share of the row; the phone
-   chip is one chip with the word Dates. */
+/* The Logs date range (one Element Plus date range picker) drawn as the Ledger field (Logs.dc.html): 34 high, 10 px
+   radius, a 1 px `--rl-line-strong` edge on the input surface, 13 px semibold text, the calendar icon first. The range
+   editor is its own wrapper and draws its edge as an inset shadow, so it is set here for every state; the focus ring is
+   the page's one 2 px outline 2 px away. No inline style and no `data:` URL: the CSP has no `img-src` and the picker
+   draws its icons as inline svg. In the Filters sheet (`.has-label`) it fills the row and is 44 high, the touch size. */
 .lf__date .el-date-editor.el-range-editor {
-  --lf-date-height: 34px;
   box-sizing: border-box;
-  width: 308px;
-  height: var(--lf-date-height);
-  padding: 0 10px;
+  width: 292px;
+  height: 34px;
+  padding: 0 12px;
   border-radius: 10px;
-  background: var(--rl-surface);
+  background: var(--rl-input);
   font-size: 13px;
 }
 .lf__date .el-date-editor.el-range-editor,
@@ -28,50 +25,26 @@
   color: var(--rl-fg);
   font: inherit;
   font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .lf__date .el-date-editor .el-range-input::placeholder {
   color: var(--rl-faint);
+  font-weight: 500;
 }
 .lf__date .el-date-editor .el-range-separator {
   flex: none;
-  padding: 0 4px;
-  color: var(--rl-muted);
-  font-size: 13px;
+  padding: 0 6px;
+  color: var(--rl-faint);
+  font-size: 12px;
 }
 .lf__date .el-date-editor .el-range__icon,
 .lf__date .el-date-editor .el-range__close-icon {
-  color: var(--rl-muted);
+  color: var(--rl-faint);
 }
-/* the calendar sits at the end, where the browser draws its indicator; the picker puts it first, before the text */
-.lf__date .el-date-editor .el-range__icon {
-  order: 2;
-  margin-inline-start: 6px;
-}
-.lf__date .el-date-editor .el-range__close-icon {
-  order: 1;
-}
-
-/* a tablet: the field fills its share of the row, 36 high like the other fields there */
-.lf--tablet .lf__date .el-date-editor.el-range-editor {
-  --lf-date-height: 36px;
+.lf__date.has-label .el-date-editor.el-range-editor {
   width: 100%;
-}
-
-/* the phone chip draws the edge itself: the field inside it is borderless, 40 high and takes the width the word
-   leaves of the chip's full-width row */
-.kla-chip-field .el-date-editor.el-range-editor {
-  --lf-date-height: 40px;
-  flex: 1;
-  width: auto;
-  min-width: 0;
-  padding: 0 4px;
-  border-radius: 0;
-  background: transparent;
-}
-.kla-chip-field .el-date-editor.el-range-editor,
-.kla-chip-field .el-date-editor.el-range-editor:hover,
-.kla-chip-field .el-date-editor.el-range-editor.is-active {
-  box-shadow: none !important;
+  height: 44px;
 }
 
 /* the open panel: the page's surface, edge and ink in both themes (the dark variables come with `html.dark`) */

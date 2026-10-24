@@ -20,6 +20,9 @@ WALLET_LINES = SRC + "/components/keys/WalletLines.vue"
 ALERTS_MODEL = SRC + "/components/alerts/alerts-model.ts"
 ALERT_DETAIL = SRC + "/components/alerts/AlertDetailPanel.vue"
 LOG_FILTERS = SRC + "/components/logs/LogsFilterForm.vue"
+LOG_DATES = SRC + "/components/logs/LogsDatesField.vue"
+LOG_TABLE = SRC + "/components/logs/LogsTable.vue"
+LOG_JSON = SRC + "/components/logs/log-json.ts"
 LOG_DRAWER = SRC + "/components/logs/LogDetailDrawer.vue"
 
 WINDOW_SPEC = "tests/unit/logs/log-window.spec.ts"
@@ -33,7 +36,6 @@ SAIGON = f"FAILED {WINDOW_SPEC} > the window in Asia/Saigon (UTC+7, no clock cha
 NEW_YORK = f"FAILED {WINDOW_SPEC} > the window across a clock change (America/New_York) > "
 QUERY = f"FAILED {WINDOW_SPEC} > logQuery > "
 WRITTEN = f"FAILED {WINDOW_SPEC} > how a request is written > "
-HEADERS = f"FAILED {WINDOW_SPEC} > the day headers > "
 BODY = f"FAILED {KEY_SPEC} > keyBody (the create and edit payload) > "
 WALLET_TEXT = f"FAILED {KEY_SPEC} > walletText > "
 PERCENT = f"FAILED {KEY_SPEC} > usagePercent > "
@@ -61,8 +63,8 @@ ACK = f"FAILED {ALERTS_VIEW_SPEC} > acknowledge > "
 COPY = f"FAILED {KEYS_VIEW_SPEC} > Copy > "
 CLEAR = f"FAILED {LOGS_VIEW_SPEC} > clear logs > "
 LOGS_LIST = f"FAILED {LOGS_VIEW_SPEC} > the list > "
-LOGS_PAGING = f"FAILED {LOGS_VIEW_SPEC} > paging and refresh > "
-LOGS_TABLET = f"FAILED {LOGS_VIEW_SPEC} > the tablet > "
+LOGS_PAGING = f"FAILED {LOGS_VIEW_SPEC} > paging > "
+LOGS_PAGE = LOGS_PAGING
 LOGS_PHONE = f"FAILED {LOGS_VIEW_SPEC} > the phone > "
 LOGS_DESKTOP_TYPING = f"FAILED {LOGS_VIEW_SPEC} > typing on a desktop > "
 LOGS_DRAWER = f"FAILED {LOGS_VIEW_SPEC} > the request drawer, in detail > "
@@ -97,14 +99,29 @@ def test_the_logs_window_is_local_midnights_and_half_open():
 
 
 # ---- how a request is written -----------------------------------------------------------------------------------
+CLOCK = WRITTEN + "the clock has two digits for each part, in local time; a missing time is a dash"
+DURATION = WRITTEN + "a duration is in ms, and from one second in seconds with two decimals, the slow ones marked"
+ROUTE = WRITTEN + "a route splits into its method and its path; one with no method is all path"
+STATUS = WRITTEN + "a status is ok below 400, a warning from 400, bad from 500"
+ERROR_TONE = WRITTEN + "an error code takes its status's family, and is red on a request that went through"
+
+
 @mutation(WINDOW, "export const PAGE_SIZE = 50;",
           "export const PAGE_SIZE = 10;", expect=WRITTEN + "a page is 50 requests")
-@mutation(WINDOW, "code >= 500", "code > 500", expect=WRITTEN + "only a code of 500 or more is a server error")
+@mutation(WINDOW, '(code >= 500 ? "bad" : code >= 400 ? "warn" : "ok")',
+          '(code > 500 ? "bad" : code >= 400 ? "warn" : "ok")', expect=STATUS)
+@mutation(WINDOW, 'code >= 400 ? "warn" : "ok")', 'code > 400 ? "warn" : "ok")', expect=STATUS)
+@mutation(WINDOW, '(code >= 400 ? (statusTone(code) as "warn" | "bad") : "bad")',
+          '(code >= 500 ? (statusTone(code) as "warn" | "bad") : "bad")', expect=ERROR_TONE)
 @mutation(WINDOW, 'n.toLocaleString("en-US")', "String(n)", expect=WRITTEN + "a number has a thousands comma")
-@mutation(WINDOW, ":${two(d.getSeconds())}", "",
-          expect=WRITTEN + "the clock has two digits for each part, in local time; a missing time is a dash")
-@mutation(WINDOW, "${two(d.getDate())}/${two(d.getMonth() + 1)}", "${two(d.getDate())}/${two(d.getMonth())}",
-          expect=WRITTEN + "the clock has two digits for each part, in local time; a missing time is a dash")
+@mutation(WINDOW, ":${two(d.getSeconds())}", "", expect=CLOCK)
+@mutation(WINDOW, "${d.getDate()} ${MONTHS[d.getMonth()]}", "${d.getDate()} ${MONTHS[d.getMonth() + 1]}", expect=CLOCK)
+@mutation(WINDOW, 'padStart(3, "0")}` : "";', 'padStart(2, "0")}` : "";', expect=CLOCK)
+@mutation(WINDOW, "(ms / 1000).toFixed(2)", "(ms / 1000).toFixed(1)", expect=DURATION)
+@mutation(WINDOW, "  ms >= 1000 ? `${(ms / 1000)", "  ms > 1000 ? `${(ms / 1000)", expect=DURATION)
+@mutation(WINDOW, "isSlow = (ms: number): boolean => ms >= 1000;", "isSlow = (ms: number): boolean => ms > 1000;",
+          expect=DURATION)
+@mutation(WINDOW, "path: route.slice(at + 1)", "path: route.slice(at)", expect=ROUTE)
 @mutation(WINDOW, 'label: "OK below 400"', 'label: "OK"',
           expect=WRITTEN + "the Status select offers the canvas words for the four statuses")
 @pytest.mark.web_unit
@@ -404,22 +421,15 @@ def test_the_keys_view_copy_buttons_copy_the_right_text():
     vitest(KEYS_VIEW_SPEC)
 
 
-# ---- Request logs: Clear logs, the More menu --------------------------------------------------------------------
+# ---- Request logs: Clear logs ----------------------------------------------------------------------------------
 @mutation(LOGS, "  if (!ok) return;\n  await run(async () => {\n    const out = await clearLogs();",
           "  await run(async () => {\n    const out = await clearLogs();", expect=CLEAR + "a cancel deletes nothing")
 @mutation(LOGS, "    offset.value = 0;\n    await load();", "    await load();",
-          expect=CLEAR + "asks first, then says how many rows went and goes to the first page")
-@mutation(LOGS, "async function clear() {\n  menuOpen.value = false;", "async function clear() {",
-          expect=LOGS_TABLET + "the menu item asks first, like the desktop button")
-@mutation(LOGS, 'if (event.key === "Escape") menuOpen.value = false;',
-          'if (event.key === "Escape") menuOpen.value = true;',
-          expect=LOGS_TABLET + "puts Clear logs in a More menu: closed at first, one item, closed again by Escape "
-                               "and by a click outside")
-@mutation(LOGS, "!menuWrap.value?.contains(event.target as Node)", "menuWrap.value?.contains(event.target as Node)",
-          expect=LOGS_TABLET + "puts Clear logs in a More menu: closed at first, one item, closed again by Escape "
-                               "and by a click outside")
+          expect=CLEAR + "is an icon button that asks first, then says how many rows went and goes to the first page")
+@mutation(LOGS, "    danger: true,\n", "    danger: false,\n",
+          expect=CLEAR + "is an icon button that asks first, then says how many rows went and goes to the first page")
 @pytest.mark.web_unit
-def test_clear_logs_asks_first_and_the_more_menu_opens_and_closes():
+def test_clear_logs_asks_first():
     vitest(LOGS_VIEW_SPEC)
 
 
@@ -429,8 +439,7 @@ RANGE = FILTERS + "a range sends the half-open window of the viewer's own midnig
 CLEARED = (FILTERS + "emptying both inputs and leaving them clears the range: no window, and the store holds empty "
            "texts")
 QUICK_ORDER = FILTERS + "the quick options are listed in the order Today, Yesterday, Last 7 days, Last 30 days"
-SIZE = (f"FAILED {LOGS_VIEW_SPEC} > paging and refresh > a page size from the pager is asked for and starts "
-        "again at the first page")
+OLDER = LOGS_PAGE + "Older goes on by a page, Newer goes back, Newer is off on the first page and Older on the last"
 
 
 ONE_ENDED_FROM = FILTERS + "a saved range with only From is cleared at both ends before the first search"
@@ -447,9 +456,9 @@ LAST_30 = QUICK + "Last 30 days searches from 2026-01-31 to 2026-03-01"
 @mutation(LOGS_FILTERS_STORE, '      to.value = "";\n', "", expect=ONE_ENDED_TO)
 @mutation(LOGS_FILTERS_STORE, "if (!from.value || !to.value) {", "if (!from.value && !to.value) {",
           expect=ONE_ENDED_FROM)
-@mutation(LOG_FILTERS, 'filters.from = v?.[0] ?? "";', 'filters.from = v?.[1] ?? "";', expect=RANGE)
-@mutation(LOG_FILTERS, 'filters.to = v?.[1] ?? "";', "filters.to = v?.[1] as string;", expect=CLEARED)
-@mutation(LOG_FILTERS, 'setAttribute("aria-label", "From");', 'setAttribute("aria-label", "X");', expect=RANGE)
+@mutation(LOG_DATES, 'filters.from = v?.[0] ?? "";', 'filters.from = v?.[1] ?? "";', expect=RANGE)
+@mutation(LOG_DATES, 'filters.to = v?.[1] ?? "";', "filters.to = v?.[1] as string;", expect=CLEARED)
+@mutation(LOG_DATES, 'setAttribute("aria-label", "From");', 'setAttribute("aria-label", "X");', expect=RANGE)
 @mutation(WINDOW, "[daysAgo(0), daysAgo(0)] },", "[daysAgo(0), daysAgo(1)] },",
           expect=TODAY)
 @mutation(WINDOW, "[daysAgo(1), daysAgo(1)] },", "[daysAgo(2), daysAgo(1)] },",
@@ -461,24 +470,32 @@ LAST_30 = QUICK + "Last 30 days searches from 2026-01-31 to 2026-03-01"
 @mutation(WINDOW, "now.getDate() - n)", "now.getDate() + n)",
           expect=YESTERDAY)
 @mutation(WINDOW, '{ text: "Today",', '{ text: "Todai",', expect=QUICK_ORDER)
-@mutation(LOGS, "scope.provider, offset.value, limit.value)", "scope.provider, offset.value)", expect=SIZE)
-@mutation(LOG_FILTERS, "if (!isPhone.value) return;", "",
-          expect=LOGS_DESKTOP_TYPING + "does not search by itself: the Search button or Enter does")
+@mutation(LOGS, "scope.provider, offset.value, limit.value)", "scope.provider, 0, limit.value)", expect=OLDER)
+@mutation(LOG_FILTERS, "if (!compact.value) return;", "",
+          expect=LOGS_DESKTOP_TYPING + "does not search by itself: Enter does")
 @mutation(LOG_FILTERS, "const TYPING_PAUSE_MS = 350;", "const TYPING_PAUSE_MS = 3500;",
-          expect=LOGS_PHONE + "has no Search button: a choice in Status searches at once, and typing searches after "
-                              "a pause")
+          expect=LOGS_PHONE + "wraps its four status chips on one set and has no Search button: a choice searches at "
+                              "once, typing after a pause")
 @pytest.mark.web_unit
-def test_the_logs_range_fields_and_page_size_reach_the_query():
+def test_the_logs_range_fields_reach_the_query():
     vitest(LOGS_VIEW_SPEC, "tests/unit/no-native-date.spec.ts")
 
 
-# ---- Request logs: colour is for exceptions, the day header, the drawer --------------------------------------------
-@mutation(LOGS, 'isServerError(row.status_code) ? "is-bad" : "is-muted"', 'true ? "is-bad" : "is-muted"',
-          expect=LOGS_LIST + "the error code is plain mono text, red on a 5xx row and muted otherwise, never a chip")
+# ---- Request logs: the paging and the job link ---------------------------------------------------------------------
+PHONE_MORE = f"FAILED {LOGS_VIEW_SPEC} > the phone > "
+
+
 @mutation(LOGS, "  detailOpen.value = false;\n  ui.openJob(id);", "  ui.openJob(id);",
           expect=LOGS_DETAIL + "the job link closes the drawer and opens the job drawer")
+@mutation(LOGS, "items.value = more ? [...items.value, ...out.items] : out.items;", "items.value = out.items;",
+          expect=PHONE_MORE + "Load older adds the next page under the rows it has, and goes once every row is there")
+@mutation(LOGS, "  offset.value += limit.value;\n  void load(true);", "  offset.value += limit.value;\n  void load();",
+          expect=PHONE_MORE + "Load older adds the next page under the rows it has, and goes once every row is there")
+@mutation(LOGS, "offset.value = Math.max(0, offset.value - limit.value);", "offset.value = 0;", expect=OLDER)
+@mutation(LOGS, ':disabled="last >= total || loading"', ':disabled="loading"', expect=OLDER)
+@mutation(LOGS, ':disabled="offset === 0 || loading"', ':disabled="loading"', expect=OLDER)
 @pytest.mark.web_unit
-def test_the_logs_view_marks_exceptions_only_and_hands_a_job_to_its_drawer():
+def test_the_logs_view_pages_and_hands_a_job_to_its_drawer():
     vitest(LOGS_VIEW_SPEC)
 
 
@@ -486,9 +503,18 @@ def test_the_logs_view_marks_exceptions_only_and_hands_a_job_to_its_drawer():
           expect=LOGS_DRAWER + "a body that is already text is shown as it is, not quoted")
 @mutation(LOG_DRAWER, 'which === "request" ? requestText.value : (answerText.value ?? "")',
           'which === "request" ? (answerText.value ?? "") : requestText.value',
-          expect=LOGS_DRAWER + "each Copy copies its own body and says Copied")
+          expect=LOGS_DRAWER + "each Copy copies its own body and says so")
 @mutation(LOG_DRAWER, "copied.value = which;", "copied.value = null;",
-          expect=LOGS_DRAWER + "each Copy copies its own body and says Copied")
+          expect=LOGS_DRAWER + "each Copy copies its own body and says so")
+@mutation(LOG_DRAWER, 'notify.success(`Copied the ${which === "request" ? "request" : "answer"} body`);',
+          'notify.success("Copied");', expect=LOGS_DRAWER + "each Copy copies its own body and says so")
+@mutation(LOG_DRAWER, "prompt.value || props.log?.job_title ||", "props.log?.job_title || prompt.value ||",
+          expect=LOGS_DETAIL + "shows the request and the answer as text, titled with the prompt")
+@mutation(LOG_JSON, 'else if (m[4]) parts.push({ text: m[4], kind: "lit" });',
+          'else if (m[4]) parts.push({ text: m[4], kind: "str" });', expect=LOGS_DETAIL + "colours the JSON of a body: keys, strings, numbers and literals each in their own class")
+@mutation(LOG_JSON, 'if (m[1] && m[2]) parts.push({ text: m[1], kind: "key" }, { text: m[2], kind: "pun" });',
+          'if (m[1] && m[2]) parts.push({ text: m[1], kind: "str" }, { text: m[2], kind: "pun" });',
+          expect=LOGS_DETAIL + "colours the JSON of a body: keys, strings, numbers and literals each in their own class")
 @pytest.mark.web_unit
 def test_the_request_drawer_shows_its_bodies_and_facts_as_text():
     vitest(LOGS_VIEW_SPEC)
@@ -636,42 +662,8 @@ def test_the_alert_group_rules_hold():
     vitest(ALERTS_MODEL_SPEC)
 
 
-# ---- the day totals and the names in the alert detail ------------------------------------------------------------
-TOTALS = f"FAILED {LOGS_VIEW_SPEC} > day totals while another answer is on its way > "
+# ---- the names in the alert detail ------------------------------------------------------------------------------
 NAMES = f"FAILED {ALERTS_VIEW_SPEC} > job titles and key labels in the detail > "
-
-
-@mutation(WINDOW, "status: filters.status, tz: viewerZone() }", "status: filters.status }",
-          expect=QUERY + "no filters: the page and the status only")
-@mutation(WINDOW, "${two(d.getMonth() + 1)}-${two(d.getDate())}", "${two(d.getMonth())}-${two(d.getDate())}",
-          expect=HEADERS + "a day's key is its local date with two digits for month and day")
-@mutation(WINDOW, "const n = total ?? shown;", "const n = shown;",
-          expect=HEADERS + "the note is the day's total from the server, else the rows on the page, in the same words")
-@mutation(WINDOW, "${thousands(n)} ${n === 1", "${n} ${n === 1",
-          expect=HEADERS + "the note is the day's total from the server, else the rows on the page, in the same words")
-@mutation(WINDOW, 'n === 1 ? "request"', 'n === 2 ? "request"',
-          expect=HEADERS + "the note is the day's total from the server, else the rows on the page, in the same words")
-@pytest.mark.web_unit
-def test_the_day_headers_are_asked_for_in_the_viewers_zone_and_worded_right():
-    vitest(WINDOW_SPEC)
-
-
-@mutation(LOGS, "dayTotals.value = out.day_totals ?? {};", "dayTotals.value = {};",
-          expect=LOGS_LIST + "a header shows the day's total from the server, not the rows of the page")
-@mutation(LOGS, "if (!key && item.at_ms) key = dayKey(item.at_ms);",
-          "if (false && item.at_ms) key = dayKey(item.at_ms);",
-          expect=LOGS_LIST + "a header shows the day's total from the server, not the rows of the page")
-@mutation(LOGS, "  dayTotals.value = {};\n  void load();", "  void load();",
-          expect=LOGS_LIST + "a new search drops the old day total at once: the header counts the page's rows until "
-                             "the answer lands")
-@mutation(LOGS, "    dayTotals.value = {};\n    offset.value = 0;", "    offset.value = 0;",
-          expect=TOTALS + "Clear logs drops the old total at once: the data is gone, so are its totals")
-@mutation(LOGS, "  const ticket = latest.next();\n  loading.value = true;",
-          "  const ticket = latest.next();\n  dayTotals.value = {};\n  loading.value = true;",
-          expect=TOTALS + "a page move keeps the total of the same filters while the next page loads")
-@pytest.mark.web_unit
-def test_a_day_header_uses_the_servers_day_total():
-    vitest(LOGS_VIEW_SPEC)
 
 
 @mutation(ALERT_DETAIL, "r.job_title || r.job_id.slice(0, 8)", "r.job_id.slice(0, 8)",
@@ -699,14 +691,16 @@ EMPTY_FILTERED = ("an empty list under a filter says so; Clear filters clears ev
           expect=LOGS_LIST + EMPTY_FILTERED)
 @mutation(LOGS, 'filters.q.trim() || filters.status !== "all"', 'filters.q.trim() || filters.status !== "x"',
           expect=LOGS_LIST + "an empty list with no filter says there are no requests yet, and offers nothing")
-@mutation(LOGS, 'const SKELETON_COLUMNS = ["time", "status", "route", "duration"];',
-          'const SKELETON_COLUMNS = ["time", "status", "route", "key", "duration"];',
-          expect=LOGS_LIST + "the loading skeleton draws four columns")
-@mutation(LOGS, 'skeleton: "pill" as const', 'skeleton: "text" as const',
-          expect=LOGS_LIST + "the loading skeleton draws four columns")
-@mutation(LOGS, 'const PHONE_SKELETON_COLUMNS = ["time", "status", "route"];',
-          'const PHONE_SKELETON_COLUMNS = ["time", "status", "route", "duration"];',
-          expect=LOGS_LIST + "a phone's loading skeleton leaves the duration out")
+@mutation(LOG_TABLE, '<td><span class="bar bar--pill" /></td>', '<td><span class="bar bar--time" /></td>',
+          expect=LOGS_LIST + "the loading skeleton draws four columns of flat bars: the time, the status pill, the request, the duration")
+@mutation(LOG_TABLE, '<div v-for="i in SKELETON" :key="i" class="p-row p-row--skel">',
+          '<div v-for="i in 3" :key="i" class="p-row p-row--skel">',
+          expect=LOGS_LIST + "a phone's loading skeleton is a list of bars")
+@mutation(LOG_TABLE, "const SKELETON = [0, 1, 2, 3, 4];", "const SKELETON = [0, 1, 2];",
+          expect=LOGS_LIST + "the loading skeleton draws four columns of flat bars: the time, the status pill, the request, the duration")
+@mutation(LOG_TABLE, "row.error_code && row.status_code < 400 ?", "row.error_code && row.status_code < 600 ?",
+          expect=f"FAILED {LOGS_VIEW_SPEC} > the tablet > keeps five columns, the status first, folds the error code "
+                 "or the job title, and the key, under the route")
 @mutation(LOG_FILTERS, '  filters.status = value as LogStatus;\n  emit("search");',
           "  filters.status = value as LogStatus;",
           expect=LOGS_PAGING + "a status choice searches at once from the first page")

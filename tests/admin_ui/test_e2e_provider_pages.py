@@ -61,7 +61,8 @@ def shot(page, name: str, below: str | None = None) -> None:
 
 # what may end in an ellipsis (a title, a route, a key label: each with its whole text in a title attribute), what is
 # spoken only, and el-table's hidden measuring copy of the columns
-ELLIPSIS_OK = ".sr-only, .l-route, .l-key, .l-job-link, .p-req__route, .p-req__title, .hidden-columns"
+ELLIPSIS_OK = (".sr-only, .l-route, .l-key, .l-job-link, .p-req__route, .p-req__title, .hidden-columns, .asc__row, "
+               ".row-open, .job-link, .t-job, .t-sub, .t-req, .p-row__route, .p-row__sub")
 
 
 def no_cut_text(page, sel: str) -> None:
@@ -124,16 +125,16 @@ def test_keys_logs_and_alerts_filter_by_the_strip_and_draw_each_provider(app, ap
     # Request logs: the strip's provider is the server's filter; a row carries its provider, none is the relay's
     strip(page).get_by_test_id("provider-tab-all").click()
     open_tab(page, "Request logs")
-    rows = page.locator(".logs-table tbody tr.logs-row, .logs-table li.data-table__item")
+    table = page.get_by_test_id("logs-table")
+    rows = table.locator("tbody tr, .p-row")
     expect(rows).to_have_count(4)
-    expect(page.locator(".logs-table tr.logs-row.p-other, .logs-table li.data-table__item.p-other")).to_have_count(1)
-    expect(page.locator(".logs-table").get_by_text("relay", exact=True)).to_be_visible()
-    no_cut_text(page, ".logs-card *")
-    shot(page, "logs-%d-all" % width, ".logs-table")
+    expect(table.locator(".pchip")).to_have_count(3)             # the request no provider handled has no chip
+    no_cut_text(page, ".lv-card *")
+    shot(page, "logs-%d-all" % width, ".lv-card")
     strip(page).get_by_test_id("provider-tab-meta").click()
     expect(rows).to_have_count(1)
-    expect(rows.first).to_have_class(re.compile(r"\bp-meta\b"))
-    shot(page, "logs-%d-meta" % width, ".logs-table")
+    expect(table.locator(".pchip.p-meta")).to_have_count(1)
+    shot(page, "logs-%d-meta" % width, ".lv-card")
 
     # Alerts: the groups and the live conditions carry their tiles; a provider keeps its own
     strip(page).get_by_test_id("provider-tab-all").click()

@@ -13,7 +13,22 @@ STATES = [
     ("logs", "request-drawer"), ("logs", "clear-confirm"),
 ]
 DETAIL = "Request"                       # the drawer is titled "Request <id>"
-OPEN_REQUEST = re.compile(r"Open (details of )?request")    # the chevron of a table row, the row of the phone list
+OPEN_REQUEST = re.compile(r"^Open request")    # the button of a table row, the row of the phone list
+
+
+def filters_sheet(page):
+    """Below 1280 px the date range sits in the Filters sheet, opened from the head."""
+    button = page.get_by_role("button", name="Filters: dates")
+    if button.count():
+        button.click()
+        expect(page.get_by_test_id("logs-filters-sheet")).to_be_visible()
+
+
+def close_filters(page):
+    sheet = page.get_by_test_id("logs-filters-sheet")
+    if sheet.is_visible():
+        page.get_by_role("button", name="Done").click()
+        expect(sheet).to_be_hidden()
 
 
 def days(page, first, last):
@@ -52,9 +67,10 @@ def close_panel(page):
 def run(page, app, live, sw, data):
     skeleton_step(sw, "logs", re.compile(r"/admin/logs"))
     sw.step("logs", "list", lambda: ready(page))
-    sw.step("logs", "date-fields", lambda: days(page, "2026-10-01", "2026-10-31"))
-    sw.step("logs", "date-range-open", lambda: (range_pane(page), inside_the_window(page)),
-            after=lambda: close_panel(page))
+    sw.step("logs", "date-fields", lambda: (filters_sheet(page), days(page, "2026-10-01", "2026-10-31")),
+            after=lambda: close_filters(page))
+    sw.step("logs", "date-range-open", lambda: (filters_sheet(page), range_pane(page), inside_the_window(page)),
+            after=lambda: (close_panel(page), close_filters(page)))
 
     def log_detail():
         page.get_by_role("button", name=OPEN_REQUEST).first.click()
@@ -66,13 +82,7 @@ def run(page, app, live, sw, data):
     expect(dialog(page, DETAIL)).to_have_count(0)
 
     def clear_confirm():
-        # below 1280 px Clear logs lives in the More menu
-        more = page.get_by_role("button", name="More actions")
-        if more.count():
-            more.click()
-            page.get_by_role("menuitem", name="Clear logs").click()
-        else:
-            page.get_by_role("button", name="Clear logs").click()
+        page.get_by_role("button", name="Clear logs").click()
         expect(cancel_box(page)).to_be_visible()
     sw.step("logs", "clear-confirm", clear_confirm)
     dismiss_box(page)

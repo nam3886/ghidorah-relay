@@ -1,48 +1,29 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount } from "vue";
 import type { LogStatus } from "@/api/logs";
-import FilterSelect from "@/components/shared/FilterSelect.vue";
+import ArrowScroller from "@/components/shared/ArrowScroller.vue";
 import { IconSearch } from "@/components/shared/icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
-import "./lane-controls.css";
-import "./logs-date-field.css";
+import LogsDatesField from "./LogsDatesField.vue";
 import { useLogsFilters } from "./logs-filters";
-import { RANGE_SHORTCUTS, STATUS_OPTIONS } from "./log-window";
+import { STATUS_OPTIONS } from "./log-window";
 
-// The filters of the Request logs, drawn as the canvas draws them: the Status select (FilterSelect's field variant, our
-// own control drawn as the canvas's select) and one Element Plus date range picker. A choice in Status or a range asks for a new
-// search at once; the search text goes with the Search button or Enter (on a phone there is no button, so the text
-// goes after a short pause in typing).
+// The filters of the Request logs, drawn as Logs.dc.html draws them. A desktop: one row with the Status segments, the
+// date range and the search field, and under it the Provider chips. A tablet or phone: the Status chips (a set of 4
+// wraps on a phone), the Provider chips, and the search field only while the header's Search button has it open; the
+// dates sit in the Filters sheet. A choice in Status or Provider, or a range, asks for a new search at once; the search
+// text goes with Enter (a tablet or phone has no Enter to rely on, so the text goes after a short pause in typing).
+defineProps<{ searchOpen: boolean }>();
 const emit = defineEmits<{ search: [] }>();
 const filters = useLogsFilters();
 const { isPhone, isTablet } = useBreakpoint();
+const compact = computed(() => isPhone.value || isTablet.value);
 
 const TYPING_PAUSE_MS = 350;
 let timer: ReturnType<typeof setTimeout> | undefined;
 onBeforeUnmount(() => clearTimeout(timer));
 
-// The range keeps the store's two `YYYY-MM-DD` texts as they are (the picker's `value-format`): never a Date, so the time
-// zone cannot move a day. The picker reports `null` when cleared; the store holds "" for both then.
-const range = computed<[string, string] | null>({
-  get: () => (filters.from && filters.to ? ([filters.from, filters.to] as [string, string]) : null),
-  set: (v: [string, string] | null) => {
-    filters.from = v?.[0] ?? "";
-    filters.to = v?.[1] ?? "";
-  },
-});
-const shortcuts = RANGE_SHORTCUTS.map((s) => ({ text: s.text, value: s.value }));
-
-// The picker gives both of its inputs the same attributes, so each is named here: From and To, as the two fields were.
-const dates = ref<HTMLElement>();
-function nameInputs(): void {
-  const inputs = dates.value?.querySelectorAll("input");
-  inputs?.[0]?.setAttribute("aria-label", "From");
-  inputs?.[1]?.setAttribute("aria-label", "To");
-}
-onMounted(nameInputs);
-watch(isPhone, () => void nextTick(nameInputs));
-
-// the field's options (a list of its own: the shared words are read-only)
+// the options (a list of its own: the shared words are read-only)
 const STATUS_CHOICES = STATUS_OPTIONS.map((o) => ({ ...o }));
 
 // a status choice searches at once
@@ -50,9 +31,8 @@ function pickStatus(value: string | number): void {
   filters.status = value as LogStatus;
   emit("search");
 }
-
 function typed(): void {
-  if (!isPhone.value) return;
+  if (!compact.value) return;
   clearTimeout(timer);
   timer = setTimeout(() => emit("search"), TYPING_PAUSE_MS);
 }
@@ -65,164 +45,183 @@ function typed(): void {
     role="search"
     @submit.prevent="emit('search')"
   >
-    <div class="lf__search kla-field">
-      <label class="kla-field__label" :class="{ 'sr-only': isPhone }" for="logs-q">Search</label>
-      <div class="lf__wrap">
-        <IconSearch class="lf__icon" :size="isPhone ? 16 : 15" />
+    <div class="lf__bar">
+      <div v-if="!compact" class="lf__seg" role="group" aria-label="Status">
+        <button
+          v-for="o in STATUS_CHOICES"
+          :key="o.value"
+          type="button"
+          class="lf__seg-btn"
+          :class="{ 'is-on': filters.status === o.value }"
+          :aria-pressed="filters.status === o.value"
+          @click="pickStatus(o.value)"
+        >
+          {{ o.label }}
+        </button>
+      </div>
+      <ArrowScroller
+        v-else
+        class="lf__chips"
+        label="Status"
+        :count="STATUS_CHOICES.length"
+        :active-key="filters.status"
+      >
+        <button
+          v-for="o in STATUS_CHOICES"
+          :key="o.value"
+          type="button"
+          class="chip"
+          :class="{ 'is-on': filters.status === o.value }"
+          :aria-pressed="filters.status === o.value"
+          @click="pickStatus(o.value)"
+        >
+          {{ o.label }}
+        </button>
+      </ArrowScroller>
+      <LogsDatesField v-if="!compact" @search="emit('search')" />
+      <label v-if="!compact || searchOpen" class="lf__search" :class="{ 'is-row': compact }">
+        <IconSearch class="lf__icon" :size="15" />
         <input
           id="logs-q"
           v-model="filters.q"
           type="search"
-          class="kla-control lf__q"
+          class="lf__q"
           placeholder="Job id, reference or title"
           aria-label="Search"
           @input="typed"
+          @keydown.enter.prevent="emit('search')"
         />
-      </div>
-    </div>
-
-    <div class="lf__row">
-      <FilterSelect
-        class="lf__status"
-        variant="field"
-        label="Status"
-        title="The request’s own outcome. The Jobs tab filters by job status."
-        :model-value="filters.status"
-        :options="STATUS_CHOICES"
-        @update:model-value="pickStatus"
-      />
-      <component
-        :is="isPhone ? 'label' : 'div'"
-        ref="dates"
-        class="lf__date"
-        :class="isPhone ? 'kla-chip-field' : 'kla-field'"
-      >
-        <component :is="isPhone ? 'span' : 'label'" :class="isPhone ? '' : 'kla-field__label'" for="logs-from"
-          >Dates</component
-        >
-        <el-date-picker
-          v-model="range"
-          type="daterange"
-          :id="['logs-from', 'logs-to']"
-          value-format="YYYY-MM-DD"
-          format="YYYY-MM-DD"
-          range-separator="–"
-          start-placeholder="From"
-          end-placeholder="To"
-          :shortcuts="shortcuts"
-          clearable
-          popper-class="rl-date-popper rl-range-popper"
-          @change="emit('search')"
-        />
-      </component>
-      <button v-if="!isPhone" type="submit" class="kla-btn kla-btn--primary lf__submit">Search</button>
+      </label>
     </div>
   </form>
 </template>
 
 <style scoped>
-/* desktop: one wrapping row */
 .lf {
   display: flex;
+  flex-direction: column;
+}
+.lf__bar {
+  display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
-  padding: 14px 16px;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 14px 20px;
 }
-.lf__row {
-  display: contents;
+/* the Status segments: a track with the chosen one raised */
+.lf__seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--rl-track);
 }
-/* the canvas's labels keep the page's 20 px line */
-.lf .kla-field__label {
-  line-height: 20px;
+.lf__seg-btn {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--rl-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
 }
+.lf__seg-btn.is-on {
+  background: var(--rl-seg-on);
+  color: var(--rl-fg);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+.lf__seg-btn:focus-visible,
+.chip:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
+}
+
+/* the search field, at the right of the bar */
 .lf__search {
-  flex: 1 1 260px;
-  min-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 260px;
+  max-width: 100%;
+  height: 34px;
+  margin-left: auto;
+  padding: 0 12px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-input);
+  color: var(--rl-faint);
 }
-.lf__wrap {
-  position: relative;
+.lf__search:focus-within {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
 }
 .lf__icon {
-  position: absolute;
-  top: 50%;
-  left: 12px;
-  transform: translateY(-50%);
-  color: var(--rl-faint);
-  pointer-events: none;
+  flex: none;
 }
 .lf__q {
-  width: 100%;
-  padding: 0 12px 0 34px;
-}
-.lf__submit {
-  height: 34px;
-  padding: 0 16px;
-}
-
-/* tablet: the search on its own row, then Status, From, To and the button in one row. One column that does not wrap:
-   a wrapping column would size itself to its widest row (the phone's chips) and push the card sideways */
-.lf--tablet {
-  flex-direction: column;
-  flex-wrap: nowrap;
-  align-items: stretch;
-}
-.lf--tablet .lf__search,
-.lf--phone .lf__search {
-  flex: none;
-}
-.lf--tablet .lf__q {
-  height: 36px;
-}
-.lf--tablet .lf__row {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-}
-.lf--tablet .lf__status {
-  flex: 1.4;
-  min-width: 0;
-}
-/* the drawn select fills its share of the row */
-.lf--tablet .lf__status :deep(.filter-select.is-field) {
-  width: 100%;
-}
-.lf--tablet .lf__date {
-  flex: 2.0714;
-}
-.lf--tablet .lf__submit {
-  flex: none;
-  height: 36px;
-}
-
-/* phone: the search, then the Status chip and the Dates chip, each on its own full-width row */
-.lf--phone {
-  flex-direction: column;
-  flex-wrap: nowrap;
-  align-items: stretch;
-  gap: 10px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--rl-line);
-}
-.lf--phone .lf__search {
-  padding: 0 12px;
-}
-.lf--phone .lf__icon {
-  left: 14px;
-}
-.lf--phone .lf__q {
-  height: 44px;
-  padding: 0 12px 0 40px;
-  font-size: 14px;
-}
-.lf--phone .lf__row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 0 12px;
-}
-/* the select fills its chip, so its chevron sits at the chip's right edge */
-.lf--phone .lf__status :deep(.filter-select.is-field) {
   flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--rl-fg);
+  font: inherit;
+  font-size: 13px;
+}
+.lf__q::placeholder {
+  color: var(--rl-faint);
+}
+
+/* the chips: one pill shape for status and provider */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--rl-line);
+  border-radius: 999px;
+  background: var(--rl-surface);
+  color: var(--rl-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chip.is-on {
+  border-color: var(--rl-brand);
+  background: var(--rl-primary-soft);
+  color: var(--rl-brand-ink);
+}
+
+/* a tablet and a phone: the chips fill the bar, the touch height, the search on its own row */
+.lf--tablet .lf__bar,
+.lf--phone .lf__bar {
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 12px 16px 8px;
+}
+.lf--tablet .chip {
+  height: 40px;
+  padding: 0 14px;
+}
+.lf--phone .chip {
+  height: 44px;
+  padding: 0 14px;
+}
+.lf--tablet .lf__search.is-row,
+.lf--phone .lf__search.is-row {
+  width: auto;
+  height: 44px;
+  margin: 4px 0 8px;
 }
 </style>

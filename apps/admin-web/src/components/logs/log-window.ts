@@ -26,19 +26,41 @@ export function clockTime(ms: number | null | undefined): string {
   return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;
 }
 
-// `15/10 20:33:48`, the Time of the request drawer.
-export function dateClock(ms: number | null | undefined): string {
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// `24 Oct 14:31:58.903`, the Time of the request drawer; a dash for a row with no time.
+export function fullTime(ms: number | null | undefined): string {
   if (!ms) return "—";
   const d = new Date(ms);
-  return `${two(d.getDate())}/${two(d.getMonth() + 1)} ${clockTime(ms)}`;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${clockTime(ms)}${clockMs(ms)}`;
 }
+
+// `.412`, the milliseconds of a time, three digits; empty for a row with no time.
+export function clockMs(ms: number | null | undefined): string {
+  return ms ? `.${String(new Date(ms).getMilliseconds()).padStart(3, "0")}` : "";
+}
+
+// `412 ms`, and from one second `1.84 s` (the list draws that one in amber).
+export const durationText = (ms: number): string =>
+  ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${thousands(ms)} ms`;
+export const isSlow = (ms: number): boolean => ms >= 1000;
+
+// `POST /v1/videos` -> its method and its path; a route with no method keeps all of it as the path.
+export function splitRoute(route: string): { method: string; path: string } {
+  const at = route.indexOf(" ");
+  return at > 0 ? { method: route.slice(0, at), path: route.slice(at + 1) } : { method: "", path: route };
+}
+
+// The colour family of a status code: below 400 fine, a client error amber, a server error red.
+export const statusTone = (code: number): "ok" | "warn" | "bad" => (code >= 500 ? "bad" : code >= 400 ? "warn" : "ok");
+
+// The colour of an error code: the family of a failing status; red when the request itself went through (a job that
+// failed behind a 200).
+export const errorTone = (code: number): "warn" | "bad" => (code >= 400 ? (statusTone(code) as "warn" | "bad") : "bad");
 
 // A row's key as Jobs names it: its label, else its prefix; a dash for a row with no key.
 export const logKey = (row: Pick<LogRow, "key_id" | "key_label" | "key_prefix">): string =>
   row.key_id ? keyName({ id: row.key_id, label: row.key_label, prefix: row.key_prefix }) : "—";
-
-// The status of a request in words of the row tint: only a server error fills the row.
-export const isServerError = (code: number): boolean => code >= 500;
 
 export interface LogFilters {
   q: string;
@@ -84,23 +106,8 @@ export function isLogStatus(value: unknown): value is LogStatus {
   return typeof value === "string" && (LOG_STATUSES as readonly string[]).includes(value);
 }
 
-// The IANA zone of the viewer's browser: the day headers count each local day in it.
-export const viewerZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-// `2026-10-15`: the local day of a time, the key the server's day totals use.
-export function dayKey(ms: number): string {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
-}
-
-// The muted tail of a day header: the day's total from the server under the current filters, else the rows on the page.
-export function dayNote(shown: number, total?: number): string {
-  const n = total ?? shown;
-  return `${thousands(n)} ${n === 1 ? "request" : "requests"} shown`;
-}
-
 export function logQuery(filters: LogFilters, provider: string, offset: number, limit = PAGE_SIZE): LogQuery {
-  const query: LogQuery = { limit, offset, status: filters.status, tz: viewerZone() };
+  const query: LogQuery = { limit, offset, status: filters.status };
   if (provider) query.provider = provider;
   const q = filters.q.trim();
   if (q) query.q = q;

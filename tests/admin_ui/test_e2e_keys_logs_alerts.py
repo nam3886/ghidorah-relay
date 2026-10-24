@@ -33,18 +33,6 @@ def rows(page):
     return page.locator(".el-table__body tbody tr:not(.is-day)")
 
 
-def logs_filter(page, label):
-    """A Request logs filter (FilterSelect's field: a combobox, its list opened in the body)."""
-    return page.locator('section[aria-label="Request log list"]').get_by_role("combobox", name=label, exact=True)
-
-
-def pick(page, label, option):
-    """Choose an option of a Request logs filter; the field then shows it."""
-    logs_filter(page, label).click()
-    page.get_by_role("option", name=option, exact=True).click()
-    expect(logs_filter(page, label).locator(".is-current")).to_have_text(option)
-
-
 # ---- API keys ------------------------------------------------------------------------------------------------------
 
 
@@ -269,36 +257,52 @@ def log(db, key, route, status=200, *, at_ms=None, job=None, error=None, request
            key, route, status, job, error, json.dumps(request or {}), at_ms, at_ms)
 
 
-# the header's bottom padding, and how far the content of its last part (the chips, else the tab row) sits above the
-# line: the phone sheet puts the 16 px in the chip row's own padding, so that padding is not content
-HEAD_GAP_JS = """(testid) => {
-  const head = document.querySelector('[data-testid=' + testid + '] .detail-drawer__head');
-  const last = head.querySelector('.detail-drawer__tabs') || head.querySelector('.detail-drawer__chips');
-  const content = last.getBoundingClientRect().bottom - parseFloat(getComputedStyle(last).paddingBottom);
-  return {padding: parseFloat(getComputedStyle(head).paddingBottom),
-          gap: Math.round(head.getBoundingClientRect().bottom - 1 - content)};
+def log_rows(page):
+    """The data rows of the Request logs table (a desktop and a tablet; a phone has a list of buttons)."""
+    return page.locator('[data-testid="logs-table"] tbody tr')
+
+
+def request_buttons(page):
+    """The button that opens one request: on a row of the table, and the row of the phone list."""
+    return page.get_by_role("button", name=re.compile(r"^Open request"))
+
+
+def status_button(page, label):
+    """One choice of the Status filter: a segment on a desktop, a chip below it."""
+    return page.get_by_role("group", name="Status", exact=True).get_by_role("button", name=label, exact=True)
+
+
+def show_dates(page, width):
+    """The date range sits in the toolbar on a desktop and in the Filters sheet below 1280 px."""
+    if width < 1280:
+        page.get_by_role("button", name="Filters: dates").click()
+        expect(page.get_by_test_id("logs-filters-sheet")).to_be_visible()
+
+
+# the header's bottom padding: how far the line under the title and the chips is from the last of them
+HEAD_GAP_JS = """() => {
+  const head = document.querySelector('[data-testid=request-drawer] .rl-drawer__head');
+  const sub = head.querySelector('.rl-drawer__sub');
+  const line = head.closest('.el-drawer__header').getBoundingClientRect().bottom - 1;
+  return Math.round(line - sub.getBoundingClientRect().bottom);
 }"""
 
 
 @pytest.mark.parametrize("width", (1440, 390))
-def test_a_drawer_header_without_tabs_keeps_16_px_under_its_chips(app, app_session, db, width):
-    """16 px from the chips to the line: the header's own padding on a desktop, the chip row's on the phone sheet."""
+def test_a_drawer_header_keeps_14_px_under_its_pill_and_route(app, app_session, db, width):
+    """14 px from the pill and route line to the rule under the header, on the drawer and on the phone."""
     page = app_session
     page.set_viewport_size({"width": width, "height": 844})
     k = new_key(db)
     log(db, k, "POST /v1/video/generations", 422, error="input.invalid")
     open_tab(page, "Request logs")
-    if width > 390:
-        rows(page).first.get_by_role("button", name="Open details of request").click()
-    else:
-        page.get_by_role("button", name=re.compile(r"^Open request")).first.click()
+    request_buttons(page).first.click()
     expect(page.get_by_test_id("request-drawer")).to_be_visible()
-    got = page.evaluate(HEAD_GAP_JS, "request-drawer", isolated_context=False)
-    want = {"padding": 16 if width > 390 else 0, "gap": 16}
-    assert got == want, "the header has not 16 px under the chips at %d: %r" % (width, got)
+    got = page.evaluate(HEAD_GAP_JS, isolated_context=False)
+    assert got == 14, "the header has not 14 px under the route line at %d: %r" % (width, got)
 
 
-def test_the_filters_search_detail_refresh_and_clear(app, app_session, db):
+def test_the_filters_search_detail_and_clear(app, app_session, db):
     page = app_session
     k = new_key(db)
     job = done_job(db, k)
@@ -306,36 +310,37 @@ def test_the_filters_search_detail_refresh_and_clear(app, app_session, db):
     log(db, k, "POST /v1/video/generations", 200, job=job, request={"prompt": "a cat"})
     log(db, k, "POST /v1/video/generations", 422, error="input.invalid")
     open_tab(page, "Request logs")
-    expect(rows(page)).to_have_count(2)
-    pick(page, "Status", "Failed before a job")
-    expect(rows(page)).to_have_count(1)
-    expect(rows(page).first).to_contain_text("input.invalid")
+    search = page.get_by_label("Search", exact=True)
+    expect(log_rows(page)).to_have_count(2)
+    status_button(page, "Failed before a job").click()
+    expect(log_rows(page)).to_have_count(1)
+    expect(log_rows(page).first).to_contain_text("input.invalid")
     log(db, k, "POST /v1/video/generations", 429, error="rate.limited")
-    page.get_by_role("button", name="Search", exact=True).click()
-    expect(rows(page)).to_have_count(2)
-    pick(page, "Status", "All")
-    expect(rows(page)).to_have_count(3)
-    page.get_by_label("Search", exact=True).fill("100%")
-    page.get_by_label("Search", exact=True).press("Enter")
-    expect(rows(page)).to_have_count(1)
-    rows(page).first.get_by_role("button", name="Open details of request").click()
+    search.press("Enter")                                     # the same search again reads the new row
+    expect(log_rows(page)).to_have_count(2)
+    status_button(page, "All").click()
+    expect(log_rows(page)).to_have_count(3)
+    search.fill("100%")
+    search.press("Enter")
+    expect(log_rows(page)).to_have_count(1)
+    request_buttons(page).first.click()
     box = page.get_by_test_id("request-drawer")
     expect(box).to_contain_text("a cat")
-    box.get_by_role("button", name="Close", exact=True).click()
+    box.get_by_role("button", name="Close · Esc").click()
     # the filters are kept across a visit to another tab
     page.get_by_role("tab", name="Jobs", exact=True).click()
     open_tab(page, "Request logs")
     expect(page.get_by_label("Search", exact=True)).to_have_value("100%")
-    expect(rows(page)).to_have_count(1)
+    expect(log_rows(page)).to_have_count(1)
     page.get_by_label("Search", exact=True).fill("")
     page.get_by_label("Search", exact=True).press("Enter")
-    expect(rows(page)).to_have_count(3)
+    expect(log_rows(page)).to_have_count(3)
     page.get_by_role("button", name="Clear logs").click()
     expect(page.locator(".el-message-box")).to_contain_text("Clear every request log row?")
     expect(page.locator(".el-message-box")).to_contain_text("Jobs, the ledger and alerts are kept.")
     page.locator(".el-message-box").get_by_role("button", name="Clear logs").click()
     expect(page.get_by_text("Cleared 3 rows")).to_be_visible()
-    expect(page.get_by_text("No requests yet.")).to_be_visible()
+    expect(page.get_by_text("No requests yet")).to_be_visible()
     assert db.one("SELECT count(*) FROM request_logs")[0] == 0 and db.one("SELECT count(*) FROM jobs")[0] == 1
 
 
@@ -345,18 +350,21 @@ def test_an_empty_filtered_list_offers_clear_filters_and_a_failed_load_says_what
     k = new_key(db)
     log(db, k, "POST /v1/video/generations", 200)
     open_tab(page, "Request logs")
-    expect(rows(page)).to_have_count(1)
-    pick(page, "Status", "Failed before a job")
-    expect(page.get_by_text("No requests match these filters.")).to_be_visible()
+    expect(log_rows(page)).to_have_count(1)
+    status_button(page, "Failed before a job").click()
+    expect(page.get_by_text("No requests match these filters")).to_be_visible()
     page.get_by_role("button", name="Clear filters").click()
-    expect(rows(page)).to_have_count(1)
-    expect(logs_filter(page, "Status").locator(".is-current")).to_have_text("All")
+    expect(log_rows(page)).to_have_count(1)
+    expect(status_button(page, "All")).to_have_attribute("aria-pressed", "true")
     page.route(re.compile(r"/admin/logs\?"), lambda route: route.fulfill(
         status=502, content_type="application/json",
         body='{"error": {"code": "upstream.bad_gateway", "message": "bad gateway"}}'))
-    page.get_by_role("button", name="Search", exact=True).click()
+    page.get_by_label("Search", exact=True).press("Enter")
     expect(page.get_by_role("alert")).to_contain_text(
         "Could not load the request logs: the relay answered 502 (bad gateway).")
+    page.unroute(re.compile(r"/admin/logs\?"))
+    page.get_by_role("button", name="Retry").click()
+    expect(log_rows(page)).to_have_count(1)
 
 
 def test_the_date_window_is_the_viewers_midnights_and_ends_at_the_start_of_the_day_after_to(app, app_session, db):
@@ -374,7 +382,7 @@ def test_the_date_window_is_the_viewers_midnights_and_ends_at_the_start_of_the_d
     log(db, k, "POST /last-moment", at_ms=ms(after) - 1)
     log(db, k, "POST /next-day", at_ms=ms(after))
     open_tab(page, "Request logs")
-    expect(rows(page)).to_have_count(4)
+    expect(log_rows(page)).to_have_count(4)
     # one range picker: both days typed and confirmed with Enter search at once
     start = page.get_by_label("From", exact=True)
     end = page.get_by_label("To", exact=True)
@@ -382,26 +390,26 @@ def test_the_date_window_is_the_viewers_midnights_and_ends_at_the_start_of_the_d
     start.fill("2026-10-15")
     end.fill("2026-10-15")
     end.press("Enter")
-    expect(rows(page)).to_have_count(2)                      # the 15th: from its first moment to its last
+    expect(log_rows(page)).to_have_count(2)                  # the 15th: from its first moment to its last
     assert (start.input_value(), end.input_value()) == ("2026-10-15", "2026-10-15")
-    expect(rows(page).filter(has_text="/start-of-day")).to_have_count(1)
-    expect(rows(page).filter(has_text="/last-moment")).to_have_count(1)
+    expect(log_rows(page).filter(has_text="/start-of-day")).to_have_count(1)
+    expect(log_rows(page).filter(has_text="/last-moment")).to_have_count(1)
     # a range typed and left by Tab (the blur of the keyboard) is applied too
     start.click()
     start.fill("2026-10-14")
     end.fill("2026-10-15")
     end.press("Tab")
-    expect(rows(page)).to_have_count(3)                      # the 14th adds the row a second before the 15th
+    expect(log_rows(page)).to_have_count(3)                  # the 14th adds the row a second before the 15th
     # the quick options count from the page's own day: with the clock on the 16th, Today is the 16th, Yesterday the 15th
     page.clock.set_fixed_time(datetime(2026, 10, 16, 12, 0, tzinfo=zone))
     start.click()
     page.get_by_role("button", name="Today", exact=True).click()
-    expect(rows(page)).to_have_count(1)
-    expect(rows(page).filter(has_text="/next-day")).to_have_count(1)
+    expect(log_rows(page)).to_have_count(1)
+    expect(log_rows(page).filter(has_text="/next-day")).to_have_count(1)
     assert (start.input_value(), end.input_value()) == ("2026-10-16", "2026-10-16")
     start.click()
     page.get_by_role("button", name="Yesterday", exact=True).click()
-    expect(rows(page)).to_have_count(2)
+    expect(log_rows(page)).to_have_count(2)
     assert (start.input_value(), end.input_value()) == ("2026-10-15", "2026-10-15")
     # a range picked from the open panel replaces the one held: 14 then 15 of the month the panel shows
     start.click()
@@ -409,13 +417,13 @@ def test_the_date_window_is_the_viewers_midnights_and_ends_at_the_start_of_the_d
         ".el-picker-panel:visible .is-left .el-date-table td.available:not(.prev-month):not(.next-month)")
     left.filter(has_text=re.compile(r"^14$")).click()
     left.filter(has_text=re.compile(r"^15$")).click()
-    expect(rows(page)).to_have_count(3)
+    expect(log_rows(page)).to_have_count(3)
     assert (start.input_value(), end.input_value()) == ("2026-10-14", "2026-10-15")
     # the clear icon empties both ends and searches again
     page.mouse.move(0, 0)                                    # a hover that starts: the icon shows on entering
     start.hover()
     page.locator(".lf__date .el-range__close-icon").click()
-    expect(rows(page)).to_have_count(4)
+    expect(log_rows(page)).to_have_count(4)
     assert (start.input_value(), end.input_value()) == ("", "")
     assert timedelta(hours=1) <= after - day <= timedelta(hours=25)
 
@@ -431,13 +439,14 @@ RANGE_GEOMETRY_JS = """() => {
 
 
 @pytest.mark.parametrize("width", (1440, 768, 390))
-def test_the_range_picker_holds_two_named_inputs_a_dash_between_them_and_its_icon_inside_one_box(
+def test_the_range_picker_holds_two_named_inputs_a_word_between_them_and_its_icon_first_inside_one_box(
         app, app_session, width):
-    """The two outer fields of the canvas are one box here, so the inside is held by geometry: From then To, side by
-    side without overlap, the dash between them, and the calendar icon at the end where the browser draws its own."""
+    """The two outer fields of the canvas are one box here, so the inside is held by geometry: the calendar icon, then
+    From, then To, side by side without overlap, the word between them."""
     page = app_session
     page.set_viewport_size({"width": width, "height": 844})
     open_tab(page, "Request logs")
+    show_dates(page, width)
     expect(page.get_by_label("From", exact=True)).to_have_count(1)
     expect(page.get_by_label("To", exact=True)).to_have_count(1)
     got = page.evaluate(RANGE_GEOMETRY_JS, isolated_context=False)
@@ -449,41 +458,47 @@ def test_the_range_picker_holds_two_named_inputs_a_dash_between_them_and_its_ico
     assert first[0] < second[0] and first[2] <= second[0] + 0.5, why                  # From then To, no overlap
     assert all(i[0] >= box[0] - 0.5 and i[2] <= box[2] + 0.5 for i in (first, second)), why
     sep = got["separator"]
-    assert sep[2] - sep[0] > 0 and sep[0] >= first[2] - 0.5 and sep[2] <= second[0] + 0.5, why   # the dash between
+    assert sep[2] - sep[0] > 0 and sep[0] >= first[2] - 0.5 and sep[2] <= second[0] + 0.5, why   # the word between
     icon = got["icon"]
-    assert icon[0] >= second[2] - 0.5 and icon[2] <= box[2] + 0.5, why                # the icon at the end, inside
+    assert icon[2] <= first[0] + 0.5 and icon[0] >= box[0] - 0.5, why                 # the icon first, inside
 
 
-CHIPS_JS = """() => {
-  const rect = (e) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
-  const form = document.querySelector('.lf');
-  return {form: rect(form), status: rect(form.querySelector('.lf__status')),
-          dates: rect(form.querySelector('.lf__date')),
-          editor: rect(form.querySelector('.lf__date .el-date-editor')),
-          select: rect(form.querySelector('.lf__status .filter-select')),
-          search: rect(form.querySelector('.lf__search'))};
+TOOLBAR_JS = """() => {
+  const rect = (e) => { if (!e) return null; const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
+  const card = document.querySelector('section[aria-label="Request log list"]');
+  const status = card.querySelector('.lf__seg') || card.querySelector('[role=group][aria-label=Status]');
+  return {card: rect(card), status: rect(status), search: rect(card.querySelector('.lf__search')),
+          dates: rect(card.querySelector('.lf__date')), wrap: !!card.querySelector('.asc--wrap')};
 }"""
 
 
 @pytest.mark.parametrize("width", (1440, 768, 390))
-def test_on_a_phone_the_status_chip_and_the_dates_chip_each_take_a_full_width_row(app, app_session, width):
+def test_the_toolbar_is_one_row_on_a_desktop_and_chips_with_search_and_dates_behind_buttons_below(
+        app, app_session, width):
     page = app_session
     page.set_viewport_size({"width": width, "height": 844})
     open_tab(page, "Request logs")
-    expect(page.get_by_label("From", exact=True)).to_have_count(1)
-    got = page.evaluate(CHIPS_JS, isolated_context=False)
-    status, dates = got["status"], got["dates"]
-    why = "filter rows at %d: %r" % (width, got)
-    if width > 390:
-        assert abs(status[1] - dates[1]) < 40 and status[2] <= dates[0] + 0.5, "side by side above a phone: " + why
+    expect(status_button(page, "All")).to_be_visible()
+    got = page.evaluate(TOOLBAR_JS, isolated_context=False)
+    card, status = got["card"], got["status"]
+    why = "the toolbar at %d: %r" % (width, got)
+    if width > 1279:
+        search, dates = got["search"], got["dates"]
+        assert abs(status[1] - dates[1]) < 30 and abs(search[1] - dates[1]) < 30, "one row: " + why
+        assert status[2] <= dates[0] + 0.5 and dates[2] <= search[0] + 0.5, "Status, then dates, then search: " + why
+        assert abs(search[2] - (card[2] - 20)) < 1, "the search sits at the right edge: " + why
         return
-    left, right = got["form"][0] + 12, got["form"][2] - 12
-    assert abs(status[0] - left) < 0.5 and abs(status[2] - right) < 0.5, "Status spans the row: " + why
-    assert abs(dates[0] - left) < 0.5 and abs(dates[2] - right) < 0.5, "Dates spans the row: " + why
-    assert status[3] <= dates[1] and abs(dates[1] - status[3] - 8) < 0.5, "Dates is the next row, 8 px under: " + why
-    assert abs(got["select"][2] - (status[2] - 7)) <= 1, "the Status select fills its chip: " + why
-    assert dates[2] - got["editor"][2] < 12, "the date field fills its chip: " + why
-    assert got["search"][3] < status[1], "the search is above both: " + why
+    assert got["search"] is None and got["dates"] is None, "search and dates are behind buttons: " + why
+    assert status[0] >= card[0] and status[2] <= card[2] + 0.5, "the chips stay inside the card: " + why
+    assert got["wrap"] == (width < 768), "a phone's four chips wrap, a tablet's scroll: " + why
+    page.get_by_role("button", name="Search requests").click()
+    expect(page.get_by_label("Search", exact=True)).to_be_visible()
+    box = page.locator(".lf__search").bounding_box()
+    assert box["height"] >= 40 and box["width"] > (card[2] - card[0]) - 40, "the search field is a full row: %r" % box
+    show_dates(page, width)
+    editor = page.locator('[data-testid="logs-filters-sheet"] .el-date-editor').bounding_box()
+    assert editor["height"] >= 44 and editor["width"] > width - 60, "the date field fills the sheet: %r" % editor
+    assert sideways(page) <= 1, "the page scrolls sideways"
 
 
 def test_log_text_with_markup_is_shown_as_text(app, app_session, db):
@@ -491,7 +506,7 @@ def test_log_text_with_markup_is_shown_as_text(app, app_session, db):
     k = new_key(db)
     log(db, k, "POST /v1/x", 422, error="input.invalid", request={"prompt": app.planted})
     open_tab(page, "Request logs")
-    rows(page).first.get_by_role("button", name="Open details of request").click()
+    request_buttons(page).first.click()
     expect(page.get_by_test_id("request-drawer")).to_contain_text("<b>planted</b>")
     page.wait_for_timeout(300)
     app.assert_planted_as_text(page)
@@ -840,11 +855,9 @@ def test_each_screen_renders_without_a_sideways_scroll_and_its_main_action_is_re
     no_sideways_scroll(page)
     open_tab(page, "Request logs")
     expect(page.get_by_text("input.invalid")).to_be_visible()
-    # below 1280 px the one action of the page sits in the More menu
-    page.get_by_role("button", name="More actions").click()
-    expect(page.get_by_role("menuitem", name="Clear logs")).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(page.get_by_role("menuitem", name="Clear logs")).to_have_count(0)
+    # below 1280 px the head has the icon buttons: Search, Filters and Clear logs
+    for name in ("Search requests", "Filters: dates", "Clear logs"):
+        expect(page.get_by_role("button", name=name)).to_be_visible()
     no_sideways_scroll(page)
     open_tab(page, "Alerts")
     expect(page.get_by_text("plain wording")).to_be_visible()
@@ -862,11 +875,11 @@ def test_the_phone_request_drawer_actions_are_at_least_44_px_square(app, app_ses
     log(db, k, "POST /v1/video/generations", 422, job=job, error="input.invalid", request={"prompt": "a cat"})
     db.run("UPDATE request_logs SET response_redacted = %s::jsonb", json.dumps({"error": "no"}))
     open_tab(page, "Request logs")
-    page.get_by_role("button", name=re.compile(r"^Open request")).first.click()
+    request_buttons(page).first.click()
     drawer = page.get_by_test_id("request-drawer")
     expect(drawer).to_be_visible()
-    for target in (drawer.get_by_role("button", name="Copy Request body"),
-                   drawer.get_by_role("button", name="Copy Answer body"),
+    for target in (drawer.get_by_role("button", name="Copy request body"),
+                   drawer.get_by_role("button", name="Copy answer body"),
                    drawer.locator(".rd__link")):
         expect(target).to_be_visible()
         box = target.bounding_box()

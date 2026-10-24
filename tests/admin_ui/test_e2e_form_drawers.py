@@ -502,7 +502,7 @@ def test_a_key_with_no_label_is_named_by_its_prefix_everywhere(app, app_session,
     open_tab(page, "Jobs")
     expect(page.locator(".el-table__body").first).to_contain_text(prefix)
     open_tab(page, "Request logs")
-    expect(page.locator(".el-table__body").first).to_contain_text(prefix)
+    expect(page.get_by_test_id("logs-table")).to_contain_text(prefix)
     api = app.url.rsplit("/manage", 1)[0]
     token = page.evaluate("sessionStorage.getItem('relay_admin_token')", isolated_context=False)
     answer = page.request.get(api + "/admin/alerts/groups/unclear_reply/%s" % group_of(unclear),

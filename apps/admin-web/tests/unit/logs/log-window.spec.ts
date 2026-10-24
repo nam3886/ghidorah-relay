@@ -1,19 +1,21 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  clockMs,
   clockTime,
-  dateClock,
   dayAfter,
   dayStart,
+  durationText,
+  errorTone,
+  fullTime,
   isLogStatus,
-  isServerError,
+  isSlow,
   logKey,
   logQuery,
   PAGE_SIZE,
+  splitRoute,
+  statusTone,
   STATUS_OPTIONS,
   thousands,
-  viewerZone,
-  dayKey,
-  dayNote,
 } from "@/components/logs/log-window";
 
 // The window is computed in the zone of the machine that runs the browser, so the specs pin the zone and check that it
@@ -77,20 +79,18 @@ describe("logQuery", () => {
   const filters = { q: "", status: "all" as const, from: "", to: "" };
 
   it("no filters: the page and the status only", () => {
-    expect(logQuery(filters, "", 0)).toEqual({ limit: 50, offset: 0, status: "all", tz: viewerZone() });
+    expect(logQuery(filters, "", 0)).toEqual({ limit: 50, offset: 0, status: "all" });
   });
 
   it("From alone sets since only; To alone sets until only", () => {
     expect(logQuery({ ...filters, from: "2026-10-15" }, "", 0)).toEqual({
       limit: 50,
-      tz: viewerZone(),
       offset: 0,
       status: "all",
       since_ms: Date.UTC(2026, 9, 14, 17),
     });
     expect(logQuery({ ...filters, to: "2026-10-15" }, "", 0)).toEqual({
       limit: 50,
-      tz: viewerZone(),
       offset: 0,
       status: "all",
       until_ms: Date.UTC(2026, 9, 15, 17),
@@ -100,7 +100,6 @@ describe("logQuery", () => {
   it("both dates, with the search trimmed, the provider, the status and the offset", () => {
     expect(logQuery({ q: "  abc  ", status: "pre_job", from: "2026-10-01", to: "2026-10-31" }, "dola", 100)).toEqual({
       limit: 50,
-      tz: viewerZone(),
       offset: 100,
       status: "pre_job",
       provider: "dola",
@@ -142,40 +141,43 @@ describe("how a request is written", () => {
     expect(thousands(4812)).toBe("4,812");
   });
 
-  it("only a code of 500 or more is a server error", () => {
-    expect(isServerError(502)).toBe(true);
-    expect(isServerError(500)).toBe(true);
-    expect(isServerError(499)).toBe(false);
-    expect(isServerError(422)).toBe(false);
+  it("a status is ok below 400, a warning from 400, bad from 500", () => {
+    expect([200, 399, 400, 499, 500, 503].map(statusTone)).toEqual(["ok", "ok", "warn", "warn", "bad", "bad"]);
+  });
+
+  it("an error code takes its status's family, and is red on a request that went through", () => {
+    expect([200, 422, 429, 500, 503].map(errorTone)).toEqual(["bad", "warn", "warn", "bad", "bad"]);
   });
 
   it("the clock has two digits for each part, in local time; a missing time is a dash", () => {
-    const ms = new Date(2026, 9, 5, 8, 4, 9).getTime();
+    const ms = new Date(2026, 9, 5, 8, 4, 9, 7).getTime();
     expect(clockTime(ms)).toBe("08:04:09");
-    expect(dateClock(ms)).toBe("05/10 08:04:09");
+    expect(clockMs(ms)).toBe(".007");
+    expect(fullTime(ms)).toBe("5 Oct 08:04:09.007");
     expect(clockTime(null)).toBe("—");
-    expect(dateClock(undefined)).toBe("—");
+    expect(clockMs(undefined)).toBe("");
+    expect(fullTime(undefined)).toBe("—");
+  });
+
+  it("a duration is in ms, and from one second in seconds with two decimals, the slow ones marked", () => {
+    expect(durationText(412)).toBe("412 ms");
+    expect(durationText(999)).toBe("999 ms");
+    expect(durationText(1000)).toBe("1.00 s");
+    expect(durationText(1840)).toBe("1.84 s");
+    expect(isSlow(999)).toBe(false);
+    expect(isSlow(1000)).toBe(true);
+  });
+
+  it("a route splits into its method and its path; one with no method is all path", () => {
+    expect(splitRoute("POST /v1/videos")).toEqual({ method: "POST", path: "/v1/videos" });
+    expect(splitRoute("GET /v1/jobs/9c41e7b2")).toEqual({ method: "GET", path: "/v1/jobs/9c41e7b2" });
+    expect(splitRoute("/v1/models")).toEqual({ method: "", path: "/v1/models" });
   });
 });
 
-describe("the day headers", () => {
-  it("the query carries the viewer's own zone, so the server counts each local day in it", () => {
-    expect(viewerZone()).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
-    expect(logQuery({ q: "", status: "all", from: "", to: "" }, "", 0).tz).toBe(viewerZone());
-  });
-
-  it("a day's key is its local date with two digits for month and day", () => {
-    expect(dayKey(new Date(2026, 0, 5, 23, 59).getTime())).toBe("2026-01-05");
-    expect(dayKey(new Date(2026, 9, 15, 0, 0).getTime())).toBe("2026-10-15");
-  });
-
-  it("the note is the day's total from the server, else the rows on the page, in the same words", () => {
-    expect(dayNote(7, 7)).toBe("7 requests shown");
-    expect(dayNote(7)).toBe("7 requests shown");
-    expect(dayNote(1, 1)).toBe("1 request shown");
-    expect(dayNote(1)).toBe("1 request shown");
-    expect(dayNote(5, 4761)).toBe("4,761 requests shown");
-    expect(dayNote(1, 2)).toBe("2 requests shown");
+describe("the query", () => {
+  it("carries no zone: the list has no day headers to count", () => {
+    expect(logQuery({ q: "", status: "all", from: "", to: "" }, "", 0)).not.toHaveProperty("tz");
   });
 });
 

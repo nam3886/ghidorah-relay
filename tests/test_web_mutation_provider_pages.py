@@ -11,7 +11,7 @@ SRC = "apps/admin-web/src"
 STRIP = SRC + "/components/layout/ProviderStrip.vue"
 KEY_MODEL = SRC + "/components/keys/key-model.ts"
 KEYS = SRC + "/views/KeysView.vue"
-LOGS = SRC + "/views/LogsView.vue"
+LOGS_TABLE = SRC + "/components/logs/LogsTable.vue"
 ALERTS = SRC + "/views/AlertsView.vue"
 FRAMES_VIEW = SRC + "/views/FramesView.vue"
 FRAMES_MODEL = SRC + "/components/frames/frames-model.ts"
@@ -57,10 +57,9 @@ def test_the_keys_page_by_provider():
     vitest(KEY_SPEC, KEYS_SPEC)
 
 
-@mutation(LOGS, 'const providerOf = (row: LogRow): string => row.provider || "relay";',
-          'const providerOf = (row: LogRow): string => row.provider || "";',
-          expect=LOGS_PROVIDER + "is the first column: a tile and the name in a tinted cell, the row railed; none is "
-                                 "the relay, grey")
+@mutation(LOGS_TABLE, '<span v-if="r.provider" class="pchip" :class="providerClass(r.provider)">{{ r.provider }}</span>',
+          '<span class="pchip" :class="providerClass(r.provider ?? \'\')">{{ r.provider }}</span>',
+          expect=LOGS_PROVIDER + "a phone row has the chip too, and none when there is no provider")
 @pytest.mark.web_unit
 def test_the_logs_page_by_provider():
     vitest(LOGS_SPEC)
