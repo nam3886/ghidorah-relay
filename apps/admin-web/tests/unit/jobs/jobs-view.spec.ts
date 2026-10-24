@@ -86,6 +86,8 @@ const query = (over: Partial<api.JobListQuery> = {}): api.JobListQuery => ({
   offset: 0,
   limit: 10,
   tz: expect.any(String),
+  range: "today",
+  q: "",
   ...over,
 });
 const STATS: shell.Stats = {
@@ -293,12 +295,12 @@ describe("the list", () => {
     await w.get(".jl__box .jl__primary").trigger("click");
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("test");
-    await pickStatus(w, "Failed");
+    await pickStatus(w, "Done");
     await flushPromises();
     expect(w.text()).toContain("No jobs match these filters");
     await button(w, "Clear filters")!.trigger("click");
     await flushPromises();
-    expect(lastQuery()).toEqual(query());
+    expect(lastQuery()).toEqual(query({ range: "30d" }));
   });
 
   it("groups the rows under one header per day, with the jobs shown for that day", async () => {
@@ -324,7 +326,7 @@ describe("the list", () => {
     listJobs.mockImplementationOnce(() => new Promise<JobPage>((res) => (slow = res)));
     listJobs.mockResolvedValueOnce(page([C]));
     const { w } = await open();
-    await pickStatus(w, "Failed");
+    await pickStatus(w, "Done");
     await flushPromises();
     expect(rows(w)).toHaveLength(1);
     slow(page([A, B]));
@@ -367,11 +369,29 @@ describe("the list", () => {
 });
 
 describe("filters", () => {
-  it("the status chips reload from page 1 with the status, submitting included", async () => {
+  it("a single status that came from a link gets a chip of its own, pressed; a group chip sends its statuses", async () => {
+    rememberedStatus.value = "submitting";
     const { w } = await open();
-    await pickStatus(w, "Submitting");
-    await flushPromises();
     expect(lastQuery()).toEqual(query({ status: "submitting" }));
+    expect(chip(w, "Submitting").attributes("aria-pressed")).toBe("true");
+    await pickStatus(w, "In flight · 0");
+    await flushPromises();
+    expect(lastQuery()).toEqual(query({ status: "queued,submitting,waiting,fetching" }));
+    expect(chips(w).map((c) => c.text())).toEqual(["All", "Needs a look · 0", "In flight · 0", "Done"]);
+  });
+
+  it("an empty list under filters shows them as chips that each take theirs off, and says them in words", async () => {
+    listJobs.mockResolvedValue({ ...page([]), has_jobs: true });
+    rememberedStatus.value = "failed,unknown";
+    const { w } = await open();
+    const on = () => w.findAll(".jobs__active .chip").map((c) => c.text());
+    expect(on()).toEqual(["Needs a look ×", "Today ×"]);
+    expect(w.text()).toContain("Nothing is “Needs a look” today.");
+    await w.findAll(".jobs__active .chip")[1]!.trigger("click");
+    await flushPromises();
+    expect(lastQuery()).toEqual(query({ status: "failed,unknown", range: "30d" }));
+    expect(on()).toEqual(["Needs a look ×"]);
+    expect(w.text()).toContain("Nothing is “Needs a look” in the last 30 days.");
   });
 
   it("the key filter sends the key id", async () => {
@@ -391,11 +411,11 @@ describe("filters", () => {
 
   it("choosing All again sends no filter, and the label follows a real choice", async () => {
     const { w } = await open();
-    await pickStatus(w, "Failed");
+    await pickStatus(w, "Done");
     keySelect(w).vm.$emit("update:modelValue", "k1");
     await flushPromises();
-    expect(lastQuery()).toEqual(query({ status: "failed", keyId: "k1" }));
-    expect(chip(w, "Failed").attributes("aria-pressed")).toBe("true");
+    expect(lastQuery()).toEqual(query({ status: "done", keyId: "k1" }));
+    expect(chip(w, "Done").attributes("aria-pressed")).toBe("true");
     expect(keySelect(w).find(".filter-select__value").text()).toBe("key-one");
     await pickStatus(w, "All");
     keySelect(w).vm.$emit("update:modelValue", "__all__");
@@ -419,18 +439,34 @@ describe("filters", () => {
     expect(options.map((o) => o.label)).toEqual(["All", "key-one", "rk_bbbb", "k3", "cccccccc"]);
   });
 
-  it("the status options read as drawn: All, then each status with a capital", async () => {
+  it("the status options read as drawn: All, the two groups with their counts and Done", async () => {
+    listJobs.mockResolvedValue({ ...page([A]), status_counts: { failed: 2, unknown: 1, queued: 4, waiting: 5 } });
     const { w } = await open();
-    expect(chips(w).map((c) => c.text())).toEqual([
-      "All",
-      "Queued",
-      "Submitting",
-      "Waiting",
-      "Fetching",
-      "Unknown",
-      "Done",
-      "Failed",
-    ]);
+    expect(chips(w).map((c) => c.text())).toEqual(["All", "Needs a look · 3", "In flight · 9", "Done"]);
+    await pickStatus(w, "Needs a look · 3");
+    await flushPromises();
+    expect(lastQuery().status).toBe("failed,unknown");
+  });
+
+  it("the range switch and the search box narrow the list and the range moves the Today figures", async () => {
+    const { w } = await open();
+    const summary = vi.mocked(shell.getProvidersSummary);
+    await w
+      .findAll(".jobs__range-btn")
+      .find((b) => b.text() === "7 days")!
+      .trigger("click");
+    await flushPromises();
+    expect(lastQuery()).toEqual(query({ range: "7d" }));
+    expect(summary).toHaveBeenLastCalledWith("7d");
+    vi.useFakeTimers();
+    try {
+      await w.find(".jobs__search input").setValue("  lantern ");
+      vi.advanceTimersByTime(300);
+    } finally {
+      vi.useRealTimers();
+    }
+    await flushPromises();
+    expect(lastQuery()).toEqual(query({ range: "7d", q: "lantern" }));
   });
 
   it("a provider scope change reloads with the provider", async () => {
@@ -512,9 +548,9 @@ describe("paging", () => {
     pager(w).vm.$emit("move", 20);
     await flushPromises();
     expect(pager(w).props("offset")).toBe(20);
-    await pickStatus(w, "Failed");
+    await pickStatus(w, "Done");
     await flushPromises();
-    expect(lastQuery()).toEqual(query({ status: "failed" }));
+    expect(lastQuery()).toEqual(query({ status: "done" }));
     expect(pager(w).props("offset")).toBe(0);
   });
 
@@ -524,11 +560,11 @@ describe("paging", () => {
     pager(w).vm.$emit("move", 20);
     await flushPromises();
     listJobs.mockRejectedValueOnce(new ApiError(500, { error: { code: "x", message: "boom" } }));
-    await pickStatus(w, "Failed");
+    await pickStatus(w, "Done");
     await flushPromises();
     await button(w, "Retry")!.trigger("click");
     await flushPromises();
-    expect(lastQuery()).toEqual(query({ status: "failed" }));
+    expect(lastQuery()).toEqual(query({ status: "done" }));
   });
 
   it("a reload (a change from the detail, a bulk action) stays on the page on screen", async () => {
@@ -816,7 +852,7 @@ describe.each(["desktop", "tablet"] as const)("what is sent is what is ticked on
   it("a filter change unticks the old rows at once, before the new list arrives", async () => {
     const w = await openTicked([0]);
     listJobs.mockReturnValueOnce(deferred().promise);
-    await pickStatus(w, "Failed");
+    await pickStatus(w, "Done");
     await settle();
     expect(ticks(w)).toEqual([false, false, false]);
     expect(count(w)).toBe("0 selected");
@@ -841,7 +877,7 @@ describe.each(["desktop", "tablet"] as const)("what is sent is what is ticked on
     const w = await openTicked([0]);
     await reload(boom());
     listJobs.mockResolvedValueOnce(page([A, B]));
-    await pickStatus(w, "Failed");
+    await pickStatus(w, "Done");
     await settle();
     expect(ticks(w)).toEqual([false, false]);
     expect(count(w)).toBe("0 selected");
@@ -1185,7 +1221,7 @@ describe("time zones", () => {
   );
 
   it.each([
-    ["the status", (w: VueWrapper) => pickStatus(w, "Failed")],
+    ["the status", (w: VueWrapper) => pickStatus(w, "Done")],
     ["the key", (w: VueWrapper) => keySelect(w).vm.$emit("update:modelValue", "k1")],
     ["the provider", () => (useScopeStore().provider = "vibes")],
   ])("a change of %s drops the old day totals at once, before the new list arrives", async (_what, change) => {

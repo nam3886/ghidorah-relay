@@ -145,8 +145,9 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
 @mutation(VIEW, "picked.value = next;", "void next;", expect=AT_REST)
 @mutation(VIEW, "label: keyName(k) }", "label: k.label }",
           expect=FV + "filters > every key option is readable: its label, else its prefix, else the start of its id")
-@mutation(VIEW, "label: s.charAt(0).toUpperCase() + s.slice(1)", "label: s",
-          expect=FV + "filters > the status options read as drawn")
+@mutation(VIEW, "const capital = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);",
+          "const capital = (s: string): string => s;",
+          expect=FV + "filters > a single status that came from a link gets a chip of its own")
 @mutation(VIEW, "note: (n) => `${jobs(n)} shown`", "note: (n) => jobs(n)",
           expect=FV + "the list > groups the rows under one header per day, with the jobs shown for that day")
 @mutation(VIEW, "  dayTotals.value = {};\n  void load(0);", "  void load(0);",

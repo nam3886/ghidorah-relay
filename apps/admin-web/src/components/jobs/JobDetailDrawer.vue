@@ -21,6 +21,7 @@ import JobCopy from "@/components/jobs/JobCopy.vue";
 import JobDebugFiles from "@/components/jobs/JobDebugFiles.vue";
 import JobLedger, { type LedgerRow } from "@/components/jobs/JobLedger.vue";
 import JobMedia from "@/components/jobs/JobMedia.vue";
+import JobRaw from "@/components/jobs/JobRaw.vue";
 import JobTechnical from "@/components/jobs/JobTechnical.vue";
 import JobTimeline from "@/components/jobs/JobTimeline.vue";
 import { copyText } from "@/components/shared/clipboard";
@@ -184,31 +185,59 @@ const onItsWay = computed(() => {
 const asText = (v: unknown): string => (v === undefined || v === null || v === "" ? "" : String(v));
 const param = (...names: string[]): string => jobParam(job.value?.params, ...names);
 
-// Money: what was charged, what went back, what the account paid upstream. A figure the server does not have is left
-// out (a provider margin needs the upstream cost in points: the API does not give it).
+// Money (JobDetail): Charged, Refunded, Upstream cost, Margin. The upstream cost is what the upstream took (else the
+// expected cost of a done job); the margin is the server's net points less that cost, a credit or a use counted as a
+// point (Settings says the same). A cost the server does not know shows the dash.
 const money = computed(() => {
   const j = job.value;
   if (!j) return [];
   const back = Math.max(0, j.price - j.net_charged);
-  const rows = [
-    { label: "Charged", value: `${j.price} pts`, note: j.model, tone: "" },
+  const cost = j.upstream_cost ?? null;
+  const margin = j.margin ?? null;
+  const seconds =
+    j.media_type === "video"
+      ? param("duration", "duration_s", "seconds") ||
+        asText(outputs.value[0]?.duration_s && Math.round(outputs.value[0].duration_s))
+      : "";
+  return [
+    // "seedance-2.0 · 10 s": the model and, for a video, its length
+    {
+      label: "Charged",
+      value: `${j.price} pts`,
+      note: [j.model, seconds ? `${seconds} s` : ""].filter(Boolean).join(" · "),
+      tone: "",
+    },
     {
       label: "Refunded",
       value: `${back} pts`,
-      note: isRefunded(j) ? "refunded" : back ? "partly refunded" : "nothing refunded",
+      note: isRefunded(j) ? "refunded" : back ? "partly refunded" : "nothing failed",
       tone: "",
     },
-  ];
-  if (j.account_cost)
-    rows.push({
+    {
       label: "Upstream cost",
-      value: plural(j.account_cost, "credit"),
-      note: [j.provider, j.pool, j.pool ? "pool" : ""].filter(Boolean).join(" "),
+      value: cost === null ? "—" : plural(cost, "credit"),
+      note: cost === null ? "not known yet" : [j.provider, j.pool, j.pool ? "pool" : ""].filter(Boolean).join(" "),
       tone: "",
-    });
-  return rows;
+    },
+    {
+      label: "Margin",
+      value: margin === null ? "—" : `${margin > 0 ? "+" : margin < 0 ? "−" : ""}${Math.abs(margin)} pts`,
+      note: margin === null ? "needs the upstream cost" : "after upstream",
+      tone: margin === null ? "" : margin < 0 ? "bad" : "ok",
+    },
+  ];
 });
-const moneyRows = computed<LedgerRow[]>(() => money.value.map((m) => ({ label: m.label, value: m.value })));
+// the phone's Money card (JobDetailPhone) names the pool's unit in the value: "1 video credit"
+const moneyRows = computed<LedgerRow[]>(() =>
+  money.value.map((m) => ({
+    label: m.label,
+    value:
+      m.label === "Upstream cost" && job.value?.pool && job.value.upstream_cost != null
+        ? plural(job.value.upstream_cost, `${job.value.pool} credit`)
+        : m.value,
+    tone: (m.tone || undefined) as LedgerRow["tone"],
+  })),
+);
 
 // The facts of the Overview (the ledger under Money).
 const facts = computed<LedgerRow[]>(() => {
@@ -229,6 +258,7 @@ const facts = computed<LedgerRow[]>(() => {
     { label: "Model", value: j.model_substituted ? `${j.model} (model differs)` : j.model, mono: true },
     { label: "Media", value: media },
     { label: "Account", value: asText(j.account_label) || "—", mono: true },
+    { label: "Proxy", value: asText(j.proxy) || "—", mono: true },
     // named as the list names it: the label, else the prefix, else the start of the id
     {
       label: "Key",
@@ -239,6 +269,8 @@ const facts = computed<LedgerRow[]>(() => {
         .filter(Boolean)
         .join(" · "),
     },
+    { label: "Provider task id", value: asText(j.provider_task_id) || "—", mono: true },
+    { label: "Conversation", value: asText(j.conversation) || "—", mono: true },
     { label: "Prompt frame", value: asText(j.frame_id) && `${j.media_type} v${j.frame_id}`, mono: true },
     { label: "Webhook", value: callback },
     { label: "Created", value: fmtDayClock(j.created_ms), mono: true },
@@ -246,8 +278,31 @@ const facts = computed<LedgerRow[]>(() => {
   ];
   return rows.filter((r) => r.value !== "");
 });
+// Diagnostics (JobDetailTabs): what the provider recorded about this job (its own state, redacted by the server), one
+// row a field named in words ("send_path" reads "Send path"), a value that is not text as compact JSON.
+const diagnostics = computed<LedgerRow[]>(() =>
+  Object.entries(job.value?.diagnostics ?? {}).map(([key, v]) => ({
+    label: (key.charAt(0).toUpperCase() + key.slice(1)).replace(/_/g, " "),
+    value: typeof v === "string" ? v : JSON.stringify(v),
+    mono: true,
+  })),
+);
 // the phone's Details card: the facts that are not in its head line
-const phoneFacts = computed(() => facts.value.filter((r) => r.label !== "Operation"));
+// The phone's Details card (JobDetailPhone): Model, Media, Account, Key (its name), Task id, Finished.
+const phoneFacts = computed<LedgerRow[]>(() => {
+  const j = job.value;
+  if (!j) return [];
+  const pick = (label: string): LedgerRow | undefined => facts.value.find((r) => r.label === label);
+  const rows: (LedgerRow | undefined)[] = [
+    pick("Model"),
+    pick("Media"),
+    pick("Account"),
+    { label: "Key", value: keyName({ id: j.key_id, prefix: j.key_prefix, label: j.key_label }) },
+    j.provider_task_id ? { label: "Task id", value: j.provider_task_id, mono: true } : undefined,
+    pick("Finished"),
+  ];
+  return rows.filter((r): r is LedgerRow => !!r);
+});
 
 // Download all: every result, one file each, named job-<id8>-<idx>.
 const { busy: downloading, run: runDownload } = useBusy();
@@ -340,6 +395,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 
     <div v-else class="jd" :class="{ 'is-refreshing': loading, 'is-phone': isPhone }" :aria-busy="loading">
       <!-- a phone: the sections as a segmented control -->
+      <span v-if="isPhone" class="jd-seg__label" aria-hidden="true">Job sections</span>
       <div v-if="isPhone" class="jd-seg" role="tablist" aria-label="Job sections">
         <button
           v-for="(t, i) in TABS"
@@ -368,7 +424,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
         class="jd-panel"
       >
         <div v-if="done" class="jd-banner is-ok" role="status" data-section="conclusion">
-          <IconCheck :size="16" :stroke="2.4" />
+          <IconCheck v-if="!isPhone" :size="16" :stroke="2.4" />
           <span
             ><b>{{ delivered.lead }}</b> <span class="num">{{ delivered.rest }}</span></span
           >
@@ -392,7 +448,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
         </div>
 
         <section v-if="outputs.length" class="jd-section" data-section="results" aria-labelledby="jd-res">
-          <h3 id="jd-res" class="jd-h">
+          <h3 id="jd-res" class="jd-h" :class="{ 'sr-only': isPhone }">
             Results <span class="num jd-h__n">· {{ outputs.length }}</span>
           </h3>
           <JobMedia :job="job" role="output" />
@@ -433,7 +489,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
           <div class="jd-money__grid">
             <div v-for="m in money" :key="m.label" class="jd-money__cell">
               <span class="jd-help">{{ m.label }}</span>
-              <span class="num jd-money__value">{{ m.value }}</span>
+              <span class="num jd-money__value" :class="m.tone && `is-${m.tone}`">{{ m.value }}</span>
               <span class="num jd-help">{{ m.note }}</span>
             </div>
           </div>
@@ -451,6 +507,26 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
             <IconButton icon="copy" label="Copy prompt" placement="top-end" @click="copy(job.prompt, 'Prompt')" />
           </div>
           <p class="jd-prompt__text">{{ job.prompt }}</p>
+        </section>
+
+        <section
+          class="jd-section"
+          :class="{ 'jd-card': isPhone }"
+          data-section="raw"
+          aria-label="Raw request and response"
+        >
+          <JobRaw
+            title="Raw request"
+            :raw="job.raw_request"
+            empty="The request log kept no body for this job."
+            @copy="(t: string) => copy(t, 'Raw request')"
+          />
+          <JobRaw
+            title="Raw response"
+            :raw="job.raw_response"
+            empty="No answer to show."
+            @copy="(t: string) => copy(t, 'Raw response')"
+          />
         </section>
 
         <section v-if="isPhone && events.length" class="jd-card" data-section="steps" aria-labelledby="jd-steps">
@@ -480,6 +556,18 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
       >
         <section data-section="technical" aria-label="Technical">
           <JobTechnical :job="job" :phone="isPhone" />
+        </section>
+        <section class="jd-section" data-section="diagnostics" aria-labelledby="jd-diag">
+          <h3 id="jd-diag" class="jd-h">Diagnostics</h3>
+          <JobLedger
+            v-if="diagnostics.length"
+            :items="diagnostics"
+            wide
+            small
+            :stacked="isPhone"
+            testid="job-diagnostics"
+          />
+          <span v-else class="jd-help">{{ job.provider }} recorded nothing for this job.</span>
         </section>
         <section class="jd-section" data-section="title" aria-labelledby="jd-title">
           <label id="jd-title" for="jd-title-input" class="jd-h">Title</label>
@@ -618,6 +706,19 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   font-size: 12px;
   font-weight: 600;
 }
+.jd-seg__label {
+  margin-bottom: -6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
 .jd-seg {
   display: flex;
   gap: 2px;
@@ -735,6 +836,12 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   line-height: 26px;
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+.jd-money__value.is-ok {
+  color: var(--rl-ok);
+}
+.jd-money__value.is-bad {
+  color: var(--rl-bad);
 }
 .jd-card {
   display: flex;

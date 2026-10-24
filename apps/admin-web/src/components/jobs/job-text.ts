@@ -76,10 +76,14 @@ export function fmtClock(ms: number | null | undefined): string {
   const d = new Date(ms);
   return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;
 }
-export function fmtDayClock(ms: number | null | undefined): string {
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// "24 Oct 14:28:02" (JobDetail's Created and Finished); `exact` adds the milliseconds, "24 Oct 14:28:20.311"
+// (JobDetailTabs' Sent and Updated).
+export function fmtDayClock(ms: number | null | undefined, exact = false): string {
   if (!ms) return "—";
   const d = new Date(ms);
-  return `${two(d.getDate())}/${two(d.getMonth() + 1)} ${fmtClock(ms)}`;
+  const tail = exact ? `.${String(d.getMilliseconds()).padStart(3, "0")}` : "";
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${fmtClock(ms)}${tail}`;
 }
 
 // "35s", "1m 35s", "1h 2m": the time a job took, the one way the admin writes a duration of minutes or hours.

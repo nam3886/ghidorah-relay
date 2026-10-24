@@ -267,17 +267,17 @@ describe("opening", () => {
 
   it("each tab has its own sections, in order", async () => {
     await show();
-    expect(sectionNames()).toEqual(["conclusion", "actions", "money", "summary", "prompt"]);
+    expect(sectionNames()).toEqual(["conclusion", "actions", "money", "summary", "prompt", "raw"]);
     await goTo("Timeline");
     expect(sectionNames()).toEqual(["timeline"]);
     await goTo("Technical");
-    expect(sectionNames()).toEqual(["technical", "title", "more-actions", "debug", "sent"]);
+    expect(sectionNames()).toEqual(["technical", "diagnostics", "title", "more-actions", "debug", "sent"]);
   });
 
   it("a phone draws Money, Details, Prompt and Latest steps as cards", async () => {
     stubPhone();
     await show(detail({ events: [{ id: 1, at_ms: 1, source: "engine", stage: "done", text: "stored" }] }));
-    expect(sectionNames()).toEqual(["conclusion", "money", "summary", "prompt", "steps"]);
+    expect(sectionNames()).toEqual(["conclusion", "money", "summary", "prompt", "raw", "steps"]);
     expect(section("money").classes()).toContain("jd-card");
     expect(section("steps").text()).toContain("stored");
   });
@@ -442,11 +442,14 @@ describe("conclusion, ledger, prompt and technical", () => {
       ["Model", "veo"],
       ["Media", "video · 30 s · 16:9"],
       ["Account", "acct-1"],
+      ["Proxy", "—"],
       ["Key", "key-one · rk-key1"],
+      ["Provider task id", "—"],
+      ["Conversation", "—"],
       ["Prompt frame", "video v4"],
       ["Webhook", "delivered · 1 try"],
-      ["Created", "15/10 20:41:12"],
-      ["Finished", "15/10 20:45:24"],
+      ["Created", "15 Oct 20:41:12"],
+      ["Finished", "15 Oct 20:45:24"],
     ]);
   });
 
@@ -462,13 +465,40 @@ describe("conclusion, ledger, prompt and technical", () => {
       .findAll(".jd-money__cell")
       .map((c) => c.text());
 
-  it("Money: what was charged, what went back and what the account paid upstream", async () => {
-    await show(detail({ price: 3, net_charged: 3, account_cost: 1 }));
+  it("Money: what was charged, what went back, what the upstream took and the margin after it", async () => {
+    await show(detail({ price: 3, net_charged: 3, account_cost: 1, upstream_cost: 1, margin: 2 }));
     expect(money()).toEqual([
       "Charged3 ptsveo",
-      "Refunded0 ptsnothing refunded",
+      "Refunded0 ptsnothing failed",
       "Upstream cost1 creditdola video pool",
+      "Margin+2 ptsafter upstream",
     ]);
+    expect(section("money").find(".jd-money__value.is-ok").text()).toBe("+2 pts");
+  });
+
+  it("the drawer shows the proxy, the upstream ids, the raw exchanges and the diagnostics the server gives", async () => {
+    await show(
+      detail({
+        proxy: "203.0.113.24:8080",
+        provider_task_id: "7419",
+        conversation: "c_9f31",
+        raw_request: { route: "POST /v1/videos", status_code: 201, body: { model: "veo", n: 1 } },
+        raw_response: null,
+        diagnostics: { send_path: "http", batches: ["b1"] },
+      }),
+    );
+    const facts = ledger(section("summary"));
+    expect(facts.find(([k]) => k === "Proxy")).toEqual(["Proxy", "203.0.113.24:8080"]);
+    expect(facts.find(([k]) => k === "Provider task id")).toEqual(["Provider task id", "7419"]);
+    expect(facts.find(([k]) => k === "Conversation")).toEqual(["Conversation", "c_9f31"]);
+    const raw = section("raw");
+    expect(raw.text()).toContain("POST /v1/videos · 201");
+    expect(raw.findAll("pre > div").map((d) => d.text())).toEqual(
+      JSON.stringify({ model: "veo", n: 1 }, null, 2)
+        .split("\n")
+        .map((l) => l.trim()),
+    );
+    expect(raw.text()).toContain("No answer to show.");
   });
 
   it("a failed job charged and paid back says refunded; an image's media names its ratio and count", async () => {
@@ -483,7 +513,12 @@ describe("conclusion, ledger, prompt and technical", () => {
         params: { ratio: "2:3", count: 1 },
       }),
     );
-    expect(money()).toEqual(["Charged1 ptsveo", "Refunded1 ptsrefunded"]);
+    expect(money()).toEqual([
+      "Charged1 ptsveo",
+      "Refunded1 ptsrefunded",
+      "Upstream cost—not known yet",
+      "Margin—needs the upstream cost",
+    ]);
     expect(ledger(section("summary"))[2]).toEqual(["Media", "image · 2:3 · ×1"]);
   });
 
@@ -529,8 +564,8 @@ describe("conclusion, ledger, prompt and technical", () => {
       ["Account cost", "1 credit"],
       ["Prompt frame", "video v7"],
       ["Callback", "failed · 3 attempts"],
-      ["Sent", expect.stringMatching(/2023/)],
-      ["Updated", expect.stringMatching(/2023/)],
+      ["Sent", expect.stringMatching(/^\d{1,2} [A-Z][a-z]{2} \d\d:\d\d:\d\d\.\d{3}$/)],
+      ["Updated", expect.stringMatching(/^\d{1,2} [A-Z][a-z]{2} \d\d:\d\d:\d\d\.\d{3}$/)],
       ["Params", '{"ratio":"16:9"}'],
     ]);
   });

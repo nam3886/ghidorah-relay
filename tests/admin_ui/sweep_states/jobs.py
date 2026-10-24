@@ -23,8 +23,9 @@ def run(page, app, live, sw, data):
     chips = page.locator(".jobs__chips")
 
     def status_picked():
-        chips.get_by_role("button", name="Failed", exact=True).click()
-        expect(chips.get_by_role("button", name="Failed", exact=True)).to_have_attribute("aria-pressed", "true")
+        look = chips.get_by_role("button", name=re.compile(r"^Needs a look · "))
+        look.click()
+        expect(look).to_have_attribute("aria-pressed", "true")
         ready(page)
     sw.step("jobs", "status-picked", status_picked,
             after=lambda: chips.get_by_role("button", name="All", exact=True).click())

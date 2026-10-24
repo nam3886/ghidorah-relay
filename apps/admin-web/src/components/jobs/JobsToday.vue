@@ -7,10 +7,12 @@ import { providerClass } from "@/lib/providers";
 import {
   axisOf,
   causeOf,
+  deltaOf,
   failedShare,
   failsALot,
   hourSlots,
   pathLabel,
+  rangeWords,
   rowsOf,
   SPARK_PX,
   totalsOf,
@@ -33,6 +35,9 @@ const slots = computed(() => (props.summary ? hourSlots(props.summary) : []));
 const spark = computed(() => (props.summary ? hourSlots(props.summary, SPARK_PX) : []));
 const axis = computed(() => (props.summary ? axisOf(props.summary, Date.now()) : []));
 const lookAt = computed(() => Math.max(0, t.value.accounts - t.value.usable));
+// the range the figures cover ("today", "in 7 days") and the change against the stretch before it
+const when = computed(() => (props.summary ? rangeWords(props.summary) : "today"));
+const delta = computed(() => (props.summary ? deltaOf(props.summary, t.value.done) : null));
 const sparkPx = (s: { future: boolean; segs: { px: number }[] }): number =>
   s.future
     ? 3
@@ -55,9 +60,12 @@ const pick = (name: string): void => emit("pick", props.selected === name ? "" :
     <section v-if="isPhone" class="jt-phone" aria-label="Today" data-testid="jobs-today">
       <div class="jt-phone__head">
         <div class="jt-col">
-          <span class="jt-label">Finished today</span>
+          <span class="jt-label">Finished {{ when }}</span>
           <span class="num jt-phone__big">{{ n(t.done) }}</span>
         </div>
+        <span v-if="delta" class="num jt-delta" :class="{ 'is-down': delta.down }" data-testid="jobs-delta">{{
+          delta.text
+        }}</span>
       </div>
       <div class="jt-spark" aria-hidden="true">
         <span
@@ -84,14 +92,23 @@ const pick = (name: string): void => emit("pick", props.selected === name ? "" :
     <!-- a tablet: three figure cards -->
     <section v-else-if="isTablet" class="jt-stats" aria-label="Today" data-testid="jobs-today">
       <div class="jt-stat">
-        <span class="jt-stat__label">Finished today</span><span class="num jt-stat__value">{{ n(t.done) }}</span>
+        <span class="jt-stat__label">Finished {{ when }}</span
+        ><span class="num jt-stat__value">{{ n(t.done) }}</span>
+        <span
+          v-if="delta"
+          class="num jt-stat__note"
+          :class="delta.down ? 'is-bad' : 'is-ok'"
+          data-testid="jobs-delta"
+          >{{ delta.text }}</span
+        >
       </div>
       <div class="jt-stat">
         <span class="jt-stat__label">In flight</span><span class="num jt-stat__value">{{ n(t.running) }}</span>
         <span class="num jt-stat__note">{{ n(t.queued) }} queued</span>
       </div>
       <div class="jt-stat">
-        <span class="jt-stat__label">Failed today</span><span class="num jt-stat__value is-bad">{{ n(t.failed) }}</span>
+        <span class="jt-stat__label">Failed {{ when }}</span
+        ><span class="num jt-stat__value is-bad">{{ n(t.failed) }}</span>
         <span class="num jt-stat__note is-bad">{{ failedShare(t.done, t.failed) }}</span>
       </div>
     </section>
@@ -102,8 +119,13 @@ const pick = (name: string): void => emit("pick", props.selected === name ? "" :
         <div class="jt-chart">
           <div class="jt-chart__top">
             <div class="jt-col">
-              <span class="jt-label">Jobs finished today</span>
-              <span class="num jt-big">{{ n(t.done) }}</span>
+              <span class="jt-label">Jobs finished {{ when }}</span>
+              <span class="jt-bigline"
+                ><span class="num jt-big">{{ n(t.done) }}</span
+                ><span v-if="delta" class="num jt-delta" :class="{ 'is-down': delta.down }" data-testid="jobs-delta">{{
+                  delta.text
+                }}</span></span
+              >
             </div>
             <span class="jt-legend">
               <span v-for="p in rows" :key="p.provider" class="jt-legend__item"
@@ -111,7 +133,11 @@ const pick = (name: string): void => emit("pick", props.selected === name ? "" :
               >
             </span>
           </div>
-          <div class="jt-bars" role="img" :aria-label="`${n(t.done)} jobs finished today, by hour`">
+          <div
+            class="jt-bars"
+            role="img"
+            :aria-label="`${n(t.done)} jobs finished ${when}, by ${summary.bucket === 'day' ? 'day' : 'hour'}`"
+          >
             <div v-for="(s, i) in slots" :key="i" class="jt-hour" :title="s.title" :class="{ 'is-now': s.now }">
               <span v-if="s.future || !s.segs.length" class="jt-stub" />
               <span
@@ -139,7 +165,8 @@ const pick = (name: string): void => emit("pick", props.selected === name ? "" :
           <div class="jt-kpi">
             <span class="jt-kpi__icon is-bad"><PathIcon :paths="ICON.warn" :size="20" :stroke="2" /></span>
             <div class="jt-col jt-kpi__text">
-              <span class="jt-label">Failed today</span><span class="num jt-mid">{{ n(t.failed) }}</span>
+              <span class="jt-label">Failed {{ when }}</span
+              ><span class="num jt-mid">{{ n(t.failed) }}</span>
             </div>
             <span class="num jt-note is-bad">{{ failedShare(t.done, t.failed) }}</span>
           </div>
@@ -218,6 +245,36 @@ const pick = (name: string): void => emit("pick", props.selected === name ? "" :
   line-height: 44px;
   font-weight: 800;
   letter-spacing: -0.03em;
+}
+.jt-bigline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+/* "+12% vs yesterday" (Ledger, JobsPhone): a green pill, red when the count went down */
+.jt-delta {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--rl-ok-bg);
+  color: var(--rl-ok);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.jt-delta.is-down {
+  background: var(--rl-bad-bg);
+  color: var(--rl-bad);
+}
+.jt-phone .jt-delta {
+  margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.jt-stat__note.is-ok {
+  color: var(--rl-ok);
 }
 .jt-mid {
   font-size: 24px;

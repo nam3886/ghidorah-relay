@@ -4,6 +4,9 @@ import { bulkAction, regenerateCall } from "@/lib/operation-key";
 
 // The statuses the filter offers. `submitting` exists server-side and is open work like the others.
 export const JOB_STATUSES = ["queued", "submitting", "waiting", "fetching", "unknown", "done", "failed"] as const;
+// The grouped chips (Ledger): what needs a look and what is on its way; `status` takes either as a comma list.
+export const NEEDS_A_LOOK = "failed,unknown";
+export const IN_FLIGHT = "queued,submitting,waiting,fetching";
 
 export interface JobSummary {
   id: string;
@@ -38,7 +41,19 @@ export interface JobPage {
   // only when `tz` was sent: "YYYY-MM-DD" (local day in tz) -> every job that day under the same filters,
   // one entry for each day that has a row on this page
   day_totals?: Record<string, number>;
+  // the same filters but the status: status -> its jobs (a status with none is absent)
+  status_counts?: Record<string, number>;
+  // the relay holds at least one job, whatever the filters: an empty page under a range is then "nothing matches"
+  has_jobs?: boolean;
 }
+
+// The Jobs page's range switch: the list's window and the Today section's figures (local days of dashboard_tz).
+export const JOB_RANGES = [
+  { value: "today", label: "Today" },
+  { value: "7d", label: "7 days" },
+  { value: "30d", label: "30 days" },
+] as const;
+export type JobRange = (typeof JOB_RANGES)[number]["value"];
 
 export interface JobListQuery {
   status: string;
@@ -51,6 +66,9 @@ export interface JobListQuery {
   createdToMs?: number;
   // IANA zone (Asia/Ho_Chi_Minh): asks for day_totals
   tz?: string;
+  range?: JobRange;
+  // the start of the job id, the prompt or title, the key's or the account's label
+  q?: string;
 }
 
 // Newest first. Empty filters are dropped by the client's query builder.
@@ -65,6 +83,8 @@ export const listJobs = (q: JobListQuery): Promise<JobPage> =>
       created_from_ms: q.createdFromMs,
       created_to_ms: q.createdToMs,
       tz: q.tz,
+      range: q.range,
+      q: q.q,
     },
   });
 

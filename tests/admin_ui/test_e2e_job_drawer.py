@@ -182,6 +182,39 @@ def test_the_drawer_shows_its_tabs_copies_the_prompt_and_renames(app, app_page, 
     expect(first_job).to_contain_text("My new title")     # the list reloaded after the rename
 
 
+def test_the_drawer_shows_the_margin_the_proxy_the_upstream_ids_the_raw_exchanges_and_diagnostics(
+        app, app_page, live, db):
+    page = app_page
+    k = new_key(db)
+    acct = new_account(db, label="acct", checked=True)
+    db.run("UPDATE accounts SET proxy_host = '203.0.113.24', proxy_port = 8080 WHERE id = %s", acct)
+    job = done_job(db, k, acct, ref="task-77", prompt="a lantern")
+    db.run("UPDATE jobs SET upstream_price = 1, taken_at = sent_at, provider_state = %s::jsonb WHERE id = %s",
+           json.dumps({"chat": "c_9f31", "send_path": "http", "token": "state-secret-1"}), job)
+    db.run("INSERT INTO request_logs (key_id, provider, route, status_code, job_id, duration_ms, body_redacted, at) "
+           "SELECT %s, 'fake', 'POST /v1/video/generations', 201, %s, 5, %s::jsonb, created_at FROM jobs WHERE id = %s",
+           k, job, json.dumps({"model": "fake-video", "api_key": "sk-live-raw-secret"}), job)
+    app.sign_in(page)
+    open_row(page, job)
+    panel = drawer(page)
+    money = panel.locator("[data-section=money]")
+    expect(money).to_contain_text("Upstream cost")
+    expect(money).to_contain_text("Margin")
+    facts = panel.locator("[data-section=summary]")
+    for text in ("203.0.113.24:8080", "task-77", "c_9f31"):
+        expect(facts).to_contain_text(text)
+    raw = panel.locator("[data-section=raw]")
+    expect(raw).to_contain_text("POST /v1/video/generations · 201")
+    expect(raw).to_contain_text('"model": "fake-video"')
+    expect(raw).to_contain_text("GET /v1/video/generations/%s · 200" % job)
+    assert "sk-live-raw-secret" not in raw.inner_text()
+    pick(page, "Technical")
+    diag = panel.locator("[data-section=diagnostics]")
+    expect(diag).to_contain_text("Send path")
+    expect(diag).to_contain_text("http")
+    assert "state-secret-1" not in diag.inner_text()
+
+
 def test_drawer_recheck_resend_and_revoke_each_toast_and_change_the_job(app, app_page, live, db):
     page = app_page
     k = new_key(db)

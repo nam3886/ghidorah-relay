@@ -76,9 +76,17 @@ export interface ProviderSummary {
 export interface ProvidersSummary {
   day_tz: string;
   day_start_ms: number;
+  // the range asked for (done_today and failed_today count all of it), its first local midnight, and how `hours` is
+  // cut: an hour each today, a local day each for 7 or 30 days
+  range?: "today" | "7d" | "30d";
+  range_start_ms?: number;
+  bucket?: "hour" | "day";
+  // the jobs done over the same stretch one range earlier (today: yesterday up to the same clock)
+  prev_done?: number;
   providers: ProviderSummary[];
   // every hour of the billing day so far, oldest first, zero-filled: its start and each provider's finished jobs
   hours: Array<{ h: number; done: Record<string, number>; failed: Record<string, number> }>;
 }
 
-export const getProvidersSummary = (): Promise<ProvidersSummary> => request("/providers/summary");
+export const getProvidersSummary = (range = "today"): Promise<ProvidersSummary> =>
+  request("/providers/summary", { query: { range } });

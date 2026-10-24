@@ -22,6 +22,8 @@ const props = defineProps<{
   loading: boolean;
   error: string | null;
   filtered: boolean;
+  // what the filters are, said in words for the empty box ("Nothing is \"Needs a look\" for Partner trial today.")
+  filterNote?: string;
   now: number;
 }>();
 const emit = defineEmits<{
@@ -133,7 +135,9 @@ function rowClick(j: JobSummary, event: MouseEvent): void {
       <template v-if="filtered">
         <span class="jl__icon"><PathIcon :paths="ICONS.search" :size="22" :stroke="1.8" /></span>
         <b class="jl__title">No jobs match these filters</b>
-        <span class="jl__text">Pick another status or key, or clear the filters to see every job.</span>
+        <span class="jl__text">{{
+          filterNote || "Pick another status or key, or clear the filters to see every job."
+        }}</span>
         <div class="jl__btns">
           <button type="button" class="jl__primary" @click="emit('clear-filters')">Clear filters</button>
         </div>

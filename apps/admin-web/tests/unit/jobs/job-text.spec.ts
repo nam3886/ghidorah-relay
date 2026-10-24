@@ -141,10 +141,11 @@ describe("timeline", () => {
 });
 
 describe("drawer formats", () => {
-  it("a clock is hh:mm:ss in local time, a day clock adds dd/mm, a missing time is a dash", () => {
+  it("a clock is hh:mm:ss in local time, a day clock adds the day and month (the milliseconds when exact), a missing time is a dash", () => {
     const at = new Date(2026, 9, 5, 9, 4, 7).getTime();
     expect(fmtClock(at)).toBe("09:04:07");
-    expect(fmtDayClock(at)).toBe("05/10 09:04:07");
+    expect(fmtDayClock(at)).toBe("5 Oct 09:04:07");
+    expect(fmtDayClock(at + 311, true)).toBe("5 Oct 09:04:07.311");
     // a time that is not set is the list empty-cell dash
     expect([fmtClock(null), fmtDayClock(undefined), fmtClock(0)]).toEqual(["—", "—", "—"]);
   });

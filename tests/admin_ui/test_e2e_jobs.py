@@ -137,7 +137,8 @@ def test_the_list_shows_its_columns_and_a_row_opens_the_detail_but_its_tick_box_
 
 @pytest.mark.fabricated_rows("plants a submitting job with no lease row and a failed job with no error code",
                              "a submitting job with no lease row", "without an error code")
-def test_the_status_chips_offer_submitting_and_the_key_filter_narrows_the_list(app, app_page, live, db):
+def test_a_submitting_link_gets_its_own_chip_the_groups_count_and_the_key_filter_narrows_the_list(
+        app, app_page, live, db):
     page = app_page
     k1, k2 = new_key(db), new_key(db)
     db.run("UPDATE api_keys SET label = 'first-key' WHERE id = %s", k1)
@@ -148,10 +149,20 @@ def test_the_status_chips_offer_submitting_and_the_key_filter_narrows_the_list(a
     db.run("UPDATE jobs SET status = 'submitting' WHERE id = %s", c)
     app.sign_in(page)
     expect(rows(page)).to_have_count(3)
-    status(page, "Submitting")
+    page.evaluate("location.hash = '#/jobs?status=submitting'", isolated_context=False)
+    expect(page.locator(".jobs__chips").get_by_role("button", name="Submitting", exact=True)).to_have_attribute(
+        "aria-pressed", "true")
     expect(rows(page)).to_have_count(1)
     expect(rows(page).first).to_contain_text(str(c)[:8])
     expect(rows(page).first).to_contain_text("Submitting 2/4")
+    status(page, "All")
+    expect(rows(page)).to_have_count(3)
+    status(page, "Needs a look · 1")                # failed and unknown, counted under the other filters
+    expect(rows(page)).to_have_count(1)
+    expect(rows(page).first).to_contain_text(str(b)[:8])
+    status(page, "In flight · 1")
+    expect(rows(page)).to_have_count(1)
+    expect(rows(page).first).to_contain_text(str(c)[:8])
     status(page, "All")
     expect(rows(page)).to_have_count(3)
     choose_key(page, "second-key")
@@ -162,6 +173,34 @@ def test_the_status_chips_offer_submitting_and_the_key_filter_narrows_the_list(a
     status(page, "Done")
     expect(rows(page)).to_have_count(1)
     expect(rows(page).first).to_contain_text(str(a)[:8])
+
+
+def test_the_range_switch_widens_the_list_and_the_search_narrows_it_and_an_empty_result_names_the_filters(
+        app, app_page, live, db):
+    page = app_page
+    k = new_key(db)
+    db.run("UPDATE api_keys SET label = 'Studio Saigon' WHERE id = %s", k)
+    lantern = done_job(db, k, ref="a", prompt="Lantern festival on the river")
+    done_job(db, new_key(db), ref="b", prompt="A bowl of pho")
+    old = done_job(db, k, ref="c", prompt="an old lantern")
+    db.run("UPDATE jobs SET created_at = now() - interval '3 days' WHERE id = %s", old)
+    app.sign_in(page)
+    expect(rows(page)).to_have_count(2)                       # today
+    page.get_by_role("group", name="Range").get_by_role("button", name="7 days").click()
+    expect(rows(page)).to_have_count(3)
+    page.get_by_label("Search jobs").fill("lantern")
+    expect(rows(page)).to_have_count(2)
+    page.get_by_label("Search jobs").fill("saigon")             # the key's label
+    expect(rows(page)).to_have_count(2)
+    page.get_by_role("group", name="Range").get_by_role("button", name="Today").click()
+    expect(rows(page)).to_have_count(1)
+    expect(rows(page).first).to_contain_text(str(lantern)[:8])
+    page.get_by_label("Search jobs").fill("nothing like this")
+    expect(page.get_by_text("No job matches “nothing like this” today.")).to_be_visible()
+    page.get_by_role("button", name="Remove the filter Today").click()
+    expect(page.get_by_text("No job matches “nothing like this” in the last 30 days.")).to_be_visible()
+    page.get_by_role("button", name="Clear filters").click()
+    expect(rows(page)).to_have_count(3)
 
 
 @pytest.mark.fabricated_rows("plants a failed job with no error code", "without an error code")

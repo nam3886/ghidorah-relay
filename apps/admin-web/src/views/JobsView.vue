@@ -4,7 +4,11 @@ import { useRoute, useRouter } from "vue-router";
 import {
   bulkRecheck,
   bulkRegenerate,
+  IN_FLIGHT,
+  JOB_RANGES,
   JOB_STATUSES,
+  type JobRange,
+  NEEDS_A_LOOK,
   type JobSummary,
   type KeyOption,
   listJobs,
@@ -24,6 +28,7 @@ import ArrowScroller from "@/components/shared/ArrowScroller.vue";
 import { copyText } from "@/components/shared/clipboard";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
 import IconButton from "@/components/shared/IconButton.vue";
+import { IconSearch } from "@/components/shared/icons";
 import ListPager from "@/components/shared/ListPager.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useBusy } from "@/composables/use-busy";
@@ -53,6 +58,7 @@ const { isPhone, isTablet } = useBreakpoint();
 const compact = computed(() => isPhone.value || isTablet.value);
 
 const POLL_MS = 10_000;
+const SEARCH_PAUSE_MS = 300;
 // The zone the days are cut in: the browser's own, the one the clock and the day headers use too.
 const zone = localZone();
 const dayTotals = shallowRef<Record<string, number>>({});
@@ -70,11 +76,36 @@ const latest = useLatest();
 const status = rememberedStatus;
 const keyId = ref("");
 const keys = ref<KeyOption[]>([]);
-// The chips read as drawn: All, then each status with a capital.
-const statusOptions = [
+// The range switch (Ledger: Today, 7 days, 30 days): the list's window and the Today section's figures.
+const range = ref<JobRange>("today");
+// The search box: sent once typing pauses; the start of a job id, the prompt or title, a key's or account's label.
+const search = ref("");
+const q = ref("");
+const searchOpen = ref(false);
+let typing: ReturnType<typeof setTimeout> | undefined;
+watch(search, (text) => {
+  clearTimeout(typing);
+  typing = setTimeout(() => (q.value = text.trim()), SEARCH_PAUSE_MS);
+});
+// The jobs of each status under the other filters (the server's status_counts): the grouped chips' counts.
+const counts = shallowRef<Record<string, number>>({});
+const countOf = (statuses: string): number => statuses.split(",").reduce((n, s) => n + (counts.value[s] ?? 0), 0);
+// The chips as drawn (Ledger): All, Needs a look · N, In flight · N, Done. A single status that came another way (a
+// stats link: ?status=failed) gets a chip of its own after them while it is the filter, so what is on stays shown.
+const capital = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+const statusOptions = computed(() => [
   { value: ALL, label: "All" },
-  ...JOB_STATUSES.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) })),
-];
+  { value: NEEDS_A_LOOK, label: `Needs a look · ${countOf(NEEDS_A_LOOK)}` },
+  { value: IN_FLIGHT, label: `In flight · ${countOf(IN_FLIGHT)}` },
+  { value: "done", label: "Done" },
+  ...(status.value && !status.value.includes(",") && status.value !== "done"
+    ? [{ value: status.value, label: capital(status.value) }]
+    : []),
+]);
+// The status filter in words: the chip's name without its count.
+const statusWords = computed(() =>
+  status.value === NEEDS_A_LOOK ? "Needs a look" : status.value === IN_FLIGHT ? "In flight" : capital(status.value),
+);
 const keyOptions = computed(() => [
   { value: ALL, label: "All" },
   ...keys.value.map((k) => ({ value: k.id, label: keyName(k) })),
@@ -122,6 +153,8 @@ async function load(at: number = offset.value): Promise<void> {
       provider: scope.provider,
       keyId: keyId.value,
       tz: zone,
+      range: range.value,
+      q: q.value,
       offset: at,
       limit: limit.value,
     });
@@ -132,6 +165,8 @@ async function load(at: number = offset.value): Promise<void> {
     items.value = out.items;
     total.value = out.total;
     dayTotals.value = out.day_totals ?? {};
+    counts.value = out.status_counts ?? {};
+    hasJobs.value = out.has_jobs ?? false;
     offset.value = at;
     picked.value = new Set(pickedIds(out.items, picked.value));
     error.value = null;
@@ -152,7 +187,12 @@ function onSize(size: number): void {
 
 applyQuery();
 // A filter drops the ticks at once: the old rows still on screen until the new list arrives show none.
-watch([status, keyId, () => scope.provider], () => {
+// The range moves the Today section's figures too.
+watch(range, (r) => {
+  providers.range = r;
+  void providers.refresh();
+});
+watch([status, keyId, () => scope.provider, range, q], () => {
   offset.value = 0;
   clearPicked();
   // the totals belong to the old filters: until the new answer lands the headers count the rows on screen
@@ -190,6 +230,12 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   clearInterval(timer);
+  clearTimeout(typing);
+  // the strip and Settings read the shared summary as today's
+  if (providers.range !== "today") {
+    providers.range = "today";
+    void providers.refresh();
+  }
   document.removeEventListener("visibilitychange", onVisible);
 });
 
@@ -248,10 +294,39 @@ const grouped = computed(() => {
   return out;
 });
 
-const filtered = computed(() => !!(status.value || keyId.value));
+// An empty list is "nothing matches" under a filter, or under a range that leaves out jobs the relay has (the server's
+// has_jobs); only a relay with no job at all shows the first-run box.
+const hasJobs = ref(false);
+const filtered = computed(() => !!(status.value || keyId.value || q.value || (hasJobs.value && range.value !== "30d")));
+const rangeLabel = computed(() => JOB_RANGES.find((r) => r.value === range.value)!.label);
+// JobsStates 03: the filters that are on, as chips that each take theirs off, and in words in the empty box.
+const activeChips = computed(() =>
+  [
+    status.value && { id: "status", label: statusWords.value, clear: () => (status.value = "") },
+    keyId.value && {
+      id: "key",
+      label: `Key: ${keyOptions.value.find((k) => k.value === keyId.value)?.label ?? keyId.value}`,
+      clear: () => (keyId.value = ""),
+    },
+    q.value && { id: "q", label: `“${q.value}”`, clear: () => (search.value = q.value = "") },
+    range.value !== "30d" && { id: "range", label: rangeLabel.value, clear: () => (range.value = "30d") },
+  ].filter((c): c is { id: string; label: string; clear: () => string } => !!c),
+);
+const noMatch = computed(() => filtered.value && !loading.value && !error.value && total.value === 0);
+const filterNote = computed(() => {
+  const key = keyId.value ? ` for ${keyOptions.value.find((k) => k.value === keyId.value)?.label ?? "this key"}` : "";
+  const what = status.value ? `Nothing is “${statusWords.value}”` : "No job";
+  const words = q.value ? ` matches “${q.value}”` : status.value ? "" : " was made";
+  const when = range.value === "today" ? "today" : `in the last ${range.value === "7d" ? "7" : "30"} days`;
+  return `${what}${key}${words} ${when}.`;
+});
 function clearFilters(): void {
   status.value = "";
   keyId.value = "";
+  clearTimeout(typing);
+  search.value = "";
+  q.value = "";
+  range.value = "30d";
 }
 
 const newTest = (): void => void router.push({ name: "test" });
@@ -270,8 +345,42 @@ function openInNewTab(id: string): void {
   <section class="jobs" :class="{ 'jobs--phone': isPhone, 'jobs--tablet': isTablet }">
     <div class="jobs__head">
       <h1 :class="{ 'sr-only': compact }">Jobs</h1>
-      <IconButton v-if="isPhone" icon="plus" label="New test job" placement="bottom-end" @click="newTest" />
-      <button v-else type="button" class="jobs__new" @click="newTest">New test job</button>
+      <div class="jobs__range" role="group" aria-label="Range">
+        <button
+          v-for="r in JOB_RANGES"
+          :key="r.value"
+          type="button"
+          class="jobs__range-btn"
+          :class="{ 'is-on': range === r.value }"
+          :aria-pressed="range === r.value"
+          @click="range = r.value"
+        >
+          {{ r.label }}
+        </button>
+      </div>
+      <template v-if="isPhone">
+        <IconButton
+          icon="search"
+          label="Search jobs"
+          placement="bottom-end"
+          :class="{ 'is-on': searchOpen }"
+          @click="searchOpen = !searchOpen"
+        />
+        <IconButton icon="plus" label="New test job" placement="bottom-end" @click="newTest" />
+      </template>
+      <template v-else>
+        <!-- a tablet (JobsTablet): Search jobs beside New test job opens the search box in the toolbar -->
+        <button
+          v-if="isTablet"
+          type="button"
+          class="jobs__find"
+          :aria-pressed="searchOpen"
+          @click="searchOpen = !searchOpen"
+        >
+          Search jobs
+        </button>
+        <button type="button" class="jobs__new" @click="newTest">New test job</button>
+      </template>
     </div>
 
     <JobsToday
@@ -286,7 +395,19 @@ function openInNewTab(id: string): void {
     <section class="jobs__card" aria-label="Recent jobs">
       <div class="jobs__bar">
         <h2 v-if="!isPhone" class="jobs__title">Recent jobs</h2>
-        <div class="jobs__chips">
+        <div v-if="noMatch" class="jobs__chips jobs__active" role="group" aria-label="Filters on">
+          <button
+            v-for="c in activeChips"
+            :key="c.id"
+            type="button"
+            class="chip is-on"
+            :aria-label="`Remove the filter ${c.label}`"
+            @click="c.clear()"
+          >
+            {{ c.label }} <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <div v-else class="jobs__chips">
           <ArrowScroller label="Filter jobs" :count="statusOptions.length" :active-key="status">
             <button
               v-for="o in statusOptions"
@@ -308,6 +429,17 @@ function openInNewTab(id: string): void {
           :options="keyOptions"
           @update:model-value="(v) => (keyId = fromSelect(String(v)))"
         />
+        <label v-if="!compact || searchOpen || search" class="jobs__search">
+          <IconSearch :size="16" :stroke="2" />
+          <input
+            v-model="search"
+            type="search"
+            aria-label="Search jobs"
+            placeholder="Search title, id, account"
+            maxlength="200"
+            @keydown.esc="search = ''"
+          />
+        </label>
         <div v-if="!isPhone && ids.length" class="jobs__bulk" role="region" aria-label="Bulk actions">
           <b class="num jobs__count">{{ ids.length }} selected</b>
           <button type="button" class="jobs__bulk-btn" :disabled="rechecking" @click="recheck">Re-check</button>
@@ -328,6 +460,7 @@ function openInNewTab(id: string): void {
         :loading="loading"
         :error="error"
         :filtered="filtered"
+        :filter-note="filterNote"
         :now="now"
         @toggle="onToggle"
         @toggle-all="onToggleAll"
@@ -413,6 +546,35 @@ function openInNewTab(id: string): void {
   height: 40px;
   font-weight: 700;
 }
+.jobs__find {
+  margin-left: auto;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.jobs__find[aria-pressed="true"] {
+  border-color: var(--rl-brand);
+  color: var(--rl-brand-ink);
+}
+.jobs__find + .jobs__new {
+  margin-left: 0;
+}
+.jobs__find:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
+}
+.jobs__active {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .jobs__new:hover {
   background: var(--rl-primary-hover);
 }
@@ -423,15 +585,85 @@ function openInNewTab(id: string): void {
   outline: 2px solid var(--rl-focus);
   outline-offset: 2px;
 }
-.jobs__head > :deep(.ib-wrap) {
+.jobs__range + :deep(.ib-wrap) {
   margin-left: auto;
 }
 .jobs--phone .jobs__head {
-  justify-content: flex-end;
   margin: -6px 0 -4px;
 }
 .jobs__head :deep(.ib) {
   color: var(--rl-brand-ink);
+}
+.jobs__head :deep(.ib-wrap:first-of-type .ib) {
+  color: var(--rl-body);
+}
+
+/* the range switch (Ledger): a segmented control after the title */
+.jobs__range {
+  display: flex;
+  gap: 2px;
+  margin-left: 8px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--rl-track);
+}
+.jobs--phone .jobs__range {
+  margin-left: 0;
+}
+.jobs__range-btn {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--rl-muted);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.jobs__range-btn.is-on {
+  background: var(--rl-seg-on);
+  color: var(--rl-fg);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+.jobs__range-btn:focus-visible,
+.jobs__search:focus-within {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
+}
+.jobs--phone .jobs__range-btn {
+  height: 38px;
+}
+
+/* the search box at the end of the toolbar (Ledger: 260 px) */
+.jobs__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 260px;
+  max-width: 100%;
+  height: 34px;
+  margin-left: auto;
+  padding: 0 12px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  color: var(--rl-faint);
+}
+.jobs__search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--rl-fg);
+  font: inherit;
+}
+.jobs--phone .jobs__search {
+  width: 100%;
+  height: 44px;
+  background: var(--rl-surface);
 }
 
 /* the card */

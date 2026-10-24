@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { JobDetail } from "@/api/jobs-detail";
-import { plural } from "@/components/jobs/job-text";
-import { fmtTime } from "@/lib/format";
+import { fmtDayClock, plural } from "@/components/jobs/job-text";
+
 import JobLedger from "./JobLedger.vue";
 
 // The Technical tab's facts as JobDetailTabs draws them: one ledger, the label at 160 px and the value in mono; a fact
@@ -24,7 +24,7 @@ function callback(c: JobDetail["callback"]): string {
 
 const facts = computed(() => {
   const j = props.job;
-  const stamp = (ms: number | null): string => (ms ? fmtTime(ms) : "");
+  const stamp = (ms: number | null): string => (ms ? fmtDayClock(ms, true) : "");
   const all: Fact[] = [
     ["Job id", text(j.id)],
     ["Provider / pool", [j.provider, j.pool].filter(Boolean).join(" / ")],

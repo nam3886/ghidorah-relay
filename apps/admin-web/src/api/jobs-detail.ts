@@ -30,6 +30,12 @@ export interface JobEvent {
   text: string;
 }
 
+export interface RawExchange {
+  route: string | null;
+  status_code: number | null;
+  body: unknown;
+}
+
 export interface JobDetail extends JobSummary {
   // the key's display prefix: what names a key without a label
   key_prefix: string | null;
@@ -53,6 +59,19 @@ export interface JobDetail extends JobSummary {
   no_recheck: boolean;
   frame_id: string | number | null;
   sent_text: string | null;
+  // net points charged less the upstream cost (a unit counts as a point); null while that cost is unknown
+  upstream_cost?: number | null;
+  margin?: number | null;
+  // the account's proxy as host:port, never its credentials
+  proxy?: string | null;
+  conversation?: string | null;
+  provider_task_id?: string | null;
+  // redacted on the server: the creating call as the request log kept it (route null: the stored request), and what
+  // the status read answers the job's key now
+  raw_request?: RawExchange | null;
+  raw_response?: RawExchange | null;
+  // the provider's own state of the job, redacted
+  diagnostics?: Record<string, unknown> | null;
   events: JobEvent[];
   media: JobMediaItem[];
   debug_files: JobDebugFile[];

@@ -163,8 +163,8 @@ ROW_IF = "(outputs.length && !isPhone) || job.can_recheck || (finished && !isPho
           expect=TECH_GROUP + "a job on its way says what it is doing")
 @mutation(DRAWER, 'asText(j.account_label) || "—"', 'asText(j.account_label) || "-"',
           expect=EMPTY_DASH)
-@mutation(TEXT, '  if (!ms) return "—";\n  const d = new Date(ms);\n  return `${two(d.getDate())}',
-          '  if (!ms) return "-";\n  const d = new Date(ms);\n  return `${two(d.getDate())}',
+@mutation(TEXT, '  if (!ms) return "—";\n  const d = new Date(ms);\n  const tail',
+          '  if (!ms) return "-";\n  const d = new Date(ms);\n  const tail',
           expect=EMPTY_DASH)
 @mutation(DRAWER, ROW_IF, "true", expect=RUNNING)
 @mutation(DRAWER, ROW_IF, "(outputs.length && !isPhone) || job.can_recheck || links.length", expect=DONE_ROW)
