@@ -1,10 +1,8 @@
 """The meta spec: caps, settings, catalog next to dola's, error rules and `plan()`."""
 
-import logging
-
 import pytest
 
-from relay_core import errors, frames
+from relay_core import errors, frames, pricing
 from relay_core.api.doors import checked_prompt
 from relay_core.providers import (
     AfterSent,
@@ -35,6 +33,12 @@ def plan(model="meta-image", prompt="a lighthouse at dawn", *, cfg=None, **kw):
     return SPEC.plan(CreateRequest(model=model, prompt=prompt, **kw), cfg or settings(), {})
 
 
+def priced(model="meta-image", prompt="a lighthouse at dawn", *, cfg=None, **kw):
+    """The plan as the door makes it: the core's price and upstream cost from `meta.prices` and `meta.costs`."""
+    cfg = cfg or FakeSettings(SPEC)
+    return pricing.price_plan(SPEC, plan(model, prompt, cfg=cfg, **kw), cfg)
+
+
 def refused(model="meta-image", prompt="a lighthouse at dawn", **kw) -> InputError:
     with pytest.raises(InputError) as caught:
         plan(model, prompt, **kw)
@@ -60,6 +64,7 @@ def test_meta_stays_drained_by_default_and_declares_the_settings_the_core_reads(
     assert s["meta.claims_enabled"].default is False, "meta must stay drained until it can submit"
     assert s["meta.image_budget"].default == 40 and s["meta.video_budget"].default == 20
     assert s["meta.prices"].default == {"meta-image": 1, "meta-video": 1}
+    assert s["meta.costs"].default == {"meta-image": 1, "meta-video": 1}, "one job of the daily budget each"
     for key in ("meta.image_submit_timeout_s", "meta.video_submit_timeout_s"):
         assert s[key].max == 720, "a submit timeout past the worker's stop grace"
     rest = s["meta.checkpoint_rest_s"]
@@ -91,7 +96,7 @@ def test_meta_registers_the_codes_its_submit_uses_and_a_warning_is_no_rule():
     meta_codes = {code for code in errors.RULES if code.startswith("meta.")}
     assert set(SPEC.codes()) == meta_codes == {"meta.checkpoint", "meta.ui_page_not_ready", "meta.ui_send_failed",
                                                "meta.no_image", "meta.no_video"}
-    assert meta_errors.WARN_PRICE_FALLBACK not in errors.RULES, "a warning is not a rule"
+    assert not hasattr(meta_errors, "WARN_PRICE_FALLBACK"), "no price is a guess any more: there is no fallback"
 
 
 # ---- plan ------------------------------------------------------------------------------------------------------------
@@ -101,7 +106,8 @@ def test_an_image_plan_is_held_in_the_session_and_priced_from_the_settings():
                                                                      {"kind": "image"})
     assert (p.completion, p.after_sent, p.wallet_kind, p.pool) == (Completion.HOLD, AfterSent.RECONCILE, "image",
                                                                    "image")
-    assert (p.price, p.account_cost, p.submit_timeout_s, p.warnings) == (1, 1, 240, ())
+    assert (p.price_key, p.submit_timeout_s, p.warnings) == ("meta-image", 240, ())
+    assert (priced().price, priced().account_cost) == (1, 1)
 
 
 @mutation(SPEC_FILE, '            operation = "image_to_video" if req.images else "text_to_video"',
@@ -115,8 +121,9 @@ def test_a_video_plan_takes_one_image_and_an_optional_motion_text():
 
 def test_a_video_plan_from_text_alone_is_text_to_video_held_and_priced_like_one_from_an_image():
     p = plan("meta-video", "a red fox trotting through snow")
-    assert (p.operation, p.media_type, p.wallet_kind, p.pool, p.submit_timeout_s, p.price) == (
-        "text_to_video", "video", "video", "video", 420, 1)
+    assert (p.operation, p.media_type, p.wallet_kind, p.pool, p.submit_timeout_s, p.price_key) == (
+        "text_to_video", "video", "video", "video", 420, "meta-video")
+    assert priced("meta-video", images=(IMG,)).price == priced("meta-video", "a red fox").price == 1
     assert (p.completion, p.after_sent, dict(p.params)) == (Completion.HOLD, AfterSent.RECONCILE, {"kind": "video"})
 
 
@@ -146,19 +153,28 @@ def test_an_image_plan_with_one_input_image_is_an_edit_and_still_needs_a_visible
 
 def test_the_price_and_the_timeout_come_from_the_live_settings():
     cfg = settings(meta__prices={"meta-image": 3, "meta-video": 5}, meta__video_submit_timeout_s=600)
-    assert plan(cfg=cfg).price == 3
-    p = plan("meta-video", images=(IMG,), cfg=cfg)
+    assert priced(cfg=cfg).price == 3
+    p = priced("meta-video", images=(IMG,), cfg=cfg)
     assert (p.price, p.submit_timeout_s) == (5, 600)
 
 
-@mutation(SPEC_FILE, "        if missing is None:\n            return price, []",
-          "        if True:\n            return price, []", expect="a missing price must warn")
-def test_a_model_missing_from_the_prices_is_charged_the_fallback_with_a_warning(caplog):
-    with caplog.at_level(logging.WARNING):
-        p = plan(cfg=settings(meta__prices={"meta-video": 2}))
-    assert p.price == 1
-    assert [w.code for w in p.warnings] == ["meta.price_fallback"], "a missing price must warn"
-    assert "meta-image" in caplog.text
+def test_a_model_missing_from_the_prices_is_refused_never_charged_a_guess():
+    with pytest.raises(pricing.Unpriced):
+        priced(cfg=settings(meta__prices={"meta-video": 2}))
+    assert priced("meta-video", "a fox", cfg=settings(meta__prices={"meta-video": 2})).price == 2
+
+
+@mutation(SPEC_FILE, "        if req.n not in (None, 1):", "        if False:", expect="n=4 was planned")
+def test_a_count_above_one_is_refused_not_ignored():
+    """The prompt sets how many images meta draws; a request for n jobs at once is refused, never ignored."""
+    for n in (4, 2):
+        try:
+            planned = plan(n=n)
+        except InputError as e:
+            assert (e.code, e.param) == ("input.invalid", "n")
+        else:
+            pytest.fail("n=%d was planned: %r" % (n, planned))
+    assert plan(n=1).price_key == "meta-image"
 
 
 @mutation(SPEC_FILE, "            if C.is_blank_prompt(req.prompt):", "            if False:",
@@ -253,7 +269,7 @@ def test_an_unknown_or_extended_model_name_is_refused():
 
 
 def test_the_options_never_set_the_price():
-    assert plan(options={"price": 0}).price == 1
+    assert priced(options={"price": 0, "price_key": "meta-video"}).price == 1
 
 
 # ---- prompt frames ---------------------------------------------------------------------------------------------------

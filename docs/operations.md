@@ -614,9 +614,10 @@ Registered by `spec.py`; read and written on the admin Settings page, live.
 |---|---|---|
 | `dola.claims_enabled` | drain mode off; false = no new job is claimed (see "Drain mode") | true |
 | `dola.render_deadline_s` | seconds to wait for dola to render one submission before giving up (at least 60), then one final read, see "What an operator must know" | 9000 |
-| `dola.prices` | points charged per generation, keyed `<model>@<N>s` for video and `<model>` for image; a missing tier is charged the fallback (video 3, image 1) with a warning | table in `catalog.DEFAULT_PRICES` |
-| `dola.video_budget` | video points per account per day (dola's own reported number wins) | 4 |
-| `dola.image_budget` | image jobs per account per day (measured about 40; dola never reports it) | 40 |
+| `dola.prices` | points charged per job, keyed `<model>@<N>s` for video and `<model>` for image; an option missing here is refused (`model.unpriced`), never charged a guess | table in `catalog.DEFAULT_PRICES` |
+| `dola.costs` | what one job costs the account: video in dola credits, an image in image units (Seedream 4.5 1, 5.0 Pro 4); a missing option is refused (`model.uncosted`) | table in `catalog.DEFAULT_COSTS` |
+| `dola.video_budget` | video credits per account per day (dola's own reported number wins) | 4 |
+| `dola.image_budget` | image units per account per day (owner 24/10: 40 Seedream 4.x jobs or 10 of 5.0 Pro; dola's own "reached today's image limit" rests the account whatever this says) | 40 |
 | `dola.master_quality` | deliver the H.264 master (720p, no watermark) instead of the light HEVC rendition; falls back to the rendition when the master cannot be fetched | true |
 | `dola.alert_duration_mismatch_rate` | drift alert: share of the last 24 h jobs delivered with the wrong length (0 to 1) | 0.2 |
 | `dola.alert_watermark_only_rate` | drift alert: share of the last 24 h jobs that failed as watermark-only (0 to 1) | 0.2 |
@@ -916,8 +917,8 @@ deadline with its refund. Both pools rest after any generate.
 | `flow.account_min_gap_s` | 300 | the pool rest after a generate |
 | `flow.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
 | `flow.poll_interval_s` | 30 | between two reads of a found job |
-| `flow.prices`, `flow.image_budget` | 1 each, 1000 | points per image; images per account per day (not measured) |
-| `flow.prices` (video), `flow.video_budget` | 2, 50 | points per 8 s video; Flow credits per account per day |
+| `flow.prices`, `flow.costs`, `flow.image_budget` | 1, 1, 1000 | points per image; one job of the image budget (no Flow credit); images per account per day (not measured) |
+| `flow.prices` (video `<model>@8s`), `flow.costs`, `flow.video_budget` | 2, 10, 50 | points per 8 s video; its Flow credits; Flow credits per account per day (a cost above it is refused, `input.too_costly`) |
 | `flow.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
 ## The gemini provider (`relay worker --provider gemini`)
@@ -988,7 +989,7 @@ answer streams until the image is drawn; a video answer says in 10-33 s that the
 | `gemini.account_min_gap_s` | 30 | the pool rest after a send (gemini's own rate limit not measured) |
 | `gemini.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
 | `gemini.poll_interval_s` | 30 | between two reads of a found job |
-| `gemini.prices`, `gemini.image_budget` | 1 (image), 2 (video), 100 | points per image or video; images per account per day (not measured) |
+| `gemini.prices`, `gemini.costs`, `gemini.image_budget` | 1 (image), 2 (video); 1 use each; 100 | points per image or video; one use of the image or the video budget; images per account per day (not measured) |
 | `gemini.video_budget` | 15 | videos per account per day (AI Pro: a video uses 453 of 2400 units per 5 h, 48384 per week) |
 | `gemini.video_limit_rest_s` | 18000 | the video pool's rest after the "no more videos today" answer |
 | `gemini.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
@@ -1040,7 +1041,8 @@ the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An i
 | `qwen.image_lost_after_s` | 900 | an image chat still empty this long after the send fails, refunded |
 | `qwen.refusal_grace_s` | 300 | a lost video answer whose chat shows words and no task is refused after this |
 | `qwen.render_deadline_s` | 2700 | an unfinished job is given up then, refunded |
-| `qwen.prices` | 1 per image, 1/2/3 per 5/10/15 s video | points, keyed `model` or `model@<s>s` |
+| `qwen.prices` | 1 per image, 1/2/3 per 5/10/15 s video | points, keyed `model` or `model@<s>s`; a missing option is refused |
+| `qwen.costs` | 1 per image, the qwen price list per video (HappyHorse 1.1 30/60/90, 1.0 40/80/120) | one job of the image budget, or qwen credits |
 | `qwen.image_budget`, `qwen.video_budget` | 1000, 40 | images per account per day; video credits per account per day |
 | `qwen.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 

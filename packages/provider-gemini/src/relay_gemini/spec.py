@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from relay_core import frames
+from relay_core.pricing import table_setting
 from relay_core.providers import (
     AfterSent,
     Caps,
@@ -18,13 +19,11 @@ from relay_core.providers import (
     ParsedCredential,
     Plan,
     PoolSpec,
-    Warning,
 )
-from relay_core.settings import Rule, Spec, disabled_models
+from relay_core.settings import Spec, disabled_models
 from relay_gemini import catalog as C
 from relay_gemini import errors as codes
 from relay_gemini.constants import (
-    ACCOUNT_COST,
     CHECK_INTERVAL_S,
     LIMITS,
     MAX_ATTEMPTS,
@@ -45,19 +44,6 @@ def _refuse(code: str, detail: str = "", param: str | None = None) -> InputError
     err = InputError(code, param)
     err.detail = detail
     return err
-
-
-def _prices(v: dict) -> None:
-    for model, price in v.items():
-        if not isinstance(model, str) or not model.strip():
-            raise ValueError("a price has an empty model name")
-        if type(price) is not int:
-            raise ValueError("the price for %s is not a whole number: %r" % (model, price))
-        if price < 0:
-            raise ValueError("the price for %s is negative" % model)
-
-
-PRICES_RULE = Rule("each model: a non-empty name and a whole number of points, 0 or more", _prices)
 
 
 def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any) -> tuple[str, Spec]:
@@ -82,9 +68,14 @@ _SETTINGS = dict((
     _setting("account_min_gap_s", int, 30,
              "Minimum seconds between two sends of one gemini account: after a send the account's pool rests this "
              "long (not measured: gemini's own rate limit is unknown).", min=0, max=3600),
-    _setting("prices", dict, dict(C.DEFAULT_PRICES),
-             "Points charged per image or video, keyed by model. A model missing here is charged the fallback (1) "
-             "with a warning.", rule=PRICES_RULE, basic=True),
+    (PROVIDER + ".prices", table_setting(
+        PROVIDER + ".prices", "Points charged per job: an image by its model, a video as '<model>@10s'. An option "
+        "missing here is refused (model.unpriced), never charged a guess.", C.PRICE_KEYS, C.DEFAULT_PRICES,
+        unit="points", basic=True)),
+    (PROVIDER + ".costs", table_setting(
+        PROVIDER + ".costs", "What one job costs the gemini account: one use of its image or its video budget "
+        "(the quota is relative; no per-job figure exists). An option missing here is refused (model.uncosted).",
+        C.PRICE_KEYS, C.DEFAULT_COSTS, unit="uses")),
     _setting("image_budget", int, 100, "Images each gemini account may make per day (not measured yet).", min=1,
              basic=True),
     _setting("video_budget", int, 15,
@@ -141,10 +132,11 @@ class GeminiSpec:
         return None
 
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
-        """Validate and normalise. Price and timeout come from the settings and the constants, NEVER from
-        `req.options`. Raises `InputError`. One result per job. An image: with one input image it is edited (its shape
-        kept, so no ratio), without one it is drawn from the text (a ratio of `RATIO_IDS`, or none: gemini picks). A
-        video: 10 s, 16:9, from the text or from one input image and the text."""
+        """Validate and normalise; the plan names its price key and the core prices it (`gemini.prices`,
+        `gemini.costs`). Timeouts come from the constants, NEVER from `req.options`. Raises `InputError`. One result
+        per job. An image: with one input image it is edited (its shape kept, so no ratio), without one it is drawn
+        from the text (a ratio of `RATIO_IDS`, or none: gemini picks). A video: 10 s, 16:9, from the text or from one
+        input image and the text."""
         if req.model not in (C.IMAGE_MODEL, C.VIDEO_MODEL):
             raise _refuse("input.bad_model", "gemini's models are %s, %s" % (C.IMAGE_MODEL, C.VIDEO_MODEL), "model")
         if len(req.images) > 1:
@@ -160,12 +152,11 @@ class GeminiSpec:
         if req.ratio is not None and (req.images or req.ratio not in C.RATIO_IDS):
             raise _refuse("input.bad_ratio", "%s takes the ratios %s from text alone (or none); an edited image keeps "
                           "its shape" % (req.model, ", ".join(C.RATIO_IDS)), "ratio")
-        price, warnings = self._price(settings, req.model)
         return Plan(
             operation="image_to_image" if req.images else "text_to_image", media_type="image", model=req.model,
             params={"ratio": req.ratio} if req.ratio else {}, completion=Completion.HOLD,
-            after_sent=AfterSent.RECONCILE, wallet_kind="image", price=price, pool="image",
-            account_cost=ACCOUNT_COST, submit_timeout_s=SUBMIT_TIMEOUT_S, warnings=tuple(warnings))
+            after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model), pool="image",
+            submit_timeout_s=SUBMIT_TIMEOUT_S)
 
     def _video(self, req: CreateRequest, settings: Any) -> Plan:
         if req.duration not in (None, C.VIDEO_DURATION):
@@ -174,22 +165,11 @@ class GeminiSpec:
         if ratio not in C.VIDEO_RATIO_IDS:
             raise _refuse("input.bad_ratio", "%s takes the ratio %s (or none)"
                           % (req.model, ", ".join(C.VIDEO_RATIO_IDS)), "ratio")
-        price, warnings = self._price(settings, req.model)
         return Plan(
             operation="image_to_video" if req.images else "text_to_video", media_type="video", model=req.model,
             params={"ratio": ratio, "duration": C.VIDEO_DURATION}, completion=Completion.DETACH,
-            after_sent=AfterSent.RECONCILE, wallet_kind="video", price=price, pool="video", account_cost=ACCOUNT_COST,
-            submit_timeout_s=SUBMIT_TIMEOUT_S, warnings=tuple(warnings))
-
-    @staticmethod
-    def _price(settings: Any, model: str) -> tuple[int, list[Warning]]:
-        price, missing = C.lookup_price(settings.get("gemini.prices"), model)
-        if missing is None:
-            return price, []
-        log.warning("gemini price: no entry for %r in gemini.prices, charging the fallback of %d point(s)", missing,
-                    price)
-        return price, [Warning(codes.WARN_PRICE_FALLBACK,
-                               "no price is set for %s: charged the fallback of %d point(s)" % (missing, price))]
+            after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model), pool="video",
+            submit_timeout_s=SUBMIT_TIMEOUT_S)
 
 
 SPEC = GeminiSpec()

@@ -18,7 +18,6 @@ NO_IMAGE = "meta.no_image"                     # meta finished its answer with n
 NO_VIDEO = "meta.no_video"                     # meta finished its answer with no video in it
 
 # Warnings (not rules).
-WARN_PRICE_FALLBACK = "meta.price_fallback"
 
 _HIDDEN = "the request could not be submitted to meta"
 

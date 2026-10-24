@@ -603,6 +603,51 @@ def test_a_title_is_one_line_up_to_200_characters_and_comes_back_in_status(db):
     run_app(db, scenario)
 
 
+# ---- the core's price (relay_core.pricing) ------------------------------------------------------------------------
+PRICE_STEP = "        return spec, pricing.price_plan(spec, plan, gate.settings)"
+
+
+@mutation(DOORS, PRICE_STEP, "        return spec, plan", expect="unpriced:")
+def test_an_option_with_no_price_or_no_cost_is_refused_and_a_queued_job_keeps_its_price(db):
+    """No fallback price and no guessed cost: the door refuses, nothing is charged; a job already made keeps the
+    price it was charged when the owner later changes or removes it."""
+    async def scenario(env):
+        key = await env.new_key()
+        made = (await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)).json()["id"]
+        await env.settings.set("fake.prices", {"fake-image": 1})
+        unpriced = await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)
+        await env.settings.set("fake.prices", {"fake-video": 25, "fake-image": 1})
+        await env.settings.set("fake.costs", {"fake-image": 1})
+        uncosted = await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)
+        await env.settings.set("fake.costs", {"fake-video": 9, "fake-image": 1})
+        too_costly = await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)   # fake.video_budget is 4
+        status = (await env.client.get("%s/%s" % (VIDEO_PATH, made), headers=key.headers)).json()
+        return key, unpriced, uncosted, too_costly, status
+
+    key, unpriced, uncosted, too_costly, status = run_app(db, scenario)
+    assert error_of(unpriced) == (403, "model.unpriced", "model"), "unpriced: %s" % unpriced.text
+    assert error_of(uncosted) == (403, "model.uncosted", "model"), "uncosted: %s" % uncosted.text
+    assert error_of(too_costly) == (400, "input.too_costly", "model"), "too costly: %s" % too_costly.text
+    assert len(jobs(db, key.id)) == 1 and charges(db, key_id=key.id) == 1, nothing_made(db, key)
+    assert status["points"] == 10, "a job already made keeps the price it was charged"
+
+
+@mutation(DOORS, PRICE_STEP, "        return spec, plan", expect="the settings price it")
+def test_the_door_charges_the_settings_price_and_records_the_settings_cost_never_the_options(db):
+    async def scenario(env):
+        key = await env.new_key()
+        await env.settings.set("fake.prices", {"fake-video": 7, "fake-image": 1})
+        await env.settings.set("fake.costs", {"fake-video": 3, "fake-image": 1})
+        r = await env.client.post(VIDEO_PATH, json=video(options={"price": 999, "account_cost": 50}),
+                                  headers=key.headers)
+        return r
+
+    r = run_app(db, scenario)
+    assert r.status_code == 200, "the settings price it: %s" % r.text
+    assert db.one("SELECT price, account_cost FROM jobs WHERE id = %s", r.json()["id"]) == (7, 3), (
+        "the settings price it, the options never do")
+
+
 # ---- status --------------------------------------------------------------------------------------------------------
 @mutation(DOORS, '"error": message, "error_code": shown_code,', '"error": message, "result_url": None, '
           '"error_code": shown_code,', expect="result_url")
@@ -651,7 +696,9 @@ def test_status_shows_the_points_the_job_charged_the_key(db):
 
         queued, done, failed, again, refused = [await make() for _ in range(5)]
         image = await make(IMAGE_PATH, model=IMAGE, prompt="a", n=1)
-        free = await make(**video(options={"price": 0}))
+        await env.settings.set("fake.prices", {"fake-video": 0, "fake-image": 1})      # the owner sells it free
+        free = await make()
+        await env.settings.delete("fake.prices")
         assert await seen(queued) == ("queued", 10, False), "charged when it was made"
         assert await seen(image, IMAGE_PATH) == ("queued", 1, False), "charged when it was made"
         finish_done(db, done)

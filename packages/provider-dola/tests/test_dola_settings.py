@@ -17,7 +17,7 @@ SPEC_FILE = "packages/provider-dola/src/relay_dola/spec.py"
 CORE_SETTINGS = "packages/relay-core/src/relay_core/settings.py"
 
 LIVE_KEYS = {
-    "dola.claims_enabled", "dola.render_deadline_s", "dola.prices",
+    "dola.claims_enabled", "dola.render_deadline_s", "dola.prices", "dola.costs",
     "dola.video_budget",
     "dola.image_budget", "dola.master_quality", "dola.alert_duration_mismatch_rate", "dola.alert_watermark_only_rate",
     "dola.alert_content_refused_rate", "dola.browser_slots", "dola.send_path", "dola.signer_alarm_accounts",
@@ -69,32 +69,22 @@ def test_the_old_estimate_table_cannot_come_back_as_a_setting():
         Registry().spec("dola.credit_estimate")
 
 
-@mutation(SPEC_FILE, "if type(price) is not int:", "if False:", expect="TypeError")
-def test_a_wrong_typed_price_table_is_refused_naming_the_fault():
-    s = spec_of("dola.prices")
-    tier = "seedance_v2.5@30s"
-    for bad, why in (({tier: "two"}, "is not a whole number"), ({tier: 2.5}, "whole number"),
-                     ({tier: True}, "whole number"), ({tier: None}, "whole number"),
-                     ({"": 1}, "empty name"), ({"  ": 1}, "empty name")):
-        with pytest.raises(SettingsError, match=why):
-            s.validate(bad)
-    for bad in ([1, 2], "x", 5, None):
-        with pytest.raises(SettingsError, match="must be dict"):
-            s.validate(bad)
-    assert s.validate({}) == {}, "an empty table is allowed: every tier then takes the fallback with a warning"
-
-
-@mutation(SPEC_FILE, "        if price < 0:", "        if False:", expect="DID NOT RAISE")
-def test_a_negative_price_is_refused():
-    with pytest.raises(SettingsError, match="negative"):
-        spec_of("dola.prices").validate({"seedance_v2.5@30s": -1})
-    assert spec_of("dola.prices").validate({"seedance_v2.5@30s": 0}) == {"seedance_v2.5@30s": 0}
+def test_both_tables_take_only_dolas_options_and_whole_numbers():
+    """The core's table rule (relay_core.pricing, tested there) holds for dola's two tables."""
+    for key in ("dola.prices", "dola.costs"):
+        s = spec_of(key)
+        assert s.validate({"seedance_v2.5@30s": 0}) == {"seedance_v2.5@30s": 0}
+        for bad, why in (({"seedance_v2.5@15s": 3}, "not an option"), ({"seedance_v2.5@30s": -1}, "negative"),
+                         ({"seedream-4.5": 1.5}, "whole number")):
+            with pytest.raises(SettingsError, match=why):
+                s.validate(bad)
+    assert spec_of("dola.prices").validate({}) == {}, "an empty table is allowed: every option is then refused"
 
 
 @mutation(CORE_SETTINGS, "self.rule.check(value)", "None", expect="DID NOT RAISE")
 def test_the_price_rule_is_what_refuses_a_bad_table_and_its_text_says_so():
     s = spec_of("dola.prices")
-    assert s.allowed == "each tier: a non-empty name and a whole number of points, 0 or more"
+    assert s.allowed == "each entry: an option key of this provider and a whole number of points, 0 or more"
     assert s.validate({"seedance_v2.5@30s": 3}) == {"seedance_v2.5@30s": 3}
     with pytest.raises(SettingsError, match="negative"):
         s.validate({"seedance_v2.5@30s": -3})
@@ -170,7 +160,9 @@ def test_every_dola_setting_states_what_it_allows():
     assert {k: s.allowed for k, s in SPEC.settings().items()} == {
         "dola.claims_enabled": "true or false", "dola.master_quality": "true or false",
         "dola.render_deadline_s": "at least 60", "dola.video_budget": "at least 1", "dola.image_budget": "at least 1",
-        "dola.prices": "each tier: a non-empty name and a whole number of points, 0 or more",
+        "dola.prices": "each entry: an option key of this provider and a whole number of points, 0 or more",
+        "dola.costs": "each entry: an option key of this provider and a whole number of credits or image units, 0 or "
+                      "more",
         "dola.alert_duration_mismatch_rate": "0\u20131", "dola.alert_watermark_only_rate": "0\u20131",
         "dola.alert_content_refused_rate": "0\u20131", "dola.browser_slots": "1\u201312",
         "dola.send_path": "browser or http", "dola.signer_alarm_accounts": "at least 2",

@@ -1,10 +1,9 @@
 """`plan()` of the dola spec (coverage MODELS01-09, GEN02-05, WORKER16, PRICE00)."""
 
-import logging
-
 import pytest
-from kit_a import IMG, TEMPLATES, plan, refused, request, settings
+from kit_a import IMG, TEMPLATES, plan, priced, refused, request, settings
 
+from relay_core import pricing
 from relay_core.providers import AfterSent, Completion, CreateRequest, InputError, MediaIn
 from relay_core.testing.mutation import mutation
 from relay_dola import catalog as C
@@ -41,7 +40,7 @@ def test_twenty_and_twenty_five_seconds_are_real_levels_priced_like_thirty():
     # ffprobe 20/09: 20 s came out 20.06 s and 25 s 25.06 s, 2 credits each. Red if someone drops them as labels.
     for real in (20, 25):
         assert real in C.DURATIONS_BY_MODEL["seedance_v2.5"], "%ds is proven delivered, yet blocked" % real
-        assert plan(duration=real).price == 2
+        assert priced(duration=real).price == 2
 
 
 @mutation(SPEC_FILE, "        if duration not in C.DURATIONS_BY_MODEL[gen.model]:", "        if False:",
@@ -129,75 +128,69 @@ def test_two_oh_at_fifteen_seconds_carries_a_warning_without_blocking():
     assert not plan("seedance-1.0").warnings
 
 
-# ---- prices (GEN02-05, PRICE00) --------------------------------------------------------------------------------------
-def test_prices_come_from_the_price_setting():
+# ---- price keys, prices and costs (GEN02-05, PRICE00) ---------------------------------------------------------------
+PRICE_KEY_VIDEO = 'price_key=C.price_key(gen.model, "video", duration)'
+
+
+@mutation(SPEC_FILE, PRICE_KEY_VIDEO, 'price_key=C.price_key(gen.model, "video", 30)', expect="price key of")
+def test_a_video_names_its_model_and_length_and_the_core_prices_it_from_both_tables():
     for model, secs, price in (("seedance-2.5", 30, 2), ("seedance-2.5", 5, 2), ("seedance-2.5", 10, 4),
                                ("seedance-2.5", 20, 2), ("seedance-2.5", 25, 2), ("seedance-2.0", 5, 1),
                                ("seedance-2.0", 10, 2), ("seedance-2.0", 15, 3), ("seedance-1.0", 5, 1),
                                ("seedance-1.0", 10, 2)):
-        p = plan(model, duration=secs)
+        p = priced(model, duration=secs)
+        assert p.price_key == C.price_key(C.resolve(model).model, "video", secs), "price key of %s %ds" % (model, secs)
         assert p.price == price and p.account_cost == price and p.wallet_kind == "video" and p.pool == "video", (
             model, secs)
     # 10 s costs twice 30 s: measured, not a typo
-    assert plan(duration=10).price == 2 * plan(duration=30).price
+    assert priced(duration=10).price == 2 * priced(duration=30).price
 
 
-def test_images_are_priced_per_job_from_the_same_table_by_a_key_without_a_length():
-    assert plan("seedream-4.5").price == 1 and plan("seedream-5.0-pro").price == 4
-    cfg = settings(dola__prices={"seedream-4.5": 1, "seedream-4.5@30s": 99})
-    assert plan("seedream-4.5", cfg=cfg).price == 1, "an image looked up a key with a length"
+def test_images_are_priced_per_job_by_a_key_without_a_length():
+    assert priced("seedream-4.5").price == 1 and priced("seedream-5.0-pro").price == 4
+    assert plan("seedream-4.5").price_key == "seedream-4.5" and plan("seedream-4.5").price is None
     assert C.price_key("seedream-4.5", "image", 30) == "seedream-4.5"
     assert C.price_key("seedance_v2.5", "video", 30) == "seedance_v2.5@30s"
 
 
-@mutation(CONSTANTS_FILE, "FALLBACK_VIDEO_PRICE = 3", "FALLBACK_VIDEO_PRICE = 1", expect="== 3")
-def test_a_tier_missing_from_the_table_uses_the_fallback_logs_it_and_warns(caplog):
-    cfg = settings(dola__prices={})
-    with caplog.at_level(logging.WARNING):
-        p = plan("seedance-2.5", duration=5, cfg=cfg)
-    assert p.price == 3 and p.account_cost == 3, "the video fallback is 3 points"
-    assert [w.code for w in p.warnings] == ["dola.price_fallback"] and "seedance_v2.5@5s" in p.warnings[0].text
-    assert any("seedance_v2.5@5s" in r.getMessage() for r in caplog.records), "a fallback must be logged"
-    caplog.clear()
-    with caplog.at_level(logging.WARNING):
-        img = plan("seedream-4.5", cfg=cfg)
-    assert img.price == 1 and [w.code for w in img.warnings] == ["dola.price_fallback"]
-    assert caplog.records, "an image fallback is logged too"
-    # a table that has the tier: no fallback, no warning
-    assert not plan("seedance-2.5", duration=5).warnings
+def test_an_option_missing_from_either_table_is_refused_never_charged_a_guess():
+    with pytest.raises(pricing.Unpriced):
+        priced("seedance-2.5", duration=5, cfg=settings(dola__prices={}))
+    with pytest.raises(pricing.Uncosted):
+        priced("seedream-4.5", cfg=settings(dola__costs={}))
 
 
 def test_a_price_change_in_settings_applies_to_the_next_plan_only():
-    before = plan(duration=30)
+    before = priced(duration=30)
     cfg = settings(dola__prices={**C.DEFAULT_PRICES, "seedance_v2.5@30s": 9})
-    after = plan(duration=30, cfg=cfg)
-    assert after.price == 9 and after.account_cost == 9
+    after = priced(duration=30, cfg=cfg)
+    assert after.price == 9 and after.account_cost == 2, "the sale price moved, the upstream cost did not"
     assert before.price == 2, "a plan already made keeps its price (an old invoice never changes)"
     assert C.DEFAULT_PRICES["seedance_v2.5@30s"] == 2, "the default table was mutated"
 
 
-def test_the_default_price_table_is_the_measured_one():
-    t = C.DEFAULT_PRICES
+def test_the_default_tables_are_the_measured_and_the_owners():
+    t, c = C.DEFAULT_PRICES, C.DEFAULT_COSTS
     assert t["seedance_v2.5@30s"] == 2 and t["seedance_v2.5@10s"] == 4, "10 s is dearer than 30 s: measured"
     assert t["seedream-4.5"] == 1 and t["seedream-5.0-pro"] == 4
     assert "seedance_v1.0@15s" not in t and "seedance_v2.5@60s" not in t, "tiers dola caps are not sold"
-    assert settings().get("dola.prices") == t
+    assert settings().get("dola.prices") == t and settings().get("dola.costs") == c
+    assert set(t) == set(c) == set(C.PRICE_KEYS), "every option dola sells has a default price and a default cost"
 
 
 # ---- account cost, completion, timeouts ------------------------------------------------------------------------------
-@mutation(SPEC_FILE, 'pool="video", account_cost=price,', 'pool="video", account_cost=1,', expect="account_cost")
-def test_a_video_costs_the_account_its_price_and_an_image_costs_one():
-    v = plan(duration=10)
-    assert (v.price, v.account_cost) == (4, 4), "account_cost of a video is its price"
-    for model in ("seedream-4.5", "seedream-5.0-pro"):
-        i = plan(model)
-        assert i.account_cost == 1, "dola counts the image ceiling per JOB, whatever the model (R20)"
-    assert plan("seedream-5.0-pro").price == 4
+def test_a_video_costs_the_account_its_credits():
+    v = priced(duration=10)
+    assert (v.price, v.account_cost) == (4, 4), "a 2.5 10 s video takes 4 credits"
 
 
-@mutation(CONSTANTS_FILE, "IMAGE_ACCOUNT_COST = 1", "IMAGE_ACCOUNT_COST = 4", expect="account_cost == 1")
-def test_an_image_with_a_dear_model_still_costs_the_account_one_job():
-    assert plan("seedream-5.0-pro").account_cost == 1
+@mutation(CATALOG_FILE, '"seedream-4.5": 1, "seedream-5.0-pro": 4,\n}\n# The sale price',
+          '"seedream-4.5": 1, "seedream-5.0-pro": 1,\n}\n# The sale price', expect="5.0 Pro costs 4")
+def test_an_image_costs_units_of_the_image_budget_and_5_0_pro_four_of_them():
+    """Owner 24/10: 40 units a day; Seedream 4.x 40 jobs (1 unit each), 5.0 Pro 10 jobs (4 each)."""
+    assert priced("seedream-4.5").account_cost == 1
+    assert priced("seedream-5.0-pro").account_cost == 4, "5.0 Pro costs 4 image units"
+    assert settings().get("dola.image_budget") == 40
 
 
 @mutation(SPEC_FILE, "completion=Completion.HOLD", "completion=Completion.DETACH", expect="Completion.HOLD")
@@ -256,17 +249,31 @@ def test_the_conflict_is_judged_on_the_ratio_and_length_that_will_run():
 
 
 # ---- options never steer money or time --------------------------------------------------------
-@mutation(SPEC_FILE, 'price, warnings = self._price(settings, gen.model, "video", duration)',
-          'price, warnings = req.options.get("price", 2), []', expect="999")
 def test_plan_ignores_price_account_cost_and_timeout_in_options():
     # FakeSpec takes these from options; the native door passes options as the client sent them.
     steer = {"price": 999, "account_cost": 50, "submit_timeout_s": 1, "completion": "hold", "pool": "image",
-             "wallet_kind": "image", "after_sent": "fail_refund", "marker": "0001"}
+             "wallet_kind": "image", "after_sent": "fail_refund", "marker": "0001", "price_key": "seedream-4.5"}
     for model in ("seedance-2.5", "seedream-4.5"):
         plain, steered = plan(model), plan(model, options=steer)
         assert steered == plain, "%s: options changed the plan: %s" % (model, steered)
-    assert plan(options=steer).price == 2 and plan(options=steer).submit_timeout_s == 720
-    assert plan("seedream-4.5", options=steer).account_cost == 1
+    assert priced(options=steer).price == 2 and plan(options=steer).submit_timeout_s == 720
+    assert priced("seedream-4.5", options=steer).account_cost == 1
+
+
+N_REFUSAL = "        if req.n not in (None, 1):"
+
+
+@mutation(SPEC_FILE, N_REFUSAL, "        if False:", expect="n=4 was planned")
+def test_a_count_above_one_is_refused_not_ignored():
+    """An image job draws up to 4 pictures and is charged as one; a request for n jobs at once is refused."""
+    for n in (4, 2):
+        try:
+            planned = plan("seedream-4.5", n=n)
+        except InputError as e:
+            assert (e.code, e.param) == ("input.invalid", "n")
+        else:
+            pytest.fail("n=%d was planned: %r" % (n, planned))
+    assert plan("seedream-4.5", n=1).price_key == "seedream-4.5"
 
 
 def test_options_that_are_not_style_are_ignored_on_video():

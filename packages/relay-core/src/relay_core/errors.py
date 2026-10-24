@@ -116,6 +116,7 @@ RULES: dict[str, Rule] = {r.code: r for r in (
     _r("input.too_many_images", 400, _BAD, message="too many input images", **_pre),
     _r("input.unsupported", 400, _BAD, message="this model does not take this kind of input yet", **_pre),
     _r("input.prompt_too_long", 400, _BAD, message="the prompt is too long", **_pre),
+    _r("input.too_costly", 400, _BAD, message="no account can ever afford this job", **_pre),
     _r("input.frame_placeholder", 400, _BAD,
        message="a prompt frame has a missing, repeated or unknown placeholder", **_pre),
 
@@ -124,6 +125,10 @@ RULES: dict[str, Rule] = {r.code: r for r in (
     _r("auth.model_forbidden", 403, "permission_error", message="the API key may not use this model", **_pre),
     # The admin paused the model for every key (`<p>.disabled_models`): refused at the door, nothing charged.
     _r("model.disabled", 403, "permission_error", message="this model is paused", **_pre),
+    # The core prices a job from `<p>.prices` and `<p>.costs`: an option with no sale price or no known upstream cost is
+    # refused at the door, nothing charged (no fallback price, no guessed cost).
+    _r("model.unpriced", 403, "permission_error", message="this model option has no price yet", **_pre),
+    _r("model.uncosted", 403, "permission_error", message="this model option's upstream cost is not known yet", **_pre),
     _r("auth.forbidden", 403, "permission_error", message="the request is not allowed", **_pre),
     # The admin door: a wrong login, and a request without a live admin session.
     _r("auth.invalid_login", 401, "authentication_error", message="the username or password is wrong", **_pre),

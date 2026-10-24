@@ -373,7 +373,9 @@ class ModelSpec:
     operations: tuple[str, ...]
     aliases: tuple[str, ...] = ()
     limits: Mapping[str, Any] = field(default_factory=dict)
-    prices: Mapping[str, int] = field(default_factory=dict)
+    # option label ("10s", "default", "720p") -> the price key the provider's plan() names for that option; the price
+    # and the upstream cost of a key live in the `<p>.prices` and `<p>.costs` settings (`relay_core.pricing`)
+    price_keys: Mapping[str, str] = field(default_factory=dict)
     display_name: str = ""             # the product name shown to people; empty: the catalog shows the id
 
     def names(self) -> tuple[str, ...]:
@@ -434,23 +436,33 @@ class FrameRules:
 
 @dataclass(frozen=True)
 class Plan:
+    """What a provider makes of a request. `price_key` names the option the job is; the core prices it
+    (`relay_core.pricing.price_plan` sets `price` and `account_cost` from the settings, replacing any value here)."""
     operation: str
     media_type: str
     model: str
     params: Mapping[str, Any]
     completion: Completion
     after_sent: AfterSent
-    wallet_kind: str
-    price: int
+    price_key: str
     pool: str | None
-    account_cost: int
     submit_timeout_s: int
     warnings: tuple[Warning, ...] = ()
     frame: FrameUse | None = None     # set by the core in the plan step (api.doors); a provider's value is replaced
+    price: int | None = None          # points: set by the core in the plan step
+    account_cost: int | None = None   # upstream units of the pool: set by the core in the plan step
 
     def __post_init__(self):
-        if self.price < 0 or self.account_cost < 0 or self.submit_timeout_s < 1:
+        if not self.price_key:
+            raise ValueError("a plan names its price key")
+        if (self.price is not None and self.price < 0) or (self.account_cost is not None and self.account_cost < 0) \
+                or self.submit_timeout_s < 1:
             raise ValueError("price and account_cost must be >= 0 and submit_timeout_s >= 1")
+
+    @property
+    def wallet_kind(self) -> str:
+        """The key wallet a job is charged to: its media type, the kind every provider's wallets are keyed by."""
+        return self.media_type
 
 
 # ---- what the engine sees -------------------------------------------------------------------------------------
@@ -635,10 +647,10 @@ def _problems(spec: ProviderSpec) -> list[str]:
     stray = sorted(k for k in keys if not k.startswith(spec.name + "."))
     if stray:
         bad.append("%s: settings outside its namespace: %s" % (spec.name, ", ".join(stray)))
-    needed = ["claims_enabled", "render_deadline_s", "disabled_models"] + (
+    needed = ["claims_enabled", "render_deadline_s", "disabled_models", "prices", "costs"] + (
         ["browser_slots"] if spec.caps.execution == "browser" else [])
     missing = [spec.name + "." + n for n in needed if spec.name + "." + n not in keys]
-    if missing:                      # the core reads these (the door reads disabled_models); a missing one breaks it
+    if missing:                      # the core reads these (the door reads disabled_models, prices, costs)
         bad.append("%s: settings the core reads are not declared: %s" % (spec.name, ", ".join(missing)))
     if spec.caps.execution == "browser" and spec.name + ".browser_slots" in keys:
         slots = spec.settings()[spec.name + ".browser_slots"]     # its bound is what keeps a browser worker in memory

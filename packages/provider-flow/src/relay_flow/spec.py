@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from relay_core import frames
+from relay_core.pricing import table_setting
 from relay_core.providers import (
     AfterSent,
     Caps,
@@ -18,13 +19,11 @@ from relay_core.providers import (
     ParsedCredential,
     Plan,
     PoolSpec,
-    Warning,
 )
 from relay_core.settings import Rule, Spec, disabled_models
 from relay_flow import catalog as C
 from relay_flow import errors as codes
 from relay_flow.constants import (
-    ACCOUNT_COST,
     CAPTCHA_PROVIDERS,
     CHECK_INTERVAL_S,
     LIMITS,
@@ -48,22 +47,11 @@ def _refuse(code: str, detail: str = "", param: str | None = None) -> InputError
     return err
 
 
-def _prices(v: dict) -> None:
-    for model, price in v.items():
-        if not isinstance(model, str) or not model.strip():
-            raise ValueError("a price has an empty model name")
-        if type(price) is not int:
-            raise ValueError("the price for %s is not a whole number: %r" % (model, price))
-        if price < 0:
-            raise ValueError("the price for %s is negative" % model)
-
-
 def _captcha_provider(v: str) -> None:
     if v not in CAPTCHA_PROVIDERS:
         raise ValueError("the token source is one of %s" % ", ".join(CAPTCHA_PROVIDERS))
 
 
-PRICES_RULE = Rule("each model: a non-empty name and a whole number of points, 0 or more", _prices)
 CAPTCHA_RULE = Rule("one of: %s" % ", ".join(CAPTCHA_PROVIDERS), _captcha_provider)
 
 
@@ -98,9 +86,14 @@ _SETTINGS = dict((
     _setting("account_min_gap_s", int, 300,
              "Minimum seconds between two jobs of one flow account: after a generate the account's pools rest this "
              "long (a 12-min pause was accepted on the first try, rapid tries were refused).", min=0, max=3600),
-    _setting("prices", dict, dict(C.DEFAULT_PRICES),
-             "Points charged per job (an image, or one 8 s video), keyed by model. A model missing here is charged "
-             "the fallback (1) with a warning.", rule=PRICES_RULE, basic=True),
+    (PROVIDER + ".prices", table_setting(
+        PROVIDER + ".prices", "Points charged per job: an image by its model, a video as '<model>@8s'. An option "
+        "missing here is refused (model.unpriced), never charged a guess.", C.PRICE_KEYS, C.DEFAULT_PRICES,
+        unit="points", basic=True)),
+    (PROVIDER + ".costs", table_setting(
+        PROVIDER + ".costs", "What one job costs the flow account: an image counts one job of the image budget, a "
+        "video its Flow credits. An option missing here is refused (model.uncosted).", C.PRICE_KEYS, C.DEFAULT_COSTS,
+        unit="jobs or Flow credits")),
     _setting("image_budget", int, 1000, "Images each flow account may make per day (not measured yet).", min=1,
              basic=True),
     _setting("video_budget", int, 50,
@@ -156,8 +149,9 @@ class FlowSpec:
         return None
 
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
-        """Validate and normalise. Price and timeout come from the settings and the constants, NEVER from
-        `req.options`. Raises `InputError`. One result per job. An input image (image to image, image to video) is
+        """Validate and normalise; the plan names its price key and the core prices it (`flow.prices`,
+        `flow.costs`). Timeouts come from the constants, NEVER from `req.options`. Raises `InputError`. One result per
+        job. An input image (image to image, image to video) is
         refused with `input.unsupported`: flow's upload was never captured, so it is not guessed."""
         image, video = C.MODELS.get(req.model), C.VIDEO_MODELS.get(req.model)
         if image is None and video is None:
@@ -175,38 +169,25 @@ class FlowSpec:
                           "ratio")
         if C.is_blank_prompt(req.prompt):
             raise _refuse("input.empty_prompt", "the prompt shows no visible characters", "prompt")
-        price, warnings = self._price(settings, req.model)
         if video is None:
             if req.duration is not None:
                 raise _refuse("input.bad_duration", "an image has no duration", "duration")
             return Plan(
                 operation="text_to_image", media_type="image", model=req.model,
                 params={"model": image[0], "aspect": C.ASPECTS[ratio], "ratio": ratio},
-                completion=Completion.HOLD, after_sent=AfterSent.RECONCILE, wallet_kind="image", price=price,
-                pool="image", account_cost=ACCOUNT_COST, submit_timeout_s=SUBMIT_TIMEOUT_S,
-                warnings=tuple(warnings))
+                completion=Completion.HOLD, after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model),
+                pool="image", submit_timeout_s=SUBMIT_TIMEOUT_S)
         if req.duration not in (None, C.VIDEO_DURATION):
             raise _refuse("input.bad_duration", "%s makes %d s clips" % (req.model, C.VIDEO_DURATION), "duration")
-        credits = C.VIDEO_CREDITS[req.model]
-        budget = int(settings.get("flow.video_budget"))
-        if credits > budget:
-            raise _refuse("input.bad_duration", "a %s video takes %d Flow credits; an account has %d a day"
-                          % (req.model, credits, budget), "duration")
+        # the credits the submit checks the account's balance against: the option's cost (`flow.costs`); a missing
+        # one is refused by the core's pricing, so this job never reaches a submit without it
+        credits = settings.get("flow.costs").get(C.price_key(req.model))
         return Plan(
             operation="text_to_video", media_type="video", model=req.model,
             params={"model": video[0], "aspect": C.VIDEO_ASPECTS[ratio], "ratio": ratio,
                     "duration": C.VIDEO_DURATION, "credits": credits},
-            completion=Completion.DETACH, after_sent=AfterSent.RECONCILE, wallet_kind="video", price=price,
-            pool="video", account_cost=credits, submit_timeout_s=SUBMIT_TIMEOUT_S, warnings=tuple(warnings))
-
-    @staticmethod
-    def _price(settings: Any, model: str) -> tuple[int, list[Warning]]:
-        price, missing = C.lookup_price(settings.get("flow.prices"), model)
-        if missing is None:
-            return price, []
-        log.warning("flow price: no entry for %r in flow.prices, charging the fallback of %d point(s)", missing, price)
-        return price, [Warning(codes.WARN_PRICE_FALLBACK,
-                               "no price is set for %s: charged the fallback of %d point(s)" % (missing, price))]
+            completion=Completion.DETACH, after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model),
+            pool="video", submit_timeout_s=SUBMIT_TIMEOUT_S)
 
 
 SPEC = FlowSpec()

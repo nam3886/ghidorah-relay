@@ -26,7 +26,7 @@ class AliasSpec(FakeSpec):
 
     def catalog(self) -> list[ModelSpec]:
         return [ModelSpec(self.name + "-video", "video", ("generate",), aliases=(self.name + "-fast",),
-                          limits={"durations": [5, 10]}, prices={"default": 7})]
+                          limits={"durations": [5, 10]}, price_keys={"default": "other-video"})]
 
     def extras(self, snapshots):
         return {"snapshots": {name: dict(data) for name, data in snapshots.items()}}
@@ -70,7 +70,7 @@ def test_models_list_the_catalog_with_prices_and_limits(db):
     assert by_id["other-video"] == {"id": "other-video", "name": "other-video", "object": "model", "owned_by": "other",
                                     "kind": "video", "operations": ["generate"], "aliases": ["other-fast"],
                                     "limits": {"durations": [5, 10], "max_prompt_chars": FAKE_MAX_PROMPT_CHARS},
-                                    "prices": {"default": 7}, "is_alias": False}, "limits.max_prompt_chars"
+                                    "prices": {"default": 10}, "is_alias": False}, "limits.max_prompt_chars"
     assert by_id["fake-image"]["prices"] == {"default": 1} and by_id["fake-image"]["kind"] == "image"
 
 
@@ -259,3 +259,24 @@ def test_points_count_unfinished_jobs_and_show_the_cap_and_the_allow_list(db):
     assert (own["max_unfinished_jobs"], own["models"]) == (3, ["fake-video", "fake-image"])
     assert default["max_unfinished_jobs"] == 20 and default["models"] == ["*"]        # the setting's default
     assert unlimited["max_unfinished_jobs"] is None, "zero means no cap and is shown as null"
+
+
+LIVE_PRICES = '"prices": pricing.option_prices(spec, m, settings), "is_alias": False}'
+
+
+@mutation(CATALOG, LIVE_PRICES, '"prices": {"default": 10}, "is_alias": False}', expect="the live price")
+def test_models_show_the_live_sale_price_and_null_when_unset(db):
+    """The catalog shows `<p>.prices` as it is now (the owner edits it), and null for an option that has no price: a
+    request for it is refused (model.unpriced)."""
+    async def scenario(env):
+        key = await make_key(env)
+        await env.settings.set("fake.prices", {"fake-video": 3})
+        listed = (await env.client.get("/v1/models", headers=key.headers)).json()
+        admin = (await env.client.get("/admin/models", headers=await env.admin_headers())).json()
+        return listed, admin
+
+    listed, admin = run_app(db, scenario)
+    for body in (listed, admin):
+        prices = {m["id"]: m["prices"] for m in body["data"]}
+        assert prices["fake-video"] == {"default": 3}, "the live price: %s" % prices
+        assert prices["fake-image"] == {"default": None}, "an option with no price shows null: %s" % prices

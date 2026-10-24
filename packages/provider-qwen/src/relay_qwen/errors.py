@@ -40,4 +40,3 @@ CODES: dict[str, Rule] = {r.code: r for r in (
 
 core_errors.register(*(r for code, r in CODES.items() if code not in core_errors.RULES))
 
-WARN_PRICE_FALLBACK = "qwen.price_fallback"

@@ -88,6 +88,7 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `input.prompt_duration_conflict` | 400 | invalid_request_error | yes | no | no | 0 | no | the prompt asks for a different duration than the request |
 | `input.prompt_ratio_conflict` | 400 | invalid_request_error | yes | no | no | 0 | no | the prompt asks for a different aspect ratio than the request |
 | `input.prompt_too_long` | 400 | invalid_request_error | yes | no | no | 0 | no | the prompt is too long |
+| `input.too_costly` | 400 | invalid_request_error | yes | no | no | 0 | no | no account can ever afford this job |
 | `input.too_many_images` | 400 | invalid_request_error | yes | no | no | 0 | no | too many input images |
 | `input.unsupported` | 400 | invalid_request_error | yes | no | no | 0 | no | this model does not take this kind of input yet |
 
@@ -121,6 +122,8 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
 |---|---|---|---|---|---|---|---|---|
 | `model.disabled` | 403 | permission_error | yes | no | no | 0 | no | this model is paused |
+| `model.uncosted` | 403 | permission_error | yes | no | no | 0 | no | this model option's upstream cost is not known yet |
+| `model.unpriced` | 403 | permission_error | yes | no | no | 0 | no | this model option has no price yet |
 
 ## `pool.*`
 

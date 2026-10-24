@@ -77,6 +77,8 @@ class NewJob:
     def __post_init__(self):
         if (self.idem_key is None) != (self.idem_body_hash is None):
             raise ValueError("an idempotency key and its body hash go together")
+        if self.plan.price is None or self.plan.account_cost is None:
+            raise ValueError("a job's plan is priced by the core first (relay_core.pricing.price_plan)")
 
 
 @dataclass(frozen=True)
@@ -199,6 +201,7 @@ async def _create(pool: AsyncConnectionPool, new: NewJob, settings: Settings) ->
         if hit is not None:
             return hit
         await _check_cap(conn, new, limit)
+        assert new.plan.price is not None          # NewJob refuses an unpriced plan
         await billing.charge(conn, new.key_id, new.provider, new.plan.wallet_kind, new.plan.price, new.job_id)
         await failpoints.hit("job.create.charged")
         await _insert(conn, new)

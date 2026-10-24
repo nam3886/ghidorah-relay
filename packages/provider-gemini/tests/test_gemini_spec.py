@@ -1,12 +1,11 @@
 """The gemini spec (caps, settings, catalog, error rules, `plan()`), the credential import and the frames."""
 
 import json
-import logging
 
 import pytest
 from geminikit import PSID, PSIDTS, export
 
-from relay_core import errors, frames
+from relay_core import errors, frames, pricing
 from relay_core.api.doors import checked_prompt
 from relay_core.providers import (
     AfterSent,
@@ -38,6 +37,12 @@ def plan(model=MODEL, prompt="a lighthouse at dawn", *, cfg=None, **kw):
     return SPEC.plan(CreateRequest(model=model, prompt=prompt, **kw), cfg or FakeSettings(SPEC), {})
 
 
+def priced(model=MODEL, prompt="a lighthouse at dawn", *, cfg=None, **kw):
+    """The plan as the door makes it: the core's price and upstream cost from `gemini.prices` and `gemini.costs`."""
+    cfg = cfg or FakeSettings(SPEC)
+    return pricing.price_plan(SPEC, plan(model, prompt, cfg=cfg, **kw), cfg)
+
+
 def refusal(model=MODEL, prompt="a lighthouse at dawn", **kw):
     try:
         plan(model, prompt, **kw)
@@ -65,7 +70,8 @@ def test_gemini_stays_drained_by_default_and_declares_its_tunables():
     assert s["gemini.claims_enabled"].default is False, "gemini must stay drained until the owner turns it on"
     assert (s["gemini.rotate_interval_s"].default, s["gemini.rotate_interval_s"].max) == (600, 900)
     assert s["gemini.account_min_gap_s"].default == 30 and s["gemini.poll_interval_s"].default == 30
-    assert s["gemini.render_deadline_s"].default == 900 and s["gemini.prices"].default == {MODEL: 1, VIDEO: 2}
+    assert s["gemini.render_deadline_s"].default == 900 and s["gemini.prices"].default == {MODEL: 1, VIDEO + "@10s": 2}
+    assert s["gemini.costs"].default == {MODEL: 1, VIDEO + "@10s": 1}, "one use of its budget per job"
     assert s["gemini.video_budget"].default == 15 and s["gemini.video_limit_rest_s"].default == 5 * 3600
     assert all(s[k].description for k in s) and _problems(SPEC) == []
 
@@ -101,7 +107,8 @@ def test_a_text_job_draws_with_its_ratio_or_none_and_an_image_job_edits_held_in_
     p = plan()
     assert dict(p.params) == {} and p.operation == "text_to_image"
     assert (p.media_type, p.completion, p.after_sent) == ("image", Completion.HOLD, AfterSent.RECONCILE)
-    assert (p.wallet_kind, p.pool, p.price, p.account_cost, p.submit_timeout_s) == ("image", "image", 1, 1, 300)
+    assert (p.wallet_kind, p.pool, p.price_key, p.submit_timeout_s) == ("image", "image", MODEL, 300)
+    assert (priced().price, priced().account_cost) == (1, 1)
     edit = plan(images=(IMG,))
     assert edit.operation == "image_to_image" and dict(edit.params) == {}
 
@@ -140,7 +147,8 @@ def test_a_video_job_is_ten_seconds_landscape_detached_on_the_video_pool_from_te
     assert (p.operation, p.media_type, p.model) == ("text_to_video", "video", VIDEO), "a video planned as an image"
     assert dict(p.params) == {"ratio": "16:9", "duration": 10}
     assert (p.completion, p.after_sent) == (Completion.DETACH, AfterSent.RECONCILE)
-    assert (p.wallet_kind, p.pool, p.price, p.account_cost) == ("video", "video", 2, 1)
+    assert (p.wallet_kind, p.pool, p.price_key) == ("video", "video", VIDEO + "@10s")
+    assert (priced(VIDEO).price, priced(VIDEO).account_cost) == (2, 1), "2 points, one use of the video budget"
     assert plan(VIDEO, duration=10, ratio="16:9").params == p.params
     assert plan(VIDEO, images=(IMG,)).operation == "image_to_video", "an image to video planned from text"
     assert refusal(VIDEO, duration=8) == ("input.bad_duration", "duration"), "an 8 s video was planned"
@@ -149,12 +157,11 @@ def test_a_video_job_is_ten_seconds_landscape_detached_on_the_video_pool_from_te
     assert refusal(VIDEO, prompt=" ") == ("input.empty_prompt", "prompt")
 
 
-def test_the_price_comes_from_the_settings_and_a_missing_one_warns(caplog):
+def test_the_price_comes_from_the_settings_and_a_missing_one_is_refused():
     cfg = FakeSettings(SPEC, gemini__prices={MODEL: 4})
-    assert plan(cfg=cfg).price == 4 and plan(options={"price": 0}).price == 1
-    with caplog.at_level(logging.WARNING):
-        p = plan(cfg=FakeSettings(SPEC, gemini__prices={}))
-    assert p.price == 1 and [w.code for w in p.warnings] == ["gemini.price_fallback"]
+    assert priced(cfg=cfg).price == 4 and priced(options={"price": 0}).price == 1
+    with pytest.raises(pricing.Unpriced):
+        priced(VIDEO, cfg=cfg)
 
 
 # ---- the credential ------------------------------------------------------------------------------------------------

@@ -45,7 +45,6 @@ SIGNER_SUSPECT = "dola.signer_suspect"           # dola's refusals look like OUR
 WARN_DURATION_DRIFT = "dola.duration_drift"
 WARN_MODEL_SUBSTITUTED = "dola.model_substituted"
 WARN_PARTLY_WATERMARKED = "dola.partly_watermarked"
-WARN_PRICE_FALLBACK = "dola.price_fallback"
 WARN_DURATION_CAPPED = "dola.duration_capped"   # 2.0 / 1.0 at their longest length
 
 _HIDDEN = "the request could not be submitted to dola"

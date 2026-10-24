@@ -50,11 +50,6 @@ MAX_ATTEMPTS = 3                # counted attempts before a job fails
 SUSPECT_THRESHOLD = 3           # strikes before the account is dead
 STRIKE_DEAD_REASON = "signed_out"
 
-# ---- money ----------------------------------------------------------------------------------------------------
-FALLBACK_PRICE = 1              # a model missing from `flow.prices`, charged with a warning
-ACCOUNT_COST = 1                # an image costs no Flow credit (50 -> 50 measured): each job counts one
-# a video's account cost is its Flow credits (catalog.VIDEO_CREDITS), counted against flow.video_budget
-
 # ---- requests -------------------------------------------------------------------------------------------------
 PROMPT_MAX_CHARS = 4000         # not measured on flow yet: a cap well inside what a generate request takes
 
@@ -75,8 +70,4 @@ LIMITS = (
                "a signed-out read this soon after the last counted strike adds none; shorter than the rest", "s"),
     FixedLimit("relay_flow.constants.NETWORK_REST_S", NETWORK_REST_S,
                "a submit whose proxy could not reach flow rests the account this long", "s"),
-    FixedLimit("relay_flow.constants.FALLBACK_PRICE", FALLBACK_PRICE,
-               "charged for a model missing from flow.prices", "points"),
-    FixedLimit("relay_flow.constants.ACCOUNT_COST", ACCOUNT_COST,
-               "an image costs no Flow credit: each job counts one against the daily budget", "per job"),
 )

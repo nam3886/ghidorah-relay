@@ -13,7 +13,6 @@ from typing import Any
 
 from relay_core import frames
 from relay_core.providers import ModelSpec
-from relay_dola.constants import FALLBACK_IMAGE_PRICE, FALLBACK_VIDEO_PRICE
 
 VALID_MODELS = ("seedance_v2.5", "seedance_v2.0", "seedance_v1.0")
 DEFAULT_MODEL = "seedance_v2.5"
@@ -57,9 +56,19 @@ IMAGE_STYLE_LABELS = {
     "pixel": "Pixel", "colored_pencil": "Colored Pencil", "ink_wash": "Ink Wash", "ink_print": "Ink Print",
 }
 
-# Measured prices in points (ffprobe + the number dola states, 20/09, >= 3 samples a tier, 0 conflicts). The default
-# of `dola.prices`; an operator may change it. 10 s costs twice 30 s: measured, not a typo. 5.0 Pro is 4 (user, 24/09):
-# the new UI says "4x credit usage". The account's own image wallet still spends 1 a job (`IMAGE_ACCOUNT_COST`).
+# What one job costs dola's account, in the unit of its pool: video in dola's daily credits (ffprobe + the number dola
+# states, 20/09, >= 3 samples a tier, 0 conflicts; 10 s costs twice 30 s: measured, not a typo), images in units of
+# the image pool (owner 24/10: 40 units a day; Seedream 4.x 40 jobs = 1 unit each, 5.0 Pro 10 jobs = 4 each; our 21/09
+# read was 21 jobs / 63 images, and dola's own "reached today's image limit" refusal stays the authority). The default
+# of `dola.costs`.
+DEFAULT_COSTS = {
+    "seedance_v1.0@5s": 1, "seedance_v1.0@10s": 2,
+    "seedance_v2.0@5s": 1, "seedance_v2.0@10s": 2, "seedance_v2.0@15s": 3,
+    "seedance_v2.5@5s": 2, "seedance_v2.5@10s": 4,
+    "seedance_v2.5@20s": 2, "seedance_v2.5@25s": 2, "seedance_v2.5@30s": 2,
+    "seedream-4.5": 1, "seedream-5.0-pro": 4,
+}
+# The sale price in points, the default of `dola.prices` (the owner edits it): one point per dola credit, 5.0 Pro 4.
 DEFAULT_PRICES = {
     "seedance_v1.0@5s": 1, "seedance_v1.0@10s": 2,
     "seedance_v2.0@5s": 1, "seedance_v2.0@10s": 2, "seedance_v2.0@15s": 3,
@@ -240,21 +249,16 @@ def video_warnings(model: str, duration: int | None) -> list[str]:
     return []
 
 
-# ---- prices -------------------------------------------------------------------------------------------------------
+# ---- price keys ---------------------------------------------------------------------------------------------------
 def price_key(model: str, kind: str, duration: int | None) -> str:
-    """Price table key: video has a length (`model@30s`), an image is priced per JOB (`model`)."""
+    """The option a job is (`dola.prices`, `dola.costs`): video has a length (`model@30s`), an image is one JOB
+    (`model`)."""
     return model if kind == "image" else "%s@%ds" % (model, int(duration or 0))
 
 
-def lookup_price(table: dict[str, int] | None, model: str, kind: str, duration: int | None) -> tuple[int, str | None]:
-    """(points, None) from the table, or (fallback, tier) when the tier is not in it: the caller logs the tier and
-    warns. Falling back silently would charge wrongly with nobody seeing it. The fallback is high for video (the
-    dearest plain tier measured; guessing low would let a customer make more than they paid for) and 1 for images."""
-    tier = price_key(model, kind, duration)
-    table = table or {}
-    if tier in table:
-        return int(table[tier]), None
-    return (FALLBACK_IMAGE_PRICE if kind == "image" else FALLBACK_VIDEO_PRICE), tier
+# Every option dola sells: the keys `dola.prices` and `dola.costs` may hold.
+PRICE_KEYS = tuple([price_key(m, "video", d) for m, ds in DURATIONS_BY_MODEL.items() for d in ds]
+                   + list(VALID_IMAGE_MODELS))
 
 
 # ---- the catalog served to clients ---------------------------------------------------------------------------------
@@ -289,14 +293,14 @@ def catalog() -> list[ModelSpec]:
             pub, "video", VIDEO_OPS, aliases=(model,),
             limits={"durations": list(allowed), "ratios": list(VALID_RATIOS), "default_duration": max(allowed),
                     "default_ratio": DEFAULT_RATIO, "max_images": 10, "description": _DESCRIPTIONS[model]},
-            prices={"%ds" % d: DEFAULT_PRICES[price_key(model, "video", d)] for d in allowed},
+            price_keys={"%ds" % d: price_key(model, "video", d) for d in allowed},
             display_name=DISPLAY_NAMES[model]))
     for model in _IMAGE_BASE:
         out.append(ModelSpec(
             model, "image", IMAGE_OPS,
             limits={"ratios": list(VALID_IMAGE_RATIOS), "styles": list(VALID_STYLES), "max_images": 10,
                     "templates": True, "description": _DESCRIPTIONS[model]},
-            prices={"default": DEFAULT_PRICES[model]}, display_name=DISPLAY_NAMES[model]))
+            price_keys={"default": model}, display_name=DISPLAY_NAMES[model]))
     return out
 
 

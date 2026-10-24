@@ -8,7 +8,7 @@ model it may not use is as unknown to it as a model that does not exist. A model
 from fastapi import APIRouter, Depends
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core import keys
+from relay_core import keys, pricing
 from relay_core.api.deps import get_pool, get_registry, get_settings, require_key
 from relay_core.api.doors import model_disabled
 from relay_core.api.errors_http import ApiError
@@ -37,12 +37,13 @@ def _allowed(registry: ProviderRegistry, key: ApiKey, settings: Settings) -> lis
             if keys.model_allowed(key.models, m.id, canonical) and not model_disabled(settings, s, m)]
 
 
-def model_entry(spec: ProviderSpec, m: ModelSpec) -> dict:
-    """A catalog entry; the admin's model list uses it too. `name` is never empty: the id stands in."""
+def model_entry(spec: ProviderSpec, m: ModelSpec, settings: Settings) -> dict:
+    """A catalog entry; the admin's model list uses it too. `name` is never empty: the id stands in. `prices` are the
+    live points of each option (`<p>.prices`), null for an option that has no price (a request for it is refused)."""
     return {"id": m.id, "name": m.display_name or m.id, "object": "model", "owned_by": spec.name, "kind": m.media_type,
             "operations": list(m.operations), "aliases": list(m.aliases),
             "limits": {**m.limits, "max_prompt_chars": spec.max_prompt_chars},
-            "prices": dict(m.prices), "is_alias": False}
+            "prices": pricing.option_prices(spec, m, settings), "is_alias": False}
 
 
 def _gemini_resource(name: str, spec: ProviderSpec, m: ModelSpec) -> dict:
@@ -54,14 +55,14 @@ def _gemini_resource(name: str, spec: ProviderSpec, m: ModelSpec) -> dict:
 @router.get("/v1/models")
 async def list_models(key: ApiKey = Depends(require_key), registry: ProviderRegistry = Depends(get_registry),
                       settings: Settings = Depends(get_settings)):
-    return {"object": "list", "data": [model_entry(s, m) for s, m in _allowed(registry, key, settings)]}
+    return {"object": "list", "data": [model_entry(s, m, settings) for s, m in _allowed(registry, key, settings)]}
 
 
 @router.get("/v1/models/aliases")
 async def list_aliases(key: ApiKey = Depends(require_key), registry: ProviderRegistry = Depends(get_registry),
                        settings: Settings = Depends(get_settings)):
     """One entry per alias, carrying the model it runs as `base_model`."""
-    return {"object": "list", "data": [{**model_entry(s, m), "id": alias, "aliases": [], "base_model": m.id,
+    return {"object": "list", "data": [{**model_entry(s, m, settings), "id": alias, "aliases": [], "base_model": m.id,
                                         "is_alias": True}
                                        for s, m in _allowed(registry, key, settings) for alias in m.aliases]}
 

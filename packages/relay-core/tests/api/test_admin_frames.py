@@ -28,8 +28,8 @@ class Three(FakeSpec):
     """Three video models and one image model: apply to all has more than one model to walk."""
 
     def catalog(self):
-        return [ModelSpec(m, "video", ("generate",), prices={"default": 10}) for m in (A, B, C)] + [
-            ModelSpec("fake-image", "image", ("generate",), prices={"default": 1})]
+        return [ModelSpec(m, "video", ("generate",), price_keys={"default": m}) for m in (A, B, C)] + [
+            ModelSpec("fake-image", "image", ("generate",), price_keys={"default": "fake-image"})]
 
 
 def spec() -> Three:

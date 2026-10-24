@@ -32,7 +32,7 @@ async def list_models(registry: ProviderRegistry = Depends(get_registry),
     """Every model of every provider, unfiltered: the choices of a key's allow-list and of `<p>.disabled_models` (the
     admin has no API key to read `/v1/models` with). The public catalog's entries plus `disabled` (paused)."""
     specs = [registry.spec(name) for name in registry.names()]
-    return {"object": "list", "data": [{**model_entry(s, m), "disabled": model_disabled(settings, s, m)}
+    return {"object": "list", "data": [{**model_entry(s, m, settings), "disabled": model_disabled(settings, s, m)}
                                        for s in specs for m in s.catalog()]}
 
 Limits = tuple[int | None, int | None]       # (day_limit, total_limit)

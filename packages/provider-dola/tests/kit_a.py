@@ -2,7 +2,8 @@
 
 import pytest
 
-from relay_core.providers import CreateRequest, InputError, MediaIn
+from relay_core.pricing import price_plan
+from relay_core.providers import CreateRequest, InputError, MediaIn, Plan
 from relay_core.testing.fake_provider import FakeSettings
 from relay_dola.spec import SPEC
 
@@ -20,6 +21,12 @@ def request(model: str = "seedance-2.5", prompt: str = "a calm sea at dusk", **k
 
 def plan(model: str = "seedance-2.5", prompt: str = "a calm sea at dusk", *, snapshots=None, cfg=None, **kw):
     return SPEC.plan(request(model, prompt, **kw), cfg or settings(), snapshots or {})
+
+
+def priced(model: str = "seedance-2.5", prompt: str = "a calm sea at dusk", *, cfg=None, **kw) -> Plan:
+    """The plan as the door makes it: the core's price and upstream cost from `dola.prices` and `dola.costs`."""
+    cfg = cfg or settings()
+    return price_plan(SPEC, plan(model, prompt, cfg=cfg, **kw), cfg)
 
 
 def refused(model: str = "seedance-2.5", prompt: str = "a calm sea at dusk", *, snapshots=None, cfg=None,

@@ -5,7 +5,7 @@ import json
 import pytest
 from qwenkit import BLOB, BX_UA, PAIR, REFRESH, export, minted_blob, rec
 
-from relay_core import errors
+from relay_core import errors, pricing
 from relay_core.providers import (
     AfterSent,
     Completion,
@@ -35,6 +35,12 @@ def plan(model="qwen-image-3.0", prompt="a lighthouse at dawn", *, cfg=None, **k
     return SPEC.plan(CreateRequest(model=model, prompt=prompt, **kw), cfg or FakeSettings(SPEC), {})
 
 
+def priced(model="qwen-image-3.0", prompt="a lighthouse at dawn", *, cfg=None, **kw):
+    """The plan as the door makes it: the core's price and upstream cost from `qwen.prices` and `qwen.costs`."""
+    cfg = cfg or FakeSettings(SPEC)
+    return pricing.price_plan(SPEC, plan(model, prompt, cfg=cfg, **kw), cfg)
+
+
 def refusal(model="qwen-image-3.0", prompt="a lighthouse at dawn", **kw):
     try:
         plan(model, prompt, **kw)
@@ -61,7 +67,7 @@ def test_qwen_stays_drained_by_default_and_declares_its_tunables():
     s = SPEC.settings()
     assert s["qwen.claims_enabled"].default is False, "qwen must stay drained until the owner turns it on"
     for key in ("render_deadline_s", "poll_interval_s", "account_min_gap_s", "bx_max_age_s", "image_lost_after_s",
-                "refusal_grace_s", "prices", "image_budget", "video_budget", "disabled_models"):
+                "refusal_grace_s", "prices", "costs", "image_budget", "video_budget", "disabled_models"):
         assert "qwen." + key in s, key
     assert s["qwen.video_budget"].default == 40          # a free account's daily credits
     assert {k for k, v in s.items() if v.basic} == {"qwen.claims_enabled", "qwen.prices", "qwen.image_budget",
@@ -100,30 +106,34 @@ def test_the_credits_of_a_video_are_qwens_own_price_list():
 # ---- plan ----------------------------------------------------------------------------------------------------------
 def test_an_image_is_held_in_the_image_pool_at_16_9_unless_a_ratio_is_asked():
     p = plan()
-    assert (p.operation, p.media_type, p.completion, p.after_sent, p.pool, p.account_cost) == (
+    assert (p.operation, p.media_type, p.completion, p.after_sent, p.pool, priced().account_cost) == (
         "text_to_image", "image", Completion.HOLD, AfterSent.RECONCILE, "image", 1)
     assert dict(p.params) == {"kind": "image", "model": "qwen-image-3.0", "ratio": "16:9"}
     assert plan(ratio="3:2").params["ratio"] == "3:2"
     assert plan(images=(IMG,)).operation == "image_to_image"
 
 
-@mutation(SPEC_FILE, "            cost = credits\n", "            cost = 1\n", expect="account cost")
+CREDITS = '            credits = settings.get("qwen.costs").get(C.price_key(req.model, duration))'
+
+
+@mutation(SPEC_FILE, CREDITS, "            credits = 1", expect="'credits': 1")
+@mutation(CATALOG_FILE, "VIDEO_CREDITS[m][d] for m in VIDEO_MODELS", "1 for m in VIDEO_MODELS", expect="account cost")
 def test_a_video_is_detached_in_the_video_pool_and_costs_the_account_its_credits():
     p = plan("qwen-happyhorse-1.1")
     assert (p.operation, p.media_type, p.completion, p.pool) == ("text_to_video", "video", Completion.DETACH, "video")
-    assert p.account_cost == 30, "the account cost is the video's qwen credits: %s" % p.account_cost
+    cost = priced("qwen-happyhorse-1.1").account_cost
+    assert cost == 30, "the account cost is the video's qwen credits: %s" % cost
     assert dict(p.params) == {"kind": "video", "model": "happyhorse11", "ratio": "16:9", "duration": 5,
                               "credits": 30, "resolution": "720P"}
     assert plan("qwen-happyhorse-1.0", images=(IMG,)).params["model"] == "happyhorse"
     assert plan("qwen-happyhorse-1.0", images=(IMG,)).operation == "image_to_video"
 
 
-@mutation(SPEC_FILE, "            if credits > budget:\n", "            if False:\n", expect="more credits than")
 def test_a_video_that_needs_more_credits_than_an_account_has_a_day_is_refused():
-    assert refusal("qwen-happyhorse-1.1", duration=10) == ("input.bad_duration", "duration"), \
-        "a video that needs more credits than an account has a day was taken"
+    with pytest.raises(pricing.TooCostly):
+        priced("qwen-happyhorse-1.1", duration=10)
     cfg = FakeSettings(SPEC, qwen__video_budget=100)
-    assert plan("qwen-happyhorse-1.1", duration=10, cfg=cfg).account_cost == 60
+    assert priced("qwen-happyhorse-1.1", duration=10, cfg=cfg).account_cost == 60
 
 
 @pytest.mark.parametrize("kw, want", [
@@ -140,14 +150,14 @@ def test_what_qwen_cannot_make_is_refused_before_any_charge(kw, want):
     assert refusal(**kw) == want
 
 
-@mutation(SPEC_FILE, 'self._price(settings, C.price_key(req.model, params.get("duration")))',
-          "self._price(settings, req.model)", expect="price key")
-def test_a_video_is_priced_by_model_and_seconds_and_a_missing_key_warns():
+@mutation(SPEC_FILE, 'price_key=C.price_key(req.model, params.get("duration"))', "price_key=req.model",
+          expect="no price for qwen-happyhorse-1.1")
+def test_a_video_is_priced_by_model_and_seconds_and_a_missing_key_is_refused():
     cfg = FakeSettings(SPEC, qwen__prices={"qwen-image-3.0": 2, "qwen-happyhorse-1.1@5s": 7})
-    assert plan(cfg=cfg).price == 2
-    assert plan("qwen-happyhorse-1.1", cfg=cfg).price == 7, "price key"
-    missing = plan("qwen-happyhorse-1.0", cfg=cfg)
-    assert missing.price == 1 and [w.code for w in missing.warnings] == ["qwen.price_fallback"]
+    assert priced(cfg=cfg).price == 2
+    assert priced("qwen-happyhorse-1.1", cfg=cfg).price == 7, "price key"
+    with pytest.raises(pricing.Unpriced):
+        priced("qwen-happyhorse-1.0", cfg=cfg)
 
 
 # ---- credential ----------------------------------------------------------------------------------------------------

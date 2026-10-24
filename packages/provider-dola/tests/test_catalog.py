@@ -110,8 +110,9 @@ def test_the_catalog_lists_the_base_ids_and_registers():
     assert ids["seedance-2.5"].limits["durations"] == [5, 10, 20, 25, 30]
     assert ids["seedance-2.0"].limits["durations"] == [5, 10, 15] and ids["seedance-1.0"].limits["durations"] == [5, 10]
     assert ids["seedream-4.5"].limits["styles"] == list(C.VALID_STYLES) and len(C.VALID_STYLES) == 13
-    assert ids["seedance-2.5"].prices["30s"] == 2 and ids["seedance-2.5"].prices["10s"] == 4
-    assert ids["seedream-5.0-pro"].prices == {"default": 4}
+    assert ids["seedance-2.5"].price_keys == {"%ds" % d: "seedance_v2.5@%ds" % d for d in (5, 10, 20, 25, 30)}
+    assert ids["seedream-5.0-pro"].price_keys == {"default": "seedream-5.0-pro"}
+    assert {k for m in ids.values() for k in m.price_keys.values()} == set(C.PRICE_KEYS)
     registry = ProviderRegistry()
     # unique ids and aliases, settings in its namespace, the settings the core reads
     registry.register(SPEC)
@@ -121,8 +122,8 @@ def test_the_catalog_lists_the_base_ids_and_registers():
 
 @mutation(CATALOG_FILE, '"seedance_v2.0": "Seedance 2.0 Fast",', '"seedance_v2.0": "Dreamina Seedance 2.0 Fast",',
           expect="the words the design draws")
-@mutation(CATALOG_FILE, 'prices={"default": DEFAULT_PRICES[model]}, display_name=DISPLAY_NAMES[model]',
-          'prices={"default": DEFAULT_PRICES[model]}', expect="every model has a display name")
+@mutation(CATALOG_FILE, 'price_keys={"default": model}, display_name=DISPLAY_NAMES[model]',
+          'price_keys={"default": model}', expect="every model has a display name")
 @mutation(CATALOG_FILE, 'for d in allowed},\n            display_name=DISPLAY_NAMES[model]',
           'for d in allowed}', expect="every model has a display name")
 def test_every_model_has_the_display_name_the_design_draws():

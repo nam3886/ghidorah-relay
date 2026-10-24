@@ -9,7 +9,6 @@ upload `maseQ` and the start-image video RPC were never captured), other video r
 
 from relay_core import frames
 from relay_core.providers import ModelSpec
-from relay_flow.constants import FALLBACK_PRICE
 
 # relay name -> (Flow's model key, display name). Flow draws the image inside the generate request (HOLD).
 MODELS = {
@@ -29,10 +28,22 @@ VIDEO_MODELS = {
 # gives is not measured, so 16:9 is the only ratio offered.
 VIDEO_ASPECTS = {"16:9": 2}
 VIDEO_DURATION = 8               # the 4 s and 6 s Lite keys are offered only on Flow's tier 3
-# Flow credits one video takes on the account's tier (GetModels `HTrJv`: 10 on tiers 1 and 2; spent 50 -> 40, 23/10)
-VIDEO_CREDITS = {"flow-veo-3.1-lite": 10}
 
-DEFAULT_PRICES = {**dict.fromkeys(MODELS, 1), **dict.fromkeys(VIDEO_MODELS, 2)}
+
+def price_key(model: str) -> str:
+    """The option a job is (`flow.prices`, `flow.costs`): an image by its model, a video with its one length."""
+    return "%s@%ds" % (model, VIDEO_DURATION) if model in VIDEO_MODELS else model
+
+
+PRICE_KEYS = tuple(price_key(m) for m in (*MODELS, *VIDEO_MODELS))
+# What one job costs the account, in the unit of its pool (the default of `flow.costs`): an image takes no Flow credit
+# (50 -> 50 measured) and counts one job; a Veo 3.1 Lite 8 s video takes 10 Flow credits on tiers 1 and 2 (GetModels
+# `HTrJv`; spent 50 -> 40, 23/10). Not offered until captured, the official table (support.google.com/flow 16526234)
+# reads: Veo 3.1 Fast 20, Quality 100, Gemini Omni Flash 720p 4/6/8/10 s 7/10/12/15, 360p 4/5/6/7.
+DEFAULT_COSTS = {**dict.fromkeys(MODELS, 1), price_key("flow-veo-3.1-lite"): 10}
+# The sale price in points, the default of `flow.prices` (the owner edits it): an image costs nothing upstream and
+# sells at 1 point (owner 24/10).
+DEFAULT_PRICES = {**dict.fromkeys(MODELS, 1), **{price_key(m): 2 for m in VIDEO_MODELS}}
 
 
 def is_blank_prompt(text: str) -> bool:
@@ -40,27 +51,18 @@ def is_blank_prompt(text: str) -> bool:
     return frames.shows_nothing(text)
 
 
-def lookup_price(table: dict[str, int] | None, model: str) -> tuple[int, str | None]:
-    """(points, None) from the table, or (fallback, model) when the model is not in it: the caller logs and warns, so a
-    wrong charge is never silent."""
-    table = table or {}
-    if model in table:
-        return int(table[model]), None
-    return FALLBACK_PRICE, model
-
-
 def catalog() -> list[ModelSpec]:
     images = [ModelSpec(name, "image", ("text_to_image",),
                         limits={"max_images": 0, "ratios": list(ASPECTS), "default_ratio": DEFAULT_RATIO,
                                 "description": "One image from a text prompt (Google Flow, %s), drawn in about 15 s."
                                                % display},
-                        prices={"default": DEFAULT_PRICES[name]}, display_name=display)
+                        price_keys={"default": price_key(name)}, display_name=display)
               for name, (_key, display) in MODELS.items()]
     videos = [ModelSpec(name, "video", ("text_to_video",),
                         limits={"max_images": 0, "ratios": list(VIDEO_ASPECTS), "default_ratio": DEFAULT_RATIO,
                                 "durations": [VIDEO_DURATION], "default_duration": VIDEO_DURATION,
                                 "description": "An 8 s 720p clip with sound from a text prompt (Google Flow, %s), "
                                                "about 45 s to render." % display},
-                        prices={"%ds" % VIDEO_DURATION: DEFAULT_PRICES[name]}, display_name=display)
+                        price_keys={"%ds" % VIDEO_DURATION: price_key(name)}, display_name=display)
               for name, (_key, display) in VIDEO_MODELS.items()]
     return images + videos

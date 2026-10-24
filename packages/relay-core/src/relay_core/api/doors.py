@@ -3,7 +3,7 @@
     request (native, OpenAI or Gemini)
       -> `DoorRequest`
       -> `plan_job`: resolve the model, the key's allow-list, the paused models, the provider's snapshots,
-         `spec.plan()`, the prompt frame
+         `spec.plan()`, the prompt frame, the core's price and upstream cost (`relay_core.pricing`)
       -> input checks and media uploads (all foreign I/O, before any transaction)
       -> `store.create_job`: idempotency, cap, charge, job row, input rows, `queued` event (one transaction)
 
@@ -31,7 +31,7 @@ from fastapi import Request
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from relay_core import billing, errors, frames, keys, net
+from relay_core import billing, errors, frames, keys, net, pricing
 from relay_core.api import progress
 from relay_core.api.errors_http import ApiError, field_param, validation_code
 from relay_core.jobs.create import (
@@ -295,7 +295,8 @@ def plan_request(gate: Gate, spec: ProviderSpec, model: ModelSpec, creq: CreateR
 
 async def plan_job(gate: Gate, allowed_models: Sequence[str], creq: CreateRequest) -> tuple[ProviderSpec, Plan]:
     """Model -> provider, the key's allow-list, the paused models, the provider's snapshots, `spec.plan()`, the prompt
-    frame. Raises ApiError with the refusal's own code; touches nothing."""
+    frame, then the core's price and upstream cost (`pricing.price_plan`: an option with no price or no cost, or one
+    no account can afford, is refused). Raises ApiError with the refusal's own code; touches nothing."""
     spec, model = resolve_model(gate.registry, creq.model)
     _check_allowed(gate.registry, allowed_models, creq.model, model)
     if model_disabled(gate.settings, spec, model):
@@ -304,7 +305,10 @@ async def plan_job(gate: Gate, allowed_models: Sequence[str], creq: CreateReques
     stored = await frame_of(gate.pool, spec, model)
     use = None if stored is None else FrameUse(stored.version.id, stored.version.text)
     spec, plan, _ = plan_request(gate, spec, model, creq, snapshots, use)
-    return spec, plan
+    try:
+        return spec, pricing.price_plan(spec, plan, gate.settings)
+    except pricing.PricingRefused as refused:
+        raise ApiError(refused.code, "model") from None
 
 
 # ---- inputs -------------------------------------------------------------------------------------------------------

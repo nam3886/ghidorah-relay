@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from relay_core import frames
+from relay_core.pricing import table_setting
 from relay_core.providers import (
     AfterSent,
     Caps,
@@ -18,14 +19,12 @@ from relay_core.providers import (
     ParsedCredential,
     Plan,
     PoolSpec,
-    Warning,
 )
-from relay_core.settings import Rule, Spec, disabled_models
+from relay_core.settings import Spec, disabled_models
 from relay_qwen import catalog as C
 from relay_qwen import errors as codes
 from relay_qwen.constants import (
     CHECK_INTERVAL_S,
-    IMAGE_ACCOUNT_COST,
     LIMITS,
     MAX_ATTEMPTS,
     PROMPT_MAX_CHARS,
@@ -46,20 +45,6 @@ def _refuse(code: str, detail: str = "", param: str | None = None) -> InputError
     err = InputError(code, param)
     err.detail = detail
     return err
-
-
-def _prices(v: dict) -> None:
-    for model, price in v.items():
-        if not isinstance(model, str) or not model.strip():
-            raise ValueError("a price has an empty model name")
-        if type(price) is not int:
-            raise ValueError("the price for %s is not a whole number: %r" % (model, price))
-        if price < 0:
-            raise ValueError("the price for %s is negative" % model)
-
-
-PRICES_RULE = Rule("each key (a model, or model@<seconds>s for a video): a whole number of points, 0 or more",
-                   _prices)
 
 
 def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any) -> tuple[str, Spec]:
@@ -92,14 +77,19 @@ _SETTINGS = dict((
              "Seconds after the send before a video whose answer was lost, and whose chat holds a reply in words with "
              "no task, is failed as a refusal and refunded (a task named within this time is followed).", min=60,
              max=3600),
-    _setting("prices", dict, dict(C.DEFAULT_PRICES),
-             "Points charged per job, keyed by model for an image and by model@<seconds>s for a video. A key missing "
-             "here is charged the fallback (1) with a warning.", rule=PRICES_RULE, basic=True),
+    (PROVIDER + ".prices", table_setting(
+        PROVIDER + ".prices", "Points charged per job, keyed by model for an image and by model@<seconds>s for a "
+        "video. An option missing here is refused (model.unpriced), never charged a guess.", C.PRICE_KEYS,
+        C.DEFAULT_PRICES, unit="points", basic=True)),
+    (PROVIDER + ".costs", table_setting(
+        PROVIDER + ".costs", "What one job costs the qwen account: an image counts one job of the image budget, a "
+        "video its qwen credits (qwen's price list). An option missing here is refused (model.uncosted).",
+        C.PRICE_KEYS, C.DEFAULT_COSTS, unit="jobs or qwen credits")),
     _setting("image_budget", int, 1000, "Images each qwen account may make per day (no limit met yet).", min=1,
              basic=True),
     _setting("video_budget", int, 40,
              "qwen credits each account has for videos per day (a free account gets 40; a 5 s HappyHorse 1.1 video "
-             "takes 30). A video that needs more than this is refused.", min=1, basic=True),
+             "takes 30). A video that costs more than this is refused (input.too_costly).", min=1, basic=True),
     (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 
@@ -147,8 +137,9 @@ class QwenSpec:
         return None
 
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
-        """Validate and normalise. Price, credits and timeout come from the settings, the catalog and the constants,
-        NEVER from `req.options`. Raises `InputError`. One result per job."""
+        """Validate and normalise; the plan names its price key and the core prices it (`qwen.prices`,
+        `qwen.costs`). Timeouts come from the constants, NEVER from `req.options`. Raises `InputError`. One result per
+        job."""
         video = C.VIDEO_MODELS.get(req.model)
         if video is None and req.model != C.IMAGE_MODEL:
             raise _refuse("input.bad_model", "qwen's models are %s" % ", ".join((C.IMAGE_MODEL, *C.VIDEO_MODELS)),
@@ -167,7 +158,7 @@ class QwenSpec:
         if video is None:
             if req.duration is not None:
                 raise _refuse("input.bad_duration", "an image has no duration", "duration")
-            kind, cost = "image", IMAGE_ACCOUNT_COST
+            kind = "image"
             operation = "image_to_image" if req.images else "text_to_image"
             params = {"kind": kind, "model": C.IMAGE_UPSTREAM, "ratio": ratio}
         else:
@@ -175,31 +166,18 @@ class QwenSpec:
             if duration not in C.DURATIONS:
                 raise _refuse("input.bad_duration", "%s makes %s s clips" % (
                     req.model, ", ".join(map(str, C.DURATIONS))), "duration")
-            kind, credits = "video", C.VIDEO_CREDITS[req.model][duration]
-            budget = int(settings.get("qwen.video_budget"))
-            if credits > budget:
-                raise _refuse("input.bad_duration", "a %d s %s video takes %d qwen credits; an account has %d a day"
-                              % (duration, req.model, credits, budget), "duration")
-            cost = credits
+            kind = "video"
+            # what qwen's own credit check is asked about: the option's cost (`qwen.costs`); a missing one is refused
+            # by the core's pricing, so this job never reaches a submit without it
+            credits = settings.get("qwen.costs").get(C.price_key(req.model, duration))
             operation = "image_to_video" if req.images else "text_to_video"
             params = {"kind": kind, "model": video[0], "ratio": ratio, "duration": duration, "credits": credits,
                       "resolution": C.RESOLUTION}
-        price, warnings = self._price(settings, C.price_key(req.model, params.get("duration")))
         return Plan(
             operation=operation, media_type=kind, model=req.model, params=params,
             completion=Completion.HOLD if kind == "image" else Completion.DETACH, after_sent=AfterSent.RECONCILE,
-            wallet_kind=kind, price=price, pool=kind, account_cost=cost,
-            submit_timeout_s=SUBMIT_TIMEOUT_IMAGE_S if kind == "image" else SUBMIT_TIMEOUT_VIDEO_S,
-            warnings=tuple(warnings))
-
-    @staticmethod
-    def _price(settings: Any, key: str) -> tuple[int, list[Warning]]:
-        price, missing = C.lookup_price(settings.get("qwen.prices"), key)
-        if missing is None:
-            return price, []
-        log.warning("qwen price: no entry for %r in qwen.prices, charging the fallback of %d point(s)", missing, price)
-        return price, [Warning(codes.WARN_PRICE_FALLBACK,
-                               "no price is set for %s: charged the fallback of %d point(s)" % (missing, price))]
+            price_key=C.price_key(req.model, params.get("duration")), pool=kind,
+            submit_timeout_s=SUBMIT_TIMEOUT_IMAGE_S if kind == "image" else SUBMIT_TIMEOUT_VIDEO_S)
 
 
 SPEC = QwenSpec()

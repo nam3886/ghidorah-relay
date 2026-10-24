@@ -137,7 +137,8 @@ class DurFake(StrictFake):
     the length the way a real provider's does, and the model name carries the variant the client wrote."""
 
     def catalog(self):
-        return [*super().catalog(), ModelSpec("strict-video-pro", "video", ("generate",), prices={"default": 10})]
+        return [*super().catalog(),
+                ModelSpec("strict-video-pro", "video", ("generate",), price_keys={"default": "strict-video-pro"})]
 
     def plan(self, req, settings, snapshots):
         plan = super().plan(req, settings, snapshots)

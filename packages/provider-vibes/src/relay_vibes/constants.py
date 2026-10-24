@@ -50,10 +50,6 @@ MAX_ATTEMPTS = 3                # counted attempts before a job fails
 SUSPECT_THRESHOLD = 3           # strikes before the account is dead
 STRIKE_DEAD_REASON = "signed_out"
 
-# ---- money ----------------------------------------------------------------------------------------------------
-FALLBACK_PRICE = 1              # a model missing from `vibes.prices`, charged with a warning
-ACCOUNT_COST = 1                # vibes' quota is not measured yet: each job counts one
-
 # ---- requests -------------------------------------------------------------------------------------------------
 PROMPT_MAX_CHARS = 4000         # not measured on vibes yet: a cap well inside what a generate request takes
 
@@ -79,8 +75,4 @@ LIMITS = (
                "one read of a result download; a slower one is tried again by the fetcher", "s"),
     FixedLimit("relay_vibes.constants.NETWORK_REST_S", NETWORK_REST_S,
                "a submit whose proxy could not reach vibes rests the account this long", "s"),
-    FixedLimit("relay_vibes.constants.FALLBACK_PRICE", FALLBACK_PRICE,
-               "charged for a model missing from vibes.prices", "points"),
-    FixedLimit("relay_vibes.constants.ACCOUNT_COST", ACCOUNT_COST,
-               "vibes' quota is not measured yet: each job counts one against the daily budget", "per job"),
 )

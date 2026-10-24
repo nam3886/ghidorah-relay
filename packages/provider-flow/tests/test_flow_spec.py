@@ -1,12 +1,11 @@
 """The flow spec (caps, settings, catalog, error rules, `plan()`) and the credential import."""
 
 import json
-import logging
 
 import pytest
 from flowkit import PSID, PSIDTS, export
 
-from relay_core import errors, frames
+from relay_core import errors, frames, pricing
 from relay_core.api.doors import checked_prompt
 from relay_core.providers import (
     AfterSent,
@@ -37,6 +36,12 @@ def plan(model="flow-nano-banana-2.1", prompt="a lighthouse at dawn", *, cfg=Non
     return SPEC.plan(CreateRequest(model=model, prompt=prompt, **kw), cfg or FakeSettings(SPEC), {})
 
 
+def priced(model="flow-nano-banana-2.1", prompt="a lighthouse at dawn", *, cfg=None, **kw):
+    """The plan as the door makes it: the core's price and upstream cost from `flow.prices` and `flow.costs`."""
+    cfg = cfg or FakeSettings(SPEC)
+    return pricing.price_plan(SPEC, plan(model, prompt, cfg=cfg, **kw), cfg)
+
+
 def refusal(model="flow-nano-banana-2.1", prompt="a lighthouse at dawn", **kw):
     try:
         plan(model, prompt, **kw)
@@ -65,7 +70,8 @@ def test_flow_stays_drained_by_default_and_declares_its_tunables():
     assert (s["flow.rotate_interval_s"].default, s["flow.rotate_interval_s"].max) == (600, 900)
     assert (s["flow.captcha_max_tries"].default, s["flow.captcha_retry_gap_s"].default) == (5, 60)
     assert s["flow.account_min_gap_s"].default == 300 and s["flow.captcha_provider"].default == "yescaptcha"
-    assert s["flow.prices"].default == {**dict.fromkeys(MODELS, 1), VIDEO: 2}
+    assert s["flow.prices"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 2}
+    assert s["flow.costs"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 10}
     assert s["flow.video_budget"].default == 50
     assert all(s[k].description for k in s) and _problems(SPEC) == []
     assert not [k for k in s if "key" in k.lower()], "a secret is never a setting"
@@ -118,7 +124,9 @@ def test_each_model_and_ratio_maps_to_flows_own_keys_and_the_image_is_held():
     assert p.params["ratio"] == "16:9" and p.params["aspect"] == 3
     assert (p.operation, p.media_type, p.completion, p.after_sent) == (
         "text_to_image", "image", Completion.HOLD, AfterSent.RECONCILE)
-    assert (p.wallet_kind, p.pool, p.price, p.account_cost, p.submit_timeout_s) == ("image", "image", 1, 1, 900)
+    assert (p.wallet_kind, p.pool, p.price_key, p.submit_timeout_s) == ("image", "image", "flow-nano-banana-2.1", 900)
+    p = priced()
+    assert (p.price, p.account_cost) == (1, 1), "an image costs no Flow credit, counts one job and sells at 1"
 
 
 @mutation(SPEC_FILE, "        if req.images:", "        if False:", expect="an input image")
@@ -139,12 +147,11 @@ def test_what_flow_cannot_do_yet_is_refused_rather_than_ignored():
     assert plan(n=1).params["aspect"] == 3
 
 
-def test_the_price_comes_from_the_settings_and_a_missing_one_warns(caplog):
+def test_the_price_comes_from_the_settings_and_a_missing_one_is_refused():
     cfg = FakeSettings(SPEC, flow__prices={"flow-nano-banana-pro": 4})
-    assert plan("flow-nano-banana-pro", cfg=cfg).price == 4 and plan(options={"price": 0}).price == 1
-    with caplog.at_level(logging.WARNING):
-        p = plan(cfg=cfg)
-    assert p.price == 1 and [w.code for w in p.warnings] == ["flow.price_fallback"]
+    assert priced("flow-nano-banana-pro", cfg=cfg).price == 4 and priced(options={"price": 0}).price == 1
+    with pytest.raises(pricing.Unpriced):
+        priced(cfg=cfg)
 
 
 # ---- the credential ------------------------------------------------------------------------------------------------
@@ -241,32 +248,34 @@ VIDEO_ASPECT = '            params={"model": video[0], "aspect": C.VIDEO_ASPECTS
           expect="credits")
 @mutation(SPEC_FILE, VIDEO_ASPECT, '            params={"model": video[0], "aspect": 3, "ratio": ratio,',
           expect="credits")
-@mutation(SPEC_FILE, "            pool=\"video\", account_cost=credits,", "            pool=\"video\", account_cost=1,",
-          expect="the account cost of a video is its Flow credits")
+@mutation(SPEC_FILE, '        credits = settings.get("flow.costs").get(C.price_key(req.model))',
+          '        credits = 1', expect="credits")
 @mutation(SPEC_FILE, "            completion=Completion.DETACH,", "            completion=Completion.HOLD,",
           expect="a video is polled")
 def test_a_veo_video_is_planned_as_recorded_and_costs_its_flow_credits_against_the_video_pool():
     p = plan(VIDEO, ratio="16:9", duration=8)
     assert dict(p.params) == {"model": "veo_3_1_t2v_lite", "aspect": 2, "ratio": "16:9", "duration": 8,
                               "credits": 10}, "credits"
-    assert p.account_cost == 10, "the account cost of a video is its Flow credits"
+    assert priced(VIDEO).account_cost == 10, "the account cost of a video is its Flow credits"
     assert p.completion == Completion.DETACH, "a video is polled"
-    assert (p.operation, p.media_type, p.after_sent, p.wallet_kind, p.pool, p.price, p.submit_timeout_s) == (
-        "text_to_video", "video", AfterSent.RECONCILE, "video", "video", 2, 900)
+    assert (p.operation, p.media_type, p.after_sent, p.wallet_kind, p.pool, priced(VIDEO).price, p.price_key,
+            p.submit_timeout_s) == ("text_to_video", "video", AfterSent.RECONCILE, "video", "video", 2,
+                                    VIDEO + "@8s", 900)
     assert dict(plan(VIDEO).params) == dict(p.params)
-    assert plan(VIDEO, cfg=FakeSettings(SPEC, flow__prices={VIDEO: 7})).price == 7
+    assert priced(VIDEO, cfg=FakeSettings(SPEC, flow__prices={VIDEO + "@8s": 7})).price == 7
+    cheap = FakeSettings(SPEC, flow__costs={**SPEC.settings()["flow.costs"].default, VIDEO + "@8s": 5})
+    assert plan(VIDEO, cfg=cheap).params["credits"] == 5, "credits: the submit checks the balance against the cost"
 
 
 @mutation(SPEC_FILE, "        aspects = C.VIDEO_ASPECTS if video else C.ASPECTS", "        aspects = C.ASPECTS",
           expect="an unrecorded video ratio")
 @mutation(SPEC_FILE, "        if req.duration not in (None, C.VIDEO_DURATION):", "        if False:",
           expect="an unrecorded duration")
-@mutation(SPEC_FILE, "        if credits > budget:", "        if False:", expect="more credits than a day's budget")
 def test_what_the_video_capture_did_not_prove_is_refused():
     for ratio in ("9:16", "1:1", "4:3"):
         assert refusal(VIDEO, ratio=ratio) == ("input.bad_ratio", "ratio"), "an unrecorded video ratio %s" % ratio
     for duration in (4, 6, 10):
         assert refusal(VIDEO, duration=duration) == ("input.bad_duration", "duration"), "an unrecorded duration"
     assert refusal(VIDEO, n=2) == ("input.invalid", "n")
-    assert refusal(VIDEO, cfg=FakeSettings(SPEC, flow__video_budget=9)) == ("input.bad_duration", "duration"), \
-        "more credits than a day's budget"
+    with pytest.raises(pricing.TooCostly):           # more credits than a day's budget: no account could take it
+        priced(VIDEO, cfg=FakeSettings(SPEC, flow__video_budget=9))

@@ -63,10 +63,6 @@ SIGNED_OUT_GAP_S = 540          # a signed-out read less than this long after th
 #                                 shorter than the rest, so the recheck after a rest always counts
 CHECKPOINTS_TO_OWNER = 3        # checkpoint reads in a row (rechecks after each rest) before the account is dead
 
-# ---- money ----------------------------------------------------------------------------------------------------
-FALLBACK_PRICE = 1              # a model missing from `meta.prices`, charged with a warning
-ACCOUNT_COST = 1                # meta's daily limits count jobs (one chat each), whatever the model
-
 # ---- requests -------------------------------------------------------------------------------------------------
 PROMPT_MAX_CHARS = 4000         # not measured on meta's composer yet: a cap well inside what a chat message takes
 BROWSER_SLOTS_MIN, BROWSER_SLOTS_MAX = 1, 6       # sized to the meta container: 4 CPUs, 6 GiB, ~0.5 GiB a session
@@ -88,10 +84,6 @@ LIMITS = (
                "reads"),
     FixedLimit("relay_meta.constants.SUBMIT_TIMEOUT_MAX_S", SUBMIT_TIMEOUT_MAX_S,
                "the most a submit timeout setting may hold: the worker's stop grace (780 s) covers it", "s"),
-    FixedLimit("relay_meta.constants.FALLBACK_PRICE", FALLBACK_PRICE,
-               "charged for a model missing from meta.prices", "points"),
-    FixedLimit("relay_meta.constants.ACCOUNT_COST", ACCOUNT_COST,
-               "meta counts its daily limits per job, whatever the model", "per job"),
     FixedLimit("relay_meta.constants.BROWSER_SLOTS_MIN", BROWSER_SLOTS_MIN,
                "least browser sessions meta.browser_slots may hold", "sessions"),
     FixedLimit("relay_meta.constants.BROWSER_SLOTS_MAX", BROWSER_SLOTS_MAX,

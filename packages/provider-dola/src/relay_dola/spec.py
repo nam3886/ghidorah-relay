@@ -4,6 +4,7 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
+from relay_core.pricing import table_setting
 from relay_core.providers import (
     AfterSent,
     Caps,
@@ -31,7 +32,6 @@ from relay_dola.constants import (
     CATALOG_REFRESH_S,
     CHECK_INTERVAL_S,
     FRAME_MAX_SENT_CHARS,
-    IMAGE_ACCOUNT_COST,
     LIMITS,
     MAX_ATTEMPTS,
     MAX_REFERENCE_IMAGES,
@@ -85,17 +85,6 @@ def _refuse(code: str, detail: str = "", param: str | None = None) -> InputError
 
 
 # ---- settings: bounds are structured on the core Spec (min, max, rule), so one text drives the check and the page ----
-def _prices(v: dict) -> None:
-    """The price table is the way customers are charged: name the exact fault."""
-    for tier, price in v.items():
-        if not isinstance(tier, str) or not tier.strip():
-            raise ValueError("a price tier has an empty name")
-        if type(price) is not int:
-            raise ValueError("the price for %s is not a whole number: %r" % (tier, price))
-        if price < 0:
-            raise ValueError("the price for %s is negative" % tier)
-
-
 def _send_path(v: str) -> None:
     if v not in SEND_PATHS:
         raise ValueError("must be one of %s" % ", ".join(SEND_PATHS))
@@ -103,7 +92,6 @@ def _send_path(v: str) -> None:
 
 SEND_PATHS = ("browser", "http")
 SEND_PATH_RULE = Rule("browser or http", _send_path, SEND_PATHS)   # the choices: execution_setting needs them
-PRICES_RULE = Rule("each tier: a non-empty name and a whole number of points, 0 or more", _prices)
 
 
 def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any) -> tuple[str, Spec]:
@@ -116,13 +104,19 @@ _SETTINGS = dict((
     _setting("render_deadline_s", int, 9000,
              "Seconds to wait for dola to render one submission before giving up on it (the new UI promises up to 2 "
              "hours).", min=60),
-    _setting("prices", dict, dict(C.DEFAULT_PRICES),
-             "Points charged per generation, keyed '<model>@<N>s' for video and '<model>' for image. A tier missing "
-             "here is charged the fallback (video 3, image 1) with a warning.", rule=PRICES_RULE, basic=True),
-    _setting("video_budget", int, 4, "Video points each dola account gets per day (dola reports its own number and "
+    (PROVIDER + ".prices", table_setting(
+        PROVIDER + ".prices", "Points charged per job, keyed '<model>@<N>s' for video and '<model>' for image. An "
+        "option missing here is refused (model.unpriced), never charged a guess.", C.PRICE_KEYS, C.DEFAULT_PRICES,
+        unit="points", basic=True)),
+    (PROVIDER + ".costs", table_setting(
+        PROVIDER + ".costs", "What one job costs the dola account: video in dola credits, an image in units of the "
+        "image budget (Seedream 4.5 1, 5.0 Pro 4). An option missing here is refused (model.uncosted).",
+        C.PRICE_KEYS, C.DEFAULT_COSTS, unit="credits or image units")),
+    _setting("video_budget", int, 4, "Video credits each dola account gets per day (dola reports its own number and "
              "that wins).", min=1, basic=True),
-    _setting("image_budget", int, 40, "Image jobs each dola account may take per day (measured about 40; dola never "
-             "reports it).", min=1, basic=True),
+    _setting("image_budget", int, 40, "Image units each dola account has per day (owner 24/10: 40 Seedream 4.x jobs "
+             "or 10 of 5.0 Pro; our 21/09 read was 21 jobs). dola's own \"reached today's image limit\" rests the "
+             "account whatever this says.", min=1, basic=True),
     _setting("master_quality", bool, True,
              "Deliver the H.264 master (720p, about 12 Mbps, no watermark) instead of the light HEVC rendition; falls "
              "back to the rendition when the master cannot be fetched.", basic=True),
@@ -216,8 +210,9 @@ class DolaSpec:
 
     # ---- plan -----------------------------------------------------------------------------------------------------
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
-        """Validate and normalise. Price, account cost and timeout come from the settings and the constants, NEVER from
-        `req.options` (the native door passes options as the client sent them). Raises `InputError`."""
+        """Validate and normalise; the plan names its price key and the core prices it (`dola.prices`,
+        `dola.costs`). Timeouts come from the constants, NEVER from `req.options` (the native door passes options as
+        the client sent them). Raises `InputError`."""
         if req.door == "native" and C.carries_parameters(req.model):
             raise _refuse("input.bad_model", NATIVE_NAME_HELP, "model")
         if req.options.get("template") is not None or req.options.get("template_category") is not None:
@@ -225,6 +220,8 @@ class DolaSpec:
                           "template's prompt as `prompt` (see GET /v1/providers/dola/options)", "options")
         if C.is_blank_prompt(req.prompt):
             raise _refuse("input.empty_prompt", "the prompt shows no visible characters", "prompt")
+        if req.n not in (None, 1):
+            raise _refuse("input.invalid", "dola makes one job per request (an image job draws up to 4 pictures)", "n")
         try:
             gen = C.resolve(req.model)
         except C.ModelNameError as e:
@@ -244,13 +241,12 @@ class DolaSpec:
         if ratio not in C.VALID_RATIOS:
             raise _refuse("input.bad_ratio", "ratio must be one of %s" % (C.VALID_RATIOS,), "ratio")
         self._check_conflict(req.prompt, "video", ratio, duration)
-        price, warnings = self._price(settings, gen.model, "video", duration)
-        warnings += [Warning(codes.WARN_DURATION_CAPPED, w) for w in C.video_warnings(gen.model, duration)]
+        warnings = [Warning(codes.WARN_DURATION_CAPPED, w) for w in C.video_warnings(gen.model, duration)]
         params: dict[str, Any] = {"kind": "video", "model": gen.model, "duration": duration, "ratio": ratio}
         return Plan(
             operation="image_to_video" if req.images else "text_to_video", media_type="video",
             model=C.public_name("video", gen.model, duration, ratio), params=params, completion=Completion.DETACH,
-            after_sent=AfterSent.RECONCILE, wallet_kind="video", price=price, pool="video", account_cost=price,
+            after_sent=AfterSent.RECONCILE, price_key=C.price_key(gen.model, "video", duration), pool="video",
             submit_timeout_s=SUBMIT_TIMEOUT_VIDEO_S, warnings=tuple(warnings))
 
     def _plan_image(self, req: CreateRequest, gen: C.GenSpec, settings: Any) -> Plan:
@@ -263,28 +259,17 @@ class DolaSpec:
             raise _refuse("input.bad_style", "style must be one of %s (or omit)" % (C.VALID_STYLES,), "style")
         params: dict[str, Any] = {"kind": "image", "model": gen.model, "ratio": ratio, "style": style}
         self._check_conflict(req.prompt, "image", ratio, None)
-        price, warnings = self._price(settings, gen.model, "image", None)
         return Plan(
             operation="image_to_image" if req.images else "text_to_image", media_type="image",
             model=C.public_name("image", gen.model, None, ratio, style),
-            params=params, completion=Completion.HOLD, after_sent=AfterSent.RECONCILE, wallet_kind="image", price=price,
-            pool="image", account_cost=IMAGE_ACCOUNT_COST, submit_timeout_s=SUBMIT_TIMEOUT_IMAGE_S,
-            warnings=tuple(warnings))
+            params=params, completion=Completion.HOLD, after_sent=AfterSent.RECONCILE,
+            price_key=C.price_key(gen.model, "image", None), pool="image", submit_timeout_s=SUBMIT_TIMEOUT_IMAGE_S)
 
     @staticmethod
     def _check_conflict(prompt: str, kind: str, ratio: str | None, duration: int | None) -> None:
         found = find_conflict(prompt, kind, ratio, duration)
         if found:
             raise _refuse(found[0], found[1])
-
-    @staticmethod
-    def _price(settings: Any, model: str, kind: str, duration: int | None) -> tuple[int, list[Warning]]:
-        price, missing = C.lookup_price(settings.get("dola.prices"), model, kind, duration)
-        if missing is None:
-            return price, []
-        log.warning("dola price: no entry for %r in dola.prices, charging the fallback of %d point(s)", missing, price)
-        return price, [Warning(codes.WARN_PRICE_FALLBACK,
-                               "no price is set for %s: charged the fallback of %d point(s)" % (missing, price))]
 
 
 SPEC = DolaSpec()

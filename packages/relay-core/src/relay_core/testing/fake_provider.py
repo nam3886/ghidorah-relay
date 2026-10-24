@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from relay_core import failpoints
+from relay_core.pricing import table_setting
 from relay_core.providers import (
     Accepted,
     AfterSent,
@@ -75,11 +76,12 @@ class FakeSpec:
                             RateAlert(name + ".alert_deadline_rate", "render.deadline", "error_code"))
 
     def catalog(self) -> list[ModelSpec]:
-        return [ModelSpec(self.name + "-video", "video", ("generate",), prices={"default": 10}),
-                ModelSpec(self.name + "-image", "image", ("generate",), prices={"default": 1})]
+        return [ModelSpec(self.name + "-video", "video", ("generate",), price_keys={"default": self.name + "-video"}),
+                ModelSpec(self.name + "-image", "image", ("generate",), price_keys={"default": self.name + "-image"})]
 
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
-        """Options steer the plan: `account_cost`, `completion` (hold|detach), `submit_timeout_s`, `price`;
+        """Options steer the plan: `completion` (hold|detach), `submit_timeout_s`; `price` and `account_cost` reach
+        a NewJob built from this plan directly (a door prices it from `<name>.prices` and `<name>.costs` instead);
         `refuse` (a platform code, with `param`) makes it refuse the request as a real spec does."""
         video = req.model.endswith("-video")
         o = req.options
@@ -89,7 +91,7 @@ class FakeSpec:
             operation="generate", media_type="video" if video else "image", model=req.model,
             params={"mime": "video/mp4" if video else "image/png", "completion": o.get("completion", "detach")},
             completion=Completion(o.get("completion", "detach")), after_sent=AfterSent.RECONCILE,
-            wallet_kind="video" if video else "image", price=o.get("price", 10 if video else 1),
+            price_key=req.model, price=o.get("price", 10 if video else 1),
             pool="video" if video else "image", account_cost=o.get("account_cost", 1),
             submit_timeout_s=o.get("submit_timeout_s", 60))
 
@@ -105,7 +107,18 @@ class FakeSpec:
                 n + ".alert_deadline_rate": Spec(n + ".alert_deadline_rate", float, 0.5, "Drift alert (deadline)."),
                 n + ".browser_slots": Spec(n + ".browser_slots", int, 4, "Browser sessions at once (browser only).",
                                              min=1, max=30),
-                n + ".disabled_models": disabled_models(n, (m.id for m in self.catalog()))}
+                n + ".disabled_models": disabled_models(n, (m.id for m in self.catalog())),
+                n + ".prices": table_setting(n + ".prices", "Points per job (a video 10, an image 1).",
+                                             self._keys(), self._table(10, 1), unit="points"),
+                n + ".costs": table_setting(n + ".costs", "Upstream units per job.", self._keys(), self._table(1, 1),
+                                            unit="units")}
+
+    def _keys(self) -> list[str]:
+        return [k for m in self.catalog() for k in m.price_keys.values()]
+
+    def _table(self, video: int, image: int) -> dict[str, int]:
+        """Every option of the catalog (a test's subclass adds models), priced by its media type."""
+        return {k: video if m.media_type == "video" else image for m in self.catalog() for k in m.price_keys.values()}
 
     def parse_credential(self, raw: bytes) -> ParsedCredential:
         return ParsedCredential(blob=raw, hint="fake")

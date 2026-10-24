@@ -51,10 +51,6 @@ MAX_ATTEMPTS = 3                # counted attempts before a job fails
 SUSPECT_THRESHOLD = 3           # strikes before the account is dead
 STRIKE_DEAD_REASON = "signed_out"
 
-# ---- money ----------------------------------------------------------------------------------------------------
-FALLBACK_PRICE = 1              # a model missing from `qwen.prices`, charged with a warning
-IMAGE_ACCOUNT_COST = 1          # an image took no qwen credit (8 of 8 measured): each counts one against the budget
-
 # ---- requests and results ----------------------------------------------------------------------------------------
 PROMPT_MAX_CHARS = 4000         # not measured on qwen yet: a cap well inside what a generate request takes
 INPUT_MAX_BYTES = 20 * 2**20    # one input image sent to the object store
@@ -87,10 +83,6 @@ LIMITS = (
                "a signed-out read this soon after the last counted strike adds none; shorter than the rest", "s"),
     FixedLimit("relay_qwen.constants.NETWORK_REST_S", NETWORK_REST_S,
                "a submit whose proxy could not reach qwen rests the account this long", "s"),
-    FixedLimit("relay_qwen.constants.FALLBACK_PRICE", FALLBACK_PRICE,
-               "charged for a model missing from qwen.prices", "points"),
-    FixedLimit("relay_qwen.constants.IMAGE_ACCOUNT_COST", IMAGE_ACCOUNT_COST,
-               "an image costs no qwen credit: each job counts one against the daily image budget", "per job"),
     FixedLimit("relay_qwen.constants.INPUT_MAX_BYTES", INPUT_MAX_BYTES, "one input image sent to qwen", "bytes"),
     FixedLimit("relay_qwen.constants.MEDIA_MAX_BYTES", MEDIA_MAX_BYTES, "one result file downloaded", "bytes"),
     FixedLimit("relay_qwen.constants.MEDIA_DEADLINE_S", MEDIA_DEADLINE_S, "one result download", "s"),

@@ -96,10 +96,10 @@ def test_every_code_a_plan_refuses_with_is_a_registered_platform_code():
 
 def test_the_warning_codes_are_dola_codes_and_are_not_error_rules():
     warnings = {dola_errors.WARN_DURATION_DRIFT, dola_errors.WARN_MODEL_SUBSTITUTED,
-                dola_errors.WARN_PARTLY_WATERMARKED, dola_errors.WARN_PRICE_FALLBACK,
-                dola_errors.WARN_DURATION_CAPPED}
+                dola_errors.WARN_PARTLY_WATERMARKED, dola_errors.WARN_DURATION_CAPPED}
     assert warnings == {"dola.duration_drift", "dola.model_substituted", "dola.partly_watermarked",
-                        "dola.price_fallback", "dola.duration_capped"}
+                        "dola.duration_capped"}
+    assert not hasattr(dola_errors, "WARN_PRICE_FALLBACK"), "no price is a guess any more: there is no fallback"
     assert not (warnings & set(errors.RULES)), "a warning never ends a job, so it is not an error rule"
 
 

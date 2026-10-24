@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from relay_core import frames
+from relay_core.pricing import table_setting
 from relay_core.providers import (
     AfterSent,
     Caps,
@@ -18,13 +19,11 @@ from relay_core.providers import (
     ParsedCredential,
     Plan,
     PoolSpec,
-    Warning,
 )
-from relay_core.settings import Rule, Spec, disabled_models
+from relay_core.settings import Spec, disabled_models
 from relay_vibes import catalog as C
 from relay_vibes import errors as codes
 from relay_vibes.constants import (
-    ACCOUNT_COST,
     CHECK_INTERVAL_S,
     LIMITS,
     MAX_ATTEMPTS,
@@ -51,20 +50,6 @@ def _refuse(code: str, detail: str = "", param: str | None = None) -> InputError
     return err
 
 
-def _prices(v: dict) -> None:
-    """The price table is the way customers are charged: name the exact fault."""
-    for model, price in v.items():
-        if not isinstance(model, str) or not model.strip():
-            raise ValueError("a price has an empty model name")
-        if type(price) is not int:
-            raise ValueError("the price for %s is not a whole number: %r" % (model, price))
-        if price < 0:
-            raise ValueError("the price for %s is negative" % model)
-
-
-PRICES_RULE = Rule("each model: a non-empty name and a whole number of points, 0 or more", _prices)
-
-
 def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any) -> tuple[str, Spec]:
     full = "%s.%s" % (PROVIDER, key)
     return full, Spec(full, kind, default, description, **bounds)
@@ -87,9 +72,13 @@ _SETTINGS = dict((
     _setting("account_min_gap_s", int, 8,
              "Minimum seconds between two calls of one vibes account, whatever they are (submit, poll, reconcile, "
              "download, check); Vercel blocked ~45 calls in 5.5 min.", min=2, max=60),
-    _setting("prices", dict, dict(C.DEFAULT_PRICES),
-             "Points charged per generation, keyed by model. A model missing here is charged the fallback (1) with a "
-             "warning.", rule=PRICES_RULE, basic=True),
+    (PROVIDER + ".prices", table_setting(
+        PROVIDER + ".prices", "Points charged per job, keyed by its option. An option missing here is refused "
+        "(model.unpriced), never charged a guess.", C.PRICE_KEYS, C.DEFAULT_PRICES, unit="points", basic=True)),
+    (PROVIDER + ".costs", table_setting(
+        PROVIDER + ".costs", "What one job costs the vibes account: one job of its daily budget (vibes shows only "
+        "a used-up flag). An option missing here is refused (model.uncosted).",
+        C.PRICE_KEYS, C.DEFAULT_COSTS, unit="jobs")),
     # vibes' daily quota is not measured yet: the budgets start far above any real day, and the account check reads
     # the used-up banner instead.
     _setting("image_budget", int, 1000, "Image jobs each vibes account may take per day (not measured yet).", min=1,
@@ -154,6 +143,8 @@ class VibesSpec:
             raise _refuse("input.bad_model", "vibes' models are %s" % ", ".join(C.KIND), "model")
         if req.duration is not None:
             raise _refuse("input.bad_duration", "vibes sets the length itself: send no duration", "duration")
+        if req.n not in (None, 1):
+            raise _refuse("input.invalid", "vibes makes one result per request", "n")
         if req.ratio is not None and req.ratio not in C.RATIOS[kind]:
             allowed = ", ".join(C.RATIOS[kind])
             detail = ("vibes video comes out 9:16; send no ratio or 9:16" if kind == "video"
@@ -177,22 +168,10 @@ class VibesSpec:
             operation = "image_to_video" if req.images else "text_to_video"
         if operation.startswith("text_to_") and C.is_blank_prompt(req.prompt):
             raise _refuse("input.empty_prompt", "the prompt shows no visible characters", "prompt")
-        price, warnings = self._price(settings, req.model)
         return Plan(
             operation=operation, media_type=kind, model=req.model, params=params,
             completion=Completion.HOLD if kind == "image" else Completion.DETACH, after_sent=AfterSent.RECONCILE,
-            wallet_kind=kind, price=price, pool=kind, account_cost=ACCOUNT_COST, submit_timeout_s=_SUBMIT_TIMEOUT[kind],
-            warnings=tuple(warnings))
-
-    @staticmethod
-    def _price(settings: Any, model: str) -> tuple[int, list[Warning]]:
-        price, missing = C.lookup_price(settings.get("vibes.prices"), model)
-        if missing is None:
-            return price, []
-        log.warning("vibes price: no entry for %r in vibes.prices, charging the fallback of %d point(s)", missing,
-                    price)
-        return price, [Warning(codes.WARN_PRICE_FALLBACK,
-                               "no price is set for %s: charged the fallback of %d point(s)" % (missing, price))]
+            price_key=C.price_key(req.model, resolution), pool=kind, submit_timeout_s=_SUBMIT_TIMEOUT[kind])
 
 
 SPEC = VibesSpec()

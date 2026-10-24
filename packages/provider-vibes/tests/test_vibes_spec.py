@@ -1,10 +1,8 @@
 """The vibes spec: caps, settings, catalog next to dola's and meta's, error rules and `plan()`."""
 
-import logging
-
 import pytest
 
-from relay_core import errors, frames
+from relay_core import errors, frames, pricing
 from relay_core.api.doors import checked_prompt
 from relay_core.providers import (
     AfterSent,
@@ -37,6 +35,12 @@ def plan(model="vibes-image", prompt="a lighthouse at dawn", *, cfg=None, **kw):
     return SPEC.plan(CreateRequest(model=model, prompt=prompt, **kw), cfg or settings(), {})
 
 
+def priced(model="vibes-image", prompt="a lighthouse at dawn", *, cfg=None, **kw):
+    """The plan as the door makes it: the core's price and upstream cost from `vibes.prices` and `vibes.costs`."""
+    cfg = cfg or FakeSettings(SPEC)
+    return pricing.price_plan(SPEC, plan(model, prompt, cfg=cfg, **kw), cfg)
+
+
 def refusal(model="vibes-image", prompt="a lighthouse at dawn", **kw) -> tuple[str, str | None] | None:
     """(code, param) of the refusal, or None when the request was planned."""
     try:
@@ -65,7 +69,8 @@ def test_vibes_stays_drained_by_default_and_declares_the_settings_the_core_reads
     s = SPEC.settings()
     assert s["vibes.claims_enabled"].default is False, "vibes must stay drained until it can submit"
     assert "vibes.browser_slots" not in s, "an http provider has no browser"
-    assert s["vibes.prices"].default == {"vibes-image": 1, "vibes-video": 1}
+    assert s["vibes.prices"].default == {"vibes-image": 1, "vibes-video@480p": 1, "vibes-video@720p": 1}
+    assert s["vibes.costs"].default == {"vibes-image": 1, "vibes-video@480p": 1, "vibes-video@720p": 1}
     assert s["vibes.image_budget"].default >= 1000 and s["vibes.video_budget"].default >= 1000, "not measured yet"
     assert s["vibes.render_deadline_s"].default >= 600, "a video renders for about 5 min"
     assert (s["vibes.poll_interval_s"].default, s["vibes.poll_interval_s"].min) == (20, 10), "slower than 2-6 s"
@@ -79,7 +84,7 @@ def test_the_prices_setting_refuses_a_bad_table():
     for bad in ({"vibes-image": 1.5}, {"vibes-image": -1}, {" ": 1}, {"vibes-image": True}):
         with pytest.raises(ValueError):
             rule.check(bad)
-    rule.check({"vibes-image": 0, "vibes-video": 3})
+    rule.check({"vibes-image": 0, "vibes-video@720p": 3})
 
 
 def test_the_registry_takes_vibes_beside_dola_and_meta_and_no_model_name_clashes():
@@ -100,7 +105,7 @@ def test_vibes_registers_its_codes_on_load_and_a_warning_is_no_rule():
              "vibes.output_missing"}
     assert set(SPEC.codes()) == codes and codes <= set(errors.RULES), "the codes are registered when the package loads"
     assert {c for c in errors.RULES if c.startswith("vibes.")} == codes and errors.violations(errors.RULES) == []
-    assert vibes_errors.WARN_PRICE_FALLBACK not in errors.RULES, "a warning is not a rule"
+    assert not hasattr(vibes_errors, "WARN_PRICE_FALLBACK"), "no price is a guess any more: there is no fallback"
     for code in ("vibes.generate_refused", "vibes.render_failed"):   # the job ends now, refunded; never sent again
         r = errors.rule(code)
         assert (r.terminal, r.refund, r.counts_attempt, r.public) == (True, True, False, True), code
@@ -119,7 +124,8 @@ def test_an_image_is_held_in_the_request_and_a_video_is_detached_and_polled():
         "text_to_image", "image", "vibes-image", {"kind": "image", "model": "midjen-base", "ratio": "4:3"})
     assert (p.completion, p.after_sent, p.wallet_kind, p.pool) == (Completion.HOLD, AfterSent.RECONCILE, "image",
                                                                    "image")
-    assert (p.price, p.account_cost, p.submit_timeout_s, p.warnings) == (1, 1, 180, ())
+    assert (p.price_key, p.submit_timeout_s, p.warnings) == ("vibes-image", 180, ())
+    assert (priced().price, priced().account_cost) == (1, 1)
     v = plan("vibes-video", "a paper lantern over a lake")
     assert (v.operation, v.media_type, v.wallet_kind, v.pool, v.submit_timeout_s) == (
         "text_to_video", "video", "video", "video", 120)
@@ -210,20 +216,29 @@ def test_an_unknown_or_foreign_model_name_is_refused():
         assert refusal(name) == ("input.bad_model", "model"), "an unknown model: %s" % name
 
 
-def test_the_price_comes_from_the_live_settings_never_the_options():
-    cfg = settings(vibes__prices={"vibes-image": 3, "vibes-video": 5})
-    assert plan(cfg=cfg).price == 3 and plan("vibes-video", cfg=cfg).price == 5
-    assert plan(options={"price": 0}).price == 1
+VIDEO_KEY = "price_key=C.price_key(req.model, resolution)"
 
 
-@mutation(SPEC_FILE, "        if missing is None:\n            return price, []",
-          "        if True:\n            return price, []", expect="a missing price must warn")
-def test_a_model_missing_from_the_prices_is_charged_the_fallback_with_a_warning(caplog):
-    with caplog.at_level(logging.WARNING):
-        p = plan(cfg=settings(vibes__prices={"vibes-video": 2}))
-    assert p.price == 1
-    assert [w.code for w in p.warnings] == ["vibes.price_fallback"], "a missing price must warn"
-    assert "vibes-image" in caplog.text
+@mutation(SPEC_FILE, VIDEO_KEY, "price_key=C.price_key(req.model, None)",
+          expect="no price for vibes-video@None")
+def test_the_price_comes_from_the_live_settings_by_resolution_never_the_options():
+    cfg = settings(vibes__prices={"vibes-image": 3, "vibes-video@480p": 5, "vibes-video@720p": 8})
+    assert priced(cfg=cfg).price == 3 and priced("vibes-video", cfg=cfg).price == 5
+    assert priced("vibes-video", options={"resolution": "720p"}, cfg=cfg).price == 8, (
+        "a video is priced by its resolution")
+    assert priced(options={"price": 0}).price == 1
+
+
+def test_a_model_missing_from_the_prices_is_refused_never_charged_a_guess():
+    with pytest.raises(pricing.Unpriced):
+        priced(cfg=settings(vibes__prices={"vibes-video@480p": 2}))
+
+
+@mutation(SPEC_FILE, "        if req.n not in (None, 1):", "        if False:", expect="n=4 was planned")
+def test_a_count_above_one_is_refused_not_ignored():
+    for n in (4, 2):
+        assert refusal(n=n) == ("input.invalid", "n"), "n=%d was planned" % n
+    assert refusal(n=1) is None
 
 
 # ---- prompt frames ---------------------------------------------------------------------------------------------------

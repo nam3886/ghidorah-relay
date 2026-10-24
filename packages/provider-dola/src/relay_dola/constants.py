@@ -32,11 +32,6 @@ LOGIN_DOUBT_GAP_S = 540         # a doubt less than this long after the last cou
 #                                 the rest, so a slow close or a clock skew cannot put the next read inside the gap
 STRIKE_DEAD_REASON = "signed_out"
 
-# ---- money ----------------------------------------------------------------------------------------------------
-FALLBACK_VIDEO_PRICE = 3        # a video tier missing from `dola.prices`: dearest measured plain tier, + a warning
-FALLBACK_IMAGE_PRICE = 1        # an image model missing from `dola.prices`
-IMAGE_ACCOUNT_COST = 1          # dola counts the image ceiling per JOB, whatever the model (R20)
-
 # ---- requests -------------------------------------------------------------------------------------------------
 MAX_REFERENCE_IMAGES = 10       # the composer takes 10 and silently drops the rest (spike 17/09)
 PROMPT_MAX_CHARS = 200_000      # longest prompt a customer may send; edge measured 12/10: 250,000 kept, 265,625 dropped
@@ -81,12 +76,6 @@ LIMITS = (
                "a login doubt rests the account this long, then it is checked again", "s"),
     FixedLimit("relay_dola.constants.LOGIN_DOUBT_GAP_S", LOGIN_DOUBT_GAP_S,
                "a doubt this soon after the last counted strike adds none; shorter than the rest", "s"),
-    FixedLimit("relay_dola.constants.FALLBACK_VIDEO_PRICE", FALLBACK_VIDEO_PRICE,
-               "charged for a video tier missing from dola.prices (the dearest measured plain tier)", "points"),
-    FixedLimit("relay_dola.constants.FALLBACK_IMAGE_PRICE", FALLBACK_IMAGE_PRICE,
-               "charged for an image model missing from dola.prices", "points"),
-    FixedLimit("relay_dola.constants.IMAGE_ACCOUNT_COST", IMAGE_ACCOUNT_COST,
-               "dola counts its image ceiling per job, whatever the model", "per job"),
     FixedLimit("relay_dola.constants.MAX_REFERENCE_IMAGES", MAX_REFERENCE_IMAGES,
                "the composer takes this many and silently drops the rest", "images"),
     FixedLimit("relay_dola.constants.BROWSER_SLOTS_MIN", BROWSER_SLOTS_MIN,

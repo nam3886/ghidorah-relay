@@ -69,10 +69,6 @@ MAX_ATTEMPTS = 3                # counted attempts before a job fails
 SUSPECT_THRESHOLD = 3           # strikes before the account is dead
 STRIKE_DEAD_REASON = "signed_out"
 
-# ---- money ----------------------------------------------------------------------------------------------------
-FALLBACK_PRICE = 1              # a model missing from `gemini.prices`, charged with a warning
-ACCOUNT_COST = 1                # each job counts one image (or one video) against its daily budget
-
 # ---- requests and results -------------------------------------------------------------------------------------
 PROMPT_MAX_CHARS = 4000         # not measured on gemini: a cap well inside what a send takes
 MEDIA_MAX_BYTES = 64 * 2**20    # one result; a 1408x768 PNG was 1.2-1.9 MB, a 10 s 720p MP4 1.5-2.2 MB
@@ -98,10 +94,6 @@ LIMITS = (
                "a lost send is looked for among chats started from this long before it", "s"),
     FixedLimit("relay_gemini.constants.FIND_AFTER_S", FIND_AFTER_S,
                "... up to this long after it (a chat is listed with the time its send started)", "s"),
-    FixedLimit("relay_gemini.constants.FALLBACK_PRICE", FALLBACK_PRICE,
-               "charged for a model missing from gemini.prices", "points"),
-    FixedLimit("relay_gemini.constants.ACCOUNT_COST", ACCOUNT_COST, "each job counts one image or one video",
-               "per job"),
     FixedLimit("relay_gemini.constants.MAX_ACCOUNTS", MAX_ACCOUNTS,
                "the /u/N indexes the check looks through for the account's email", "accounts"),
     FixedLimit("relay_gemini.constants.MEDIA_MAX_BYTES", MEDIA_MAX_BYTES, "one result image or video", "bytes"),

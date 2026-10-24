@@ -2,27 +2,20 @@
 
 from relay_core import frames
 from relay_core.providers import ModelSpec
-from relay_meta.constants import FALLBACK_PRICE, RATIOS
+from relay_meta.constants import RATIOS
 
 IMAGE_MODEL = "meta-image"
 VIDEO_MODEL = "meta-video"
 KIND = {IMAGE_MODEL: "image", VIDEO_MODEL: "video"}
 
-DEFAULT_PRICES = {IMAGE_MODEL: 1, VIDEO_MODEL: 1}
+PRICE_KEYS = (IMAGE_MODEL, VIDEO_MODEL)
+DEFAULT_COSTS = {IMAGE_MODEL: 1, VIDEO_MODEL: 1}      # one job of the daily budget (the default of `meta.costs`)
+DEFAULT_PRICES = {IMAGE_MODEL: 1, VIDEO_MODEL: 1}     # points (the default of `meta.prices`, the owner edits it)
 
 
 def is_blank_prompt(text: str) -> bool:
     """Does the prompt show nothing (the core's one rule)?"""
     return frames.shows_nothing(text)
-
-
-def lookup_price(table: dict[str, int] | None, model: str) -> tuple[int, str | None]:
-    """(points, None) from the table, or (fallback, model) when the model is not in it: the caller logs and warns, so a
-    wrong charge is never silent."""
-    table = table or {}
-    if model in table:
-        return int(table[model]), None
-    return FALLBACK_PRICE, model
 
 
 def catalog() -> list[ModelSpec]:
@@ -31,10 +24,10 @@ def catalog() -> list[ModelSpec]:
                   limits={"max_images": 1, "ratios": list(RATIOS["image"]),
                           "description": "Images from a text prompt (several per run), or one image edited "
                                          "as the text asks."},
-                  prices={"default": DEFAULT_PRICES[IMAGE_MODEL]}, display_name="Meta AI Image"),
+                  price_keys={"default": IMAGE_MODEL}, display_name="Meta AI Image"),
         ModelSpec(VIDEO_MODEL, "video", ("text_to_video", "image_to_video"),
                   limits={"max_images": 1, "ratios": list(RATIOS["video"]),
                           "description": "A video from a text prompt, or one image animated with optional "
                                          "motion text; about 10 s at 720p."},
-                  prices={"default": DEFAULT_PRICES[VIDEO_MODEL]}, display_name="Meta AI Video"),
+                  price_keys={"default": VIDEO_MODEL}, display_name="Meta AI Video"),
     ]
