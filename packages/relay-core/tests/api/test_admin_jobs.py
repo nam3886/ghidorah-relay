@@ -1140,3 +1140,10 @@ def test_the_drawers_raw_request_response_and_diagnostics_never_show_a_secret(db
     assert (d["upstream_cost"], d["cost_unit"], d["margin"]) == (4, "jobs", None), \
         "a pool counted in jobs has no points rule: no margin"
     assert d["net_charged"] > 0 and priced["margin"] == d["net_charged"] - 4 * 2, "the unit's points rule"
+
+
+def test_a_reference_that_is_the_conversation_is_shown_as_the_conversation_never_as_a_task():
+    ids = routes_jobs._upstream_ids
+    assert ids(True, "c-1", {}) == ("c-1", None), "the spec says the reference is the conversation"
+    assert ids(False, "t-1", {"chat": "c-2"}) == ("c-2", "t-1"), "else the reference is the upstream task"
+    assert ids(False, "t-1", {"task": "t-9"}) == (None, "t-9"), "a task id in the state wins"

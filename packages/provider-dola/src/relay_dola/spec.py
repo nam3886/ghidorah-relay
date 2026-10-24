@@ -154,6 +154,7 @@ class DolaSpec:
     frames = FRAMES
     max_prompt_chars = PROMPT_MAX_CHARS
     execution_setting = PROVIDER + ".send_path"      # the admin shows the live send path, not caps.execution
+    ref_is_conversation = True                       # the job's reference is the conversation it was sent in
     caps = Caps(
         execution="browser", pools=POOLS,
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,

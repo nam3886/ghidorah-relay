@@ -40,9 +40,15 @@ NOT_SHOWN = {
     **excuse("an admin paging or id bound: it keeps a list request cheap and says nothing about behaviour",
              "admin.routes_alert_groups.MAX_OFFSET", "admin.routes_alert_groups.MAX_ID", "admin.routes_common.MAX_PAGE",
              "admin.routes_jobs.MAX_OFFSET", "admin.routes_logs.MAX_QUERY", "admin.routes_logs.MAX_MS",
-             "admin.routes_alert_groups.RESOLVED_LIMIT"),
+             "admin.routes_alert_groups.RESOLVED_LIMIT", "admin.routes_jobs.SEARCH_MAX",
+             "admin.routes_jobs.MAX_SEARCH_DAYS"),
     **excuse("the longest mute the admin may set on an alert kind: an input bound of the Alert rules, it changes "
              "nothing a job or a customer does", "alerts.MAX_MUTE_MIN", "alerts.MONEY_MUTE_MAX_MIN"),
+    **excuse("the admin Jobs page's range choices (Today, 7 days, 30 days) as local days: a view, not a limit",
+             "admin.routes_stats.RANGES"),
+    **excuse("a display rule of the job drawer's margin, the same one Settings' Models and prices states (1 credit "
+             "or 1 use counts as 1 point); reporting only, it never charges or limits anything",
+             "admin.routes_jobs.UNIT_POINTS"),
     **excuse("a text trim or a capture size for display and diagnostics, not a limit on what a customer can do",
              "admin.routes_jobs.TITLE_LIMIT", "admin.routes_jobs.DEBUG_READ_MAX", "alerts.REPLY_LIMIT",
              "alerts.TITLE_LIMIT", "alerts.GROUP_LEN", "alerts.ECHO_FLOOR", "api.errors_http.MAX_PARAM",

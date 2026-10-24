@@ -120,9 +120,6 @@ _DETAIL = (
 _CREATE_LOG = ("SELECT route, status_code, body_redacted FROM request_logs WHERE at >= %(at)s - interval '1 minute' "
                "AND at < %(at)s + interval '10 minutes' AND job_id = %(id)s AND route NOT LIKE 'GET %%' "
                "ORDER BY at, id LIMIT 1")
-# Providers whose external_ref is the upstream conversation (dola adopts the conversation as the job's reference); for
-# the others it is the upstream's task, batch or request id.
-_REF_IS_CONVERSATION = ("dola",)
 _SUMMARY = ("id", "provider", "key_id", "key_label", "operation", "media_type", "model", "title", "status",
             "error_code", "price", "account_id", "account_label", "external_ref", "created_at", "finished_at")
 _NET = ("SELECT COALESCE(sum(CASE entry WHEN 'charge' THEN amount ELSE -amount END), 0) FROM ledger "
@@ -151,15 +148,15 @@ def _summary(row: tuple) -> dict[str, Any]:
     return item
 
 
-def _upstream_ids(provider: str, external_ref: str | None, state: dict) -> tuple[str | None, str | None]:
-    """(conversation, task id) as the provider keeps them: the chat or conversation in its state (dola's is the
-    job's external_ref), the task, batch or request id in its state, else the external_ref when it is not the
-    conversation."""
+def _upstream_ids(ref_is_conversation: bool, external_ref: str | None, state: dict) -> tuple[str | None, str | None]:
+    """(conversation, task id) as the provider keeps them: the chat or conversation in its state (or the job's
+    external_ref, for a provider whose spec says that reference is the conversation), the task, batch or request id in
+    its state, else the external_ref when it is not the conversation."""
     text = lambda v: str(v) if v not in (None, "") else None  # noqa: E731
     conversation = text(state.get("chat") or state.get("conversation_id")) or (
-        text(external_ref) if provider in _REF_IS_CONVERSATION else None)
+        text(external_ref) if ref_is_conversation else None)
     task = text(state.get("task") or state.get("batch") or state.get("request"))
-    if task is None and provider not in _REF_IS_CONVERSATION and text(external_ref) != conversation:
+    if task is None and not ref_is_conversation and text(external_ref) != conversation:
         task = text(external_ref)
     return conversation, task
 
@@ -303,7 +300,8 @@ async def job_detail(job_id: uuid.UUID, request: Request, pool: AsyncConnectionP
         answer = await job_status(pool, public_base(request), row[2], item["id"])
     except ApiError:                         # the job went away between the two reads
         answer = None
-    conversation, task_id = _upstream_ids(item["provider"], item["external_ref"], state)
+    spec = registry.spec(item["provider"]) if item["provider"] in registry.names() else None
+    conversation, task_id = _upstream_ids(getattr(spec, "ref_is_conversation", False), item["external_ref"], state)
     cost = upstream_price if upstream_price is not None else account_cost if item["status"] == "done" else None
     unit = _pool_unit(registry, item["provider"], pool_name)
     per = UNIT_POINTS.get(unit) if unit else None

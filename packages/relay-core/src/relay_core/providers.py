@@ -570,6 +570,9 @@ class ProviderSpec(Protocol):
     # a live setting (one of its own) whose value, http or browser, is how it sends now instead of caps.execution: the
     # admin shows that one (read with getattr; None = caps.execution)
     execution_setting: str | None = None
+    # True when the job's external_ref is the upstream conversation rather than a task id: the job drawer then shows
+    # it as the Conversation (read with getattr; False = a task, batch or request id)
+    ref_is_conversation: bool = False
 
     def catalog(self) -> list[ModelSpec]: ...
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan: ...
