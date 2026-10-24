@@ -12,6 +12,8 @@ export interface Capacity {
   day_anchor: string | null;
   rest_until_ms: number | null;
   rest_reason: string | null;
+  // each window of the pool: its budget, what was spent and when it refills
+  windows?: { name: string; kind: string; budget: number | null; spent: number; refill_ms: number | null }[];
 }
 
 export interface Account {
@@ -33,6 +35,12 @@ export interface Account {
   last_error: string | null;
   last_used_ms: number | null;
   last_checked_ms: number | null;
+  // when it was imported (the detail's Added); optional, the list has always served it
+  created_ms?: number | null;
+  // the account's tier (null = free), whether the upstream told it, and the day its cycle started (YYYY-MM-DD)
+  tier?: string | null;
+  tier_read?: boolean;
+  cycle_start?: string | null;
   in_use: boolean;
   has_screenshot: boolean;
   composer: string | null;

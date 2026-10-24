@@ -1,5 +1,6 @@
 """Import accounts and Edit account as right drawers, in Chrome against the real app (browser tier): both open in the
-shared `DetailDrawer` (620 px on a tablet and a desktop, a full-screen sheet with Back on a phone), carry the close
+Ledger `SideDrawer` (560 and 520 px on a desktop, 48 px short of the left edge on a tablet, the whole screen with the
+sheet head on a phone), carry the close
 guard (what was pasted or typed is never lost to a stray Escape, X, Cancel, scrim click or browser Back), keep focus
 inside and give it back to a stable control, and leave no credential or proxy in a hidden field after any way out.
 Every test runs under the CSP watch of `conftest.CspWatch`."""
@@ -14,6 +15,7 @@ from test_e2e_accounts import header_import, more, open_accounts, pair, rows  # 
 pytestmark = pytest.mark.browser
 
 WIDTHS = ((1440, 900), (768, 1024))
+CLOSE = "Close · Esc"
 PASTE, PROXY = "cookie-one\ncookie-two", "10.1.2.3:8080:user:pw-secret"
 BOXES_JS = """() => {
   window.__most_boxes = 0;
@@ -52,7 +54,15 @@ def pasted_import(page):
 
 
 def open_edit(page, label):
-    more(rows(page).filter(has_text=label), "Edit")
+    """Edit from the row's More menu; a tablet row has none, so there it is the account drawer's Edit."""
+    row = rows(page).filter(has_text=label)
+    expect(row).to_be_visible()
+    if row.get_by_role("button", name=re.compile(r"^More actions for ")).count():
+        more(row, "Edit")
+    else:
+        row.get_by_role("button", name=label, exact=True).click()
+        page.get_by_test_id("account-drawer").get_by_role("button", name="Edit account").click()
+        expect(page.get_by_test_id("account-drawer")).to_be_hidden()
     expect(drawer(page)).to_be_visible()
     return drawer(page)
 
@@ -92,38 +102,40 @@ def test_import_and_edit_are_right_drawers_named_by_their_headings(app, app_sess
     expect(page.get_by_role("dialog", name="Import accounts")).to_be_visible()
     expect(box.get_by_role("heading", name="Import accounts")).to_be_visible()
     got = box_of(page.get_by_test_id("import-drawer"))
-    assert abs(got["width"] - 620) < 1 and abs(got["x"] + got["width"] - width) < 1, "a right drawer 620 px: %r" % got
+    want = 560 if width >= 1280 else width - 48
+    assert abs(got["width"] - want) < 1 and abs(got["x"] + got["width"] - width) < 1, "a right drawer: %r" % got
     assert page.locator(".el-dialog").count() == 0
-    expect(box.get_by_role("button", name="Close")).to_be_visible()
-    assert box.get_by_role("button", name="Back to Accounts").count() == 0, "Back is the phone's"
-    box.get_by_role("button", name="Close").click()
+    expect(box.get_by_role("button", name=CLOSE)).to_be_visible()
+    expect(box.get_by_role("button", name="Back to Accounts")).to_be_visible()
+    box.get_by_role("button", name=CLOSE).click()
     expect(drawer(page)).to_have_count(0)
     box = open_edit(page, "free one")
-    expect(page.get_by_role("dialog", name="Edit account — free one")).to_be_visible()
-    expect(box.get_by_role("heading", name="Edit account — free one")).to_be_visible()
+    expect(page.get_by_role("dialog", name="Edit account free one")).to_be_visible()
+    expect(box.get_by_role("heading", name="Edit account free one")).to_be_visible()
     got = box_of(page.get_by_test_id("edit-account-drawer"))
-    assert abs(got["width"] - 620) < 1 and abs(got["x"] + got["width"] - width) < 1, "a right drawer 620 px: %r" % got
+    want = 520 if width >= 1280 else width - 48
+    assert abs(got["width"] - want) < 1 and abs(got["x"] + got["width"] - width) < 1, "a right drawer: %r" % got
 
 
-def test_on_a_phone_both_are_full_screen_sheets_with_back_and_44_px_footer_buttons(app, app_session, db):
+def test_on_a_phone_both_are_full_screen_sheets_with_close_and_44_px_footer_buttons(app, app_session, db):
     page = app_session
     new_account(db, label="free one", checked=True)
     goto_accounts(app, page, 390, 844)
     box = open_import(page)
     got = box_of(page.get_by_test_id("import-drawer"))
     assert abs(got["x"]) < 1 and abs(got["width"] - 390) < 1, "the whole screen: %r" % got
-    expect(box.get_by_role("button", name="Back to Accounts")).to_be_visible()
-    assert box.get_by_role("button", name="Close").count() == 0
+    expect(box.get_by_role("button", name=CLOSE)).to_be_visible()
+    assert box.get_by_role("button", name="Back to Accounts").count() == 0
     for name in ("Cancel", "Import"):
         height = box_of(box.get_by_role("button", name=name, exact=True))["height"]
         assert height == 44, "%s is %s px high" % (name, height)
-    box.get_by_role("button", name="Back to Accounts").click()
+    box.get_by_role("button", name=CLOSE).click()
     expect(drawer(page)).to_have_count(0)
     page.get_by_role("button", name=re.compile(r"^More actions for free one")).click()
     page.get_by_role("menuitem", name="Edit", exact=True).click()
     box = drawer(page)
-    expect(box.get_by_role("button", name="Back to Accounts")).to_be_visible()
-    expect(box.get_by_role("heading", name="Edit account — free one", level=1)).to_be_visible()
+    expect(box.get_by_role("button", name=CLOSE)).to_be_visible()
+    expect(box.get_by_role("heading", name="Edit account free one")).to_be_visible()
     for name in ("Cancel", "Save"):
         height = box_of(box.get_by_role("button", name=name, exact=True))["height"]
         assert height == 44, "%s is %s px high" % (name, height)
@@ -228,7 +240,7 @@ def test_a_paste_asks_once_keep_editing_keeps_it_and_discard_empties_it_and_clos
         if way == "escape":
             page.keyboard.press("Escape")
         else:
-            box.get_by_role("button", name="Close" if way == "close" else "Cancel", exact=True).click()
+            box.get_by_role("button", name=CLOSE if way == "close" else "Cancel", exact=True).click()
 
     leave()
     expect(question(page)).to_have_count(1)
@@ -267,7 +279,7 @@ def test_two_ways_out_in_a_row_never_put_up_two_questions(app, app_session, db):
     expect(question(page)).to_have_count(1)
     page.keyboard.press("Escape")             # the question's own Escape: it closes only itself (keep)
     expect(question(page)).to_have_count(0)
-    box.get_by_role("button", name="Close", exact=True).click()
+    box.get_by_role("button", name=CLOSE, exact=True).click()
     expect(question(page)).to_have_count(1)
     page.keyboard.press("Escape")
     expect(question(page)).to_have_count(0)
@@ -283,7 +295,7 @@ def test_a_good_import_leaves_the_result_and_empty_fields_and_closes_without_ask
     expect(box.get_by_role("status", name="Result of the previous import")).to_contain_text("Imported 2, rejected 0")
     expect(box.get_by_label("Credentials")).to_have_value("")
     expect(box.get_by_label("Proxy for all")).to_have_value("")
-    box.get_by_role("button", name="Close", exact=True).click()
+    box.get_by_role("button", name=CLOSE, exact=True).click()
     expect(drawer(page)).to_have_count(0)
     expect(question(page)).to_have_count(0)
     reopened_import_is_empty(page)
@@ -352,7 +364,7 @@ def test_a_list_read_under_an_open_edit_drawer_does_not_change_whether_it_is_dir
         db.run("UPDATE commands SET status = 'done', result = '{}'::jsonb, finished_at = clock_timestamp() "
                "WHERE kind = 'proxy_recheck' AND account_id = %s AND status <> 'done'", acct)
         expect(page.get_by_text("Proxy check done").first).to_be_visible(timeout=10000)
-        expect(page.get_by_role("heading", name="Edit account — " + server_label)).to_be_visible(timeout=10000)
+        expect(page.get_by_role("heading", name="Edit account " + server_label)).to_be_visible(timeout=10000)
 
     check_proxy_ends("renamed by someone else")
     expect(box.get_by_label("Label", exact=True)).to_have_value("proxied")      # the typed fields are untouched
@@ -366,7 +378,7 @@ def test_a_list_read_under_an_open_edit_drawer_does_not_change_whether_it_is_dir
     db.run("UPDATE accounts SET label = 'typed after the read' WHERE id = %s", acct)
     db.run("UPDATE commands SET status = 'done', result = '{}'::jsonb, finished_at = clock_timestamp() "
            "WHERE kind = 'proxy_recheck' AND account_id = %s AND status <> 'done'", acct)
-    expect(page.get_by_role("heading", name="Edit account — typed after the read")).to_be_visible(timeout=10000)
+    expect(page.get_by_role("heading", name="Edit account typed after the read")).to_be_visible(timeout=10000)
     # the server copy now says what was typed, but the drawer was opened on another label: still a change
     box.get_by_role("button", name="Cancel", exact=True).click()
     expect(question(page)).to_have_count(1)

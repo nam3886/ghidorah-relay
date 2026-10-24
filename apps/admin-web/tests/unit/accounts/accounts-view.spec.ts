@@ -48,6 +48,7 @@ vi.mock("@/components/shared/use-leave-guard", async (original) => {
 vi.mock("@/lib/notify", () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn(), clear: vi.fn() } }));
 
 const PLANTED = "<img src=x onerror=window.__pwned=1><b>planted</b>";
+const RECHECK = "Re-check account · R";
 
 const account = (over: Partial<Account> = {}): Account => ({
   id: "a1",
@@ -75,8 +76,10 @@ const account = (over: Partial<Account> = {}): Account => ({
   made: { video: 0, image: 0 },
   ...over,
 });
+// a dead account: its row carries Re-check
+const dead = (over: Partial<Account> = {}) => account({ state: "dead", state_reason: "signed out", ...over });
 
-const page = (items: Account[]) => ({ items, total: items.length });
+const page = (items: Account[], total = items.length) => ({ items, total });
 
 // GET /admin/providers/summary: vibes takes jobs over HTTP with 3 of 4 accounts usable, dola is paused.
 const providerRow = (provider: string, usable: number, total: number, claims = true): shell.ProviderSummary => ({
@@ -122,6 +125,8 @@ const button = (w: VueWrapper, name: string) =>
 const rows = (w: VueWrapper) => w.findAll(".acct-row");
 const menuItem = (name: string) =>
   [...document.body.querySelectorAll<HTMLElement>("[role=menuitem]")].find((b) => b.textContent?.trim() === name)!;
+const chip = (w: VueWrapper, label: string) =>
+  w.findAll(".av-chip").find((c) => c.text().replace(/\s+/g, " ").startsWith(label))!;
 
 // Opens the More menu of the nth row and picks an item (the menu is drawn in the body).
 async function pick(w: VueWrapper, name: string, nth = 0) {
@@ -188,74 +193,74 @@ afterEach(() => {
 });
 
 describe("the list", () => {
-  it("draws every server string as text, and hides the switch of an account in use", async () => {
+  it("draws every server string as text; a busy account reads In use and a dead one its reason", async () => {
     list.mockResolvedValue(
       page([
         account({ id: "a1", label: PLANTED, display_name: PLANTED, state_reason: PLANTED, last_error: PLANTED }),
-        account({ id: "a2", label: "busy", in_use: true, made: { video: 3, image: 2 } }),
-        account({ id: "a3", label: "gone", state: "dead", state_reason: "login failed" }),
+        account({ id: "a2", label: "busy", in_use: true }),
+        dead({ id: "a3", label: "gone", state_reason: "login failed" }),
       ]),
     );
     const w = await open();
+    await chip(w, "All").trigger("click");
     expect(w.text()).toContain(PLANTED);
     expect(w.find("img").exists()).toBe(false);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
     const table = rows(w);
     expect(table).toHaveLength(3);
-    expect(table[0]!.find("[role=switch]").exists()).toBe(true);
-    expect(table[1]!.find("[role=switch]").exists()).toBe(false);
-    // what it made sits on the foot line, after the checked stamp
-    expect(table[1]!.find(".foot-note").text()).toBe("Checked never · 3 videos · 2 images");
-    expect(table[1]!.text()).toContain("in use");
-    expect(table[2]!.text()).toContain("login failed");
+    // what needs a look comes first
+    expect(table[0]!.text()).toContain("gone");
+    expect(table[0]!.find(".acct-pill").text()).toBe("Dead");
+    expect(table[0]!.text()).toContain("login failed");
+    expect(table[1]!.find(".acct-pill").text()).toBe("In use");
+    // the list has no switch: Taking jobs is in Edit
+    expect(w.find("[role=switch]").exists()).toBe(false);
   });
 
-  it("a long account, reason or sleep line keeps its whole text as its title, where it ends in an ellipsis", async () => {
+  it("a long account, reason or ident keeps its whole text as its title, where it ends in an ellipsis", async () => {
     const owner = "Nguyen Thi Thanh Huong Collective";
     const reason = "account.dead_session_after_password_change";
-    const why = "dola.likeness_refused_by_the_review";
-    list.mockResolvedValue(
-      page([
-        account({
-          id: "a1",
-          label: "acct-n11-00007919",
-          display_name: owner,
-          state: "dead",
-          state_reason: reason,
-          cooldown_until_ms: Date.now() + 3_600_000,
-          cooldown_reason: why,
-        }),
-      ]),
-    );
+    list.mockResolvedValue(page([dead({ label: "acct-n11-00007919", display_name: owner, state_reason: reason })]));
     const w = await open();
-    const titled = (cls: string) => rows(w)[0]!.find(`.${cls}.clip`).attributes("title");
-    expect(titled("label")).toBe("acct-n11-00007919");
-    expect(titled("sub")).toContain(owner);
-    expect(titled("reason")).toBe(reason);
-    expect(rows(w)[0]!.find(".why .asleep").text()).toContain("asleep until");
-    expect(rows(w)[0]!.find(".why .clip").attributes("title")).toBe(why);
+    expect(rows(w)[0]!.find(".at__open").attributes("title")).toBe("acct-n11-00007919");
+    expect(rows(w)[0]!.find(".d-acct .clip").attributes("title")).toBe(owner);
+    expect(rows(w)[0]!.find(".why.clip").attributes("title")).toBe(reason);
   });
 
-  it("a dead account's row is tinted, and a disabled account reads disabled", async () => {
+  it("each health has its pill: dead, proxy failing, asleep, low, in use, available, switched off", async () => {
+    const pool = (left: number, budget: number) => ({
+      pool: "video",
+      left_n: left,
+      left_today: left,
+      budget,
+      drift: false,
+      source: "page",
+      day_anchor: null,
+      rest_until_ms: null,
+      rest_reason: null,
+    });
     list.mockResolvedValue(
       page([
         account({ id: "a1", label: "ok" }),
-        account({ id: "a2", label: "gone", state: "dead" }),
-        account({ id: "a3", label: "off", state: "disabled" }),
+        dead({ id: "a2", label: "gone" }),
+        account({ id: "a3", label: "off", state: "disabled", state_reason: "disabled by admin" }),
+        account({ id: "a4", label: "px", proxy_host: "10.0.0.1", proxy_port: 80, proxy_ok: false }),
+        account({ id: "a5", label: "nap", cooldown_until_ms: Date.now() + 3_600_000, cooldown_reason: "x.y" }),
+        account({ id: "a6", label: "low", capacity: [pool(0, 4)] }),
+        account({ id: "a7", label: "busy", in_use: true }),
       ]),
     );
     const w = await open();
-    const table = rows(w);
-    expect(table[0]!.classes()).not.toContain("is-dead");
-    expect(table[1]!.classes()).toContain("is-dead");
-    expect(table[2]!.classes()).not.toContain("is-dead");
-    expect(table[2]!.text()).toContain("disabled");
-    expect(table[2]!.find("[role=switch]").attributes("aria-checked")).toBe("false");
-    expect(table[0]!.find("[role=switch]").attributes("aria-checked")).toBe("true");
+    await chip(w, "All").trigger("click");
+    const pills = rows(w).map((r) => r.find(".acct-pill").text());
+    expect(pills.slice(0, 3)).toEqual(["Dead", "Proxy failing", expect.stringMatching(/^Asleep until \d\d:\d\d$/)]);
+    expect(pills.slice(3)).toEqual(["Low credits", "In use", "Available", "Switched off"]);
+    // a switched-off row shows no reason under its pill
+    expect(rows(w)[6]!.find(".why").exists()).toBe(false);
+    expect(rows(w)[3]!.find(".why").text()).toBe("video 0 of 4 left");
   });
 
-  it("a row says its points, drift, sleep, proxy and last error as drawn", async () => {
-    const at = Date.now() + 3_600_000;
+  it("a row says its pools, its proxy and the last check as drawn", async () => {
     list.mockResolvedValue(
       page([
         account({
@@ -263,7 +268,6 @@ describe("the list", () => {
           display_name: "Demo User F",
           provider: "dola",
           composer: "v2",
-          last_checked_ms: Date.now() - 4 * 60_000,
           capacity: [
             {
               pool: "video",
@@ -277,47 +281,35 @@ describe("the list", () => {
               rest_reason: null,
             },
           ],
-          cooldown_until_ms: at,
-          cooldown_reason: "dola.likeness_refused",
-          strikes: 1,
           proxy_host: "10.0.0.13",
           proxy_port: 8000,
           has_proxy_auth: true,
-          proxy_ok: false,
+          proxy_ok: true,
           proxy_checked_ms: Date.now() - 5 * 60_000,
-          last_error: "drift: page shows 26, ledger says 27",
         }),
       ]),
     );
     const w = await open();
-    const text = rows(w)[0]!.text();
-    expect(text).toContain("acct-n11-06");
-    expect(rows(w)[0]!.find(".sub").text()).toBe("Demo User F · composer v2");
-    expect(text).toContain("Checked 4 min ago");
-    expect(rows(w)[0]!.find(".meter__name").text()).toBe("video");
-    expect(rows(w)[0]!.find(".meter__figure").text()).toBe("27 / 30");
-    // the meter is filled to what is left of the budget, in the provider's tone
-    expect(rows(w)[0]!.find(".meter__track i").attributes("style")).toContain("width: 90%");
-    expect(text).toContain("drift");
-    expect(text).toContain("asleep until");
-    expect(text).toContain("· strike");
-    expect(text).toContain("dola.likeness_refused");
-    expect(text).toContain("10.0.0.13:8000");
-    expect(text).toContain("auth");
-    expect(text).toContain("failed · 5 min ago");
-    expect(text).toContain("drift: page shows 26, ledger says 27");
+    const row = rows(w)[0]!;
+    expect(row.find(".d-acct .clip").text()).toBe("Demo User F · composer v2");
+    expect(row.find(".acct-pchip").text()).toBe("dola");
+    expect(row.find(".d-meter .pct").text()).toBe("90%");
+    expect(row.find(".d-meter .fill").attributes("style")).toContain("width: 90%");
+    expect(row.findAll(".d-meter .small").at(-1)!.text()).toBe("27 / 30");
+    expect(row.find(".d-proxy .proxy").text()).toBe("10.0.0.13:8000");
+    expect(row.find(".d-proxy .check-line").text()).toBe("ok · 5 min ago");
   });
 
-  it("an account with no proxy says direct; an awake one with no error has no sleep line", async () => {
+  it("an account with no proxy says direct, no proxy", async () => {
     const w = await open();
-    expect(rows(w)[0]!.text()).toContain("direct, no proxy");
-    expect(rows(w)[0]!.find(".why").exists()).toBe(false);
+    expect(rows(w)[0]!.find(".d-proxy .proxy").text()).toBe("direct");
+    expect(rows(w)[0]!.find(".d-proxy .check-line").text()).toBe("no proxy");
   });
 
-  it("asks for the provider filter and 50 per page", async () => {
+  it("asks for the provider filter and the server's largest page", async () => {
     useScopeStore(pinia).provider = "dola";
     await open();
-    expect(list).toHaveBeenCalledWith("dola", 50, 0);
+    expect(list).toHaveBeenCalledWith("dola", 200, 0);
   });
 
   it("a slow first answer that arrives after the second does not bring its rows back", async () => {
@@ -334,12 +326,12 @@ describe("the list", () => {
     expect(w.text()).not.toContain("first-stale");
   });
 
-  it("the first read draws one lane of five rows of bars, and no footer count", async () => {
+  it("the first read draws five rows of flat bars in the real columns, and no footer count", async () => {
     list.mockReturnValue(new Promise(() => {}));
     const w = await open();
     const loading = w.find("[data-state=loading]");
     expect(loading.findAll(".acct-row")).toHaveLength(5);
-    expect(loading.findAll(".acct-row")[0]!.findAll(".acct-skel")).toHaveLength(3);
+    expect(loading.findAll(".acct-row")[0]!.findAll(".bar")).toHaveLength(5);
     expect(w.text()).not.toContain("Showing");
     expect(w.find("[data-state=empty]").exists()).toBe(false);
   });
@@ -347,7 +339,8 @@ describe("the list", () => {
   it("an empty list says so and offers Import; a failed read shows the error with Retry", async () => {
     list.mockResolvedValue(page([]));
     const w = await open();
-    expect(w.find("[aria-label='Account list']").text()).toContain("No accounts yet.");
+    expect(w.find("[aria-label='Account list']").text()).toContain("No accounts yet");
+    expect(button(w, "Import accounts")).toBeTruthy();
     list.mockRejectedValueOnce(new ApiError(502, { error: { code: "x", message: "bad gateway" } }));
     useScopeStore(pinia).provider = "dola";
     await settle();
@@ -361,140 +354,191 @@ describe("the list", () => {
     expect(w.text()).toContain("back");
   });
 
-  it("the footer says Showing 1–N of N", async () => {
-    list.mockResolvedValue(page([account({ id: "a1" }), account({ id: "a2", label: "two" })]));
+  it("past the server's largest page the footer says Showing a–b of N with Previous and Next", async () => {
+    const many = Array.from({ length: 3 }, (_, n) => account({ id: `a${n}`, label: `n${n}` }));
+    list.mockResolvedValue(page(many));
     const w = await open();
-    expect(w.text()).toContain("Showing 1–2 of 2");
+    expect(w.text()).not.toContain("Showing");
+    w.unmount();
+    wrapper = null;
+    list.mockResolvedValue(page(many, 450));
+    const again = await open();
+    expect(again.text()).toContain("Showing 1–3 of 450");
+    await button(again, "Next page").trigger("click");
+    await settle();
+    expect(list).toHaveBeenLastCalledWith("", 200, 200);
   });
 });
 
 describe("the header", () => {
-  it("shows the Updated line with the auto period, and Check all, Refresh catalog and Import on the desktop", async () => {
+  it("names the usable accounts and what needs a look, with Re-check all, Refresh catalog and Import on a desktop", async () => {
+    list.mockResolvedValue(page([dead({ id: "a1" }), dead({ id: "a2", label: "two" })]));
     const w = await open();
     expect(w.find("h1").text()).toBe("Accounts");
-    expect(w.text()).toMatch(/Updated \d\d:\d\d:\d\d · auto every 10 s/);
-    expect(button(w, "Check all")).toBeTruthy();
+    expect(w.find(".head__sub").text()).toBe("7 of 9 usable. 2 dead.");
+    expect(button(w, "Re-check all accounts")).toBeTruthy();
     expect(button(w, "Refresh catalog")).toBeTruthy();
-    expect(button(w, "Import")).toBeTruthy();
+    expect(button(w, "Import accounts")).toBeTruthy();
   });
 
-  it("a tablet folds Check all and Refresh catalog into a More menu and moves Updated under the subtitle", async () => {
+  it("a tablet: Check all and Import as text, and a banner of what needs a look", async () => {
     stubWidth("tablet");
+    list.mockResolvedValue(page([dead()]));
     const w = await open();
-    expect(w.findAll("button").some((b) => b.text() === "Check all")).toBe(false);
-    await button(w, "More actions: Check all, Refresh catalog").trigger("click");
-    expect(menuItem("Check all")).toBeTruthy();
-    expect(menuItem("Refresh catalog")).toBeTruthy();
-    expect(w.find(".text .updated").exists()).toBe(true);
-  });
-});
-
-describe("the lanes", () => {
-  it("groups the accounts per provider in the drawn order, each lane headed by its usable / total and paused", async () => {
-    list.mockResolvedValue(
-      page([
-        account({ id: "a1", label: "v-one" }),
-        account({ id: "a2", label: "d-one", provider: "dola" }),
-        account({ id: "a3", label: "v-two" }),
-        account({ id: "a4", label: "x-one", provider: "other" }),
-      ]),
-    );
-    const w = await open();
-    const lanes = w.findAll(".lane");
-    expect(lanes.map((l) => l.find(".lane__name").text())).toEqual(["dola", "vibes", "other"]);
-    expect(lanes.map((l) => l.findAll(".acct-row").map((r) => r.find(".label").text()))).toEqual([
-      ["d-one"],
-      ["v-one", "v-two"],
-      ["x-one"],
-    ]);
-    expect(lanes[0]!.classes()).toContain("p-dola");
-    expect(lanes[0]!.find(".lane__meta").text()).toMatch(/^1\/2 usable\s*paused$/);
-    expect(lanes[0]!.find(".lane__meta .paused").exists()).toBe(true);
-    expect(lanes[1]!.find(".lane__meta").text()).toBe("3/4 usable");
-    // a provider the summary does not know counts the rows on the page
-    expect(lanes[2]!.classes()).toContain("p-other");
-    expect(lanes[2]!.find(".lane__meta").text()).toBe("1 account");
-    expect(lanes[0]!.find(".ptile").text()).toBe("D");
+    expect(button(w, "Check all")).toBeTruthy();
+    expect(button(w, "Import")).toBeTruthy();
+    expect(w.find(".head__banner").text()).toBe("1 of 9 need a look. 1 dead.");
   });
 
-  it("with All, a lane's footer shows that provider alone; with a provider chosen there is none", async () => {
-    list.mockResolvedValue(page([account({ id: "a1" }), account({ id: "a2", provider: "dola", label: "d" })]));
+  it("a phone: Filter by provider, Check all accounts, Refresh catalog and Import accounts as icons, then the card", async () => {
+    stubWidth("phone");
     const w = await open();
-    const scope = useScopeStore(pinia);
-    const more = w.find("[data-testid=lane-vibes] .lane__more");
-    expect(more.text()).toBe("All 4 vibes accounts →");
-    await more.trigger("click");
+    const names = w.findAll(".head__actions button").map((b) => b.attributes("aria-label"));
+    expect(names).toEqual(["Filter by provider", "Check all accounts", "Refresh catalog", "Import accounts"]);
+    expect(w.find(".head__card").text()).toContain("7 of 9 usable");
+    await button(w, "Filter by provider").trigger("click");
     await settle();
-    expect(scope.provider).toBe("vibes");
-    expect(list).toHaveBeenLastCalledWith("vibes", 50, 0);
-    list.mockResolvedValue(page([account({ id: "a1" })]));
-    await settle();
-    expect(w.find(".lane__more").exists()).toBe(false);
-  });
-
-  it("the Jobs today table sits on top, reads the summary with the list, and a row picks the provider", async () => {
-    const w = await open();
-    expect(shell.getProvidersSummary).toHaveBeenCalled();
-    const table = w.find("[data-testid=provider-table]");
-    expect(table.exists()).toBe(true);
-    await table.find("[data-testid=provider-row-dola]").trigger("click");
+    const dola = [...document.body.querySelectorAll<HTMLElement>(".av-sheet-chips button")].find(
+      (b) => b.textContent?.trim() === "dola",
+    )!;
+    dola.click();
     await settle();
     expect(useScopeStore(pinia).provider).toBe("dola");
   });
+});
 
-  it("a tablet keeps the Check button; the made counts are on the foot line", async () => {
-    stubWidth("tablet");
-    list.mockResolvedValue(page([account({ made: { video: 31, image: 12 } })]));
+describe("the filters", () => {
+  it("Show starts on Needs a look when something needs one, counts each issue and filters the rows", async () => {
+    list.mockResolvedValue(page([account({ id: "a1", label: "fine" }), dead({ id: "a2", label: "gone" })]));
     const w = await open();
-    expect(rows(w)[0]!.text()).toContain("31 videos · 12 images");
-    expect(rows(w)[0]!.text()).toContain("direct, no proxy");
-    expect(button(w, "Check main")).toBeTruthy();
+    expect(chip(w, "Needs a look").attributes("aria-pressed")).toBe("true");
+    expect(chip(w, "Needs a look").find(".av-chip__n").text()).toBe("1");
+    expect(chip(w, "All").find(".av-chip__n").text()).toBe("2");
+    expect(rows(w).map((r) => r.find(".at__open").text())).toEqual(["gone"]);
+    await chip(w, "All").trigger("click");
+    expect(rows(w)).toHaveLength(2);
+    await chip(w, "Switched off").trigger("click");
+    expect(w.find("[data-state=empty]").text()).toContain("No switched off accounts");
+    await button(w, "Clear filters").trigger("click");
+    expect(rows(w)).toHaveLength(2);
   });
 
-  it("a phone: no Check button, Check first in the row menu, one footer line", async () => {
+  it("with nothing that needs a look Show starts on All", async () => {
+    const w = await open();
+    expect(chip(w, "All").attributes("aria-pressed")).toBe("true");
+    expect(rows(w)).toHaveLength(1);
+  });
+
+  it("a provider chip sets the shared filter and a second click clears it", async () => {
+    const w = await open();
+    const scope = useScopeStore(pinia);
+    expect(chip(w, "All providers").attributes("aria-pressed")).toBe("true");
+    await chip(w, "dola").trigger("click");
+    await settle();
+    expect(scope.provider).toBe("dola");
+    expect(list).toHaveBeenLastCalledWith("dola", 200, 0);
+    await chip(w, "dola").trigger("click");
+    expect(scope.provider).toBe("");
+  });
+
+  it("a paused provider says so over its accounts, which read Paused", async () => {
+    useScopeStore(pinia).provider = "dola";
+    list.mockResolvedValue(page([account({ provider: "dola" })]));
+    const w = await open();
+    expect(w.find(".av-banner").text()).toContain("dola is paused in Settings.");
+    expect(rows(w)[0]!.find(".acct-pill").text()).toBe("Paused");
+  });
+
+  it("a phone: no Check button on a healthy row, Check first in the row menu", async () => {
     stubWidth("phone");
     const w = await open();
     expect(w.findAll(".acct-row")).toHaveLength(1);
-    expect(w.findAll("button").some((b) => b.text() === "Check")).toBe(false);
+    expect(w.find(`[aria-label='${RECHECK}']`).exists()).toBe(false);
     await w.find("[aria-label^='More actions for']").trigger("click");
-    const names = [...document.body.querySelectorAll("[role=menuitem]")].map((i) => i.textContent?.trim());
+    const names = [...document.body.querySelectorAll("[role=menuitem]")].map((i) =>
+      i.textContent?.replace("none yet", "").trim(),
+    );
     expect(names).toEqual(["Check", "Shot", "Wake", "Edit", "Delete"]);
-    expect(w.find("[aria-label='Account list']").text()).toContain("Showing 1–1 of 1");
   });
 });
 
-describe("the enable switch", () => {
-  it("sends enabled and reads the list again", async () => {
+describe("the bulk Disable", () => {
+  const tickFirst = async (w: VueWrapper) => {
+    await rows(w)[0]!.find("input[type=checkbox]").trigger("change");
+    await settle();
+  };
+
+  it("sends enabled false for each ticked row and reads the list again", async () => {
     vi.mocked(accounts.patchAccount).mockResolvedValue({ id: "a1", command_id: null });
     const w = await open();
-    await rows(w)[0]!.find("[role=switch]").trigger("click");
+    await tickFirst(w);
+    expect(w.find("[aria-label='Bulk actions']").text()).toContain("1 selected");
+    await button(w, "Disable").trigger("click");
     await settle();
     expect(accounts.patchAccount).toHaveBeenCalledWith("a1", { enabled: false });
     expect(list).toHaveBeenCalledTimes(2);
   });
 
-  it("reads the list again when the change fails, so the switch goes back, and says why", async () => {
+  it("reads the list again when the change fails, so the row goes back, and says why", async () => {
     vi.mocked(accounts.patchAccount).mockRejectedValue(
       new ApiError(409, { error: { code: "pool.account_busy", message: "account is busy" } }),
     );
     const w = await open();
-    await rows(w)[0]!.find("[role=switch]").trigger("click");
+    await tickFirst(w);
+    await button(w, "Disable").trigger("click");
     await settle();
     expect(list).toHaveBeenCalledTimes(2);
     expect(notify.error).toHaveBeenCalledWith("account is busy");
   });
 });
 
+describe("the detail", () => {
+  it("the name opens the account's drawer; its footer edits, re-checks and wakes", async () => {
+    vi.mocked(accounts.wakeAccount).mockResolvedValue({ command_id: "w1" });
+    vi.mocked(commands.getCommand).mockResolvedValue({ id: "w1", status: "done", result: null } as never);
+    list.mockResolvedValue(
+      page([account({ cooldown_until_ms: Date.now() + 3_600_000, cooldown_reason: "dola.refused", strikes: 3 })]),
+    );
+    const w = await open();
+    await rows(w)[0]!.find(".at__open").trigger("click");
+    await settle();
+    const drawer = document.body.querySelector(".rl-drawer")!;
+    expect(drawer.querySelector("h2")!.textContent!.trim()).toBe("main");
+    expect(drawer.querySelector("[role=status]")!.textContent).toContain("Resting after 3 strikes.");
+    const names = [...drawer.querySelectorAll(".rl-drawer__foot button")].map(
+      (b) => b.getAttribute("aria-label") ?? b.textContent?.trim(),
+    );
+    expect(names).toEqual(["Delete account", "Edit account", RECHECK, "Wake now"]);
+    (drawer.querySelector(".ad__primary") as HTMLElement).click();
+    await settle();
+    expect(accounts.wakeAccount).toHaveBeenCalledExactlyOnceWith("a1");
+  });
+
+  it("R re-checks the account whose drawer is open", async () => {
+    vi.mocked(accounts.checkAccount).mockResolvedValue({ command_id: "c1" });
+    vi.mocked(commands.getCommand).mockReturnValue(new Promise(() => {}));
+    const w = await open();
+    await rows(w)[0]!.find(".at__open").trigger("click");
+    await settle();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "r", bubbles: true }));
+    await settle();
+    expect(accounts.checkAccount).toHaveBeenCalledExactlyOnceWith("a1");
+  });
+});
+
 describe("the row commands and the edit dialog", () => {
   const done = (id: string) => ({ id, status: "done", result: null }) as unknown as commands.CommandStatus;
   const inBody = (text: string) =>
-    [...document.body.querySelectorAll("button")].find((b) => b.textContent?.trim() === text)!;
+    [...document.body.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === text || b.getAttribute("aria-label") === text,
+    )!;
   const editOpen = (w: VueWrapper) => w.findComponent(EditDialog).props("modelValue");
   const type = (label: string, value: string) => {
     const el = document.body.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
     el.value = value;
     el.dispatchEvent(new Event("input"));
   };
+  const recheck = (w: VueWrapper, nth = 0) => rows(w)[nth]!.find(`[aria-label='${RECHECK}']`);
 
   it("Wake queues the wake command under the label that names the cooldown and the strikes", async () => {
     vi.mocked(accounts.wakeAccount).mockResolvedValue({ command_id: "w1" });
@@ -506,13 +550,19 @@ describe("the row commands and the edit dialog", () => {
     expect(notify.success).toHaveBeenCalledWith("Wake: clear cooldown and strikes done");
   });
 
-  it("the row has a switch, a Check button and one More menu; the menu holds Shot (only with a screenshot), Wake, Edit, Delete", async () => {
+  it("a healthy row has its More menu only, a dead one Re-check too; the menu holds Shot (only with a screenshot), Wake, Edit, Delete", async () => {
+    list.mockResolvedValue(page([account(), dead({ id: "a2", label: "gone" })]));
     const w = await open();
-    const names = w.findAll(".acct-row button").map((b) => b.attributes("aria-label"));
-    expect(names).toEqual(["Enable main", "Check main", "More actions for main"]);
+    await chip(w, "All").trigger("click");
+    const labels = (r: number) =>
+      rows(w)
+        [r]!.findAll(".d-act button")
+        .map((b) => b.attributes("aria-label"));
+    expect(labels(0)).toEqual([RECHECK, "More actions for gone"]);
+    expect(labels(1)).toEqual(["More actions for main"]);
     await w.find("[aria-label='More actions for main']").trigger("click");
     const items = [...document.body.querySelectorAll("[role=menuitem]")];
-    expect(items.map((i) => i.textContent?.trim())).toEqual(["Shot", "Wake", "Edit", "Delete"]);
+    expect(items.map((i) => i.textContent?.replace("none yet", "").trim())).toEqual(["Shot", "Wake", "Edit", "Delete"]);
     expect(items[0]!.getAttribute("aria-disabled")).toBe("true");
     expect(items[1]!.getAttribute("aria-disabled")).toBeNull();
     document.body.click();
@@ -526,25 +576,31 @@ describe("the row commands and the edit dialog", () => {
 
   it("Shot of an account without a screenshot does nothing", async () => {
     const w = await open();
-    await pick(w, "Shot");
+    await w.find("[aria-label^='More actions for']").trigger("click");
+    [...document.body.querySelectorAll<HTMLElement>("[role=menuitem]")][0]!.click();
+    await settle();
     expect(accounts.accountScreenshot).not.toHaveBeenCalled();
   });
 
   it("Check queues a check, locks that button while it runs, and says what it found", async () => {
+    list.mockResolvedValue(page([dead()]));
     vi.mocked(accounts.checkAccount).mockResolvedValue({ command_id: "c1" });
     const gate = deferred<commands.CommandStatus>();
     vi.mocked(commands.getCommand).mockReturnValue(gate.promise);
     const w = await open();
-    await w.find("[aria-label='Check main']").trigger("click");
+    await recheck(w).trigger("click");
     await settle();
     expect(accounts.checkAccount).toHaveBeenCalledExactlyOnceWith("a1");
-    expect(w.find("[aria-label='Check main']").attributes("aria-disabled")).toBe("true");
-    await w.find("[aria-label='Check main']").trigger("click");
+    expect(recheck(w).attributes("disabled")).toBeDefined();
+    // R on the row while it runs queues nothing more
+    rows(w)[0]!.element.dispatchEvent(new KeyboardEvent("keydown", { key: "r", bubbles: true }));
+    await settle();
     expect(accounts.checkAccount).toHaveBeenCalledTimes(1);
     gate.resolve(done("c1"));
     await settle();
-    expect(w.find("[aria-label='Check main']").attributes("aria-disabled")).toBeUndefined();
+    expect(recheck(w).attributes("disabled")).toBeUndefined();
     expect(notify.info).not.toHaveBeenCalledWith("Check: queued");
+    expect(notify.error).toHaveBeenCalledWith("Check done: account dead (signed out)");
   });
 
   it("Delete asks first and queues the delete only after a yes", async () => {
@@ -554,7 +610,7 @@ describe("the row commands and the edit dialog", () => {
     const w = await open();
     await pick(w, "Delete");
     expect(ask).toHaveBeenCalledTimes(1);
-    // as B-States draws a delete confirm: the title asks and names the account, one sentence says the consequence
+    // as Dialogs draws a delete confirm: the title asks and names the account, one sentence says the consequence
     expect(ask).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Delete account main?",
@@ -579,7 +635,7 @@ describe("the row commands and the edit dialog", () => {
     inBody("Check proxy").click();
     await settle();
     expect(editOpen(w)).toBe(true);
-    expect(document.body.querySelector(".detail-drawer [data-state=running]")).not.toBeNull();
+    expect(document.body.querySelector(".rl-drawer [data-state=running]")).not.toBeNull();
     // the check polls for a long time: Save stays usable meanwhile
     expect(inBody("Save").getAttribute("aria-disabled")).toBeNull();
     expect(accounts.recheckProxy).toHaveBeenCalledExactlyOnceWith("a1");
@@ -588,32 +644,33 @@ describe("the row commands and the edit dialog", () => {
     await settle();
     expect(commands.getCommand).toHaveBeenCalledWith("r1");
     expect(notify.success).toHaveBeenCalledWith("Proxy check done");
-    expect(document.body.querySelector(".detail-drawer [data-state=ok]")).not.toBeNull();
+    expect(document.body.querySelector(".rl-drawer [data-state=ok]")).not.toBeNull();
     expect(list).toHaveBeenCalledTimes(2);
   });
 
   it("a Check's chip runs under its button, says how it ended, stays through the next automatic read and goes with the one after", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     try {
+      list.mockResolvedValue(page([dead()]));
       vi.mocked(accounts.checkAccount).mockResolvedValue({ command_id: "c1" });
       const gate = deferred<commands.CommandStatus>();
       vi.mocked(commands.getCommand).mockReturnValue(gate.promise);
       const w = await open();
-      const chip = () => w.find(".acct-row .cmd-line [data-state]");
-      await w.find("[aria-label='Check main']").trigger("click");
+      const cmd = () => w.find(".acct-row .cmd-line [data-state]");
+      await recheck(w).trigger("click");
       await settle();
-      expect(chip().attributes("data-state")).toBe("running");
+      expect(cmd().attributes("data-state")).toBe("running");
       const finished = Date.UTC(2026, 9, 15, 13, 55, 7);
       gate.resolve({ ...done("c1"), finished_ms: finished });
       await settle();
-      expect(chip().text()).toBe(`ok · ${hhmmss(finished)}`);
+      expect(cmd().text()).toBe(`ok · ${hhmmss(finished)}`);
       // the next automatic read keeps it (it is seen at least one period); the one after replaces the row
       await vi.advanceTimersByTimeAsync(10000);
       await settle();
-      expect(chip().text()).toBe(`ok · ${hhmmss(finished)}`);
+      expect(cmd().text()).toBe(`ok · ${hhmmss(finished)}`);
       await vi.advanceTimersByTimeAsync(10000);
       await settle();
-      expect(chip().exists()).toBe(false);
+      expect(cmd().exists()).toBe(false);
     } finally {
       vi.useRealTimers();
     }
@@ -621,18 +678,19 @@ describe("the row commands and the edit dialog", () => {
 
   it("two quick Checks keep both results: the reads the commands make do not clear a chip", async () => {
     const labels = ["main", "two", "three"];
-    list.mockResolvedValue(page(labels.map((label, n) => account({ id: `a${n}`, label }))));
+    list.mockResolvedValue(page(labels.map((label, n) => dead({ id: `a${n}`, label }))));
     vi.mocked(accounts.checkAccount).mockImplementation(async (id) => ({ command_id: `c-${id}` }));
     vi.mocked(commands.getCommand).mockImplementation(async (id) => done(id));
     const w = await open();
-    for (const label of labels) {
-      await w.find(`[aria-label='Check ${label}']`).trigger("click");
+    for (const n of [0, 1, 2]) {
+      await recheck(w, n).trigger("click");
       await settle();
     }
     expect(w.findAll(".acct-row .cmd-line [data-state=ok]")).toHaveLength(3);
   });
 
   it("a failed Check's chip and toast carry the worker's reason", async () => {
+    list.mockResolvedValue(page([dead()]));
     vi.mocked(accounts.checkAccount).mockResolvedValue({ command_id: "c1" });
     vi.mocked(commands.getCommand).mockResolvedValue({
       ...done("c1"),
@@ -640,7 +698,7 @@ describe("the row commands and the edit dialog", () => {
       result: { error: "connect timeout after 8 s" },
     });
     const w = await open();
-    await w.find("[aria-label='Check main']").trigger("click");
+    await recheck(w).trigger("click");
     await settle();
     expect(w.find(".acct-row .cmd-line [data-state=error]").text()).toBe("error · connect timeout after 8 s");
     expect(notify.error).toHaveBeenCalledWith("Check failed: connect timeout after 8 s");
@@ -660,6 +718,17 @@ describe("the row commands and the edit dialog", () => {
     expect(notify.success).toHaveBeenCalledWith("Proxy check done");
     expect(list).toHaveBeenCalledTimes(2);
     expect(editOpen(w)).toBe(false);
+  });
+
+  it("Save of a flipped Taking jobs switch sends enabled", async () => {
+    vi.mocked(accounts.patchAccount).mockResolvedValue({ id: "a1", command_id: null });
+    const w = await open();
+    await pick(w, "Edit");
+    document.body.querySelector<HTMLElement>("[role=switch]")!.click();
+    await settle();
+    inBody("Save").click();
+    await settle();
+    expect(accounts.patchAccount).toHaveBeenCalledExactlyOnceWith("a1", { enabled: false });
   });
 
   it("a Check proxy that ends while the dialog is open never wipes what was typed", async () => {
@@ -707,7 +776,7 @@ describe("the row commands and the edit dialog", () => {
     expect(editOpen(w)).toBe(false);
   });
 
-  it("a second click while an action runs sends nothing: Wake, Delete, the switch, the phone's Check", async () => {
+  it("a second click while an action runs sends nothing: Wake, Delete, the bulk Disable, the phone's Check", async () => {
     const wakeGate = deferred<commands.CommandStatus>();
     vi.mocked(accounts.wakeAccount).mockResolvedValue({ command_id: "w1" });
     vi.mocked(commands.getCommand).mockReturnValue(wakeGate.promise);
@@ -728,8 +797,10 @@ describe("the row commands and the edit dialog", () => {
 
     const patched = deferred<{ id: string; command_id: null }>();
     vi.mocked(accounts.patchAccount).mockReturnValue(patched.promise);
-    await rows(w)[0]!.find("[role=switch]").trigger("click");
-    await rows(w)[0]!.find("[role=switch]").trigger("click");
+    for (let twice = 0; twice < 2; twice++) {
+      await rows(w)[0]!.find("input[type=checkbox]").trigger("change");
+      await button(w, "Disable").trigger("click");
+    }
     expect(accounts.patchAccount).toHaveBeenCalledTimes(1);
     patched.resolve({ id: "a1", command_id: null });
     await settle();
@@ -763,6 +834,7 @@ describe("the row commands and the edit dialog", () => {
 
 describe("Check all and Refresh catalog", () => {
   const done = (id: string) => ({ id, status: "done", result: null }) as unknown as commands.CommandStatus;
+  const CHECK_ALL = "Re-check all accounts";
 
   it("with the filter on All, goes over the providers one after another", async () => {
     const calls: string[] = [];
@@ -775,13 +847,13 @@ describe("Check all and Refresh catalog", () => {
       id === "c-dola" ? firstDone.promise : Promise.resolve(done(id)),
     );
     const w = await open();
-    await button(w, "Check all").trigger("click");
+    await button(w, CHECK_ALL).trigger("click");
     await settle();
     // dola (sorted first) is still running: vibes must not have been queued yet
     expect(calls).toEqual(["dola"]);
     // and Check all is drawn disabled meanwhile, so a second click queues nothing
-    expect(button(w, "Check all").attributes("aria-disabled")).toBe("true");
-    await button(w, "Check all").trigger("click");
+    expect(button(w, CHECK_ALL).attributes("disabled")).toBeDefined();
+    await button(w, CHECK_ALL).trigger("click");
     expect(calls).toEqual(["dola"]);
     firstDone.resolve(done("c-dola"));
     await vi.waitFor(() => expect(calls).toEqual(["dola", "vibes"]));
@@ -796,13 +868,13 @@ describe("Check all and Refresh catalog", () => {
       id === "c-dola" ? gate.promise : Promise.resolve(done(id)),
     );
     const w = await open();
-    await button(w, "Check all").trigger("click");
+    await button(w, CHECK_ALL).trigger("click");
     await settle();
-    const chip = () => w.find(".cmd [data-state]");
-    expect(chip().attributes("data-state")).toBe("running");
+    const cmd = () => w.find(".head__cmds [data-state]");
+    expect(cmd().attributes("data-state")).toBe("running");
     gate.resolve({ ...done("c-dola"), status: "failed", result: { error: "worker gone" } });
-    await vi.waitFor(() => expect(chip().attributes("data-state")).toBe("error"));
-    expect(chip().text()).toBe("error · worker gone");
+    await vi.waitFor(() => expect(cmd().attributes("data-state")).toBe("error"));
+    expect(cmd().text()).toBe("error · worker gone");
     expect(accounts.checkAll).toHaveBeenCalledWith("vibes");
   });
 
@@ -835,11 +907,11 @@ describe("auto-refresh", () => {
 
   it("does not read the list while a dialog is open, and goes on when it closes", async () => {
     const w = await open();
-    await button(w, "Import").trigger("click");
+    await button(w, "Import accounts").trigger("click");
     await settle();
     await vi.advanceTimersByTimeAsync(10000);
     expect(list).toHaveBeenCalledTimes(1);
-    document.body.querySelector<HTMLElement>("[aria-label='Close']")!.click();
+    document.body.querySelector<HTMLElement>("[data-testid=import-drawer] [aria-label='Close · Esc']")!.click();
     await settle();
     await vi.advanceTimersByTimeAsync(10000);
     expect(list).toHaveBeenCalledTimes(2);
@@ -895,17 +967,18 @@ describe("the Edit and Import drawers on the page", () => {
     el.dispatchEvent(new Event("input"));
   };
   const inDrawer = (text: string) =>
-    [...document.body.querySelectorAll<HTMLElement>(".detail-drawer__foot button")].find(
+    [...document.body.querySelectorAll<HTMLElement>(".rl-drawer__foot button")].find(
       (b) => b.textContent?.trim() === text,
     )!;
   const leave = () => guards.calls.at(-1)!;
 
   it("a row command that is running does not stop the Edit drawer from closing", async () => {
+    list.mockResolvedValue(page([dead()]));
     vi.mocked(accounts.checkAccount).mockResolvedValue({ command_id: "c1" });
     const gate = deferred<commands.CommandStatus>();
     vi.mocked(commands.getCommand).mockReturnValue(gate.promise);
     const w = await open();
-    await w.find("[aria-label='Check main']").trigger("click");
+    await w.find(`[aria-label='${RECHECK}']`).trigger("click");
     await settle();
     await pick(w, "Edit");
     expect(editOpen(w)).toBe(true);
@@ -920,7 +993,7 @@ describe("the Edit and Import drawers on the page", () => {
     const w = await open();
     const [dirty] = leave();
     expect(dirty()).toBe(false);
-    await button(w, "Import").trigger("click");
+    await button(w, "Import accounts").trigger("click");
     await settle();
     type("textarea", "cookie-one");
     await settle();
@@ -966,7 +1039,7 @@ describe("the Edit and Import drawers on the page", () => {
     const w = await open();
     const [, blocked] = leave();
     expect(blocked()).toBe(false);
-    await button(w, "Import").trigger("click");
+    await button(w, "Import accounts").trigger("click");
     await settle();
     type("textarea", "cookie-one");
     await settle();
@@ -976,7 +1049,7 @@ describe("the Edit and Import drawers on the page", () => {
     importing.resolve({ imported: [], rejected: [] });
     await settle();
     expect(blocked()).toBe(false);
-    document.body.querySelector<HTMLElement>("button[aria-label=Close]")!.click();
+    document.body.querySelector<HTMLElement>("[data-testid=import-drawer] [aria-label='Close · Esc']")!.click();
     await settle();
 
     const saving = deferred<{ command_id: string | null }>();
@@ -1016,7 +1089,7 @@ describe("the Edit and Import drawers on the page", () => {
       const w = await open();
       await pick(w, "Edit");
       await gone(w);
-      expect(document.activeElement).toBe(button(w, "Import").element);
+      expect(document.activeElement).toBe(button(w, "Import accounts").element);
     });
 
     it("goes to the page's Import button when the opener was removed from the page", async () => {
@@ -1025,7 +1098,7 @@ describe("the Edit and Import drawers on the page", () => {
       await pick(w, "Edit");
       w.find("[aria-label='More actions for main']").element.remove();
       await gone(w);
-      expect(document.activeElement).toBe(button(w, "Import").element);
+      expect(document.activeElement).toBe(button(w, "Import accounts").element);
     });
   });
 });

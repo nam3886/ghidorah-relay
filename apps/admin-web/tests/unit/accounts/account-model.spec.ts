@@ -10,7 +10,10 @@ import {
   chipsAfterRead,
   commandChip,
   extraError,
+  healthOf,
   hhmm,
+  inIssue,
+  issueLine,
   hhmmss,
   importBody,
   madeLine,
@@ -21,6 +24,7 @@ import {
   proxyChipText,
   proxyStatus,
   proxyText,
+  rowAction,
   rowMenu,
   statusReason,
 } from "@/components/accounts/account-model";
@@ -300,5 +304,64 @@ describe("pointsFigure, ago, proxyCheck, checkSummary", () => {
     expect(checkSummary(undefined, { state: "dead", state_reason: "login failed" })).toBe(
       "Check done: account dead (login failed)",
     );
+  });
+});
+
+describe("healthOf, the Show chips and the summary", () => {
+  const t = 1_000_000_000_000;
+  const pool = (left: number, budget: number) =>
+    ({ pool: "video", left_today: left, budget }) as Account["capacity"][number];
+
+  it("names one health per account, the first that holds", () => {
+    expect(healthOf(account({ state: "disabled", state_reason: "dead too" }), false, t).kind).toBe("off");
+    expect(healthOf(account({ state: "dead", state_reason: "account.dead_session" }), false, t)).toMatchObject({
+      kind: "dead",
+      label: "Dead",
+      why: "account.dead_session",
+      tone: "bad",
+    });
+    const failing = account({ proxy_ok: false, last_error: "proxy check: connect timeout after 8 s" });
+    expect(healthOf(failing, false, t)).toMatchObject({ kind: "proxy", why: "connect timeout after 8 s" });
+    const asleep = healthOf(account({ cooldown_until_ms: t + 60_000, cooldown_reason: "x.y" }), false, t);
+    expect(asleep).toMatchObject({ kind: "asleep", why: "x.y", tone: "warn" });
+    expect(asleep.label).toMatch(/^Asleep until \d\d:\d\d$/);
+    expect(asleep.short).toMatch(/^Asleep · \d\d:\d\d$/);
+    expect(healthOf(account({ capacity: [pool(0, 4)] }), false, t)).toMatchObject({
+      kind: "low",
+      why: "video 0 of 4 left",
+    });
+    expect(healthOf(account({ capacity: [pool(1, 4)] }), false, t).kind).toBe("ok");
+    expect(healthOf(account({ in_use: true }), true, t).kind).toBe("inuse");
+    expect(healthOf(account(), true, t).label).toBe("Paused");
+    expect(healthOf(account(), false, t).label).toBe("Available");
+  });
+
+  it("Needs a look holds dead, proxy failing, asleep and low; the row action is Re-check or Wake", () => {
+    const h = (over: Partial<Account>) => healthOf(account(over), false, t);
+    expect(inIssue("look", h({ state: "dead" }))).toBe(true);
+    expect(inIssue("look", h({ in_use: true }))).toBe(false);
+    expect(inIssue("off", h({ state: "disabled" }))).toBe(true);
+    expect(inIssue("all", h({}))).toBe(true);
+    expect(rowAction(h({ state: "dead" }))).toBe("check");
+    expect(rowAction(h({ cooldown_until_ms: t + 60_000 }))).toBe("wake");
+    expect(rowAction(h({}))).toBeNull();
+  });
+
+  it("the summary names the issues that have accounts, in order", () => {
+    const hs = [
+      healthOf(account({ state: "dead" }), false, t),
+      healthOf(account({ state: "dead" }), false, t),
+      healthOf(account({ cooldown_until_ms: t + 60_000 }), false, t),
+      healthOf(account(), false, t),
+    ];
+    expect(issueLine(hs)).toBe("2 dead, 1 asleep");
+    expect(issueLine([])).toBe("");
+  });
+
+  it("accountChanges sends the Taking jobs switch only when it was flipped", () => {
+    expect(accountChanges(account(), "main", "10.0.0.1:8080", true)).toBeNull();
+    expect(accountChanges(account(), "main", "10.0.0.1:8080", false)).toEqual({ enabled: false });
+    expect(accountChanges(account({ state: "disabled" }), "main", "10.0.0.1:8080", true)).toEqual({ enabled: true });
+    expect(accountChanges(account(), "main", "10.0.0.1:8080")).toBeNull();
   });
 });

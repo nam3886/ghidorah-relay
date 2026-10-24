@@ -1,7 +1,6 @@
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ActionMenu, { type MenuItem } from "@/components/shared/ActionMenu.vue";
-import MiniChip from "@/components/accounts/MiniChip.vue";
 import { IconCamera, IconPencilMenu, IconPower, IconTrashMenu } from "@/components/shared/icons";
 
 let wrapper: VueWrapper | null = null;
@@ -9,14 +8,6 @@ afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
   document.body.replaceChildren();
-});
-
-describe("MiniChip", () => {
-  it("is a 20 px chip in the tone, with the words", () => {
-    wrapper = mount(MiniChip, { props: { tone: "warn" }, slots: { default: "drift" } });
-    expect(wrapper.attributes("data-tone")).toBe("warn");
-    expect(wrapper.text()).toBe("drift");
-  });
 });
 
 describe("ActionMenu", () => {

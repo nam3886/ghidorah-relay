@@ -14,23 +14,37 @@ STATES = [
     ("accounts", "import-toast"), ("accounts", "import-dialog-discard-confirm"),
 ]
 
-ROW = ".acct-row"      # an account's row in its provider's lane, at every width
+ROW = ".acct-row"      # an account's row in the list, at every width
 
 
 def run(page, app, live, sw, data):
     skeleton_step(sw, "accounts", re.compile(r"/admin/accounts"))
     alive = page.locator(ROW).filter(has_text="alive")
-    sw.step("accounts", "list", lambda: expect(alive).to_be_visible())
+    # a dead account needs a look, so the list opens on Needs a look: All shows the healthy one too
+    sw.step("accounts", "list", lambda: (
+        page.get_by_role("button", name=re.compile(r"^All (· )?\d+$")).click(), expect(alive).to_be_visible()))
+
+    detail = page.get_by_test_id("account-drawer")
 
     def more_menu(name=None):
-        alive.get_by_role("button", name="More actions for alive", exact=True).click()
-        expect(page.get_by_role("menu", name="Account actions")).to_be_visible()
+        """The row's More menu; a tablet row has none (AccountsTablet), so there the account's drawer stands in."""
+        trigger = alive.get_by_role("button", name="More actions for alive", exact=True)
+        if trigger.count():
+            trigger.click()
+            expect(page.get_by_role("menu", name="Account actions")).to_be_visible()
+            if name:
+                page.get_by_role("menuitem", name=name, exact=True).click()
+            return
+        alive.get_by_role("button", name="alive", exact=True).click()
+        expect(detail).to_be_visible()
         if name:
-            page.get_by_role("menuitem", name=name, exact=True).click()
+            detail.get_by_role("button", name=name + " account").click()
+            expect(detail).to_be_hidden()
 
     def close_menu():
         page.keyboard.press("Escape")
         expect(page.get_by_role("menu", name="Account actions")).to_have_count(0)
+        expect(detail).to_be_hidden()
 
     sw.step("accounts", "more-menu", more_menu)
     close_menu()
@@ -57,7 +71,7 @@ def run(page, app, live, sw, data):
     dismiss_box(page)
 
     sw.step("accounts", "import-dialog", lambda: (
-        page.get_by_role("button", name="Import", exact=True).click(),
+        page.get_by_role("button", name=re.compile(r"^Import( accounts)?$")).click(),
         expect_dialog(page, "Import accounts")))
 
     def import_toast():

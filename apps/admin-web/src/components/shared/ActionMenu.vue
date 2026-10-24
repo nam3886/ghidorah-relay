@@ -16,6 +16,8 @@ export interface MenuItem {
   disabled?: boolean;
   // a separator line above the item
   separated?: boolean;
+  // a faint word at the right of the item ("none yet", "24 accounts")
+  hint?: string;
 }
 
 const props = withDefaults(
@@ -31,6 +33,8 @@ const props = withDefaults(
     inkText?: boolean;
     icon?: Component;
     iconSize?: number;
+    // the trigger's tooltip (the Ledger icon-button tooltip, after 400 ms); none when empty
+    tip?: string;
   }>(),
   {
     triggerLabel: "More",
@@ -41,6 +45,7 @@ const props = withDefaults(
     inkText: false,
     icon: IconMoreVertical,
     iconSize: 16,
+    tip: "",
   },
 );
 const emit = defineEmits<{ select: [key: string] }>();
@@ -116,23 +121,53 @@ function onMenuKey(event: KeyboardEvent): void {
   list[(at + step + list.length) % list.length]?.focus();
 }
 
-onBeforeUnmount(() => close());
+// the trigger's tooltip: after 400 ms of a mouse's hover (as IconButton), gone at once on leave and on a press
+const tipOpen = ref(false);
+let tipTimer: ReturnType<typeof setTimeout> | undefined;
+function onTipEnter(event: PointerEvent): void {
+  if (event.pointerType === "touch") return;
+  clearTimeout(tipTimer);
+  tipTimer = setTimeout(() => (tipOpen.value = true), 400);
+}
+function hideTip(): void {
+  clearTimeout(tipTimer);
+  tipOpen.value = false;
+}
+
+onBeforeUnmount(() => {
+  clearTimeout(tipTimer);
+  close();
+});
 </script>
 
 <template>
-  <button
-    ref="trigger"
-    type="button"
-    class="menu-trigger"
-    :class="{ 'is-open': open, 'is-bordered': props.bordered, 'is-ink': props.inkText }"
-    :style="{ '--trigger': `${props.size}px` }"
-    aria-haspopup="menu"
-    :aria-expanded="open"
-    :aria-label="props.triggerLabel"
-    @click="toggle"
+  <el-tooltip
+    :visible="tipOpen && !!props.tip && !open"
+    :content="props.tip"
+    placement="top"
+    effect="dark"
+    popper-class="rl-ib-tip"
+    transition="rl-ib-tip-none"
+    :offset="6"
   >
-    <component :is="props.icon" :size="props.iconSize" :stroke="2.4" />
-  </button>
+    <!-- the tooltip hangs on a wrapper (it writes its own aria-expanded on its trigger) and shows on a mouse's hover
+         only: a press, the menu or a focus given back never leave it over what opens next -->
+    <span class="menu-trigger-wrap" @pointerenter="onTipEnter" @pointerleave="hideTip" @pointerdown="hideTip">
+      <button
+        ref="trigger"
+        type="button"
+        class="menu-trigger"
+        :class="{ 'is-open': open, 'is-bordered': props.bordered, 'is-ink': props.inkText }"
+        :style="{ '--trigger': `${props.size}px` }"
+        aria-haspopup="menu"
+        :aria-expanded="open"
+        :aria-label="props.triggerLabel"
+        @click="toggle"
+      >
+        <component :is="props.icon" :size="props.iconSize" :stroke="2.4" />
+      </button>
+    </span>
+  </el-tooltip>
   <Teleport to="body">
     <div
       v-if="open"
@@ -155,6 +190,7 @@ onBeforeUnmount(() => close());
           @click="pick(item)"
         >
           <component :is="item.icon" :size="props.variant === 'header' ? 15 : 16" />{{ item.label }}
+          <span v-if="item.hint" class="menu-pop__hint">{{ item.hint }}</span>
         </button>
       </template>
     </div>
@@ -162,6 +198,10 @@ onBeforeUnmount(() => close());
 </template>
 
 <style scoped>
+.menu-trigger-wrap {
+  display: inline-flex;
+  flex: none;
+}
 .menu-trigger {
   display: flex;
   align-items: center;
@@ -261,6 +301,11 @@ onBeforeUnmount(() => close());
 }
 .menu-pop__item.is-disabled:hover {
   background: transparent;
+}
+.menu-pop__hint {
+  margin-left: auto;
+  color: var(--rl-faint);
+  font-size: 12px;
 }
 .menu-pop__sep {
   height: 1px;

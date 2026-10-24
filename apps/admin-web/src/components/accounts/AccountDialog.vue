@@ -1,38 +1,43 @@
 <script setup lang="ts">
 import "./account-dialog.css";
-import DetailDrawer from "@/components/shared/DetailDrawer.vue";
+import SideDrawer from "@/components/shared/overlays/SideDrawer.vue";
 
-// The frame of the Import and Edit forms: the shared right drawer (a full-screen sheet with Back on a phone), named by
-// its visible heading. The subtitle is the line under the heading. `dirty` and `busy` are the guard of the drawer: a
-// close asks first while something typed would be lost, and is inert while a write runs. A click outside acts as Escape.
-// The footer is given `close`, the guarded close, for Cancel.
+// The frame of the Import and Edit forms (AccountImport, AccountEdit, ImportPhone): the Ledger right drawer, `width`
+// wide on a desktop (Edit 520 px, Import 560), 48 px short of the left edge on a tablet and the whole screen on a phone
+// (the sheet head: no Back, Close · Esc). The drawer is named by its visible heading (the `title` slot draws it when the
+// heading has a mono part); `sub` is the line or the chips under it. `dirty` and `busy` are its guard: a way out asks
+// first while something typed would be lost, and is inert while a write runs. The footer is given `close`, the guarded
+// close, for Cancel.
 const open = defineModel<boolean>({ required: true });
 const props = defineProps<{
   title: string;
-  subtitle?: string;
   testid: string;
+  width: string;
   discardText: string;
   dirty?: boolean;
   busy?: boolean;
-  // Import's fields sit 16 px apart as drawn; Edit's 20 (the drawer's own)
-  tight?: boolean;
 }>();
 const emit = defineEmits<{ closed: [] }>();
 </script>
 
 <template>
-  <DetailDrawer
+  <SideDrawer
     v-model="open"
     :title="props.title"
     :testid="props.testid"
+    :width="props.width"
     back-label="Back to Accounts"
+    full
+    panel-class="is-sheet-head"
     :dirty="props.dirty"
     :busy="props.busy"
     :discard-text="props.discardText"
+    @back="open = false"
     @closed="emit('closed')"
   >
-    <template v-if="props.subtitle" #chips>{{ props.subtitle }}</template>
-    <div class="acct-form" :class="{ 'acct-form--tight': props.tight }"><slot /></div>
+    <template v-if="$slots.title" #title><slot name="title" /></template>
+    <template v-if="$slots.sub" #sub><slot name="sub" /></template>
+    <slot />
     <template #footer="{ close }"><slot name="footer" :close="close" /></template>
-  </DetailDrawer>
+  </SideDrawer>
 </template>

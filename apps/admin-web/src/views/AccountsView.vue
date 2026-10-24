@@ -14,15 +14,22 @@ import {
   refreshCatalog,
   wakeAccount,
 } from "@/api/accounts";
-import AccountsHeader from "@/components/accounts/AccountsHeader.vue";
-import AccountLanes from "@/components/accounts/AccountLanes.vue";
+import AccountDetail from "@/components/accounts/AccountDetail.vue";
+import AccountsHeader, { type Summary } from "@/components/accounts/AccountsHeader.vue";
+import AccountsTable, { type Row } from "@/components/accounts/AccountsTable.vue";
 import {
   AUTO_REFRESH_MS,
   type ChipState,
   checkSummary,
   chipsAfterRead,
   commandChip,
+  healthOf,
+  healthRank,
   hhmmss,
+  inIssue,
+  type Issue,
+  ISSUES,
+  issueLine,
   PAGE_SIZE,
   type RowAction,
   WAKE_LABEL,
@@ -30,10 +37,10 @@ import {
 import type { CommandStatus } from "@/api/commands";
 import EditDialog from "@/components/accounts/EditDialog.vue";
 import ImportDialog from "@/components/accounts/ImportDialog.vue";
-import ProviderTable from "@/components/jobs/ProviderTable.vue";
 import { loadFailedText } from "@/components/jobs/job-text";
-import { IconAlertCircle, IconPlus } from "@/components/shared/icons";
-import ListPager from "@/components/shared/ListPager.vue";
+import ArrowScroller from "@/components/shared/ArrowScroller.vue";
+import IconButton from "@/components/shared/IconButton.vue";
+import BottomSheet from "@/components/shared/overlays/BottomSheet.vue";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { useRouteLeaveGuard } from "@/components/shared/use-leave-guard";
 import { useBreakpoint } from "@/composables/use-breakpoint";
@@ -42,13 +49,17 @@ import { useCommandPoll } from "@/composables/use-command-poll";
 import { useLatest } from "@/composables/use-latest";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
+import { byProviderOrder, providerClass } from "@/lib/providers";
 import { useProvidersStore } from "@/stores/providers";
 import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 
-// Accounts. The provider strip and the per-provider table on top filter the page; the accounts are drawn in one lane per
-// provider (AccountLanes). Delete, check, Check all, proxy re-check and wake are commands run by the provider's worker: the page
-// queues one and polls it. A used account can only be disabled, and its switch is hidden while a worker holds it.
+// Accounts (B · Ledger: Accounts, AccountsTablet, AccountsPhone, AccountsStates). One list, what needs a look first,
+// filtered by two chip rows: Show (the issue) and Provider (the shared provider filter; a phone picks it in a sheet).
+// A row's name opens its detail; Edit and Import are guarded drawers. Delete, check, Check all, proxy re-check and wake
+// are commands run by the provider's worker: the page queues one and polls it. A used account can only be disabled,
+// and its Taking jobs switch is hidden while a worker holds it. Ticked rows (desktop, tablet) take Check, Wake and
+// Disable from the bulk bar. R re-checks the open account, or the row that has the focus.
 // The list reads itself again every 10 s while the page is open (and no dialog or confirm box is in front of it).
 const scope = useScopeStore();
 const stats = useStatsStore();
@@ -179,7 +190,7 @@ function setChip(key: string, chip: ChipState): void {
 // The command's chip under its control: running while `work` queues and polls it, then how it ended, kept until the
 // next read of the list. The toasts go on as before (B-States draws both).
 async function withChip(key: string, work: () => Promise<CommandStatus | null>): Promise<CommandStatus | null> {
-  setChip(key, { state: "running", settled: false, read: autoReads });
+  setChip(key, { state: "running", time: hhmmss(Date.now()), settled: false, read: autoReads });
   try {
     const command = await work();
     setChip(key, commandChip(command, autoReads));
@@ -260,7 +271,9 @@ const rememberOpener = (): void => {
 function drawerClosed(): void {
   // a menu item is hidden, not removed, when its menu closes: it counts only while it can be seen
   if (opener?.isConnected && opener !== document.body && opener.getClientRects().length) return;
-  const primary = document.querySelector<HTMLButtonElement>(".accounts-view button.primary");
+  const primary = document.querySelector<HTMLButtonElement>(
+    ".accounts-view button.head__primary, .accounts-view .head__plus button",
+  );
   if (primary && !primary.disabled) primary.focus();
   else document.querySelector<HTMLElement>(".app-scroll__wrap")?.focus({ preventScroll: true });
 }
@@ -319,6 +332,143 @@ function onAction(name: RowAction, a: Account) {
   else void remove(a);
 }
 
+// ---- the detail drawer: one drawer at a time, so Edit closes it first -------------------------------------------
+const detailOpen = ref(false);
+const detailId = ref<string | null>(null);
+const detail = computed(() => items.value.find((a) => a.id === detailId.value) ?? null);
+function openDetail(a: Account): void {
+  detailId.value = a.id;
+  detailOpen.value = true;
+}
+function onDetailAction(name: RowAction, a: Account): void {
+  if (name === "edit" || name === "delete") detailOpen.value = false;
+  onAction(name, a);
+}
+// a deleted account leaves the list: its drawer goes with it
+watch(detail, (a) => {
+  if (!a) detailOpen.value = false;
+});
+
+// R re-checks the account whose drawer is open, else the row that holds the focus; never while typing or with a
+// drawer of a form or a question in front.
+function onKey(event: KeyboardEvent): void {
+  if (event.key !== "r" && event.key !== "R") return;
+  if (event.ctrlKey || event.metaKey || event.altKey || dialogOpen.value) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (target?.closest("input, textarea, select, [contenteditable]")) return;
+  const rowId = target?.closest<HTMLElement>("[data-account]")?.dataset.account;
+  const a = detailOpen.value ? detail.value : items.value.find((x) => x.id === rowId);
+  if (!a) return;
+  event.preventDefault();
+  void check(a);
+}
+document.addEventListener("keydown", onKey);
+onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
+
+// ---- the list on screen: one health per row, the Show and Provider chips, the ticks ------------------------------
+const pausedOf = (provider: string): boolean =>
+  providers.data?.providers.find((p) => p.provider === provider)?.claims_enabled === false;
+const all = computed<Row[]>(() =>
+  items.value
+    .map((a) => ({ a, h: healthOf(a, pausedOf(a.provider)) }))
+    .sort((x, y) => healthRank(x.h) - healthRank(y.h)),
+);
+const look = computed(() => all.value.filter((r) => inIssue("look", r.h)).length);
+// Show starts on Needs a look when something needs one at the first read, else on All; then it is the operator's
+const issue = ref<Issue | null>(null);
+watch(
+  () => items.value,
+  () => {
+    if (issue.value === null && updatedAt.value) issue.value = look.value ? "look" : "all";
+  },
+);
+const shownIssue = computed<Issue>(() => issue.value ?? "all");
+const rows = computed(() => all.value.filter((r) => inIssue(shownIssue.value, r.h)));
+const issueChips = computed(() =>
+  ISSUES.filter((i) => !(isPhone.value && i.key === "off")).map((i) => ({
+    ...i,
+    n: all.value.filter((r) => inIssue(i.key, r.h)).length,
+  })),
+);
+const providerChips = computed(() => byProviderOrder(scope.providers));
+function pickProvider(name: string): void {
+  scope.provider = scope.provider === name ? "" : name;
+}
+void scope.loadCatalog().catch(() => undefined);
+
+const selected = ref<ReadonlySet<string>>(new Set());
+function toggleTick(ids: string[], on: boolean): void {
+  const next = new Set(selected.value);
+  for (const id of ids) {
+    if (on) next.add(id);
+    else next.delete(id);
+  }
+  selected.value = next;
+}
+// a tick follows the rows on screen: a row that left the list (or the filter) is no longer ticked
+watch(rows, (now) => {
+  const seen = new Set(now.map((r) => r.a.id));
+  if ([...selected.value].some((id) => !seen.has(id))) {
+    selected.value = new Set([...selected.value].filter((id) => seen.has(id)));
+  }
+});
+const ticked = computed(() => rows.value.filter((r) => selected.value.has(r.a.id)).map((r) => r.a));
+function bulk(name: "check" | "wake" | "disable"): void {
+  for (const a of ticked.value) {
+    if (name !== "disable") void (name === "check" ? check(a) : wake(a));
+    else if (!a.in_use && a.state !== "disabled") void onToggle(a, false);
+  }
+  selected.value = new Set();
+}
+
+const summary = computed<Summary | null>(() => {
+  const s = stats.data?.accounts;
+  if (!s) return null;
+  const healths = all.value.map((r) => r.h);
+  const count = (k: string) => healths.filter((h) => h.kind === k).length;
+  return {
+    usable: s.usable,
+    total: s.available + s.dead + s.disabled,
+    look: look.value,
+    line: issueLine(healths),
+    bars: [s.usable, count("dead"), count("proxy"), count("asleep"), count("low")],
+  };
+});
+
+const pausedHere = computed(() => (scope.provider && pausedOf(scope.provider) ? scope.provider : ""));
+const empty = computed(() => {
+  if (!items.value.length && !scope.provider) {
+    return {
+      kind: "first" as const,
+      title: "No accounts yet",
+      text: "Import accounts to start taking jobs. Paste one credential per line; secrets are stored encrypted.",
+      primary: "Import accounts",
+    };
+  }
+  const chip = ISSUES.find((i) => i.key === shownIssue.value);
+  const word = chip && chip.kinds?.length === 1 ? `${chip.label.toLowerCase()} ` : "";
+  const prov = scope.provider ? `${scope.provider} ` : "";
+  return {
+    kind: "filter" as const,
+    title: shownIssue.value === "look" ? `No ${prov}account needs a look` : `No ${word}${prov}accounts`,
+    text:
+      shownIssue.value === "look"
+        ? `Every ${prov}account answered its last check.`
+        : "Change the filters, or clear them to see every account.",
+    primary: "Clear filters",
+  };
+});
+function onEmpty(): void {
+  if (empty.value.kind === "first") openImport();
+  else {
+    issue.value = "all";
+    scope.provider = "";
+  }
+}
+
+const size = computed(() => (isPhone.value ? "phone" : isTablet.value ? "tablet" : "desktop"));
+const filterOpen = ref(false);
+
 // One provider when the filter is set, else every provider one after another (the worker of each runs its own).
 async function providerNames(): Promise<string[]> {
   if (scope.provider) return [scope.provider];
@@ -348,22 +498,20 @@ async function forEachProvider(
 const checkEvery = () => forEachProvider(runCheckAll, "Check all", "checkAll", checkAll);
 const readCatalogs = () => forEachProvider(runReadCatalogs, "Refresh catalog", "refreshCatalog", refreshCatalog);
 
-const updated = computed(() => (updatedAt.value ? hhmmss(updatedAt.value) : null));
-const pageCount = computed(() => Math.max(1, Math.ceil(total.value / limit.value)));
-const showing = computed(() =>
-  total.value === 0
-    ? "Showing 0 of 0"
-    : `Showing ${offset.value + 1}–${Math.min(offset.value + limit.value, total.value)} of ${total.value.toLocaleString("en-US")}`,
-);
-const skeleton = computed(() => loading.value && items.value.length === 0 && !error.value);
-const refreshing = computed(() => loading.value && items.value.length > 0 && !error.value);
-const laneSize = computed(() => (isPhone.value ? "phone" : isTablet.value ? "tablet" : "desktop"));
+// Paging, only past the server's largest page: Showing a–b of N, Previous and Next.
+const first = computed(() => (items.value.length ? offset.value + 1 : 0));
+const last = computed(() => offset.value + items.value.length);
+function move(to: number): void {
+  offset.value = Math.max(0, to);
+  void load();
+}
 </script>
 
 <template>
-  <section class="accounts-view" :class="{ 'accounts-view--phone': isPhone }">
+  <section class="accounts-view" :class="`accounts-view--${size}`">
     <AccountsHeader
-      :updated="updated"
+      :size="size"
+      :summary="summary"
       :checking-all="checkingAll"
       :reading-catalogs="readingCatalogs"
       :check-all-chip="chips.checkAll ?? null"
@@ -371,61 +519,160 @@ const laneSize = computed(() => (isPhone.value ? "phone" : isTablet.value ? "tab
       @import="openImport"
       @check-all="checkEvery"
       @refresh-catalog="readCatalogs"
+      @filter="filterOpen = true"
     />
 
-    <ProviderTable :summary="providers.data" :selected="scope.provider" @pick="(p: string) => (scope.provider = p)" />
+    <!-- the phone's Show chips sit on the page, above the list -->
+    <ArrowScroller v-if="isPhone" label="Show" :count="issueChips.length" :active-key="shownIssue" class="av-chips">
+      <button
+        v-for="c in issueChips"
+        :key="c.key"
+        type="button"
+        class="av-chip"
+        :aria-pressed="shownIssue === c.key ? 'true' : 'false'"
+        @click="issue = c.key"
+      >
+        {{ c.label }} <span class="num av-chip__n">{{ c.n }}</span>
+      </button>
+    </ArrowScroller>
 
-    <section class="list" aria-label="Account list" :aria-busy="loading">
-      <div v-if="error" class="state-error" role="alert" data-state="error">
-        <IconAlertCircle :size="18" />
-        <span class="state-error__text">{{ error }}</span>
-        <button type="button" class="retry" @click="load()">Retry</button>
+    <section class="av-card" :aria-label="isPhone ? 'Accounts that need a look' : 'Account list'" :aria-busy="loading">
+      <div v-if="!isPhone" class="av-toolbar" :class="{ 'is-stacked': isTablet }">
+        <template v-if="ticked.length">
+          <span role="region" aria-label="Bulk actions" class="av-bulk">
+            <b class="num">{{ ticked.length }} selected</b>
+            <button type="button" class="av-bulk__btn" @click="bulk('check')">Check</button>
+            <button type="button" class="av-bulk__btn" @click="bulk('wake')">Wake</button>
+            <button type="button" class="av-bulk__btn" @click="bulk('disable')">Disable</button>
+            <IconButton icon="close" label="Clear the selection" @click="selected = new Set()" />
+          </span>
+        </template>
+        <template v-else>
+          <ArrowScroller label="Show" :active-key="shownIssue" class="av-row av-row--show">
+            <button
+              v-for="c in issueChips"
+              :key="c.key"
+              type="button"
+              class="av-chip"
+              :aria-pressed="shownIssue === c.key ? 'true' : 'false'"
+              @click="issue = c.key"
+            >
+              {{ c.label }} <span class="num av-chip__n">{{ isTablet ? `· ${c.n}` : c.n }}</span>
+            </button>
+          </ArrowScroller>
+          <ArrowScroller label="Provider" :active-key="scope.provider" class="av-row av-row--prov">
+            <button
+              v-if="!isTablet"
+              type="button"
+              class="av-chip"
+              :aria-pressed="scope.provider === '' ? 'true' : 'false'"
+              @click="scope.provider = ''"
+            >
+              All providers
+            </button>
+            <button
+              v-for="p in providerChips"
+              :key="p"
+              type="button"
+              class="av-chip"
+              :class="providerClass(p)"
+              :aria-pressed="scope.provider === p ? 'true' : 'false'"
+              @click="pickProvider(p)"
+            >
+              <span class="av-chip__dot" aria-hidden="true" />{{ p }}
+            </button>
+          </ArrowScroller>
+        </template>
       </div>
-      <div v-else-if="items.length === 0 && !skeleton" class="list-card state-empty" data-state="empty">
-        <p>No accounts yet.</p>
-        <button type="button" class="primary" @click="openImport"><IconPlus :size="15" :stroke="2" />Import</button>
+
+      <div v-if="pausedHere" class="av-banner" role="status">
+        <span
+          ><b>{{ pausedHere }} is paused in Settings.</b> Its accounts stay healthy but take no jobs; checks still
+          run.</span
+        >
+        <button type="button" class="av-banner__btn" @click="$router.push({ name: 'settings' })">Open Settings</button>
       </div>
-      <!-- the first read draws one lane of flat bars (the B-States loading pattern) -->
-      <div v-else :class="{ 'is-refreshing': refreshing }" :data-state="skeleton ? 'loading' : 'ready'">
-        <AccountLanes
-          :rows="items"
-          :checking="checking"
-          :chips="chips"
-          :summary="providers.data"
-          :selected="scope.provider"
-          :size="laneSize"
-          :skeleton="skeleton"
-          @toggle="onToggle"
-          @action="onAction"
-          @pick="(p: string) => (scope.provider = p)"
-        />
-      </div>
-      <!-- the phone's one footer line, once there are rows to count -->
-      <div v-if="isPhone && pageCount <= 1 && items.length" class="list-card foot-text">
-        <span class="tnum">{{ showing }}</span>
-      </div>
-      <div v-else-if="!error && items.length" class="list-card">
-        <ListPager
-          :offset="offset"
-          :limit="limit"
-          :total="total"
-          @move="
-            (o: number) => {
-              offset = o;
-              void load();
-            }
-          "
-          @size="
-            (s: number) => {
-              limit = s;
-              offset = 0;
-              void load();
-            }
-          "
-        />
+
+      <AccountsTable
+        :rows="rows"
+        :size="size"
+        :checking="checking"
+        :chips="chips"
+        :selected="selected"
+        :loading="loading"
+        :error="error"
+        :empty="rows.length ? null : empty"
+        @open="openDetail"
+        @action="onAction"
+        @select="toggleTick"
+        @retry="load()"
+        @primary="onEmpty"
+      />
+
+      <div v-if="!error && (offset > 0 || last < total)" class="av-foot">
+        <span class="av-foot__text num"
+          >Showing {{ first.toLocaleString("en-US") }}–{{ last.toLocaleString("en-US") }} of
+          {{ total.toLocaleString("en-US") }}</span
+        >
+        <span class="av-foot__btns">
+          <IconButton
+            icon="prev"
+            label="Previous page"
+            :disabled="offset === 0 || loading"
+            @click="move(offset - limit)"
+          />
+          <IconButton
+            icon="next"
+            label="Next page"
+            :disabled="last >= total || loading"
+            @click="move(offset + limit)"
+          />
+        </span>
       </div>
     </section>
 
+    <BottomSheet
+      v-model="filterOpen"
+      title="Provider"
+      sub="Show the accounts of one provider"
+      testid="accounts-filter-sheet"
+    >
+      <div class="av-sheet-chips" role="group" aria-label="Provider">
+        <button
+          type="button"
+          class="av-chip"
+          :aria-pressed="scope.provider === '' ? 'true' : 'false'"
+          @click="scope.provider = ''"
+        >
+          All providers
+        </button>
+        <button
+          v-for="p in providerChips"
+          :key="p"
+          type="button"
+          class="av-chip"
+          :class="providerClass(p)"
+          :aria-pressed="scope.provider === p ? 'true' : 'false'"
+          @click="pickProvider(p)"
+        >
+          <span class="av-chip__dot" aria-hidden="true" />{{ p }}
+        </button>
+      </div>
+      <template #footer>
+        <button type="button" class="av-done" @click="filterOpen = false">Done</button>
+      </template>
+    </BottomSheet>
+
+    <AccountDetail
+      v-model="detailOpen"
+      :account="detail"
+      :paused="detail ? pausedOf(detail.provider) : false"
+      :checking="!!detail && checking.has(detail.id)"
+      :check-chip="detail ? (chips[`check:${detail.id}`] ?? null) : null"
+      :proxy-chip="detail ? (chips[`proxy:${detail.id}`] ?? null) : null"
+      @action="onDetailAction"
+      @proxy="recheck"
+    />
     <ImportDialog
       v-model="importOpen"
       @imported="load"
@@ -454,87 +701,182 @@ const laneSize = computed(() => (isPhone.value ? "phone" : isTablet.value ? "tab
   gap: 20px;
 }
 .accounts-view--phone {
-  gap: 16px;
-}
-.list {
-  display: flex;
-  flex-direction: column;
   gap: 14px;
 }
-.list-card {
-  overflow: hidden;
-  background: var(--rl-surface);
-  border: 1px solid var(--rl-line);
-  border-radius: 16px;
-}
-.is-refreshing {
-  opacity: 0.6;
-  transition: opacity 0.15s;
-}
-.foot-text {
-  padding: 12px 16px;
-  color: var(--rl-muted);
-  font-size: 13px;
-}
-.tnum {
+.num {
   font-variant-numeric: tabular-nums;
 }
-.state-error {
+.av-card {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--rl-surface);
+  box-shadow: var(--rl-shadow-card);
+}
+/* the toolbar: Show (3 parts) and Provider (2 parts) side by side; stacked on a tablet */
+.av-toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-radius: 12px;
-  background: var(--rl-bad-bg);
-  color: var(--rl-bad);
+  gap: 16px;
+  min-height: 38px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rl-rule);
 }
-.state-error__text {
-  flex: 1;
-  min-width: 220px;
-  color: var(--rl-fg);
-}
-.retry {
-  height: 32px;
-  padding: 0 14px;
-  border: 1px solid var(--rl-bad);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--rl-bad);
-  /* the page's family; the line height stays the button's own (normal), as drawn */
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.state-empty {
-  display: flex;
+.av-toolbar.is-stacked {
   flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  padding: 44px 16px 52px;
-  text-align: center;
+  align-items: stretch;
+  gap: 8px;
+  padding: 16px 24px;
 }
-.state-empty p {
-  margin: 0;
-  color: var(--rl-muted);
+.av-row--show {
+  flex: 3 1 0;
 }
-.primary {
-  display: flex;
+.av-row--prov {
+  flex: 2 1 0;
+}
+.av-toolbar.is-stacked .av-row {
+  flex: none;
+}
+.av-chip {
+  display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 6px;
-  height: 36px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--rl-line);
+  border-radius: 999px;
+  background: var(--rl-surface);
+  color: var(--rl-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.av-chip[aria-pressed="true"] {
+  border-color: var(--rl-brand);
+  background: var(--rl-primary-soft);
+  color: var(--rl-brand-ink);
+}
+.av-chip__n {
+  opacity: 0.7;
+}
+.av-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pc);
+}
+/* a tablet's chips are 40 px, a phone's 44 px and 14 px (JobsTablet, AccountsPhone) */
+.accounts-view--tablet .av-chip {
+  height: 40px;
   padding: 0 14px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--rl-primary);
-  color: var(--rl-on-primary);
-  font-family: inherit;
+  border-color: var(--rl-line-strong);
+  color: var(--rl-body);
+}
+.accounts-view--phone .av-chip {
+  height: 44px;
+  padding: 0 16px;
+  border-color: var(--rl-line-strong);
+  color: var(--rl-body);
+  font-size: 14px;
+}
+.accounts-view--tablet .av-chip[aria-pressed="true"],
+.accounts-view--phone .av-chip[aria-pressed="true"] {
+  border-color: var(--rl-brand);
+  color: var(--rl-brand-ink);
+}
+.av-bulk {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 6px 0 14px;
+  border-radius: 12px;
+  background: var(--rl-primary-soft);
+  color: var(--rl-brand-ink);
+}
+.av-bulk b {
+  margin-right: 4px;
+}
+.av-bulk__btn {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 8px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font: inherit;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
-.primary:hover {
-  background: var(--rl-primary-hover);
+.av-bulk :deep(.ib-wrap) {
+  margin-left: auto;
+}
+.av-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 14px 20px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--rl-primary-soft);
+  color: var(--rl-brand-ink);
+  font-size: 13px;
+  line-height: 19px;
+}
+.av-banner > span {
+  flex: 1;
+  min-width: 0;
+}
+.av-banner__btn {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.av-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--rl-rule);
+}
+.av-foot__text {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--rl-faint);
+}
+.av-foot__btns {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.av-sheet-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.av-done {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--rl-primary);
+  color: var(--rl-on-primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 </style>

@@ -1,13 +1,80 @@
-/* The fields and buttons of the Import and Edit forms, which sit in the shared right drawer (DetailDrawer). The
-   shared pieces carry the `acct-` prefix and are used by both forms. The drawer is teleported to <body>, so these
+/* The fields and buttons of the Import and Edit forms (AccountImport, AccountEdit, ImportPhone), which sit in the Ledger
+   right drawer (SideDrawer). The shared pieces carry the `acct-` prefix. The drawer is teleported to <body>, so these
    rules are global. */
-.acct-form {
+
+/* the health pill (24 px; 20 px `--sm`) and the provider chip (22 px), shared by the list, the detail and the forms */
+.acct-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.acct-pill--sm {
+  height: 20px;
+  padding: 0 8px;
+}
+.acct-pill.tone-bad {
+  background: var(--rl-bad-bg);
+  color: var(--rl-bad);
+}
+.acct-pill.tone-warn {
+  background: var(--rl-warn-bg);
+  color: var(--rl-warn);
+}
+.acct-pill.tone-info {
+  background: var(--rl-primary-soft);
+  color: var(--rl-brand-ink);
+}
+.acct-pill.tone-ok {
+  background: var(--rl-ok-bg);
+  color: var(--rl-ok);
+}
+.acct-pill.tone-neutral {
+  background: var(--rl-neutral-bg);
+  color: var(--rl-neutral);
+}
+.acct-pchip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--ps);
+  color: var(--pi);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Import's fields sit 18 px apart (Edit keeps the drawer's 22) */
+.acct-stack {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
+  min-width: 0;
 }
-.acct-form--tight {
-  gap: 16px;
+
+/* the heading's mono part: "Edit account dola-n12-02" */
+.acct-title-mono {
+  font-family: var(--rl-mono);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--rl-muted);
+}
+.rl-drawer .acct-title {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+/* the line under Import's heading */
+.acct-sub-line {
+  margin: 0;
+  font-size: 13px;
+  color: var(--rl-muted);
 }
 
 /* fields */
@@ -16,135 +83,301 @@
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 .acct-field__label {
+  padding: 0;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
 }
-.acct-field__label span {
-  color: var(--rl-muted);
-  font-weight: 400;
+.acct-field__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.acct-field__opt {
+  font-weight: 500;
+  color: var(--rl-faint);
 }
 .acct-field__help {
   margin: 0;
-  color: var(--rl-faint);
   font-size: 12px;
+  line-height: 18px;
+  color: var(--rl-faint);
 }
-.acct-field__help--muted {
-  color: var(--rl-muted);
+.acct-edited {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--rl-primary-soft);
+  color: var(--rl-brand-ink);
+  font-size: 11px;
+  font-weight: 700;
 }
-.acct-input,
-.acct-textarea {
+.acct-input {
   box-sizing: border-box;
   width: 100%;
+  height: 40px;
+  padding: 0 12px;
   border: 1px solid var(--rl-line-strong);
   border-radius: 10px;
-  background: var(--rl-surface);
+  background: var(--rl-input);
   color: var(--rl-fg);
   font: inherit;
 }
-.acct-input {
-  height: 36px;
-  padding: 0 12px;
-}
-.acct-input--mono,
-.acct-textarea {
+.acct-input--mono {
   font-family: var(--rl-mono);
   font-size: 13px;
 }
-.acct-textarea {
-  padding: 10px 12px;
-  line-height: 20px;
-  resize: vertical;
-}
 .acct-input::placeholder,
-.acct-textarea::placeholder {
+.acct-area::placeholder {
   color: var(--rl-faint);
 }
-/* the Provider field (FilterSelect, `block`) as B-AccountImport draws its select: the label as the other
-   fields' labels, 6 px above a box at full width, 36 high like the inputs, its value in 14 px. Three classes, so these
-   outrank the field's own scoped rules. */
-.detail-drawer .acct-provider.filter-field {
+.acct-input:focus,
+.acct-input.is-edited {
+  outline: none;
+  border-color: var(--rl-brand);
+  box-shadow: 0 0 0 3px var(--rl-focus-halo);
+}
+
+/* the Provider field (FilterSelect, `block`) as AccountImport draws its select: the label as the other labels, a 40 px
+   box (44 on a phone) holding the provider's dot and its name in 600. Three classes, so these outrank the field's own
+   scoped rules. */
+.rl-drawer .acct-provider.filter-field {
   gap: 6px;
 }
-.detail-drawer .acct-provider .filter-field__label {
+.rl-drawer .acct-provider .filter-field__label {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
   line-height: inherit;
   color: inherit;
 }
-.detail-drawer .acct-provider .filter-select.is-field {
-  height: 36px;
+.rl-drawer .acct-provider .filter-select.is-field {
+  height: 40px;
+  border-color: var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-input);
   font-size: 14px;
+  font-weight: 600;
+}
+.rl-drawer .acct-provider .filter-select.is-field::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--pc);
+}
+@media (max-width: 767px) {
+  .rl-drawer .acct-provider .filter-select.is-field {
+    height: 44px;
+  }
 }
 
-/* buttons */
+/* the credentials box: a line-number gutter beside the text, one box */
+.acct-area-wrap {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-input);
+}
+.acct-area-wrap:focus-within {
+  border-color: var(--rl-brand);
+  box-shadow: 0 0 0 3px var(--rl-focus-halo);
+}
+.acct-gutter {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 32px;
+  padding: 10px 8px 10px 0;
+  overflow: hidden;
+  border-right: 1px solid var(--rl-rule);
+  background: var(--rl-head);
+  color: var(--rl-faint);
+  font-family: var(--rl-mono);
+  font-size: 12px;
+  line-height: 22px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.acct-area {
+  flex: 1;
+  min-width: 0;
+  min-height: 154px;
+  padding: 10px 12px;
+  border: 0;
+  outline: none;
+  resize: vertical;
+  background: transparent;
+  color: var(--rl-body);
+  font-family: var(--rl-mono);
+  font-size: 12px;
+  line-height: 22px;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* the chips of the proxy check (running, the last result) */
+.acct-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.acct-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.acct-chip.is-running {
+  background: var(--rl-primary-soft);
+  color: var(--rl-brand-ink);
+}
+.acct-chip.is-bad {
+  background: var(--rl-bad-bg);
+  color: var(--rl-bad);
+}
+.acct-chip.is-ok {
+  background: var(--rl-ok-bg);
+  color: var(--rl-ok);
+}
+.acct-chip.is-neutral {
+  background: var(--rl-neutral-bg);
+  color: var(--rl-neutral);
+}
+.acct-chip__spin {
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .acct-chip__spin {
+    animation: acct-spin 0.9s linear infinite;
+  }
+}
+@keyframes acct-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* the Taking jobs switch: 40 by 24, the knob 18 */
+.acct-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.acct-switch {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--rl-handle);
+  cursor: pointer;
+}
+.acct-switch[aria-checked="true"] {
+  background: var(--rl-primary);
+}
+.acct-switch__knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.2);
+  transition: left 0.15s ease;
+}
+.acct-switch[aria-checked="true"] .acct-switch__knob {
+  left: 19px;
+}
+
+/* the footer buttons: Cancel a link, the primary filled */
 .acct-btn {
   height: 36px;
-  padding: 0 16px;
-  border: 1px solid var(--rl-line-strong);
+  padding: 0 14px;
+  border: 0;
   border-radius: 10px;
   background: transparent;
   color: var(--rl-fg);
-  /* the page's family; the line height stays the button's own (normal), as drawn */
-  font-family: inherit;
-  font-size: 13px;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
-/* Import's Cancel is a link on the canvas: its 36 px lie inside its edge (38 high) and its text line is 20 px */
-.acct-btn--link {
-  box-sizing: content-box;
-  line-height: 20px;
-}
 .acct-btn:hover {
-  background: var(--rl-raised);
+  background: var(--rl-track);
+}
+.acct-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 .acct-btn--primary {
   padding: 0 18px;
-  border: 0;
   background: var(--rl-primary);
   color: var(--rl-on-primary);
-  font-weight: 600;
+  font-weight: 700;
 }
-.acct-btn--primary:hover {
+.acct-btn--primary:hover,
+.acct-btn--primary[aria-disabled="true"]:hover {
   background: var(--rl-primary-hover);
 }
 .acct-btn--primary[aria-disabled="true"] {
   opacity: 0.45;
   cursor: not-allowed;
 }
-/* a secondary that waits for its command (Check proxy while it runs), as B-States draws the disabled secondary */
-.acct-btn:not(.acct-btn--primary)[aria-disabled="true"],
-.acct-btn:not(.acct-btn--primary)[aria-disabled="true"]:hover,
-.acct-btn:not(.acct-btn--primary):disabled,
-.acct-btn:not(.acct-btn--primary):disabled:hover {
-  background: var(--rl-raised);
+.acct-foot-note {
+  font-size: 12px;
+  line-height: 18px;
   color: var(--rl-faint);
-  cursor: default;
 }
-.acct-btn--primary[aria-disabled="true"]:hover {
-  background: var(--rl-primary);
-}
-
-/* mixed heights in one footer row (Import: the 38 px link and the 36 px button) sit at the top, as drawn */
-.detail-drawer__foot .acct-btn {
-  align-self: flex-start;
+.acct-foot-btns {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
 }
 
-/* the phone sheet: footer buttons share the row, inputs and in-form buttons are 44 px (the footer's height comes from
-   the drawer) */
+/* the phone form: the fields at the touch height, the footer buttons share the row */
 @media (max-width: 767px) {
-  .detail-drawer .detail-drawer__foot .acct-btn {
-    flex: 1;
-    font-size: 14px;
-    line-height: normal;
-  }
-  .detail-drawer .acct-btn--link {
-    box-sizing: border-box;
-  }
-  .acct-input,
-  .detail-drawer .acct-provider .filter-select.is-field,
-  .detail-drawer__body .acct-btn {
+  .acct-input {
     height: 44px;
+  }
+  .rl-drawer.is-full .rl-drawer__foot {
+    flex-wrap: wrap;
+  }
+  .rl-drawer.is-full .acct-foot-note {
+    flex-basis: 100%;
+  }
+  .rl-drawer.is-full .acct-foot-btns {
+    flex: 1;
+    margin-left: 0;
+  }
+  .rl-drawer.is-full .acct-foot-btns > button {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 44px;
+  }
+  .rl-drawer.is-full .acct-btn:not(.acct-btn--primary) {
+    border: 1px solid var(--rl-line-strong);
+    background: var(--rl-surface);
   }
 }

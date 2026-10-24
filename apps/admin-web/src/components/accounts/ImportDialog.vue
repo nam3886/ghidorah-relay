@@ -3,13 +3,15 @@ import { computed, ref, watch } from "vue";
 import { importAccounts, type ImportResult } from "@/api/accounts";
 import { useBusy } from "@/composables/use-busy";
 import { notify } from "@/lib/notify";
+import { byProviderOrder, providerClass } from "@/lib/providers";
 import { useScopeStore } from "@/stores/scope";
 import AccountDialog from "./AccountDialog.vue";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
 import { importBody, rejectedText } from "./account-model";
 
-// Import accounts: one credential per line, an optional proxy for all of them, and the result of the answer. A
-// rejected line is named by its number and reason only: the credential itself is never echoed back.
+// Import accounts (AccountImport, ImportPhone): one credential per line beside a line-number gutter, an optional proxy
+// for all of them, and the result of the answer. A rejected line is named by its number and reason only: the
+// credential itself is never echoed back; the imported ones are named by the label the server gave them.
 const open = defineModel<boolean>({ required: true });
 const emit = defineEmits<{
   imported: [];
@@ -30,7 +32,18 @@ const providers = computed(() => scope.providers);
 const dirty = computed(() => credentials.value.trim() !== "" || proxy.value.trim() !== "");
 watch(dirty, (d) => emit("update:dirty", d), { immediate: true });
 watch(busy, (b) => emit("update:busy", b));
-const providerOptions = computed(() => providers.value.map((name) => ({ value: name, label: name })));
+const providerOptions = computed(() => byProviderOrder(providers.value).map((name) => ({ value: name, label: name })));
+// the gutter numbers the lines typed (a trailing empty line is a line, as an editor counts it); the count over the box
+// counts the credentials
+const lineCount = computed(() => Math.max(1, credentials.value.split("\n").length));
+const filled = computed(() => credentials.value.split("\n").filter((l) => l.trim()).length);
+const importedNames = computed(() => {
+  const names = (result.value?.imported ?? []).map((i) => i.label);
+  if (!names.length) return "";
+  const one = names.length === 1;
+  const list = one ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  return `${list} ${one ? "was" : "were"} added and ${one ? "is" : "are"} being checked now.`;
+});
 
 // What was pasted never outlives its use: both fields are emptied when the drawer opens and when it closes (by any
 // path, a close from outside included), right after the payload is copied for the request, and on every failure.
@@ -43,7 +56,7 @@ function wipe(): void {
 watch(open, (isOpen) => {
   wipe();
   if (!isOpen) return;
-  provider.value = scope.provider || providers.value[0] || "";
+  provider.value = scope.provider || String(providerOptions.value[0]?.value ?? "");
   result.value = null;
 });
 
@@ -66,110 +79,129 @@ async function submit() {
   <AccountDialog
     v-model="open"
     title="Import accounts"
-    tight
     testid="import-drawer"
+    width="min(560px, 100%)"
     discard-text="Discard the pasted credentials?"
     :dirty="dirty"
     :busy="busy"
-    subtitle="One credential per line. Lines that fail are rejected; the rest are imported."
     @closed="emit('closed')"
   >
-    <FilterSelect
-      :model-value="provider"
-      class="acct-provider"
-      variant="field"
-      block
-      label="Provider"
-      :options="providerOptions"
-      @update:model-value="(v) => (provider = String(v))"
-    />
-    <label class="acct-field">
-      <span class="acct-field__label">Credentials</span>
-      <textarea
-        v-model="credentials"
-        class="acct-textarea"
-        rows="4"
-        spellcheck="false"
-        autocomplete="off"
-        aria-label="Credentials"
+    <template #title><span class="acct-title">Import accounts</span></template>
+    <template #sub>
+      <p class="acct-sub-line">One credential per line. Lines that fail are rejected; the rest are imported.</p>
+    </template>
+    <div class="acct-stack">
+      <FilterSelect
+        :model-value="provider"
+        class="acct-provider"
+        :class="providerClass(provider)"
+        variant="field"
+        block
+        label="Provider"
+        :options="providerOptions"
+        @update:model-value="(v) => (provider = String(v))"
       />
-      <span class="acct-field__help">One per line. Secrets are stored encrypted and never shown again.</span>
-    </label>
-    <label class="acct-field">
-      <span class="acct-field__label">Proxy for all <span>(optional)</span></span>
-      <input
-        v-model="proxy"
-        class="acct-input acct-input--mono"
-        placeholder="host:port:user:pass"
-        autocomplete="off"
-        aria-label="Proxy for all"
-      />
-    </label>
-    <div v-if="result" class="result" role="status" aria-label="Result of the previous import">
-      <div class="result__head">
-        <strong>Imported {{ result.imported.length }}, rejected {{ result.rejected.length }}</strong>
-        <span v-if="result.imported.length" class="pill tone-ok"
-          ><i class="pill__dot" />{{ result.imported.length }} imported</span
-        >
-        <span v-if="result.rejected.length" class="pill tone-bad"
-          ><i class="pill__dot" />{{ result.rejected.length }} rejected</span
-        >
+      <div class="acct-field">
+        <div class="acct-field__head">
+          <label class="acct-field__label" for="acct-import-cred">Credentials</label>
+          <span class="acct-field__help num">{{ filled }} {{ filled === 1 ? "line" : "lines" }}</span>
+        </div>
+        <div class="acct-area-wrap">
+          <div class="acct-gutter" aria-hidden="true">
+            <span v-for="i in lineCount" :key="i">{{ i }}</span>
+          </div>
+          <textarea
+            id="acct-import-cred"
+            v-model="credentials"
+            class="acct-area"
+            rows="6"
+            spellcheck="false"
+            autocomplete="off"
+            aria-label="Credentials"
+          />
+        </div>
+        <span class="acct-field__help">Secrets are stored encrypted and never shown again.</span>
       </div>
-      <ul v-if="result.rejected.length" class="result__list">
-        <li v-for="r in result.rejected" :key="r.index">
-          <span class="mono faint tnum">line {{ r.index + 1 }}</span>
-          <span class="bad">{{ rejectedText(r.reason) }}</span>
-        </li>
-      </ul>
+      <div class="acct-field">
+        <label class="acct-field__label" for="acct-import-proxy"
+          >Proxy for all <span class="acct-field__opt">optional</span></label
+        >
+        <input
+          id="acct-import-proxy"
+          v-model="proxy"
+          class="acct-input acct-input--mono"
+          placeholder="host:port:user:pass"
+          autocomplete="off"
+          aria-label="Proxy for all"
+        />
+      </div>
+      <div v-if="result" class="acct-result" role="status" aria-label="Result of the previous import">
+        <div class="acct-result__head">
+          <b>Imported {{ result.imported.length }}, rejected {{ result.rejected.length }}</b>
+          <span v-if="result.imported.length" class="pill tone-ok"
+            ><i class="pill__dot" />{{ result.imported.length }} imported</span
+          >
+          <span v-if="result.rejected.length" class="pill tone-bad"
+            ><i class="pill__dot" />{{ result.rejected.length }} rejected</span
+          >
+        </div>
+        <ul v-if="result.rejected.length" class="acct-result__list">
+          <li v-for="r in result.rejected" :key="r.index">
+            <span class="mono num acct-result__line">line {{ r.index + 1 }}</span>
+            <span class="acct-result__bad">{{ rejectedText(r.reason) }}</span>
+          </li>
+        </ul>
+        <span v-if="importedNames" class="acct-field__help">{{ importedNames }}</span>
+      </div>
     </div>
     <template #footer="{ close }">
-      <button type="button" class="acct-btn acct-btn--link" :disabled="busy" @click="close">Cancel</button>
-      <button
-        type="button"
-        class="acct-btn acct-btn--primary"
-        :aria-disabled="busy ? 'true' : undefined"
-        @click="!busy && submit()"
-      >
-        Import
-      </button>
+      <span class="acct-foot-btns">
+        <button type="button" class="acct-btn" :disabled="busy" @click="close">Cancel</button>
+        <button
+          type="button"
+          class="acct-btn acct-btn--primary"
+          :aria-disabled="busy ? 'true' : undefined"
+          @click="!busy && submit()"
+        >
+          Import
+        </button>
+      </span>
     </template>
   </AccountDialog>
 </template>
 
 <style scoped>
-.result {
+.acct-result {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 14px;
+  padding: 14px;
+  border: 1px solid var(--rl-rule);
   border-radius: 12px;
-  background: var(--rl-raised);
+  background: var(--rl-head);
 }
-.result__head {
+.acct-result__head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-}
-.result__head strong {
-  font-weight: 600;
+  gap: 10px;
 }
 .pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 22px;
-  padding: 0 10px;
-  border-radius: 11px;
+  padding: 0 8px;
+  border-radius: 999px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 700;
   color: var(--pill-fg);
   background: var(--pill-bg);
 }
 .pill__dot {
   width: 6px;
   height: 6px;
-  border-radius: 3px;
+  border-radius: 50%;
   background: currentcolor;
 }
 .tone-ok {
@@ -180,7 +212,7 @@ async function submit() {
   --pill-fg: var(--rl-bad);
   --pill-bg: var(--rl-bad-bg);
 }
-.result__list {
+.acct-result__list {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -188,24 +220,19 @@ async function submit() {
   padding: 0;
   list-style: none;
 }
-.result__list li {
+.acct-result__list li {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
+  gap: 10px;
   font-size: 13px;
 }
-.mono {
-  font-family: var(--rl-mono);
+.acct-result__line {
+  flex: none;
   font-size: 12px;
-}
-.faint {
   color: var(--rl-faint);
 }
-.tnum {
-  font-variant-numeric: tabular-nums;
-}
-.bad {
+.acct-result__bad {
+  min-width: 0;
+  font-weight: 600;
   color: var(--rl-bad);
 }
 </style>

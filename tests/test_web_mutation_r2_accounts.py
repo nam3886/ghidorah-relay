@@ -22,7 +22,7 @@ ASLEEP = f"FAILED {ACCOUNT_SPEC} > asleepInfo > "
 ROW_TEXT = f"FAILED {ACCOUNT_SPEC} > the text of a row > "
 AUTO = f"FAILED {ACCOUNTS_VIEW_SPEC} > auto-refresh > "
 CHECK_ALL = f"FAILED {ACCOUNTS_VIEW_SPEC} > Check all and Refresh catalog > "
-SWITCH_VIEW = f"FAILED {ACCOUNTS_VIEW_SPEC} > the enable switch > "
+SWITCH_VIEW = f"FAILED {ACCOUNTS_VIEW_SPEC} > the bulk Disable > "
 LIST = f"FAILED {ACCOUNTS_VIEW_SPEC} > the list > "
 COMMANDS = f"FAILED {ACCOUNTS_VIEW_SPEC} > the row commands and the edit dialog > "
 MENU_SPEC = f"FAILED {PARTS_SPEC} > ActionMenu > "
@@ -50,7 +50,7 @@ def test_the_account_edit_sends_changed_fields_only():
           expect=CHECK_ALL + "with the filter on All, goes over the providers one after another")
 @mutation(ACCOUNTS, "await patchAccount(a.id, { enabled });\n    } finally {\n      if (!disposed) await load();",
           "await patchAccount(a.id, { enabled });\n    } finally {\n      void 0;",
-          expect=SWITCH_VIEW + "reads the list again when the change fails, so the switch goes back, and says why")
+          expect=SWITCH_VIEW + "reads the list again when the change fails, so the row goes back, and says why")
 @mutation(ACCOUNTS, "const ticket = latest.next();", "const ticket = 0;",
           expect=LIST + "a slow first answer that arrives after the second does not bring its rows back")
 @mutation(ACCOUNTS, 'error.value = loadFailedText(err, errorText(err), "the accounts");',
@@ -290,7 +290,8 @@ def test_a_failed_command_reads_as_the_canvas_writes_it():
 
 # ---- page-accounts round, review fixes: one action per account at a time, Save after a running Check proxy, no
 # server text in the import result, the toasts' words ----------------------------------------------------------------
-DUPLICATE = COMMANDS + "a second click while an action runs sends nothing: Wake, Delete, the switch, the phone's Check"
+DUPLICATE = (COMMANDS + "a second click while an action runs sends nothing: Wake, Delete, the bulk Disable, the "
+             "phone's Check")
 
 
 @mutation(ACCOUNTS, "  if (inFlight.has(key)) return;\n", "", expect=DUPLICATE)

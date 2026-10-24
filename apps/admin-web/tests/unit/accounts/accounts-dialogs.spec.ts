@@ -49,12 +49,14 @@ const follow = (w: () => VueWrapper) => ({
 const press = (key: string) =>
   document.dispatchEvent(new KeyboardEvent("keydown", { key, code: key, bubbles: true, cancelable: true }));
 const isOpen = (w: VueWrapper): boolean => (w.props() as { modelValue: boolean }).modelValue;
-const closeX = () => document.body.querySelector<HTMLButtonElement>("button[aria-label='Close']")!;
+const closeX = () => document.body.querySelector<HTMLButtonElement>("button[aria-label='Close · Esc']")!;
 
 let wrapper: VueWrapper | null = null;
 const field = (label: string) => document.body.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
 const buttonOf = (text: string) =>
-  [...document.body.querySelectorAll("button")].find((b) => b.textContent?.trim() === text)!;
+  [...document.body.querySelectorAll("button")].find(
+    (b) => b.textContent?.trim() === text || b.getAttribute("aria-label") === text,
+  )!;
 
 function type(el: HTMLInputElement | HTMLTextAreaElement, value: string) {
   el.value = value;
@@ -118,7 +120,7 @@ describe("EditDialog", () => {
 
   it("is titled with the account label, and Cancel closes it without saving", async () => {
     const w = await mountEdit(account({ label: "acct-n11-05" }));
-    expect(document.body.querySelector("h2")!.textContent).toBe("Edit account — acct-n11-05");
+    expect(document.body.querySelector("h2")!.textContent!.trim()).toBe("Edit account acct-n11-05");
     buttonOf("Cancel").click();
     await flushPromises();
     expect(w.emitted("update:modelValue")).toEqual([[false]]);
@@ -128,8 +130,8 @@ describe("EditDialog", () => {
   it("shows the result of the last proxy check beside the field, with the stored reason of a failure", async () => {
     await mountEdit(account({ proxy_ok: false, last_error: "proxy check: connect timeout after 8 s" }));
     const status = document.body.querySelector("[role=status]")!;
-    expect(status.textContent).toContain("failed · connect timeout after 8 s");
-    expect(status.querySelector("[data-tone=bad]")).not.toBeNull();
+    expect(status.textContent).toBe("Last check · connect timeout after 8 s");
+    expect(status.getAttribute("data-tone")).toBe("bad");
   });
 
   it("a new copy of the same account keeps what was typed; another account fills the fields again", async () => {
@@ -292,18 +294,23 @@ describe("EditDialog", () => {
     expect(w.emitted("recheck")).toEqual([[a]]);
     expect(w.emitted("update:modelValue")).toBeUndefined();
     await w.setProps({ proxyChip: { state: "running", settled: false, read: 1 } });
-    expect(buttonOf("Check proxy").getAttribute("aria-disabled")).toBe("true");
+    // a click while it runs asks nothing more
     buttonOf("Check proxy").click();
     expect(w.emitted("recheck")).toHaveLength(1);
-    expect(document.body.querySelector("[data-state=running]")!.textContent?.trim()).toBe("running…");
+    expect(document.body.querySelector("[data-state=running]")!.textContent?.trim()).toBe("Checking");
+    await w.setProps({ proxyChip: { state: "running", time: "14:32:40", settled: false, read: 1 } });
+    expect(document.body.querySelector("[data-state=running]")!.textContent?.trim()).toBe(
+      "Checking · started 14:32:40",
+    );
     await w.setProps({ proxyChip: { state: "error", message: "connect timeout after 8 s", settled: true, read: 1 } });
     expect(document.body.querySelector("[data-state=error]")!.textContent?.trim()).toBe(
-      "error · connect timeout after 8 s",
+      "Check failed · connect timeout after 8 s",
     );
-    expect(buttonOf("Check proxy").getAttribute("aria-disabled")).toBeNull();
+    buttonOf("Check proxy").click();
+    expect(w.emitted("recheck")).toHaveLength(2);
     await w.setProps({ proxyChip: null });
     expect(document.body.querySelector("[data-state]")).toBeNull();
-    expect(document.body.querySelector("[role=status]")!.textContent).toContain("not checked");
+    expect(document.body.querySelector("[role=status]")!.textContent).toContain("Not checked yet");
   });
 });
 
@@ -678,29 +685,31 @@ describe("the drawer frame", () => {
     });
     await flushPromises();
   };
+  const names = () =>
+    [...document.body.querySelectorAll(".rl-drawer__bar button")].map((b) => b.getAttribute("aria-label"));
 
-  it("from 768 px it is a 620 px right drawer named by its heading, with one Close at the right of the title", async () => {
+  it("from 768 px it is the Ledger right drawer named by its heading, with Back and Close · Esc", async () => {
     stub(false);
     await mountEdit();
     const dialog = document.body.querySelector<HTMLElement>("[role=dialog]")!;
-    expect(dialog.closest(".detail-drawer")).not.toBeNull();
-    expect(dialog.classList.contains("is-sheet")).toBe(false);
-    expect(document.getElementById(dialog.getAttribute("aria-labelledby")!)!.textContent).toBe("Edit account — main");
-    expect(dialog.hasAttribute("aria-label")).toBe(false);
+    expect(dialog.closest(".rl-drawer") ?? dialog.querySelector(".rl-drawer__head")).not.toBeNull();
+    expect(document.body.querySelector(".rl-drawer.is-full")).toBeNull();
+    expect(document.getElementById(dialog.getAttribute("aria-labelledby")!)!.textContent!.trim()).toBe(
+      "Edit account main",
+    );
     expect(document.body.querySelector(".el-dialog")).toBeNull();
-    expect(document.body.querySelectorAll("[aria-label=Close]")).toHaveLength(1);
-    expect(document.body.querySelector(".detail-drawer__head button:last-child")).toBe(closeX());
+    expect(names()).toEqual(["Back to Accounts", "Close · Esc"]);
+    (document.body.querySelector("[aria-label='Back to Accounts']") as HTMLElement).click();
+    await flushPromises();
+    expect(wrapper!.emitted("update:modelValue")).toEqual([[false]]);
   });
 
-  it("below 768 px it is a full-screen sheet whose single way out is Back to Accounts, before the title", async () => {
+  it("below 768 px it is the whole screen with the sheet head: Close · Esc, no Back", async () => {
     stub(true);
     await mountEdit();
-    expect(document.body.querySelector(".detail-drawer")!.classList.contains("is-sheet")).toBe(true);
-    expect(document.body.querySelectorAll("[aria-label=Close]")).toHaveLength(0);
-    const back = document.body.querySelectorAll("[aria-label='Back to Accounts']");
-    expect(back).toHaveLength(1);
-    expect(document.body.querySelector(".detail-drawer__head button:first-child")).toBe(back[0]);
-    (back[0] as HTMLElement).click();
+    expect(document.body.querySelector(".rl-drawer.is-full")).not.toBeNull();
+    expect(names()).toEqual(["Close · Esc"]);
+    closeX().click();
     await flushPromises();
     expect(wrapper!.emitted("update:modelValue")).toEqual([[false]]);
   });
@@ -710,8 +719,10 @@ describe("the drawer frame", () => {
     wrapper = mount(ImportDialog, { props: { modelValue: true }, attachTo: document.body });
     await flushPromises();
     const dialog = document.body.querySelector<HTMLElement>("[role=dialog]")!;
-    expect(document.getElementById(dialog.getAttribute("aria-labelledby")!)!.textContent).toBe("Import accounts");
-    expect(document.body.querySelector(".detail-drawer__chips")!.textContent).toBe(
+    expect(document.getElementById(dialog.getAttribute("aria-labelledby")!)!.textContent!.trim()).toBe(
+      "Import accounts",
+    );
+    expect(document.body.querySelector(".rl-drawer__sub")!.textContent!.trim()).toBe(
       "One credential per line. Lines that fail are rejected; the rest are imported.",
     );
   });
