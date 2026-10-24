@@ -8,7 +8,7 @@ option, one points wallet per key with optional per-provider caps, account pools
 upstream cost and its mismatch alert on every job, and automatic refunds for missing outputs.
 
 **Architecture:** Providers stop pricing. A provider's `plan()` returns a *price key* and a count. The core looks up
-the sale price in `<p>.prices` and the upstream cost in the provider's cost table (`spec.costs(snapshots)`), and
+the sale price in `<p>.prices` and the upstream cost in `<p>.costs` (a live read wins from Phase 4), and
 refuses the job when either is missing. One migration (`0020_money_v2.sql`) wipes the job history and the money
 tables, then recreates them. Account pool spend is no longer a stored counter: it is computed under the account lock
 from `account_charges` against the pool's windows (`<p>.pools` setting) for the account's tier. A reported balance
@@ -39,6 +39,25 @@ wins until the next refill.
    wins until that window's next refill. Fix `pool.py:113-117`. Budgets, windows, rests are Settings with defaults.
 8. Clean slate: wipe the money tables AND the job history; one new migration; drop the old money schema, no shim.
 
+## Owner rulings on the plan's questions (24/10, final; they override the text they touch)
+
+- **Q1.** Keep the current behaviour: out of credits BEFORE the send moves the job to another account (Retry /
+  NotTaken, `pool.*`); out of credits AFTER the send ends the job with a refund (qwen `Fail`). dola's "daily limit"
+  reply is a certain not-taken and keeps its NotTaken requeue (unchanged code).
+- **Q2.** The destructive 0020 is fine (only the owner tests, nothing released): dump the database first, stop the
+  stack while it runs (§ 8).
+- **Q3.** Margin uses a per-provider value per upstream unit, reporting only, editable in Settings
+  (`<p>.unit_value`, USD per pool unit). Mock defaults: flow video 19.99 USD / 1,050 credits = 0.019038 (one Google AI
+  Pro plan, shared with gemini); flow image, gemini, dola, qwen, meta, vibes 0 (free or bundled).
+- **Q4 (replaces decision 4).** Any output = success, charged in full. Zero outputs = failure with a refund. No
+  partial refund per missing output, for images or for a count of N. The partial-delivery phase is deleted.
+- **Q5.** Tier and monthly cycle start are entered by hand in the admin for now.
+- **Q6.** Providers with no credit counter count uses. dola images: pool `image` of 40 units a day per account;
+  Seedream 4.5 costs 1 unit, Seedream 5.0 Pro 4 units, all three numbers in Settings (`dola.pools`, `dola.costs`).
+  Our 21/09 measurement found 21 jobs / 63 images a day; dola's own "reached today's image limit" refusal stays the
+  authority and rests the account whatever the counter says.
+- **Q7.** A new provider starts closed on every key.
+
 ## Global Constraints
 
 - Tier **L** for every phase: `scripts/web.sh check` + `build` + browser files of the changed pages (UI phases),
@@ -64,8 +83,9 @@ wins until the next refill.
    savepoint. Test in Task 2.2.
 3. **A reported balance read just before UTC midnight on a pool whose window is not a UTC day** (flow first-use, qwen).
    It must survive midnight and be replaced only at its own refill. Test in Task 2.4 (the `pool.py:113-117` bug).
-4. **A shortfall refund on a job that a Recover later completes.** The recovered outputs are charged again, at most up
-   to the missing share; the job's net never exceeds its price. Test in Task 5.1.
+4. **dola's "reached today's image limit" while the image counter still shows units left.** The refusal wins: the
+   account's image pool rests until the next refill whatever the counter says, and the job goes to another account.
+   Test in Task 2.3.
 5. **Flow balance delta with a concurrent second job on the same account.** `account_slots == 1` for every provider
    today; the delta is only trusted under that bound. Test in Task 4.1 (a provider with `account_slots=2` records no delta).
 
@@ -83,9 +103,8 @@ Order inside the file (one transaction, as `migrate.py` runs each file):
    `worker_heartbeats`. Media objects become orphans the existing orphan sweep removes.
 2. Drop: `billing_alerts`, `ledger`, `key_wallets`, `account_charges`, `account_capacity` (CASCADE).
 3. `ALTER TABLE jobs DROP COLUMN wallet_kind, ADD COLUMN price_key text NOT NULL DEFAULT '',
-   ADD COLUMN out_count int NOT NULL DEFAULT 1 CHECK (out_count BETWEEN 1 AND 4),
    ADD COLUMN cost_source text NULL CHECK (cost_source IN ('reply', 'balance_delta'))`.
-   Kept with their meaning restated: `price` = total points charged (= price each × `out_count`), `account_cost` =
+   Kept with their meaning restated: `price` = total points charged (price each × the request's count), `account_cost` =
    expected upstream cost in the pool's unit, `upstream_price` = actual upstream cost in the pool's unit (stored only
    when taken), `pool`. Margin is derived on read (§ 6.4), never stored.
 4. `ALTER TABLE accounts ADD COLUMN tier text NULL CHECK (tier IN ('free', 'pro', 'ultra')),
@@ -106,13 +125,12 @@ CREATE TABLE ledger (
     id bigserial PRIMARY KEY, key_id uuid NOT NULL, scope text NOT NULL, job_id uuid NULL,
     provider text NULL,                        -- the job's provider; NULL only on an adjust
     entry text NOT NULL CHECK (entry IN ('charge', 'refund', 'adjust')),
-    reason text NULL CHECK (reason IN ('failed', 'shortfall')),
     amount int NOT NULL, billing_day date NOT NULL, refund_of bigint NULL REFERENCES ledger(id),
     at timestamptz NOT NULL DEFAULT clock_timestamp(),
     FOREIGN KEY (key_id, scope) REFERENCES key_wallets (key_id, scope),
-    CHECK ((entry = 'refund') = (refund_of IS NOT NULL AND reason IS NOT NULL)),
+    CHECK ((entry = 'refund') = (refund_of IS NOT NULL)),
     CHECK (entry = 'adjust' OR amount >= 0), CHECK ((entry = 'adjust') = (job_id IS NULL)));
-CREATE UNIQUE INDEX ledger_one_refund ON ledger (refund_of);   -- one refund row per charge row, full or partial
+CREATE UNIQUE INDEX ledger_one_refund ON ledger (refund_of);   -- one full refund per charge row
 CREATE INDEX ledger_job ON ledger (job_id);
 ALTER TABLE ledger ADD CONSTRAINT ledger_job_fk FOREIGN KEY (job_id) REFERENCES jobs(id) DEFERRABLE INITIALLY DEFERRED;
 CREATE TABLE account_pools (
@@ -160,32 +178,32 @@ stopped (§ 9).
 |---|---|
 | `PoolSpec` | `name`, `unit: Literal["credits", "jobs", "uses"]`. `tz` and `budget_setting` go (windows live in `<p>.pools`). |
 | `Caps` | `wallet_kinds` goes. |
-| `ModelSpec` | `prices: Mapping[str, int]` → `price_keys: Mapping[str, str]` (option label, e.g. `"10s"`, `"default"`, `"720p"` → price key). `limits["max_n"]` is read (default 1). |
-| `Plan` | drop `wallet_kind`, `price`, `account_cost`; add `price_key: str`, `count: int = 1`. `pool` stays. |
-| `Cost` (new) | `amount: int` (per count unit, pool unit), `source: Literal["live", "measured", "official"]`. |
-| `ProviderSpec.costs(snapshots) -> Mapping[str, Cost]` (new) | price key → cost. Pure. |
+| `ModelSpec` | `prices: Mapping[str, int]` → `price_keys: Mapping[str, str]` (option label, e.g. `"10s"`, `"default"`, `"720p"` → price key). |
+| `Plan` | add `price_key: str` (no count: every provider refuses n > 1). `wallet_kind`, `price`, `account_cost` become core-filled (`None` from a provider; `plan_request` replaces them, as it does `frame`). Phase 2 drops `wallet_kind`. |
+| `<p>.costs` setting (new) | price key → upstream cost per count unit in the pool's unit; default = the provider's measured/official table; editable (Q6). |
+| `ProviderSpec.live_costs(snapshots) -> Mapping[str, int]` (new, Phase 4, optional) | a live cost read (flow `HTrJv`, qwen pricing) that wins over the setting. |
 | `Facts` | add `cost_source: Literal["reply", "balance_delta"] | None = None`; `upstream_price` = actual cost of the whole job, pool unit. |
 | `Balance` | `pool`, `left_n`, `refill_at: datetime | None = None` (aware). `source` and `BALANCE_SOURCES` go (only reported balances exist now). |
 | `Tier` (new effect) | `name: Literal["free", "pro", "ultra"]`, `cycle_start: date | None = None`. Added to `AccountEffect`. |
 
-`_problems` (registry) adds: `<p>.prices` and `<p>.pools` must be declared; every price key of the catalog must be in
-`spec.costs({})` OR be one the provider documents as live-only (none today); every `PoolSpec` must appear in the
-`<p>.pools` default.
+`_problems` (registry) adds: `<p>.prices` and `<p>.costs` must be declared (Phase 1), `<p>.pools` too (Phase 2); every
+`PoolSpec` must appear in the `<p>.pools` default.
 
 ## 2. Pricing resolution
 
 `relay_core/pricing.py` (new, ~80 lines):
 
-- `prices_setting(provider, price_keys, default) -> Spec` — the one validator replacing the six `_prices` copies:
-  a dict of known price key → whole points ≥ 0; unknown keys refused on write, dropped on load.
-- `price_job(spec, plan, settings, snapshots, pools) -> Priced` where
-  `Priced(price_key: str, count: int, price: int, account_cost: int)`:
+- `table_setting(key, description, price_keys, default) -> Spec` — the one validator replacing the six `_prices`
+  copies, used for `<p>.prices` (points) and `<p>.costs` (upstream units): a dict of known price key → whole number ≥ 0;
+  unknown keys refused on write, dropped on load.
+- `price_plan(spec, plan, settings) -> Plan` (core fills `price`, `account_cost`, `wallet_kind`):
   1. `each = settings[<p>.prices].get(plan.price_key)`; missing → raise `Unpriced` (`model.unpriced`, 403).
-  2. `cost = spec.costs(snapshots).get(plan.price_key)`; missing → raise `Uncosted` (`model.uncosted`, 403).
-  3. `plan.count` outside `1..model.limits.max_n` → `input.invalid` (param `n`).
-  4. `account_cost = cost.amount * count`; when `pool.ceiling(pools[plan.pool])` is known and smaller →
-     `TooCostly` (`input.too_costly`, 400) — replaces the flow/qwen plan-time budget refusals.
-  5. `price = each * count`.
+  2. `cost = settings[<p>.costs].get(plan.price_key)` (Phase 4: a live cost wins); missing → `Uncosted`
+     (`model.uncosted`, 403).
+  3. `account_cost = cost`; when the pool's ceiling is known and smaller → `TooCostly`
+     (`input.too_costly`, 400) — replaces the flow/qwen plan-time budget refusals. Phase 1 reads the ceiling from the
+     pool's existing budget setting; Phase 3 from `pool.ceiling`.
+  4. `price = each`. No count: every provider refuses `n > 1`, and any output is a full charge (Q4).
 - `model_prices(spec, model, settings) -> dict[str, int | None]` for `/v1/models`.
 
 New error rules (`errors.py`): `model.unpriced` 403 permission_error "this model has no price yet", `model.uncosted` 403
@@ -194,15 +212,15 @@ this job". All `job_scoped=False`, `refund=False`.
 
 ### 2.1 Price keys and upstream cost sources per provider
 
-Cost is always in the job's pool unit. "Live" = read by the worker's `refresh_catalog` into `provider_snapshots`;
-the shipped table is the fallback and is what tests pin.
+Cost is always in the job's pool unit. The `<p>.costs` setting default is the table below; "live" = read by the
+worker's `refresh_catalog` into `provider_snapshots` (Phase 4) and wins over the setting.
 
 | Provider | Price key (options in it) | Pool / unit | Expected cost per count unit | Source |
 |---|---|---|---|---|
 | dola | `seedance_v1.0@5s`, `@10s` | video / credits | 1, 2 | measured (`catalog.py:22-28`) |
 | dola | `seedance_v2.0@5s`, `@10s`, `@15s` | video / credits | 1, 2, 3 | measured |
 | dola | `seedance_v2.5@5s`, `@10s`, `@20s`, `@25s`, `@30s` | video / credits | 2, 4, 2, 2, 2 | measured |
-| dola | `seedream-4.5`, `seedream-5.0-pro` (one job = up to 4 pictures) | image / jobs | 1, 1 | measured (the 21-job/day ceiling counts jobs); 5.0 Pro "4x" open (Q6) |
+| dola | `seedream-4.5`, `seedream-5.0-pro` (one job = up to 4 pictures) | image / uses | 1, 4 | owner (Q6: 40 units a day; 4.x 40 jobs, 5.0 Pro 10); measured 21/09: 21 jobs / 63 images, dola's refusal wins |
 | flow | `flow-nano-banana-2.1`, `-pro`, `-2-lite` | image / jobs | 1 | measured (0 credits, 50 → 50) |
 | flow | `flow-veo-3.1-lite@8s` | video / credits | 10 | live `HTrJv` (`veo_3_1_t2v_lite`, tier 1/2), measured 50 → 40 |
 | flow (table only, not in the catalog until captured) | `flow-veo-3.1-fast@{4,6,8}s` 20; `flow-veo-3.1-quality@8s` 100; `flow-omni-flash@{4,6,8,10}s\|720p` 7/10/12/15; `…\|360p` 4/5/6/7 | video / credits | as listed | official (support.google.com/flow/answer/16526234) |
@@ -224,8 +242,8 @@ Keys with no default (flow Fast/Quality/Omni) are absent → `model.unpriced` un
   existing day/total predicates (text of `_CHARGE` lines 26-40 kept), `RETURNING w.scope, d.today`. Fewer than 2 rows
   updated → the savepoint rolls back and `_explain_refusal` raises `WalletMissing` / `KeyDisabled` / `QuotaExceeded`.
   One ledger `charge` row per scope.
-- `refund(conn, charge_id, *, amount: int | None = None, reason: str = "failed") -> Refund`: unchanged algorithm
-  (ON CONFLICT (refund_of), same-day rule, clamp alert) with `kind` → `scope` and a partial `amount` (≤ the charge).
+- `refund(conn, charge_id) -> Refund`: unchanged algorithm (ON CONFLICT (refund_of), same-day rule, clamp alert),
+  `kind` → `scope`. Always the full amount (Q4).
 - `create_wallets(conn, key_id, scopes: Mapping[str, Limits])`, `ensure_wallets(conn, provider)`: a provider registered
   later gets a CLOSED cap row on every key (keeps I29; see Q7).
 - Job net points = Σ over `scope = '*'` rows (`_NET` in `recheck.py`, `_STATUS` in `doors.py`, checker I8).
@@ -274,7 +292,7 @@ Default `<p>.pools` (settings; owner tunes):
 | Provider | Pool | combine | Windows and budgets |
 |---|---|---|---|
 | dola | video (credits) | sum | `day` UTC, free 4 (measured 2 on one account 24/10; reported balance wins) |
-| dola | image (jobs) | sum | `day` UTC, free 21 (measured 260921; replaces 40) |
+| dola | image (uses) | sum | `day` UTC, free 40 units (owner, Q6; 4.5 = 1, 5.0 Pro = 4); "reached today's image limit" rests the pool regardless |
 | flow | video (credits) | sum | `first_use` 24 h free 50 / pro 50; `month` pro 1000 |
 | flow | image (jobs) | sum | none (unknown: allows; pacing rest stays) |
 | qwen | video (credits) | sum | `day` UTC, free 40 (reset hour unconfirmed) |
@@ -299,20 +317,17 @@ provider, price_key, expected, actual).
 
 ## 6. Partial delivery, API and admin
 
-### 6.1 Partial delivery
-`apply_fetched` (same anchors): after the media rows, `delivered = len(media)`; when `delivered < out_count` and the
-job has unrefunded charge rows, each charge row gets `refund(charge_id, amount=row.amount // out_count * missing,
-reason="shortfall")` in the done transaction. More outputs than asked: no extra charge (26/09 rule). The account
-charge stays (upstream spent it). Recover of a done job with a shortfall charges again `price_each × newly attached`
-up to the missing share (`_recharge(..., target)`).
+### 6.1 Delivery (Q4)
+Any output = done, charged in full; zero outputs = failed with the full refund (today's code: `apply_fetched` refuses
+an empty list, the fetch failure path fails and refunds). More outputs than asked: no extra charge (26/09 rule).
+Nothing changes in `apply_fetched`.
 
 ### 6.2 Public API
-- `/v1/models`: `prices` = `{label: points | null}` from `pricing.model_prices` (live setting); `limits.max_n`.
+- `/v1/models`: `prices` = `{label: points | null}` from `pricing.model_prices` (live setting).
 - `/v1/points`: `{"points": {day_limit, used_day, total_limit, used_total}, "providers": {p: cap row}, "models",
   "unfinished_jobs", "max_unfinished_jobs"}`.
-- Status: `points` = net on `'*'` rows; `refunded` stays a bool (true = fully refunded, failed); new
-  `refunded_points` and `delivered`; OpenAPI text in `api/schemas.py` updated.
-- `n` honoured only up to `max_n` (1 everywhere today); dola, meta, vibes switch from ignoring `n` to refusing n > 1.
+- Status: `points` = net on `'*'` rows; `refunded` stays a bool. Shape otherwise unchanged.
+- `n` > 1 is refused by every provider; dola, meta, vibes switch from ignoring `n` to refusing it (`input.invalid`).
 
 ### 6.3 Admin API
 - `/admin/keys`: `wallets: [{scope, mode, day_limit, total_limit, used_day, used_total}]`, `'*'` first.
@@ -322,20 +337,21 @@ up to the missing share (`_recharge(..., target)`).
   reported|computed|unknown, refill_ms, rest_until_ms, rest_reason, windows: [{name, kind, budget, spent, refill_ms}]}]`;
   PATCH takes `tier`, `cycle_start`.
 - `/admin/stats/pool`: per provider, per pool, with its unit; never summed across providers. `drift` field gone.
-- `/admin/jobs/{id}`: `price_key`, `out_count`, `delivered`, `unit`, `cost_source`, `margin`.
+- `/admin/jobs/{id}`: `price_key`, `unit`, `cost_source`, `cost_usd`, `margin`.
 - Alerts hub: billing groups are `(alert, key_id, scope)` for clamp/drift and `(alert, provider, price_key)` for
   `cost_mismatch`.
 
 ### 6.4 Margin
-`margin = price - (upstream_price ?? account_cost) × <p>.unit_value[pool]`, computed on read; null while the owner has
-not set `<p>.unit_value` (points one upstream unit is worth, reporting only, never used to charge). See Q3.
+`cost_usd = (upstream_price ?? account_cost) × <p>.unit_value[pool]` (USD per pool unit, Q3; defaults: flow
+`{"video": 0.019038, "image": 0}`, every other provider 0); `margin = price × point_value_usd − cost_usd` with the core
+setting `point_value_usd` (default 0 = not set → margin null). Computed on read, reporting only, never used to charge.
 
 ### 6.5 Admin UI
 Keys form/list (`KeyFormDialog.vue`, `WalletLines.vue`, `key-model.ts`, `KeysView.vue`): one points wallet + per-provider
 cap rows. Settings: `PricesTable.vue` becomes the price table (sale points editable, cost/unit/source, measured);
 `<p>.pools` and `<p>.unit_value` use the generic dict field. Accounts (`account-model.ts`, `AccountsView.vue`,
-`AccountLanes.vue`): tier chip + edit, per-window bars. Jobs drawer (`JobTechnical.vue`): price key, n/delivered,
-expected/actual cost with unit, margin. Alerts (`alerts-model.ts`): cost-mismatch group words.
+`AccountLanes.vue`): tier chip + edit, per-window bars. Jobs drawer (`JobTechnical.vue`): price key, expected/actual
+cost with unit, cost in USD, margin. Alerts (`alerts-model.ts`): cost-mismatch group words.
 
 ---
 
@@ -345,41 +361,38 @@ Each phase is one tier-L hand-over and one deploy. Phase 2 is the only one with 
 
 ### Phase 1 — Core pricing on the existing schema (no migration)
 
-Shippable alone: the core prices every job from `<p>.prices` + `spec.costs()`, refuses unpriced/uncosted models, and
+Shippable alone: the core prices every job from `<p>.prices` and `<p>.costs`, refuses unpriced/uncosted models, and
 `/v1/models` shows live prices. The old columns are still filled (`wallet_kind` = media type, `price`, `account_cost`).
 
 **Task 1.1 — types and pricing module.**
-Files: create `core/pricing.py`, `tests/test_pricing.py`; modify `core/providers.py` (`Plan`, `Cost`, `ModelSpec.price_keys`,
-`costs`, registry checks), `core/errors.py`, `docs/error-codes.md`, `core/testing/fake_provider.py` (`costs` from
-option-free table `{"fake-video": Cost(1, "measured"), "fake-image": Cost(1, "measured")}`, `<fake>.prices` setting
-default `{"fake-video": 10, "fake-image": 1}`; tests that steered `price` through options set the setting instead).
-Tests: `test_a_missing_sale_price_refuses_model_unpriced_and_charges_nothing`,
-`test_a_missing_upstream_cost_refuses_model_uncosted`, `test_price_is_each_times_count_and_cost_is_cost_times_count`
-(each 7, count 3 → price 21, cost 3 → account_cost 9), `test_a_count_above_max_n_is_input_invalid`,
-`test_an_unknown_price_key_in_the_setting_is_refused_on_write_and_dropped_on_load`.
-Markers to add: on `pricing.py` the two refusals, the multiplication, `max_n`, the unknown-key check (5).
+Files: create `core/pricing.py`, `tests/test_pricing.py`; modify `core/providers.py` (`Plan.price_key`, core-filled
+`wallet_kind`/`price`/`account_cost`, `ModelSpec.price_keys`, registry checks), `core/errors.py`, `docs/error-codes.md`,
+`core/testing/fake_provider.py` (`<fake>.prices` default `{"fake-video": 10, "fake-image": 1}`, `<fake>.costs` default
+`{"fake-video": 1, "fake-image": 1}`; tests that build a `NewJob` directly keep steering `price`/`account_cost` through
+the fake's options, since only the door replaces them).
+Tests: `test_a_missing_sale_price_refuses_model_unpriced`, `test_a_missing_upstream_cost_refuses_model_uncosted`,
+`test_the_core_fills_price_cost_and_wallet_kind_from_the_settings`, `test_a_cost_above_the_pool_budget_is_too_costly`,
+`test_an_unknown_key_in_a_table_is_refused_on_write_and_dropped_on_load`, `test_a_negative_or_fractional_entry_is_refused`.
+Markers to add: the two refusals, the cost-over-budget check, the unknown-key check, the whole-number check (5).
 
 **Task 1.2 — six providers quote price keys.**
 Files: each provider's `spec.py`, `catalog.py`, `constants.py` (dola, flow, qwen, gemini, meta, vibes): `plan()` returns
-`price_key`/`count`; `catalog()` returns `price_keys`; `costs(snapshots)` from the table in § 2.1 (flow reads the
-`models` snapshot from `HTrJv`, qwen the `pricing` snapshot, both falling back to the shipped table); delete
-`_prices`, `lookup_price`, `FALLBACK_*`, `*_ACCOUNT_COST`, `WARN_PRICE_FALLBACK` uses, their `FixedLimit` rows, and
-the flow/qwen plan-time budget refusals. dola/meta/vibes refuse `n > 1` (`input.invalid`).
-Flow and qwen `run_command("refresh_catalog")` return the new snapshots; `Caps.catalog_refresh_s` set for both (a
-setting-backed value per the tunables rule: `<p>.catalog_refresh_s`, default 21600).
+`price_key`; `catalog()` returns `price_keys`; `<p>.prices` and `<p>.costs` settings from `pricing.table_setting` with
+the § 2.1 defaults; delete `_prices`, `lookup_price`, `FALLBACK_*`, `*_ACCOUNT_COST`, the `WARN_PRICE_FALLBACK`
+uses, their `FixedLimit` rows, and the flow/qwen plan-time budget refusals (the core's `input.too_costly` replaces
+them). dola/meta/vibes refuse `n > 1` (`input.invalid`). dola's image budget default becomes 40 units and 5.0 Pro
+costs 4 (Q6).
 Tests (rewrite in place): `test_plan.py`, `test_catalog.py`, `test_dola_settings.py`, `test_flow_spec.py`,
 `test_qwen_spec.py`, `test_meta_spec.py`, `test_vibes_spec.py`, `test_gemini_spec.py`; new
-`test_every_price_key_has_a_cost_and_a_default_price` per provider (except flow Fast/Quality/Omni, which are not in the
-catalog), `test_a_live_cost_snapshot_overrides_the_shipped_table` (flow, qwen).
+`test_every_catalog_option_has_a_default_price_and_cost` per provider.
 Markers broken here: dola `spec.py:93,95,247,253`, `catalog.py:299`, `constants.py:36,38`; flow `spec.py:192,200`;
 qwen `spec.py:180,183,187`; meta `spec.py:187`; vibes `spec.py:190` (15). Markers to add: one per provider on its
-`costs` table lookup and one on the `n > 1` refusal of dola/meta/vibes (9).
+price key and one on the `n > 1` refusal of dola/meta/vibes (9).
 
 **Task 1.3 — the door prices and the catalog shows live prices.**
-Files: `core/api/doors.py` (`plan_request` calls `pricing.price_job`), `core/jobs/create.py` (`NewJob.priced`),
-`core/jobs/recheck.py` (`regenerate_job` takes the priced plan), `core/api/routes_catalog.py`
-(`model_entry` prices from settings), `core/admin/routes_keys.py` (`/models` same), `core/admin/routes_jobs.py`
-(regenerate). Tests: `test_models_show_the_live_sale_price_and_null_when_unset`,
+Files: `core/api/doors.py` (`plan_request` calls `pricing.price_plan`), `core/jobs/create.py` (refuses an unpriced
+plan), `core/api/routes_catalog.py` (`model_entry` prices from settings), `core/admin/routes_keys.py` (`/models`
+same). Tests: `test_models_show_the_live_sale_price_and_null_when_unset`,
 `test_a_price_removed_after_creation_leaves_the_queued_job_priced_as_created` (Review Focus 1),
 `test_regenerate_prices_today`. Markers to add: `model_entry` live lookup, `plan_request` pricing call (2).
 
@@ -444,7 +457,12 @@ Tests: `test_a_pro_account_gets_the_pro_budgets`, `test_an_upstream_tier_overwri
 qwen/gemini/flow check fixtures (`fixtures/qwen/spike-261023`, `fixtures/gemini`, `fixtures/flow/live-261023/video_credits_before.json`).
 Markers to add: tier lookup in `left_of`, the Tier write, each provider read (5). UI: account tier chip/edit and window bars.
 
-### Phase 4 — Actual cost and the mismatch alert (+ price table UI)
+### Phase 4 — Live costs, actual cost and the mismatch alert (+ price table UI)
+
+Live costs: `ProviderSpec.live_costs(snapshots)` (optional); flow's and qwen's `run_command("refresh_catalog")` return
+the `HTrJv` / `credits/pricing` snapshots, `Caps.catalog_refresh_s` from `<p>.catalog_refresh_s` (default 21600);
+`pricing.price_plan` takes a live cost before the setting. Test
+`test_a_live_cost_snapshot_wins_over_the_setting` (flow, qwen); markers on the snapshot readers (2, in the 5 below).
 
 Files: `core/jobs/apply.py` (store `cost_source`, write `cost_mismatch` in the taken transaction), flow
 `engine/submit.py` (`video_answer` gets the pre-send balance: `Facts(before - after, cost_source="balance_delta")`,
@@ -458,30 +476,21 @@ Tests: `test_a_taken_job_whose_actual_cost_differs_raises_one_cost_mismatch_aler
 Markers broken: `routes_prices.py:21,22`, web `PricesTable.vue:33`, `SettingsView.vue:87`, `JobTechnical.vue:30,39` (6).
 Markers to add: the mismatch condition, flow delta guard, qwen parse, price-table join, margin null-when-unvalued (5).
 
-### Phase 5 — Multi-output shortfall refunds
+(The partial-delivery phase was deleted by the owner's Q4 ruling: any output is a full charge.)
 
-Files: `core/jobs/apply.py` (`apply_fetched` shortfall), `core/billing.py` (partial `amount`), `core/jobs/recheck.py`
-(`_recharge(..., target)` for Recover), `core/testing/checker.py` (I8: net ∈ {0, price, price − shortfall}),
-`core/testing/fake_provider.py` (`max_n` 4, outputs from options), `api/doors.py` (`delivered`).
-Tests: `test_three_of_four_outputs_refund_one_quarter_once`, `test_a_repeated_fetch_apply_refunds_nothing_twice`,
-`test_more_outputs_than_asked_cost_nothing_extra`, `test_recover_of_a_short_job_charges_at_most_the_missing_share`
-(Review Focus 4), checker planted-violation case. Markers to add: the `delivered < out_count` guard, the amount
-formula, the once-only (unique refund_of), the recover cap, the I8 shortfall clause (5).
-No provider sets `max_n > 1` in this phase (Q4).
-
-**Markers to add, total: 61** (1.1: 5, 1.2: 9, 1.3: 2, 2.1: 5, 2.2: 7, 2.3: 6, 3.1: 6, 3.2: 5, 4: 5, 5: 5, plus the
-6 Vitest-backed web markers named in their tasks). **Existing markers whose anchors break: 66** (Appendix A).
+**Markers to add, total: 56** (1.1: 5, 1.2: 9, 1.3: 2, 2.1: 5, 2.2: 7, 2.3: 6, 3.1: 6, 3.2: 5, 4: 5, plus the 6
+Vitest-backed web markers named in their tasks). **Existing markers whose anchors break: 66** (Appendix A).
 
 ## 8. Rollout and deploy order
 
-1. Phases 1 → 5 merge to `main` in order; each gets its full gate (`check.sh --full`, `RELAY_GATE_CPUS=0-23`) before
+1. Phases 1 → 4 merge to `main` in order; each gets its full gate (`check.sh --full`, `RELAY_GATE_CPUS=0-23`) before
    its deploy.
 2. Phase 2 deploy (the only destructive one): drain every provider (`relay provider drain <p>`), wait until no job is
    `submitting`/`waiting`/`unknown`/`fetching`, `pg_dump` the relay schema to `~/relay-backups/pre-0020-<sha>.dump`,
    stop api + workers, `scripts/deploy.sh <sha> --allow-migrate`, re-open keys in the admin, set prices/tiers,
    resume providers one at a time (dola last: browser).
 3. Rollback after 0020 is not `rollback.sh` alone: restore the dump, then `scripts/rollback.sh --allow-schema-mismatch`.
-4. Phases 3-5 have no migration: ordinary deploys; `rollback.sh` works.
+4. Phases 3-4 have no migration: ordinary deploys; `rollback.sh` works.
 
 ## 9. Risks
 
@@ -499,27 +508,11 @@ No provider sets `max_n > 1` in this phase (Q4).
 6. **Mutation re-run volume**: 1,225 markers sit on the 72 source files this plan changes; the narrowed runs per phase
    must cover each phase's files, and anchors elsewhere must be checked before the long gate (lesson 22/10).
 
-## 10. Open questions (code contradicts or does not cover a decision)
+## 10. Open questions
 
-- **Q1 (decision 5).** "Out-of-credits ends the job with a refund" does not match the code: dola NO_POINTS is
-  `NotTaken(pool.account_out_of_points)` (requeued to another account), flow/qwen pre-send shortage is
-  `Retry(pool.account_out_of_points)`, and the registry forbids `pool.*` from being terminal. Only qwen's post-send
-  "Insufficient Credits" is `Fail` with a refund. The plan keeps the code (requeue when certainly not taken). Confirm,
-  or rule that dola's post-send NO_POINTS ends the job.
-- **Q2 (decision 8).** `migrate.py` states migrations never drop what a running build reads; 0020 must run with every
-  service stopped and makes rollback a database restore (§ 8). Confirm that downtime.
-- **Q3 (decision 1, margin).** Points and upstream units have no exchange rate, and decision 1 forbids pricing by a
-  factor. The plan adds `<p>.unit_value` (reporting only) and shows margin null until it is set. Confirm.
-- **Q4 (decision 4).** No provider can deliver n > 1 today (flow/gemini/qwen refuse, dola/meta/vibes ignore `n`; flow's
-  ×N request is not captured). The core supports it; providers stay at `max_n = 1`. Is a dola/meta image job (up to 4
-  pictures) one set (plan) or n = 4 with a refund per missing picture?
-- **Q5 (decision 6).** Flow's own account tier and every provider's cycle start are not in any captured reply
-  (`HTrJv` lists cost per tier, `nzlxg` fields are unexplained). Admin sets them until a Pro capture shows the field.
-- **Q6 (decision 1).** dola Seedream 5.0 Pro: the UI says "4x credit usage" but its effect on the 21-job ceiling is
-  unmeasured; the plan costs it 1 job. Quota-only providers (meta, vibes, gemini, dola images) have no credit cost; the
-  plan's cost is 1 job/use in the pool unit.
-- **Q7 (decision 2).** A relay-wide wallet would open a newly registered provider on every `'*'` key, which I29
-  forbids today. The plan keeps a closed per-provider cap row for new providers. Confirm.
+All seven were answered by the owner on 24/10 (see "Owner rulings" at the top). None is open. One note on Q1: dola's
+post-send "daily limit" reply is a certain not-taken, so it keeps its requeue (the ruling says keep the current
+behaviour); only qwen's post-send "Insufficient Credits" is an out-of-credits that ends the job with a refund.
 
 ## Appendix A — existing markers whose anchors break (66)
 
