@@ -127,6 +127,13 @@ const BARS = [0, 1, 2, 3, 4];
   background: var(--rl-surface);
   box-shadow: var(--rl-shadow-card);
 }
+/* the scroller's arrows hang 6 px past its edge; inside the card they stay within it, so the card has nothing to scroll */
+.fm :deep(.asc__col--left) {
+  left: 0;
+}
+.fm :deep(.asc__col--right) {
+  right: 0;
+}
 .fm__head {
   display: flex;
   align-items: center;

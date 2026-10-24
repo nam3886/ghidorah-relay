@@ -109,6 +109,8 @@ describe("the frame text", () => {
     expect(markerChecks(`a ${PROMPT_MARKER} b ${TRACKING_MARKER}`)).toEqual({ prompt: 1, tracking: 1, ok: true });
     expect(markerChecks(`${PROMPT_MARKER} ${PROMPT_MARKER}`)).toEqual({ prompt: 2, tracking: 0, ok: false });
     expect(markerChecks("")).toEqual({ prompt: 0, tracking: 0, ok: false });
+    const twice = `${PROMPT_MARKER} ${PROMPT_MARKER} ${TRACKING_MARKER} ${TRACKING_MARKER}`;
+    expect(markerChecks(twice)).toEqual({ prompt: 2, tracking: 2, ok: false });
   });
 
   it("picks the sample prompt and the tracking code out of a preview, in the order they occur", () => {
@@ -121,5 +123,7 @@ describe("the frame text", () => {
     // a needle that is not there, or is empty, picks nothing; the text is whole
     expect(pickOut("plain", ["", "zzz"])).toEqual([{ text: "plain", hit: false }]);
     expect(pickOut("", ["x"])).toEqual([]);
+    // a needle inside one already picked out is not picked again
+    expect(pickOut("aa", ["aa", "a"])).toEqual([{ text: "aa", hit: true }]);
   });
 });

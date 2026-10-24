@@ -469,9 +469,11 @@ FORGETS_FRAME = FRAMES_SPEC + "opening > forgets the remembered frame when the r
 PREVIEW_MODEL = "t.target === DEFAULT_TARGET ? kindOf(t.kind)?.models[0]?.model : t.target"
 QUIET = FRAMES_SPEC + "the quiet preview > "
 QUIET_DRAFT = QUIET + "drops an answer for a draft that was replaced while it was on its way"
-QUIET_EDITOR = QUIET + "sends nothing while a load or a write is on, or for a kind with no model"
-QUIET_REFUSED = QUIET + "shows no refusal and no toast: a draft that breaks a rule just has no preview"
-QUIET_BUSY = QUIET_EDITOR
+QUIET_EDITOR = (QUIET + "drops an answer for a frame that was replaced while it was on its way, "
+                + "though the text is the same")
+QUIET_NOTHING = QUIET + "sends nothing while a load or a write is on, or for a kind with no model"
+QUIET_REFUSED = QUIET + "shows no refusal and no toast: a draft the server refuses just has no preview"
+QUIET_BUSY = QUIET_NOTHING
 DIRTY = FRAMES_VIEW_SPEC + "Save is disabled until the draft differs from the loaded text, and 'unsaved' says so"
 SAME_FRAME = EDITOR_SPEC + "picking the frame that is already in the editor does nothing"
 SETTLES = (FRAMES_SPEC + "opening > falls back to the first kind when the one it had is gone, "
@@ -515,7 +517,6 @@ SETTLES = (FRAMES_SPEC + "opening > falls back to the first kind when the one it
           "shown.value.target === editTarget) return;", expect=ASKS_FRAME)
 @mutation(FRAMES, "!failed.value) return;\n      if (dirty.value && !(await askDiscard())) return;",
           "!failed.value) return;", expect=ASKS_PROVIDER)
-@mutation(FRAMES, "shown.value !== null && draft.value !== loaded.value", "false", expect=DIRTY)
 @mutation(FRAMES, "shown.value?.kind === editKind && shown.value.target === editTarget",
           "false", expect=SAME_FRAME)
 @mutation(FRAMES, 'target: row.kind === at.kind && known ? at.target : defaultTargetOf(row),',
@@ -573,6 +574,7 @@ LEAVE = FRAMES_VIEW_SPEC + "leaving the page asks only for a typed draft, and is
 
 
 @mutation(FRAMES_VIEW, "() => frames.dirty,", "() => false,", expect=LEAVE)
+@mutation(FRAMES, "shown.value !== null && draft.value !== loaded.value", "false", expect=DIRTY)
 @mutation(FRAMES_VIEW, "() => frames.busy,", "() => false,", expect=LEAVE)
 @pytest.mark.web_unit
 def test_frames_view_rules():

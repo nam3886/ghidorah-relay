@@ -89,6 +89,14 @@ describe("opening", () => {
     expect(other.shown).toEqual({ provider: "flow", kind: "image", target: "default" });
   });
 
+  it("forgets the remembered frame when the remembered provider is gone", async () => {
+    await opened("m2", null);
+    const other = useFrames();
+    await other.init(["other"], "other");
+    expect(other.provider).toBe("other");
+    expect(other.shown?.target).toBe("m1");
+  });
+
   it("loads the table and opens video first, on its first own frame", async () => {
     const f = useFrames();
     await f.init(["flow"], "flow");
@@ -740,6 +748,18 @@ describe("the quiet preview", () => {
     await f.previewQuiet();
     expect(f.preview).toBeNull();
     expect(api.previewFrame).not.toHaveBeenCalled();
+  });
+
+  it("drops an answer for a frame that was replaced while it was on its way, though the text is the same", async () => {
+    const f = await opened("m1", "same {{client_prompt}} {{tracking_code}}");
+    const slow = deferred<api.PreviewResult>();
+    vi.mocked(api.previewFrame).mockReturnValue(slow.promise);
+    const asking = f.previewQuiet();
+    await f.edit("video", "m2");
+    expect(f.draft).toBe("same {{client_prompt}} {{tracking_code}}");
+    slow.resolve(answer("for m1"));
+    await asking;
+    expect(f.preview).toBeNull();
   });
 
   it("drops an answer for a draft that was replaced while it was on its way", async () => {

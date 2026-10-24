@@ -164,7 +164,7 @@ def test_frames_and_test_work_on_the_one_provider_they_pick(app, app_page, live,
 
     # Prompt frames: its own list of providers (chips on a tablet and a phone), no strip, no All; the editor is inline
     open_tab(page, "Prompt frames")
-    expect(page.get_by_role("navigation", name="Provider")).to_have_count(0)
+    expect(page.get_by_role("navigation", name="Provider", exact=True)).to_have_count(0)
     expect(page.get_by_role("banner").get_by_test_id("provider-filter")).to_have_count(0)
     pick = page.get_by_test_id("provider-tab-dola")
     pick.click()

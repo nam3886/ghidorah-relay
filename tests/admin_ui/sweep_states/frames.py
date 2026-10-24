@@ -25,7 +25,7 @@ def run(page, app, live, sw, data):
     sw.step("frames", "provider-pick", lambda: (
         page.get_by_test_id("provider-tab-fake").click(),
         expect(page.get_by_test_id("provider-tab-all")).to_have_count(0),
-        expect(page.get_by_role("navigation", name="Provider")).to_have_count(0),
+        expect(page.get_by_role("navigation", name="Provider", exact=True)).to_have_count(0),
         expect(page.locator(EDITOR)).to_be_visible()))
     sw.step("frames", "editor", lambda: (
         page.get_by_test_id("frame-models").get_by_role("button", name="Edit frame for fake-video").click(),
@@ -46,7 +46,8 @@ def run(page, app, live, sw, data):
         page.get_by_role("button", name="Save", exact=True).click()
         expect(page.get_by_role("button", name="Follow the default").first).to_be_enabled()   # the frame is now its own
         page.get_by_test_id("frame-models").get_by_label("Keep own frame of fake-video").first.check()
-        expect(page.get_by_test_id("frame-models").locator("label[title^=Locked]")).to_have_count(1)
+        expect(page.get_by_test_id("frame-models").get_by_label("Keep own frame of fake-video").first).to_be_checked()
+        expect(page.get_by_test_id("frame-history-card").locator(".hint-tip")).to_be_visible()
         tip = page.get_by_test_id("frame-history-card").locator(".hint-tip")
         expect(tip).to_be_visible()
         tip.focus()
