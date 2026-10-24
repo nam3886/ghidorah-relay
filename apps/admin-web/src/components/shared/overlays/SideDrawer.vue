@@ -51,9 +51,9 @@ const { isPhone, isTablet } = useBreakpoint();
 
 // the question this drawer put up is still open: a second way out has nothing more to add
 let asking = false;
-async function guarded(): Promise<boolean> {
-  if (props.busy || asking) return false;
-  if (!props.dirty) return true;
+// "Discard what you typed?" (Keep or Discard). The callers ask only when something typed would be lost, so a plain way
+// out decides at once and tells the parent in the same tick.
+async function ask(): Promise<boolean> {
   asking = true;
   try {
     return await askDiscard(props.discardText);
@@ -64,11 +64,15 @@ async function guarded(): Promise<boolean> {
 // Every way out tells the parent first, which closes the drawer through its model, so it has heard of the close before
 // `closed` (Element Plus's own close emits `closed` before the model's update)
 async function close(): Promise<void> {
-  if (await guarded()) emit("update:modelValue", false);
+  if (props.busy || asking) return;
+  if (props.dirty && !(await ask())) return;
+  emit("update:modelValue", false);
 }
 // Back is a way out too: the guard first, then the page hears it
 async function back(): Promise<void> {
-  if (await guarded()) emit("back");
+  if (props.busy || asking) return;
+  if (props.dirty && !(await ask())) return;
+  emit("back");
 }
 // a caller whose Back is a way out calls this guarded close from its `back` handler
 defineExpose({ close });
@@ -85,11 +89,7 @@ const fullPhone = (): boolean => (props.full || props.sheet) && isPhone.value;
 <template>
   <el-drawer
     :model-value="props.modelValue"
-    :class="[
-      'rl-drawer',
-      props.panelClass,
-      { 'is-sheet': props.sheet && isPhone, 'is-full': props.full && isPhone },
-    ]"
+    :class="['rl-drawer', props.panelClass, { 'is-sheet': props.sheet && isPhone, 'is-full': props.full && isPhone }]"
     modal-class="rl-drawer-scrim"
     direction="rtl"
     :size="fullPhone() ? '100%' : isPhone || isTablet ? 'calc(100% - 48px)' : props.width || 'min(640px, 100%)'"
