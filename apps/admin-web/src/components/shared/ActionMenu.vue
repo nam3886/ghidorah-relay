@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type Component, nextTick, onBeforeUnmount, ref } from "vue";
+import { type Component, computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { IconMoreVertical } from "@/components/shared/icons";
 
 // The one action menu of the admin: a trigger button and the popover menu it opens (specs/shared.md section 11). The
@@ -33,8 +33,9 @@ const props = withDefaults(
     inkText?: boolean;
     icon?: Component;
     iconSize?: number;
-    // the trigger's tooltip (the Ledger icon-button tooltip, after 400 ms); none when empty
-    tip?: string;
+    // the Ledger icon button's tooltip (MenusToasts) after 400 ms: `true` shows the trigger's name over it and draws the
+    // trigger as the 32 px ghost square (Keys); a text shows that text and keeps the trigger's look (Accounts)
+    tip?: boolean | string;
   }>(),
   {
     triggerLabel: "More",
@@ -45,7 +46,7 @@ const props = withDefaults(
     inkText: false,
     icon: IconMoreVertical,
     iconSize: 16,
-    tip: "",
+    tip: false,
   },
 );
 const emit = defineEmits<{ select: [key: string] }>();
@@ -121,53 +122,70 @@ function onMenuKey(event: KeyboardEvent): void {
   list[(at + step + list.length) % list.length]?.focus();
 }
 
-// the trigger's tooltip: after 400 ms of a mouse's hover (as IconButton), gone at once on leave and on a press
+onBeforeUnmount(() => close());
+
+// The tooltip (`tip`), IconButton's rule: it shows 400 ms after a mouse comes over the trigger or the keyboard focuses
+// it, and hides at once on leave, blur, a press and while the menu is open.
+const tipText = computed(() => (props.tip === true ? props.triggerLabel : props.tip || ""));
 const tipOpen = ref(false);
 let tipTimer: ReturnType<typeof setTimeout> | undefined;
-function onTipEnter(event: PointerEvent): void {
-  if (event.pointerType === "touch") return;
-  clearTimeout(tipTimer);
-  tipTimer = setTimeout(() => (tipOpen.value = true), 400);
-}
-function hideTip(): void {
+function tipHide(): void {
   clearTimeout(tipTimer);
   tipOpen.value = false;
 }
-
-onBeforeUnmount(() => {
+function tipLater(): void {
+  if (!tipText.value || open.value) return;
   clearTimeout(tipTimer);
-  close();
-});
+  tipTimer = setTimeout(() => (tipOpen.value = !open.value), 400);
+}
+const tipEnter = (event: PointerEvent): void => {
+  if (event.pointerType !== "touch") tipLater();
+};
+function tipFocus(event: FocusEvent): void {
+  let keyboard = true;
+  try {
+    keyboard = (event.target as HTMLElement).matches(":focus-visible");
+  } catch {
+    /* an engine without :focus-visible: treat every focus as the keyboard's */
+  }
+  if (keyboard) tipLater();
+}
+watch(open, (isOpen) => isOpen && tipHide());
+onBeforeUnmount(() => clearTimeout(tipTimer));
 </script>
 
 <template>
+  <button
+    ref="trigger"
+    type="button"
+    class="menu-trigger"
+    :class="{ 'is-open': open, 'is-bordered': props.bordered, 'is-ink': props.inkText, 'is-ib': props.tip === true }"
+    :style="{ '--trigger': `${props.size}px` }"
+    aria-haspopup="menu"
+    :aria-expanded="open"
+    :aria-label="props.triggerLabel"
+    @click="toggle"
+    @pointerdown="tipHide"
+    @pointerenter="tipEnter"
+    @pointerleave="tipHide"
+    @focus="tipFocus"
+    @blur="tipHide"
+  >
+    <component :is="props.icon" :size="props.iconSize" :stroke="2.4" />
+  </button>
+  <!-- the tooltip hangs on the trigger without wrapping it -->
   <el-tooltip
-    :visible="tipOpen && !!props.tip && !open"
-    :content="props.tip"
+    v-if="tipText"
+    :virtual-ref="trigger"
+    virtual-triggering
+    :visible="tipOpen"
+    :content="tipText"
     placement="top"
     effect="dark"
     popper-class="rl-ib-tip"
     transition="rl-ib-tip-none"
     :offset="6"
-  >
-    <!-- the tooltip hangs on a wrapper (it writes its own aria-expanded on its trigger) and shows on a mouse's hover
-         only: a press, the menu or a focus given back never leave it over what opens next -->
-    <span class="menu-trigger-wrap" @pointerenter="onTipEnter" @pointerleave="hideTip" @pointerdown="hideTip">
-      <button
-        ref="trigger"
-        type="button"
-        class="menu-trigger"
-        :class="{ 'is-open': open, 'is-bordered': props.bordered, 'is-ink': props.inkText }"
-        :style="{ '--trigger': `${props.size}px` }"
-        aria-haspopup="menu"
-        :aria-expanded="open"
-        :aria-label="props.triggerLabel"
-        @click="toggle"
-      >
-        <component :is="props.icon" :size="props.iconSize" :stroke="2.4" />
-      </button>
-    </span>
-  </el-tooltip>
+  />
   <Teleport to="body">
     <div
       v-if="open"
@@ -198,10 +216,6 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.menu-trigger-wrap {
-  display: inline-flex;
-  flex: none;
-}
 .menu-trigger {
   display: flex;
   align-items: center;
@@ -216,6 +230,27 @@ onBeforeUnmount(() => {
   background: transparent;
   color: var(--rl-muted);
   cursor: pointer;
+}
+/* the Ledger icon button: radius 8, the track fill on hover, the brand ring on focus, 44 px on a touch screen */
+.menu-trigger.is-ib {
+  border: 0;
+  border-radius: 8px;
+}
+.menu-trigger.is-ib:hover,
+.menu-trigger.is-ib.is-open {
+  background: var(--rl-track);
+  color: var(--rl-fg);
+}
+.menu-trigger.is-ib:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .menu-trigger.is-ib {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
 }
 .menu-trigger.is-bordered {
   border-color: var(--rl-line-strong);

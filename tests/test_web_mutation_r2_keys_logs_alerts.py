@@ -12,11 +12,11 @@ KEY_MODEL = SRC + "/components/keys/key-model.ts"
 KEYS = SRC + "/views/KeysView.vue"
 ALERTS = SRC + "/views/AlertsView.vue"
 LOGS = SRC + "/views/LogsView.vue"
-NEW_KEY = SRC + "/components/keys/NewKeyCallout.vue"
+NEW_KEY = SRC + "/components/keys/KeySecretModal.vue"
+KEY_LIST = SRC + "/components/keys/KeysList.vue"
 KEY_FORM = SRC + "/components/keys/KeyFormDialog.vue"
 DRAWER = SRC + "/components/shared/DetailDrawer.vue"
 LEAVE_GUARD = SRC + "/components/shared/use-leave-guard.ts"
-WALLET_LINES = SRC + "/components/keys/WalletLines.vue"
 ALERTS_MODEL = SRC + "/components/alerts/alerts-model.ts"
 ALERT_DETAIL = SRC + "/components/alerts/AlertDetailPanel.vue"
 LOG_FILTERS = SRC + "/components/logs/LogsFilterForm.vue"
@@ -37,20 +37,19 @@ NEW_YORK = f"FAILED {WINDOW_SPEC} > the window across a clock change (America/Ne
 QUERY = f"FAILED {WINDOW_SPEC} > logQuery > "
 WRITTEN = f"FAILED {WINDOW_SPEC} > how a request is written > "
 BODY = f"FAILED {KEY_SPEC} > keyBody (the create and edit payload) > "
-WALLET_TEXT = f"FAILED {KEY_SPEC} > walletText > "
-PERCENT = f"FAILED {KEY_SPEC} > usagePercent > "
-LABEL = f"FAILED {KEY_SPEC} > usageLabel > "
+BALANCE = f"FAILED {KEY_SPEC} > balanceOf > "
+TODAY = f"FAILED {KEY_SPEC} > todayText > "
+PLAN = f"FAILED {KEY_SPEC} > planChange (Adjust wallet) > "
 CREATED = f"FAILED {KEY_SPEC} > createdText > "
 ONE_TIME = f"FAILED {KEYS_VIEW_SPEC} > the one-time key > "
 KEYS_LIST = f"FAILED {KEYS_VIEW_SPEC} > the list > "
 DESIGN = f"FAILED {KEYS_VIEW_SPEC} > the page as the design draws it > "
 GUARDED = f"FAILED {KEYS_VIEW_SPEC} > the key form as a drawer that guards what was typed > "
 OPTIONAL = f"FAILED {KEYS_VIEW_SPEC} > the label of a key is optional > "
-RELATIVE = f"FAILED {KEYS_VIEW_SPEC} > the relative bars of an unlimited wallet > "
+SHOW = f"FAILED {KEYS_VIEW_SPEC} > the Show chips and the search > "
+ADJUST = f"FAILED {KEYS_VIEW_SPEC} > Adjust wallet > "
 KEY_NAME = ("FAILED tests/unit/keys/key-model.spec.ts > keyName > is the label without its edges, else the prefix (a "
             "label of spaces is no label)")
-REL_ZERO = ("FAILED tests/unit/keys/key-model.spec.ts > relativePercent > is 0 when nobody used any, 0 for no use, and "
-            "never more than 100")
 DRAWER_SPEC = "tests/unit/shared/detail-drawer.spec.ts"
 GUARD_SPEC = "tests/unit/shared/use-leave-guard.spec.ts"
 CLOSE_GUARD = f"FAILED {DRAWER_SPEC} > DetailDrawer close guard > "
@@ -143,22 +142,17 @@ def test_the_key_body_sends_what_the_form_means():
     vitest(KEY_SPEC)
 
 
-# ---- the wallet lines of a key ----------------------------------------------------------------------------------
-@mutation(KEY_MODEL, 'return [day, total].filter(Boolean).join(" · ");',
-          'return [day, total].filter(Boolean).join(", ");',
-          expect=WALLET_TEXT + "limit with both, with the day only and with the total only")
-@mutation(KEY_MODEL, "Math.round((used / limit) * 100)", "Math.ceil((used / limit) * 100)",
-          expect=PERCENT + "is the rounded share of the limit used")
-@mutation(KEY_MODEL, "if (!limit) return 0;", "if (limit === null) return 0;",
-          expect=PERCENT + "is 0 without a limit and never more than 100")
-@mutation(KEY_MODEL, "Math.min(100, Math.round((used / limit) * 100))", "Math.round((used / limit) * 100)",
-          expect=PERCENT + "is 0 without a limit and never more than 100")
-@mutation(KEY_MODEL, "${w.used_day} of ${w.day_limit} today", "${w.used_day} today",
-          expect=LABEL + "speaks both bars")
-@mutation(KEY_MODEL, "${w.used_total} of ${w.total_limit} in total", "${w.used_total} in total",
-          expect=LABEL + "speaks both bars")
-@mutation(KEY_MODEL, "const day = w.day_limit === null ? `", "const day = w.day_limit !== null ? `",
-          expect=LABEL + "names a side that has no limit without a limit")
+# ---- the balance of a key, its line of today and the created date --------------------------------------------------
+@mutation(KEY_MODEL, 'left === 0 ? "bad" : left < limit * LOW_SHARE ? "warn" : "ok"',
+          'left === 0 ? "bad" : left <= limit * LOW_SHARE ? "warn" : "ok"',
+          expect=BALANCE + "is the total less what was used in total, red at 0 and amber under a fifth of the total")
+@mutation(KEY_MODEL, "const left = Math.max(0, limit - (byTotal ? w.used_total : w.used_day));",
+          "const left = limit - (byTotal ? w.used_total : w.used_day);",
+          expect=BALANCE + "is the total less what was used in total, red at 0 and amber under a fifth of the total")
+@mutation(KEY_MODEL, "const limit = (byTotal ? w.total_limit : w.day_limit) ?? 0;", "const limit = w.total_limit ?? 0;",
+          expect=BALANCE + "a day limit alone is what is left of today's")
+@mutation(KEY_MODEL, "? `−${n(w.used_day)} of ${n(w.day_limit)} today`", "? `−${n(w.used_day)} today`",
+          expect=TODAY + "says what was spent today, against the day limit when there is one")
 @mutation(KEY_MODEL, 'd.toDateString() === new Date(now).toDateString()',
           'd.getFullYear() === new Date(now).getFullYear()',
           expect=CREATED + "a key of an earlier day shows day/month/year")
@@ -167,7 +161,7 @@ def test_the_key_body_sends_what_the_form_means():
 @mutation(KEY_MODEL, 'padStart(2, "0")', 'padStart(1, "0")',
           expect=CREATED + "a key made at midnight today still reads as today, one a minute before as yesterday's date")
 @pytest.mark.web_unit
-def test_the_wallet_text_the_bars_and_the_created_date_are_written_right():
+def test_the_balance_the_line_of_today_and_the_created_date_are_written_right():
     vitest(KEY_SPEC)
 
 
@@ -188,15 +182,6 @@ ORDER = f"FAILED {KEY_SPEC} > the order of the wallets > "
 @pytest.mark.web_unit
 def test_the_points_wallet_is_listed_first_then_the_caps_by_name():
     vitest(KEY_SPEC)
-
-
-@mutation(WALLET_LINES, "const ordered = computed(() => sortedWallets(props.wallets));",
-          "const ordered = computed(() => props.wallets);",
-          expect=DESIGN + "lists the points wallet first, then the providers' caps by name, whatever order the "
-                          "server sent")
-@pytest.mark.web_unit
-def test_the_keys_view_lists_the_points_wallet_first():
-    vitest(KEYS_VIEW_SPEC)
 
 
 # ---- a failed create never shows the server's text --------------------------------------------------------------
@@ -236,54 +221,60 @@ def test_the_keys_view_shows_a_failed_create_from_fixed_text():
 # ---- Keys: the list, the callout, the switch, the bars, the form ------------------------------------------------
 @mutation(KEYS, "createdLabel.value = keyName(created);", "createdLabel.value = body.label;",
           expect=OPTIONAL + "the banner of a key made with no label names it by its prefix, never 'Key created for .'")
-@mutation(KEYS, "row.id === createdId.value", "row.id !== createdId.value",
-          expect=DESIGN + "the callout names the new key, and its row is the one tinted")
+@mutation(KEY_LIST, """<tr
+            v-for="k in rows"
+            :key="k.id"
+            :class="{ 'is-new': k.id === createdId,""", """<tr
+            v-for="k in rows"
+            :key="k.id"
+            :class="{ 'is-new': k.id !== createdId,""",
+          expect=DESIGN + "the modal names the new key, and its row is the one tinted")
 @mutation(KEYS, "title: `Delete key ${keyName(k)}?`,", 'title: "Delete key",',
           expect=KEYS_LIST + "delete says whether the key went or was only disabled")
-@mutation(KEYS, 'message: "A key that has jobs is only disabled.",', 'message: "Delete it.",',
+@mutation(KEY_MODEL, 'const rule = "A key that has jobs is only disabled.";', 'const rule = "Delete it.";',
           expect=KEYS_LIST + "delete says whether the key went or was only disabled")
 @mutation(KEYS, "await setKeyEnabled(k.id, enabled);", "await setKeyEnabled(k.id, !enabled);",
           expect=KEYS_LIST + "a switch that fails reads the list again, so it goes back")
-@mutation(KEYS, '(enabled ? "Disable key" : "Enable key")', '(enabled ? "Enable key" : "Disable key")',
-          expect=DESIGN + "the switch is a labelled switch that shows what the server holds")
+@mutation(KEY_LIST, '(enabled ? "Disable key" : "Enable key")', '(enabled ? "Enable key" : "Disable key")',
+          expect=KEYS_LIST + "the row menu says what the switch does, as the server holds it")
 @pytest.mark.web_unit
-def test_the_keys_view_draws_the_callout_the_switch_the_bars_and_the_delete_confirm():
+def test_the_keys_view_draws_the_modal_the_row_menu_and_the_delete_confirm():
     vitest(KEYS_VIEW_SPEC)
 
 
-@mutation(KEYS, '"Unfinished · jobs"', '"Unfinished / max"',
-          expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
-                              "unfinished cells")
-@mutation(KEYS, 'class="p-key__models-list" :models="row.models"', 'class="p-key__models-list" :models="[]"',
-          expect=KEYS_SMALL + "a phone lists each key as a block with its models, wallets, counts and the two row "
-                              "buttons")
+@mutation(KEYS, '{{ isTablet ? "New key" : "Create key" }}', '{{ "Create key" }}',
+          expect=KEYS_SMALL + "a tablet keeps the desktop's columns in a table that scrolls sideways, and New key at "
+                              "the head")
+@mutation(KEY_LIST, "v-else-if=\"keyState(k) === 'empty' || keyState(k) === 'closed'\"", 'v-else-if="false"',
+          expect=KEYS_SMALL + "a phone lists each key as a block with its pill, balance, caps and row buttons")
 @pytest.mark.web_unit
 def test_the_keys_view_folds_for_a_tablet_and_a_phone():
     vitest(KEYS_VIEW_SPEC)
 
 
-@mutation(KEY_FORM, "`Edit API key — ${props.editing.label.trim() || props.editing.prefix}`", '"Edit API key"',
-          expect=FORM + "an edit names the key in its title and tells what each wallet has used")
-@mutation(KEY_FORM, "`${w.used_day} used today · ${w.used_total} total`", "`${w.used_total} total`",
-          expect=FORM + "an edit names the key in its title and tells what each wallet has used")
-@mutation(KEY_FORM, '`${String(m.kind ?? "")} · ${m.name || m.id}`', '`${String(m.kind ?? "")} · ${m.owned_by}`',
-          expect=FORM + "each model row says its id, its kind and its display name, else its id")
-@mutation(KEY_FORM, "${m.name || m.id}`", "${m.name}`",
-          expect=FORM + "each model row says its id, its kind and its display name, else its id")
+@mutation(KEY_FORM, "`Edit key · ${keyName(props.editing)}`", '"Edit key"',
+          expect=FORM + "an edit names the key in its title and tells the balance and what each cap has used")
+@mutation(KEY_MODEL, "`total ${n(w.used_total)} / ${n(w.total_limit)}`", "`total ${n(w.total_limit)}`",
+          expect=FORM + "an edit names the key in its title and tells the balance and what each cap has used")
+@mutation(KEY_FORM, ':disabled="form.any || (m.disabled === true && !picked(m.id))"',
+          ':disabled="form.any || m.disabled === true"',
+          expect=FORM + "the models are grouped by provider in the drawn order; a paused one can come off a key but not "
+                        "go on")
+@mutation(KEY_MODEL, "  count += Number(models(a) !== models(b));\n", "",
+          expect=FORM + "the footer counts what changed")
 @pytest.mark.web_unit
 def test_the_key_form_shows_what_the_design_shows():
     vitest(KEYS_VIEW_SPEC)
 
 
-# ---- Keys, page-keys round: the empty card's heading, the names of the callout field and the dialog, the tablet
-# Unfinished column and the wallet lines per width --------------------------------------------------------------
-@mutation(KEYS, "items.value.length === 0);", "items.value.length >= 0);",
-          expect=DESIGN + "an empty list draws its card with the heading API keys; a list with keys has no heading")
-@mutation(KEYS, 'align: isTablet.value ? ("left" as const) : ("right" as const),', 'align: "right" as const,',
-          expect=KEYS_SMALL + "a tablet keeps five columns and folds the models and the date into the label and "
-                              "unfinished cells")
+# ---- Keys: the Show chips, the search, an empty result and a failed list ------------------------------------------
+@mutation(KEYS, "const filtered = computed(() => items.value.length > 0);", "const filtered = computed(() => false);",
+          expect=SHOW + "the search finds a label or a prefix, and an empty result offers Clear filters")
+@mutation(KEYS, "reachable.value.filter((k) => inFilter(k, show.value) && inSearch(k, q.value))",
+          "reachable.value.filter((k) => inSearch(k, q.value))",
+          expect=SHOW + "each chip counts its keys and shows only them")
 @mutation(KEYS, "error.value = loadFailedText(err, errorText(err));", "error.value = errorText(err);",
-          expect=DESIGN + "a list that fails to load says why in the canvas's words, under the card's heading")
+          expect=DESIGN + "a list that fails to load says why in the canvas's words")
 @pytest.mark.web_unit
 def test_the_keys_page_names_and_folds_its_parts_as_drawn():
     vitest(KEYS_VIEW_SPEC)
@@ -324,8 +315,8 @@ def test_the_label_of_a_key_is_optional_and_a_key_without_one_is_named_by_its_pr
 @mutation(KEYS, "  () => creating.value,\n", "  () => false,\n",
           expect=GUARDED + "while a create is in flight a reload or a closed tab is warned about, though nothing was "
                            "typed")
-@mutation(KEYS, "    callout.value?.reveal();\n", "",
-          expect=GUARDED + "a good save brings the banner into view and puts focus in its field")
+@mutation(KEYS, "    secret.value?.reveal();\n", "",
+          expect=GUARDED + "a good save puts focus in the modal's field once the drawer is gone")
 @pytest.mark.web_unit
 def test_the_key_form_drawer_guards_what_was_typed_and_says_so_when_a_create_fails():
     vitest(KEYS_VIEW_SPEC)
@@ -378,26 +369,26 @@ def test_one_discard_question_at_a_time_and_a_leave_guard_while_dirty():
     vitest(GUARD_SPEC)
 
 
-# ---- Keys: the relative bars of an unlimited wallet ---------------------------------------------------------------
-@mutation(KEY_MODEL, '      if (w.mode === "closed") continue;\n', "",
-          expect=RELATIVE + "a limit wallet that is open counts toward the maximum; a closed one does not; each "
-                            "scope has its own")
-@mutation(KEY_MODEL, "out.set(w.scope, {", 'out.set("*", {',
-          expect=RELATIVE + "a limit wallet that is open counts toward the maximum; a closed one does not; each "
-                            "scope has its own")
-@mutation(KEYS, "const maxima = computed(() => walletMaxima(items.value));",
-          "const maxima = computed(() => walletMaxima(items.value.slice(1)));",
-          expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
-                            "their own scales")
-@mutation(KEY_MODEL, "  if (!max) return 0;\n  return Math.min(100, Math.round((used / max) * 100));",
-          "  return Math.min(100, Math.round((used / max) * 100));",
-          expect=REL_ZERO)
-@mutation(KEY_MODEL, "return Math.min(100, Math.round((used / max) * 100));",
-          "return Math.round((used / max) * 100);",
-          expect=REL_ZERO)
+# ---- Keys: Adjust wallet changes the points wallet's total, never past its balance ---------------------------------
+@mutation(KEY_MODEL, 'if (change === "deduct" && amount > start)', "if (false)",
+          expect=PLAN + "never deducts more than the balance, and wants a whole amount of 1 or more")
+@mutation(KEY_MODEL, 'const total = change === "top" ? base + amount : base - amount;',
+          "const total = base + amount;",
+          expect=PLAN + "a top-up raises the total, a deduction lowers it, the day limit kept")
+@mutation(KEY_MODEL, "  if (day !== null) body.day_limit = day;\n", "",
+          expect=PLAN + "a top-up raises the total, a deduction lowers it, the day limit kept")
 @pytest.mark.web_unit
-def test_an_unlimited_wallet_draws_a_bar_as_a_share_of_the_busiest_key():
-    vitest(KEYS_VIEW_SPEC, KEY_SPEC)
+def test_a_wallet_change_moves_the_total_and_never_deducts_past_the_balance():
+    vitest(KEY_SPEC)
+
+
+@mutation(KEYS, "await patchKey(k.id, { wallets: [body] });", "await patchKey(k.id, { wallets: [] });",
+          expect=ADJUST + "the wallet figure opens it from its row; a top-up sends the points wallet with a higher total")
+@mutation(KEYS, "      walletKey.value = null;\n      notify.success", "      notify.success",
+          expect=ADJUST + "the wallet figure opens it from its row; a top-up sends the points wallet with a higher total")
+@pytest.mark.web_unit
+def test_adjust_wallet_sends_the_points_wallet_and_closes():
+    vitest(KEYS_VIEW_SPEC)
 
 
 # ---- Keys, page-keys round: a wallet's Mode is the design's select (FilterSelect's field) in the wallet's group ----
@@ -417,9 +408,13 @@ def test_each_wallet_mode_is_named_after_its_wallet():
 # ---- Keys: the Copy buttons ------------------------------------------------------------------------------------
 @mutation(NEW_KEY, "copyText(props.rawKey, () => field.value, abort.signal)",
           'copyText("", () => field.value, abort.signal)',
-          expect=COPY + "the one-time callout has a Copy that copies the raw key")
+          expect=COPY + "the one-time modal has a Copy that copies the raw key")
 @mutation(NEW_KEY, "copied.value = true;", "copied.value = false;",
-          expect=COPY + "the Copy of the callout says Copied afterwards")
+          expect=COPY + "the Copy of the modal says Copied afterwards")
+@mutation(NEW_KEY, '  unlocked.value = true;\n  if (outcome === "select")', '  if (outcome === "select")',
+          expect=ONE_TIME + "Done is locked until the key is copied, then removes it from every place")
+@mutation(NEW_KEY, ':locked="!unlocked"', ':locked="false"',
+          expect=ONE_TIME + "Done is locked until the key is copied, then removes it from every place")
 @pytest.mark.web_unit
 def test_the_keys_view_copy_buttons_copy_the_right_text():
     vitest(KEYS_VIEW_SPEC)

@@ -108,20 +108,18 @@ def test_keys_logs_and_alerts_filter_by_the_strip_and_draw_each_provider(app, ap
     setting(page, "dola.disabled_models", ["seedance-1.0"])
     page.reload()                    # the model catalog (paused models too) is read once per page load
 
-    # API keys: a provider keeps the keys that may use its models, and only its models and
-    # wallets; a paused model is greyed with "(paused)"
+    # API keys: a provider keeps the keys that may use its models, and only its cap chip in each row
     open_tab(page, "API keys")
     expect(page.get_by_role("banner").get_by_test_id("provider-filter")).to_have_count(0)
-    expect(page.locator(".keys-table tbody tr, .keys-table li.data-table__item")).to_have_count(3)
-    paused = page.locator(".k-mg__paused").first
-    expect(paused).to_have_text("seedance-1.0 (paused)")
-    no_cut_text(page, ".keys-card *")
-    shot(page, "keys-%d-all" % width, ".keys-card")
+    expect(page.get_by_test_id("key-row")).to_have_count(3)
+    expect(page.locator(".kv-card .cap.p-meta")).to_have_count(1)
+    no_cut_text(page, ".kv-card *")
+    shot(page, "keys-%d-all" % width, ".kv-card")
     strip(page).get_by_test_id("provider-tab-dola").click()
     expect(page.get_by_text("agency-a")).to_be_visible()
-    expect(page.locator(".k-mg .ptile.p-meta")).to_have_count(0)
-    no_cut_text(page, ".keys-card *")
-    shot(page, "keys-%d-dola" % width, ".keys-card")
+    expect(page.locator(".kv-card .cap.p-meta")).to_have_count(0)
+    no_cut_text(page, ".kv-card *")
+    shot(page, "keys-%d-dola" % width, ".kv-card")
 
     # Request logs: its own provider chips (no strip) are the server's filter; a row carries its provider
     strip(page).get_by_test_id("provider-tab-all").click()

@@ -36,6 +36,27 @@ def rows(page):
 # ---- API keys ------------------------------------------------------------------------------------------------------
 
 
+def key_rows(page):
+    """The keys of the list: a table row on a desktop and a tablet, a block on a phone."""
+    return page.get_by_test_id("key-row")
+
+
+def new_key_button(page):
+    """The page's primary: Create key on a desktop, New key on a tablet and a phone."""
+    return page.get_by_role("button", name=re.compile(r"^(Create|New) key$")).first
+
+
+def key_menu(page, text, item):
+    """Pick an item of a key's row menu (More actions for <name>)."""
+    key_rows(page).filter(has_text=text).get_by_role("button", name=re.compile(r"^More actions for")).click()
+    page.get_by_role("menuitem", name=item, exact=True).click()
+
+
+def secret(page):
+    """The one-time key's modal and its field."""
+    return page.get_by_test_id("new-key"), page.get_by_role("textbox", name="API key", exact=True)
+
+
 def mode(box, wallet, option):
     """Choose a wallet's Mode in the key form (FilterSelect's field: a combobox in the wallet's group, its list opened
     in the body)."""
@@ -46,7 +67,7 @@ def mode(box, wallet, option):
 
 
 def key_places(page, raw):
-    """Every place of the page the raw key could be found in, except the callout's own field."""
+    """Every place of the page the raw key could be found in, except the modal's own field."""
     found = []
     if raw in page.content():
         found.append("dom")
@@ -68,17 +89,16 @@ def key_places(page, raw):
 
 
 def create_key(page, label="customer one"):
-    page.get_by_role("button", name="New key").first.click()
-    box = page.get_by_role("dialog")
+    new_key_button(page).click()
+    box = page.get_by_test_id("key-drawer")
     box.get_by_label("Label", exact=True).fill(label)
     mode(box, "points", "limit")
     box.get_by_label("points per day").fill("5")
     mode(box, "fake cap", "unlimited")
     box.get_by_role("button", name="Create key").click()
-    # the dialog has the same name; the field is the textbox
-    callout = page.get_by_role("textbox", name="New API key")
-    expect(callout).to_be_visible()
-    return callout.input_value()
+    field = secret(page)[1]
+    expect(field).to_be_visible()
+    return field.input_value()
 
 
 def test_create_shows_the_raw_key_once_copies_it_over_plain_http_and_it_is_gone_after_dismiss_and_reload(
@@ -89,38 +109,43 @@ def test_create_shows_the_raw_key_once_copies_it_over_plain_http_and_it_is_gone_
     page.evaluate("Object.defineProperty(window, 'isSecureContext', { value: false })", isolated_context=False)
     raw = create_key(page)
     assert raw.startswith("rk-") and db.one("SELECT count(*) FROM api_keys")[0] == 1
-    # the callout's own field (its value only: a property of the input, so the markup holds no copy of it) is the
+    # the modal's own field (its value only: a property of the input, so the markup holds no copy of it) is the
     # only place: no storage, no address
     assert key_places(page, raw) == ["field"]
     assert page.content().count(raw) == 0
-    expect(page.get_by_test_id("new-key")).to_contain_text("Key created for customer one.")
-    expect(page.get_by_test_id("new-key")).to_contain_text("Copy it now: it is shown once and not stored.")
-    copy = page.get_by_test_id("new-key").get_by_role("button", name="Copy")
-    copy.click()
-    expect(page.get_by_test_id("new-key").get_by_role("button", name="Copied")).to_be_visible()
+    box = secret(page)[0]
+    expect(box).to_contain_text("Key created for customer one")
+    expect(box).to_contain_text("Copy it now. It is shown once and not stored")
+    # Done is locked, and Escape does nothing, until the key was copied
+    expect(box.get_by_role("button", name="Done")).to_be_disabled()
+    page.keyboard.press("Escape")
+    expect(box).to_be_visible()
+    box.get_by_role("button", name="Copy").click()
+    expect(box.get_by_role("button", name="Copied")).to_be_visible()
     assert page.evaluate("navigator.clipboard.readText()") == raw, "the clipboard holds the key"
     assert raw not in json.dumps(db.all("SELECT key_hash, key_prefix FROM api_keys")), "only the hash is stored"
-    row = rows(page).first
+    row = key_rows(page).first
     expect(row).to_contain_text("customer one")
-    expect(row).to_contain_text("points")
-    expect(row).to_contain_text("day 0/5")
-    expect(row).to_contain_text("fake cap")
-    expect(row).to_contain_text("unlimited")
-    page.get_by_test_id("new-key").get_by_role("button", name="Dismiss").click()
+    expect(row).to_contain_text("5 pts")                       # a day limit of 5, nothing used
+    expect(row.get_by_test_id("cap-chip")).to_have_text("fake")  # the unlimited fake cap: a chip with no figure
+    box.get_by_role("button", name="Done").click()
     expect(page.get_by_test_id("new-key")).to_have_count(0)
-    assert key_places(page, raw) == [], "gone after Dismiss"
+    assert key_places(page, raw) == [], "gone after Done"
     page.reload()
     expect(page.get_by_role("heading", name="API keys")).to_be_visible()
     assert key_places(page, raw) == [], "gone after a reload"
 
 
-def test_a_real_401_while_the_callout_is_visible_clears_the_key(app, app_session, db):
+def test_a_real_401_while_the_modal_is_visible_clears_the_key(app, app_session, db):
     page = app_session
     open_tab(page, "API keys")
     raw = create_key(page)
     assert page.evaluate("indexedDB.databases().then(list => list.length)") == 0
     db.run("DELETE FROM admin_sessions")                         # the session is gone on the server
-    rows(page).first.get_by_role("switch").click()                 # the next admin call answers 401
+    # the next admin call answers 401: the row menu's Disable key, pressed by a script under the modal
+    page.evaluate("document.querySelector('[data-testid=key-row] .menu-trigger').click()", isolated_context=False)
+    page.evaluate("[...document.querySelectorAll('[role=menuitem]')].find(b => b.textContent.trim() === "
+                  "'Disable key').click()", isolated_context=False)
     expect(page).to_have_url(re.compile(r"#/login$"))
     expect(page.get_by_test_id("new-key")).to_have_count(0)
     assert key_places(page, raw) == [], "gone after a 401"
@@ -135,8 +160,8 @@ def test_a_failed_create_shows_fixed_text_and_never_what_the_server_said(app, ap
     page.route("**/admin/keys", lambda r: r.fulfill(status=422, content_type="application/json",
                                                      body=json.dumps(body)) if r.request.method == "POST"
                else r.continue_())
-    page.get_by_role("button", name="New key").first.click()
-    box = page.get_by_role("dialog")
+    new_key_button(page).click()
+    box = page.get_by_test_id("key-drawer")
     box.get_by_label("Label", exact=True).fill("customer one")
     box.get_by_role("button", name="Create key").click()
     expect(box).to_contain_text("Some of the values are not accepted. Check the highlighted field.")
@@ -150,12 +175,18 @@ def test_the_raw_key_is_gone_when_the_tab_is_left_and_when_the_operator_signs_ou
     page = app_session
     open_tab(page, "API keys")
     raw = create_key(page)
-    page.get_by_role("tab", name="Jobs", exact=True).click()
+    # the modal blocks the page until the key is copied: the tab is left by the address, as a browser Back would
+    page.evaluate("location.hash = '#/jobs'")
+    expect(page).to_have_url(re.compile(r"#/jobs$"))
     open_tab(page, "API keys")
     expect(page.get_by_test_id("new-key")).to_have_count(0)
     assert key_places(page, raw) == []
     raw = create_key(page, "second")
-    app.sign_out(page)
+    # the account menu's Sign out, pressed by a script under the modal
+    page.evaluate("[...document.querySelectorAll('button')].find(b => /^Account menu/.test("
+                  "b.getAttribute('aria-label') || '')).click()", isolated_context=False)
+    page.evaluate("[...document.querySelectorAll('[role=menuitem]')].find(b => b.textContent.trim() === "
+                  "'Sign out').click()", isolated_context=False)
     expect(page).to_have_url(re.compile(r"#/login$"))
     assert key_places(page, raw) == [], "gone on sign-out"
     app.sign_in(page)
@@ -173,26 +204,25 @@ def test_edit_disable_and_delete_with_and_without_jobs(app, app_session, db):
     open_tab(page, "API keys")
     sent = []
     page.on("request", lambda r: sent.append(r.post_data_json) if r.method == "PATCH" else None)
-    row = rows(page).filter(has_text="rk-plain")
-    row.get_by_role("button", name="Edit").click()
-    box = page.get_by_role("dialog")
+    key_menu(page, "rk-plain", "Edit key")
+    box = page.get_by_test_id("key-drawer")
     box.get_by_label("Label", exact=True).fill("plain renamed")
     box.get_by_role("button", name="Save").click()
-    expect(rows(page).filter(has_text="plain renamed")).to_have_count(1)
+    expect(key_rows(page).filter(has_text="plain renamed")).to_have_count(1)
     assert sent[0]["label"] == "plain renamed" and sent[0]["models"] == ["*"]
     assert db.one("SELECT label FROM api_keys WHERE id = %s", plain)[0] == "plain renamed"
-    switch = rows(page).filter(has_text="plain renamed").get_by_role("switch")
-    switch.click()
-    expect(switch).not_to_be_checked()
+    key_menu(page, "plain renamed", "Disable key")
+    expect(key_rows(page).filter(has_text="plain renamed")).to_contain_text("Paused")
     assert db.one("SELECT enabled FROM api_keys WHERE id = %s", plain)[0] is False
     # delete: a key with no job goes, a key with jobs is only disabled
-    rows(page).filter(has_text="plain renamed").get_by_role("button", name="Delete").click()
+    key_menu(page, "plain renamed", "Delete key")
     expect(page.locator(".el-message-box")).to_contain_text("Delete key plain renamed?")
     expect(page.locator(".el-message-box")).to_contain_text("A key that has jobs is only disabled.")
     page.locator(".el-message-box").get_by_role("button", name="Delete").click()
     expect(page.get_by_text("Key deleted")).to_be_visible()
     assert db.one("SELECT count(*) FROM api_keys WHERE id = %s", plain)[0] == 0
-    rows(page).filter(has_text="rk-used").get_by_role("button", name="Delete").click()
+    key_menu(page, "rk-used", "Delete key")
+    expect(page.locator(".el-message-box")).to_contain_text("This one has 1 job, so it will be disabled, not removed.")
     page.locator(".el-message-box").get_by_role("button", name="Delete").click()
     expect(page.get_by_text("Key has jobs: disabled instead")).to_be_visible()
     assert db.one("SELECT enabled FROM api_keys WHERE id = %s", used)[0] is False
@@ -203,8 +233,8 @@ def test_escape_on_a_typed_edit_key_form_asks_first_and_discarding_changes_nothi
     key = new_key(db)
     db.run("UPDATE api_keys SET label = 'plain', key_prefix = 'rk-plain' WHERE id = %s", key)
     open_tab(page, "API keys")
-    rows(page).filter(has_text="rk-plain").get_by_role("button", name="Edit").click()
-    box = page.get_by_role("dialog")
+    key_menu(page, "rk-plain", "Edit key")
+    box = page.get_by_test_id("key-drawer")
     label = box.get_by_label("Label", exact=True)
     label.fill("typed, never saved")
     label.focus()
@@ -221,7 +251,7 @@ def test_escape_on_an_edit_key_form_nobody_typed_in_closes_it_without_asking(app
     key = new_key(db)
     db.run("UPDATE api_keys SET label = 'plain', key_prefix = 'rk-plain' WHERE id = %s", key)
     open_tab(page, "API keys")
-    rows(page).filter(has_text="rk-plain").get_by_role("button", name="Edit").click()
+    key_menu(page, "rk-plain", "Edit key")
     expect(page.get_by_role("dialog")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.get_by_role("dialog")).to_have_count(0)
@@ -233,8 +263,8 @@ def test_no_row_has_a_copy_prefix_button_and_the_prefix_is_still_there(app, app_
     key = new_key(db)
     db.run("UPDATE api_keys SET label = 'plain', key_prefix = 'rk-plain' WHERE id = %s", key)
     open_tab(page, "API keys")
-    expect(rows(page).filter(has_text="rk-plain")).to_have_count(1)
-    expect(page.get_by_role("button", name=re.compile("^Copy key prefix"))).to_have_count(0)
+    expect(key_rows(page).filter(has_text="rk-plain")).to_have_count(1)
+    expect(page.get_by_role("button", name=re.compile("^Copy key"))).to_have_count(0)
     expect(page.locator('[title="Copy key prefix"]')).to_have_count(0)
 
 
@@ -243,7 +273,7 @@ def test_a_key_label_with_markup_is_shown_as_text(app, app_session, db):
     k = new_key(db)
     db.run("UPDATE api_keys SET label = %s WHERE id = %s", app.planted, k)
     open_tab(page, "API keys")
-    expect(rows(page).first).to_contain_text("<b>planted</b>")
+    expect(key_rows(page).first).to_contain_text("<b>planted</b>")
     page.wait_for_timeout(300)
     app.assert_planted_as_text(page)
 

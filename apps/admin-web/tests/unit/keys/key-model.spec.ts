@@ -2,26 +2,31 @@ import { describe, expect, it } from "vitest";
 import { ApiError } from "@/api/client";
 import type { ApiKey, Wallet } from "@/api/keys";
 import {
+  balanceOf,
+  capChips,
+  capLine,
+  changedCount,
   compareWallets,
   createdText,
   createError,
+  deleteText,
   deleteToast,
+  inFilter,
+  inSearch,
   keyBody,
-  keyForm,
   type KeyForm,
+  keyForm,
   keyName,
   keyReaches,
+  keyState,
   loadFailedText,
   modelGroups,
-  relativeLabel,
-  relativePercent,
+  planChange,
   sortedWallets,
+  summaryText,
+  todayText,
   unfinishedText,
-  usageLabel,
-  usagePercent,
-  walletMaxima,
   walletScopes,
-  walletText,
 } from "@/components/keys/key-model";
 
 const wallet = (over: Partial<Wallet>): Wallet => ({
@@ -64,52 +69,6 @@ describe("modelGroups", () => {
     expect(keyReaches({ models: ["*"] }, "meta", catalog)).toBe(true);
     expect(keyReaches({ models: ["seedance-2"] }, "dola", catalog)).toBe(true);
     expect(keyReaches({ models: ["seedance-2"] }, "vibes", catalog)).toBe(false);
-  });
-});
-
-describe("walletText", () => {
-  it("closed", () => {
-    expect(walletText(wallet({ mode: "closed", day_limit: 0, total_limit: 0 }))).toBe("closed");
-  });
-  it("unlimited shows what was used in all", () => {
-    expect(walletText(wallet({ mode: "unlimited", used_total: 7, used_day: 2 }))).toBe("unlimited (7 used)");
-  });
-  it("limit with both, with the day only and with the total only", () => {
-    expect(walletText(wallet({ day_limit: 10, total_limit: 100, used_day: 3, used_total: 40 }))).toBe(
-      "day 3/10 · total 40/100",
-    );
-    expect(walletText(wallet({ day_limit: 10, used_day: 3 }))).toBe("day 3/10");
-    expect(walletText(wallet({ total_limit: 100, used_total: 40 }))).toBe("total 40/100");
-  });
-});
-
-describe("usagePercent", () => {
-  it("is the rounded share of the limit used", () => {
-    expect(usagePercent(3, 20)).toBe(15);
-    expect(usagePercent(14, 200)).toBe(7);
-    expect(usagePercent(88, 300)).toBe(29);
-    expect(usagePercent(0, 20)).toBe(0);
-  });
-  it("is 0 without a limit and never more than 100", () => {
-    expect(usagePercent(5, null)).toBe(0);
-    expect(usagePercent(5, 0)).toBe(0);
-    expect(usagePercent(30, 20)).toBe(100);
-  });
-});
-
-describe("usageLabel", () => {
-  it("speaks both bars", () => {
-    expect(usageLabel(wallet({ day_limit: 20, total_limit: 200, used_day: 3, used_total: 14 }))).toBe(
-      "Used 3 of 20 today, 14 of 200 in total",
-    );
-  });
-  it("names a side that has no limit without a limit", () => {
-    expect(usageLabel(wallet({ day_limit: null, total_limit: 200, used_day: 3, used_total: 14 }))).toBe(
-      "Used 3 today, 14 of 200 in total",
-    );
-    expect(usageLabel(wallet({ day_limit: 20, total_limit: null, used_day: 3, used_total: 14 }))).toBe(
-      "Used 3 of 20 today, 14 in total",
-    );
   });
 });
 
@@ -328,50 +287,6 @@ describe("the order of the wallets", () => {
   });
 });
 
-describe("relativePercent", () => {
-  it("is the rounded share of the busiest key", () => {
-    expect(relativePercent(10, 10)).toBe(100);
-    expect(relativePercent(5, 10)).toBe(50);
-    expect(relativePercent(1, 3)).toBe(33);
-    expect(relativePercent(2, 3)).toBe(67);
-  });
-  it("is 0 when nobody used any, 0 for no use, and never more than 100", () => {
-    expect(relativePercent(0, 0)).toBe(0);
-    expect(relativePercent(5, 0)).toBe(0);
-    expect(relativePercent(0, 40)).toBe(0);
-    expect(relativePercent(50, 40)).toBe(100);
-  });
-});
-
-describe("walletMaxima", () => {
-  const keyOf = (...wallets: Wallet[]) => ({ wallets });
-  it("is the highest use per scope among the keys that have the wallet open", () => {
-    const out = walletMaxima([
-      keyOf(
-        wallet({ mode: "unlimited", used_day: 4, used_total: 9 }),
-        wallet({ scope: "*", mode: "limit", used_day: 7 }),
-      ),
-      keyOf(wallet({ mode: "limit", used_day: 2, used_total: 30 })),
-      keyOf(wallet({ mode: "closed", used_day: 500, used_total: 500 })),
-    ]);
-    expect(out.get("fake")).toEqual({ day: 4, total: 30 });
-    expect(out.get("*")).toEqual({ day: 7, total: 0 });
-    expect(out.has("other")).toBe(false);
-  });
-  it("has nothing for no keys or only closed wallets", () => {
-    expect(walletMaxima([]).size).toBe(0);
-    expect(walletMaxima([keyOf(wallet({ mode: "closed" }))]).size).toBe(0);
-  });
-});
-
-describe("relativeLabel", () => {
-  it("says what the bars are a share of", () => {
-    expect(relativeLabel(wallet({ mode: "unlimited", used_day: 12, used_total: 40 }))).toBe(
-      "Used 12 today, 40 in total; the bars show the share of the busiest key\x27s use",
-    );
-  });
-});
-
 describe("keyName", () => {
   it("is the label without its edges, else the prefix (a label of spaces is no label)", () => {
     expect(keyName({ label: " shop ", prefix: "rk_a" })).toBe("shop");
@@ -385,5 +300,171 @@ describe("keyBody label", () => {
     expect(keyBody(form({ label: "  shop " })).label).toBe("shop");
     expect(keyBody(form({ label: "   " })).label).toBe("");
     expect(keyBody(form({ label: "" })).label).toBe("");
+  });
+});
+
+const keyOf = (over: Partial<ApiKey> = {}): ApiKey => ({
+  id: "k1",
+  prefix: "rk_abcd",
+  label: "shop",
+  enabled: true,
+  models: ["*"],
+  max_unfinished: null,
+  max_unfinished_effective: 5,
+  created_ms: 1,
+  jobs: 0,
+  unfinished: 0,
+  wallets: [],
+  ...over,
+});
+const points = (over: Partial<Wallet>): Wallet => wallet({ scope: "*", ...over });
+
+describe("balanceOf", () => {
+  it("is the total less what was used in total, red at 0 and amber under a fifth of the total", () => {
+    expect(balanceOf(points({ total_limit: 1000, used_total: 100 }))).toEqual({ left: 900, word: "", tone: "ok" });
+    expect(balanceOf(points({ total_limit: 1000, used_total: 850 })).tone).toBe("warn");
+    expect(balanceOf(points({ total_limit: 1000, used_total: 800 })).tone).toBe("ok");
+    expect(balanceOf(points({ total_limit: 1000, used_total: 1200 }))).toEqual({ left: 0, word: "", tone: "bad" });
+  });
+  it("a day limit alone is what is left of today's", () => {
+    expect(balanceOf(points({ day_limit: 50, used_day: 20, used_total: 900 })).left).toBe(30);
+  });
+  it("a closed wallet (or none) and an unlimited one have no figure", () => {
+    expect(balanceOf(undefined)).toEqual({ left: null, word: "closed", tone: "bad" });
+    expect(balanceOf(points({ mode: "closed", day_limit: 0 }))).toEqual({ left: null, word: "closed", tone: "bad" });
+    expect(balanceOf(points({ mode: "unlimited" }))).toEqual({ left: null, word: "unlimited", tone: "ok" });
+  });
+});
+
+describe("todayText", () => {
+  it("says what was spent today, against the day limit when there is one", () => {
+    expect(todayText(points({ total_limit: 9000, used_day: 1240 }))).toBe("−1,240 today");
+    expect(todayText(points({ day_limit: 2000, used_day: 860 }))).toBe("−860 of 2,000 today");
+    expect(todayText(points({ mode: "unlimited", used_day: 3 }))).toBe("−3 today");
+    expect(todayText(points({ total_limit: 10 }))).toBe("nothing today");
+    expect(todayText(points({ mode: "closed", day_limit: 0 }))).toBe("");
+  });
+});
+
+describe("capChips", () => {
+  const catalog = [
+    { id: "seedance-2.0", owned_by: "dola", kind: "video" },
+    { id: "vibes-video", owned_by: "vibes", kind: "video" },
+    { id: "meta-video", owned_by: "meta", kind: "video" },
+  ];
+  const wallets = [
+    points({ total_limit: 100 }),
+    wallet({ scope: "vibes", mode: "limit", day_limit: 50, used_day: 40 }),
+    wallet({ scope: "dola", mode: "unlimited", used_day: 7 }),
+    wallet({ scope: "meta", mode: "closed", day_limit: 0 }),
+  ];
+  it("one chip per open cap of a provider the key may use, in the drawn order, the day limit as the cap", () => {
+    expect(capChips(keyOf({ wallets }), catalog)).toEqual([
+      { provider: "dola", used: 7, cap: null },
+      { provider: "vibes", used: 40, cap: 50 },
+    ]);
+  });
+  it("a listed model reaches only its own provider, and a provider filter keeps its chip alone", () => {
+    expect(capChips(keyOf({ wallets, models: ["vibes-video"] }), catalog).map((c) => c.provider)).toEqual(["vibes"]);
+    expect(capChips(keyOf({ wallets }), catalog, "dola").map((c) => c.provider)).toEqual(["dola"]);
+  });
+});
+
+describe("keyState, the filters and the search", () => {
+  const low = keyOf({ wallets: [points({ total_limit: 100, used_total: 90 })] });
+  const empty = keyOf({ wallets: [points({ total_limit: 100, used_total: 100 })] });
+  const paused = keyOf({ enabled: false, wallets: [points({ total_limit: 100 })] });
+  const fine = keyOf({ wallets: [points({ mode: "unlimited" })] });
+  it("paused first, then the wallet's tone", () => {
+    expect([low, empty, paused, fine, keyOf()].map(keyState)).toEqual(["low", "empty", "paused", "ok", "closed"]);
+  });
+  it("Active, Low or empty and Paused pick their keys", () => {
+    const all = [low, empty, paused, fine];
+    expect(all.filter((k) => inFilter(k, "all"))).toHaveLength(4);
+    expect(all.filter((k) => inFilter(k, "active"))).toEqual([low, empty, fine]);
+    expect(all.filter((k) => inFilter(k, "low"))).toEqual([low, empty]);
+    expect(all.filter((k) => inFilter(k, "paused"))).toEqual([paused]);
+  });
+  it("the search finds a piece of the label or the prefix in any case", () => {
+    expect(inSearch(keyOf({ label: "Lotus Media" }), "lotus")).toBe(true);
+    expect(inSearch(keyOf({ prefix: "rk-AbCd" }), "abc")).toBe(true);
+    expect(inSearch(keyOf(), "nothing")).toBe(false);
+    expect(inSearch(keyOf(), "  ")).toBe(true);
+  });
+});
+
+describe("summaryText", () => {
+  it("counts the keys, those used today, the points spent today and the empty wallets", () => {
+    const keys = [
+      keyOf({ wallets: [points({ total_limit: 5000, used_day: 2000 })] }),
+      keyOf({ wallets: [points({ total_limit: 100, used_total: 100, used_day: 600 })] }),
+      keyOf({ wallets: [points({ mode: "unlimited" })] }),
+    ];
+    expect(summaryText(keys)).toBe("3 keys, 2 used today. 2,600 points spent today; 1 wallet is empty.");
+    expect(summaryText(keys, true)).toBe("3 keys, 2 used today · 2,600 points spent today");
+    expect(summaryText([keys[2]!])).toBe("1 key, 0 used today. 0 points spent today.");
+  });
+});
+
+describe("capLine and deleteText", () => {
+  it("the line under a cap of the form", () => {
+    expect(capLine(wallet({ total_limit: 600, used_total: 412, day_limit: 300 }))).toBe("total 412 / 600");
+    expect(capLine(wallet({ day_limit: 200 }))).toBe("no total cap");
+    expect(capLine(wallet({ mode: "unlimited", used_day: 318 }))).toBe("unlimited · 318 used today");
+    expect(capLine(wallet({ mode: "closed", day_limit: 0 }))).toBe("closed");
+  });
+  it("the delete question says a key with jobs is only disabled, with its count", () => {
+    expect(deleteText({ jobs: 0 })).toBe("A key that has jobs is only disabled.");
+    expect(deleteText({ jobs: 2104 })).toBe(
+      "A key that has jobs is only disabled. This one has 2,104 jobs, so it will be disabled, not removed.",
+    );
+  });
+});
+
+describe("changedCount", () => {
+  it("counts the label, the max, the models and each wallet that differ", () => {
+    const a = form({
+      wallets: [
+        { scope: "*", mode: "closed", day: "", total: "" },
+        { scope: "dola", mode: "closed", day: "", total: "" },
+      ],
+    });
+    expect(changedCount(a, a)).toBe(0);
+    const b: KeyForm = { ...a, label: "x", any: false, wallets: [{ ...a.wallets[0]!, mode: "limit" }, a.wallets[1]!] };
+    expect(changedCount(b, a)).toBe(3);
+  });
+});
+
+describe("planChange (Adjust wallet)", () => {
+  it("a top-up raises the total, a deduction lowers it, the day limit kept", () => {
+    const w = points({ day_limit: 500, total_limit: 5000, used_total: 1095 });
+    expect(planChange(w, "top", 5000)).toEqual({
+      now: 3905,
+      after: 8905,
+      body: { scope: "*", mode: "limit", day_limit: 500, total_limit: 10000 },
+      problem: "",
+    });
+    expect(planChange(w, "deduct", 905).body).toEqual({ scope: "*", mode: "limit", day_limit: 500, total_limit: 4095 });
+  });
+  it("never deducts more than the balance, and wants a whole amount of 1 or more", () => {
+    const w = points({ total_limit: 100, used_total: 60 });
+    expect(planChange(w, "deduct", 41)).toMatchObject({ body: null, problem: "At most 40 points can be deducted." });
+    expect(planChange(w, "top", 0).body).toBeNull();
+    expect(planChange(w, "top", 2.5).body).toBeNull();
+  });
+  it("a closed wallet or one with a day limit only gets a total: what it used plus the top-up", () => {
+    expect(planChange(points({ mode: "closed", day_limit: 0, used_total: 30 }), "top", 70).body).toEqual({
+      scope: "*",
+      mode: "limit",
+      total_limit: 100,
+    });
+    expect(planChange(points({ day_limit: 20, used_total: 30 }), "top", 70)).toMatchObject({
+      now: 20,
+      after: 70,
+      body: { scope: "*", mode: "limit", day_limit: 20, total_limit: 100 },
+    });
+  });
+  it("an unlimited wallet has no balance to change", () => {
+    expect(planChange(points({ mode: "unlimited" }), "top", 10)).toMatchObject({ body: null });
   });
 });

@@ -17,6 +17,7 @@ from patchright.sync_api import TimeoutError as PlaywrightTimeout
 from patchright.sync_api import expect
 from test_admin_prices import fabricated, priced
 from test_e2e_form_drawers import goto_keys
+from test_e2e_keys_logs_alerts import key_menu, new_key_button
 from test_frame_plan import put
 
 from relay_core.testing.fake_provider import FAKE_FRAMES
@@ -453,7 +454,7 @@ WATCH = "apps/admin-web/src/lib/notify.ts"
 
 
 def keys_toast_page(app, page, db, width, height):
-    """The API keys list with one key whose enable switch the server refuses (500): an error toast with no drawer open.
+    """The API keys list with one key whose Disable key the server refuses (500): an error toast with no drawer open.
     The New key form is the drawer that has a footer."""
     key = new_key(db)
     db.run("UPDATE api_keys SET label = %s WHERE id = %s", "toast key", key)
@@ -466,7 +467,7 @@ def keys_toast_page(app, page, db, width, height):
 SETTLED_BOXES_JS = """async () => {
   const box = (el) => { const r = el.getBoundingClientRect(); return {y: r.y, bottom: r.bottom, height: r.height}; };
   const toast = document.querySelector('.el-message');
-  const foot = document.querySelector('.detail-drawer__foot');
+  const foot = document.querySelector('.rl-drawer__foot');
   let last = -1;
   for (let i = 0; i < 40; i++) {                     // frames: the toast slides in, then holds still
     const now = toast.getBoundingClientRect().bottom;
@@ -481,7 +482,7 @@ SETTLED_BOXES_JS = """async () => {
 TOAST_AND_FOOTER_JS = """() => {
   const toast = document.querySelector('.el-message');
   // a drawer that was shut keeps its footer in the page, undrawn: only a footer with a box counts
-  const foot = [...document.querySelectorAll('.detail-drawer__foot')].find((f) => f.getClientRects().length);
+  const foot = [...document.querySelectorAll('.rl-drawer__foot')].find((f) => f.getClientRects().length);
   const bottom = (el) => el.getBoundingClientRect().bottom;
   return {
     toast: toast ? bottom(toast) : null,
@@ -492,7 +493,7 @@ TOAST_AND_FOOTER_JS = """() => {
 
 
 GAP_JS = """([lo, hi]) => {
-  const t = document.querySelector('.el-message'), f = document.querySelector('.detail-drawer__foot');
+  const t = document.querySelector('.el-message'), f = document.querySelector('.rl-drawer__foot');
   if (!t || !f) return false;
   const gap = f.getBoundingClientRect().top - t.getBoundingClientRect().bottom;
   return gap >= lo && gap <= hi;
@@ -518,7 +519,7 @@ def test_a_toast_showing_when_a_drawer_opens_slides_above_its_footer_and_back_wh
     page = app_session
     keys_toast_page(app, page, db, width, height)
     # an error toast (5 s) from an enable switch the server refuses, raised with no drawer on the page
-    page.get_by_role("switch").first.click()
+    key_menu(page, "toast key", "Disable key")
     expect(page.locator(".el-message--error")).to_be_visible()
     page.problems.clear()                                    # the 500 is a console line
     page.wait_for_function("""(gap) => {                  // it slides in, then sits at its default place
@@ -526,7 +527,7 @@ def test_a_toast_showing_when_a_drawer_opens_slides_above_its_footer_and_back_wh
       return t && Math.abs(innerHeight - t.getBoundingClientRect().bottom - gap) <= 6;
     }""", arg=default_gap, timeout=3000)
     # the drawer opens while the toast is showing: the toast slides above the footer, none closes early
-    page.get_by_role("button", name="New key").first.click()
+    new_key_button(page).click()
     expect(page.get_by_role("dialog")).to_be_visible()
     toast_settles_above_footer(page, "slide above the footer")
     # the drawer closes: the toast comes back down to its default place
@@ -544,14 +545,14 @@ def test_a_toast_showing_when_a_drawer_opens_slides_above_its_footer_and_back_wh
 def test_a_toast_follows_a_drawer_footer_that_grows(app, app_session, db):
     page = app_session
     keys_toast_page(app, page, db, 1440, 900)
-    page.get_by_role("switch").first.click()
+    key_menu(page, "toast key", "Disable key")
     expect(page.locator(".el-message--error")).to_be_visible()
     page.problems.clear()                                    # the 500 is a console line
-    page.get_by_role("button", name="New key").first.click()
+    new_key_button(page).click()
     expect(page.get_by_role("dialog")).to_be_visible()
     before = toast_settles_above_footer(page, "slide above the footer")
     # the footer grows by script (a CSSOM write, as a wrapping footer would): the toast follows it
-    page.evaluate("document.querySelector('.detail-drawer__foot').style.minHeight = '160px'", isolated_context=False)
+    page.evaluate("document.querySelector('.rl-drawer__foot').style.minHeight = '160px'", isolated_context=False)
     after = toast_settles_above_footer(page, "follow the footer that grew")
     assert after["foot"]["height"] > before["foot"]["height"] + 40, (before, after)
 
@@ -559,10 +560,10 @@ def test_a_toast_follows_a_drawer_footer_that_grows(app, app_session, db):
 def test_on_a_phone_a_toast_does_not_cover_the_forms_footer(app, app_session, db):
     page = app_session
     keys_toast_page(app, page, db, 390, 844)
-    page.get_by_role("switch").first.click()
+    key_menu(page, "toast key", "Disable key")
     expect(page.locator(".el-message--error")).to_be_visible()
     page.problems.clear()                                    # the 500 is a console line
-    page.get_by_role("button", name="New key").first.click()
+    new_key_button(page).click()
     expect(page.get_by_role("dialog")).to_be_visible()
     boxes = page.evaluate(SETTLED_BOXES_JS, isolated_context=False)
     assert boxes["toast"]["bottom"] <= boxes["foot"]["y"] + 1, boxes

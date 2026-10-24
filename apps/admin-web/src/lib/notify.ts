@@ -51,11 +51,11 @@ function drawn(foot: Element): boolean {
     r.left < window.innerWidth
   );
 }
-// A drawer's footer, else the Settings page's unsaved-changes bar (`.sbar`, which floats above the foot of the window).
+// A drawer's footer (the old detail drawer or the Ledger one), else the Settings page's unsaved-changes bar (`.sbar`, which floats above the foot of the window).
 const drawnFooter = (): Element | undefined =>
   typeof document === "undefined"
     ? undefined
-    : [...document.querySelectorAll(".detail-drawer__foot, .sbar")].find(drawn);
+    : [...document.querySelectorAll(".detail-drawer__foot, .rl-drawer__foot, .sbar")].find(drawn);
 
 // How far up the toasts go: the footer's height on a desktop (the default gap of Element Plus, 16 px, stays above it);
 // on a phone, where toasts already sit 72 px up, only what the footer needs beyond that (a wrapped footer). A bar that

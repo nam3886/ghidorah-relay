@@ -39,6 +39,15 @@ const key = (over: Partial<ApiKey> = {}): ApiKey => ({
   wallets: [],
   ...over,
 });
+const wallet = (over: Partial<keys.Wallet> = {}): keys.Wallet => ({
+  scope: "dola",
+  day_limit: 20,
+  total_limit: 200,
+  used_day: 3,
+  used_total: 14,
+  mode: "limit",
+  ...over,
+});
 
 const list = vi.mocked(keys.listKeys);
 let wrapper: VueWrapper | null = null;
@@ -57,12 +66,28 @@ async function open(leaves = false) {
   await settle();
   return wrapper;
 }
-const buttonOf = (text: string) =>
-  [...document.body.querySelectorAll("button")].find((b) => b.textContent?.trim() === text)!;
+const buttonIn = (root: ParentNode, text: string) =>
+  [...root.querySelectorAll("button")].find((b) => b.textContent?.trim() === text)!;
+const buttonOf = (text: string) => buttonIn(document.body, text);
+const drawerEl = () => document.body.querySelector(".el-drawer")!;
+// the form's own buttons (the page's primary is also called Create key on a desktop)
+const formButton = (text: string) => buttonIn(drawerEl(), text);
+const pagePrimary = () => document.body.querySelector<HTMLButtonElement>(".kv-primary")!;
+const named = (label: string) => document.body.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+
+// The row menu of a key: opens it and picks an item.
+async function menuPick(name: string, item: string) {
+  named(`More actions for ${name}`).click();
+  await settle();
+  [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+    .find((b) => b.textContent?.trim() === item)!
+    .click();
+  await settle();
+}
 
 // Opens the New key form and types a label.
 async function openNewKey(label = "Partner E") {
-  buttonOf("New key").click();
+  pagePrimary().click();
   await settle();
   await typeLabel(label);
 }
@@ -73,20 +98,21 @@ async function typeLabel(value: string) {
   await settle();
 }
 
-// Creates a key through the form and leaves the one-time callout on screen.
+// Creates a key through the form and leaves the one-time modal on screen.
 async function createOne(leaves = false) {
   const w = await open(leaves);
   await openNewKey();
-  buttonOf("Create key").click();
+  formButton("Create key").click();
   await settle();
   return w;
 }
 // The page as markup (attributes included), to prove the key is in no attribute or text node.
 const markupOf = (el: Element | null): string => (el ? new XMLSerializer().serializeToString(el) : "");
 const pageMarkup = (): string => markupOf(document.body);
+const secretBox = () => document.body.querySelector('[data-testid="new-key"]');
 const callout = () => document.body.querySelector<HTMLInputElement>('[data-testid="new-key"] input');
 
-// Everything a page can hold the key in besides the callout's own field.
+// Everything a page can hold the key in besides the modal's own field.
 function whereTheKeyIs(): string[] {
   const found: string[] = [];
   if (document.body.textContent?.includes(RAW)) found.push("dom text");
@@ -151,7 +177,7 @@ afterEach(() => {
 });
 
 describe("the list", () => {
-  it("draws the wallets text, the unfinished count and server strings as text", async () => {
+  it("draws the balance, the caps, the jobs and server strings as text", async () => {
     list.mockResolvedValue({
       items: [
         key({
@@ -159,67 +185,49 @@ describe("the list", () => {
           models: ["m1", "m2"],
           max_unfinished_effective: 0,
           unfinished: 2,
+          jobs: 1912,
           wallets: [
-            {
-              scope: "*",
-              day_limit: 10,
-              total_limit: 100,
-              used_day: 3,
-              used_total: 40,
-              mode: "limit",
-            },
-            {
-              scope: "dola",
-              day_limit: 0,
-              total_limit: 0,
-              used_day: 0,
-              used_total: 0,
-              mode: "closed",
-            },
+            wallet({ scope: "*", day_limit: 1000, total_limit: 5000, used_day: 860, used_total: 1095 }),
+            wallet({ scope: "dola", day_limit: 300, used_day: 288 }),
+            wallet({ scope: "vibes", mode: "unlimited", day_limit: null, total_limit: null }),
           ],
         }),
       ],
     });
     const w = await open();
-    const row = w.find("tbody tr").text();
-    expect(row).toContain(PLANTED);
-    expect(row).toContain("points");
-    expect(row).toContain("day 3/10 · total 40/100");
-    expect(row).toContain("dola cap");
-    expect(row).toContain("closed");
-    expect(row).toContain("2 / unlimited");
-    expect(
-      w
-        .findAll("tbody tr")[0]!
-        .findAll(".k-mg")
-        .map((g) => g.text()),
-    ).toEqual(["Ddola: m2", "Vvibes: m1"]);
+    const row = w.find("tbody tr");
+    expect(row.text()).toContain(PLANTED);
+    expect(row.find(".wbtn").text()).toContain("3,905 pts");
+    expect(row.find(".wbtn").text()).toContain("−860 of 1,000 today");
+    expect(row.findAll('[data-testid="cap-chip"]').map((c) => c.text().replace(/\s+/g, " ").trim())).toEqual([
+      "dola 288 / 300",
+      "vibes",
+    ]);
+    expect(row.text()).toContain("1,912 jobs");
+    expect(row.text()).toContain("2 / unlimited unfinished");
     expect(w.find("img").exists()).toBe(false);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 
-  it("an enabled key is plain text, a disabled key is the only one with a chip, and 'any model' is neutral", async () => {
+  it("a paused key carries the one pill of the row, and an empty wallet is red", async () => {
     list.mockResolvedValue({
-      items: [key({ id: "k1", enabled: true, models: ["*"] }), key({ id: "k2", enabled: false, models: ["veo-3"] })],
+      items: [
+        key({ id: "k1", wallets: [wallet({ scope: "*", total_limit: 100, used_total: 100 })] }),
+        key({ id: "k2", label: "two", enabled: false }),
+      ],
     });
     const w = await open();
     const [on, off] = w.findAll("tbody tr");
-    expect(on!.text()).toContain("enabled");
-    expect(on!.find('[data-tone="ok"]').exists()).toBe(false);
-    expect(on!.find('[data-tone="info"]').exists()).toBe(false);
-    // "any model" is a quiet tag, not a status chip: the only chip of an enabled key would be colour for the normal case
-    expect(on!.findAll("[data-tone]")).toEqual([]);
-    expect(on!.find(".k-tag").text()).toBe("any model");
-    expect(off!.findAll("[data-tone]").map((c) => [c.text(), c.attributes("data-tone")])).toEqual([
-      ["disabled", "neutral"],
-    ]);
+    expect(on!.find(".pill").exists()).toBe(false);
+    expect(on!.find(".wbtn__bal").classes()).toContain("tone-bad");
+    expect(off!.find(".pill").text()).toBe("Paused");
+    expect(off!.classes()).toContain("is-off");
   });
 
   it("a switch that fails reads the list again, so it goes back", async () => {
     vi.mocked(keys.setKeyEnabled).mockRejectedValue(new ApiError(500, { error: { message: "boom" } }));
-    const w = await open();
-    await w.find('tbody [role="switch"]').trigger("click");
-    await settle();
+    await open();
+    await menuPick("shop", "Disable key");
     expect(keys.setKeyEnabled).toHaveBeenCalledWith("k1", false);
     expect(list).toHaveBeenCalledTimes(2);
     expect(notify.error).toHaveBeenCalledWith("boom");
@@ -228,29 +236,146 @@ describe("the list", () => {
   it("delete says whether the key went or was only disabled", async () => {
     vi.mocked(confirm.confirmDialog).mockResolvedValue(true);
     vi.mocked(keys.deleteKey).mockResolvedValueOnce({ id: "k1", result: "deleted" });
-    const w = await open();
-    const del = () => w.findAll("tbody button").find((b) => b.attributes("aria-label") === "Delete key shop")!;
-    await del().trigger("click");
-    await settle();
+    list.mockResolvedValue({ items: [key({ jobs: 2104 })] });
+    await open();
+    await menuPick("shop", "Delete key");
     expect(confirm.confirmDialog).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Delete key shop?", message: "A key that has jobs is only disabled." }),
+      expect.objectContaining({
+        title: "Delete key shop?",
+        message: "A key that has jobs is only disabled. This one has 2,104 jobs, so it will be disabled, not removed.",
+      }),
     );
     expect(notify.info).toHaveBeenLastCalledWith("Key deleted");
     vi.mocked(keys.deleteKey).mockResolvedValueOnce({ id: "k1", result: "disabled" });
-    await del().trigger("click");
-    await settle();
+    await menuPick("shop", "Delete key");
     expect(notify.info).toHaveBeenLastCalledWith("Key has jobs: disabled instead");
   });
 
   it("a cancelled delete sends nothing", async () => {
     vi.mocked(confirm.confirmDialog).mockResolvedValue(false);
-    const w = await open();
-    await w
-      .findAll("tbody button")
-      .find((b) => b.attributes("aria-label") === "Delete key shop")!
-      .trigger("click");
-    await settle();
+    await open();
+    await menuPick("shop", "Delete key");
     expect(keys.deleteKey).not.toHaveBeenCalled();
+  });
+
+  it("the row menu says what the switch does, as the server holds it", async () => {
+    list.mockResolvedValue({ items: [key({ enabled: false }), key({ id: "k2", label: "two", enabled: true })] });
+    await open();
+    named("More actions for shop").click();
+    await settle();
+    const items = () => [...document.body.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent?.trim());
+    expect(items()).toEqual(["Edit key", "Enable key", "Delete key"]);
+    document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    await settle();
+    named("More actions for two").click();
+    await settle();
+    expect(items()).toEqual(["Edit key", "Disable key", "Delete key"]);
+  });
+});
+
+describe("the Show chips and the search", () => {
+  beforeEach(() => {
+    list.mockResolvedValue({
+      items: [
+        key({ id: "a", label: "Studio", wallets: [wallet({ scope: "*", total_limit: 1000, used_total: 10 })] }),
+        key({ id: "b", label: "Hanoi", wallets: [wallet({ scope: "*", total_limit: 1000, used_total: 950 })] }),
+        key({ id: "c", label: "Old", enabled: false, wallets: [wallet({ scope: "*", total_limit: 1000 })] }),
+      ],
+    });
+  });
+  const names = (w: VueWrapper) => w.findAll("tbody tr .k-label").map((c) => c.text());
+  const chip = (text: string) =>
+    [...document.body.querySelectorAll<HTMLButtonElement>(".kchip")].find((b) => b.textContent?.startsWith(text))!;
+
+  it("each chip counts its keys and shows only them", async () => {
+    const w = await open();
+    expect([...document.body.querySelectorAll(".kchip")].map((b) => b.textContent?.replace(/\s+/g, " ").trim())).toEqual(
+      ["All 3", "Active 2", "Low or empty 1", "Paused 1"],
+    );
+    chip("Low or empty").click();
+    await settle();
+    expect(names(w)).toEqual(["Hanoi"]);
+    expect(chip("Low or empty").getAttribute("aria-pressed")).toBe("true");
+    chip("Paused").click();
+    await settle();
+    expect(names(w)).toEqual(["Old"]);
+  });
+
+  it("the search finds a label or a prefix, and an empty result offers Clear filters", async () => {
+    const w = await open();
+    const q = document.body.querySelector<HTMLInputElement>("#keys-q")!;
+    q.value = "hano";
+    q.dispatchEvent(new Event("input"));
+    await settle();
+    expect(names(w)).toEqual(["Hanoi"]);
+    q.value = "nothing at all";
+    q.dispatchEvent(new Event("input"));
+    await settle();
+    expect(w.text()).toContain("No key matches these filters");
+    buttonOf("Clear filters").click();
+    await settle();
+    expect(names(w)).toEqual(["Studio", "Hanoi", "Old"]);
+  });
+
+  it("the sentence under the title counts the keys, today's use and the empty wallets", async () => {
+    const w = await open();
+    expect(w.find('[data-testid="keys-summary"]').text()).toBe("3 keys, 3 used today. 9 points spent today.");
+  });
+});
+
+describe("Adjust wallet", () => {
+  beforeEach(() => {
+    list.mockResolvedValue({
+      items: [key({ wallets: [wallet({ scope: "*", day_limit: 500, total_limit: 5000, used_total: 1095 })] })],
+    });
+    vi.mocked(keys.patchKey).mockResolvedValue(key());
+  });
+  const amount = async (value: string) => {
+    const input = document.body.querySelector<HTMLInputElement>('[data-testid="wallet-pop"] input')!;
+    input.value = value;
+    input.dispatchEvent(new Event("input"));
+    await settle();
+  };
+
+  it("the wallet figure opens it from its row; a top-up sends the points wallet with a higher total", async () => {
+    await open();
+    named("Adjust wallet of shop, 3,905 points").click();
+    await settle();
+    const pop = document.body.querySelector('[data-testid="wallet-pop"]')!;
+    expect(pop.getAttribute("role")).toBe("dialog");
+    expect(named("Adjust wallet of shop, 3,905 points").getAttribute("aria-expanded")).toBe("true");
+    await amount("5,000");
+    expect(pop.textContent).toContain("8,905 pts");
+    buttonIn(pop, "Top up 5,000").click();
+    await settle();
+    expect(keys.patchKey).toHaveBeenCalledExactlyOnceWith("k1", {
+      wallets: [{ scope: "*", mode: "limit", day_limit: 500, total_limit: 10000 }],
+    });
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(document.body.querySelector('[data-testid="wallet-pop"]')).toBeNull();
+  });
+
+  it("a deduction above the balance is refused before it is sent", async () => {
+    await open();
+    named("Adjust wallet of shop, 3,905 points").click();
+    await settle();
+    const pop = document.body.querySelector('[data-testid="wallet-pop"]')!;
+    buttonIn(pop, "Deduct").click();
+    await amount("4000");
+    expect(pop.textContent).toContain("At most 3,905 points can be deducted.");
+    expect(buttonIn(pop, "Deduct 4,000").disabled).toBe(true);
+    expect(keys.patchKey).not.toHaveBeenCalled();
+  });
+
+  it("Escape closes it", async () => {
+    await open();
+    named("Adjust wallet of shop, 3,905 points").click();
+    await settle();
+    document.body
+      .querySelector('[data-testid="wallet-pop"]')!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await settle();
+    expect(document.body.querySelector('[data-testid="wallet-pop"]')).toBeNull();
   });
 });
 
@@ -267,7 +392,7 @@ describe("the number fields of the key form", () => {
     await openNewKey();
     expect(max().value).toBe("");
     await type(max(), "0");
-    buttonOf("Create key").click();
+    formButton("Create key").click();
     await settle();
     expect(keys.createKey).toHaveBeenLastCalledWith(expect.objectContaining({ max_unfinished: 0 }));
   });
@@ -278,7 +403,7 @@ describe("the number fields of the key form", () => {
     await type(max(), "5");
     await type(max(), "");
     expect(max().value).toBe("");
-    buttonOf("Create key").click();
+    formButton("Create key").click();
     await settle();
     expect(keys.createKey).toHaveBeenLastCalledWith(expect.objectContaining({ max_unfinished: null }));
   });
@@ -299,20 +424,33 @@ describe("the one-time key", () => {
     expect(whereTheKeyIs()).toEqual(["field value"]);
   });
 
-  it("is gone from every place after Dismiss", async () => {
+  it("Done is locked until the key is copied, then removes it from every place", async () => {
+    Object.defineProperty(window, "isSecureContext", { value: true, configurable: true });
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn(async () => {}) }, configurable: true });
     await createOne();
-    buttonOf("Dismiss").click();
+    expect(buttonIn(secretBox()!, "Done").disabled).toBe(true);
+    buttonIn(secretBox()!, "Copy").click();
+    await settle();
+    expect(buttonIn(secretBox()!, "Done").disabled).toBe(false);
+    buttonIn(secretBox()!, "Done").click();
     await settle();
     expect(callout()).toBeNull();
     expect(whereTheKeyIs()).toEqual([]);
     expect(pageMarkup()).not.toContain(RAW);
   });
 
+  it("a copy made from the field itself unlocks Done too", async () => {
+    await createOne();
+    callout()!.dispatchEvent(new Event("copy"));
+    await settle();
+    expect(buttonIn(secretBox()!, "Done").disabled).toBe(false);
+  });
+
   it("is never in the form drawer, which is closed by the time the key shows", async () => {
     await createOne();
     expect(markupOf(document.body.querySelector(".el-drawer"))).not.toContain(RAW);
     expect(pageMarkup()).not.toContain(RAW);
-    // the serialiser sees the page: the callout is in it, with the key only as a property of its field
+    // the serialiser sees the page: the modal is in it, with the key only as a property of its field
     expect(pageMarkup()).toContain("Key created for");
   });
 
@@ -336,7 +474,7 @@ describe("the one-time key", () => {
     vi.mocked(keys.createKey).mockReturnValue(new Promise((r) => (answer = r)));
     await open();
     await openNewKey();
-    buttonOf("Create key").click();
+    formButton("Create key").click();
     await settle();
     useAuthStore(pinia).signOut();
     answer({ ...key({ id: "k2" }), key: RAW });
@@ -360,11 +498,10 @@ describe("the one-time key", () => {
     );
     await open();
     await openNewKey();
-    buttonOf("Create key").click();
+    formButton("Create key").click();
     await settle();
-    const dialog = document.body.querySelector(".el-drawer")!;
-    expect(dialog.textContent).toContain("Some of the values are not accepted. Check the highlighted field.");
-    expect(dialog.querySelector("#key-label.is-error")).not.toBeNull();
+    expect(drawerEl().textContent).toContain("Some of the values are not accepted. Check the highlighted field.");
+    expect(drawerEl().querySelector("#key-label.is-error")).not.toBeNull();
     expect(whereTheKeyIs()).toEqual([]);
     for (const fn of Object.values(notify)) expect(fn).not.toHaveBeenCalledWith(expect.stringContaining(RAW));
     expect(notify.error).not.toHaveBeenCalled();
@@ -375,27 +512,23 @@ describe("the one-time key", () => {
     vi.mocked(keys.createKey).mockRejectedValueOnce(new ApiError(500, { error: { code: "x.y", message: RAW } }));
     await open();
     await openNewKey();
-    buttonOf("Create key").click();
+    formButton("Create key").click();
     await settle();
-    expect(document.body.querySelector(".kd__error")!.textContent!.trim()).toBe(
+    expect(document.body.querySelector(".kf__error")!.textContent!.trim()).toBe(
       "The key could not be created. Try again.",
     );
     vi.mocked(keys.createKey).mockRejectedValueOnce(new TypeError(RAW));
-    buttonOf("Create key").click();
+    formButton("Create key").click();
     await settle();
-    expect(document.body.querySelector(".kd__error")!.textContent!.trim()).toBe("Network error, please try again.");
+    expect(document.body.querySelector(".kf__error")!.textContent!.trim()).toBe("Network error, please try again.");
     expect(whereTheKeyIs()).toEqual([]);
   });
 
   it("an edit shows no key", async () => {
     vi.mocked(keys.patchKey).mockResolvedValue(key());
-    const w = await open();
-    await w
-      .findAll("tbody button")
-      .find((b) => b.attributes("aria-label") === "Edit key shop")!
-      .trigger("click");
-    await settle();
-    buttonOf("Save").click();
+    await open();
+    await menuPick("shop", "Edit key");
+    formButton("Save").click();
     await settle();
     expect(keys.patchKey).toHaveBeenCalledTimes(1);
     expect(callout()).toBeNull();
@@ -409,46 +542,32 @@ describe("Copy", () => {
     Object.defineProperty(window, "isSecureContext", { value: true, configurable: true });
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
   });
-  const copyIn = (root: ParentNode) =>
-    [...root.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Copy");
 
   it.each([1440, 768, 390])("no row has a Copy-prefix button at %i px", async (width) => {
     showAt(width);
     list.mockResolvedValue({ items: [key(), key({ id: "k2", label: "", prefix: "rk_none" })] });
     const w = await open();
-    expect(document.body.querySelector('button[title="Copy key prefix"]')).toBeNull();
-    const names = [...document.body.querySelectorAll("button")].map((b) => b.getAttribute("aria-label") ?? "");
-    expect(names.some((n) => n.startsWith("Copy key prefix"))).toBe(false);
+    const labels = [...document.body.querySelectorAll("button")].map((b) => b.getAttribute("aria-label") ?? "");
+    expect(labels.some((n) => n.startsWith("Copy key"))).toBe(false);
     // the prefix itself is still text
     expect(document.body.textContent).toContain("rk_abcd");
     w.unmount();
     wrapper = null;
   });
 
-  it("the one-time callout has a Copy that copies the raw key", async () => {
+  it("the one-time modal has a Copy that copies the raw key", async () => {
     await createOne();
-    copyIn(document.body.querySelector('[data-testid="new-key"]')!)!.click();
+    buttonIn(secretBox()!, "Copy").click();
     await settle();
     expect(writeText).toHaveBeenCalledExactlyOnceWith(RAW);
   });
 
-  it("the Copy of the callout says Copied afterwards", async () => {
+  it("the Copy of the modal says Copied afterwards", async () => {
     await createOne();
-    const box = document.body.querySelector('[data-testid="new-key"]')!;
-    copyIn(box)!.click();
+    buttonIn(secretBox()!, "Copy").click();
     await settle();
-    expect([...box.querySelectorAll("button")].map((b) => b.textContent?.trim())).toEqual(["Copied", "Dismiss"]);
+    expect([...secretBox()!.querySelectorAll("button")].map((b) => b.textContent?.trim())).toEqual(["Copied", "Done"]);
   });
-});
-
-const limitWallet = (over: Partial<keys.Wallet> = {}): keys.Wallet => ({
-  scope: "dola",
-  day_limit: 20,
-  total_limit: 200,
-  used_day: 3,
-  used_total: 14,
-  mode: "limit",
-  ...over,
 });
 
 describe("the provider strip", () => {
@@ -462,143 +581,72 @@ describe("the provider strip", () => {
     });
     list.mockResolvedValue({
       items: [
-        key({ id: "k1", label: "any", models: ["*"] }),
+        key({ id: "k1", label: "any", models: ["*"], wallets: [wallet(), wallet({ scope: "vibes" })] }),
         key({
           id: "k2",
           label: "dola only",
           models: ["m2", "m3"],
-          wallets: [limitWallet({ scope: "*" }), limitWallet(), limitWallet({ scope: "vibes" })],
+          wallets: [wallet({ scope: "*" }), wallet(), wallet({ scope: "vibes" })],
         }),
         key({ id: "k3", label: "vibes only", models: ["m1"] }),
       ],
     });
   });
 
-  it("a provider shows the keys that may use its models, only its models, the points wallet and its cap; paused is greyed", async () => {
+  it("a provider shows the keys that may use its models, and only its cap chip", async () => {
     const w = await open();
+    expect(w.findAll("tbody tr")[0]!.findAll('[data-testid="cap-chip"]')).toHaveLength(2);
     useScopeStore().provider = "dola";
     await settle();
     const rows = w.findAll("tbody tr");
     expect(rows.map((r) => r.find(".k-label").text())).toEqual(["any", "dola only"]);
-    expect(rows[1]!.findAll(".k-mg").map((g) => g.text())).toEqual(["Ddola: m2, m3 (paused)"]);
-    expect(rows[1]!.find(".k-mg__paused").text()).toBe("m3 (paused)");
-    expect(rows[1]!.findAll('[data-testid="wallet-line"] .wallet__kind').map((k) => k.text())).toEqual([
-      "points",
-      "Ddola cap",
+    expect(rows.map((r) => r.findAll('[data-testid="cap-chip"]').map((c) => c.text().split(" ")[0]))).toEqual([
+      ["dola"],
+      ["dola"],
     ]);
-    expect(w.text()).toContain("A model marked (paused) is switched off in Settings");
   });
 });
 
 describe("the page as the design draws it", () => {
-  it("has the title, the sentence, New key, and no Refresh, no Updated line, no pager", async () => {
+  it("has the title, the sentence, Create key, the chip note, and no Refresh, no Updated line, no pager", async () => {
     const w = await open();
     expect(w.find("h1").text()).toBe("API keys");
-    expect(w.text()).toContain("Who may call the relay, which models they may use and how much each wallet may spend.");
-    expect(buttonOf("New key")).toBeDefined();
+    expect(w.find('[data-testid="keys-summary"]').text()).toBe("1 key, 0 used today. 0 points spent today; 1 wallet is empty.");
+    expect(pagePrimary().textContent?.trim()).toBe("Create key");
     expect(w.text()).not.toContain("Updated");
     expect(w.text()).not.toContain("Refresh");
     expect(w.find(".el-pagination").exists()).toBe(false);
     expect(w.text()).toContain(
-      "A key that has jobs is only disabled when deleted. Wallet bars: left = today, right = total.",
+      "A chip = the key may use that provider · figure = today's points against its daily cap · amber = 80%+, red = full.",
     );
   });
 
-  it("a limit wallet draws two bars of the rounded share used, with a spoken label; a closed wallet draws none", async () => {
-    list.mockResolvedValue({
-      items: [
-        key({
-          wallets: [
-            limitWallet(),
-            limitWallet({ scope: "flow", mode: "unlimited", used_total: 9 }),
-            limitWallet({ scope: "x", mode: "closed" }),
-          ],
-        }),
-      ],
-    });
-    const w = await open();
-    const bars = w.findAll('tbody [role="img"]');
-    expect(bars).toHaveLength(2);
-    expect(bars[0]!.attributes("aria-label")).toBe("Used 3 of 20 today, 14 of 200 in total");
-    expect(bars[0]!.findAll(".wallet__fill").map((f) => (f.element as HTMLElement).style.width)).toEqual(["15%", "7%"]);
-    expect(bars[0]!.find(".wallet__fill--relative").exists()).toBe(false);
-    const lines = w.findAll('tbody [data-testid="wallet-line"]').map((l) => l.text());
-    expect(lines[0]).toContain("dola cap");
-    expect(lines[0]).toContain("day 3/20 · total 14/200");
-    expect(lines[1]).toContain("unlimited (9 used)");
-    expect(lines[2]).toContain("closed");
-  });
-
-  it("lists the points wallet first, then the providers' caps by name, whatever order the server sent", async () => {
-    list.mockResolvedValue({
-      items: [
-        key({
-          wallets: [
-            limitWallet({ scope: "vibes", mode: "closed" }),
-            limitWallet({ scope: "dola", mode: "closed" }),
-            limitWallet({ scope: "*", mode: "closed" }),
-          ],
-        }),
-      ],
-    });
-    const w = await open();
-    expect(w.findAll('tbody [data-testid="wallet-line"] .wallet__kind').map((k) => k.text())).toEqual([
-      "points",
-      "Ddola cap",
-      "Vvibes cap",
-    ]);
-  });
-
-  it("the switch is a labelled switch that shows what the server holds", async () => {
-    list.mockResolvedValue({ items: [key({ enabled: false }), key({ id: "k2", label: "two", enabled: true })] });
-    const w = await open();
-    const [off, on] = w.findAll('tbody [role="switch"]');
-    expect(off!.attributes("aria-checked")).toBe("false");
-    expect(off!.attributes("aria-label")).toBe("Enable key shop");
-    expect(off!.attributes("title")).toBe("Enable key");
-    expect(on!.attributes("aria-checked")).toBe("true");
-    expect(on!.attributes("title")).toBe("Disable key");
-  });
-
-  it("the callout names the new key, and its row is the one tinted", async () => {
+  it("the modal names the new key, and its row is the one tinted", async () => {
     list.mockResolvedValueOnce({ items: [key()] });
     vi.mocked(keys.createKey).mockResolvedValue({ ...key({ id: "k2", label: "Partner D" }), key: RAW });
     list.mockResolvedValueOnce({ items: [key(), key({ id: "k2", label: "Partner D" })] });
     const w = await createOne();
-    expect(document.body.querySelector('[data-testid="new-key"]')!.textContent).toContain("Key created for Partner D.");
-    expect(document.body.querySelector('[data-testid="new-key"]')!.textContent).toContain(
-      "Copy it now: it is shown once and not stored.",
-    );
+    expect(secretBox()!.textContent).toContain("Key created for Partner D");
+    expect(secretBox()!.textContent).toContain("Copy it now. It is shown once and not stored");
     const rows = w.findAll("tbody tr");
-    expect(rows.map((r) => r.classes().includes("key-new"))).toEqual([false, true]);
-    // the field is named after the key it holds, as drawn
-    expect(document.body.querySelector('[data-testid="new-key"] input')!.getAttribute("aria-label")).toBe(
-      "New API key for Partner D",
-    );
+    expect(rows.map((r) => r.classes().includes("is-new"))).toEqual([false, true]);
+    // the field is named by its visible label
+    expect(document.body.querySelector('label[for="new-key-field"]')!.textContent).toBe("API key");
   });
 
-  it("an empty list says so and offers New key", async () => {
+  it("an empty list says so and offers New key, with no chip note", async () => {
     list.mockResolvedValue({ items: [] });
     const w = await open();
     expect(w.text()).toContain("No API keys yet.");
-    expect(w.text()).not.toContain("A key that has jobs is only disabled when deleted");
+    expect(buttonOf("New key")).toBeDefined();
+    expect(w.text()).not.toContain("A chip = the key may use that provider");
   });
 
-  it("a list that fails to load says why in the canvas's words, under the card's heading", async () => {
+  it("a list that fails to load says why in the canvas's words", async () => {
     list.mockRejectedValue(new ApiError(502, { error: { code: "upstream.bad_gateway", message: "bad gateway" } }));
     const w = await open();
-    expect(w.find(".keys-card h2").text()).toBe("API keys");
-    expect(w.find('.keys-card [role="alert"]').text()).toContain("Could not load the API keys: the relay answered 502");
-  });
-
-  it("an empty list draws its card with the heading API keys; a list with keys has no heading", async () => {
-    list.mockResolvedValue({ items: [] });
-    const empty = await open();
-    expect(empty.find(".keys-card h2").text()).toBe("API keys");
-    empty.unmount();
-    list.mockResolvedValue({ items: [key()] });
-    const listed = await open();
-    expect(listed.find(".keys-card h2").exists()).toBe(false);
+    expect(w.find('.kv-card [role="alert"]').text()).toContain("Could not load the API keys: the relay answered 502");
+    expect(buttonOf("Retry")).toBeDefined();
   });
 });
 
@@ -608,21 +656,27 @@ describe("the key form as the design draws it", () => {
       items: [
         key({
           models: ["m1"],
-          wallets: [limitWallet({ scope: "vibes" }), limitWallet({ scope: "dola", mode: "unlimited", used_total: 9 })],
+          jobs: 1912,
+          wallets: [
+            wallet({ scope: "*", total_limit: 5000, used_total: 1095, used_day: 860, day_limit: null }),
+            wallet({ scope: "vibes" }),
+            wallet({ scope: "dola", mode: "unlimited", day_limit: null, total_limit: null, used_day: 9 }),
+          ],
           ...over,
         }),
       ],
     });
     const w = await open();
-    await w.find('button[aria-label="Edit key shop"]').trigger("click");
-    await settle();
+    await menuPick("shop", "Edit key");
     return w;
   };
   const field = (selector: string) => document.body.querySelector<HTMLInputElement>(selector)!;
   // a wallet's Mode: the field in the wallet's group, its list opened in the body
-  const chooseMode = async (wallet: string, value: string) => {
-    const group = document.body.querySelector(`[role="group"][aria-label="${wallet}"]`)!;
-    group.querySelector<HTMLButtonElement>('[role="combobox"]')!.click();
+  const chooseMode = async (group: string, value: string) => {
+    document.body
+      .querySelector(`[role="group"][aria-label="${group}"]`)!
+      .querySelector<HTMLButtonElement>('[role="combobox"]')!
+      .click();
     await settle();
     [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
       .find((o) => o.textContent?.trim() === value)!
@@ -630,28 +684,30 @@ describe("the key form as the design draws it", () => {
     await settle();
   };
 
-  it("an edit names the key in its title and tells what each wallet has used", async () => {
+  it("an edit names the key in its title and tells the balance and what each cap has used", async () => {
     await editShop();
-    const dialog = document.body.querySelector(".el-drawer")!;
-    expect(dialog.querySelector("h2")!.textContent).toBe("Edit API key — shop");
+    expect(drawerEl().querySelector("h2")!.textContent).toBe("Edit key · shop");
     // the drawer is named by its visible heading
-    const named = document.body.querySelector('[role="dialog"]')!;
-    expect(named.hasAttribute("aria-label")).toBe(false);
-    expect(document.getElementById(named.getAttribute("aria-labelledby")!)).toBe(dialog.querySelector("h2"));
-    expect(dialog.textContent).toContain("3 used today · 14 total");
-    expect(dialog.textContent).toContain("9 used");
-    expect(dialog.textContent).toContain(
-      "A job needs the points wallet and its provider's cap both open. Limits apply in limit mode only. Per day resets at midnight.",
+    const dialog = document.body.querySelector('[role="dialog"]')!;
+    expect(dialog.hasAttribute("aria-label")).toBe(false);
+    expect(document.getElementById(dialog.getAttribute("aria-labelledby")!)).toBe(drawerEl().querySelector("h2"));
+    expect(drawerEl().textContent).toContain("rk_abcd•••• · created");
+    expect(drawerEl().textContent).toContain("1,912 jobs");
+    expect(drawerEl().textContent).toContain("balance 3,905 pts · −860 today");
+    expect(drawerEl().textContent).toContain("total 14 / 200");
+    expect(drawerEl().textContent).toContain("unlimited · 9 used today");
+    expect(drawerEl().textContent).toContain(
+      "A job needs the points wallet and its provider's cap both open. Caps apply in limit mode. Per day resets at midnight.",
     );
   });
 
   it("a new key has a plain title and says nothing of use", async () => {
     await open();
-    buttonOf("New key").click();
+    pagePrimary().click();
     await settle();
-    const dialog = document.body.querySelector(".el-drawer")!;
-    expect(dialog.querySelector("h2")!.textContent).toBe("New API key");
-    expect(dialog.textContent).not.toContain("used");
+    expect(drawerEl().querySelector("h2")!.textContent).toBe("New API key");
+    expect(drawerEl().querySelector(".kf__whead")!.textContent).not.toContain("balance");
+    expect(drawerEl().textContent).toContain("Starting points");
   });
 
   it("a wallet that leaves limit mode shows empty, disabled number boxes, and a limit wallet shows its numbers", async () => {
@@ -665,11 +721,12 @@ describe("the key form as the design draws it", () => {
     expect(field('input[aria-label="vibes cap total"]').disabled).toBe(true);
     await chooseMode("vibes cap", "limit");
     expect(field('input[aria-label="vibes cap per day"]').value).toBe("20");
+    expect(field('input[aria-label="points total"]').value).toBe("5000");
   });
 
   it("each wallet's Mode is named after its wallet and keeps the visible word", async () => {
     await editShop();
-    const modes = [...document.body.querySelectorAll<HTMLElement>('.key-dialog [role="combobox"]')];
+    const modes = [...document.body.querySelectorAll<HTMLElement>('.kf [role="combobox"]')];
     expect(modes.map((m) => m.getAttribute("aria-label"))).toEqual(["points Mode", "dola cap Mode", "vibes cap Mode"]);
     expect(modes.some((m) => m.hasAttribute("aria-labelledby"))).toBe(false);
     modes[2]!.click();
@@ -684,35 +741,54 @@ describe("the key form as the design draws it", () => {
     ];
     expect(boxes()).toHaveLength(2);
     expect(boxes().every((b) => b.disabled)).toBe(true);
-    expect(document.body.querySelector('[role="group"][aria-label="Pick models"]')!.getAttribute("aria-disabled")).toBe(
-      "true",
-    );
-    const any = [...document.body.querySelectorAll<HTMLInputElement>("fieldset input[type=checkbox]")][0]!;
-    any.click();
+    const group = () => document.body.querySelector('[role="group"][aria-label="Pick models"]')!;
+    expect(group().getAttribute("aria-disabled")).toBe("true");
+    document.body.querySelector<HTMLInputElement>(".kf__any input")!.click();
     await settle();
     expect(boxes().every((b) => !b.disabled)).toBe(true);
-    expect(document.body.querySelector('[role="group"][aria-label="Pick models"]')!.getAttribute("aria-disabled")).toBe(
-      "false",
-    );
+    expect(group().getAttribute("aria-disabled")).toBe("false");
   });
 
-  it("each model row says its id, its kind and its display name, else its id", async () => {
+  it("the models are grouped by provider in the drawn order; a paused one can come off a key but not go on", async () => {
+    vi.mocked(shell.getModels).mockResolvedValue({
+      data: [
+        { id: "m1", owned_by: "vibes", kind: "video" },
+        { id: "m2", owned_by: "dola", kind: "image" },
+        { id: "m3", owned_by: "dola", kind: "video", disabled: true },
+        { id: "m4", owned_by: "vibes", kind: "image", disabled: true },
+      ],
+    });
+    await editShop({ models: ["m1", "m3"] });
+    const groups = [...document.body.querySelectorAll(".kf__group")].map((g) => [
+      g.querySelector(".kf__ghead")!.textContent!.trim(),
+      [...g.querySelectorAll(".kf__model")].map((m) =>
+        [...m.querySelectorAll("span")].map((x) => x.textContent!.trim()).join(" "),
+      ),
+    ]);
+    expect(groups).toEqual([
+      ["dola", ["m2", "m3 paused"]],
+      ["vibes", ["m1", "m4 paused"]],
+    ]);
+    const box = (id: string) => document.body.querySelector<HTMLInputElement>(`.kf__model input[value="${id}"]`)!;
+    expect(box("m3").disabled).toBe(false);
+    expect(box("m4").disabled).toBe(true);
+  });
+
+  it("the footer counts what changed", async () => {
     await editShop();
-    const rows = [...document.body.querySelectorAll(".kd__model")].map((r) =>
-      r.textContent!.replace(/\s+/g, " ").trim(),
-    );
-    expect(rows).toEqual(["m1video · Model One", "m2image · m2"]);
-    expect(document.body.querySelector(".kd__model-hint")!.textContent).toBe("video · Model One");
+    expect(drawerEl().textContent).not.toContain("unsaved");
+    await typeLabel("shop 2");
+    expect(drawerEl().textContent).toContain("1 unsaved change");
   });
 });
 
 describe("the label of a key is optional", () => {
   const label = () => document.body.querySelector<HTMLInputElement>("#key-label")!;
-  const create = () => buttonOf("Create key");
+  const create = () => formButton("Create key");
 
   it("Create key is on with an empty label, says nothing of a missing label and creates a key", async () => {
     await open();
-    buttonOf("New key").click();
+    pagePrimary().click();
     await settle();
     expect(create().hasAttribute("aria-disabled")).toBe(false);
     expect(create().hasAttribute("aria-describedby")).toBe(false);
@@ -732,7 +808,9 @@ describe("the label of a key is optional", () => {
     create().click();
     await settle();
     expect(keys.createKey).toHaveBeenLastCalledWith(expect.objectContaining({ label: "" }));
-    buttonOf("Dismiss").click();
+    callout()!.dispatchEvent(new Event("copy"));
+    await settle();
+    buttonIn(secretBox()!, "Done").click();
     await settle();
     await openNewKey("  Partner E ");
     create().click();
@@ -740,45 +818,43 @@ describe("the label of a key is optional", () => {
     expect(keys.createKey).toHaveBeenLastCalledWith(expect.objectContaining({ label: "Partner E" }));
   });
 
-  it("the banner of a key made with no label names it by its prefix, never 'Key created for .'", async () => {
+  it("the modal of a key made with no label names it by its prefix, never 'Key created for '", async () => {
     vi.mocked(keys.createKey).mockResolvedValue({ ...key({ id: "k2", label: "", prefix: "rk_new1" }), key: RAW });
     await open();
     await openNewKey("");
     create().click();
     await settle();
-    const banner = document.body.querySelector('[data-testid="new-key"]')!;
-    expect(banner.textContent).toContain("Key created for rk_new1.");
-    expect(banner.textContent).not.toContain("Key created for .");
-    expect(banner.querySelector("input")!.getAttribute("aria-label")).toBe("New API key for rk_new1");
+    expect(secretBox()!.textContent).toContain("Key created for rk_new1");
+    expect(secretBox()!.querySelector("h2")!.textContent).toBe("Key created for rk_new1");
     // a label of spaces in the answer reads the same
-    buttonOf("Dismiss").click();
+    callout()!.dispatchEvent(new Event("copy"));
+    await settle();
+    buttonIn(secretBox()!, "Done").click();
     await settle();
     vi.mocked(keys.createKey).mockResolvedValue({ ...key({ id: "k3", label: "   ", prefix: "rk_new2" }), key: RAW });
     await openNewKey("");
     create().click();
     await settle();
-    expect(document.body.querySelector('[data-testid="new-key"]')!.textContent).toContain("Key created for rk_new2.");
+    expect(secretBox()!.querySelector("h2")!.textContent).toBe("Key created for rk_new2");
   });
 
   it("an edit can clear a label: the patch sends an empty one", async () => {
     vi.mocked(keys.patchKey).mockResolvedValue(key());
-    const w = await open();
-    await w.find('button[aria-label="Edit key shop"]').trigger("click");
-    await settle();
+    await open();
+    await menuPick("shop", "Edit key");
     expect(label().value).toBe("shop");
     await typeLabel("");
-    buttonOf("Save").click();
+    formButton("Save").click();
     await settle();
     expect(keys.patchKey).toHaveBeenCalledWith("k1", expect.objectContaining({ label: "" }));
   });
 
   it("an edit of a key that has no label is not held back, and is titled by its prefix", async () => {
     list.mockResolvedValue({ items: [key({ label: "  ", prefix: "rk_none" })] });
-    const w = await open();
-    await w.find('button[aria-label="Edit key rk_none"]').trigger("click");
-    await settle();
-    expect(document.body.querySelector(".el-drawer h2")!.textContent).toBe("Edit API key — rk_none");
-    buttonOf("Save").click();
+    await open();
+    await menuPick("rk_none", "Edit key");
+    expect(drawerEl().querySelector("h2")!.textContent).toBe("Edit key · rk_none");
+    formButton("Save").click();
     await settle();
     expect(keys.patchKey).toHaveBeenCalledWith("k1", expect.objectContaining({ label: "" }));
   });
@@ -795,43 +871,41 @@ describe("a key with no label in the list", () => {
       const w = await open();
       const cell = w.find("tbody tr .k-label");
       expect(cell.text()).toBe("rk_none");
-      expect(cell.classes()).toEqual(expect.arrayContaining(["k-label--prefix", "kla-mono"]));
-      expect(w.find("tbody tr .k-prefix").exists()).toBe(false);
+      expect(cell.classes()).toEqual(expect.arrayContaining(["k-label--prefix", "mono"]));
+      expect(w.find("tbody tr .t-key .meta").exists()).toBe(false);
       expect(document.body.textContent).not.toContain("(no label)");
-      expect(w.find('tbody button[aria-label="Edit key rk_none"]').exists()).toBe(true);
-      expect(w.find('tbody [role="switch"]').attributes("aria-label")).toBe("Enable key rk_none");
+      expect(named("More actions for rk_none")).not.toBeNull();
     },
   );
 
   it("a labelled key shows its label with the prefix under it", async () => {
     const w = await open();
     expect(w.find("tbody tr .k-label").text()).toBe("shop");
-    expect(w.find("tbody tr .k-prefix").text()).toBe("rk_abcd");
+    expect(w.find("tbody tr .t-key .meta").text()).toBe("rk_abcd••••");
   });
 
   it("the phone block shows the prefix once, as the name", async () => {
     showAt(390);
-    list.mockResolvedValue({ items: [key({ label: " ", prefix: "rk_none" })] });
+    list.mockResolvedValue({ items: [key({ label: " ", prefix: "rk_none", jobs: 3 })] });
     const w = await open();
     const block = w.find(".p-key");
-    expect(block.find(".p-key__label").text()).toBe("rk_none");
-    expect(block.find(".p-key__label").classes()).toContain("kla-mono");
-    expect(block.find(".p-key__prefix").exists()).toBe(false);
+    expect(block.find(".p-key__title").text()).toBe("rk_none");
+    expect(block.find(".p-key__title").classes()).toContain("mono");
+    expect(block.find(".p-key__sub").text()).toBe("3 jobs");
   });
 
   it("the delete question names it by its prefix", async () => {
     list.mockResolvedValue({ items: [key({ label: "  ", prefix: "rk_none" })] });
     vi.mocked(confirm.confirmDialog).mockResolvedValue(false);
-    const w = await open();
-    await w.find('tbody button[aria-label="Delete key rk_none"]').trigger("click");
-    await settle();
+    await open();
+    await menuPick("rk_none", "Delete key");
     expect(confirm.confirmDialog).toHaveBeenCalledWith(expect.objectContaining({ title: "Delete key rk_none?" }));
   });
 });
 
 describe("the key form as a drawer that guards what was typed", () => {
   const drawer = () => document.body.querySelector(".el-drawer");
-  const xButton = () => document.body.querySelector<HTMLButtonElement>(".el-drawer button[aria-label='Close']")!;
+  const xButton = () => document.body.querySelector<HTMLButtonElement>(".el-drawer button[aria-label='Close · Esc']")!;
   const label = () => document.body.querySelector<HTMLInputElement>("#key-label")!;
   const askedWith = (message: string) => expect.objectContaining({ message });
   const confirmed = vi.mocked(confirm.confirmDialog);
@@ -840,16 +914,17 @@ describe("the key form as a drawer that guards what was typed", () => {
     const el = document.body.querySelector<HTMLElement>(".el-overlay")!;
     for (const type of ["mousedown", "mouseup", "click"]) el.dispatchEvent(new MouseEvent(type, { bubbles: true }));
   };
+  const drawerOpen = () => wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue");
 
   it("is a right drawer named by its heading, and a click beside it is a way out like Escape", async () => {
     await open();
-    buttonOf("New key").click();
+    pagePrimary().click();
     await settle();
     expect(drawer()).not.toBeNull();
     expect(document.body.querySelector(".el-dialog")).toBeNull();
-    const named = document.body.querySelector('[role="dialog"]')!;
-    expect(named.hasAttribute("aria-label")).toBe(false);
-    expect(document.getElementById(named.getAttribute("aria-labelledby")!)).toBe(
+    const dialog = document.body.querySelector('[role="dialog"]')!;
+    expect(dialog.hasAttribute("aria-label")).toBe(false);
+    expect(document.getElementById(dialog.getAttribute("aria-labelledby")!)).toBe(
       document.body.querySelector(".el-drawer h2"),
     );
     const el = wrapper!.findComponent({ name: "ElDrawer" });
@@ -865,29 +940,37 @@ describe("the key form as a drawer that guards what was typed", () => {
     await settle();
     expect(confirmed).toHaveBeenCalledExactlyOnceWith(askedWith("Discard what you typed?"));
     expect(label().value).toBe("half typed");
-    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(true);
+    expect(drawerOpen()).toBe(true);
     confirmed.mockResolvedValueOnce(true);
     scrim();
     await settle();
-    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(false);
-    buttonOf("New key").click();
+    expect(drawerOpen()).toBe(false);
+    pagePrimary().click();
     await settle();
     scrim();
     await settle();
     expect(confirmed).toHaveBeenCalledTimes(2);
-    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(false);
+    expect(drawerOpen()).toBe(false);
   });
 
   it("a form nobody typed in closes at once", async () => {
     await open();
-    buttonOf("New key").click();
+    pagePrimary().click();
     await settle();
     xButton().click();
     await settle();
     expect(confirmed).not.toHaveBeenCalled();
-    await new Promise((r) => setTimeout(r, 400));
-    expect(drawer()?.getAttribute("style") ?? "").not.toContain("display: block");
-    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(false);
+    expect(drawerOpen()).toBe(false);
+  });
+
+  it("Back is a way out too, through the same guard", async () => {
+    await open();
+    await openNewKey("half typed");
+    confirmed.mockResolvedValueOnce(false);
+    named("Back to API keys").click();
+    await settle();
+    expect(confirmed).toHaveBeenCalledTimes(1);
+    expect(drawerOpen()).toBe(true);
   });
 
   it("a typed form asks; Keep editing keeps what was typed; Discard closes and the next form is empty", async () => {
@@ -898,14 +981,14 @@ describe("the key form as a drawer that guards what was typed", () => {
     await settle();
     expect(confirmed).toHaveBeenCalledExactlyOnceWith(askedWith("Discard what you typed?"));
     expect(label().value).toBe("half typed");
-    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(true);
+    expect(drawerOpen()).toBe(true);
     confirmed.mockResolvedValueOnce(true);
     xButton().click();
     await settle();
     expect(confirmed).toHaveBeenCalledTimes(2);
-    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(false);
+    expect(drawerOpen()).toBe(false);
     expect(keys.createKey).not.toHaveBeenCalled();
-    buttonOf("New key").click();
+    pagePrimary().click();
     await settle();
     expect(label().value).toBe("");
     // and a form that was only opened again is clean
@@ -917,30 +1000,21 @@ describe("the key form as a drawer that guards what was typed", () => {
   it("a form edited and put back as it was is clean", async () => {
     await open();
     await openNewKey("abc");
-    await typeLabelBack();
+    await typeLabel("");
     xButton().click();
     await settle();
     expect(confirmed).not.toHaveBeenCalled();
   });
-  const typeLabelBack = async () => {
-    label().value = "";
-    label().dispatchEvent(new Event("input"));
-    await settle();
-  };
 
   it("an edit is dirty once a field changes, not before", async () => {
     vi.mocked(keys.patchKey).mockResolvedValue(key());
-    const w = await open();
-    await w.find('button[aria-label="Edit key shop"]').trigger("click");
-    await settle();
+    await open();
+    await menuPick("shop", "Edit key");
     xButton().click();
     await settle();
     expect(confirmed).not.toHaveBeenCalled();
-    await w.find('button[aria-label="Edit key shop"]').trigger("click");
-    await settle();
-    label().value = "shop 2";
-    label().dispatchEvent(new Event("input"));
-    await settle();
+    await menuPick("shop", "Edit key");
+    await typeLabel("shop 2");
     confirmed.mockResolvedValueOnce(false);
     xButton().click();
     await settle();
@@ -952,21 +1026,21 @@ describe("the key form as a drawer that guards what was typed", () => {
     vi.mocked(keys.createKey).mockReturnValue(new Promise((r) => (answer = r)));
     await open();
     await openNewKey("Slow");
-    buttonOf("Create key").click();
+    formButton("Create key").click();
     await settle();
     expect(xButton().disabled).toBe(true);
-    expect(buttonOf("Cancel").disabled).toBe(true);
+    expect(formButton("Cancel").disabled).toBe(true);
     xButton().click();
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
-    buttonOf("Cancel").click();
+    formButton("Cancel").click();
     scrim();
     await settle();
     expect(confirmed).not.toHaveBeenCalled();
-    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(true);
+    expect(drawerOpen()).toBe(true);
     answer({ ...key({ id: "k2" }), key: RAW });
     await settle();
     expect(confirmed).not.toHaveBeenCalled();
-    expect(wrapper!.findComponent({ name: "ElDrawer" }).props("modelValue")).toBe(false);
+    expect(drawerOpen()).toBe(false);
     expect(callout()!.value).toBe(RAW);
   });
 
@@ -975,7 +1049,7 @@ describe("the key form as a drawer that guards what was typed", () => {
     vi.mocked(keys.createKey).mockReturnValue(new Promise((_r, reject) => (fail = reject)));
     const w = await open();
     await openNewKey("Gone");
-    buttonOf("Create key").click();
+    formButton("Create key").click();
     await settle();
     (w.vm as unknown as { formOpen: boolean }).formOpen = false;
     fail(new ApiError(422, { error: { code: "input.invalid", message: "x", param: "label" } }));
@@ -989,25 +1063,25 @@ describe("the key form as a drawer that guards what was typed", () => {
     vi.mocked(keys.createKey).mockRejectedValue(new TypeError("down"));
     await open();
     await openNewKey();
-    buttonOf("Create key").click();
+    formButton("Create key").click();
     await settle();
-    expect(document.body.querySelector(".kd__error")!.textContent!.trim()).toBe("Network error, please try again.");
+    expect(document.body.querySelector(".kf__error")!.textContent!.trim()).toBe("Network error, please try again.");
     expect(notify.error).not.toHaveBeenCalled();
   });
 
   it("while a create is in flight a reload or a closed tab is warned about, though nothing was typed", async () => {
     vi.mocked(keys.createKey).mockReturnValue(new Promise(() => undefined));
     await open();
-    buttonOf("New key").click();
+    pagePrimary().click();
     await settle();
-    buttonOf("Create key").click();
+    formButton("Create key").click();
     await settle();
     const e = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(e);
     expect(e.defaultPrevented).toBe(true);
   });
 
-  it("a good save brings the banner into view and puts focus in its field once the drawer is gone", async () => {
+  it("a good save puts focus in the modal's field once the drawer is gone", async () => {
     await createOne(true);
     await new Promise((r) => setTimeout(r, 600));
     expect(document.activeElement).toBe(callout());
@@ -1015,17 +1089,14 @@ describe("the key form as a drawer that guards what was typed", () => {
 
   it("focus goes to the page's primary button when the button that opened the form is gone", async () => {
     vi.mocked(keys.patchKey).mockResolvedValue(key());
-    const w = await open(true);
-    const edit = w.find('button[aria-label="Edit key shop"]');
-    (edit.element as HTMLElement).focus();
-    await edit.trigger("click");
-    await settle();
-    // the save reads the list again, and the key (with its Edit button) is no longer in it
+    await open(true);
+    await menuPick("shop", "Edit key");
+    // the save reads the list again, and the key (with its row menu) is no longer in it
     list.mockResolvedValue({ items: [] });
-    buttonOf("Save").click();
+    formButton("Save").click();
     await settle();
     await new Promise((r) => setTimeout(r, 600));
-    expect(document.activeElement).toBe(buttonOf("New key"));
+    expect(document.activeElement).toBe(pagePrimary());
   });
 
   it("a reload or a closed tab is warned about while the form holds typing, and not after", async () => {
@@ -1045,70 +1116,6 @@ describe("the key form as a drawer that guards what was typed", () => {
   });
 });
 
-describe("the relative bars of an unlimited wallet", () => {
-  const unlimited = (over: Partial<keys.Wallet> = {}) =>
-    limitWallet({ mode: "unlimited", day_limit: null, total_limit: null, ...over });
-  const fills = (el: { findAll: (s: string) => { element: Element }[] }) =>
-    el.findAll(".wallet__fill").map((f) => (f.element as HTMLElement).style.width);
-
-  it("the busiest key of the wallet is full, the others proportional, today and in total on their own scales", async () => {
-    list.mockResolvedValue({
-      items: [
-        key({ id: "a", label: "a", wallets: [unlimited({ used_day: 10, used_total: 40 })] }),
-        key({ id: "b", label: "b", wallets: [unlimited({ used_day: 5, used_total: 10 })] }),
-        key({ id: "c", label: "c", wallets: [unlimited({ used_day: 0, used_total: 0 })] }),
-      ],
-    });
-    const w = await open();
-    const [a, b, c] = w.findAll("tbody tr");
-    expect(fills(a!)).toEqual(["100%", "100%"]);
-    expect(fills(b!)).toEqual(["50%", "25%"]);
-    expect(fills(c!)).toEqual(["0%", "0%"]);
-    for (const row of [a!, b!, c!]) {
-      expect(row.findAll(".wallet__fill--relative")).toHaveLength(2);
-    }
-    expect(a!.find('[role="img"]').attributes("aria-label")).toBe(
-      "Used 10 today, 40 in total; the bars show the share of the busiest key's use",
-    );
-  });
-
-  it("a limit wallet that is open counts toward the maximum; a closed one does not; each scope has its own", async () => {
-    list.mockResolvedValue({
-      items: [
-        key({ id: "a", label: "a", wallets: [unlimited({ used_day: 4, used_total: 8 })] }),
-        key({
-          id: "b",
-          label: "b",
-          wallets: [limitWallet({ used_day: 16, used_total: 32, day_limit: 100, total_limit: 1000 })],
-        }),
-        key({
-          id: "c",
-          label: "c",
-          wallets: [limitWallet({ mode: "closed", used_day: 999, used_total: 999, day_limit: 0, total_limit: null })],
-        }),
-        key({ id: "d", label: "d", wallets: [unlimited({ scope: "x", used_day: 2, used_total: 2 })] }),
-      ],
-    });
-    const w = await open();
-    const [a, b, c, d] = w.findAll("tbody tr");
-    expect(fills(a!)).toEqual(["25%", "25%"]);
-    // the limit wallet keeps its own bars (share of its limit) and is not a relative bar
-    expect(fills(b!)).toEqual(["16%", "3%"]);
-    expect(b!.find(".wallet__fill--relative").exists()).toBe(false);
-    expect(c!.find('[role="img"]').exists()).toBe(false);
-    expect(fills(d!)).toEqual(["100%", "100%"]);
-  });
-
-  it("phone blocks draw them too", async () => {
-    showAt(390);
-    list.mockResolvedValue({
-      items: [key({ wallets: [unlimited({ used_day: 3, used_total: 14 })] })],
-    });
-    const w = await open();
-    expect(fills(w.find(".p-key"))).toEqual(["100%", "100%"]);
-  });
-});
-
 describe("the tablet and the phone", () => {
   const detailed = () =>
     list.mockResolvedValue({
@@ -1118,56 +1125,50 @@ describe("the tablet and the phone", () => {
           jobs: 61,
           unfinished: 1,
           max_unfinished_effective: 5,
-          wallets: [limitWallet()],
+          wallets: [wallet({ scope: "*", total_limit: 1000, used_total: 950 }), wallet()],
         }),
-        key({ id: "k2", label: "any", models: ["*"], enabled: false }),
+        key({ id: "k2", label: "any", models: ["*"], enabled: false, wallets: [wallet({ scope: "*" })] }),
+        key({ id: "k3", label: "empty", wallets: [wallet({ scope: "*", total_limit: 10, used_total: 10 })] }),
       ],
     });
 
-  it("a tablet keeps five columns and folds the models and the date into the label and unfinished cells", async () => {
+  it("a tablet keeps the desktop's columns in a table that scrolls sideways, and New key at the head", async () => {
     showAt(768);
     detailed();
     const w = await open();
     expect(w.findAll("thead th").map((h) => h.text())).toEqual([
-      "Label",
-      "Status",
-      "Wallets",
-      "Unfinished · jobs",
+      "Key",
+      "Wallet",
+      "Providers and caps today",
+      "Jobs",
       "Actions",
     ]);
-    const [shop, any] = w.findAll("tbody tr");
-    expect(shop!.findAll(".k-models-line .k-mg").map((g) => g.text())).toEqual(["Ddola: m2", "Vvibes: m1"]);
-    expect(any!.find(".k-models-line").text()).toBe("any model");
-    expect(shop!.text()).toContain("1 / 5 · 61 jobs");
-    expect(shop!.find(".k-created").exists()).toBe(true);
-    // the two lines of that cell start at the left, as drawn; the wallet lines take the tablet form
-    expect(w.findAll("thead th")[3]!.classes()).not.toContain("is-right");
-    expect(shop!.find(".wallets").classes()).toContain("is-compact");
+    expect(pagePrimary().textContent?.trim()).toBe("New key");
+    expect(w.find(".kl--tablet").exists()).toBe(true);
   });
 
-  it("a phone lists each key as a block with its models, wallets, counts and the two row buttons", async () => {
+  it("a phone lists each key as a block with its pill, balance, caps and row buttons", async () => {
     showAt(390);
     detailed();
     const w = await open();
     expect(w.find("table").exists()).toBe(false);
-    const [shop, any] = w.findAll(".p-key");
-    expect(shop!.text()).toContain("Models");
-    expect(shop!.findAll(".p-key__models-list .k-mg").map((g) => g.text())).toEqual(["Ddola: m2", "Vvibes: m1"]);
-    expect(shop!.find('[role="img"]').attributes("aria-label")).toBe("Used 3 of 20 today, 14 of 200 in total");
-    expect(shop!.find(".p-key__facts").text()).toContain("Unfinished 1 / 5 · 61 jobs · created");
-    // the phone draws the wallet lines at the desktop size (12 px values, one line each)
-    expect(shop!.find(".wallets").classes()).not.toContain("is-compact");
-    expect(any!.find(".k-tag").text()).toBe("any model");
-    expect(any!.text()).toContain("disabled");
+    const [shop, any, empty] = w.findAll(".p-key");
+    expect(shop!.find(".pill").text()).toBe("Low");
+    expect(shop!.find(".p-key__right").text()).toBe("50 pts");
+    expect(shop!.find(".p-key__sub").text()).toBe("rk_abcd•••• · 61 jobs");
+    expect(shop!.findAll('[data-testid="cap-chip"]')).toHaveLength(1);
     expect(shop!.find('button[aria-label="Edit key shop"]').exists()).toBe(true);
-    expect(shop!.find('button[aria-label="Delete key shop"]').exists()).toBe(true);
+    expect(buttonIn(shop!.element, "Adjust wallet")).toBeDefined();
+    expect(any!.find(".pill").text()).toBe("Paused");
+    expect(buttonIn(empty!.element, "Top up")).toBeDefined();
   });
 
-  it("the switch of a phone block asks the server like the table's does", async () => {
+  it("Enable on a paused phone block asks the server", async () => {
     showAt(390);
-    const w = await open();
-    await w.find('.p-key [role="switch"]').trigger("click");
+    list.mockResolvedValue({ items: [key({ enabled: false })] });
+    await open();
+    named("Enable key shop").click();
     await settle();
-    expect(keys.setKeyEnabled).toHaveBeenCalledWith("k1", false);
+    expect(keys.setKeyEnabled).toHaveBeenCalledWith("k1", true);
   });
 });

@@ -1,60 +1,12 @@
-// Pure rules of the Keys view: the wallet text of a row and the body a create or an edit sends.
+// Pure rules of the Keys view: the balance, the caps and the filters of a row, and the body a create, an edit or a
+// wallet change sends.
 import { ApiError } from "@/api/client";
 import type { ApiKey, KeyBody, Wallet, WalletBody, WalletMode } from "@/api/keys";
 import type { CatalogModel } from "@/api/shell";
 import { byProviderOrder } from "@/lib/providers";
 
-// `closed`, `unlimited (N used)`, or `day used/limit · total used/limit` for the limits that are set.
-export function walletText(w: Wallet): string {
-  if (w.mode === "closed") return "closed";
-  if (w.mode === "unlimited") return `unlimited (${w.used_total} used)`;
-  const day = w.day_limit === null ? "" : `day ${w.used_day}/${w.day_limit}`;
-  const total = w.total_limit === null ? "" : `total ${w.used_total}/${w.total_limit}`;
-  return [day, total].filter(Boolean).join(" · ");
-}
-
-// The width of a usage bar: the rounded share of the limit used, 0 without a limit, never past 100.
-export function usagePercent(used: number, limit: number | null): number {
-  if (!limit) return 0;
-  return Math.min(100, Math.round((used / limit) * 100));
-}
-
-// The width of a relative bar (an unlimited wallet): the rounded share of the busiest key's use, 0 when nobody used
-// any, never past 100.
-export function relativePercent(used: number, max: number): number {
-  if (!max) return 0;
-  return Math.min(100, Math.round((used / max) * 100));
-}
-
-// The highest use of each wallet (its scope) among the keys that have it open (limit or unlimited), today and in
-// total: what a relative bar counts as full.
-export type WalletMaxima = ReadonlyMap<string, { day: number; total: number }>;
-export function walletMaxima(keys: readonly Pick<ApiKey, "wallets">[]): WalletMaxima {
-  const out = new Map<string, { day: number; total: number }>();
-  for (const k of keys) {
-    for (const w of k.wallets) {
-      if (w.mode === "closed") continue;
-      const at = out.get(w.scope) ?? { day: 0, total: 0 };
-      out.set(w.scope, { day: Math.max(at.day, w.used_day), total: Math.max(at.total, w.used_total) });
-    }
-  }
-  return out;
-}
-
 // What a key is called wherever a person reads it: its label, else its prefix (a label of spaces is no label).
 export const keyName = (k: Pick<ApiKey, "label" | "prefix">): string => k.label.trim() || k.prefix;
-
-// The spoken form of the two bars of a limit wallet.
-export function usageLabel(w: Wallet): string {
-  const day = w.day_limit === null ? `${w.used_day} today` : `${w.used_day} of ${w.day_limit} today`;
-  const total = w.total_limit === null ? `${w.used_total} in total` : `${w.used_total} of ${w.total_limit} in total`;
-  return `Used ${day}, ${total}`;
-}
-
-// The spoken form of the two bars of an unlimited wallet.
-export function relativeLabel(w: Wallet): string {
-  return `Used ${w.used_day} today, ${w.used_total} in total; the bars show the share of the busiest key's use`;
-}
 
 // `03/09/2026`; a key made today shows the hour instead of the year: `15/10 20:54`. Local time.
 export function createdText(ms: number | null, now: number = Date.now()): string {
@@ -172,6 +124,17 @@ export function keyForm(models: CatalogModel[], key: ApiKey | null): KeyForm {
   };
 }
 
+// How many parts of the form differ from what it opened with: the label, the max, the allowed models, and each
+// wallet (the footer's "3 unsaved changes").
+export function changedCount(a: KeyForm, b: KeyForm): number {
+  const models = (f: KeyForm) => (f.any ? "*" : [...f.models].sort().join(","));
+  const wallet = (w: WalletRow | undefined) => (w ? `${w.mode}|${w.day}|${w.total}` : "");
+  let count = Number(a.label !== b.label) + Number(a.maxUnfinished !== b.maxUnfinished);
+  count += Number(models(a) !== models(b));
+  for (const w of a.wallets) count += Number(wallet(w) !== wallet(b.wallets.find((x) => x.scope === w.scope)));
+  return count;
+}
+
 // The limits count only in `limit` mode, and only the boxes that are filled.
 function walletBody(row: WalletRow): WalletBody {
   const body: WalletBody = { scope: row.scope, mode: row.mode };
@@ -220,4 +183,170 @@ export function createError(err: unknown): CreateError {
 
 export function deleteToast(result: string): string {
   return result === "deleted" ? "Key deleted" : "Key has jobs: disabled instead";
+}
+
+// The delete question's sentence: a key with jobs is only disabled, and one that has some says so with their count.
+export function deleteText(k: Pick<ApiKey, "jobs">): string {
+  const rule = "A key that has jobs is only disabled.";
+  if (!k.jobs) return rule;
+  const jobs = `${n(k.jobs)} ${k.jobs === 1 ? "job" : "jobs"}`;
+  return `${rule} This one has ${jobs}, so it will be disabled, not removed.`;
+}
+
+// ---- the list: balance, caps, state, filters ---------------------------------------------------------------------
+
+function n(x: number): string {
+  return x.toLocaleString("en-US");
+}
+
+// The key's points wallet (scope `*`).
+export const pointsWallet = (k: Pick<ApiKey, "wallets">): Wallet | undefined =>
+  k.wallets.find((w) => w.scope === POINTS);
+
+// Below this share of its limit a balance is low (amber), as a cap chip turns amber at 80 % used.
+export const LOW_SHARE = 0.2;
+
+// What the points wallet has left. A limit wallet's balance is its total less what it used in total; one with a day
+// limit only, what is left of today's. `left` is null for a closed or an unlimited wallet (`word` says which). The
+// tone: red when nothing is left or the wallet is closed, amber under LOW_SHARE of the limit.
+export interface Balance {
+  left: number | null;
+  word: "" | "closed" | "unlimited";
+  tone: "ok" | "warn" | "bad";
+}
+export function balanceOf(w: Wallet | undefined): Balance {
+  if (!w || w.mode === "closed") return { left: null, word: "closed", tone: "bad" };
+  if (w.mode === "unlimited") return { left: null, word: "unlimited", tone: "ok" };
+  const byTotal = w.total_limit !== null;
+  const limit = (byTotal ? w.total_limit : w.day_limit) ?? 0;
+  const left = Math.max(0, limit - (byTotal ? w.used_total : w.used_day));
+  return { left, word: "", tone: left === 0 ? "bad" : left < limit * LOW_SHARE ? "warn" : "ok" };
+}
+
+// The balance as a figure: "3,905", or the word of a closed or an unlimited wallet.
+export const balanceText = (b: Balance): string => (b.left === null ? b.word : n(b.left));
+
+// The line under a balance: what the key spent today, against the day limit when there is one.
+export function todayText(w: Wallet | undefined): string {
+  if (!w || w.mode === "closed") return "";
+  if (!w.used_day) return "nothing today";
+  return w.mode === "limit" && w.day_limit !== null
+    ? `−${n(w.used_day)} of ${n(w.day_limit)} today`
+    : `−${n(w.used_day)} today`;
+}
+
+// One chip per provider the key may use (any model, or a model of that provider) whose cap is open, in the drawn
+// provider order. `cap` is the cap's day limit, null when it has none (unlimited, or a total only). `only`: that
+// provider's chip alone ("" for every one).
+export interface CapFigure {
+  provider: string;
+  used: number;
+  cap: number | null;
+}
+export function capChips(
+  k: Pick<ApiKey, "models" | "wallets">,
+  catalog: readonly CatalogModel[],
+  only = "",
+): CapFigure[] {
+  const caps = new Map(k.wallets.filter((w) => w.scope !== POINTS).map((w) => [w.scope, w]));
+  const any = k.models.includes("*");
+  const reached = new Set(modelGroups(k.models, catalog).map((g) => g.provider));
+  return byProviderOrder([...caps.keys()])
+    .filter((p) => (!only || p === only) && caps.get(p)!.mode !== "closed" && (any || reached.has(p)))
+    .map((p) => {
+      const w = caps.get(p)!;
+      return { provider: p, used: w.used_day, cap: w.mode === "limit" ? w.day_limit : null };
+    });
+}
+
+// The state a phone row's pill shows: paused (disabled) first, then the points wallet's tone.
+export type KeyState = "ok" | "low" | "empty" | "closed" | "paused";
+export function keyState(k: Pick<ApiKey, "enabled" | "wallets">): KeyState {
+  if (!k.enabled) return "paused";
+  const b = balanceOf(pointsWallet(k));
+  if (b.word === "closed") return "closed";
+  return b.tone === "bad" ? "empty" : b.tone === "warn" ? "low" : "ok";
+}
+export const STATE_PILL: Readonly<Record<KeyState, { tone: string; text: string }>> = {
+  ok: { tone: "ok", text: "Enabled" },
+  low: { tone: "warn", text: "Low" },
+  empty: { tone: "bad", text: "Empty" },
+  closed: { tone: "bad", text: "Closed" },
+  paused: { tone: "neutral", text: "Paused" },
+};
+
+// The Show chips of the list.
+export type KeyFilter = "all" | "active" | "low" | "paused";
+export const KEY_FILTERS: ReadonlyArray<{ value: KeyFilter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "active", label: "Active" },
+  { value: "low", label: "Low or empty" },
+  { value: "paused", label: "Paused" },
+];
+export function inFilter(k: Pick<ApiKey, "enabled" | "wallets">, f: KeyFilter): boolean {
+  if (f === "active") return k.enabled;
+  if (f === "paused") return !k.enabled;
+  if (f === "low") return balanceOf(pointsWallet(k)).tone !== "ok";
+  return true;
+}
+// The search: a piece of the label or of the prefix, in any case.
+export function inSearch(k: Pick<ApiKey, "label" | "prefix">, q: string): boolean {
+  const t = q.trim().toLowerCase();
+  return !t || k.label.toLowerCase().includes(t) || k.prefix.toLowerCase().includes(t);
+}
+
+// The sentence under the title: "6 keys, 4 used today. 2,600 points spent today; 1 wallet is empty." `short` is the
+// phone's: "6 keys, 4 used today · 2,600 points spent today".
+export function summaryText(keys: readonly Pick<ApiKey, "enabled" | "wallets">[], short = false): string {
+  const used = keys.filter((k) => (pointsWallet(k)?.used_day ?? 0) > 0).length;
+  const spent = keys.reduce((sum, k) => sum + (pointsWallet(k)?.used_day ?? 0), 0);
+  const head = `${n(keys.length)} ${keys.length === 1 ? "key" : "keys"}, ${n(used)} used today`;
+  const points = `${n(spent)} ${spent === 1 ? "point" : "points"} spent today`;
+  if (short) return `${head} · ${points}`;
+  const empty = keys.filter((k) => balanceOf(pointsWallet(k)).tone === "bad").length;
+  const tail = empty === 0 ? "" : empty === 1 ? "; 1 wallet is empty" : `; ${n(empty)} wallets are empty`;
+  return `${head}. ${points}${tail}.`;
+}
+
+// The jobs cell: "1,912 jobs" over "2 / 20 unfinished".
+export const jobsText = (k: Pick<ApiKey, "jobs">): string => `${n(k.jobs)} ${k.jobs === 1 ? "job" : "jobs"}`;
+
+// The line under a cap in the form: "total 412 / 600", "no total cap", "unlimited · 318 used today", "closed".
+export function capLine(w: Wallet | undefined): string {
+  if (!w || w.mode === "closed") return "closed";
+  if (w.mode === "unlimited") return `unlimited · ${n(w.used_day)} used today`;
+  return w.total_limit === null ? "no total cap" : `total ${n(w.used_total)} / ${n(w.total_limit)}`;
+}
+
+// ---- the wallet change -------------------------------------------------------------------------------------------
+
+// A top-up raises the points wallet's total by `amount`, a deduction lowers it, never under what it already used (the
+// balance stays 0 or more). A wallet without a total (closed, or a day limit only) gets one: what it used plus the
+// top-up, its day limit kept. An unlimited wallet has no balance to change. `body` is the wallet the patch sends; it is
+// null, with `problem` saying why, when the change cannot be made.
+export type WalletChange = "top" | "deduct";
+export interface ChangePlan {
+  now: number;
+  after: number;
+  body: WalletBody | null;
+  problem: string;
+}
+export function planChange(w: Wallet | undefined, change: WalletChange, amount: number): ChangePlan {
+  const now = balanceOf(w).left ?? 0;
+  if (w?.mode === "unlimited")
+    return { now, after: now, body: null, problem: "An unlimited wallet has no balance. Set a total in Edit key." };
+  const hasTotal = w?.mode === "limit" && w.total_limit !== null;
+  const start = hasTotal ? now : 0;
+  const whole = Number.isInteger(amount) && amount >= 1;
+  const after = Math.max(0, !whole ? start : change === "top" ? start + amount : start - amount);
+  if (!whole) return { now, after, body: null, problem: "The amount must be a whole number of 1 or more." };
+  if (change === "deduct" && amount > start)
+    return { now, after, body: null, problem: `At most ${n(start)} points can be deducted.` };
+  const base = hasTotal ? w!.total_limit! : (w?.used_total ?? 0);
+  const total = change === "top" ? base + amount : base - amount;
+  if (total < 1) return { now, after, body: null, problem: "To empty it, close the wallet in Edit key." };
+  const day = w?.mode === "limit" ? w.day_limit : null;
+  const body: WalletBody = { scope: POINTS, mode: "limit", total_limit: total };
+  if (day !== null) body.day_limit = day;
+  return { now, after, body, problem: "" };
 }

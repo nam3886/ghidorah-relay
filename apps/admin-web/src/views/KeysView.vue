@@ -1,30 +1,37 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef } from "vue";
-import { type ApiKey, createKey, deleteKey, type KeyBody, listKeys, patchKey, setKeyEnabled } from "@/api/keys";
-import type { CatalogModel } from "@/api/shell";
-import PageHeader from "@/components/layout/PageHeader.vue";
-import KeyFormDialog from "@/components/keys/KeyFormDialog.vue";
-import KeyModels from "@/components/keys/KeyModels.vue";
-import ToggleSwitch from "@/components/shared/ToggleSwitch.vue";
-import NewKeyCallout from "@/components/keys/NewKeyCallout.vue";
-import WalletLines from "@/components/keys/WalletLines.vue";
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef } from "vue";
 import {
-  createdText,
+  type ApiKey,
+  createKey,
+  deleteKey,
+  type KeyBody,
+  listKeys,
+  patchKey,
+  setKeyEnabled,
+  type WalletBody,
+} from "@/api/keys";
+import type { CatalogModel } from "@/api/shell";
+import KeyFormDialog from "@/components/keys/KeyFormDialog.vue";
+import KeySecretModal from "@/components/keys/KeySecretModal.vue";
+import KeysList from "@/components/keys/KeysList.vue";
+import KeyWalletAdjust from "@/components/keys/KeyWalletAdjust.vue";
+import {
   type CreateError,
   createError,
+  deleteText,
   deleteToast,
+  inFilter,
+  inSearch,
+  KEY_FILTERS,
+  type KeyFilter,
   keyName,
   keyReaches,
   loadFailedText,
-  modelGroups,
-  POINTS,
-  unfinishedText,
-  walletMaxima,
+  summaryText,
 } from "@/components/keys/key-model";
-import "@/components/logs/lane-controls.css";
-import DataTable from "@/components/shared/DataTable.vue";
-import { IconPencil, IconPlus, IconTrash } from "@/components/shared/icons";
-import StatusChip from "@/components/shared/StatusChip.vue";
+import ArrowScroller from "@/components/shared/ArrowScroller.vue";
+import IconButton from "@/components/shared/IconButton.vue";
+import { IconPlus, IconSearch } from "@/components/shared/icons";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { useRouteLeaveGuard } from "@/components/shared/use-leave-guard";
 import { useBreakpoint } from "@/composables/use-breakpoint";
@@ -35,14 +42,15 @@ import { notify } from "@/lib/notify";
 import { useAuthStore } from "@/stores/auth";
 import { useScopeStore } from "@/stores/scope";
 
-// API keys. The list answers whole (a deployment has a handful of keys), so there is no pager. The provider strip
-// filters it here, in the page: a provider shows the keys that may use any of its models, and only its models and its
-// wallets in each row.
+// API keys (Keys, KeysTablet, KeysPhone, KeysStates). The list answers whole (a deployment has a handful of keys), so
+// there is no pager: the Show chips, the search and the provider strip filter it here, in the page. A provider shows
+// the keys that may use any of its models, and only its cap chip in each row.
 const scope = useScopeStore();
 const auth = useAuthStore();
 const { busy, run } = useBusy();
 const latest = useLatest();
 const { isPhone, isTablet } = useBreakpoint();
+const compact = computed(() => isPhone.value || isTablet.value);
 
 const items = shallowRef<ApiKey[]>([]);
 const loading = ref(false);
@@ -62,15 +70,15 @@ useRouteLeaveGuard(
 );
 
 // The raw key of a key just created. It lives only here: not in a store, not in storage, not in the address, not in a
-// log. It goes on Dismiss, when the operator leaves the tab (this view unmounts) and on sign-out. The id and the label
-// beside it are not secret: they tint the new row and name the callout.
+// log. It goes on Done, when the operator leaves the tab (this view unmounts) and on sign-out. The id and the label
+// beside it are not secret: they tint the new row and name the modal.
 const rawKey = ref<string | null>(null);
 const createdId = ref<string | null>(null);
 const createdLabel = ref("");
-const callout = useTemplateRef<InstanceType<typeof NewKeyCallout>>("callout");
-// set by a create that worked: once the drawer is gone the banner is brought into view and its field takes focus
-// (focus would otherwise go back to New key)
-let revealBanner = false;
+const secret = useTemplateRef<InstanceType<typeof KeySecretModal>>("secret");
+// set by a create that worked: once the drawer is gone the modal's field takes focus (focus would otherwise go back
+// to the button that opened the form)
+let revealSecret = false;
 // `disposed`: the operator left or signed out, so a create that is still in flight must not bring the key back.
 // `signedOut`: the session is gone, which says so itself: a create that fails after it adds no toast.
 let disposed = false;
@@ -91,34 +99,44 @@ onBeforeUnmount(() => {
 // The catalog names each model's provider and whether it is paused (one read, shared with the form).
 scope.loadCatalog().catch((err) => notify.error(errorText(err)));
 const known = computed(() => scope.models ?? []);
-const shown = computed(() =>
+
+// ---- the filters: the provider strip, the Show chips and the search --------------------------------------------
+const show = ref<KeyFilter>("all");
+const q = ref("");
+const reachable = computed(() =>
   scope.provider ? items.value.filter((k) => keyReaches(k, scope.provider, known.value)) : items.value,
 );
-const walletsOf = (k: ApiKey) =>
-  scope.provider ? k.wallets.filter((w) => w.scope === POINTS || w.scope === scope.provider) : k.wallets;
-// a model on the page is paused: the note under the list says what that means
-const anyPaused = computed(() =>
-  shown.value.some((k) =>
-    modelGroups(k.models, known.value, scope.provider).some((g) => g.models.some((m) => m.paused)),
-  ),
+const shown = computed(() => reachable.value.filter((k) => inFilter(k, show.value) && inSearch(k, q.value)));
+const counts = computed(() =>
+  Object.fromEntries(KEY_FILTERS.map((f) => [f.value, reachable.value.filter((k) => inFilter(k, f.value)).length])),
 );
+const filtered = computed(() => items.value.length > 0);
+const emptyText = computed(() =>
+  q.value.trim() || show.value !== "all"
+    ? "No key matches these filters"
+    : `No key may use a ${scope.provider} model.`,
+);
+function clearFilters(): void {
+  show.value = "all";
+  q.value = "";
+  scope.provider = "";
+}
+// A tablet or phone folds the search behind a button of the head.
+const searchOpen = ref(false);
+const showSearch = computed(() => !compact.value || searchOpen.value || !!q.value.trim());
+async function toggleSearch(): Promise<void> {
+  searchOpen.value = !searchOpen.value;
+  if (!searchOpen.value) return;
+  await nextTick();
+  document.getElementById("keys-q")?.focus();
+}
 
-const columns = computed(() => [
-  { key: "label", label: "Label", minWidth: isTablet.value ? 130 : 150 },
-  { key: "status", label: "Status", width: isTablet.value ? 84 : 108 },
-  { key: "models", label: "Models", minWidth: 150 },
-  { key: "wallets", label: "Wallets", minWidth: isTablet.value ? 214 : 300 },
-  {
-    key: "unfinished",
-    label: isTablet.value ? "Unfinished · jobs" : "Unfinished / max",
-    // the tablet cell holds two lines that start at the left, as drawn
-    align: isTablet.value ? ("left" as const) : ("right" as const),
-    width: isTablet.value ? 116 : 128,
-  },
-  { key: "jobs", label: "Jobs total", align: "right" as const, width: 90 },
-  { key: "created", label: "Created", width: 120 },
-]);
-const TABLET_COLUMNS = ["label", "status", "wallets", "unfinished"];
+// "6 keys, 4 used today." in bold, the rest after it
+const summary = computed(() => {
+  const text = summaryText(reachable.value, isPhone.value);
+  const cut = text.indexOf(". ");
+  return cut < 0 ? { head: text, rest: "" } : { head: text.slice(0, cut + 1), rest: text.slice(cut + 2) };
+});
 
 async function load(): Promise<void> {
   const ticket = latest.next();
@@ -140,6 +158,7 @@ void load();
 // The catalog (one read, shared) feeds the model list and the wallet rows of the form.
 async function openForm(key: ApiKey | null) {
   opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  walletKey.value = null;
   await run(async () => {
     catalog.value = await scope.loadCatalog();
     editing.value = key;
@@ -176,7 +195,7 @@ async function submit(body: KeyBody) {
         rawKey.value = created.key;
         createdId.value = created.id;
         createdLabel.value = keyName(created);
-        revealBanner = true;
+        revealSecret = true;
       }
     }
     formOpen.value = false;
@@ -184,7 +203,7 @@ async function submit(body: KeyBody) {
   });
 }
 
-// The list is read again even when the change failed, so the switch goes back to what the server holds.
+// The list is read again even when the change failed, so the row goes back to what the server holds.
 async function toggle(k: ApiKey, enabled: boolean) {
   await run(async () => {
     try {
@@ -198,7 +217,7 @@ async function toggle(k: ApiKey, enabled: boolean) {
 async function remove(k: ApiKey) {
   const ok = await confirmDialog({
     title: `Delete key ${keyName(k)}?`,
-    message: "A key that has jobs is only disabled.",
+    message: deleteText(k),
     confirmText: "Delete",
     danger: true,
   });
@@ -210,15 +229,41 @@ async function remove(k: ApiKey) {
   });
 }
 
-// The drawer is gone and Element Plus has sent focus back to the button that opened it. After a create the banner
-// takes it instead; and when that button no longer exists (an edited row is drawn again by the reload) focus goes to
-// the page's primary button, else to the page's scroll area, so it is never left on the document.
+// ---- Adjust wallet --------------------------------------------------------------------------------------------
+const walletKey = shallowRef<ApiKey | null>(null);
+const walletAnchor = shallowRef<HTMLElement | null>(null);
+function openWallet(k: ApiKey, anchor: HTMLElement): void {
+  if (walletKey.value?.id === k.id) {
+    walletKey.value = null;
+    return;
+  }
+  walletAnchor.value = anchor;
+  walletKey.value = k;
+}
+// The change is the points wallet alone; the list is read again whatever the answer, so the figure is the server's.
+async function adjust(body: WalletBody): Promise<void> {
+  const k = walletKey.value;
+  if (!k) return;
+  await run(async () => {
+    try {
+      await patchKey(k.id, { wallets: [body] });
+      walletKey.value = null;
+      notify.success(`Wallet of ${keyName(k)} changed`);
+    } finally {
+      await load();
+    }
+  });
+}
+
+// The drawer is gone and the button that opened it has the focus back. After a create the modal's field takes it
+// instead; and when that button no longer exists (an edited row is drawn again by the reload) focus goes to the
+// page's primary button, else to the page's scroll area, so it is never left on the document.
 let opener: HTMLElement | null = null;
 const newKeyButton = useTemplateRef<HTMLButtonElement>("newKey");
 function formClosed(): void {
-  if (revealBanner) {
-    revealBanner = false;
-    callout.value?.reveal();
+  if (revealSecret) {
+    revealSecret = false;
+    secret.value?.reveal();
     return;
   }
   if (opener?.isConnected && opener !== document.body) return;
@@ -226,201 +271,121 @@ function formClosed(): void {
   if (primary && !primary.disabled) primary.focus();
   else document.querySelector<HTMLElement>(".app-scroll__wrap")?.focus({ preventScroll: true });
 }
-
-// every wallet's highest use among all the keys loaded: what an unlimited wallet's relative bar counts as full
-const maxima = computed(() => walletMaxima(items.value));
-// the switch says what a click does
-const switchTitle = (enabled: boolean): string => (enabled ? "Disable key" : "Enable key");
-const rowClass = ({ row }: { row: ApiKey }): string => (row.id === createdId.value ? "key-new" : "");
-// an empty list and a failed one draw their card with a heading, as B-States does (a list with keys has none)
-const emptyList = computed(() => !loading.value && !error.value && items.value.length === 0);
 </script>
 
 <template>
-  <section class="keys-view">
-    <PageHeader
-      class="keys-head"
-      title="API keys"
-      subtitle="Who may call the relay, which models they may use and how much each wallet may spend."
-    >
-      <template #actions>
+  <section class="keys-view" :class="{ 'is-compact': compact, 'is-phone': isPhone }">
+    <div class="kv-head">
+      <div v-if="!compact" class="kv-head__text">
+        <h1>API keys</h1>
+        <p class="kv-sum" data-testid="keys-summary">
+          <b>{{ summary.head }}</b> {{ summary.rest }}
+        </p>
+      </div>
+      <h1 v-else class="sr-only">API keys</h1>
+      <span class="kv-head__actions">
+        <IconButton v-if="compact" icon="search" label="Search keys" placement="bottom" @click="toggleSearch" />
+        <IconButton
+          v-if="isPhone"
+          icon="plus"
+          label="New key"
+          placement="bottom-end"
+          :disabled="busy"
+          @click="openForm(null)"
+        />
         <button
+          v-else
           ref="newKey"
           type="button"
-          class="kla-btn kla-btn--primary kla-btn--fit"
+          class="kv-primary"
           :disabled="busy"
           @click="openForm(null)"
         >
-          <IconPlus :size="isPhone ? 16 : 15" :stroke="2" />New key
+          <IconPlus v-if="isTablet" :size="15" :stroke="2" />{{ isTablet ? "New key" : "Create key" }}
         </button>
-      </template>
-    </PageHeader>
+      </span>
+    </div>
+    <p v-if="compact" class="kv-sum kv-sum--compact" data-testid="keys-summary">
+      {{ summary.head }} {{ summary.rest }}
+    </p>
 
-    <NewKeyCallout
-      v-if="rawKey !== null"
-      ref="callout"
-      :raw-key="rawKey"
-      :label="createdLabel"
-      @dismiss="rawKey = null"
-    />
+    <ArrowScroller
+      v-if="isPhone"
+      class="kv-chips"
+      label="Show"
+      :count="KEY_FILTERS.length"
+      :active-key="show"
+    >
+      <button
+        v-for="f in KEY_FILTERS"
+        :key="f.value"
+        type="button"
+        class="kchip"
+        :class="{ 'is-on': show === f.value }"
+        :aria-pressed="show === f.value"
+        @click="show = f.value"
+      >
+        {{ f.label }} <span class="num kchip__n">{{ counts[f.value] }}</span>
+      </button>
+    </ArrowScroller>
+    <label v-if="isPhone && showSearch" class="kv-search is-row">
+      <IconSearch :size="15" />
+      <input id="keys-q" v-model="q" type="search" placeholder="Search name or key prefix" aria-label="Search keys" />
+    </label>
 
-    <section class="kla-card keys-card" aria-label="API key list">
-      <div v-if="emptyList || error" class="keys-card__head" :class="{ 'is-error': error }">
-        <h2 class="keys-card__title">API keys</h2>
+    <section class="kv-card" aria-label="Key list">
+      <div v-if="!isPhone" class="kv-toolbar">
+        <ArrowScroller class="kv-chips" label="Show" :count="KEY_FILTERS.length" :active-key="show">
+          <button
+            v-for="f in KEY_FILTERS"
+            :key="f.value"
+            type="button"
+            class="kchip"
+            :class="{ 'is-on': show === f.value }"
+            :aria-pressed="show === f.value"
+            @click="show = f.value"
+          >
+            {{ f.label }} <span class="num kchip__n">{{ counts[f.value] }}</span>
+          </button>
+        </ArrowScroller>
+        <label v-if="showSearch" class="kv-search" :class="{ 'is-row': compact }">
+          <IconSearch :size="15" />
+          <input
+            id="keys-q"
+            v-model="q"
+            type="search"
+            placeholder="Search name or key prefix"
+            aria-label="Search keys"
+          />
+        </label>
       </div>
-      <DataTable
-        class="keys-table"
-        :actions-width="isTablet ? 128 : 141"
-        :columns="columns"
+      <KeysList
         :rows="shown"
         :loading="loading"
         :error="error"
-        :empty-text="items.length ? `No key may use a ${scope.provider} model.` : 'No API keys yet.'"
-        :tablet-columns="TABLET_COLUMNS"
-        :row-class-name="rowClass"
+        :filtered="filtered"
+        :empty-text="emptyText"
+        :catalog="known"
+        :only="scope.provider"
+        :created-id="createdId"
+        :wallet-id="walletKey?.id ?? null"
+        :busy="busy"
+        @edit="openForm"
+        @wallet="openWallet"
+        @toggle="toggle"
+        @remove="remove"
         @retry="load"
-      >
-        <template #empty-action>
-          <button type="button" class="kla-btn kla-btn--primary k-empty-new" :disabled="busy" @click="openForm(null)">
-            <IconPlus :size="15" :stroke="2" />New key
-          </button>
-        </template>
-        <template #cell-label="{ row }">
-          <template v-if="row.label.trim()">
-            <div class="k-label" :class="{ 'is-off': !row.enabled }">{{ row.label.trim() }}</div>
-            <div class="k-prefix">
-              <span class="k-prefix__text kla-mono">{{ row.prefix }}</span>
-            </div>
-          </template>
-          <div v-else class="k-label k-label--prefix kla-mono">{{ row.prefix }}</div>
-          <KeyModels
-            v-if="isTablet"
-            class="k-models-line"
-            :models="row.models"
-            :catalog="known"
-            :only="scope.provider"
-          />
-        </template>
-        <!-- Colour is for exceptions: an enabled key is the normal case and reads as plain text. -->
-        <template #cell-status="{ row }">
-          <StatusChip v-if="!row.enabled" status="disabled" />
-          <span v-else class="k-enabled">enabled</span>
-        </template>
-        <template #cell-models="{ row }">
-          <KeyModels :models="row.models" :catalog="known" :only="scope.provider" />
-        </template>
-        <template #cell-wallets="{ row }">
-          <WalletLines v-if="walletsOf(row).length" :wallets="walletsOf(row)" :compact="isTablet" :maxima="maxima" />
-          <template v-else>-</template>
-        </template>
-        <template #cell-unfinished="{ row }">
-          <template v-if="isTablet">
-            <span class="kla-mono k-unfinished">{{ unfinishedText(row) }} · {{ row.jobs }} jobs</span>
-            <span class="kla-mono k-created k-created--under">{{ createdText(row.created_ms) }}</span>
-          </template>
-          <span v-else class="kla-mono k-num">{{ unfinishedText(row) }}</span>
-        </template>
-        <template #cell-jobs="{ row }"
-          ><span class="kla-mono k-num">{{ row.jobs }}</span></template
-        >
-        <template #cell-created="{ row }"
-          ><span class="k-created kla-mono">{{ createdText(row.created_ms) }}</span></template
-        >
-        <template #actions="{ row }">
-          <div class="k-actions">
-            <ToggleSwitch
-              :model-value="row.enabled"
-              :title="switchTitle(row.enabled)"
-              :label="`Enable key ${keyName(row)}`"
-              @change="(v: boolean) => toggle(row, v)"
-            />
-            <button
-              type="button"
-              class="kla-icon-btn"
-              title="Edit key"
-              :aria-label="`Edit key ${keyName(row)}`"
-              :disabled="busy"
-              @click="openForm(row)"
-            >
-              <IconPencil :size="16" />
-            </button>
-            <button
-              type="button"
-              class="kla-icon-btn kla-icon-btn--bad k-delete"
-              title="Delete key"
-              :aria-label="`Delete key ${keyName(row)}`"
-              @click="remove(row)"
-            >
-              <IconTrash :size="16" />
-            </button>
-          </div>
-        </template>
-
-        <!-- the phone list: one block per key -->
-        <template #row="{ row }">
-          <div class="p-key">
-            <div class="p-key__line">
-              <span
-                class="p-key__label"
-                :class="{ 'is-off': !row.enabled, 'is-prefix': !row.label.trim(), 'kla-mono': !row.label.trim() }"
-                >{{ keyName(row) }}</span
-              >
-              <StatusChip v-if="!row.enabled" status="disabled" />
-              <span v-else class="p-key__enabled">enabled</span>
-              <ToggleSwitch
-                :model-value="row.enabled"
-                :title="switchTitle(row.enabled)"
-                :label="`Enable key ${keyName(row)}`"
-                @change="(v: boolean) => toggle(row, v)"
-              />
-            </div>
-            <div v-if="row.label.trim()" class="p-key__prefix">
-              <span class="kla-mono">{{ row.prefix }}</span>
-            </div>
-            <div class="p-key__models">
-              <span class="p-key__models-word">Models</span>
-              <KeyModels class="p-key__models-list" :models="row.models" :catalog="known" :only="scope.provider" />
-            </div>
-            <WalletLines v-if="walletsOf(row).length" :wallets="walletsOf(row)" :maxima="maxima" />
-            <div class="p-key__foot">
-              <span class="p-key__facts"
-                >Unfinished <span class="kla-mono p-key__fg">{{ unfinishedText(row) }}</span> ·
-                <span class="kla-mono p-key__fg">{{ row.jobs }}</span> jobs · created
-                <span class="kla-mono">{{ createdText(row.created_ms) }}</span></span
-              >
-              <span class="p-key__buttons">
-                <button
-                  type="button"
-                  class="kla-icon-btn kla-icon-btn--lg"
-                  title="Edit key"
-                  :aria-label="`Edit key ${keyName(row)}`"
-                  :disabled="busy"
-                  @click="openForm(row)"
-                >
-                  <IconPencil :size="18" />
-                </button>
-                <button
-                  type="button"
-                  class="kla-icon-btn kla-icon-btn--lg kla-icon-btn--bad k-delete"
-                  title="Delete key"
-                  :aria-label="`Delete key ${keyName(row)}`"
-                  @click="remove(row)"
-                >
-                  <IconTrash :size="18" />
-                </button>
-              </span>
-            </div>
-          </div>
-        </template>
-      </DataTable>
-      <p v-if="items.length" class="keys-note">
-        A key that has jobs is only disabled when deleted. Wallet bars: left = today, right = total.
-        <template v-if="anyPaused"
-          >A model marked (paused) is switched off in Settings: the key keeps it, and a call for it is refused
-          <span class="kla-mono">model.disabled</span> until it is back on.</template
-        >
+        @clear-filters="clearFilters"
+        @create="openForm(null)"
+      />
+      <p v-if="!compact && shown.length" class="kv-note">
+        A chip = the key may use that provider · figure = today's points against its daily cap · amber = 80%+, red =
+        full.
       </p>
     </section>
+    <p v-if="compact && shown.length" class="kv-note kv-note--out">
+      A chip = the key may use that provider · figure = today's points against its daily cap · amber = 80%+, red = full.
+    </p>
 
     <KeyFormDialog
       v-model="formOpen"
@@ -432,6 +397,20 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
       @update:dirty="(d: boolean) => (formDirty = d)"
       @closed="formClosed"
     />
+    <KeyWalletAdjust
+      :key-row="walletKey"
+      :anchor="walletAnchor"
+      :busy="busy"
+      @submit="adjust"
+      @close="walletKey = null"
+    />
+    <KeySecretModal
+      v-if="rawKey !== null"
+      ref="secret"
+      :raw-key="rawKey"
+      :label="createdLabel"
+      @dismiss="rawKey = null"
+    />
   </section>
 </template>
 
@@ -441,291 +420,201 @@ const emptyList = computed(() => !loading.value && !error.value && items.value.l
   flex-direction: column;
   gap: 20px;
 }
-@media (max-width: 767px) {
-  .keys-view {
-    gap: 16px;
-  }
+.keys-view.is-compact {
+  gap: 14px;
 }
-.keys-card {
-  min-width: 0;
-}
-/* the table: one rhythm, cells top-aligned, 16 px at both ends of a row */
-.keys-table :deep(.el-table) {
-  min-width: 1120px;
-}
-.keys-table.is-tablet :deep(.el-table) {
-  min-width: 0;
-}
-.keys-table :deep(td.el-table__cell) {
-  padding: 12px 0;
-  vertical-align: top;
-}
-.keys-table :deep(td.el-table__cell:first-child .cell),
-.keys-table :deep(th.el-table__cell:first-child .cell) {
-  padding-left: 16px;
-}
-.keys-table :deep(td.el-table__cell:last-child .cell),
-.keys-table :deep(th.el-table__cell:last-child .cell) {
-  padding-right: 16px;
-}
-.keys-table.is-tablet :deep(td.el-table__cell:last-child .cell),
-.keys-table.is-tablet :deep(th.el-table__cell:last-child .cell) {
-  padding-right: 12px;
-}
-.keys-table :deep(td.data-table__actions) {
-  padding: 10px 0;
-}
-/* The canvas lays the desktop table out by its content (the browser's auto layout); at 1440, without its copy-prefix
-   buttons (this page has none), the columns come to 138.0, 121.6, 157.9, 367.6, 142.3, 94.0, 117.1 and 163.5 of the
-   1302 px table. Element Plus lays out fixed columns, so each
-   takes the same share of the table's width. The tablet table is fixed in the canvas too: Label takes what is left. */
-.keys-table:not(.is-tablet) :deep(col:nth-child(1)) {
-  width: 10.5967%;
-}
-.keys-table:not(.is-tablet) :deep(col:nth-child(2)) {
-  width: 9.3414%;
-}
-.keys-table:not(.is-tablet) :deep(col:nth-child(3)) {
-  width: 12.1304%;
-}
-.keys-table:not(.is-tablet) :deep(col:nth-child(4)) {
-  width: 28.2342%;
-}
-.keys-table:not(.is-tablet) :deep(col:nth-child(5)) {
-  width: 10.9279%;
-}
-.keys-table:not(.is-tablet) :deep(col:nth-child(6)) {
-  width: 7.2221%;
-}
-.keys-table:not(.is-tablet) :deep(col:nth-child(7)) {
-  width: 8.9934%;
-}
-.keys-table:not(.is-tablet) :deep(col:nth-child(8)) {
-  width: 12.554%;
-}
-.keys-table.is-tablet :deep(col:nth-child(1)) {
-  width: auto;
-}
-.keys-table.is-tablet :deep(col:nth-child(2)) {
-  width: 100px;
-}
-.keys-table.is-tablet :deep(col:nth-child(3)) {
-  width: 230px;
-}
-.keys-table.is-tablet :deep(col:nth-child(4)) {
-  width: 116px;
-}
-.keys-table.is-tablet :deep(col:nth-child(5)) {
-  width: 148px;
-}
-.keys-table :deep(tr.key-new > td.el-table__cell) {
-  background: var(--rl-primary-soft);
-}
-.keys-table :deep(tr.key-new:hover > td.el-table__cell) {
-  background: var(--rl-raised);
-}
-.k-label {
-  font-weight: 600;
-  color: var(--rl-fg);
-}
-.k-label.is-off {
-  color: var(--rl-muted);
-}
-/* a key with no label: its prefix, muted and in mono */
-.k-label--prefix {
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--rl-muted);
-}
-.k-prefix {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 2px;
-}
-.k-prefix__text {
-  font-size: 12px;
-  color: var(--rl-faint);
-}
-/* its own line under the prefix, the "any model" tag too */
-.k-models-line {
-  display: flex;
-  width: fit-content;
-  margin-top: 4px;
-}
-.k-enabled {
-  color: var(--rl-muted);
-  line-height: 24px;
-}
-/* the counts and dates take tabular figures, as the canvas's `num` cells do */
-.k-num {
-  display: block;
-  font-size: 13px;
-  white-space: nowrap;
+.num {
   font-variant-numeric: tabular-nums;
-}
-/* a block, so its own size sets the line (an inline run in the 14 px cell sits a pixel lower than drawn) */
-.k-created {
-  display: block;
-  font-size: 12px;
-  color: var(--rl-muted);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-/* tablet: the counts on one line that may wrap, the date under them */
-.k-unfinished {
-  display: block;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-.k-created--under {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
-  line-height: 16px;
-}
-.k-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-}
-.is-tablet .k-actions {
-  gap: 0;
-}
-/* the canvas's .danger:hover */
-.k-delete:hover {
-  background: var(--rl-bad-bg);
-}
-.keys-note {
-  margin: 0;
-  padding: 14px 16px;
-  font-size: 13px;
-  color: var(--rl-muted);
-}
-.k-empty-new {
-  padding: 0 14px;
-}
-/* the empty list: a heading row over the empty block (B-States) */
-.keys-card__head {
-  padding: 14px 16px;
-}
-.keys-card__head.is-error {
-  padding: 12px 16px;
-}
-.keys-card__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-.keys-card :deep(.data-table > .data-table__empty) {
-  border-top: 1px solid var(--rl-line);
-}
-/* the head: on a tablet the title block wraps beside the button, on a phone the subtitle goes under the title row */
-.keys-head.page-header--tablet {
-  flex-wrap: nowrap;
-  align-items: flex-start;
-}
-.keys-head.page-header--phone {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "title side" "sub sub";
-  align-items: center;
-  gap: 0 8px;
-}
-.keys-head.page-header--phone :deep(.page-header__text) {
-  display: contents;
-}
-.keys-head.page-header--phone :deep(.page-header__title) {
-  grid-area: title;
-}
-.keys-head.page-header--phone :deep(.page-header__subtitle) {
-  grid-area: sub;
-}
-.keys-head.page-header--phone :deep(.page-header__side) {
-  grid-area: side;
 }
 
-/* phone */
-.keys-card :deep(.data-table__main) {
-  padding: 12px 16px 6px !important;
-}
-.keys-card :deep(.data-table__item) {
-  min-height: 0;
-}
-.keys-card :deep(.data-table__item.key-new) {
-  background: var(--rl-primary-soft);
-}
-@media (max-width: 767px) {
-  .keys-note {
-    padding: 12px 16px;
-  }
-}
-.p-key {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.p-key__line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.p-key__label {
-  flex: 1;
-  min-width: 0;
-  font-size: 15px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-.p-key__label.is-off {
-  color: var(--rl-muted);
-}
-.p-key__enabled {
-  font-size: 13px;
-  color: var(--rl-muted);
-}
-.p-key__prefix {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 12px;
-  color: var(--rl-muted);
-}
-.p-key__label.is-prefix {
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--rl-muted);
-}
-.p-key__models {
+/* the head: the title and one sentence, the primary at the right */
+.kv-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 8px;
+  align-items: center;
+  gap: 12px 16px;
 }
-.p-key__models-word {
-  font-size: 12px;
-  color: var(--rl-muted);
-}
-.p-key__models-list {
+.kv-head__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   min-width: 0;
 }
-.p-key__foot {
+.kv-head h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.kv-sum {
+  margin: 0;
+  color: var(--rl-muted);
+}
+.kv-sum b {
+  color: var(--rl-fg);
+  font-weight: 700;
+}
+.kv-sum--compact {
+  font-size: 13px;
+  line-height: 1.55;
+}
+.kv-head__actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.is-compact .kv-head {
+  justify-content: flex-end;
+  gap: 0;
+}
+.is-compact .kv-head__actions {
+  margin-bottom: -4px;
+}
+.kv-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--rl-primary);
+  color: var(--rl-on-primary);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+}
+.kv-primary:hover {
+  background: var(--rl-primary-hover);
+}
+.kv-primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.kv-primary:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
+}
+.is-compact .kv-primary {
+  height: 40px;
+  font-weight: 700;
+}
+
+/* the card: its toolbar (the Show chips and the search), the list, the note */
+.kv-card {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--rl-surface);
+  box-shadow: var(--rl-shadow-card);
+}
+.kv-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rl-rule);
 }
-.p-key__facts {
-  font-size: 12px;
-  color: var(--rl-muted);
-  font-variant-numeric: tabular-nums;
+.kv-toolbar .kv-chips {
+  flex: 0 1 auto;
+  min-width: 0;
 }
-.p-key__fg {
-  color: var(--rl-fg);
+.is-compact .kv-toolbar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 12px 16px 8px;
 }
-.p-key__buttons {
+.kchip {
   display: inline-flex;
-  margin-right: -8px;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--rl-line);
+  border-radius: 999px;
+  background: var(--rl-surface);
+  color: var(--rl-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.kchip.is-on {
+  border-color: var(--rl-brand);
+  background: var(--rl-primary-soft);
+  color: var(--rl-brand-ink);
+}
+.kchip:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
+}
+.kchip__n {
+  opacity: 0.7;
+}
+.is-compact .kchip {
+  height: 40px;
+  padding: 0 14px;
+}
+.is-phone .kchip {
+  height: 44px;
+}
+.kv-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 240px;
+  max-width: 100%;
+  height: 34px;
+  margin-left: auto;
+  padding: 0 12px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-input);
+  color: var(--rl-faint);
+}
+.kv-search:focus-within {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
+}
+.kv-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--rl-fg);
+  font: inherit;
+  font-size: 13px;
+}
+.kv-search input::placeholder {
+  color: var(--rl-faint);
+}
+.kv-search.is-row {
+  width: auto;
+  height: 44px;
+  margin: 4px 0;
+}
+.kv-note {
+  margin: 0;
+  padding: 12px 20px;
+  border-top: 1px solid var(--rl-rule);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--rl-faint);
+}
+.kv-note--out {
+  padding: 0;
+  border: 0;
+  color: var(--rl-muted);
 }
 </style>

@@ -47,7 +47,8 @@ export const listKeys = (): Promise<{ items: ApiKey[] }> => request("/keys");
 export const createKey = (body: KeyBody): Promise<ApiKey & { key: string }> =>
   request("/keys", { method: "POST", body });
 
-export const patchKey = (id: string, body: KeyBody): Promise<ApiKey> =>
+// Only the fields sent change (a wallet change sends `wallets` alone).
+export const patchKey = (id: string, body: Partial<KeyBody>): Promise<ApiKey> =>
   request(`/keys/${encodeURIComponent(id)}`, { method: "PATCH", body });
 
 export const setKeyEnabled = (id: string, enabled: boolean): Promise<unknown> =>

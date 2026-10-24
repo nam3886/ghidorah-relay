@@ -5,17 +5,19 @@ import { useBreakpoint } from "@/composables/use-breakpoint";
 // it, 22 px of padding and 18 px between the parts, the lift shadow over the darker modal scrim. An optional 40 px badge
 // (radius 12) leads the title: `danger` in the red pair, `calm` in the brand pair. Title 16/24 800, text 13/20 muted;
 // the `footer` slot is right-aligned with 8 px gaps. On a phone the card is 16 px from each side, centred. Element Plus
-// keeps the focus inside and closes it on Escape; `alert` makes it an alertdialog (a confirm).
+// keeps the focus inside and closes it on Escape; `alert` makes it an alertdialog (a confirm). `ok` is the green pair
+// with a check (KeyDialogs, a key created); `locked` makes Escape and the scrim do nothing (a step that must be done).
 const props = withDefaults(
   defineProps<{
     modelValue: boolean;
     title: string;
-    tone?: "none" | "danger" | "calm";
+    tone?: "none" | "danger" | "calm" | "ok";
+    locked?: boolean;
     alert?: boolean;
     width?: string;
     testid?: string;
   }>(),
-  { tone: "none", alert: false, width: "440px", testid: undefined },
+  { tone: "none", locked: false, alert: false, width: "440px", testid: undefined },
 );
 const emit = defineEmits<{ "update:modelValue": [open: boolean]; closed: [] }>();
 const { isPhone } = useBreakpoint();
@@ -30,6 +32,8 @@ const { isPhone } = useBreakpoint();
     :show-close="false"
     :role="props.alert ? 'alertdialog' : 'dialog'"
     :data-testid="props.testid"
+    :close-on-press-escape="!props.locked"
+    :close-on-click-modal="!props.locked"
     align-center
     append-to-body
     destroy-on-close
@@ -53,6 +57,19 @@ const { isPhone } = useBreakpoint();
             <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
             <path d="M12 9v4" />
             <path d="M12 17h.01" />
+          </svg>
+          <svg
+            v-else-if="props.tone === 'ok'"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M20 6 9 17l-5-5" />
           </svg>
           <svg
             v-else
@@ -122,6 +139,10 @@ html:root .rl-modal .el-dialog__body:empty {
 .rl-modal__badge.is-danger {
   background: var(--rl-bad-bg);
   color: var(--rl-bad);
+}
+.rl-modal__badge.is-ok {
+  background: var(--rl-ok-bg);
+  color: var(--rl-ok);
 }
 .rl-modal__badge.is-calm {
   background: var(--rl-primary-soft);

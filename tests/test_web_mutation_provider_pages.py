@@ -50,8 +50,7 @@ def test_the_strip_of_a_one_provider_page():
                           "last")
 @mutation(KEYS, "scope.provider ? items.value.filter((k) => keyReaches(k, scope.provider, known.value)) : items.value",
           "items.value",
-          expect=KEYS_STRIP + "a provider shows the keys that may use its models, only its models, the points "
-                              "wallet and its cap; paused is greyed")
+          expect=KEYS_STRIP + "a provider shows the keys that may use its models, and only its cap chip")
 @pytest.mark.web_unit
 def test_the_keys_page_by_provider():
     vitest(KEY_SPEC, KEYS_SPEC)
