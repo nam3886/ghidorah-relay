@@ -211,13 +211,6 @@ describe("DataTable cells, actions and rows", () => {
     expect(w.emitted("row-click")).toBeUndefined();
   });
 
-  it("marks the rows that need a look, not the neutral ones", async () => {
-    const w = await table({ rowTone: (r: { id: string }) => (r.id === "a" ? "bad" : "neutral") });
-    const trs = w.findAll("tbody tr");
-    expect(trs[0]!.classes()).toContain("row-tone-bad");
-    expect(trs[1]!.classes().join(" ")).not.toContain("row-tone");
-  });
-
   it("has no inner scroll unless the caller sets a max height", async () => {
     // The page scrolls; a table holds a fixed height only when a caller asks for one.
     const fallback = await table();

@@ -4,7 +4,6 @@ import { useBreakpoint } from "@/composables/use-breakpoint";
 import { daySpanMethod, isDayRow, type DayRow } from "@/lib/day-rows";
 import { IconAlertCircle } from "./icons";
 import type { Column } from "./types";
-import type { Tone } from "./status-tones";
 
 // One table for every list. Cells come from the column list (`row[key]`) or a `cell-<key>` slot; row actions go in
 // the `actions` slot; the `empty-action` slot is the call to action of an empty list. States:
@@ -16,7 +15,6 @@ import type { Tone } from "./status-tones";
 //   tabletColumns  keys shown from 768 to 1279 px (the other fields fold into a cell the view draws)
 //   row slot       the phone layout (< 768 px): a stacked row list instead of the table, with the same selection,
 //                  row click and day headers; the table is not rendered then, and `actions` is not shown
-//   toneFill       a row tone fills the whole row instead of the inset bar
 //   spanMethod / rowClassName   passed to el-table
 // Day rows (lib/day-rows.ts) may be mixed into `rows`: they draw a header across the table, are never selectable and
 // never reach `selection-change`, `row-click` or a slot.
@@ -30,8 +28,6 @@ const props = withDefaults(
     rowKey?: string;
     // a row that opens something: clicking it (not a button or a field inside it) emits `row-click`
     rowClickable?: boolean;
-    // a left bar in the status colour for the rows that need a look (dead, failed, unknown)
-    rowTone?: (row: T) => Tone | undefined;
     maxHeight?: string;
     skeletonRows?: number;
     // minimum width of the Actions column: Element Plus gives it about 110 px, which clips two or three buttons
@@ -43,7 +39,6 @@ const props = withDefaults(
     // the table's selection, unseen, until setSelection replaces them.
     keepSelection?: boolean;
     tabletColumns?: string[];
-    toneFill?: boolean;
     spanMethod?: (args: {
       row: T | DayRow;
       column: unknown;
@@ -67,14 +62,12 @@ const props = withDefaults(
     emptyText: "Nothing here yet",
     rowKey: "id",
     rowClickable: false,
-    rowTone: undefined,
     maxHeight: undefined,
     skeletonRows: 5,
     actionsWidth: 200,
     selectable: false,
     keepSelection: false,
     tabletColumns: undefined,
-    toneFill: false,
     spanMethod: undefined,
     rowClassName: undefined,
     rowLabel: undefined,
@@ -241,15 +234,8 @@ const state = computed(() =>
 // Element Plus probes each column's slot once with an empty row and index -1; a real row has index 0 or more.
 const isData = (index: number): boolean => index >= 0;
 
-function toneClasses(row: T): string {
-  const tone = props.rowTone?.(row);
-  if (!tone || tone === "neutral") return "";
-  return `row-tone row-tone-${tone}${props.toneFill ? " row-tone-fill" : ""}`;
-}
-
 function rowClasses(row: T, rowIndex: number): string {
   return [
-    toneClasses(row),
     selectedKeys.value.has(keyOf(row)) ? "is-selected" : "",
     props.rowClassName?.({ row, rowIndex }) ?? "",
   ]
@@ -299,7 +285,6 @@ function onListKey(row: T, event: KeyboardEvent) {
     :class="{
       'is-refreshing': refreshing,
       'is-tablet': isTablet,
-      'is-tone-fill': props.toneFill,
       'has-selection': props.selectable,
     }"
     :aria-busy="props.loading"
@@ -524,54 +509,11 @@ function onListKey(row: T, event: KeyboardEvent) {
 :deep(.el-table.is-clickable .el-table__row) {
   cursor: pointer;
 }
-/* tone: an inset bar on the first cell, or (toneFill) the whole row. Only a failed row is tinted in the canvas: the
-   fill of every other tone is empty, an unknown row included. */
-:deep(.el-table .row-tone > td.el-table__cell:first-child) {
-  box-shadow: inset 2px 0 0 var(--row-tone-color);
-}
-.is-tone-fill :deep(.el-table .row-tone > td.el-table__cell:first-child) {
-  box-shadow: none;
-}
-:deep(.el-table .row-tone-bad),
-.data-table__item.row-tone-bad {
-  --row-tone-color: var(--rl-bad);
-  --row-tone-fill: var(--rl-bad-bg);
-}
-:deep(.el-table .row-tone-warn),
-.data-table__item.row-tone-warn {
-  --row-tone-color: var(--rl-warn);
-  --row-tone-fill: transparent;
-}
-:deep(.el-table .row-tone-info),
-.data-table__item.row-tone-info {
-  --row-tone-color: var(--rl-info);
-  --row-tone-fill: transparent;
-}
-:deep(.el-table .row-tone-ok),
-.data-table__item.row-tone-ok {
-  --row-tone-color: var(--rl-ok);
-  --row-tone-fill: transparent;
-}
 :deep(.el-table .is-selected > td.el-table__cell) {
   background: var(--rl-primary-soft);
 }
 .data-table__item.is-selected {
   background: var(--rl-primary-soft);
-}
-.data-table__item.row-tone-fill {
-  background: var(--row-tone-fill);
-}
-.data-table__item.row-tone-fill.is-selected {
-  background: var(--rl-primary-soft);
-}
-:deep(.el-table .row-tone-fill > td.el-table__cell) {
-  background: var(--row-tone-fill);
-}
-:deep(.el-table .row-tone-fill.is-selected > td.el-table__cell) {
-  background: var(--rl-primary-soft);
-}
-:deep(.el-table .row-tone-fill:hover > td.el-table__cell) {
-  background: var(--rl-raised);
 }
 /* day header rows: one cell across the whole table (daySpanMethod), the label 16 px in, as the canvas's
    `th colspan` with `padding 14px 16px 6px`. `tr` keeps these rules above a view's own cell padding */

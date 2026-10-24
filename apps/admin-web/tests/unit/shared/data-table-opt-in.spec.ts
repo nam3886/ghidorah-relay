@@ -308,17 +308,6 @@ describe("DataTable tablet and opt-in props", () => {
     expect(w.find("tbody tr.is-day td[colspan='2']").exists()).toBe(true);
   });
 
-  it("toneFill marks the toned rows for a full-row fill; without it only the inset bar", async () => {
-    const rowTone = (r: { id: string }) =>
-      r.id === "b" ? ("bad" as const) : r.id === "c" ? ("neutral" as const) : undefined;
-    const fill = await table({ rows: jobs, rowTone, toneFill: true });
-    expect(fill.findAll("tbody tr.row-tone-fill")).toHaveLength(1);
-    expect(fill.find("tr.row-tone-fill").classes()).toContain("row-tone-bad");
-    const bar = await table({ rows: jobs, rowTone });
-    expect(bar.findAll("tbody tr.row-tone")).toHaveLength(1);
-    expect(bar.findAll("tbody tr.row-tone-fill")).toHaveLength(0);
-  });
-
   it("rowClassName is added to a data row with that row, and never to a day row", async () => {
     const rowClassName = vi.fn(({ row }: { row: { id: string } }) => `mine-${row.id}`);
     const w = await table({ rowClassName });
@@ -462,12 +451,4 @@ describe("DataTable phone list", () => {
     expect(w.find(".act").exists()).toBe(true);
   });
 
-  it("a toned job carries its tone class", async () => {
-    stubWidth("phone");
-    const w = await table(
-      { rowTone: (r: { id: string }) => (r.id === "a" ? ("bad" as const) : undefined), toneFill: true },
-      slots,
-    );
-    expect(w.findAll("li.row-tone-bad.row-tone-fill")).toHaveLength(1);
-  });
 });

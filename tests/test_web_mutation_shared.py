@@ -240,9 +240,6 @@ OPT_IN_SPEC = "tests/unit/shared/data-table-opt-in.spec.ts"
           expect="on a tablet shows the priority columns only")
 @mutation(TABLE, "props.tabletColumns!.includes(c.key)", "!props.tabletColumns!.includes(c.key)",
           expect="on a tablet shows the priority columns only")
-@mutation(TABLE, 'props.toneFill ? " row-tone-fill" : ""', '""', expect="toneFill marks the toned rows")
-@mutation(TABLE, 'if (!tone || tone === "neutral") return "";', 'if (!tone) return "";',
-          expect="toneFill marks the toned rows")
 @mutation(TABLE, 'selectedKeys.value.has(keyOf(row)) ? "is-selected" : ""', '""',
           expect="its row is marked selected")
 @mutation(TABLE, "isPhone.value && !!slots.row", "isPhone.value",

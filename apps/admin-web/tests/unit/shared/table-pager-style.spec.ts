@@ -35,11 +35,8 @@ describe("table: the drawn values", () => {
     expect(rule(TABLE, ":deep(.el-table .el-table__cell:last-child .cell) {")).toContain("padding-right: 16px");
   });
 
-  it("only a failed row is tinted: the fill of an unknown, running or done row is empty", () => {
-    expect(rule(TABLE, ":deep(.el-table .row-tone-bad),")).toContain("--row-tone-fill: var(--rl-bad-bg)");
-    for (const tone of ["warn", "info", "ok"]) {
-      expect(rule(TABLE, `:deep(.el-table .row-tone-${tone}),`)).toContain("--row-tone-fill: transparent");
-    }
+  it("tints no row: the table has no tone rules", () => {
+    expect(TABLE).not.toMatch(/row-tone/);
   });
 
   it("a selected row is the soft primary and a hovered row is the raised fill", () => {
