@@ -1336,13 +1336,15 @@ onMounted(async () => {
 .is-phone .blk.key,
 .is-phone .blk.models,
 .is-phone .pgroup {
-  display: block;
+  /* a fieldset and a flex item would grow to their chips' width: they keep the screen's */
+  min-width: 0;
   border: 0;
   border-radius: 16px;
   background: var(--rl-surface);
   box-shadow: var(--rl-shadow-card);
 }
 .is-phone .pgroup {
+  display: block;
   padding: 16px 0 4px;
 }
 .is-phone .pgroup .blk {
