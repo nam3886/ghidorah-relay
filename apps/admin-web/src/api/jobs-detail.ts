@@ -61,6 +61,8 @@ export interface JobDetail extends JobSummary {
   sent_text: string | null;
   // net points charged less the upstream cost (a unit counts as a point); null while that cost is unknown
   upstream_cost?: number | null;
+  // the unit of that cost: its pool's (credits, jobs or uses); null when the job has no pool
+  cost_unit?: "credits" | "jobs" | "uses" | null;
   margin?: number | null;
   // the account's proxy as host:port, never its credentials
   proxy?: string | null;

@@ -466,7 +466,9 @@ describe("conclusion, ledger, prompt and technical", () => {
       .map((c) => c.text());
 
   it("Money: what was charged, what went back, what the upstream took and the margin after it", async () => {
-    await show(detail({ price: 3, net_charged: 3, account_cost: 1, upstream_cost: 1, margin: 2 }));
+    await show(
+      detail({ price: 3, net_charged: 3, account_cost: 1, upstream_cost: 1, cost_unit: "credits", margin: 2 }),
+    );
     expect(money()).toEqual([
       "Charged3 ptsveo",
       "Refunded0 ptsnothing failed",
@@ -474,6 +476,12 @@ describe("conclusion, ledger, prompt and technical", () => {
       "Margin+2 ptsafter upstream",
     ]);
     expect(section("money").find(".jd-money__value.is-ok").text()).toBe("+2 pts");
+  });
+
+  it("a cost in a unit Settings has no points rule for is named in its unit and leaves the margin a dash", async () => {
+    await show(detail({ upstream_cost: 2, cost_unit: "jobs", margin: null }));
+    expect(money()[2]).toBe("Upstream cost2 jobsdola video pool");
+    expect(money()[3]).toBe("Margin—no points rule for this unit");
   });
 
   it("the drawer shows the proxy, the upstream ids, the raw exchanges and the diagnostics the server gives", async () => {

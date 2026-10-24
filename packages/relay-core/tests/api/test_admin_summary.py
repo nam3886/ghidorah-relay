@@ -9,6 +9,7 @@ from accountkit import done_job
 from apikit import run_app
 from jobkit import account, key
 
+from relay_core.admin import routes_stats
 from relay_core.providers import PoolSpec, ProviderRegistry, RegistryError
 from relay_core.settings import Rule, SettingsError, Spec
 from relay_core.testing.fake_provider import FakeSpec
@@ -175,7 +176,7 @@ def test_an_empty_relay_gives_zero_figures_and_zero_filled_hours(db):
     assert all(h["done"] == {"fake": 0} and h["failed"] == {"fake": 0} for h in body["hours"])
 
 
-@mutation(ROUTES, '"AND finished_at < %(now)s - %(span)s")', '"AND finished_at < %(now)s")', expect="prev_done")
+@mutation(ROUTES, '{"from": before, "to": until}', '{"from": before, "to": now}', expect="prev_done")
 @mutation(ROUTES, "first = day_start.astimezone(zone).date() - timedelta(days=days - 1)",
           "first = day_start.astimezone(zone).date() - timedelta(days=days)", expect="range start")
 @mutation(ROUTES, "_SUMMARY_HOURS if days == 1 else _SUMMARY_DAYS", "_SUMMARY_HOURS", expect="days")
@@ -267,3 +268,21 @@ def test_a_rule_with_choices_refuses_a_value_outside_them_whatever_its_check_say
     assert spec.validate("browser") == "browser"
     with pytest.raises(SettingsError, match="must be one of http, browser"):
         spec.validate("ftp")
+
+
+NEW_YORK = "America/New_York"         # DST starts 2026-03-08 at 02:00: that day has 23 hours
+
+
+@mutation(ROUTES, "    back = (clock.replace(tzinfo=None) - timedelta(days=days)).replace(tzinfo=zone)",
+          "    back = clock - timedelta(days=days)", expect="the same wall clock")
+@mutation(ROUTES, "    first = range_start(day_start, tz, days).date() - timedelta(days=days)",
+          "    first = range_start(day_start, tz, days).date() - timedelta(days=days - 1)", expect="the first day")
+def test_the_stretch_before_keeps_local_calendar_days_across_a_dst_change():
+    ny = ZoneInfo(NEW_YORK)
+    day_start, noon = datetime(2026, 3, 8, tzinfo=ny), datetime(2026, 3, 8, 12, tzinfo=ny)
+    before, until = routes_stats.previous_window(day_start, noon, NEW_YORK, 1)
+    assert before == datetime(2026, 3, 7, tzinfo=ny), "the first day: yesterday's local midnight"
+    assert until == datetime(2026, 3, 7, 12, tzinfo=ny), "the same wall clock yesterday (17:00 UTC, not 16:00)"
+    before, until = routes_stats.previous_window(day_start, noon, NEW_YORK, 7)
+    assert before == datetime(2026, 2, 23, tzinfo=ny), "the first day of the 7 days before Mar 2 to Mar 8"
+    assert until == datetime(2026, 3, 1, 12, tzinfo=ny), "the same wall clock a week before"

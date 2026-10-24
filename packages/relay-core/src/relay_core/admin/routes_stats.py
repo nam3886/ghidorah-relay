@@ -245,10 +245,20 @@ _SUMMARY_DAYS = (
     "FROM jobs WHERE status IN ('done', 'failed') AND finished_at >= %(start)s GROUP BY 1, 2")
 # The jobs done over the same stretch one range earlier: today against yesterday up to the same clock, 7 days against
 # the 7 days before them.
-_PREV_DONE = ("SELECT count(*) FROM jobs WHERE status = 'done' AND finished_at >= %(start)s - %(span)s "
-              "AND finished_at < %(now)s - %(span)s")
+_PREV_DONE = "SELECT count(*) FROM jobs WHERE status = 'done' AND finished_at >= %(from)s AND finished_at < %(to)s"
 HOUR_MS = 3_600_000
 RANGES = {"today": 1, "7d": 7, "30d": 30}             # the Jobs page's range switch: its length in local days
+
+
+def previous_window(day_start: datetime, now: datetime, tz: str, days: int) -> tuple[datetime, datetime]:
+    """The same stretch one range earlier, in local calendar days of `tz`: from the midnight `days` local days before
+    the range's first day, to the same wall clock `days` local days before `now`. Across a DST change the two ends
+    keep their local times (yesterday 00:00 to 12:00 is twelve local hours, not 24 h before)."""
+    zone = ZoneInfo(tz)
+    first = range_start(day_start, tz, days).date() - timedelta(days=days)
+    clock = now.astimezone(zone)
+    back = (clock.replace(tzinfo=None) - timedelta(days=days)).replace(tzinfo=zone)
+    return datetime.combine(first, time(), tzinfo=zone), back
 
 
 def range_start(day_start: datetime, tz: str, days: int) -> datetime:
@@ -279,8 +289,8 @@ async def providers_summary(span: str = Query("today", alias="range"), pool: Asy
         jobs = {r[0]: r[1:] for r in await (await conn.execute(_SUMMARY_JOBS, {"start": start})).fetchall()}
         hourly = await (await conn.execute(_SUMMARY_HOURS if days == 1 else _SUMMARY_DAYS,
                                            {"start": start, "tz": tz})).fetchall()
-        prev_done = (await (await conn.execute(_PREV_DONE, {
-            "start": start, "now": now, "span": timedelta(days=days)})).fetchone())[0]
+        before, until = previous_window(day_start, now, tz, days)
+        prev_done = (await (await conn.execute(_PREV_DONE, {"from": before, "to": until})).fetchone())[0]
         accounts = {r[0]: r[1:] for r in await (await conn.execute(_USABLE)).fetchall()}
         per = await _pool_points(conn, settings, registry, None)
     cards = []

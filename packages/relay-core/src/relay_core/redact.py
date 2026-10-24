@@ -166,3 +166,35 @@ def install_log_redaction(*logger_names: str) -> None:
 def redact_log(value: Any) -> Any:
     """What a log line or event stores: trimmed first, then redacted."""
     return redact(trim_log_value(value))
+
+
+# The query of a URL: from its `?` to the first character a URL cannot hold unquoted (or a fragment). Bounded by the
+# trim before it (no string over LOG_VALUE_LIMIT reaches here), and linear: one pass, no nested quantifier.
+_URL_QUERY = re.compile(r"(?i)(\b[a-z][a-z0-9+.-]{0,31}://[^\s\"'<>?#]*\?)([^\s\"'<>#]*)")
+_QUERY_PAIR = re.compile(r"([^&;=]*)(=?)([^&;]*)")
+
+
+def _blank_query(match: re.Match[str]) -> str:
+    def pair(m: re.Match[str]) -> str:
+        name, eq, value = m.groups()
+        if not (name or value):
+            return m.group(0)
+        return name + "=" + REDACTED if eq else REDACTED
+    return match.group(1) + _QUERY_PAIR.sub(pair, match.group(2))
+
+
+def _blank_urls(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _blank_urls(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_blank_urls(v) for v in value]
+    if isinstance(value, str):
+        return _URL_QUERY.sub(_blank_query, value)
+    return value
+
+
+def redact_shown(value: Any) -> Any:
+    """What the admin is shown of a stored request, answer or provider state: `redact_log`, then the value of every
+    query parameter of every URL in any string at any depth (JSON held in a string included) is replaced, its name
+    kept so the URL still reads. A signed result URL loses its signature: the admin has its own media links."""
+    return _blank_urls(redact_log(value))

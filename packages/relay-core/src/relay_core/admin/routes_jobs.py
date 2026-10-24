@@ -33,7 +33,7 @@ from relay_core.jobs.create import InputMedia
 from relay_core.jobs.shares import PgShareTable
 from relay_core.jobs.titles import SHOWN_TITLE
 from relay_core.providers import CreateRequest, MediaIn, Plan, ProviderRegistry
-from relay_core.redact import redact_log, redact_text
+from relay_core.redact import redact_shown, redact_text
 from relay_core.settings import Settings
 from relay_core.storage import ObjectStore
 
@@ -42,6 +42,10 @@ router = APIRouter()
 
 TITLE_LIMIT = 200
 RECHECKABLE = ("failed", "waiting", "unknown")
+STATUSES = ("queued", "submitting", "unknown", "waiting", "fetching", "done", "failed")     # jobs.status (0003)
+# What one unit of a pool counts in points for the margin: the rule of Settings' "Models and prices" (settings-cards.ts
+# marginOf: "1 credit or 1 use counts as 1 point"). A pool counted in jobs has no such rule, so its margin is null.
+UNIT_POINTS = {"credits": 1, "uses": 1}
 TERMINAL = ("done", "failed")
 MAX_BULK = 100
 MAX_OFFSET = 1_000_000                               # a deeper page is a scan nobody reads; use the cursor
@@ -160,6 +164,14 @@ def _upstream_ids(provider: str, external_ref: str | None, state: dict) -> tuple
     return conversation, task
 
 
+def _pool_unit(registry: ProviderRegistry, provider: str, pool_name: str | None) -> str | None:
+    """The unit the job's pool counts in, from the provider's spec; None for a job with no pool or a provider that is
+    not registered here."""
+    if pool_name is None or provider not in registry.names():
+        return None
+    return next((p.unit for p in registry.spec(provider).caps.pools if p.name == pool_name), None)
+
+
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
@@ -217,6 +229,8 @@ async def list_jobs(status: str | None = None, provider: str | None = None, key_
     zone = None if tz is None else _zone(tz)
     at, cid = _cursor(cursor) if cursor is not None else (None, None)
     statuses = [s for s in (status or "").split(",") if s] or None
+    if statuses is not None and (len(statuses) > len(STATUSES) or not set(statuses) <= set(STATUSES)):
+        raise ApiError("input.invalid", "status")
     args: dict[str, Any] = {"status": statuses, "provider": provider, "key": key_id}
     day_totals: dict[str, int] = {}
     async with tx(pool) as conn:
@@ -260,13 +274,15 @@ async def list_jobs(status: str | None = None, provider: str | None = None, key_
 
 
 @router.get("/jobs/{job_id}")
-async def job_detail(job_id: uuid.UUID, request: Request, pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
-    """The job, its events, media and debug files, plus what the drawer's Overview and Technical tabs draw: `margin`
-    (net points charged less the upstream cost, a unit counted as a point; null while that cost is unknown), `proxy`
+async def job_detail(job_id: uuid.UUID, request: Request, pool: AsyncConnectionPool = Depends(get_pool),
+                     registry: ProviderRegistry = Depends(get_registry)) -> dict:
+    """The job, its events, media and debug files, plus what the drawer's Overview and Technical tabs draw:
+    `upstream_cost` in `cost_unit` (the pool's unit: credits, jobs or uses), `margin` (net points charged less that
+    cost at UNIT_POINTS; null while the cost is unknown or its unit has no points rule), `proxy`
     (the account's host:port, never its credentials), `conversation` and `provider_task_id` (the upstream's ids),
     `raw_request` (the request log's row of the creating call, else the stored request), `raw_response` (what
     GET /v1/<media>/generations/<id> answers the job's key now) and `diagnostics` (the provider's own state of the
-    job). Everything raw goes through the redactor."""
+    job). Everything raw goes through `redact_shown`: secrets masked and every URL query value blanked."""
     async with tx(pool) as conn:
         row = await (await conn.execute(_DETAIL, (job_id,))).fetchone()
         if row is None:
@@ -289,6 +305,8 @@ async def job_detail(job_id: uuid.UUID, request: Request, pool: AsyncConnectionP
         answer = None
     conversation, task_id = _upstream_ids(item["provider"], item["external_ref"], state)
     cost = upstream_price if upstream_price is not None else account_cost if item["status"] == "done" else None
+    unit = _pool_unit(registry, item["provider"], pool_name)
+    per = UNIT_POINTS.get(unit) if unit else None
     item.update({
         "key_prefix": key_prefix, "prompt": prompt, "marker": marker, "params": params, "completion": completion,
         "price_key": price_key,
@@ -299,17 +317,18 @@ async def job_detail(job_id: uuid.UUID, request: Request, pool: AsyncConnectionP
         "callback": {"status": callback_status, "attempts": callback_attempts, "last": callback_last},
         "net_charged": net, "no_recheck": state.get("no_recheck") is True,
         "frame_id": frame_id, "sent_text": sent_text,
-        "upstream_cost": cost, "margin": None if cost is None else net - cost,
+        "upstream_cost": cost, "cost_unit": unit,
+        "margin": None if cost is None or per is None else net - cost * per,
         "proxy": None if not proxy_host else redact_text("%s:%s" % (proxy_host, proxy_port) if proxy_port
                                                          else proxy_host),
         "conversation": conversation, "provider_task_id": task_id,
-        "raw_request": ({"route": logged[0], "status_code": logged[1], "body": redact_log(logged[2])} if logged
+        "raw_request": ({"route": logged[0], "status_code": logged[1], "body": redact_shown(logged[2])} if logged
                         else None if stored_request is None
-                        else {"route": None, "status_code": None, "body": redact_log(stored_request)}),
+                        else {"route": None, "status_code": None, "body": redact_shown(stored_request)}),
         "raw_response": None if answer is None else {
             "route": "GET /v1/%s/generations/%s" % ("video" if item["media_type"] == "video" else "images", item["id"]),
-            "status_code": 200, "body": redact_log(answer)},
-        "diagnostics": redact_log(state),
+            "status_code": 200, "body": redact_shown(answer)},
+        "diagnostics": redact_shown(state),
         "events": [{"id": e[0], "at_ms": ms(e[1]), "source": e[2], "stage": e[3], "text": e[4]} for e in events],
         # only same-origin `/m/` links are ever handed to the page; a revoked or expired token has none
         "media": [{"role": m[0], "idx": m[1], "mime": m[2], "size": m[3], "width": m[4], "height": m[5],

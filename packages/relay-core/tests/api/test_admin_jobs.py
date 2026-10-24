@@ -1013,9 +1013,11 @@ SEARCH_KEY = "sk.label ILIKE %(q)s"
 SEARCH_ACCOUNT = "sa.label ILIKE %(q)s"
 LIKE_ESCAPE = r'like = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")'
 RANGE_FLOOR = 'if floor is not None and (window["from"] is None or window["from"] < floor):'
+STATUS_CHECK = "    if statuses is not None and (len(statuses) > len(STATUSES) or not set(statuses) <= set(STATUSES)):"
 COUNTS_NO_STATUS = '_STATUS_COUNTS = "SELECT j.status, count(*) FROM jobs j WHERE " + _NO_STATUS'
 
 
+@mutation(ROUTES, STATUS_CHECK, "    if False:", expect="an unknown status")
 @mutation(ROUTES, SEARCH_PROMPT, " OR false", expect="prompt")
 @mutation(ROUTES, SEARCH_KEY, "false", expect="key label")
 @mutation(ROUTES, SEARCH_ACCOUNT, "false", expect="account label")
@@ -1042,9 +1044,11 @@ def test_the_list_takes_a_range_a_search_and_several_statuses_and_counts_each_st
         h = await env.admin_headers()
         get = lambda q: env.client.get("/admin/jobs?" + q, headers=h)  # noqa: E731
         got = {q: (await get(q)).json() for q in asked}
-        return got, (await get("range=year")).status_code, (await get("q=" + "x" * 201)).status_code
+        refused = [(await get(q)).status_code for q in (
+            "range=year", "q=" + "x" * 201, "status=failed,bogus", "status=" + ",".join(["done"] * 8))]
+        return got, refused
 
-    got, bad, long = run_app(db, scenario)
+    got, refused = run_app(db, scenario)
     ids = lambda q: sorted(i["id"] for i in got[q]["items"])  # noqa: E731
     check = Soft()
     check(ids("range=today") == sorted(map(str, (lantern, pho, queued))), "range: today only")
@@ -1059,22 +1063,30 @@ def test_the_list_takes_a_range_a_search_and_several_statuses_and_counts_each_st
     counts = got["range=7d&status=done"]["status_counts"]
     check(counts == {"done": 2, "failed": 1, "queued": 1}, "status counts: every status, not only the chosen one")
     check(got["range=7d&status=done"]["total"] == 2, "the total follows the status")
-    check((bad, long) == (400, 400), "a bad range or an overlong search is refused")
+    check(refused == [400, 400, 400, 400],
+          "a bad range, an overlong search, an unknown status or more than 7 statuses is refused")
     check.done()
 
 
 SECRETS = ("sk-live-0123456789abcdef", "abc.def.ghi", "zzzsession", "pw-proxy-9", "hook-pass", "SEKRET42",
-           "state-token-7", "rk-0123456789abcdefABCD")
-RAW_REQUEST_REDACTED = '{"route": logged[0], "status_code": logged[1], "body": redact_log(logged[2])}'
-RAW_STATE_REDACTED = '"diagnostics": redact_log(state),'
+           "state-token-7", "rk-0123456789abcdefABCD", "short-api-key-12345", "oauthcode-555", "acctok-444",
+           "gsig-333-signature", "urlsess-777")
+RAW_REQUEST_REDACTED = '{"route": logged[0], "status_code": logged[1], "body": redact_shown(logged[2])}'
+RAW_STATE_REDACTED = '"diagnostics": redact_shown(state),'
+REDACT = "packages/relay-core/src/relay_core/redact.py"
+URL_PASS = "    return _blank_urls(redact_log(value))"
+MARGIN_RULE = "        \"margin\": None if cost is None or per is None else net - cost * per,"
 
 
 @mutation(ROUTES, RAW_REQUEST_REDACTED, '{"route": logged[0], "status_code": logged[1], "body": logged[2]}',
           expect="a secret reached the drawer")
 @mutation(ROUTES, RAW_STATE_REDACTED, '"diagnostics": state,', expect="a secret reached the drawer")
+@mutation(REDACT, URL_PASS, "    return redact_log(value)", expect="a secret reached the drawer")
+@mutation(ROUTES, MARGIN_RULE, '        "margin": None if cost is None else net - cost,',
+          expect="a pool counted in jobs")
 @mutation(ROUTES, "AND job_id = %(id)s AND route NOT LIKE 'GET %%' ", "AND route NOT LIKE 'GET %%' ",
           expect="the creating request")
-def test_the_drawers_raw_request_response_and_diagnostics_never_show_a_secret(db):
+def test_the_drawers_raw_request_response_and_diagnostics_never_show_a_secret(db, monkeypatch):
     k = key(db)
     acct = account(db)
     db.run("UPDATE accounts SET proxy_host = '203.0.113.24', proxy_port = 8080, proxy_auth_enc = '\\x01' "
@@ -1082,7 +1094,9 @@ def test_the_drawers_raw_request_response_and_diagnostics_never_show_a_secret(db
 
     job = run(db, lambda p: waiting_job(p, k, "a lantern"))
     other = run(db, lambda p: create(p, k, "another")).job_id
-    state = {"chat": "c_9f31", "token": SECRETS[6], "note": "cookie: sessionid=%s" % SECRETS[2]}
+    state = {"chat": "c_9f31", "token": SECRETS[6], "note": "cookie: sessionid=%s" % SECRETS[2],
+             "poll": "https://provider.example/task?session=" + SECRETS[2],
+             "auth": [{"next": "https://login.example/cb?code=%s&state=x" % SECRETS[9]}]}
     db.run("UPDATE jobs SET upstream_price = 4, provider_state = %s::jsonb WHERE id = %s", json.dumps(state), job)
     ref, used = db.one("SELECT external_ref, account_id FROM jobs WHERE id = %s", job)
     assert ref and used == acct
@@ -1090,17 +1104,26 @@ def test_the_drawers_raw_request_response_and_diagnostics_never_show_a_secret(db
             "headers": {"Authorization": "Bearer " + SECRETS[1], "Cookie": "sessionid=" + SECRETS[2]},
             "proxy_url": "http://user:%s@203.0.113.24:8080" % SECRETS[3],
             "callback_url": "https://hook:%s@hooks.example.com/x?token=%s" % (SECRETS[4], SECRETS[5]),
-            "note": "key " + SECRETS[7]}
+            "note": "key " + SECRETS[7],
+            "url": "https://provider.example/task?session=" + SECRETS[12],
+            "options": {"hook": "see https://api.example/v1?key=%s for more" % SECRETS[8]},
+            # JSON held in a string, a token in camel case, a signed CDN result
+            "upstream": json.dumps({"next": "https://api.example/poll?accessToken=" + SECRETS[10]}),
+            "result": "https://lh3.googleusercontent.com/fife/abc=s0?Expires=1793000000&Signature=%s&Key-Pair-Id=K1"
+                      % SECRETS[11]}
     for job_id, at in ((other, "now() - interval '1 second'"), (job, "now()")):   # another job's row comes first
         db.run("INSERT INTO request_logs (at, key_id, provider, route, status_code, job_id, duration_ms, "
                "body_redacted) VALUES (" + at + ", %s, %s, 'POST /v1/video/generations', 201, %s, 5, %s::jsonb)",
                k, PROVIDER, job_id, json.dumps({**body, "prompt": str(job_id)}))
 
     async def scenario(env):
-        r = await env.client.get("/admin/jobs/%s" % job, headers=await env.admin_headers())
-        return r.status_code, r.text, r.json()
+        h = await env.admin_headers()
+        r = await env.client.get("/admin/jobs/%s" % job, headers=h)
+        monkeypatch.setattr(routes_jobs, "UNIT_POINTS", {"jobs": 2})        # a points rule for the fake's unit
+        priced = (await env.client.get("/admin/jobs/%s" % job, headers=h)).json()
+        return r.status_code, r.text, r.json(), priced
 
-    status, text, d = run_app(db, scenario)
+    status, text, d, priced = run_app(db, scenario)
     assert status == 200, text
     leaked = [s for s in SECRETS if s in text]
     assert not leaked, "a secret reached the drawer: %s" % leaked
@@ -1112,4 +1135,8 @@ def test_the_drawers_raw_request_response_and_diagnostics_never_show_a_secret(db
     assert d["proxy"] == "203.0.113.24:8080", "host and port, never the proxy's credentials"
     assert (d["conversation"], d["provider_task_id"]) == ("c_9f31", ref)
     assert d["diagnostics"]["chat"] == "c_9f31"
-    assert d["net_charged"] > 0 and (d["upstream_cost"], d["margin"]) == (4, d["net_charged"] - 4)
+    assert raw["body"]["url"] == "https://provider.example/task?session=[redacted]", "the URL shape reads"
+    assert d["diagnostics"]["poll"] == "https://provider.example/task?session=[redacted]"
+    assert (d["upstream_cost"], d["cost_unit"], d["margin"]) == (4, "jobs", None), \
+        "a pool counted in jobs has no points rule: no margin"
+    assert d["net_charged"] > 0 and priced["margin"] == d["net_charged"] - 4 * 2, "the unit's points rule"

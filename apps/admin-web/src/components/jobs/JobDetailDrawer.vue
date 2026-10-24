@@ -186,8 +186,14 @@ const asText = (v: unknown): string => (v === undefined || v === null || v === "
 const param = (...names: string[]): string => jobParam(job.value?.params, ...names);
 
 // Money (JobDetail): Charged, Refunded, Upstream cost, Margin. The upstream cost is what the upstream took (else the
-// expected cost of a done job); the margin is the server's net points less that cost, a credit or a use counted as a
-// point (Settings says the same). A cost the server does not know shows the dash.
+// expected cost of a done job), in its pool's unit ("1 credit", "2 uses", "1 job"); the margin is the server's: net
+// points less that cost where Settings' rule turns the unit into points (a credit or a use is a point), else the dash.
+const unitWord = (unit: string | null | undefined): string =>
+  unit === "credits" ? "credit" : unit === "uses" ? "use" : unit === "jobs" ? "job" : "";
+const costText = (n: number, unit: string | null | undefined, pool = ""): string => {
+  const word = unitWord(unit);
+  return word ? plural(n, pool ? `${pool} ${word}` : word) : String(n);
+};
 const money = computed(() => {
   const j = job.value;
   if (!j) return [];
@@ -215,14 +221,15 @@ const money = computed(() => {
     },
     {
       label: "Upstream cost",
-      value: cost === null ? "—" : plural(cost, "credit"),
+      value: cost === null ? "—" : costText(cost, j.cost_unit),
       note: cost === null ? "not known yet" : [j.provider, j.pool, j.pool ? "pool" : ""].filter(Boolean).join(" "),
       tone: "",
     },
     {
       label: "Margin",
       value: margin === null ? "—" : `${margin > 0 ? "+" : margin < 0 ? "−" : ""}${Math.abs(margin)} pts`,
-      note: margin === null ? "needs the upstream cost" : "after upstream",
+      note:
+        margin !== null ? "after upstream" : cost === null ? "needs the upstream cost" : "no points rule for this unit",
       tone: margin === null ? "" : margin < 0 ? "bad" : "ok",
     },
   ];
@@ -233,7 +240,7 @@ const moneyRows = computed<LedgerRow[]>(() =>
     label: m.label,
     value:
       m.label === "Upstream cost" && job.value?.pool && job.value.upstream_cost != null
-        ? plural(job.value.upstream_cost, `${job.value.pool} credit`)
+        ? costText(job.value.upstream_cost, job.value.cost_unit, job.value.pool)
         : m.value,
     tone: (m.tone || undefined) as LedgerRow["tone"],
   })),
