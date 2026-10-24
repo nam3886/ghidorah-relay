@@ -289,7 +289,7 @@ SHELL_FAILED = "FAILED tests/unit/app-shell.spec.ts > the shell > "
           expect=SHELL_FAILED + "says group, not groups, for one open group")
 @mutation(BANNER, 'stats.openGroups === 200 ? "200+"', 'stats.openGroups === 200 ? "200"',
           expect=SHELL_FAILED + "writes 200+ for a full page of open groups and opens Alerts from the banner")
-@mutation(BANNER, ': "Needs attention."', ': "Attention."',
+@mutation(BANNER, '? "Needs attention."', '? "Attention."',
           expect=SHELL_FAILED + "with live conditions only, says Needs attention and still offers the link to Alerts")
 @mutation(BANNER, "  if (stats.firstGroup) return groupSentence(stats.firstGroup, stats.firstReply);\n", "",
           expect=SHELL_FAILED + "shows the open group count and words the first group")
