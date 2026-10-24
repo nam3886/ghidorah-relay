@@ -448,14 +448,20 @@ def test_the_accounts_low_alert_follows_its_setting(db):
 
     async def scenario(env):
         default = await stats(env)                 # 2 usable, alert below 3
+        db.run("UPDATE accounts SET state = 'disabled' WHERE id = (SELECT id FROM accounts LIMIT 1)")
+        one = await stats(env)                     # 1 usable
+        db.run("UPDATE accounts SET state = 'available'")
         await env.settings.set("alert_accounts_low", 2, by="test")
         at_limit = await stats(env)
         await env.settings.set("alert_accounts_low", 0, by="test")
-        return default, at_limit, await stats(env)
+        return default, one, at_limit, await stats(env)
 
-    default, at_limit, off = run_app(db, scenario)
+    default, one, at_limit, off = run_app(db, scenario)
     assert kinds(default) == ["accounts_low"], "accounts_low"
     assert kinds(at_limit) == [] and kinds(off) == []
+    # the count agrees with its noun: one account, two accounts
+    assert default.json()["alerts"][0]["message"] == "fake has 2 usable accounts (alert below 3)"
+    assert one.json()["alerts"][0]["message"] == "fake has 1 usable account (alert below 3)"
 
 
 @mutation(ROUTES, FOREIGN_GROUP, LIKE_QUERY, expect="LIKE")

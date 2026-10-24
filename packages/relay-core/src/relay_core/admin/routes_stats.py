@@ -76,7 +76,8 @@ async def live_alerts(conn, config: Settings, registry: ProviderRegistry, usable
     low = config.get("alert_accounts_low")
     for name in registry.names():
         if usable.get(name, 0) < low:
-            text = "%s has %d usable accounts (alert below %d)" % (name, usable.get(name, 0), low)
+            count = usable.get(name, 0)
+            text = "%s has %d usable %s (alert below %d)" % (name, count, "account" if count == 1 else "accounts", low)
             alerts.append(_alert("accounts_low", "warning", text, name))
     # A dead account (its session died; a disabled account is never dead, the state is one of the two): one condition
     # each, until it is signed in again, disabled or removed. It only reads the state: no notification, no webhook.
