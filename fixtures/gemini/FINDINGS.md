@@ -108,8 +108,11 @@ Each video used 453 units of the account's usage windows (5 h: 2400 → 1949 →
   `[null, 2, "video.mp4", null, null, $token, null, [lh3 /gg/ link, contribution link, poster link], 2, [secs, nanos],
   null, "video/mp4", …, [[10, 5000000], 1280, 720], …, bytes]`; model `models/omni_1p2_pro_gemini_app`.
 - Download: the `/gg/` link + `=m22?alr=yes&authuser=N` → 3 text hops (lh3, lh3.google.com, lh3) → a
-  `*.googlevideo.com/videoplayback` MP4 (no cookie): 720p h264 + aac. The spike also put `authuser` on the
-  googlevideo link; the provider does not (a signed CDN link; only the session hops get it): to confirm live. `=m18` is the 640×360 one, `=d-I` only the
+  `*.googlevideo.com/videoplayback` MP4 (no cookie): 720p h264 + aac. The spike first also put `authuser` on the
+  googlevideo link; the provider does not (only the session hops get it). Confirmed 24/10 02:19Z (read-only, the t2v
+  above re-downloaded through the proxy): `authuser=4` on the first link and the lh3.google.com hop only, the
+  googlevideo request with no `authuser` and from a client with no cookie → 200 video/mp4, 2,200,820 B, 1280×720,
+  10.01 s (ffprobe), the same file as before. `=m18` is the 640×360 one, `=d-I` only the
   poster JPEG, `=dv` and `=m22-dv` answered 500, the contribution link 400.
 - The daily limit answer (an older chat of the owner's, 23/10): a complete answer with the text "I can't create more
   videos for you today, but I can still find videos from the web." and no video (`gemini.video_limit`, refunded, the
