@@ -139,19 +139,19 @@ def test_keys_logs_and_alerts_filter_by_the_strip_and_draw_each_provider(app, ap
     expect(table.locator(".pchip.p-meta")).to_have_count(1)
     shot(page, "logs-%d-meta" % width, ".lv-card")
 
-    # Alerts: the groups and the live conditions carry their tiles; a provider keeps its own
+    # Alerts: the groups and the live conditions carry their provider chips; a provider keeps its own
     page.get_by_test_id("logs-provider-all").click()
     open_tab(page, "Alerts")
     strip(page).get_by_test_id("provider-tab-all").click()
-    groups = page.locator('section[aria-label="Alert groups"] tr.g-row, section[aria-label="Alert groups"] .p-group')
+    groups = page.get_by_test_id("alert-group")
     expect(groups).to_have_count(2)
-    expect(page.get_by_test_id("alerts-live").locator(".ptile").first).to_be_visible()
-    no_cut_text(page, ".groups *, .live *")
-    shot(page, "alerts-%d-all" % width, 'section[aria-label="Alert groups"]')
+    expect(page.get_by_test_id("alert-live").locator(".pchip").first).to_be_visible()
+    no_cut_text(page, ".av-cards *")
+    shot(page, "alerts-%d-all" % width, ".av-cards")
     strip(page).get_by_test_id("provider-tab-dola").click()
     expect(groups).to_have_count(1)
     expect(groups.first).to_have_class(re.compile(r"\bp-dola\b"))
-    shot(page, "alerts-%d-dola" % width, 'section[aria-label="Alert groups"]')
+    shot(page, "alerts-%d-dola" % width, ".av-cards")
 
 
 @pytest.mark.parametrize("width", WIDTHS)

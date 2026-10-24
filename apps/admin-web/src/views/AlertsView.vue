@@ -2,29 +2,32 @@
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { acknowledgeGroup, type AlertDetail, type AlertGroup, getAlertGroup, listAlertGroups } from "@/api/alerts";
 import { getStats, type LiveAlert } from "@/api/shell";
-import PageHeader from "@/components/layout/PageHeader.vue";
 import AlertDetailPanel from "@/components/alerts/AlertDetailPanel.vue";
 import {
+  ackLabel,
   ackToast,
   type AlertAsk,
   ALERT_KINDS,
   alertTime,
   alertTitle,
   GROUP_LIMIT,
+  groupLine,
   liveWord,
   loadFailedText,
   ONE_CUSTOMER_NOTE,
   oneCustomer,
+  openSummary,
   ROW_LIMIT,
+  seenText,
+  type Severity,
+  SEVERITIES,
+  SEVERITY_CARD,
+  severityOf,
 } from "@/components/alerts/alerts-model";
-import "@/components/alerts/alert-buttons.css";
-import "@/components/logs/lane-controls.css";
-import DetailDrawer from "@/components/shared/DetailDrawer.vue";
-import DataTable from "@/components/shared/DataTable.vue";
 import FilterSelect from "@/components/shared/FilterSelect.vue";
-import { IconRefresh } from "@/components/shared/icons";
-import ProviderTile from "@/components/shared/ProviderTile.vue";
-import StatusChip from "@/components/shared/StatusChip.vue";
+import IconButton from "@/components/shared/IconButton.vue";
+import PathIcon from "@/components/shared/icons/PathIcon.vue";
+import SideDrawer from "@/components/shared/overlays/SideDrawer.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { useBusy } from "@/composables/use-busy";
 import { useLatest } from "@/composables/use-latest";
@@ -35,25 +38,27 @@ import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 import { useUiStore } from "@/stores/ui";
 
-// Alerts: every stored alert kind grouped by the hub API, with an acknowledge per group, and beside them the live
-// conditions the dashboard computes (no acknowledge: they clear themselves). The provider strip filters both.
-// Titles and reply texts hold customer-influenced words, so every one reaches the page as text.
+// Alerts (Alerts, AlertsTablet, AlertsPhone, AlertsStates, AlertDetail): one card per severity (Critical, Warnings,
+// Info), each listing its stored groups (with an Acknowledge) and the live conditions the dashboard computes (no
+// acknowledge: they clear themselves). The provider strip filters both. Titles and reply texts hold
+// customer-influenced words, so every one reaches the page as text.
 //
 // `asked` is what the operator asked for last (the filters and the group whose detail is open); what is drawn (`groups`,
 // `live`, `opened`) comes from one answer. A write takes its group from what was drawn, never from `asked`. Every
 // load takes the next ticket, and an answer or a failure counts only if no later load started since it was asked.
 //
-// The group list is drawn as the canvas draws it: a plain table (its columns as wide as their content, which an
-// Element Plus table cannot do) on a desktop and a tablet, a list of blocks on a phone. A group's detail opens in a
-// right drawer (a sheet on a phone): the title button, a click on the row or block, or Enter on the title opens it.
-// The drawer is shown while a detail is asked for (`asked.open`), reads while it loads and keeps the error of a read
-// that failed. The loading, error and empty states of the list are the shared table's (B-States).
+// A desktop draws a group as one line (the provider chip, the title and its line, First seen and Count, the actions);
+// a tablet and a phone stack it (the severity and provider chips with the count, the title, the line, the actions). A
+// group's detail opens in the right drawer: the title button, a click on the row, or Enter on the title opens it. The
+// drawer is shown while a detail is asked for (`asked.open`), reads while it loads and keeps the error of a read that
+// failed.
 const stats = useStatsStore();
 const scope = useScopeStore();
 const ui = useUiStore();
 const { run } = useBusy();
 const latest = useLatest();
 const { isPhone, isTablet } = useBreakpoint();
+const compact = computed(() => isPhone.value || isTablet.value);
 
 const asked = ref<AlertAsk>({ status: "open", kind: "", open: null });
 const groups = shallowRef<AlertGroup[]>([]);
@@ -69,7 +74,6 @@ const writing = ref(false);
 // While a view loads, only the controls that ask for another view stay usable: they are how it is replaced. While a
 // write is in flight nothing is.
 const locked = computed(() => writing.value || loading.value > 0);
-// A group is named by its kind and its own key; a list wants one unique id per row.
 // The provider strip filters the groups and the live conditions here, in the page.
 const shownGroups = computed(() =>
   scope.provider ? groups.value.filter((g) => g.provider === scope.provider) : groups.value,
@@ -79,29 +83,29 @@ const shownLive = computed(() =>
 );
 // a group or a condition of no provider is the relay's own, in grey
 const providerOf = (p: string | null | undefined): string => p || "relay";
+// A group is named by its kind and its own key; a list wants one unique id per row.
 const groupRows = computed(() => shownGroups.value.map((g) => ({ ...g, id: `${g.kind}/${g.group}` })));
 type GroupRow = (typeof groupRows.value)[number];
 
-// The columns the shared table's loading skeleton draws (the list itself is the plain table below); a phone draws
-// the tablet's three, as eight do not fit.
-const columns = computed(() =>
-  isTablet.value || isPhone.value
-    ? [
-        { key: "severity", label: "Severity" },
-        { key: "title", label: "Alert" },
-        { key: "openrows", label: "Open / Rows", align: "right" as const },
-      ]
-    : [
-        { key: "provider", label: "Provider" },
-        { key: "severity", label: "Severity" },
-        { key: "title", label: "Alert" },
-        { key: "first", label: "First seen" },
-        { key: "last", label: "Last seen" },
-        { key: "count", label: "Rows", align: "right" as const },
-        { key: "open_count", label: "Open", align: "right" as const },
-        { key: "keys", label: "Keys", align: "right" as const },
-      ],
+// A live condition is open by nature and has no kind of the stored ones: the Acknowledged view and a Kind filter leave
+// them out (filtered as drawn, after the answer).
+const liveShown = computed(() => (asked.value.status === "acknowledged" || asked.value.kind ? [] : shownLive.value));
+// The cards: a severity with nothing in it is not drawn.
+const cards = computed(() =>
+  SEVERITIES.map((sev) => ({
+    sev,
+    ...SEVERITY_CARD[sev],
+    groups: groupRows.value.filter((g) => severityOf(g.severity) === sev),
+    live: liveShown.value.filter((a) => severityOf(a.severity) === sev),
+  })).filter((c) => c.groups.length + c.live.length > 0),
 );
+// what is open, by severity: the open groups and the live conditions
+const summary = computed(() => {
+  const n: Record<Severity, number> = { error: 0, warning: 0, info: 0 };
+  for (const g of shownGroups.value) if (g.open_count > 0) n[severityOf(g.severity)]++;
+  for (const a of liveShown.value) n[severityOf(a.severity)]++;
+  return openSummary(n);
+});
 
 interface View {
   groups: AlertGroup[];
@@ -167,10 +171,6 @@ onBeforeUnmount(() => latest.invalidate());
 
 const reload = () => run(load);
 
-const updatedText = computed(() =>
-  updatedAt.value ? new Date(updatedAt.value).toLocaleTimeString("en-GB", { hour12: false }) : null,
-);
-
 const STATUS_CHOICES = [
   { value: "all", label: "All" },
   { value: "open", label: "Open" },
@@ -186,23 +186,32 @@ function pick(filter: "status" | "kind", value: string | number): void {
       : { ...asked.value, kind: String(value) };
   void reload();
 }
+const filtered = computed(() => asked.value.status !== "open" || asked.value.kind !== "" || !!scope.provider);
+function clearFilters(): void {
+  scope.provider = "";
+  asked.value = { ...asked.value, status: "open", kind: "" };
+  void reload();
+}
 
-// The group whose detail is open, as the table and the phone list mark it.
+// The group whose detail is open, as the list marks it.
 const isOpened = (g: AlertGroup): boolean => asked.value.open?.kind === g.kind && asked.value.open.group === g.group;
 const rowClass = ({ row }: { row: GroupRow }): string =>
-  [
-    row.open_count === 0 ? "a-dim" : "",
-    isOpened(row) ? "a-selected" : "",
-    "g-rail",
-    providerClass(providerOf(row.provider)),
-  ]
+  [row.open_count === 0 ? "a-dim" : "", isOpened(row) ? "a-selected" : "", providerClass(providerOf(row.provider))]
     .filter(Boolean)
     .join(" ");
 
-// The state of the list: the shared table draws loading (nothing yet), the error and the empty list; the rows are
-// drawn here, dimmed while the next answer is on its way.
+// The state of the list: a first read draws flat bars, a failed one the error box, an empty one its box; the cards
+// dim while the next answer is on its way.
 const listState = computed(() =>
-  error.value ? "error" : shownGroups.value.length ? (loading.value > 0 ? "refreshing" : "ready") : "other",
+  error.value
+    ? "error"
+    : cards.value.length
+      ? loading.value > 0
+        ? "refreshing"
+        : "ready"
+      : updatedAt.value
+        ? "empty"
+        : "loading",
 );
 
 // the opener: where focus goes back when the drawer is gone; if it is not there any more (a click on a row, no
@@ -221,8 +230,10 @@ function openGroup(g: AlertGroup) {
   void reload();
 }
 
-// Closing also reloads the list, so the table always matches the filters even if one was changed while a load ran.
+// Closing also reloads the list, so the cards always match the filters even if one was changed while a load ran.
 function closeDetail() {
+  // the drawer reports a close once more when it has gone: nothing is left to close then
+  if (!asked.value.open) return;
   asked.value = { ...asked.value, open: null };
   opened.value = null;
   void reload();
@@ -245,7 +256,7 @@ function detailClosed(): void {
   document.querySelector<HTMLElement>(".app-scroll__wrap")?.focus({ preventScroll: true });
 }
 
-// a click on the row or block opens it, unless the click was on a button or a link of its own
+// a click on the row opens it, unless the click was on a button or a link of its own
 function rowClick(event: MouseEvent, g: AlertGroup): void {
   if ((event.target as HTMLElement | null)?.closest("button, a")) return;
   openGroup(g);
@@ -285,266 +296,201 @@ async function acknowledge(g: AlertGroup) {
 }
 
 const groupCount = computed(() => `${shownGroups.value.length} ${shownGroups.value.length === 1 ? "group" : "groups"}`);
+
+// the count a stacked row shows at its right: `×3 · since 14:05` on a tablet, `×3` on a phone
+const rowRight = (g: AlertGroup): string =>
+  isPhone.value || !g.first_ms ? `×${g.count}` : `×${g.count} · since ${alertTime(g.first_ms)}`;
+
+// octagon, triangle and circle alerts (the cards' badges); inbox, search-x and cloud-off (the states)
+const ICONS = {
+  error: ["M7.9 2h8.2L22 7.9v8.2L16.1 22H7.9L2 16.1V7.9Z", "M12 8v4", "M12 16h.01"],
+  warning: ["M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z", "M12 9v4", "M12 17h.01"],
+  info: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 11v5", "M12 8h.01"],
+  inbox: ["M3 13h5l1.5 3h5L16 13h5", "M5 5h14l2 8v6H3v-6z"],
+  search: ["M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14z", "m20 20-3.5-3.5", "m8.5 8.5 5 5", "m13.5 8.5-5 5"],
+  cloud: ["M7 18a5 5 0 0 1-.9-9.9A6 6 0 0 1 17.7 8 4.5 4.5 0 0 1 18 18z", "m3 3 18 18"],
+};
+const SKELETON = [0, 1, 2];
 </script>
 
 <template>
-  <section class="alerts-view" :class="{ 'is-tablet': isTablet, 'is-phone': isPhone }">
-    <PageHeader title="Alerts" subtitle="Acknowledging marks rows as seen; a later row reopens the group.">
-      <template v-if="updatedText" #meta>Updated {{ updatedText }}</template>
-      <template v-if="isPhone && updatedText" #submeta
-        ><span class="a-updated">Updated {{ updatedText }}</span></template
-      >
-      <template #actions>
-        <button v-if="!isPhone" type="button" class="al-btn a-refresh" :disabled="loading > 0" @click="reload">
-          <IconRefresh :size="15" />Refresh
-        </button>
-        <button
-          v-else
-          type="button"
-          class="al-btn a-refresh-icon"
-          aria-label="Refresh"
-          :disabled="loading > 0"
-          @click="reload"
-        >
-          <IconRefresh :size="18" />
-        </button>
-      </template>
-    </PageHeader>
-
-    <section class="kla-card live" aria-label="Live conditions">
-      <div class="live__head">
-        <h2>Live conditions</h2>
-        <span class="live__note">Computed now. These cannot be acknowledged; they clear when the condition does.</span>
+  <section class="alerts-view" :class="{ 'is-compact': compact, 'is-phone': isPhone }">
+    <div class="av-head">
+      <div v-if="!compact" class="av-head__text">
+        <h1>Alerts</h1>
+        <p v-if="updatedAt" class="av-sub" data-testid="alerts-summary">
+          <b>{{ summary }}</b>
+        </p>
       </div>
-      <ul v-if="shownLive.length" class="live__list" data-testid="alerts-live">
-        <li v-for="a in shownLive" :key="`${a.kind}:${a.message}`">
-          <StatusChip :status="a.severity" class="live__pill" />
-          <span class="live__text"
-            ><ProviderTile :provider="providerOf(a.provider)" class="live__tile" /><span class="sr-only"
-              >{{ providerOf(a.provider) }}: </span
-            ><span class="live__kind">{{ liveWord(a.kind) }}:</span> {{ a.message }}</span
-          >
-        </li>
-      </ul>
-      <p v-else-if="updatedAt" class="live__none">No live condition right now.</p>
+      <h1 v-else class="sr-only">Alerts</h1>
+      <span class="av-head__actions">
+        <IconButton icon="rotate" label="Refresh" placement="bottom-end" :disabled="loading > 0" @click="reload" />
+      </span>
+    </div>
+    <p v-if="compact && updatedAt" class="av-sub av-sub--compact" data-testid="alerts-summary">{{ summary }}</p>
+
+    <div class="av-bar" data-testid="alerts-toolbar">
+      <FilterSelect
+        :model-value="asked.status"
+        variant="field"
+        label="Status"
+        :options="STATUS_CHOICES"
+        :disabled="writing"
+        @update:model-value="(v) => pick('status', v)"
+      />
+      <FilterSelect
+        :model-value="asked.kind"
+        variant="field"
+        label="Kind"
+        :options="KIND_CHOICES"
+        :disabled="writing"
+        @update:model-value="(v) => pick('kind', v)"
+      />
+      <span class="av-bar__count num" data-testid="alerts-count">{{ groupCount }}</span>
+    </div>
+
+    <!-- a first read: flat bars in a card, no shimmer -->
+    <section
+      v-if="listState === 'loading'"
+      class="av-card"
+      data-state="loading"
+      aria-busy="true"
+      aria-label="Loading the alerts"
+    >
+      <div v-for="i in SKELETON" :key="i" class="av-skel">
+        <span class="bar bar--chip" /><span class="bar bar--title" /><span class="bar bar--meta" />
+      </div>
     </section>
 
-    <section class="kla-card groups" aria-label="Alert groups">
-      <div class="gt">
-        <FilterSelect
-          :model-value="asked.status"
-          variant="field"
-          label="Status"
-          :options="STATUS_CHOICES"
-          :disabled="writing"
-          @update:model-value="(v) => pick('status', v)"
-        />
-        <FilterSelect
-          :model-value="asked.kind"
-          variant="field"
-          label="Kind"
-          :options="KIND_CHOICES"
-          :disabled="writing"
-          @update:model-value="(v) => pick('kind', v)"
-        />
-        <span v-if="!isPhone" class="gt__spacer" />
-        <span class="gt__count" data-testid="alerts-count">{{ groupCount }}</span>
-      </div>
+    <!-- a failed read: Retry reads again -->
+    <section v-else-if="listState === 'error'" class="av-card av-box" role="alert" data-testid="alerts-error">
+      <span class="av-box__icon is-bad"><PathIcon :paths="ICONS.cloud" :size="22" :stroke="1.8" /></span>
+      <b class="av-box__title" data-testid="alerts-error-text">{{ error }}</b>
+      <span class="av-box__text">The last good read stays hidden so stale alerts are not mistaken for live ones.</span>
+      <button type="button" class="av-primary" @click="reload">Retry</button>
+    </section>
 
-      <DataTable
-        v-if="listState === 'error' || listState === 'other'"
-        :columns="columns"
-        :rows="[]"
-        :loading="loading > 0"
-        :error="error"
-        empty-text="No alert groups with this filter"
-        @retry="reload"
-      />
+    <!-- nothing open, or nothing under the filters -->
+    <section v-else-if="listState === 'empty'" class="av-card av-box" role="status" data-testid="alerts-empty">
+      <template v-if="filtered">
+        <span class="av-box__icon"><PathIcon :paths="ICONS.search" :size="22" :stroke="1.8" /></span>
+        <b class="av-box__title">No alert groups with this filter</b>
+        <span class="av-box__text">Nothing matches the status, kind and provider chosen.</span>
+        <button type="button" class="av-primary" @click="clearFilters">Clear filters</button>
+      </template>
+      <template v-else>
+        <span class="av-box__icon is-brand"><PathIcon :paths="ICONS.inbox" :size="22" :stroke="1.8" /></span>
+        <b class="av-box__title">No alerts</b>
+        <span class="av-box__text">Nothing needs a look.</span>
+      </template>
+    </section>
 
-      <!-- the phone list: a block per group, the open detail right under its group -->
-      <div v-else-if="isPhone" class="p-lists" :data-state="listState">
-        <ul class="p-list">
-          <li
-            v-for="g in groupRows"
-            :key="g.id"
-            class="p-group"
-            :class="[
-              providerClass(providerOf(g.provider)),
-              { 'a-dim': g.open_count === 0, 'is-selected': isOpened(g) },
-            ]"
-            @click="rowClick($event, g)"
-          >
-            <div class="p-group__side">
-              <ProviderTile :provider="providerOf(g.provider)" />
-              <small class="p-group__pname">{{ providerOf(g.provider) }}</small>
-            </div>
-            <div class="p-group__main">
-              <StatusChip :status="g.severity" class="p-group__pill" />
-              <button
-                type="button"
-                class="p-group__title g-open-btn"
-                aria-haspopup="dialog"
-                :disabled="writing"
-                :aria-label="`Details of ${alertTitle(g)}`"
-                @click="openGroup(g)"
-              >
-                {{ alertTitle(g) }}
-              </button>
-              <span class="p-group__kind">{{ g.kind }}</span>
-              <span v-if="oneCustomer(g)" class="p-group__note">{{ ONE_CUSTOMER_NOTE }}</span>
-              <span class="p-group__range">first {{ alertTime(g.first_ms) }} → last {{ alertTime(g.last_ms) }}</span>
-              <span class="p-group__counts"
-                ><span>rows {{ g.count }}</span
-                ><span aria-hidden="true">·</span
-                ><span class="p-group__open" :class="{ 'is-faint': g.open_count === 0 }">open {{ g.open_count }}</span
-                ><span aria-hidden="true">·</span><span>keys {{ g.keys }}</span></span
-              >
-              <span v-if="g.open_count > 0" class="p-group__actions">
-                <button type="button" class="al-btn p-group__btn" :disabled="locked" @click="acknowledge(g)">
-                  Acknowledge
-                </button>
-              </span>
-            </div>
-          </li>
-        </ul>
-      </div>
+    <!-- one card per severity -->
+    <div v-else class="av-cards" :data-state="listState">
+      <section
+        v-for="c in cards"
+        :key="c.sev"
+        class="av-card"
+        :aria-label="c.label"
+        :data-testid="`alerts-card-${c.sev}`"
+      >
+        <div class="av-card__head">
+          <span v-if="!compact" class="av-badge" :class="`tone-${c.tone}`"
+            ><PathIcon :paths="ICONS[c.sev]" :size="16" :stroke="2.2"
+          /></span>
+          <h2>{{ c.label }}</h2>
+          <span v-if="!compact" class="av-count num" :class="`tone-${c.tone}`">{{
+            c.groups.length + c.live.length
+          }}</span>
+          <span v-if="!isPhone" class="av-card__note">{{ compact ? c.note.toLowerCase() : c.note }}</span>
+        </div>
 
-      <!-- the tablet table: Severity, Alert (with the kind, provider and span under the title), Open / Rows -->
-      <table v-else-if="isTablet" class="g-table" :data-state="listState">
-        <caption class="a-caption">
-          Alert groups
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col" class="g-th-provider">Provider</th>
-            <th scope="col" class="g-th-sev">Severity</th>
-            <th scope="col">Alert</th>
-            <th scope="col" class="is-right">Open / Rows</th>
-            <th scope="col" class="g-th-actions is-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="g in groupRows"
-            :key="g.id"
-            class="g-row"
-            :class="rowClass({ row: g })"
-            @click="rowClick($event, g)"
-          >
-            <td class="g-pcell">
-              <span class="g-pwrap"
-                ><ProviderTile :provider="providerOf(g.provider)" /><span class="g-pname">{{
-                  providerOf(g.provider)
-                }}</span></span
-              >
-            </td>
-            <td class="g-sev"><StatusChip :status="g.severity" /></td>
-            <td class="g-alert">
-              <button
-                type="button"
-                class="g-title g-open-btn"
-                aria-haspopup="dialog"
-                :disabled="writing"
-                :aria-label="`Details of ${alertTitle(g)}`"
-                @click="openGroup(g)"
-              >
-                {{ alertTitle(g) }}
-              </button>
-              <span class="g-kind">{{ g.kind }}</span>
-              <span class="g-range">{{ alertTime(g.first_ms) }} → {{ alertTime(g.last_ms) }}</span>
-              <span v-if="oneCustomer(g)" class="g-note">{{ ONE_CUSTOMER_NOTE }}</span>
-            </td>
-            <td class="g-openrows">
-              <span class="g-open" :class="{ 'is-faint': g.open_count === 0 }">{{ g.open_count }}</span> /
-              {{ g.count }}
-            </td>
-            <td class="g-actions">
-              <button
-                v-if="g.open_count > 0"
-                type="button"
-                class="al-btn g-ack"
-                :disabled="locked"
-                @click="acknowledge(g)"
-              >
-                Acknowledge
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <!-- the desktop table, 1040 px at least, scrolling inside its own box -->
-      <div v-else class="g-scroll">
-        <table class="g-table" :data-state="listState">
-          <thead>
-            <tr>
-              <th scope="col" class="g-th-provider">Provider</th>
-              <th scope="col" class="g-th-sev">Severity</th>
-              <th scope="col">Alert</th>
-              <th scope="col">First seen</th>
-              <th scope="col">Last seen</th>
-              <th scope="col" class="is-right">Rows</th>
-              <th scope="col" class="is-right">Open</th>
-              <th scope="col" class="is-right">Keys</th>
-              <th scope="col" class="g-th-actions is-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="g in groupRows"
-              :key="g.id"
-              class="g-row"
-              :class="rowClass({ row: g })"
-              @click="rowClick($event, g)"
+        <div
+          v-for="g in c.groups"
+          :key="g.id"
+          class="av-item"
+          :class="rowClass({ row: g })"
+          data-testid="alert-group"
+          @click="rowClick($event, g)"
+        >
+          <span v-if="compact" class="av-item__top">
+            <span class="sev" :class="`tone-${c.tone}`" :data-tone="c.tone">{{ c.word }}</span>
+            <span class="pchip">{{ providerOf(g.provider) }}</span>
+            <span class="av-item__right num">{{ rowRight(g) }}</span>
+          </span>
+          <span v-else class="pchip pchip--wide">{{ providerOf(g.provider) }}</span>
+          <div class="av-item__main">
+            <button
+              type="button"
+              class="g-title g-open-btn"
+              aria-haspopup="dialog"
+              :disabled="writing"
+              :aria-label="`Details of ${alertTitle(g)}`"
+              @click="openGroup(g)"
             >
-              <td class="g-pcell">
-                <span class="g-pwrap"
-                  ><ProviderTile :provider="providerOf(g.provider)" /><span class="g-pname">{{
-                    providerOf(g.provider)
-                  }}</span></span
-                >
-              </td>
-              <td class="g-sev"><StatusChip :status="g.severity" /></td>
-              <td class="g-alert">
-                <button
-                  type="button"
-                  class="g-title g-open-btn"
-                  aria-haspopup="dialog"
-                  :disabled="writing"
-                  :aria-label="`Details of ${alertTitle(g)}`"
-                  @click="openGroup(g)"
-                >
-                  {{ alertTitle(g) }}
-                </button>
-                <span class="g-kind">{{ g.kind }}</span>
-                <span v-if="oneCustomer(g)" class="g-note">{{ ONE_CUSTOMER_NOTE }}</span>
-              </td>
-              <td class="g-time">{{ alertTime(g.first_ms) }}</td>
-              <td class="g-time">{{ alertTime(g.last_ms) }}</td>
-              <td class="g-num">{{ g.count }}</td>
-              <td class="g-num g-open" :class="{ 'is-faint': g.open_count === 0 }">{{ g.open_count }}</td>
-              <td class="g-num">{{ g.keys }}</td>
-              <td class="g-actions">
-                <button
-                  v-if="g.open_count > 0"
-                  type="button"
-                  class="al-btn g-ack"
-                  :disabled="locked"
-                  @click="acknowledge(g)"
-                >
-                  Acknowledge
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+              {{ alertTitle(g) }}
+            </button>
+            <span class="g-kind num">{{ groupLine(g) }}</span>
+            <span v-if="oneCustomer(g)" class="g-note">{{ ONE_CUSTOMER_NOTE }}</span>
+          </div>
+          <dl v-if="!compact" class="av-meta">
+            <div>
+              <dt>First seen</dt>
+              <dd class="num">{{ seenText(g.first_ms) }}</dd>
+            </div>
+            <div>
+              <dt>Count</dt>
+              <dd class="num">×{{ g.count }}</dd>
+            </div>
+          </dl>
+          <div class="av-item__acts">
+            <span v-if="g.open_count === 0" class="state">Acknowledged</span>
+            <IconButton
+              v-if="g.open_count > 0"
+              icon="check"
+              label="Acknowledge"
+              :disabled="locked"
+              @click="acknowledge(g)"
+            />
+          </div>
+        </div>
+
+        <div
+          v-for="a in c.live"
+          :key="`${a.kind}:${a.message}`"
+          class="av-item is-live"
+          :class="providerClass(providerOf(a.provider))"
+          data-testid="alert-live"
+        >
+          <span v-if="compact" class="av-item__top">
+            <span class="sev" :class="`tone-${c.tone}`" :data-tone="c.tone">{{ c.word }}</span>
+            <span class="pchip">{{ providerOf(a.provider) }}</span>
+            <span class="av-item__right">live</span>
+          </span>
+          <span v-else class="pchip pchip--wide">{{ providerOf(a.provider) }}</span>
+          <div class="av-item__main">
+            <span class="g-title">{{ liveWord(a.kind) }}: {{ a.message }}</span>
+            <span class="g-kind">Computed now: it cannot be acknowledged and clears when the condition does.</span>
+          </div>
+          <dl v-if="!compact" class="av-meta">
+            <div>
+              <dt>First seen</dt>
+              <dd>now</dd>
+            </div>
+            <div>
+              <dt>Count</dt>
+              <dd>live</dd>
+            </div>
+          </dl>
+          <div class="av-item__acts"><span class="state">Clears by itself</span></div>
+        </div>
+      </section>
       <p v-if="groups.length >= GROUP_LIMIT" class="alerts-more" data-testid="alerts-more">
         Showing the newest {{ GROUP_LIMIT }} groups; older groups are not listed.
       </p>
-    </section>
+    </div>
 
-    <DetailDrawer
+    <SideDrawer
       :model-value="!!asked.open"
       :title="detailHeading"
       testid="alert-detail"
@@ -552,506 +498,500 @@ const groupCount = computed(() => `${shownGroups.value.length} ${shownGroups.val
       back-label="Back to Alerts"
       :busy="writing"
       @update:model-value="(o) => !o && closeDetail()"
+      @back="closeDetail"
       @closed="detailClosed"
     >
-      <template v-if="shownDetail" #chips><StatusChip :status="shownDetail.severity" /></template>
+      <template v-if="shownDetail" #sub>
+        <span
+          class="sev sev--lg"
+          :class="`tone-${SEVERITY_CARD[severityOf(shownDetail.severity)].tone}`"
+          :data-tone="SEVERITY_CARD[severityOf(shownDetail.severity)].tone"
+          >{{ SEVERITY_CARD[severityOf(shownDetail.severity)].word }}</span
+        >
+        <span class="pchip" :class="providerClass(providerOf(shownDetail.provider))">{{
+          providerOf(shownDetail.provider)
+        }}</span>
+        <span class="ad-help num"
+          >{{ shownDetail.open_count }} open of {{ shownDetail.count }} rows · since
+          {{ alertTime(shownDetail.first_ms) }}</span
+        >
+      </template>
       <p v-if="detailError" class="ad-error" role="alert" data-testid="alert-detail-error">
         {{ errorText(detailError) }}
       </p>
       <AlertDetailPanel v-else-if="shownDetail" :detail="shownDetail" :writing="writing" @open-job="openJob" />
       <p v-else class="ad-loading" role="status">Loading the group…</p>
       <template v-if="shownDetail && !detailError && shownDetail.open_count > 0" #footer>
-        <button
-          type="button"
-          class="al-primary ad-ack"
-          :class="{ 'ad-ack--sheet': isPhone }"
-          :disabled="locked"
-          @click="acknowledge(shownDetail)"
-        >
-          Acknowledge
+        <button type="button" class="av-primary ad-ack" :disabled="locked" @click="acknowledge(shownDetail)">
+          {{ ackLabel(shownDetail.open_count) }}
         </button>
       </template>
-    </DetailDrawer>
+    </SideDrawer>
   </section>
 </template>
 
 <style scoped>
-/* every value below is the canvas's own (B-, T-, P-Alerts; specs/alerts.md) */
 .alerts-view {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 .alerts-view.is-phone {
-  gap: 16px;
+  gap: 14px;
 }
 
-.a-refresh {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 14px;
-}
-.a-refresh-icon {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-}
-.a-updated {
-  display: block;
-  line-height: 20px;
-}
-.a-caption {
-  position: absolute;
-  left: -9999px;
-}
-
-/* live conditions */
-.live__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 14px 16px 10px;
-}
-.live__head h2 {
-  margin: 0;
-  font-size: 15px;
-  line-height: 22px;
-  font-weight: 600;
-}
-.live__note {
-  font-size: 12px;
-  color: var(--rl-faint);
-}
-.live__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.live__list li {
+/* the head: the title and the summary, the icon buttons at the right */
+.av-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  box-sizing: border-box;
-  min-height: 44px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--rl-line);
+  gap: 12px 16px;
 }
-.live__pill {
-  box-sizing: border-box;
-  min-width: 64px;
-}
-.live__text {
-  flex: 1;
-  min-width: 240px;
-}
-.live__kind {
-  color: var(--rl-muted);
-}
-.live__none {
-  margin: 0;
-  padding: 10px 16px 14px;
-  border-top: 1px solid var(--rl-line);
-  color: var(--rl-muted);
-}
-.is-tablet .live__head,
-.is-phone .live__head {
-  display: block;
-}
-.is-tablet .live__list li {
-  flex-wrap: nowrap;
-}
-.is-tablet .live__text {
-  min-width: 0;
-}
-.is-phone .live__note {
-  display: block;
-  margin-top: 2px;
-  line-height: 16px;
-}
-.is-phone .live__list li {
+.av-head__text {
+  display: flex;
   flex-direction: column;
-  flex-wrap: nowrap;
-  align-items: flex-start;
-  gap: 6px;
-  min-height: 72px;
-  padding: 12px 16px;
-}
-.is-phone .live__pill {
+  gap: 4px;
   min-width: 0;
 }
-.is-phone .live__text {
-  flex: none;
-  min-width: 0;
+.av-head h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.av-sub {
+  margin: 0;
+  color: var(--rl-muted);
+}
+.av-sub b {
+  color: var(--rl-fg);
+  font-weight: 700;
+}
+.av-sub--compact {
+  margin-top: -12px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.is-phone .av-sub--compact {
+  margin-top: -8px;
+}
+.av-head__actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.is-compact .av-head {
+  justify-content: flex-end;
+  gap: 0;
 }
 
-/* the toolbar: the native selects, labelled above them (a chip with the word inside on a phone), and the count */
-.gt {
+/* the filters and the count */
+.av-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 12px;
-  padding: 14px 16px;
 }
-.gt__spacer {
-  flex: 1;
-}
-.gt__count {
+.av-bar__count {
+  margin-left: auto;
   font-size: 13px;
+  line-height: 34px;
   color: var(--rl-muted);
-  font-variant-numeric: tabular-nums;
 }
-.is-tablet .gt {
-  flex-wrap: nowrap;
-}
-.is-tablet .gt__count {
-  line-height: 36px;
-}
-.is-phone .gt {
+.is-phone .av-bar {
   flex-direction: column;
-  flex-wrap: nowrap;
   align-items: stretch;
   gap: 8px;
-  padding: 12px;
 }
-/* each filter chip takes a row, full width, its value at the start and its arrow at the end */
-.is-phone .gt :deep(.filter-field.is-chip) {
+.is-phone .av-bar :deep(.filter-field.is-chip) {
   width: 100%;
 }
-.is-phone .gt :deep(.filter-field.is-chip .filter-select.is-field) {
+.is-phone .av-bar :deep(.filter-field.is-chip .filter-select.is-field) {
   flex: 1;
   text-align: left;
 }
-.is-phone .gt__count {
-  flex: none;
-  padding: 0 4px;
+.is-phone .av-bar__count {
+  margin-left: 0;
+  line-height: 20px;
 }
 
-/* refreshing: the rows dim while the next answer is on its way, the header stays (B-States, refreshing) */
-[data-state="refreshing"] tbody,
-[data-state="refreshing"] .p-list {
+/* the cards */
+.av-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.is-phone .av-cards {
+  gap: 14px;
+}
+.av-cards[data-state="refreshing"] .av-card {
   opacity: 0.6;
   transition: opacity 0.15s;
 }
-
-/* the group table */
-.g-scroll {
-  overflow-x: auto;
-}
-.g-table {
-  width: 100%;
-  min-width: 1040px;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-.is-tablet .g-table {
+.av-card {
   min-width: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--rl-surface);
+  box-shadow: var(--rl-shadow-card);
 }
-.g-table thead tr {
-  text-align: left;
-  font-size: 12px;
-  color: var(--rl-muted);
+.av-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  background: var(--rl-head);
+  border-bottom: 1px solid var(--rl-rule);
 }
-.g-table th {
-  height: 38px;
-  padding: 0 12px;
-  background: var(--rl-raised);
-  font-weight: 500;
+.av-card__head h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 700;
 }
-.g-table th.is-right {
-  text-align: right;
-}
-.g-table .g-th-sev {
-  padding: 0 12px;
-}
-.g-table .g-th-actions {
-  padding: 0 16px 0 12px;
-}
-.g-table td {
-  padding: 0 12px;
-  border-bottom: 1px solid var(--rl-line);
-}
-.g-row.a-dim {
-  opacity: 0.55;
-}
-.g-row.a-selected td {
-  background: var(--rl-primary-soft);
-}
-.g-row:hover td {
-  background: var(--rl-raised);
-}
-.g-table .g-sev {
-  height: 64px;
-  padding: 0 12px;
-  white-space: nowrap;
-}
-.g-table .g-alert {
-  max-width: 380px;
-  padding: 8px 12px;
-}
-.g-title {
-  display: block;
-  font-weight: 500;
-}
-.g-kind {
-  font-family: var(--rl-mono);
+.av-card__note {
+  margin-left: auto;
   font-size: 12px;
   color: var(--rl-faint);
 }
-.g-note {
-  display: block;
-  font-size: 12px;
-  color: var(--rl-muted);
+.av-badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
 }
-/* the provider: a rail in its tone on the row's left edge and its tinted cell with the tile and the name; the cell
-   keeps its tint on hover and when the row is open */
-.g-row.g-rail td:first-child {
-  box-shadow: inset 4px 0 0 var(--pc);
-}
-.g-table .g-pcell,
-.g-row:hover td.g-pcell,
-.g-row.a-selected td.g-pcell {
-  width: 1%;
-  padding: 0 12px 0 16px;
-  background: var(--ps);
-  white-space: nowrap;
-}
-.g-table .g-th-provider {
-  padding: 0 12px 0 16px;
-}
-.g-pwrap {
+.av-count {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-}
-.g-pname {
-  color: var(--pi);
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 800;
 }
-.is-tablet .g-table .g-pcell {
-  padding: 12px 8px 12px 16px;
+.tone-bad {
+  background: var(--rl-bad-bg);
+  color: var(--rl-bad);
 }
-.is-tablet .g-table .g-th-provider {
-  padding: 0 8px 0 16px;
-}
-/* the condition's provider, a tile at the start of its line */
-.live__text .live__tile {
-  margin-right: 8px;
-  vertical-align: middle;
-}
-.g-time {
-  font-family: var(--rl-mono);
-  font-size: 12px;
-  color: var(--rl-muted);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.g-num {
-  text-align: right;
-  font-family: var(--rl-mono);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-.g-open {
-  font-weight: 500;
+.tone-warn {
+  background: var(--rl-warn-bg);
   color: var(--rl-warn);
 }
-.g-open.is-faint {
-  color: var(--rl-faint);
-}
-.g-table .g-actions {
-  padding: 0 16px 0 12px;
-  text-align: right;
-  white-space: nowrap;
-}
-.g-ack {
-  height: 32px;
-  margin-left: 4px;
-  padding: 0 10px;
-}
-.is-tablet .g-table th {
-  padding: 0 8px;
-}
-.is-tablet .g-table .g-th-sev {
-  padding: 0 8px;
-}
-.is-tablet .g-table .g-th-actions {
-  padding: 0 16px 0 8px;
-}
-.is-tablet .g-table th.is-right {
-  white-space: nowrap;
-}
-.is-tablet .g-table td {
-  vertical-align: top;
-}
-.is-tablet .g-table .g-sev {
-  height: auto;
-  padding: 12px 8px;
-}
-.is-tablet .g-table .g-alert {
-  max-width: none;
-  padding: 10px 8px;
-}
-.is-tablet .g-kind,
-.is-tablet .g-range {
-  display: block;
-  font-family: var(--rl-mono);
-  font-size: 12px;
-}
-.g-range {
-  color: var(--rl-muted);
-  font-variant-numeric: tabular-nums;
-}
-.is-tablet .g-table .g-openrows {
-  padding: 12px 8px;
-  text-align: right;
-  font-family: var(--rl-mono);
-  font-size: 13px;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.is-tablet .g-table .g-actions {
-  padding: 8px 16px 8px 8px;
-}
-.alerts-more {
-  margin: 0;
-  padding: 12px 16px;
-  font-size: 13px;
-  color: var(--rl-muted);
+.tone-info {
+  background: var(--rl-info-bg);
+  color: var(--rl-info);
 }
 
-/* the phone list */
-.p-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-/* a block: the provider's side column (its rail, its tint, the tile and the name), then the group */
-.p-group {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 12px;
-  border-top: 1px solid var(--rl-line);
-}
-.p-group__side {
+/* a group: one wrapping line on a desktop */
+.av-item {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  padding-top: 16px;
-  background: var(--ps);
-  box-shadow: inset 4px 0 0 var(--pc);
+  gap: 12px 20px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--rl-rule);
+  cursor: pointer;
 }
-.p-group__pname {
-  max-width: 40px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--pi);
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 12px;
+.av-card__head + .av-item {
+  border-top: 0;
 }
-.p-group__main {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  padding: 14px 16px 14px 0;
+.av-item.is-live {
+  cursor: default;
 }
-.p-group.a-dim {
-  opacity: 0.55;
+.av-item.a-dim {
+  opacity: 0.6;
 }
-.p-group.is-selected {
+.av-item.a-selected {
   background: var(--rl-primary-soft);
 }
-.p-group__pill {
-  align-self: flex-start;
+.av-item:not(.a-selected):not(.is-live):hover {
+  background: var(--rl-head);
 }
-.p-group__title {
-  font-weight: 500;
-}
-.p-group__kind {
-  font-family: var(--rl-mono);
-  font-size: 12px;
-  color: var(--rl-faint);
-}
-.p-group__note {
-  font-size: 12px;
-  color: var(--rl-muted);
-}
-.p-group__range {
-  font-size: 13px;
-  color: var(--rl-muted);
-  font-variant-numeric: tabular-nums;
-}
-.p-group__counts {
+.av-item__main {
   display: flex;
-  gap: 6px;
-  font-family: var(--rl-mono);
-  font-size: 12px;
-  color: var(--rl-muted);
-  font-variant-numeric: tabular-nums;
+  flex-direction: column;
+  gap: 3px;
+  flex: 999 1 380px;
+  min-width: 0;
 }
-.p-group__open {
-  color: var(--rl-warn);
+.g-title {
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
 }
-.p-group__open.is-faint {
-  color: var(--rl-faint);
-}
-.p-group__actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 6px;
-}
-.p-group__btn {
-  flex: 1;
-  height: 44px;
-  font-size: 14px;
-}
-
-/* the title is a button that opens the detail drawer; a click on the rest of a row or block does too */
 .g-open-btn {
   padding: 0;
   border: 0;
   background: transparent;
   color: inherit;
-  font: inherit;
-  font-weight: 500;
+  font-family: inherit;
   text-align: left;
   cursor: pointer;
 }
 .g-open-btn:hover:not(:disabled) {
-  color: var(--rl-primary);
+  color: var(--rl-brand-ink);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 .g-open-btn:disabled {
   cursor: default;
 }
-.g-row,
-.p-group {
+.g-kind,
+.g-note {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--rl-muted);
+  overflow-wrap: anywhere;
+}
+.g-note {
+  font-size: 12px;
+  color: var(--rl-faint);
+}
+.av-meta {
+  display: flex;
+  gap: 24px;
+  flex: none;
+  min-width: 170px;
+  margin: 0;
+}
+.av-meta div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.av-meta dt {
+  font-size: 12px;
+  color: var(--rl-faint);
+}
+.av-meta dd {
+  margin: 0;
+  font-weight: 700;
+  color: var(--rl-body);
+  white-space: nowrap;
+}
+.av-item__acts {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+  min-width: 180px;
+}
+.state {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--rl-neutral-bg);
+  color: var(--rl-neutral);
+}
+
+/* the provider chip and the severity pill: one pill shape */
+.pchip,
+.sev {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: none;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.pchip {
+  background: var(--ps);
+  color: var(--pi);
+}
+.pchip--wide {
+  min-width: 64px;
+  height: 24px;
+  padding: 0 10px;
+}
+.sev--lg {
+  height: 24px;
+}
+
+/* a tablet and a phone: the group stacks (chips and count, title, line, actions) */
+.is-compact .av-card {
+  padding-top: 16px;
+}
+.is-compact .av-card__head {
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 0 24px 12px;
+  background: transparent;
+}
+.is-compact .av-card__head h2 {
+  font-size: 15px;
+}
+.is-compact .av-card__note {
+  margin-left: 0;
+}
+.is-compact .av-item {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 6px;
+  min-height: 44px;
+  padding: 14px 24px;
+}
+.is-compact .av-card__head + .av-item {
+  border-top: 1px solid var(--rl-rule);
+}
+.is-compact .av-item__main {
+  flex: none;
+  gap: 6px;
+}
+.is-compact .g-title {
+  line-height: 21px;
+}
+.is-compact .g-kind {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--rl-faint);
+}
+.is-compact .av-item__acts {
+  justify-content: flex-start;
+  min-width: 0;
+}
+.is-compact .av-item__acts:empty {
+  display: none;
+}
+.av-item__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.av-item__right {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rl-muted);
+  white-space: nowrap;
+}
+.is-phone .av-card__head,
+.is-phone .av-item {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.alerts-more {
+  margin: 0;
+  font-size: 13px;
+  color: var(--rl-muted);
+}
+
+/* the first read: flat bars */
+.av-skel {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 20px;
+  border-top: 1px solid var(--rl-rule);
+}
+.av-skel:first-child {
+  border-top: 0;
+}
+.bar {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--rl-skel);
+}
+.bar--chip {
+  width: 64px;
+}
+.bar--title {
+  flex: 1;
+  max-width: 360px;
+}
+.bar--meta {
+  width: 120px;
+  margin-left: auto;
+}
+
+/* empty and failed: a box in a card */
+.av-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 40px 24px;
+  text-align: center;
+}
+.av-box__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--rl-neutral-bg);
+  color: var(--rl-neutral);
+}
+.av-box__icon.is-brand {
+  background: var(--rl-info-bg);
+  color: var(--rl-info);
+}
+.av-box__icon.is-bad {
+  background: var(--rl-bad-bg);
+  color: var(--rl-bad);
+}
+.av-box__title {
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.av-box__text {
+  max-width: 420px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--rl-muted);
+}
+.av-primary {
+  height: 36px;
+  margin-top: 4px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--rl-primary);
+  color: var(--rl-on-primary);
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
 }
-.ad-ack {
-  height: 36px;
-  padding: 0 16px;
+.av-primary:hover:not(:disabled) {
+  background: var(--rl-primary-hover);
 }
-/* the sheet's footer button spans the footer, 48 px high with 14 px text (the phone canvas's own Acknowledge); the
-   selector outranks the shared footer's 44 px rule for every footer button */
-.detail-drawer.is-sheet .detail-drawer__foot .ad-ack--sheet {
-  flex: 1;
-  height: 48px;
-  padding: 1px 6px;
-  font-size: 14px;
+.av-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.is-phone .av-primary {
+  height: 44px;
+}
+
+/* the drawer: the line under the chips, the footer's Acknowledge at the right, the loading and failed bodies */
+.ad-help {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--rl-faint);
+}
+.ad-ack {
+  margin: 0 0 0 auto;
 }
 .ad-loading,
 .ad-error {
@@ -1059,10 +999,18 @@ const groupCount = computed(() => `${shownGroups.value.length} ${shownGroups.val
   color: var(--rl-muted);
 }
 .ad-error {
-  padding: 10px 14px;
+  padding: 12px 14px;
   border-radius: 12px;
   background: var(--rl-bad-bg);
-  color: var(--rl-fg);
+  color: var(--rl-bad);
   font-size: 13px;
+}
+</style>
+
+<!-- the drawer's title is the group's name as drawn: 18/26, 800 -->
+<style>
+[data-testid="alert-detail"] .rl-drawer__title {
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 </style>

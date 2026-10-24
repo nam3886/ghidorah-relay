@@ -578,8 +578,8 @@ def alerts_planted(db):
 
 
 def groups(page):
-    """The rows of the alert group table (a plain table, as the canvas draws it)."""
-    return page.locator('section[aria-label="Alert groups"] tbody tr')
+    """The stored groups of the severity cards (the live conditions are rows of their own)."""
+    return page.get_by_test_id("alert-group")
 
 
 def group_row(page, text):
@@ -588,7 +588,7 @@ def group_row(page, text):
 
 def choose(page, label, option):
     """Choose an option of an Alerts filter (FilterSelect's field: a combobox, its list opened in the body)."""
-    field = page.locator('section[aria-label="Alert groups"]').get_by_role("combobox", name=label, exact=True)
+    field = page.get_by_test_id("alerts-toolbar").get_by_role("combobox", name=label, exact=True)
     field.click()
     page.get_by_role("option", name=option, exact=True).click()
     expect(field).to_contain_text(option)
@@ -605,7 +605,7 @@ def open_group(page, text):
 
 def close_detail(page):
     drawer = page.get_by_test_id("alert-detail")
-    drawer.get_by_role("button", name="Close").click()
+    drawer.get_by_role("button", name="Close · Esc").click()
     expect(drawer).to_be_hidden()
 
 
@@ -614,7 +614,7 @@ OVERLAP_WATCH_JS = """() => {
   window.__overlap = false;
   window.__jobOpened = false;
   new MutationObserver(() => {
-    const alert = document.querySelector('[data-testid="alert-detail"] .detail-drawer__body');
+    const alert = document.querySelector('[data-testid="alert-detail"] .rl-drawer__body');
     const job = document.querySelector('[data-testid="job-drawer"] .rl-drawer__body');
     if (job) window.__jobOpened = true;
     if (alert && job) window.__overlap = true;
@@ -625,12 +625,7 @@ OVERLAP_WATCH_JS = """() => {
 def alerts_page(page, db):
     keys = alerts_planted(db)
     open_tab(page, "Alerts")
-    # The layout of the viewport the test set: on a phone the groups are the phone list. Counting table rows there
-    # passed only while the page had not yet seen its new width (the table is drawn first, then the list replaces it).
-    if page.viewport_size["width"] < 768:
-        expect(page.locator('section[aria-label="Alert groups"] .p-group')).to_have_count(5)
-    else:
-        expect(groups(page)).to_have_count(5)
+    expect(groups(page)).to_have_count(5)
     return keys
 
 
@@ -639,8 +634,8 @@ def test_the_lists_the_live_condition_the_filters_and_the_one_customer_mark(app,
     alerts_planted(db)
     open_tab(page, "Alerts")
     expect(groups(page)).to_have_count(5)
-    expect(page.get_by_test_id("alerts-live")).to_contain_text("pool: ")
-    assert page.get_by_test_id("alerts-live").get_by_role("button").count() == 0, "nothing to acknowledge there"
+    expect(page.get_by_test_id("alert-live").filter(has_text="pool: ")).to_have_count(1)
+    assert page.get_by_test_id("alert-live").get_by_role("button").count() == 0, "nothing to acknowledge there"
     expect(page.get_by_test_id("alerts-more")).to_have_count(0)
     page.wait_for_timeout(300)                           # a script in the planted markup would have run by now
     hostile, plain = group_row(page, "which style?"), group_row(page, "plain wording")
@@ -787,7 +782,7 @@ def test_the_drawer_ignores_every_way_out_while_an_acknowledge_runs(app, app_ses
         page.wait_for_timeout(20)
     assert held, "the acknowledge was not sent"
     page.keyboard.press("Escape")
-    drawer.get_by_role("button", name="Close").click(force=True)    # inert (or natively disabled) while it writes
+    drawer.get_by_role("button", name="Close · Esc").click(force=True)  # inert (natively disabled) while it writes
     page.mouse.click(5, 300)                                            # the scrim
     page.wait_for_timeout(500)
     expect(drawer).to_be_visible()
@@ -801,14 +796,15 @@ def test_on_a_phone_the_filter_chips_sit_one_per_row_at_full_width(app, app_sess
     page = app_session
     page.set_viewport_size({"width": 390, "height": 844})
     alerts_page(page, db)
-    card = page.locator('section[aria-label="Alert groups"]')
+    bar = page.get_by_test_id("alerts-toolbar")
     chip = "xpath=ancestor::*[contains(@class, 'is-chip')][1]"
-    status = card.get_by_role("combobox", name="Status", exact=True).locator(chip)
-    kind = card.get_by_role("combobox", name="Kind", exact=True).locator(chip)
-    box, a, b = card.bounding_box(), status.bounding_box(), kind.bounding_box()
-    # 12 px of the toolbar's padding on each side of the card (1 px border)
+    status = bar.get_by_role("combobox", name="Status", exact=True).locator(chip)
+    kind = bar.get_by_role("combobox", name="Kind", exact=True).locator(chip)
+    box, a, b = bar.bounding_box(), status.bounding_box(), kind.bounding_box()
+    # each chip spans the toolbar, which spans the page's 358 px column
+    assert abs(box["width"] - 358) <= 1, box
     for each in (a, b):
-        assert abs(each["x"] - (box["x"] + 13)) <= 1 and abs(each["width"] - (box["width"] - 26)) <= 1, (each, box)
+        assert abs(each["x"] - box["x"]) <= 1 and abs(each["width"] - box["width"]) <= 1, (each, box)
     assert b["y"] >= a["y"] + a["height"], "the Kind chip is not under the Status chip"
     assert abs(b["x"] - a["x"]) <= 1
 

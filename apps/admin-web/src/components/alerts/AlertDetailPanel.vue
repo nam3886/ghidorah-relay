@@ -2,11 +2,8 @@
 import { computed } from "vue";
 import type { AlertDetail, BillingItem, UnclearItem } from "@/api/alerts";
 import { scopeName } from "@/components/keys/key-model";
-import LedgerList, { type LedgerItem } from "@/components/shared/LedgerList.vue";
+import ArrowScroller from "@/components/shared/ArrowScroller.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
-import { useBreakpoint } from "@/composables/use-breakpoint";
-import "@/components/logs/lane-controls.css";
-import "./alert-buttons.css";
 import {
   alertTime,
   groupFacts,
@@ -19,21 +16,20 @@ import {
   ROW_LIMIT,
 } from "./alerts-model";
 
-// The body of the open group's drawer: its facts, the rows of the group and, for an unclear wording, how the jobs
-// ended. The drawer owns the title, the severity chip and Acknowledge (its footer); a job asks the parent to open it.
-// The markup is the canvas's (B-, T-, P-Alerts): plain tables, as wide as their content; a list on a phone.
+// The body of the open group's drawer (AlertDetail.dc.html): the sentence, the reply as the provider sent it, the facts
+// as a two-column ledger, the rows of the group in a ruled box (an arrow scroller when it is wider than the drawer)
+// and the outcomes line. The drawer owns the title, the chips and Acknowledge; a job asks the parent to open it.
+// Every word of a reply, a title or a label is customer-influenced: shown as text only.
 const props = defineProps<{ detail: AlertDetail; writing: boolean }>();
 const emit = defineEmits<{ "open-job": [jobId: string] }>();
 
-// The drawer is 620 px wide at every width but a phone's, so every non-phone width draws the compact tables (the four
-// columns the tablet had); the seven- and eight-column tables would run off the drawer's right edge.
-const { isPhone } = useBreakpoint();
-const compact = computed(() => !isPhone.value);
 const unclear = computed(() => props.detail.kind === "unclear_reply");
 const unclearRows = computed(() => props.detail.items as UnclearItem[]);
 const billingRows = computed(() => props.detail.items as BillingItem[]);
-const facts = computed<LedgerItem[]>(() =>
-  groupFacts(props.detail).map((f) => ({ label: f.label, value: f.value, tone: f.tone, mono: true })),
+const facts = computed(() => groupFacts(props.detail));
+// the newest reply as stored, for the quote; the read failure has none
+const quote = computed(() =>
+  unclear.value && !isEmptyWording(props.detail) ? (props.detail.reply ?? "").trim() || props.detail.title : "",
 );
 
 const acked = (i: { acknowledged_ms: number | null; acknowledged_by: string | null }): string =>
@@ -46,62 +42,29 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
 </script>
 
 <template>
-  <!-- phone: the sheet's body -->
-  <div v-if="isPhone" id="alertDetail" class="ad-phone">
-    <LedgerList class="ad-phone__ledger" :items="facts" />
+  <div id="alertDetail" class="ad">
+    <p v-if="unclear" class="ad__sentence">{{ replyNote(detail.media) }}</p>
     <p v-if="oneCustomer(detail)" class="ad-note">{{ ONE_CUSTOMER_NOTE }}</p>
+
+    <figure v-if="quote" class="ad-quote">
+      <figcaption>The reply, as {{ detail.provider || "the provider" }} sent it</figcaption>
+      <blockquote>“{{ quote }}”</blockquote>
+    </figure>
     <p v-if="isEmptyWording(detail)" class="ad-failure" role="alert" data-testid="alert-read-failure">
       The provider's API gave no reply text, so there is no wording to read: this is an API read failure.
     </p>
-    <ul v-if="unclear" class="ad-phone__rows">
-      <li v-for="r in unclearRows" :key="r.id">
-        <span class="ad-phone__row1">
-          <span class="ad-time">{{ alertTime(r.at_ms) }}</span>
-          <StatusChip :status="outcomeStatus(r.job_status)" />
-        </span>
-        <button type="button" class="ad-job" :disabled="props.writing" @click="emit('open-job', r.job_id)">
-          {{ jobName(r) }}
-        </button>
-        <span v-if="r.job_error_code" class="ad-code">{{ r.job_error_code }}</span>
-        <span class="ad-muted"
-          ><span class="ad-acct">{{ account(r) }}</span> · {{ keyName(r)
-          }}<template v-if="r.acknowledged_ms !== null"> · {{ acked(r) }}</template></span
-        >
-      </li>
-    </ul>
-    <ul v-else class="ad-phone__rows">
-      <li v-for="r in billingRows" :key="r.id">
-        <span class="ad-phone__row1">
-          <span class="ad-time">{{ alertTime(r.at_ms) }}</span>
-          <StatusChip :status="r.alert" tone="bad" />
-        </span>
-        <span class="ad-muted">{{ scopeName(r.scope) }}</span>
-        <span class="ad-muted ad-mono"
-          >amount {{ r.amount }} · today {{ r.used_day }} · total {{ r.used_total
-          }}<template v-if="r.detail"> · {{ r.detail }}</template></span
-        >
-        <span v-if="r.acknowledged_ms !== null" class="ad-muted">{{ acked(r) }}</span>
-      </li>
-    </ul>
-    <p v-if="unclear && detail.outcomes" class="ad-foot" data-testid="alert-outcomes">{{ outcomesText(detail) }}</p>
-    <p v-if="detail.items.length >= ROW_LIMIT" class="ad-foot" data-testid="alert-detail-more">
-      Showing the newest {{ ROW_LIMIT }} rows; older rows are not listed.
-    </p>
-  </div>
 
-  <!-- desktop and tablet: the drawer is the same width on both -->
-  <div v-else id="alertDetail" class="ad" :class="{ 'is-compact': compact }">
-    <p v-if="unclear" class="ad__sentence">{{ replyNote(detail.media) }}</p>
-    <p v-if="oneCustomer(detail)" class="ad-note">{{ ONE_CUSTOMER_NOTE }}</p>
-    <LedgerList class="ad__panel" :items="facts" />
-    <p v-if="isEmptyWording(detail)" class="ad-failure ad-failure--card" role="alert" data-testid="alert-read-failure">
-      The provider's API gave no reply text, so there is no wording to read: this is an API read failure.
-    </p>
+    <dl class="ad-ledger">
+      <div v-for="f in facts" :key="f.label" class="ledger__row">
+        <dt>{{ f.label }}</dt>
+        <dd class="ledger__value mono num" :class="{ 'tone-warn': f.tone === 'warn' }">{{ f.value }}</dd>
+      </div>
+    </dl>
 
-    <!-- the reply rows -->
-    <template v-if="unclear">
-      <table class="ad__table">
-        <caption class="ad-caption">
+    <ArrowScroller class="ad-box" table label="Rows of this group">
+      <!-- the reply rows -->
+      <table v-if="unclear" class="ad__table">
+        <caption>
           Unclear-reply rows of this group
         </caption>
         <thead>
@@ -113,32 +76,36 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in unclearRows" :key="r.id" class="ad-row">
-            <td class="ad-seen">{{ alertTime(r.at_ms) }}</td>
+          <tr v-for="r in unclearRows" :key="r.id">
+            <td class="ad-seen mono num">{{ alertTime(r.at_ms) }}</td>
             <td class="ad-jobcell">
-              <button type="button" class="ad-job" :disabled="props.writing" @click="emit('open-job', r.job_id)">
+              <button
+                type="button"
+                class="ad-job"
+                :title="jobName(r)"
+                :disabled="props.writing"
+                @click="emit('open-job', r.job_id)"
+              >
                 {{ jobName(r) }}
               </button>
-              <span class="ad-jobid">{{ r.job_id.slice(0, 8) }}</span>
+              <span class="ad-jobid mono">{{ r.job_id.slice(0, 8) }}</span>
             </td>
             <td class="ad-outcome">
               <StatusChip :status="outcomeStatus(r.job_status)" />
-              <span v-if="r.job_error_code" class="ad-code">{{ r.job_error_code }}</span>
+              <span v-if="r.job_error_code" class="ad-code mono">{{ r.job_error_code }}</span>
             </td>
             <td class="ad-acctkey">
-              <span class="ad-acct">{{ account(r) }}</span>
+              <span class="ad-acct mono">{{ account(r) }}</span>
               <span class="ad-key">{{ keyName(r) }}</span>
-              <span v-if="r.acknowledged_ms !== null" class="ad-acked">{{ acked(r) }}</span>
+              <span v-if="r.acknowledged_ms !== null" class="ad-acked">acknowledged {{ acked(r) }}</span>
             </td>
           </tr>
         </tbody>
       </table>
-    </template>
 
-    <!-- the rows of a billing group (not drawn: the reply table's frame, with the billing list's facts) -->
-    <template v-else>
-      <table class="ad__table">
-        <caption class="ad-caption">
+      <!-- the rows of a billing group: the same box, with the wallet's numbers -->
+      <table v-else class="ad__table">
+        <caption>
           Rows of this group
         </caption>
         <thead>
@@ -150,24 +117,31 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in billingRows" :key="r.id" class="ad-row">
-            <td class="ad-seen">{{ alertTime(r.at_ms) }}</td>
+          <tr v-for="r in billingRows" :key="r.id">
+            <td class="ad-seen mono num">{{ alertTime(r.at_ms) }}</td>
             <td class="ad-outcome">
               <StatusChip :status="r.alert" tone="bad" />
-              <span v-if="r.detail" class="ad-code">{{ r.detail }}</span>
+              <span v-if="r.detail" class="ad-code mono">{{ r.detail }}</span>
             </td>
             <td class="ad-acctkey">
               <span class="ad-key">{{ scopeName(r.scope) }}</span>
-              <span class="ad-acct">amount {{ r.amount }} · today {{ r.used_day }} · total {{ r.used_total }}</span>
+              <span class="ad-acct mono num"
+                >amount {{ r.amount }} · today {{ r.used_day }} · total {{ r.used_total }}</span
+              >
             </td>
-            <td class="ad-ack">{{ r.acknowledged_ms === null ? "not yet" : acked(r) }}</td>
+            <td class="ad-ack">
+              <span v-if="r.acknowledged_ms === null" class="ad-faint">not yet</span>
+              <span v-else class="ad-acked">{{ acked(r) }}</span>
+            </td>
           </tr>
         </tbody>
       </table>
-    </template>
+    </ArrowScroller>
     <p v-if="!detail.items.length" class="ad-none">No rows</p>
 
-    <p v-if="unclear && detail.outcomes" class="ad__foot" data-testid="alert-outcomes">{{ outcomesText(detail) }}</p>
+    <p v-if="unclear && detail.outcomes" class="ad__foot num" data-testid="alert-outcomes">
+      {{ outcomesText(detail) }}
+    </p>
     <p v-if="detail.items.length >= ROW_LIMIT" class="ad__foot" data-testid="alert-detail-more">
       Showing the newest {{ ROW_LIMIT }} rows; older rows are not listed.
     </p>
@@ -175,73 +149,150 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
 </template>
 
 <style scoped>
-/* every value below is the canvas's own (B-, T-, P-Alerts; specs/alerts.md 4 to 6) */
 .ad {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 .ad__sentence {
   margin: 0;
-  color: var(--rl-muted);
+  font-size: 14px;
+  line-height: 21px;
+  color: var(--rl-body);
 }
-.ad .ad__panel {
-  flex: none;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 6px 40px;
+.ad-note,
+.ad__foot {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--rl-faint);
+}
+.ad-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin: 0;
   padding: 14px 16px;
+  border: 1px solid var(--rl-rule);
   border-radius: 12px;
-  background: var(--rl-raised);
+  background: var(--rl-head);
 }
-.ad-caption {
-  position: absolute;
-  left: -9999px;
+.ad-quote figcaption {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--rl-faint);
+}
+.ad-quote blockquote {
+  margin: 0;
+  font-size: 15px;
+  line-height: 23px;
+  overflow-wrap: anywhere;
+}
+.ad-failure {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--rl-bad-bg);
+  color: var(--rl-bad);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+/* the facts: two columns of rows ruled on the grid */
+.ad-ledger {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--rl-rule);
+  border-radius: 12px;
+}
+.ledger__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  margin: -1px 0 0 -1px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--rl-rule);
+  border-left: 1px solid var(--rl-rule);
+}
+.ledger__row dt {
+  flex: none;
+  font-size: 13px;
+  color: var(--rl-faint);
+}
+.ledger__value {
+  min-width: 0;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rl-fg);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.ledger__value.tone-warn {
+  color: var(--rl-warn);
+}
+@media (max-width: 767px) {
+  .ad-ledger {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* the rows: a ruled box, its caption on top */
+.ad-box {
+  border: 1px solid var(--rl-rule);
+  border-radius: 12px;
 }
 .ad__table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
+  min-width: 560px;
+  border-collapse: collapse;
+}
+.ad__table caption {
+  caption-side: top;
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
 }
 .ad__table thead tr {
   text-align: left;
   font-size: 12px;
-  color: var(--rl-muted);
+  color: var(--rl-faint);
+  background: var(--rl-head);
 }
 .ad__table th {
-  height: 38px;
-  padding: 0 12px;
-  background: var(--rl-raised);
-  font-weight: 500;
+  padding: 8px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 .ad__table th.is-first {
-  padding: 0 12px 0 16px;
+  padding-left: 14px;
 }
 .ad__table th.is-last {
-  padding: 0 16px 0 12px;
+  padding-right: 14px;
 }
-.ad__table th.is-right {
-  text-align: right;
+.ad__table tbody tr {
+  border-top: 1px solid var(--rl-rule);
+  vertical-align: top;
 }
 .ad__table td {
-  padding: 0 12px;
-  border-bottom: 1px solid var(--rl-line);
-}
-.ad-row:hover td {
-  background: var(--rl-raised);
+  padding: 10px 8px;
 }
 .ad__table .ad-seen {
-  height: 56px;
-  padding: 0 12px 0 16px;
-  font-family: var(--rl-mono);
+  padding-left: 14px;
   font-size: 12px;
-  color: var(--rl-muted);
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  color: var(--rl-muted);
 }
-.ad__table .ad-jobcell {
-  max-width: 260px;
-  padding: 8px 12px;
+.ad__table .ad-acctkey,
+.ad__table .ad-ack {
+  padding-right: 14px;
+}
+.ad-jobcell {
+  max-width: 200px;
 }
 .ad-job {
   display: block;
@@ -249,213 +300,59 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--rl-fg);
+  color: var(--rl-brand-ink);
   font: inherit;
-  font-weight: 500;
+  font-weight: 700;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
 }
-/* in dark the canvas's `.th-dark a` outranks `.title-link`: the link colour, primary on hover */
-html.dark .ad-job {
-  color: var(--rl-link);
-}
-html.dark .ad-job:hover {
-  color: var(--rl-primary);
-}
-.ad-job:hover {
-  color: var(--rl-primary);
+.ad-job:hover:not(:disabled) {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.ad-jobid {
-  font-family: var(--rl-mono);
-  font-size: 12px;
-  color: var(--rl-faint);
+.ad-job:disabled {
+  cursor: default;
 }
-.ad__table .ad-outcome {
-  padding: 6px 12px;
-  white-space: nowrap;
+.ad-jobid {
+  display: block;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--rl-faint);
 }
 .ad-code {
   display: block;
-  margin-top: 3px;
-  font-family: var(--rl-mono);
+  margin-top: 2px;
   font-size: 11px;
-  color: var(--rl-muted);
+  color: var(--rl-bad);
+  overflow-wrap: anywhere;
 }
-.ad__table .ad-acct {
-  font-family: var(--rl-mono);
+.ad-acct {
+  display: block;
   font-size: 12px;
 }
-.ad__table .ad-key {
-  font-size: 13px;
-  white-space: nowrap;
+.ad-key {
+  display: block;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--rl-faint);
 }
-.ad__table .ad-ack {
-  padding: 0 16px 0 12px;
-  font-size: 13px;
+.ad-acked {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--rl-ok);
+}
+.ad-faint {
+  font-size: 12px;
   color: var(--rl-faint);
 }
 .ad-none {
   margin: 0;
-  padding: 44px 16px 52px;
-  border-top: 1px solid var(--rl-line);
+  padding: 28px 16px;
   text-align: center;
-  color: var(--rl-muted);
-}
-.ad__foot {
-  margin: 0;
-  font-size: 13px;
-  color: var(--rl-muted);
-}
-.ad-note {
-  margin: 0;
-  font-size: 12px;
-  color: var(--rl-muted);
-}
-.ad-failure {
-  margin: 0;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--rl-bad-bg);
-  font-size: 13px;
-}
-
-/* tablet: a two-column panel, the four-column table top-aligned */
-.ad.is-compact .ad__panel {
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 32px;
-}
-.is-compact .ad__table {
-  border-top: 1px solid var(--rl-line);
-}
-.is-compact .ad__table th {
-  padding: 0 8px;
-}
-.is-compact .ad__table th.is-first {
-  padding: 0 8px 0 16px;
-}
-.is-compact .ad__table th.is-last {
-  padding: 0 16px 0 8px;
-}
-.is-compact .ad__table td {
-  vertical-align: top;
-}
-.is-compact .ad__table .ad-seen {
-  height: auto;
-  padding: 12px 8px 12px 16px;
-}
-.is-compact .ad__table .ad-jobcell {
-  max-width: none;
-  padding: 10px 8px;
-}
-.is-compact .ad-job {
-  white-space: normal;
-}
-.is-compact .ad__table .ad-outcome {
-  padding: 8px;
-  white-space: normal;
-}
-.is-compact .ad-code {
-  overflow-wrap: anywhere;
-}
-.is-compact .ad__table .ad-acctkey {
-  padding: 10px 16px 10px 8px;
-  white-space: nowrap;
-}
-.is-compact .ad-acctkey .ad-acct {
-  display: block;
-  font-family: var(--rl-mono);
-  font-size: 12px;
-}
-.is-compact .ad-acctkey .ad-key {
-  font-size: 13px;
-  color: var(--rl-muted);
-}
-.ad-acked {
-  display: block;
-  font-size: 13px;
-  color: var(--rl-faint);
-}
-.is-compact .ad__table .ad-ack {
-  padding: 10px 16px 10px 8px;
-}
-
-/* phone */
-.ad-phone {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.ad-phone .ad-phone__ledger {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--rl-raised);
-}
-.ad-phone__ledger :deep(.ledger__row) {
-  min-height: 22px;
-}
-.ad-phone .ad-failure {
-  margin: 0;
-}
-.ad-phone__rows {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border-top: 1px solid var(--rl-line);
-}
-.ad-phone__rows li {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--rl-line);
-}
-.ad-phone__row1 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.ad-time {
-  font-family: var(--rl-mono);
-  font-size: 12px;
-  color: var(--rl-muted);
-  font-variant-numeric: tabular-nums;
-}
-.ad-phone__rows .ad-job {
-  display: flex;
-  align-items: center;
-  max-width: none;
-  min-height: 44px;
-  white-space: normal;
-}
-.ad-phone__rows .ad-code {
-  margin-top: 0;
-}
-.ad-muted {
-  font-size: 13px;
-  color: var(--rl-muted);
-}
-.ad-mono {
-  font-family: var(--rl-mono);
-  font-size: 12px;
-}
-.ad-phone__rows .ad-acct {
-  font-family: var(--rl-mono);
-  font-size: 12px;
-  color: var(--rl-fg);
-}
-.ad-foot {
-  margin: 0;
-  font-size: 13px;
   color: var(--rl-muted);
 }
 </style>

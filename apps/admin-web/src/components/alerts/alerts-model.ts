@@ -98,6 +98,51 @@ export function alertTime(ms: number | null | undefined): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 
+// The three severity cards of the page (Alerts.dc.html): the server's `error` is Critical, `warning` a Warning, any other
+// word Info. Each card has its own word, tone and note.
+export type Severity = "error" | "warning" | "info";
+export const SEVERITIES: Severity[] = ["error", "warning", "info"];
+export const severityOf = (s: string): Severity => (s === "error" || s === "warning" ? s : "info");
+export const SEVERITY_CARD: Record<
+  Severity,
+  { label: string; word: string; tone: "bad" | "warn" | "info"; note: string }
+> = {
+  error: { label: "Critical", word: "Critical", tone: "bad", note: "Check now" },
+  warning: { label: "Warnings", word: "Warning", tone: "warn", note: "Look today" },
+  info: { label: "Info", word: "Info", tone: "info", note: "For the record" },
+};
+
+// The line under the title: `6 open: 2 critical, 3 warnings, 1 info.`, only the severities that have some.
+export function openSummary(n: Record<Severity, number>): string {
+  const total = n.error + n.warning + n.info;
+  if (!total) return "Nothing open.";
+  const parts = [
+    n.error ? `${n.error} critical` : "",
+    n.warning ? count(n.warning, "warning") : "",
+    n.info ? `${n.info} info` : "",
+  ].filter(Boolean);
+  return `${total} open: ${parts.join(", ")}.`;
+}
+
+// When a group was first seen, as the cards write it: `14:05 · 27 min ago` today, else the day and time.
+export function seenText(ms: number | null | undefined, now: number = Date.now()): string {
+  if (!ms) return "—";
+  const d = new Date(ms);
+  if (d.toDateString() !== new Date(now).toDateString()) return alertTime(ms);
+  const two = (x: number): string => String(x).padStart(2, "0");
+  const mins = Math.max(0, Math.floor((now - ms) / 60_000));
+  const ago = mins < 1 ? "just now" : mins < 60 ? `${mins} min ago` : `${Math.floor(mins / 60)} h ago`;
+  return `${two(d.getHours())}:${two(d.getMinutes())} · ${ago}`;
+}
+
+// The muted line under a group's title: its kind, how many of its rows are open and how many keys it touches.
+export function groupLine(g: Pick<AlertGroup, "kind" | "count" | "open_count" | "keys">): string {
+  return `${g.kind} · ${g.open_count} of ${count(g.count, "row")} open · ${count(g.keys, "key")}`;
+}
+
+// The drawer's Acknowledge says how many rows it marks: `Acknowledge 4 rows`.
+export const ackLabel = (open: number): string => `Acknowledge ${count(open, "row")}`;
+
 export interface GroupFact {
   label: string;
   value: string | number;

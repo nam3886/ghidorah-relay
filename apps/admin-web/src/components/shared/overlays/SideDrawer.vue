@@ -9,6 +9,8 @@ import { useBreakpoint } from "@/composables/use-breakpoint";
 // slot sits on the head fill under a rule. Element Plus keeps the focus inside and closes it on Escape and the scrim.
 // Opt-in: the `tabs` slot (a tab row at the foot of the head, on its rule: JobDetail), `sheet` (on a phone the drawer
 // is the whole screen with Back alone, JobDetailPhone) and `panelClass` (a class on the panel, for a page's own rules).
+// `busy` (a write is in flight): Back, Close, Escape and the scrim are all inert until it ends. `headingTestid` marks
+// the title for a test.
 const props = withDefaults(
   defineProps<{
     modelValue: boolean;
@@ -18,12 +20,30 @@ const props = withDefaults(
     testid?: string;
     sheet?: boolean;
     panelClass?: string;
+    busy?: boolean;
+    headingTestid?: string;
   }>(),
-  { mono: false, backLabel: "", testid: undefined, sheet: false, panelClass: "" },
+  {
+    mono: false,
+    backLabel: "",
+    testid: undefined,
+    sheet: false,
+    panelClass: "",
+    busy: false,
+    headingTestid: undefined,
+  },
 );
 const emit = defineEmits<{ "update:modelValue": [open: boolean]; back: []; closed: [] }>();
 const { isPhone, isTablet } = useBreakpoint();
-const close = (): void => emit("update:modelValue", false);
+const close = (): void => {
+  if (!props.busy) emit("update:modelValue", false);
+};
+const back = (): void => {
+  if (!props.busy) emit("back");
+};
+// Escape and the scrim: refused while busy, else the parent is told first and closes the drawer through its model, so
+// it has heard of the close before `closed` (Element Plus's own close emits `closed` before the model's update)
+const beforeClose = (): void => close();
 </script>
 
 <template>
@@ -37,6 +57,7 @@ const close = (): void => emit("update:modelValue", false);
     :data-testid="props.testid"
     destroy-on-close
     append-to-body
+    :before-close="beforeClose"
     @update:model-value="(open: boolean) => emit('update:modelValue', open)"
     @closed="emit('closed')"
   >
@@ -48,15 +69,19 @@ const close = (): void => emit("update:modelValue", false);
             icon="back"
             :label="props.backLabel"
             placement="bottom"
-            @click="emit('back')"
+            :disabled="props.busy"
+            @click="back"
           />
-          <h2 :id="titleId" class="rl-drawer__title" :class="{ mono: props.mono }">{{ props.title }}</h2>
+          <h2 :id="titleId" class="rl-drawer__title" :class="{ mono: props.mono }" :data-testid="props.headingTestid">
+            {{ props.title }}
+          </h2>
           <IconButton
             v-if="!(props.sheet && isPhone)"
             icon="close"
             label="Close"
             shortcut="Esc"
             placement="bottom-end"
+            :disabled="props.busy"
             @click="close"
           />
         </div>

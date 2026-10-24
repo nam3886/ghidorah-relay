@@ -15,7 +15,39 @@ import {
   outcomesText,
   outcomeStatus,
   replyNote,
+  ackLabel,
+  groupLine,
+  openSummary,
+  seenText,
+  severityOf,
 } from "@/components/alerts/alerts-model";
+
+describe("the severity cards", () => {
+  it("error is Critical, warning a Warning, any other word Info", () => {
+    expect(["error", "warning", "info", "notice"].map(severityOf)).toEqual(["error", "warning", "info", "info"]);
+  });
+
+  it("the summary counts what is open by severity, only the severities that have some", () => {
+    expect(openSummary({ error: 2, warning: 3, info: 1 })).toBe("6 open: 2 critical, 3 warnings, 1 info.");
+    expect(openSummary({ error: 0, warning: 1, info: 0 })).toBe("1 open: 1 warning.");
+    expect(openSummary({ error: 0, warning: 0, info: 0 })).toBe("Nothing open.");
+  });
+
+  it("a group's line says its kind, its open rows and its keys", () => {
+    expect(groupLine({ kind: "clamp", count: 3, open_count: 2, keys: 1 })).toBe("clamp · 2 of 3 rows open · 1 key");
+    expect(ackLabel(1)).toBe("Acknowledge 1 row");
+    expect(ackLabel(4)).toBe("Acknowledge 4 rows");
+  });
+
+  it("first seen today is the time and how long ago; another day is the day and the time", () => {
+    const now = new Date(2026, 9, 24, 14, 32).getTime();
+    expect(seenText(new Date(2026, 9, 24, 14, 5).getTime(), now)).toBe("14:05 · 27 min ago");
+    expect(seenText(new Date(2026, 9, 24, 11, 20).getTime(), now)).toBe("11:20 · 3 h ago");
+    expect(seenText(now, now)).toBe("14:32 · just now");
+    expect(seenText(new Date(2026, 9, 22, 9, 1).getTime(), now)).toBe("22 Oct 09:01");
+    expect(seenText(null, now)).toBe("—");
+  });
+});
 
 describe("the empty-wording group", () => {
   const empty = { kind: "unclear_reply", title: EMPTY_WORDING_TITLE, keys: 1 };
