@@ -83,7 +83,9 @@ def test_a_muted_stored_kind_stays_listed_with_its_end_and_an_ended_mute_shows_n
 @mutation(ALERTS, "    where = [NOT_OFF] + (", "    where = [] + (", expect="a kind turned off is still listed")
 @mutation(ALERTS, '        elif rule["enabled"]:', "        else:", expect="a live kind turned off is still listed")
 def test_a_kind_turned_off_leaves_the_list_and_the_stats_keeps_its_detail_and_comes_back_when_on(db):
-    k, clamp, _drift = plant(db)
+    k, _clamp, _drift = plant(db)
+    unclear = plant_unclear(db, k, "Odd reply")
+    group = alerts.build("fake", "Odd reply").group_id
 
     async def scenario(env):
         h = await env.admin_headers()
@@ -91,22 +93,22 @@ def test_a_kind_turned_off_leaves_the_list_and_the_stats_keeps_its_detail_and_co
         stats = lambda: env.client.get("/admin/stats", headers=h)  # noqa: E731
         groups = lambda: env.client.get("/admin/alerts/groups", headers=h)  # noqa: E731
         before = (await stats()).json()
-        await post("stored", "clamp", {"enabled": False})
+        await post("stored", "unclear_reply", {"enabled": False})
         await post("live", "accounts_low", {"enabled": False})
         off = (await groups()).json(), (await stats()).json()
-        detail = await env.client.get("/admin/alerts/groups/clamp/%s.*" % k, headers=h)
-        await post("stored", "clamp", {"enabled": True})
+        detail = await env.client.get("/admin/alerts/groups/unclear_reply/%s" % group, headers=h)
+        await post("stored", "unclear_reply", {"enabled": True})
         await post("live", "accounts_low", {"enabled": True})
         on = (await groups()).json(), (await stats()).json()
         return before, off, detail, on
 
     before, (off_groups, off_stats), detail, (on_groups, on_stats) = run_app(db, scenario)
     assert "accounts_low" in kinds_of(before["alerts"]) and before["muted_alerts"] == []
-    assert kinds_of(off_groups["items"]) == ["drift"], "a kind turned off is still listed"
+    assert kinds_of(off_groups["items"]) == ["clamp", "drift"], "a kind turned off is still listed"
     assert "accounts_low" not in kinds_of(off_stats["alerts"] + off_stats["muted_alerts"]), \
         "a live kind turned off is still listed"
-    assert detail.status_code == 200 and detail.json()["newest_id"] == clamp, "its rows are still read"
-    assert kinds_of(on_groups["items"]) == ["clamp", "drift"]
+    assert detail.status_code == 200 and detail.json()["newest_id"] == unclear, "its rows are still read"
+    assert kinds_of(on_groups["items"]) == ["clamp", "drift", "unclear_reply"]
     assert "accounts_low" in kinds_of(on_stats["alerts"])
 
 
@@ -132,21 +134,22 @@ def test_a_muted_live_kind_is_listed_apart_with_its_end_and_raised_again_once_th
 
 @mutation(ALERTS, "IS NULL THEN r.muted_until WHEN", "IS NULL THEN NULL WHEN",
           expect="turning a kind on keeps its mute")
-@mutation(ROUTES, "not 0 <= body.mute_minutes <= alerts.MAX_MUTE_MIN", "not 0 <= body.mute_minutes",
+@mutation(ROUTES, "not 0 <= body.mute_minutes <= alerts.max_mute(source, kind)", "not 0 <= body.mute_minutes",
           expect="a mute of more than a week")
 @mutation(ROUTES, "    if (source, kind) not in _RULE_KEYS:", "    if False:", expect="an unknown rule")
 def test_a_rule_change_names_a_known_kind_and_a_mute_from_0_to_a_week_and_keeps_what_it_does_not_name(db):
     async def scenario(env):
         h = await env.admin_headers()
         post = lambda s, kind, body: env.client.post(rule_url(s, kind), json=body, headers=h)  # noqa: E731
-        refused = [await post("live", "nope", {"enabled": False}), await post("other", "clamp", {"enabled": False}),
-                   await post("stored", "clamp", {}), await post("stored", "clamp", {"mute_minutes": -1}),
-                   await post("stored", "clamp", {"mute_minutes": 7 * 24 * 60 + 1}),
-                   await post("stored", "clamp", {"mute_minutes": "60"}), await post("stored", "clamp", {"x": 1})]
-        await post("stored", "clamp", {"mute_minutes": 60})
-        kept = (await post("stored", "clamp", {"enabled": True})).json()
-        week = (await post("stored", "clamp", {"mute_minutes": 7 * 24 * 60})).json()
-        off = (await post("stored", "clamp", {"enabled": False, "mute_minutes": 0})).json()
+        u = "unclear_reply"
+        refused = [await post("live", "nope", {"enabled": False}), await post("other", u, {"enabled": False}),
+                   await post("stored", u, {}), await post("stored", u, {"mute_minutes": -1}),
+                   await post("stored", u, {"mute_minutes": 7 * 24 * 60 + 1}),
+                   await post("stored", u, {"mute_minutes": "60"}), await post("stored", u, {"x": 1})]
+        await post("stored", "unclear_reply", {"mute_minutes": 60})
+        kept = (await post("stored", "unclear_reply", {"enabled": True})).json()
+        week = (await post("stored", "unclear_reply", {"mute_minutes": 7 * 24 * 60})).json()
+        off = (await post("stored", "unclear_reply", {"enabled": False, "mute_minutes": 0})).json()
         return refused, kept, week, off
 
     refused, kept, week, off = run_app(db, scenario)
@@ -156,6 +159,49 @@ def test_a_rule_change_names_a_known_kind_and_a_mute_from_0_to_a_week_and_keeps_
     assert kept["muted_until_ms"] is not None, "turning a kind on keeps its mute"
     assert week["muted_until_ms"] > time.time() * 1000 + 6 * 24 * HOUR_MS
     assert (off["enabled"], off["muted_until_ms"]) == (False, None)
+
+
+MONEY_OFF = '    if body.enabled is False and alerts.is_money(source, kind):'
+MONEY_DAY = "MONEY_MUTE_MAX_MIN if is_money(source, kind) else MAX_MUTE_MIN"
+
+
+@mutation(ROUTES, MONEY_OFF, "    if False:", expect="a money alert can never be turned off")
+@mutation(ALERTS, MONEY_DAY, "MAX_MUTE_MIN", expect="a money alert is muted a day at most")
+@mutation(ALERTS, "AND r.kind NOT IN ('clamp', 'drift'))", ")", expect="a money row that says off is still listed")
+@mutation(ALERTS, 'return source == "stored" and kind in BILLING_KINDS', "return False",
+          expect="a money alert can never be turned off")
+def test_a_money_alert_is_never_off_is_muted_a_day_at_most_and_stays_listed_with_its_mute(db):
+    k, clamp, drift = plant(db)
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        post = lambda s, kind, body: env.client.post(rule_url(s, kind), json=body, headers=h)  # noqa: E731
+        refused = [await post("stored", "clamp", {"enabled": False}),
+                   await post("stored", "drift", {"enabled": False, "mute_minutes": 60}),
+                   await post("stored", "clamp", {"mute_minutes": 24 * 60 + 1})]
+        day = await post("stored", "clamp", {"mute_minutes": 24 * 60})
+        on = await post("stored", "drift", {"enabled": True})
+        listed = (await env.client.get("/admin/alerts/groups", headers=h)).json()
+        rules = (await env.client.get("/admin/alerts/rules", headers=h)).json()
+        # a row that says off (planted past the route) never takes a money kind off the list
+        db.run("UPDATE alert_rules SET enabled = false WHERE kind = 'drift'")
+        planted = (await env.client.get("/admin/alerts/groups", headers=h)).json()
+        return refused, day, on, listed, rules, planted
+
+    refused, day, on, listed, rules, planted = run_app(db, scenario)
+    assert [(r.status_code, r.json().get("error", {}).get("param")) for r in refused[:2]] == \
+        [(400, "enabled")] * 2, "a money alert can never be turned off"
+    assert refused[2].status_code == 400, "a money alert is muted a day at most"
+    assert day.status_code == 200 and day.json()["muted_until_ms"] < time.time() * 1000 + 25 * HOUR_MS
+    assert on.status_code == 200 and on.json()["enabled"] is True
+    by = {i["kind"]: i for i in listed["items"]}
+    assert by["clamp"]["newest_id"] == clamp and by["clamp"]["muted_until_ms"] == day.json()["muted_until_ms"], \
+        "a muted money alert stays listed with its end"
+    assert by["drift"]["newest_id"] == drift and by["drift"]["muted_until_ms"] is None
+    money = {(i["source"], i["kind"]): (i["money"], i["max_mute_minutes"]) for i in rules["items"]}
+    assert money[("stored", "clamp")] == money[("stored", "drift")] == (True, 24 * 60)
+    assert money[("stored", "unclear_reply")] == (False, 7 * 24 * 60) and money[("live", "drift")][0] is False
+    assert kinds_of(planted["items"]) == ["clamp", "drift"], "a money row that says off is still listed"
 
 
 @mutation(ALERTS, "('clamp', 'drift') AND acknowledged_at >= %(start)s", "('clamp', 'drift') AND acknowledged_at "

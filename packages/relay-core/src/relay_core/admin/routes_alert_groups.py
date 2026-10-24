@@ -145,12 +145,15 @@ async def resolved(pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
 @router.get("/alerts/rules")
 async def list_rules(pool: AsyncConnectionPool = Depends(get_pool), settings: Settings = Depends(get_settings),
                      registry: ProviderRegistry = Depends(get_registry)) -> dict:
-    """Every kind the relay raises with its threshold, whether it is on and the end of its mute (null when none)."""
+    """Every kind the relay raises with its threshold, whether it is on and the end of its mute (null when none).
+    `money` marks a money-integrity kind: it cannot be turned off and `max_mute_minutes` is a day."""
     async with tx(pool) as conn:
         rows = await alerts.rule_rows(conn)
     unset = {"enabled": True, "muted_until_ms": None, "updated_by": None, "updated_ms": None}
     return {"items": [{"source": r.source, "kind": r.kind, "severity": r.severity, "text": r.text, "fixed": r.fixed,
-                       "thresholds": _thresholds(r, settings, registry), **rows.get((r.source, r.kind), unset)}
+                       "thresholds": _thresholds(r, settings, registry), "money": alerts.is_money(r.source, r.kind),
+                       "max_mute_minutes": alerts.max_mute(r.source, r.kind),
+                       **rows.get((r.source, r.kind), unset)}
                       for r in RULES]}
 
 
@@ -161,7 +164,9 @@ async def change_rule(source: str, kind: str, body: RuleChange, request: Request
         raise ApiError("resource.not_found", "rule")
     if body.enabled is None and body.mute_minutes is None:
         raise ApiError("input.invalid", "enabled")
-    if body.mute_minutes is not None and not 0 <= body.mute_minutes <= alerts.MAX_MUTE_MIN:
+    if body.enabled is False and alerts.is_money(source, kind):
+        raise ApiError("input.invalid", "enabled")         # a money-integrity alert is never off, only muted a while
+    if body.mute_minutes is not None and not 0 <= body.mute_minutes <= alerts.max_mute(source, kind):
         raise ApiError("input.invalid", "mute_minutes")
     async with tx(pool) as conn:
         await alerts.set_rule(conn, source, kind, request.state.admin_user.username, enabled=body.enabled,

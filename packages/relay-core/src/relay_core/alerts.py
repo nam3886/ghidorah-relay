@@ -254,7 +254,10 @@ def kinds(sources=None) -> tuple[str, ...]:
 MUTED = ("(SELECT r.muted_until FROM alert_rules r WHERE r.source = 'stored' AND r.kind = g.kind "
          "AND r.muted_until > clock_timestamp()) AS muted_until")
 # A stored kind the admin turned off is left out of the list (its rows stay; the detail still reads them).
-NOT_OFF = "kind NOT IN (SELECT r.kind FROM alert_rules r WHERE r.source = 'stored' AND NOT r.enabled)"
+# The money-integrity kinds (`BILLING_KINDS`) are never off, whatever a row says: the route refuses it and this filter
+# ignores a row that holds it anyway.
+NOT_OFF = ("kind NOT IN (SELECT r.kind FROM alert_rules r WHERE r.source = 'stored' AND NOT r.enabled "
+           "AND r.kind NOT IN ('clamp', 'drift'))")
 
 
 def _groups_sql(where: str, sources) -> str:
@@ -442,6 +445,16 @@ async def resolved_today(conn, limit: int) -> dict:
 
 # ---- the rules: the admin's switch and mute per kind (`alert_rules`, 0023) ---------------------------------------
 MAX_MUTE_MIN = 7 * 24 * 60
+MONEY_MUTE_MAX_MIN = 24 * 60
+
+
+def is_money(source: str, kind: str) -> bool:
+    """A money-integrity kind (a clamp or a wallet drift of the ledger): muted for a day at most, never off."""
+    return source == "stored" and kind in BILLING_KINDS
+
+
+def max_mute(source: str, kind: str) -> int:
+    return MONEY_MUTE_MAX_MIN if is_money(source, kind) else MAX_MUTE_MIN
 
 
 async def rule_rows(conn) -> dict[tuple[str, str], dict]:
@@ -475,7 +488,7 @@ def apply_live(live: list[dict], rules: dict[tuple[str, str], dict]) -> tuple[li
     """The live conditions split by the rules: (raised, muted). A kind turned off is dropped; a muted one goes to the
     second list with its `muted_until_ms`."""
     raised, muted = [], []
-    for alert in live:
+    for alert in live:                       # no live kind is a money one: the wallet drift is stored
         rule = rules.get(("live", alert["kind"]))
         if rule is None or (rule["enabled"] and rule["muted_until_ms"] is None):
             raised.append(alert)

@@ -42,7 +42,7 @@ NOT_SHOWN = {
              "admin.routes_jobs.MAX_OFFSET", "admin.routes_logs.MAX_QUERY", "admin.routes_logs.MAX_MS",
              "admin.routes_alert_groups.RESOLVED_LIMIT"),
     **excuse("the longest mute the admin may set on an alert kind: an input bound of the Alert rules, it changes "
-             "nothing a job or a customer does", "alerts.MAX_MUTE_MIN"),
+             "nothing a job or a customer does", "alerts.MAX_MUTE_MIN", "alerts.MONEY_MUTE_MAX_MIN"),
     **excuse("a text trim or a capture size for display and diagnostics, not a limit on what a customer can do",
              "admin.routes_jobs.TITLE_LIMIT", "admin.routes_jobs.DEBUG_READ_MAX", "alerts.REPLY_LIMIT",
              "alerts.TITLE_LIMIT", "alerts.GROUP_LEN", "alerts.ECHO_FLOOR", "api.errors_http.MAX_PARAM",
